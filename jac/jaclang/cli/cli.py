@@ -109,6 +109,7 @@ def run(
     session: str = "",
     main: bool = True,
     cache: bool = True,
+    gins: bool = False,
 ) -> None:
     """Run the specified .jac file.
 
@@ -129,6 +130,8 @@ def run(
     # if no session specified, check if it was defined when starting the command shell
     # otherwise default to jaclang.session
     base, mod, mach = proc_file_sess(filename, session)
+    if gins:
+        Jac.attach_gins(mach=mach)
 
     if filename.endswith(".jac"):
         try:
