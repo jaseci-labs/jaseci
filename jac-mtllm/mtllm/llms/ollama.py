@@ -67,6 +67,26 @@ class Ollama(BaseLLM):
             self.download_model(model)
         model_params = {k: v for k, v in kwargs.items() if k not in ["model_name"]}
         messages = [{"role": "user", "content": meaning_in}]
+
+        if model_params.get("manual_api"):
+
+            # Copy to clipboard ----------------
+            import pyperclip
+            pyperclip.copy(meaning_in)
+            # ----------------------------------
+
+            print("")
+            print("*** Manual API Mode:")
+            print("*** 1. Paste whatever in your clipboard in ChatGPT")
+            print("*** 2. Copy the result to clipboard")
+            input("*** 3 Press Enter to continue")
+
+            # Read from clipboard: --------------
+            output = pyperclip.paste().strip()
+            # ----------------------------------
+
+            return output
+
         output = self.client.chat(
             model=model,
             messages=messages,

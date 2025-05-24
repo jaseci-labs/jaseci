@@ -288,7 +288,9 @@ class JacMachine:
                 if isinstance(node.signature, uni.FuncSignature)
                 else []
             )
-            action = _pass.sync(ast3.Constant(value=node.name_ref.sym_name))
+            # Use the ability name as action, and if docstring exists, append it
+            docstr =  ((node.doc and node.doc.lit_value) or "") if isinstance(node, uni.AstDocNode) else ""
+            action = _pass.sync(ast3.Constant(value=f"{docstr.strip()} ({node.name_ref.sym_name})\n"))
             return [
                 _pass.sync(
                     ast3.Return(

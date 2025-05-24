@@ -27,6 +27,12 @@ class SemInfo:
         self.type = type_str
         self.semstr = semstr
 
+        if hasattr(node, "doc") and getattr(node, "doc"):
+            self.docstr = getattr(node, "doc").value.strip('"\'')
+        else:
+            self.docstr = ""
+        self.semstr = semstr or self.docstr
+
     def __repr__(self) -> str:
         """Return the string representation of the class."""
         return f"{self.semstr} ({self.type}) ({self.name})"
@@ -71,8 +77,8 @@ class SemScope:
         scope_list = scope_str.split(".")
         parent = None
         for scope in scope_list:
-            scope_name, scope_type = scope.split("(")
-            scope_type = scope_type[:-1]
+            start, end = scope.find("("), -1
+            scope_name, scope_type = scope[:start], scope[start+1:end]
             parent = SemScope(scope_name, scope_type, parent)
         return parent
 
@@ -92,12 +98,36 @@ class SemScope:
 
 
 class SemRegistry:
-    """Registry class."""
+    """Registry class for semantic information."""
 
     def __init__(self, program_head: uni.ProgramModule, by_scope: SemScope) -> None:
-        """Initialize the class."""
+        """Initialize the registry with the program head and current scope."""
         self.program_head: uni.ProgramModule = program_head
         self.by_scope: SemScope = by_scope
+
+    def _find_node_datatype(self, node: uni.UniNode) -> str | None:
+        """Find the data type of the node."""
+        if isinstance(node, uni.AstTypedVarNode) and node.type_tag:
+            type_expr = node.type_tag.tag.unparse()
+            return type_expr
+        if isinstance(node, uni.Archetype):
+            return str(node.sym_category)
+        if isinstance(node, uni.Ability) and isinstance(node.signature, uni.FuncSignature):
+            ret = "function("
+            params = []
+            if node.signature.params:
+                for param in node.signature.params.items:
+                    params.append(
+                        param.name.value + ":" + (self._find_node_datatype(param) or "Any")
+                    )
+            ret += ", ".join(params)
+            return_str = "Any"
+            if isinstance(node.signature, uni.FuncSignature) and node.signature.return_type:
+                return_str = self._find_node_datatype(node.signature.return_type) or "Any"
+            ret += ") -> " + return_str
+            return ret
+        return None
+
 
     def lookup(
         self,
@@ -105,99 +135,153 @@ class SemRegistry:
         name: Optional[str] = None,
         _type: Optional[str] = None,
     ) -> tuple[Optional[SemScope], Optional[SemInfo | list[SemInfo]]]:
-        """Lookup semantic information in the registry."""
+        """
+        Lookup semantic information in the registry.
+        - If 'scope' is provided, look up by scope.
+        - If 'name' is provided, look up by name.
+        - If '_type' is provided, filter by type.
+        Returns (SemScope, SemInfo or list[SemInfo]) or (None, None) if not found.
+        """
         mods = self.program_head.hub
-        #find the relavent symbol table
-        # for mod_name, m in mods.items():
-        #     if mod_name in str(self.by_scope) :
-        #         mod = m
-        #         break
-        # symbol_table = mod.find_scope(self.by_scope.scope).get_parent()
-        # print(f"SymbolTable: {symbol_table}")
-        mod = mods[list(mods.keys())[0]]
-        if not mod:
-            raise ValueError("Module not found in the registry.")
-        scope_obj = mod.find_scope(self.by_scope.scope)
-        if not scope_obj:
-            raise ValueError("Scope not found in the registry.")
+        mod = None
+        scope_obj = None
+        # Find the relevant module and scope object
+        for m in mods.values():
+            candidate_scope = scope.scope if scope else self.by_scope.scope
+            found_scope = m.find_scope(candidate_scope)
+            if found_scope:
+                mod = m
+                scope_obj = found_scope
+                break
+        if not mod or not scope_obj:
+            return None, None  # Module or scope not found
+
         symbol_table = scope_obj.get_parent()
-        # print(f"SymbolTable: {symbol_table}")
+        if not symbol_table:
+            return None, None  # Symbol table not found
 
+        # Lookup by scope
         if scope:
-            print(f"Looking up scope: {scope}")
-            symbol = symbol_table.lookup(scope.scope) if symbol_table else None
-            # print(f"Symbol: {symbol}")
-        else:
-            if name:
-                print(f"Looking up name: {name}")
-                symbol = symbol_table.lookup(name) if symbol_table else None
-            # else: not sure how to fetch only using the type of a symbol needs more digging of this use
+            symbol = symbol_table.lookup(scope.scope)
+            if not symbol:
+                return None, None
+            # Get the AST node for semantic scope information
+            decl_node = symbol.decl.name_of
+            if not isinstance(decl_node, uni.UniNode):
+                return None, None
 
-        node = symbol.parent_tab if symbol else None
-        print(f"Node: {node}")
-        sem_info = []
-        if isinstance(node, uni.UniNode):
-            # print(f"Symbol: {symbol}")
-            sem_scope = get_sem_scope(node)
-            # print(f"Symbol: {symbol.get_type()}")
-            # print(f"Symbol List: {node.names_in_scope}")
-            for k, v in node.names_in_scope.items():
-                sem_info.append(
-                    SemInfo(
-                        v.parent_tab,
-                        v.sym_name,
-                        str(v.parent_tab.get_type()), # this should report the expected type of the symbol (int, str ...)
-                        "",
+            # Get the semantic scope that contains this node, not the node's own scope
+            if decl_node.parent:
+                sem_scope = get_sem_scope(decl_node.parent)
+            else:
+                sem_scope = get_sem_scope(decl_node)
+
+            # Get the symbol table that contains the symbol's members
+            scope_node = symbol.fetch_sym_tab
+            if scope_node is None:
+                # Try to find the scope node by name
+                scope_node = symbol.parent_tab.find_scope(symbol.sym_name)
+                if not scope_node or not hasattr(scope_node, 'names_in_scope'):
+                    # If we can't find the proper scope, fall back to original behavior
+                    scope_node = symbol.parent_tab
+
+            # Create SemInfo objects for all symbols in the scope
+            sem_info_list = []
+
+            for sym in scope_node.names_in_scope.values():
+                node_of_sym = sym.decl.name_of
+                node_type = self._find_node_datatype(node_of_sym) or "Any"
+                if not _type or node_type == _type:
+                    sem_info_list.append(
+                        SemInfo(
+                            node_of_sym,
+                            sym.sym_name,
+                            node_type,
+                            "",
+                        )
                     )
-                )
-        else:
-            raise ValueError("Node not found in the registry.")
+            return sem_scope, sem_info_list
 
-        print(f"SemInfo: {sem_info}")
-        print(f"SemScope: {sem_scope}")
+        # Lookup by name
+        if name:
+            symbol = symbol_table.lookup(name)
+            if not symbol:
+                return None, None
+            node = symbol.decl.name_of
+            node_type = self._find_node_datatype(node) or "Any"
+            if not isinstance(node, uni.UniNode):
+                return None, None
 
-        # previous code
-        # if scope:
-        #     for k, v in self.registry.items():
-        #         if str(k) == str(scope):
-        #             if name:
-        #                 for i in v:
-        #                     if i.name == name:
-        #                         return k, i
-        #             elif type:
-        #                 for i in v:
-        #                     if i.type == type:
-        #                         return k, i
-        #             else:
-        #                 return k, v
-        # else:
-        #     for k, v in self.registry.items():
-        #         if name:
-        #             for i in v:
-        #                 if i.name == name:
-        #                     return k, i
-        #         elif type:
-        #             for i in v:
-        #                 if i.type == type:
-        #                     return k, i
-        return sem_scope, sem_info
+            # Get the containing scope, not the symbol's own scope
+            if node.parent:
+                sem_scope = get_sem_scope(node.parent)
+            else:
+                # If the node has no parent, use the node itself (likely a module)
+                sem_scope = get_sem_scope(node)
 
-    # @property
-    # def module_scope(self) -> SemScope:
-    #     """Get the module scope."""
-    #     for i in self.registry.keys():
-    #         if not i.parent:
-    #             break
-    #     return i
+            sem_info = SemInfo(node, name, node_type, "")
+            if _type and sem_info.type != _type:
+                return None, None
+            return sem_scope, sem_info
 
-    # def pp(self) -> str:
-    #     """Pretty print the registry."""
-    #     ret_str = ""
-    #     for k, v in self.registry.items():
-    #         ret_str += f"{k}\n"
-    #         for i in v:
-    #             ret_str += f"  {i.name} {i.type} {i.semstr}\n"
-    #     return ret_str
+        # Lookup by type only (return all matching symbols in the table)
+        if _type:
+            sem_info_list = []
+            # We'll store the parent scope - this should be the same for all symbols in this table
+            sem_scope = None
+            
+            # First, determine the containing scope from the symbol_table's parent
+            if symbol_table.parent_scope:
+                parent_node = symbol_table.parent_scope
+                # If the parent_scope is a valid node, get its scope
+                if isinstance(parent_node, uni.UniNode):
+                    sem_scope = get_sem_scope(parent_node)
+
+            for sym in symbol_table.names_in_scope.values():
+                parent_scope = sym.parent_tab
+                node_of_sym = sym.decl.name_of
+                node_type = self._find_node_datatype(node_of_sym) or "Any"
+                if isinstance(parent_scope, uni.UniNode) and str(parent_scope.get_type()) == _type:
+                    # If we couldn't get the scope from the parent, use the declaration node as fallback
+                    if not sem_scope:
+                        decl_node = sym.decl.name_of
+                        if isinstance(decl_node, uni.UniNode):
+                            # Get the parent's scope, not the symbol's own scope
+                            if decl_node.parent:
+                                sem_scope = get_sem_scope(decl_node.parent)
+                            else:
+                                sem_scope = get_sem_scope(decl_node)
+                    sem_info_list.append(SemInfo(node_of_sym, sym.sym_name, node_type, ""))
+
+            if sem_info_list:
+                return sem_scope, sem_info_list
+            else:
+                return None, None
+
+        return None, None
+
+    @property
+    def module_scope(self) -> SemScope:
+        """Get the module scope."""
+        scope = self.by_scope
+        while scope.parent:
+            scope = scope.parent
+        return scope
+
+    def pp(self) -> str:
+        """Pretty print the registry."""
+        ret_str = f"Scope: {self.by_scope}\n"
+        mods = self.program_head.hub
+        for m in mods.values():
+            scope_obj = m.find_scope(self.by_scope.scope)
+            if scope_obj:
+                symbol_table = scope_obj.get_parent()
+                if symbol_table and hasattr(symbol_table, "names_in_scope"):
+                    for v in symbol_table.names_in_scope.values():
+                        node = v.parent_tab
+                        ret_str += f"  {v.sym_name} {str(node.get_type()) if hasattr(node, 'get_type') else ''}\n"
+        return ret_str
+
 
 def get_sem_scope(node: uni.UniNode) -> SemScope:
     """Get scope of the node."""

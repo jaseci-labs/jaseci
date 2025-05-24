@@ -874,7 +874,16 @@ class PyastGenPass(UniPass):
         # to Avoid circular import
         from jaclang.runtimelib.machine import JacMachineInterface
 
-        return JacMachineInterface.gen_llm_body(self, node)
+        body: list[ast3.AST] = JacMachineInterface.gen_llm_body(self, node)
+        if node.doc:
+            body.insert(
+                0,
+                self.sync(
+                    ast3.Expr(value=cast(ast3.expr, node.doc.gen.py_ast[0])),
+                    jac_node=node.doc,
+                )
+            )
+        return body
 
     def exit_ability(self, node: uni.Ability) -> None:
         func_type = ast3.AsyncFunctionDef if node.is_async else ast3.FunctionDef

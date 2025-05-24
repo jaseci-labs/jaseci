@@ -2,8 +2,9 @@ import from mtllm.llms {Ollama}
 
 glob llm = Ollama(host="http://127.0.0.1:11434", model_name="llama3.2:1b");
 
-can 'Summarize latest trends, major events, and notable interactions from the recent tweets in one line.'
-summarise_tweets(tweets: list[str]) -> 'Summarisation': str by llm();
+"""Summarize latest trends, major events, and notable interactions from the recent tweets in one line."""
+def summarise_tweets(tweets: list[str]) -> str
+    by llm();
 
 
 walker get_summary {
@@ -18,8 +19,15 @@ walker get_summary {
         ,"Anyone else binge-watching classic films lately? What's a must-see that everyone should experience? "
         ,"Reading is my escape. What's a book that changed your perspective on life? "
         ,"I love discovering indie films! What's an underrated gem you'd recommend? "];
-        report (summarise_tweets(Tweets));
+        print (summarise_tweets(Tweets));
     }
 }
 
+"""Answer a question based on the provided qusetion parameter."""
+def answer_question(question: str) -> str
+    by llm(incl_info=(question));
 
+with entry {
+    # get_summary() spawn root;
+    print(answer_question("what's 2 + 2"));
+}

@@ -105,7 +105,7 @@ class TypeExplanation:
             _, type_info = mod_registry.lookup(scope=sem_info_scope)
             type_info_types = []
             type_example_list = []
-            type_example: str
+            type_example: str = ""
             if sem_info.type == "Enum" and isinstance(type_info, list):
                 for enum_item in type_info:
                     (
@@ -116,11 +116,11 @@ class TypeExplanation:
                         )
                     )
                 type_example = ", ".join(type_example_list)
-            elif sem_info.type in ["obj", "class", "node", "edge"] and isinstance(
+            elif sem_info.type in ["object", "class", "node", "edge", "walker"] and isinstance(
                 type_info, list
             ):
                 for arch_item in type_info:
-                    if arch_item.type in ["obj", "class", "node", "edge"]:
+                    if arch_item.type in ["object", "class", "node", "edge", "walker"]:
                         continue
                     type_example_list.append(
                         f'{arch_item.name}="{arch_item.semstr}":{arch_item.type}'
@@ -283,7 +283,10 @@ class Tool:
 
     def __str__(self) -> str:
         """String representation of the tool."""
-        return f"{self.sem_info.semstr} ({self.sem_info.name}) usage eg. {self.get_usage_example()}"
+        tool_str  = f"tool_name={self.sem_info.name}\n"
+        tool_str += f"tool_description={self.sem_info.semstr.strip()}\n"
+        tool_str += f"usage_example={self.get_usage_example()}\n"
+        return tool_str
 
 
 class ReActOutput:
