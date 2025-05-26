@@ -3519,27 +3519,1364 @@ Next, we'll dive into the revolutionary Data Spatial Programming features that m
 
 ## Part III: Data Spatial Programming Fundamentals
 
-### Chapter 6: Introduction to Data Spatial Concepts
-- **6.1 The Paradigm Shift**
-  - Traditional: Moving data to functions
-  - Data Spatial: Moving computation to data
-  - Real-world analogies and use cases
-- **6.2 Core Archetypes**
-  - Nodes: Data locations with computation
-  - Edges: First-class relationships
-  - Walkers: Mobile computational entities
-  - How they extend traditional OOP
+# Chapter 6: Introduction to Data Spatial Concepts
 
-### Chapter 7: Building Your First Graph
-- **7.1 Creating Nodes and Edges**
-  - Node declaration and instantiation
-  - Connecting nodes with edges
-  - Edge types and properties
-  - Graph construction patterns
-- **7.2 Basic Graph Operations**
-  - Navigating with edge references (`[-->]`, `[<--]`)
-  - Filtering edges and nodes
-  - Type-safe graph operations
+Welcome to the heart of what makes Jac revolutionary. In this chapter, we'll explore Data Spatial Programming (DSP), a paradigm that fundamentally changes how we think about and structure computation. If you've ever felt that traditional programming models don't naturally express the interconnected, graph-like nature of modern applications, you're about to discover a better way.
+
+## 6.1 The Paradigm Shift
+
+### Traditional: Moving Data to Functions
+
+In traditional programming, we've always moved data to computation. This model is so ingrained that we rarely question it:
+
+```python
+# Traditional Python - Data moves to functions
+def calculate_social_influence(user_data, follower_data, post_data):
+    influence_score = len(follower_data) * 0.3
+    engagement_rate = sum(p['likes'] for p in post_data) / len(post_data)
+    return influence_score + engagement_rate * 0.7
+
+# Gather all data first
+user = load_user(user_id)
+followers = load_followers(user_id)  # Potentially huge dataset
+posts = load_posts(user_id)        # More data movement
+
+# Then pass to function
+score = calculate_social_influence(user, followers, posts)
+```
+
+This approach has fundamental limitations:
+
+1. **Data Movement Overhead**: We load entire datasets into memory
+2. **Loss of Context**: Functions don't know where data came from
+3. **Artificial Separation**: Data and its processing logic are disconnected
+4. **Poor Locality**: Related data may be scattered across memory
+
+```mermaid
+graph LR
+    subgraph "Traditional Model: Data → Computation"
+        DB[(Database)]
+        MEM[Memory/<br/>Data Structures]
+        F1[Function 1]
+        F2[Function 2]
+        F3[Function 3]
+        R[Result]
+
+        DB -->|Load| MEM
+        MEM -->|Pass| F1
+        F1 -->|Return| MEM
+        MEM -->|Pass| F2
+        F2 -->|Return| MEM
+        MEM -->|Pass| F3
+        F3 -->|Return| R
+    end
+
+    style DB fill:#e3f2fd
+    style MEM fill:#fff3e0
+    style F1 fill:#e8f5e9
+    style F2 fill:#e8f5e9
+    style F3 fill:#e8f5e9
+```
+
+### Data Spatial: Moving Computation to Data
+
+Data Spatial Programming inverts this relationship. Instead of bringing data to functions, we send computation to where data lives:
+
+```jac
+// Jac - Computation moves to data
+walker CalculateInfluence {
+    has influence_score: float = 0.0;
+    has engagement_total: float = 0.0;
+    has post_count: int = 0;
+
+    can calculate with User entry {
+        // Computation happens AT the user node
+        self.influence_score = len([<--:Follows:]) * 0.3;
+
+        // Visit posts without loading them all
+        visit [-->:Authored:];
+    }
+
+    can calculate with Post entry {
+        // Computation happens AT each post
+        self.engagement_total += here.likes;
+        self.post_count += 1;
+    }
+
+    can finalize with User exit {
+        // Back at user node to finalize
+        if self.post_count > 0 {
+            engagement_rate = self.engagement_total / self.post_count;
+            self.influence_score += engagement_rate * 0.7;
+        }
+        report self.influence_score;
+    }
+}
+```
+
+```mermaid
+graph TB
+    subgraph "Data Spatial Model: Computation → Data"
+        U[User Node<br/>≪data≫]
+        P1[Post 1<br/>≪data≫]
+        P2[Post 2<br/>≪data≫]
+        P3[Post 3<br/>≪data≫]
+        F1[Follower<br/>≪data≫]
+        F2[Follower<br/>≪data≫]
+
+        W[Walker<br/>≪computation≫]
+
+        U -->|Authored| P1
+        U -->|Authored| P2
+        U -->|Authored| P3
+        F1 -->|Follows| U
+        F2 -->|Follows| U
+
+        W -.->|visits| U
+        W -.->|visits| P1
+        W -.->|visits| P2
+        W -.->|visits| P3
+
+        style U fill:#e1f5fe
+        style P1 fill:#fff3e0
+        style P2 fill:#fff3e0
+        style P3 fill:#fff3e0
+        style F1 fill:#e8f5e9
+        style F2 fill:#e8f5e9
+        style W fill:#ff9999,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
+    end
+```
+
+### Real-World Analogies and Use Cases
+
+The Data Spatial paradigm mirrors how we naturally think about many real-world scenarios:
+
+#### 1. **The Inspector Analogy**
+Imagine a quality inspector in a factory:
+- Traditional: Bring all products to the inspector's office
+- Data Spatial: Inspector walks through the factory, examining products where they are
+
+```jac
+walker QualityInspector {
+    has defects_found: list = [];
+
+    can inspect with ProductionLine entry {
+        print(f"Inspecting line: {here.name}");
+        visit [-->:Contains:];  // Walk to products on this line
+    }
+
+    can inspect with Product entry {
+        if here.quality_score < 0.95 {
+            self.defects_found.append({
+                "product": here.id,
+                "score": here.quality_score,
+                "line": here[<--:Contains:][0].name
+            });
+        }
+    }
+}
+```
+
+#### 2. **The Social Network**
+People don't physically move to a central location to interact:
+
+```jac
+walker ViralContentTracker {
+    has content: Post;
+    has reach: int = 0;
+    has depth: int = 0;
+    has max_depth: int = 3;
+
+    can track with User entry {
+        self.reach += 1;
+
+        if self.depth < self.max_depth {
+            // Content spreads through network
+            self.depth += 1;
+            visit [-->:Follows:] where (
+                ?interested_in(here, self.content.topic)
+            );
+            self.depth -= 1;
+        }
+    }
+}
+```
+
+#### 3. **The Delivery System**
+Packages move through a network of locations:
+
+```jac
+walker PackageDelivery {
+    has package_id: str;
+    has destination: Location;
+    has route: list = [];
+
+    can deliver with Location entry {
+        self.route.append(here);
+
+        if here == self.destination {
+            here.receive_package(self.package_id);
+            report "Delivered!";
+            disengage;
+        }
+
+        // Find next hop
+        next_hop = here.get_next_hop(self.destination);
+        if next_hop {
+            visit next_hop;
+        } else {
+            report "No route found!";
+            disengage;
+        }
+    }
+}
+```
+
+### Benefits of the Paradigm Shift
+
+#### 1. **Natural Problem Modeling**
+Many problems are inherently graph-like:
+- Social networks
+- Transportation systems
+- Organizational hierarchies
+- Biological systems
+- Computer networks
+- Supply chains
+
+#### 2. **Improved Locality**
+Computation happens where data lives:
+```jac
+// Traditional: Load all data
+recommendations = []
+for user in all_users:  # Load millions of users
+    for friend in user.friends:  # Load all friends
+        for post in friend.posts:  # Load all posts
+            if matches_interests(user, post):
+                recommendations.append(post)
+
+// Data Spatial: Process in place
+walker RecommendationEngine {
+    has user_interests: list;
+    has recommendations: list = [];
+
+    can find with User entry {
+        self.user_interests = here.interests;
+        visit [-->:Follows:];  # Only visit friends
+    }
+
+    can find with User entry via Follows {
+        // At friend node, check recent posts
+        for post in [-->:Authored:][0:10] {  # Only recent posts
+            if self.matches_interests(post) {
+                self.recommendations.append(post);
+            }
+        }
+    }
+}
+```
+
+#### 3. **Distributed-Ready**
+The paradigm naturally extends across machines:
+
+```mermaid
+graph TB
+    subgraph "Machine A"
+        UA[User A]
+        P1[Posts]
+        UA --> P1
+    end
+
+    subgraph "Machine B"
+        UB[User B]
+        P2[Posts]
+        UB --> P2
+    end
+
+    subgraph "Machine C"
+        UC[User C]
+        P3[Posts]
+        UC --> P3
+    end
+
+    W[Walker<br/>≪crosses machines≫]
+
+    UA -.->|Follows| UB
+    UB -.->|Follows| UC
+
+    W -.->|visits| UA
+    W -.->|visits| UB
+    W -.->|visits| UC
+
+    style W fill:#ff9999,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
+```
+
+## 6.2 Core Archetypes
+
+### Nodes: Data Locations with Computation
+
+Nodes are the fundamental data containers in DSP, but unlike traditional objects, they're aware of their position in the topology and can respond to visitors:
+
+```jac
+node UserProfile {
+    has username: str;
+    has bio: str;
+    has joined_date: str;
+    has reputation: int = 0;
+
+    // Node ability - triggered by walker visits
+    can update_reputation with ReputationCalculator entry {
+        old_rep = self.reputation;
+        self.reputation = visitor.calculate_for(self);
+
+        if self.reputation > old_rep {
+            print(f"{self.username} gained {self.reputation - old_rep} reputation!");
+        }
+    }
+
+    // Nodes can have regular methods too
+    can get_account_age() -> int {
+        import:py from datetime import datetime;
+        joined = datetime.fromisoformat(self.joined_date);
+        return (datetime.now() - joined).days;
+    }
+}
+```
+
+Key characteristics of nodes:
+1. **Persistent by Connection**: Connect to `root` for automatic persistence
+2. **Location-Aware**: Know their connections and position
+3. **Reactive**: Respond to walker visits with abilities
+4. **Stateful**: Maintain data between visits
+
+### Edges: First-Class Relationships
+
+Edges aren't just connections—they're full objects with behavior:
+
+```jac
+edge Friendship {
+    has since: str;
+    has strength: float = 1.0;
+    has interaction_count: int = 0;
+
+    // Edges can have abilities too!
+    can strengthen with SocialInteraction entry {
+        self.interaction_count += 1;
+        self.strength = min(10.0, self.strength * 1.1);
+
+        print(f"Friendship strengthened to {self.strength:.1f}");
+    }
+
+    // Regular methods
+    can get_duration_days() -> int {
+        import:py from datetime import datetime;
+        start = datetime.fromisoformat(self.since);
+        return (datetime.now() - start).days;
+    }
+}
+
+edge Follows {
+    has notifications: bool = true;
+    has categories: list[str] = [];
+
+    can should_notify(post_category: str) -> bool {
+        return self.notifications and (
+            not self.categories or
+            post_category in self.categories
+        );
+    }
+}
+```
+
+Why edges as first-class objects matter:
+1. **Rich Relationships**: Model complex relationship properties
+2. **Relationship Evolution**: Relationships can change over time
+3. **Traversal Control**: Filter traversals based on edge properties
+4. **Behavioral Relationships**: Edges can have their own logic
+
+### Walkers: Mobile Computational Entities
+
+Walkers are the "programs" of DSP—they move through the graph executing computation:
+
+```jac
+walker DataAggregator {
+    // Walker state - travels with the walker
+    has totals: dict = {};
+    has visit_count: int = 0;
+    has max_depth: int = 3;
+    has current_depth: int = 0;
+
+    // Entry ability for Department nodes
+    can aggregate with Department entry {
+        dept_name = here.name;
+        dept_total = here.budget;
+
+        // Aggregate sub-departments
+        if self.current_depth < self.max_depth {
+            self.current_depth += 1;
+            visit [-->:Contains:];
+            self.current_depth -= 1;
+        }
+
+        // Store results
+        if dept_name not in self.totals {
+            self.totals[dept_name] = 0;
+        }
+        self.totals[dept_name] += dept_total;
+        self.visit_count += 1;
+    }
+
+    // Exit ability - cleanup or final processing
+    can summarize with Department exit {
+        if self.current_depth == 0 {  // Back at starting node
+            print(f"Visited {self.visit_count} departments");
+            print(f"Totals: {self.totals}");
+        }
+    }
+}
+```
+
+Walker characteristics:
+1. **Stateful**: Carry data as they traverse
+2. **Reactive**: Different behavior for different node/edge types
+3. **Autonomous**: Make traversal decisions based on discoveries
+4. **Composable**: Multiple walkers can work together
+
+### How They Extend Traditional OOP
+
+Traditional OOP gives us encapsulation and inheritance. DSP adds:
+
+1. **Topology**: Objects know their relationships
+2. **Mobility**: Computation can move between objects
+3. **Reactivity**: Objects respond to computational visitors
+4. **Distribution**: Natural support for distributed systems
+
+```mermaid
+graph TD
+    subgraph "Traditional OOP"
+        O1[Object]
+        O2[Object]
+        O3[Object]
+        M1[method()]
+        M2[method()]
+        M3[method()]
+
+        O1 --> M1
+        O2 --> M2
+        O3 --> M3
+    end
+
+    subgraph "Data Spatial"
+        N1[Node]
+        N2[Node]
+        N3[Node]
+        E1[Edge]
+        E2[Edge]
+        W[Walker]
+
+        N1 ---|E1| N2
+        N2 ---|E2| N3
+        W -.->|visits| N1
+        W -.->|visits| N2
+        W -.->|visits| N3
+    end
+
+    style O1 fill:#e3f2fd
+    style O2 fill:#e3f2fd
+    style O3 fill:#e3f2fd
+    style N1 fill:#e8f5e9
+    style N2 fill:#e8f5e9
+    style N3 fill:#e8f5e9
+    style E1 fill:#fff3e0
+    style E2 fill:#fff3e0
+    style W fill:#ff9999
+```
+
+### Complete Example: Task Management System
+
+Let's see all archetypes working together:
+
+```jac
+// Nodes represent data locations
+node Project {
+    has name: str;
+    has deadline: str;
+    has status: str = "active";
+
+    can update_status with StatusUpdater entry {
+        old_status = self.status;
+        self.status = visitor.new_status;
+        print(f"Project {self.name}: {old_status} → {self.status}");
+    }
+}
+
+node Task {
+    has title: str;
+    has completed: bool = false;
+    has estimated_hours: float;
+    has actual_hours: float = 0.0;
+
+    can mark_complete with TaskCompleter entry {
+        self.completed = true;
+        self.actual_hours = visitor.hours_spent;
+        visitor.tasks_completed += 1;
+    }
+}
+
+node Developer {
+    has name: str;
+    has skills: list[str];
+    has capacity: float = 40.0;  // hours per week
+}
+
+// Edges represent relationships
+edge Contains {
+    has created_at: str;
+}
+
+edge AssignedTo {
+    has assigned_date: str;
+    has priority: int = 5;
+
+    can is_overdue() -> bool {
+        // Check if task is overdue based on project deadline
+        task = self.target;
+        project = task[<--:Contains:][0];
+        return not task.completed and now() > project.deadline;
+    }
+}
+
+// Walkers perform computations
+walker ProjectAnalyzer {
+    has total_tasks: int = 0;
+    has completed_tasks: int = 0;
+    has total_hours: float = 0.0;
+    has overdue_tasks: list = [];
+
+    can analyze with Project entry {
+        print(f"Analyzing project: {here.name}");
+        visit [-->:Contains:];
+    }
+
+    can analyze with Task entry {
+        self.total_tasks += 1;
+
+        if here.completed {
+            self.completed_tasks += 1;
+            self.total_hours += here.actual_hours;
+        }
+
+        // Check assignments
+        for assignment in [-->:AssignedTo:] {
+            if assignment.is_overdue() {
+                self.overdue_tasks.append({
+                    "task": here.title,
+                    "developer": assignment.target.name
+                });
+            }
+        }
+    }
+
+    can report with Project exit {
+        completion_rate = (self.completed_tasks / self.total_tasks * 100)
+                         if self.total_tasks > 0 else 0;
+
+        report {
+            "project": here.name,
+            "total_tasks": self.total_tasks,
+            "completed": self.completed_tasks,
+            "completion_rate": f"{completion_rate:.1f}%",
+            "total_hours": self.total_hours,
+            "overdue": self.overdue_tasks
+        };
+    }
+}
+
+// Using it all together
+with entry {
+    // Create project structure
+    web_project = Project(
+        name="Website Redesign",
+        deadline="2024-12-31"
+    );
+    root ++> web_project;
+
+    // Add tasks
+    task1 = web_project ++>:Contains:++> Task(
+        title="Design Homepage",
+        estimated_hours=20
+    );
+
+    task2 = web_project ++>:Contains:++> Task(
+        title="Implement Backend",
+        estimated_hours=40
+    );
+
+    // Assign to developers
+    alice = root ++> Developer(
+        name="Alice",
+        skills=["design", "frontend"]
+    );
+
+    bob = root ++> Developer(
+        name="Bob",
+        skills=["backend", "database"]
+    );
+
+    task1 ++>:AssignedTo(priority=8):++> alice;
+    task2 ++>:AssignedTo(priority=9):++> bob;
+
+    // Analyze the project
+    analyzer = ProjectAnalyzer();
+    result = analyzer spawn web_project;
+    print(result);
+}
+```
+
+### Why This Matters
+
+The Data Spatial approach provides:
+
+1. **Natural Modeling**: The code structure mirrors the problem domain
+2. **Separation of Concerns**: Data (nodes), relationships (edges), and algorithms (walkers) are clearly separated
+3. **Reusability**: Walkers can traverse any compatible graph structure
+4. **Scalability**: The same code works for 10 nodes or 10 million
+5. **Maintainability**: Changes to structure don't break algorithms
+
+In the next chapters, we'll dive deeper into building and traversing these graph structures, exploring the full power of Data Spatial Programming.
+
+## Summary
+
+In this chapter, we've introduced the revolutionary concepts of Data Spatial Programming:
+
+- **The Paradigm Shift**: From moving data to computation → moving computation to data
+- **Nodes**: Data locations that can react to visitors
+- **Edges**: First-class relationships with properties and behavior
+- **Walkers**: Mobile computational entities that traverse and process
+
+This isn't just a new syntax—it's a fundamentally different way of thinking about program structure that aligns with how we naturally model interconnected systems. Next, we'll get hands-on with building your first graph structures in Jac.
+
+# Chapter 7: Building Your First Graph
+
+Now that you understand the conceptual foundations of Data Spatial Programming, let's get hands-on and build real graph structures. In this chapter, you'll learn how to create nodes and edges, connect them into meaningful topologies, and perform basic graph operations that form the foundation of DSP applications.
+
+## 7.1 Creating Nodes and Edges
+
+### Node Declaration and Instantiation
+
+Let's start with the basics of creating nodes. Unlike traditional objects, nodes are designed to exist within a graph topology:
+
+```jac
+// Simple node declaration
+node Person {
+    has name: str;
+    has email: str;
+    has age: int;
+}
+
+// Creating node instances
+with entry {
+    // Standalone node (not persistent)
+    let alice = Person(
+        name="Alice Johnson",
+        email="alice@example.com",
+        age=28
+    );
+
+    // Connected to root (persistent)
+    let bob = root ++> Person(
+        name="Bob Smith",
+        email="bob@example.com",
+        age=32
+    );
+
+    // Alternative: create then connect
+    let charlie = Person(
+        name="Charlie Brown",
+        email="charlie@example.com",
+        age=25
+    );
+    root ++> charlie;  // Now persistent
+}
+```
+
+### Understanding Node Persistence
+
+```mermaid
+graph TD
+    R[root<br/>≪persistent≫]
+    A[Alice<br/>≪temporary≫]
+    B[Bob<br/>≪persistent≫]
+    C[Charlie<br/>≪persistent≫]
+
+    R --> B
+    R --> C
+
+    style R fill:#4caf50,color:white
+    style A fill:#ffcdd2
+    style B fill:#c8e6c9
+    style C fill:#c8e6c9
+```
+
+Nodes connected to `root` (directly or indirectly) persist between program runs:
+
+```jac
+// First run - create data
+with entry {
+    print("Creating user profiles...");
+
+    let user1 = root ++> Person(
+        name="User One",
+        email="user1@example.com",
+        age=30
+    );
+}
+
+// Second run - data still exists!
+with entry {
+    let users = root[-->:Person:];
+    print(f"Found {len(users)} existing users");
+
+    for user in users {
+        print(f"- {user.name} ({user.email})");
+    }
+}
+```
+
+### Connecting Nodes with Edges
+
+Edges represent relationships between nodes. They can be simple connections or rich objects with properties:
+
+```jac
+// Simple edge creation
+node City {
+    has name: str;
+    has population: int;
+    has country: str;
+}
+
+with entry {
+    let nyc = root ++> City(
+        name="New York",
+        population=8_336_000,
+        country="USA"
+    );
+
+    let london = root ++> City(
+        name="London",
+        population=9_002_000,
+        country="UK"
+    );
+
+    // Simple connection (unnamed edge)
+    nyc ++> london;  // NYC connects to London
+}
+```
+
+### Edge Types and Properties
+
+Edges can have types and properties, making relationships first-class citizens:
+
+```jac
+// Typed edge with properties
+edge Flight {
+    has airline: str;
+    has flight_number: str;
+    has departure_time: str;
+    has duration_hours: float;
+    has price: float;
+
+    can is_red_eye() -> bool {
+        hour = int(self.departure_time.split(":")[0]);
+        return hour >= 22 or hour <= 5;
+    }
+}
+
+with entry {
+    let lax = root ++> City(name="Los Angeles", population=4_000_000, country="USA");
+    let jfk = root ++> City(name="New York", population=8_336_000, country="USA");
+
+    // Create typed edge with properties
+    lax ++>:Flight(
+        airline="United",
+        flight_number="UA123",
+        departure_time="23:45",
+        duration_hours=5.5,
+        price=450.00
+    ):++> jfk;
+
+    // Another flight
+    jfk ++>:Flight(
+        airline="JetBlue",
+        flight_number="B6456",
+        departure_time="06:30",
+        duration_hours=6.0,
+        price=380.00
+    ):++> lax;
+}
+```
+
+### Graph Construction Patterns
+
+Let's build a more complex example - a social network:
+
+```jac
+// Node types for social network
+node User {
+    has username: str;
+    has full_name: str;
+    has bio: str = "";
+    has joined_date: str;
+    has verified: bool = false;
+}
+
+node Post {
+    has content: str;
+    has created_at: str;
+    has likes: int = 0;
+    has views: int = 0;
+}
+
+node Comment {
+    has text: str;
+    has created_at: str;
+    has edited: bool = false;
+}
+
+// Edge types
+edge Follows {
+    has since: str;
+    has notifications: bool = true;
+}
+
+edge Authored {
+    has device: str = "unknown";
+}
+
+edge Likes {
+    has timestamp: str;
+}
+
+edge CommentedOn {
+    has timestamp: str;
+}
+
+// Build the social network
+with entry {
+    import:py from datetime import datetime;
+
+    // Create users
+    let alice = root ++> User(
+        username="alice_dev",
+        full_name="Alice Johnson",
+        bio="Software engineer and coffee enthusiast",
+        joined_date="2024-01-15",
+        verified=true
+    );
+
+    let bob = root ++> User(
+        username="bob_designer",
+        full_name="Bob Smith",
+        bio="UI/UX Designer | Digital Artist",
+        joined_date="2024-02-20"
+    );
+
+    let charlie = root ++> User(
+        username="charlie_data",
+        full_name="Charlie Brown",
+        bio="Data Scientist | ML Enthusiast",
+        joined_date="2024-03-10"
+    );
+
+    // Create follow relationships
+    alice ++>:Follows(since="2024-02-21"):++> bob;
+    bob ++>:Follows(since="2024-02-22", notifications=false):++> alice;
+    charlie ++>:Follows(since="2024-03-11"):++> alice;
+    charlie ++>:Follows(since="2024-03-12"):++> bob;
+
+    // Alice creates a post
+    let post1 = alice ++>:Authored(device="mobile"):++> Post(
+        content="Just discovered Jac's Data Spatial Programming! 🚀",
+        created_at=datetime.now().isoformat(),
+        views=150
+    );
+
+    // Bob likes and comments
+    bob ++>:Likes(timestamp=datetime.now().isoformat()):++> post1;
+    post1.likes += 1;
+
+    let comment1 = bob ++>:Authored:++> Comment(
+        text="This looks amazing! Can't wait to try it out.",
+        created_at=datetime.now().isoformat()
+    );
+    comment1 ++>:CommentedOn(timestamp=datetime.now().isoformat()):++> post1;
+
+    // Charlie also interacts
+    charlie ++>:Likes(timestamp=datetime.now().isoformat()):++> post1;
+    post1.likes += 1;
+
+    print("Social network created successfully!");
+}
+```
+
+### Visualizing the Graph Structure
+
+```mermaid
+graph LR
+    subgraph Users
+        A[alice_dev<br/>≪User≫]
+        B[bob_designer<br/>≪User≫]
+        C[charlie_data<br/>≪User≫]
+    end
+
+    subgraph Content
+        P1[Post: Jac Discovery<br/>≪Post≫]
+        CM1[Comment<br/>≪Comment≫]
+    end
+
+    A -->|Follows| B
+    B -->|Follows| A
+    C -->|Follows| A
+    C -->|Follows| B
+
+    A -->|Authored| P1
+    B -->|Authored| CM1
+    B -->|Likes| P1
+    C -->|Likes| P1
+    CM1 -->|CommentedOn| P1
+
+    style A fill:#e3f2fd
+    style B fill:#e3f2fd
+    style C fill:#e3f2fd
+    style P1 fill:#fff3e0
+    style CM1 fill:#f3e5f5
+```
+
+## 7.2 Basic Graph Operations
+
+### Navigating with Edge References (`[-->]`, `[<--]`)
+
+Jac provides intuitive syntax for graph navigation:
+
+```jac
+walker SocialAnalyzer {
+    can analyze with User entry {
+        // Get all outgoing edges (who this user follows)
+        let following = [-->];
+        print(f"{here.username} follows {len(following)} users");
+
+        // Get all incoming edges (who follows this user)
+        let followers = [<--];
+        print(f"{here.username} has {len(followers)} followers");
+
+        // Get specific edge types
+        let follow_edges = [-->:Follows:];
+        let authored_content = [-->:Authored:];
+
+        print(f"  - Following: {len(follow_edges)}");
+        print(f"  - Posts/Comments: {len(authored_content)}");
+
+        // Navigate to connected nodes
+        let followed_users = [-->:Follows:-->];
+        for user in followed_users {
+            print(f"  → {user.username}");
+        }
+    }
+}
+
+with entry {
+    // Spawn analyzer on each user
+    for user in root[-->:User:] {
+        spawn SocialAnalyzer() on user;
+        print("---");
+    }
+}
+```
+
+### Edge Reference Syntax Patterns
+
+```jac
+// Basic navigation patterns
+let outgoing = [-->];           // All outgoing edges
+let incoming = [<--];           // All incoming edges
+let bidirectional = [<-->];     // All edges (in or out)
+
+// Typed navigation
+let follows_out = [-->:Follows:];              // Outgoing Follows edges
+let follows_in = [<--:Follows:];               // Incoming Follows edges
+let all_follows = [<-->:Follows:];             // All Follows edges
+
+// Navigate to nodes through edges
+let following = [-->:Follows:-->];             // Nodes I follow
+let followers = [<--:Follows:-->];             // Nodes following me
+let friends = [<-->:Follows:-->];              // All connected via Follows
+
+// Multi-hop navigation
+let friends_of_friends = [-->:Follows:-->:Follows:-->];
+
+// Navigate to specific node types
+let my_posts = [-->:Authored:-->:Post:];       // Only Post nodes
+let my_comments = [-->:Authored:-->:Comment:]; // Only Comment nodes
+```
+
+### Filtering Edges and Nodes
+
+Jac provides powerful filtering capabilities:
+
+```jac
+walker ContentFilter {
+    can find_popular with User entry {
+        // Filter by edge properties
+        let recent_follows = [-->:Follows:(?.since > "2024-01-01"):];
+
+        // Filter by node properties
+        let popular_posts = [-->:Authored:-->:Post:(?.likes > 10):];
+
+        // Complex filters
+        let verified_followers = [<--:Follows:-->:User:(?.verified == true):];
+
+        // Filter with null safety (?)
+        let active_users = [-->:Follows:-->:User:(?len(.bio) > 0):];
+
+        print(f"User {here.username}:");
+        print(f"  Recent follows: {len(recent_follows)}");
+        print(f"  Popular posts: {len(popular_posts)}");
+        print(f"  Verified followers: {len(verified_followers)}");
+    }
+}
+```
+
+### Type-Safe Graph Operations
+
+```jac
+// Define specific node types
+node Admin(User) {
+    has permissions: list[str] = ["read", "write", "delete"];
+}
+
+node RegularUser(User) {
+    has subscription: str = "free";
+}
+
+walker TypedNavigator {
+    can navigate with entry {
+        // Get only Admin nodes
+        let admins = [-->`Admin];
+
+        // Get only RegularUser nodes
+        let regular_users = [-->`RegularUser];
+
+        // Type-specific operations
+        for admin in admins {
+            print(f"Admin {admin.username} has permissions: {admin.permissions}");
+        }
+
+        // Combined type and property filtering
+        let premium_users = [-->`RegularUser:(?.subscription == "premium"):];
+    }
+}
+```
+
+### Graph Modification Operations
+
+```jac
+walker GraphModifier {
+    has new_connections: int = 0;
+    has removed_connections: int = 0;
+
+    can modify with User entry {
+        // Add new connections
+        let potential_friends = self.find_potential_friends(here);
+
+        for friend in potential_friends {
+            if not self.already_connected(here, friend) {
+                here ++>:Follows(since=now()):++> friend;
+                self.new_connections += 1;
+            }
+        }
+
+        // Remove old connections
+        let old_follows = [-->:Follows:(?.since < "2023-01-01"):];
+        for edge in old_follows {
+            del edge;  // Remove the edge
+            self.removed_connections += 1;
+        }
+    }
+
+    can already_connected(user1: User, user2: User) -> bool {
+        let connections = user1[-->:Follows:-->];
+        return user2 in connections;
+    }
+
+    can find_potential_friends(user: User) -> list[User] {
+        // Friends of friends who aren't already connected
+        let friends = user[-->:Follows:-->];
+        let potential = [];
+
+        for friend in friends {
+            let fof = friend[-->:Follows:-->];
+            for candidate in fof {
+                if candidate != user and not self.already_connected(user, candidate) {
+                    potential.append(candidate);
+                }
+            }
+        }
+
+        return potential[0:5];  // Limit to 5 suggestions
+    }
+}
+```
+
+### Advanced Navigation Patterns
+
+```jac
+// Breadth-first search pattern
+walker BreadthFirstSearch {
+    has target_username: str;
+    has visited: set = {};
+    has found: bool = false;
+    has path: list = [];
+
+    can search with User entry {
+        if here.username == self.target_username {
+            self.found = true;
+            self.path.append(here.username);
+            report self.path;
+            disengage;
+        }
+
+        if here in self.visited {
+            skip;  // Already visited this node
+        }
+
+        self.visited.add(here);
+        self.path.append(here.username);
+
+        // Visit all connected users
+        visit [-->:Follows:-->];
+
+        // Backtrack if not found
+        self.path.pop();
+    }
+}
+
+// Depth-limited search
+walker DepthLimitedExplorer {
+    has max_depth: int = 3;
+    has current_depth: int = 0;
+    has discovered: list = [];
+
+    can explore with User entry {
+        if self.current_depth >= self.max_depth {
+            return;  // Don't go deeper
+        }
+
+        self.discovered.append({
+            "user": here.username,
+            "depth": self.current_depth
+        });
+
+        // Go deeper
+        self.current_depth += 1;
+        visit [-->:Follows:-->];
+        self.current_depth -= 1;
+    }
+}
+```
+
+### Graph Metrics and Analysis
+
+```jac
+walker GraphMetrics {
+    has node_count: int = 0;
+    has edge_count: int = 0;
+    has node_types: dict = {};
+    has edge_types: dict = {};
+
+    can analyze with entry {
+        // Count all nodes
+        let all_nodes = [-->*];  // * means all reachable
+        self.node_count = len(all_nodes);
+
+        // Count by type
+        for node in all_nodes {
+            node_type = type(node).__name__;
+            if node_type not in self.node_types {
+                self.node_types[node_type] = 0;
+            }
+            self.node_types[node_type] += 1;
+
+            // Count edges from this node
+            for edge in node[-->] {
+                edge_type = type(edge).__name__;
+                if edge_type not in self.edge_types {
+                    self.edge_types[edge_type] = 0;
+                }
+                self.edge_types[edge_type] += 1;
+                self.edge_count += 1;
+            }
+        }
+
+        report {
+            "total_nodes": self.node_count,
+            "total_edges": self.edge_count,
+            "node_types": self.node_types,
+            "edge_types": self.edge_types
+        };
+    }
+}
+```
+
+### Practical Example: Building a Recommendation System
+
+Let's combine everything to build a simple recommendation system:
+
+```jac
+node Movie {
+    has title: str;
+    has genre: str;
+    has year: int;
+    has rating: float;
+}
+
+edge Watched {
+    has rating: int;  // User's rating (1-5)
+    has date: str;
+}
+
+edge Similar {
+    has similarity_score: float;
+}
+
+walker MovieRecommender {
+    has user_profile: dict = {};
+    has recommendations: list = [];
+    has visited_movies: set = {};
+
+    can analyze with User entry {
+        print(f"Building recommendations for {here.username}...");
+
+        // Analyze user's watching history
+        let watched_movies = [-->:Watched:-->:Movie:];
+
+        for movie in watched_movies {
+            if movie.genre not in self.user_profile {
+                self.user_profile[movie.genre] = {"count": 0, "avg_rating": 0.0};
+            }
+
+            let edge = here[-->:Watched:][0];  // Get the edge
+            self.user_profile[movie.genre]["count"] += 1;
+            self.user_profile[movie.genre]["avg_rating"] += edge.rating;
+
+            self.visited_movies.add(movie);
+        }
+
+        // Calculate average ratings per genre
+        for genre, data in self.user_profile.items() {
+            data["avg_rating"] /= data["count"];
+        }
+
+        // Find movies to recommend
+        visit watched_movies;
+    }
+
+    can explore with Movie entry {
+        // Find similar movies
+        let similar_movies = [-->:Similar:-->:Movie:];
+
+        for movie in similar_movies {
+            if movie not in self.visited_movies {
+                // Score based on user preferences
+                score = 0.0;
+                if movie.genre in self.user_profile {
+                    score = self.user_profile[movie.genre]["avg_rating"];
+                    score *= movie.rating / 5.0;  // Weight by movie rating
+                }
+
+                if score > 3.0 {  // Threshold
+                    self.recommendations.append({
+                        "movie": movie.title,
+                        "genre": movie.genre,
+                        "score": score
+                    });
+                }
+            }
+        }
+    }
+
+    can finalize with User exit {
+        // Sort and limit recommendations
+        self.recommendations.sort(key=lambda x: x["score"], reverse=true);
+
+        print(f"\nTop recommendations for {here.username}:");
+        for i, rec in enumerate(self.recommendations[:5]) {
+            print(f"{i+1}. {rec['movie']} ({rec['genre']}) - Score: {rec['score']:.2f}");
+        }
+    }
+}
+
+// Build movie database
+with entry {
+    // Create movies
+    let inception = root ++> Movie(
+        title="Inception",
+        genre="Sci-Fi",
+        year=2010,
+        rating=4.8
+    );
+
+    let interstellar = root ++> Movie(
+        title="Interstellar",
+        genre="Sci-Fi",
+        year=2014,
+        rating=4.6
+    );
+
+    let dark_knight = root ++> Movie(
+        title="The Dark Knight",
+        genre="Action",
+        year=2008,
+        rating=4.9
+    );
+
+    // Create similarities
+    inception ++>:Similar(similarity_score=0.85):++> interstellar;
+    inception ++>:Similar(similarity_score=0.60):++> dark_knight;
+
+    // Create user and watch history
+    let user = root ++> User(
+        username="movie_buff",
+        full_name="John Doe",
+        joined_date="2024-01-01"
+    );
+
+    user ++>:Watched(rating=5, date="2024-03-01"):++> inception;
+    user ++>:Watched(rating=4, date="2024-03-05"):++> dark_knight;
+
+    // Get recommendations
+    spawn MovieRecommender() on user;
+}
+```
+
+### Best Practices for Graph Building
+
+1. **Start with Clear Node Types**: Define what entities exist in your domain
+2. **Model Relationships Explicitly**: Use typed edges for meaningful connections
+3. **Keep Edges Lightweight**: Heavy computation belongs in nodes or walkers
+4. **Use Consistent Naming**: Follow patterns like `Verb` for edges, `Noun` for nodes
+5. **Think About Traversal Early**: Design your graph to support intended algorithms
+
+## Summary
+
+In this chapter, we've learned:
+
+- **Node Creation**: How to create persistent and temporary nodes
+- **Edge Types**: Building rich relationships with properties and behavior
+- **Graph Navigation**: Using `[-->]`, `[<--]`, and filtering syntax
+- **Graph Operations**: Modifying, analyzing, and traversing graph structures
+
+We've seen how Jac's syntax makes graph operations intuitive and type-safe. The combination of expressive navigation syntax and powerful filtering capabilities enables complex graph algorithms to be expressed concisely.
+
+Next, we'll explore walkers in depth—the mobile computational entities that bring your graphs to life by moving computation to data.
 
 ### Chapter 8: Walkers - Computation in Motion
 - **8.1 Walker Basics**
