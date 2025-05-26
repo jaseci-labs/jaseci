@@ -1,7 +1,10 @@
 """Semantic analysis for Jac language."""
 
+from typing import cast
+
 import jaclang.compiler.jtyping as jtype
 import jaclang.compiler.unitree as ast
+from jaclang.compiler.jtyping.types.jclassmember import MemberKind
 from jaclang.compiler.passes import UniPass
 from jaclang.settings import settings
 
@@ -71,13 +74,32 @@ class JTypeCheckPass(UniPass):
         callable_type = self.prog.type_resolver.get_type(node.target)
 
         if isinstance(callable_type, jtype.JAnyType):
-            self.__debug_print("AnyType target func call!!!")
-            return
+            # if constructor is called through super and it was generated internally by Jac then we
+            # need this work arround as there is no symbol for this constructor
+            if (
+                isinstance(node.target, ast.AtomTrailer)
+                and node.target.as_attr_list[-1].sym_name == "__init__"
+                and node.target.as_attr_list[-2].sym_name == "super"
+            ):
+                assert isinstance(node.target.as_attr_list[-2], ast.Name)
+                assert node.target.as_attr_list[-2].sym is not None
+                class_inst_type = self.prog.type_resolver.get_type(
+                    node.target.as_attr_list[-2]
+                )
+                assert isinstance(class_inst_type, jtype.JClassInstanceType)
+                callable_type = class_inst_type.class_type.get_callable_signature()
+            else:
+                self.__debug_print("AnyType target func call!!!")
+                return
 
         assert isinstance(callable_type, (jtype.JFunctionType, jtype.JClassType))
 
         if isinstance(callable_type, jtype.JClassType):
-            callable_type = callable_type.get_constrcutor()
+            if callable_type.is_abstract:
+                self.log_error("Can't create an object from an abstract class")
+                return
+            else:
+                callable_type = callable_type.get_callable_signature()
 
         func_params = {a.name: a.type for a in callable_type.parameters}
 
@@ -138,10 +160,14 @@ class JTypeCheckPass(UniPass):
 
             # if the variable has no annotation and this is the first assignment for it
             # then set the var type to the val type
-            if (
-                isinstance(sym_type, jtype.JAnyType)
-                and isinstance(target, ast.Name)
-                and target.name_spec is target
+            if isinstance(sym_type, jtype.JAnyType) and (
+                (isinstance(target, ast.Name) and target.name_spec is target)
+                or (
+                    isinstance(target, ast.AtomTrailer)
+                    and isinstance(target.as_attr_list[-1], ast.AstSymbolNode)
+                    and target.as_attr_list[-1].name_spec is target.as_attr_list[-1]
+                    and target.as_attr_list[-1].name_spec.sym
+                )
             ):
                 self.prog.type_resolver.set_type(target, value_type)
 
@@ -167,7 +193,10 @@ class JTypeCheckPass(UniPass):
         """
         self.prune()  # prune the traversal into the atom trailer.
 
-        nodes = node.as_attr_list
+        if not all(isinstance(n, ast.Name) for n in node.as_attr_list):
+            raise TypeError("Expected all Expr")
+        nodes = cast(list[ast.Name], node.as_attr_list)
+
         first_item_type = self.prog.type_resolver.get_type(
             nodes[0]
         )  # Resolve type of base object.
@@ -187,9 +216,14 @@ class JTypeCheckPass(UniPass):
                 last_node_type = next_type
 
             node_name = n.sym_name
-            member = last_node_type.get_member(
-                node_name
-            )  # Try to fetch the member from the current type.
+            member = last_node_type.get_member(node_name)
+
+            if (
+                member
+                and isinstance(last_node_type, jtype.JClassType)
+                and member.kind == MemberKind.INSTANCE
+            ):
+                member = None
 
             if member is None:
                 # Attribute doesn't exist; log an error with context.

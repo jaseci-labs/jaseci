@@ -274,7 +274,7 @@ class JTypeResolver:
         Returns:
             JType: The resolved type of the special variable.
         """
-        if node.sym_name in ["here", "self"]:
+        if node.sym_name in ["here", "self", "super"]:
             archetype_node = node.find_parent_of_type(ast.Archetype)
             if archetype_node is None:
                 impl_decl = node.find_parent_of_type(ast.ImplDef)
@@ -288,18 +288,25 @@ class JTypeResolver:
             if not archetype_node:
                 return jtype.JAnyType()
             if archetype_node.sym:
-                return archetype_node.sym.jtype
+                assert isinstance(archetype_node.sym.jtype, jtype.JClassType)
+                if node.sym_name == "super":
+                    return jtype.JClassInstanceType(archetype_node.sym.jtype.bases[0])
+                else:
+                    return jtype.JClassInstanceType(archetype_node.sym.jtype)
         return self._get_name_expr_type(node)
 
-    def set_type(self, node: ast.Expr, expr_type: jtype.JType) -> None:
+    def set_type(
+        self, node: ast.Expr, expr_type: jtype.JType, quite: bool = False
+    ) -> None:
         """Set type from any jac expression based."""
         name = pascal_to_snake(node.__class__.__name__)
         func_name = f"_set_{name}_expr_type"
 
         if hasattr(self, func_name):
-            self.__debug_print(
-                f"Setting type '{expr_type}' to {node.loc.mod_path}:{node.loc}"
-            )
+            if not quite:
+                self.__debug_print(
+                    f"Setting type {expr_type} to {node.loc.mod_path}:{node.loc}"
+                )
             return getattr(self, func_name)(node, expr_type)
         else:
             self.__debug_print(f"{func_name} is not implemented yet")
@@ -318,3 +325,10 @@ class JTypeResolver:
         self, node: ast.SpecialVarRef, expr_type: jtype.JType
     ) -> None:
         self._set_name_expr_type(node, expr_type)
+
+    def _set_atom_trailer_expr_type(
+        self, node: ast.AtomTrailer, expr_type: jtype.JType
+    ) -> None:
+        nodes = node.as_attr_list
+        assert isinstance(nodes[-1], ast.Expr)
+        self.set_type(nodes[-1], expr_type, quite=True)

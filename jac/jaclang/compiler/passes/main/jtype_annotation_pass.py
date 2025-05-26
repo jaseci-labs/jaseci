@@ -6,6 +6,7 @@ using type annotations in the code.
 
 import jaclang.compiler.jtyping as jtype
 import jaclang.compiler.unitree as uni
+from jaclang.compiler.jtyping.types.jclassmember import MemberKind
 from jaclang.compiler.constant import SymbolAccess, SymbolType
 from jaclang.compiler.passes import UniPass
 from jaclang.settings import settings
@@ -35,15 +36,21 @@ class JTypeAnnotatePass(UniPass):
     def exit_assignment(self, node: uni.Assignment) -> None:
         """Propagate type annotations for variable declarations."""
         # Resolve the declared type from the annotation
-        if not node.type_tag:
-            return
 
-        type_annotation = self.prog.type_resolver.get_type(node.type_tag.tag)
+        type_annotation = (
+            self.prog.type_resolver.get_type(node.type_tag.tag)
+            if node.type_tag
+            else None
+        )
 
         # Iterate over each target in the assignment (e.g., `x` in `x: int = 5`)
         for target in node.target.items:
             if isinstance(target, uni.Name):
                 assert target.sym is not None
+
+                # if no type annotation then ignore this target
+                if type_annotation is None:
+                    continue
 
                 # If the current type is unknown or compatible with the declared one, set it
                 if isinstance(
@@ -59,8 +66,31 @@ class JTypeAnnotatePass(UniPass):
                         f"Can't redefine {target.sym_name} to be {type_annotation}"
                     )
 
+            elif not type_annotation and isinstance(target, uni.AtomTrailer):
+                nodes = target.as_attr_list
+                assert isinstance(nodes[0], uni.AstSymbolNode)
+                if len(nodes) > 2:
+                    continue
+                if isinstance(nodes[0], uni.SpecialVarRef) and nodes[0].value == "self":
+                    self_node = nodes[0]
+                    ability_node = self_node.parent_of_type(uni.Ability)
+                    if ability_node.sym_name != "__init__":
+                        return
+                    self_type = self.prog.type_resolver.get_type(self_node)
+                    assert isinstance(self_type, jtype.JClassInstanceType)
+                    member_node = nodes[1]
+                    if isinstance(member_node, uni.Name):
+                        self_type.class_type.instance_members[member_node.sym_name] = (
+                            jtype.JClassMember(
+                                name=member_node.sym_name,
+                                type=jtype.JAnyType(),
+                                kind=MemberKind.INSTANCE,
+                                decl=member_node.sym,
+                            )
+                        )
+
             # If the target is not a simple name and a type annotation is present, error
-            elif not isinstance(type_annotation, jtype.JAnyType):
+            elif type_annotation and not isinstance(type_annotation, jtype.JAnyType):
                 self.log_error(
                     f"Type annotations is not supported for '{target.unparse()}' expression"
                 )
@@ -131,6 +161,8 @@ class JTypeAnnotatePass(UniPass):
         type_full_name = self.prog.mod.main.get_href_path(node)
         instance_members: dict[str, jtype.JClassMember] = {}
         class_members: dict[str, jtype.JClassMember] = {}
+
+        # resolve class members
         for sym in node.sym_tab.names_in_scope.values():
             instance_members[sym.sym_name] = jtype.JClassMember(
                 name=sym.sym_name,
@@ -143,9 +175,10 @@ class JTypeAnnotatePass(UniPass):
 
         class_type = self.prog.type_registry.get(type_full_name)
         assert isinstance(class_type, jtype.JClassType)
-        class_type.instance_members = instance_members
+        class_type.instance_members.update(instance_members)
         class_type.class_members = class_members
 
+        # Resolve class constructor
         if "__init__" not in instance_members:
             attributes = list(
                 filter(lambda x: not x.is_method, list(instance_members.values()))
@@ -170,6 +203,47 @@ class JTypeAnnotatePass(UniPass):
             class_type.instance_members["__init__"].type.return_type = (
                 jtype.JClassInstanceType(class_type)
             )
+
+        # resolve base classes
+        if node.base_classes:
+            base_class_list = node.base_classes.items
+            for i in base_class_list:
+                base_class_type = self.prog.type_resolver.get_type(i)
+                assert isinstance(base_class_type, jtype.JClassType)
+                class_type.bases.append(base_class_type)
+
+    def exit_enum(self, node: uni.Enum) -> None:
+        """
+        Finalizes the type resolution of an enum declaration by treating the enum as a class type
+        with static members representing its variants.
+
+        It constructs a `JClassType` for the enum and populates its `class_members` with the enum
+        variants as static members, allowing the enum to be treated like a class with named constant
+        fields. This design supports enums as first-class class-like types within the type system.
+
+        The resolved `JClassType` is registered with the type resolver for future reference.
+
+        Args:
+            node (uni.Enum): The enum AST node being exited.
+        """
+
+        type_full_name = self.prog.mod.main.get_href_path(node)
+        instance_members: dict[str, jtype.JClassMember] = {}
+        class_members: dict[str, jtype.JClassMember] = {}
+        for sym in node.sym_tab.names_in_scope.values():
+            class_members[sym.sym_name] = jtype.JClassMember(
+                name=sym.sym_name,
+                type=sym.jtype,
+                kind=jtype.jtypes.jclassmember.MemberKind.CLASS,
+                visibility=symbol_type_to_visibility[sym.access],
+                is_method=False,
+                decl=sym,
+            )
+
+        class_type = self.prog.type_registry.get(type_full_name)
+        assert isinstance(class_type, jtype.JClassType)
+        class_type.instance_members = instance_members
+        class_type.class_members = class_members
 
         self.prog.type_resolver.set_type(node.name_spec, class_type)
 
