@@ -32,17 +32,12 @@ class JTypeCheckPass(UniPass):
         """Check the return var type across the annotated return type."""
         return_type = self.prog.type_resolver.get_type(node.expr)
 
-        func_decl = node.find_parent_of_type(ast.Ability)
+        func_decl = ast.find_parent_of_type(node, ast.Ability)
         if not func_decl:
-            impl_decl = node.parent_of_type(ast.ImplDef)
-            decl_link = impl_decl.decl_link
-            if decl_link is not None and isinstance(decl_link, ast.Ability):
-                func_decl = decl_link
-            else:
-                self.log_error(
-                    "Return statement not inside an ability, can't check return type"
-                )
-                return
+            self.log_error(
+                "Return statement not inside an ability, can't check return type"
+            )
+            return
         sig_ret_type = self.prog.type_resolver.get_type(func_decl.name_spec)
 
         assert isinstance(sig_ret_type, jtype.JFunctionType)

@@ -73,7 +73,7 @@ class JTypeAnnotatePass(UniPass):
                     continue
                 if isinstance(nodes[0], uni.SpecialVarRef) and nodes[0].value == "self":
                     self_node = nodes[0]
-                    ability_node = self_node.parent_of_type(uni.Ability)
+                    ability_node = uni.parent_of_type(self_node, uni.Ability)
                     if ability_node.sym_name != "__init__":
                         return
                     self_type = self.prog.type_resolver.get_type(self_node)

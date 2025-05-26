@@ -4608,3 +4608,23 @@ class PythonModuleAst(EmptyToken):
         # We can remove this in the future once we safley remove all references to it and
         # use orig_src.
         self.file_path = orig_src.file_path
+
+
+# TODO: Give a better name for this function
+def parent_of_type(node: UniNode, typ: Type[T]) -> T:
+    trial = node.find_parent_of_type(typ)
+    if trial:
+        return trial
+    impl_node = node.parent_of_type(ImplDef)
+    assert isinstance(impl_node.decl_link, typ)
+    return impl_node.decl_link
+
+
+def find_parent_of_type(node: UniNode, typ: Type[T]) -> Optional[T]:
+    trial = node.find_parent_of_type(typ)
+    if trial:
+        return trial
+    impl_node = node.parent_of_type(ImplDef)
+    if impl_node.decl_link:
+        assert isinstance(impl_node.decl_link, typ)
+    return impl_node.decl_link
