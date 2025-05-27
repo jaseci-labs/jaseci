@@ -134,7 +134,8 @@
     "watch": "tsc -b -w",
     "deploy": "vsce publish --yarn",
     "vsce-package": "mkdir build && vsce package -o build/jac.vsix",
-    "test": "npm run compile && node ./out/test/runTest.js"
+    "test": "npm run compile && node ./out/test/runTest.js",
+    "test:headless":"xvfb-run -a npm test"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

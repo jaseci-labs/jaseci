@@ -75,4 +75,4 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y xvfb
         cd jac/support/vscode_ext/jac
-        xvfb-run -a npm test
+        npm run test:headless
