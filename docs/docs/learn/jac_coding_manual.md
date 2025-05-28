@@ -292,12 +292,12 @@ graph TB
         P2 -->|Has| C1
         U1 -.->|Blocked| U3
 
-        style U1 fill:#e1f5fe
-        style U2 fill:#e1f5fe
-        style U3 fill:#e1f5fe
-        style P1 fill:#fff3e0
-        style P2 fill:#fff3e0
-        style C1 fill:#f3e5f5
+        style U1 fill:#01151e
+        style U2 fill:#01151e
+        style U3 fill:#01151e
+        style P1 fill:#1f1320
+        style P2 fill:#1f1320
+        style C1 fill:#132515
     end
 ```
 
