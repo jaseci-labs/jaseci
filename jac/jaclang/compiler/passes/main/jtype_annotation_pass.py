@@ -87,7 +87,7 @@ class JTypeAnnotatePass(UniPass):
             ret_type = jtype.JClassInstanceType(ret_type)
 
         # If the function has a non-None return type but no return statements, report error
-        has_return_stmts = len(node.get_all_sub_nodes(uni.ReturnStmt)) > 0
+        has_return_stmts = len(node.body.get_all_sub_nodes(uni.ReturnStmt)) > 0
         if (
             not has_return_stmts
             and not isinstance(ret_type, jtype.JNoneType)
