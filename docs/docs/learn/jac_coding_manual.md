@@ -279,9 +279,9 @@ graph TB
         U1[User: Alice]
         U2[User: Bob]
         U3[User: Carol]
-        P1[Post: "Hello!"]
-        P2[Post: "Great day!"]
-        C1[Comment: "Nice!"]
+        P1[Post: 'Hello!']
+        P2[Post: 'Great day!']
+        C1[Comment: 'Nice!']
 
         U1 -->|Follows| U2
         U2 -->|Follows| U1
