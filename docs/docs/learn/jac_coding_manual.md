@@ -4878,184 +4878,13139 @@ We've seen how Jac's syntax makes graph operations intuitive and type-safe. The 
 
 Next, we'll explore walkers in depth—the mobile computational entities that bring your graphs to life by moving computation to data.
 
-### Chapter 8: Walkers - Computation in Motion
-- **8.1 Walker Basics**
-  - Declaring walker classes
-  - Spawning walkers on nodes
-  - The walker lifecycle
-- **8.2 Traversal Patterns**
-  - `visit` statements for navigation
-  - `disengage` for early termination
-  - `skip` for conditional processing
-  - Queue-based traversal model
-- **8.3 Walker Abilities**
-  - Entry and exit abilities
-  - Context references: `here`, `self`, `visitor`
-  - Bidirectional computation model
+# Chapter 8: Walkers - Computation in Motion
 
-### Chapter 9: Abilities - Event-Driven Computation
-- **9.1 Understanding Abilities**
-  - Implicit execution vs explicit invocation
-  - Walker, node, and edge abilities
-  - Execution order and precedence
-- **9.2 Practical Ability Patterns**
-  - Data validation on arrival
-  - State transformation during traversal
-  - Aggregation and reporting
-  - Error handling in abilities
+Walkers are the beating heart of Data Spatial Programming. They embody the paradigm shift from static functions to mobile computational entities that traverse your data graph, processing information where it lives. In this chapter, we'll master the art of creating and controlling walkers to build powerful, scalable algorithms.
+
+## 8.1 Walker Basics
+
+### Declaring Walker Classes
+
+Walkers are declared using the `walker` keyword and can contain state, abilities, and methods:
+
+```jac
+walker SimpleVisitor {
+    // Walker state - travels with the walker
+    has visits: int = 0;
+    has path: list[str] = [];
+
+    // Regular method
+    can get_stats() -> dict {
+        return {
+            "total_visits": self.visits,
+            "path_length": len(self.path),
+            "current_path": self.path
+        };
+    }
+
+    // Walker ability - triggered on node entry
+    can visit_node with entry {
+        self.visits += 1;
+        self.path.append(here.name if hasattr(here, 'name') else str(here));
+        print(f"Visit #{self.visits}: {self.path[-1]}");
+    }
+}
+```
+
+Key walker components:
+- **State Variables** (`has`): Data that travels with the walker
+- **Methods** (`can`): Regular functions for computation
+- **Abilities** (`can ... with`): Event-triggered behaviors
+
+### Spawning Walkers on Nodes
+
+Walkers start as inactive objects and must be "spawned" to begin traversal:
+
+```jac
+node Location {
+    has name: str;
+    has description: str;
+}
+
+with entry {
+    // Create a simple graph
+    let home = root ++> Location(name="Home", description="Starting point");
+    let park = home ++> Location(name="Park", description="Green space");
+    let store = home ++> Location(name="Store", description="Shopping center");
+
+    // Create walker instance (inactive)
+    let visitor = SimpleVisitor();
+    print(f"Walker created. Stats: {visitor.get_stats()}");
+
+    // Spawn walker on a node (activates it)
+    home spawn visitor;
+
+    // Or use alternative syntax
+    let another_visitor = SimpleVisitor();
+    spawn another_visitor on home;
+}
+```
+
+```mermaid
+graph LR
+    subgraph "Walker Lifecycle"
+        I[Inactive<br/>Walker Object]
+        A[Active<br/>Walker on Node]
+        T[Traversing<br/>Graph]
+        D[Done<br/>Disengaged]
+
+        I -->|spawn| A
+        A -->|visit| T
+        T -->|visit| T
+        T -->|disengage| D
+        T -->|queue empty| D
+    end
+
+    style I fill:#ffcdd2
+    style A fill:#c8e6c9
+    style T fill:#fff9c4
+    style D fill:#e1bee7
+```
+
+### The Walker Lifecycle
+
+Understanding the walker lifecycle is crucial:
+
+```jac
+walker LifecycleDemo {
+    has state: str = "created";
+    has nodes_visited: list = [];
+
+    // Called when walker is created (optional)
+    can init(mission: str = "explore") {
+        print(f"Walker initialized with mission: {mission}");
+        self.state = "initialized";
+    }
+
+    // Entry ability - when arriving at a node
+    can on_entry with entry {
+        self.state = "active";
+        self.nodes_visited.append(here);
+        print(f"Entered node. Total visits: {len(self.nodes_visited)}");
+
+        // Decide whether to continue
+        if len(self.nodes_visited) < 5 {
+            visit [-->];  // Continue to connected nodes
+        } else {
+            print("Mission complete!");
+            self.state = "completed";
+            disengage;  // End traversal
+        }
+    }
+
+    // Exit ability - when leaving a node
+    can on_exit with exit {
+        print(f"Leaving node after processing");
+    }
+
+    // Final cleanup (if needed)
+    can cleanup {
+        print(f"Walker finished. State: {self.state}");
+        print(f"Visited {len(self.nodes_visited)} nodes");
+    }
+}
+```
+
+## 8.2 Traversal Patterns
+
+### `visit` Statements for Navigation
+
+The `visit` statement is how walkers move through the graph:
+
+```jac
+walker Explorer {
+    has max_depth: int = 3;
+    has current_depth: int = 0;
+
+    can explore with entry {
+        print(f"At depth {self.current_depth}: {here.name}");
+
+        if self.current_depth < self.max_depth {
+            // Visit all connected nodes
+            visit [-->];
+
+            // Or visit specific nodes
+            let important_nodes = [-->].filter(
+                lambda n: n.priority > 5 if hasattr(n, 'priority') else False
+            );
+            visit important_nodes;
+
+            // Or visit with type filtering
+            visit [-->:ImportantEdge:];
+        }
+    }
+}
+```
+
+### `disengage` for Early Termination
+
+Use `disengage` to stop traversal immediately:
+
+```jac
+walker SearchWalker {
+    has target_name: str;
+    has found: bool = false;
+    has result: node? = None;
+
+    can search with entry {
+        print(f"Checking: {here.name if hasattr(here, 'name') else 'unknown'}");
+
+        if hasattr(here, 'name') and here.name == self.target_name {
+            print(f"Found target: {here.name}!");
+            self.found = true;
+            self.result = here;
+            report here;  // Report finding
+            disengage;    // Stop searching
+        }
+
+        // Continue search if not found
+        visit [-->];
+    }
+}
+
+with entry {
+    let searcher = SearchWalker(target_name="Store");
+    let result = spawn searcher on root;
+
+    if searcher.found {
+        print(f"Search successful! Found: {searcher.result.name}");
+    } else {
+        print("Target not found in graph");
+    }
+}
+```
+
+### `skip` for Conditional Processing
+
+The `skip` statement ends processing at the current node but continues traversal:
+
+```jac
+walker ConditionalProcessor {
+    has process_count: int = 0;
+    has skip_count: int = 0;
+
+    can process with entry {
+        // Skip nodes that don't meet criteria
+        if hasattr(here, 'active') and not here.active {
+            self.skip_count += 1;
+            print(f"Skipping inactive node");
+            skip;  // Move to next node without further processing
+        }
+
+        // Process active nodes
+        print(f"Processing node {self.process_count + 1}");
+        self.process_count += 1;
+
+        // Expensive operation only for active nodes
+        self.perform_expensive_operation();
+
+        // Continue traversal
+        visit [-->];
+    }
+
+    can perform_expensive_operation {
+        import:py time;
+        time.sleep(0.1);  // Simulate work
+        print("  - Expensive operation completed");
+    }
+}
+```
+
+### Queue-Based Traversal Model
+
+Walkers use an internal queue for traversal:
+
+```jac
+walker QueueDemo {
+    has visited_order: list = [];
+
+    can demonstrate with entry {
+        self.visited_order.append(here.name);
+        print(f"Current queue after visiting {here.name}:");
+
+        // The visit statement adds to queue
+        let neighbors = [-->];
+        for i, neighbor in enumerate(neighbors) {
+            print(f"  Adding to queue: {neighbor.name}");
+            visit neighbor;
+        }
+
+        print(f"Queue will be processed in order\n");
+    }
+
+    can summarize with exit {
+        if len([-->) == 0 {  // At a leaf node
+            print(f"Traversal order: {' -> '.join(self.visited_order)}");
+        }
+    }
+}
+```
+
+### Advanced Traversal Patterns
+
+#### Breadth-First Search (BFS)
+
+```jac
+walker BFSWalker {
+    has visited: set = {};
+    has level: dict = {};
+    has current_level: int = 0;
+
+    can bfs with entry {
+        // Mark as visited
+        if here in self.visited {
+            skip;
+        }
+
+        self.visited.add(here);
+        self.level[here] = self.current_level;
+
+        print(f"Level {self.current_level}: {here.name}");
+
+        // Queue all unvisited neighbors (BFS behavior)
+        let unvisited = [-->].filter(lambda n: n not in self.visited);
+        visit unvisited;
+
+        // Increment level for next wave
+        if all(n in self.visited for n in [-->]) {
+            self.current_level += 1;
+        }
+    }
+}
+```
+
+#### Depth-First Search (DFS)
+
+```jac
+walker DFSWalker {
+    has visited: set = {};
+    has stack: list = [];
+    has dfs_order: list = [];
+
+    can dfs with entry {
+        if here in self.visited {
+            skip;
+        }
+
+        self.visited.add(here);
+        self.dfs_order.append(here.name);
+        self.stack.append(here.name);
+
+        print(f"DFS visiting: {here.name}");
+        print(f"  Stack: {self.stack}");
+
+        // Visit one unvisited neighbor at a time (DFS)
+        let unvisited = [-->].filter(lambda n: n not in self.visited);
+        if unvisited {
+            visit unvisited[0];  // Visit first unvisited
+        } else {
+            // Backtrack
+            self.stack.pop();
+        }
+
+        // After exploring all children, visit siblings
+        for neighbor in unvisited[1:] {
+            visit neighbor;
+        }
+    }
+}
+```
+
+#### Bidirectional Search
+
+```jac
+walker BidirectionalSearch {
+    has target: node;
+    has forward_visited: set = {};
+    has backward_visited: set = {};
+    has meeting_point: node? = None;
+    has search_forward: bool = true;
+
+    can search with entry {
+        if self.search_forward {
+            // Forward search from source
+            if here in self.backward_visited {
+                self.meeting_point = here;
+                print(f"Paths met at: {here.name}!");
+                disengage;
+            }
+
+            self.forward_visited.add(here);
+            visit [-->];
+
+        } else {
+            // Backward search from target
+            if here in self.forward_visited {
+                self.meeting_point = here;
+                print(f"Paths met at: {here.name}!");
+                disengage;
+            }
+
+            self.backward_visited.add(here);
+            visit [<--];  // Reverse direction
+        }
+    }
+}
+
+// Usage: Spawn two walkers
+with entry {
+    let source = get_node("A");
+    let target = get_node("Z");
+
+    // Forward search
+    let forward = BidirectionalSearch(target=target, search_forward=true);
+    spawn forward on source;
+
+    // Backward search
+    let backward = BidirectionalSearch(target=source, search_forward=false);
+    spawn backward on target;
+}
+```
+
+## 8.3 Walker Abilities
+
+### Entry and Exit Abilities
+
+Abilities are event-driven methods that execute automatically:
+
+```jac
+node Store {
+    has name: str;
+    has inventory: dict = {};
+    has revenue: float = 0.0;
+}
+
+walker InventoryChecker {
+    has low_stock_items: list = [];
+    has total_value: float = 0.0;
+    has stores_checked: int = 0;
+
+    // Entry ability - main processing
+    can check_inventory with Store entry {
+        print(f"\nChecking store: {here.name}");
+        self.stores_checked += 1;
+
+        let store_value = 0.0;
+        for item, details in here.inventory.items() {
+            let quantity = details["quantity"];
+            let price = details["price"];
+
+            store_value += quantity * price;
+
+            if quantity < 10 {
+                self.low_stock_items.append({
+                    "store": here.name,
+                    "item": item,
+                    "quantity": quantity
+                });
+            }
+        }
+
+        self.total_value += store_value;
+        print(f"  Store value: ${store_value:.2f}");
+    }
+
+    // Exit ability - cleanup or summary
+    can summarize with Store exit {
+        if len([-->]) == 0 {  // Last store
+            print(f"\n=== Inventory Check Complete ===");
+            print(f"Stores checked: {self.stores_checked}");
+            print(f"Total inventory value: ${self.total_value:.2f}");
+            print(f"Low stock items: {len(self.low_stock_items)}");
+
+            for item in self.low_stock_items {
+                print(f"  - {item['store']}: {item['item']} ({item['quantity']} left)");
+            }
+        }
+    }
+}
+```
+
+### Context References: `here`, `self`, `visitor`
+
+Understanding context references is crucial for walker abilities:
+
+```jac
+node Server {
+    has name: str;
+    has status: str = "running";
+    has load: float = 0.0;
+    has last_check: str = "";
+
+    // Node ability - 'visitor' refers to the walker
+    can log_visit with HealthChecker entry {
+        print(f"Server {self.name} being checked by {visitor.checker_id}");
+        self.last_check = visitor.check_time;
+    }
+
+    can provide_metrics with HealthChecker entry {
+        return {
+            "name": self.name,
+            "status": self.status,
+            "load": self.load
+        };
+    }
+}
+
+walker HealthChecker {
+    has checker_id: str;
+    has check_time: str;
+    has unhealthy_servers: list = [];
+
+    // Walker ability - 'here' refers to current node, 'self' to walker
+    can check_health with Server entry {
+        print(f"Checker {self.checker_id} at server {here.name}");
+
+        // Get metrics from the server (node calling its method)
+        let metrics = here.provide_metrics();
+
+        // Check health criteria
+        if here.status != "running" or here.load > 0.8 {
+            self.unhealthy_servers.append({
+                "server": here.name,
+                "status": here.status,
+                "load": here.load,
+                "checked_at": self.check_time
+            });
+
+            // Try to fix issues
+            if here.load > 0.8 {
+                self.rebalance_load(here);
+            }
+        }
+
+        // Continue to connected servers
+        visit [-->:NetworkLink:];
+    }
+
+    can rebalance_load(server: Server) {
+        print(f"  Attempting to rebalance load on {server.name}");
+        // Rebalancing logic here
+        server.load *= 0.7;  // Simplified rebalancing
+    }
+}
+```
+
+### Bidirectional Computation Model
+
+The power of DSP comes from bidirectional interaction between walkers and nodes:
+
+```jac
+node SmartDevice {
+    has device_id: str;
+    has device_type: str;
+    has settings: dict = {};
+    has metrics: dict = {};
+
+    // Node responds to configuration walker
+    can apply_config with ConfigUpdater entry {
+        print(f"Device {self.device_id} receiving config");
+
+        // Node can access walker data
+        let new_settings = visitor.get_settings_for(self.device_type);
+
+        // Node updates itself
+        self.settings.update(new_settings);
+
+        // Node can modify walker state
+        visitor.devices_updated += 1;
+        visitor.log_update(self.device_id, new_settings);
+    }
+
+    // Node provides data to analytics walker
+    can share_metrics with AnalyticsCollector entry {
+        // Complex computation at the node
+        let processed_metrics = self.process_raw_metrics();
+
+        // Give data to walker
+        visitor.collect_metrics(self.device_id, processed_metrics);
+    }
+
+    can process_raw_metrics() -> dict {
+        // Node's own complex logic
+        return {
+            "uptime": self.metrics.get("uptime", 0),
+            "efficiency": self.calculate_efficiency(),
+            "health_score": self.calculate_health()
+        };
+    }
+
+    can calculate_efficiency() -> float {
+        // Complex calculation
+        return 0.85;  // Simplified
+    }
+
+    can calculate_health() -> float {
+        return 0.92;  // Simplified
+    }
+}
+
+walker ConfigUpdater {
+    has config_version: str;
+    has devices_updated: int = 0;
+    has update_log: list = [];
+
+    can get_settings_for(device_type: str) -> dict {
+        // Walker provides configuration based on device type
+        let configs = {
+            "thermostat": {"temp_unit": "celsius", "schedule": "auto"},
+            "camera": {"resolution": "1080p", "night_mode": true},
+            "sensor": {"sensitivity": "high", "interval": 60}
+        };
+
+        return configs.get(device_type, {});
+    }
+
+    can log_update(device_id: str, settings: dict) {
+        self.update_log.append({
+            "device": device_id,
+            "settings": settings,
+            "timestamp": now()
+        });
+    }
+
+    can update_devices with SmartDevice entry {
+        // Walker's main logic is in the node ability
+        // This is just navigation
+        visit [-->:ConnectedTo:];
+    }
+
+    can report with exit {
+        print(f"\nConfiguration Update Complete:");
+        print(f"  Version: {self.config_version}");
+        print(f"  Devices updated: {self.devices_updated}");
+    }
+}
+
+walker AnalyticsCollector {
+    has metrics_db: dict = {};
+    has device_count: int = 0;
+
+    can collect_metrics(device_id: str, metrics: dict) {
+        self.metrics_db[device_id] = metrics;
+        self.device_count += 1;
+    }
+
+    can analyze with SmartDevice entry {
+        # Trigger node's ability
+        // Node will call walker's collect_metrics
+        visit [-->];
+    }
+
+    can generate_report with exit {
+        if self.device_count > 0 {
+            print(f"\n=== Analytics Report ===");
+            print(f"Devices analyzed: {self.device_count}");
+
+            // Calculate aggregates
+            avg_uptime = sum(m["uptime"] for m in self.metrics_db.values()) / self.device_count;
+            avg_health = sum(m["health_score"] for m in self.metrics_db.values()) / self.device_count;
+
+            print(f"Average uptime: {avg_uptime:.1f} hours");
+            print(f"Average health score: {avg_health:.2%}");
+        }
+    }
+}
+```
+
+### Practical Walker Patterns
+
+#### The Aggregator Pattern
+
+```jac
+walker DataAggregator {
+    has aggregation: dict = {};
+    has visit_count: int = 0;
+
+    can aggregate with DataNode entry {
+        let category = here.category;
+        if category not in self.aggregation {
+            self.aggregation[category] = {
+                "count": 0,
+                "total": 0.0,
+                "items": []
+            };
+        }
+
+        self.aggregation[category]["count"] += 1;
+        self.aggregation[category]["total"] += here.value;
+        self.aggregation[category]["items"].append(here.name);
+
+        self.visit_count += 1;
+        visit [-->];
+    }
+
+    can report_summary with exit {
+        print(f"\nAggregation complete. Visited {self.visit_count} nodes.");
+
+        for category, data in self.aggregation.items() {
+            avg = data["total"] / data["count"];
+            print(f"\n{category}:");
+            print(f"  Count: {data['count']}");
+            print(f"  Average: {avg:.2f}");
+            print(f"  Total: {data['total']:.2f}");
+        }
+    }
+}
+```
+
+#### The Validator Pattern
+
+```jac
+walker GraphValidator {
+    has errors: list = [];
+    has warnings: list = [];
+    has nodes_validated: int = 0;
+
+    can validate with entry {
+        self.nodes_validated += 1;
+
+        // Check node properties
+        if not hasattr(here, 'name') or not here.name {
+            self.errors.append({
+                "node": here,
+                "error": "Missing or empty name"
+            });
+        }
+
+        // Check connections
+        let outgoing = [-->];
+        let incoming = [<--];
+
+        if len(outgoing) == 0 and len(incoming) == 0 {
+            self.warnings.append({
+                "node": here.name if hasattr(here, 'name') else "unknown",
+                "warning": "Isolated node (no connections)"
+            });
+        }
+
+        // Type-specific validation
+        if hasattr(here, 'validate') {
+            let validation_result = here.validate();
+            if not validation_result["valid"] {
+                self.errors.extend(validation_result["errors"]);
+            }
+        }
+
+        visit [-->];
+    }
+
+    can report with exit {
+        print(f"\n=== Validation Report ===");
+        print(f"Nodes validated: {self.nodes_validated}");
+        print(f"Errors found: {len(self.errors)}");
+        print(f"Warnings: {len(self.warnings)}");
+
+        if self.errors {
+            print("\nErrors:");
+            for error in self.errors {
+                print(f"  - {error}");
+            }
+        }
+
+        if self.warnings {
+            print("\nWarnings:");
+            for warning in self.warnings {
+                print(f"  - {warning}");
+            }
+        }
+    }
+}
+```
+
+#### The Transformer Pattern
+
+```jac
+walker DataTransformer {
+    has transformation_rules: dict;
+    has transformed_count: int = 0;
+    has backup: dict = {};
+
+    can init(rules: dict) {
+        self.transformation_rules = rules;
+    }
+
+    can transform with entry {
+        // Backup original data
+        if hasattr(here, 'data') {
+            self.backup[here] = here.data.copy();
+
+            // Apply transformations
+            for field, rule in self.transformation_rules.items() {
+                if field in here.data {
+                    here.data[field] = self.apply_rule(here.data[field], rule);
+                }
+            }
+
+            self.transformed_count += 1;
+        }
+
+        visit [-->];
+    }
+
+    can apply_rule(value: any, rule: dict) -> any {
+        if rule["type"] == "multiply" {
+            return value * rule["factor"];
+        } elif rule["type"] == "uppercase" {
+            return str(value).upper();
+        } elif rule["type"] == "round" {
+            return round(float(value), rule["decimals"]);
+        }
+        return value;
+    }
+
+    can rollback {
+        // Restore original data if needed
+        for node, original_data in self.backup.items() {
+            node.data = original_data;
+        }
+    }
+}
+```
+
+### Walker Composition
+
+Multiple walkers can work together:
+
+```jac
+// First walker identifies targets
+walker TargetIdentifier {
+    has criteria: dict;
+    has targets: list = [];
+
+    can identify with entry {
+        if self.matches_criteria(here) {
+            self.targets.append(here);
+            here.mark_as_target();  // Mark for second walker
+        }
+        visit [-->];
+    }
+
+    can matches_criteria(node: any) -> bool {
+        // Check criteria
+        return true;  // Simplified
+    }
+}
+
+// Second walker processes marked targets
+walker TargetProcessor {
+    has processed: int = 0;
+
+    can process with entry {
+        if hasattr(here, 'is_target') and here.is_target {
+            self.perform_processing(here);
+            self.processed += 1;
+        }
+        visit [-->];
+    }
+
+    can perform_processing(node: any) {
+        print(f"Processing target: {node.name if hasattr(node, 'name') else node}");
+        // Processing logic
+    }
+}
+
+// Orchestrator walker coordinates others
+walker Orchestrator {
+    has phase: str = "identify";
+
+    can orchestrate with entry {
+        if self.phase == "identify" {
+            // Spawn identifier
+            let identifier = TargetIdentifier(criteria={"type": "important"});
+            spawn identifier on here;
+
+            // Move to next phase
+            self.phase = "process";
+            visit here;  // Revisit this node
+
+        } elif self.phase == "process" {
+            // Spawn processor
+            let processor = TargetProcessor();
+            spawn processor on here;
+
+            self.phase = "complete";
+        }
+    }
+}
+```
+
+## Summary
+
+In this chapter, we've mastered walkers—the mobile computational entities that make Data Spatial Programming unique:
+
+- **Walker Basics**: Creating, spawning, and managing walker lifecycle
+- **Traversal Control**: Using `visit`, `disengage`, and `skip` effectively
+- **Walker Abilities**: Writing entry/exit abilities with proper context usage
+- **Bidirectional Computation**: Leveraging the interplay between walkers and nodes
+- **Advanced Patterns**: Implementing search algorithms and walker composition
+
+Walkers transform static data structures into dynamic, reactive systems. They enable algorithms that naturally adapt to the shape and content of your data, scaling from simple traversals to complex distributed computations.
+
+Next, we'll explore abilities in depth—the event-driven computation model that makes the interaction between walkers and nodes so powerful.
+
+# Chapter 9: Abilities - Event-Driven Computation
+
+Abilities represent a fundamental shift from traditional method invocation to event-driven computation. Instead of explicitly calling functions, abilities automatically execute when specific conditions are met during graph traversal. This chapter explores how abilities enable the bidirectional computation model that makes Data Spatial Programming so powerful.
+
+## 9.1 Understanding Abilities
+
+### Implicit Execution vs Explicit Invocation
+
+Traditional programming relies on explicit function calls:
+
+```python
+# Python - Explicit invocation
+class DataProcessor:
+    def process(self, data):
+        return self.transform(data)
+
+    def transform(self, data):
+        # Must be explicitly called
+        return data.upper()
+
+processor = DataProcessor()
+result = processor.process("hello")  # Explicit call
+```
+
+Abilities execute implicitly based on events:
+
+```jac
+// Jac - Implicit execution
+walker DataProcessor {
+    has results: list = [];
+
+    // This ability executes automatically when entering a DataNode
+    can process with DataNode entry {
+        // No explicit call needed - triggered by traversal
+        let transformed = here.data.upper();
+        self.results.append(transformed);
+    }
+}
+
+node DataNode {
+    has data: str;
+
+    // This executes automatically when DataProcessor visits
+    can provide_context with DataProcessor entry {
+        print(f"Processing {self.data} for {visitor.id}");
+    }
+}
+```
+
+The key insight: **computation happens as a natural consequence of traversal**, not through explicit invocation chains.
+
+### Walker, Node, and Edge Abilities
+
+Each archetype can define abilities that respond to traversal events:
+
+```jac
+// Walker abilities - defined in walkers
+walker Analyzer {
+    // Triggered when entering any node
+    can analyze_any with entry {
+        print(f"Entering some node");
+    }
+
+    // Triggered when entering specific node type
+    can analyze_data with DataNode entry {
+        print(f"Entering DataNode: {here.value}");
+    }
+
+    // Triggered when entering specific edge type
+    can traverse_connection with Connection entry {
+        print(f"Traversing Connection edge: {here.strength}");
+    }
+
+    // Exit abilities
+    can complete_analysis with DataNode exit {
+        print(f"Leaving DataNode: {here.value}");
+    }
+}
+
+// Node abilities - defined in nodes
+node DataNode {
+    has value: any;
+    has metadata: dict = {};
+
+    // Triggered when any walker enters
+    can log_visitor with entry {
+        self.metadata["last_visitor"] = str(type(visitor).__name__);
+        self.metadata["visit_count"] = self.metadata.get("visit_count", 0) + 1;
+    }
+
+    // Triggered when specific walker type enters
+    can provide_data with Analyzer entry {
+        // Node can modify the visiting walker
+        visitor.collected_data.append(self.value);
+    }
+
+    // Exit abilities
+    can cleanup with Analyzer exit {
+        print(f"Analyzer leaving with {len(visitor.collected_data)} items");
+    }
+}
+
+// Edge abilities - defined in edges
+edge Connection {
+    has strength: float;
+    has established: str;
+
+    // Triggered when any walker traverses
+    can log_traversal with entry {
+        print(f"Edge traversed: strength={self.strength}");
+    }
+
+    // Triggered when specific walker traverses
+    can apply_weight with Analyzer entry {
+        // Edges can influence traversal
+        visitor.path_weight += self.strength;
+    }
+}
+```
+
+### Execution Order and Precedence
+
+When a walker interacts with a location, abilities execute in a specific order:
+
+```jac
+node ExperimentNode {
+    has name: str;
+    has data: dict = {};
+
+    can phase1 with OrderTest entry {
+        print(f"1. Node entry ability (general)");
+    }
+
+    can phase2 with OrderTest entry {
+        print(f"2. Node entry ability (specific to OrderTest)");
+        visitor.log.append("node-entry");
+    }
+
+    can phase5 with OrderTest exit {
+        print(f"5. Node exit ability");
+        visitor.log.append("node-exit");
+    }
+}
+
+walker OrderTest {
+    has log: list = [];
+
+    can phase3 with ExperimentNode entry {
+        print(f"3. Walker entry ability");
+        self.log.append("walker-entry");
+    }
+
+    can phase4 with ExperimentNode exit {
+        print(f"4. Walker exit ability");
+        self.log.append("walker-exit");
+    }
+
+    can demonstrate with entry {
+        // This shows the complete order
+        visit [-->];
+    }
+}
+
+// Execution order is always:
+// 1. Location (node/edge) entry abilities
+// 2. Walker entry abilities
+// 3. Walker exit abilities
+// 4. Location (node/edge) exit abilities
+```
+
+```mermaid
+sequenceDiagram
+    participant W as Walker
+    participant N as Node
+
+    W->>N: Arrives at node
+    N->>N: Node entry abilities execute
+    N->>W: Control passes to walker
+    W->>W: Walker entry abilities execute
+    W->>W: Walker processes/decides
+    W->>W: Walker exit abilities execute
+    W->>N: Control returns to node
+    N->>N: Node exit abilities execute
+    W->>N: Walker departs
+```
+
+## 9.2 Practical Ability Patterns
+
+### Data Validation on Arrival
+
+Abilities excel at validating data as walkers traverse:
+
+```jac
+node DataRecord {
+    has id: str;
+    has data: dict;
+    has validated: bool = false;
+    has validation_errors: list = [];
+
+    // Validate when validator arrives
+    can validate_record with DataValidator entry {
+        print(f"Validating record {self.id}");
+
+        // Clear previous validation
+        self.validation_errors = [];
+        self.validated = false;
+
+        // Perform validation
+        let errors = visitor.validate_schema(self.data);
+
+        if errors {
+            self.validation_errors = errors;
+            visitor.invalid_count += 1;
+        } else {
+            self.validated = true;
+            visitor.valid_count += 1;
+        }
+    }
+
+    // Provide data to collectors only if valid
+    can provide_data with DataCollector entry {
+        if self.validated {
+            visitor.collect(self.id, self.data);
+        } else {
+            visitor.skip_invalid(self.id, self.validation_errors);
+        }
+    }
+}
+
+walker DataValidator {
+    has schema: dict;
+    has valid_count: int = 0;
+    has invalid_count: int = 0;
+
+    can validate_schema(data: dict) -> list {
+        let errors = [];
+
+        // Check required fields
+        for field in self.schema.get("required", []) {
+            if field not in data {
+                errors.append(f"Missing required field: {field}");
+            }
+        }
+
+        // Check field types
+        for field, expected_type in self.schema.get("types", {}).items() {
+            if field in data and not isinstance(data[field], expected_type) {
+                errors.append(f"Invalid type for {field}: expected {expected_type.__name__}");
+            }
+        }
+
+        // Check constraints
+        for field, constraints in self.schema.get("constraints", {}).items() {
+            if field in data {
+                value = data[field];
+
+                if "min" in constraints and value < constraints["min"] {
+                    errors.append(f"{field} below minimum: {value} < {constraints['min']}");
+                }
+
+                if "max" in constraints and value > constraints["max"] {
+                    errors.append(f"{field} above maximum: {value} > {constraints['max']}");
+                }
+        }
+
+        return errors;
+    }
+
+    can validate_all with entry {
+        visit [-->];
+    }
+
+    can report with exit {
+        print(f"\nValidation Complete:");
+        print(f"  Valid records: {self.valid_count}");
+        print(f"  Invalid records: {self.invalid_count}");
+    }
+}
+```
+
+### State Transformation During Traversal
+
+Abilities can transform node state based on traversal context:
+
+```jac
+node Account {
+    has id: str;
+    has balance: float;
+    has status: str = "active";
+    has transactions: list = [];
+    has interest_rate: float = 0.02;
+
+    // Apply interest when processor visits
+    can apply_interest with InterestProcessor entry {
+        if self.status == "active" and self.balance > 0 {
+            let interest = self.balance * visitor.get_rate(self);
+            self.balance += interest;
+
+            self.transactions.append({
+                "type": "interest",
+                "amount": interest,
+                "date": visitor.processing_date,
+                "balance_after": self.balance
+            });
+
+            visitor.total_interest_paid += interest;
+            visitor.accounts_processed += 1;
+        }
+    }
+
+    // Update status based on balance
+    can update_status with StatusUpdater entry {
+        let old_status = self.status;
+
+        if self.balance < 0 {
+            self.status = "overdrawn";
+        } elif self.balance == 0 {
+            self.status = "zero_balance";
+        } elif self.balance < 100 {
+            self.status = "low_balance";
+        } else {
+            self.status = "active";
+        }
+
+        if old_status != self.status {
+            visitor.status_changes.append({
+                "account": self.id,
+                "from": old_status,
+                "to": self.status
+            });
+        }
+    }
+}
+
+walker InterestProcessor {
+    has processing_date: str;
+    has base_rate: float = 0.02;
+    has total_interest_paid: float = 0.0;
+    has accounts_processed: int = 0;
+
+    can get_rate(account: Account) -> float {
+        // Premium accounts get better rates
+        if account.balance > 10000 {
+            return self.base_rate * 1.5;
+        } elif account.balance > 5000 {
+            return self.base_rate * 1.25;
+        }
+        return self.base_rate;
+    }
+
+    can process_batch with entry {
+        print(f"Starting interest processing for {self.processing_date}");
+        visit [-->:Account:];
+    }
+
+    can summarize with exit {
+        print(f"\nInterest Processing Complete:");
+        print(f"  Date: {self.processing_date}");
+        print(f"  Accounts processed: {self.accounts_processed}");
+        print(f"  Total interest paid: ${self.total_interest_paid:.2f}");
+    }
+}
+```
+
+### Aggregation and Reporting
+
+Abilities enable elegant aggregation patterns:
+
+```jac
+node SalesRegion {
+    has name: str;
+    has sales_data: list = [];
+
+    can contribute_data with SalesAggregator entry {
+        // Calculate region metrics
+        let total_sales = sum(sale["amount"] for sale in self.sales_data);
+        let avg_sale = total_sales / len(self.sales_data) if self.sales_data else 0;
+
+        // Add to aggregator
+        visitor.add_region_data(
+            region=self.name,
+            total=total_sales,
+            average=avg_sale,
+            count=len(self.sales_data)
+        );
+
+        // Visit sub-regions
+        visit [-->:Contains:];
+    }
+}
+
+node SalesPerson {
+    has name: str;
+    has sales: list = [];
+    has quota: float;
+
+    can report_performance with SalesAggregator entry {
+        let total = sum(sale["amount"] for sale in self.sales);
+        let performance = (total / self.quota * 100) if self.quota > 0 else 0;
+
+        visitor.add_person_data(
+            name=self.name,
+            total=total,
+            quota=self.quota,
+            performance=performance
+        );
+
+        // Contribute to region totals
+        if here[<--:WorksIn:] {
+            let region = here[<--:WorksIn:][0].source;
+            region.sales_data.extend(self.sales);
+        }
+    }
+}
+
+walker SalesAggregator {
+    has period: str;
+    has region_data: dict = {};
+    has person_data: list = [];
+    has summary: dict = {};
+
+    can add_region_data(region: str, total: float, average: float, count: int) {
+        self.region_data[region] = {
+            "total": total,
+            "average": average,
+            "count": count
+        };
+    }
+
+    can add_person_data(name: str, total: float, quota: float, performance: float) {
+        self.person_data.append({
+            "name": name,
+            "total": total,
+            "quota": quota,
+            "performance": performance
+        });
+    }
+
+    can aggregate with entry {
+        print(f"Aggregating sales data for {self.period}");
+        visit [-->];
+    }
+
+    can generate_summary with exit {
+        // Calculate company-wide metrics
+        self.summary = {
+            "period": self.period,
+            "total_sales": sum(r["total"] for r in self.region_data.values()),
+            "regions_analyzed": len(self.region_data),
+            "salespeople_count": len(self.person_data),
+            "top_region": max(self.region_data.items(), key=lambda x: x[1]["total"])[0],
+            "top_performer": max(self.person_data, key=lambda x: x["performance"])["name"]
+        };
+
+        print(f"\n=== Sales Summary for {self.period} ===");
+        print(f"Total Sales: ${self.summary['total_sales']:,.2f}");
+        print(f"Top Region: {self.summary['top_region']}");
+        print(f"Top Performer: {self.summary['top_performer']}");
+    }
+}
+```
+
+### Error Handling in Abilities
+
+Abilities should handle errors gracefully:
+
+```jac
+node DataSource {
+    has url: str;
+    has cache: dict? = None;
+    has last_fetch: str? = None;
+    has error_count: int = 0;
+
+    can provide_data with DataFetcher entry {
+        try {
+            // Try cache first
+            if self.cache and self.is_cache_valid() {
+                visitor.receive_data(self.cache);
+                visitor.cache_hits += 1;
+                return;
+            }
+
+            // Fetch fresh data
+            import:py requests;
+            response = requests.get(self.url, timeout=5);
+
+            if response.status_code == 200 {
+                self.cache = response.json();
+                self.last_fetch = now();
+                self.error_count = 0;
+
+                visitor.receive_data(self.cache);
+                visitor.fetch_count += 1;
+            } else {
+                self.handle_error(f"HTTP {response.status_code}");
+                visitor.error_sources.append(self);
+            }
+
+        } except TimeoutError {
+            self.handle_error("Timeout");
+            visitor.timeout_sources.append(self);
+
+        } except Exception as e {
+            self.handle_error(str(e));
+            visitor.error_sources.append(self);
+        }
+    }
+
+    can handle_error(error: str) {
+        self.error_count += 1;
+        print(f"Error fetching from {self.url}: {error}");
+
+        // Exponential backoff
+        if self.error_count > 3 {
+            print(f"  Source marked as unreliable after {self.error_count} errors");
+        }
+    }
+
+    can is_cache_valid() -> bool {
+        if not self.last_fetch {
+            return false;
+        }
+
+        // Cache valid for 1 hour
+        import:py from datetime import datetime, timedelta;
+        last = datetime.fromisoformat(self.last_fetch);
+        return datetime.now() - last < timedelta(hours=1);
+    }
+}
+
+walker DataFetcher {
+    has data_buffer: list = [];
+    has fetch_count: int = 0;
+    has cache_hits: int = 0;
+    has error_sources: list = [];
+    has timeout_sources: list = [];
+
+    can receive_data(data: dict) {
+        self.data_buffer.append(data);
+    }
+
+    can fetch_all with entry {
+        visit [-->:DataSource:];
+    }
+
+    can report_status with exit {
+        print(f"\nData Fetch Complete:");
+        print(f"  Sources fetched: {self.fetch_count}");
+        print(f"  Cache hits: {self.cache_hits}");
+        print(f"  Errors: {len(self.error_sources)}");
+        print(f"  Timeouts: {len(self.timeout_sources)}");
+        print(f"  Total data collected: {len(self.data_buffer)} items");
+
+        if self.error_sources {
+            print("\nFailed sources:");
+            for source in self.error_sources {
+                print(f"  - {source.url} (errors: {source.error_count})");
+            }
+        }
+    }
+}
+```
+
+## Advanced Ability Patterns
+
+### Cooperative Processing
+
+Multiple walkers can cooperate through abilities:
+
+```jac
+node WorkItem {
+    has id: str;
+    has status: str = "pending";
+    has data: dict;
+    has assigned_to: str? = None;
+    has result: any? = None;
+    has dependencies: list = [];
+
+    // First walker marks items
+    can mark_ready with DependencyChecker entry {
+        let deps_complete = all(
+            dep.status == "completed"
+            for dep in self.dependencies
+        );
+
+        if deps_complete and self.status == "pending" {
+            self.status = "ready";
+            visitor.ready_count += 1;
+        }
+    }
+
+    // Second walker assigns work
+    can assign_work with WorkAssigner entry {
+        if self.status == "ready" and not self.assigned_to {
+            let worker = visitor.get_next_worker();
+            self.assigned_to = worker;
+            self.status = "assigned";
+
+            visitor.assignments[worker].append(self);
+        }
+    }
+
+    // Third walker processes
+    can process_work with WorkProcessor entry {
+        if self.status == "assigned" and self.assigned_to == visitor.worker_id {
+            try {
+                // Simulate processing
+                self.result = self.perform_work();
+                self.status = "completed";
+                visitor.completed_items.append(self.id);
+
+                // Notify dependents
+                self.notify_dependents();
+
+            } except Exception as e {
+                self.status = "failed";
+                visitor.failed_items.append({
+                    "id": self.id,
+                    "error": str(e)
+                });
+            }
+        }
+    }
+
+    can perform_work() -> any {
+        // Actual work logic
+        return f"Processed: {self.data}";
+    }
+
+    can notify_dependents {
+        // Find items depending on this
+        for item in [<--:DependsOn:] {
+            print(f"  Notifying dependent: {item.source.id}");
+        }
+    }
+}
+
+// Orchestrator spawns walkers in sequence
+walker WorkflowOrchestrator {
+    has phases: list = ["check_deps", "assign", "process"];
+    has current_phase: int = 0;
+
+    can orchestrate with entry {
+        let phase = self.phases[self.current_phase];
+        print(f"\nExecuting phase: {phase}");
+
+        if phase == "check_deps" {
+            spawn DependencyChecker() on here;
+        } elif phase == "assign" {
+            spawn WorkAssigner(workers=["w1", "w2", "w3"]) on here;
+        } elif phase == "process" {
+            // Spawn processor for each worker
+            for worker in ["w1", "w2", "w3"] {
+                spawn WorkProcessor(worker_id=worker) on here;
+            }
+        }
+
+        // Move to next phase
+        self.current_phase += 1;
+        if self.current_phase < len(self.phases) {
+            visit here;  // Revisit to continue
+        }
+    }
+}
+```
+
+### Ability Composition
+
+Abilities can be composed for complex behaviors:
+
+```jac
+// Mixin-like node abilities
+node ObservableNode {
+    has observers: list = [];
+    has change_log: list = [];
+
+    can notify_observers(change: dict) {
+        for observer in self.observers {
+            observer.on_change(self, change);
+        }
+
+        self.change_log.append({
+            "timestamp": now(),
+            "change": change
+        });
+    }
+}
+
+node CacheableNode {
+    has cache_key: str;
+    has cached_at: str? = None;
+    has ttl_seconds: int = 3600;
+
+    can is_cache_valid() -> bool {
+        if not self.cached_at {
+            return false;
+        }
+
+        import:py from datetime import datetime, timedelta;
+        cached = datetime.fromisoformat(self.cached_at);
+        return datetime.now() - cached < timedelta(seconds=self.ttl_seconds);
+    }
+
+    can invalidate_cache {
+        self.cached_at = None;
+    }
+}
+
+// Composed node using both patterns
+node SmartDataNode(ObservableNode, CacheableNode) {
+    has data: dict;
+    has version: int = 0;
+
+    // Override data setter to trigger notifications
+    can update_data with DataUpdater entry {
+        let old_data = self.data.copy();
+        let changes = visitor.get_changes();
+
+        // Update data
+        self.data.update(changes);
+        self.version += 1;
+        self.cached_at = now();
+
+        // Notify observers
+        self.notify_observers({
+            "type": "data_update",
+            "old": old_data,
+            "new": self.data,
+            "version": self.version
+        });
+
+        visitor.nodes_updated += 1;
+    }
+
+    // Provide cached data efficiently
+    can get_data with DataReader entry {
+        visitor.requests += 1;
+
+        if self.is_cache_valid() {
+            visitor.cache_hits += 1;
+            visitor.receive_data(self.data, cached=true);
+        } else {
+            // Simulate expensive operation
+            self.refresh_data();
+            visitor.receive_data(self.data, cached=false);
+        }
+    }
+
+    can refresh_data {
+        import:py time;
+        time.sleep(0.1);  // Simulate work
+        self.cached_at = now();
+    }
+}
+```
+
+### Dynamic Ability Selection
+
+Abilities can conditionally execute based on runtime state:
+
+```jac
+node AdaptiveProcessor {
+    has mode: str = "normal";
+    has load: float = 0.0;
+    has error_rate: float = 0.0;
+
+    // Different processing strategies based on mode
+    can process_normal with DataWalker entry {
+        if self.mode != "normal" {
+            return;  // Skip if not in normal mode
+        }
+
+        // Normal processing
+        let result = self.standard_process(visitor.data);
+        visitor.results.append(result);
+
+        // Update metrics
+        self.load = self.calculate_load();
+        self.check_mode_change();
+    }
+
+    can process_degraded with DataWalker entry {
+        if self.mode != "degraded" {
+            return;
+        }
+
+        // Simplified processing for high load
+        let result = self.simple_process(visitor.data);
+        visitor.results.append(result);
+        visitor.degraded_count += 1;
+    }
+
+    can process_recovery with DataWalker entry {
+        if self.mode != "recovery" {
+            return;
+        }
+
+        // Careful processing during recovery
+        try {
+            let result = self.careful_process(visitor.data);
+            visitor.results.append(result);
+            self.error_rate *= 0.9;  // Reduce error rate
+        } except {
+            self.error_rate = min(1.0, self.error_rate * 1.1);
+        }
+
+        self.check_mode_change();
+    }
+
+    can check_mode_change {
+        let old_mode = self.mode;
+
+        if self.error_rate > 0.2 {
+            self.mode = "recovery";
+        } elif self.load > 0.8 {
+            self.mode = "degraded";
+        } else {
+            self.mode = "normal";
+        }
+
+        if old_mode != self.mode {
+            print(f"Mode changed: {old_mode} -> {self.mode}");
+        }
+    }
+
+    can standard_process(data: any) -> any {
+        // Full processing
+        return data;
+    }
+
+    can simple_process(data: any) -> any {
+        // Reduced processing
+        return data;
+    }
+
+    can careful_process(data: any) -> any {
+        // Careful processing with validation
+        return data;
+    }
+}
+```
+
+### Performance Considerations
+
+Abilities should be designed for efficiency:
+
+```jac
+node OptimizedNode {
+    has large_data: list;
+    has index: dict? = None;
+    has stats_cache: dict? = None;
+    has stats_valid: bool = false;
+
+    // Lazy initialization
+    can build_index {
+        if self.index is None {
+            print("Building index...");
+            self.index = {};
+            for i, item in enumerate(self.large_data) {
+                if "id" in item {
+                    self.index[item["id"]] = i;
+            }
+        }
+    }
+
+    // Efficient lookup using index
+    can find_item with ItemFinder entry {
+        self.build_index();
+
+        let target_id = visitor.target_id;
+        if target_id in self.index {
+            let idx = self.index[target_id];
+            visitor.found_item = self.large_data[idx];
+            visitor.comparisons = 1;  // O(1) lookup
+        } else {
+            visitor.found_item = None;
+            visitor.comparisons = 0;
+        }
+    }
+
+    // Cached statistics
+    can get_stats with StatsCollector entry {
+        if not self.stats_valid {
+            self.stats_cache = {
+                "count": len(self.large_data),
+                "total": sum(item.get("value", 0) for item in self.large_data),
+                "average": sum(item.get("value", 0) for item in self.large_data) / len(self.large_data)
+            };
+            self.stats_valid = true;
+        }
+
+        visitor.collect_stats(self.stats_cache);
+    }
+
+    // Invalidate cache on updates
+    can update_data with DataUpdater entry {
+        self.large_data.extend(visitor.new_data);
+        self.stats_valid = false;  // Invalidate cache
+        self.index = None;  // Rebuild index on next search
+    }
+}
+
+// Batch processing for efficiency
+walker BatchProcessor {
+    has batch_size: int = 100;
+    has current_batch: list = [];
+    has processed_count: int = 0;
+
+    can collect with DataNode entry {
+        self.current_batch.append(here.data);
+
+        if len(self.current_batch) >= self.batch_size {
+            self.process_batch();
+            self.current_batch = [];
+        }
+
+        visit [-->];
+    }
+
+    can process_batch {
+        // Process entire batch at once
+        print(f"Processing batch of {len(self.current_batch)} items");
+
+        // Batch operations are often more efficient
+        import:py numpy as np;
+        if all(isinstance(item, (int, float)) for item in self.current_batch) {
+            batch_array = np.array(self.current_batch);
+            result = np.mean(batch_array);  // Vectorized operation
+            print(f"  Batch mean: {result}");
+        }
+
+        self.processed_count += len(self.current_batch);
+    }
+
+    can finalize with exit {
+        // Process remaining items
+        if self.current_batch {
+            self.process_batch();
+        }
+
+        print(f"Total processed: {self.processed_count}");
+    }
+}
+```
+
+## Best Practices for Abilities
+
+### 1. **Keep Abilities Focused**
+Each ability should have a single, clear purpose:
+
+```jac
+// Good - focused abilities
+node Order {
+    can validate_items with OrderValidator entry {
+        // Only validation logic
+    }
+
+    can calculate_total with PriceCalculator entry {
+        // Only price calculation
+    }
+
+    can check_inventory with InventoryChecker entry {
+        // Only inventory checking
+    }
+}
+
+// Bad - doing too much
+node Order {
+    can process_everything with OrderProcessor entry {
+        // Validation, calculation, inventory, shipping, etc.
+        // Too much in one ability!
+    }
+}
+```
+
+### 2. **Use Guards for Conditional Execution**
+Prevent unnecessary processing with early returns:
+
+```jac
+can process_premium with PremiumProcessor entry {
+    // Guard clause
+    if not here.is_premium_eligible() {
+        return;  // Skip processing
+    }
+
+    // Main logic only for eligible nodes
+    self.apply_premium_benefits(here);
+}
+```
+
+### 3. **Handle State Mutations Carefully**
+Be explicit about state changes:
+
+```jac
+node Counter {
+    has value: int = 0;
+    has history: list = [];
+
+    can increment with CounterWalker entry {
+        // Store previous state
+        let old_value = self.value;
+
+        // Mutate state
+        self.value += visitor.increment_by;
+
+        // Track changes
+        self.history.append({
+            "from": old_value,
+            "to": self.value,
+            "by": visitor.walker_id,
+            "at": now()
+        });
+
+        // Notify visitor of change
+        visitor.changes_made.append({
+            "node": self,
+            "old": old_value,
+            "new": self.value
+        });
+    }
+}
+```
+
+### 4. **Design for Testability**
+Make abilities testable by keeping them pure when possible:
+
+```jac
+node Calculator {
+    has formula: str;
+
+    // Pure calculation - easy to test
+    can calculate(values: dict) -> float {
+        // Parse and evaluate formula
+        return eval_formula(self.formula, values);
+    }
+
+    // Ability delegates to pure function
+    can provide_result with CalculationWalker entry {
+        let result = self.calculate(visitor.values);
+        visitor.collect_result(self, result);
+    }
+}
+```
+
+### 5. **Document Ability Contracts**
+Be clear about what abilities expect and provide:
+
+```jac
+node DataProvider {
+    """
+    Provides data to visiting walkers.
+
+    Expected visitor interface:
+    - receive_data(data: dict, metadata: dict)
+    - can_handle_format(format: str) -> bool
+
+    Modifies visitor state:
+    - Adds data to visitor's collection
+    - Updates visitor's metadata
+    """
+    can provide with DataCollector entry {
+        if not visitor.can_handle_format(self.format) {
+            visitor.skip_unsupported(self);
+            return;
+        }
+
+        visitor.receive_data(
+            data=self.data,
+            metadata=self.get_metadata()
+        );
+    }
+}
+```
+
+## Summary
+
+In this chapter, we've explored abilities—the event-driven computation model at the heart of Data Spatial Programming:
+
+- **Implicit Execution**: Abilities trigger automatically during traversal
+- **Multi-Actor System**: Walkers, nodes, and edges all participate
+- **Execution Order**: Predictable sequencing enables complex interactions
+- **Practical Patterns**: Validation, transformation, aggregation, and error handling
+- **Advanced Techniques**: Composition, cooperation, and performance optimization
+
+Abilities transform static data structures into reactive, intelligent systems. They enable computation to happen exactly where and when it's needed, without explicit orchestration. This event-driven model, combined with mobile walkers, creates systems that are both powerful and maintainable.
+
+Next, we'll explore the scale-agnostic features that make Jac applications automatically persist data and handle multiple users without additional code—taking the concepts we've learned and making them production-ready.
 
 ## Part IV: Scale-Agnostic Programming
 
-### Chapter 10: The Root Node and Persistence
-- **10.1 Understanding the Root Node**
-  - Global accessibility via `root` keyword
-  - Automatic persistence model
-  - Reachability-based persistence
-- **10.2 Building Persistent Applications**
-  - Connecting to root for persistence
-  - Managing ephemeral vs persistent state
-  - Database-free data persistence
+# Chapter 10: The Root Node and Persistence
 
-### Chapter 11: Multi-User Applications
-- **11.1 Automatic User Isolation**
-  - User-specific root nodes
-  - Built-in session management
-  - Security through topology
-- **11.2 Multi-User Patterns**
-  - User data organization
-  - Shared vs private subgraphs
-  - Cross-user communication patterns
+One of Jac's most revolutionary features is automatic persistence through the root node. Unlike traditional applications that require explicit database operations, Jac programs naturally persist state between executions. This chapter explores how the root node enables scale-agnostic programming, where the same code works for single-user scripts and multi-user applications.
 
-### Chapter 12: Walkers as API Endpoints
-- **12.1 Entry Point Walkers**
-  - Declaring walkers as entry points
-  - Parameter mapping from external calls
-  - Result collection and formatting
-- **12.2 Building Services**
-  - RESTful patterns with walkers
-  - Event handlers as walkers
-  - Long-running services
+## 10.1 Understanding the Root Node
 
-### Chapter 13: Distributed Jac Applications
-- **13.1 Distribution Concepts**
-  - Topology-aware distribution
-  - Automatic node partitioning
-  - Cross-machine edges
-- **13.2 Scaling Patterns**
-  - From single-machine to distributed
-  - Load balancing through topology
-  - Fault tolerance and recovery
+### Global Accessibility via `root` Keyword
+
+The `root` keyword provides global access to a special persistent node that serves as the anchor for your application's data:
+
+```jac
+// root is available everywhere - no imports needed
+with entry {
+    print(f"Root node: {root}");
+    print(f"Type: {type(root).__name__}");
+
+    // root is always the same node within a user context
+    let id1 = id(root);
+    do_something();
+    let id2 = id(root);
+    assert id1 == id2;  // Always true
+}
+
+can do_something() {
+    // root accessible in any function
+    root ++> node { has data: str = "test"; };
+}
+
+walker Explorer {
+    can explore with entry {
+        // root accessible in walkers
+        print(f"Starting from: {root}");
+        visit root;
+    }
+}
+
+node CustomNode {
+    can check_root with entry {
+        // root accessible in node abilities
+        print(f"Root from node: {root}");
+    }
+}
+```
+
+The `root` node is special:
+- **Always Available**: No declaration or initialization needed
+- **Globally Accessible**: Available in any context without passing
+- **Type-Safe**: It's a real node with all node capabilities
+- **User-Specific**: Each user gets their own isolated root
+
+### Automatic Persistence Model
+
+Everything connected to root persists automatically:
+
+```jac
+// First run - create data
+with entry {
+    print("=== First Run - Creating Data ===");
+
+    // Data connected to root persists
+    let user_profile = root ++> node UserProfile {
+        has username: str = "alice";
+        has created_at: str = "2024-01-15";
+        has login_count: int = 1;
+    };
+
+    print(f"Created profile: {user_profile.username}");
+}
+
+// Second run - data still exists!
+with entry {
+    print("=== Second Run - Data Persists ===");
+
+    // Find existing data
+    let profiles = root[-->:UserProfile:];
+    if profiles {
+        let profile = profiles[0];
+        print(f"Found profile: {profile.username}");
+        print(f"Previous logins: {profile.login_count}");
+
+        // Update persistent data
+        profile.login_count += 1;
+        print(f"Updated logins: {profile.login_count}");
+    }
+}
+
+// Third run - updates persist too
+with entry {
+    print("=== Third Run - Updates Persist ===");
+
+    let profile = root[-->:UserProfile:][0];
+    print(f"Login count is now: {profile.login_count}");  // Shows 3
+}
+```
+
+### Reachability-Based Persistence
+
+Nodes persist based on reachability from root:
+
+```jac
+node Document {
+    has title: str;
+    has content: str;
+    has created: str;
+}
+
+node Tag {
+    has name: str;
+    has color: str = "#0000FF";
+}
+
+with entry {
+    // Connected to root = persistent
+    let doc1 = root ++> Document(
+        title="My First Document",
+        content="This will persist",
+        created=now()
+    );
+
+    // Connected to persistent node = also persistent
+    let tag1 = doc1 ++> Tag(name="important");
+
+    // NOT connected to root = temporary
+    let doc2 = Document(
+        title="Temporary Document",
+        content="This will NOT persist",
+        created=now()
+    );
+
+    // Connecting later makes it persistent
+    root ++> doc2;  // Now doc2 will persist
+
+    // Disconnecting makes it non-persistent
+    del root --> doc1;  // doc1 and tag1 no longer persist
+}
+```
+
+```mermaid
+graph TD
+    R[root<br/>≪always persistent≫]
+    D1[Document 1<br/>≪persistent≫]
+    D2[Document 2<br/>≪persistent≫]
+    D3[Document 3<br/>≪temporary≫]
+    T1[Tag 1<br/>≪persistent≫]
+    T2[Tag 2<br/>≪temporary≫]
+
+    R --> D1
+    R --> D2
+    D1 --> T1
+    D3 --> T2
+
+    style R fill:#4caf50,color:white
+    style D1 fill:#c8e6c9
+    style D2 fill:#c8e6c9
+    style D3 fill:#ffcdd2
+    style T1 fill:#c8e6c9
+    style T2 fill:#ffcdd2
+```
+
+## 10.2 Building Persistent Applications
+
+### Connecting to Root for Persistence
+
+Here's how to design applications with automatic persistence:
+
+```jac
+// Application data model
+node AppData {
+    has version: str = "1.0.0";
+    has settings: dict = {};
+    has initialized: bool = false;
+}
+
+node User {
+    has id: str;
+    has email: str;
+    has preferences: dict = {};
+    has created_at: str;
+}
+
+node Session {
+    has token: str;
+    has user_id: str;
+    has expires_at: str;
+    has active: bool = true;
+}
+
+// Initialize or get existing app data
+can get_or_create_app_data() -> AppData {
+    let app_data_nodes = root[-->:AppData:];
+
+    if not app_data_nodes {
+        print("First run - initializing app data");
+        return root ++> AppData(
+            initialized=true,
+            settings={
+                "theme": "light",
+                "language": "en",
+                "debug": false
+            }
+        );
+    }
+
+    return app_data_nodes[0];
+}
+
+// User management with persistence
+can create_user(email: str) -> User? {
+    let app = get_or_create_app_data();
+
+    // Check if user exists
+    let existing = app[-->:User:].filter(
+        lambda u: User -> bool : u.email == email
+    );
+
+    if existing {
+        print(f"User {email} already exists");
+        return None;
+    }
+
+    // Create persistent user
+    let user = app ++> User(
+        id=generate_id(),
+        email=email,
+        created_at=now()
+    );
+
+    print(f"Created user: {email}");
+    return user;
+}
+
+// Session management
+can create_session(user: User) -> Session {
+    import:py from datetime import datetime, timedelta;
+
+    // Sessions connected to user (persistent)
+    let session = user ++> Session(
+        token=generate_token(),
+        user_id=user.id,
+        expires_at=(datetime.now() + timedelta(hours=24)).isoformat()
+    );
+
+    return session;
+}
+
+// Example usage
+with entry {
+    let app = get_or_create_app_data();
+    print(f"App version: {app.version}");
+
+    // Create or get user
+    let email = "alice@example.com";
+    let user = create_user(email);
+
+    if user {
+        let session = create_session(user);
+        print(f"Session created: {session.token[:8]}...");
+    } else {
+        // User already exists, find them
+        let user = app[-->:User:].filter(
+            lambda u: User -> bool : u.email == email
+        )[0];
+        print(f"Welcome back, {user.email}!");
+        print(f"Account created: {user.created_at}");
+    }
+}
+```
+
+### Managing Ephemeral vs Persistent State
+
+Not everything should persist. Here's how to manage both:
+
+```jac
+node PersistentCache {
+    has data: dict = {};
+    has updated_at: str;
+}
+
+node EphemeralCache {
+    has data: dict = {};
+    has created_at: str;
+}
+
+walker CacheManager {
+    has operation: str;
+    has key: str;
+    has value: any? = None;
+
+    can manage with entry {
+        // Get or create persistent cache
+        let p_cache = root[-->:PersistentCache:][0] if root[-->:PersistentCache:]
+                     else root ++> PersistentCache(updated_at=now());
+
+        // Ephemeral cache is not connected to root
+        let e_cache = EphemeralCache(created_at=now());
+
+        if self.operation == "store" {
+            // Store in both caches
+            p_cache.data[self.key] = self.value;
+            p_cache.updated_at = now();
+            e_cache.data[self.key] = self.value;
+
+            print(f"Stored {self.key} in both caches");
+
+        } elif self.operation == "get" {
+            // Try ephemeral first (faster)
+            if self.key in e_cache.data {
+                print(f"Found {self.key} in ephemeral cache");
+                report e_cache.data[self.key];
+            } elif self.key in p_cache.data {
+                print(f"Found {self.key} in persistent cache");
+                report p_cache.data[self.key];
+            } else {
+                print(f"Key {self.key} not found");
+                report None;
+            }
+        }
+    }
+}
+
+// Hybrid approach for performance
+node FastStore {
+    has persistent_data: dict = {};    // Important data
+    has memory_cache: dict = {};      // Temporary cache
+    has stats: dict = {               // Temporary stats
+        "hits": 0,
+        "misses": 0
+    };
+
+    can get(key: str) -> any? {
+        // Check memory first
+        if key in self.memory_cache {
+            self.stats["hits"] += 1;
+            return self.memory_cache[key];
+        }
+
+        // Check persistent
+        if key in self.persistent_data {
+            self.stats["misses"] += 1;
+            // Populate memory cache
+            self.memory_cache[key] = self.persistent_data[key];
+            return self.persistent_data[key];
+        }
+
+        return None;
+    }
+
+    can store(key: str, value: any, persist: bool = true) {
+        self.memory_cache[key] = value;
+
+        if persist {
+            self.persistent_data[key] = value;
+        }
+    }
+}
+```
+
+### Database-Free Data Persistence
+
+Jac eliminates the need for separate databases in many applications:
+
+```jac
+// Traditional approach requires database setup
+// Python with SQLAlchemy:
+# from sqlalchemy import create_engine, Column, String, Integer
+# from sqlalchemy.ext.declarative import declarative_base
+#
+# Base = declarative_base()
+# engine = create_engine('sqlite:///app.db')
+#
+# class Task(Base):
+#     __tablename__ = 'tasks'
+#     id = Column(Integer, primary_key=True)
+#     title = Column(String)
+#     completed = Column(Boolean)
+#
+# Base.metadata.create_all(engine)
+# session = Session(engine)
+# # ... lots more boilerplate ...
+
+// Jac approach - just connect to root!
+node Task {
+    has id: str;
+    has title: str;
+    has completed: bool = false;
+    has created_at: str;
+    has completed_at: str? = None;
+}
+
+node TaskList {
+    has name: str;
+    has created_at: str;
+}
+
+// Complete task management with zero database code
+walker TaskManager {
+    has command: str;
+    has title: str = "";
+    has list_name: str = "default";
+    has task_id: str = "";
+
+    can execute with entry {
+        // Get or create task list
+        let lists = root[-->:TaskList:(?.name == self.list_name):];
+        let task_list = lists[0] if lists else root ++> TaskList(
+            name=self.list_name,
+            created_at=now()
+        );
+
+        match self.command {
+            case "add": self.add_task(task_list);
+            case "complete": self.complete_task(task_list);
+            case "list": self.list_tasks(task_list);
+            case "stats": self.show_stats(task_list);
+        }
+    }
+
+    can add_task(task_list: TaskList) {
+        let task = task_list ++> Task(
+            id=generate_id(),
+            title=self.title,
+            created_at=now()
+        );
+
+        print(f"Added task: {task.title} (ID: {task.id[:8]})");
+    }
+
+    can complete_task(task_list: TaskList) {
+        let tasks = task_list[-->:Task:(?.id.startswith(self.task_id)):];
+
+        if tasks {
+            let task = tasks[0];
+            task.completed = true;
+            task.completed_at = now();
+            print(f"Completed: {task.title}");
+        } else {
+            print(f"Task {self.task_id} not found");
+        }
+    }
+
+    can list_tasks(task_list: TaskList) {
+        let tasks = task_list[-->:Task:];
+        print(f"\n=== {task_list.name} Tasks ===");
+
+        for task in tasks {
+            let status = "✓" if task.completed else "○";
+            print(f"{status} [{task.id[:8]}] {task.title}");
+        }
+
+        let completed = tasks.filter(lambda t: Task -> bool : t.completed);
+        print(f"\nTotal: {len(tasks)} | Completed: {len(completed)}");
+    }
+
+    can show_stats(task_list: TaskList) {
+        let tasks = task_list[-->:Task:];
+        let completed = tasks.filter(lambda t: Task -> bool : t.completed);
+
+        print(f"\n=== Task Statistics ===");
+        print(f"List: {task_list.name}");
+        print(f"Total tasks: {len(tasks)}");
+        print(f"Completed: {len(completed)}");
+        print(f"Pending: {len(tasks) - len(completed)}");
+
+        if completed {
+            // Calculate average completion time
+            import:py from datetime import datetime;
+            total_time = 0;
+
+            for task in completed {
+                created = datetime.fromisoformat(task.created_at);
+                completed = datetime.fromisoformat(task.completed_at);
+                total_time += (completed - created).total_seconds();
+            }
+
+            avg_hours = (total_time / len(completed)) / 3600;
+            print(f"Avg completion time: {avg_hours:.1f} hours");
+        }
+    }
+}
+
+// Usage - all data persists automatically!
+with entry {
+    import:py sys;
+
+    if len(sys.argv) < 2 {
+        print("Usage: jac run tasks.jac <command> [args]");
+        print("Commands:");
+        print("  add <title> - Add a new task");
+        print("  complete <id> - Mark task as complete");
+        print("  list - Show all tasks");
+        print("  stats - Show statistics");
+        return;
+    }
+
+    let command = sys.argv[1];
+    let manager = TaskManager(command=command);
+
+    if command == "add" and len(sys.argv) > 2 {
+        manager.title = " ".join(sys.argv[2:]);
+    } elif command == "complete" and len(sys.argv) > 2 {
+        manager.task_id = sys.argv[2];
+    }
+
+    spawn manager on root;
+}
+```
+
+### Advanced Persistence Patterns
+
+#### Versioned Data
+
+```jac
+node VersionedDocument {
+    has id: str;
+    has content: str;
+    has version: int = 1;
+    has created_at: str;
+    has modified_at: str;
+}
+
+node DocumentVersion {
+    has version: int;
+    has content: str;
+    has modified_at: str;
+    has modified_by: str;
+}
+
+walker DocumentEditor {
+    has doc_id: str;
+    has new_content: str;
+    has user: str;
+
+    can edit with entry {
+        // Find document
+        let docs = root[-->:VersionedDocument:(?.id == self.doc_id):];
+        if not docs {
+            print(f"Document {self.doc_id} not found");
+            return;
+        }
+
+        let doc = docs[0];
+
+        // Save current version
+        doc ++> DocumentVersion(
+            version=doc.version,
+            content=doc.content,
+            modified_at=doc.modified_at,
+            modified_by=self.user
+        );
+
+        // Update document
+        doc.content = self.new_content;
+        doc.version += 1;
+        doc.modified_at = now();
+
+        print(f"Document updated to version {doc.version}");
+    }
+
+    can get_history with entry {
+        let docs = root[-->:VersionedDocument:(?.id == self.doc_id):];
+        if not docs {
+            return;
+        }
+
+        let doc = docs[0];
+        let versions = doc[-->:DocumentVersion:];
+
+        print(f"\n=== History for {doc.id} ===");
+        print(f"Current version: {doc.version}");
+
+        for v in versions.sorted(key=lambda x: x.version, reverse=true) {
+            print(f"\nVersion {v.version}:");
+            print(f"  Modified: {v.modified_at}");
+            print(f"  By: {v.modified_by}");
+            print(f"  Content: {v.content[:50]}...");
+        }
+    }
+}
+```
+
+#### Lazy Loading Pattern
+
+```jac
+node DataContainer {
+    has id: str;
+    has metadata: dict;
+    has data_loaded: bool = false;
+}
+
+node HeavyData {
+    has payload: list;
+    has size_mb: float;
+}
+
+walker DataLoader {
+    has container_id: str;
+    has operation: str;
+
+    can operate with DataContainer entry {
+        if self.operation == "get_metadata" {
+            // Just return metadata without loading heavy data
+            report here.metadata;
+
+        } elif self.operation == "load_full" {
+            if not here.data_loaded {
+                // Load heavy data only when needed
+                self.load_heavy_data(here);
+            }
+
+            let heavy = here[-->:HeavyData:][0];
+            report {
+                "metadata": here.metadata,
+                "data": heavy.payload,
+                "size": heavy.size_mb
+            };
+        }
+    }
+
+    can load_heavy_data(container: DataContainer) {
+        print(f"Loading heavy data for {container.id}...");
+
+        // Simulate loading large data
+        import:py time;
+        time.sleep(1);
+
+        container ++> HeavyData(
+            payload=list(range(1000000)),
+            size_mb=7.6
+        );
+
+        container.data_loaded = true;
+    }
+}
+```
+
+#### Garbage Collection Pattern
+
+```jac
+node CachedItem {
+    has key: str;
+    has value: any;
+    has created_at: str;
+    has last_accessed: str;
+    has ttl_hours: int = 24;
+}
+
+walker CacheCleanup {
+    has cleaned_count: int = 0;
+    has checked_count: int = 0;
+
+    can cleanup with CachedItem entry {
+        import:py from datetime import datetime, timedelta;
+
+        self.checked_count += 1;
+
+        last_access = datetime.fromisoformat(here.last_accessed);
+        age = datetime.now() - last_access;
+
+        if age > timedelta(hours=here.ttl_hours) {
+            print(f"Removing expired cache item: {here.key}");
+
+            // Disconnect from root to remove persistence
+            for edge in here[<--] {
+                del edge;
+            }
+
+            self.cleaned_count += 1;
+        }
+
+        visit [-->];
+    }
+
+    can report with exit {
+        print(f"\nCache cleanup complete:");
+        print(f"  Checked: {self.checked_count} items");
+        print(f"  Cleaned: {self.cleaned_count} items");
+    }
+}
+
+// Run periodic cleanup
+with entry:cleanup {
+    print("Running cache cleanup...");
+    spawn CacheCleanup() on root;
+}
+```
+
+### Performance Considerations
+
+While persistence is automatic, consider these patterns for optimization:
+
+```jac
+// Indexing pattern for fast lookups
+node IndexedCollection {
+    has name: str;
+    has indices: dict = {};
+
+    can add_item(item: dict) {
+        // Store item
+        let item_node = self ++> node DataItem {
+            has data: dict;
+        }(data=item);
+
+        // Update indices
+        for key, value in item.items() {
+            if key not in self.indices {
+                self.indices[key] = {};
+            }
+
+            if value not in self.indices[key] {
+                self.indices[key][value] = [];
+            }
+
+            self.indices[key][value].append(item_node);
+        }
+    }
+
+    can find_by(key: str, value: any) -> list {
+        if key in self.indices and value in self.indices[key] {
+            return self.indices[key][value];
+        }
+        return [];
+    }
+}
+
+// Pagination pattern for large collections
+walker PaginatedQuery {
+    has page: int = 1;
+    has page_size: int = 20;
+    has filters: dict = {};
+    has total_count: int = 0;
+    has results: list = [];
+
+    can query with entry {
+        // Get all matching items
+        let all_items = root[-->:DataItem:];
+
+        // Apply filters
+        let filtered = all_items;
+        for key, value in self.filters.items() {
+            filtered = filtered.filter(
+                lambda item: DataItem -> bool : item.data.get(key) == value
+            );
+        }
+
+        self.total_count = len(filtered);
+
+        // Paginate
+        let start = (self.page - 1) * self.page_size;
+        let end = start + self.page_size;
+        self.results = filtered[start:end];
+
+        report {
+            "page": self.page,
+            "page_size": self.page_size,
+            "total": self.total_count,
+            "pages": (self.total_count + self.page_size - 1) // self.page_size,
+            "data": self.results
+        };
+    }
+}
+```
+
+## Summary
+
+In this chapter, we've explored Jac's revolutionary persistence model:
+
+- **The Root Node**: A globally accessible anchor for persistent data
+- **Automatic Persistence**: No database required—just connect to root
+- **Reachability Model**: Data persists based on graph connectivity
+- **Zero Configuration**: No schema definitions, migrations, or connection strings
+- **Performance Patterns**: Indexing, lazy loading, and cleanup strategies
+
+This persistence model eliminates entire categories of boilerplate code. You focus on your domain logic while Jac handles data persistence automatically. The same patterns that work for a simple script scale to multi-user applications—which we'll explore in the next chapter.
+
+# Chapter 11: Multi-User Applications
+
+Jac's automatic user isolation transforms single-user code into multi-user applications without modification. Each user gets their own isolated root node and data space, enabling secure multi-tenancy by default. This chapter explores how to build applications that serve multiple users simultaneously while maintaining data isolation and enabling controlled sharing.
+
+## 11.1 Automatic User Isolation
+
+### User-Specific Root Nodes
+
+In Jac, each user automatically gets their own isolated root node:
+
+```jac
+// This same code works for ANY user
+with entry {
+    // 'root' always refers to the current user's root
+    let profile = root[-->:UserProfile:];
+
+    if not profile {
+        // First time user
+        print("Welcome! Creating your profile...");
+        root ++> UserProfile(
+            created_at=now(),
+            last_login=now()
+        );
+    } else {
+        // Returning user
+        let prof = profile[0];
+        print(f"Welcome back! Last login: {prof.last_login}");
+        prof.last_login = now();
+    }
+}
+
+node UserProfile {
+    has created_at: str;
+    has last_login: str;
+    has preferences: dict = {};
+    has subscription: str = "free";
+}
+```
+
+When different users run this code:
+- Alice sees only Alice's data
+- Bob sees only Bob's data
+- No explicit user management needed!
+
+```mermaid
+graph TD
+    subgraph "User: Alice"
+        RA[root<br/>≪Alice's≫]
+        PA[Profile<br/>≪Alice's≫]
+        DA[Data<br/>≪Alice's≫]
+        RA --> PA
+        PA --> DA
+    end
+
+    subgraph "User: Bob"
+        RB[root<br/>≪Bob's≫]
+        PB[Profile<br/>≪Bob's≫]
+        DB[Data<br/>≪Bob's≫]
+        RB --> PB
+        PB --> DB
+    end
+
+    subgraph "User: Charlie"
+        RC[root<br/>≪Charlie's≫]
+        PC[Profile<br/>≪Charlie's≫]
+        DC[Data<br/>≪Charlie's≫]
+        RC --> PC
+        PC --> DC
+    end
+
+    style RA fill:#e8f5e9
+    style RB fill:#e3f2fd
+    style RC fill:#fff3e0
+```
+
+### Built-in Session Management
+
+Jac handles user sessions automatically:
+
+```jac
+// No session management code needed!
+walker TodoManager {
+    has command: str;
+    has task_title: str = "";
+
+    can manage with entry {
+        // Automatically executes in correct user context
+        match self.command {
+            case "add": self.add_task();
+            case "list": self.list_tasks();
+            case "stats": self.show_stats();
+        }
+    }
+
+    can add_task {
+        // Creates task in current user's space
+        let task = root ++> Task(
+            title=self.task_title,
+            created_at=now(),
+            owner=get_current_user_id()  // Automatic!
+        );
+
+        print(f"Task added: {task.title}");
+    }
+
+    can list_tasks {
+        // Only sees current user's tasks
+        let tasks = root[-->:Task:];
+
+        print(f"\nYour tasks ({len(tasks)} total):");
+        for task in tasks {
+            let status = "✓" if task.completed else "○";
+            print(f"  {status} {task.title}");
+        }
+    }
+}
+
+node Task {
+    has title: str;
+    has completed: bool = false;
+    has created_at: str;
+    has owner: str;
+}
+```
+
+### Security Through Topology
+
+User isolation is enforced at the graph level:
+
+```jac
+// Attempting cross-user access
+walker SecurityTest {
+    has target_user_id: str;
+
+    can test_isolation with entry {
+        // This will NEVER access another user's data
+        let my_data = root[-->:PrivateData:];
+        print(f"Found {len(my_data)} private items");
+
+        // Even if you somehow got another user's node reference,
+        // the runtime prevents cross-user traversal
+        try {
+            let other_root = self.get_other_user_root(self.target_user_id);
+            let their_data = other_root[-->:PrivateData:];  // BLOCKED!
+        } except SecurityError as e {
+            print(f"Security: {e}");  // "Cross-user access denied"
+        }
+    }
+}
+
+node PrivateData {
+    has content: str;
+    has classification: str = "confidential";
+}
+```
+
+## 11.2 Multi-User Patterns
+
+### User Data Organization
+
+Best practices for organizing user-specific data:
+
+```jac
+// User data hierarchy pattern
+node UserSpace {
+    has user_id: str;
+    has created_at: str;
+    has tier: str = "free";
+}
+
+node Projects {
+    has active_count: int = 0;
+    has archived_count: int = 0;
+}
+
+node Settings {
+    has theme: str = "light";
+    has language: str = "en";
+    has notifications: dict = {
+        "email": true,
+        "push": false,
+        "sms": false
+    };
+}
+
+// Initialize user space
+walker InitializeUser {
+    has user_id: str;
+    has tier: str = "free";
+
+    can setup with entry {
+        // Check if already initialized
+        let existing = root[-->:UserSpace:];
+        if existing {
+            print(f"User {self.user_id} already initialized");
+            return;
+        }
+
+        // Create organized structure
+        let space = root ++> UserSpace(
+            user_id=self.user_id,
+            created_at=now(),
+            tier=self.tier
+        );
+
+        space ++> Projects();
+        space ++> Settings();
+
+        print(f"Initialized user space for {self.user_id}");
+    }
+}
+
+// Organize user projects
+node Project {
+    has name: str;
+    has description: str = "";
+    has created_at: str;
+    has updated_at: str;
+    has archived: bool = false;
+    has collaborators: list[str] = [];
+}
+
+walker ProjectManager {
+    has action: str;
+    has project_name: str;
+    has description: str = "";
+
+    can manage with entry {
+        // Get user's project container
+        let space = root[-->:UserSpace:][0];
+        let projects = space[-->:Projects:][0];
+
+        match self.action {
+            case "create": self.create_project(projects);
+            case "list": self.list_projects(projects);
+            case "archive": self.archive_project(projects);
+            case "share": self.share_project(projects);
+        }
+    }
+
+    can create_project(projects: Projects) {
+        let project = projects ++> Project(
+            name=self.project_name,
+            description=self.description,
+            created_at=now(),
+            updated_at=now()
+        );
+
+        projects.active_count += 1;
+        print(f"Created project: {project.name}");
+    }
+
+    can list_projects(projects: Projects) {
+        let all_projects = projects[-->:Project:];
+        let active = all_projects.filter(lambda p: Project -> bool : not p.archived);
+        let archived = all_projects.filter(lambda p: Project -> bool : p.archived);
+
+        print(f"\n=== Your Projects ===");
+        print(f"Active ({len(active)}):");
+        for p in active {
+            print(f"  - {p.name}: {p.description}");
+        }
+
+        if archived {
+            print(f"\nArchived ({len(archived)}):");
+            for p in archived {
+                print(f"  - {p.name} (archived)");
+            }
+        }
+    }
+}
+```
+
+### Shared vs Private Subgraphs
+
+Creating controlled sharing between users:
+
+```jac
+// Shared workspace pattern
+node SharedWorkspace {
+    has id: str;
+    has name: str;
+    has created_by: str;
+    has created_at: str;
+    has members: list[str] = [];
+}
+
+node WorkspaceLink {
+    has workspace_id: str;
+    has role: str = "viewer";  // viewer, editor, admin
+    has joined_at: str;
+}
+
+edge CanAccess {
+    has permissions: list[str];
+}
+
+walker WorkspaceManager {
+    has action: str;
+    has workspace_name: str = "";
+    has workspace_id: str = "";
+    has invite_user: str = "";
+    has role: str = "viewer";
+
+    can manage with entry {
+        match self.action {
+            case "create": self.create_workspace();
+            case "invite": self.invite_to_workspace();
+            case "list": self.list_workspaces();
+            case "access": self.access_workspace();
+        }
+    }
+
+    can create_workspace {
+        // Create in shared space (not under user root)
+        let workspace = SharedWorkspace(
+            id=generate_id(),
+            name=self.workspace_name,
+            created_by=get_current_user_id(),
+            created_at=now(),
+            members=[get_current_user_id()]
+        );
+
+        // Link to user's root
+        root ++> WorkspaceLink(
+            workspace_id=workspace.id,
+            role="admin",
+            joined_at=now()
+        );
+
+        print(f"Created workspace: {workspace.name} (ID: {workspace.id})");
+        report workspace.id;
+    }
+
+    can invite_to_workspace {
+        // Check if current user has permission
+        let links = root[-->:WorkspaceLink:(?.workspace_id == self.workspace_id):];
+        if not links or links[0].role != "admin" {
+            print("Only admins can invite users");
+            return;
+        }
+
+        // Create invitation (would be sent to other user)
+        let invitation = {
+            "workspace_id": self.workspace_id,
+            "invited_by": get_current_user_id(),
+            "role": self.role,
+            "created_at": now()
+        };
+
+        // In real app, this would notify the other user
+        print(f"Invitation sent to {self.invite_user}");
+        report invitation;
+    }
+
+    can access_workspace {
+        // Find workspace link
+        let links = root[-->:WorkspaceLink:(?.workspace_id == self.workspace_id):];
+        if not links {
+            print("You don't have access to this workspace");
+            return;
+        }
+
+        let link = links[0];
+        print(f"Accessing workspace {self.workspace_id} as {link.role}");
+
+        // In real app, would load shared workspace data
+        // based on permissions
+    }
+}
+```
+
+### Cross-User Communication Patterns
+
+Enabling users to interact while maintaining isolation:
+
+```jac
+// Message passing between users
+node Message {
+    has id: str;
+    has from_user: str;
+    has to_user: str;
+    has subject: str;
+    has content: str;
+    has sent_at: str;
+    has read_at: str? = None;
+}
+
+node Inbox;
+node Outbox;
+
+walker MessageSystem {
+    has action: str;
+    has to_user: str = "";
+    has subject: str = "";
+    has content: str = "";
+    has message_id: str = "";
+
+    can setup_messaging with entry {
+        // Ensure user has inbox/outbox
+        if not root[-->:Inbox:] {
+            root ++> Inbox();
+        }
+        if not root[-->:Outbox:] {
+            root ++> Outbox();
+        }
+    }
+
+    can send_message with entry {
+        self.setup_messaging();
+
+        let outbox = root[-->:Outbox:][0];
+        let from_user = get_current_user_id();
+
+        // Create message in sender's outbox
+        let message = outbox ++> Message(
+            id=generate_id(),
+            from_user=from_user,
+            to_user=self.to_user,
+            subject=self.subject,
+            content=self.content,
+            sent_at=now()
+        );
+
+        // In real system, this would trigger delivery to recipient
+        // For demo, we'll simulate it
+        self.deliver_message(message);
+
+        print(f"Message sent to {self.to_user}");
+    }
+
+    can deliver_message(message: Message) {
+        // This would run in recipient's context
+        // Simulating cross-user delivery
+        print(f"[System] Delivering message {message.id} to {message.to_user}");
+
+        // Would create a copy in recipient's inbox
+        // recipient_root[-->:Inbox:][0] ++> message_copy;
+    }
+
+    can list_inbox with entry {
+        self.setup_messaging();
+
+        let inbox = root[-->:Inbox:];
+        if not inbox {
+            print("No inbox found");
+            return;
+        }
+
+        let messages = inbox[0][-->:Message:];
+        print(f"\n=== Inbox ({len(messages)} messages) ===");
+
+        for msg in messages.sorted(key=lambda m: m.sent_at, reverse=true) {
+            let status = "📬" if msg.read_at else "📨";
+            print(f"{status} From: {msg.from_user}");
+            print(f"   Subject: {msg.subject}");
+            print(f"   Sent: {msg.sent_at}");
+        }
+    }
+}
+```
+
+### Public Profiles and Discovery
+
+Allowing users to discover each other:
+
+```jac
+// Public profile system
+node PublicProfile {
+    has user_id: str;
+    has display_name: str;
+    has bio: str = "";
+    has avatar_url: str = "";
+    has is_public: bool = true;
+    has followers_count: int = 0;
+    has following_count: int = 0;
+}
+
+// Global discovery space (not under any user's root)
+node GlobalDirectory {
+    has profile_count: int = 0;
+}
+
+edge Follows {
+    has since: str;
+}
+
+walker ProfileManager {
+    has action: str;
+    has display_name: str = "";
+    has bio: str = "";
+    has target_user: str = "";
+
+    can manage with entry {
+        match self.action {
+            case "create": self.create_public_profile();
+            case "update": self.update_profile();
+            case "follow": self.follow_user();
+            case "discover": self.discover_users();
+        }
+    }
+
+    can create_public_profile {
+        // Check if profile exists
+        let existing = root[-->:PublicProfile:];
+        if existing {
+            print("Profile already exists");
+            return;
+        }
+
+        // Create profile linked to user
+        let profile = root ++> PublicProfile(
+            user_id=get_current_user_id(),
+            display_name=self.display_name,
+            bio=self.bio
+        );
+
+        // Also add to global directory
+        // (In real system, this would be in shared space)
+        print(f"Created public profile: {profile.display_name}");
+    }
+
+    can follow_user {
+        // Get my profile
+        let my_profile = root[-->:PublicProfile:][0];
+
+        // In real system, would find target user's profile
+        // For demo, we'll simulate
+        print(f"Following user: {self.target_user}");
+
+        // Create follow relationship
+        my_profile ++>:Follows(since=now()):++> self.target_user;
+        my_profile.following_count += 1;
+
+        // Target user's follower count would increase
+        // target_profile.followers_count += 1;
+    }
+
+    can discover_users {
+        // In real system, would search global directory
+        print("\n=== Discover Users ===");
+        print("Featured profiles:");
+        print("  - @alice_dev - Software engineer and Jac enthusiast");
+        print("  - @bob_designer - UI/UX Designer");
+        print("  - @charlie_data - Data scientist");
+
+        // Would actually search/filter profiles
+    }
+}
+```
+
+### Activity Feeds and Notifications
+
+Building user-specific activity streams:
+
+```jac
+node Activity {
+    has id: str;
+    has type: str;  // post, comment, like, follow
+    has actor_id: str;
+    has actor_name: str;
+    has content: dict;
+    has created_at: str;
+    has read: bool = false;
+}
+
+node ActivityFeed {
+    has last_checked: str;
+}
+
+walker ActivityManager {
+    has action: str;
+    has activity_type: str = "";
+    has content: dict = {};
+
+    can manage with entry {
+        // Ensure feed exists
+        if not root[-->:ActivityFeed:] {
+            root ++> ActivityFeed(last_checked=now());
+        }
+
+        match self.action {
+            case "add": self.add_activity();
+            case "view": self.view_feed();
+            case "mark_read": self.mark_all_read();
+        }
+    }
+
+    can add_activity {
+        let feed = root[-->:ActivityFeed:][0];
+
+        feed ++> Activity(
+            id=generate_id(),
+            type=self.activity_type,
+            actor_id=get_current_user_id(),
+            actor_name="Current User",
+            content=self.content,
+            created_at=now()
+        );
+
+        print(f"Activity added: {self.activity_type}");
+    }
+
+    can view_feed {
+        let feed = root[-->:ActivityFeed:][0];
+        let activities = feed[-->:Activity:];
+
+        // Sort by time, newest first
+        let sorted_activities = activities.sorted(
+            key=lambda a: a.created_at,
+            reverse=true
+        );
+
+        print(f"\n=== Activity Feed ===");
+        print(f"Last checked: {feed.last_checked}");
+
+        let unread_count = len([a for a in activities if not a.read]);
+        if unread_count > 0 {
+            print(f"🔔 {unread_count} new activities\n");
+        }
+
+        for activity in sorted_activities[:10] {  // Show latest 10
+            let indicator = "●" if not activity.read else "○";
+
+            match activity.type {
+                case "post":
+                    print(f"{indicator} {activity.actor_name} created a new post");
+                case "comment":
+                    print(f"{indicator} {activity.actor_name} commented on your post");
+                case "like":
+                    print(f"{indicator} {activity.actor_name} liked your content");
+                case "follow":
+                    print(f"{indicator} {activity.actor_name} started following you");
+            }
+
+            print(f"   {activity.created_at}");
+        }
+
+        // Update last checked
+        feed.last_checked = now();
+    }
+}
+```
+
+### Permission Systems
+
+Implementing fine-grained permissions:
+
+```jac
+node Resource {
+    has id: str;
+    has type: str;  // document, folder, etc
+    has name: str;
+    has owner: str;
+    has created_at: str;
+}
+
+edge HasPermission {
+    has permissions: list[str];  // read, write, delete, share
+    has granted_by: str;
+    has granted_at: str;
+}
+
+walker PermissionManager {
+    has action: str;
+    has resource_id: str = "";
+    has user_id: str = "";
+    has permissions: list[str] = [];
+
+    can check_permission(resource: Resource, permission: str) -> bool {
+        let current_user = get_current_user_id();
+
+        // Owner has all permissions
+        if resource.owner == current_user {
+            return true;
+        }
+
+        // Check granted permissions
+        let perms = resource[<--:HasPermission:].filter(
+            lambda p: HasPermission -> bool : current_user in p.permissions
+        );
+
+        return permission in perms[0].permissions if perms else false;
+    }
+
+    can grant_permission with entry {
+        // Find resource
+        let resources = root[-->*:Resource:(?.id == self.resource_id):];
+        if not resources {
+            print("Resource not found");
+            return;
+        }
+
+        let resource = resources[0];
+
+        // Check if current user can share
+        if not self.check_permission(resource, "share") {
+            print("You don't have permission to share this resource");
+            return;
+        }
+
+        // Grant permission
+        resource ++>:HasPermission(
+            permissions=self.permissions,
+            granted_by=get_current_user_id(),
+            granted_at=now()
+        ):++> self.user_id;
+
+        print(f"Granted {self.permissions} to {self.user_id}");
+    }
+}
+```
+
+### Multi-User Analytics
+
+Aggregate analytics while preserving privacy:
+
+```jac
+// User analytics node
+node UserAnalytics {
+    has user_id: str;
+    has events: list[dict] = [];
+    has summary: dict = {};
+}
+
+// Global analytics (anonymized)
+node GlobalAnalytics {
+    has total_users: int = 0;
+    has total_events: int = 0;
+    has event_types: dict = {};
+    has daily_active: dict = {};
+}
+
+walker AnalyticsTracker {
+    has event_type: str;
+    has event_data: dict = {};
+
+    can track_event with entry {
+        // Get or create user analytics
+        let analytics = root[-->:UserAnalytics:];
+        let user_analytics = analytics[0] if analytics else root ++> UserAnalytics(
+            user_id=get_current_user_id()
+        );
+
+        // Record event
+        let event = {
+            "type": self.event_type,
+            "data": self.event_data,
+            "timestamp": now()
+        };
+
+        user_analytics.events.append(event);
+
+        // Update user summary
+        if self.event_type not in user_analytics.summary {
+            user_analytics.summary[self.event_type] = 0;
+        }
+        user_analytics.summary[self.event_type] += 1;
+
+        // Would also update global analytics (anonymized)
+        print(f"Tracked event: {self.event_type}");
+    }
+}
+
+walker AnalyticsReporter {
+    has scope: str = "user";  // user or global
+
+    can generate_report with entry {
+        if self.scope == "user" {
+            self.user_report();
+        } else {
+            self.global_report();
+        }
+    }
+
+    can user_report {
+        let analytics = root[-->:UserAnalytics:];
+        if not analytics {
+            print("No analytics data found");
+            return;
+        }
+
+        let data = analytics[0];
+        print(f"\n=== Your Analytics ===");
+        print(f"Total events: {len(data.events)}");
+
+        print("\nEvent breakdown:");
+        for event_type, count in data.summary.items() {
+            print(f"  {event_type}: {count}");
+        }
+
+        // Recent activity
+        let recent = data.events[-5:] if len(data.events) >= 5 else data.events;
+        print(f"\nRecent activity:");
+        for event in recent {
+            print(f"  - {event['type']} at {event['timestamp']}");
+        }
+    }
+}
+```
+
+## Best Practices for Multi-User Apps
+
+### 1. **Design for Isolation First**
+
+```jac
+// Good: User data naturally isolated
+node UserContent {
+    has title: str;
+    has content: str;
+    has private: bool = true;
+}
+
+walker ContentManager {
+    can create_content with entry {
+        // Automatically in user's space
+        root ++> UserContent(
+            title=self.title,
+            content=self.content
+        );
+    }
+}
+
+// Bad: Trying to manage users manually
+node BadContent {
+    has owner_id: str;  // Don't do this!
+    has title: str;
+}
+```
+
+### 2. **Use Topology for Permissions**
+
+```jac
+// Good: Permissions through graph structure
+node Team {
+    has name: str;
+}
+
+edge MemberOf {
+    has role: str;
+}
+
+can user_can_access_team(team: Team) -> bool {
+    // Check if path exists from user to team
+    return len(root[-->*:MemberOf:-->:Team:(? == team):]) > 0;
+}
+
+// Bad: Storing permissions in lists
+node BadTeam {
+    has member_ids: list[str];  // Don't do this!
+}
+```
+
+### 3. **Plan for Sharing Early**
+
+```jac
+// Sharing pattern
+node SharedContent {
+    has id: str;
+    has created_by: str;
+}
+
+node ContentRef {
+    has content_id: str;
+    has permissions: list[str];
+}
+
+// Users have references to shared content
+can share_content(content: SharedContent, with_user: str, perms: list[str]) {
+    // Would create ContentRef in other user's space
+    // other_user_root ++> ContentRef(content_id=content.id, permissions=perms);
+}
+```
+
+### 4. **Handle Concurrent Access**
+
+```jac
+node Counter {
+    has value: int = 0;
+    has version: int = 0;
+}
+
+walker IncrementCounter {
+    can increment with Counter entry {
+        // Optimistic concurrency control
+        let expected_version = here.version;
+
+        here.value += 1;
+        here.version += 1;
+
+        // In real system, would check version hasn't changed
+        if here.version != expected_version + 1 {
+            print("Concurrent modification detected!");
+            // Handle conflict
+        }
+    }
+}
+```
+
+## Summary
+
+In this chapter, we've explored Jac's powerful multi-user capabilities:
+
+- **Automatic Isolation**: Each user gets their own root and data space
+- **Zero Configuration**: No user management code needed
+- **Security by Design**: Cross-user access prevented at runtime
+- **Sharing Patterns**: Controlled sharing through graph topology
+- **Communication**: Message passing and activity feeds
+- **Scale-Agnostic**: Same code works for 1 or 1 million users
+
+Jac's multi-user support isn't bolted on—it's fundamental to the architecture. You write code as if for a single user, and Jac handles the complexity of user isolation, session management, and data security automatically.
+
+Next, we'll see how walkers can serve as API endpoints, turning your graph traversals into web services that can serve these multiple users over the network.
+
+# Chapter 12: Walkers as API Endpoints
+
+Jac revolutionizes API development by allowing walkers to serve as entry points into your application. Instead of writing separate endpoint handlers, parameter validation, and routing logic, you simply declare walkers as entry points. This chapter explores how to build modern APIs using walkers, transforming graph traversals into web services.
+
+## 12.1 Entry Point Walkers
+
+### Declaring Walkers as Entry Points
+
+Any walker can become an API endpoint through simple declaration:
+
+```jac
+walker GetUserProfile {
+    has user_id: str = "";
+    has include_stats: bool = false;
+
+    can fetch_profile with entry {
+        // If no user_id provided, get current user's profile
+        if not self.user_id {
+            self.user_id = get_current_user_id();
+        }
+
+        // Find profile
+        let profiles = root[-->:UserProfile:(?.user_id == self.user_id):];
+        if not profiles {
+            report {
+                "success": false,
+                "error": "Profile not found"
+            };
+            return;
+        }
+
+        let profile = profiles[0];
+        let response = {
+            "success": true,
+            "data": {
+                "user_id": profile.user_id,
+                "display_name": profile.display_name,
+                "bio": profile.bio,
+                "created_at": profile.created_at
+            }
+        };
+
+        if self.include_stats {
+            response["data"]["stats"] = self.gather_stats(profile);
+        }
+
+        report response;
+    }
+
+    can gather_stats(profile: UserProfile) -> dict {
+        return {
+            "posts": len(profile[-->:Post:]),
+            "followers": len(profile[<--:Follows:]),
+            "following": len(profile[-->:Follows:])
+        };
+    }
+}
+
+node UserProfile {
+    has user_id: str;
+    has display_name: str;
+    has bio: str;
+    has created_at: str;
+}
+```
+
+When deployed, this walker automatically becomes an endpoint:
+```bash
+# API call
+GET /api/GetUserProfile?user_id=alice123&include_stats=true
+
+# Response
+{
+    "success": true,
+    "data": {
+        "user_id": "alice123",
+        "display_name": "Alice Johnson",
+        "bio": "Software engineer and Jac enthusiast",
+        "created_at": "2024-01-15T10:30:00Z",
+        "stats": {
+            "posts": 42,
+            "followers": 156,
+            "following": 89
+        }
+    }
+}
+```
+
+### Parameter Mapping from External Calls
+
+Walker properties automatically map to API parameters:
+
+```jac
+walker CreatePost {
+    has title: str;
+    has content: str;
+    has tags: list[str] = [];
+    has draft: bool = false;
+
+    // Type validation happens automatically!
+    can validate_input() -> tuple {
+        if not self.title {
+            return (false, "Title is required");
+        }
+
+        if len(self.title) > 200 {
+            return (false, "Title too long (max 200 chars)");
+        }
+
+        if not self.content {
+            return (false, "Content is required");
+        }
+
+        if len(self.tags) > 10 {
+            return (false, "Too many tags (max 10)");
+        }
+
+        return (true, "");
+    }
+
+    can create with entry {
+        // Validate input
+        let (valid, error) = self.validate_input();
+        if not valid {
+            report {
+                "success": false,
+                "error": error
+            };
+            return;
+        }
+
+        // Create post
+        let posts_container = root[-->:PostsContainer:][0]
+            if root[-->:PostsContainer:]
+            else root ++> PostsContainer();
+
+        let post = posts_container ++> Post(
+            id=generate_id(),
+            title=self.title,
+            content=self.content,
+            tags=self.tags,
+            draft=self.draft,
+            author_id=get_current_user_id(),
+            created_at=now(),
+            updated_at=now()
+        );
+
+        // Add tags as nodes
+        for tag_name in self.tags {
+            let tag = get_or_create_tag(tag_name);
+            post ++>:HasTag:++> tag;
+        }
+
+        report {
+            "success": true,
+            "data": {
+                "id": post.id,
+                "title": post.title,
+                "created_at": post.created_at,
+                "url": f"/posts/{post.id}"
+            }
+        };
+    }
+}
+
+node Post {
+    has id: str;
+    has title: str;
+    has content: str;
+    has tags: list[str];
+    has draft: bool;
+    has author_id: str;
+    has created_at: str;
+    has updated_at: str;
+    has view_count: int = 0;
+}
+```
+
+API usage:
+```bash
+# POST request
+POST /api/CreatePost
+Content-Type: application/json
+
+{
+    "title": "Getting Started with Jac",
+    "content": "Jac is a revolutionary programming language...",
+    "tags": ["programming", "jac", "tutorial"],
+    "draft": false
+}
+
+# Response
+{
+    "success": true,
+    "data": {
+        "id": "post_abc123",
+        "title": "Getting Started with Jac",
+        "created_at": "2024-03-15T14:30:00Z",
+        "url": "/posts/post_abc123"
+    }
+}
+```
+
+### Result Mapping
+
+Control exactly what data is returned:
+
+```jac
+walker SearchPosts {
+    has query: str;
+    has tags: list[str] = [];
+    has author: str = "";
+    has limit: int = 20;
+    has offset: int = 0;
+    has sort_by: str = "relevance";  // relevance, date, popularity
+
+    has results: list = [];
+    has total_count: int = 0;
+
+    can search with entry {
+        let all_posts = root[-->:PostsContainer:][0][-->:Post:];
+
+        // Filter posts
+        let filtered = all_posts.filter(lambda p: Post -> bool :
+            self.matches_criteria(p)
+        );
+
+        self.total_count = len(filtered);
+
+        // Sort
+        let sorted_posts = self.sort_posts(filtered);
+
+        // Paginate
+        let paginated = sorted_posts[self.offset:self.offset + self.limit];
+
+        // Transform for response
+        for post in paginated {
+            self.results.append(self.transform_post(post));
+        }
+
+        report {
+            "success": true,
+            "data": {
+                "posts": self.results,
+                "pagination": {
+                    "total": self.total_count,
+                    "limit": self.limit,
+                    "offset": self.offset,
+                    "has_more": self.offset + self.limit < self.total_count
+                }
+            }
+        };
+    }
+
+    can matches_criteria(post: Post) -> bool {
+        // Text search
+        if self.query {
+            let text = (post.title + " " + post.content).lower();
+            if self.query.lower() not in text {
+                return false;
+            }
+        }
+
+        // Tag filter
+        if self.tags {
+            let post_tags = set(post.tags);
+            let required_tags = set(self.tags);
+            if not required_tags.issubset(post_tags) {
+                return false;
+            }
+        }
+
+        // Author filter
+        if self.author and post.author_id != self.author {
+            return false;
+        }
+
+        // Don't show drafts unless author is searching own posts
+        if post.draft and post.author_id != get_current_user_id() {
+            return false;
+        }
+
+        return true;
+    }
+
+    can sort_posts(posts: list[Post]) -> list[Post] {
+        if self.sort_by == "date" {
+            return posts.sorted(key=lambda p: p.created_at, reverse=true);
+        } elif self.sort_by == "popularity" {
+            return posts.sorted(key=lambda p: p.view_count, reverse=true);
+        } else {  // relevance
+            // Simple relevance: posts with query in title rank higher
+            return posts.sorted(
+                key=lambda p: (
+                    self.query.lower() in p.title.lower(),
+                    p.view_count
+                ),
+                reverse=true
+            );
+        }
+    }
+
+    can transform_post(post: Post) -> dict {
+        // Get author info
+        let author = root[-->:UserProfile:(?.user_id == post.author_id):][0];
+
+        return {
+            "id": post.id,
+            "title": post.title,
+            "excerpt": post.content[:200] + "..." if len(post.content) > 200 else post.content,
+            "tags": post.tags,
+            "author": {
+                "id": author.user_id,
+                "display_name": author.display_name
+            },
+            "created_at": post.created_at,
+            "view_count": post.view_count
+        };
+    }
+}
+```
+
+## 12.2 Building Services
+
+### RESTful Patterns with Walkers
+
+Implement complete REST APIs using walker patterns:
+
+```jac
+// Base CRUD walker pattern
+walker ResourceManager {
+    has resource_type: str;
+    has resource_id: str = "";
+    has method: str;  // GET, POST, PUT, DELETE
+    has data: dict = {};
+
+    can route with entry {
+        match self.method {
+            case "GET":
+                if self.resource_id {
+                    self.get_one();
+                } else {
+                    self.get_many();
+                }
+            case "POST": self.create();
+            case "PUT": self.update();
+            case "DELETE": self.delete();
+            case _: self.method_not_allowed();
+        }
+    }
+
+    can get_one abs;
+    can get_many abs;
+    can create abs;
+    can update abs;
+    can delete abs;
+
+    can method_not_allowed {
+        report {
+            "success": false,
+            "error": f"Method {self.method} not allowed"
+        };
+    }
+}
+
+// Concrete implementation for Posts
+walker PostAPI(ResourceManager) {
+    can get_one {
+        let posts = root[-->*:Post:(?.id == self.resource_id):];
+        if not posts {
+            report {"success": false, "error": "Post not found"};
+            return;
+        }
+
+        let post = posts[0];
+        post.view_count += 1;  // Increment views
+
+        report {
+            "success": true,
+            "data": self.serialize_post(post, detailed=true)
+        };
+    }
+
+    can get_many {
+        let container = root[-->:PostsContainer:][0];
+        let posts = container[-->:Post:].filter(
+            lambda p: Post -> bool : not p.draft or p.author_id == get_current_user_id()
+        );
+
+        report {
+            "success": true,
+            "data": {
+                "posts": [self.serialize_post(p) for p in posts],
+                "count": len(posts)
+            }
+        };
+    }
+
+    can create {
+        let container = root[-->:PostsContainer:][0]
+            if root[-->:PostsContainer:]
+            else root ++> PostsContainer();
+
+        let post = container ++> Post(
+            id=generate_id(),
+            title=self.data.get("title", ""),
+            content=self.data.get("content", ""),
+            tags=self.data.get("tags", []),
+            draft=self.data.get("draft", false),
+            author_id=get_current_user_id(),
+            created_at=now(),
+            updated_at=now()
+        );
+
+        report {
+            "success": true,
+            "data": self.serialize_post(post),
+            "location": f"/api/posts/{post.id}"
+        };
+    }
+
+    can update {
+        let posts = root[-->*:Post:(?.id == self.resource_id):];
+        if not posts {
+            report {"success": false, "error": "Post not found"};
+            return;
+        }
+
+        let post = posts[0];
+
+        // Check ownership
+        if post.author_id != get_current_user_id() {
+            report {"success": false, "error": "Forbidden"};
+            return;
+        }
+
+        // Update fields
+        if "title" in self.data { post.title = self.data["title"]; }
+        if "content" in self.data { post.content = self.data["content"]; }
+        if "tags" in self.data { post.tags = self.data["tags"]; }
+        if "draft" in self.data { post.draft = self.data["draft"]; }
+
+        post.updated_at = now();
+
+        report {
+            "success": true,
+            "data": self.serialize_post(post)
+        };
+    }
+
+    can delete {
+        let posts = root[-->*:Post:(?.id == self.resource_id):];
+        if not posts {
+            report {"success": false, "error": "Post not found"};
+            return;
+        }
+
+        let post = posts[0];
+
+        // Check ownership
+        if post.author_id != get_current_user_id() {
+            report {"success": false, "error": "Forbidden"};
+            return;
+        }
+
+        // Delete post and all its edges
+        for edge in post[<-->] {
+            del edge;
+        }
+        del post;
+
+        report {
+            "success": true,
+            "message": "Post deleted successfully"
+        };
+    }
+
+    can serialize_post(post: Post, detailed: bool = false) -> dict {
+        let data = {
+            "id": post.id,
+            "title": post.title,
+            "tags": post.tags,
+            "author_id": post.author_id,
+            "created_at": post.created_at,
+            "updated_at": post.updated_at,
+            "view_count": post.view_count
+        };
+
+        if detailed {
+            data["content"] = post.content;
+            data["draft"] = post.draft;
+        } else {
+            data["excerpt"] = post.content[:200] + "..."
+                if len(post.content) > 200 else post.content;
+        }
+
+        return data;
+    }
+}
+
+// Usage examples:
+// GET /api/posts -> PostAPI(method="GET")
+// GET /api/posts/123 -> PostAPI(method="GET", resource_id="123")
+// POST /api/posts -> PostAPI(method="POST", data={...})
+// PUT /api/posts/123 -> PostAPI(method="PUT", resource_id="123", data={...})
+// DELETE /api/posts/123 -> PostAPI(method="DELETE", resource_id="123")
+```
+
+### Event Handlers as Walkers
+
+Walkers can handle real-time events:
+
+```jac
+walker WebSocketHandler {
+    has event_type: str;
+    has payload: dict = {};
+    has connection_id: str;
+
+    can handle with entry {
+        match self.event_type {
+            case "subscribe": self.handle_subscribe();
+            case "unsubscribe": self.handle_unsubscribe();
+            case "message": self.handle_message();
+            case "typing": self.handle_typing();
+            case _: self.handle_unknown();
+        }
+    }
+
+    can handle_subscribe {
+        let channel = self.payload.get("channel", "");
+        if not channel {
+            self.send_error("Channel required");
+            return;
+        }
+
+        // Get or create subscription node
+        let subs = root[-->:Subscriptions:][0]
+            if root[-->:Subscriptions:]
+            else root ++> Subscriptions();
+
+        // Add subscription
+        let sub = subs ++> Subscription(
+            connection_id=self.connection_id,
+            channel=channel,
+            subscribed_at=now()
+        );
+
+        self.send_response({
+            "event": "subscribed",
+            "channel": channel
+        });
+
+        // Send recent messages
+        self.send_recent_messages(channel);
+    }
+
+    can handle_message {
+        let channel = self.payload.get("channel", "");
+        let text = self.payload.get("text", "");
+
+        if not channel or not text {
+            self.send_error("Channel and text required");
+            return;
+        }
+
+        // Create message
+        let msg = Message(
+            id=generate_id(),
+            channel=channel,
+            author_id=get_current_user_id(),
+            text=text,
+            created_at=now()
+        );
+
+        // Store in channel
+        let channel_node = get_or_create_channel(channel);
+        channel_node ++> msg;
+
+        // Broadcast to subscribers
+        self.broadcast_to_channel(channel, {
+            "event": "message",
+            "data": {
+                "id": msg.id,
+                "author_id": msg.author_id,
+                "text": msg.text,
+                "created_at": msg.created_at
+            }
+        });
+    }
+
+    can broadcast_to_channel(channel: str, message: dict) {
+        // Find all subscriptions to this channel
+        let all_subs = root[-->:Subscriptions:][0][-->:Subscription:];
+        let channel_subs = all_subs.filter(
+            lambda s: Subscription -> bool : s.channel == channel
+        );
+
+        // Send to each subscriber
+        for sub in channel_subs {
+            self.send_to_connection(sub.connection_id, message);
+        }
+    }
+
+    can send_response(data: dict) {
+        report {
+            "connection_id": self.connection_id,
+            "data": data
+        };
+    }
+
+    can send_error(error: str) {
+        self.send_response({
+            "event": "error",
+            "error": error
+        });
+    }
+}
+```
+
+### Long-Running Services
+
+Build services that maintain state across requests:
+
+```jac
+// Background job processor
+walker JobProcessor {
+    has job_id: str = "";
+    has action: str = "process";  // submit, status, cancel
+    has job_type: str = "";
+    has job_data: dict = {};
+
+    can route with entry {
+        match self.action {
+            case "submit": self.submit_job();
+            case "status": self.check_status();
+            case "cancel": self.cancel_job();
+            case "process": self.process_next_job();
+        }
+    }
+
+    can submit_job {
+        // Get or create job queue
+        let queue = root[-->:JobQueue:][0]
+            if root[-->:JobQueue:]
+            else root ++> JobQueue();
+
+        // Create job
+        let job = queue ++> Job(
+            id=generate_id(),
+            type=self.job_type,
+            data=self.job_data,
+            status="pending",
+            submitted_by=get_current_user_id(),
+            submitted_at=now()
+        );
+
+        report {
+            "success": true,
+            "job_id": job.id,
+            "status": "pending"
+        };
+
+        // Trigger processing (in real system, this would be async)
+        spawn JobProcessor(action="process") on root;
+    }
+
+    can process_next_job {
+        let queue = root[-->:JobQueue:][0];
+        if not queue { return; }
+
+        // Find next pending job
+        let pending = queue[-->:Job:(?.status == "pending"):];
+        if not pending { return; }
+
+        let job = pending[0];
+
+        // Mark as processing
+        job.status = "processing";
+        job.started_at = now();
+
+        try {
+            // Process based on job type
+            let result = match job.type {
+                case "image_resize": self.process_image_resize(job);
+                case "report_generation": self.process_report(job);
+                case "data_export": self.process_export(job);
+                case _: {"error": "Unknown job type"};
+            };
+
+            // Mark complete
+            job.status = "completed";
+            job.completed_at = now();
+            job.result = result;
+
+        } except Exception as e {
+            job.status = "failed";
+            job.error = str(e);
+            job.failed_at = now();
+        }
+    }
+
+    can process_image_resize(job: Job) -> dict {
+        // Simulate image processing
+        import:py time;
+        time.sleep(2);
+
+        return {
+            "original_size": job.data.get("size", [1920, 1080]),
+            "resized_to": job.data.get("target_size", [800, 600]),
+            "url": f"/images/resized/{job.id}.jpg"
+        };
+    }
+
+    can check_status {
+        let jobs = root[-->*:Job:(?.id == self.job_id):];
+        if not jobs {
+            report {"success": false, "error": "Job not found"};
+            return;
+        }
+
+        let job = jobs[0];
+
+        report {
+            "success": true,
+            "job": {
+                "id": job.id,
+                "type": job.type,
+                "status": job.status,
+                "submitted_at": job.submitted_at,
+                "started_at": job.started_at,
+                "completed_at": job.completed_at,
+                "result": job.result if job.status == "completed" else None,
+                "error": job.error if job.status == "failed" else None
+            }
+        };
+    }
+}
+
+node Job {
+    has id: str;
+    has type: str;
+    has data: dict;
+    has status: str;
+    has submitted_by: str;
+    has submitted_at: str;
+    has started_at: str? = None;
+    has completed_at: str? = None;
+    has failed_at: str? = None;
+    has result: dict? = None;
+    has error: str? = None;
+}
+```
+
+### API Versioning
+
+Handle multiple API versions elegantly:
+
+```jac
+walker APIRouter {
+    has version: str = "v1";
+    has endpoint: str;
+    has method: str = "GET";
+    has params: dict = {};
+
+    can route with entry {
+        match self.version {
+            case "v1": self.route_v1();
+            case "v2": self.route_v2();
+            case _: self.version_not_found();
+        }
+    }
+
+    can route_v1 {
+        match self.endpoint {
+            case "users": spawn UserAPIv1(method=self.method, params=self.params) on root;
+            case "posts": spawn PostAPIv1(method=self.method, params=self.params) on root;
+            case _: self.endpoint_not_found();
+        }
+    }
+
+    can route_v2 {
+        match self.endpoint {
+            case "users": spawn UserAPIv2(method=self.method, params=self.params) on root;
+            case "posts": spawn PostAPIv2(method=self.method, params=self.params) on root;
+            case "comments": spawn CommentAPI(method=self.method, params=self.params) on root;
+            case _: self.endpoint_not_found();
+        }
+    }
+
+    can version_not_found {
+        report {
+            "success": false,
+            "error": f"API version {self.version} not found",
+            "available_versions": ["v1", "v2"]
+        };
+    }
+}
+
+// Version-specific implementations
+walker UserAPIv1 {
+    has method: str;
+    has params: dict;
+
+    can handle with entry {
+        // V1 implementation - basic user info
+        let user = get_current_user_profile();
+        report {
+            "name": user.display_name,
+            "created": user.created_at
+        };
+    }
+}
+
+walker UserAPIv2(UserAPIv1) {
+    can handle with entry {
+        // V2 adds more fields
+        let user = get_current_user_profile();
+        report {
+            "id": user.user_id,
+            "name": user.display_name,
+            "bio": user.bio,
+            "created": user.created_at,
+            "stats": {
+                "posts": count_user_posts(user),
+                "followers": count_followers(user)
+            }
+        };
+    }
+}
+```
+
+### Authentication and Middleware
+
+Implement authentication as walker patterns:
+
+```jac
+walker AuthMiddleware {
+    has token: str = "";
+    has required_role: str = "";
+    has next_walker: type? = None;
+    has next_params: dict = {};
+
+    can authenticate with entry {
+        // Verify token
+        if not self.token {
+            report {
+                "success": false,
+                "error": "Authentication required",
+                "code": 401
+            };
+            return;
+        }
+
+        // Validate token and get user
+        let session = self.validate_token(self.token);
+        if not session {
+            report {
+                "success": false,
+                "error": "Invalid token",
+                "code": 401
+            };
+            return;
+        }
+
+        // Check role if required
+        if self.required_role {
+            if not self.has_role(session.user_id, self.required_role) {
+                report {
+                    "success": false,
+                    "error": "Insufficient permissions",
+                    "code": 403
+                };
+                return;
+            }
+        }
+
+        // Set user context and continue
+        set_current_user(session.user_id);
+
+        // Spawn next walker
+        if self.next_walker {
+            spawn self.next_walker(**self.next_params) on root;
+        }
+    }
+
+    can validate_token(token: str) -> Session? {
+        // Find active session
+        let sessions = root[-->*:Session:(?.token == token and ?.active):];
+
+        if sessions {
+            let session = sessions[0];
+
+            // Check expiration
+            import:py from datetime import datetime;
+            if datetime.fromisoformat(session.expires_at) > datetime.now() {
+                return session;
+            }
+        }
+
+        return None;
+    }
+
+    can has_role(user_id: str, role: str) -> bool {
+        let profiles = root[-->:UserProfile:(?.user_id == user_id):];
+        if profiles {
+            return role in profiles[0].roles;
+        }
+        return false;
+    }
+}
+
+// Usage: Wrap endpoints with auth
+walker AdminEndpoint {
+    has token: str;
+    has action: str;
+
+    can handle with entry {
+        // First, authenticate with admin role
+        spawn AuthMiddleware(
+            token=self.token,
+            required_role="admin",
+            next_walker=AdminAction,
+            next_params={"action": self.action}
+        ) on root;
+    }
+}
+
+walker AdminAction {
+    has action: str;
+
+    can execute with entry {
+        // This only runs if authentication passed
+        match self.action {
+            case "list_users": self.list_all_users();
+            case "system_stats": self.get_system_stats();
+            case _: report {"error": "Unknown action"};
+        }
+    }
+}
+```
+
+### Rate Limiting
+
+Implement rate limiting at the walker level:
+
+```jac
+walker RateLimiter {
+    has user_id: str = "";
+    has endpoint: str;
+    has limit: int = 100;  // requests per hour
+    has window: int = 3600;  // seconds
+
+    can check_limit with entry {
+        if not self.user_id {
+            self.user_id = get_current_user_id();
+        }
+
+        // Get or create rate limit node
+        let limits = root[-->:RateLimits:][0]
+            if root[-->:RateLimits:]
+            else root ++> RateLimits();
+
+        let key = f"{self.user_id}:{self.endpoint}";
+        let tracker = limits[-->:RequestTracker:(?.key == key):];
+
+        if not tracker {
+            // Create new tracker
+            tracker = [limits ++> RequestTracker(
+                key=key,
+                requests=[]
+            )];
+        }
+
+        let tracker_node = tracker[0];
+
+        // Clean old requests
+        import:py from datetime import datetime, timedelta;
+        let cutoff = (datetime.now() - timedelta(seconds=self.window)).isoformat();
+        tracker_node.requests = [r for r in tracker_node.requests if r > cutoff];
+
+        // Check limit
+        if len(tracker_node.requests) >= self.limit {
+            report {
+                "success": false,
+                "error": "Rate limit exceeded",
+                "code": 429,
+                "retry_after": self.get_retry_after(tracker_node.requests[0])
+            };
+            return;
+        }
+
+        // Add current request
+        tracker_node.requests.append(now());
+
+        // Continue to actual endpoint
+        report {
+            "success": true,
+            "remaining": self.limit - len(tracker_node.requests),
+            "reset": self.get_reset_time()
+        };
+    }
+
+    can get_retry_after(oldest_request: str) -> int {
+        import:py from datetime import datetime;
+        oldest = datetime.fromisoformat(oldest_request);
+        retry = oldest + timedelta(seconds=self.window) - datetime.now();
+        return int(retry.total_seconds());
+    }
+
+    can get_reset_time() -> str {
+        import:py from datetime import datetime, timedelta;
+        return (datetime.now() + timedelta(seconds=self.window)).isoformat();
+    }
+}
+
+node RequestTracker {
+    has key: str;
+    has requests: list[str];  // timestamps
+}
+```
+
+### Error Handling and Responses
+
+Standardize error handling across APIs:
+
+```jac
+walker APIBase {
+    has include_stack_trace: bool = false;  // Only in dev
+
+    can handle_error(e: Exception, code: int = 500) {
+        let response = {
+            "success": false,
+            "error": {
+                "message": str(e),
+                "code": code,
+                "type": type(e).__name__
+            }
+        };
+
+        if self.include_stack_trace {
+            import:py traceback;
+            response["error"]["stack_trace"] = traceback.format_exc();
+        }
+
+        report response;
+    }
+
+    can validate_required(data: dict, fields: list[str]) -> tuple {
+        let missing = [f for f in fields if f not in data or not data[f]];
+
+        if missing {
+            return (false, f"Missing required fields: {', '.join(missing)}");
+        }
+
+        return (true, "");
+    }
+
+    can success_response(data: any = None, message: str = "") -> dict {
+        let response = {"success": true};
+
+        if data is not None {
+            response["data"] = data;
+        }
+
+        if message {
+            response["message"] = message;
+        }
+
+        return response;
+    }
+
+    can paginated_response(
+        items: list,
+        total: int,
+        page: int = 1,
+        per_page: int = 20
+    ) -> dict {
+        return {
+            "success": true,
+            "data": items,
+            "pagination": {
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "pages": (total + per_page - 1) // per_page,
+                "has_prev": page > 1,
+                "has_next": page * per_page < total
+            }
+        };
+    }
+}
+
+// Use base class for consistent responses
+walker UserSearchAPI(APIBase) {
+    has query: str = "";
+    has page: int = 1;
+    has per_page: int = 20;
+
+    can search with entry {
+        try {
+            if not self.query {
+                report self.handle_error(
+                    ValueError("Query parameter required"),
+                    400
+                );
+                return;
+            }
+
+            // Search users
+            let all_users = root[-->:UserProfile:];
+            let matches = all_users.filter(
+                lambda u: UserProfile -> bool :
+                    self.query.lower() in u.display_name.lower() or
+                    self.query.lower() in u.bio.lower()
+            );
+
+            // Paginate
+            let total = len(matches);
+            let start = (self.page - 1) * self.per_page;
+            let items = matches[start:start + self.per_page];
+
+            report self.paginated_response(
+                items=[self.serialize_user(u) for u in items],
+                total=total,
+                page=self.page,
+                per_page=self.per_page
+            );
+
+        } except Exception as e {
+            report self.handle_error(e);
+        }
+    }
+
+    can serialize_user(user: UserProfile) -> dict {
+        return {
+            "id": user.user_id,
+            "display_name": user.display_name,
+            "bio": user.bio[:100] + "..." if len(user.bio) > 100 else user.bio
+        };
+    }
+}
+```
+
+## Best Practices for Walker APIs
+
+### 1. **Design Resource-Oriented Endpoints**
+
+```jac
+// Good: Resource-focused
+walker GetUserPosts {
+    has user_id: str;
+    has status: str = "published";  // published, draft, all
+}
+
+// Bad: Action-focused
+walker FetchPostsForUser {
+    has user_id: str;
+    has include_drafts: bool;
+}
+```
+
+### 2. **Use Clear Naming Conventions**
+
+```jac
+// Good: Clear, RESTful naming
+walker UserAPI {
+    has method: str;  // GET, POST, PUT, DELETE
+}
+
+walker CreateUser {
+    has email: str;
+    has password: str;
+}
+
+// Bad: Unclear or inconsistent
+walker DoUserStuff {
+    has action: str;
+}
+```
+
+### 3. **Implement Proper Validation**
+
+```jac
+walker UpdateProfile {
+    has bio: str = "";
+    has display_name: str = "";
+    has avatar_url: str = "";
+
+    can validate() -> tuple {
+        if self.bio and len(self.bio) > 500 {
+            return (false, "Bio too long (max 500 chars)");
+        }
+
+        if self.display_name and len(self.display_name) < 3 {
+            return (false, "Display name too short (min 3 chars)");
+        }
+
+        if self.avatar_url and not self.is_valid_url(self.avatar_url) {
+            return (false, "Invalid avatar URL");
+        }
+
+        return (true, "");
+    }
+}
+```
+
+### 4. **Handle Errors Gracefully**
+
+```jac
+walker SafeAPI {
+    can execute with entry {
+        try {
+            // Main logic
+            self.process();
+        } except ValidationError as e {
+            report {"success": false, "error": str(e), "code": 400};
+        } except PermissionError as e {
+            report {"success": false, "error": str(e), "code": 403};
+        } except NotFoundException as e {
+            report {"success": false, "error": str(e), "code": 404};
+        } except Exception as e {
+            // Log unexpected errors
+            log_error(e);
+            report {"success": false, "error": "Internal server error", "code": 500};
+        }
+    }
+}
+```
+
+### 5. **Version Your APIs**
+
+```jac
+// Include version in walker name or property
+walker UserAPIv1 {
+    // V1 implementation
+}
+
+walker UserAPIv2 {
+    // V2 with breaking changes
+}
+
+// Or use versioning router
+walker APIGateway {
+    has version: str = "v1";
+    has endpoint: str;
+
+    can route with entry {
+        let walker_name = f"{self.endpoint}API{self.version}";
+        // Dynamic routing based on version
+    }
+}
+```
+
+## Summary
+
+In this chapter, we've explored how walkers naturally become API endpoints:
+
+- **Automatic Parameter Mapping**: Walker properties map directly to API parameters
+- **Built-in Validation**: Type checking happens automatically
+- **RESTful Patterns**: Easy to implement standard REST APIs
+- **Event Handling**: Support for WebSockets and real-time events
+- **Service Patterns**: Long-running jobs, queues, and background processing
+- **Production Features**: Authentication, rate limiting, versioning
+
+This approach eliminates the traditional separation between business logic and API layer. Your graph traversals ARE your APIs. The same walker that processes data locally can serve web requests globally, making Jac applications truly scale-agnostic.
+
+Next, we'll explore how these APIs can seamlessly distribute across multiple machines, enabling your applications to scale from a single server to a global deployment without changing your code.
+
+# Chapter 13: Distributed Jac Applications
+
+The true power of Jac's scale-agnostic programming model shines when applications need to scale beyond a single machine. This chapter explores how Jac applications naturally distribute across multiple machines without requiring code changes, maintaining the same topological programming model at planetary scale.
+
+## 13.1 Distribution Concepts
+
+### Topology-Aware Distribution
+
+In traditional distributed systems, developers must explicitly handle network communication, data partitioning, and fault tolerance. Jac's topological model treats distribution as a natural extension of the graph structure:
+
+```mermaid
+graph TB
+    subgraph "Logical View (What You Write)"
+        LU1[User A Root]
+        LU2[User B Root]
+        LU3[User C Root]
+        LP1[Profile]
+        LP2[Profile]
+        LP3[Profile]
+        LPosts1[Posts...]
+        LPosts2[Posts...]
+        LPosts3[Posts...]
+
+        LU1 --> LP1 --> LPosts1
+        LU2 --> LP2 --> LPosts2
+        LU3 --> LP3 --> LPosts3
+
+        LP1 -.->|Follows| LP2
+        LP2 -.->|Follows| LP3
+        LP3 -.->|Follows| LP1
+    end
+
+    subgraph "Physical View (How It Runs)"
+        subgraph "Machine A"
+            U1[User A Root]
+            P1[Profile]
+            Posts1[Posts...]
+            U1 --> P1 --> Posts1
+        end
+
+        subgraph "Machine B"
+            U2[User B Root]
+            P2[Profile]
+            Posts2[Posts...]
+            U2 --> P2 --> Posts2
+        end
+
+        subgraph "Machine C"
+            U3[User C Root]
+            P3[Profile]
+            Posts3[Posts...]
+            U3 --> P3 --> Posts3
+        end
+
+        P1 -.->|Cross-Machine<br/>Edge| P2
+        P2 -.->|Cross-Machine<br/>Edge| P3
+        P3 -.->|Cross-Machine<br/>Edge| P1
+    end
+
+    style LU1 fill:#e8f5e9
+    style LU2 fill:#e3f2fd
+    style LU3 fill:#fce4ec
+    style U1 fill:#e8f5e9
+    style U2 fill:#e3f2fd
+    style U3 fill:#fce4ec
+```
+
+### Key Distribution Principles
+
+1. **Location Transparency**: Code doesn't know or care where nodes physically reside
+2. **Automatic Partitioning**: Jac runtime handles data distribution based on access patterns
+3. **Seamless Walker Migration**: Walkers traverse cross-machine edges naturally
+4. **Consistent Semantics**: Same behavior whether local or distributed
+
+### Automatic Node Partitioning
+
+Jac automatically partitions nodes across machines based on several strategies:
+
+```jac
+// This configuration goes in jac.toml
+[distribution]
+strategy = "user_affinity"  // or "load_balanced", "geo_distributed"
+replication_factor = 3
+consistency_level = "eventual"  // or "strong", "bounded"
+
+[distribution.rules]
+# Keeps user data together
+affinity_paths = [
+    "root -> Profile",
+    "Profile -> Post",
+    "Post -> Comment"
+]
+
+# Distributes shared data
+distributed_types = [
+    "SharedResource",
+    "GlobalConfig"
+]
+```
+
+### Cross-Machine Edges
+
+Edges that span machines are handled transparently:
+
+```jac
+// This code works identically for local and cross-machine edges!
+walker MessageSender {
+    has message: str;
+    has recipient: User;
+
+    can send with entry {
+        // Even if recipient is on another machine, this just works
+        here ++> Message(
+            content=self.message,
+            from_user=here,
+            to_user=self.recipient,
+            timestamp=now()
+        );
+
+        // Visit recipient's node (automatic cross-machine travel)
+        visit self.recipient;
+    }
+
+    can notify with User entry {
+        // Now executing on recipient's machine!
+        here ++> Notification(
+            type="new_message",
+            message=self.message
+        );
+    }
+}
+```
+
+### Distribution Metadata
+
+Jac provides built-in functions to inspect distribution:
+
+```jac
+// Check node location
+can get_node_info(n: node) -> dict {
+    return {
+        "machine_id": n.__machine_id__,
+        "partition": n.__partition__,
+        "replicas": n.__replicas__,
+        "is_local": n.__is_local__
+    };
+}
+
+// Monitor cross-machine edges
+walker DistributionAnalyzer {
+    has cross_machine_count: int = 0;
+    has local_count: int = 0;
+
+    can analyze with entry {
+        for edge in [<-->] {
+            if edge.__is_cross_machine__ {
+                self.cross_machine_count += 1;
+            } else {
+                self.local_count += 1;
+            }
+        }
+
+        report {
+            "node": here,
+            "local_edges": self.local_count,
+            "remote_edges": self.cross_machine_count,
+            "distribution_score": self.local_count / (self.local_count + self.cross_machine_count)
+        };
+    }
+}
+```
+
+## 13.2 Scaling Patterns
+
+### From Single-Machine to Distributed
+
+The beauty of Jac is that the same code scales naturally. Here's a social media application that works identically from one to thousands of machines:
+
+```jac
+// User profile and social graph
+node UserProfile {
+    has username: str;
+    has bio: str;
+    has joined_date: str;
+    has post_count: int = 0;
+}
+
+node Post {
+    has content: str;
+    has timestamp: str;
+    has likes: int = 0;
+    has view_count: int = 0;
+}
+
+edge Follows {
+    has since: str;
+    has notifications_enabled: bool = true;
+}
+
+edge Likes {
+    has timestamp: str;
+}
+
+// This walker works across any number of machines!
+walker CreatePost {
+    has content: str;
+
+    can create with UserProfile entry {
+        // Create post (stays on same machine as user)
+        new_post = here ++> Post(
+            content=self.content,
+            timestamp=now()
+        );
+
+        here.post_count += 1;
+
+        // Notify followers (may span many machines)
+        spawn NotifyFollowers(post=new_post) on here;
+    }
+}
+
+walker NotifyFollowers {
+    has post: Post;
+    has notified_count: int = 0;
+
+    can notify with UserProfile entry {
+        // Get all followers (some local, some remote)
+        followers = [<--:Follows:];
+
+        // Spawn notification walkers (distributed automatically)
+        for follower in followers {
+            if follower.notifications_enabled {
+                spawn CreateNotification(
+                    post=self.post,
+                    user=follower.source  // The following user
+                ) on follower.source;
+
+                self.notified_count += 1;
+            }
+        }
+
+        report {
+            "post": self.post,
+            "notified": self.notified_count
+        };
+    }
+}
+
+walker CreateNotification {
+    has post: Post;
+    has user: UserProfile;
+
+    can create with UserProfile entry {
+        // This executes on the follower's machine
+        here ++> Notification(
+            type="new_post",
+            post=self.post,
+            timestamp=now(),
+            read=false
+        );
+    }
+}
+```
+
+### Load Balancing Through Topology
+
+Jac can automatically balance load by redistributing nodes:
+
+```jac
+// Configuration for automatic load balancing
+[distribution.load_balancing]
+enabled = true
+check_interval = 60  // seconds
+threshold_cpu = 0.8
+threshold_memory = 0.85
+threshold_edge_latency = 100  // ms
+
+// Nodes can provide hints for distribution
+node ComputeIntensiveTask {
+    has priority: int;
+    has estimated_cpu_hours: float;
+    has data_size_gb: float;
+
+    // Distribution hints
+    :distribution: {
+        "prefer_high_cpu": true,
+        "collocate_with": ["TaskData", "TaskResult"],
+        "avoid_machines": ["low_memory_tier"]
+    }
+}
+
+// Monitor and rebalance
+walker LoadBalancer {
+    can check_balance with entry {
+        let machine_stats = get_cluster_stats();
+
+        for machine in machine_stats {
+            if machine.cpu_usage > 0.8 {
+                // Find nodes to migrate
+                candidates = get_migration_candidates(machine);
+                target_machine = find_least_loaded_machine();
+
+                for node in candidates[:5] {  // Migrate up to 5 nodes
+                    migrate_node(node, target_machine);
+                }
+            }
+        }
+    }
+}
+```
+
+### Fault Tolerance and Recovery
+
+Jac provides built-in fault tolerance through replication and automatic recovery:
+
+```jac
+// Configure replication
+node CriticalData {
+    has data: dict;
+    has version: int = 0;
+
+    :replication: {
+        "factor": 3,
+        "sync_mode": "async",  // or "sync" for strong consistency
+        "preferred_regions": ["us-east", "eu-west", "ap-south"]
+    }
+}
+
+// Automatic failover handling
+walker ResilientOperation {
+    has max_retries: int = 3;
+    has retry_count: int = 0;
+
+    can operate with entry {
+        try {
+            // Normal operation
+            result = process_critical_data(here);
+            report {"success": true, "result": result};
+
+        } except NodeUnavailableError as e {
+            // Automatic failover to replica
+            self.retry_count += 1;
+
+            if self.retry_count < self.max_retries {
+                // Jac automatically redirects to healthy replica
+                visit here.__replica__;  // Transparent failover
+            } else {
+                report {"success": false, "error": "All replicas failed"};
+            }
+        }
+    }
+}
+
+// Health monitoring
+walker HealthChecker {
+    can check with entry {
+        let health = {
+            "node": here,
+            "status": "healthy",
+            "checks": {}
+        };
+
+        // Check node health
+        try {
+            health["checks"]["data_integrity"] = verify_data_integrity(here);
+            health["checks"]["connection_count"] = len([<-->]);
+            health["checks"]["response_time"] = measure_response_time();
+
+        } except Exception as e {
+            health["status"] = "unhealthy";
+            health["error"] = str(e);
+
+            // Trigger automatic recovery
+            initiate_recovery(here);
+        }
+
+        report health;
+    }
+}
+```
+
+### Geo-Distribution Patterns
+
+Deploy Jac applications globally with location-aware distribution:
+
+```jac
+// Geo-distributed configuration
+[distribution.geo]
+enabled = true
+regions = ["us-east-1", "eu-west-1", "ap-southeast-1"]
+default_region = "us-east-1"
+
+// Location-aware nodes
+node GeoUser {
+    has username: str;
+    has preferred_region: str;
+    has data_residency: str;  // Legal requirement
+
+    :geo: {
+        "pin_to_region": self.data_residency,
+        "cache_in_regions": [self.preferred_region],
+        "exclude_regions": []  // For compliance
+    }
+}
+
+// Cross-region walker with latency awareness
+walker GlobalSearch {
+    has query: str;
+    has max_latency_ms: int = 200;
+    has results: list = [];
+
+    can search with entry {
+        let regions = get_all_regions();
+        let local_region = here.__region__;
+
+        // Search local region first
+        local_results = search_region(local_region, self.query);
+        self.results.extend(local_results);
+
+        // Search remote regions in parallel
+        for region in regions {
+            if region != local_region {
+                expected_latency = estimate_latency(local_region, region);
+
+                if expected_latency < self.max_latency_ms {
+                    spawn RegionalSearch(
+                        query=self.query,
+                        region=region
+                    ) on get_region_root(region);
+                }
+            }
+        }
+    }
+}
+
+// Regional caching for performance
+node CachedContent {
+    has content: str;
+    has cache_regions: list[str] = [];
+
+    can ensure_cached_in(region: str) {
+        if region not in self.cache_regions {
+            replicate_to_region(self, region);
+            self.cache_regions.append(region);
+        }
+    }
+}
+```
+
+### Distributed Transactions
+
+Jac handles distributed transactions transparently:
+
+```jac
+// Distributed transaction example
+walker TransferCredits {
+    has from_user: User;
+    has to_user: User;
+    has amount: int;
+
+    can transfer with entry {
+        // Start distributed transaction
+        :transaction: {
+            "isolation": "serializable",
+            "timeout": 5000,  // ms
+            "retry_on_conflict": true
+        }
+
+        // These operations are atomic across machines!
+        try {
+            // Debit from source (might be on machine A)
+            visit self.from_user {
+                if here.credits < self.amount {
+                    raise InsufficientCreditsError();
+                }
+                here.credits -= self.amount;
+            };
+
+            // Credit to destination (might be on machine B)
+            visit self.to_user {
+                here.credits += self.amount;
+            };
+
+            // Log transaction (might be on machine C)
+            spawn LogTransaction(
+                from_user=self.from_user,
+                to_user=self.to_user,
+                amount=self.amount,
+                status="completed"
+            ) on get_transaction_log_node();
+
+            :commit:;  // Commit distributed transaction
+
+        } except Exception as e {
+            :rollback:;  // Automatic rollback across all machines
+            report {"success": false, "error": str(e)};
+        }
+    }
+}
+```
+
+### Scaling Patterns in Practice
+
+Here's a complete example of a distributed task processing system:
+
+```jac
+// Distributed task queue implementation
+node TaskQueue {
+    has name: str;
+    has priority: int;
+
+    :distribution: {
+        "partition_by": "priority",
+        "replicas": 2
+    }
+}
+
+node Task {
+    has id: str;
+    has payload: dict;
+    has status: str = "pending";
+    has assigned_worker: str = "";
+    has created_at: str;
+    has completed_at: str = "";
+
+    :distribution: {
+        "collocate_with_parent": true  // Stay with queue
+    }
+}
+
+edge InQueue {
+    has position: int;
+    has enqueued_at: str;
+}
+
+// Distributed worker pool
+walker TaskWorker {
+    has worker_id: str;
+    has capabilities: list[str];
+    has max_concurrent: int = 5;
+    has current_tasks: list[Task] = [];
+
+    can find_work with entry {
+        // Find available task queues across cluster
+        queues = find_all_nodes(TaskQueue);
+
+        // Sort by priority and machine locality
+        queues.sort(key=lambda q: (-q.priority, q.__is_local__));
+
+        for queue in queues {
+            if len(self.current_tasks) >= self.max_concurrent {
+                break;
+            }
+
+            visit queue;
+        }
+
+        // Process tasks in parallel
+        for task in self.current_tasks {
+            spawn ProcessTask(
+                task=task,
+                worker=self
+            ) on task;
+        }
+    }
+
+    can claim_task with TaskQueue entry {
+        // Atomic task claiming across distributed queue
+        :transaction: {
+            available_tasks = [-->:InQueue:-->:Task:]
+                .filter(lambda t: t.status == "pending")
+                .sort(key=lambda t: t.position);
+
+            if available_tasks {
+                task = available_tasks[0];
+                task.status = "processing";
+                task.assigned_worker = self.worker_id;
+                self.current_tasks.append(task);
+
+                // Remove from queue
+                del here --> task;
+            }
+        :commit:;
+        }
+    }
+}
+
+walker ProcessTask {
+    has task: Task;
+    has worker: TaskWorker;
+
+    can process with Task entry {
+        try {
+            // Process the task
+            result = execute_task_payload(here.payload);
+
+            here.status = "completed";
+            here.completed_at = now();
+
+            // Store result (might be on different machine)
+            here ++> TaskResult(
+                result=result,
+                worker_id=self.worker.worker_id,
+                completed_at=now()
+            );
+
+            // Update worker
+            self.worker.current_tasks.remove(here);
+
+        } except Exception as e {
+            here.status = "failed";
+            here ++> TaskError(
+                error=str(e),
+                traceback=get_traceback()
+            );
+
+            // Requeue for retry
+            find_queue(here.priority) ++>:InQueue:++> here;
+        }
+    }
+}
+
+// Monitoring across distributed system
+walker SystemMonitor {
+    can monitor with entry {
+        let stats = {
+            "total_tasks": 0,
+            "pending": 0,
+            "processing": 0,
+            "completed": 0,
+            "failed": 0,
+            "machines": {},
+            "queue_depths": {}
+        };
+
+        // Gather stats from all machines
+        all_tasks = find_all_nodes(Task);
+
+        for task in all_tasks {
+            stats["total_tasks"] += 1;
+            stats[task.status] += 1;
+
+            machine = task.__machine_id__;
+            if machine not in stats["machines"] {
+                stats["machines"][machine] = {"count": 0, "processing": 0};
+            }
+            stats["machines"][machine]["count"] += 1;
+            if task.status == "processing" {
+                stats["machines"][machine]["processing"] += 1;
+            }
+        }
+
+        // Check queue depths
+        for queue in find_all_nodes(TaskQueue) {
+            depth = len([queue -->:InQueue:]);
+            stats["queue_depths"][queue.name] = depth;
+        }
+
+        report stats;
+    }
+}
+
+// Auto-scaling based on load
+walker AutoScaler {
+    has min_workers: int = 5;
+    has max_workers: int = 50;
+    has scale_up_threshold: float = 0.8;
+    has scale_down_threshold: float = 0.3;
+
+    can check_scaling with entry {
+        let metrics = spawn SystemMonitor() on root;
+
+        let total_capacity = count_workers() * 5;  // max_concurrent per worker
+        let utilization = metrics["processing"] / total_capacity;
+
+        if utilization > self.scale_up_threshold {
+            let new_workers = min(5, self.max_workers - count_workers());
+            for i in range(new_workers) {
+                spawn_worker_on_best_machine();
+            }
+            print(f"Scaled up by {new_workers} workers");
+
+        } elif utilization < self.scale_down_threshold {
+            let remove_workers = min(5, count_workers() - self.min_workers);
+            gracefully_shutdown_workers(remove_workers);
+            print(f"Scaled down by {remove_workers} workers");
+        }
+    }
+}
+
+// Entry point that works at any scale
+with entry {
+    // Initialize task queues (distributed automatically)
+    high_priority = root ++> TaskQueue(name="high", priority=10);
+    medium_priority = root ++> TaskQueue(name="medium", priority=5);
+    low_priority = root ++> TaskQueue(name="low", priority=1);
+
+    // Start workers (distributed across available machines)
+    for i in range(10) {
+        spawn TaskWorker(
+            worker_id=f"worker_{i}",
+            capabilities=["general"]
+        ) on root;
+    }
+
+    // Start monitoring and auto-scaling
+    spawn SystemMonitor() on root;
+    spawn AutoScaler() on root;
+
+    print("Distributed task processing system initialized!");
+}
+```
+
+## Summary
+
+This chapter demonstrated how Jac's scale-agnostic programming model extends naturally to distributed systems:
+
+- **Transparent Distribution**: The same code works across machines without modification
+- **Automatic Partitioning**: Jac handles data distribution based on access patterns
+- **Cross-Machine Traversal**: Walkers seamlessly move between machines
+- **Built-in Fault Tolerance**: Replication and failover happen automatically
+- **Geo-Distribution**: Deploy globally with location-aware optimizations
+
+The key insight is that distribution becomes a deployment concern rather than a development concern. You write your application logic once, focusing on the relationships and computations, and Jac handles the complexities of distributed execution.
+
+In the next chapter, we'll explore advanced language features including concurrent programming, type system deep dives, and sophisticated error handling patterns that make Jac suitable for production systems at any scale.
 
 ## Part V: Advanced Features and Patterns
 
-### Chapter 14: Advanced Language Features
-- **14.1 Concurrent Programming**
-  - `spawn` for parallel walkers
-  - `async`/`await` patterns
-  - Thread-safe graph operations
-- **14.2 Type System Deep Dive**
-  - Type inference vs explicit typing
-  - Generic types and constraints
-  - Type-safe graph operations
-- **14.3 Error Handling**
-  - Exception handling in traversals
-  - Ability-specific error patterns
-  - Distributed error propagation
+# Chapter 14: Advanced Language Features
 
-### Chapter 15: Design Patterns in Jac
-- **15.1 Graph Patterns**
-  - Tree structures
-  - Circular graphs
-  - Hierarchical organizations
-- **15.2 Walker Patterns**
-  - Visitor pattern reimagined
-  - Map-reduce with walkers
-  - Pipeline processing
-- **15.3 Persistence Patterns**
-  - Event sourcing with graphs
-  - Temporal data modeling
-  - Migration strategies
+This chapter explores Jac's advanced features that enable sophisticated concurrent programming, leverage its powerful type system, and provide robust error handling for production systems. These features build upon the fundamentals to create applications that are both powerful and maintainable.
 
-### Chapter 16: Testing and Debugging
-- **16.1 Testing Framework**
-  - Built-in `test` blocks
-  - Testing graph structures
-  - Walker behavior testing
-- **16.2 Debugging Techniques**
-  - Traversal visualization
-  - State inspection
-  - Distributed debugging
+## 14.1 Concurrent Programming
+
+### `spawn` for Parallel Walkers
+
+The `spawn` operator not only activates walkers but also enables natural concurrency. Multiple walkers can traverse the graph simultaneously, with Jac handling synchronization automatically:
+
+```jac
+// Basic parallel walker spawning
+walker DataProcessor {
+    has node_id: str;
+    has processing_time: float;
+
+    can process with entry {
+        let start = time.now();
+
+        // Simulate processing
+        sleep(self.processing_time);
+        process_node_data(here);
+
+        let duration = time.now() - start;
+        report {
+            "node": self.node_id,
+            "duration": duration,
+            "thread": threading.current_thread().name
+        };
+    }
+}
+
+// Spawn multiple walkers concurrently
+with entry {
+    let nodes = root[-->:DataNode:];
+
+    // These walkers execute in parallel!
+    for i, node in enumerate(nodes) {
+        spawn DataProcessor(
+            node_id=f"node_{i}",
+            processing_time=random.uniform(0.1, 0.5)
+        ) on node;
+    }
+}
+```
+
+### Advanced Spawning Patterns
+
+```jac
+// Parallel map-reduce pattern
+walker MapWorker {
+    has mapper: callable;
+    has data_chunk: list;
+    has result_collector: node;
+
+    can map with entry {
+        // Process data chunk in parallel
+        let results = [self.mapper(item) for item in self.data_chunk];
+
+        // Send results to collector (thread-safe)
+        visit self.result_collector {
+            :atomic: {  // Atomic operation
+                here.results.extend(results);
+                here.completed_chunks += 1;
+            }
+        };
+    }
+}
+
+walker ReduceWorker {
+    has reducer: callable;
+    has expected_chunks: int;
+
+    can reduce with ResultCollector entry {
+        // Wait for all map workers to complete
+        while here.completed_chunks < self.expected_chunks {
+            sleep(0.01);  // Busy wait (in practice, use conditions)
+        }
+
+        // Reduce results
+        final_result = self.reducer(here.results);
+        report final_result;
+    }
+}
+
+// Usage
+can parallel_map_reduce(
+    data: list,
+    mapper: callable,
+    reducer: callable,
+    chunk_size: int = 100
+) -> any {
+    // Create result collector
+    collector = root ++> ResultCollector(
+        results=[],
+        completed_chunks=0
+    );
+
+    // Split data and spawn mappers
+    chunks = [data[i:i+chunk_size] for i in range(0, len(data), chunk_size)];
+
+    for chunk in chunks {
+        spawn MapWorker(
+            mapper=mapper,
+            data_chunk=chunk,
+            result_collector=collector
+        ) on root;
+    }
+
+    // Spawn reducer
+    result = spawn ReduceWorker(
+        reducer=reducer,
+        expected_chunks=len(chunks)
+    ) on collector;
+
+    return result;
+}
+```
+
+### Walker Synchronization
+
+Jac provides several mechanisms for coordinating concurrent walkers:
+
+```jac
+// Barrier synchronization
+node BarrierNode {
+    has required_count: int;
+    has arrived_count: int = 0;
+    has waiting_walkers: list = [];
+
+    can wait_at_barrier with visitor entry {
+        :synchronized: {  // Synchronized block
+            self.arrived_count += 1;
+
+            if self.arrived_count < self.required_count {
+                // Add walker to waiting list
+                self.waiting_walkers.append(visitor);
+                visitor.suspend();  // Suspend walker execution
+            } else {
+                // All walkers arrived, release them
+                for walker in self.waiting_walkers {
+                    walker.resume();  // Resume suspended walkers
+                }
+                self.waiting_walkers.clear();
+                self.arrived_count = 0;
+            }
+        }
+    }
+}
+
+// Pipeline pattern with synchronized stages
+walker PipelineStage {
+    has stage_num: int;
+    has process_func: callable;
+    has next_stage: node?;
+
+    can process with WorkItem entry {
+        // Process work item
+        result = self.process_func(here.data);
+        here.data = result;
+
+        // Mark stage completion
+        here.completed_stages.add(self.stage_num);
+
+        // Move to next stage if available
+        if self.next_stage {
+            :synchronized: {
+                # Ensure ordering for pipeline
+                visit self.next_stage;
+            }
+        } else {
+            report here.data;  // Final result
+        }
+    }
+}
+```
+
+### `async`/`await` Patterns
+
+Jac fully supports asynchronous programming for I/O-bound operations:
+
+```jac
+import:py asyncio;
+import:py aiohttp;
+import:py from asyncio { gather, create_task }
+
+// Async walker abilities
+walker AsyncWebCrawler {
+    has urls: list[str];
+    has max_concurrent: int = 10;
+    has results: dict = {};
+
+    async can crawl with entry {
+        // Create semaphore for rate limiting
+        semaphore = asyncio.Semaphore(self.max_concurrent);
+
+        // Create tasks for all URLs
+        tasks = [
+            create_task(self.fetch_url(url, semaphore))
+            for url in self.urls
+        ];
+
+        // Wait for all to complete
+        await gather(*tasks);
+
+        report self.results;
+    }
+
+    async can fetch_url(url: str, semaphore: asyncio.Semaphore) -> None {
+        async with semaphore {  // Limit concurrent requests
+            try {
+                async with aiohttp.ClientSession() as session {
+                    async with session.get(url) as response {
+                        content = await response.text();
+                        self.results[url] = {
+                            "status": response.status,
+                            "length": len(content),
+                            "title": extract_title(content)
+                        };
+                    }
+                }
+            } except Exception as e {
+                self.results[url] = {"error": str(e)};
+            }
+        }
+    }
+}
+
+// Async node abilities
+node AsyncDataSource {
+    has api_endpoint: str;
+    has cache: dict = {};
+    has cache_ttl: int = 300;  // seconds
+
+    async can fetch_data with AsyncClient entry {
+        cache_key = visitor.query_params;
+
+        // Check cache
+        if cache_key in self.cache {
+            cached_data, timestamp = self.cache[cache_key];
+            if time.now() - timestamp < self.cache_ttl {
+                visitor.receive_data(cached_data);
+                return;
+            }
+        }
+
+        // Fetch fresh data
+        try {
+            data = await fetch_from_api(
+                self.api_endpoint,
+                visitor.query_params
+            );
+
+            // Update cache
+            self.cache[cache_key] = (data, time.now());
+            visitor.receive_data(data);
+
+        } except APIError as e {
+            visitor.receive_error(e);
+        }
+    }
+}
+
+// Async entry point
+async with entry:main {
+    // Spawn async walker
+    crawler = AsyncWebCrawler(urls=[
+        "https://example.com",
+        "https://example.org",
+        "https://example.net"
+    ]);
+
+    results = await spawn crawler on root;
+    print(f"Crawled {len(results)} URLs");
+}
+```
+
+### Thread-Safe Graph Operations
+
+When multiple walkers operate on the same graph regions, Jac provides thread-safety guarantees:
+
+```jac
+// Thread-safe node with fine-grained locking
+node ConcurrentCounter {
+    has count: int = 0;
+    has :lock: lock = threading.Lock();  // Node-level lock
+
+    can increment with visitor entry {
+        with self.lock {
+            old_value = self.count;
+            self.count += 1;
+
+            // Log the change atomically
+            self ++> CounterLog(
+                timestamp=now(),
+                old_value=old_value,
+                new_value=self.count,
+                walker_id=visitor.id
+            );
+        }
+    }
+
+    can get_value -> int {
+        with self.lock {
+            return self.count;
+        }
+    }
+}
+
+// Read-write lock pattern
+node SharedResource {
+    has data: dict = {};
+    has :rwlock: rwlock = threading.RWLock();
+
+    can read_data(key: str) -> any? {
+        with self.rwlock.read() {  // Multiple readers allowed
+            return self.data.get(key);
+        }
+    }
+
+    can write_data(key: str, value: any) {
+        with self.rwlock.write() {  // Exclusive write access
+            self.data[key] = value;
+        }
+    }
+}
+
+// Atomic operations on edges
+edge ConcurrentEdge {
+    has weight: float;
+    has access_count: int = 0;
+
+    :atomic: ["weight", "access_count"];  // Declare atomic fields
+
+    can traverse with visitor entry {
+        # These operations are atomic
+        self.access_count += 1;
+        self.weight *= 0.99;  # Decay weight
+
+        if self.weight < 0.1 {
+            # Mark for deletion (thread-safe)
+            self.mark_for_deletion();
+        }
+    }
+}
+```
+
+## 14.2 Type System Deep Dive
+
+### Type Inference vs Explicit Typing
+
+While Jac requires type annotations, it provides sophisticated type inference in many contexts:
+
+```jac
+// Explicit typing (required for declarations)
+let numbers: list[int] = [1, 2, 3, 4, 5];
+let processor: DataProcessor = DataProcessor();
+
+// Type inference in expressions
+let doubled = numbers.map(lambda x: int -> int : x * 2);  // Inferred: list[int]
+let filtered = doubled.filter(lambda x: int -> bool : x > 5);  // Inferred: list[int]
+
+// Generic type inference
+can identity[T](value: T) -> T {
+    return value;
+}
+
+let x = identity(42);  // T inferred as int
+let y = identity("hello");  // T inferred as str
+
+// Complex type inference
+can process_data[T, R](
+    data: list[T],
+    transformer: callable[[T], R]
+) -> list[R] {
+    return [transformer(item) for item in data];
+}
+
+// Usage with inference
+let strings = ["1", "2", "3"];
+let integers = process_data(strings, int);  // Inferred: list[int]
+```
+
+### Generic Types and Constraints
+
+Jac supports sophisticated generic programming with type constraints:
+
+```jac
+// Basic generics
+obj Container[T] {
+    has items: list[T] = [];
+
+    can add(item: T) {
+        self.items.append(item);
+    }
+
+    can get(index: int) -> T? {
+        if 0 <= index < len(self.items) {
+            return self.items[index];
+        }
+        return None;
+    }
+}
+
+// Generic constraints
+can sort_comparable[T: Comparable](items: list[T]) -> list[T] {
+    return sorted(items);
+}
+
+// Multiple type parameters with constraints
+obj Cache[K: Hashable, V] {
+    has store: dict[K, tuple[V, float]] = {};
+    has ttl: float;
+
+    can set(key: K, value: V) {
+        self.store[key] = (value, time.now());
+    }
+
+    can get(key: K) -> V? {
+        if key in self.store {
+            value, timestamp = self.store[key];
+            if time.now() - timestamp < self.ttl {
+                return value;
+            }
+            del self.store[key];
+        }
+        return None;
+    }
+}
+
+// Bounded generics
+walker TypedTraverser[N: node, E: edge] {
+    has node_filter: callable[[N], bool];
+    has edge_filter: callable[[E], bool];
+
+    can traverse with N entry {
+        if self.node_filter(here) {
+            // Process node
+            process_typed_node(here);
+
+            // Traverse filtered edges
+            let valid_edges = [e for e in [<-->]
+                              if isinstance(e, E) and self.edge_filter(e)];
+
+            for edge in valid_edges {
+                visit edge.target;
+            }
+        }
+    }
+}
+```
+
+### Type-Safe Graph Operations
+
+Jac's type system extends to graph operations, ensuring type safety in topological programming:
+
+```jac
+// Typed node references
+node TypedNode {
+    has data: str;
+}
+
+node SpecialNode(TypedNode) {
+    has special_data: int;
+}
+
+// Type-safe traversal
+walker StrictTraverser {
+    can process with entry {
+        // Type-checked at compile time
+        let typed_nodes: list[TypedNode] = [-->(`TypedNode)];
+        let special_nodes: list[SpecialNode] = [-->(`SpecialNode)];
+
+        // This would be a compile error:
+        // let wrong: list[SpecialNode] = [-->(`TypedNode)];
+    }
+}
+
+// Generic graph algorithms
+can find_path[N: node](
+    start: N,
+    end: N,
+    filter_func: callable[[N], bool] = lambda n: N -> bool : True
+) -> list[N]? {
+
+    walker PathFinder[N] {
+        has target: N;
+        has filter_func: callable[[N], bool];
+        has path: list[N] = [];
+        has found: bool = False;
+
+        can search with N entry {
+            self.path.append(here);
+
+            if here == self.target {
+                self.found = True;
+                report self.path;
+                disengage;
+            }
+
+            let next_nodes: list[N] = [-->(`N)]
+                .filter(self.filter_func)
+                .filter(lambda n: N -> bool : n not in self.path);
+
+            for next in next_nodes {
+                visit next;
+                if self.found {
+                    disengage;
+                }
+            }
+
+            self.path.pop();
+        }
+    }
+
+    let finder = PathFinder[N](
+        target=end,
+        filter_func=filter_func
+    );
+
+    return spawn finder on start;
+}
+```
+
+### Advanced Type Features
+
+```jac
+// Union types
+type StringOrInt = str | int;
+type MaybeNode = node | None;
+
+can process_mixed(value: StringOrInt) -> str {
+    match value {
+        case str as s: return s;
+        case int as i: return str(i);
+    }
+}
+
+// Type aliases for complex types
+type UserGraph = dict[str, list[tuple[User, Relationship]]];
+type AsyncCallback = callable[[any], Awaitable[None]];
+
+// Literal types
+type Direction = "north" | "south" | "east" | "west";
+type Priority = 1 | 2 | 3 | 4 | 5;
+
+can move(direction: Direction, steps: int) -> Position {
+    match direction {
+        case "north": return Position(0, steps);
+        case "south": return Position(0, -steps);
+        case "east": return Position(steps, 0);
+        case "west": return Position(-steps, 0);
+    }
+}
+
+// Protocol types (structural typing)
+protocol Serializable {
+    can to_json() -> str;
+    can from_json(data: str) -> Self;
+}
+
+can save_object[T: Serializable](obj: T, filename: str) {
+    with open(filename, "w") as f {
+        f.write(obj.to_json());
+    }
+}
+
+// Variadic generics
+can combine[*Ts](values: tuple[*Ts]) -> tuple[*Ts] {
+    return values;
+}
+
+let combined = combine((1, "hello", 3.14, True));  // tuple[int, str, float, bool]
+```
+
+## 14.3 Error Handling
+
+### Exception Handling in Traversals
+
+Error handling in graph traversal requires special consideration:
+
+```jac
+// Traversal-aware exception handling
+walker ResilientTraverser {
+    has errors: list[dict] = [];
+    has continue_on_error: bool = True;
+
+    can traverse with entry {
+        try {
+            // Process current node
+            result = process_node(here);
+
+            // Continue traversal
+            visit [-->];
+
+        } except NodeProcessingError as e {
+            self.errors.append({
+                "node": here,
+                "error": str(e),
+                "traceback": get_traceback()
+            });
+
+            if not self.continue_on_error {
+                disengage;  // Stop traversal
+            }
+
+        } except NetworkError as e {
+            // Handle cross-machine traversal errors
+            print(f"Network error visiting remote node: {e}");
+
+            // Try alternate path
+            visit [-->:LocalEdge:];  // Only local edges
+        }
+    }
+
+    can summarize with `root exit {
+        if self.errors {
+            report {
+                "status": "completed_with_errors",
+                "error_count": len(self.errors),
+                "errors": self.errors
+            };
+        } else {
+            report {"status": "success"};
+        }
+    }
+}
+```
+
+### Ability-Specific Error Patterns
+
+Different ability types require different error handling strategies:
+
+```jac
+// Node ability error handling
+node DataNode {
+    has data: dict;
+    has error_count: int = 0;
+    has max_errors: int = 3;
+
+    can process_visitor with DataWalker entry {
+        try {
+            # Validate visitor
+            if not visitor.is_authorized() {
+                raise UnauthorizedError("Visitor not authorized");
+            }
+
+            # Process data
+            result = transform_data(self.data, visitor.transform_spec);
+            visitor.receive_result(result);
+
+        } except UnauthorizedError as e {
+            # Specific handling for auth errors
+            log_security_event(visitor, e);
+            visitor.reject(reason=str(e));
+
+        } except DataTransformError as e {
+            # Handle processing errors
+            self.error_count += 1;
+
+            if self.error_count >= self.max_errors {
+                self.mark_as_failed();
+                raise NodeFailureError(f"Node failed after {self.error_count} errors");
+            }
+
+            visitor.receive_error(e);
+
+        } finally {
+            # Always log visit
+            self ++> VisitLog(
+                visitor_type=type(visitor).__name__,
+                timestamp=now(),
+                success=not visitor.has_error()
+            );
+        }
+    }
+}
+
+// Walker ability error handling
+walker DataMigrator {
+    has source_version: int;
+    has target_version: int;
+    has rollback_on_error: bool = True;
+    has migrated_nodes: list[node] = [];
+
+    can migrate with entry {
+        # Create savepoint for rollback
+        savepoint = create_graph_savepoint();
+
+        try {
+            # Check version compatibility
+            if here.version != self.source_version {
+                raise VersionMismatchError(
+                    f"Expected v{self.source_version}, found v{here.version}"
+                );
+            }
+
+            # Perform migration
+            migrate_node_data(here, self.target_version);
+            here.version = self.target_version;
+            self.migrated_nodes.append(here);
+
+            # Continue to connected nodes
+            visit [-->];
+
+        } except MigrationError as e {
+            print(f"Migration failed at {here}: {e}");
+
+            if self.rollback_on_error {
+                # Rollback all migrated nodes
+                restore_graph_savepoint(savepoint);
+
+                # Report failure
+                report {
+                    "status": "failed",
+                    "error": str(e),
+                    "rolled_back": True,
+                    "attempted_nodes": len(self.migrated_nodes)
+                };
+
+                disengage;
+            } else {
+                # Continue despite error
+                self.errors.append({
+                    "node": here,
+                    "error": e
+                });
+            }
+        }
+    }
+}
+```
+
+### Distributed Error Propagation
+
+Handling errors across machine boundaries requires special consideration:
+
+```jac
+// Cross-machine error handling
+walker DistributedProcessor {
+    has timeout: float = 30.0;
+    has retry_attempts: int = 3;
+
+    can process with entry {
+        for attempt in range(self.retry_attempts) {
+            try {
+                # Set timeout for cross-machine operations
+                with timeout_context(self.timeout) {
+                    # This might cross machine boundaries
+                    remote_result = visit_and_get_result(
+                        [-->:RemoteEdge:][0]
+                    );
+
+                    process_remote_result(remote_result);
+                    break;  # Success, exit retry loop
+                }
+
+            } except TimeoutError as e {
+                if attempt < self.retry_attempts - 1 {
+                    # Exponential backoff
+                    wait_time = 2 ** attempt;
+                    print(f"Timeout, retrying in {wait_time}s...");
+                    sleep(wait_time);
+                } else {
+                    # Final attempt failed
+                    raise DistributedOperationError(
+                        f"Operation timed out after {self.retry_attempts} attempts"
+                    );
+
+            } except RemoteMachineError as e {
+                # Remote machine failure
+                handle_machine_failure(e.machine_id);
+
+                # Try alternate route
+                alternate = find_alternate_route(here, e.failed_node);
+                if alternate {
+                    visit alternate;
+                } else {
+                    raise NoAlternateRouteError();
+            }
+        }
+    }
+}
+
+// Circuit breaker pattern for distributed calls
+obj CircuitBreaker {
+    has failure_threshold: int = 5;
+    has recovery_timeout: float = 60.0;
+    has failure_count: int = 0;
+    has last_failure_time: float = 0.0;
+    has state: str = "closed";  # closed, open, half-open
+
+    can call[T](func: callable[[], T]) -> T {
+        if self.state == "open" {
+            if time.now() - self.last_failure_time > self.recovery_timeout {
+                self.state = "half-open";
+            } else {
+                raise CircuitOpenError("Circuit breaker is open");
+            }
+        }
+
+        try {
+            result = func();
+
+            if self.state == "half-open" {
+                # Success in half-open state, close circuit
+                self.state = "closed";
+                self.failure_count = 0;
+            }
+
+            return result;
+
+        } except Exception as e {
+            self.failure_count += 1;
+            self.last_failure_time = time.now();
+
+            if self.failure_count >= self.failure_threshold {
+                self.state = "open";
+                print(f"Circuit breaker opened after {self.failure_count} failures");
+            }
+
+            raise e;
+        }
+    }
+}
+
+// Using circuit breaker in distributed operations
+walker ResilientDistributedWalker {
+    has circuit_breakers: dict[str, CircuitBreaker] = {};
+
+    can get_breaker(machine_id: str) -> CircuitBreaker {
+        if machine_id not in self.circuit_breakers {
+            self.circuit_breakers[machine_id] = CircuitBreaker();
+        }
+        return self.circuit_breakers[machine_id];
+    }
+
+    can visit_remote with entry {
+        for remote_node in [-->:RemoteEdge:-->] {
+            machine_id = remote_node.__machine_id__;
+            breaker = self.get_breaker(machine_id);
+
+            try {
+                result = breaker.call(lambda: visit_and_process(remote_node));
+                handle_result(result);
+
+            } except CircuitOpenError {
+                print(f"Skipping {machine_id} - circuit open");
+                continue;
+
+            } except Exception as e {
+                print(f"Error processing remote node: {e}");
+                continue;
+            }
+        }
+    }
+}
+```
+
+### Error Recovery Patterns
+
+```jac
+// Compensation pattern for distributed transactions
+walker CompensatingTransaction {
+    has operations: list[dict] = [];
+    has compensations: list[callable] = [];
+
+    can execute_with_compensation(
+        operation: callable,
+        compensation: callable
+    ) -> any {
+        try {
+            result = operation();
+
+            # Record successful operation and its compensation
+            self.operations.append({
+                "operation": operation.__name__,
+                "result": result,
+                "timestamp": now()
+            });
+            self.compensations.append(compensation);
+
+            return result;
+
+        } except Exception as e {
+            # Operation failed, run compensations in reverse order
+            print(f"Operation failed: {e}, running compensations...");
+
+            for comp in reversed(self.compensations) {
+                try {
+                    comp();
+                } except Exception as comp_error {
+                    print(f"Compensation failed: {comp_error}");
+                }
+            }
+
+            raise TransactionFailedError(
+                f"Transaction rolled back due to: {e}"
+            );
+        }
+    }
+}
+
+// Saga pattern for long-running transactions
+walker SagaOrchestrator {
+    has saga_id: str;
+    has steps: list[SagaStep];
+    has completed_steps: list[str] = [];
+
+    can execute_saga with entry {
+        for step in self.steps {
+            try {
+                # Execute step
+                result = spawn step.walker on step.target_node;
+
+                self.completed_steps.append(step.id);
+
+                # Persist saga state
+                persist_saga_state(self.saga_id, self.completed_steps);
+
+            } except SagaStepError as e {
+                # Step failed, initiate compensation
+                print(f"Saga step {step.id} failed: {e}");
+
+                spawn CompensatingSaga(
+                    saga_id=self.saga_id,
+                    failed_step=step.id,
+                    completed_steps=self.completed_steps
+                ) on root;
+
+                disengage;
+            }
+        }
+
+        report {
+            "saga_id": self.saga_id,
+            "status": "completed",
+            "steps": self.completed_steps
+        };
+    }
+}
+
+// Bulkhead pattern for isolation
+node ResourcePool {
+    has name: str;
+    has max_concurrent: int;
+    has active_count: int = 0;
+    has queue: list[walker] = [];
+
+    can acquire_resource with visitor entry {
+        :synchronized: {
+            if self.active_count < self.max_concurrent {
+                self.active_count += 1;
+                visitor.resource_acquired = True;
+            } else {
+                # Add to queue
+                self.queue.append(visitor);
+                visitor.suspend();
+            }
+        }
+    }
+
+    can release_resource with visitor exit {
+        :synchronized: {
+            self.active_count -= 1;
+
+            # Process queued walkers
+            if self.queue {
+                next_walker = self.queue.pop(0);
+                self.active_count += 1;
+                next_walker.resource_acquired = True;
+                next_walker.resume();
+            }
+        }
+    }
+}
+```
+
+## Summary
+
+This chapter covered Jac's advanced features that enable production-ready applications:
+
+### Concurrent Programming
+- **Parallel Walkers**: Natural concurrency through `spawn`
+- **Async/Await**: Full support for asynchronous operations
+- **Synchronization**: Thread-safe graph operations and coordination
+- **Patterns**: Pipeline, map-reduce, and barrier synchronization
+
+### Type System
+- **Inference**: Smart type inference reduces boilerplate
+- **Generics**: Powerful generic programming with constraints
+- **Graph Types**: Type-safe topological operations
+- **Advanced Features**: Union types, protocols, and variadic generics
+
+### Error Handling
+- **Traversal Errors**: Graceful handling of graph navigation failures
+- **Distributed Errors**: Cross-machine error propagation
+- **Recovery Patterns**: Compensation, sagas, and circuit breakers
+- **Resilience**: Building fault-tolerant distributed systems
+
+These advanced features, combined with Jac's scale-agnostic programming model, provide all the tools needed to build sophisticated, production-ready applications that can scale from single-user prototypes to global distributed systems.
+
+In the next chapter, we'll explore design patterns specific to Jac that leverage these advanced features to solve common architectural challenges.
+
+# Chapter 15: Design Patterns in Jac
+
+This chapter explores design patterns that leverage Jac's unique features—data spatial programming, scale-agnostic architecture, and topological computation. These patterns provide reusable solutions to common problems while taking full advantage of Jac's paradigm shift from moving data to computation to moving computation to data.
+
+## 15.1 Graph Patterns
+
+### Tree Structures
+
+Trees are fundamental in Jac, but unlike traditional implementations, they leverage the natural parent-child relationships through edges:
+
+```jac
+// Generic tree node
+node TreeNode {
+    has value: any;
+    has level: int = 0;
+}
+
+edge ChildOf {
+    has position: int;  // For ordered children
+}
+
+// Binary tree specialization
+node BinaryNode(TreeNode) {
+    has max_children: int = 2;
+}
+
+edge LeftChild(ChildOf) {
+    has position: int = 0;
+}
+
+edge RightChild(ChildOf) {
+    has position: int = 1;
+}
+
+// Tree operations as walkers
+walker TreeBuilder {
+    has values: list[any];
+    has build_binary: bool = true;
+
+    can build_level_order with entry {
+        if not self.values {
+            return;
+        }
+
+        let queue: list[node] = [here];
+        let index = 0;
+
+        while queue and index < len(self.values) {
+            let current = queue.pop(0);
+
+            # Add children based on tree type
+            if self.build_binary {
+                # Left child
+                if index < len(self.values) {
+                    left = current ++>:LeftChild:++> BinaryNode(
+                        value=self.values[index],
+                        level=current.level + 1
+                    );
+                    queue.append(left);
+                    index += 1;
+                }
+
+                # Right child
+                if index < len(self.values) {
+                    right = current ++>:RightChild:++> BinaryNode(
+                        value=self.values[index],
+                        level=current.level + 1
+                    );
+                    queue.append(right);
+                    index += 1;
+                }
+            } else {
+                # N-ary tree: add all available values as children
+                let children_count = min(3, len(self.values) - index);
+                for i in range(children_count) {
+                    child = current ++>:ChildOf(position=i):++> TreeNode(
+                        value=self.values[index],
+                        level=current.level + 1
+                    );
+                    queue.append(child);
+                    index += 1;
+                }
+            }
+        }
+    }
+}
+
+// Tree traversal patterns
+walker TreeTraverser {
+    has order: str = "inorder";  // preorder, inorder, postorder, levelorder
+    has result: list = [];
+
+    can traverse with BinaryNode entry {
+        match self.order {
+            case "preorder":
+                self.result.append(here.value);
+                self.visit_children();
+
+            case "inorder":
+                self.visit_left();
+                self.result.append(here.value);
+                self.visit_right();
+
+            case "postorder":
+                self.visit_children();
+                self.result.append(here.value);
+
+            case "levelorder":
+                self.level_order_traverse();
+        }
+    }
+
+    can visit_left {
+        let left_edges = [-->:LeftChild:];
+        if left_edges {
+            visit left_edges[0];
+        }
+    }
+
+    can visit_right {
+        let right_edges = [-->:RightChild:];
+        if right_edges {
+            visit right_edges[0];
+        }
+    }
+
+    can visit_children {
+        visit [-->:ChildOf:] ordered by edge.position;
+    }
+
+    can level_order_traverse {
+        let queue: list[node] = [here];
+
+        while queue {
+            let current = queue.pop(0);
+            self.result.append(current.value);
+
+            # Add children to queue
+            let children = [current -->:ChildOf:] ordered by edge.position;
+            queue.extend(children);
+        }
+    }
+}
+
+// Advanced tree algorithms
+walker TreeAlgorithms {
+    can find_height with TreeNode entry -> int {
+        let children = [-->:ChildOf:];
+        if not children {
+            return 0;
+        }
+
+        let max_height = 0;
+        for child in children {
+            let height = spawn TreeAlgorithms().find_height on child;
+            max_height = max(max_height, height);
+        }
+
+        return max_height + 1;
+    }
+
+    can is_balanced with BinaryNode entry -> bool {
+        let left_height = 0;
+        let right_height = 0;
+
+        let left = [-->:LeftChild:];
+        if left {
+            left_height = spawn TreeAlgorithms().find_height on left[0];
+        }
+
+        let right = [-->:RightChild:];
+        if right {
+            right_height = spawn TreeAlgorithms().find_height on right[0];
+        }
+
+        # Check balance condition
+        if abs(left_height - right_height) > 1 {
+            return false;
+        }
+
+        # Check subtrees
+        for child in [-->:ChildOf:] {
+            if not spawn TreeAlgorithms().is_balanced on child {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+```
+
+### Circular Graphs
+
+Circular graphs require special handling to prevent infinite traversal:
+
+```jac
+// Circular linked list pattern
+node CircularNode {
+    has value: any;
+    has is_head: bool = false;
+}
+
+edge NextInCircle {
+    has traversal_count: int = 0;
+}
+
+walker CircularBuilder {
+    has values: list[any];
+
+    can build with entry {
+        if not self.values {
+            return;
+        }
+
+        # Mark head
+        here.is_head = true;
+        here.value = self.values[0];
+
+        # Build chain
+        let current = here;
+        for i in range(1, len(self.values)) {
+            let next_node = current ++>:NextInCircle:++> CircularNode(
+                value=self.values[i]
+            );
+            current = next_node;
+        }
+
+        # Close the circle
+        current ++>:NextInCircle:++> here;
+    }
+}
+
+walker CircularTraverser {
+    has max_iterations: int = 1;
+    has visited_values: list = [];
+    has iteration_count: int = 0;
+
+    can traverse with CircularNode entry {
+        # Check if we've completed enough iterations
+        if here.is_head {
+            self.iteration_count += 1;
+            if self.iteration_count > self.max_iterations {
+                report self.visited_values;
+                disengage;
+            }
+        }
+
+        self.visited_values.append(here.value);
+
+        # Continue to next
+        visit [-->:NextInCircle:];
+    }
+}
+
+// Cycle detection using Floyd's algorithm
+walker CycleDetector {
+    has slow_ptr: node? = None;
+    has fast_ptr: node? = None;
+    has cycle_found: bool = false;
+    has cycle_start: node? = None;
+
+    can detect_cycle with entry {
+        self.slow_ptr = here;
+        self.fast_ptr = here;
+
+        # Phase 1: Detect if cycle exists
+        while True {
+            # Move slow pointer one step
+            let slow_next = [self.slow_ptr -->];
+            if not slow_next {
+                report {"has_cycle": false};
+                disengage;
+            }
+            self.slow_ptr = slow_next[0];
+
+            # Move fast pointer two steps
+            let fast_next_1 = [self.fast_ptr -->];
+            if not fast_next_1 {
+                report {"has_cycle": false};
+                disengage;
+            }
+            self.fast_ptr = fast_next_1[0];
+
+            let fast_next_2 = [self.fast_ptr -->];
+            if not fast_next_2 {
+                report {"has_cycle": false};
+                disengage;
+            }
+            self.fast_ptr = fast_next_2[0];
+
+            # Check if pointers meet
+            if self.slow_ptr == self.fast_ptr {
+                self.cycle_found = true;
+                break;
+            }
+        }
+
+        # Phase 2: Find cycle start
+        self.slow_ptr = here;
+        while self.slow_ptr != self.fast_ptr {
+            self.slow_ptr = [self.slow_ptr -->][0];
+            self.fast_ptr = [self.fast_ptr -->][0];
+        }
+
+        self.cycle_start = self.slow_ptr;
+
+        # Phase 3: Find cycle length
+        let cycle_length = 1;
+        self.fast_ptr = [self.slow_ptr -->][0];
+        while self.fast_ptr != self.slow_ptr {
+            self.fast_ptr = [self.fast_ptr -->][0];
+            cycle_length += 1;
+        }
+
+        report {
+            "has_cycle": true,
+            "cycle_start": self.cycle_start,
+            "cycle_length": cycle_length
+        };
+    }
+}
+```
+
+### Hierarchical Organizations
+
+Hierarchical structures are natural in Jac, supporting multiple hierarchy types:
+
+```jac
+// Organizational hierarchy
+node Person {
+    has name: str;
+    has title: str;
+    has department: str;
+    has level: int = 0;
+}
+
+edge ReportsTo {
+    has direct: bool = true;
+}
+
+edge BelongsTo {
+    has role: str;
+}
+
+node Department {
+    has name: str;
+    has budget: float;
+    has parent_dept: Department? = None;
+}
+
+edge SubdepartmentOf;
+
+// Build organizational chart
+walker OrgBuilder {
+    has org_data: dict;
+
+    can build with entry {
+        # Create departments first
+        let depts = {};
+        for dept_name, dept_info in self.org_data["departments"].items() {
+            let dept = root ++> Department(
+                name=dept_name,
+                budget=dept_info["budget"]
+            );
+            depts[dept_name] = dept;
+
+            # Link to parent department
+            if "parent" in dept_info {
+                let parent = depts[dept_info["parent"]];
+                dept ++>:SubdepartmentOf:++> parent;
+                dept.parent_dept = parent;
+            }
+        }
+
+        # Create people and relationships
+        let people = {};
+        for person_data in self.org_data["people"] {
+            let person = root ++> Person(
+                name=person_data["name"],
+                title=person_data["title"],
+                department=person_data["department"]
+            );
+            people[person_data["name"]] = person;
+
+            # Link to department
+            person ++>:BelongsTo(role=person_data["title"]):++>
+                depts[person_data["department"]];
+
+            # Link to manager
+            if "manager" in person_data {
+                person ++>:ReportsTo:++> people[person_data["manager"]];
+            }
+        }
+    }
+}
+
+// Hierarchical queries
+walker OrgAnalyzer {
+    can find_all_reports with Person entry -> list[Person] {
+        let direct_reports = [<--:ReportsTo(direct=true):];
+        let all_reports = list(direct_reports);
+
+        # Recursively find indirect reports
+        for report in direct_reports {
+            let indirect = spawn OrgAnalyzer().find_all_reports on report;
+            all_reports.extend(indirect);
+        }
+
+        return all_reports;
+    }
+
+    can calculate_dept_headcount with Department entry -> dict {
+        let stats = {
+            "department": here.name,
+            "direct_employees": 0,
+            "total_employees": 0,
+            "subdepartments": {}
+        };
+
+        # Count direct employees
+        let direct = [<--:BelongsTo:];
+        stats["direct_employees"] = len(direct);
+        stats["total_employees"] = len(direct);
+
+        # Include subdepartment counts
+        let subdepts = [<--:SubdepartmentOf:];
+        for subdept in subdepts {
+            let subdept_stats = spawn OrgAnalyzer()
+                .calculate_dept_headcount on subdept;
+            stats["subdepartments"][subdept.name] = subdept_stats;
+            stats["total_employees"] += subdept_stats["total_employees"];
+        }
+
+        return stats;
+    }
+}
+
+// Matrix organization support
+edge CollaboratesWith {
+    has project: str;
+    has role: str;
+}
+
+walker MatrixAnalyzer {
+    has project_name: str;
+
+    can find_project_team with entry {
+        let team = [];
+        let to_visit = [root];
+        let visited = set();
+
+        while to_visit {
+            let current = to_visit.pop();
+            if current in visited {
+                continue;
+            }
+            visited.add(current);
+
+            # Check if person is on project
+            let collabs = [current <-->:CollaboratesWith:];
+            for collab in collabs {
+                if collab.project == self.project_name {
+                    team.append({
+                        "person": current,
+                        "role": collab.role
+                    });
+                }
+            }
+
+            # Add connections to visit
+            to_visit.extend([current <-->:CollaboratesWith:-->]);
+        }
+
+        report team;
+    }
+}
+```
+
+## 15.2 Walker Patterns
+
+### Visitor Pattern Reimagined
+
+The classic Visitor pattern becomes natural in Jac, with walkers as visitors:
+
+```jac
+// Abstract syntax tree nodes
+node ASTNode {
+    has node_type: str;
+}
+
+node BinaryOp(ASTNode) {
+    has operator: str;
+}
+
+node UnaryOp(ASTNode) {
+    has operator: str;
+}
+
+node Literal(ASTNode) {
+    has value: any;
+}
+
+edge LeftOperand;
+edge RightOperand;
+edge Operand;
+
+// Different visitor walkers for different operations
+walker Evaluator {
+    has variables: dict[str, any] = {};
+
+    can evaluate with Literal entry -> any {
+        return here.value;
+    }
+
+    can evaluate with BinaryOp entry -> any {
+        let left_val = spawn Evaluator(variables=self.variables)
+            .evaluate on [-->:LeftOperand:][0];
+        let right_val = spawn Evaluator(variables=self.variables)
+            .evaluate on [-->:RightOperand:][0];
+
+        match here.operator {
+            case "+": return left_val + right_val;
+            case "-": return left_val - right_val;
+            case "*": return left_val * right_val;
+            case "/": return left_val / right_val;
+            case _: raise ValueError(f"Unknown operator: {here.operator}");
+        }
+    }
+
+    can evaluate with UnaryOp entry -> any {
+        let operand_val = spawn Evaluator(variables=self.variables)
+            .evaluate on [-->:Operand:][0];
+
+        match here.operator {
+            case "-": return -operand_val;
+            case "!": return not operand_val;
+            case _: raise ValueError(f"Unknown operator: {here.operator}");
+        }
+    }
+}
+
+walker PrettyPrinter {
+    has indent_level: int = 0;
+    has indent_str: str = "  ";
+
+    can print_ast with ASTNode entry -> str {
+        let indent = self.indent_str * self.indent_level;
+
+        match here {
+            case Literal:
+                return f"{indent}Literal({here.value})";
+
+            case BinaryOp:
+                let result = f"{indent}BinaryOp({here.operator})\n";
+
+                # Print children with increased indent
+                let printer = PrettyPrinter(
+                    indent_level=self.indent_level + 1,
+                    indent_str=self.indent_str
+                );
+
+                result += spawn printer.print_ast on [-->:LeftOperand:][0];
+                result += "\n";
+                result += spawn printer.print_ast on [-->:RightOperand:][0];
+
+                return result;
+
+            case UnaryOp:
+                let result = f"{indent}UnaryOp({here.operator})\n";
+
+                let printer = PrettyPrinter(
+                    indent_level=self.indent_level + 1,
+                    indent_str=self.indent_str
+                );
+
+                result += spawn printer.print_ast on [-->:Operand:][0];
+
+                return result;
+        }
+    }
+}
+
+// Type checker visitor
+walker TypeChecker {
+    has type_env: dict[str, str] = {};
+    has errors: list[str] = [];
+
+    can check with ASTNode entry -> str? {
+        match here {
+            case Literal:
+                return type(here.value).__name__;
+
+            case BinaryOp:
+                let left_type = spawn TypeChecker(type_env=self.type_env)
+                    .check on [-->:LeftOperand:][0];
+                let right_type = spawn TypeChecker(type_env=self.type_env)
+                    .check on [-->:RightOperand:][0];
+
+                if left_type != right_type {
+                    self.errors.append(
+                        f"Type mismatch in {here.operator}: {left_type} vs {right_type}"
+                    );
+                }
+
+                # Determine result type
+                match here.operator {
+                    case "+" | "-" | "*" | "/":
+                        return left_type;  # Assuming numeric
+                    case "<" | ">" | "==" | "!=":
+                        return "bool";
+                }
+
+            case UnaryOp:
+                let operand_type = spawn TypeChecker(type_env=self.type_env)
+                    .check on [-->:Operand:][0];
+
+                match here.operator {
+                    case "-": return operand_type;
+                    case "!": return "bool";
+                }
+        }
+    }
+}
+```
+
+### Map-Reduce with Walkers
+
+Map-reduce patterns become intuitive with walker-based distribution:
+
+```jac
+// Generic map-reduce framework
+node DataPartition {
+    has data: list[any];
+    has partition_id: int;
+}
+
+node ResultCollector {
+    has results: dict = {};
+    has expected_partitions: int;
+    has reducer: callable;
+}
+
+walker MapWorker {
+    has mapper: callable;
+    has collector: ResultCollector;
+
+    can map_partition with DataPartition entry {
+        # Apply mapper to each item
+        let mapped = [self.mapper(item) for item in here.data];
+
+        # Send to collector
+        visit self.collector {
+            :synchronized: {
+                here.results[here.partition_id] = mapped;
+
+                # Check if all partitions complete
+                if len(here.results) == here.expected_partitions {
+                    # Trigger reduction
+                    spawn ReduceWorker() on here;
+                }
+            }
+        };
+    }
+}
+
+walker ReduceWorker {
+    can reduce with ResultCollector entry {
+        # Flatten all mapped results
+        let all_results = [];
+        for partition_results in here.results.values() {
+            all_results.extend(partition_results);
+        }
+
+        # Apply reducer
+        let final_result = here.reducer(all_results);
+
+        report final_result;
+    }
+}
+
+// Word count example
+walker WordCounter {
+    can count_words(text: str) -> dict[str, int] {
+        # Partition text
+        let lines = text.split('\n');
+        let chunk_size = max(1, len(lines) // 4);  # 4 partitions
+
+        # Create partitions
+        let partitions = [];
+        for i in range(0, len(lines), chunk_size) {
+            let partition = root ++> DataPartition(
+                data=lines[i:i+chunk_size],
+                partition_id=len(partitions)
+            );
+            partitions.append(partition);
+        }
+
+        # Create collector with reducer
+        let collector = root ++> ResultCollector(
+            expected_partitions=len(partitions),
+            reducer=lambda results: self.merge_word_counts(results)
+        );
+
+        # Spawn mappers
+        for partition in partitions {
+            spawn MapWorker(
+                mapper=lambda line: self.count_line_words(line),
+                collector=collector
+            ) on partition;
+        }
+
+        # Wait for result
+        return wait_for_result(collector);
+    }
+
+    can count_line_words(line: str) -> dict[str, int] {
+        let counts = {};
+        for word in line.split() {
+            word = word.lower().strip('.,!?";');
+            counts[word] = counts.get(word, 0) + 1;
+        }
+        return counts;
+    }
+
+    can merge_word_counts(count_dicts: list[dict]) -> dict[str, int] {
+        let total = {};
+        for counts in count_dicts {
+            for word, count in counts.items() {
+                total[word] = total.get(word, 0) + count;
+            }
+        }
+        return total;
+    }
+}
+```
+
+### Pipeline Processing
+
+Pipeline patterns for streaming data through transformation stages:
+
+```jac
+// Pipeline stage definition
+node PipelineStage {
+    has name: str;
+    has transform: callable;
+    has error_handler: callable? = None;
+}
+
+edge NextStage {
+    has condition: callable? = None;  // Optional routing condition
+}
+
+// Data packet flowing through pipeline
+walker DataPacket {
+    has data: any;
+    has metadata: dict = {};
+    has trace: list[str] = [];
+
+    can flow with PipelineStage entry {
+        self.trace.append(here.name);
+
+        try {
+            # Transform data
+            self.data = here.transform(self.data);
+            self.metadata[f"{here.name}_processed"] = now();
+
+            # Find next stage(s)
+            let next_stages = [-->:NextStage:];
+
+            if not next_stages {
+                # End of pipeline
+                report {
+                    "data": self.data,
+                    "metadata": self.metadata,
+                    "trace": self.trace
+                };
+                disengage;
+            }
+
+            # Route to appropriate next stage
+            for edge in next_stages {
+                if edge.condition is None or edge.condition(self.data) {
+                    visit edge.target;
+                    break;  # Take first matching route
+                }
+            }
+
+        } except Exception as e {
+            if here.error_handler {
+                self.data = here.error_handler(self.data, e);
+                self.metadata[f"{here.name}_error"] = str(e);
+                # Continue to next stage
+                visit [-->:NextStage:];
+            } else {
+                # Propagate error
+                report {
+                    "error": str(e),
+                    "stage": here.name,
+                    "trace": self.trace
+                };
+                disengage;
+            }
+        }
+    }
+}
+
+// Pipeline builder
+walker PipelineBuilder {
+    has stages: list[dict];
+
+    can build with entry -> PipelineStage {
+        let previous: PipelineStage? = None;
+        let first_stage: PipelineStage? = None;
+
+        for stage_def in self.stages {
+            let stage = here ++> PipelineStage(
+                name=stage_def["name"],
+                transform=stage_def["transform"],
+                error_handler=stage_def.get("error_handler")
+            );
+
+            if previous {
+                # Connect stages
+                if "condition" in stage_def {
+                    previous ++>:NextStage(condition=stage_def["condition"]):++> stage;
+                } else {
+                    previous ++>:NextStage:++> stage;
+                }
+            } else {
+                first_stage = stage;
+            }
+
+            previous = stage;
+        }
+
+        return first_stage;
+    }
+}
+
+// Example: Data processing pipeline
+with entry {
+    # Define pipeline stages
+    let pipeline_def = [
+        {
+            "name": "validation",
+            "transform": lambda d: validate_data(d),
+            "error_handler": lambda d, e: {"data": d, "validation_error": str(e)}
+        },
+        {
+            "name": "normalization",
+            "transform": lambda d: normalize_data(d)
+        },
+        {
+            "name": "enrichment",
+            "transform": lambda d: enrich_with_metadata(d)
+        },
+        {
+            "name": "classification",
+            "transform": lambda d: classify_data(d)
+        },
+        {
+            "name": "storage_router",
+            "transform": lambda d: d,  # Pass through
+            "condition": lambda d: d.get("priority") == "high"
+        }
+    ];
+
+    # Build pipeline
+    let pipeline_start = spawn PipelineBuilder(stages=pipeline_def).build on root;
+
+    # Process data through pipeline
+    let data_items = load_data_items();
+    for item in data_items {
+        spawn DataPacket(data=item) on pipeline_start;
+    }
+}
+```
+
+## 15.3 Persistence Patterns
+
+### Event Sourcing with Graphs
+
+Event sourcing becomes natural when events are nodes in a temporal graph:
+
+```jac
+// Event base node
+node Event {
+    has event_id: str;
+    has event_type: str;
+    has timestamp: str;
+    has data: dict;
+    has aggregate_id: str;
+}
+
+edge NextEvent {
+    has causal: bool = true;
+}
+
+edge AppliesTo;
+
+// Aggregate root
+node Aggregate {
+    has aggregate_id: str;
+    has aggregate_type: str;
+    has version: int = 0;
+    has current_state: dict = {};
+}
+
+// Event store
+walker EventStore {
+    has events_to_append: list[dict] = [];
+
+    can append_events with Aggregate entry {
+        let last_event: Event? = None;
+
+        # Find the last event for this aggregate
+        let existing_events = [<--:AppliesTo:];
+        if existing_events {
+            # Get the most recent event
+            last_event = existing_events
+                .sort(key=lambda e: e.timestamp)
+                .last();
+        }
+
+        # Append new events
+        for event_data in self.events_to_append {
+            let event = here ++> Event(
+                event_id=generate_id(),
+                event_type=event_data["type"],
+                timestamp=now(),
+                data=event_data["data"],
+                aggregate_id=here.aggregate_id
+            );
+
+            # Link to aggregate
+            event ++>:AppliesTo:++> here;
+
+            # Link to previous event
+            if last_event {
+                last_event ++>:NextEvent:++> event;
+            }
+
+            last_event = event;
+            here.version += 1;
+        }
+    }
+}
+
+// Event replay
+walker EventReplayer {
+    has from_version: int = 0;
+    has to_version: int? = None;
+    has state: dict = {};
+
+    can replay with Aggregate entry {
+        # Get all events
+        let events = [<--:AppliesTo:]
+            .filter(lambda e: e.version >= self.from_version)
+            .sort(key=lambda e: e.timestamp);
+
+        if self.to_version {
+            events = events.filter(lambda e: e.version <= self.to_version);
+        }
+
+        # Replay events to rebuild state
+        for event in events {
+            self.apply_event(event);
+        }
+
+        report self.state;
+    }
+
+    can apply_event(event: Event) {
+        match event.event_type {
+            case "UserCreated":
+                self.state["user_id"] = event.data["user_id"];
+                self.state["email"] = event.data["email"];
+
+            case "EmailChanged":
+                self.state["email"] = event.data["new_email"];
+
+            case "UserDeactivated":
+                self.state["active"] = false;
+
+            # Add more event handlers
+        }
+    }
+}
+
+// Snapshot pattern
+node Snapshot {
+    has aggregate_id: str;
+    has version: int;
+    has state: dict;
+    has timestamp: str;
+}
+
+edge SnapshotOf;
+
+walker SnapshotManager {
+    has snapshot_interval: int = 100;
+
+    can create_snapshot with Aggregate entry {
+        if here.version % self.snapshot_interval == 0 {
+            # Replay events to get current state
+            let state = spawn EventReplayer().replay on here;
+
+            # Create snapshot
+            let snapshot = here ++> Snapshot(
+                aggregate_id=here.aggregate_id,
+                version=here.version,
+                state=state,
+                timestamp=now()
+            );
+
+            snapshot ++>:SnapshotOf:++> here;
+        }
+    }
+
+    can load_from_snapshot with Aggregate entry -> dict {
+        # Find latest snapshot
+        let snapshots = [<--:SnapshotOf:]
+            .sort(key=lambda s: s.version);
+
+        if snapshots {
+            let latest_snapshot = snapshots.last();
+
+            # Replay only events after snapshot
+            return spawn EventReplayer(
+                from_version=latest_snapshot.version + 1,
+                state=latest_snapshot.state.copy()
+            ).replay on here;
+        } else {
+            # No snapshot, replay all
+            return spawn EventReplayer().replay on here;
+        }
+    }
+}
+```
+
+### Temporal Data Modeling
+
+Model time-varying data with temporal edges:
+
+```jac
+// Temporal node
+node TemporalEntity {
+    has entity_id: str;
+    has entity_type: str;
+}
+
+// Temporal property edge
+edge HadProperty {
+    has property_name: str;
+    has property_value: any;
+    has valid_from: str;
+    has valid_to: str? = None;  // None means currently valid
+}
+
+// Temporal relationship edge
+edge WasRelatedTo {
+    has relationship_type: str;
+    has valid_from: str;
+    has valid_to: str? = None;
+}
+
+// Temporal queries
+walker TemporalQuery {
+    has as_of_date: str;
+    has property_name: str? = None;
+
+    can get_properties_at_time with TemporalEntity entry -> dict {
+        let properties = {};
+
+        # Find all property edges valid at the given time
+        let prop_edges = [<-->:HadProperty:];
+
+        for edge in prop_edges {
+            if edge.valid_from <= self.as_of_date {
+                if edge.valid_to is None or edge.valid_to > self.as_of_date {
+                    # Property was valid at the query time
+                    if self.property_name is None or
+                       edge.property_name == self.property_name {
+                        properties[edge.property_name] = edge.property_value;
+                    }
+                }
+            }
+        }
+
+        return properties;
+    }
+
+    can get_relationships_at_time with TemporalEntity entry -> list[dict] {
+        let relationships = [];
+
+        # Find all relationships valid at the given time
+        let rel_edges = [<-->:WasRelatedTo:];
+
+        for edge in rel_edges {
+            if edge.valid_from <= self.as_of_date {
+                if edge.valid_to is None or edge.valid_to > self.as_of_date {
+                    relationships.append({
+                        "type": edge.relationship_type,
+                        "entity": edge.target if edge.source == here else edge.source,
+                        "valid_from": edge.valid_from,
+                        "valid_to": edge.valid_to
+                    });
+                }
+            }
+        }
+
+        return relationships;
+    }
+}
+
+// Temporal updates
+walker TemporalUpdater {
+    has property_name: str;
+    has new_value: any;
+    has effective_date: str;
+
+    can update_property with TemporalEntity entry {
+        # Find current property edge
+        let current_edges = [<-->:HadProperty:]
+            .filter(lambda e: e.property_name == self.property_name
+                    and e.valid_to is None);
+
+        # End current validity
+        for edge in current_edges {
+            edge.valid_to = self.effective_date;
+        }
+
+        # Create new property edge
+        here ++>:HadProperty(
+            property_name=self.property_name,
+            property_value=self.new_value,
+            valid_from=self.effective_date
+        ):++> here;  # Self-edge for properties
+    }
+}
+
+// Bi-temporal modeling (system time + valid time)
+edge HadPropertyBitemporal {
+    has property_name: str;
+    has property_value: any;
+    has valid_from: str;
+    has valid_to: str? = None;
+    has system_from: str = now();
+    has system_to: str? = None;
+}
+
+walker BitemporalQuery {
+    has valid_time: str;
+    has system_time: str = now();
+
+    can query with TemporalEntity entry -> dict {
+        let properties = {};
+
+        let edges = [<-->:HadPropertyBitemporal:];
+
+        for edge in edges {
+            # Check both temporal dimensions
+            let valid_in_business_time = (
+                edge.valid_from <= self.valid_time and
+                (edge.valid_to is None or edge.valid_to > self.valid_time)
+            );
+
+            let valid_in_system_time = (
+                edge.system_from <= self.system_time and
+                (edge.system_to is None or edge.system_to > self.system_time)
+            );
+
+            if valid_in_business_time and valid_in_system_time {
+                properties[edge.property_name] = edge.property_value;
+            }
+        }
+
+        return properties;
+    }
+}
+```
+
+### Migration Strategies
+
+Patterns for evolving graph schemas over time:
+
+```jac
+// Schema version tracking
+node SchemaVersion {
+    has version: int;
+    has applied_at: str;
+    has description: str;
+}
+
+edge MigratedFrom;
+
+// Migration definition
+node Migration {
+    has from_version: int;
+    has to_version: int;
+    has up_script: callable;
+    has down_script: callable;
+}
+
+// Migration runner
+walker MigrationRunner {
+    has target_version: int;
+    has dry_run: bool = false;
+
+    can run_migrations with entry {
+        # Find current version
+        let versions = [root -->:SchemaVersion:]
+            .sort(key=lambda v: v.version);
+
+        let current_version = 0;
+        if versions {
+            current_version = versions.last().version;
+        }
+
+        if current_version == self.target_version {
+            report {"status": "already_at_target_version"};
+            disengage;
+        }
+
+        # Find migrations to run
+        let direction = "up" if self.target_version > current_version else "down";
+        let migrations = self.find_migration_path(
+            current_version,
+            self.target_version,
+            direction
+        );
+
+        # Run migrations
+        for migration in migrations {
+            if self.dry_run {
+                print(f"Would run migration from v{migration.from_version} "
+                      f"to v{migration.to_version}");
+            } else {
+                self.run_migration(migration, direction);
+            }
+        }
+    }
+
+    can run_migration(migration: Migration, direction: str) {
+        print(f"Running {direction} migration: "
+              f"v{migration.from_version} -> v{migration.to_version}");
+
+        if direction == "up" {
+            migration.up_script();
+
+            # Record new version
+            let new_version = root ++> SchemaVersion(
+                version=migration.to_version,
+                applied_at=now(),
+                description=f"Migrated from v{migration.from_version}"
+            );
+
+            # Link versions
+            let old_version = [root -->:SchemaVersion:]
+                .filter(lambda v: v.version == migration.from_version)
+                .first();
+
+            if old_version {
+                new_version ++>:MigratedFrom:++> old_version;
+            }
+        } else {
+            migration.down_script();
+            # Remove version record
+            let version_node = [root -->:SchemaVersion:]
+                .filter(lambda v: v.version == migration.from_version)
+                .first();
+            if version_node {
+                del version_node;
+            }
+        }
+    }
+}
+
+// Example migrations
+can create_user_email_index_v1_to_v2() {
+    # Add email index to all users
+    walker AddEmailIndex {
+        can add_index with User entry {
+            if not hasattr(here, "email_index") {
+                here.email_index = here.email.lower();
+            }
+            visit [-->];  # Process all users
+        }
+    }
+
+    spawn AddEmailIndex() on root;
+}
+
+can add_user_roles_v2_to_v3() {
+    # Add default role to all users
+    walker AddDefaultRole {
+        can add_role with User entry {
+            if not hasattr(here, "roles") {
+                here.roles = ["user"];
+            }
+            visit [-->];
+        }
+    }
+
+    spawn AddDefaultRole() on root;
+}
+
+# Migration registry
+with entry {
+    # Register migrations
+    let migrations = [
+        Migration(
+            from_version=1,
+            to_version=2,
+            up_script=create_user_email_index_v1_to_v2,
+            down_script=lambda: remove_property_from_all(User, "email_index")
+        ),
+        Migration(
+            from_version=2,
+            to_version=3,
+            up_script=add_user_roles_v2_to_v3,
+            down_script=lambda: remove_property_from_all(User, "roles")
+        )
+    ];
+
+    for mig in migrations {
+        root ++> mig;
+    }
+}
+```
+
+## Summary
+
+This chapter explored essential design patterns that leverage Jac's unique features:
+
+### Graph Patterns
+- **Tree Structures**: Natural parent-child relationships through edges
+- **Circular Graphs**: Cycle detection and controlled traversal
+- **Hierarchical Organizations**: Multi-dimensional hierarchies with matrix support
+
+### Walker Patterns
+- **Visitor Pattern**: Walkers as natural visitors with type-specific behaviors
+- **Map-Reduce**: Distributed computation through walker parallelism
+- **Pipeline Processing**: Stage-based transformation with error handling
+
+### Persistence Patterns
+- **Event Sourcing**: Events as nodes in temporal graphs
+- **Temporal Data**: Time-varying properties and relationships
+- **Migration Strategies**: Schema evolution with version tracking
+
+These patterns demonstrate how Jac's paradigm shift—from moving data to computation to moving computation to data—creates elegant solutions to complex architectural challenges. The combination of topological thinking, scale-agnostic design, and walker-based computation enables patterns that would be cumbersome or impossible in traditional programming paradigms.
+
+In the next chapter, we'll explore comprehensive testing and debugging techniques that ensure these patterns work correctly in production environments.
+
+# Chapter 16: Testing and Debugging
+
+Testing and debugging in Jac requires unique approaches due to its data spatial nature, graph-based architecture, and scale-agnostic features. This chapter explores comprehensive strategies for ensuring your Jac applications work correctly from development through production.
+
+## 16.1 Testing Framework
+
+### Built-in `test` Blocks
+
+Jac provides first-class support for testing through the `test` keyword, making tests an integral part of the language:
+
+```jac
+// Basic test structure
+test "basic arithmetic operations" {
+    assert 2 + 2 == 4;
+    assert 10 - 5 == 5;
+    assert 3 * 4 == 12;
+    assert 15 / 3 == 5.0;
+}
+
+// Testing with setup and teardown
+test "user creation and validation" {
+    // Setup
+    let user = User(name="Alice", email="alice@example.com");
+
+    // Test assertions
+    assert user.name == "Alice";
+    assert user.email == "alice@example.com";
+    assert user.is_valid();
+
+    // Cleanup happens automatically when test block ends
+}
+
+// Parameterized testing
+test "edge cases for division" {
+    let test_cases = [
+        (10, 2, 5.0),
+        (7, 2, 3.5),
+        (0, 5, 0.0),
+        (-10, 2, -5.0)
+    ];
+
+    for (a, b, expected) in test_cases {
+        assert divide(a, b) == expected;
+    }
+
+    // Test error cases
+    assert_raises(ZeroDivisionError) {
+        divide(10, 0);
+    };
+}
+
+// Test utilities
+can assert_raises(exception_type: type) -> callable {
+    can wrapper(code_block: callable) {
+        try {
+            code_block();
+            assert False, f"Expected {exception_type.__name__} but no exception raised";
+        } except exception_type {
+            // Expected exception was raised
+            pass;
+        } except Exception as e {
+            assert False, f"Expected {exception_type.__name__} but got {type(e).__name__}";
+        }
+    }
+    return wrapper;
+}
+
+can assert_almost_equal(a: float, b: float, tolerance: float = 0.0001) {
+    assert abs(a - b) < tolerance, f"{a} != {b} within tolerance {tolerance}";
+}
+```
+
+### Testing Graph Structures
+
+Testing nodes, edges, and their relationships requires specialized approaches:
+
+```jac
+// Graph structure test utilities
+obj GraphTestCase {
+    has root_node: node;
+
+    can setup {
+        self.root_node = create_test_root();
+    }
+
+    can teardown {
+        // Clean up test graph
+        clean_graph(self.root_node);
+    }
+
+    can assert_connected(source: node, target: node, edge_type: type? = None) {
+        let edges = [source --> target];
+        assert len(edges) > 0, f"No connection from {source} to {target}";
+
+        if edge_type {
+            let typed_edges = [e for e in edges if isinstance(e, edge_type)];
+            assert len(typed_edges) > 0,
+                f"No {edge_type.__name__} edge from {source} to {target}";
+        }
+    }
+
+    can assert_not_connected(source: node, target: node) {
+        let edges = [source --> target];
+        assert len(edges) == 0, f"Unexpected connection from {source} to {target}";
+    }
+
+    can assert_node_count(expected: int, node_type: type? = None) {
+        if node_type {
+            let nodes = find_all_nodes(self.root_node, node_type);
+            assert len(nodes) == expected,
+                f"Expected {expected} {node_type.__name__} nodes, found {len(nodes)}";
+        } else {
+            let nodes = find_all_nodes(self.root_node);
+            assert len(nodes) == expected,
+                f"Expected {expected} total nodes, found {len(nodes)}";
+        }
+    }
+}
+
+// Example graph structure test
+test "social network graph structure" {
+    let tc = GraphTestCase();
+    tc.setup();
+
+    // Create test graph
+    let alice = tc.root_node ++> User(name="Alice");
+    let bob = tc.root_node ++> User(name="Bob");
+    let charlie = tc.root_node ++> User(name="Charlie");
+
+    alice ++>:Follows:++> bob;
+    bob ++>:Follows:++> charlie;
+    charlie ++>:Follows:++> alice;  // Circular
+
+    // Test structure
+    tc.assert_connected(alice, bob, Follows);
+    tc.assert_connected(bob, charlie, Follows);
+    tc.assert_connected(charlie, alice, Follows);
+    tc.assert_not_connected(alice, charlie);  // No direct connection
+
+    tc.assert_node_count(4);  // root + 3 users
+    tc.assert_node_count(3, User);
+
+    tc.teardown();
+}
+
+// Testing graph algorithms
+test "shortest path algorithm" {
+    // Create test graph
+    let start = create_node("Start");
+    let a = create_node("A");
+    let b = create_node("B");
+    let c = create_node("C");
+    let end = create_node("End");
+
+    // Create paths with weights
+    start ++>:WeightedEdge(weight=1):++> a;
+    start ++>:WeightedEdge(weight=4):++> b;
+    a ++>:WeightedEdge(weight=2):++> c;
+    b ++>:WeightedEdge(weight=1):++> c;
+    c ++>:WeightedEdge(weight=1):++> end;
+
+    // Test shortest path
+    let path = find_shortest_path(start, end);
+
+    assert path == [start, a, c, end];
+    assert calculate_path_weight(path) == 4;
+
+    // Test alternate path
+    let all_paths = find_all_paths(start, end);
+    assert len(all_paths) == 2;
+}
+```
+
+### Testing Walker Behavior
+
+Walker testing requires simulating graph traversal and verifying behavior:
+
+```jac
+// Walker test framework
+obj WalkerTestCase {
+    has test_graph: node;
+    has walker_results: list = [];
+
+    can setup_graph -> node abs;  // Abstract, must implement
+
+    can spawn_and_collect[W: walker](
+        walker_type: type[W],
+        spawn_node: node,
+        **kwargs: dict
+    ) -> list {
+        // Create walker with test parameters
+        let w = walker_type(**kwargs);
+
+        // Capture results
+        self.walker_results = spawn w on spawn_node;
+
+        return self.walker_results;
+    }
+
+    can assert_visited_sequence(walker: walker, expected_nodes: list[node]) {
+        assert walker.visited_nodes == expected_nodes,
+            f"Expected visit sequence {expected_nodes}, got {walker.visited_nodes}";
+    }
+
+    can assert_walker_state(walker: walker, **expected_state: dict) {
+        for key, expected_value in expected_state.items() {
+            actual_value = getattr(walker, key);
+            assert actual_value == expected_value,
+                f"Expected {key}={expected_value}, got {actual_value}";
+        }
+    }
+}
+
+// Walker behavior test
+test "data aggregator walker" {
+    obj AggregatorTest(WalkerTestCase) {
+        can setup_graph -> node {
+            self.test_graph = create_test_root();
+
+            // Create data nodes
+            let n1 = self.test_graph ++> DataNode(value=10);
+            let n2 = self.test_graph ++> DataNode(value=20);
+            let n3 = self.test_graph ++> DataNode(value=30);
+
+            n1 ++> n2 ++> n3;  // Linear chain
+
+            return self.test_graph;
+        }
+    }
+
+    let tc = AggregatorTest();
+    let start_node = tc.setup_graph();
+
+    // Test walker
+    walker DataAggregator {
+        has sum: float = 0;
+        has count: int = 0;
+        has visited_nodes: list = [];
+
+        can aggregate with DataNode entry {
+            self.sum += here.value;
+            self.count += 1;
+            self.visited_nodes.append(here);
+
+            visit [-->];
+        }
+
+        can finalize with `root exit {
+            report {
+                "sum": self.sum,
+                "count": self.count,
+                "average": self.sum / self.count if self.count > 0 else 0
+            };
+        }
+    }
+
+    let results = tc.spawn_and_collect(DataAggregator, start_node);
+
+    assert len(results) == 1;
+    assert results[0]["sum"] == 60;
+    assert results[0]["count"] == 3;
+    assert results[0]["average"] == 20;
+}
+
+// Testing walker interactions
+test "walker communication" {
+    // Create communicating walkers
+    walker Sender {
+        has message: str;
+        has recipient: node;
+
+        can send with entry {
+            visit self.recipient {
+                here.received_messages.append(self.message);
+            };
+        }
+    }
+
+    walker Receiver {
+        has received_messages: list = [];
+        has response: str = "ACK";
+
+        can respond with entry {
+            if self.received_messages {
+                report {
+                    "messages": self.received_messages,
+                    "response": self.response
+                };
+            }
+        }
+    }
+
+    // Test communication
+    let sender_node = create_node();
+    let receiver_node = create_node() with {
+        has received_messages: list = [];
+    };
+
+    sender_node ++> receiver_node;
+
+    // Send message
+    spawn Sender(
+        message="Hello",
+        recipient=receiver_node
+    ) on sender_node;
+
+    // Check reception
+    assert len(receiver_node.received_messages) == 1;
+    assert receiver_node.received_messages[0] == "Hello";
+
+    // Get response
+    let response = spawn Receiver() on receiver_node;
+    assert response[0]["response"] == "ACK";
+}
+```
+
+### Testing with Mocks and Stubs
+
+```jac
+// Mock framework for Jac
+obj Mock {
+    has name: str;
+    has return_values: dict = {};
+    has call_history: list = [];
+    has side_effects: dict = {};
+
+    can __getattr__(attr: str) -> callable {
+        can mock_method(*args: list, **kwargs: dict) -> any {
+            // Record call
+            self.call_history.append({
+                "method": attr,
+                "args": args,
+                "kwargs": kwargs,
+                "timestamp": now()
+            });
+
+            // Execute side effects
+            if attr in self.side_effects {
+                self.side_effects[attr](*args, **kwargs);
+            }
+
+            // Return configured value
+            if attr in self.return_values {
+                return self.return_values[attr];
+            }
+
+            return None;
+        }
+
+        return mock_method;
+    }
+
+    can assert_called(method: str, times: int? = None) {
+        let calls = [c for c in self.call_history if c["method"] == method];
+
+        if times is not None {
+            assert len(calls) == times,
+                f"{method} called {len(calls)} times, expected {times}";
+        } else {
+            assert len(calls) > 0,
+                f"{method} was not called";
+        }
+    }
+
+    can assert_called_with(method: str, *args: list, **kwargs: dict) {
+        let calls = [c for c in self.call_history if c["method"] == method];
+
+        for call in calls {
+            if call["args"] == args and call["kwargs"] == kwargs {
+                return;  // Found matching call
+            }
+        }
+
+        assert False, f"{method} not called with args={args}, kwargs={kwargs}";
+    }
+}
+
+// Using mocks in tests
+test "payment processor with mocks" {
+    // Create mock payment gateway
+    let mock_gateway = Mock(name="PaymentGateway");
+    mock_gateway.return_values["charge"] = {"status": "success", "id": "12345"};
+    mock_gateway.side_effects["log"] = lambda msg: print(f"Mock log: {msg}");
+
+    // Test payment processing
+    walker PaymentProcessor {
+        has gateway: any;
+        has amount: float;
+
+        can process with Order entry {
+            let result = self.gateway.charge(
+                amount=self.amount,
+                currency="USD",
+                order_id=here.id
+            );
+
+            if result["status"] == "success" {
+                here.payment_id = result["id"];
+                here.status = "paid";
+                self.gateway.log(f"Payment successful for order {here.id}");
+            }
+
+            report result;
+        }
+    }
+
+    // Create test order
+    let order = create_node() with {
+        has id: str = "ORDER-001";
+        has status: str = "pending";
+        has payment_id: str? = None;
+    };
+
+    // Process payment
+    let result = spawn PaymentProcessor(
+        gateway=mock_gateway,
+        amount=99.99
+    ) on order;
+
+    // Verify mock interactions
+    mock_gateway.assert_called("charge", times=1);
+    mock_gateway.assert_called_with(
+        "charge",
+        amount=99.99,
+        currency="USD",
+        order_id="ORDER-001"
+    );
+    mock_gateway.assert_called("log");
+
+    // Verify order state
+    assert order.status == "paid";
+    assert order.payment_id == "12345";
+}
+```
+
+## 16.2 Debugging Techniques
+
+### Traversal Visualization
+
+Understanding walker paths through complex graphs is crucial for debugging:
+
+```jac
+// Traversal tracer
+walker TraversalTracer {
+    has trace: list = [];
+    has show_properties: list[str] = [];
+    has max_depth: int = 10;
+    has current_depth: int = 0;
+
+    can trace_traversal with entry {
+        // Record current position
+        let trace_entry = {
+            "depth": self.current_depth,
+            "node_type": type(here).__name__,
+            "node_id": here.__id__ if hasattr(here, "__id__") else id(here),
+            "timestamp": now()
+        };
+
+        // Add requested properties
+        for prop in self.show_properties {
+            if hasattr(here, prop) {
+                trace_entry[prop] = getattr(here, prop);
+            }
+        }
+
+        self.trace.append(trace_entry);
+
+        // Continue traversal with depth limit
+        if self.current_depth < self.max_depth {
+            self.current_depth += 1;
+            visit [-->];
+            self.current_depth -= 1;
+        }
+    }
+
+    can visualize with `root exit {
+        print("\n=== Traversal Trace ===");
+        for entry in self.trace {
+            indent = "  " * entry["depth"];
+            print(f"{indent}→ {entry['node_type']} (id: {entry['node_id']})");
+
+            for key, value in entry.items() {
+                if key not in ["depth", "node_type", "node_id", "timestamp"] {
+                    print(f"{indent}  {key}: {value}");
+            }
+        }
+
+        print(f"\nTotal nodes visited: {len(self.trace)}");
+        print("===================\n");
+    }
+}
+
+// Visual graph representation
+walker GraphVisualizer {
+    has format: str = "mermaid";  // or "dot", "ascii"
+    has visited: set = set();
+    has edges: list = [];
+    has nodes: dict = {};
+
+    can visualize with entry {
+        if here in self.visited {
+            return;
+        }
+        self.visited.add(here);
+
+        // Record node
+        self.nodes[id(here)] = {
+            "type": type(here).__name__,
+            "label": self.get_node_label(here)
+        };
+
+        // Record edges
+        for edge in [<-->] {
+            self.edges.append({
+                "from": id(here),
+                "to": id(edge.target),
+                "type": type(edge).__name__,
+                "label": self.get_edge_label(edge)
+            });
+        }
+
+        // Continue traversal
+        visit [-->];
+    }
+
+    can get_node_label(n: node) -> str {
+        if hasattr(n, "name") {
+            return f"{n.name}";
+        } elif hasattr(n, "id") {
+            return f"#{n.id}";
+        }
+        return "";
+    }
+
+    can get_edge_label(e: edge) -> str {
+        if hasattr(e, "label") {
+            return e.label;
+        }
+        return "";
+    }
+
+    can render with `root exit -> str {
+        if self.format == "mermaid" {
+            return self.render_mermaid();
+        } elif self.format == "dot" {
+            return self.render_dot();
+        } else {
+            return self.render_ascii();
+        }
+    }
+
+    can render_mermaid -> str {
+        let output = ["graph TD"];
+
+        // Add nodes
+        for node_id, info in self.nodes.items() {
+            let label = f"{info['type']}";
+            if info['label'] {
+                label += f": {info['label']}";
+            }
+            output.append(f"    N{node_id}[{label}]");
+        }
+
+        // Add edges
+        for edge in self.edges {
+            let arrow = "-->";
+            if edge['type'] != "Edge" {
+                arrow = f"-->|{edge['type']}|";
+            }
+            output.append(f"    N{edge['from']} {arrow} N{edge['to']}");
+        }
+
+        return "\n".join(output);
+    }
+}
+
+// Usage in debugging
+with entry:debug {
+    // Trace a specific walker's path
+    let tracer = TraversalTracer(
+        show_properties=["name", "value", "status"],
+        max_depth=5
+    );
+    spawn tracer on problematic_node;
+
+    // Visualize graph structure
+    let viz = GraphVisualizer(format="mermaid");
+    let graph_diagram = spawn viz on root;
+    print(graph_diagram);
+}
+```
+
+### State Inspection
+
+Tools for inspecting walker and node state during execution:
+
+```jac
+// State inspector
+obj StateInspector {
+    has breakpoints: dict[str, callable] = {};
+    has watch_list: list[str] = [];
+    has history: list[dict] = [];
+
+    can add_breakpoint(location: str, condition: callable) {
+        self.breakpoints[location] = condition;
+    }
+
+    can add_watch(expression: str) {
+        self.watch_list.append(expression);
+    }
+
+    can checkpoint(location: str, context: dict) {
+        // Check if we should break
+        if location in self.breakpoints {
+            if self.breakpoints[location](context) {
+                self.interactive_debug(location, context);
+            }
+        }
+
+        // Record state
+        let state_snapshot = {
+            "location": location,
+            "timestamp": now(),
+            "context": context.copy(),
+            "watches": {}
+        };
+
+        // Evaluate watch expressions
+        for expr in self.watch_list {
+            try {
+                state_snapshot["watches"][expr] = eval(expr, context);
+            } except Exception as e {
+                state_snapshot["watches"][expr] = f"Error: {e}";
+            }
+        }
+
+        self.history.append(state_snapshot);
+    }
+
+    can interactive_debug(location: str, context: dict) {
+        print(f"\n🔴 Breakpoint hit at {location}");
+        print("Context variables:");
+        for key, value in context.items() {
+            print(f"  {key}: {value}");
+        }
+
+        // Simple REPL for inspection
+        while True {
+            let cmd = input("debug> ");
+            if cmd == "continue" or cmd == "c" {
+                break;
+            } elif cmd == "quit" or cmd == "q" {
+                raise DebuggerExit();
+            } elif cmd.startswith("print ") {
+                let expr = cmd[6:];
+                try {
+                    let result = eval(expr, context);
+                    print(result);
+                } except Exception as e {
+                    print(f"Error: {e}");
+                }
+            } elif cmd == "help" {
+                print("Commands: continue (c), quit (q), print <expr>");
+            }
+        }
+    }
+}
+
+// Instrumented walker for debugging
+walker DebuggedWalker {
+    has inspector: StateInspector;
+    has _original_process: callable;
+
+    can __init__ {
+        self.inspector = StateInspector();
+        self._original_process = self.process;
+        self.process = self._debug_process;
+    }
+
+    can _debug_process with entry {
+        // Pre-process checkpoint
+        self.inspector.checkpoint("pre_process", {
+            "walker": self,
+            "here": here,
+            "here_type": type(here).__name__
+        });
+
+        // Call original process
+        self._original_process();
+
+        // Post-process checkpoint
+        self.inspector.checkpoint("post_process", {
+            "walker": self,
+            "here": here,
+            "here_type": type(here).__name__
+        });
+    }
+}
+
+// Property change tracking
+node DebugNode {
+    has _properties: dict = {};
+    has _change_log: list = [];
+
+    can __setattr__(name: str, value: any) {
+        let old_value = self._properties.get(name, "<unset>");
+        self._properties[name] = value;
+
+        self._change_log.append({
+            "property": name,
+            "old_value": old_value,
+            "new_value": value,
+            "timestamp": now(),
+            "stack_trace": get_stack_trace()
+        });
+
+        super.__setattr__(name, value);
+    }
+
+    can get_change_history(property_name: str? = None) -> list {
+        if property_name {
+            return [c for c in self._change_log if c["property"] == property_name];
+        }
+        return self._change_log;
+    }
+}
+```
+
+### Distributed Debugging
+
+Debugging across multiple machines requires special tools:
+
+```jac
+// Distributed debugger
+walker DistributedDebugger {
+    has trace_id: str = generate_trace_id();
+    has machine_traces: dict[str, list] = {};
+    has correlation_id: str;
+
+    can trace_cross_machine with entry {
+        let machine_id = here.__machine_id__;
+
+        # Initialize trace for this machine
+        if machine_id not in self.machine_traces {
+            self.machine_traces[machine_id] = [];
+        }
+
+        # Record entry
+        self.machine_traces[machine_id].append({
+            "event": "walker_arrival",
+            "node": type(here).__name__,
+            "timestamp": now(),
+            "machine": machine_id,
+            "correlation_id": self.correlation_id
+        });
+
+        # Check for cross-machine edges
+        for edge in [<-->] {
+            if edge.__is_cross_machine__ {
+                self.machine_traces[machine_id].append({
+                    "event": "cross_machine_edge",
+                    "from_machine": machine_id,
+                    "to_machine": edge.target.__machine_id__,
+                    "edge_type": type(edge).__name__,
+                    "timestamp": now()
+                });
+            }
+        }
+
+        # Continue traversal
+        visit [-->];
+    }
+
+    can generate_distributed_timeline with `root exit {
+        // Merge all machine traces
+        let all_events = [];
+        for machine_id, events in self.machine_traces.items() {
+            for event in events {
+                event["machine_id"] = machine_id;
+                all_events.append(event);
+            }
+        }
+
+        // Sort by timestamp
+        all_events.sort(key=lambda e: e["timestamp"]);
+
+        // Generate timeline
+        print(f"\n=== Distributed Execution Timeline (Trace: {self.trace_id}) ===");
+        for event in all_events {
+            let time_str = event["timestamp"];
+            let machine = event["machine_id"];
+
+            match event["event"] {
+                case "walker_arrival":
+                    print(f"{time_str} [{machine}] Walker arrived at {event['node']}");
+
+                case "cross_machine_edge":
+                    print(f"{time_str} [{machine}] Cross-machine edge to "
+                          f"[{event['to_machine']}] via {event['edge_type']}");
+            }
+        }
+        print("=====================================\n");
+    }
+}
+
+// Remote debugging session
+obj RemoteDebugSession {
+    has session_id: str;
+    has target_machines: list[str];
+    has debug_port: int = 5678;
+
+    can attach_to_walker(walker_id: str, machine_id: str) {
+        // Establish remote debug connection
+        let connection = establish_debug_connection(machine_id, self.debug_port);
+
+        // Set remote breakpoints
+        connection.set_breakpoint(
+            walker_type="*",
+            condition=f"self.id == '{walker_id}'"
+        );
+
+        // Start monitoring
+        self.monitor_walker(connection, walker_id);
+    }
+
+    can monitor_walker(connection: any, walker_id: str) {
+        while True {
+            let event = connection.get_next_event();
+
+            match event.type {
+                case "breakpoint_hit":
+                    print(f"Walker {walker_id} hit breakpoint on "
+                          f"{event.machine_id} at {event.location}");
+                    self.remote_inspect(connection, event);
+
+                case "state_change":
+                    print(f"Walker {walker_id} state changed: "
+                          f"{event.property} = {event.new_value}");
+
+                case "exception":
+                    print(f"Walker {walker_id} raised {event.exception_type}: "
+                          f"{event.message}");
+                    self.analyze_remote_exception(connection, event);
+            }
+        }
+    }
+}
+
+// Distributed assertion framework
+walker DistributedAssertion {
+    has assertions: list[callable] = [];
+    has machine_results: dict = {};
+
+    can add_assertion(name: str, check: callable) {
+        self.assertions.append({"name": name, "check": check});
+    }
+
+    can verify_distributed_state with entry {
+        let machine_id = here.__machine_id__;
+        let results = [];
+
+        for assertion in self.assertions {
+            try {
+                assertion["check"](here);
+                results.append({
+                    "name": assertion["name"],
+                    "status": "passed",
+                    "machine": machine_id
+                });
+            } except AssertionError as e {
+                results.append({
+                    "name": assertion["name"],
+                    "status": "failed",
+                    "machine": machine_id,
+                    "error": str(e)
+                });
+            }
+        }
+
+        self.machine_results[machine_id] = results;
+
+        // Continue to other machines
+        visit [-->];
+    }
+
+    can report_results with `root exit {
+        let total_passed = 0;
+        let total_failed = 0;
+
+        print("\n=== Distributed Assertion Results ===");
+        for machine_id, results in self.machine_results.items() {
+            print(f"\nMachine: {machine_id}");
+            for result in results {
+                if result["status"] == "passed" {
+                    print(f"  ✓ {result['name']}");
+                    total_passed += 1;
+                } else {
+                    print(f"  ✗ {result['name']}: {result['error']}");
+                    total_failed += 1;
+                }
+            }
+        }
+
+        print(f"\nTotal: {total_passed} passed, {total_failed} failed");
+        print("===================================\n");
+    }
+}
+```
+
+### Performance Profiling
+
+```jac
+// Performance profiler for walkers
+walker PerformanceProfiler {
+    has profile_data: dict = {};
+    has _start_times: dict = {};
+
+    can start_timer(operation: str) {
+        self._start_times[operation] = time.perf_counter();
+    }
+
+    can stop_timer(operation: str) {
+        if operation in self._start_times {
+            elapsed = time.perf_counter() - self._start_times[operation];
+
+            if operation not in self.profile_data {
+                self.profile_data[operation] = {
+                    "count": 0,
+                    "total_time": 0.0,
+                    "min_time": float('inf'),
+                    "max_time": 0.0
+                };
+            }
+
+            let stats = self.profile_data[operation];
+            stats["count"] += 1;
+            stats["total_time"] += elapsed;
+            stats["min_time"] = min(stats["min_time"], elapsed);
+            stats["max_time"] = max(stats["max_time"], elapsed);
+
+            del self._start_times[operation];
+        }
+    }
+
+    can profile_ability(ability_name: str) -> callable {
+        can profiled_ability(original_ability: callable) -> callable {
+            can wrapper(*args, **kwargs) {
+                self.start_timer(ability_name);
+                try {
+                    result = original_ability(*args, **kwargs);
+                    return result;
+                } finally {
+                    self.stop_timer(ability_name);
+                }
+            }
+            return wrapper;
+        }
+        return profiled_ability;
+    }
+
+    can generate_report with `root exit {
+        print("\n=== Performance Profile ===");
+        print(f"{'Operation':<30} {'Count':<10} {'Total(s)':<10} "
+              f"{'Avg(ms)':<10} {'Min(ms)':<10} {'Max(ms)':<10}");
+        print("-" * 80);
+
+        for op, stats in self.profile_data.items() {
+            avg_ms = (stats["total_time"] / stats["count"]) * 1000;
+            print(f"{op:<30} {stats['count']:<10} "
+                  f"{stats['total_time']:<10.3f} {avg_ms:<10.2f} "
+                  f"{stats['min_time']*1000:<10.2f} "
+                  f"{stats['max_time']*1000:<10.2f}");
+        }
+        print("========================\n");
+    }
+}
+
+// Memory profiler
+walker MemoryProfiler {
+    has snapshots: list = [];
+    has track_types: list[type] = [node, edge, walker];
+
+    can take_snapshot(label: str) {
+        import:py gc;
+        import:py sys;
+
+        gc.collect();  // Force garbage collection
+
+        let snapshot = {
+            "label": label,
+            "timestamp": now(),
+            "total_objects": 0,
+            "by_type": {},
+            "memory_usage": self.get_memory_usage()
+        };
+
+        for obj in gc.get_objects() {
+            obj_type = type(obj);
+            if any(isinstance(obj, t) for t in self.track_types) {
+                type_name = obj_type.__name__;
+                if type_name not in snapshot["by_type"] {
+                    snapshot["by_type"][type_name] = {
+                        "count": 0,
+                        "size": 0
+                    };
+                }
+                snapshot["by_type"][type_name]["count"] += 1;
+                snapshot["by_type"][type_name]["size"] += sys.getsizeof(obj);
+                snapshot["total_objects"] += 1;
+            }
+        }
+
+        self.snapshots.append(snapshot);
+    }
+
+    can get_memory_usage -> dict {
+        import:py psutil;
+        import:py os;
+
+        process = psutil.Process(os.getpid());
+        mem_info = process.memory_info();
+
+        return {
+            "rss": mem_info.rss,  // Resident Set Size
+            "vms": mem_info.vms,  // Virtual Memory Size
+            "percent": process.memory_percent()
+        };
+    }
+
+    can compare_snapshots(label1: str, label2: str) {
+        let snap1 = [s for s in self.snapshots if s["label"] == label1][0];
+        let snap2 = [s for s in self.snapshots if s["label"] == label2][0];
+
+        print(f"\n=== Memory Comparison: {label1} → {label2} ===");
+
+        // Overall memory change
+        let mem_diff = snap2["memory_usage"]["rss"] - snap1["memory_usage"]["rss"];
+        print(f"Memory change: {mem_diff / 1024 / 1024:.2f} MB");
+
+        // Object count changes
+        print("\nObject count changes:");
+        let all_types = set(snap1["by_type"].keys()) | set(snap2["by_type"].keys());
+
+        for type_name in sorted(all_types) {
+            let count1 = snap1["by_type"].get(type_name, {}).get("count", 0);
+            let count2 = snap2["by_type"].get(type_name, {}).get("count", 0);
+            let diff = count2 - count1;
+
+            if diff != 0 {
+                print(f"  {type_name}: {count1} → {count2} ({diff:+})");
+            }
+        }
+        print("================================\n");
+    }
+}
+```
+
+### Error Diagnostics
+
+```jac
+// Enhanced error reporting
+obj ErrorDiagnostics {
+    has error_handlers: dict[type, callable] = {};
+    has context_collectors: list[callable] = [];
+
+    can register_handler(error_type: type, handler: callable) {
+        self.error_handlers[error_type] = handler;
+    }
+
+    can add_context_collector(collector: callable) {
+        self.context_collectors.append(collector);
+    }
+
+    can diagnose(error: Exception, context: dict = {}) -> dict {
+        let diagnosis = {
+            "error_type": type(error).__name__,
+            "message": str(error),
+            "timestamp": now(),
+            "context": context,
+            "stack_trace": get_detailed_stack_trace(),
+            "suggestions": []
+        };
+
+        // Collect additional context
+        for collector in self.context_collectors {
+            try {
+                additional_context = collector(error, context);
+                diagnosis["context"].update(additional_context);
+            } except Exception as e {
+                diagnosis["context"][f"collector_error_{collector.__name__}"] = str(e);
+            }
+        }
+
+        // Run specific handler if available
+        error_type = type(error);
+        if error_type in self.error_handlers {
+            let handler_result = self.error_handlers[error_type](error, diagnosis);
+            diagnosis["suggestions"].extend(handler_result.get("suggestions", []));
+            diagnosis["probable_cause"] = handler_result.get("probable_cause");
+        }
+
+        return diagnosis;
+    }
+}
+
+// Graph-specific error diagnostics
+can diagnose_graph_errors(error: Exception, context: dict) -> dict {
+    let result = {"suggestions": []};
+
+    match type(error) {
+        case NodeNotFoundError:
+            result["probable_cause"] = "Attempting to access non-existent node";
+            result["suggestions"] = [
+                "Check if node was deleted",
+                "Verify node creation completed",
+                "Check for race conditions in concurrent access"
+            ];
+
+        case CircularDependencyError:
+            result["probable_cause"] = "Circular reference detected in graph";
+            result["suggestions"] = [
+                "Use cycle detection before traversal",
+                "Implement maximum depth limit",
+                "Consider using visited set"
+            ];
+
+        case CrossMachineError:
+            result["probable_cause"] = "Failed cross-machine operation";
+            result["suggestions"] = [
+                "Check network connectivity",
+                "Verify remote machine availability",
+                "Check for version mismatches",
+                "Enable distributed tracing"
+            ];
+    }
+
+    return result;
+}
+
+// Automatic error reporting
+walker ErrorReporter {
+    has diagnostics: ErrorDiagnostics;
+    has report_endpoint: str?;
+
+    can __init__ {
+        self.diagnostics = ErrorDiagnostics();
+        self.diagnostics.register_handler(GraphError, diagnose_graph_errors);
+    }
+
+    can safe_traverse with entry {
+        try {
+            // Normal traversal
+            self.process_node();
+            visit [-->];
+
+        } except Exception as e {
+            // Diagnose error
+            let diagnosis = self.diagnostics.diagnose(e, {
+                "walker_type": type(self).__name__,
+                "node_type": type(here).__name__,
+                "node_id": here.__id__ if hasattr(here, "__id__") else None,
+                "machine_id": here.__machine_id__ if hasattr(here, "__machine_id__") else None
+            });
+
+            // Report error
+            self.report_error(diagnosis);
+
+            // Decide whether to continue
+            if self.should_continue_after_error(e) {
+                visit [-->] else {
+                    report {"error": diagnosis};
+                    disengage;
+                };
+            } else {
+                disengage;
+            }
+        }
+    }
+
+    can report_error(diagnosis: dict) {
+        // Log locally
+        print(f"\n🔴 Error Diagnostic Report");
+        print(f"Type: {diagnosis['error_type']}");
+        print(f"Message: {diagnosis['message']}");
+
+        if diagnosis.get("probable_cause") {
+            print(f"Probable Cause: {diagnosis['probable_cause']}");
+        }
+
+        if diagnosis["suggestions"] {
+            print("Suggestions:");
+            for suggestion in diagnosis["suggestions"] {
+                print(f"  • {suggestion}");
+            }
+        }
+
+        // Send to monitoring service if configured
+        if self.report_endpoint {
+            send_error_report(self.report_endpoint, diagnosis);
+        }
+    }
+}
+```
+
+## Summary
+
+This chapter covered comprehensive testing and debugging strategies for Jac applications:
+
+### Testing Framework
+- **Built-in Tests**: First-class `test` blocks with assertions
+- **Graph Testing**: Specialized utilities for structure verification
+- **Walker Testing**: Simulating traversals and verifying behavior
+- **Mock Framework**: Isolating components for unit testing
+
+### Debugging Techniques
+- **Traversal Visualization**: Understanding walker paths
+- **State Inspection**: Interactive debugging and property tracking
+- **Distributed Debugging**: Cross-machine tracing and correlation
+- **Performance Profiling**: Identifying bottlenecks and optimization opportunities
+
+### Best Practices
+1. **Test at Multiple Levels**: Unit, integration, and system tests
+2. **Use Visualization**: Graph structure and traversal paths
+3. **Profile Early**: Identify performance issues before scaling
+4. **Embrace Distributed Debugging**: Essential for production systems
+5. **Automate Error Reporting**: Comprehensive diagnostics for rapid fixes
+
+These tools and techniques ensure that Jac applications are robust, performant, and maintainable at any scale, from development to global deployment.
 
 ## Part VI: Practical Applications
 
-### Chapter 17: Case Studies
-- **17.1 Social Network Application**
-  - User nodes and relationship edges
-  - Feed generation with walkers
-  - Privacy through topology
-- **17.2 Workflow Engine**
-  - States as nodes
-  - Transitions as edges
-  - Process automation
-- **17.3 Microservices Architecture**
-  - Services as subgraphs
-  - Inter-service communication
-  - Distributed transactions
+# Chapter 18: Migration Guide
 
-### Chapter 18: Migration Guide
-- **18.1 Porting Python Applications**
-  - Identifying graph structures
-  - Converting classes to archetypes
-  - Refactoring for data spatial patterns
-- **18.2 Incremental Adoption**
-  - Using Python from Jac
-  - Hybrid applications
-  - Migration strategies
+## 18.1 Porting Python Applications
 
-### Chapter 19: Performance and Optimization
-- **19.1 Performance Characteristics**
-  - Traversal optimization
-  - Memory management
-  - Distribution overhead
-- **19.2 Optimization Techniques**
-  - Graph layout optimization
-  - Walker batching
-  - Caching strategies
+Migrating Python applications to Jac requires a shift in thinking from object-oriented to data spatial patterns. This section guides you through identifying opportunities for migration and transforming Python code to leverage Jac's unique capabilities.
+
+### Identifying Graph Structures
+
+Most Python applications contain implicit graph structures that become explicit in Jac. Learning to recognize these patterns is the first step in successful migration.
+
+#### Common Graph Patterns in Python Applications
+
+```python
+# Python: Hidden graph structure in user relationships
+class User:
+    def __init__(self, username):
+        self.username = username
+        self.followers = []
+        self.following = []
+        self.posts = []
+        self.liked_posts = []
+        self.blocked_users = []
+
+    def follow(self, other_user):
+        if other_user not in self.following:
+            self.following.append(other_user)
+            other_user.followers.append(self)
+
+    def create_post(self, content):
+        post = Post(content, self)
+        self.posts.append(post)
+        return post
+```
+
+This Python code hides several graph relationships:
+- User → User (following/followers)
+- User → Post (authored)
+- User → Post (liked)
+- User → User (blocked)
+
+```mermaid
+graph TD
+    U1[User 1]
+    U2[User 2]
+    U3[User 3]
+    P1[Post 1]
+    P2[Post 2]
+    P3[Post 3]
+
+    U1 -->|follows| U2
+    U2 -->|follows| U1
+    U2 -->|follows| U3
+    U1 -->|authored| P1
+    U2 -->|authored| P2
+    U2 -->|authored| P3
+    U1 -->|likes| P2
+    U3 -->|likes| P2
+    U1 -.->|blocked| U3
+
+    style U1 fill:#e3f2fd
+    style U2 fill:#e3f2fd
+    style U3 fill:#e3f2fd
+    style P1 fill:#fff3e0
+    style P2 fill:#fff3e0
+    style P3 fill:#fff3e0
+```
+
+#### Recognizing Graph Structures
+
+Look for these indicators in your Python code:
+
+1. **Collections of References**
+   ```python
+   # Python: Collection indicates relationship
+   self.friends = []  # → Friend edge
+   self.items = []    # → Contains edge
+   self.tags = []     # → TaggedWith edge
+   ```
+
+2. **Many-to-Many Relationships**
+   ```python
+   # Python: Join tables or intermediate objects
+   class UserGroup:
+       def __init__(self):
+           self.members = []
+
+   class GroupMembership:
+       def __init__(self, user, group, role):
+           self.user = user
+           self.group = group
+           self.role = role
+   ```
+
+3. **Hierarchical Structures**
+   ```python
+   # Python: Parent-child relationships
+   class Category:
+       def __init__(self, name, parent=None):
+           self.name = name
+           self.parent = parent
+           self.children = []
+   ```
+
+4. **State Machines**
+   ```python
+   # Python: State transitions
+   class Order:
+       STATES = ['pending', 'paid', 'shipped', 'delivered']
+
+       def transition_to(self, new_state):
+           if self.can_transition(new_state):
+               self.state = new_state
+   ```
+
+5. **Event Systems**
+   ```python
+   # Python: Observer patterns
+   class EventEmitter:
+       def __init__(self):
+           self.listeners = defaultdict(list)
+
+       def on(self, event, callback):
+           self.listeners[event].append(callback)
+   ```
+
+### Converting Classes to Archetypes
+
+The transformation from Python classes to Jac archetypes involves identifying which archetype best represents each class's role.
+
+#### Decision Tree for Archetype Selection
+
+```mermaid
+graph TD
+    A[Python Class] --> B{Represents a<br/>data entity?}
+    B -->|Yes| C{Has connections<br/>to others?}
+    B -->|No| D{Represents a<br/>relationship?}
+    C -->|Yes| E[node]
+    C -->|No| F[obj]
+    D -->|Yes| G[edge]
+    D -->|No| H{Represents a<br/>process/algorithm?}
+    H -->|Yes| I[walker]
+    H -->|No| J[obj or can]
+
+    style E fill:#4caf50
+    style G fill:#ff9800
+    style I fill:#2196f3
+    style F fill:#9c27b0
+    style J fill:#9c27b0
+```
+
+#### Example: User Management System
+
+**Python Original:**
+```python
+# models.py
+from datetime import datetime
+from typing import List, Optional
+
+class User:
+    def __init__(self, email: str, username: str):
+        self.id = generate_id()
+        self.email = email
+        self.username = username
+        self.created_at = datetime.now()
+        self.profile = None
+        self.sessions = []
+
+    def create_profile(self, bio: str, avatar_url: str):
+        self.profile = UserProfile(bio, avatar_url)
+        return self.profile
+
+    def get_active_sessions(self) -> List['Session']:
+        return [s for s in self.sessions if s.is_active()]
+
+class UserProfile:
+    def __init__(self, bio: str, avatar_url: str):
+        self.bio = bio
+        self.avatar_url = avatar_url
+        self.updated_at = datetime.now()
+
+class Session:
+    def __init__(self, user: User, ip_address: str):
+        self.id = generate_id()
+        self.user = user
+        self.ip_address = ip_address
+        self.created_at = datetime.now()
+        self.last_activity = datetime.now()
+        self.active = True
+
+    def is_active(self) -> bool:
+        timeout = datetime.now() - self.last_activity
+        return self.active and timeout.seconds < 3600
+
+    def terminate(self):
+        self.active = False
+
+class Friendship:
+    def __init__(self, user1: User, user2: User):
+        self.user1 = user1
+        self.user2 = user2
+        self.created_at = datetime.now()
+        self.status = 'pending'
+
+    def accept(self):
+        self.status = 'accepted'
+
+    def reject(self):
+        self.status = 'rejected'
+```
+
+**Jac Migration:**
+```jac
+# models.jac
+
+# User becomes a node (has connections)
+node User {
+    has email: str;
+    has username: str;
+    has created_at: str;
+
+    # Automatic ID generation via postinit
+    has id: str by postinit;
+
+    can postinit {
+        self.id = generate_id();
+    }
+}
+
+# Profile becomes obj (1-1 with User, no independent connections)
+obj UserProfile {
+    has bio: str;
+    has avatar_url: str;
+    has updated_at: str;
+}
+
+# Session becomes an edge (connects User to temporal context)
+edge Session(User, TimeContext) {
+    has id: str by postinit;
+    has ip_address: str;
+    has created_at: str;
+    has last_activity: str;
+    has active: bool = true;
+
+    can postinit {
+        self.id = generate_id();
+    }
+
+    can is_active -> bool {
+        import:py from datetime { datetime };
+        if not self.active { return false; }
+
+        last = datetime.fromisoformat(self.last_activity);
+        timeout = datetime.now() - last;
+        return timeout.seconds < 3600;
+    }
+
+    can terminate {
+        self.active = false;
+    }
+}
+
+# Friendship becomes an edge with status
+edge Friendship(User, User) {
+    has created_at: str;
+    has status: str = 'pending';
+
+    can accept {
+        self.status = 'accepted';
+    }
+
+    can reject {
+        self.status = 'rejected';
+    }
+}
+
+# Profile creation becomes a walker
+walker CreateProfile {
+    has bio: str;
+    has avatar_url: str;
+
+    can create with User entry {
+        # Check if profile already exists
+        existing = here[-->:HasProfile:];
+        if existing {
+            report {"error": "Profile already exists"};
+            disengage;
+        }
+
+        # Create profile and connect
+        profile = UserProfile(
+            bio=self.bio,
+            avatar_url=self.avatar_url,
+            updated_at=timestamp_now()
+        );
+
+        here ++>:HasProfile:++> profile;
+        report {"success": true, "profile": profile};
+    }
+}
+
+# Active sessions becomes a walker query
+walker GetActiveSessions {
+    has sessions: list = [];
+
+    can collect with User entry {
+        for session in [-->:Session:] {
+            if session.is_active() {
+                self.sessions.append({
+                    "id": session.id,
+                    "ip": session.ip_address,
+                    "last_activity": session.last_activity
+                });
+            }
+        }
+    }
+}
+```
+
+### Refactoring for Data Spatial Patterns
+
+Moving beyond direct translation, we can refactor to truly leverage data spatial patterns.
+
+#### Pattern 1: Replace Method Calls with Walker Traversal
+
+**Python:**
+```python
+class NotificationService:
+    def notify_followers(self, user, message):
+        for follower in user.followers:
+            if self.should_notify(follower, user):
+                self.send_notification(follower, message)
+
+    def should_notify(self, recipient, sender):
+        # Check blocks, preferences, etc.
+        return sender not in recipient.blocked_users
+```
+
+**Jac Refactored:**
+```jac
+walker NotifyFollowers {
+    has message: str;
+    has notifications_sent: int = 0;
+
+    can notify with User entry {
+        # Natural traversal with filtering
+        for follower in [<--:Follows:] {
+            # Blocked relationships prevent traversal
+            if not follower[-->:Blocks:-->](?.target == here) {
+                visit follower;
+            }
+        }
+    }
+
+    can deliver with User entry {
+        # Create notification node
+        notif = here ++> Notification(
+            message=self.message,
+            from_user=here,
+            timestamp=timestamp_now(),
+            read=false
+        );
+        self.notifications_sent += 1;
+    }
+
+    can summarize with `root exit {
+        report {
+            "sent": self.notifications_sent,
+            "message": self.message
+        };
+    }
+}
+```
+
+#### Pattern 2: Replace Queries with Graph Traversal
+
+**Python:**
+```python
+# Finding mutual friends
+def find_mutual_friends(user1, user2):
+    friends1 = set(user1.friends)
+    friends2 = set(user2.friends)
+    return friends1.intersection(friends2)
+
+# Finding friend recommendations
+def recommend_friends(user, limit=10):
+    recommendations = {}
+
+    # Friends of friends
+    for friend in user.friends:
+        for fof in friend.friends:
+            if fof != user and fof not in user.friends:
+                recommendations[fof] = recommendations.get(fof, 0) + 1
+
+    # Sort by mutual friend count
+    sorted_recs = sorted(recommendations.items(),
+                        key=lambda x: x[1], reverse=True)
+    return [user for user, _ in sorted_recs[:limit]]
+```
+
+**Jac Refactored:**
+```jac
+walker FindMutualFriends {
+    has other_user: User;
+    has mutuals: set = {};
+
+    can find with User entry {
+        # Collect my friends
+        my_friends = set([-->:Follows:-->]);
+
+        # Visit other user and find intersection
+        visit self.other_user else {
+            report {"error": "User not found"};
+        };
+    }
+
+    can compare with User entry {
+        their_friends = set([-->:Follows:-->]);
+        self.mutuals = my_friends.intersection(their_friends);
+        report list(self.mutuals);
+    }
+}
+
+walker RecommendFriends {
+    has limit: int = 10;
+    has recommendations: dict = {};
+    has visited: set = {};
+    has original_user: User by postinit;
+
+    can postinit {
+        self.original_user = here;
+    }
+
+    can explore with User entry {
+        if here in self.visited { return; }
+        self.visited.add(here);
+
+        # First level: my friends
+        if here == self.original_user {
+            visit [-->:Follows:-->];
+        }
+        # Second level: friends of friends
+        else {
+            for fof in [-->:Follows:-->] {
+                if fof != self.original_user and
+                   not self.original_user[-->:Follows:-->](? == fof) {
+                    self.recommendations[fof] = \
+                        self.recommendations.get(fof, 0) + 1;
+                }
+            }
+        }
+    }
+
+    can report_results with `root exit {
+        # Sort and limit recommendations
+        sorted_recs = sorted(
+            self.recommendations.items(),
+            key=lambda x: x[1],
+            reverse=true
+        );
+
+        report [user for user, _ in sorted_recs[:self.limit]];
+    }
+}
+```
+
+#### Pattern 3: Replace State Machines with Graph Topology
+
+**Python:**
+```python
+class Order:
+    STATES = {
+        'pending': ['cancelled', 'paid'],
+        'paid': ['cancelled', 'processing'],
+        'processing': ['shipped'],
+        'shipped': ['delivered', 'returned'],
+        'delivered': ['returned'],
+        'cancelled': [],
+        'returned': []
+    }
+
+    def __init__(self):
+        self.state = 'pending'
+        self.history = []
+
+    def transition_to(self, new_state):
+        if new_state in self.STATES[self.state]:
+            self.history.append({
+                'from': self.state,
+                'to': new_state,
+                'timestamp': datetime.now()
+            })
+            self.state = new_state
+            self.trigger_state_actions(new_state)
+        else:
+            raise ValueError(f"Invalid transition: {self.state} -> {new_state}")
+```
+
+**Jac Refactored:**
+```jac
+# States as nodes
+node OrderState {
+    has name: str;
+    has entry_actions: list = [];
+    has exit_actions: list = [];
+}
+
+# Transitions as edges
+edge Transition(OrderState, OrderState) {
+    has name: str;
+    has condition: str = "";
+    has timestamp: str by postinit;
+
+    can postinit {
+        self.timestamp = timestamp_now();
+    }
+}
+
+# Order exists in a state
+edge InState(Order, OrderState);
+
+# Walker to transition states
+walker TransitionOrder {
+    has target_state: str;
+    has transition_history: list = [];
+
+    can transition with Order entry {
+        # Find current state
+        current_state = here[-->:InState:-->][0];
+
+        # Find valid transition
+        for trans in current_state[-->:Transition:] {
+            if trans.target.name == self.target_state {
+                # Execute exit actions
+                for action in current_state.exit_actions {
+                    execute_action(action, here);
+                }
+
+                # Move to new state
+                del here -->:InState:--> current_state;
+                here ++>:InState:++> trans.target;
+
+                # Record transition
+                self.transition_history.append({
+                    "from": current_state.name,
+                    "to": trans.target.name,
+                    "timestamp": trans.timestamp
+                });
+
+                # Execute entry actions
+                for action in trans.target.entry_actions {
+                    execute_action(action, here);
+                }
+
+                report {"success": true, "new_state": trans.target.name};
+                disengage;
+            }
+        }
+
+        report {"error": f"Invalid transition to {self.target_state}"};
+    }
+}
+
+# Initialize state machine
+with entry {
+    # Create states
+    pending = OrderState(name="pending");
+    paid = OrderState(name="paid");
+    processing = OrderState(name="processing");
+    shipped = OrderState(name="shipped");
+    delivered = OrderState(name="delivered");
+    cancelled = OrderState(name="cancelled");
+    returned = OrderState(name="returned");
+
+    # Create transitions
+    pending ++>:Transition(name="pay"):++> paid;
+    pending ++>:Transition(name="cancel"):++> cancelled;
+    paid ++>:Transition(name="process"):++> processing;
+    paid ++>:Transition(name="cancel"):++> cancelled;
+    processing ++>:Transition(name="ship"):++> shipped;
+    shipped ++>:Transition(name="deliver"):++> delivered;
+    shipped ++>:Transition(name="return"):++> returned;
+    delivered ++>:Transition(name="return"):++> returned;
+}
+```
+
+## 18.2 Incremental Adoption
+
+Jac is designed to work alongside Python, enabling gradual migration strategies that minimize risk and disruption.
+
+### Using Python from Jac
+
+Jac provides seamless Python interoperability through multiple mechanisms:
+
+#### Direct Python Imports
+
+```jac
+# Import Python modules directly
+import:py numpy as np;
+import:py from pandas { DataFrame, Series };
+import:py from sklearn.cluster { KMeans };
+
+# Use Python libraries naturally
+walker DataAnalyzer {
+    has data: list;
+    has clusters: int = 3;
+
+    can analyze with entry {
+        # Use pandas for data manipulation
+        df = DataFrame(self.data);
+
+        # Statistical analysis
+        summary = df.describe();
+
+        # Machine learning with sklearn
+        features = df[['feature1', 'feature2']].values;
+        kmeans = KMeans(n_clusters=self.clusters);
+        labels = kmeans.fit_predict(features);
+
+        # Store results in graph
+        here ++> AnalysisResult(
+            summary=summary.to_dict(),
+            cluster_labels=labels.tolist(),
+            centroids=kmeans.cluster_centers_.tolist()
+        );
+    }
+}
+```
+
+#### Inline Python Code
+
+```jac
+# Complex Python logic inline
+walker PythonIntegration {
+    can process with entry {
+        ::py::
+        # Any Python code here
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        # Create visualization
+        data = here.get_metric_data()
+        plt.figure(figsize=(10, 6))
+        sns.lineplot(data=data, x='timestamp', y='value')
+        plt.title(f'Metrics for {here.name}')
+        plt.savefig(f'metrics_{here.id}.png')
+        plt.close()
+
+        # Complex computation
+        result = perform_complex_calculation(data)
+        ::py::
+
+        # Back to Jac
+        here.visualization_path = f'metrics_{here.id}.png';
+        here.computed_result = result;
+    }
+}
+```
+
+#### Python Function Wrapping
+
+```jac
+# Wrap Python functions for Jac use
+import:py from legacy_system {
+    process_payment,
+    validate_credit_card,
+    send_email
+};
+
+# Create Jac-friendly wrappers
+can process_payment_safe(amount: float, card: dict) -> dict {
+    try {
+        # Call Python function
+        result = process_payment(amount, card);
+        return {"success": true, "transaction_id": result.id};
+    } except Exception as e {
+        return {"success": false, "error": str(e)};
+    }
+}
+
+# Use in walkers
+walker ProcessOrder {
+    has order_total: float;
+    has payment_info: dict;
+
+    can process with Order entry {
+        # Validate card using Python
+        if not validate_credit_card(self.payment_info) {
+            report {"error": "Invalid card"};
+            disengage;
+        }
+
+        # Process payment
+        result = process_payment_safe(self.order_total, self.payment_info);
+
+        if result["success"] {
+            here ++> Payment(
+                transaction_id=result["transaction_id"],
+                amount=self.order_total,
+                timestamp=timestamp_now()
+            );
+
+            # Send confirmation email
+            send_email(
+                to=here.customer_email,
+                subject="Order Confirmed",
+                body=f"Your order {here.id} has been confirmed."
+            );
+        }
+
+        report result;
+    }
+}
+```
+
+### Hybrid Applications
+
+Building applications that leverage both Python and Jac strengths:
+
+#### Architecture Pattern: Python Backend, Jac Graph Layer
+
+```python
+# python_api.py
+from flask import Flask, request, jsonify
+from jac_runtime import JacRuntime
+
+app = Flask(__name__)
+jrt = JacRuntime('graph_layer.jac')
+
+@app.route('/api/users/<user_id>/friends', methods=['GET'])
+def get_friends(user_id):
+    # Use Jac for graph operations
+    result = jrt.run_walker('GetFriends', {
+        'user_id': user_id,
+        'include_pending': request.args.get('pending', False)
+    })
+    return jsonify(result)
+
+@app.route('/api/recommendations/<user_id>', methods=['GET'])
+def get_recommendations(user_id):
+    # Complex graph algorithm in Jac
+    result = jrt.run_walker('RecommendContent', {
+        'user_id': user_id,
+        'limit': int(request.args.get('limit', 10))
+    })
+    return jsonify(result)
+
+# Traditional Python for non-graph operations
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    # Handle file upload with Python
+    file = request.files['file']
+    # Process with Python libraries
+    processed = process_file(file)
+
+    # Store metadata in Jac graph
+    jrt.run_walker('StoreFileMetadata', {
+        'filename': file.filename,
+        'size': file.size,
+        'processed_data': processed
+    })
+
+    return jsonify({'status': 'success'})
+```
+
+```jac
+# graph_layer.jac
+
+walker GetFriends {
+    has user_id: str;
+    has include_pending: bool = false;
+    has friends: list = [];
+
+    can find with entry {
+        user = find_user_by_id(self.user_id);
+        if not user {
+            report {"error": "User not found"};
+            disengage;
+        }
+        visit user;
+    }
+
+    can collect with User entry {
+        for friend_edge in [-->:Friendship:] {
+            if friend_edge.status == "accepted" or
+               (self.include_pending and friend_edge.status == "pending") {
+                self.friends.append({
+                    "user": friend_edge.target.to_dict(),
+                    "friendship_status": friend_edge.status,
+                    "since": friend_edge.created_at
+                });
+            }
+        }
+        report {"friends": self.friends};
+    }
+}
+```
+
+#### Pattern: Jac for Business Logic, Python for Infrastructure
+
+```jac
+# business_logic.jac
+
+# Define business rules in Jac
+walker ApplyDiscounts {
+    has order: dict;
+    has discounts_applied: list = [];
+
+    can apply with Customer entry {
+        # Customer loyalty discount
+        if here.loyalty_points > 1000 {
+            self.add_discount("LOYALTY10", 0.10);
+        }
+
+        # Visit purchase history
+        visit [-->:PurchaseHistory:];
+    }
+
+    can check_history with PurchaseHistory entry {
+        # Frequent buyer discount
+        recent_purchases = here.get_recent_purchases(days=30);
+        if len(recent_purchases) >= 5 {
+            self.add_discount("FREQUENT5", 0.05);
+        }
+    }
+
+    can add_discount(code: str, percentage: float) {
+        self.discounts_applied.append({
+            "code": code,
+            "percentage": percentage
+        });
+    }
+}
+
+# Wrapper for Python integration
+can calculate_order_total(order: dict) -> dict {
+    # Create temporary graph structure
+    customer = Customer(id=order["customer_id"]);
+
+    # Run business logic
+    walker = ApplyDiscounts(order=order);
+    spawn walker on customer;
+
+    # Apply discounts using Python for calculation
+    ::py::
+    total = order["subtotal"]
+    for discount in walker.discounts_applied:
+        total *= (1 - discount["percentage"])
+
+    # Add tax calculation (complex Python logic)
+    tax = calculate_tax(total, order["shipping_address"])
+    final_total = total + tax
+    ::py::
+
+    return {
+        "subtotal": order["subtotal"],
+        "discounts": walker.discounts_applied,
+        "tax": tax,
+        "total": final_total
+    };
+}
+```
+
+### Migration Strategies
+
+#### Strategy 1: Strangler Fig Pattern
+
+Gradually replace Python components with Jac equivalents:
+
+```mermaid
+graph LR
+    subgraph "Phase 1: Python Monolith"
+        P1[Python App]
+    end
+
+    subgraph "Phase 2: Extract Graph Layer"
+        P2A[Python App]
+        P2B[Jac Graph Layer]
+        P2A <--> P2B
+    end
+
+    subgraph "Phase 3: Migrate Business Logic"
+        P3A[Python API]
+        P3B[Jac Business Logic]
+        P3C[Jac Graph Layer]
+        P3A --> P3B
+        P3B <--> P3C
+    end
+
+    subgraph "Phase 4: Full Jac"
+        P4[Jac Application]
+    end
+
+    P1 ==> P2A
+    P2A ==> P3A
+    P3A ==> P4
+```
+
+**Phase 1 to 2 Example:**
+```python
+# Original Python
+class UserService:
+    def get_user_network(self, user_id):
+        user = User.query.get(user_id)
+        friends = [f.to_dict() for f in user.friends]
+        followers = [f.to_dict() for f in user.followers]
+        return {
+            'friends': friends,
+            'followers': followers
+        }
+```
+
+```jac
+# Extract to Jac
+walker GetUserNetwork {
+    has user_id: str;
+
+    can get with entry {
+        # Still use Python for data access initially
+        ::py::
+        from models import User
+        user = User.query.get(self.user_id)
+        ::py::
+
+        # Build graph structure
+        user_node = User(
+            id=user.id,
+            username=user.username
+        );
+
+        # Migrate relationships to graph
+        visit user_node;
+    }
+
+    can collect with User entry {
+        report {
+            "friends": [-->:Friend:-->].to_dict(),
+            "followers": [<--:Follows:].to_dict()
+        };
+    }
+}
+```
+
+#### Strategy 2: Feature Branch Migration
+
+Implement new features in Jac while maintaining existing Python:
+
+```python
+# config.py
+FEATURE_FLAGS = {
+    'use_jac_recommendations': True,
+    'use_jac_notifications': False,
+    'use_jac_auth': False
+}
+
+# app.py
+def get_recommendations(user_id):
+    if FEATURE_FLAGS['use_jac_recommendations']:
+        # New Jac implementation
+        return jac_runtime.get_recommendations(user_id)
+    else:
+        # Legacy Python implementation
+        return python_recommendation_engine.get_recommendations(user_id)
+```
+
+#### Strategy 3: Microservice Extraction
+
+Build new microservices in Jac:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  legacy-api:
+    build: ./python-api
+    ports:
+      - "5000:5000"
+
+  recommendation-service:
+    build: ./jac-recommendations
+    environment:
+      - JAC_PERSIST_PATH=/data/recommendations
+    volumes:
+      - jac-data:/data
+
+  notification-service:
+    build: ./jac-notifications
+    environment:
+      - JAC_PERSIST_PATH=/data/notifications
+    volumes:
+      - jac-data:/data
+
+volumes:
+  jac-data:
+```
+
+#### Strategy 4: Database Migration Pattern
+
+```jac
+# Migrate data from Python ORM to Jac graph
+walker MigrateUsers {
+    has batch_size: int = 100;
+    has offset: int = 0;
+
+    can migrate with entry {
+        ::py::
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from legacy_models import User, Friendship
+
+        engine = create_engine('postgresql://...')
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
+        # Fetch batch of users
+        users = session.query(User)\
+            .offset(self.offset)\
+            .limit(self.batch_size)\
+            .all()
+        ::py::
+
+        # Convert to Jac nodes
+        for py_user in users {
+            jac_user = root ++> User(
+                id=py_user.id,
+                username=py_user.username,
+                email=py_user.email,
+                created_at=py_user.created_at.isoformat()
+            );
+
+            # Migrate relationships
+            ::py::
+            friendships = session.query(Friendship)\
+                .filter_by(user_id=py_user.id)\
+                .all()
+            ::py::
+
+            for friendship in friendships {
+                target = find_or_create_user(friendship.friend_id);
+                jac_user ++>:Friend(
+                    since=friendship.created_at.isoformat(),
+                    status=friendship.status
+                ):++> target;
+            }
+        }
+
+        # Continue with next batch
+        if len(users) == self.batch_size {
+            self.offset += self.batch_size;
+            visit root;  # Process next batch
+        } else {
+            report {"migrated": self.offset + len(users)};
+        }
+    }
+}
+```
+
+### Best Practices for Migration
+
+1. **Start with the Graph**
+   - Identify core entities and relationships
+   - Model in Jac first, implement incrementally
+
+2. **Maintain Compatibility**
+   - Keep APIs stable during migration
+   - Use adapter patterns for gradual transition
+
+3. **Test Extensively**
+   - Maintain parallel test suites
+   - Verify behavior equivalence
+
+4. **Monitor Performance**
+   - Compare Python vs Jac implementations
+   - Optimize graph traversal patterns
+
+5. **Document Differences**
+   - Note semantic changes
+   - Create migration guides for team
+
+### Migration Checklist
+
+- [ ] Identify graph structures in Python code
+- [ ] Map Python classes to Jac archetypes
+- [ ] Create Jac equivalents for core models
+- [ ] Implement Python-Jac interop layer
+- [ ] Migrate business logic incrementally
+- [ ] Convert data access patterns
+- [ ] Update deployment infrastructure
+- [ ] Train team on Jac concepts
+- [ ] Monitor and optimize performance
+- [ ] Deprecate Python components gradually
+
+The key to successful migration is recognizing that Jac isn't just Python with different syntax—it's a fundamentally different way of thinking about program structure. Embrace the graph, let computation flow to data, and watch your applications become more intuitive, scalable, and maintainable.
+
+# Chapter 19: Performance and Optimization
+
+## 19.1 Performance Characteristics
+
+Understanding Jac's performance characteristics is crucial for building efficient applications. The data spatial paradigm introduces unique performance considerations that differ significantly from traditional programming models.
+
+### Traversal Optimization
+
+Walker traversal is at the heart of Jac's execution model. Understanding how to optimize traversal patterns can dramatically improve application performance.
+
+#### Traversal Complexity Analysis
+
+```jac
+# Analyzing traversal patterns
+walker PerformanceAnalyzer {
+    has nodes_visited: int = 0;
+    has edges_traversed: int = 0;
+    has ability_executions: int = 0;
+    has start_time: float by postinit;
+
+    can postinit {
+        import:py time;
+        self.start_time = time.time();
+    }
+
+    can analyze with entry {
+        self.nodes_visited += 1;
+        self.ability_executions += 1;
+
+        # Track edge traversals
+        outgoing = [-->];
+        self.edges_traversed += len(outgoing);
+
+        # Continue traversal
+        visit outgoing;
+    }
+
+    can report_metrics with `root exit {
+        import:py time;
+        elapsed = time.time() - self.start_time;
+
+        report {
+            "nodes_visited": self.nodes_visited,
+            "edges_traversed": self.edges_traversed,
+            "ability_executions": self.ability_executions,
+            "elapsed_time": elapsed,
+            "nodes_per_second": self.nodes_visited / elapsed,
+            "traversal_efficiency": self.edges_traversed / self.nodes_visited
+        };
+    }
+}
+```
+
+#### Breadth-First vs Depth-First Performance
+
+```mermaid
+graph TD
+    subgraph "Breadth-First Traversal"
+        B1[Root] --> B2[Level 1A]
+        B1 --> B3[Level 1B]
+        B2 --> B4[Level 2A]
+        B2 --> B5[Level 2B]
+        B3 --> B6[Level 2C]
+        B3 --> B7[Level 2D]
+
+        style B1 fill:#ff9999
+        style B2 fill:#ffcc99
+        style B3 fill:#ffcc99
+        style B4 fill:#ffff99
+        style B5 fill:#ffff99
+        style B6 fill:#ffff99
+        style B7 fill:#ffff99
+    end
+
+    subgraph "Depth-First Traversal"
+        D1[Root] --> D2[Level 1A]
+        D1 --> D3[Level 1B]
+        D2 --> D4[Level 2A]
+        D2 --> D5[Level 2B]
+        D3 --> D6[Level 2C]
+        D3 --> D7[Level 2D]
+
+        style D1 fill:#ff9999
+        style D2 fill:#ffcc99
+        style D4 fill:#ccff99
+        style D5 fill:#99ff99
+        style D3 fill:#99ffcc
+        style D6 fill:#99ccff
+        style D7 fill:#cc99ff
+    end
+```
+
+```jac
+# Breadth-first traversal (default)
+walker BreadthFirstSearch {
+    has target_value: any;
+    has max_depth: int = 5;
+    has current_depth: int = 0;
+    has found: bool = false;
+
+    can search with entry {
+        if here.value == self.target_value {
+            self.found = true;
+            report here;
+            disengage;
+        }
+
+        if self.current_depth < self.max_depth {
+            # Natural breadth-first
+            visit [-->];
+        }
+    }
+}
+
+# Depth-first traversal (explicit implementation)
+walker DepthFirstSearch {
+    has target_value: any;
+    has max_depth: int = 5;
+    has path: list = [];
+
+    can search with entry {
+        self.path.append(here);
+
+        if here.value == self.target_value {
+            report {"found": here, "path": self.path};
+            disengage;
+        }
+
+        if len(self.path) < self.max_depth {
+            # Process children immediately
+            for child in [-->] {
+                spawn DepthFirstSearch(
+                    target_value=self.target_value,
+                    max_depth=self.max_depth,
+                    path=self.path.copy()
+                ) on child;
+            }
+        }
+    }
+}
+```
+
+#### Early Termination Strategies
+
+```jac
+# Efficient search with early termination
+walker OptimizedSearch {
+    has criteria: dict;
+    has max_results: int = 10;
+    has results: list = [];
+    has visited: set = {};
+
+    can search with entry {
+        # Skip already visited nodes
+        if here.id in self.visited {
+            return;  # Don't visit children
+        }
+        self.visited.add(here.id);
+
+        # Check criteria
+        if matches_criteria(here, self.criteria) {
+            self.results.append(here);
+
+            # Early termination when enough results
+            if len(self.results) >= self.max_results {
+                report self.results;
+                disengage;  # Stop entire traversal
+            }
+        }
+
+        # Smart traversal - prioritize promising branches
+        children = [-->];
+        promising = sort_by_promise(children, self.criteria);
+
+        # Visit only top branches
+        visit promising[:3];
+    }
+}
+
+# Helper functions
+can matches_criteria(node: node, criteria: dict) -> bool {
+    for key, value in criteria.items() {
+        if not hasattr(node, key) or getattr(node, key) != value {
+            return false;
+        }
+    }
+    return true;
+}
+
+can sort_by_promise(nodes: list, criteria: dict) -> list {
+    # Score nodes by how likely they lead to matches
+    scored = [];
+    for n in nodes {
+        score = calculate_promise_score(n, criteria);
+        scored.append((score, n));
+    }
+    scored.sort(reverse=true);
+    return [n for _, n in scored];
+}
+```
+
+### Memory Management
+
+Jac's automatic memory management includes garbage collection, but understanding memory patterns helps optimize performance.
+
+#### Node and Edge Memory Footprint
+
+```jac
+# Memory-efficient node design
+node LightweightNode {
+    # Use appropriate data types
+    has id: int;  # 8 bytes vs string (variable)
+    has flags: int;  # Bit flags vs multiple bools
+    has data_ref: str;  # Reference vs embedded data
+}
+
+# Memory-heavy node (avoid for large graphs)
+node HeavyNode {
+    has id: str;  # UUID string = 36+ bytes
+    has metadata: dict;  # Unbounded size
+    has history: list;  # Grows over time
+    has cached_computations: dict;  # Memory leak risk
+}
+
+# Monitoring memory usage
+walker MemoryProfiler {
+    has node_count: int = 0;
+    has edge_count: int = 0;
+    has total_data_size: int = 0;
+
+    can profile with entry {
+        import:py sys;
+
+        self.node_count += 1;
+
+        # Estimate node memory
+        node_size = sys.getsizeof(here);
+
+        # Add data structure sizes
+        for attr_name in dir(here) {
+            if not attr_name.startswith('_') {
+                attr_value = getattr(here, attr_name);
+                self.total_data_size += sys.getsizeof(attr_value);
+            }
+        }
+
+        # Count edges
+        self.edge_count += len([-->]) + len([<--]);
+
+        visit [-->];
+    }
+
+    can report with `root exit {
+        avg_node_size = self.total_data_size / self.node_count;
+
+        report {
+            "nodes": self.node_count,
+            "edges": self.edge_count,
+            "total_data_size": self.total_data_size,
+            "avg_node_size": avg_node_size,
+            "estimated_total_memory": (
+                self.node_count * avg_node_size +
+                self.edge_count * 64  # Rough edge overhead
+            )
+        };
+    }
+}
+```
+
+#### Walker State Management
+
+```jac
+# Memory-efficient walker with bounded state
+walker EfficientCollector {
+    has max_items: int = 1000;
+    has buffer: list = [];
+    has result_handler: callable;
+
+    can collect with entry {
+        if should_collect(here) {
+            self.buffer.append(extract_data(here));
+
+            # Flush buffer periodically
+            if len(self.buffer) >= 100 {
+                self.flush_buffer();
+            }
+        }
+
+        visit [-->];
+    }
+
+    can flush_buffer {
+        # Process and clear buffer
+        self.result_handler(self.buffer);
+        self.buffer = [];  # Free memory
+    }
+
+    can finalize with `root exit {
+        # Final flush
+        if self.buffer {
+            self.flush_buffer();
+        }
+    }
+}
+
+# Memory-inefficient walker (avoid)
+walker InefficientCollector {
+    # Unbounded collections
+    has all_nodes: list = [];
+    has all_paths: list = [];
+    has node_data_cache: dict = {};
+
+    can collect with entry {
+        # Keeps references to everything
+        self.all_nodes.append(here);
+        self.all_paths.append(self.current_path.copy());
+        self.node_data_cache[here.id] = here.to_dict();
+
+        # Memory grows with graph size
+        visit [-->];
+    }
+}
+```
+
+#### Circular Reference Management
+
+```jac
+# Potential circular reference
+node Document {
+    has title: str;
+    has metadata: dict = {};
+
+    can add_reverse_reference(other: Document) {
+        # Creates circular reference through dict
+        self.metadata["related"] = other;
+        other.metadata["related"] = self;
+    }
+}
+
+# Better approach using edges
+edge RelatedTo(Document, Document) {
+    has relationship_type: str;
+}
+
+# Clean reference management
+can link_documents(doc1: Document, doc2: Document, rel_type: str) {
+    doc1 ++>:RelatedTo(relationship_type=rel_type):++> doc2;
+    # Graph structure handles references properly
+}
+```
+
+### Distribution Overhead
+
+When Jac applications scale across machines, understanding distribution overhead becomes critical.
+
+#### Cross-Machine Edge Traversal
+
+```mermaid
+graph LR
+    subgraph "Machine A"
+        A1[Node A1]
+        A2[Node A2]
+        A1 -->|Local<br/>~1μs| A2
+    end
+
+    subgraph "Machine B"
+        B1[Node B1]
+        B2[Node B2]
+        B1 -->|Local<br/>~1μs| B2
+    end
+
+    A2 -.->|Network<br/>~1-10ms| B1
+
+    style A1 fill:#e3f2fd
+    style A2 fill:#e3f2fd
+    style B1 fill:#fff3e0
+    style B2 fill:#fff3e0
+```
+
+```jac
+# Measuring distribution overhead
+walker LatencyProfiler {
+    has local_traversals: int = 0;
+    has remote_traversals: int = 0;
+    has local_time: float = 0.0;
+    has remote_time: float = 0.0;
+
+    can measure with entry {
+        import:py time;
+
+        for edge in [-->] {
+            start = time.time();
+
+            # Check if edge crosses machine boundary
+            if is_remote(edge.target) {
+                self.remote_traversals += 1;
+                visit edge.target;
+                self.remote_time += time.time() - start;
+            } else {
+                self.local_traversals += 1;
+                visit edge.target;
+                self.local_time += time.time() - start;
+            }
+        }
+    }
+
+    can report with `root exit {
+        avg_local = self.local_time / max(1, self.local_traversals);
+        avg_remote = self.remote_time / max(1, self.remote_traversals);
+
+        report {
+            "local_traversals": self.local_traversals,
+            "remote_traversals": self.remote_traversals,
+            "avg_local_latency": avg_local,
+            "avg_remote_latency": avg_remote,
+            "overhead_factor": avg_remote / max(0.000001, avg_local)
+        };
+    }
+}
+```
+
+#### Optimizing Distributed Traversal
+
+```jac
+# Batch operations to reduce network calls
+walker BatchedProcessor {
+    has batch_size: int = 50;
+    has operation_batch: list = [];
+
+    can process with entry {
+        # Queue operation
+        self.operation_batch.append({
+            "node": here,
+            "operation": "process",
+            "data": extract_data(here)
+        });
+
+        # Process batch when full
+        if len(self.operation_batch) >= self.batch_size {
+            self.process_batch();
+        }
+
+        visit [-->];
+    }
+
+    can process_batch {
+        # Group by machine
+        by_machine = group_by_machine(self.operation_batch);
+
+        # Send batched operations
+        for machine, operations in by_machine.items() {
+            if machine == current_machine() {
+                # Process locally
+                for op in operations {
+                    execute_local(op);
+                }
+            } else {
+                # Send batch to remote machine
+                send_remote_batch(machine, operations);
+            }
+        }
+
+        self.operation_batch = [];
+    }
+}
+
+# Data locality optimization
+walker LocalityAwareTraverser {
+    has prefer_local: bool = true;
+    has locality_threshold: float = 0.8;
+
+    can traverse with entry {
+        edges = [-->];
+
+        if self.prefer_local {
+            # Partition edges by locality
+            local_edges = [];
+            remote_edges = [];
+
+            for edge in edges {
+                if is_local(edge.target) {
+                    local_edges.append(edge);
+                } else {
+                    remote_edges.append(edge);
+                }
+            }
+
+            # Visit local first
+            visit local_edges;
+
+            # Visit remote only if necessary
+            if random.random() > self.locality_threshold {
+                visit remote_edges;
+            }
+        } else {
+            visit edges;
+        }
+    }
+}
+```
+
+## 19.2 Optimization Techniques
+
+### Graph Layout Optimization
+
+The physical layout of your graph structure significantly impacts performance. Optimizing this layout can reduce traversal time and memory usage.
+
+#### Node Clustering Strategies
+
+```jac
+# Cluster related nodes for better cache locality
+walker ClusterAnalyzer {
+    has clusters: dict = {};
+    has cluster_threshold: float = 0.7;
+
+    can analyze with entry {
+        # Find node clusters based on connectivity
+        cluster_id = self.find_or_create_cluster(here);
+
+        # Analyze connections
+        connections = [-->] + [<--];
+        for conn in connections {
+            similarity = calculate_similarity(here, conn);
+            if similarity > self.cluster_threshold {
+                self.add_to_cluster(conn, cluster_id);
+            }
+        }
+
+        visit [-->];
+    }
+
+    can find_or_create_cluster(node: node) -> str {
+        # Check existing clusters
+        for cluster_id, members in self.clusters.items() {
+            if node in members {
+                return cluster_id;
+            }
+        }
+
+        # Create new cluster
+        import:py uuid;
+        cluster_id = str(uuid.uuid4());
+        self.clusters[cluster_id] = {node};
+        return cluster_id;
+    }
+}
+
+# Reorganize graph based on clustering
+walker GraphReorganizer {
+    has clusters: dict;
+    has hub_nodes: dict = {};
+
+    can reorganize with entry {
+        # Create hub nodes for each cluster
+        for cluster_id, members in self.clusters.items() {
+            hub = root ++> ClusterHub(
+                cluster_id=cluster_id,
+                member_count=len(members)
+            );
+            self.hub_nodes[cluster_id] = hub;
+
+            # Connect members to hub
+            for member in members {
+                hub ++>:InCluster:++> member;
+            }
+        }
+
+        # Optimize inter-cluster connections
+        self.optimize_cross_cluster_edges();
+    }
+
+    can optimize_cross_cluster_edges {
+        # Replace many-to-many with hub-to-hub connections
+        for cluster_id, hub in self.hub_nodes.items() {
+            members = hub[-->:InCluster:];
+
+            # Find external connections
+            external_counts = {};
+            for member in members {
+                for external in member[-->] {
+                    if external not in self.clusters[cluster_id] {
+                        external_cluster = self.find_cluster(external);
+                        external_counts[external_cluster] = \
+                            external_counts.get(external_cluster, 0) + 1;
+                    }
+                }
+            }
+
+            # Create hub-to-hub edges for frequent connections
+            for other_cluster, count in external_counts.items() {
+                if count > 5 {  # Threshold
+                    other_hub = self.hub_nodes[other_cluster];
+                    hub ++>:ClusterConnection(weight=count):++> other_hub;
+                }
+            }
+        }
+    }
+}
+```
+
+#### Hot Path Optimization
+
+```jac
+# Identify and optimize frequently traversed paths
+walker HotPathAnalyzer {
+    has path_counts: dict = {};
+    has edge_counts: dict = {};
+    has sampling_rate: float = 0.1;
+
+    can analyze with entry {
+        # Sample traversals
+        if random.random() < self.sampling_rate {
+            self.record_path();
+        }
+
+        # Record edge usage
+        for edge in [-->] {
+            edge_id = f"{here.id}->{edge.target.id}";
+            self.edge_counts[edge_id] = self.edge_counts.get(edge_id, 0) + 1;
+        }
+
+        visit [-->];
+    }
+
+    can identify_hot_paths with `root exit {
+        # Sort by frequency
+        hot_edges = sorted(
+            self.edge_counts.items(),
+            key=lambda x: x[1],
+            reverse=true
+        );
+
+        # Top 10% are hot paths
+        threshold_index = int(len(hot_edges) * 0.1);
+        hot_paths = hot_edges[:threshold_index];
+
+        report {
+            "hot_paths": hot_paths,
+            "total_edges": len(self.edge_counts),
+            "optimization_targets": [edge_id for edge_id, _ in hot_paths]
+        };
+    }
+}
+
+# Create shortcuts for hot paths
+walker PathOptimizer {
+    has hot_paths: list;
+    has shortcut_threshold: int = 3;
+
+    can optimize with entry {
+        for path_info in self.hot_paths {
+            src_id, dst_id = path_info["path"].split("->");
+            src = find_node_by_id(src_id);
+            dst = find_node_by_id(dst_id);
+
+            # Find actual path length
+            path_length = find_shortest_path_length(src, dst);
+
+            # Create shortcut if path is long
+            if path_length > self.shortcut_threshold {
+                src ++>:Shortcut(
+                    original_length=path_length,
+                    usage_count=path_info["count"]
+                ):++> dst;
+            }
+        }
+    }
+}
+```
+
+### Walker Batching
+
+Processing multiple items in a single walker traversal can significantly improve performance.
+
+```jac
+# Inefficient: One walker per item
+walker SingleItemProcessor {
+    has item_id: str;
+
+    can process with entry {
+        item = find_item(self.item_id);
+        result = expensive_computation(item);
+        here ++> ProcessingResult(
+            item_id=self.item_id,
+            result=result
+        );
+    }
+}
+
+# Efficient: Batch processing
+walker BatchProcessor {
+    has item_ids: list;
+    has batch_size: int = 100;
+    has results: dict = {};
+
+    can process with entry {
+        # Process items in batches
+        for i in range(0, len(self.item_ids), self.batch_size) {
+            batch = self.item_ids[i:i + self.batch_size];
+
+            # Bulk operations are more efficient
+            items = bulk_find_items(batch);
+
+            # Vectorized computation
+            batch_results = vectorized_computation(items);
+
+            # Store results
+            for item_id, result in zip(batch, batch_results) {
+                self.results[item_id] = result;
+            }
+        }
+
+        # Create result nodes
+        for item_id, result in self.results.items() {
+            here ++> ProcessingResult(
+                item_id=item_id,
+                result=result,
+                batch_processed=true
+            );
+        }
+    }
+}
+
+# Parallel batch processing
+walker ParallelBatchProcessor {
+    has items: list;
+    has num_workers: int = 4;
+    has results: list = [];
+
+    can process with entry {
+        import:py from concurrent.futures { ThreadPoolExecutor };
+
+        # Split items into chunks
+        chunk_size = len(self.items) // self.num_workers;
+        chunks = [
+            self.items[i:i + chunk_size]
+            for i in range(0, len(self.items), chunk_size)
+        ];
+
+        # Process chunks in parallel
+        with ThreadPoolExecutor(max_workers=self.num_workers) as executor {
+            futures = [];
+
+            for chunk in chunks {
+                # Spawn sub-walker for each chunk
+                sub_walker = ChunkProcessor(items=chunk);
+                future = executor.submit(lambda: spawn sub_walker on here);
+                futures.append(future);
+            }
+
+            # Collect results
+            for future in futures {
+                chunk_results = future.result();
+                self.results.extend(chunk_results);
+            }
+        }
+
+        report self.results;
+    }
+}
+```
+
+### Caching Strategies
+
+Intelligent caching can dramatically improve performance for repeated operations.
+
+#### Node-Level Caching
+
+```jac
+node CachedDataNode {
+    has data: dict;
+    has cache: dict = {};
+    has cache_ttl: int = 300;  # 5 minutes
+    has cache_timestamps: dict = {};
+
+    can get_computed_value(key: str) -> any {
+        import:py time;
+
+        # Check cache
+        if key in self.cache {
+            timestamp = self.cache_timestamps.get(key, 0);
+            if time.time() - timestamp < self.cache_ttl {
+                return self.cache[key];
+            }
+        }
+
+        # Compute value
+        value = expensive_computation(self.data, key);
+
+        # Update cache
+        self.cache[key] = value;
+        self.cache_timestamps[key] = time.time();
+
+        return value;
+    }
+
+    can invalidate_cache(key: str = None) {
+        if key {
+            self.cache.pop(key, None);
+            self.cache_timestamps.pop(key, None);
+        } else {
+            self.cache = {};
+            self.cache_timestamps = {};
+        }
+    }
+}
+```
+
+#### Walker Result Caching
+
+```jac
+# Cache walker results based on input parameters
+glob WALKER_CACHE: dict = {};
+
+walker CachedAnalyzer {
+    has params: dict;
+    has cache_key: str by postinit;
+    has use_cache: bool = true;
+
+    can postinit {
+        # Generate cache key from parameters
+        import:py json;
+        self.cache_key = json.dumps(self.params, sort_keys=true);
+    }
+
+    can analyze with entry {
+        # Check cache first
+        if self.use_cache and self.cache_key in WALKER_CACHE {
+            cache_entry = WALKER_CACHE[self.cache_key];
+
+            # Validate cache age
+            import:py time;
+            if time.time() - cache_entry["timestamp"] < 3600 {  # 1 hour
+                report cache_entry["result"];
+                disengage;
+            }
+        }
+
+        # Perform actual analysis
+        result = self.perform_analysis();
+
+        # Cache result
+        if self.use_cache {
+            import:py time;
+            WALKER_CACHE[self.cache_key] = {
+                "result": result,
+                "timestamp": time.time()
+            };
+        }
+
+        report result;
+    }
+
+    can perform_analysis -> dict {
+        # Expensive analysis logic
+        visited_count = 0;
+        total_value = 0;
+
+        queue = [here];
+        visited = set();
+
+        while queue {
+            current = queue.pop(0);
+            if current.id in visited {
+                continue;
+            }
+
+            visited.add(current.id);
+            visited_count += 1;
+            total_value += current.value;
+
+            # Add neighbors
+            queue.extend([-->]);
+        }
+
+        return {
+            "visited_count": visited_count,
+            "total_value": total_value,
+            "average_value": total_value / visited_count
+        };
+    }
+}
+```
+
+#### Query Result Caching
+
+```jac
+# Cache complex graph queries
+walker QueryOptimizer {
+    has query_cache: dict = {};
+    has cache_hits: int = 0;
+    has cache_misses: int = 0;
+
+    can find_pattern(pattern: dict) -> list {
+        # Generate cache key
+        cache_key = self.pattern_to_key(pattern);
+
+        # Check cache
+        if cache_key in self.query_cache {
+            self.cache_hits += 1;
+            return self.query_cache[cache_key];
+        }
+
+        self.cache_misses += 1;
+
+        # Execute query
+        results = self.execute_pattern_search(pattern);
+
+        # Cache results
+        self.query_cache[cache_key] = results;
+
+        # Evict old entries if cache too large
+        if len(self.query_cache) > 1000 {
+            self.evict_oldest_entries(100);
+        }
+
+        return results;
+    }
+
+    can pattern_to_key(pattern: dict) -> str {
+        # Convert pattern to stable string key
+        import:py json;
+        return json.dumps(pattern, sort_keys=true);
+    }
+
+    can evict_oldest_entries(count: int) {
+        # Simple FIFO eviction
+        keys = list(self.query_cache.keys());
+        for key in keys[:count] {
+            del self.query_cache[key];
+        }
+    }
+}
+```
+
+### Performance Monitoring and Profiling
+
+Building performance monitoring directly into your Jac applications helps identify bottlenecks.
+
+```jac
+# Performance monitoring walker
+walker PerformanceMonitor {
+    has metrics: dict = {
+        "ability_timings": {},
+        "node_visit_counts": {},
+        "edge_traversal_counts": {},
+        "memory_snapshots": []
+    };
+    has profile_enabled: bool = true;
+
+    can monitor with entry {
+        import:py time;
+        import:py psutil;
+
+        if self.profile_enabled {
+            # Record node visit
+            node_type = type(here).__name__;
+            self.metrics["node_visit_counts"][node_type] = \
+                self.metrics["node_visit_counts"].get(node_type, 0) + 1;
+
+            # Memory snapshot
+            process = psutil.Process();
+            self.metrics["memory_snapshots"].append({
+                "timestamp": time.time(),
+                "memory_mb": process.memory_info().rss / 1024 / 1024,
+                "node_id": here.id
+            });
+        }
+
+        # Continue monitoring
+        visit [-->];
+    }
+
+    can measure_ability(ability_name: str, ability_func: callable) -> any {
+        if not self.profile_enabled {
+            return ability_func();
+        }
+
+        import:py time;
+        start = time.time();
+
+        try {
+            result = ability_func();
+            elapsed = time.time() - start;
+
+            # Record timing
+            if ability_name not in self.metrics["ability_timings"] {
+                self.metrics["ability_timings"][ability_name] = {
+                    "count": 0,
+                    "total_time": 0,
+                    "max_time": 0,
+                    "min_time": float('inf')
+                };
+            }
+
+            timing = self.metrics["ability_timings"][ability_name];
+            timing["count"] += 1;
+            timing["total_time"] += elapsed;
+            timing["max_time"] = max(timing["max_time"], elapsed);
+            timing["min_time"] = min(timing["min_time"], elapsed);
+
+            return result;
+        } except Exception as e {
+            self.metrics["errors"] = self.metrics.get("errors", 0) + 1;
+            raise e;
+        }
+    }
+
+    can generate_report with `root exit {
+        # Calculate averages
+        for ability_name, timing in self.metrics["ability_timings"].items() {
+            timing["avg_time"] = timing["total_time"] / timing["count"];
+        }
+
+        # Memory analysis
+        if self.metrics["memory_snapshots"] {
+            memory_values = [s["memory_mb"] for s in self.metrics["memory_snapshots"]];
+            self.metrics["memory_summary"] = {
+                "start_mb": memory_values[0],
+                "end_mb": memory_values[-1],
+                "peak_mb": max(memory_values),
+                "growth_mb": memory_values[-1] - memory_values[0]
+            };
+        }
+
+        report self.metrics;
+    }
+}
+
+# Usage example
+with entry {
+    monitor = PerformanceMonitor();
+
+    # Wrap your main walker
+    main_walker = YourApplicationWalker();
+
+    # Run with monitoring
+    spawn monitor on root;
+    spawn main_walker on root;
+
+    # Get performance report
+    report = monitor.generate_report();
+    save_performance_report(report);
+}
+```
+
+### Best Practices Summary
+
+1. **Optimize Traversal Patterns**
+   - Use early termination when possible
+   - Batch operations to reduce overhead
+   - Consider traversal order (BFS vs DFS)
+
+2. **Manage Memory Efficiently**
+   - Keep walker state bounded
+   - Use references instead of copies
+   - Clear large collections when done
+
+3. **Leverage Caching**
+   - Cache expensive computations
+   - Implement TTL for cache entries
+   - Monitor cache hit rates
+
+4. **Monitor Performance**
+   - Build monitoring into your application
+   - Profile different graph sizes
+   - Track memory usage over time
+
+5. **Optimize for Distribution**
+   - Minimize cross-machine traversals
+   - Batch remote operations
+   - Consider data locality in graph design
+
+The key to Jac performance is understanding that computation moves through your data structure. By optimizing the structure and the movement patterns, you can achieve excellent performance at any scale.
 
 ## Part VII: Reference and Resources
 
-### Chapter 20: Quick Reference
-- **20.1 Syntax Comparison Table**
-  - Python to Jac mapping
-  - Common patterns
-- **20.2 Built-in Functions and Types**
-- **20.3 Standard Library Overview**
+# Chapter 20: Quick Reference
 
-### Chapter 21: Best Practices
-- **21.1 Code Organization**
-- **21.2 Naming Conventions**
-- **21.3 Documentation Standards**
+## 20.1 Syntax Comparison Table
 
-### Appendices
-- **A. Language Grammar Summary**
-- **B. Error Messages Guide**
-- **C. Tooling and Ecosystem**
-- **D. Community Resources**
-- **E. Glossary of Terms**
+This comprehensive comparison shows Python syntax alongside its Jac equivalent, helping you quickly translate between the two languages.
 
-## Learning Path Recommendations
+### Basic Syntax Elements
 
-### For Quick Start (Chapters 1-3, 6-8)
-- Get running with basic Jac
-- Understand core data spatial concepts
-- Build simple graph applications
+| Python | Jac | Notes |
+|--------|-----|-------|
+| `# Comment` | `# Comment` | Single-line comments identical |
+| `"""Docstring"""` | `"""Docstring"""` | Multi-line strings identical |
+| `pass` | `{}` or `;` | Empty statement/block |
+| `:` (colon) | `{` ... `}` | Block delimiters |
+| Indentation | Curly braces | Structural delimiter |
+| No semicolons | `;` required | Statement terminator |
 
-### For Full Migration (All chapters)
-- Complete understanding of Jac
-- Master scale-agnostic programming
-- Build production applications
+### Variable Declaration
 
-### For Specific Use Cases
-- **Web Services**: Focus on Chapters 10-12
-- **Distributed Systems**: Focus on Chapters 13, 19
-- **Data Processing**: Focus on Chapters 8-9, 15
+| Python | Jac | Notes |
+|--------|-----|-------|
+| `x = 42` | `x = 42;` | Implicit declaration |
+| `x: int = 42` | `let x: int = 42;` | Explicit typed declaration |
+| `global x` | `:g: x;` or `glob x = 42;` | Global variable |
+| `nonlocal x` | `:nl: x;` | Nonlocal variable |
+
+### Functions
+
+| Python | Jac | Notes |
+|--------|-----|-------|
+| `def func():` | `can func {` | Function declaration |
+| `def func(x: int) -> str:` | `can func(x: int) -> str {` | Typed function |
+| `return value` | `return value;` | Return statement |
+| `lambda x: x * 2` | `lambda x: int : x * 2` | Lambda (types required) |
+| `@decorator` | `@decorator` | Decorators work similarly |
+| `def __init__(self):` | `can init {` | Constructor |
+| N/A | `can postinit {` | Post-initialization hook |
+
+### Classes and Objects
+
+| Python | Jac | Notes |
+|--------|-----|-------|
+| `class MyClass:` | `obj MyClass {` | Standard class |
+| `class MyClass:` | `class MyClass {` | Python-compatible class |
+| `self.attr = value` | `has attr: type = value;` | Instance variables |
+| `@staticmethod` | `static can method {` | Static methods |
+| `super()` | `super` | Parent class access |
+| N/A | `node MyNode {` | Graph node class |
+| N/A | `edge MyEdge {` | Graph edge class |
+| N/A | `walker MyWalker {` | Walker class |
+
+### Control Flow
+
+| Python | Jac | Notes |
+|--------|-----|-------|
+| `if x:` | `if x {` | Conditional |
+| `elif y:` | `elif y {` | Else-if |
+| `else:` | `else {` | Else clause |
+| `while condition:` | `while condition {` | While loop |
+| `for x in items:` | `for x in items {` | For-in loop |
+| `for i in range(n):` | `for i=0 to i<n by i+=1 {` | Explicit counter loop |
+| `break` | `break;` | Exit loop |
+| `continue` | `continue;` | Skip iteration |
+| `match value:` | `match value {` | Pattern matching |
+
+### Exception Handling
+
+| Python | Jac | Notes |
+|--------|-----|-------|
+| `try:` | `try {` | Try block |
+| `except Exception as e:` | `except Exception as e {` | Catch exception |
+| `finally:` | `finally {` | Finally block |
+| `raise Exception()` | `raise Exception();` | Raise exception |
+| `assert condition` | `assert condition;` | Assertion |
+
+### Data Types
+
+| Python | Jac | Notes |
+|--------|-----|-------|
+| `list` | `list` | Lists identical |
+| `dict` | `dict` | Dictionaries identical |
+| `set` | `set` | Sets identical |
+| `tuple` | `tuple` | Positional tuples |
+| N/A | `(x=1, y=2)` | Keyword tuples |
+| `None` | `None` | Null value |
+| `True/False` | `True/False` | Booleans identical |
+
+### Operators
+
+| Python | Jac | Notes |
+|--------|-----|-------|
+| `and` | `and` or `&&` | Logical AND |
+| `or` | `or` or `||` | Logical OR |
+| `not` | `not` | Logical NOT |
+| `is` | `is` | Identity comparison |
+| `in` | `in` | Membership test |
+| `:=` | `:=` | Walrus operator |
+| N/A | `|>` | Pipe forward |
+| N/A | `<|` | Pipe backward |
+| N/A | `:>` | Atomic pipe forward |
+| N/A | `<:` | Atomic pipe backward |
+
+### Imports
+
+| Python | Jac | Notes |
+|--------|-----|-------|
+| `import module` | `import:py module;` | Python module import |
+| `from module import item` | `import:py from module { item };` | Selective import |
+| `import module as alias` | `import:py module as alias;` | Import with alias |
+| N/A | `import:jac module;` | Jac module import |
+| N/A | `include module;` | Include all exports |
+
+## 20.2 Built-in Functions and Types
+
+### Core Built-in Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `print(...)` | Output to console | `print("Hello", name);` |
+| `len(obj)` | Get length/size | `len([1, 2, 3])` → `3` |
+| `type(obj)` | Get object type | `type(42)` → `int` |
+| `isinstance(obj, type)` | Type checking | `isinstance(x, str)` |
+| `hasattr(obj, attr)` | Check attribute exists | `hasattr(node, "value")` |
+| `getattr(obj, attr)` | Get attribute value | `getattr(node, "value")` |
+| `setattr(obj, attr, val)` | Set attribute value | `setattr(node, "value", 42)` |
+| `range(start, stop, step)` | Generate number sequence | `range(0, 10, 2)` |
+| `enumerate(iterable)` | Get index with items | `enumerate(["a", "b"])` |
+| `zip(iter1, iter2, ...)` | Combine iterables | `zip([1, 2], ["a", "b"])` |
+| `map(func, iterable)` | Apply function to items | `map(str.upper, ["a", "b"])` |
+| `filter(func, iterable)` | Filter items by predicate | `filter(is_even, [1, 2, 3])` |
+| `sum(iterable)` | Sum numeric values | `sum([1, 2, 3])` → `6` |
+| `min(iterable)` | Find minimum value | `min([3, 1, 4])` → `1` |
+| `max(iterable)` | Find maximum value | `max([3, 1, 4])` → `4` |
+| `abs(number)` | Absolute value | `abs(-42)` → `42` |
+| `round(number, digits)` | Round to digits | `round(3.14159, 2)` → `3.14` |
+| `sorted(iterable)` | Sort items | `sorted([3, 1, 4])` → `[1, 3, 4]` |
+| `reversed(iterable)` | Reverse items | `reversed([1, 2, 3])` |
+| `all(iterable)` | All items truthy | `all([True, True])` → `True` |
+| `any(iterable)` | Any item truthy | `any([False, True])` → `True` |
+
+### Type Constructors
+
+| Type | Constructor | Example |
+|------|-------------|---------|
+| `int` | `int(value)` | `int("42")` → `42` |
+| `float` | `float(value)` | `float("3.14")` → `3.14` |
+| `str` | `str(value)` | `str(42)` → `"42"` |
+| `bool` | `bool(value)` | `bool(1)` → `True` |
+| `list` | `list(iterable)` | `list((1, 2, 3))` → `[1, 2, 3]` |
+| `tuple` | `tuple(iterable)` | `tuple([1, 2, 3])` → `(1, 2, 3)` |
+| `dict` | `dict(pairs)` | `dict([("a", 1)])` → `{"a": 1}` |
+| `set` | `set(iterable)` | `set([1, 2, 2])` → `{1, 2}` |
+
+### Data Spatial Built-ins
+
+| Keyword/Function | Description | Example |
+|------------------|-------------|---------|
+| `root` | Current user's root node | `root ++> MyNode();` |
+| `here` | Walker's current location | `here.process_data();` |
+| `visitor` | Current visiting walker | `visitor.report_result();` |
+| `spawn` | Activate walker | `spawn MyWalker() on node;` |
+| `visit` | Queue traversal destination | `visit [-->];` |
+| `disengage` | Terminate walker | `disengage;` |
+| `skip` | Skip to next location | `skip;` |
+| `report` | Report walker result | `report {"result": 42};` |
+
+### Edge Reference Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `[-->]` | Outgoing edges/nodes | `for n in [-->] { ... }` |
+| `[<--]` | Incoming edges/nodes | `for n in [<--] { ... }` |
+| `[<-->]` | Bidirectional edges/nodes | `neighbors = [<-->];` |
+| `[-->:EdgeType:]` | Typed outgoing edges | `[-->:Follows:]` |
+| `[-->(condition)]` | Filtered edges | `[-->(?.weight > 0.5)]` |
+| `++>` | Create directed edge | `node1 ++> node2;` |
+| `<++` | Create reverse edge | `node1 <++ node2;` |
+| `<++>` | Create bidirectional edge | `node1 <++> node2;` |
+
+## 20.3 Standard Library Overview
+
+### Core Modules
+
+#### `math` - Mathematical Functions
+```jac
+import:py math;
+
+# Constants
+math.pi      # 3.14159...
+math.e       # 2.71828...
+
+# Functions
+math.sqrt(16)     # 4.0
+math.pow(2, 3)    # 8.0
+math.sin(math.pi/2)  # 1.0
+math.log(10)      # Natural log
+```
+
+#### `datetime` - Date and Time
+```jac
+import:py from datetime { datetime, timedelta };
+
+# Current time
+now = datetime.now();
+timestamp = now.isoformat();
+
+# Date arithmetic
+tomorrow = now + timedelta(days=1);
+diff = tomorrow - now;  # timedelta object
+```
+
+#### `json` - JSON Handling
+```jac
+import:py json;
+
+# Serialize
+data = {"name": "Jac", "version": 1.0};
+json_str = json.dumps(data);
+
+# Deserialize
+parsed = json.loads(json_str);
+```
+
+#### `random` - Random Numbers
+```jac
+import:py random;
+
+# Random values
+random.random()          # 0.0 to 1.0
+random.randint(1, 10)    # 1 to 10 inclusive
+random.choice([1, 2, 3]) # Pick from list
+random.shuffle(my_list)  # Shuffle in place
+```
+
+#### `re` - Regular Expressions
+```jac
+import:py re;
+
+# Pattern matching
+pattern = r"\d+";
+matches = re.findall(pattern, "abc123def456");  # ["123", "456"]
+
+# Substitution
+result = re.sub(r"\d+", "X", "abc123def");  # "abcXdef"
+```
+
+### File Operations
+
+```jac
+# Reading files
+with open("file.txt", "r") as f {
+    content = f.read();
+    # or line by line
+    for line in f {
+        process_line(line.strip());
+    }
+}
+
+# Writing files
+with open("output.txt", "w") as f {
+    f.write("Hello, Jac!\n");
+    f.write(f"Timestamp: {timestamp_now()}\n");
+}
+
+# JSON files
+import:py json;
+with open("data.json", "r") as f {
+    data = json.load(f);
+}
+```
+
+### Common Patterns Reference
+
+#### Graph Creation Patterns
+```jac
+# Linear chain
+prev = root;
+for i in range(5) {
+    node = Node(id=i);
+    prev ++> node;
+    prev = node;
+}
+
+# Star topology
+hub = root ++> Hub();
+for i in range(10) {
+    hub ++> Node(id=i);
+}
+
+# Fully connected
+nodes = [Node(id=i) for i in range(5)];
+for i, n1 in enumerate(nodes) {
+    for n2 in nodes[i+1:] {
+        n1 <++> n2;
+    }
+}
+```
+
+#### Walker Patterns
+```jac
+# Visitor pattern
+walker Visitor {
+    can process with Node entry {
+        here.visit_count += 1;
+        visit [-->];
+    }
+}
+
+# Collector pattern
+walker Collector {
+    has items: list = [];
+
+    can collect with entry {
+        if matches_criteria(here) {
+            self.items.append(here);
+        }
+        visit [-->];
+    }
+}
+
+# Transformer pattern
+walker Transformer {
+    can transform with entry {
+        here.value = transform_function(here.value);
+        visit [-->];
+    }
+}
+```
+
+#### Error Handling Patterns
+```jac
+# Safe traversal
+walker SafeTraverser {
+    can traverse with entry {
+        try {
+            process_node(here);
+            visit [-->];
+        } except ProcessingError as e {
+            report {"error": str(e), "node": here.id};
+            skip;  # Continue to next node
+        } except CriticalError as e {
+            report {"critical": str(e)};
+            disengage;  # Stop traversal
+        }
+    }
+}
+
+# Retry pattern
+can retry_operation(func: callable, max_attempts: int = 3) -> any {
+    for attempt in range(max_attempts) {
+        try {
+            return func();
+        } except TemporaryError as e {
+            if attempt == max_attempts - 1 {
+                raise e;
+            }
+            sleep(2 ** attempt);  # Exponential backoff
+        }
+    }
+}
+```
+
+#### Type Checking Patterns
+```jac
+# Runtime type checking
+can process_value(value: any) -> str {
+    match type(value) {
+        case int: return f"Integer: {value}";
+        case str: return f"String: {value}";
+        case list: return f"List with {len(value)} items";
+        case dict: return f"Dict with keys: {list(value.keys())}";
+        case _: return f"Unknown type: {type(value).__name__}";
+    }
+}
+
+# Node type discrimination
+walker TypedProcessor {
+    can process with entry {
+        match here {
+            case UserNode: process_user(here);
+            case DataNode: process_data(here);
+            case _: visit [-->];  # Skip unknown types
+        }
+    }
+}
+```
+
+#### Performance Patterns
+```jac
+# Lazy evaluation
+can lazy_range(start: int, stop: int) {
+    current = start;
+    while current < stop {
+        yield current;
+        current += 1;
+    }
+}
+
+# Memoization
+glob memo_cache: dict = {};
+
+can memoized_fibonacci(n: int) -> int {
+    if n in memo_cache {
+        return memo_cache[n];
+    }
+
+    if n <= 1 {
+        result = n;
+    } else {
+        result = memoized_fibonacci(n-1) + memoized_fibonacci(n-2);
+    }
+
+    memo_cache[n] = result;
+    return result;
+}
+```
+
+### Quick Conversion Guide
+
+#### Python Class to Jac Node
+```python
+# Python
+class User:
+    def __init__(self, name, email):
+        self.name = name
+        self.email = email
+        self.friends = []
+
+    def add_friend(self, other):
+        self.friends.append(other)
+```
+
+```jac
+# Jac
+node User {
+    has name: str;
+    has email: str;
+}
+
+edge Friend;
+
+walker AddFriend {
+    has other_user: User;
+
+    can add with User entry {
+        here ++>:Friend:++> self.other_user;
+    }
+}
+```
+
+#### Python Function to Jac Walker
+```python
+# Python
+def find_users_by_name(graph, name_pattern):
+    results = []
+    for user in graph.get_all_users():
+        if name_pattern in user.name:
+            results.append(user)
+    return results
+```
+
+```jac
+# Jac
+walker FindUsersByName {
+    has name_pattern: str;
+    has results: list = [];
+
+    can search with User entry {
+        if self.name_pattern in here.name {
+            self.results.append(here);
+        }
+        visit [-->];
+    }
+
+    can return_results with `root exit {
+        report self.results;
+    }
+}
+```
+
+This quick reference provides the essential syntax mappings and patterns you'll need for day-to-day Jac development. Keep it handy as you transition from Python to Jac's data spatial paradigm!
+
+# Chapter 21: Best Practices
+
+## 21.1 Code Organization
+
+Organizing Jac code effectively is crucial for maintainability and team collaboration. Jac's unique features like implementation separation and data spatial constructs require thoughtful organization strategies.
+
+### Project Structure Best Practices
+
+#### Standard Project Layout
+```
+my-jac-project/
+│
+├── src/
+│   ├── main.jac                    # Entry point and root configuration
+│   │
+│   ├── models/                     # Data models (nodes and objects)
+│   │   ├── __init__.jac           # Module exports
+│   │   ├── user.jac               # User node definition
+│   │   ├── user.impl.jac          # User implementation
+│   │   ├── user.test.jac          # User tests
+│   │   ├── content.jac            # Content nodes
+│   │   └── analytics.jac          # Analytics nodes
+│   │
+│   ├── edges/                      # Edge definitions
+│   │   ├── __init__.jac
+│   │   ├── social.jac             # Social relationship edges
+│   │   ├── ownership.jac          # Ownership edges
+│   │   └── workflow.jac           # Workflow transition edges
+│   │
+│   ├── walkers/                    # Walker definitions
+│   │   ├── __init__.jac
+│   │   ├── auth/                  # Authentication walkers
+│   │   │   ├── login.jac
+│   │   │   ├── register.jac
+│   │   │   └── permissions.jac
+│   │   ├── analytics/             # Analytics walkers
+│   │   │   ├── metrics.jac
+│   │   │   └── reports.jac
+│   │   └── workflows/             # Business process walkers
+│   │       ├── order.jac
+│   │       └── approval.jac
+│   │
+│   ├── abilities/                  # Shared abilities
+│   │   ├── validation.jac         # Validation abilities
+│   │   ├── transformation.jac     # Data transformation
+│   │   └── notification.jac       # Notification handling
+│   │
+│   ├── lib/                       # Utility libraries
+│   │   ├── helpers.jac            # Helper functions
+│   │   ├── constants.jac          # Global constants
+│   │   └── types.jac              # Custom type definitions
+│   │
+│   └── api/                       # API entry points
+│       ├── rest.jac               # REST API walkers
+│       ├── graphql.jac            # GraphQL resolvers
+│       └── websocket.jac          # WebSocket handlers
+│
+├── tests/
+│   ├── unit/                      # Unit tests
+│   ├── integration/               # Integration tests
+│   └── fixtures/                  # Test data and fixtures
+│
+├── scripts/                       # Utility scripts
+│   ├── migrate.jac               # Data migration
+│   ├── seed.jac                  # Database seeding
+│   └── analyze.jac               # Performance analysis
+│
+├── docs/                         # Documentation
+│   ├── api.md                    # API documentation
+│   ├── architecture.md           # Architecture decisions
+│   └── deployment.md             # Deployment guide
+│
+├── config/                       # Configuration files
+│   ├── development.toml          # Dev environment config
+│   ├── production.toml           # Production config
+│   └── test.toml                 # Test environment config
+│
+├── .jac_db/                      # Local persistence (git-ignored)
+├── .gitignore
+├── jac.toml                      # Project configuration
+└── README.md
+```
+
+### Module Organization
+
+#### Clear Module Boundaries
+```jac
+# models/__init__.jac
+# Export public interfaces clearly
+
+# Public exports
+export { User, UserProfile } from .user;
+export { Post, Comment } from .content;
+export { Analytics } from .analytics;
+
+# Internal implementations stay private
+# Don't export implementation details
+```
+
+#### Cohesive Module Design
+```jac
+# Good: Cohesive module with related functionality
+# walkers/order/processing.jac
+
+node OrderState;
+edge OrderTransition;
+
+walker ProcessOrder {
+    has order_id: str;
+    # Order processing logic
+}
+
+walker ValidateOrder {
+    has validation_rules: list;
+    # Order validation logic
+}
+
+walker NotifyOrderStatus {
+    has notification_channels: list;
+    # Order notification logic
+}
+```
+
+#### Avoid Circular Dependencies
+```jac
+# Bad: Circular dependency
+# user.jac
+import from .post { Post };  # Post imports User!
+
+# Good: Use interfaces or separate common types
+# types.jac
+obj IUser {
+    has id: str;
+    has name: str;
+}
+
+obj IPost {
+    has id: str;
+    has author_id: str;
+}
+
+# user.jac
+import from .types { IUser, IPost };
+```
+
+### Implementation Separation Strategy
+
+#### When to Separate Implementations
+```jac
+# api/user.jac - Interface definitions
+walker GetUser {
+    has user_id: str;
+    has include_posts: bool = false;
+
+    can retrieve with entry;
+    can format_response -> dict;
+}
+
+walker UpdateUser {
+    has user_id: str;
+    has updates: dict;
+
+    can validate -> bool;
+    can update with entry;
+}
+
+# api/user.impl.jac - Implementations
+impl GetUser {
+    can retrieve with entry {
+        user = find_user_by_id(self.user_id);
+        if not user {
+            report {"error": "User not found"};
+            disengage;
+        }
+
+        visit user;
+    }
+
+    can format_response -> dict {
+        # Complex formatting logic
+        return {
+            "id": self.user_data.id,
+            "name": self.user_data.name,
+            # ... more formatting
+        };
+    }
+}
+```
+
+#### Implementation File Organization
+```
+walkers/
+├── analytics.jac              # Interfaces
+├── analytics.impl/            # Implementation directory
+│   ├── metrics.impl.jac      # Metrics implementations
+│   ├── reports.impl.jac      # Report implementations
+│   └── visualization.impl.jac # Visualization implementations
+└── analytics.test/            # Test directory
+    ├── metrics.test.jac
+    └── reports.test.jac
+```
+
+### Graph Structure Organization
+
+#### Logical Node Grouping
+```jac
+# models/social_graph.jac
+# Group related node types together
+
+# User-related nodes
+node User {
+    has username: str;
+    has email: str;
+}
+
+node UserProfile {
+    has bio: str;
+    has avatar_url: str;
+}
+
+node UserSettings {
+    has notifications_enabled: bool;
+    has privacy_level: str;
+}
+
+# Relationship edges
+edge Follows(User, User);
+edge ProfileOf(UserProfile, User);
+edge SettingsOf(UserSettings, User);
+```
+
+#### Hierarchical Graph Organization
+```jac
+# Create a clear graph hierarchy
+with entry {
+    # Root level - major categories
+    root ++> users_root = UsersRoot();
+    root ++> content_root = ContentRoot();
+    root ++> analytics_root = AnalyticsRoot();
+
+    # Users subtree
+    users_root ++> active_users = ActiveUsers();
+    users_root ++> inactive_users = InactiveUsers();
+
+    # Content subtree
+    content_root ++> posts = Posts();
+    content_root ++> comments = Comments();
+    content_root ++> media = Media();
+}
+```
+
+## 21.2 Naming Conventions
+
+Consistent naming conventions make Jac code more readable and maintainable. Follow these guidelines adapted from Python's PEP 8 with Jac-specific additions.
+
+### General Naming Rules
+
+| Element | Convention | Example |
+|---------|------------|---------|
+| Files | `snake_case.jac` | `user_management.jac` |
+| Modules | `snake_case` | `import from auth_helpers` |
+| Objects/Nodes/Edges | `PascalCase` | `UserProfile`, `FriendshipEdge` |
+| Walkers | `PascalCase` + verb | `ProcessOrder`, `ValidateUser` |
+| Functions/Abilities | `snake_case` | `calculate_total`, `validate_input` |
+| Variables | `snake_case` | `user_count`, `is_active` |
+| Constants | `UPPER_SNAKE_CASE` | `MAX_RETRIES`, `DEFAULT_TIMEOUT` |
+| Type aliases | `PascalCase` | `UserId`, `Timestamp` |
+
+### Archetype-Specific Conventions
+
+#### Node Naming
+```jac
+# Nodes represent entities - use nouns
+node User { }              # Good
+node ProcessUser { }       # Bad - sounds like an action
+
+node OrderItem { }         # Good
+node ItemInOrder { }       # Awkward - avoid
+
+# For state nodes, include "State" suffix
+node PendingState { }      # Clear it's a state
+node Pending { }           # Ambiguous
+```
+
+#### Edge Naming
+```jac
+# Edges represent relationships - use descriptive names
+edge Follows(User, User);        # Good - clear relationship
+edge UserUser(User, User);       # Bad - unclear relationship
+
+edge AuthoredBy(Post, User);     # Good - directional clarity
+edge PostUser(Post, User);       # Bad - ambiguous
+
+# For typed relationships, be specific
+edge Manages(Employee, Employee);     # Good if clear
+edge DirectlyManages(Employee, Employee);  # Better - more specific
+```
+
+#### Walker Naming
+```jac
+# Walkers perform actions - use verb phrases
+walker ValidateOrder { }      # Good - clear action
+walker OrderValidator { }     # Acceptable alternative
+walker Order { }             # Bad - sounds like a node
+
+# Be specific about the action
+walker CalculateMonthlyRevenue { }  # Good - specific
+walker Calculate { }                # Bad - too vague
+
+# For multi-step processes, use descriptive names
+walker ProcessAndShipOrder { }      # Clear workflow
+walker OrderWorkflow { }            # Acceptable but less clear
+```
+
+#### Ability Naming
+```jac
+# Entry/exit abilities describe triggers
+can validate_data with entry { }     # Good - what happens
+can on_entry with entry { }         # Bad - redundant
+
+can cleanup with exit { }           # Good - clear purpose
+can exit_handler with exit { }     # Redundant
+
+# Action abilities use verb phrases
+can calculate_total -> float { }    # Good
+can get_total -> float { }         # Good - getter pattern
+can total -> float { }             # Ambiguous
+```
+
+### Variable Naming Patterns
+
+#### Boolean Variables
+```jac
+# Use is_, has_, can_, should_ prefixes
+has is_active: bool = true;
+has has_permission: bool = false;
+has can_edit: bool = true;
+has should_notify: bool = false;
+
+# Avoid negative names
+has is_enabled: bool = true;     # Good
+has is_not_disabled: bool = true; # Bad - double negative
+```
+
+#### Collection Variables
+```jac
+# Use plural forms
+has users: list[User] = [];
+has active_user_ids: set[str] = {};
+has user_by_email: dict[str, User] = {};
+
+# For single items, use singular
+has current_user: User;
+has selected_item: Item;
+```
+
+#### Counter and Index Variables
+```jac
+# Use descriptive names for loop variables
+for user in users { }           # Good
+for u in users { }             # Avoid single letters
+
+# Exceptions: i, j, k for numeric indices
+for i = 0 to i < len(items) by i += 1 { }  # Acceptable
+
+# Use descriptive counters
+has retry_count: int = 0;      # Good
+has count: int = 0;           # Too vague
+```
+
+### Special Naming Cases
+
+#### Private Members
+```jac
+# Use leading underscore for internal use
+obj DatabaseConnection {
+    has :priv _connection: any;
+    has :priv _is_connected: bool = false;
+
+    can connect {
+        self._connection = establish_connection();
+        self._is_connected = true;
+    }
+}
+```
+
+#### Test Naming
+```jac
+# Test names should describe what they test
+test "user can follow another user" { }          # Good
+test "test_follow" { }                          # Less descriptive
+
+test "order total calculates correctly with tax" { }  # Good
+test "test_calculation" { }                          # Vague
+```
+
+#### Entry Point Naming
+```jac
+# Use descriptive entry point names
+with entry:web_server { }     # Clear purpose
+with entry:cli { }           # Clear purpose
+with entry:main { }          # Generic but acceptable
+with entry:entry1 { }        # Bad - meaningless
+```
+
+## 21.3 Documentation Standards
+
+Well-documented Jac code is essential for maintainability and team collaboration. Follow these standards for comprehensive documentation.
+
+### Module-Level Documentation
+
+```jac
+"""
+User Management Module
+
+This module provides core functionality for user creation, authentication,
+and profile management in the application.
+
+Key Components:
+- User node: Represents a user account
+- UserProfile node: Extended user information
+- Authentication walkers: Handle login/logout flows
+- Profile management walkers: Update user information
+
+Usage Example:
+    spawn CreateUser(
+        email="user@example.com",
+        username="johndoe"
+    ) on root;
+
+Dependencies:
+- auth_lib: For password hashing
+- email_service: For sending notifications
+"""
+
+import from auth_lib { hash_password, verify_password };
+import from email_service { send_email };
+```
+
+### Archetype Documentation
+
+#### Node Documentation
+```jac
+"""
+Represents a user in the system.
+
+The User node is the central entity for authentication and identification.
+It connects to UserProfile for extended information and to various content
+nodes for user-generated content.
+
+Attributes:
+    id (str): Unique identifier (auto-generated)
+    username (str): Unique username for login
+    email (str): User's email address
+    created_at (str): ISO timestamp of account creation
+    is_active (bool): Whether the account is active
+    last_login (str): ISO timestamp of last successful login
+
+Relationships:
+    - ProfileOf: One-to-one with UserProfile
+    - Authored: One-to-many with Post nodes
+    - Follows: Many-to-many with other User nodes
+
+Example:
+    user = User(
+        username="johndoe",
+        email="john@example.com"
+    );
+    root ++> user;
+"""
+node User {
+    has id: str by postinit;
+    has username: str;
+    has email: str;
+    has created_at: str by postinit;
+    has is_active: bool = true;
+    has last_login: str = "";
+
+    can postinit {
+        import:py uuid;
+        import:py from datetime { datetime };
+        self.id = str(uuid.uuid4());
+        self.created_at = datetime.now().isoformat();
+    }
+}
+```
+
+#### Walker Documentation
+```jac
+"""
+Authenticates a user with email and password.
+
+This walker handles the complete authentication flow including:
+- Input validation
+- Password verification
+- Session creation
+- Login tracking
+
+The walker reports authentication results and creates a session
+edge if successful.
+
+Attributes:
+    email (str): User's email address
+    password (str): Plain text password to verify
+    create_session (bool): Whether to create a session (default: true)
+
+Reports:
+    On success:
+        {
+            "success": true,
+            "user_id": str,
+            "session_id": str,
+            "message": "Login successful"
+        }
+
+    On failure:
+        {
+            "success": false,
+            "error": str,
+            "message": str
+        }
+
+Example:
+    result = spawn LoginUser(
+        email="user@example.com",
+        password="secure123"
+    ) on root;
+"""
+walker LoginUser {
+    has email: str;
+    has password: str;
+    has create_session: bool = true;
+
+    can validate_input -> bool {
+        """Validates email format and password presence."""
+        # Implementation
+    }
+
+    can authenticate with entry {
+        """Main authentication logic."""
+        # Implementation
+    }
+}
+```
+
+### Ability Documentation
+
+```jac
+can calculate_compound_interest(
+    principal: float,
+    rate: float,
+    time: float,
+    compounds_per_year: int = 12
+) -> float {
+    """
+    Calculate compound interest.
+
+    Uses the formula: A = P(1 + r/n)^(nt)
+
+    Args:
+        principal: Initial amount
+        rate: Annual interest rate (as decimal, e.g., 0.05 for 5%)
+        time: Time period in years
+        compounds_per_year: Number of times interest compounds per year
+
+    Returns:
+        float: Final amount after compound interest
+
+    Example:
+        >>> calculate_compound_interest(1000, 0.05, 2)
+        1104.94
+    """
+    return principal * (1 + rate/compounds_per_year) ** (compounds_per_year * time);
+}
+```
+
+### Inline Documentation
+
+```jac
+walker ComplexProcessor {
+    has threshold: float = 0.8;
+    has max_iterations: int = 100;
+
+    can process with entry {
+        # Initialize processing metrics
+        metrics = {
+            "processed": 0,
+            "skipped": 0,
+            "errors": 0
+        };
+
+        # Phase 1: Validate all nodes
+        # This ensures data integrity before processing
+        validation_results = self.validate_all_nodes();
+
+        if not validation_results["valid"] {
+            # Early exit if validation fails
+            # Log details for debugging
+            log_validation_errors(validation_results["errors"]);
+            report {"error": "Validation failed", "details": validation_results};
+            disengage;
+        }
+
+        # Phase 2: Process nodes in priority order
+        # High-priority nodes are processed first to ensure
+        # critical data is handled even if we hit limits
+        priority_queue = self.build_priority_queue();
+
+        # ... more processing
+    }
+}
+```
+
+### API Documentation
+
+```jac
+"""
+REST API Endpoints for User Management
+
+All endpoints require authentication unless otherwise noted.
+Authentication is done via Bearer token in the Authorization header.
+
+Endpoints:
+    POST   /users           - Create new user (no auth required)
+    GET    /users/:id       - Get user details
+    PUT    /users/:id       - Update user
+    DELETE /users/:id       - Delete user
+    GET    /users/:id/posts - Get user's posts
+
+Error Responses:
+    All endpoints may return these error codes:
+    - 400: Bad Request - Invalid input data
+    - 401: Unauthorized - Missing or invalid auth token
+    - 403: Forbidden - Insufficient permissions
+    - 404: Not Found - Resource doesn't exist
+    - 500: Internal Server Error
+"""
+
+walker CreateUserAPI {
+    """
+    POST /users
+
+    Create a new user account.
+
+    Request Body:
+        {
+            "email": "user@example.com",    // required, valid email
+            "username": "johndoe",          // required, 3-20 chars
+            "password": "secure123",        // required, min 8 chars
+            "full_name": "John Doe"         // optional
+        }
+
+    Response:
+        201 Created
+        {
+            "id": "uuid",
+            "email": "user@example.com",
+            "username": "johndoe",
+            "created_at": "2024-01-01T00:00:00Z"
+        }
+
+    Errors:
+        400: Invalid input data
+        409: Email or username already exists
+    """
+    has email: str;
+    has username: str;
+    has password: str;
+    has full_name: str = "";
+}
+```
+
+### Documentation Generation
+
+```jac
+# Use docstring extraction tools
+walker DocumentationGenerator {
+    has output_format: str = "markdown";
+
+    can generate with entry {
+        # Extract all docstrings from nodes
+        for node_type in get_all_node_types() {
+            doc = extract_docstring(node_type);
+            if doc {
+                self.format_and_save(node_type.__name__, doc);
+            }
+        }
+
+        # Extract walker documentation
+        for walker_type in get_all_walker_types() {
+            doc = extract_docstring(walker_type);
+            if doc {
+                self.format_and_save(walker_type.__name__, doc);
+            }
+        }
+    }
+}
+```
+
+### Best Practices Summary
+
+1. **Consistency is Key**
+   - Stick to chosen conventions throughout the project
+   - Document conventions in a CONTRIBUTING.md file
+   - Use linters and formatters to enforce standards
+
+2. **Clear Module Boundaries**
+   - Each module should have a single, clear purpose
+   - Minimize inter-module dependencies
+   - Use explicit exports to control module interfaces
+
+3. **Meaningful Names**
+   - Names should convey purpose without needing comments
+   - Avoid abbreviations except well-known ones
+   - Update names when functionality changes
+
+4. **Comprehensive Documentation**
+   - Document "why" not just "what"
+   - Include examples in docstrings
+   - Keep documentation up-to-date with code changes
+
+5. **Thoughtful Organization**
+   - Group related functionality together
+   - Separate concerns clearly
+   - Make the codebase navigable for newcomers
+
+Following these best practices will make your Jac code more maintainable, understandable, and enjoyable to work with for your entire team.
+
+# Learning Path Recommendations
+
+## For Quick Start (Chapters 1-3, 6-8)
+
+If you need to get productive with Jac quickly, this accelerated path covers the essentials in about 1-2 weeks of focused learning.
+
+### Week 1: Foundations and Setup
+
+**Day 1-2: Understanding Jac (Chapter 1)**
+- Read about the paradigm shift from "data to computation" to "computation to data"
+- Understand why graph structures matter
+- Learn about scale-agnostic programming benefits
+- **Exercise**: Write a comparison of how you'd model a social network in Python vs Jac
+
+**Day 3-4: Environment Setup (Chapter 2)**
+- Install Jac and set up your development environment
+- Create your first "Hello World" program
+- Build the todo list application
+- **Exercise**: Modify the todo app to add priority levels to tasks
+
+**Day 5-7: Core Syntax (Chapter 3)**
+- Master the syntax differences from Python
+- Learn about mandatory type annotations
+- Understand entry blocks and control flow
+- Practice with pipe operators
+- **Exercise**: Convert a simple Python script to Jac
+
+### Week 2: Data Spatial Basics
+
+**Day 8-9: Data Spatial Concepts (Chapter 6)**
+- Understand nodes, edges, and walkers
+- Learn the difference between objects and nodes
+- Grasp the concept of computation moving to data
+- **Exercise**: Design a graph structure for a problem you're familiar with
+
+**Day 10-11: Building Graphs (Chapter 7)**
+- Create nodes and connect them with edges
+- Learn edge reference syntax
+- Master graph navigation patterns
+- **Exercise**: Build a simple family tree graph
+
+**Day 12-14: Walkers in Action (Chapter 8)**
+- Create your first walker
+- Understand spawn and visit operations
+- Learn about walker abilities
+- Master traversal patterns
+- **Exercise**: Build a walker that finds all descendants in your family tree
+
+### Quick Start Project
+
+Build a simple contact management system:
+```jac
+node Contact {
+    has name: str;
+    has email: str;
+    has phone: str;
+}
+
+edge Knows {
+    has context: str;  # "work", "family", "friend"
+}
+
+walker FindConnections {
+    has context_filter: str;
+    has max_depth: int = 2;
+    has connections: list = [];
+
+    can search with Contact entry {
+        # Find all connections of a specific type
+        for edge in [-->:Knows:] {
+            if edge.context == self.context_filter {
+                self.connections.append(edge.target);
+            }
+        }
+        report self.connections;
+    }
+}
+```
+
+### Success Criteria
+You should be able to:
+- ✓ Set up a Jac development environment
+- ✓ Understand the basic data spatial concepts
+- ✓ Create simple graphs with nodes and edges
+- ✓ Write walkers that traverse graphs
+- ✓ Convert simple Python logic to Jac
+
+### Next Steps
+- Continue to Chapter 4-5 for advanced language features
+- Jump to Chapter 10 if you need persistence immediately
+- Explore Chapter 17 for real-world examples
+
+---
+
+## For Full Migration (All chapters)
+
+This comprehensive path is designed for teams or individuals planning to fully migrate from Python to Jac. Expect 2-3 months for complete mastery.
+
+### Month 1: Language Mastery
+
+**Week 1-2: Foundations (Chapters 1-5)**
+- Complete the Quick Start path
+- Deep dive into Jac's type system
+- Master object-oriented features
+- Learn implementation separation
+- **Project**: Convert a small Python application to Jac
+
+**Week 3-4: Data Spatial Programming (Chapters 6-9)**
+- Master all archetype types
+- Understand abilities vs methods
+- Learn advanced traversal patterns
+- Study bidirectional computation
+- **Project**: Build a workflow engine using state machines
+
+### Month 2: Scale and Distribution
+
+**Week 5-6: Scale-Agnostic Features (Chapters 10-13)**
+- Understand the root node and persistence
+- Master multi-user patterns
+- Learn walker-as-API patterns
+- Study distribution concepts
+- **Project**: Convert single-user app to multi-user
+
+**Week 7-8: Advanced Patterns (Chapters 14-16)**
+- Master concurrent programming with walkers
+- Learn advanced type system features
+- Study design patterns in Jac
+- Understand testing strategies
+- **Project**: Build a distributed task processing system
+
+### Month 3: Real-World Application
+
+**Week 9-10: Case Studies (Chapter 17)**
+- Study the social network implementation
+- Understand the workflow engine patterns
+- Learn microservices in Jac
+- **Project**: Design your own case study
+
+**Week 11-12: Migration and Optimization (Chapters 18-19)**
+- Plan migration strategy for existing Python codebase
+- Learn incremental adoption techniques
+- Master performance optimization
+- Study monitoring and profiling
+- **Project**: Create migration plan for your Python application
+
+### Comprehensive Learning Project
+
+Build a complete e-commerce platform:
+
+1. **User Management** (Week 2)
+   ```jac
+   node Customer {
+       has email: str;
+       has verified: bool = false;
+   }
+
+   node Merchant {
+       has business_name: str;
+       has rating: float = 0.0;
+   }
+   ```
+
+2. **Product Catalog** (Week 3)
+   ```jac
+   node Product {
+       has name: str;
+       has price: float;
+       has inventory: int;
+   }
+
+   edge Sells(Merchant, Product) {
+       has since: str;
+       has commission_rate: float;
+   }
+   ```
+
+3. **Order Processing** (Week 4)
+   ```jac
+   walker ProcessOrder {
+       has items: list[dict];
+
+       can validate with entry {
+           # Check inventory
+           # Verify payment
+           # Create order
+       }
+   }
+   ```
+
+4. **Multi-User Scaling** (Week 6)
+   ```jac
+   walker CustomerDashboard {
+       # Automatically scoped to current user's root
+       can get_orders with entry {
+           orders = root[-->:Order:];
+           report orders;
+       }
+   }
+   ```
+
+5. **API Layer** (Week 7)
+   ```jac
+   walker:api CreateProduct {
+       has name: str;
+       has price: float;
+       has description: str;
+
+       can create with entry {
+           # REST API endpoint
+           # Automatic parameter validation
+           # Returns JSON response
+       }
+   }
+   ```
+
+### Success Criteria
+You should be able to:
+- ✓ Architect complete applications in Jac
+- ✓ Migrate Python applications incrementally
+- ✓ Build scalable, multi-user systems
+- ✓ Optimize performance for large graphs
+- ✓ Deploy distributed Jac applications
+
+### Certification Path
+Consider building and open-sourcing:
+1. A Jac library/framework
+2. A migration tool for Python→Jac
+3. A complete application case study
+
+---
+
+## For Specific Use Cases
+
+### Web Services Focus (Chapters 10-12)
+
+**2-Week Intensive Path**
+
+**Week 1: Multi-User Foundations**
+- Day 1-2: Understanding root nodes and persistence (Ch 10)
+- Day 3-4: Multi-user patterns and isolation (Ch 11)
+- Day 5-7: Walkers as API endpoints (Ch 12)
+
+**Week 2: Building Services**
+- Day 8-9: REST API patterns
+- Day 10-11: WebSocket integration
+- Day 12-14: Complete service project
+
+**Sample Web Service Project**
+```jac
+# Real-time chat service
+node ChatRoom {
+    has name: str;
+    has created_at: str;
+}
+
+node Message {
+    has content: str;
+    has timestamp: str;
+}
+
+edge InRoom(User, ChatRoom);
+edge Posted(User, Message);
+edge Contains(ChatRoom, Message);
+
+walker:api SendMessage {
+    has room_id: str;
+    has content: str;
+
+    can send with entry {
+        # Find room and user
+        room = find_room(self.room_id);
+
+        # Create message
+        msg = Message(
+            content=self.content,
+            timestamp=timestamp_now()
+        );
+
+        # Connect relationships
+        root ++>:Posted:++> msg;
+        room ++>:Contains:++> msg;
+
+        # Notify room members
+        spawn NotifyRoomMembers(message=msg) on room;
+
+        report {"success": true, "message_id": msg.id};
+    }
+}
+
+walker:websocket MessageStream {
+    has room_id: str;
+
+    can stream with ChatRoom entry {
+        # Send existing messages
+        for msg in [-->:Contains:-->][-20:] {
+            yield msg.to_json();
+        }
+
+        # Wait for new messages
+        while true {
+            new_msg = wait_for_new_message(here);
+            yield new_msg.to_json();
+        }
+    }
+}
+```
+
+### Distributed Systems Focus (Chapters 13, 19)
+
+**3-Week Advanced Path**
+
+**Week 1: Distribution Concepts**
+- Understanding topology-aware distribution
+- Cross-machine edge traversal
+- Distributed walker patterns
+
+**Week 2: Implementation**
+- Partitioning strategies
+- Consistency patterns
+- Fault tolerance
+
+**Week 3: Optimization**
+- Minimizing network traversals
+- Caching strategies
+- Monitoring distributed performance
+
+**Distributed System Project**
+```jac
+# Distributed task processing
+node TaskQueue {
+    has name: str;
+    has priority: int;
+}
+
+node Task {
+    has id: str;
+    has payload: dict;
+    has status: str = "pending";
+    has assigned_worker: str = "";
+}
+
+edge Queued(TaskQueue, Task) {
+    has queued_at: str;
+}
+
+walker:distributed TaskWorker {
+    has worker_id: str;
+    has capabilities: list[str];
+
+    can claim_task with TaskQueue entry {
+        # Find unclaimed task matching capabilities
+        for task in [-->:Queued:-->] {
+            if task.status == "pending" and
+               task.matches_capabilities(self.capabilities) {
+                # Atomic claim operation
+                if atomic_claim(task, self.worker_id) {
+                    spawn ProcessTask(task=task) on task;
+                    return;
+                }
+            }
+        }
+    }
+}
+
+walker ProcessTask {
+    has task: Task;
+
+    can process with Task entry {
+        try {
+            # Process task
+            result = execute_task(here.payload);
+            here.status = "completed";
+            here.result = result;
+
+            # Notify completion
+            spawn TaskCompleted(task_id=here.id) on root;
+        } except as e {
+            here.status = "failed";
+            here.error = str(e);
+
+            # Retry logic
+            spawn RetryTask(task=here) on root;
+        }
+    }
+}
+```
+
+### Data Processing Focus (Chapters 8-9, 15)
+
+**2-Week Specialized Path**
+
+**Week 1: Graph Algorithms**
+- Graph traversal patterns
+- Data aggregation with walkers
+- Stream processing patterns
+
+**Week 2: Advanced Processing**
+- Map-reduce with walkers
+- Pipeline architectures
+- Real-time analytics
+
+**Data Processing Project**
+```jac
+# Real-time analytics pipeline
+node DataSource {
+    has source_type: str;
+    has config: dict;
+}
+
+node DataPoint {
+    has timestamp: str;
+    has metrics: dict;
+    has processed: bool = false;
+}
+
+walker StreamProcessor {
+    has buffer: list = [];
+    has buffer_size: int = 100;
+
+    can process with DataPoint entry {
+        if here.processed {
+            return;
+        }
+
+        # Add to buffer
+        self.buffer.append(here);
+        here.processed = true;
+
+        # Process when buffer full
+        if len(self.buffer) >= self.buffer_size {
+            self.flush_buffer();
+        }
+
+        # Continue to next data point
+        visit [-->];
+    }
+
+    can flush_buffer {
+        # Aggregate metrics
+        aggregated = aggregate_metrics(self.buffer);
+
+        # Store results
+        result_node = root ++> AggregatedMetrics(
+            timestamp=timestamp_now(),
+            data=aggregated,
+            point_count=len(self.buffer)
+        );
+
+        # Clear buffer
+        self.buffer = [];
+
+        # Trigger downstream processing
+        spawn DownstreamAnalytics() on result_node;
+    }
+}
+
+walker RealTimeAlerting {
+    has alert_rules: list[dict];
+
+    can check with AggregatedMetrics entry {
+        for rule in self.alert_rules {
+            if evaluate_rule(rule, here.data) {
+                spawn SendAlert(
+                    rule=rule,
+                    metrics=here.data
+                ) on root;
+            }
+        }
+    }
+}
+```
+
+### Learning Resources by Path
+
+**Quick Start Resources**
+- Official Jac tutorials
+- Interactive playground
+- Quick reference card
+- Community Discord
+
+**Full Migration Resources**
+- Migration guide and tools
+- Architecture patterns book
+- Performance tuning guide
+- Case study repository
+
+**Web Services Resources**
+- REST API templates
+- GraphQL integration guide
+- WebSocket examples
+- Authentication patterns
+
+**Distributed Systems Resources**
+- Distribution patterns guide
+- Consistency models in Jac
+- Monitoring and observability
+- Fault tolerance patterns
+
+**Data Processing Resources**
+- Graph algorithms library
+- Streaming patterns guide
+- Analytics templates
+- Visualization integration
+
+### Assessment Checkpoints
+
+**Week 2 Check**: Can you build a basic graph application?
+**Week 4 Check**: Can you implement complex traversal patterns?
+**Week 8 Check**: Can you build a multi-user application?
+**Week 12 Check**: Can you optimize and scale your application?
+
+### Community Learning
+
+Join the Jac community for accelerated learning:
+- **Discord**: Real-time help and discussions
+- **GitHub**: Contribute to open source projects
+- **Forums**: Share your learning journey
+- **Meetups**: Local and virtual events
+
+Remember: The best learning path is the one that matches your goals and timeline. Start with Quick Start if you need immediate productivity, or commit to Full Migration if you're planning a significant transition. Either way, the Jac community is here to support your journey from Python to the future of programming!
