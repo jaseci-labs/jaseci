@@ -1,10 +1,10 @@
 # Jac Programming Guide for Python Developers: Outline
 
-## Part I: Introduction and Motivation
+# Part I: Introduction and Motivation
 
-# Chapter 1: Welcome to Jac
+## Chapter 1: Welcome to Jac
 
-## 1.1 What is Jac?
+### 1.1 What is Jac?
 
 Jac is a programming language that extends familiar Python-like syntax with revolutionary concepts from Data Spatial Programming (DSP). While maintaining the readability and expressiveness that Python developers love, Jac introduces a fundamental paradigm shift in how we think about and structure computation.
 
@@ -144,7 +144,7 @@ walker CreatePost {
 }
 ```
 
-## 1.2 Why Jac?
+### 1.2 Why Jac?
 
 ### Limitations of Traditional OOP for Graph-like Structures
 
@@ -469,7 +469,7 @@ walker FindMutualFollowers {
 }
 ```
 
-## 1.3 This Guide's Approach
+### 1.3 This Guide's Approach
 
 ### Leveraging Your Python Knowledge
 
@@ -548,9 +548,9 @@ with entry {
 
 Ready to begin? In the next chapter, we'll set up your Jac development environment and write your first Data Spatial program. The future of programming awaits!
 
-# Chapter 2: Setting Up Your Jac Environment
+## Chapter 2: Setting Up Your Jac Environment
 
-## 2.1 Installation and Setup
+### 2.1 Installation and Setup
 
 Getting started with Jac is straightforward, especially for Python developers. Jac provides multiple installation methods and integrates well with familiar development tools.
 
@@ -737,7 +737,7 @@ jac-env\Scripts\activate
 pip install jaclang
 ```
 
-## 2.2 Your First Jac Program
+### 2.2 Your First Jac Program
 
 Let's create your first Jac program and understand the key differences from Python.
 
@@ -1168,13 +1168,13 @@ Try modifying the todo app to add new features:
 
 Remember: every Jac program you write is automatically persistent and ready for multi-user scenarios. The same todo app could serve thousands of users without any code changes - that's the power of scale-agnostic programming!
 
-## Part II: Core Language Features - Python to Jac
+# Part II: Core Language Features - Python to Jac
 
-# Chapter 3: Familiar Syntax with New Semantics
+## Chapter 3: Familiar Syntax with New Semantics
 
 As a Python developer, you'll find Jac's syntax comfortably familiar while discovering powerful enhancements that make your code more robust and expressive. This chapter explores the core language features, highlighting what's similar, what's enhanced, and what's new.
 
-## 3.1 Variables and Types
+### 3.1 Variables and Types
 
 ### Type Annotations are Mandatory (Unlike Python's Optional Hints)
 
@@ -1407,7 +1407,7 @@ obj ConfigValue {
 }
 ```
 
-## 3.2 Control Flow
+### 3.2 Control Flow
 
 ### Curly Braces Instead of Indentation
 
@@ -1664,7 +1664,7 @@ can validate_age(age: int) {
 }
 ```
 
-## 3.3 Functions to Abilities
+### 3.3 Functions to Abilities
 
 ### Traditional Functions with `can` Keyword
 
@@ -1997,7 +1997,7 @@ can calculate_discount(
 }
 ```
 
-## Summary
+### Summary
 
 In this chapter, we've seen how Jac builds on Python's familiar syntax while adding:
 
@@ -2011,11 +2011,11 @@ These enhancements make Jac code more explicit, safer, and better suited for the
 
 In the next chapter, we'll explore Jac's data structures and unique features like keyword tuples and pipe operators that make data manipulation even more powerful and expressive.
 
-# Chapter 4: Data Structures and Collections
+## Chapter 4: Data Structures and Collections
 
 Jac's data structures will feel familiar to Python developers, but they come with enhanced type safety, powerful new operations, and unique features like keyword tuples and pipe operators. This chapter explores how to work with collections effectively in Jac.
 
-## 4.1 Collections Comparison
+### 4.1 Collections Comparison
 
 ### Lists, Tuples, Dicts, Sets - Familiar but Enhanced
 
@@ -2283,7 +2283,7 @@ let high_earners = [emp for emp in employees if emp.salary > 80000];
 let total_salary = sum([emp.salary for emp in employees]);
 ```
 
-## 4.2 Pipe Operators
+### 4.2 Pipe Operators
 
 ### Forward Pipe (`|>`) and Backward Pipe (`<|`)
 
@@ -2634,7 +2634,7 @@ node DataNode {
    }
    ```
 
-## Summary
+### Summary
 
 In this chapter, we've explored Jac's powerful collection features:
 
@@ -2647,11 +2647,11 @@ These features work together to make data manipulation in Jac both safer and mor
 
 Next, we'll explore how Jac enhances object-oriented programming with archetypes, automatic constructors, and implementation separation—features that make large-scale development more manageable.
 
-# Chapter 5: Object-Oriented Programming Enhanced
+## Chapter 5: Object-Oriented Programming Enhanced
 
 Jac takes the familiar concepts of object-oriented programming and enhances them with modern features like automatic constructors, implementation separation, and data spatial archetypes. This chapter explores how Jac improves upon traditional OOP while maintaining compatibility with Python when needed.
 
-## 5.1 From Classes to Archetypes
+### 5.1 From Classes to Archetypes
 
 ### `obj` - Enhanced Dataclass-like Behavior
 
@@ -2901,7 +2901,7 @@ obj DatabaseConnection {
 }
 ```
 
-## 5.2 Implementation Separation
+### 5.2 Implementation Separation
 
 ### Declaring Interfaces vs Implementations
 
@@ -3088,7 +3088,7 @@ impl ApiService {
 }
 ```
 
-## 5.3 Access Control
+### 5.3 Access Control
 
 ### `:pub`, `:priv`, `:protect` Modifiers
 
@@ -3503,7 +3503,7 @@ obj :pub Observer {
    }
    ```
 
-## Summary
+### Summary
 
 In this chapter, we've seen how Jac enhances object-oriented programming with:
 
@@ -3517,13 +3517,13 @@ These features make Jac's OOP both more powerful and more convenient than tradit
 
 Next, we'll dive into the revolutionary Data Spatial Programming features that make Jac truly unique—nodes, edges, and walkers that transform how we think about program structure and execution.
 
-## Part III: Data Spatial Programming Fundamentals
+# Part III: Data Spatial Programming Fundamentals
 
-# Chapter 6: Introduction to Data Spatial Concepts
+## Chapter 6: Introduction to Data Spatial Concepts
 
 Welcome to the heart of what makes Jac revolutionary. In this chapter, we'll explore Data Spatial Programming (DSP), a paradigm that fundamentally changes how we think about and structure computation. If you've ever felt that traditional programming models don't naturally express the interconnected, graph-like nature of modern applications, you're about to discover a better way.
 
-## 6.1 The Paradigm Shift
+### 6.1 The Paradigm Shift
 
 ### Traditional: Moving Data to Functions
 
@@ -3810,7 +3810,7 @@ graph TB
     style W fill:#ff9999,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
-## 6.2 Core Archetypes
+### 6.2 Core Archetypes
 
 ### Nodes: Data Locations with Computation
 
@@ -4144,7 +4144,7 @@ The Data Spatial approach provides:
 
 In the next chapters, we'll dive deeper into building and traversing these graph structures, exploring the full power of Data Spatial Programming.
 
-## Summary
+### Summary
 
 In this chapter, we've introduced the revolutionary concepts of Data Spatial Programming:
 
@@ -4155,11 +4155,11 @@ In this chapter, we've introduced the revolutionary concepts of Data Spatial Pro
 
 This isn't just a new syntax—it's a fundamentally different way of thinking about program structure that aligns with how we naturally model interconnected systems. Next, we'll get hands-on with building your first graph structures in Jac.
 
-# Chapter 7: Building Your First Graph
+## Chapter 7: Building Your First Graph
 
 Now that you understand the conceptual foundations of Data Spatial Programming, let's get hands-on and build real graph structures. In this chapter, you'll learn how to create nodes and edges, connect them into meaningful topologies, and perform basic graph operations that form the foundation of DSP applications.
 
-## 7.1 Creating Nodes and Edges
+### 7.1 Creating Nodes and Edges
 
 ### Node Declaration and Instantiation
 
@@ -4451,7 +4451,7 @@ graph LR
     style CM1 fill:#f3e5f5
 ```
 
-## 7.2 Basic Graph Operations
+### 7.2 Basic Graph Operations
 
 ### Navigating with Edge References (`[-->]`, `[<--]`)
 
@@ -4865,7 +4865,7 @@ with entry {
 4. **Use Consistent Naming**: Follow patterns like `Verb` for edges, `Noun` for nodes
 5. **Think About Traversal Early**: Design your graph to support intended algorithms
 
-## Summary
+### Summary
 
 In this chapter, we've learned:
 
@@ -4878,11 +4878,11 @@ We've seen how Jac's syntax makes graph operations intuitive and type-safe. The 
 
 Next, we'll explore walkers in depth—the mobile computational entities that bring your graphs to life by moving computation to data.
 
-# Chapter 8: Walkers - Computation in Motion
+## Chapter 8: Walkers - Computation in Motion
 
 Walkers are the beating heart of Data Spatial Programming. They embody the paradigm shift from static functions to mobile computational entities that traverse your data graph, processing information where it lives. In this chapter, we'll master the art of creating and controlling walkers to build powerful, scalable algorithms.
 
-## 8.1 Walker Basics
+### 8.1 Walker Basics
 
 ### Declaring Walker Classes
 
@@ -5011,7 +5011,7 @@ walker LifecycleDemo {
 }
 ```
 
-## 8.2 Traversal Patterns
+### 8.2 Traversal Patterns
 
 ### `visit` Statements for Navigation
 
@@ -5267,7 +5267,7 @@ with entry {
 }
 ```
 
-## 8.3 Walker Abilities
+### 8.3 Walker Abilities
 
 ### Entry and Exit Abilities
 
@@ -5735,7 +5735,7 @@ walker Orchestrator {
 }
 ```
 
-## Summary
+### Summary
 
 In this chapter, we've mastered walkers—the mobile computational entities that make Data Spatial Programming unique:
 
@@ -5749,11 +5749,11 @@ Walkers transform static data structures into dynamic, reactive systems. They en
 
 Next, we'll explore abilities in depth—the event-driven computation model that makes the interaction between walkers and nodes so powerful.
 
-# Chapter 9: Abilities - Event-Driven Computation
+## Chapter 9: Abilities - Event-Driven Computation
 
 Abilities represent a fundamental shift from traditional method invocation to event-driven computation. Instead of explicitly calling functions, abilities automatically execute when specific conditions are met during graph traversal. This chapter explores how abilities enable the bidirectional computation model that makes Data Spatial Programming so powerful.
 
-## 9.1 Understanding Abilities
+### 9.1 Understanding Abilities
 
 ### Implicit Execution vs Explicit Invocation
 
@@ -5935,7 +5935,7 @@ sequenceDiagram
     W->>N: Walker departs
 ```
 
-## 9.2 Practical Ability Patterns
+### 9.2 Practical Ability Patterns
 
 ### Data Validation on Arrival
 
@@ -6312,7 +6312,7 @@ walker DataFetcher {
 }
 ```
 
-## Advanced Ability Patterns
+### Advanced Ability Patterns
 
 ### Cooperative Processing
 
@@ -6694,7 +6694,7 @@ walker BatchProcessor {
 }
 ```
 
-## Best Practices for Abilities
+### Best Practices for Abilities
 
 ### 1. **Keep Abilities Focused**
 Each ability should have a single, clear purpose:
@@ -6823,7 +6823,7 @@ node DataProvider {
 }
 ```
 
-## Summary
+### Summary
 
 In this chapter, we've explored abilities—the event-driven computation model at the heart of Data Spatial Programming:
 
@@ -6837,13 +6837,13 @@ Abilities transform static data structures into reactive, intelligent systems. T
 
 Next, we'll explore the scale-agnostic features that make Jac applications automatically persist data and handle multiple users without additional code—taking the concepts we've learned and making them production-ready.
 
-## Part IV: Scale-Agnostic Programming
+# Part IV: Scale-Agnostic Programming
 
-# Chapter 10: The Root Node and Persistence
+## Chapter 10: The Root Node and Persistence
 
 One of Jac's most revolutionary features is automatic persistence through the root node. Unlike traditional applications that require explicit database operations, Jac programs naturally persist state between executions. This chapter explores how the root node enables scale-agnostic programming, where the same code works for single-user scripts and multi-user applications.
 
-## 10.1 Understanding the Root Node
+### 10.1 Understanding the Root Node
 
 ### Global Accessibility via `root` Keyword
 
@@ -6998,7 +6998,7 @@ graph TD
     style T2 fill:#ffcdd2
 ```
 
-## 10.2 Building Persistent Applications
+### 10.2 Building Persistent Applications
 
 ### Connecting to Root for Persistence
 
@@ -7601,7 +7601,7 @@ walker PaginatedQuery {
 }
 ```
 
-## Summary
+### Summary
 
 In this chapter, we've explored Jac's revolutionary persistence model:
 
@@ -7613,11 +7613,11 @@ In this chapter, we've explored Jac's revolutionary persistence model:
 
 This persistence model eliminates entire categories of boilerplate code. You focus on your domain logic while Jac handles data persistence automatically. The same patterns that work for a simple script scale to multi-user applications—which we'll explore in the next chapter.
 
-# Chapter 11: Multi-User Applications
+## Chapter 11: Multi-User Applications
 
 Jac's automatic user isolation transforms single-user code into multi-user applications without modification. Each user gets their own isolated root node and data space, enabling secure multi-tenancy by default. This chapter explores how to build applications that serve multiple users simultaneously while maintaining data isolation and enabling controlled sharing.
 
-## 11.1 Automatic User Isolation
+### 11.1 Automatic User Isolation
 
 ### User-Specific Root Nodes
 
@@ -7769,7 +7769,7 @@ node PrivateData {
 }
 ```
 
-## 11.2 Multi-User Patterns
+### 11.2 Multi-User Patterns
 
 ### User Data Organization
 
@@ -8414,7 +8414,7 @@ walker AnalyticsReporter {
 }
 ```
 
-## Best Practices for Multi-User Apps
+### Best Practices for Multi-User Apps
 
 ### 1. **Design for Isolation First**
 
@@ -8512,7 +8512,7 @@ walker IncrementCounter {
 }
 ```
 
-## Summary
+### Summary
 
 In this chapter, we've explored Jac's powerful multi-user capabilities:
 
@@ -8527,11 +8527,11 @@ Jac's multi-user support isn't bolted on—it's fundamental to the architecture.
 
 Next, we'll see how walkers can serve as API endpoints, turning your graph traversals into web services that can serve these multiple users over the network.
 
-# Chapter 12: Walkers as API Endpoints
+## Chapter 12: Walkers as API Endpoints
 
 Jac revolutionizes API development by allowing walkers to serve as entry points into your application. Instead of writing separate endpoint handlers, parameter validation, and routing logic, you simply declare walkers as entry points. This chapter explores how to build modern APIs using walkers, transforming graph traversals into web services.
 
-## 12.1 Entry Point Walkers
+### 12.1 Entry Point Walkers
 
 ### Declaring Walkers as Entry Points
 
@@ -8849,7 +8849,7 @@ walker SearchPosts {
 }
 ```
 
-## 12.2 Building Services
+### 12.2 Building Services
 
 ### RESTful Patterns with Walkers
 
@@ -9670,7 +9670,7 @@ walker UserSearchAPI(APIBase) {
 }
 ```
 
-## Best Practices for Walker APIs
+### Best Practices for Walker APIs
 
 ### 1. **Design Resource-Oriented Endpoints**
 
@@ -9780,7 +9780,7 @@ walker APIGateway {
 }
 ```
 
-## Summary
+### Summary
 
 In this chapter, we've explored how walkers naturally become API endpoints:
 
@@ -9795,11 +9795,11 @@ This approach eliminates the traditional separation between business logic and A
 
 Next, we'll explore how these APIs can seamlessly distribute across multiple machines, enabling your applications to scale from a single server to a global deployment without changing your code.
 
-# Chapter 13: Distributed Jac Applications
+## Chapter 13: Distributed Jac Applications
 
 The true power of Jac's scale-agnostic programming model shines when applications need to scale beyond a single machine. This chapter explores how Jac applications naturally distribute across multiple machines without requiring code changes, maintaining the same topological programming model at planetary scale.
 
-## 13.1 Distribution Concepts
+### 13.1 Distribution Concepts
 
 ### Topology-Aware Distribution
 
@@ -9967,7 +9967,7 @@ walker DistributionAnalyzer {
 }
 ```
 
-## 13.2 Scaling Patterns
+### 13.2 Scaling Patterns
 
 ### From Single-Machine to Distributed
 
@@ -10508,7 +10508,7 @@ with entry {
 }
 ```
 
-## Summary
+### Summary
 
 This chapter demonstrated how Jac's scale-agnostic programming model extends naturally to distributed systems:
 
@@ -10522,13 +10522,13 @@ The key insight is that distribution becomes a deployment concern rather than a 
 
 In the next chapter, we'll explore advanced language features including concurrent programming, type system deep dives, and sophisticated error handling patterns that make Jac suitable for production systems at any scale.
 
-## Part V: Advanced Features and Patterns
+# Part V: Advanced Features and Patterns
 
-# Chapter 14: Advanced Language Features
+## Chapter 14: Advanced Language Features
 
 This chapter explores Jac's advanced features that enable sophisticated concurrent programming, leverage its powerful type system, and provide robust error handling for production systems. These features build upon the fundamentals to create applications that are both powerful and maintainable.
 
-## 14.1 Concurrent Programming
+### 14.1 Concurrent Programming
 
 ### `spawn` for Parallel Walkers
 
@@ -10871,7 +10871,7 @@ edge ConcurrentEdge {
 }
 ```
 
-## 14.2 Type System Deep Dive
+### 14.2 Type System Deep Dive
 
 ### Type Inference vs Explicit Typing
 
@@ -11099,7 +11099,7 @@ can combine[*Ts](values: tuple[*Ts]) -> tuple[*Ts] {
 let combined = combine((1, "hello", 3.14, True));  // tuple[int, str, float, bool]
 ```
 
-## 14.3 Error Handling
+### 14.3 Error Handling
 
 ### Exception Handling in Traversals
 
@@ -11502,7 +11502,7 @@ node ResourcePool {
 }
 ```
 
-## Summary
+### Summary
 
 This chapter covered Jac's advanced features that enable production-ready applications:
 
@@ -11528,11 +11528,11 @@ These advanced features, combined with Jac's scale-agnostic programming model, p
 
 In the next chapter, we'll explore design patterns specific to Jac that leverage these advanced features to solve common architectural challenges.
 
-# Chapter 15: Design Patterns in Jac
+## Chapter 15: Design Patterns in Jac
 
 This chapter explores design patterns that leverage Jac's unique features—data spatial programming, scale-agnostic architecture, and topological computation. These patterns provide reusable solutions to common problems while taking full advantage of Jac's paradigm shift from moving data to computation to moving computation to data.
 
-## 15.1 Graph Patterns
+### 15.1 Graph Patterns
 
 ### Tree Structures
 
@@ -12007,7 +12007,7 @@ walker MatrixAnalyzer {
 }
 ```
 
-## 15.2 Walker Patterns
+### 15.2 Walker Patterns
 
 ### Visitor Pattern Reimagined
 
@@ -12407,7 +12407,7 @@ with entry {
 }
 ```
 
-## 15.3 Persistence Patterns
+### 15.3 Persistence Patterns
 
 ### Event Sourcing with Graphs
 
@@ -12860,7 +12860,7 @@ with entry {
 }
 ```
 
-## Summary
+### Summary
 
 This chapter explored essential design patterns that leverage Jac's unique features:
 
@@ -12883,11 +12883,11 @@ These patterns demonstrate how Jac's paradigm shift—from moving data to comput
 
 In the next chapter, we'll explore comprehensive testing and debugging techniques that ensure these patterns work correctly in production environments.
 
-# Chapter 16: Testing and Debugging
+## Chapter 16: Testing and Debugging
 
 Testing and debugging in Jac requires unique approaches due to its data spatial nature, graph-based architecture, and scale-agnostic features. This chapter explores comprehensive strategies for ensuring your Jac applications work correctly from development through production.
 
-## 16.1 Testing Framework
+### 16.1 Testing Framework
 
 ### Built-in `test` Blocks
 
@@ -13318,7 +13318,7 @@ test "payment processor with mocks" {
 }
 ```
 
-## 16.2 Debugging Techniques
+### 16.2 Debugging Techniques
 
 ### Traversal Visualization
 
@@ -14087,7 +14087,7 @@ walker ErrorReporter {
 }
 ```
 
-## Summary
+### Summary
 
 This chapter covered comprehensive testing and debugging strategies for Jac applications:
 
@@ -14112,11 +14112,11 @@ This chapter covered comprehensive testing and debugging strategies for Jac appl
 
 These tools and techniques ensure that Jac applications are robust, performant, and maintainable at any scale, from development to global deployment.
 
-## Part VI: Practical Applications
+# Part VI: Practical Applications
 
-# Chapter 18: Migration Guide
+## Chapter 18: Migration Guide
 
-## 18.1 Porting Python Applications
+### 18.1 Porting Python Applications
 
 Migrating Python applications to Jac requires a shift in thinking from object-oriented to data spatial patterns. This section guides you through identifying opportunities for migration and transforming Python code to leverage Jac's unique capabilities.
 
@@ -14699,7 +14699,7 @@ with entry {
 }
 ```
 
-## 18.2 Incremental Adoption
+### 18.2 Incremental Adoption
 
 Jac is designed to work alongside Python, enabling gradual migration strategies that minimize risk and disruption.
 
@@ -15207,9 +15207,9 @@ walker MigrateUsers {
 
 The key to successful migration is recognizing that Jac isn't just Python with different syntax—it's a fundamentally different way of thinking about program structure. Embrace the graph, let computation flow to data, and watch your applications become more intuitive, scalable, and maintainable.
 
-# Chapter 19: Performance and Optimization
+## Chapter 19: Performance and Optimization
 
-## 19.1 Performance Characteristics
+### 19.1 Performance Characteristics
 
 Understanding Jac's performance characteristics is crucial for building efficient applications. The data spatial paradigm introduces unique performance considerations that differ significantly from traditional programming models.
 
@@ -15708,7 +15708,7 @@ walker LocalityAwareTraverser {
 }
 ```
 
-## 19.2 Optimization Techniques
+### 19.2 Optimization Techniques
 
 ### Graph Layout Optimization
 
@@ -16282,11 +16282,11 @@ with entry {
 
 The key to Jac performance is understanding that computation moves through your data structure. By optimizing the structure and the movement patterns, you can achieve excellent performance at any scale.
 
-## Part VII: Reference and Resources
+# Part VII: Reference and Resources
 
-# Chapter 20: Quick Reference
+## Chapter 20: Quick Reference
 
-## 20.1 Syntax Comparison Table
+### 20.1 Syntax Comparison Table
 
 This comprehensive comparison shows Python syntax alongside its Jac equivalent, helping you quickly translate between the two languages.
 
@@ -16396,7 +16396,7 @@ This comprehensive comparison shows Python syntax alongside its Jac equivalent, 
 | N/A | `import:jac module;` | Jac module import |
 | N/A | `include module;` | Include all exports |
 
-## 20.2 Built-in Functions and Types
+### 20.2 Built-in Functions and Types
 
 ### Core Built-in Functions
 
@@ -16463,7 +16463,7 @@ This comprehensive comparison shows Python syntax alongside its Jac equivalent, 
 | `<++` | Create reverse edge | `node1 <++ node2;` |
 | `<++>` | Create bidirectional edge | `node1 <++> node2;` |
 
-## 20.3 Standard Library Overview
+### 20.3 Standard Library Overview
 
 ### Core Modules
 
@@ -16766,9 +16766,9 @@ walker FindUsersByName {
 
 This quick reference provides the essential syntax mappings and patterns you'll need for day-to-day Jac development. Keep it handy as you transition from Python to Jac's data spatial paradigm!
 
-# Chapter 21: Best Practices
+## Chapter 21: Best Practices
 
-## 21.1 Code Organization
+### 21.1 Code Organization
 
 Organizing Jac code effectively is crucial for maintainability and team collaboration. Jac's unique features like implementation separation and data spatial constructs require thoughtful organization strategies.
 
@@ -17017,7 +17017,7 @@ with entry {
 }
 ```
 
-## 21.2 Naming Conventions
+### 21.2 Naming Conventions
 
 Consistent naming conventions make Jac code more readable and maintainable. Follow these guidelines adapted from Python's PEP 8 with Jac-specific additions.
 
@@ -17171,7 +17171,7 @@ with entry:main { }          # Generic but acceptable
 with entry:entry1 { }        # Bad - meaningless
 ```
 
-## 21.3 Documentation Standards
+### 21.3 Documentation Standards
 
 Well-documented Jac code is essential for maintainability and team collaboration. Follow these standards for comprehensive documentation.
 
@@ -17496,7 +17496,7 @@ Following these best practices will make your Jac code more maintainable, unders
 
 # Learning Path Recommendations
 
-## For Quick Start (Chapters 1-3, 6-8)
+### For Quick Start (Chapters 1-3, 6-8)
 
 If you need to get productive with Jac quickly, this accelerated path covers the essentials in about 1-2 weeks of focused learning.
 
@@ -17588,7 +17588,7 @@ You should be able to:
 
 ---
 
-## For Full Migration (All chapters)
+### For Full Migration (All chapters)
 
 This comprehensive path is designed for teams or individuals planning to fully migrate from Python to Jac. Expect 2-3 months for complete mastery.
 
@@ -17725,7 +17725,7 @@ Consider building and open-sourcing:
 
 ---
 
-## For Specific Use Cases
+### For Specific Use Cases
 
 ### Web Services Focus (Chapters 10-12)
 
