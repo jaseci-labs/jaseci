@@ -188,9 +188,16 @@ class JTypeCheckPass(UniPass):
         """
         self.prune()  # prune the traversal into the atom trailer.
 
-        if not all(isinstance(n, ast.Name) for n in node.as_attr_list):
-            raise TypeError("Expected all Expr")
-        nodes = cast(list[ast.Name], node.as_attr_list)
+        for n in node.to_list:
+            assert isinstance(
+                n, (ast.Name | ast.FuncCall)
+            ), f"Expected all Name or FuncCall, Found {n}"
+        nodes = cast(list[ast.Name | ast.FuncCall], node.to_list)
+
+        if isinstance(nodes[0], ast.FuncCall) and isinstance(
+            nodes[0].target, ast.AtomTrailer
+        ):
+            self.enter_atom_trailer(nodes[0].target)
 
         first_item_type = self.prog.type_resolver.get_type(
             nodes[0]
@@ -210,7 +217,11 @@ class JTypeCheckPass(UniPass):
             else:
                 last_node_type = next_type
 
-            node_name = n.sym_name
+            if isinstance(n, ast.FuncCall):
+                assert isinstance(n.target, ast.Name)
+                node_name = n.target.sym_name
+            else:
+                node_name = n.sym_name
             member = last_node_type.get_member(node_name)
 
             if (
@@ -230,4 +241,8 @@ class JTypeCheckPass(UniPass):
             else:
                 # Update type for the next iteration and store the resolved symbol.
                 next_type = member.type
-                n.name_spec.sym = member.decl
+                if isinstance(n, ast.FuncCall):
+                    assert isinstance(n.target, ast.Name)
+                    n.target.name_spec.sym = member.decl
+                else:
+                    n.name_spec.sym = member.decl

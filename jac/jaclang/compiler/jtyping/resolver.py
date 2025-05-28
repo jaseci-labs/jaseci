@@ -250,7 +250,7 @@ class JTypeResolver:
         Returns:
             JType: The type of the last attribute or element in the chain.
         """
-        last_node = node.as_attr_list[-1]
+        last_node = node.to_list[-1]
         assert isinstance(last_node, ast.Expr)
         return self.get_type(last_node)
 
@@ -329,6 +329,6 @@ class JTypeResolver:
     def _set_atom_trailer_expr_type(
         self, node: ast.AtomTrailer, expr_type: jtype.JType
     ) -> None:
-        nodes = node.as_attr_list
+        nodes = node.to_list
         assert isinstance(nodes[-1], ast.Expr)
         self.set_type(nodes[-1], expr_type, quite=True)

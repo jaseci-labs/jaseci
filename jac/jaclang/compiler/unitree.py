@@ -3460,6 +3460,19 @@ class AtomTrailer(Expr):
             trag_list.insert(0, left)
         return trag_list
 
+    @property
+    def to_list(self) -> list[Expr]:
+        nodes: list[Expr] = []
+        if isinstance(self.target, AtomTrailer):
+            nodes += self.target.to_list
+        else:
+            nodes.append(self.target)
+        if isinstance(self.right, AtomTrailer):
+            nodes += self.right.to_list
+        else:
+            nodes.append(self.right)
+        return nodes
+
 
 class AtomUnit(Expr):
     """AtomUnit node type for Jac Ast."""
@@ -4627,4 +4640,5 @@ def find_parent_of_type(node: UniNode, typ: Type[T]) -> Optional[T]:
     impl_node = node.parent_of_type(ImplDef)
     if impl_node.decl_link:
         assert isinstance(impl_node.decl_link, typ)
-    return impl_node.decl_link
+        return impl_node.decl_link
+    return None
