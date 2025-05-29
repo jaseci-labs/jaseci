@@ -201,7 +201,6 @@ class JacMachine:
         output_type_explanations = get_all_type_explanations(
             output_hint.get_types(), mod_registry
         )
-
         type_explanations = get_all_type_explanations(type_collector, mod_registry)
 
         tools = model_params.pop("tools") if "tools" in model_params else None
@@ -671,3 +670,92 @@ class JacMachine:
             "include_info": include_info,
             "exclude_info": exclude_info,
         }
+
+    @staticmethod
+    @hookimpl
+    def get_semstr_type(
+        file_loc: str, scope: str, attr: str, return_semstr: bool
+    ) -> Optional[str]:
+        """Jac's get_semstr_type feature."""
+
+        _scope = SemScope.get_scope_from_str(scope)
+        machine = JacMachineInterface.py_get_jac_machine()
+        program_head = machine.jac_program.mod
+        mod_registry = SemRegistry(program_head=program_head, by_scope=_scope)
+        _, attr_seminfo = mod_registry.lookup(_scope, attr)
+        if attr_seminfo and isinstance(attr_seminfo, SemInfo):
+            return attr_seminfo.semstr if return_semstr else attr_seminfo.type
+        return None
+
+    @staticmethod
+    @hookimpl
+    def obj_scope(file_loc: str, attr: str) -> str:
+        """Jac's gather_scope feature."""
+        machine = JacMachineInterface.py_get_jac_machine()
+        program_head = machine.jac_program.mod
+        mod_registry = SemRegistry(program_head=program_head, by_scope=None)
+
+        attr_scope = None
+        for x in attr.split("."):
+            attr_scope, attr_sem_info = mod_registry.lookup(attr_scope, x)
+            if isinstance(attr_sem_info, SemInfo) and attr_sem_info.type not in [
+                "class",
+                "object",
+                "node",
+                "edge",
+            ]:
+                attr_scope, attr_sem_info = mod_registry.lookup(
+                    None, attr_sem_info.type
+                )
+                if isinstance(attr_sem_info, SemInfo) and isinstance(
+                    attr_sem_info.type, str
+                ):
+                    attr_scope = SemScope(
+                        attr_sem_info.name, attr_sem_info.type, attr_scope
+                    )
+            else:
+                if isinstance(attr_sem_info, SemInfo) and isinstance(
+                    attr_sem_info.type, str
+                ):
+                    attr_scope = SemScope(
+                        attr_sem_info.name, attr_sem_info.type, attr_scope
+                    )
+        return str(attr_scope)
+
+    @staticmethod
+    @hookimpl
+    def get_sem_type(file_loc: str, attr: str) -> tuple[str | None, str | None]:
+        """Jac's get_semstr_type implementation."""
+
+        machine = JacMachineInterface.py_get_jac_machine()
+        program_head = machine.jac_program.mod
+        mod_registry = SemRegistry(program_head=program_head, by_scope=None)
+
+        attr_scope = None
+        for x in attr.split("."):
+            attr_scope, attr_sem_info = mod_registry.lookup(attr_scope, x)
+            if isinstance(attr_sem_info, SemInfo) and attr_sem_info.type not in [
+                "class",
+                "object",
+                "node",
+                "edge",
+            ]:
+                attr_scope, attr_sem_info = mod_registry.lookup(
+                    None, attr_sem_info.type
+                )
+                if isinstance(attr_sem_info, SemInfo) and isinstance(
+                    attr_sem_info.type, str
+                ):
+                    attr_scope = SemScope(
+                        attr_sem_info.name, attr_sem_info.type, attr_scope
+                    )
+            else:
+                if isinstance(attr_sem_info, SemInfo) and isinstance(
+                    attr_sem_info.type, str
+                ):
+                    attr_scope = SemScope(
+                        attr_sem_info.name, attr_sem_info.type, attr_scope
+                    )
+        if isinstance(attr_sem_info, SemInfo) and isinstance(attr_scope, SemScope):
+            return attr_sem_info.semstr, attr_scope.as_type_str
+        return "", ""

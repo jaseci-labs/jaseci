@@ -1312,6 +1312,21 @@ class JacBasics:
             "exclude_info": [],
         }
 
+    @staticmethod
+    def get_semstr_type(
+        file_loc: str, scope: str, attr: str, return_semstr: bool
+    ) -> Optional[str]:
+        """Jac's get_semstr_type feature."""
+
+    @staticmethod
+    def obj_scope(file_loc: str, attr: str) -> str:
+        """Jac's gather_scope feature."""
+        return ""
+
+    @staticmethod
+    def get_sem_type(file_loc: str, attr: str) -> tuple[str | None, str | None]:
+        """Jac's get_semstr_type implementation."""
+        return None, None
 
 class JacUtils:
     """Jac Machine Utilities."""

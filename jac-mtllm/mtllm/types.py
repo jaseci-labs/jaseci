@@ -99,7 +99,10 @@ class TypeExplanation:
 
     def get_type_explanation(self, mod_registry: SemRegistry) -> tuple[str, set[str]]:
         """Get the type explanation of the input type string."""
+        # print(f"Type Item: {self.type_item}")
+        # print(f"Mod Registry: {mod_registry}")
         scope, sem_info = mod_registry.lookup(name=self.type_item)
+        # print(f"Scope: {scope}, SemInfo: {sem_info}")
         if isinstance(sem_info, SemInfo) and sem_info.type:
             sem_info_scope = SemScope(sem_info.name, sem_info.type, scope)
             _, type_info = mod_registry.lookup(scope=sem_info_scope)
