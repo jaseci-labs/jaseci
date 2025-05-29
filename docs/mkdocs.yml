@@ -86,7 +86,11 @@ nav:
     - Release Notes: "communityhub/release_notes.md"
     - Breaking Changes: "communityhub/breaking_changes.md"
     - Fun Stuff:
-      - "communityhub/projects.md"
+      - Project Ideas:
+        - "communityhub/fun/projects.md"
+        - "communityhub/fun/p1.md"
+        - "communityhub/fun/p2.md"
+        - "communityhub/fun/p3.md"
 
   - Jac Playground:
     - Playground: "playground/index.html"
@@ -105,7 +109,7 @@ theme:
     - content.code.copy
     - content.action.edit
     - content.action.view
-    - navigation.instant
+    - navigation.instant: false
     - navigation.tracking
     - navigation.tabs
     - navigation.path

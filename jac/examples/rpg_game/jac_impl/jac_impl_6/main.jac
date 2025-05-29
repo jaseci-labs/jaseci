@@ -8,11 +8,11 @@ import random;
 import time;
 
 # Importing Jac codebase
-import sprites;
-import game_obj;
-import settings.config;
-import settings.map;
-import utils.level_manager;
+include sprites;
+include game_obj;
+include settings.config;
+include settings.map;
+include utils.level_manager;
 
 '''The walker that initiates the game and runs an instance of the game'''
 walker game{

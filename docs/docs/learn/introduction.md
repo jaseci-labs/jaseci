@@ -1,30 +1,5 @@
 <h1 style="color: orange; font-weight: bold; text-align: center;">Tour to Jac</h1>
 
-## Python Superset Phylosophy: All of Python Plus More
-
-Jac is a drop-in replacement for Python and supersets Python, much like Typescript supersets Javascript or C++ supersets C. It extends Python's semantics while maintaining full interoperability with the Python ecosystem, introducing cutting-edge abstractions designed to minimize complexity and embrace AI-forward development.
-
-```jac
-import math;
-import from random { uniform }
-
-def calc_distance(x1: float, y1: float, x2: float, y2: float) -> float {
-    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-}
-
-with entry {
-    # Generate random points
-    (x1, y1) = (uniform(0, 10), uniform(0, 10));
-    (x2, y2) = (uniform(0, 10), uniform(0, 10));
-
-    distance = calc_distance(x1, y1, x2, y2);
-    area = math.pi * (distance / 2) ** 2;
-
-    print(f"Distance: {distance:.2f}, Circle area: {area:.2f}");
-}
-```
-This snippet natively imports python packages `math` and `random` and runs identically to its Python counterpart. Jac targets python bytecode, so all python libraries work with Jac.
-
 
 ## Beyond OOP with Data Spatial Programming
 
@@ -61,19 +36,35 @@ A walker cycles through game stages using edges, demonstrating Data Spatial Prog
 Jac provides novel constructs for integrating LLMs into code. A function body can simply be replaced with a call to an LLM, removing the need for prompt engineering or extensive new libraries.
 
 ```jac
+import from mtllm.llms { Gemini }
+glob llm = Gemini(model_name="gemini-2.0-flash");
+
 enum Personality {
-    INTROVERT,
-    EXTROVERT,
-    AMBIVERT
+    INTROVERT = "Introvert",
+    EXTROVERT = "Extrovert",
+    AMBIVERT = "Ambivert"
 }
 
-can get_personality(name: str) -> Personality by llm();
+def get_personality(name: str) -> Personality by llm();
 
 with entry {
-    result = get_personality("Albert Einstein");
-    print(f"{result} personality detected");
+    name = "Albert Einstein";
+    result = get_personality(name);
+    print(f"{result.value} personality detected for {name}");
 }
 ```
+??? example "Output"
+    ```
+    Introvert personality detected for Albert Einstein
+    ```
+
+??? info "How To Run"
+    1. Install the MTLLM plugin by ```pip install mtllm[google]```
+    2. Save your Gemini API as an environment variable (`export GEMINI_API_KEY="xxxxxxxx"`).
+    > **Note:**
+    >
+    > You can use OpenAI, Anthropic or other API services as well as host your own LLM using Ollama or Huggingface.
+    3. Copy this code into `example.jac` file and run with `jac run example.jac`
 `by llm()` delegates execution to an LLM without any extra library code.
 
 
@@ -96,6 +87,31 @@ walker create_post {
 ```
 This simple social media post system runs locally or scales infinitely in the cloud with no code changes.
 
+
+## Python Superset Phylosophy: All of Python Plus More
+
+Jac is a drop-in replacement for Python and supersets Python, much like Typescript supersets Javascript or C++ supersets C. It extends Python's semantics while maintaining full interoperability with the Python ecosystem, introducing cutting-edge abstractions designed to minimize complexity and embrace AI-forward development.
+
+```jac
+import math;
+import from random { uniform }
+
+def calc_distance(x1: float, y1: float, x2: float, y2: float) -> float {
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+}
+
+with entry {
+    # Generate random points
+    (x1, y1) = (uniform(0, 10), uniform(0, 10));
+    (x2, y2) = (uniform(0, 10), uniform(0, 10));
+
+    distance = calc_distance(x1, y1, x2, y2);
+    area = math.pi * (distance / 2) ** 2;
+
+    print(f"Distance: {distance:.2f}, Circle area: {area:.2f}");
+}
+```
+This snippet natively imports python packages `math` and `random` and runs identically to its Python counterpart. Jac targets python bytecode, so all python libraries work with Jac.
 
 ## Better Organized and Well Typed Codebases
 

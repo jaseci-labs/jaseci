@@ -1,47 +1,38 @@
-"""MkDocs development server with file watching and automatic rebuilds.
+"""
+MkDocs development server with file watching, automatic rebuilds, and custom headers.
 
-This module provides a custom HTTP server for serving an MkDocs site locally,
-with file system watching to trigger rebuilds when source files change.
-It uses a debounced rebuild mechanism to avoid excessive rebuilds during rapid file changes.
+Uses Starlette + Uvicorn to serve files with security headers,
+and watchdog to watch file changes and rebuild MkDocs site.
 """
 
-import http.server
 import os
-import socketserver
 import subprocess
 import threading
-from typing import Optional
+from typing import Awaitable, Callable, Optional
+
+from starlette.applications import Starlette
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.staticfiles import StaticFiles
+
+import uvicorn
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 
-class CustomHeaderHandler(http.server.SimpleHTTPRequestHandler):
-    """HTTP request handler with custom security headers for MkDocs site serving."""
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware to add security headers for COOP and COEP."""
 
-    def end_headers(self) -> None:
-        """Add security headers to HTTP responses."""
-        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
-        self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
-        super().end_headers()
-
-    def send_error(
-        self, code: int, message: Optional[str] = None, explain: Optional[str] = None
-    ) -> None:
-        """Serve custom 404.html page for 404 errors."""
-        if code == 404:
-            try:
-                with open("404.html", "rb") as f:
-                    content = f.read()
-                self.send_response(404)
-                self.send_header("Content-Type", "text/html")
-                self.send_header("Content-Length", str(len(content)))
-                self.end_headers()
-                self.wfile.write(content)
-            except Exception:
-                super().send_error(code, message, explain)
-        else:
-            super().send_error(code, message, explain)
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Add security headers to the response."""
+        response: Response = await call_next(request)
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+        return response
 
 
 class DebouncedRebuildHandler(FileSystemEventHandler):
@@ -86,12 +77,17 @@ class DebouncedRebuildHandler(FileSystemEventHandler):
             print("Rebuild complete.")
         except subprocess.CalledProcessError as e:
             print(f"Rebuild failed: {e}")
+        except FileNotFoundError:
+            print(
+                "Error: mkdocs not found. Please install it via `pip install mkdocs`."
+            )
 
 
 def serve_with_watch() -> None:
     """Serve MkDocs site and watch for file changes to trigger rebuilds."""
     port = 8000
     root_dir = os.path.dirname(os.path.dirname(__file__))
+    site_dir = os.path.join(root_dir, "site")
 
     print("Initial build of MkDocs site...")
     subprocess.run(["mkdocs", "build"], check=True, cwd=root_dir)
@@ -99,19 +95,18 @@ def serve_with_watch() -> None:
     # Set up file watcher
     event_handler = DebouncedRebuildHandler(root_dir=root_dir, debounce_seconds=20)
     observer = Observer()
-
-    # Watch everything except the site directory
     observer.schedule(event_handler, root_dir, recursive=True)
     observer.start()
 
-    # Change working dir to 'site' and start server
-    site_dir = os.path.join(root_dir, "site")
-    os.chdir(site_dir)
+    # Create Starlette app and add middleware + static files
+    app = Starlette()
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.mount("/", StaticFiles(directory=site_dir, html=True), name="static")
+
     print(f"Serving at http://localhost:{port}")
 
     try:
-        with socketserver.ThreadingTCPServer(("", port), CustomHeaderHandler) as httpd:
-            httpd.serve_forever()
+        uvicorn.run(app, host="0.0.0.0", port=port)
     except KeyboardInterrupt:
         print("Stopping server...")
     finally:

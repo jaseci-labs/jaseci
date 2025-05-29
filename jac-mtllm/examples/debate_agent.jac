@@ -3,19 +3,16 @@ import from mtllm.tools.wikipedia_utils { wikipedia_summary }
 
 glob llm = OpenAI(model_name="gpt-4o-mini");
 
-can 'Ask Opponent for Input'
-ask_opponent(statement: 'Your Statement': str) -> str {
+def ask_opponent(statement: str) -> str {
     user_input = input(f"AI -> {statement} ");
     return f"Opponents Answer -> {user_input}";
 }
 
-can 'States the Facts to the Opponent'
-state_facts(information: str) -> None {
+def state_facts(information: str) -> None {
     print(f"AI -> {information}");
 }
 
-can 'Perform a debate session with a opponent on the given topic, for information use given tools'
-debate_agent(topic: 'Debate Topic': str) -> 'Summary of the Conversation': str by llm(
+def debate_agent(topic: str) -> str by llm(
     method='ReAct',
     tools=[wikipedia_summary, ask_opponent, state_facts],
     context=[

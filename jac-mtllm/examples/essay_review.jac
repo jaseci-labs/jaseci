@@ -5,10 +5,9 @@ glob llm = OpenAI(model_name="gpt-4o");
 obj Essay {
     has essay: str;
 
-    def 'Evaluate the given essay based on the given criteria. Provide Detailed Judgement.'
-    essay_judge(criteria: str) -> str by llm(incl_info=(self.essay));
+    def essay_judge(criteria: str) -> str by llm(incl_info=(self.essay));
     def generate_summary(judgements: dict) -> str by llm(incl_info=(self.essay));
-    def give_grade(summary: str) -> 'A to D': str by llm();
+    def give_grade(summary: str) -> str by llm();
 }
 
 with entry {

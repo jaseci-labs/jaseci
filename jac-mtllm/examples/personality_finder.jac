@@ -1,6 +1,6 @@
 import from mtllm.llms { OpenAI }
 
-glob llm = OpenAI(verbose=False, model_name="gpt-4o-mini");
+glob llm = OpenAI(verbose=True, model_name="gpt-4o-mini");
 
 enum Personality {
     INTROVERT = "Introvert",
@@ -21,7 +21,7 @@ glob personality_examples: dict[str, Personality] = {
 def get_person_info(name: str) -> Person by llm(
     reason=True,
     temperature=0.0,
-    incl_info=(personality_examples)
+    incl_info=(personality_examples) #optional
 );
 
 with entry {

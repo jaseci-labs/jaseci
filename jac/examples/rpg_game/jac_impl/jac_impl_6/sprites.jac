@@ -5,8 +5,8 @@ import pygame, random, math;
 import from pygame.sprite { AbstractGroup }
 
 # Importing settings data
-import settings.config;
-import settings.map;
+include settings.config;
+include settings.map;
 
 """
 Object for impoting sprite character images.

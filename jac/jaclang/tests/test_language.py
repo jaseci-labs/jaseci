@@ -1305,3 +1305,40 @@ class JacLanguageTests(TestCase):
         sys.stderr = sys.__stderr__
         stdout_value = captured_output.getvalue()
         self.assertIn("'here' is not defined", stdout_value)
+
+    def test_edge_ability(self) -> None:
+        """Test visitor, here keyword usage in jaclang."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        cli.run(self.fixture_abs_path("edge_ability.jac"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue().split("\n")
+        self.assertIn("MyEdge from walker MyEdge(path=1)", stdout_value[0])
+        self.assertIn("MyWalker from edge MyWalker()", stdout_value[1])
+        self.assertIn("MyWalker from node MyWalker()", stdout_value[6])
+        self.assertIn("MyEdge from walker MyEdge(path=2)", stdout_value[16])
+    
+    def test_backward_edge_visit(self) -> None:
+        """Test backward edge visit in jaclang."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        cli.run(self.fixture_abs_path("backward_edge_visit.jac"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue().split("\n")
+        self.assertIn("MyWalker() from node MyNode(val=0)", stdout_value[0])
+        self.assertIn("MyWalker() from edge MyEdge(path=0)", stdout_value[1])
+        self.assertIn("MyWalker() from edge MyEdge(path=3)", stdout_value[6])
+        self.assertIn("MyWalker() from node MyNode(val=40)", stdout_value[9])
+
+    def test_visit_traversal(self) -> None:
+        """Test visit traversal semantic in jaclang."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        cli.run(self.fixture_abs_path("visit_traversal.jac"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue().split("\n")
+        self.assertIn("MyWalker() from node MyNode(val=0)", stdout_value[0])
+        self.assertIn("MyWalker() from node MyNode(val=20)", stdout_value[2])
+        self.assertIn("MyWalker() from node MyNode(val=60)", stdout_value[4])
+        self.assertIn("MyWalker() from node MyNode(val=40)", stdout_value[6])
+        self.assertIn("MyWalker() from node MyNode(val=70)", stdout_value[7])

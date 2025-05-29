@@ -1790,6 +1790,16 @@ class PyastGenPass(UniPass):
             )
         )
 
+        if node.insert_loc is not None:
+            visit_call.keywords.append(
+                self.sync(
+                    ast3.keyword(
+                        arg="insert_loc",
+                        value=cast(ast3.expr, node.insert_loc.gen.py_ast[0]),
+                    )
+                )
+            )
+
         node.gen.py_ast = [
             (
                 self.sync(
@@ -2736,6 +2746,7 @@ class PyastGenPass(UniPass):
         pynode = node.chain[0].gen.py_ast[0]
         chomp = [*node.chain]
         last_edge = None
+        from_visit = bool(isinstance(node.parent, uni.VisitStmt))
         if node.edges_only:
             for i in node.chain:
                 if isinstance(i, uni.EdgeOpRef):
@@ -2758,6 +2769,7 @@ class PyastGenPass(UniPass):
                         else None
                     ),
                     edges_only=node.edges_only and cur == last_edge,
+                    from_visit=from_visit,
                 )
                 if next_i and isinstance(next_i, uni.FilterCompr):
                     pynode = self.sync(
@@ -2787,6 +2799,7 @@ class PyastGenPass(UniPass):
                     cur,
                     targ=None,
                     edges_only=node.edges_only and cur == last_edge,
+                    from_visit=from_visit,
                 )
             else:
                 raise self.ice("Invalid edge ref trailer")
@@ -2807,6 +2820,7 @@ class PyastGenPass(UniPass):
         node: uni.EdgeOpRef,
         targ: ast3.AST | None,
         edges_only: bool,
+        from_visit: bool,
     ) -> ast3.AST:
         """Generate ast for edge op ref call."""
         keywords = [self.sync(ast3.keyword(arg="sources", value=cast(ast3.expr, loc)))]
@@ -2850,6 +2864,16 @@ class PyastGenPass(UniPass):
                     ast3.keyword(
                         arg="edges_only",
                         value=self.sync(ast3.Constant(value=edges_only)),
+                    )
+                )
+            )
+
+        if from_visit:
+            keywords.append(
+                self.sync(
+                    ast3.keyword(
+                        arg="from_visit",
+                        value=self.sync(ast3.Constant(value=from_visit)),
                     )
                 )
             )

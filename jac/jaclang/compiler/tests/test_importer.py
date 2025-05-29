@@ -111,3 +111,23 @@ class TestLoader(TestCase):
 
             os.environ.pop("JACPATH", None)
             jacpath_dir.cleanup()
+
+    def test_importer_with_submodule_jac(self) -> None:
+        """Test basic self loading."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        cli.run(self.fixture_abs_path("pkg_import_main.jac"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue()
+        self.assertIn("Helper function called", stdout_value)
+        self.assertIn("Tool function executed", stdout_value)
+
+    def test_importer_with_submodule_py(self) -> None:
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        cli.run(self.fixture_abs_path("pkg_import_main_py.jac"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue()
+        self.assertIn("Helper function called", stdout_value)
+        self.assertIn("Tool function executed", stdout_value)
+        self.assertIn("pkg_import_lib_py.glob_var_lib", stdout_value)
