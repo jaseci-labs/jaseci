@@ -1,20 +1,9 @@
 """Test Jac cli module."""
 
-import contextlib
-import inspect
 import io
-import os
-import re
-import subprocess
 import sys
-import traceback
-import unittest
 from jaclang.cli import cli
-from jaclang.cli.cmdreg import cmd_registry, extract_param_descriptions
-from jaclang.runtimelib.builtin import dotgen
 from jaclang.utils.test import TestCase
-
-from jaclang.settings import settings
 
 
 class JacCliTests(TestCase):
