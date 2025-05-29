@@ -122,6 +122,20 @@ node Person {
 * `name`, `age` are variable names (attributes of the `Person` node).
 * `str`, `int` are the corresponding data types of these variables (`str` for string, `int` for integer).
 
+<div class="code-block">
+```jac
+node Person {
+      has name: str;
+      has age: int;
+}
+
+with entry {
+      person1 = Person("Tom", 21);
+      print(person1);
+}
+```
+</div>
+
 **Abilities**
 
 Nodes, Walkers in Jaclang can have abilities defined to perform specific tasks. These abilities are structured as entry and exit points.

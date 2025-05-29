@@ -6,7 +6,7 @@ Start by cloning the **LittleX** repository to your local system:
 
 ```bash
 git clone https://github.com/Jaseci-Labs/littleX.git
-cd littlex
+cd littleX
 ```
 ### 2. Install Dependencies
 ```bash
