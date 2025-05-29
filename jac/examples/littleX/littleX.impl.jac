@@ -7,34 +7,34 @@ impl search_tweets {
 
 impl Profile.update {
     self.username = visitor.new_username;
-    report self ;
+    report self;
 }
 
 
 impl Profile.get {
-    follwers = [ {"id" : jid(i) , "username" : i.username } for i in [self-->( ` ? Profile )] ];
-    report {"user" : self , "followers" : follwers } ;
+    follwers = [ {"id": jid(i) , "username": i.username } for i in [self-->(`?Profile)] ];
+    report {"user": self , "followers": follwers };
 }
 
 
 impl Profile.follow {
-    current_profile = [root-->( ` ? Profile )];
-    current_profile[0] +>: Follow() :+> self;
-    report self ;
+    current_profile = [root-->(`?Profile)];
+    current_profile[0] +>:Follow():+> self;
+    report self;
 }
 
 
 impl Profile.un_follow {
-    current_profile = [root-->( ` ? Profile )];
+    current_profile = [root-->(`?Profile)];
     follow_edge = [edge current_profile[0]->:Follow:->self];
     del follow_edge[0] ;
-    report self ;
+    report self;
 }
 
 
 impl Tweet.update {
     self.content = visitor.updated_content;
-    report self ;
+    report self;
 }
 
 
@@ -45,26 +45,26 @@ impl Tweet.delete {
 
 
 impl Tweet.like_tweet {
-    current_profile = [root-->( ` ? Profile )];
-    self +>: Like() :+> current_profile[0];
-    report self ;
+    current_profile = [root-->(`?Profile)];
+    self +>:Like():+> current_profile[0];
+    report self;
 }
 
 
 impl Tweet.remove_like {
-    current_profile = [root-->( ` ? Profile )];
+    current_profile = [root-->(`?Profile)];
     like_edge = [edge self->:Like:->current_profile[0]];
     del like_edge[0] ;
-    report self ;
+    report self;
 }
 
 
 impl Tweet.comment {
-    current_profile = [root-->( ` ? Profile )];
-    comment_node = current_profile[0] +>: Post() :+> Comment(content=visitor.content);
+    current_profile = [root-->(`?Profile)];
+    comment_node = current_profile[0] +>:Post():+> Comment(content=visitor.content);
     _.perm_grant(comment_node[0], level="CONNECT");
     self ++> comment_node[0];
-    report comment_node[0] ;
+    report comment_node[0];
 }
 
 
@@ -76,7 +76,7 @@ impl Tweet.get_info {
         embedding=self.embedding,
         likes=[ i.username for i in [self->:Like:->] ],
         comments=[ 
-        {"username" : [i<--( ` ? Profile )][0].username , "id" : jid(i) , "content" : i.content } for i in [self-->( ` ? Comment )] ]
+        {"username": [i<--(`?Profile)][0].username , "id": jid(i) , "content": i.content } for i in [self-->(`?Comment)] ]
     );
 }
 
@@ -84,13 +84,13 @@ impl Tweet.get_info {
 impl Tweet.get {
     tweet_info = self.get_info();
     similarity = search_tweets(visitor.search_query, tweet_info.content);
-    visitor.results.append({"Tweet_Info" : tweet_info , "similarity" : similarity });
+    visitor.results.append({"Tweet_Info": tweet_info , "similarity": similarity });
 }
 
 
 impl Comment.update {
     self.content = visitor.updated_content;
-    report self ;
+    report self;
 }
 
 
@@ -101,7 +101,7 @@ impl Comment.delete {
 
 
 impl visit_profile.visit_profile {
-    visit [-->( ` ? Profile )] else {
+    visit [-->(`?Profile)] else {
         new_profile = here ++> Profile();
         _.perm_grant(new_profile[0], level="CONNECT");
         visit new_profile;
@@ -111,36 +111,36 @@ impl visit_profile.visit_profile {
 
 impl load_user_profiles.load_profiles {
     self.profiles: list = [];
-    for user in NodeAnchor.Collection.find({"name" : "Profile" }) {
+    for user in NodeAnchor.Collection.find({"name": "Profile" }) {
         user_node = user.archetype;
-        self.profiles.append({"name" : user_node.username , "id" : jid(user_node) });
+        self.profiles.append({"name": user_node.username , "id": jid(user_node) });
     }
 }
 
 
 impl load_user_profiles.report_profiles {
-    report self.profiles ;
+    report self.profiles;
 }
 
 
 impl create_tweet.tweet {
     embedding = vectorizer.fit_transform([self.content]).toarray().tolist();
-    tweet_node = here +>: Post() :+> Tweet(content=self.content, embedding=embedding);
+    tweet_node = here +>:Post():+> Tweet(content=self.content, embedding=embedding);
     _.perm_grant(tweet_node[0], level="CONNECT");
-    report tweet_node ;
+    report tweet_node;
 }
 
 
 impl load_feed.load {
     visit [->:Post:->];
-    ignore [-->( ` ? Comment )] ;
-    for user_node in [->:Follow:->( ` ? Profile )] {
-        visit [user_node-->( ` ? Tweet )];
+    ignore [-->(`?Comment)] ;
+    for user_node in [->:Follow:->(`?Profile)] {
+        visit [user_node-->(`?Tweet)];
     }
 }
 
 
 impl load_feed.report_feed {
     self.results.sort(key=lambda  x: dict: x['similarity'][0], reverse=True);
-    report self.results ;
+    report self.results;
 }
