@@ -132,6 +132,9 @@ class JClassType(JType):
         if name in self.instance_members:
             return self.instance_members[name]
 
+        if name in self.class_members:
+            return self.class_members[name]
+
         # Recursively check base classes
         for base in self.bases:
             member = base.get_member(name)
@@ -168,18 +171,3 @@ class JClassType(JType):
             bool: True if a corresponding method exists; False otherwise.
         """
         return op in self.class_members
-
-    def get_constrcutor(self) -> JFunctionType:
-        """
-        Retrieve the constructor (__init__) of the class.
-
-        If the class has no explicit __init__, returns a default constructor type
-        that takes no arguments and returns None.
-
-        Returns:
-            JFunctionType: The type of the constructor.
-        """
-        constructor = self.get_member("__init__")
-        assert constructor is not None
-        assert isinstance(constructor.type, JFunctionType)
-        return constructor.type

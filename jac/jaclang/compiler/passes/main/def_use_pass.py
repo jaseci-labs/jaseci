@@ -72,6 +72,22 @@ class DefUsePass(UniPass):
         for i in node.target.items:
             if isinstance(i, uni.AtomTrailer):
                 i.sym_tab.chain_def_insert(i.as_attr_list)
+                nodes = i.as_attr_list
+                if len(nodes) == 2:
+                    first_node = nodes[0]
+                    second_node = nodes[1]
+                    if (
+                        isinstance(first_node, uni.SpecialVarRef)
+                        and first_node.value == "self"
+                        and isinstance(second_node, uni.Name)
+                    ):
+                        class_symtab = node.find_parent_of_type(uni.Archetype)
+                        if class_symtab:
+                            has_symbol = class_symtab.lookup(second_node.sym_name)
+                            if has_symbol:
+                                second_node.name_spec.sym = has_symbol
+                            else:
+                                class_symtab.sym_tab.def_insert(second_node)
             elif isinstance(i, uni.AstSymbolNode):
                 i.sym_tab.def_insert(i)
             else:

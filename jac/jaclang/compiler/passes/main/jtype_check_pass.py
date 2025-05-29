@@ -1,7 +1,10 @@
 """Semantic analysis for Jac language."""
 
+from typing import cast
+
 import jaclang.compiler.jtyping as jtype
 import jaclang.compiler.unitree as ast
+from jaclang.compiler.jtyping.types.jclassmember import MemberKind
 from jaclang.compiler.passes import UniPass
 from jaclang.settings import settings
 
@@ -29,17 +32,12 @@ class JTypeCheckPass(UniPass):
         """Check the return var type across the annotated return type."""
         return_type = self.prog.type_resolver.get_type(node.expr)
 
-        func_decl = node.find_parent_of_type(ast.Ability)
+        func_decl = ast.find_parent_of_type(node, ast.Ability)
         if not func_decl:
-            impl_decl = node.parent_of_type(ast.ImplDef)
-            decl_link = impl_decl.decl_link
-            if decl_link is not None and isinstance(decl_link, ast.Ability):
-                func_decl = decl_link
-            else:
-                self.log_error(
-                    "Return statement not inside an ability, can't check return type"
-                )
-                return
+            self.log_error(
+                "Return statement not inside an ability, can't check return type"
+            )
+            return
         sig_ret_type = self.prog.type_resolver.get_type(func_decl.name_spec)
 
         assert isinstance(sig_ret_type, jtype.JFunctionType)
@@ -71,13 +69,32 @@ class JTypeCheckPass(UniPass):
         callable_type = self.prog.type_resolver.get_type(node.target)
 
         if isinstance(callable_type, jtype.JAnyType):
-            self.__debug_print("AnyType target func call!!!")
-            return
+            # if constructor is called through super and it was generated internally by Jac then we
+            # need this work arround as there is no symbol for this constructor
+            if (
+                isinstance(node.target, ast.AtomTrailer)
+                and node.target.as_attr_list[-1].sym_name == "__init__"
+                and node.target.as_attr_list[-2].sym_name == "super"
+            ):
+                assert isinstance(node.target.as_attr_list[-2], ast.Name)
+                assert node.target.as_attr_list[-2].sym is not None
+                class_inst_type = self.prog.type_resolver.get_type(
+                    node.target.as_attr_list[-2]
+                )
+                assert isinstance(class_inst_type, jtype.JClassInstanceType)
+                callable_type = class_inst_type.class_type.get_callable_signature()
+            else:
+                self.__debug_print("AnyType target func call!!!")
+                return
 
         assert isinstance(callable_type, (jtype.JFunctionType, jtype.JClassType))
 
         if isinstance(callable_type, jtype.JClassType):
-            callable_type = callable_type.get_constrcutor()
+            if callable_type.is_abstract:
+                self.log_error("Can't create an object from an abstract class")
+                return
+            else:
+                callable_type = callable_type.get_callable_signature()
 
         func_params = {a.name: a.type for a in callable_type.parameters}
 
@@ -138,10 +155,14 @@ class JTypeCheckPass(UniPass):
 
             # if the variable has no annotation and this is the first assignment for it
             # then set the var type to the val type
-            if (
-                isinstance(sym_type, jtype.JAnyType)
-                and isinstance(target, ast.Name)
-                and target.name_spec is target
+            if isinstance(sym_type, jtype.JAnyType) and (
+                (isinstance(target, ast.Name) and target.name_spec is target)
+                or (
+                    isinstance(target, ast.AtomTrailer)
+                    and isinstance(target.as_attr_list[-1], ast.AstSymbolNode)
+                    and target.as_attr_list[-1].name_spec is target.as_attr_list[-1]
+                    and target.as_attr_list[-1].name_spec.sym
+                )
             ):
                 self.prog.type_resolver.set_type(target, value_type)
 
@@ -167,7 +188,17 @@ class JTypeCheckPass(UniPass):
         """
         self.prune()  # prune the traversal into the atom trailer.
 
-        nodes = node.as_attr_list
+        for n in node.to_list:
+            assert isinstance(
+                n, (ast.Name | ast.FuncCall)
+            ), f"Expected all Name or FuncCall, Found {n}"
+        nodes = cast(list[ast.Name | ast.FuncCall], node.to_list)
+
+        if isinstance(nodes[0], ast.FuncCall) and isinstance(
+            nodes[0].target, ast.AtomTrailer
+        ):
+            self.enter_atom_trailer(nodes[0].target)
+
         first_item_type = self.prog.type_resolver.get_type(
             nodes[0]
         )  # Resolve type of base object.
@@ -186,10 +217,19 @@ class JTypeCheckPass(UniPass):
             else:
                 last_node_type = next_type
 
-            node_name = n.sym_name
-            member = last_node_type.get_member(
-                node_name
-            )  # Try to fetch the member from the current type.
+            if isinstance(n, ast.FuncCall):
+                assert isinstance(n.target, ast.Name)
+                node_name = n.target.sym_name
+            else:
+                node_name = n.sym_name
+            member = last_node_type.get_member(node_name)
+
+            if (
+                member
+                and isinstance(last_node_type, jtype.JClassType)
+                and member.kind == MemberKind.INSTANCE
+            ):
+                member = None
 
             if member is None:
                 # Attribute doesn't exist; log an error with context.
@@ -201,4 +241,8 @@ class JTypeCheckPass(UniPass):
             else:
                 # Update type for the next iteration and store the resolved symbol.
                 next_type = member.type
-                n.name_spec.sym = member.decl
+                if isinstance(n, ast.FuncCall):
+                    assert isinstance(n.target, ast.Name)
+                    n.target.name_spec.sym = member.decl
+                else:
+                    n.name_spec.sym = member.decl

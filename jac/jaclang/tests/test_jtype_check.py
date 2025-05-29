@@ -122,3 +122,50 @@ class JacCliTests(TestCase):
         
         for exp in expected_stdout_values:
             self.assertIn(exp, stdout_value)
+    
+    def test_declarations_oop(self) -> None:
+        """Basic test for pass."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        sys.stderr = captured_output
+        
+        cli.check(self.fixture_abs_path("type_check_tests/declarations/oop_err.jac"))
+        
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        stdout_value = captured_output.getvalue()
+
+        expected_stdout_values = (
+            "line 12, col 9: Error: Can't assign a value 'builtins.str' to a parameter 'shape_type' of type JClassType[ShapeType]",
+            "line 17, col 20: No member called 'kk' in 'oop_err.Circle' object",
+            "line 22, col 9: Error: Can't assign a value 'builtins.str' to a parameter 'radius' of type 'builtins.float'",
+            "line 23, col 5: Error: Can't assign a value 'builtins.int' to a 'builtins.bool' object",
+            "line 24, col 7: No member called 'kk' in 'oop_err.Circle' object",
+            "line 25, col 12: No member called 'b' in JClassType[Circle] object",
+            "Errors: 6, Warnings: 0"
+        )
+        
+        for exp in expected_stdout_values:
+            self.assertIn(exp, stdout_value)
+    
+    def test_declarations_enum(self) -> None:
+        """Basic test for pass."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        sys.stderr = captured_output
+        
+        cli.check(self.fixture_abs_path("type_check_tests/declarations/enum_err.jac"))
+        
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        stdout_value = captured_output.getvalue()
+
+        expected_stdout_values = (
+            "line 8, col 5: Error: Can't assign a value 'builtins.int' to a 'builtins.str' object",
+            "Errors: 1, Warnings: 0"
+        )
+        
+        for exp in expected_stdout_values:
+            self.assertIn(exp, stdout_value)

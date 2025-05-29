@@ -71,3 +71,26 @@ class JTypeCollectPass(UniPass):
         )
         self.prog.type_registry.register(class_type)
         self.__debug_print(f"Registered type: {type_full_name}")
+        self.prog.type_resolver.set_type(node.name_spec, class_type)
+
+    def enter_enum(self, node: uni.Enum) -> None:
+        """
+        Register the JClassType for a user-defined enum (class-like type).
+
+        This creates a `JClassType` shell and registers it in the type registry
+        with its fully qualified name.
+
+        Args:
+            node (uni.Enum): The AST node representing the eenum definition.
+        """
+        type_full_name = self.prog.mod.main.get_href_path(node)
+        class_type = jtype.JClassType(
+            name=node.sym_name,
+            full_name=type_full_name,
+            module=node.parent_of_type(uni.Module),
+            is_abstract=False,
+            instance_members={},
+            class_members={},
+        )
+        self.prog.type_registry.register(class_type)
+        self.__debug_print(f"Registered type: {type_full_name}")
