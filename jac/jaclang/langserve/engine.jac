@@ -32,11 +32,14 @@ class ModuleManager {
         self: ModuleManager,
         file_path: str,
         build: uni.Module,
-        update_annexed: bool = True
+        update_annexed: bool = True,
+        update_sem_toks: bool = True
     ) -> None {
         file_path = file_path.removeprefix('file://');
         self.program.mod.hub[file_path] = build;
-        self.sem_managers[file_path] = SemTokManager(ir=build);
+        if update_sem_toks {
+            self.sem_managers[file_path] = SemTokManager(ir=build);
+        }
         if update_annexed {
             for (p, mod) in self.program.mod.hub.items() {
                 if p != file_path {
@@ -94,10 +97,12 @@ LanguageServer) {
         self: JacLangServer,
         file_path: str,
         build: uni.Module,
-        need: bool = True
+        need: bool = True,
+        update_sem_toks: bool = True
     ) -> None {
         self.log_py(f"'Updating modules for '{file_path}");
-        self.module_manager.update(file_path, build, update_annexed=need);
+        self.module_manager.update(file_path, build, update_annexed=need,
+                                  update_sem_toks=update_sem_toks);
     }
 
     """Rebuild a file (syntax only)."""
@@ -111,7 +116,7 @@ LanguageServer) {
                 file_path=document.path,
                 mode=CMode.PARSE
             );
-            self.update_modules(file_path_fs, build, need=False);
+            self.update_modules(file_path_fs, build, need=False,update_sem_toks=False);
             self.publish_diagnostics(
                 file_path,
                 utils.gen_diagnostics(file_path, self.errors_had, self.warnings_had)

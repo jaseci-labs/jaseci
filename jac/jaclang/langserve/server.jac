@@ -43,6 +43,11 @@ async def did_change(
 ) -> None {
     file_path = params.text_document.uri;
     await ls.launch_quick_check(file_path);
+    document = ls.workspace.get_text_document(file_path);
+    lines = document.source.splitlines();
+    ls.get_ir(file_path).sem_manager.update_sem_tokens(
+        params, ls.get_ir(file_path).sem_manager.sem_tokens, lines
+    );
     ls.lsp.send_request(lspt.WORKSPACE_SEMANTIC_TOKENS_REFRESH);
 }
 
