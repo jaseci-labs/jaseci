@@ -57,6 +57,5 @@ jobs:
     - name: Run littleX tests
       run: |
         pip uninstall jac-splice-orc -y
-        pip install numpy
-        pip install scikit-learn
+        pip install numpy pandas scikit-learn
         jac test jac/examples/littleX/littleX.test.jac
