@@ -135,7 +135,9 @@ class JacLanguageTests(TestCase):
         captured_output = io.StringIO()
         sys.stdout = captured_output
         Jac.jac_import(
-            self.mach, "builtin_printgraph_mermaid", base_path=self.fixture_abs_path("./")
+            self.mach,
+            "builtin_printgraph_mermaid",
+            base_path=self.fixture_abs_path("./"),
         )
         sys.stdout = sys.__stdout__
         stdout_value = captured_output.getvalue()
@@ -541,7 +543,7 @@ class JacLanguageTests(TestCase):
         self.assertIn("assert (x == 5) , 'x should be equal to 5' ;", output)
         self.assertIn("if not (x == y) {", output)
         self.assertIn("def greet2(**kwargs: Any) {", output)
-        self.assertIn("squares_dict = { x : (x ** 2) for x in numbers };", output)
+        self.assertIn("squares_dict = { x: (x ** 2) for x in numbers };", output)
         self.assertIn(
             '\n\n"""Say hello"""\n@ my_decorator\n\n def say_hello() {', output
         )

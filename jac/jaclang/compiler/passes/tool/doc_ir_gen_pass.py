@@ -386,7 +386,11 @@ class DocIRGenPass(UniPass):
         """Generate DocIR for key-value pairs."""
         parts: list[doc.DocType] = []
         for i in node.kid:
-            parts.append(i.gen.doc_ir)
+            if isinstance(i, uni.Token) and i.name == Tok.COLON:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
+            else:
+                parts.append(i.gen.doc_ir)
             parts.append(self.space())
         node.gen.doc_ir = self.finalize(parts)
 
@@ -700,7 +704,11 @@ class DocIRGenPass(UniPass):
         """Generate DocIR for report statements."""
         parts: list[doc.DocType] = []
         for i in node.kid:
-            parts.append(i.gen.doc_ir)
+            if isinstance(i, uni.Token) and i.name == Tok.SEMI:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
+            else:
+                parts.append(i.gen.doc_ir)
             parts.append(self.space())
         node.gen.doc_ir = self.finalize(parts)
 
@@ -793,7 +801,6 @@ class DocIRGenPass(UniPass):
         parts: list[doc.DocType] = []
         for i in node.kid:
             parts.append(i.gen.doc_ir)
-            parts.append(self.space())
         node.gen.doc_ir = self.finalize(parts)
 
     def exit_disconnect_op(self, node: uni.DisconnectOp) -> None:
@@ -847,7 +854,6 @@ class DocIRGenPass(UniPass):
         parts: list[doc.DocType] = []
         for i in node.kid:
             parts.append(i.gen.doc_ir)
-            parts.append(self.space())
         node.gen.doc_ir = self.finalize(parts)
 
     def exit_assign_compr(self, node: uni.AssignCompr) -> None:
