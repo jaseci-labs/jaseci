@@ -4,7 +4,21 @@ Jaclang features a modular package system that helps organize code across multip
 
 ## Folder structure
 
-![Diagram](folder_structure.png)
+```mermaid
+flowchart TD
+    A["Project"] --> B["main.jac"] & C["library"]
+    C --> D["__init__.jac"] & E["tools.jac"] & F["sub"]
+    F --> G["__init__.jac"] & H["helper.jac"]
+    style A stroke:#FF6D00
+    style B stroke:#FF6D00
+    style C stroke:#FF6D00
+    style D stroke:#FF6D00
+    style E stroke:#FF6D00
+    style F stroke:#FF6D00
+    style G stroke:#FF6D00
+    style H stroke:#FF6D00
+    linkStyle 2 stroke:#FFFFFF,fill:none
+```
 
 ## File Description
 
@@ -27,11 +41,10 @@ with entry {
 
 2.library/__init_.jac
 
-This file initializes the `library` package, exposing the `tool_func` function and sub-package `sub`.
+This file initializes the `library` package, exposing the `tool_func` function.
 
 ```Jac linenums="1"
 import from .tools { tool_func }
-import from ..library { sub }
 ```
 
 3.library/tools.jac
@@ -54,11 +67,17 @@ import from .helper { help_func }
 
 5.library/sub/helper.jac
 
-Alternatively, we can define `help_func` here and import it into the `__init__.jac`
+Alternatively, we can define `help_func` in `helper.jac` and import it into the `__init__.jac`. Here, `..` refers to the parent directory, allowing relative imports within the Jac project structure.
 
 ```Jac linenums="1"
+import from ..tools { tool_func }
+
 def help_func() {
-    return 'Helper function called';
+    return 'Helper function called' ;
+}
+
+with entry {
+    print('Tool says:', tool_func()) ;
 }
 ```
 
@@ -69,6 +88,7 @@ Jaclang allows importing functions, variables, or objects from other modules usi
 1.Absolute Imports
 
 ```Jac linenums="1"
+#main.jac
 import from library.tools { tool_func }
 import from library.sub.helper { help_func }
 ```
@@ -77,15 +97,24 @@ Absolute imports specify the complete path to a module starting from the root of
 
 2.Relative Imports
 
-```Jac linenums="1"
-import from .tools { tool_func }
-import from ..library { sub }
-```
-
 Relative imports use dots `(. or ..)` to indicate location relative to the current file.
 
-- **Single dot (.)** - Current directory/module (`import from .tools {tool_func}`)
-- **Double dot (..)** - parent directory (`import from ..library {sub}`)
+- **Single dot (.)** - Current directory/module
+
+```Jac linenums="1"
+#library/sub/__init__.jac
+import from .helper { help_func }
+```
+
+The dot `.` in Jac imports means **current directory**. It lets you import modules or functions from the same folder as the current file, making code easier to organize and maintain without needing full paths. This is useful for accessing sibling files within a package cleanly and flexibly.
+
+- **Double dot (..)** - parent directory
+
+```Jac linenums="1"
+#library/sub/helper.jac
+import from ..tools { tool_func }
+```
+The `..` in Jac imports lets you access modules in the parent directory relative to the current file. It makes imports flexible and easier to manage by avoiding full absolute paths, helping keep code organized and maintainable in complex projects.
 
 ## How `__init__.jac` works in Jaclang
 
@@ -95,10 +124,25 @@ In Jaclang, the `__init__.jac` file plays a crucial role by defining the public 
 
 The `__init__.jac` file marks a directory as a Jac package and defines what is exposed when importing it. When Jaclang finds a folder with an `__init__.jac` file, it treats that folder as a package, allowing it to be used for imports rather than just a regular directory. Without this file, Jac won’t recognize the folder as a package properly, which can cause import issues and limit modular code organization.
 
-```
-library/
-├── __init__.jac      # Makes 'lib' an importable Jac package
-├── tools.jac
+```mermaid
+flowchart TD
+    A["library"] --> B["__init__.jac"]
+    A --> C["tools.jac"]
+
+    %% Comment nodes
+    Bc["Makes 'library' an importable Jac package"]
+
+    %% Link comments to files
+    B --- Bc
+
+    %% Styling
+    style A stroke:#FF6D00
+    style B stroke:#FF6D00
+    style C stroke:#FF6D00
+
+    style Bc fill:none,stroke:#FFFFFF,stroke-width:1px,font-style:italic,font-size:12px
+
+    linkStyle default stroke:#FFFFFF,fill:none
 ```
 
 2.Allows Selective Exports of functionality
@@ -107,7 +151,6 @@ The `__init__.jac` file can **import specific functions, classes, or modules** f
 
 ```Jac linenums="1"
 import from .tools { tool_func } # expose tool_func
-import from .sub.helper { help_func }
 ```
 
 In this abstraction helps to:
@@ -119,26 +162,46 @@ In this abstraction helps to:
 
 We can structure projects into meaningful subdirectories and use `__init__.jac` files at different levels to expose only the necessary components.
 
-```
-library/
-├── __init__.jac      # Can import from tools.jac and sub/__init__.jac
-├── tools.jac
-└── sub/
-    ├── __init__.jac  # Can import from helper.jac
-    └── helper.jac
+```mermaid
+flowchart TD
+    A["library"] --> B["__init__.jac"]
+    A --> C["tools.jac"]
+    A --> D["sub"]
+    D --> E["__init__.jac"]
+    D --> F["helper.jac"]
+
+    %% Comment nodes
+    Bc["Can import from tools.jac and sub/__init__.jac"]
+    Ec["Can import from helper.jac"]
+
+    %% Link comments to files
+    B --- Bc
+    E --- Ec
+
+    %% Styling
+    style A stroke:#FF6D00
+    style B stroke:#FF6D00
+    style C stroke:#FF6D00
+    style D stroke:#FF6D00
+    style E stroke:#FF6D00
+    style F stroke:#FF6D00
+
+    style Bc fill:none,stroke:#FFFFFF,stroke-width:1px,font-style:italic,font-size:12px
+    style Ec fill:none,stroke:#FFFFFF,stroke-width:1px,font-style:italic,font-size:12px
+
+    linkStyle default stroke:#FFFFFF,fill:none
 ```
 
 4. Makes Submodules Accessible During Imports
 
-`__init__.jac` is also useful for **exposing sub-packages** or allowing **nested modules to be accessed via top-level imports.**
+The __init__.jac file allows **exposing submodules** so that nested components can be accessed through **top-level imports**. This simplifies import statements in other files.
 
 `library/__init__.jac`
 ```Jac linenums="1"
 import from .tools { tool_func }
-import from .sub.helper { help_func }  // re-export from subpackage
 ```
 
-Now in main.jac, we can write:
+By including this import, you can now write the following in `main.jac`
 
 ```Jac linenums="1"
 import from library { tool_func, help_func }
@@ -152,7 +215,7 @@ with entry {
 }
 ```
 
-Without the re-export in `library/__init__.jac`, we would need more specific imports.
+Without the import in `library/__init__.jac`, you would need more explicit, nested imports:
 
 ```Jac linenums="1"
 import from library.tools { tool_func }
