@@ -410,7 +410,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         target_1 = (
             valid_exprs[0]
             if len(valid_exprs) > 1
-            else uni.TupleVal(values=target, kid=[target])
+            else uni.TupleVal(values=target.items, kid=target.kid)
         )
         return uni.DeleteStmt(
             target=target_1,
@@ -1555,13 +1555,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         l_square = self.operator(Tok.LSQUARE, "[")
         r_square = self.operator(Tok.RSQUARE, "]")
         return uni.ListVal(
-            values=(
-                uni.SubNodeList[uni.Expr](
-                    items=valid_elts, delim=Tok.COMMA, kid=valid_elts
-                )
-                if valid_elts
-                else None
-            ),
+            values=valid_elts if valid_elts else None,
             kid=[*valid_elts] if valid_elts else [l_square, r_square],
         )
 
@@ -1931,9 +1925,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             valid = [i for i in elts if isinstance(i, (uni.Expr))]
             if len(valid) != len(elts):
                 raise self.ice("Length mismatch in set body")
-            valid_elts = uni.SubNodeList[uni.Expr](
-                items=valid, delim=Tok.COMMA, kid=valid
-            )
+            valid_elts = valid
             kid: list[uni.UniNode] = [*valid]
         else:
             valid_elts = None
@@ -2024,7 +2016,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         ):
 
             slices: list[uni.IndexSlice.Slice] = []
-            for index_slice in slice.values.items:
+            for index_slice in slice.values:
                 if not isinstance(index_slice, uni.IndexSlice):
                     raise self.ice()
                 slices.append(index_slice.slices[0])
@@ -2148,9 +2140,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             valid = [i for i in elts if isinstance(i, (uni.Expr, uni.KWPair))]
             if len(elts) != len(valid):
                 raise self.ice("Length mismatch in tuple elts")
-            valid_elts = uni.SubNodeList[uni.Expr | uni.KWPair](
-                items=valid, delim=Tok.COMMA, kid=valid
-            )
+            valid_elts = valid
             kid = elts
         else:
             l_paren = self.operator(Tok.LPAREN, "(")
