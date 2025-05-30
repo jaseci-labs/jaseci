@@ -15,7 +15,7 @@ from mtllm.aott import (
 )
 from mtllm.llms.base import BaseLLM
 from mtllm.semtable import SemInfo, SemRegistry, SemScope
-from mtllm.types import InputInformation, OutputHint, Tool
+from mtllm.types import Information, InputInformation, OutputHint, Tool
 
 
 def extract_params(
@@ -182,6 +182,7 @@ class JacMachine:
 
         type_collector: list = []
         incl_info = [x for x in incl_info if not isinstance(x[1], type)]
+        information = [Information(mod_registry, x[0], x[1]) for x in incl_info]
 
         inputs_information = []
         for input_item in inputs:
@@ -207,9 +208,11 @@ class JacMachine:
         else:
             _tools = []
 
+        print(information)
+
         meaning_out = aott_raise(
             model,
-            [],  # TODO: Collect and pass information here.
+            information,  # TODO: Collect and pass information here.
             inputs_information,
             output_hint,
             type_explanations,
