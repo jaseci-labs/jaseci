@@ -182,8 +182,6 @@ class JacMachine:
 
         type_collector: list = []
         incl_info = [x for x in incl_info if not isinstance(x[1], type)]
-        informations = []
-        type_collector.extend([x.get_types() for x in informations])
 
         inputs_information = []
         for input_item in inputs:
@@ -211,7 +209,7 @@ class JacMachine:
 
         meaning_out = aott_raise(
             model,
-            informations,
+            [],  # TODO: Collect and pass information here.
             inputs_information,
             output_hint,
             type_explanations,

@@ -189,6 +189,9 @@ class SemRegistry:
         symbol_table = scope_obj.get_parent()
         if not symbol_table:
             return None, None  # Symbol table not found
+
+        sem_scope: Optional[SemScope] = None
+
         # Lookup by scope
         if scope:
             symbol = symbol_table.lookup(scope.scope)
