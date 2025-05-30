@@ -1053,7 +1053,7 @@ class GlobalVars(ElementStmt, AstAccessNode):
     def __init__(
         self,
         access: Optional[SubTag[Token]],
-        assignments: SubNodeList[Assignment],
+        assignments: Sequence[Assignment],
         is_frozen: bool,
         kid: Sequence[UniNode],
         doc: Optional[String] = None,
@@ -1068,7 +1068,8 @@ class GlobalVars(ElementStmt, AstAccessNode):
         res = True
         if deep:
             res = self.access.normalize(deep) if self.access else True
-            res = res and self.assignments.normalize(deep)
+            for i in self.assignments:
+                res = res and i.normalize(deep)
             res = res and self.doc.normalize(deep) if self.doc else res
         new_kid: list[UniNode] = []
         if self.doc:
@@ -1079,7 +1080,15 @@ class GlobalVars(ElementStmt, AstAccessNode):
             new_kid.append(self.gen_token(Tok.KW_GLOBAL))
         if self.access:
             new_kid.append(self.access)
-        new_kid.append(self.assignments)
+        num_assignments = len(self.assignments)
+        for idx in range(num_assignments):
+            assign_node = self.assignments[idx]
+            new_kid.append(assign_node)
+            if idx < num_assignments - 1:
+                new_kid.append(self.gen_token(Tok.COMMA))
+        new_kid.append(
+            self.gen_token(Tok.SEMI)
+        )  # GlobalVars statement is semicolon-terminated
         self.set_kids(nodes=new_kid)
         return res
 
@@ -2803,12 +2812,14 @@ class Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt):
             if not self.aug_op:
                 new_kid.append(self.gen_token(Tok.EQ))
             new_kid.append(self.value)
-        if isinstance(self.parent, SubNodeList) and isinstance(
-            self.parent.parent, GlobalVars
+        # Assignments within GlobalVars are comma-separated by GlobalVars.normalize
+        # and the GlobalVars statement itself is semicolon-terminated.
+        # So, individual assignments in GlobalVars should not add a semicolon.
+        if (
+            not (isinstance(self.parent, GlobalVars))
+            and (not self.is_enum_stmt)
+            and not isinstance(self.parent, IterForStmt)
         ):
-            if self.parent.kid.index(self) == len(self.parent.kid) - 1:
-                new_kid.append(self.gen_token(Tok.SEMI))
-        elif (not self.is_enum_stmt) and not isinstance(self.parent, IterForStmt):
             new_kid.append(self.gen_token(Tok.SEMI))
         self.set_kids(nodes=new_kid)
         return res

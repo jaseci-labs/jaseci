@@ -327,19 +327,44 @@ class PyastGenPass(UniPass):
         node.gen.py = ast3.unparse(node.gen.py_ast[0])
 
     def exit_global_vars(self, node: uni.GlobalVars) -> None:
+        py_stmt_list: list[ast3.stmt] = []
+        for assign_node in node.assignments:
+            # Ensure assign_node.gen.py_ast is a list of ast3.stmt
+            py_expr_list = assign_node.gen.py_ast
+            if isinstance(py_expr_list, list):
+                for py_expr in py_expr_list:
+                    if isinstance(py_expr, ast3.stmt):
+                        py_stmt_list.append(py_expr)
+                    else:
+                        # This case should ideally not happen if assignments always produce statements
+                        self.ice(
+                            f"Expected ast3.stmt from assignment, got {type(py_expr)}"
+                        )
+            elif isinstance(
+                py_expr_list, ast3.stmt
+            ):  # Should be an AnnAssign or Assign
+                py_stmt_list.append(py_expr_list)
+            else:
+                self.ice(
+                    f"Unexpected py_ast type from assignment: {type(py_expr_list)}"
+                )
+
         if node.doc:
-            doc = self.sync(
+            doc_py_ast = self.sync(
                 ast3.Expr(value=cast(ast3.expr, node.doc.gen.py_ast[0])),
                 jac_node=node.doc,
             )
-            if isinstance(doc, ast3.AST) and isinstance(
-                node.assignments.gen.py_ast, list
-            ):
-                node.gen.py_ast = [doc] + node.assignments.gen.py_ast
+            if isinstance(doc_py_ast, ast3.Expr):
+                node.gen.py_ast = [cast(ast3.AST, doc_py_ast)] + cast(
+                    list[ast3.AST], py_stmt_list
+                )
             else:
-                raise self.ice()
+                # This case implies doc_py_ast is not an ast3.Expr which is unexpected
+                self.ice(
+                    "Failed to generate py_ast for GlobalVars docstring as ast3.Expr"
+                )
         else:
-            node.gen.py_ast = node.assignments.gen.py_ast
+            node.gen.py_ast = cast(list[ast3.AST], py_stmt_list)
 
     def exit_test(self, node: uni.Test) -> None:
         test_name = node.name.sym_name

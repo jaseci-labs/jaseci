@@ -296,7 +296,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             assignments = self.consume(uni.SubNodeList)
             return uni.GlobalVars(
                 access=access_tag,
-                assignments=assignments,
+                assignments=assignments.items,
                 is_frozen=is_frozen,
                 kid=self.cur_nodes,
             )
