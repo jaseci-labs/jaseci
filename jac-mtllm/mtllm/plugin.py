@@ -1,7 +1,7 @@
 """Plugin for Jac's with_llm feature."""
 
 import ast as ast3
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence, cast
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import Constants as Con
@@ -156,7 +156,7 @@ class JacMachine:
         """Jac's with_llm feature."""
         machine = JacMachineInterface.py_get_jac_machine()
         program_head = machine.jac_program.mod
-        _scope = SemScope.get_scope_from_str(scope)
+        _scope = SemScope.get_scope_from_str(scope) or SemScope(program_head.main.name, "Module", None)
         mod_registry = SemRegistry(program_head=program_head, by_scope=_scope)
 
         if not program_head:
@@ -258,9 +258,9 @@ class JacMachine:
                             elts=[
                                 (_pass.sync(ast3.Constant(value=None))),
                                 (
-                                    param.type_tag.tag.gen.py_ast[0]
+                                    cast(ast3.expr, param.type_tag.tag.gen.py_ast[0])
                                     if param.type_tag
-                                    else None
+                                    else _pass.sync(ast3.Constant(value="object"))
                                 ),
                                 _pass.sync(ast3.Constant(value=param.name.value)),
                                 _pass.sync(
@@ -350,7 +350,7 @@ class JacMachine:
                     _pass.sync(
                         ast3.keyword(
                             arg="model",
-                            value=model,
+                            value=cast(ast3.expr, model),
                         )
                     ),
                     _pass.sync(
@@ -363,7 +363,7 @@ class JacMachine:
                                         for key in model_params.keys()
                                     ],
                                     values=[
-                                        value.gen.py_ast[0]
+                                        cast(ast3.expr, value.gen.py_ast[0])
                                         for value in model_params.values()
                                     ],
                                 )
@@ -373,7 +373,7 @@ class JacMachine:
                     _pass.sync(
                         ast3.keyword(
                             arg="scope",
-                            value=scope,
+                            value=cast(ast3.expr, scope),
                         )
                     ),
                     _pass.sync(
@@ -388,7 +388,7 @@ class JacMachine:
                                                     _pass.sync(
                                                         ast3.Constant(value=key)
                                                     ),
-                                                    value,
+                                                    cast(ast3.expr, value),
                                                 ],
                                                 ctx=ast3.Load(),
                                             )
@@ -412,7 +412,7 @@ class JacMachine:
                                                     _pass.sync(
                                                         ast3.Constant(value=key)
                                                     ),
-                                                    value,
+                                                    cast(ast3.expr, value),
                                                 ],
                                                 ctx=ast3.Load(),
                                             )
@@ -429,7 +429,7 @@ class JacMachine:
                             arg="inputs",
                             value=_pass.sync(
                                 ast3.List(
-                                    elts=inputs,
+                                    elts=cast(list[ast3.expr], inputs),
                                     ctx=ast3.Load(),
                                 )
                             ),
@@ -441,7 +441,7 @@ class JacMachine:
                             value=(
                                 _pass.sync(
                                     ast3.Tuple(
-                                        elts=outputs,
+                                        elts=cast(list[ast3.expr], outputs),
                                         ctx=ast3.Load(),
                                     )
                                 )
@@ -453,7 +453,7 @@ class JacMachine:
                     _pass.sync(
                         ast3.keyword(
                             arg="action",
-                            value=action,
+                            value=cast(ast3.expr, action),
                         )
                     ),
                     _pass.sync(
@@ -649,7 +649,7 @@ class JacMachine:
                                     )
                                 )
                             ),
-                            kw_pair.value.gen.py_ast[0],
+                            kw_pair.value.gen.py_ast[0],  # type: ignore
                         ],
                         ctx=ast3.Load(),
                     )
@@ -678,9 +678,9 @@ class JacMachine:
     ) -> Optional[str]:
         """Jac's get_semstr_type feature."""
 
-        _scope = SemScope.get_scope_from_str(scope)
         machine = JacMachineInterface.py_get_jac_machine()
         program_head = machine.jac_program.mod
+        _scope = SemScope.get_scope_from_str(scope) or SemScope(program_head.main.name, "Module", None)
         mod_registry = SemRegistry(program_head=program_head, by_scope=_scope)
         _, attr_seminfo = mod_registry.lookup(_scope, attr)
         if attr_seminfo and isinstance(attr_seminfo, SemInfo):
@@ -693,7 +693,8 @@ class JacMachine:
         """Jac's gather_scope feature."""
         machine = JacMachineInterface.py_get_jac_machine()
         program_head = machine.jac_program.mod
-        mod_registry = SemRegistry(program_head=program_head, by_scope=None)
+        root_scope = SemScope(program_head.main.name, "Module", None)
+        mod_registry = SemRegistry(program_head=program_head, by_scope=root_scope)
 
         attr_scope = None
         for x in attr.split("."):
@@ -729,9 +730,11 @@ class JacMachine:
 
         machine = JacMachineInterface.py_get_jac_machine()
         program_head = machine.jac_program.mod
-        mod_registry = SemRegistry(program_head=program_head, by_scope=None)
+        # Create a root scope for the module
+        root_scope = SemScope(program_head.main.name, "Module", None)
+        mod_registry = SemRegistry(program_head=program_head, by_scope=root_scope)
 
-        attr_scope = None
+        attr_scope, attr_sem_info = None, None
         for x in attr.split("."):
             attr_scope, attr_sem_info = mod_registry.lookup(attr_scope, x)
             if isinstance(attr_sem_info, SemInfo) and attr_sem_info.type not in [

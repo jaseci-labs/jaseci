@@ -110,7 +110,7 @@ class SemRegistry:
     """Registry class for semantic information."""
 
     def __init__(
-        self, program_head: uni.ProgramModule, by_scope: Optional[SemScope]
+        self, program_head: uni.ProgramModule, by_scope: SemScope
     ) -> None:
         """Initialize the registry with the program head and current scope."""
         self.program_head: uni.ProgramModule = program_head
