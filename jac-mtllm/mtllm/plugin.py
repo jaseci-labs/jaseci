@@ -208,8 +208,6 @@ class JacMachine:
         else:
             _tools = []
 
-        print(information)
-
         meaning_out = aott_raise(
             model,
             information,  # TODO: Collect and pass information here.
