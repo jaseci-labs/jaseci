@@ -1,6 +1,11 @@
-import from mtllm.llms { OpenAI }
+import from mtllm.llms { OpenAI, FakeLLM }
 
-glob llm = OpenAI(model_name="gpt-4o", verbose=False);
+# glob llm = OpenAI(model_name="gpt-4o", verbose=False);
+glob llm = FakeLLM(
+    print_prompt=True,
+    default="[Output] Person(name='Chandra', age=28, employer=Employer(employer_name='Jaseci Labs', location='Sri Lanka'), job='ML Engineer')"
+);
+
 
 obj Employer {
     has employer_name: str,

@@ -1,20 +1,16 @@
-import from mtllm.llms { BaseLLM }
+import from mtllm.llms { FakeLLM }
 
-obj model(BaseLLM) {
-    def init(output_str: str) {
-        super.__init__();
-        self.output_str = output_str;
-    }
-
-    def __infer__(meaning_in: str, **kwargs: dict) {
-        print("Meaning in: ", meaning_in);
-        return f"[Output] {self.output_str}";
-    }
-}
-
-glob llm1 = model(
-    output_str="Person(name='Albert Einstein', dob='14/03/1879', age=76)"
+glob llm1 = FakeLLM(
+    print_prompt=True,
+    default="[Output] Person(name='Albert Einstein', dob='14/03/1879', age=76)",
 );
+
+
+glob llm2 = FakeLLM(
+    print_prompt=True,
+    default="[Output] University.Department(name='Computer Science', head=Person(name='Jason Mars', dob='1994-01-01', age=30))"
+);
+
 
 obj Person {
     has name: str,
@@ -26,10 +22,6 @@ with entry {
     einstein: Person = Person(name="Albert Einstein" by llm1());
     print(einstein.dob); #14/03/1879
 }
-
-glob llm2 = model(
-    output_str="University.Department(name='Computer Science', head=Person(name='Jason Mars', dob='1994-01-01', age=30))"
-);
 
 obj University {
     has name: str,

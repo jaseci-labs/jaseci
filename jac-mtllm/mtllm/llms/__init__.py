@@ -20,4 +20,5 @@ __all__ = [
     "OpenAI",
     "TogetherAI",
     "BaseLLM",
+    "FakeLLM",
 ]

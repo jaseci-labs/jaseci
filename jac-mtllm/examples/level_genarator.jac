@@ -60,7 +60,7 @@ obj LevelManager {
 '''Get the map of the level'''
 def get_map(map: Map) -> str {
     map_tiles = [['.' for _ in range(map.level.width)] for _ in range(map.level.height)];
-    
+
     for wall in map.walls {
         for x in range(wall.start_pos.x, wall.end_pos.x + 1) {
             for y in range(wall.start_pos.y, wall.end_pos.y + 1) {
@@ -68,11 +68,11 @@ def get_map(map: Map) -> str {
             }
         }
     }
-    
+
     for obs in map.small_obstacles {
         map_tiles[obs.y-1][obs.x-1] = 'B';
     }
-    
+
     for enemy in map.enemies {
         map_tiles[enemy.y-1][enemy.x-1] = 'E';
     }

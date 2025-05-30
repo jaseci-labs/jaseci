@@ -197,6 +197,7 @@ class BaseLLM:
             "Any",
             "None",
         ]
+        output = ""
         if re.search(r"\[Output\]", meaning_out, re.IGNORECASE):
             output_match = re.search(r"\[Output\](.*)", meaning_out, re.DOTALL)
             if output_match:
@@ -252,7 +253,7 @@ class BaseLLM:
                     output_match = None
             if output_match:
                 output = output_match.group(0).strip()
-        
+
         if not output_match:
             output = self._extract_output(
                 meaning_out,
