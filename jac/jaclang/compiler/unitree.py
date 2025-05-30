@@ -30,6 +30,8 @@ from jaclang.compiler.constant import (
     SymbolType,
 )
 from jaclang.compiler.constant import DELIM_MAP, SymbolAccess, Tokens as Tok
+from jaclang.compiler.jtyping.types.janytype import JAnyType
+from jaclang.compiler.jtyping.types.jtype import JType
 from jaclang.utils import resolve_relative_path
 from jaclang.utils.treeprinter import (
     print_ast_tree,
@@ -242,6 +244,7 @@ class Symbol:
         defn.sym = self
         self.access: SymbolAccess = access
         self.parent_tab = parent_tab
+        self.jtype: JType = JAnyType()
 
     @property
     def decl(self) -> NameAtom:
@@ -3458,6 +3461,19 @@ class AtomTrailer(Expr):
             trag_list.insert(0, left)
         return trag_list
 
+    @property
+    def to_list(self) -> list[Expr]:
+        nodes: list[Expr] = []
+        if isinstance(self.target, AtomTrailer):
+            nodes += self.target.to_list
+        else:
+            nodes.append(self.target)
+        if isinstance(self.right, AtomTrailer):
+            nodes += self.right.to_list
+        else:
+            nodes.append(self.right)
+        return nodes
+
 
 class AtomUnit(Expr):
     """AtomUnit node type for Jac Ast."""
@@ -4601,3 +4617,24 @@ class PythonModuleAst(EmptyToken):
         self.ast = ast
         self.orig_src = orig_src
         self.file_path = orig_src.file_path
+
+
+# TODO: Give a better name for this function
+def parent_of_type(node: UniNode, typ: Type[T]) -> T:
+    trial = node.find_parent_of_type(typ)
+    if trial:
+        return trial
+    impl_node = node.parent_of_type(ImplDef)
+    assert isinstance(impl_node.decl_link, typ)
+    return impl_node.decl_link
+
+
+def find_parent_of_type(node: UniNode, typ: Type[T]) -> Optional[T]:
+    trial = node.find_parent_of_type(typ)
+    if trial:
+        return trial
+    impl_node = node.parent_of_type(ImplDef)
+    if impl_node.decl_link:
+        assert isinstance(impl_node.decl_link, typ)
+        return impl_node.decl_link
+    return None
