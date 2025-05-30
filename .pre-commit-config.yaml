@@ -35,4 +35,7 @@ repos:
           - --ignore-missing-imports
           - --install-types
           - --non-interactive
+          - --config-file=mypy.ini
+          - --explicit-package-bases
+          - --exclude=jac-mtllm/scripts
         additional_dependencies: [types-PyYAML]

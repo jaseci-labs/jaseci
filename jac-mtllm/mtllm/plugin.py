@@ -4,7 +4,6 @@ import ast as ast3
 from typing import Any, Callable, Mapping, Optional, Sequence, cast
 
 import jaclang.compiler.unitree as uni
-from jaclang.compiler.constant import Constants as Con
 from jaclang.compiler.passes.main.pyast_gen_pass import PyastGenPass
 from jaclang.runtimelib.machine import JacMachineInterface, hookimpl
 
@@ -16,8 +15,7 @@ from mtllm.aott import (
 )
 from mtllm.llms.base import BaseLLM
 from mtllm.semtable import SemInfo, SemRegistry, SemScope
-from mtllm.types import Information, InputInformation, OutputHint, Tool
-from mtllm.utils import get_filtered_registry
+from mtllm.types import InputInformation, OutputHint, Tool
 
 
 def extract_params(
@@ -156,7 +154,9 @@ class JacMachine:
         """Jac's with_llm feature."""
         machine = JacMachineInterface.py_get_jac_machine()
         program_head = machine.jac_program.mod
-        _scope = SemScope.get_scope_from_str(scope) or SemScope(program_head.main.name, "Module", None)
+        _scope = SemScope.get_scope_from_str(scope) or SemScope(
+            program_head.main.name, "Module", None
+        )
         mod_registry = SemRegistry(program_head=program_head, by_scope=_scope)
 
         if not program_head:
@@ -181,12 +181,8 @@ class JacMachine:
         )
 
         type_collector: list = []
-
-        # filtered_registry = get_filtered_registry(mod_registry, _scope)
         incl_info = [x for x in incl_info if not isinstance(x[1], type)]
-        informations = (
-            []
-        )  # [Information(filtered_registry, x[0], x[1]) for x in incl_info]
+        informations = []
         type_collector.extend([x.get_types() for x in informations])
 
         inputs_information = []
@@ -288,8 +284,14 @@ class JacMachine:
                 else []
             )
             # Use the ability name as action, and if docstring exists, append it
-            docstr =  ((node.doc and node.doc.lit_value) or "") if isinstance(node, uni.AstDocNode) else ""
-            action = _pass.sync(ast3.Constant(value=f"{docstr.strip()} ({node.name_ref.sym_name})\n"))
+            docstr = (
+                ((node.doc and node.doc.lit_value) or "")
+                if isinstance(node, uni.AstDocNode)
+                else ""
+            )
+            action = _pass.sync(
+                ast3.Constant(value=f"{docstr.strip()} ({node.name_ref.sym_name})\n")
+            )
             return [
                 _pass.sync(
                     ast3.Return(
@@ -677,10 +679,11 @@ class JacMachine:
         file_loc: str, scope: str, attr: str, return_semstr: bool
     ) -> Optional[str]:
         """Jac's get_semstr_type feature."""
-
         machine = JacMachineInterface.py_get_jac_machine()
         program_head = machine.jac_program.mod
-        _scope = SemScope.get_scope_from_str(scope) or SemScope(program_head.main.name, "Module", None)
+        _scope = SemScope.get_scope_from_str(scope) or SemScope(
+            program_head.main.name, "Module", None
+        )
         mod_registry = SemRegistry(program_head=program_head, by_scope=_scope)
         _, attr_seminfo = mod_registry.lookup(_scope, attr)
         if attr_seminfo and isinstance(attr_seminfo, SemInfo):
@@ -727,7 +730,6 @@ class JacMachine:
     @hookimpl
     def get_sem_type(file_loc: str, attr: str) -> tuple[str | None, str | None]:
         """Jac's get_semstr_type implementation."""
-
         machine = JacMachineInterface.py_get_jac_machine()
         program_head = machine.jac_program.mod
         # Create a root scope for the module

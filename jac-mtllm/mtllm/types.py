@@ -7,7 +7,6 @@ from io import BytesIO
 from typing import Any, Callable
 
 from mtllm.semtable import SemInfo, SemRegistry, SemScope
-
 from mtllm.utils import extract_non_primary_type, get_object_string, get_type_annotation
 
 cv2 = importlib.import_module("cv2") if importlib.util.find_spec("cv2") else None
@@ -17,10 +16,10 @@ PILImage = (
 
 
 class Video:
-    """Class to represent a video."""
+    """Represent a video."""
 
     def __init__(self, file_path: str, seconds_per_frame: int = 2) -> None:
-        """Initializes the Video class."""
+        """Initialize the Video class."""
         assert (
             cv2 is not None
         ), "Please install the required dependencies by running `pip install mtllm[video]`."
@@ -30,7 +29,7 @@ class Video:
     def process(
         self,
     ) -> list:
-        """Processes the video and returns a list of base64 encoded frames."""
+        """Process the video and return a list of base64 encoded frames."""
         assert (
             cv2 is not None
         ), "Please install the required dependencies by running `pip install mtllm[video]`."
@@ -65,17 +64,17 @@ class Video:
 
 
 class Image:
-    """Class to represent an image."""
+    """Represent an image."""
 
     def __init__(self, file_path: str) -> None:
-        """Initializes the Image class."""
+        """Initialize the Image class."""
         assert (
             PILImage is not None
         ), "Please install the required dependencies by running `pip install mtllm[image]`."
         self.file_path = file_path
 
     def process(self) -> tuple[str, str]:
-        """Processes the image and returns a base64 encoded image and its format."""
+        """Process the image and return a base64 encoded image and its format."""
         assert (
             PILImage is not None
         ), "Please install the required dependencies by running `pip install mtllm[image]`."
@@ -88,12 +87,12 @@ class Image:
                 img_format.lower(),
             )
 
-# And Here
+
 class TypeExplanation:
-    """Class to represent a type explanation."""
+    """Represent a type explanation."""
 
     def __init__(self, type_item: str, mod_registry: SemRegistry) -> None:
-        """Initializes the TypeExplanation class."""
+        """Initialize the TypeExplanation class."""
         self.type_item = type_item
         self.explanation, self._nested_types = self.get_type_explanation(mod_registry)
 
@@ -119,9 +118,13 @@ class TypeExplanation:
                         )
                     )
                 type_example = ", ".join(type_example_list)
-            elif sem_info.type in ["object", "class", "node", "edge", "walker"] and isinstance(
-                type_info, list
-            ):
+            elif sem_info.type in [
+                "object",
+                "class",
+                "node",
+                "edge",
+                "walker",
+            ] and isinstance(type_info, list):
                 for arch_item in type_info:
                     if arch_item.type in ["object", "class", "node", "edge", "walker"]:
                         continue
@@ -140,7 +143,7 @@ class TypeExplanation:
         return "", set()
 
     def __str__(self) -> str:
-        """Returns the string representation of the TypeExplanation class."""
+        """Return the string representation of the TypeExplanation class."""
         return self.explanation
 
     @property
@@ -150,21 +153,21 @@ class TypeExplanation:
 
 
 class InputInformation:
-    """Class to represent the input information."""
+    """Represent the input information."""
 
     def __init__(self, semstr: str, name: str, value: Any) -> None:  # noqa: ANN401
-        """Initializes the InputInformation class."""
+        """Initialize the InputInformation class."""
         self.semstr = semstr
         self.name = name
         self.value = value
 
     def __str__(self) -> str:
-        """Returns the string representation of the InputInformation class."""
+        """Return the string representation of the InputInformation class."""
         type_anno = get_type_annotation(self.value)
         return f"{self.semstr if self.semstr else ''} ({self.name}) ({type_anno}) = {get_object_string(self.value)}".strip()  # noqa: E501
 
     def to_list_dict(self) -> list[dict]:
-        """Returns the list of dictionaries representation of the InputInformation class."""
+        """Return the list of dictionaries representation of the InputInformation class."""
         input_type = get_type_annotation(self.value)
         if input_type == "Image":
             img_base64, img_type = self.value.process()
@@ -209,15 +212,15 @@ class InputInformation:
 
 
 class OutputHint:
-    """Class to represent the output hint."""
+    """Represent the output hint."""
 
     def __init__(self, semstr: str, type: str) -> None:  # noqa: ANN401
-        """Initializes the OutputHint class."""
+        """Initialize the OutputHint class."""
         self.semstr = semstr
         self.type = type
 
     def __str__(self) -> str:
-        """Returns the string representation of the OutputHint class."""
+        """Return the string representation of the OutputHint class."""
         return f"{self.semstr if self.semstr else ''} ({self.type})".strip()
 
     def get_types(self) -> list:
@@ -226,12 +229,12 @@ class OutputHint:
 
 
 class Information:
-    """Class to represent the information."""
+    """Represent the information."""
 
     def __init__(
         self, filtered_registry: SemRegistry, name: str, value: Any  # noqa: ANN401
     ) -> None:
-        """Initializes the Information class."""
+        """Initialize the Information class."""
         self.name = name
         self.value = value
         self.registry = filtered_registry
@@ -250,10 +253,10 @@ class Information:
             sem_info.type
             if sem_info and isinstance(sem_info, SemInfo)
             else get_type_annotation(self.value)
-        )
+        ) or ""
 
     def __str__(self) -> str:
-        """Returns the string representation of the Information class."""
+        """Return the string representation of the Information class."""
         type_anno = get_type_annotation(self.value)
         return f"{self.semstr} ({self.name}) ({type_anno}) = {get_object_string(self.value)}".strip()
 
@@ -285,22 +288,22 @@ class Tool:
         return f"{self.sem_info.name}({', '.join([get_param_str(x) for x in self.params])})"
 
     def __str__(self) -> str:
-        """String representation of the tool."""
-        tool_str  = f"tool_name={self.sem_info.name}\n"
+        """Return a string representation of the tool."""
+        tool_str = f"tool_name={self.sem_info.name}\n"
         tool_str += f"tool_description={self.sem_info.semstr.strip()}\n"
         tool_str += f"usage_example={self.get_usage_example()}\n"
         return tool_str
 
 
 class ReActOutput:
-    """Class to represent the ReAct output."""
+    """Represent the ReAct output."""
 
     def __init__(self, thought: str, action: str, observation: str) -> None:
-        """Initializes the ReActOutput class."""
+        """Initialize the ReActOutput class."""
         self.thought = thought
         self.action = action
         self.observation = observation
 
     def __repr__(self) -> str:
-        """Returns the string representation of the ReActOutput class."""
+        """Return the string representation of the ReActOutput class."""
         return f"ReActOutput(thought={self.thought}, action={self.action}, observation={self.observation})"

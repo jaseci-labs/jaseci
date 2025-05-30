@@ -17,7 +17,7 @@ assert API_HEADERS["X-API-KEY"], "Please set the SERPER_API_KEY environment vari
 
 
 def serper_search_tool(query: str) -> str:
-    """Searches the Serper API."""
+    """Search the Serper API."""
     payload = json.dumps(
         {
             "q": query,

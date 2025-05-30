@@ -1361,6 +1361,7 @@ class JacBasics:
         """Jac's get_semstr_type implementation."""
         return None, None
 
+
 class JacUtils:
     """Jac Machine Utilities."""
 
