@@ -5,14 +5,39 @@ Data spatial references provide specialized syntax for navigating and manipulati
 Edge references use square bracket notation with directional operators to express graph navigation:
 
 ```jac
-[-->]                    # All outgoing edges
-[<--]                    # All incoming edges  
-[<-->]                   # All bidirectional edges
-[-->:EdgeType:]          # Typed outgoing edges
-[node --> target]        # Specific edge path
+[-->]                    # All nodes connected by outgoing edges (default)
+[<--]                    # All nodes connected by incoming edges (default)
+[<-->]                   # All nodes connected by bidirectional edges (default)
+[edge -->]               # All outgoing edges themselves
+[edge <--]               # All incoming edges themselves
+[edge <-->]              # All bidirectional edges themselves
+[-->:EdgeType:]          # Typed nodes via outgoing edges
+[edge -->:EdgeType:]     # Typed outgoing edges themselves
+[node --> target]        # Specific edge path to nodes
+[edge --> target]        # Specific edges in path
 ```
 
-The square bracket syntax creates collections of edges or nodes that can be used for traversal, filtering, or manipulation operations.
+The square bracket syntax creates collections of edges or nodes that can be used for traversal, filtering, or manipulation operations. **By default, edge reference syntax returns the connected nodes**, not the edges themselves. To explicitly reference edges, use the `edge` keyword prefix.
+
+#### Node vs Edge References
+
+Understanding the distinction between node and edge references is crucial for effective graph navigation:
+
+**Default Node References**:
+```jac
+[-->]                    # Returns: connected nodes via outgoing edges
+[<--]                    # Returns: connected nodes via incoming edges
+visit [-->];             # Walker visits the connected nodes
+```
+
+**Explicit Edge References**:
+```jac
+[edge -->]               # Returns: the edge objects themselves
+[edge <--]               # Returns: incoming edge objects
+visit [edge -->];        # Walker visits the edges (and their connected nodes)
+```
+
+When a walker visits edges explicitly, it will execute abilities on both the edge and its connected node, providing access to edge properties and enabling edge-based computation.
 
 #### Directional Navigation
 
@@ -54,13 +79,18 @@ Disconnection operations maintain graph integrity by properly cleaning up refere
 Edge references support inline filtering for selective graph operations:
 
 ```jac
-[-->(weight > threshold)]           # Edges meeting weight criteria
-[<--(target.active == true)]       # Incoming edges from active nodes
-[<-->(`ConnectionType)]             # Edges of specific type
-[-->(?name.startswith("test"))]     # Edges to nodes with test names
+# Node filtering (default behavior)
+[-->(active == true)]              # Nodes that are active
+[<--(score > threshold)]            # Nodes with high scores
+[<-->(?name.startswith("test"))]   # Nodes with test names
+
+# Edge filtering (explicit edge references)
+[edge -->(weight > threshold)]     # Edges meeting weight criteria
+[edge <--:FollowEdge:]             # Incoming edges of specific type
+[edge <-->(`ConnectionType)]        # Edges of specific type
 ```
 
-Filtering enables precise graph queries that combine topological navigation with data-driven selection criteria.
+Filtering enables precise graph queries that combine topological navigation with data-driven selection criteria. When filtering edges explicitly, the walker can access edge properties during traversal.
 
 #### Integration with Walker Traversal
 
@@ -74,17 +104,21 @@ walker NetworkAnalyzer {
         # Mark current node as visited
         self.visited.add(here);
         
-        # Find unvisited neighbors
+        # Find unvisited neighbors (returns nodes by default)
         unvisited_neighbors = [-->] |> filter(|n| n not in self.visited);
         
         # Continue traversal to unvisited nodes
         if (unvisited_neighbors) {
-            visit unvisited_neighbors;
+            visit unvisited_neighbors;  # Visits nodes only
         }
         
-        # Analyze connection patterns
-        strong_connections = [<-->:StrongEdge:];
-        weak_connections = [<-->:WeakEdge:];
+        # Analyze connection patterns (edge references)
+        strong_connections = [edge <-->:StrongEdge:];
+        weak_connections = [edge <-->:WeakEdge:];
+        
+        # Visit edges to analyze their properties
+        # This will execute abilities on both edges and connected nodes
+        visit [edge -->:AnalysisEdge:];
         
         # Report analysis results
         report {
@@ -95,6 +129,15 @@ walker NetworkAnalyzer {
     }
 }
 ```
+
+When visiting edges explicitly with `visit [edge -->]`, the walker will:
+1. Execute entry abilities on the edge
+2. Automatically queue and visit the connected node
+3. Execute abilities on both the edge and the target node
+
+When visiting nodes with `visit [-->]` (default), the walker will:
+1. Execute abilities only on the target nodes
+2. Skip edge traversal abilities
 
 #### Type-Safe Graph Operations
 
@@ -151,3 +194,37 @@ walker GraphBuilder {
 ```
 
 Data spatial references provide the foundational syntax for expressing topological relationships and enabling computation to flow naturally through graph structures, making complex graph algorithms both intuitive and maintainable.
+
+#### Edge vs Node Traversal Behavior
+
+Understanding the distinction between edge and node traversal is fundamental to effective data spatial programming:
+
+**Default Node Traversal**:
+- `[-->]` returns connected nodes, not edges
+- `visit [-->]` executes abilities only on target nodes
+- Walker moves directly from node to node
+- Edge properties are not accessible during traversal
+
+**Explicit Edge Traversal**:
+- `[edge -->]` returns edge objects themselves
+- `visit [edge -->]` executes abilities on both edges and nodes
+- Walker processes edge first, then automatically queues connected node
+- Full access to edge properties and data during traversal
+
+This distinction enables precise control over computational flow:
+```jac
+# Process only nodes
+visit [-->];                      # Direct node-to-node movement
+
+# Process edges and nodes
+visit [edge -->];                 # Edge abilities execute, then node abilities
+
+# Access edge data without traversal
+edge_weights = [edge -->] |> map(|e| e.weight);
+
+# Filter by edge properties, visit connected nodes
+high_priority_nodes = [edge -->(priority > 0.8)] |> map(|e| e.target);
+visit high_priority_nodes;
+```
+
+The choice between node and edge traversal depends on whether edge computation or properties are needed for the algorithm's logic.

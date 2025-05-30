@@ -37,7 +37,7 @@ class Debugger(bdb.Bdb):
 
     def _send_graph(self) -> None:
         try:
-            graph_str = self.runeval("printgraph(as_json=True)")
+            graph_str = self.runeval("printgraph(format='json')")
             self.cb_graph(graph_str)
         except Exception as e:
             pass

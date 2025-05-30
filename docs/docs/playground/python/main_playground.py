@@ -23,7 +23,7 @@ class JsIO(io.StringIO):
         self.callback(s)
         super().write(s)
 
-    def writelines(self, lines: Iterable[str], /) -> None:
+    def writelines(self, lines, /) -> None:
         for line in lines:
             self.callback(line)
         super().writelines(lines)

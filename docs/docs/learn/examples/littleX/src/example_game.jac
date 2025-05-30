@@ -3,21 +3,9 @@ import from mtllm.llms {Ollama}
 glob llm = Ollama(
     host="http://127.0.0.1:11434",
     model_name="llama3.2:1b",
-    # verbose=True,
 );
 
 glob person_record: dict = {};
-
-"""
-The items a person can have in their inventory.
-"""
-obj InventoryItem {
-    has name: str;
-    has description: str;
-    has price: float;
-}
-
-
 
 obj Person {
     has name: str;
@@ -77,7 +65,7 @@ def make_transaction(buyer_name: str, seller_name: str, item_name: str) -> bool 
 Generates the player character for a fantacy RPG game.
 """
 def make_player() -> Person
-    by llm(manual_api=True);
+    by llm();
 
 
 """
@@ -85,7 +73,7 @@ Generates a random npc person with a name, age, favourite pet and hobby.
 The person should be a fantasy character, like an elf, dwarf, orc, etc.
 """
 def make_random_npc() -> Person
-    by llm(manual_api=True);
+    by llm();
 
 
 """
@@ -95,7 +83,7 @@ the NPC's initial greeting. The NPC's response should reflect their
 personality, background, and any prior context from the chat history.
 """
 def chat_with_player(player: Person, npc: Person, chat_history: list[Chat]) -> Chat
-    by llm(manual_api=True, method="ReAct", tools=[make_transaction]);
+    by llm(method="ReAct", tools=[make_transaction]);
 
 
 with entry {

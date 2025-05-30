@@ -27,6 +27,81 @@ The `[-->]` syntax represents traversal along outgoing edges from the current no
 - **Follow topological paths**: Traverse the graph structure according to connection patterns
 - **Implement search algorithms**: Use systematic traversal to locate specific nodes or data
 
+**Queue Insertion Index Semantics**
+
+Visit statements support an advanced feature that controls traversal behavior through queue insertion indices:
+
+```jac
+visit :0:[-->];    // Insert at beginning (index 0)
+visit :-1:[-->];   // Insert at end (index -1)
+visit :2:[-->];    // Insert at index 2
+visit :-3:[-->];   // Insert 3 positions from end
+visit [-->];       // Default behavior
+```
+
+This syntax controls where new destinations are inserted into the walker's traversal queue:
+
+- **`:0:`** - Insert at the beginning of the queue (index 0)
+  - Results in **depth-first** style traversal
+  - Newly discovered nodes are visited immediately before previously queued nodes
+  - The walker explores paths deeply before backtracking
+
+- **`:-1:`** - Insert at the end of the queue (index -1)
+  - Results in **breadth-first** style traversal  
+  - Newly discovered nodes are visited after all currently queued nodes
+  - The walker explores all nodes at the current level before moving deeper
+
+- **Other positive indices** (e.g., `:1:`, `:2:`, `:3:`)
+  - Insert at the specified position from the beginning
+  - Enables custom traversal ordering strategies
+  - Useful for priority-based or weighted traversal algorithms
+
+- **Other negative indices** (e.g., `:-2:`, `:-3:`)
+  - Insert at the specified position from the end
+  - Allows fine-grained control over queue ordering
+  - Supports complex traversal patterns beyond simple depth/breadth-first
+
+- **No index** - Default queue insertion behavior
+  - Implementation-specific ordering
+  - Typically follows standard traversal semantics
+
+**Practical Example**
+
+Consider a walker that uses conditional queue insertion:
+```jac
+walker MyWalker {
+    can does with MyNode entry {
+        if here.val == 20 {
+            visit :0:[-->];  // Depth-first from this node
+        }
+        elif here.val == 30 {
+            visit :-1:[-->]; // Breadth-first from this node
+        }
+        else {
+            visit [-->];     // Default traversal
+        }
+    }
+}
+```
+
+This demonstrates:
+- **Dynamic traversal strategies**: Different nodes can trigger different traversal behaviors
+- **Fine-grained control**: Precise specification of exploration patterns
+- **Adaptive algorithms**: Traversal strategy can change based on node properties or walker state
+
+**Traversal Queue Mechanics**
+
+When a walker executes a visit statement:
+
+1. **Target identification**: The walker identifies all nodes matching the visit pattern (e.g., `[-->]`)
+2. **Queue insertion**: New destinations are inserted at the specified index:
+   - `:0:` pushes to the front (stack-like behavior)
+   - `:-1:` appends to the end (queue-like behavior)
+3. **Next visit**: The walker moves to the node at the front of its queue
+4. **Continuation**: Process repeats until the queue is empty or walker disengages
+
+This queue-based approach enables sophisticated traversal patterns while maintaining the intuitive DSP programming model.
+
 **Conditional Traversal with Else Clauses**
 
 Visit statements support else clauses that execute when the primary visit target is unavailable:
@@ -93,10 +168,11 @@ Visit statements enable several key advantages:
 **Common Patterns**
 
 Visit statements support various traversal patterns:
-- **Breadth-first exploration**: Systematic traversal of all reachable nodes
-- **Depth-first search**: Following paths to their conclusion before backtracking  
+- **Breadth-first exploration**: Systematic traversal of all reachable nodes using `visit :-1:[-->]`
+- **Depth-first search**: Following paths to their conclusion before backtracking using `visit :0:[-->]`
 - **Conditional navigation**: Choosing paths based on node properties or walker state
 - **Cyclic traversal**: Returning to previously visited nodes for iterative processing
+- **Hybrid strategies**: Mixing depth-first and breadth-first based on node properties
 
 The provided example demonstrates a simple breadth-first traversal where a walker visits all nodes connected to the root, printing a message at each location. This illustrates how visit statements transform graph traversal from complex algorithmic implementation to intuitive navigation through connected data structures.
 

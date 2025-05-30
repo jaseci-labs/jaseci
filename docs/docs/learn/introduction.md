@@ -1,30 +1,5 @@
 <h1 style="color: orange; font-weight: bold; text-align: center;">Tour to Jac</h1>
 
-## Python Superset Phylosophy: All of Python Plus More
-
-Jac is a drop-in replacement for Python and supersets Python, much like Typescript supersets Javascript or C++ supersets C. It extends Python's semantics while maintaining full interoperability with the Python ecosystem, introducing cutting-edge abstractions designed to minimize complexity and embrace AI-forward development.
-
-```jac
-import math;
-import from random { uniform }
-
-def calc_distance(x1: float, y1: float, x2: float, y2: float) -> float {
-    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-}
-
-with entry {
-    # Generate random points
-    (x1, y1) = (uniform(0, 10), uniform(0, 10));
-    (x2, y2) = (uniform(0, 10), uniform(0, 10));
-
-    distance = calc_distance(x1, y1, x2, y2);
-    area = math.pi * (distance / 2) ** 2;
-
-    print(f"Distance: {distance:.2f}, Circle area: {area:.2f}");
-}
-```
-This snippet natively imports python packages `math` and `random` and runs identically to its Python counterpart. Jac targets python bytecode, so all python libraries work with Jac.
-
 
 ## Beyond OOP with Data Spatial Programming
 
@@ -112,6 +87,31 @@ walker create_post {
 ```
 This simple social media post system runs locally or scales infinitely in the cloud with no code changes.
 
+
+## Python Superset Phylosophy: All of Python Plus More
+
+Jac is a drop-in replacement for Python and supersets Python, much like Typescript supersets Javascript or C++ supersets C. It extends Python's semantics while maintaining full interoperability with the Python ecosystem, introducing cutting-edge abstractions designed to minimize complexity and embrace AI-forward development.
+
+```jac
+import math;
+import from random { uniform }
+
+def calc_distance(x1: float, y1: float, x2: float, y2: float) -> float {
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+}
+
+with entry {
+    # Generate random points
+    (x1, y1) = (uniform(0, 10), uniform(0, 10));
+    (x2, y2) = (uniform(0, 10), uniform(0, 10));
+
+    distance = calc_distance(x1, y1, x2, y2);
+    area = math.pi * (distance / 2) ** 2;
+
+    print(f"Distance: {distance:.2f}, Circle area: {area:.2f}");
+}
+```
+This snippet natively imports python packages `math` and `random` and runs identically to its Python counterpart. Jac targets python bytecode, so all python libraries work with Jac.
 
 ## Better Organized and Well Typed Codebases
 

@@ -2,6 +2,7 @@
 
 from .anthropic import Anthropic
 from .base import BaseLLM
+from .fake import FakeLLM
 from .google import Gemini
 from .groq import Groq
 from .huggingface import Huggingface

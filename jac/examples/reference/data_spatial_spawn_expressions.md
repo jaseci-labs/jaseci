@@ -34,6 +34,22 @@ This syntax:
 - Transitions the walker from inactive to active state
 - Sets the walker's location mapping: L(walker) = root
 - Initializes an empty traversal queue: Q_w = []
+- Executes abilities only on the spawned node
+
+**Edge Spawning**
+Walkers can also be spawned directly on edges:
+```jac
+Walker() spawn edge_instance;
+```
+
+When spawning on an edge:
+- Walker is activated at the edge location
+- **Automatically queues both the edge and its target node**
+- Sets the walker's location mapping: L(walker) = edge
+- Initializes traversal queue with target node: Q_w = [target_node]
+- Executes abilities on both the edge and the connected node
+
+This automatic queueing behavior ensures that edge-spawned walkers process both the relationship (edge) and the destination (node), enabling complete traversal of the topological structure.
 
 **Walker Lifecycle and Activation**
 
@@ -103,8 +119,9 @@ This demonstrates:
 
 **Spawn Timing and Execution Flow**
 
-The complete execution sequence:
+The execution sequence differs based on spawn location:
 
+**Node Spawn Sequence**:
 1. **Spawn Expression**: `Adder() spawn root` activates the walker
 2. **Walker Positioning**: Walker is placed at root node
 3. **Entry Ability Execution**: 
@@ -114,6 +131,21 @@ The complete execution sequence:
 5. **Traversal Initiation**: Walker visits connected nodes (`visit [-->]`)
 6. **Node Interaction**: Visited nodes execute their abilities for the Adder walker
 7. **Computational Completion**: Process continues until walker queue is exhausted
+
+**Edge Spawn Sequence**:
+1. **Spawn Expression**: `Walker() spawn edge_instance` activates on edge
+2. **Walker Positioning**: Walker is placed at edge
+3. **Automatic Queueing**: Target node is automatically added to walker's queue
+4. **Edge Ability Execution**:
+   - Edge's abilities for the walker type
+   - Walker's abilities for the edge type
+5. **Automatic Node Visit**: Walker automatically visits the queued target node
+6. **Node Ability Execution**:
+   - Target node's abilities for the walker type
+   - Walker's abilities for the node type
+7. **Continued Traversal**: Walker proceeds based on visit statements
+
+The key difference: edge spawning ensures both edge and node processing, while node spawning processes only the node unless explicitly visiting edges.
 
 **Spawn Patterns and Use Cases**
 
@@ -143,10 +175,38 @@ if (condition) {
 
 **Spawn Location Flexibility**
 
-While the example shows node spawning, spawn expressions support various targets:
-- **Single nodes**: Direct activation at specific data locations
-- **Edge spawning**: Activation during transitions between nodes
-- **Path spawning**: Activation with predetermined traversal sequences
+Spawn expressions support various targets with distinct behaviors:
+
+**Node Spawning**:
+- **Behavior**: Walker executes abilities only on the spawned node
+- **Queue State**: Starts with empty queue unless walker adds visits
+- **Use Case**: Starting point for graph exploration, node-centric processing
+```jac
+walker spawn node;              # Process single node
+walker spawn root;              # Start from root
+```
+
+**Edge Spawning**:
+- **Behavior**: Walker automatically processes edge AND target node
+- **Queue State**: Target node automatically queued after edge processing
+- **Use Case**: Relationship analysis, edge-weight calculations, path following
+```jac
+walker spawn edge_ref;          # Process edge and its target
+walker spawn connection;        # Analyze connection and destination
+```
+
+**Key Behavioral Difference**:
+- Node spawn: Single location processing
+- Edge spawn: Dual location processing (edge + automatic node visit)
+
+This distinction is crucial for algorithm design:
+```jac
+# Node-centric algorithm
+DataProcessor() spawn data_node;     # Process node data only
+
+# Edge-centric algorithm  
+PathAnalyzer() spawn path_edge;      # Analyze path AND destination
+```
 
 **Error Handling and Constraints**
 
@@ -170,5 +230,59 @@ Spawn expressions bridge DSP and traditional programming:
 - **Data preparation**: Can follow traditional data initialization patterns
 
 The example demonstrates a complete spawn-to-computation cycle where a walker is spawned, builds topology, traverses to connected nodes, and triggers location-bound computation. This showcases how spawn expressions initialize the distributed computational process that characterizes Data Spatial Programming, transforming passive objects into active participants in a topologically-aware computational system.
+
+**Comprehensive Example: Node vs Edge Spawning**
+
+```jac
+edge Connection {
+    has weight: float;
+    can process with AnalysisWalker entry {
+        print(f"Processing edge with weight: {self.weight}");
+    }
+}
+
+node DataPoint {
+    has value: int;
+    can analyze with AnalysisWalker entry {
+        print(f"Analyzing node with value: {self.value}");
+    }
+}
+
+walker AnalysisWalker {
+    can traverse with DataPoint entry {
+        # Default behavior: visit nodes
+        print("Visiting connected nodes:");
+        visit [-->];                    # Only visits nodes
+        
+        # Explicit edge traversal
+        print("Visiting edges and their nodes:");
+        visit [edge -->];               # Visits edges AND nodes
+    }
+}
+
+with entry {
+    # Build topology
+    n1 = DataPoint(value=10);
+    n2 = DataPoint(value=20);
+    n3 = DataPoint(value=30);
+    
+    edge1 = n1 +>:Connection(weight=0.5):+> n2;
+    edge2 = n2 +>:Connection(weight=0.8):+> n3;
+    
+    # Node spawn - processes only the starting node
+    print("=== Node Spawn ===");
+    AnalysisWalker() spawn n1;
+    
+    # Edge spawn - processes edge AND automatically visits target
+    print("=== Edge Spawn ===");
+    AnalysisWalker() spawn edge1;
+}
+```
+
+Output demonstrates the behavioral difference:
+- Node spawn: Starts at n1, processes node abilities only
+- Edge spawn: Starts at edge1, processes edge abilities, then automatically visits n2
+
+This example illustrates how spawn location affects the initial computational flow and how edge references (`[edge -->]`) enable explicit edge processing during traversal.
 
 Spawn expressions represent the activation gateway between traditional object-oriented programming and data spatial computation, enabling the transition from static object interactions to dynamic, topology-driven computational flows.
