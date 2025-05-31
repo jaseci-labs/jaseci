@@ -63,12 +63,12 @@ class PyJacAstLinkPass(UniPass):
 
         if isinstance(node.decl_link, uni.Ability) and node.decl_link.signature:
             if isinstance(node.spec, uni.FuncSignature) and node.spec.params:
-                for src_prm in node.spec.params.items:
+                for src_prm in node.spec.params:
                     if (
                         isinstance(node.decl_link.signature, uni.FuncSignature)
                         and node.decl_link.signature.params
                     ):
-                        for trg_prm in node.decl_link.signature.params.items:
+                        for trg_prm in node.decl_link.signature.params:
                             if src_prm.name.sym_name == trg_prm.name.sym_name:
                                 self.link_jac_py_nodes(
                                     jac_node=src_prm, py_nodes=trg_prm.gen.py_ast
