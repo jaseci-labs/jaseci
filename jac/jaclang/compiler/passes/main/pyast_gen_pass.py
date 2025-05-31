@@ -418,7 +418,11 @@ class PyastGenPass(UniPass):
                                 ],
                             )
                         ),
-                        body=[cast(ast3.stmt, i) for i in node.gen.py_ast],
+                        body=(
+                            [cast(ast3.stmt, i) for i in node.gen.py_ast]
+                            if node.gen.py_ast
+                            else [self.sync(ast3.Pass())]
+                        ),
                         orelse=[],
                     )
                 )

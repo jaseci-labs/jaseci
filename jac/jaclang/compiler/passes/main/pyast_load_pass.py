@@ -62,17 +62,10 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         """Extract with entry from a body."""
 
         def gen_mod_code(with_entry_body: list[uni.CodeBlockStmt]) -> uni.ModuleCode:
-            with_entry_subnodelist = uni.SubNodeList[uni.CodeBlockStmt](
-                items=with_entry_body,
-                delim=Tok.WS,
-                kid=with_entry_body,
-                left_enc=self.operator(Tok.LBRACE, "{"),
-                right_enc=self.operator(Tok.RBRACE, "}"),
-            )
             return uni.ModuleCode(
                 name=None,
-                body=with_entry_subnodelist,
-                kid=[with_entry_subnodelist],
+                body=with_entry_body,
+                kid=with_entry_body,
                 doc=None,
             )
 
