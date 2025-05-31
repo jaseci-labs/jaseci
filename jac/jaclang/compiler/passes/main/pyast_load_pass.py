@@ -309,7 +309,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
                 and isinstance(body_stmt.signature, uni.FuncSignature)
                 and body_stmt.signature.params
             ):
-                for param in body_stmt.signature.params.items:
+                for param in body_stmt.signature.params:
                     if param.name.value == "self":
                         param.type_tag = uni.SubTag[uni.Expr](name, kid=[name])
         doc = (
@@ -2299,13 +2299,10 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
 
         valid_params = [param for param in params if isinstance(param, uni.ParamVar)]
         if valid_params:
-            fs_params = uni.SubNodeList[uni.ParamVar](
-                items=valid_params, delim=Tok.COMMA, kid=valid_params
-            )
             return uni.FuncSignature(
-                params=fs_params,
+                params=valid_params,
                 return_type=None,
-                kid=[fs_params],
+                kid=[*valid_params],
             )
         else:
             _lparen = self.operator(Tok.LPAREN, "(")

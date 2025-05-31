@@ -852,12 +852,12 @@ class JacParser(Transform[uni.Source, uni.Module]):
             # Otherwise, parse the traditional parameter list form
             else:
                 self.consume_token(Tok.LPAREN)
-                params = self.match(uni.SubNodeList)
+                params_node = self.match(uni.SubNodeList)
                 self.consume_token(Tok.RPAREN)
                 if self.match_token(Tok.RETURN_HINT):
                     return_spec = self.consume(uni.Expr)
                 return uni.FuncSignature(
-                    params=params,
+                    params=params_node.items if params_node else None,
                     return_type=return_spec,
                     kid=self.cur_nodes,
                 )
@@ -1600,25 +1600,27 @@ class JacParser(Transform[uni.Source, uni.Module]):
             return_type: uni.Expr | None = None
             sig_kid: list[uni.UniNode] = []
             self.consume_token(Tok.KW_LAMBDA)
-            params = self.match(uni.SubNodeList)
+            params_node = self.match(uni.SubNodeList)
             if self.match_token(Tok.RETURN_HINT):
                 return_type = self.consume(uni.Expr)
             self.consume_token(Tok.COLON)
             body = self.consume(uni.Expr)
-            if params:
-                sig_kid.append(params)
+            if params_node:
+                sig_kid.append(params_node)
             if return_type:
                 sig_kid.append(return_type)
             signature = (
                 uni.FuncSignature(
-                    params=params,
+                    params=params_node.items if params_node else None,
                     return_type=return_type,
                     kid=sig_kid,
                 )
-                if params or return_type
+                if params_node or return_type
                 else None
             )
-            new_kid = [i for i in self.cur_nodes if i != params and i != return_type]
+            new_kid = [
+                i for i in self.cur_nodes if i != params_node and i != return_type
+            ]
             new_kid.insert(1, signature) if signature else None
             return uni.LambdaExpr(
                 signature=signature,

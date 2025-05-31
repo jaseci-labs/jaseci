@@ -1022,23 +1022,18 @@ class PyastGenPass(UniPass):
         )
         vararg = None
         kwarg = None
-        if isinstance(node.params, uni.SubNodeList):
-            for i in node.params.items:
-                if i.unpack and i.unpack.value == "*":
-                    vararg = i.gen.py_ast[0]
-                elif i.unpack and i.unpack.value == "**":
-                    kwarg = i.gen.py_ast[0]
-                else:
-                    (
-                        params.append(i.gen.py_ast[0])
-                        if isinstance(i.gen.py_ast[0], ast3.arg)
-                        else self.ice("This list should only be Args")
-                    )
-        defaults = (
-            [x.value.gen.py_ast[0] for x in node.params.items if x.value]
-            if node.params
-            else []
-        )
+        for i in node.params:
+            if i.unpack and i.unpack.value == "*":
+                vararg = i.gen.py_ast[0]
+            elif i.unpack and i.unpack.value == "**":
+                kwarg = i.gen.py_ast[0]
+            else:
+                (
+                    params.append(i.gen.py_ast[0])
+                    if isinstance(i.gen.py_ast[0], ast3.arg)
+                    else self.ice("This list should only be Args")
+                )
+        defaults = [x.value.gen.py_ast[0] for x in node.params if x.value]
         node.gen.py_ast = [
             self.sync(
                 ast3.arguments(

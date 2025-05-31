@@ -131,7 +131,7 @@ class SemRegistry:
             ret = "function("
             params = []
             if node.signature.params:
-                for param in node.signature.params.items:
+                for param in node.signature.params:
                     params.append(
                         param.name.value
                         + ":"
@@ -167,7 +167,9 @@ class SemRegistry:
         mod = None
         scope_obj = None
         # Find the relevant module and scope object
-        scope_stack = scope.get_scope_trace() if scope else self.by_scope.get_scope_trace()
+        scope_stack = (
+            scope.get_scope_trace() if scope else self.by_scope.get_scope_trace()
+        )
         expected_mod = scope_stack[-1]["scope"] if scope_stack else None
         for m in mods.values():
             if m.name == expected_mod:
