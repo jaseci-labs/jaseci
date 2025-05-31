@@ -692,15 +692,15 @@ class JacParser(Transform[uni.Source, uni.Module]):
             sub_list1 = self.match(uni.SubNodeList)
             sub_list2 = self.match(uni.SubNodeList)
             if self.match_token(Tok.SEMI):
-                inh, body = sub_list1, None
+                inh, body_node = sub_list1, None
             else:
-                body = sub_list2 or sub_list1
+                body_node = sub_list2 or sub_list1
                 inh = sub_list2 and sub_list1
             return uni.Enum(
                 name=name,
                 access=access,
                 base_classes=inh.items if inh else [],
-                body=body,
+                body=body_node.items if body_node else None,
                 kid=self.cur_nodes,
             )
 

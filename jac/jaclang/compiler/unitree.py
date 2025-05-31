@@ -1458,6 +1458,7 @@ class Archetype(
         self.name = name
         self.arch_type = arch_type
         self.base_classes: list[Expr] = list(base_classes) if base_classes else []
+        self.body = list(body) if isinstance(body, Sequence) else body
         UniNode.__init__(self, kid=kid)
         AstSymbolNode.__init__(
             self,
@@ -1481,7 +1482,7 @@ class Archetype(
                 )
             ),
         )
-        AstImplNeedingNode.__init__(self, body=body)
+        AstImplNeedingNode.__init__(self, body=self.body)
         AstAccessNode.__init__(self, access=access)
         AstDocNode.__init__(self, doc=doc)
         ArchSpec.__init__(self, decorators=decorators)
@@ -1510,7 +1511,11 @@ class Archetype(
             res = res and self.access.normalize(deep) if self.access else res
             for base in self.base_classes:
                 res = res and base.normalize(deep)
-            res = res and self.body.normalize(deep) if self.body else res
+            if isinstance(self.body, ImplDef):
+                res = res and self.body.normalize(deep)
+            else:
+                for stmt in self.body or []:
+                    res = res and stmt.normalize(deep)
             res = res and self.doc.normalize(deep) if self.doc else res
             for dec in self.decorators or []:
                 res = res and dec.normalize(deep)
@@ -1540,7 +1545,14 @@ class Archetype(
             if isinstance(self.body, ImplDef):
                 new_kid.append(self.gen_token(Tok.SEMI))
             else:
-                new_kid.append(self.body)
+                new_kid.append(self.gen_token(Tok.LBRACE))
+                prev_stmt = None
+                for stmt in self.body:
+                    if isinstance(prev_stmt, EnumBlockStmt) and prev_stmt.is_enum_stmt:
+                        new_kid.append(self.gen_token(Tok.COMMA))
+                    new_kid.append(stmt)
+                    prev_stmt = stmt
+                new_kid.append(self.gen_token(Tok.RBRACE))
         else:
             new_kid.append(self.gen_token(Tok.SEMI))
         self.set_kids(nodes=new_kid)
@@ -1657,13 +1669,14 @@ class Enum(ArchSpec, AstAccessNode, AstImplNeedingNode, ArchBlockStmt, UniScopeN
         name: Name,
         access: Optional[SubTag[Token]],
         base_classes: Sequence[Expr] | None,
-        body: Optional[SubNodeList[Assignment] | ImplDef],
+        body: Sequence[EnumBlockStmt] | ImplDef | None,
         kid: Sequence[UniNode],
         doc: Optional[String] = None,
         decorators: Sequence[Expr] | None = None,
     ) -> None:
         self.name = name
         self.base_classes: list[Expr] = list(base_classes) if base_classes else []
+        self.body = list(body) if isinstance(body, Sequence) else body
         UniNode.__init__(self, kid=kid)
         AstSymbolNode.__init__(
             self,
@@ -1671,7 +1684,7 @@ class Enum(ArchSpec, AstAccessNode, AstImplNeedingNode, ArchBlockStmt, UniScopeN
             name_spec=name,
             sym_category=SymbolType.ENUM_ARCH,
         )
-        AstImplNeedingNode.__init__(self, body=body)
+        AstImplNeedingNode.__init__(self, body=self.body)
         AstAccessNode.__init__(self, access=access)
         AstDocNode.__init__(self, doc=doc)
         ArchSpec.__init__(self, decorators=decorators)
@@ -1684,7 +1697,11 @@ class Enum(ArchSpec, AstAccessNode, AstImplNeedingNode, ArchBlockStmt, UniScopeN
             res = res and self.access.normalize(deep) if self.access else res
             for base in self.base_classes:
                 res = res and base.normalize(deep)
-            res = res and self.body.normalize(deep) if self.body else res
+            if isinstance(self.body, ImplDef):
+                res = res and self.body.normalize(deep)
+            else:
+                for stmt in self.body or []:
+                    res = res and stmt.normalize(deep)
             res = res and self.doc.normalize(deep) if self.doc else res
             for dec in self.decorators or []:
                 res = res and dec.normalize(deep)
@@ -1712,7 +1729,14 @@ class Enum(ArchSpec, AstAccessNode, AstImplNeedingNode, ArchBlockStmt, UniScopeN
             if isinstance(self.body, ImplDef):
                 new_kid.append(self.gen_token(Tok.SEMI))
             else:
-                new_kid.append(self.body)
+                new_kid.append(self.gen_token(Tok.LBRACE))
+                prev_stmt = None
+                for stmt in self.body:
+                    if isinstance(prev_stmt, EnumBlockStmt) and prev_stmt.is_enum_stmt:
+                        new_kid.append(self.gen_token(Tok.COMMA))
+                    new_kid.append(stmt)
+                    prev_stmt = stmt
+                new_kid.append(self.gen_token(Tok.RBRACE))
         else:
             new_kid.append(self.gen_token(Tok.SEMI))
         self.set_kids(nodes=new_kid)

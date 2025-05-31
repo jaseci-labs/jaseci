@@ -226,6 +226,7 @@ class PyastGenPass(UniPass):
         self,
         node: (
             Sequence[uni.CodeBlockStmt]
+            | Sequence[uni.EnumBlockStmt]
             | uni.SubNodeList[uni.CodeBlockStmt]
             | uni.SubNodeList[uni.ArchBlockStmt]
             | uni.SubNodeList[uni.EnumBlockStmt]
@@ -803,7 +804,7 @@ class PyastGenPass(UniPass):
             inner = (
                 node.body.body if not isinstance(node.body.body, uni.FuncCall) else None
             )
-        elif not isinstance(node.body, uni.FuncCall):
+        elif node.body is not None:
             inner = node.body
         body = self.resolve_stmt_block(inner, doc=node.doc)
 
@@ -854,7 +855,7 @@ class PyastGenPass(UniPass):
             inner = (
                 node.body.body if not isinstance(node.body.body, uni.FuncCall) else None
             )
-        elif not isinstance(node.body, uni.FuncCall):
+        elif node.body is not None:
             inner = node.body
         body = self.resolve_stmt_block(inner, doc=node.doc)
         decorators = (
