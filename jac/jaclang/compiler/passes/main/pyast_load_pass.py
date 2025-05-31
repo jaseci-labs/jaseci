@@ -71,7 +71,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             )
             return uni.ModuleCode(
                 name=None,
-                body=with_entry_subnodelist,
+                body=with_entry_subnodelist.items,
                 kid=[with_entry_subnodelist],
                 doc=None,
             )

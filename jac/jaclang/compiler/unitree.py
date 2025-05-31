@@ -1096,7 +1096,7 @@ class Test(AstSymbolNode, ElementStmt, UniScopeNode):
     def __init__(
         self,
         name: Name | Token,
-        body: SubNodeList[CodeBlockStmt],
+        body: Sequence[CodeBlockStmt],
         kid: Sequence[UniNode],
         doc: Optional[String] = None,
     ) -> None:
@@ -1139,14 +1139,15 @@ class Test(AstSymbolNode, ElementStmt, UniScopeNode):
         res = True
         if deep:
             res = self.name.normalize(deep)
-            res = res and self.body.normalize(deep)
+            for stmt in self.body:
+                res = res and stmt.normalize(deep)
             res = res and self.doc.normalize(deep) if self.doc else res
         new_kid: list[UniNode] = []
         if self.doc:
             new_kid.append(self.doc)
         new_kid.append(self.gen_token(Tok.KW_TEST))
         new_kid.append(self.name)
-        new_kid.append(self.body)
+        new_kid.extend(self.body)
         self.set_kids(nodes=new_kid)
         return res
 
@@ -1157,12 +1158,12 @@ class ModuleCode(ElementStmt, ArchBlockStmt, EnumBlockStmt):
     def __init__(
         self,
         name: Optional[Name],
-        body: SubNodeList[CodeBlockStmt],
+        body: Sequence[CodeBlockStmt],
         kid: Sequence[UniNode],
         doc: Optional[String] = None,
     ) -> None:
         self.name = name
-        self.body = body
+        self.body = list(body)
         UniNode.__init__(self, kid=kid)
         AstDocNode.__init__(self, doc=doc)
 
@@ -1170,7 +1171,8 @@ class ModuleCode(ElementStmt, ArchBlockStmt, EnumBlockStmt):
         res = True
         if deep:
             res = self.name.normalize(deep) if self.name else res
-            res = res and self.body.normalize(deep)
+            for stmt in self.body:
+                res = res and stmt.normalize(deep)
             res = res and self.doc.normalize(deep) if self.doc else res
         new_kid: list[UniNode] = []
         if self.doc:
@@ -1180,7 +1182,7 @@ class ModuleCode(ElementStmt, ArchBlockStmt, EnumBlockStmt):
         if self.name:
             new_kid.append(self.gen_token(Tok.COLON))
             new_kid.append(self.name)
-        new_kid.append(self.body)
+        new_kid.extend(self.body)
         self.set_kids(nodes=new_kid)
         return res
 

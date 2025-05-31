@@ -225,7 +225,8 @@ class PyastGenPass(UniPass):
     def resolve_stmt_block(
         self,
         node: (
-            uni.SubNodeList[uni.CodeBlockStmt]
+            Sequence[uni.CodeBlockStmt]
+            | uni.SubNodeList[uni.CodeBlockStmt]
             | uni.SubNodeList[uni.ArchBlockStmt]
             | uni.SubNodeList[uni.EnumBlockStmt]
             | None
@@ -233,12 +234,18 @@ class PyastGenPass(UniPass):
         doc: Optional[uni.String] = None,
     ) -> list[ast3.AST]:
         """Unwind codeblock."""
-        valid_stmts = (
-            [i for i in node.items if not isinstance(i, uni.Semi)] if node else []
-        )
+        if node is None:
+            valid_stmts: list[uni.CodeBlockStmt] = []
+        elif isinstance(node, uni.SubNodeList):
+            valid_stmts = [i for i in node.items if not isinstance(i, uni.Semi)]
+        else:
+            valid_stmts = [i for i in node if not isinstance(i, uni.Semi)]
+
+        sync_node = node if isinstance(node, uni.UniNode) else self.cur_node
+
         ret: list[ast3.AST] = (
-            [self.sync(ast3.Pass(), node)]
-            if isinstance(node, uni.SubNodeList) and not valid_stmts
+            [self.sync(ast3.Pass(), sync_node)]
+            if not valid_stmts and node is not None
             else (
                 self.flatten(
                     [
@@ -247,7 +254,7 @@ class PyastGenPass(UniPass):
                         if not isinstance(x, uni.ImplDef)
                     ]
                 )
-                if node
+                if node is not None
                 else []
             )
         )
@@ -383,7 +390,7 @@ class PyastGenPass(UniPass):
                                 ast3.keyword(
                                     arg="file_loc",
                                     value=self.sync(
-                                        ast3.Constant(value=node.body.loc.mod_path)
+                                        ast3.Constant(value=node.loc.mod_path)
                                     ),
                                 )
                             ),
@@ -935,7 +942,7 @@ class PyastGenPass(UniPass):
                 self.sync(
                     ast3.Call(
                         func=self.jaclib_obj("impl_patch_filename"),
-                        args=[self.sync(ast3.Constant(value=node.body.loc.mod_path))],
+                        args=[self.sync(ast3.Constant(value=node.loc.mod_path))],
                         keywords=[],
                     )
                 )
