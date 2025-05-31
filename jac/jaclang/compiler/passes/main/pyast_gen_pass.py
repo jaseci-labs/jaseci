@@ -806,12 +806,16 @@ class PyastGenPass(UniPass):
             )
 
         decorators = (
-            node.decorators.gen.py_ast
-            if isinstance(node.decorators, uni.SubNodeList)
+            [d.gen.py_ast[0] for d in node.decorators]
+            if node.decorators
             else []
         )
 
-        base_classes = node.base_classes.gen.py_ast if node.base_classes else []
+        base_classes = (
+            [b.gen.py_ast[0] for b in node.base_classes]
+            if node.base_classes
+            else []
+        )
         if node.arch_type.name != Tok.KW_CLASS:
             base_classes.append(self.jaclib_obj(node.arch_type.value.capitalize()))
 
@@ -844,11 +848,15 @@ class PyastGenPass(UniPass):
             doc=node.doc,
         )
         decorators = (
-            node.decorators.gen.py_ast
-            if isinstance(node.decorators, uni.SubNodeList)
+            [d.gen.py_ast[0] for d in node.decorators]
+            if node.decorators
             else []
         )
-        base_classes = node.base_classes.gen.py_ast if node.base_classes else []
+        base_classes = (
+            [b.gen.py_ast[0] for b in node.base_classes]
+            if node.base_classes
+            else []
+        )
         if isinstance(base_classes, list):
             base_classes.append(self.sync(ast3.Name(id="Enum", ctx=ast3.Load())))
         else:
@@ -922,7 +930,11 @@ class PyastGenPass(UniPass):
                 f"Abstract ability {node.sym_name} should not have a body.",
                 node,
             )
-        decorator_list = node.decorators.gen.py_ast if node.decorators else []
+        decorator_list = (
+            [d.gen.py_ast[0] for d in node.decorators]
+            if node.decorators
+            else []
+        )
         if isinstance(node.signature, uni.EventSignature):
             decorator_list.append(
                 self.jaclib_obj(
