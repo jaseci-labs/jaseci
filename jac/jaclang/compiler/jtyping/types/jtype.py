@@ -37,7 +37,7 @@ class JType(ABC):
 
     def can_assign_from(self, other: JType) -> bool:
         """
-        Determines whether a value of `other` type can be assigned to a variable of this type.
+        Determine whether a value of `other` type can be assigned to a variable of this type.
 
         By default, this method enforces nominal compatibility by checking if `other`
         is an instance of the same class. Override this in subclasses to implement
@@ -53,7 +53,7 @@ class JType(ABC):
 
     def is_callable(self) -> bool:
         """
-        Indicates whether the type can be used in a function call (i.e., is callable).
+        Indicate whether the type can be used in a function call (i.e., is callable).
 
         Returns:
             bool: True if callable, False otherwise. Default is False.
@@ -63,7 +63,7 @@ class JType(ABC):
     @abstractmethod
     def is_instantiable(self) -> bool:
         """
-        Indicates whether the type can be directly instantiated at runtime.
+        Indicate whether the type can be directly instantiated at runtime.
 
         For example, abstract classes or interfaces would return False,
         while concrete classes and primitives would return True.
@@ -76,7 +76,7 @@ class JType(ABC):
     @abstractmethod
     def get_members(self) -> dict:
         """
-        Returns the accessible members of the type (e.g., methods, fields, properties).
+        Return the accessible members of the type (e.g., methods, fields, properties).
 
         This is used to validate member access like `obj.foo` or to inspect operator support.
 
@@ -88,7 +88,7 @@ class JType(ABC):
     @abstractmethod
     def supports_binary_op(self, op: str) -> bool:
         """
-        Checks whether a binary operator is supported by this type.
+        Check whether a binary operator is supported by this type.
 
         The operator is internally mapped to its corresponding magic method (e.g., '+' to '__add__').
         The type is considered to support the operator if the corresponding method is present
@@ -112,22 +112,22 @@ class JType(ABC):
 
 # Mapping from binary operator symbols to their corresponding magic method names
 _BINARY_OPERATOR_METHODS = {
-    "+": "__add__",
-    "-": "__sub__",
-    "*": "__mul__",
-    "/": "__truediv__",
-    "//": "__floordiv__",
-    "%": "__mod__",
-    "**": "__pow__",
-    "&": "__and__",
-    "|": "__or__",
-    "^": "__xor__",
-    "<<": "__lshift__",
-    ">>": "__rshift__",
-    "==": "__eq__",
-    "!=": "__ne__",
-    "<": "__lt__",
-    "<=": "__le__",
-    ">": "__gt__",
-    ">=": "__ge__",
+    "PLUS": "__add__",
+    "MINUS": "__sub__",
+    "STAR_MUL": "__mul__",
+    "DIV": "__truediv__",
+    "FLOOR_DIV": "__floordiv__",
+    "MOD": "__mod__",
+    "STAR_POW": "__pow__",
+    "BW_AND": "__and__",
+    "BW_OR": "__or__",
+    "BW_XOR": "__xor__",
+    # "<<": "__lshift__",
+    # ">>": "__rshift__",
+    "EQ": "__eq__",
+    "NE": "__ne__",
+    "LT": "__lt__",
+    "LE": "__le__",
+    "GT": "__gt__",
+    "GE": "__ge__",
 }

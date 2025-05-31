@@ -10,6 +10,7 @@ from .types import (
     JNoneType,
     JType,
     JTypeVar,
+    JUnionType,
 )
 
 
@@ -24,4 +25,5 @@ __all__ = [
     "JAnyType",
     "JClassInstanceType",
     "JTypeVar",
+    "JUnionType",
 ]

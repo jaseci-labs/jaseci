@@ -29,7 +29,7 @@ class JTypeCheckTests(TestCase):
         expected_stdout_values = (
             "line 4, col 5: Error: Can't assign a value 'builtins.float' to a 'builtins.int' object",
             "line 6, col 5: Error: Can't assign a value 'builtins.bool' to a 'builtins.float' object",
-            "line 10, col 5: Error: Can't assign a value 'builtins.int' to a JFunctionType[(a: instance of int) -> None] object",
+            "line 10, col 5: Error: Can't assign a value 'builtins.int' to a JFunctionType[(a: instance of builtins.int) -> None] object",
             "Errors: 3, Warnings: 1",
         )
         
@@ -154,6 +154,31 @@ class JTypeCheckTests(TestCase):
         expected_stdout_values = (
             "line 8, col 5: Error: Can't assign a value 'builtins.int' to a 'builtins.str' object",
             "Errors: 1, Warnings: 0"
+        )
+        
+        for exp in expected_stdout_values:
+            self.assertIn(exp, stdout_value)
+    
+    def test_expression_bin_expr(self) -> None:
+        """Basic test for pass."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        sys.stderr = captured_output
+        
+        cli.check(self.fixture_abs_path("type_check_tests/expressions/bin_expression_err.jac"))
+        
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        stdout_value = captured_output.getvalue()
+
+        expected_stdout_values = (
+            "line 3, col 9: Unsupported type 'builtins.str' for binary operation 'PLUS'  on type 'builtins.int'",
+            "line 4, col 9: Unsupported binary operation 'PLUS' on type 'builtins.bool'",
+            "line 6, col 5: Unsupported type 'builtins.str' for binary operation 'PLUS'  on type 'builtins.float'",
+            "line 8, col 9: Unsupported binary operation 'MINUS' on type 'builtins.str'",
+            "line 8, col 5: Error: Can't assign a value JAnyType[Any] to a 'builtins.str' object",
+            "Errors: 5, Warnings: 0",
         )
         
         for exp in expected_stdout_values:

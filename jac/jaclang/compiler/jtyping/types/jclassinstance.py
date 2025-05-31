@@ -93,7 +93,7 @@ class JClassInstanceType(JType):
         Returns:
             bool: True if a corresponding method like `__add__` exists.
         """
-        return False
+        return super().supports_binary_op(op)
 
     def is_callable(self) -> bool:
         """Indicate whether the instance can be called like a function.

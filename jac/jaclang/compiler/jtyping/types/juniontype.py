@@ -88,3 +88,6 @@ class JUnionType(JType):
             common_keys.intersection_update(t.get_members().keys())
 
         return {k: self.options[0].get_members()[k] for k in common_keys}
+
+    def supports_binary_op(self, op: str) -> bool:
+        return super().supports_binary_op(op)

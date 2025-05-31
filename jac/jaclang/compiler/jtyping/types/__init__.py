@@ -7,6 +7,7 @@ from .jclassmember import JClassMember  # noqa: I100
 from .jclasstype import JClassType  # noqa: I100
 from .jclassinstance import JClassInstanceType  # noqa: I100
 from .jtypevar import JTypeVar  # noqa: I100
+from .juniontype import JUnionType  # noqa: I100
 
 __all__ = [
     "JType",
@@ -18,4 +19,5 @@ __all__ = [
     "JAnyType",
     "JClassInstanceType",
     "JTypeVar",
+    "JUnionType",
 ]

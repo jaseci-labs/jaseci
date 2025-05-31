@@ -6,6 +6,7 @@ from typing import cast
 import jaclang.compiler.jtyping as jtype
 import jaclang.compiler.unitree as ast
 from jaclang.compiler.jtyping.types.jclassmember import MemberKind
+from jaclang.compiler.jtyping.types.jtype import _BINARY_OPERATOR_METHODS
 from jaclang.compiler.passes import UniPass
 from jaclang.settings import settings
 
@@ -282,3 +283,96 @@ class JTypeCheckPass(UniPass):
                     n.target.name_spec.sym = member.decl
                 else:
                     n.name_spec.sym = member.decl
+
+    ###############################
+    ### Binary/Bool Expressions ###
+    ###############################
+    def exit_binary_expr(self, node: ast.BinaryExpr) -> None:
+        """
+        Perform type checking for a binary expression node during AST traversal.
+
+        This function is called after visiting a binary expression node. It resolves
+        the types of the left and right operands and checks if the binary operator
+        is supported for the given types.
+
+        Type checking is skipped for:
+        - Binary expressions used within type annotation contexts (e.g., `int | str`).
+        - Operands of type `Any`.
+        - Operands involving user-defined class types (binary ops are disallowed).
+
+        Supported operations are resolved through method dispatch on the left-hand
+        operand. If the operator is overloaded and the right-hand operand type is
+        assignable to the expected parameter, the result type is inferred. Implicit
+        promotion from int to float is supported for arithmetic operations.
+
+        Args:
+            node (ast.BinaryExpr): The binary expression AST node to type check.
+
+        Raises:
+            AssertionError: If the operator function or its type is unexpectedly missing.
+            Logs errors and warnings for unsupported operations or invalid type combinations.
+        """
+        # Ignore type checking in case of type annotations expressions
+        # this will prevert issues like or not supported for a: int | str
+        if isinstance(node.parent, ast.SubTag):
+            return
+
+        if isinstance(node.op, ast.Token):
+            type1 = self.prog.type_resolver.get_type(node.left)
+            type2 = self.prog.type_resolver.get_type(node.right)
+
+            if isinstance(type1, jtype.JAnyType) or isinstance(type2, jtype.JAnyType):
+                self.log_warning("Type checking is not supported here!!")
+                return
+
+            if isinstance(type1, jtype.JClassType) or isinstance(
+                type2, jtype.JClassType
+            ):
+                self.log_warning("Binary expressions is not supported on class types")
+                return
+
+            assert isinstance(type1, jtype.JClassInstanceType)
+            assert isinstance(type2, jtype.JClassInstanceType)
+            if type1.supports_binary_op(node.op.name):
+                op_function = type1.get_member(_BINARY_OPERATOR_METHODS[node.op.name])
+                assert op_function is not None
+                op_function_type = op_function.type
+                assert isinstance(op_function_type, jtype.JFunctionType)
+                assert len(op_function_type.parameters) == 1
+
+                if op_function_type.parameters[0].type.can_assign_from(type2):
+                    if node.op.name in ["PLUS", "MINUS", "MUL"] and (
+                        (
+                            type1.class_type.name == "builtins.float"
+                            and type2.class_type.name == "builtins.int"
+                        )
+                        or (
+                            type2.class_type.name == "builtins.float"
+                            and type1.class_type.name == "builtins.int"
+                        )
+                    ):
+                        float_type = self.prog.type_registry.get("builtins.float")
+                        assert isinstance(float_type, jtype.JClassType)
+
+                        self.prog.type_resolver.set_type(
+                            node, jtype.JClassInstanceType(float_type)
+                        )
+                    else:
+                        assert isinstance(
+                            op_function_type.return_type, jtype.JClassType
+                        )
+                        self.prog.type_resolver.set_type(
+                            node, jtype.JClassInstanceType(op_function_type.return_type)
+                        )
+                else:
+                    self.log_error(
+                        f"Unsupported type {type2} for binary operation '{node.op.name}'  on type {type1}"
+                    )
+            else:
+                self.log_error(
+                    f"Unsupported binary operation '{node.op.name}' on type {type1}"
+                )
+        else:
+            self.__debug_print(
+                f"Normal binary operation are supported for now {node.op}"
+            )

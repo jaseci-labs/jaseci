@@ -569,7 +569,7 @@ class AstSymbolNode(UniNode):
         return self.name_spec.py_ctx_func
 
     @property
-    def expr_type(self) -> str:
+    def expr_type(self) -> JType:
         return self.name_spec.expr_type
 
     @property
@@ -713,15 +713,15 @@ class Expr(UniNode):
     """
 
     def __init__(self) -> None:
-        self._sym_type: str = "NoType"
+        self._sym_type: JType = JAnyType()
         self._type_sym_tab: Optional[UniScopeNode] = None
 
     @property
-    def expr_type(self) -> str:
+    def expr_type(self) -> JType:
         return self._sym_type
 
     @expr_type.setter
-    def expr_type(self, sym_type: str) -> None:
+    def expr_type(self, sym_type: JType) -> None:
         self._sym_type = sym_type
 
     @property
@@ -802,9 +802,8 @@ class NameAtom(AtomExpr, EnumBlockStmt):
         return self._sym_category
 
     @property
-    def clean_type(self) -> str:
-        ret_type = self.expr_type.replace("builtins.", "").replace("NoType", "")
-        return ret_type
+    def clean_type(self) -> JType:
+        return self.expr_type
 
     @property
     def py_ctx_func(self) -> Type[ast3.expr_context]:
