@@ -182,12 +182,12 @@ class DeclImplMatchPass(Transform[uni.Module, uni.Module]):
 
     def check_archetype(self, node: uni.Archetype) -> None:
         """Check a single archetype for issues."""
-        if node.arch_type.name == Tok.KW_OBJECT and isinstance(
-            node.body, uni.SubNodeList
+        if node.arch_type.name == Tok.KW_OBJECT and node.body and not isinstance(
+            node.body, uni.ImplDef
         ):
             self.cur_node = node
             found_default_init = False
-            for stmnt in node.body.items:
+            for stmnt in node.body:
                 if not isinstance(stmnt, uni.ArchHas):
                     continue
                 for var in stmnt.vars.items:
@@ -204,7 +204,7 @@ class DeclImplMatchPass(Transform[uni.Module, uni.Module]):
             post_init_vars: list[uni.HasVar] = []
             postinit_method: uni.Ability | None = None
 
-            for item in node.body.items:
+            for item in node.body:
 
                 if isinstance(item, uni.ArchHas):
                     for var in item.vars.items:

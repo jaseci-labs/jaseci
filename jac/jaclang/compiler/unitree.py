@@ -1437,7 +1437,7 @@ class Archetype(
         arch_type: Token,
         access: Optional[SubTag[Token]],
         base_classes: Optional[SubNodeList[Expr]],
-        body: Optional[SubNodeList[ArchBlockStmt] | ImplDef],
+        body: Optional[Sequence[ArchBlockStmt] | ImplDef],
         kid: Sequence[UniNode],
         doc: Optional[String] = None,
         decorators: Optional[SubNodeList[Expr]] = None,
@@ -1478,8 +1478,8 @@ class Archetype(
     @property
     def is_abstract(self) -> bool:
         body = (
-            self.body.items
-            if isinstance(self.body, SubNodeList)
+            self.body
+            if self.body is not None and not isinstance(self.body, ImplDef)
             else (
                 self.body.body.items
                 if isinstance(self.body, ImplDef)
@@ -1498,7 +1498,11 @@ class Archetype(
             res = (
                 res and self.base_classes.normalize(deep) if self.base_classes else res
             )
-            res = res and self.body.normalize(deep) if self.body else res
+            if isinstance(self.body, ImplDef):
+                res = res and self.body.normalize(deep)
+            elif self.body:
+                for i in self.body:
+                    res = res and i.normalize(deep)
             res = res and self.doc.normalize(deep) if self.doc else res
             res = res and self.decorators.normalize(deep) if self.decorators else res
         new_kid: list[UniNode] = []
@@ -1521,7 +1525,10 @@ class Archetype(
             if isinstance(self.body, ImplDef):
                 new_kid.append(self.gen_token(Tok.SEMI))
             else:
-                new_kid.append(self.body)
+                new_kid.append(self.gen_token(Tok.LBRACE))
+                for stmt in self.body:
+                    new_kid.append(stmt)
+                new_kid.append(self.gen_token(Tok.RBRACE))
         else:
             new_kid.append(self.gen_token(Tok.SEMI))
         self.set_kids(nodes=new_kid)

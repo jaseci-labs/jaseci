@@ -797,7 +797,7 @@ class PyastGenPass(UniPass):
                 node.body.body
                 if isinstance(node.body, uni.ImplDef)
                 and isinstance(node.body.body, uni.SubNodeList)
-                else node.body if isinstance(node.body, uni.SubNodeList) else None
+                else node.body if node.body is not None and not isinstance(node.body, uni.ImplDef) else None
             ),
             doc=node.doc,
         )
@@ -849,7 +849,7 @@ class PyastGenPass(UniPass):
                 node.body.body
                 if isinstance(node.body, uni.ImplDef)
                 and isinstance(node.body.body, uni.SubNodeList)
-                else node.body if isinstance(node.body, uni.SubNodeList) else None
+                else node.body if node.body is not None and not isinstance(node.body, uni.ImplDef) else None
             ),
             doc=node.doc,
         )

@@ -594,12 +594,13 @@ class JacParser(Transform[uni.Source, uni.Module]):
                     sub_list2 or sub_list1
                 )  # if sub_list2 is None then body is sub_list1
                 inh = sub_list2 and sub_list1  # if sub_list2 is None then inh is None.
+            body_items = body.items if isinstance(body, uni.SubNodeList) else body
             return uni.Archetype(
                 arch_type=arch_type,
                 name=name,
                 access=access,
                 base_classes=inh,
-                body=body,
+                body=body_items,
                 kid=self.cur_nodes,
             )
 

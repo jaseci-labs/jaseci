@@ -370,7 +370,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             name=name,
             access=None,
             base_classes=valid_bases,
-            body=valid_body,
+            body=valid_body.items,
             kid=kid,
             doc=doc,
             decorators=valid_decorators,
