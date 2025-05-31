@@ -4,10 +4,12 @@ This pass is resbponsible for annotating jtype object
 using type annotations in the code.
 """
 
+from typing import Optional
+
 import jaclang.compiler.jtyping as jtype
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.jtyping.types.jclassmember import MemberKind
-from jaclang.compiler.constant import SymbolAccess, SymbolType
+from jaclang.compiler.constant import SymbolAccess, SymbolType, Tokens
 from jaclang.compiler.passes import UniPass
 from jaclang.settings import settings
 
@@ -26,6 +28,18 @@ class JTypeAnnotatePass(UniPass):
         if settings.debug_jac_typing:
             print("[JTypeAnnotatePass]", msg)
 
+    def __resolve_type_annotation(self, node: Optional[uni.Expr]) -> jtype.JType:
+        if (
+            isinstance(node, uni.BinaryExpr)
+            and isinstance(node.op, uni.Token)
+            and node.op.name == Tokens.BW_OR.value
+        ):
+            type1 = self.__resolve_type_annotation(node.left)
+            type2 = self.__resolve_type_annotation(node.right)
+            return jtype.JUnionType([type1, type2])
+        else:
+            return self.prog.type_resolver.get_type(node)
+
     def before_pass(self) -> None:
         """Do setup pass vars."""  # noqa D403, D401
         if not settings.enable_jac_semantics:
@@ -38,9 +52,7 @@ class JTypeAnnotatePass(UniPass):
         # Resolve the declared type from the annotation
 
         type_annotation = (
-            self.prog.type_resolver.get_type(node.type_tag.tag)
-            if node.type_tag
-            else None
+            self.__resolve_type_annotation(node.type_tag.tag) if node.type_tag else None
         )
 
         # Iterate over each target in the assignment (e.g., `x` in `x: int = 5`)
@@ -112,7 +124,7 @@ class JTypeAnnotatePass(UniPass):
             )
             return
 
-        ret_type = self.prog.type_resolver.get_type(node.signature.return_type)
+        ret_type = self.__resolve_type_annotation(node.signature.return_type)
         if isinstance(ret_type, jtype.JClassType):
             ret_type = jtype.JClassInstanceType(ret_type)
 
@@ -136,9 +148,7 @@ class JTypeAnnotatePass(UniPass):
         if node.signature.params:
             for param in node.signature.params.items:
                 if param.type_tag:
-                    type_annotation = self.prog.type_resolver.get_type(
-                        param.type_tag.tag
-                    )
+                    type_annotation = self.__resolve_type_annotation(param.type_tag.tag)
                 else:
                     type_annotation = jtype.JAnyType()
 
@@ -254,7 +264,7 @@ class JTypeAnnotatePass(UniPass):
         Raises an error if a variable is declared more than once.
         """
         assert node.type_tag is not None  # QA: why type_tag is optional?
-        type_annotation = self.prog.type_resolver.get_type(node.type_tag.tag)
+        type_annotation = self.__resolve_type_annotation(node.type_tag.tag)
 
         assert node.name_spec.sym is not None
         if isinstance(node.name_spec.sym.jtype, jtype.JAnyType):

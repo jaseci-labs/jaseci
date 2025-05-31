@@ -221,6 +221,11 @@ class JTypeResolver:
             return jtype.JAnyType()
 
         func_type = self.get_type(node.target)
+
+        # TODO: This should be removed once jac builtins are supported
+        if isinstance(func_type, jtype.JAnyType):
+            return func_type
+
         assert isinstance(func_type, (jtype.JFunctionType, jtype.JClassType))
 
         # In case of normal functions
@@ -295,6 +300,9 @@ class JTypeResolver:
                     return jtype.JClassInstanceType(archetype_node.sym.jtype)
         return self._get_name_expr_type(node)
 
+    def _get_binary_expr_expr_type(self, node: ast.BinaryExpr) -> jtype.JType:
+        return node.expr_type
+
     def set_type(
         self, node: ast.Expr, expr_type: jtype.JType, quite: bool = False
     ) -> None:
@@ -332,3 +340,8 @@ class JTypeResolver:
         nodes = node.to_list
         assert isinstance(nodes[-1], ast.Expr)
         self.set_type(nodes[-1], expr_type, quite=True)
+
+    def _set_binary_expr_expr_type(
+        self, node: ast.AtomTrailer, expr_type: jtype.JType
+    ) -> None:
+        node.expr_type = expr_type

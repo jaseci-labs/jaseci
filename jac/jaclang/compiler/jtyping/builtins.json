@@ -1,6 +1,65 @@
 {
-    "int": {"methods": [], "assignable_from": ["builtins.int"]},
-    "float": {"methods": [], "assignable_from": ["builtins.int", "builtins.float"]},
-    "str": {"methods": [], "assignable_from": ["builtins.str"]},
-    "bool": {"methods": [], "assignable_from": ["builtins.bool"]}
+    "builtins.int": {
+        "methods": {
+            // A special handling is added in the compiler it self to make the binary operations
+            // on float and int results in float not int
+            // This special handling should goaway once function overloading is supported
+            "__add__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.int"},
+            "__sub__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.int"},
+            "__mul__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.int"},
+            "__truediv__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.float"},
+            "__floordiv__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.int"},
+            "__mod__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.int"},
+            "__pow__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.int"},
+            "__eq__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"},
+            "__lt__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"},
+            "__le__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"},
+            "__gt__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"},
+            "__ge__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"}
+        },
+        "assignable_from": ["builtins.int"]
+    },
+    "builtins.float": {
+        "methods": {
+            "__add__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.float"},
+            "__sub__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.float"},
+            "__mul__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.float"},
+            "__truediv__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.float"},
+            "__floordiv__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.int"},
+            "__mod__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.float"},
+            "__pow__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.float"},
+            "__eq__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"},
+            "__lt__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"},
+            "__le__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"},
+            "__gt__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"},
+            "__ge__": {"args": [["builtins.int", "builtins.float"]], "return": "builtins.bool"},
+            "__round__": {"args": [], "return": "builtins.int"}
+        },
+        "assignable_from": ["builtins.int", "builtins.float"]
+    },
+    "builtins.str": {
+        "methods": {
+            "__add__": {"args": ["builtins.str"], "return": "builtins.str"},
+            "__contains__": {"args": ["builtins.str"], "return": "builtins.bool"},
+            "__eq__": {"args": ["builtins.str"], "return": "builtins.bool"},
+            "upper": {"args": [], "return": "builtins.str"},
+            "lower": {"args": [], "return": "builtins.str"},
+            "builtins.strip": {"args": [], "return": "builtins.str"},
+            // "split": {"args": [], "return": "list[builtins.str]"},
+            // "join": {"args": [["list[builtins.str]"]], "return": "builtins.str"},
+            "replace": {"args": ["builtins.str", "builtins.str"], "return": "builtins.str"},
+            "find": {"args": ["builtins.str"], "return": "builtins.int"}
+            // "format": {"args": ["..."], "return": "builtins.str"}
+        },
+        "assignable_from": ["builtins.builtins.str"]
+    },
+    "builtins.bool": {
+        "methods": {
+            "__and__": {"args": ["builtins.bool"], "return": "builtins.bool"},
+            "__or__": {"args": ["builtins.bool"], "return": "builtins.bool"},
+            "__invert__": {"args": [], "return": "builtins.bool"},
+            "__eq__": {"args": ["builtins.bool"], "return": "builtins.bool"}
+        },
+        "assignable_from": ["builtins.bool"]
+    }
 }
