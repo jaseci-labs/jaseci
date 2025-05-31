@@ -1949,14 +1949,11 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 index = self.consume(uni.ListVal)
                 if not index.values:
                     raise self.ice()
-                if len(index.values.items) == 1:
-                    expr = index.values.items[0] if index.values else None
+                if len(index.values) == 1:
+                    expr = index.values[0]
                     kid = self.cur_nodes
                 else:
-                    sublist = uni.SubNodeList[uni.Expr | uni.KWPair](
-                        items=[*index.values.items], delim=Tok.COMMA, kid=index.kid
-                    )
-                    expr = uni.TupleVal(values=sublist, kid=[sublist])
+                    expr = uni.TupleVal(values=index.values, kid=index.kid)
                     kid = [expr]
                 return uni.IndexSlice(
                     slices=[uni.IndexSlice.Slice(start=expr, stop=None, step=None)],
@@ -2115,11 +2112,11 @@ class JacParser(Transform[uni.Source, uni.Module]):
             list_val: LSQUARE (expr_list COMMA?)? RSQUARE
             """
             self.consume_token(Tok.LSQUARE)
-            values = self.match(uni.SubNodeList)
+            values_sn = self.match(uni.SubNodeList)
             self.match_token(Tok.COMMA)
             self.consume_token(Tok.RSQUARE)
             return uni.ListVal(
-                values=values,
+                values=values_sn.items if values_sn else None,
                 kid=self.cur_nodes,
             )
 
@@ -2129,10 +2126,10 @@ class JacParser(Transform[uni.Source, uni.Module]):
             tuple_val: LPAREN tuple_list? RPAREN
             """
             self.consume_token(Tok.LPAREN)
-            target = self.match(uni.SubNodeList)
+            target_sn = self.match(uni.SubNodeList)
             self.consume_token(Tok.RPAREN)
             return uni.TupleVal(
-                values=target,
+                values=target_sn.items if target_sn else None,
                 kid=self.cur_nodes,
             )
 
@@ -2142,11 +2139,11 @@ class JacParser(Transform[uni.Source, uni.Module]):
             set_val: LBRACE expr_list COMMA? RBRACE
             """
             self.match_token(Tok.LBRACE)
-            expr_list = self.match(uni.SubNodeList)
+            expr_list_sn = self.match(uni.SubNodeList)
             self.match_token(Tok.COMMA)
             self.match_token(Tok.RBRACE)
             return uni.SetVal(
-                values=expr_list,
+                values=expr_list_sn.items if expr_list_sn else None,
                 kid=self.cur_nodes,
             )
 

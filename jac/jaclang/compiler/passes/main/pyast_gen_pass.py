@@ -2097,10 +2097,16 @@ class PyastGenPass(UniPass):
             func_node = uni.FuncCall(
                 target=node.right,
                 params=(
-                    node.left.values
-                    if isinstance(node.left, uni.TupleVal)
-                    else uni.SubNodeList(
-                        items=[node.left], delim=Tok.COMMA, kid=[node.left]
+                    uni.SubNodeList(
+                        items=list(node.left.values),
+                        delim=Tok.COMMA,
+                        kid=list(node.left.values),
+                    )
+                    if isinstance(node.left, uni.TupleVal) and node.left.values is not None
+                    else (
+                        None
+                        if isinstance(node.left, uni.TupleVal)
+                        else uni.SubNodeList(items=[node.left], delim=Tok.COMMA, kid=[node.left])
                     )
                 ),
                 genai_call=None,
@@ -2129,10 +2135,16 @@ class PyastGenPass(UniPass):
             func_node = uni.FuncCall(
                 target=node.left,
                 params=(
-                    node.right.values
-                    if isinstance(node.right, uni.TupleVal)
-                    else uni.SubNodeList(
-                        items=[node.right], delim=Tok.COMMA, kid=[node.right]
+                    uni.SubNodeList(
+                        items=list(node.right.values),
+                        delim=Tok.COMMA,
+                        kid=list(node.right.values),
+                    )
+                    if isinstance(node.right, uni.TupleVal) and node.right.values is not None
+                    else (
+                        None
+                        if isinstance(node.right, uni.TupleVal)
+                        else uni.SubNodeList(items=[node.right], delim=Tok.COMMA, kid=[node.right])
                     )
                 ),
                 genai_call=None,
@@ -2339,42 +2351,19 @@ class PyastGenPass(UniPass):
         )
 
     def exit_list_val(self, node: uni.ListVal) -> None:
-        if isinstance(node.py_ctx_func(), ast3.Load):
-            node.gen.py_ast = [
-                self.sync(
-                    ast3.List(
-                        elts=(
-                            cast(list[ast3.expr], node.values.gen.py_ast)
-                            if node.values
-                            else []
-                        ),
-                        ctx=ast3.Load(),
-                    )
-                )
-            ]
-        else:
-            node.gen.py_ast = [
-                self.sync(
-                    ast3.List(
-                        elts=(
-                            [cast(ast3.expr, item) for item in node.values.gen.py_ast]
-                            if node.values and node.values.gen.py_ast
-                            else []
-                        ),
-                        ctx=cast(ast3.expr_context, node.py_ctx_func()),
-                    )
-                )
-            ]
+        elements = [cast(ast3.expr, v.gen.py_ast[0]) for v in node.values] if node.values else []
+        ctx = ast3.Load() if isinstance(node.py_ctx_func(), ast3.Load) else cast(
+            ast3.expr_context, node.py_ctx_func()
+        )
+        node.gen.py_ast = [self.sync(ast3.List(elts=elements, ctx=ctx))]
 
     def exit_set_val(self, node: uni.SetVal) -> None:
         node.gen.py_ast = [
             self.sync(
                 ast3.Set(
-                    elts=(
-                        [cast(ast3.expr, i) for i in node.values.gen.py_ast]
-                        if node.values
-                        else []
-                    ),
+                    elts=[cast(ast3.expr, i.gen.py_ast[0]) for i in node.values]
+                    if node.values
+                    else [],
                 )
             )
         ]
@@ -2383,11 +2372,9 @@ class PyastGenPass(UniPass):
         node.gen.py_ast = [
             self.sync(
                 ast3.Tuple(
-                    elts=(
-                        cast(list[ast3.expr], node.values.gen.py_ast)
-                        if node.values
-                        else []
-                    ),
+                    elts=[cast(ast3.expr, v.gen.py_ast[0]) for v in node.values]
+                    if node.values
+                    else [],
                     ctx=cast(ast3.expr_context, node.py_ctx_func()),
                 )
             )
