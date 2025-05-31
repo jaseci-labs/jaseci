@@ -36,11 +36,11 @@ class InheritancePass(Transform[uni.Module, uni.Module]):
 
     def process_archetype_inheritance(self, node: uni.Archetype) -> None:
         """Fill archetype symbol tables with abilities from parent archetypes."""
-        if node.base_classes is None:
+        if not node.base_classes:
             return
 
         self.cur_node = node
-        for item in node.base_classes.items:
+        for item in node.base_classes:
             # Handle different types of base class references
             if isinstance(item, uni.Name):
                 self.inherit_from_name(node, item)

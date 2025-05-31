@@ -3,7 +3,7 @@
 This is a pass for generating DocIr for Jac code.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 import jaclang.compiler.passes.tool.doc_ir as doc
 import jaclang.compiler.unitree as uni
@@ -179,11 +179,34 @@ class DocIRGenPass(UniPass):
     def exit_archetype(self, node: uni.Archetype) -> None:
         """Generate DocIR for archetypes."""
         parts: list[doc.DocType] = []
+        body_parts: list[doc.DocType] = []
+        prev_item = None
+        in_body = False
         for i in node.kid:
-            if i in [node.doc, node.decorators]:
+            if (node.doc and i is node.doc) or (
+                node.decorators and i in node.decorators
+            ):
                 parts.append(i.gen.doc_ir)
                 parts.append(self.hard_line())
             elif i == node.name:
+                parts.append(i.gen.doc_ir)
+                parts.append(self.space())
+            elif isinstance(node.body, Sequence) and i in node.body:
+                if not in_body:
+                    parts.pop()
+                    body_parts.append(self.hard_line())
+                body_parts.append(i.gen.doc_ir)
+                body_parts.append(self.hard_line())
+                if type(prev_item) is not type(i) or (
+                    prev_item and not self.is_one_line(prev_item)
+                ):
+                    body_parts.append(self.hard_line())
+                in_body = True
+            elif in_body:
+                in_body = False
+                body_parts.pop()
+                parts.append(self.indent(self.concat(body_parts)))
+                parts.append(self.hard_line())
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
             elif isinstance(i, uni.Token) and i.name == Tok.SEMI:
@@ -193,6 +216,7 @@ class DocIRGenPass(UniPass):
             else:
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
+            prev_item = i
         node.gen.doc_ir = self.finalize(parts)
 
     def exit_ability(self, node: uni.Ability) -> None:
@@ -335,23 +359,25 @@ class DocIRGenPass(UniPass):
     def exit_func_call(self, node: uni.FuncCall) -> None:
         """Generate DocIR for function calls."""
         parts: list[doc.DocType] = []
-        skip_params = False
+        indent_parts: list[doc.DocType] = []
+        in_params = False
         for i in node.kid:
             if isinstance(i, uni.Token) and i.name == Tok.LPAREN and node.params:
+                in_params = True
                 parts.append(i.gen.doc_ir)
-                if node.params.items:
-                    parts.append(
-                        self.indent(
-                            self.concat([self.tight_line(), node.params.gen.doc_ir])
-                        )
-                    )
-                    parts.append(self.tight_line())
-                    skip_params = True
+            elif isinstance(i, uni.Token) and i.name == Tok.RPAREN and node.params:
+                in_params = False
+                parts.append(
+                    self.indent(self.concat([self.tight_line(), *indent_parts]))
+                )
+                parts.append(self.tight_line())
+                parts.append(i.gen.doc_ir)
+            elif in_params:
+                if isinstance(i, uni.Token) and i.name == Tok.COMMA:
+                    indent_parts.append(i.gen.doc_ir)
+                    indent_parts.append(self.space())
                 else:
-                    skip_params = False
-            elif i == node.params:
-                if not skip_params:
-                    parts.append(i.gen.doc_ir)
+                    indent_parts.append(i.gen.doc_ir)
             else:
                 parts.append(i.gen.doc_ir)
         node.gen.doc_ir = self.group(self.concat(parts))
@@ -489,12 +515,7 @@ class DocIRGenPass(UniPass):
         """Generate DocIR for set values."""
         parts: list[doc.DocType] = []
         for i in node.kid:
-            if isinstance(i, uni.Token):
-                parts.append(i.gen.doc_ir)
-            elif isinstance(i, uni.SubNodeList):
-                parts.append(self.if_break(self.line(), self.space()))
-                parts.append(i.gen.doc_ir)
-                parts.append(self.if_break(self.line(), self.space()))
+            parts.append(i.gen.doc_ir)
 
         node.gen.doc_ir = self.group(self.concat(parts))
 
@@ -1025,7 +1046,9 @@ class DocIRGenPass(UniPass):
         """Generate DocIR for enum declarations."""
         parts: list[doc.DocType] = []
         for i in node.kid:
-            if i in [node.doc, node.decorators]:
+            if (node.doc and i is node.doc) or (
+                node.decorators and i in node.decorators
+            ):
                 parts.append(i.gen.doc_ir)
                 parts.append(self.hard_line())
             elif isinstance(i, uni.Token) and i.name == Tok.SEMI:
@@ -1051,10 +1074,8 @@ class DocIRGenPass(UniPass):
         indent_parts: list[doc.DocType] = []
         prev_item: Optional[uni.UniNode] = None
         in_codeblock = node.delim and node.delim.name == Tok.WS
-        in_archetype = (
-            node.parent
-            and isinstance(node.parent, (uni.Archetype, uni.Enum))
-            and node == node.parent.body
+        in_archetype = node.parent and isinstance(
+            node.parent, (uni.Archetype, uni.Enum)
         )
         is_assignment = node.delim and node.delim.name == Tok.EQ
         for i in node.kid:
@@ -1112,7 +1133,7 @@ class DocIRGenPass(UniPass):
         """Generate DocIR for implementation definitions."""
         parts: list[doc.DocType] = []
         for i in node.kid:
-            if i in [node.doc, node.decorators]:
+            if i == node.doc or (node.decorators and i in node.decorators):
                 parts.append(i.gen.doc_ir)
                 parts.append(self.hard_line())
             elif i == node.target:

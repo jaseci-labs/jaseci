@@ -105,7 +105,7 @@ class SymTabLinkPass(Transform[uni.Module, uni.Module]):
         """Get list of specific symbols being imported."""
         symbols = []
         if node.parent and isinstance(node.parent, uni.Import):
-            for mod_items in node.parent.items.items:
+            for mod_items in node.parent.items:
                 if isinstance(mod_items, uni.ModuleItem):
                     symbols.append(mod_items.name.value)
         return symbols

@@ -5,7 +5,7 @@ from __future__ import annotations
 import keyword
 import logging
 import os
-from typing import Callable, TYPE_CHECKING, TypeAlias, TypeVar
+from typing import Callable, Sequence, TYPE_CHECKING, TypeAlias, TypeVar
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler import jac_lark as jl  # type: ignore
@@ -293,10 +293,10 @@ class JacParser(Transform[uni.Source, uni.Module]):
             """
             is_frozen = self.consume(uni.Token).name == Tok.KW_LET
             access_tag = self.match(uni.SubTag)
-            assignments = self.consume(uni.SubNodeList)
+            assignments_sn = self.consume(uni.SubNodeList)
             return uni.GlobalVars(
                 access=access_tag,
-                assignments=assignments,
+                assignments=assignments_sn.items,
                 is_frozen=is_frozen,
                 kid=self.cur_nodes,
             )
@@ -321,7 +321,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             codeblock = self.consume(uni.SubNodeList)
             return uni.Test(
                 name=name,
-                body=codeblock,
+                body=codeblock.items,
                 kid=self.cur_nodes,
             )
 
@@ -374,7 +374,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 self.consume_token(Tok.SEMI)
                 return uni.Import(
                     from_loc=None,
-                    items=items,
+                    items=items.items,
                     is_absorb=True,
                     kid=kid,
                 )
@@ -406,7 +406,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             is_absorb = False
             return uni.Import(
                 from_loc=from_path,
-                items=items,
+                items=items.items,
                 is_absorb=is_absorb,
                 kid=kid,
             )
@@ -446,7 +446,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             valid_path = self.consume(uni.SubNodeList)
             alias = self.consume(uni.Name) if self.match_token(Tok.KW_AS) else None
             return uni.ModulePath(
-                path=valid_path,
+                path=valid_path.items,
                 level=0,
                 alias=alias,
                 kid=self.cur_nodes,
@@ -504,12 +504,12 @@ class JacParser(Transform[uni.Source, uni.Module]):
             """
             archspec: uni.ArchSpec | uni.Enum | None = None
 
-            decorators = self.match(uni.SubNodeList)
+            decorators_node = self.match(uni.SubNodeList)
             is_async = self.match_token(Tok.KW_ASYNC)
-            if decorators is not None:
+            if decorators_node is not None:
                 archspec = self.consume(uni.ArchSpec)
-                archspec.decorators = decorators
-                archspec.add_kids_left([decorators])
+                archspec.decorators = decorators_node.items
+                archspec.add_kids_left([decorators_node])
             else:
                 archspec = self.match(uni.ArchSpec) or self.consume(uni.Enum)
             if is_async and isinstance(archspec, uni.ArchSpec):
@@ -527,7 +527,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
 
             impl_def: decorators? KW_IMPL dotted_name impl_spec? impl_tail
             """
-            decorators = self.match(uni.SubNodeList)
+            decorators_node = self.match(uni.SubNodeList)
             self.consume_token(Tok.KW_IMPL)
             target = self.consume(uni.SubNodeList)
             spec = (
@@ -541,17 +541,25 @@ class JacParser(Transform[uni.Source, uni.Module]):
             assert isinstance(valid_tail, (uni.SubNodeList, uni.FuncCall))
 
             impl = uni.ImplDef(
-                decorators=decorators,
-                target=target,
-                spec=valid_spec,
-                body=valid_tail,
+                body=(
+                    valid_tail.items
+                    if isinstance(valid_tail, uni.SubNodeList)
+                    else valid_tail
+                ),
+                target=target.items,
+                decorators=decorators_node.items if decorators_node else None,
+                spec=(
+                    valid_spec.items
+                    if isinstance(valid_spec, uni.SubNodeList)
+                    else valid_spec
+                ),
                 kid=self.cur_nodes,
             )
             return impl
 
         def impl_spec(
             self, _: None
-        ) -> uni.SubNodeList[uni.Expr] | uni.FuncSignature | uni.EventSignature:
+        ) -> Sequence[uni.Expr] | uni.FuncSignature | uni.EventSignature:
             """Grammar rule.
 
             impl_spec: inherited_archs | func_decl | event_clause
@@ -561,7 +569,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 or self.match(uni.FuncSignature)  # func_decl
                 or self.consume(uni.EventSignature)  # event_clause
             )
-            return spec
+            return spec.items if isinstance(spec, uni.SubNodeList) else spec
 
         def impl_tail(
             self, _: None
@@ -590,15 +598,14 @@ class JacParser(Transform[uni.Source, uni.Module]):
             if self.match_token(Tok.SEMI):
                 inh, body = sub_list1, None
             else:
-                body = (
-                    sub_list2 or sub_list1
-                )  # if sub_list2 is None then body is sub_list1
+                body_sn = sub_list2 or sub_list1
+                body = body_sn.items if body_sn else []
                 inh = sub_list2 and sub_list1  # if sub_list2 is None then inh is None.
             return uni.Archetype(
                 arch_type=arch_type,
                 name=name,
                 access=access,
-                base_classes=inh,
+                base_classes=inh.items if inh else [],
                 body=body,
                 kid=self.cur_nodes,
             )
@@ -668,7 +675,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             """
             if decorator := self.match(uni.SubNodeList):
                 enum_decl = self.consume(uni.Enum)
-                enum_decl.decorators = decorator
+                enum_decl.decorators = decorator.items
                 enum_decl.add_kids_left([decorator])
                 return enum_decl
             return self.consume(uni.Enum)
@@ -691,7 +698,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             return uni.Enum(
                 name=name,
                 access=access,
-                base_classes=inh,
+                base_classes=inh.items if inh else [],
                 body=body,
                 kid=self.cur_nodes,
             )
@@ -705,6 +712,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             assignments = self.consume(uni.SubNodeList)
             self.match_token(Tok.COMMA)
             while item := self.match(uni.EnumBlockStmt):
+                item.is_enum_stmt = True
                 assignments.add_kids_right([item])
                 assignments.items.append(item)
             right_enc = self.consume_token(Tok.RBRACE)
@@ -1274,11 +1282,11 @@ class JacParser(Transform[uni.Source, uni.Module]):
             """
             is_async = bool(self.match_token(Tok.KW_ASYNC))
             self.consume_token(Tok.KW_WITH)
-            exprs = self.consume(uni.SubNodeList)
+            exprs_node = self.consume(uni.SubNodeList)
             body = self.consume(uni.SubNodeList)
             return uni.WithStmt(
                 is_async=is_async,
-                exprs=exprs,
+                exprs=exprs_node.items,
                 body=body,
                 kid=self.cur_nodes,
             )
@@ -1925,13 +1933,13 @@ class JacParser(Transform[uni.Source, uni.Module]):
             genai_call: uni.FuncCall | None = None
             target = self.consume(uni.Expr)
             self.consume_token(Tok.LPAREN)
-            params = self.match(uni.SubNodeList)
+            params_sn = self.match(uni.SubNodeList)
             if self.match_token(Tok.KW_BY):
                 genai_call = self.consume(uni.FuncCall)
             self.consume_token(Tok.RPAREN)
             return uni.FuncCall(
                 target=target,
-                params=params,
+                params=params_sn.items if params_sn else [],
                 genai_call=genai_call,
                 kid=self.cur_nodes,
             )
@@ -1949,14 +1957,14 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 index = self.consume(uni.ListVal)
                 if not index.values:
                     raise self.ice()
-                if len(index.values.items) == 1:
-                    expr = index.values.items[0] if index.values else None
+                if len(index.values) == 1:
+                    expr = index.values[0]
                     kid = self.cur_nodes
                 else:
                     sublist = uni.SubNodeList[uni.Expr | uni.KWPair](
-                        items=[*index.values.items], delim=Tok.COMMA, kid=index.kid
+                        items=[*index.values], delim=Tok.COMMA, kid=index.kid
                     )
-                    expr = uni.TupleVal(values=sublist, kid=[sublist])
+                    expr = uni.TupleVal(values=sublist.items, kid=[sublist])
                     kid = [expr]
                 return uni.IndexSlice(
                     slices=[uni.IndexSlice.Slice(start=expr, stop=None, step=None)],
@@ -2115,9 +2123,10 @@ class JacParser(Transform[uni.Source, uni.Module]):
             list_val: LSQUARE (expr_list COMMA?)? RSQUARE
             """
             self.consume_token(Tok.LSQUARE)
-            values = self.match(uni.SubNodeList)
+            values_node = self.match(uni.SubNodeList)
             self.match_token(Tok.COMMA)
             self.consume_token(Tok.RSQUARE)
+            values = values_node.items if values_node else []
             return uni.ListVal(
                 values=values,
                 kid=self.cur_nodes,
@@ -2132,7 +2141,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             target = self.match(uni.SubNodeList)
             self.consume_token(Tok.RPAREN)
             return uni.TupleVal(
-                values=target,
+                values=target.items if target else [],
                 kid=self.cur_nodes,
             )
 
@@ -2145,8 +2154,9 @@ class JacParser(Transform[uni.Source, uni.Module]):
             expr_list = self.match(uni.SubNodeList)
             self.match_token(Tok.COMMA)
             self.match_token(Tok.RBRACE)
+            values = expr_list.items if expr_list else []
             return uni.SetVal(
-                values=expr_list,
+                values=values,
                 kid=self.cur_nodes,
             )
 
@@ -2554,7 +2564,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             else:
                 self.consume_token(Tok.CARROW_R)
             conn_assign = (
-                uni.AssignCompr(assigns=conn_assign_sub, kid=[conn_assign_sub])
+                uni.AssignCompr(assigns=conn_assign_sub.items, kid=[conn_assign_sub])
                 if conn_assign_sub
                 else None
             )
@@ -2585,7 +2595,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             else:
                 self.consume_token(Tok.CARROW_L)
             conn_assign = (
-                uni.AssignCompr(assigns=conn_assign_sub, kid=[conn_assign_sub])
+                uni.AssignCompr(assigns=conn_assign_sub.items, kid=[conn_assign_sub])
                 if conn_assign_sub
                 else None
             )
@@ -2616,7 +2626,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
             else:
                 self.consume_token(Tok.CARROW_BI)
             conn_assign = (
-                uni.AssignCompr(assigns=conn_assign_sub, kid=[conn_assign_sub])
+                uni.AssignCompr(assigns=conn_assign_sub.items, kid=[conn_assign_sub])
                 if conn_assign_sub
                 else None
             )
@@ -2645,10 +2655,10 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 self.consume_token(Tok.RPAREN)
                 return f_type
             self.consume_token(Tok.NULL_OK)
-            compares = self.consume(uni.SubNodeList)
+            compares_sn = self.consume(uni.SubNodeList)
             self.consume_token(Tok.RPAREN)
             return uni.FilterCompr(
-                compares=compares,
+                compares=compares_sn.items,
                 f_type=None,
                 kid=self.cur_nodes,
             )
@@ -2677,11 +2687,15 @@ class JacParser(Transform[uni.Source, uni.Module]):
 
             typed_filter_compare_list: expression (COLON filter_compare_list)?
             """
-            compares: uni.SubNodeList | None = None
+            compares_sn: uni.SubNodeList | None = None
             expr = self.consume(uni.Expr)
             if self.match_token(Tok.COLON):
-                compares = self.consume(uni.SubNodeList)
-            return uni.FilterCompr(compares=compares, f_type=expr, kid=self.cur_nodes)
+                compares_sn = self.consume(uni.SubNodeList)
+            return uni.FilterCompr(
+                compares=compares_sn.items if compares_sn else [],
+                f_type=expr,
+                kid=self.cur_nodes,
+            )
 
         def filter_compare_item(self, _: None) -> uni.CompareExpr:
             """Grammar rule.
@@ -2702,9 +2716,9 @@ class JacParser(Transform[uni.Source, uni.Module]):
             """
             self.consume_token(Tok.LPAREN)
             self.consume_token(Tok.EQ)
-            assigns = self.consume(uni.SubNodeList)
+            assigns_sn = self.consume(uni.SubNodeList)
             self.consume_token(Tok.RPAREN)
-            return uni.AssignCompr(assigns=assigns, kid=self.cur_nodes)
+            return uni.AssignCompr(assigns=assigns_sn.items, kid=self.cur_nodes)
 
         def match_stmt(self, _: None) -> uni.MatchStmt:
             """Grammar rule.

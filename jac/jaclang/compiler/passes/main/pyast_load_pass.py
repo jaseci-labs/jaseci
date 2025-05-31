@@ -340,28 +340,17 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         base_classes: list[uni.Expr] = [
             base for base in converted_base_classes if isinstance(base, uni.Expr)
         ]
-        valid_bases = (
-            uni.SubNodeList[uni.Expr](
-                items=base_classes, delim=Tok.COMMA, kid=base_classes
-            )
-            if base_classes
-            else None
-        )
         converted_decorators_list = [self.convert(i) for i in node.decorator_list]
         decorators = [i for i in converted_decorators_list if isinstance(i, uni.Expr)]
-        valid_decorators = (
-            uni.SubNodeList[uni.Expr](
-                items=decorators, delim=Tok.DECOR_OP, kid=decorators
-            )
-            if decorators
-            else None
-        )
+        if len(decorators) != len(converted_decorators_list):
+            raise self.ice("Length mismatch in decorators on class")
+        valid_decorators = decorators if decorators else None
         kid = (
-            [name, valid_bases, valid_body, doc]
-            if doc and valid_bases
+            [name, *base_classes, valid_body, doc]
+            if doc and base_classes
             else (
-                [name, valid_bases, valid_body]
-                if valid_bases
+                [name, *base_classes, valid_body]
+                if base_classes
                 else [name, valid_body, doc] if doc else [name, valid_body]
             )
         )
@@ -369,8 +358,8 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             arch_type=arch_type,
             name=name,
             access=None,
-            base_classes=valid_bases,
-            body=valid_body,
+            base_classes=base_classes,
+            body=valid,
             kid=kid,
             doc=doc,
             decorators=valid_decorators,
@@ -410,7 +399,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         target_1 = (
             valid_exprs[0]
             if len(valid_exprs) > 1
-            else uni.TupleVal(values=target, kid=[target])
+            else uni.TupleVal(values=target.items, kid=[target])
         )
         return uni.DeleteStmt(
             target=target_1,
@@ -733,9 +722,6 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         valid_items = [item for item in items if isinstance(item, uni.ExprAsItem)]
         if len(valid_items) != len(items):
             raise self.ice("Length mismatch in with items")
-        items_sub = uni.SubNodeList[uni.ExprAsItem](
-            items=valid_items, delim=Tok.COMMA, kid=items
-        )
         body = [self.convert(stmt) for stmt in node.body]
         valid_body = [stmt for stmt in body if isinstance(stmt, uni.CodeBlockStmt)]
         if len(valid_body) != len(body):
@@ -748,7 +734,10 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             right_enc=self.operator(Tok.RBRACE, "}"),
         )
         return uni.WithStmt(
-            is_async=False, exprs=items_sub, body=body_sub, kid=[items_sub, body_sub]
+            is_async=False,
+            exprs=valid_items,
+            body=body_sub,
+            kid=[*valid_items, body_sub],
         )
 
     def proc_async_with(self, node: py_ast.AsyncWith) -> uni.WithStmt:
@@ -763,9 +752,6 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         valid_items = [item for item in items if isinstance(item, uni.ExprAsItem)]
         if len(valid_items) != len(items):
             raise self.ice("Length mismatch in with items")
-        items_sub = uni.SubNodeList[uni.ExprAsItem](
-            items=valid_items, delim=Tok.COMMA, kid=items
-        )
         body = [self.convert(stmt) for stmt in node.body]
         valid_body = [stmt for stmt in body if isinstance(stmt, uni.CodeBlockStmt)]
         if len(valid_body) != len(body):
@@ -778,7 +764,10 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             right_enc=self.operator(Tok.RBRACE, "}"),
         )
         return uni.WithStmt(
-            is_async=True, exprs=items_sub, body=body_sub, kid=[items_sub, body_sub]
+            is_async=True,
+            exprs=valid_items,
+            body=body_sub,
+            kid=[*valid_items, body_sub],
         )
 
     def proc_raise(self, node: py_ast.Raise) -> uni.RaiseStmt:
@@ -1012,17 +1001,18 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             if isinstance(i, uni.KWPair):
                 params_in.append(i)
         if len(params_in) != 0:
-            params_in2 = uni.SubNodeList[uni.Expr | uni.KWPair](
+            params_sn = uni.SubNodeList[uni.Expr | uni.KWPair](
                 items=params_in, delim=Tok.COMMA, kid=params_in
             )
+            kids = [func, params_sn]
         else:
-            params_in2 = None
+            kids = [func]
         if isinstance(func, uni.Expr):
             return uni.FuncCall(
                 target=func,
-                params=params_in2,
+                params=params_in,
                 genai_call=None,
-                kid=[func, params_in2] if params_in2 else [func],
+                kid=kids,
             )
         else:
             raise self.ice()
@@ -1396,9 +1386,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             ):
                 paths.append(
                     uni.ModulePath(
-                        path=uni.SubNodeList[uni.Name](
-                            items=[name.expr], delim=Tok.DOT, kid=[name.expr]
-                        ),
+                        path=[name.expr],
                         level=0,
                         alias=name.alias,
                         kid=[i for i in name.kid if i],
@@ -1407,12 +1395,11 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             # Need to unravel atom trailers
             else:
                 raise self.ice()
-        items = uni.SubNodeList[uni.ModulePath](items=paths, delim=Tok.COMMA, kid=paths)
         ret = uni.Import(
             from_loc=None,
-            items=items,
+            items=paths,
             is_absorb=False,
-            kid=[items],
+            kid=paths,
         )
         return ret
 
@@ -1454,11 +1441,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         moddots = [self.operator(Tok.DOT, ".") for _ in range(node.level)]
         modparts = moddots + modpaths
         path = uni.ModulePath(
-            path=(
-                uni.SubNodeList[uni.Name](items=modpaths, delim=Tok.DOT, kid=modpaths)
-                if modpaths
-                else None
-            ),
+            path=modpaths if modpaths else None,
             level=node.level,
             alias=None,
             kid=modparts,
@@ -1481,32 +1464,23 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
                 )
             else:
                 raise self.ice()
-        items = (
-            uni.SubNodeList[uni.ModuleItem](
-                items=valid_names, delim=Tok.COMMA, kid=valid_names
-            )
-            if valid_names
-            else None
-        )
+        items = valid_names
         if not items:
             raise self.ice("No valid names in import from")
         pytag = uni.SubTag[uni.Name](tag=lang, kid=[lang])
         if len(node.names) == 1 and node.names[0].name == "*":
-            path_in = uni.SubNodeList[uni.ModulePath](
-                items=[path], delim=Tok.COMMA, kid=[path]
-            )
             ret = uni.Import(
                 from_loc=None,
-                items=path_in,
+                items=[path],
                 is_absorb=True,
-                kid=[pytag, path_in],
+                kid=[pytag, path],
             )
             return ret
         ret = uni.Import(
             from_loc=path,
             items=items,
             is_absorb=False,
-            kid=[pytag, path, items],
+            kid=[pytag, path, *items],
         )
         return ret
 
@@ -1555,13 +1529,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         l_square = self.operator(Tok.LSQUARE, "[")
         r_square = self.operator(Tok.RSQUARE, "]")
         return uni.ListVal(
-            values=(
-                uni.SubNodeList[uni.Expr](
-                    items=valid_elts, delim=Tok.COMMA, kid=valid_elts
-                )
-                if valid_elts
-                else None
-            ),
+            values=valid_elts,
             kid=[*valid_elts] if valid_elts else [l_square, r_square],
         )
 
@@ -1931,16 +1899,13 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             valid = [i for i in elts if isinstance(i, (uni.Expr))]
             if len(valid) != len(elts):
                 raise self.ice("Length mismatch in set body")
-            valid_elts = uni.SubNodeList[uni.Expr](
-                items=valid, delim=Tok.COMMA, kid=valid
-            )
             kid: list[uni.UniNode] = [*valid]
         else:
-            valid_elts = None
+            valid = []
             l_brace = self.operator(Tok.LBRACE, "{")
             r_brace = self.operator(Tok.RBRACE, "}")
             kid = [l_brace, r_brace]
-        return uni.SetVal(values=valid_elts, kid=kid)
+        return uni.SetVal(values=valid, kid=kid)
 
     def proc_set_comp(self, node: py_ast.SetComp) -> uni.ListCompr:
         """Process python node.
@@ -2020,11 +1985,11 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         if (
             not isinstance(slice, uni.IndexSlice)
             and isinstance(slice, uni.TupleVal)
-            and slice.values is not None
+            and slice.values
         ):
 
             slices: list[uni.IndexSlice.Slice] = []
-            for index_slice in slice.values.items:
+            for index_slice in slice.values:
                 if not isinstance(index_slice, uni.IndexSlice):
                     raise self.ice()
                 slices.append(index_slice.slices[0])
@@ -2145,17 +2110,14 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         """
         elts = [self.convert(elt) for elt in node.elts]
         if len(node.elts) != 0:
-            valid = [i for i in elts if isinstance(i, (uni.Expr, uni.KWPair))]
-            if len(elts) != len(valid):
+            valid_elts = [i for i in elts if isinstance(i, (uni.Expr, uni.KWPair))]
+            if len(elts) != len(valid_elts):
                 raise self.ice("Length mismatch in tuple elts")
-            valid_elts = uni.SubNodeList[uni.Expr | uni.KWPair](
-                items=valid, delim=Tok.COMMA, kid=valid
-            )
             kid = elts
         else:
             l_paren = self.operator(Tok.LPAREN, "(")
             r_paren = self.operator(Tok.RPAREN, ")")
-            valid_elts = None
+            valid_elts = []
             kid = [l_paren, r_paren]
         return uni.TupleVal(values=valid_elts, kid=kid)
 

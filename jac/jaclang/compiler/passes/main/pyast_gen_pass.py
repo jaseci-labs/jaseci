@@ -225,7 +225,8 @@ class PyastGenPass(UniPass):
     def resolve_stmt_block(
         self,
         node: (
-            uni.SubNodeList[uni.CodeBlockStmt]
+            Sequence[uni.CodeBlockStmt]
+            | uni.SubNodeList[uni.CodeBlockStmt]
             | uni.SubNodeList[uni.ArchBlockStmt]
             | uni.SubNodeList[uni.EnumBlockStmt]
             | None
@@ -233,12 +234,19 @@ class PyastGenPass(UniPass):
         doc: Optional[uni.String] = None,
     ) -> list[ast3.AST]:
         """Unwind codeblock."""
-        valid_stmts = (
-            [i for i in node.items if not isinstance(i, uni.Semi)] if node else []
+        items = (
+            list(node.items)
+            if isinstance(node, uni.SubNodeList)
+            else list(node) if node else []
         )
+        valid_stmts = [i for i in items if not isinstance(i, uni.Semi)]
         ret: list[ast3.AST] = (
-            [self.sync(ast3.Pass(), node)]
-            if isinstance(node, uni.SubNodeList) and not valid_stmts
+            [
+                self.sync(
+                    ast3.Pass(), node if isinstance(node, uni.SubNodeList) else None
+                )
+            ]
+            if isinstance(node, (uni.SubNodeList, Sequence)) and not valid_stmts
             else (
                 self.flatten(
                     [
@@ -247,7 +255,7 @@ class PyastGenPass(UniPass):
                         if not isinstance(x, uni.ImplDef)
                     ]
                 )
-                if node
+                if node is not None
                 else []
             )
         )
@@ -332,14 +340,15 @@ class PyastGenPass(UniPass):
                 ast3.Expr(value=cast(ast3.expr, node.doc.gen.py_ast[0])),
                 jac_node=node.doc,
             )
-            if isinstance(doc, ast3.AST) and isinstance(
-                node.assignments.gen.py_ast, list
-            ):
-                node.gen.py_ast = [doc] + node.assignments.gen.py_ast
+            assigns_ast: list[ast3.AST] = self.flatten(
+                [a.gen.py_ast for a in node.assignments]
+            )
+            if isinstance(doc, ast3.AST):
+                node.gen.py_ast = [doc] + assigns_ast
             else:
                 raise self.ice()
         else:
-            node.gen.py_ast = node.assignments.gen.py_ast
+            node.gen.py_ast = self.flatten([a.gen.py_ast for a in node.assignments])
 
     def exit_test(self, node: uni.Test) -> None:
         test_name = node.name.sym_name
@@ -382,7 +391,7 @@ class PyastGenPass(UniPass):
                                 ast3.keyword(
                                     arg="file_loc",
                                     value=self.sync(
-                                        ast3.Constant(value=node.body.loc.mod_path)
+                                        ast3.Constant(value=node.loc.mod_path)
                                     ),
                                 )
                             ),
@@ -439,7 +448,7 @@ class PyastGenPass(UniPass):
         )
         imp_from = {}
         if node.items:
-            for item in node.items.items:
+            for item in node.items:
                 if isinstance(item, uni.ModuleItem):
                     imp_from[item.name.sym_name] = (
                         item.alias.sym_name if item.alias else None
@@ -710,7 +719,7 @@ class PyastGenPass(UniPass):
                 )
             )
         if node.is_absorb:
-            source = node.items.items[0]
+            source = node.items[0]
             if not isinstance(source, uni.ModulePath):
                 raise self.ice()
             typecheck_nodes.append(
@@ -727,7 +736,11 @@ class PyastGenPass(UniPass):
             typecheck_nodes.append(
                 self.sync(
                     ast3.Import(
-                        names=[cast(ast3.alias, x) for x in node.items.gen.py_ast]
+                        names=[
+                            cast(ast3.alias, x)
+                            for item in node.items
+                            for x in item.gen.py_ast
+                        ]
                     )
                 )
             )
@@ -740,7 +753,11 @@ class PyastGenPass(UniPass):
                             if node.from_loc
                             else None
                         ),
-                        names=[cast(ast3.alias, i) for i in node.items.gen.py_ast],
+                        names=[
+                            cast(ast3.alias, i)
+                            for item in node.items
+                            for i in item.gen.py_ast
+                        ],
                         level=0,
                     )
                 )
@@ -781,16 +798,19 @@ class PyastGenPass(UniPass):
             self.traverse(node.body)
 
     def exit_archetype(self, node: uni.Archetype) -> None:
-        body = self.resolve_stmt_block(
-            (
-                node.body.body
-                if isinstance(node.body, uni.ImplDef)
-                and isinstance(node.body.body, uni.SubNodeList)
-                else node.body if isinstance(node.body, uni.SubNodeList) else None
-            ),
-            doc=node.doc,
-        )
-
+        inner = None
+        if isinstance(node.body, uni.ImplDef):
+            inner = (
+                node.body.body if not isinstance(node.body.body, uni.FuncCall) else None
+            )
+        elif not isinstance(node.body, uni.FuncCall):
+            inner = node.body
+        body = self.resolve_stmt_block(inner, doc=node.doc)
+        if not body and not isinstance(node.body, uni.FuncCall):
+            self.log_error(
+                "Archetype has no body. Perhaps an impl must be imported.", node
+            )
+            body = [self.sync(ast3.Pass(), node)]
         if node.is_async:
             body.insert(
                 0,
@@ -805,12 +825,12 @@ class PyastGenPass(UniPass):
             )
 
         decorators = (
-            node.decorators.gen.py_ast
-            if isinstance(node.decorators, uni.SubNodeList)
+            [cast(ast3.expr, i.gen.py_ast[0]) for i in node.decorators]
+            if node.decorators
             else []
         )
 
-        base_classes = node.base_classes.gen.py_ast if node.base_classes else []
+        base_classes = [cast(ast3.expr, i.gen.py_ast[0]) for i in node.base_classes]
         if node.arch_type.name != Tok.KW_CLASS:
             base_classes.append(self.jaclib_obj(node.arch_type.value.capitalize()))
 
@@ -833,25 +853,21 @@ class PyastGenPass(UniPass):
 
     def exit_enum(self, node: uni.Enum) -> None:
         self.needs_enum()
-        body = self.resolve_stmt_block(
-            (
-                node.body.body
-                if isinstance(node.body, uni.ImplDef)
-                and isinstance(node.body.body, uni.SubNodeList)
-                else node.body if isinstance(node.body, uni.SubNodeList) else None
-            ),
-            doc=node.doc,
-        )
+        inner = None
+        if isinstance(node.body, uni.ImplDef):
+            inner = (
+                node.body.body if not isinstance(node.body.body, uni.FuncCall) else None
+            )
+        elif not isinstance(node.body, uni.FuncCall):
+            inner = node.body
+        body = self.resolve_stmt_block(inner, doc=node.doc)
         decorators = (
-            node.decorators.gen.py_ast
-            if isinstance(node.decorators, uni.SubNodeList)
+            [cast(ast3.expr, i.gen.py_ast[0]) for i in node.decorators]
+            if node.decorators
             else []
         )
-        base_classes = node.base_classes.gen.py_ast if node.base_classes else []
-        if isinstance(base_classes, list):
-            base_classes.append(self.sync(ast3.Name(id="Enum", ctx=ast3.Load())))
-        else:
-            raise self.ice()
+        base_classes = [cast(ast3.expr, i.gen.py_ast[0]) for i in node.base_classes]
+        base_classes.append(self.sync(ast3.Name(id="Enum", ctx=ast3.Load())))
         node.gen.py_ast = [
             self.sync(
                 ast3.ClassDef(
@@ -890,8 +906,10 @@ class PyastGenPass(UniPass):
         body = (
             self.gen_llm_body(node)
             if isinstance(node.body, uni.FuncCall)
-            or isinstance(node.body, uni.ImplDef)
-            and isinstance(node.body.body, uni.FuncCall)
+            or (
+                isinstance(node.body, uni.ImplDef)
+                and isinstance(node.body.body, uni.FuncCall)
+            )
             else (
                 [
                     self.sync(
@@ -908,8 +926,12 @@ class PyastGenPass(UniPass):
                         (
                             node.body.body
                             if isinstance(node.body, uni.ImplDef)
-                            and isinstance(node.body.body, uni.SubNodeList)
-                            else node.body
+                            and not isinstance(node.body.body, uni.FuncCall)
+                            else (
+                                node.body
+                                if not isinstance(node.body, uni.FuncCall)
+                                else None
+                            )
                         ),
                         doc=node.doc,
                     )
@@ -1429,7 +1451,9 @@ class PyastGenPass(UniPass):
         node.gen.py_ast = [
             self.sync(
                 with_node(
-                    items=[cast(ast3.withitem, item) for item in node.exprs.gen.py_ast],
+                    items=[
+                        cast(ast3.withitem, item.gen.py_ast[0]) for item in node.exprs
+                    ],
                     body=[
                         cast(ast3.stmt, stmt)
                         for stmt in self.resolve_stmt_block(node.body)
@@ -1520,13 +1544,11 @@ class PyastGenPass(UniPass):
             node: uni.FuncCall,
         ) -> CheckNodeIsinstanceCallResult:
 
-            # Ensure the type of the FuncCall node is SubNodeList[Expr]
-            # since the type can be: Optional[SubNodeList[Expr | KWPair]].
+            # Ensure the func call has exactly two expression parameters
             if not (
-                node.params is not None
-                and len(node.params.items) == 2
-                and isinstance(node.params.items[0], uni.Expr)
-                and isinstance(node.params.items[1], uni.Expr)
+                len(node.params) == 2
+                and isinstance(node.params[0], uni.Expr)
+                and isinstance(node.params[1], uni.Expr)
             ):
                 return CheckNodeIsinstanceCallResult()
 
@@ -1536,8 +1558,8 @@ class PyastGenPass(UniPass):
 
             return CheckNodeIsinstanceCallResult(
                 True,
-                node.params.items[0].gen.py_ast[0],
-                node.params.items[1].gen.py_ast[0],
+                node.params[0].gen.py_ast[0],
+                node.params[1].gen.py_ast[0],
             )
 
         # By default the check expression will become assertTrue(<expr>), unless any pattern detected.
@@ -1623,9 +1645,8 @@ class PyastGenPass(UniPass):
             if isinstance(func, uni.Name) and func.value == "almostEqual":
                 assert_func_name = "assertAlmostEqual"
                 assert_args_list = []
-                if node.target.params is not None:
-                    for param in node.target.params.items:
-                        assert_args_list.append(param.gen.py_ast[0])
+                for param in node.target.params:
+                    assert_args_list.append(param.gen.py_ast[0])
 
         # assert_func_expr = "Con.JAC_CHECK.value.assertXXX"
         assert_func_expr: ast3.Attribute = self.sync(
@@ -2098,11 +2119,9 @@ class PyastGenPass(UniPass):
             func_node = uni.FuncCall(
                 target=node.right,
                 params=(
-                    node.left.values
-                    if isinstance(node.left, uni.TupleVal)
-                    else uni.SubNodeList(
-                        items=[node.left], delim=Tok.COMMA, kid=[node.left]
-                    )
+                    list(node.left.values)
+                    if isinstance(node.left, uni.TupleVal) and node.left.values
+                    else [node.left]
                 ),
                 genai_call=None,
                 kid=node.kid,
@@ -2130,11 +2149,9 @@ class PyastGenPass(UniPass):
             func_node = uni.FuncCall(
                 target=node.left,
                 params=(
-                    node.right.values
-                    if isinstance(node.right, uni.TupleVal)
-                    else uni.SubNodeList(
-                        items=[node.right], delim=Tok.COMMA, kid=[node.right]
-                    )
+                    list(node.right.values)
+                    if isinstance(node.right, uni.TupleVal) and node.right.values
+                    else [node.right]
                 ),
                 genai_call=None,
                 kid=node.kid,
@@ -2340,55 +2357,23 @@ class PyastGenPass(UniPass):
         )
 
     def exit_list_val(self, node: uni.ListVal) -> None:
-        if isinstance(node.py_ctx_func(), ast3.Load):
-            node.gen.py_ast = [
-                self.sync(
-                    ast3.List(
-                        elts=(
-                            cast(list[ast3.expr], node.values.gen.py_ast)
-                            if node.values
-                            else []
-                        ),
-                        ctx=ast3.Load(),
-                    )
-                )
-            ]
-        else:
-            node.gen.py_ast = [
-                self.sync(
-                    ast3.List(
-                        elts=(
-                            [cast(ast3.expr, item) for item in node.values.gen.py_ast]
-                            if node.values and node.values.gen.py_ast
-                            else []
-                        ),
-                        ctx=cast(ast3.expr_context, node.py_ctx_func()),
-                    )
-                )
-            ]
+        elts = [cast(ast3.expr, v.gen.py_ast[0]) for v in node.values]
+        ctx = (
+            ast3.Load()
+            if isinstance(node.py_ctx_func(), ast3.Load)
+            else cast(ast3.expr_context, node.py_ctx_func())
+        )
+        node.gen.py_ast = [self.sync(ast3.List(elts=elts, ctx=ctx))]
 
     def exit_set_val(self, node: uni.SetVal) -> None:
-        node.gen.py_ast = [
-            self.sync(
-                ast3.Set(
-                    elts=(
-                        [cast(ast3.expr, i) for i in node.values.gen.py_ast]
-                        if node.values
-                        else []
-                    ),
-                )
-            )
-        ]
+        elts = [cast(ast3.expr, i.gen.py_ast[0]) for i in node.values]
+        node.gen.py_ast = [self.sync(ast3.Set(elts=elts))]
 
     def exit_tuple_val(self, node: uni.TupleVal) -> None:
         node.gen.py_ast = [
             self.sync(
                 ast3.Tuple(
-                    elts=(
-                        cast(list[ast3.expr], node.values.gen.py_ast)
-                        if node.values
-                        else []
-                    ),
+                    elts=[cast(ast3.expr, i.gen.py_ast[0]) for i in node.values],
                     ctx=cast(ast3.expr_context, node.py_ctx_func()),
                 )
             )
@@ -2621,8 +2606,8 @@ class PyastGenPass(UniPass):
         func = node.target.gen.py_ast[0]
         args = []
         keywords = []
-        if node.params and len(node.params.items) > 0:
-            for x in node.params.items:
+        if node.params:
+            for x in node.params:
                 if isinstance(x, uni.UnaryExpr) and x.op.name == Tok.STAR_POW:
                     keywords.append(
                         self.sync(
@@ -2983,7 +2968,7 @@ class PyastGenPass(UniPass):
                 ),
                 jac_node=x,
             )
-            for x in (node.compares.items if node.compares else [])
+            for x in node.compares
             if isinstance(x.gen.py_ast[0], ast3.Compare)
             and isinstance(x.gen.py_ast[0].left, ast3.Name)
         )
@@ -3018,7 +3003,7 @@ class PyastGenPass(UniPass):
     def exit_assign_compr(self, node: uni.AssignCompr) -> None:
         keys = []
         values = []
-        for i in node.assigns.items:
+        for i in node.assigns:
             if i.key:  # TODO: add support for **kwargs in assign_compr
                 keys.append(self.sync(ast3.Constant(i.key.sym_name)))
                 values.append(i.value.gen.py_ast[0])

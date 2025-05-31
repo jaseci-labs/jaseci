@@ -14,6 +14,7 @@ relationships between the two AST representations throughout the compilation pro
 """
 
 import ast as ast3
+from typing import Sequence
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.passes import UniPass
@@ -50,7 +51,7 @@ class PyJacAstLinkPass(UniPass):
             self.link_jac_py_nodes(jac_node=node.body, py_nodes=node.gen.py_ast)
 
     def exit_impl_def(self, node: uni.ImplDef) -> None:
-        for i in node.target.items:
+        for i in node.target:
             if i.name_spec.name_of.sym:
                 self.link_jac_py_nodes(
                     jac_node=i, py_nodes=i.name_spec.name_of.sym.decl.gen.py_ast
@@ -88,9 +89,9 @@ class PyJacAstLinkPass(UniPass):
                 )
 
         if isinstance(node.decl_link, uni.Ability) and isinstance(
-            node.target, uni.SubNodeList
+            node.target, Sequence
         ):
-            for arch in node.target.items:
+            for arch in node.target:
                 if arch.name_spec.name_of.sym:
                     arch.name_spec.name_of.sym.add_use(arch.name_spec)
 

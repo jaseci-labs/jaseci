@@ -62,8 +62,8 @@ LanguageServer) {
         LanguageServer.init(self, 'jac-lsp', 'v0.1');
         JacProgram.init(self);
         self.executor = ThreadPoolExecutor();
-        self.tasks : <>dict[(str, asyncio.Task)] = {};
-        self.sem_managers : <>dict[(str, SemTokManager)] = {};
+        self.tasks: <>dict[(str, asyncio.Task)] = {};
+        self.sem_managers: <>dict[(str, SemTokManager)] = {};
         self.module_manager = ModuleManager(self, self.sem_managers);
     }
 
@@ -279,7 +279,7 @@ LanguageServer) {
                 );
                 if isinstance(temp_tab, uni.Archetype) and temp_tab.base_classes  {
                     base = [];
-                    for base_name in temp_tab.base_classes.items {
+                    for base_name in temp_tab.base_classes {
                         if isinstance(base_name, uni.Name) and base_name.sym  {
                             base.append(base_name.sym);
                         }
@@ -495,9 +495,19 @@ LanguageServer) {
             else node_selected
 
             ;
-            decl_uri = uris.from_fs_path(decl_node.loc.mod_path);
+            if isinstance(decl_node, list) {
+                valid_path = decl_node[0].loc.mod_path;
+            } else {
+                valid_path = decl_node.loc.mod_path;
+            }
+            decl_uri = uris.from_fs_path(valid_path);
+            if isinstance(decl_node, list) {
+                valid_range = decl_node[0].loc;
+            } else {
+                valid_range = decl_node.loc;
+            }
             try {
-                decl_range = utils.create_range(decl_node.loc);
+                decl_range = utils.create_range(valid_range);
             } except ValueError {
                 return None;
             }
@@ -529,7 +539,7 @@ LanguageServer) {
         }
         node_selected = sem_mgr.static_sem_tokens[index1][3];
         if node_selected and node_selected.sym  {
-            list_of_references : <>list[lspt.Location] = [ lspt.Location(
+            list_of_references: <>list[lspt.Location] = [ lspt.Location(
                 uri=uris.from_fs_path(<>node.loc.mod_path),
                 range=utils.create_range(<>node.loc)
             ) for <>node in node_selected.sym.uses ];
@@ -559,7 +569,7 @@ LanguageServer) {
         }
         node_selected = sem_mgr.static_sem_tokens[index1][3];
         if node_selected and node_selected.sym  {
-            changes : <>dict[(str, <>list[lspt.TextEdit])] = {};
+            changes: <>dict[(str, <>list[lspt.TextEdit])] = {};
             for <>node in [*node_selected.sym.uses, node_selected.sym.defn[0]] {
                 key = uris.from_fs_path(<>node.loc.mod_path);
                 new_edit = lspt.TextEdit(

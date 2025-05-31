@@ -73,7 +73,7 @@ class JacImportDepsPass(Transform[uni.Module, uni.Module]):
             # And the import is a from import and I am the from module
             if node == import_node.from_loc:
                 # Import all from items as modules or packages
-                for i in import_node.items.items:
+                for i in import_node.items:
                     if isinstance(i, uni.ModuleItem):
                         from_mod_target = node.resolve_relative_path(i.name.value)
                         # If package
@@ -204,8 +204,8 @@ class PyImportDepsPass(JacImportDepsPass):
         """Process the imports in form of `import X`."""
         # Expected that each ImportStatement will import one item
         # In case of this assertion fired then we need to revisit this item
-        assert len(imp_node.items.items) == 1
-        imported_item = imp_node.items.items[0]
+        assert len(imp_node.items) == 1
+        imported_item = imp_node.items[0]
         assert isinstance(imported_item, uni.ModulePath)
 
         imported_mod = self.__import_py_module(
