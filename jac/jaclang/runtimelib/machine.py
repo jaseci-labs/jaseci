@@ -1552,6 +1552,13 @@ class JacUtils:
         """Await an object if it is a coroutine or async or future function."""
         return obj.result()
 
+    @staticmethod
+    def attach_gins(
+        mach: JacMachineState,
+    ) -> None:
+        """Attach the Gins thread to the Jac machine state."""
+        mach.gins = GinSThread()
+
 
 class JacMachineInterface(
     JacClassReferences,
