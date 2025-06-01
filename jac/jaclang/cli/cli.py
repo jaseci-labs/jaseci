@@ -138,6 +138,9 @@ def run(
     if gins:
         Jac.attach_gins()
 
+    if gins:
+        Jac.attach_gins(mach=mach)
+
     if filename.endswith(".jac"):
         try:
             Jac.jac_import(
