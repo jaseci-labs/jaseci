@@ -57,6 +57,7 @@ from jaclang.runtimelib.constructs import (
     WalkerAnchor,
     WalkerArchetype,
 )
+from jaclang.runtimelib.gins import GinSThread
 from jaclang.runtimelib.memory import Memory, Shelf, ShelfStorage
 from jaclang.runtimelib.utils import (
     all_issubclass,
@@ -1356,6 +1357,13 @@ class JacUtils:
         mach.program = jac_program
 
     @staticmethod
+    def attach_gins(
+        mach: JacMachine,
+    ) -> None:
+        """Attach the Gins thread to the Jac machine state."""
+        mach.gins = GinSThread()
+
+    @staticmethod
     def load_module(
         mach: JacMachine, module_name: str, module: types.ModuleType
     ) -> None:
@@ -1601,6 +1609,7 @@ class JacMachine(JacMachineInterface):
             else os.path.abspath(base_path)
         )
         self.program: JacProgram = JacProgram()
+        self.gins: Optional[GinSThread] = None
         self.pool = ThreadPoolExecutor()
         self._event_loop = asyncio.new_event_loop()
         self.mem: Memory = ShelfStorage(session)
