@@ -9,34 +9,21 @@ from copy import copy
 from dataclasses import dataclass
 from hashlib import md5
 from types import EllipsisType
-from typing import (
-    Any,
-    Callable,
-    Generic,
-    Optional,
-    Sequence,
-    Type,
-    TypeVar,
-)
-
+from typing import Any, Callable, Generic, Optional, Sequence, Type, TypeVar
 
 from jaclang.compiler import TOKEN_MAP
 from jaclang.compiler.codeinfo import CodeGenTarget, CodeLocInfo
-from jaclang.compiler.constant import (
-    Constants as Con,
-    EdgeDir,
-    JacSemTokenModifier as SemTokMod,
-    JacSemTokenType as SemTokType,
-    SymbolType,
-)
-from jaclang.compiler.constant import DELIM_MAP, SymbolAccess, Tokens as Tok
+from jaclang.compiler.constant import DELIM_MAP
+from jaclang.compiler.constant import Constants as Con
+from jaclang.compiler.constant import EdgeDir
+from jaclang.compiler.constant import JacSemTokenModifier as SemTokMod
+from jaclang.compiler.constant import JacSemTokenType as SemTokType
+from jaclang.compiler.constant import SymbolAccess, SymbolType
+from jaclang.compiler.constant import Tokens as Tok
 from jaclang.utils import resolve_relative_path
-from jaclang.utils.treeprinter import (
-    print_ast_tree,
-    print_symtab_tree,
-    printgraph_ast_tree,
-    printgraph_symtab_tree,
-)
+from jaclang.utils.treeprinter import (print_ast_tree, print_symtab_tree,
+                                       printgraph_ast_tree,
+                                       printgraph_symtab_tree)
 
 
 class UniNode:
@@ -1765,7 +1752,7 @@ class Ability(
         is_abstract: bool,
         access: Optional[SubTag[Token]],
         signature: FuncSignature | EventSignature | None,
-        body: Optional[SubNodeList[CodeBlockStmt] | ImplDef | FuncCall],
+        body: Sequence[CodeBlockStmt] | ImplDef | FuncCall | None,
         kid: Sequence[UniNode],
         doc: Optional[String] = None,
         decorators: Sequence[Expr] | None = None,
@@ -1835,7 +1822,11 @@ class Ability(
             res = self.name_ref.normalize(deep)
             res = res and self.access.normalize(deep) if self.access else res
             res = res and self.signature.normalize(deep) if self.signature else res
-            res = res and self.body.normalize(deep) if self.body else res
+            if isinstance(self.body, Sequence):
+                for stmt in self.body:
+                    res = res and stmt.normalize(deep)
+            else:
+                res = res and self.body.normalize(deep) if self.body else res
             for dec in self.decorators or []:
                 res = res and dec.normalize(deep)
             res = res and self.doc.normalize(deep) if self.doc else res
@@ -1872,10 +1863,15 @@ class Ability(
         if self.body:
             if isinstance(self.body, ImplDef):
                 new_kid.append(self.gen_token(Tok.SEMI))
-            else:
+            elif isinstance(self.body, FuncCall):
                 new_kid.append(self.body)
                 if self.is_genai_ability:
                     new_kid.append(self.gen_token(Tok.SEMI))
+            else:
+                new_kid.append(self.gen_token(Tok.LBRACE))
+                for stmt in self.body:
+                    new_kid.append(stmt)
+                new_kid.append(self.gen_token(Tok.RBRACE))
         else:
             new_kid.append(self.gen_token(Tok.SEMI))
         self.set_kids(nodes=new_kid)

@@ -5,11 +5,12 @@ from __future__ import annotations
 import keyword
 import logging
 import os
-from typing import Callable, Sequence, TYPE_CHECKING, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Callable, Sequence, TypeAlias, TypeVar
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler import jac_lark as jl  # type: ignore
-from jaclang.compiler.constant import EdgeDir, Tokens as Tok
+from jaclang.compiler.constant import EdgeDir
+from jaclang.compiler.constant import Tokens as Tok
 from jaclang.compiler.passes.main import Transform
 from jaclang.vendor.lark import Lark, Transformer, Tree, logger
 
@@ -779,7 +780,9 @@ class JacParser(Transform[uni.Source, uni.Module]):
             signature = self.consume(uni.EventSignature)
 
             # Handle block_tail
-            body = self.match(uni.SubNodeList) or self.match(uni.FuncCall)
+            body_sn = self.match(uni.SubNodeList)
+            body_fc = self.match(uni.FuncCall)
+            body = body_sn.items if body_sn else body_fc
             if body is None:
                 is_abstract = self.match_token(Tok.KW_ABSTRACT) is not None
                 self.consume_token(Tok.SEMI)
@@ -813,7 +816,9 @@ class JacParser(Transform[uni.Source, uni.Module]):
             signature = self.match(uni.FuncSignature)
 
             # Handle block_tail
-            body = self.match(uni.SubNodeList) or self.match(uni.FuncCall)
+            body_sn = self.match(uni.SubNodeList)
+            body_fc = self.match(uni.FuncCall)
+            body = body_sn.items if body_sn else body_fc
             if body is None:
                 is_abstract = self.match_token(Tok.KW_ABSTRACT) is not None
                 self.consume_token(Tok.SEMI)
@@ -3087,14 +3092,14 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 kid=self.cur_nodes,
             )
 
-        def block_tail(self, _: None) -> uni.SubNodeList | uni.FuncCall:
+        def block_tail(self, _: None) -> Sequence[uni.CodeBlockStmt] | uni.FuncCall:
             """Grammar rule.
 
             block_tail: code_block | KW_BY atomic_call SEMI | KW_ABSTRACT? SEMI
             """
             # Try to match code_block first
             if code_block := self.match(uni.SubNodeList):
-                return code_block
+                return code_block.items
 
             # Otherwise, it must be KW_BY atomic_call SEMI
             by_token = self.consume_token(Tok.KW_BY)

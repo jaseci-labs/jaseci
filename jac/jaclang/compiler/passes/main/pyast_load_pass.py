@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import ast as py_ast
 import os
-from typing import Optional, Sequence, TYPE_CHECKING, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Optional, Sequence, TypeAlias, TypeVar
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import Tokens as Tok
@@ -165,22 +165,26 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         ):
             self.convert_to_doc(valid[0].expr)
             doc = valid[0].expr
-            valid_body = uni.SubNodeList[uni.CodeBlockStmt](
+            body_sn = uni.SubNodeList[uni.CodeBlockStmt](
                 items=valid[1:],
                 delim=Tok.WS,
                 kid=valid[1:] + [doc],
                 left_enc=self.operator(Tok.LBRACE, "{"),
                 right_enc=self.operator(Tok.RBRACE, "}"),
             )
+            valid_body = body_sn.items
+            kid_body = body_sn
         else:
             doc = None
-            valid_body = uni.SubNodeList[uni.CodeBlockStmt](
+            body_sn = uni.SubNodeList[uni.CodeBlockStmt](
                 items=valid,
                 delim=Tok.WS,
                 kid=valid,
                 left_enc=self.operator(Tok.LBRACE, "{"),
                 right_enc=self.operator(Tok.RBRACE, "}"),
             )
+            valid_body = body_sn.items
+            kid_body = body_sn
         decorators = [self.convert(i) for i in node.decorator_list]
         valid_dec = [i for i in decorators if isinstance(i, uni.Expr)]
         if len(valid_dec) != len(decorators):
@@ -198,7 +202,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
                 sig.return_type = ret_sig
                 sig.add_kids_right([sig.return_type])
         kid = ([doc] if doc else []) + (
-            [name, sig, valid_body] if sig else [name, valid_body]
+            [name, sig, kid_body] if sig else [name, kid_body]
         )
         if not sig:
             raise self.ice("Function signature not found")
@@ -1170,19 +1174,19 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         valid = [i for i in body if isinstance(i, (uni.CodeBlockStmt))]
         if len(valid) != len(body):
             raise self.ice("Length mismatch in except handler body")
-        valid_body = uni.SubNodeList[uni.CodeBlockStmt](
+        body_sn = uni.SubNodeList[uni.CodeBlockStmt](
             items=valid,
             delim=Tok.WS,
             kid=valid,
             left_enc=self.operator(Tok.LBRACE, "{"),
             right_enc=self.operator(Tok.RBRACE, "}"),
         )
-        kid = [item for item in [type, name, valid_body] if item]
+        kid = [item for item in [type, name, body_sn] if item]
         if isinstance(type, uni.Expr) and (isinstance(name, uni.Name) or not name):
             return uni.Except(
                 ex_type=type,
                 name=name,
-                body=valid_body.items,
+                body=body_sn.items,
                 kid=kid,
             )
         else:
