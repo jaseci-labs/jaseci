@@ -45,7 +45,13 @@ class UniNode:
     def __init__(self, kid: Sequence[UniNode]) -> None:
         """Initialize ast."""
         self.parent: Optional[UniNode] = None
-        self.kid: list[UniNode] = [x.set_parent(self) for x in kid]
+        flat_kid: list[UniNode] = []
+        for k in kid:
+            if isinstance(k, list):
+                flat_kid.extend(k)
+            else:
+                flat_kid.append(k)
+        self.kid: list[UniNode] = [x.set_parent(self) for x in flat_kid]
         self._sub_node_tab: dict[type, list[UniNode]] = {}
         self.construct_sub_node_tab()
         self._in_mod_nodes: list[UniNode] = []

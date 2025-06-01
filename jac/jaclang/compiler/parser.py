@@ -141,6 +141,17 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 self.parse_ref.cur_node = node
                 if node not in self.parse_ref.node_list:
                     self.parse_ref.node_list.append(node)
+                # Flatten kid to avoid nested list objects in AST
+                flat_kid: list[uni.UniNode] = []
+                changed = False
+                for k in node.kid:
+                    if isinstance(k, list):
+                        flat_kid.extend(k)
+                        changed = True
+                    else:
+                        flat_kid.append(k)
+                if changed:
+                    node.set_kids(flat_kid)
             return node
 
         def _call_userfunc(
