@@ -2918,59 +2918,50 @@ class JacParser(Transform[uni.Source, uni.Module]):
                     f"Expected name to be either NameAtom or AtomTrailer, got {type(name)}"
                 )
             lparen = self.consume_token(Tok.LPAREN)
-            first = self.match(uni.SubNodeList)
-            second = (
-                self.consume(uni.SubNodeList)
-                if (comma := self.match_token(Tok.COMMA))
-                else None
-            )
+            first = self.match(list) or self.match(uni.SubNodeList)
+            second = None
+            if comma := self.match_token(Tok.COMMA):
+                if self.match(list):
+                    second = self.consume(list)
+                else:
+                    second = self.consume(uni.SubNodeList)
             rparen = self.consume_token(Tok.RPAREN)
-            arg = (
-                first
-                if (first and isinstance(first.items[0], uni.MatchPattern))
-                else None
+
+            first_list = (
+                first.items if isinstance(first, uni.SubNodeList) else first or []
             )
-            kw = (
-                second
-                if (second and isinstance(second.items[0], uni.MatchKVPair))
-                else (
-                    first
-                    if (first and isinstance(first.items[0], uni.MatchKVPair))
-                    else None
-                )
+            second_list = (
+                second.items if isinstance(second, uni.SubNodeList) else second or []
             )
-            kid_nodes: list = [name, lparen]
-            if arg:
-                kid_nodes.append(arg)
-                if kw:
-                    kid_nodes.extend([comma, kw]) if comma else kid_nodes.append(kw)
-            elif kw:
-                kid_nodes.append(kw)
-            kid_nodes.append(rparen)
+            arg_patterns = self.extract_from_list(first_list, uni.MatchPattern)
+            if not arg_patterns:
+                arg_patterns = None
+            kw_patterns = (
+                self.extract_from_list(second_list, uni.MatchKVPair)
+                if second is not None
+                else self.extract_from_list(first_list, uni.MatchKVPair)
+            )
+            if kw_patterns == []:
+                kw_patterns = None
+
             return uni.MatchArch(
                 name=name,
-                arg_patterns=arg.items if arg else None,
-                kw_patterns=kw.items if kw else None,
-                kid=kid_nodes,
+                arg_patterns=arg_patterns,
+                kw_patterns=kw_patterns,
+                kid=self.flat_cur_nodes,
             )
 
-        def pattern_list(self, _: None) -> uni.SubNodeList[uni.MatchPattern]:
+        def pattern_list(self, _: None) -> list[uni.UniNode]:
             """Grammar rule.
 
             pattern_list: (pattern_list COMMA)? pattern_seq
             """
-            if consume := self.match(uni.SubNodeList):
-                comma = self.consume_token(Tok.COMMA)
-                pattern = self.consume(uni.MatchPattern)
+            if self.match(list):
+                self.consume_token(Tok.COMMA)
+                self.consume(uni.MatchPattern)
             else:
-                pattern = self.consume(uni.MatchPattern)
-            new_kid = [*consume.kid, comma, pattern] if consume else [pattern]
-            valid_kid = [i for i in new_kid if isinstance(i, uni.MatchPattern)]
-            return uni.SubNodeList[uni.MatchPattern](
-                items=valid_kid,
-                delim=Tok.COMMA,
-                kid=new_kid,
-            )
+                self.consume(uni.MatchPattern)
+            return self.flat_cur_nodes
 
         def kw_pattern_list(self, _: None) -> uni.SubNodeList[uni.MatchKVPair]:
             """Grammar rule.
