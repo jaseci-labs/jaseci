@@ -40,6 +40,12 @@ class JTypeCheckPass(UniPass):
             return
         sig_ret_type = self.prog.type_resolver.get_type(func_decl.name_spec)
 
+        if isinstance(func_decl.signature, ast.EventSignature):
+            self.log_warning(
+                "return from function with event signeature is not supported yet"
+            )
+            return
+
         assert isinstance(sig_ret_type, jtype.JFunctionType)
         sig_ret_type = sig_ret_type.return_type
 
@@ -113,6 +119,7 @@ class JTypeCheckPass(UniPass):
                 arg_name = list(func_params.keys())[arg_count]
                 arg_count += 1
 
+            # TODO: Check that all the keys are valid keys in semantic analysis pass
             elif isinstance(actual, ast.KWPair):
                 kw_args_seen = True
                 actual_type = self.prog.type_resolver.get_type(actual.value)
@@ -188,11 +195,20 @@ class JTypeCheckPass(UniPass):
         """
         self.prune()  # prune the traversal into the atom trailer.
 
+        if any(not isinstance(i, ast.Name | ast.FuncCall) for i in node.to_list):
+            self.__debug_print(
+                "IndexSlice & EdgeRefTrailer are not supported yet, ignoring this node"
+            )
+            return
+
         for n in node.to_list:
             assert isinstance(
                 n, (ast.Name | ast.FuncCall)
-            ), f"Expected all Name or FuncCall, Found {n}"
-        nodes = cast(list[ast.Name | ast.FuncCall], node.to_list)
+            ), f"Expected all Name or FuncCall, Found {n} --> {n.loc.mod_path} {n.loc}"
+        nodes = cast(
+            list[ast.Name | ast.FuncCall],
+            node.to_list,
+        )
 
         if isinstance(nodes[0], ast.FuncCall) and isinstance(
             nodes[0].target, ast.AtomTrailer

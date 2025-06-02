@@ -221,6 +221,12 @@ class JTypeResolver:
             return jtype.JAnyType()
 
         func_type = self.get_type(node.target)
+
+        # TODO: this needs to be removed once importing is supported
+        if isinstance(func_type, jtype.JAnyType):
+            self.__debug_print(f"Can't get type of {node.loc.mod_path} {node.loc}")
+            return func_type
+
         assert isinstance(func_type, (jtype.JFunctionType, jtype.JClassType))
 
         # In case of normal functions

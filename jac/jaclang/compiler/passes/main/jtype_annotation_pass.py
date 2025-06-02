@@ -6,8 +6,8 @@ using type annotations in the code.
 
 import jaclang.compiler.jtyping as jtype
 import jaclang.compiler.unitree as uni
-from jaclang.compiler.jtyping.types.jclassmember import MemberKind
 from jaclang.compiler.constant import SymbolAccess, SymbolType
+from jaclang.compiler.jtyping.types.jclassmember import MemberKind
 from jaclang.compiler.passes import UniPass
 from jaclang.settings import settings
 
@@ -75,8 +75,8 @@ class JTypeAnnotatePass(UniPass):
                     self_node = nodes[0]
                     try:
                         ability_node = uni.parent_of_type(self_node, uni.Ability)
-                    except:
-                        return
+                    except AssertionError:
+                        self.log_warning("Can't find ability to associated with self, is it an impl file?", self_node)
                     if ability_node.sym_name != "__init__":
                         return
                     self_type = self.prog.type_resolver.get_type(self_node)
@@ -181,11 +181,31 @@ class JTypeAnnotatePass(UniPass):
         class_type.instance_members.update(instance_members)
         class_type.class_members = class_members
 
+        # resolve base classes
+        if node.base_classes:
+            base_class_list = node.base_classes.items
+            for i in base_class_list:
+                base_class_type = self.prog.type_resolver.get_type(i)
+                if isinstance(base_class_type, jtype.JAnyType):
+                    self.log_warning(
+                        f"Types is not available for {i.unparse()}", node_override=i
+                    )
+                    continue
+                assert isinstance(base_class_type, jtype.JClassType)
+                class_type.bases.append(base_class_type)
+
         # Resolve class constructor
         if "__init__" not in instance_members:
             attributes = list(
                 filter(lambda x: not x.is_method, list(instance_members.values()))
             )
+            for base in class_type.bases:
+                attributes += list(
+                    filter(
+                        lambda x: not x.is_method, list(base.instance_members.values())
+                    )
+                )
+
             constructor = jtype.JFunctionType(
                 parameters=[
                     jtype.JFuncArgument(attr.name, attr.type) for attr in attributes
@@ -206,14 +226,6 @@ class JTypeAnnotatePass(UniPass):
             class_type.instance_members["__init__"].type.return_type = (
                 jtype.JClassInstanceType(class_type)
             )
-
-        # resolve base classes
-        if node.base_classes:
-            base_class_list = node.base_classes.items
-            for i in base_class_list:
-                base_class_type = self.prog.type_resolver.get_type(i)
-                assert isinstance(base_class_type, jtype.JClassType)
-                class_type.bases.append(base_class_type)
 
     def exit_enum(self, node: uni.Enum) -> None:
         """
