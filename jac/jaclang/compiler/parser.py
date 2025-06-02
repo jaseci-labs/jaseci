@@ -576,11 +576,13 @@ class JacParser(Transform[uni.Source, uni.Module]):
             impl_spec: inherited_archs | func_decl | event_clause
             """
             spec = (
-                self.match(uni.SubNodeList)  # inherited_archs
+                self.match(list)  # inherited_archs
                 or self.match(uni.FuncSignature)  # func_decl
                 or self.consume(uni.EventSignature)  # event_clause
             )
-            return spec.items if isinstance(spec, uni.SubNodeList) else spec
+            return (
+                self.extract_from_list(spec, uni.Expr) if isinstance(spec, list) else spec
+            )
 
         def impl_tail(
             self, _: None
@@ -604,19 +606,20 @@ class JacParser(Transform[uni.Source, uni.Module]):
             arch_type = self.consume(uni.Token)
             access = self.match(uni.SubTag)
             name = self.consume(uni.Name)
-            sub_list1 = self.match(uni.SubNodeList)
-            sub_list2 = self.match(uni.SubNodeList)
-            if self.match_token(Tok.SEMI):
-                inh, body = sub_list1, None
+            inh_nodes = self.match(list)
+            body_sn = self.match(uni.SubNodeList)
+            if body_sn is None:
+                self.consume_token(Tok.SEMI)
+                body = None
             else:
-                body_sn = sub_list2 or sub_list1
-                body = body_sn.items if body_sn else []
-                inh = sub_list2 and sub_list1  # if sub_list2 is None then inh is None.
+                body = body_sn.items
             return uni.Archetype(
                 arch_type=arch_type,
                 name=name,
                 access=access,
-                base_classes=inh.items if inh else [],
+                base_classes=(
+                    self.extract_from_list(inh_nodes, uni.Expr) if inh_nodes else []
+                ),
                 body=body,
                 kid=self.cur_nodes,
             )
@@ -643,18 +646,16 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 kid=self.cur_nodes,
             )
 
-        def inherited_archs(self, kid: list[uni.UniNode]) -> uni.SubNodeList[uni.Expr]:
+        def inherited_archs(self, kid: list[uni.UniNode]) -> list[uni.UniNode]:
             """Grammar rule.
 
             inherited_archs: LPAREN (atomic_chain COMMA)* atomic_chain RPAREN
             """
             self.match_token(Tok.LPAREN)
-            items: list = []
-            while inherited_arch := self.match(uni.Expr):
-                items.append(inherited_arch)
+            while self.match(uni.Expr):
                 self.match_token(Tok.COMMA)
             self.match_token(Tok.RPAREN)
-            return uni.SubNodeList[uni.Expr](items=items, delim=Tok.COMMA, kid=kid)
+            return [*kid]
 
         def named_ref(self, _: None) -> uni.NameAtom:
             """Grammar rule.
@@ -699,18 +700,19 @@ class JacParser(Transform[uni.Source, uni.Module]):
             self.consume_token(Tok.KW_ENUM)
             access = self.match(uni.SubTag)
             name = self.consume(uni.Name)
-            sub_list1 = self.match(uni.SubNodeList)
-            sub_list2 = self.match(uni.SubNodeList)
-            if self.match_token(Tok.SEMI):
-                inh, body = sub_list1, None
+            inh_nodes = self.match(list)
+            body_sn = self.match(uni.SubNodeList)
+            if body_sn is None:
+                self.consume_token(Tok.SEMI)
+                body = None
             else:
-                body_sn = sub_list2 or sub_list1
-                body = body_sn.items if body_sn else []
-                inh = sub_list2 and sub_list1
+                body = body_sn.items
             return uni.Enum(
                 name=name,
                 access=access,
-                base_classes=inh.items if inh else [],
+                base_classes=(
+                    self.extract_from_list(inh_nodes, uni.Expr) if inh_nodes else []
+                ),
                 body=body,
                 kid=self.cur_nodes,
             )
