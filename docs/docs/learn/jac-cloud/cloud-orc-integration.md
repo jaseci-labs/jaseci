@@ -1,23 +1,29 @@
-## Usage Documentation for jac-cloud Deployment
+# Deploying Jac Cloud on Kubernetes
 
-### Overview
-The `jac-cloud` deployment provides a Kubernetes-based system for running JAC applications using the `jac-splice-orc` plugin. This setup includes:
-1. A Docker image with necessary dependencies.
-2. A Kubernetes configuration for creating required resources like namespaces, service accounts, roles, and bindings.
-3. Dynamic configuration through environment variables and ConfigMaps.
+## Overview
 
----
+Jac Cloud provides a Kubernetes-based deployment system for running Jac applications at scale using the `jac-splice-orc` plugin. This setup includes:
 
-### Prerequisites
-1. **Kubernetes Cluster**: Ensure you have access to a Kubernetes cluster.
-2. **kubectl**: Install the Kubernetes command-line tool.
-3. **Docker**: Build and push the `jac-cloud` Docker image if necessary.
-4. **Namespace**: The target namespace should be created before deploying resources.
-5. **OpenAI API Key**: Add your OpenAI API key in base64 format for secret management.
+1. A Docker image with all necessary dependencies
+2. Kubernetes configuration for essential resources (namespaces, service accounts, roles, etc.)
+3. Dynamic configuration through environment variables and ConfigMaps
 
----
+This guide will help you deploy your Jac applications to a Kubernetes cluster with minimal effort.
 
-### Directory Structure
+## Prerequisites
+
+Before you begin, ensure you have:
+
+1. **Kubernetes Cluster**: Access to a running Kubernetes cluster
+2. **kubectl**: The Kubernetes command-line tool installed and configured
+3. **Docker**: Docker installed for building and pushing images
+4. **Namespace**: The target namespace should be created before deployment
+5. **OpenAI API Key**: (Optional) An OpenAI API key if you're using OpenAI services
+
+## Directory Structure
+
+The deployment files are organized as follows:
+
 ```
 jac-cloud/
 ├── scripts/
@@ -27,85 +33,84 @@ jac-cloud/
 │   ├── module-config.yml
 ```
 
----
+## Step-by-Step Deployment Guide
 
-### Step-by-Step Guide
+Follow these steps to deploy your Jac application to Kubernetes:
 
-#### 1. Build and Push the Docker Image
-Build the `jac-cloud` Docker image using the `Dockerfile` in the `scripts` directory.
+### 1. Build and Push the Docker Image
+
+First, build the Jac Cloud Docker image using the provided Dockerfile:
 
 ```bash
 docker build -t your-dockerhub-username/jac-cloud:latest -f jac-cloud/scripts/Dockerfile .
 docker push your-dockerhub-username/jac-cloud:latest
 ```
 
-Update the `image` field in `jac-cloud.yml` with your Docker image path.
+After pushing the image, update the `image` field in `jac-cloud.yml` with your Docker image path.
 
----
-#### 2. Apply the ConfigMap for Dynamic Configuration
-Apply the `module-config.yml` file to configure module-specific settings:
+### 2. Apply the ConfigMap
+
+Apply the module configuration to set up module-specific settings:
 
 ```bash
 kubectl apply -f jac-cloud/scripts/module-config.yml
 ```
-This will:
-- Create the `littlex` namespace.
 
----
+This creates the `littlex` namespace and configures the module settings.
 
-#### 3. Apply Namespace and Resources
-Run the following command to  apply the Kubernetes resources:
+### 3. Apply Kubernetes Resources
+
+Deploy the Jac Cloud application and all required resources:
 
 ```bash
 kubectl apply -f jac-cloud/scripts/jac-cloud.yml
 ```
 
-This will:
-- Set up RBAC roles and bindings.
-- Deploy the `jac-cloud` application in the `littlex` namespace.
+This sets up:
+- RBAC roles and bindings
+- The Jac Cloud deployment in the `littlex` namespace
 
----
+### 4. Add OpenAI API Key (Optional)
 
-#### 4. Add the OpenAI API Key (Optional)
-Replace `your-openai-key` with your actual API key, encode it in base64, and create the secret:
+If your application uses OpenAI services, add your API key as a Kubernetes secret:
 
 ```bash
+# Encode your API key in base64
 echo -n "your-openai-key" | base64
 ```
 
-Replace the base64 value in the `data.openai-key` field of the secret definition in `jac-cloud.yml`, and then apply it:
+Then, update the base64 value in the `data.openai-key` field of the secret definition in `jac-cloud.yml` and apply it:
 
 ```bash
 kubectl apply -f jac-cloud/scripts/jac-cloud.yml
 ```
 
----
+### 5. Verify Your Deployment
 
-#### 5. Verify Deployment
-Ensure that all resources are created successfully:
+Check that all resources are created successfully:
 
 ```bash
 kubectl get all -n littlex
 ```
 
-You should see the `jac-cloud` pod running along with associated resources.
+You should see the Jac Cloud pod running along with all associated resources.
 
----
+## Configuration Details
 
-### Configuration Details
+### Environment Variables
 
-#### 1. Environment Variables
+The following environment variables can be configured for your deployment:
+
 | Variable          | Description                              | Default Value |
 |--------------------|------------------------------------------|---------------|
-| `NAMESPACE`        | Target namespace for the deployment.    | `default`     |
-| `CONFIGMAP_NAME`   | Name of the ConfigMap to mount.          | `module-config` |
-| `FILE_NAME`        | JAC file to execute in the pod.          | `example.jac` |
-| `OPENAI_API_KEY`   | OpenAI API key (retrieved from secret).  | None          |
+| `NAMESPACE`        | Target namespace for the deployment     | `default`     |
+| `CONFIGMAP_NAME`   | Name of the ConfigMap to mount          | `module-config` |
+| `FILE_NAME`        | JAC file to execute in the pod          | `example.jac` |
+| `OPENAI_API_KEY`   | OpenAI API key (from secret)            | None          |
 
----
+### ConfigMap Configuration
 
-#### 2. ConfigMap (`module-config.yml`)
-Defines configuration for dynamically loaded modules:
+The `module-config.yml` file defines configuration for dynamically loaded modules:
 
 ```json
 {
@@ -130,57 +135,68 @@ Defines configuration for dynamically loaded modules:
 }
 ```
 
----
+## Troubleshooting and Validation
 
-### Validation and Troubleshooting
+### Verify Namespace
 
-#### Verify Namespace
-Ensure the `littlex` namespace exists:
+Check if the namespace exists:
+
 ```bash
 kubectl get namespaces
 ```
 
-#### Verify ConfigMap
-Check if the `module-config` ConfigMap is applied:
+### Verify ConfigMap
+
+Ensure the ConfigMap is properly applied:
+
 ```bash
 kubectl get configmap -n littlex
 ```
 
-#### Verify Deployment
-Ensure the `jac-cloud` pod is running:
+### Verify Deployment
+
+Check if the Jac Cloud pod is running:
+
 ```bash
 kubectl get pods -n littlex
 ```
 
----
+## Advanced Usage
 
-### Advanced Usage
+### Updating Configurations
 
-#### Redeploying with Updated Configurations
 To update the ConfigMap or deployment:
-1. Modify the respective YAML file.
-2. Apply the changes:
-   ```bash
-    kubectl apply -f jac-cloud/scripts/module-config.yml
-    kubectl apply -f jac-cloud/scripts/jac-cloud.yml
-   ```
 
-#### Access Logs
-Monitor the logs of the `jac-cloud` pod:
+1. Modify the YAML files as needed
+2. Apply the changes:
+
+```bash
+kubectl apply -f jac-cloud/scripts/module-config.yml
+kubectl apply -f jac-cloud/scripts/jac-cloud.yml
+```
+
+### Monitoring Logs
+
+View the logs of your Jac Cloud application:
+
 ```bash
 kubectl logs -f deployment/jac-cloud -n littlex
 ```
 
-#### Scale the Deployment
-To scale the `jac-cloud` deployment:
+### Scaling the Deployment
+
+Increase the number of replicas to handle more traffic:
+
 ```bash
 kubectl scale deployment jac-cloud --replicas=3 -n littlex
 ```
 
----
+## Cleanup
 
-### Cleanup
-To remove all resources:
+To remove all deployed resources:
+
 ```bash
 kubectl delete namespace littlex
 ```
+
+This will delete all resources associated with your Jac Cloud deployment.

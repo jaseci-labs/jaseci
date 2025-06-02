@@ -4,22 +4,47 @@
 
 Just replace `jac run` with `jac serve` and you are now running your jac application as an API server.
 
-`jac serve main.jac`
+```bash
+jac serve main.jac
+```
 
-Optionally, specif host and port with `--host` and `--port`.
+Optionally, specify host and port with `--host` and `--port`.
 
-Once starts, navigate to `/docs` to access the built-in API docs.
+```bash
+jac serve main.jac --host 0.0.0.0 --port 8080
+```
+
+Once started, navigate to `/docs` in your browser to access the built-in API documentation (e.g., `http://localhost:8000/docs`).
 
 ## **Walker Endpoints**
 
-- as default, walker declaration will be converted to 2 group of endpoints but can be disable by setting environment variable `DISABLE_AUTO_ENDPOINT=true`
-  - group will be based on allowed `methods` and `path` on specs
-  - group 1: `/walker/{walker's name}`
-  - group 2: `/walker/{walker's name}/{node}`
-- to control enpoint specification, you need to declare inner `class __specs__ {}` or `obj __specs__ {}`. You may also use `@specs` from `jac_cloud.plugin.jaseci.specs` if you have disabled auto endpoint
-- walker support all kind of http method and all fastapi's supported object as path variable / query parameters / json body / file
+### Automatic Endpoint Generation
 
-## **Supported specs**
+By default, each walker declaration is automatically converted to two groups of endpoints:
+
+- **Group 1**: `/walker/{walker's name}` - Endpoint that uses the root node as entry
+- **Group 2**: `/walker/{walker's name}/{node}` - Endpoint that uses a specific node as entry
+
+This automatic generation can be disabled by setting the environment variable `DISABLE_AUTO_ENDPOINT=true`.
+
+### Customizing Endpoints
+
+To customize endpoint behavior, you can:
+
+1. Declare an inner `class __specs__ {}` or `obj __specs__ {}`
+2. Use the `@specs` decorator from `jac_cloud.plugin.jaseci.specs` (if auto endpoint is disabled)
+
+### HTTP Method Support
+
+Walkers support all standard HTTP methods and FastAPI-supported parameter types:
+- Path variables
+- Query parameters
+- JSON body
+- File uploads
+
+## **Supported Specs**
+
+Below is a comprehensive table of all supported configuration options for walker endpoints:
 
 | **NAME**             | **TYPE**                                             | **DESCRIPTION**                                                                                                                                                                                                                                                                                                                                                                                | **DEFAULT**           |
 | -------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
@@ -46,21 +71,27 @@ Once starts, navigate to `/docs` to access the built-in API docs.
 
 ## **Examples**
 
+Below are examples of different walker configurations for various API endpoint types:
+
 ```python
 import from jac_cloud {FastAPI}
 
+# Basic POST endpoint with no parameters
 walker post_no_body {}
 
+# POST endpoint with a body parameter
 walker post_with_body {
     has a: str;
 }
 
+# GET endpoint with no parameters
 walker get_no_body {
     obj __specs__ {
         static has methods: list = ["get"];
     }
 }
 
+# GET endpoint with a query parameter
 walker get_with_query {
     has a: str;
 
@@ -69,6 +100,7 @@ walker get_with_query {
     }
 }
 
+# GET endpoint with all parameters as query parameters
 walker get_all_query {
     has a: str;
     has b: str;
@@ -78,6 +110,7 @@ walker get_all_query {
     }
 }
 
+# Endpoint with a path variable
 walker post_path_var {
     has a: str;
 
@@ -86,6 +119,7 @@ walker post_path_var {
     }
 }
 
+# Endpoint with a combination of body and query parameters
 walker combination1 {
     has a: str;
     has b: str;
@@ -96,7 +130,7 @@ walker combination1 {
     }
 }
 
-
+# Endpoint with all HTTP methods and a path variable
 walker combination2 {
     has a: str;
     has b: str;
@@ -107,6 +141,7 @@ walker combination2 {
     }
 }
 
+# Endpoint that accepts file uploads
 walker post_with_file {
     has single: UploadFile;
     has multiple: list[UploadFile];
@@ -122,6 +157,7 @@ walker post_with_file {
     obj __specs__ {}
 }
 
+# Endpoint that accepts both body parameters and file uploads
 walker post_with_body_and_file {
     has val: int;
     has single: UploadFile;
@@ -143,7 +179,7 @@ walker post_with_body_and_file {
 
 ## **Walker Response Structure**
 
-- Response support auto serialization of walker/edge/node archetypes and obj as long as it's attributes is also serializable (ex: nested dataclass)
+Responses from walker endpoints are automatically serialized with the following structure:
 
 ```python
 {
@@ -156,6 +192,8 @@ walker post_with_body_and_file {
 ```
 
 ## **Walker/Edge/Node Serialization**
+
+Objects are serialized with the following structure:
 
 ```python
 {

@@ -39,15 +39,16 @@ nav:
         - Theoretical Principles: "learn/dspfoundation.md" # DSP Foundation
         - Quick FAQ: "learn/data_spatial/FAQ.md" # faq
     - Jac Cloud Guides:
-      - "learn/jac-cloud/jac_cloud.md"
-      - "learn/jac-cloud/permission.md"
-      - "learn/jac-cloud/jac_cloud_logging.md"
-      - "learn/jac-cloud/jac_cloud_env_vars.md"
-      - "learn/jac-cloud/jac_cloud_scheduler.md"
-      - "learn/jac-cloud/jac_cloud_async_walker.md"
-      - "learn/jac-cloud/jac_cloud_webhook.md"
-      - "learn/jac-cloud/jac_cloud_websocket.md"
-      - "learn/jac-cloud/cloud-orc-integration.md"
+      - Introduction: "learn/jac-cloud/jac_cloud_introduction.md"
+      - Getting Started: "learn/jac-cloud/jac_cloud.md"
+      - Authentication & Permissions: "learn/jac-cloud/permission.md"
+      - Logging: "learn/jac-cloud/jac_cloud_logging.md"
+      - Environment Variables: "learn/jac-cloud/jac_cloud_env_vars.md"
+      - Task Scheduling: "learn/jac-cloud/jac_cloud_scheduler.md"
+      - Async Walkers: "learn/jac-cloud/jac_cloud_async_walker.md"
+      - Webhooks: "learn/jac-cloud/jac_cloud_webhook.md"
+      - WebSockets: "learn/jac-cloud/jac_cloud_websocket.md"
+      - Kubernetes Deployment: "learn/jac-cloud/cloud-orc-integration.md"
     - Tooling:
       - "learn/tools/cli.md"
 

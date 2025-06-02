@@ -1,11 +1,23 @@
-# websocket
+# WebSocket Support in Jac Cloud
 
-## Walker Declaration
-- walker can be declared as websocket thru __specs__ configurations.
-- it can still work along with other http methods however, the only limitation is it doesn't support file (maybe in the future).
+## Overview
+
+WebSockets enable real-time, bidirectional communication between clients and your Jac application. This is particularly useful for:
+
+- Chat applications
+- Real-time dashboards
+- Collaborative tools
+- Live notifications
+- Any application requiring instant updates
+
+## Walker Declaration for WebSockets
+
+You can declare a walker to handle WebSocket connections by setting the `methods` property to include `"websocket"` in the `__specs__` configuration:
+
 ```python
 walker your_event_name {
     has val: int;
+
     can enter with `root entry {
         report "Do something!";
     }
@@ -16,18 +28,21 @@ walker your_event_name {
 }
 ```
 
-## **`Websocket Connection`**
-> PROTOCOL: **`ws`** \
-> URL: **`/websocket`** \
-> HEADER (optional): **`Authorization: Bearer {{USER-TOKEN}}`** \
-> QUERY PARAM (optional): **`?channel_id=anystring`**
-- once connected, you will recieved first event for connection information
-- there's two type of connection
-    - Authenticated - with valid Authorization Token
-    - Non Authenticated
-- you may specify your desired channel_id via query param
-    - this will recieved notification from specific channel
-    - usage: group chat/notification
+**Note**: WebSocket walkers can still work with other HTTP methods; however, they currently don't support file uploads.
+
+## **WebSocket Connection Details**
+
+### Connection URL and Parameters
+
+- **Protocol**: `ws`
+- **URL**: `/websocket`
+- **Optional Header**: `Authorization: Bearer {{USER-TOKEN}}`
+- **Optional Query Parameter**: `?channel_id=anystring`
+
+### Connection Process
+
+When a client connects to the WebSocket endpoint, it will immediately receive a connection information event:
+
 ```python
 {
 	"type": "connection",
@@ -47,9 +62,25 @@ walker your_event_name {
 }
 ```
 
-## **`Client Valid Events`**
-### Walker
-- this will trigger a normal walker as if it was trigger via rest API
+### Connection Types
+
+There are two types of connections:
+
+1. **Authenticated Connection** - Uses a valid Authorization token
+2. **Non-Authenticated Connection** - Public access
+
+### Channel Subscription
+
+You can specify a `channel_id` via query parameter to receive notifications from a specific channel. This is particularly useful for group chat or notification applications.
+
+## **Client Event Types**
+
+Clients can send different types of events to the server through the WebSocket connection:
+
+### 1. Walker Event
+
+Triggers a walker just like a REST API call:
+
 ```python
 {
     # event type
@@ -58,7 +89,7 @@ walker your_event_name {
     # walker's name
 	"walker": "your_event_name",
 
-    # if you want to recieve a notification for response
+    # if you want to receive a notification for response
 	"response": true,
 
     # walker's request context
@@ -68,9 +99,10 @@ walker your_event_name {
 }
 ```
 
-### User
-- this will send notification to target user's clients
-- if target user/s has multiple clients, all of it will get notified
+### 2. User Event
+
+Sends a notification to specific users:
+
 ```python
 {
     # event type
@@ -86,9 +118,10 @@ walker your_event_name {
 }
 ```
 
-### Channel
-- this will send notification to target channel/s
-- all clients that's subcribed to the channel will get notified
+### 3. Channel Event
+
+Sends a notification to all clients subscribed to specific channels:
+
 ```python
 {
     # event type
@@ -104,14 +137,17 @@ walker your_event_name {
 }
 ```
 
-### Client
-- this will send notification to target client/s
+### 4. Client Event
+
+Sends a notification to specific clients:
+
 ```python
 {
     # event type
 	"type": "client",
 
-    # target client_ichannel"client_ids": ["1730887348:f46d85203c704c099e9f44e948322a20"],
+    # target client_ids
+    "client_ids": ["1730887348:f46d85203c704c099e9f44e948322a20"],
 
     # data you want to send
 	"data": {
@@ -120,8 +156,10 @@ walker your_event_name {
 }
 ```
 
-### Change User
-- migrate from public user to authenticated user and vice versa
+### 5. Change User Event
+
+Switches between authenticated and public user:
+
 ```python
 {
     # event type
@@ -132,41 +170,54 @@ walker your_event_name {
 }
 ```
 
-## **`Walker Client Notification`**
-### **`PREREQUISITE`**
+## **Server-Side Notification Methods**
+
+### Prerequisites
+
+To send notifications from your walker, import the WebSocket manager:
+
 ```python
 import from jac_cloud.plugin {WEBSOCKET_MANAGER as socket}
 ```
 
-### Self
-- this will send notification to current websocket it was from (only valid on websocket walker event)
-- if via walker api, nothing will happen
+### Available Notification Methods
+
+#### 1. Self Notification
+
+Sends a notification to the current WebSocket client (only valid on WebSocket walker events):
+
 ```python
 socket.notify_self({"any_field": "for_progress", "progress": "0%", "status": "started"});
 ```
 
-### User
-- this will send notification to target user's clients
-- if target user/s has multiple clients, all of it will get notified
+#### 2. User Notification
+
+Sends a notification to all clients of specific users:
+
 ```python
 socket.notify_users([root], {"any_field": "for_progress", "progress": "0%", "status": "started"});
 ```
 
-### Channel
-- this will send notification to target channel/s
-- all clients that's subcribed to the channel will get notified
+#### 3. Channel Notification
+
+Sends a notification to all clients subscribed to specific channels:
+
 ```python
 socket.notify_channels([channel_id], {"any_field": "for_progress", "progress": "0%", "status": "started"});
 ```
 
-### Client
-- this will send notification to target client/s
+#### 4. Client Notification
+
+Sends a notification to specific client connections:
+
 ```python
 socket.notify_clients([client_id], {"any_field": "for_progress", "progress": "0%", "status": "started"});
 ```
 
-# **`END TO END INTEGRATION`**
-# Jac
+## **End-to-End Integration Example**
+
+### Server-Side (Jac)
+
 ```python
 """Websocket scenarios."""
 import from jac_cloud.plugin {WEBSOCKET_MANAGER as socket}
@@ -215,12 +266,12 @@ walker send_chat_to_client {
 }
 ```
 
-## **CONNECTION**
-**`!!!!!!!!!!!!!!!!!!!!!!!`**\
-**`There is no method in the JavaScript WebSockets API for specifying additional headers for the client/browser to send`**\
-**`You will need to use 3rd party websocket library that support headers to have authenticated user on connect. Example react-use-websocket & ws`**\
-**`Default Javascript Websocket library requires change_user to be authenticated`**
-**`!!!!!!!!!!!!!!!!!!!!!!!`**
+### Client-Side (JavaScript)
+
+#### WebSocket Connection
+
+**Important Note**: The JavaScript WebSockets API doesn't natively support headers for authentication. You'll need to use the `change_user` event or a third-party WebSocket library that supports headers.
+
 ```js
 //####################################################//
 //           NOT AUTHENTICATED - JS LIBRARY           //
@@ -250,7 +301,9 @@ const client = new WebSocket('ws://localhost:8000/websocket', {
   }
 });
 ```
-## **CONSUME EVENT**
+
+#### Consuming Events
+
 ```js
 client.onmessage = (event) => {
   const msg = JSON.parse(event.data);
@@ -268,7 +321,9 @@ client.onmessage = (event) => {
   }
 };
 ```
-## **PUBLISH EVENT**
+
+#### Publishing Events
+
 ```js
 // TRIGGER WALKER EVENT
 client.send(JSON.stringify({
@@ -319,5 +374,7 @@ client.send(JSON.stringify({
 	"type": "connection"
 }));
 ```
+
 ---
-### **For complete working example you may download this [API Request Collection](https://github.com/amadolid/jaseci/blob/websocket-backup-final/jac-cloud/jac_cloud/tests/jac-cloud-websocket.insomnia)**
+### **Additional Resources**
+For a complete working example, you may download this [API Request Collection](https://github.com/amadolid/jaseci/blob/websocket-backup-final/jac-cloud/jac_cloud/tests/jac-cloud-websocket.insomnia)
