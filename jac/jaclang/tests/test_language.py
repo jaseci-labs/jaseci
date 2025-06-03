@@ -542,7 +542,7 @@ class JacLanguageTests(TestCase):
         self.assertIn("assert (x == 5) , 'x should be equal to 5' ;", output)
         self.assertIn("if not (x == y) {", output)
         self.assertIn("def greet2(**kwargs: Any) {", output)
-        self.assertIn("squares_dict = { x : (x ** 2) for x in numbers };", output)
+        self.assertIn("squares_dict = { x: (x ** 2) for x in numbers };", output)
         self.assertIn(
             '\n\n"""Say hello"""\n@ my_decorator\n\n def say_hello() {', output
         )
