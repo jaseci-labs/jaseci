@@ -57,6 +57,7 @@ from jaclang.runtimelib.constructs import (
     WalkerAnchor,
     WalkerArchetype,
 )
+from jaclang.runtimelib.gins import GinSThread
 from jaclang.runtimelib.memory import Memory, Shelf, ShelfStorage
 from jaclang.runtimelib.utils import (
     all_issubclass,
@@ -1549,21 +1550,14 @@ class JacUtils:
     @staticmethod
     def await_obj(obj: Any) -> Any:  # noqa: ANN401
         """Await an object if it is a coroutine or async or future function."""
-        machine = JacMachineInterface.py_get_jac_machine()
-        _event_loop = machine._event_loop
-        return _event_loop.run_until_complete(obj)
+        return obj.result()
 
     @staticmethod
-    def thread_run(func: Callable, *args: object) -> Future:  # noqa: ANN401
-        """Run a function in a thread."""
-        machine = JacMachine.py_get_jac_machine()
-        _executor = machine.pool
-        return _executor.submit(func, *args)
-
-    @staticmethod
-    def thread_wait(future: Any) -> None:  # noqa: ANN401
-        """Wait for a thread to finish."""
-        return future.result()
+    def attach_gins(
+        mach: JacMachineState,
+    ) -> None:
+        """Attach the Gins thread to the Jac machine state."""
+        mach.gins = GinSThread()
 
 
 class JacMachineInterface(
@@ -1601,6 +1595,7 @@ class JacMachine(JacMachineInterface):
             else os.path.abspath(base_path)
         )
         self.program: JacProgram = JacProgram()
+        self.gins: Optional[GinSThread] = None
         self.pool = ThreadPoolExecutor()
         self._event_loop = asyncio.new_event_loop()
         self.mem: Memory = ShelfStorage(session)
