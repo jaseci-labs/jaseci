@@ -40,6 +40,7 @@ jobs:
         pip install -e jac
         pip install -e jac-splice-orc
         pip install -e jac-cloud
+        pip install -e jac-mtllm
         pip install pytest
         pip install pytest-asyncio
 
@@ -47,7 +48,7 @@ jobs:
       run: |
         echo "TEST_ENV=true" >> $GITHUB_ENV
     - name: Run tests
-      run: pytest -x jac jac-cloud jac-splice-orc
+      run: pytest -x jac jac-cloud jac-splice-orc jac-mtllm
     - name: Run jac-cloud tests with DB
       run: pytest -x jac-cloud
       env:
@@ -59,4 +60,4 @@ jobs:
         pip uninstall jac-splice-orc -y
         pip install numpy
         pip install scikit-learn
-        jac test jac/examples/littleX/littleX.jac
+        jac test jac/examples/littleX/littleX.test.jac

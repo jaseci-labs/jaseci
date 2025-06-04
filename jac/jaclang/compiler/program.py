@@ -71,17 +71,12 @@ class JacProgram:
         self.type_resolver = JTypeResolver(self.type_registry)
         # self.type_env = JTypeEnv()
 
-    def get_bytecode(
-        self, full_target: str, full_compile: bool = True
-    ) -> Optional[types.CodeType]:
+    def get_bytecode(self, full_target: str) -> Optional[types.CodeType]:
         """Get the bytecode for a specific module."""
         if full_target in self.mod.hub:
             codeobj = self.mod.hub[full_target].gen.py_bytecode
             return marshal.loads(codeobj) if isinstance(codeobj, bytes) else None
-        result = self.compile(
-            file_path=full_target,
-            mode=CompilerMode.COMPILE if full_compile else CompilerMode.COMPILE_SINGLE,
-        )
+        result = self.compile(file_path=full_target, mode=CompilerMode.COMPILE_SINGLE)
         return marshal.loads(result.gen.py_bytecode) if result.gen.py_bytecode else None
 
     def compile(

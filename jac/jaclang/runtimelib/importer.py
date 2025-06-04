@@ -9,15 +9,12 @@ import site
 import sys
 import types
 from os import getcwd, path
-from typing import Optional, TYPE_CHECKING, Union
+from typing import Optional, Union
 
 from jaclang.runtimelib.machine import JacMachineInterface
 from jaclang.runtimelib.utils import sys_path_context
 from jaclang.utils.helpers import dump_traceback
 from jaclang.utils.log import logging
-
-if TYPE_CHECKING:
-    from jaclang.runtimelib.machine import JacMachine
 
 logger = logging.getLogger(__name__)
 
@@ -98,29 +95,8 @@ class ImportReturn:
                     setattr(module, alias, item)
 
         for name, alias in items.items():
-            try:
-                item = getattr(module, name)
-                handle_item_loading(item, alias)
-            except AttributeError:
-                if lang == "jac":
-                    jac_file_path = (
-                        os.path.join(module.__path__[0], f"{name}.jac")
-                        if hasattr(module, "__path__")
-                        else module.__file__
-                    )
-
-                    if jac_file_path and os.path.isfile(jac_file_path):
-                        item = self.load_jac_mod_as_item(
-                            module=module,
-                            name=name,
-                            jac_file_path=jac_file_path,
-                        )
-                        handle_item_loading(item, alias)
-                else:
-                    if hasattr(module, "__path__"):
-                        full_module_name = f"{module.__name__}.{name}"
-                        item = importlib.import_module(full_module_name)
-                        handle_item_loading(item, alias)
+            item = getattr(module, name)
+            handle_item_loading(item, alias)
 
     def load_jac_mod_as_item(
         self,
@@ -129,6 +105,8 @@ class ImportReturn:
         jac_file_path: str,
     ) -> Optional[types.ModuleType]:
         """Load a single .jac file into the specified module component."""
+        from jaclang.runtimelib.machine import JacMachine
+
         try:
             package_name = (
                 f"{module.__name__}.{name}"
@@ -136,7 +114,7 @@ class ImportReturn:
                 else module.__name__
             )
             if isinstance(self.importer, JacImporter):
-                new_module = self.importer.jac_machine.loaded_modules.get(
+                new_module = JacMachine.loaded_modules.get(
                     package_name,
                     self.importer.create_jac_py_module(
                         self.importer.get_sys_mod_name(jac_file_path),
@@ -144,10 +122,7 @@ class ImportReturn:
                         jac_file_path,
                     ),
                 )
-            codeobj = self.importer.jac_machine.jac_program.get_bytecode(
-                full_target=jac_file_path,
-                full_compile=not self.importer.jac_machine.interp_mode,
-            )
+            codeobj = JacMachine.program.get_bytecode(full_target=jac_file_path)
             if not codeobj:
                 raise ImportError(f"No bytecode found for {jac_file_path}")
 
@@ -161,9 +136,8 @@ class ImportReturn:
 class Importer:
     """Abstract base class for all importers."""
 
-    def __init__(self, jac_machine: JacMachine) -> None:
+    def __init__(self) -> None:
         """Initialize the Importer object."""
-        self.jac_machine = jac_machine
         self.result: Optional[ImportReturn] = None
 
     def run_import(self, spec: ImportPathSpec) -> ImportReturn:
@@ -172,16 +146,11 @@ class Importer:
 
     def update_sys(self, module: types.ModuleType, spec: ImportPathSpec) -> None:
         """Update sys.modules with the newly imported module."""
-        if spec.module_name not in self.jac_machine.loaded_modules:
-            JacMachineInterface.load_module(self.jac_machine, spec.module_name, module)
+        JacMachineInterface.load_module(spec.module_name, module)
 
 
 class PythonImporter(Importer):
     """Importer for Python modules."""
-
-    def __init__(self, jac_machine: JacMachine) -> None:
-        """Initialize the PythonImporter object."""
-        self.jac_machine = jac_machine
 
     def run_import(self, spec: ImportPathSpec) -> ImportReturn:
         """Run the import process for Python modules."""
@@ -254,12 +223,10 @@ class PythonImporter(Importer):
 class JacImporter(Importer):
     """Importer for Jac modules."""
 
-    def __init__(self, jac_machine: JacMachine) -> None:
-        """Initialize the JacImporter object."""
-        self.jac_machine = jac_machine
-
     def get_sys_mod_name(self, full_target: str) -> str:
         """Generate proper module names from file paths."""
+        from jaclang.runtimelib.machine import JacMachine
+
         full_target = os.path.abspath(full_target)
 
         # If the file is located within a site-packages directory, strip that prefix.
@@ -269,7 +236,7 @@ class JacImporter(Importer):
             rel = full_target[sp_index + len("site-packages") :]
             rel = rel.lstrip(os.sep)
         else:
-            rel = path.relpath(full_target, start=self.jac_machine.base_path_dir)
+            rel = path.relpath(full_target, start=JacMachine.base_path_dir)
         rel = os.path.splitext(rel)[0]
         if os.path.basename(rel) == "__init__":
             rel = os.path.dirname(rel)
@@ -285,10 +252,36 @@ class JacImporter(Importer):
         module.__name__ = module_name
         module.__path__ = [full_mod_path]
         module.__file__ = None
-        module.__dict__["__jac_mach__"] = self.jac_machine
 
-        if module_name not in self.jac_machine.loaded_modules:
-            JacMachineInterface.load_module(self.jac_machine, module_name, module)
+        JacMachineInterface.load_module(module_name, module)
+
+        # If the directory contains an __init__.jac, execute it so that the
+        # package namespace is populated immediately (mirrors Python's own
+        # package behaviour with __init__.py).
+        init_jac = os.path.join(full_mod_path, "__init__.jac")
+        if os.path.isfile(init_jac):
+            from jaclang.runtimelib.machine import JacMachine
+
+            # Point the package's __file__ to the init file for introspection
+            module.__file__ = init_jac
+
+            codeobj = JacMachine.program.get_bytecode(full_target=init_jac)
+            if not codeobj:
+                # Compilation should have provided bytecode for __init__.jac.
+                # Raising ImportError here surfaces compile-time issues clearly.
+                raise ImportError(f"No bytecode found for {init_jac}")
+
+            try:
+                # Ensure the directory is on sys.path while executing so that
+                # relative imports inside __init__.jac resolve correctly.
+                with sys_path_context(full_mod_path):
+                    exec(codeobj, module.__dict__)
+            except Exception as e:
+                # Log detailed traceback for easier debugging and re-raise.
+                logger.error(e)
+                logger.error(dump_traceback(e))
+                raise e
+
         return module
 
     def create_jac_py_module(
@@ -298,16 +291,17 @@ class JacImporter(Importer):
         full_target: str,
     ) -> types.ModuleType:
         """Create a module."""
+        from jaclang.runtimelib.machine import JacMachine
+
         module = types.ModuleType(module_name)
         module.__file__ = full_target
         module.__name__ = module_name
-        module.__dict__["__jac_mach__"] = self.jac_machine
         if package_path:
             base_path = full_target.split(package_path.replace(".", path.sep))[0]
             parts = package_path.split(".")
             for i in range(len(parts)):
                 package_name = ".".join(parts[: i + 1])
-                if package_name not in self.jac_machine.loaded_modules:
+                if package_name not in JacMachine.loaded_modules:
                     full_mod_path = path.join(
                         base_path, package_name.replace(".", path.sep)
                     )
@@ -315,13 +309,15 @@ class JacImporter(Importer):
                         module_name=package_name,
                         full_mod_path=full_mod_path,
                     )
-        JacMachineInterface.load_module(self.jac_machine, module_name, module)
+        JacMachineInterface.load_module(module_name, module)
         return module
 
     def run_import(
         self, spec: ImportPathSpec, reload: Optional[bool] = False
     ) -> ImportReturn:
         """Run the import process for Jac modules."""
+        from jaclang.runtimelib.machine import JacMachine
+
         unique_loaded_items: list[types.ModuleType] = []
         module = None
         # Gather all possible search paths
@@ -367,7 +363,7 @@ class JacImporter(Importer):
         else:
             module_name = self.get_sys_mod_name(spec.full_target)
 
-        module = self.jac_machine.loaded_modules.get(module_name)
+        module = JacMachine.loaded_modules.get(module_name)
 
         if not module or module.__name__ == "__main__" or reload:
             if os.path.isdir(spec.full_target):
@@ -379,10 +375,7 @@ class JacImporter(Importer):
                     spec.package_path,
                     spec.full_target,
                 )
-                codeobj = self.jac_machine.jac_program.get_bytecode(
-                    full_target=spec.full_target,
-                    full_compile=not self.jac_machine.interp_mode,
-                )
+                codeobj = JacMachine.program.get_bytecode(full_target=spec.full_target)
 
                 # Since this is a compile time error, we can safely raise an exception here.
                 if not codeobj:

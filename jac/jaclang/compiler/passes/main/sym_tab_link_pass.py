@@ -97,15 +97,15 @@ class SymTabLinkPass(Transform[uni.Module, uni.Module]):
 
     def _is_all_import(self, imp_node: uni.Import, node: uni.ModulePath) -> bool:
         """Determine if this is an all import (import everything from module)."""
-        return (
-            imp_node.is_jac and node.parent and isinstance(node.parent, uni.SubNodeList)
-        ) or (imp_node.is_py and imp_node.from_loc is None and not imp_node.is_absorb)
+        return (imp_node.is_jac and node in imp_node.items) or (
+            imp_node.is_py and imp_node.from_loc is None and not imp_node.is_absorb
+        )
 
     def _get_imported_symbols(self, node: uni.ModulePath) -> list[str]:
         """Get list of specific symbols being imported."""
         symbols = []
         if node.parent and isinstance(node.parent, uni.Import):
-            for mod_items in node.parent.items.items:
+            for mod_items in node.parent.items:
                 if isinstance(mod_items, uni.ModuleItem):
                     symbols.append(mod_items.name.value)
         return symbols

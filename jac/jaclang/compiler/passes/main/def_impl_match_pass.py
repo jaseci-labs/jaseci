@@ -17,6 +17,8 @@ developers to define archetype and ability interfaces in one file while implemen
 their behavior in separate files.
 """
 
+from typing import Sequence
+
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import Tokens as Tok
 from jaclang.compiler.passes.transform import Transform
@@ -124,7 +126,7 @@ class DeclImplMatchPass(Transform[uni.Module, uni.Module]):
 
             valid_decl.body = sym.decl.name_of
             sym.decl.name_of.decl_link = valid_decl
-            for idx, a in enumerate(sym.decl.name_of.target.items):
+            for idx, a in enumerate(sym.decl.name_of.target):
                 if idx < len(name_of_links) and name_of_links[idx]:
                     a.name_spec.name_of = name_of_links[idx].name_of
                     a.name_spec.sym = name_of_links[idx].sym
@@ -159,7 +161,7 @@ class DeclImplMatchPass(Transform[uni.Module, uni.Module]):
 
             if params_decl and params_defn:
                 # Check if the parameter count is matched.
-                if len(params_defn.items) != len(params_decl.items):
+                if len(params_defn) != len(params_decl):
                     self.log_error(
                         f"Parameter count mismatch for ability {sym.sym_name}.",
                         sym.decl.name_of.name_spec,
@@ -170,10 +172,11 @@ class DeclImplMatchPass(Transform[uni.Module, uni.Module]):
                     )
                 else:
                     # Copy the parameter names from the declaration to the definition.
-                    for idx in range(len(params_defn.items)):
-                        params_decl.items[idx] = params_defn.items[idx]
-                    for idx in range(len(params_defn.kid)):
-                        params_decl.kid[idx] = params_defn.kid[idx]
+                    for idx in range(len(params_defn)):
+                        if (par := params_decl[idx].parent) is not None:
+                            loc_in_kid = par.kid.index(params_decl[idx])
+                            par.kid[loc_in_kid] = params_defn[idx]
+                        params_decl[idx] = params_defn[idx]
 
     def check_archetypes(self, ir_in: uni.Module) -> None:
         """Check all archetypes for issues with attributes and methods."""
@@ -182,15 +185,13 @@ class DeclImplMatchPass(Transform[uni.Module, uni.Module]):
 
     def check_archetype(self, node: uni.Archetype) -> None:
         """Check a single archetype for issues."""
-        if node.arch_type.name == Tok.KW_OBJECT and isinstance(
-            node.body, uni.SubNodeList
-        ):
+        if node.arch_type.name == Tok.KW_OBJECT and isinstance(node.body, Sequence):
             self.cur_node = node
             found_default_init = False
-            for stmnt in node.body.items:
+            for stmnt in node.body:
                 if not isinstance(stmnt, uni.ArchHas):
                     continue
-                for var in stmnt.vars.items:
+                for var in stmnt.vars:
                     if (var.value is not None) or (var.defer):
                         found_default_init = True
                     else:
@@ -204,10 +205,10 @@ class DeclImplMatchPass(Transform[uni.Module, uni.Module]):
             post_init_vars: list[uni.HasVar] = []
             postinit_method: uni.Ability | None = None
 
-            for item in node.body.items:
+            for item in node.body:
 
                 if isinstance(item, uni.ArchHas):
-                    for var in item.vars.items:
+                    for var in item.vars:
                         if var.defer:
                             post_init_vars.append(var)
 

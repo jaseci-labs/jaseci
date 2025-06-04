@@ -7,7 +7,10 @@ from jaclang.utils.test import TestCase
 
 from typing import Tuple
 
-SemTokManager = _.py_jac_import("..sem_manager", __file__, items={"SemTokManager": None})[0]
+SemTokManager = _.jac_import("..sem_manager", __file__, items={"SemTokManager": None})[
+    0
+]
+
 
 class TestUpdateSemTokens(TestCase):
     """Test update semantic tokens"""

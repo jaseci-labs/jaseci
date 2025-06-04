@@ -111,6 +111,7 @@ class TestLarkParser(TestCaseMicroSuite):
                 "consume_token",
                 "match_many",
                 "consume_many",
+                "extract_from_list",
             ]:
                 continue
             self.assertIn(fn, rules)

@@ -1,44 +1,34 @@
-import from mtllm.llms { BaseLLM }
+import from mtllm.llms { FakeLLM }
 
-obj model(BaseLLM) {
-    def init {
-        super.__init__();
-    }
+glob llm = FakeLLM(
+    print_prompt=True,
+    default='[Reasoning] J. Robert Oppenheimer, also known as the "father of the atomic bomb," was a brilliant '
+    'theoretical physicist and the director of the Manhattan Project during World War II. He played a crucial '
+    'role in developing the first nuclear weapons. However, after witnessing the devastation caused by the '
+    'atomic bombs dropped on Hiroshima and Nagasaki, he expressed deep regret and became an advocate for nuclear '
+    'disarmament. While he was an exceptional scientist, he was also known for his introspective and philosophical '
+    'nature, which suggests an introverted personality.\n'
+    '[Output] Person(full_name="J. Robert Oppenheimer", yod=1967, personality=Personality.INTROVERT)'
+);
 
-    def __infer__(meaning_in: str, **kwargs: dict) {
-        print(meaning_in);
-        return '[Reasoning] J. Robert Oppenheimer, also known as the "father of the atomic bomb," was a brilliant '
-            'theoretical physicist and the director of the Manhattan Project during World War II. He played a crucial '
-            'role in developing the first nuclear weapons. However, after witnessing the devastation caused by the '
-            'atomic bombs dropped on Hiroshima and Nagasaki, he expressed deep regret and became an advocate for nuclear '
-            'disarmament. While he was an exceptional scientist, he was also known for his introspective and philosophical '
-            'nature, which suggests an introverted personality.\n'
-            '[Output] Person(full_name="J. Robert Oppenheimer", yod=1967, personality=Personality.INTROVERT)';
-    }
+enum Personality {
+    INTROVERT = "Introvert",
+    EXTROVERT = "Extrovert"
 }
 
-glob llm = model();
-
-enum 'Personality of the Person'
-Personality {
-    INTROVERT: 'Person who is shy and reticent' = "Introvert",
-    EXTROVERT: 'Person who is outgoing and socially confident' = "Extrovert"
+obj Person {
+    has full_name: str,
+        yod: int,
+        personality: Personality;
 }
 
-obj 'Person'
-Person {
-    has full_name: 'Fullname of the Person': str,
-        yod: 'Year of Death': int,
-        personality: 'Personality of the Person': Personality;
-}
-
-glob personality_examples: 'Personality Information of Famous People': dict[str, Personality] = {
-    'Albert Einstein': Personality.INTROVERT,
-    'Barack Obama': Personality.EXTROVERT
+glob personality_examples: dict[str, Personality] = {
+    Personality.INTROVERT,
+    Personality.EXTROVERT
 };
 
-can 'Get Person Information use common knowledge'
-get_person_info(name: 'Name of the Person': str) -> 'Person': Person by llm(method="Reason");
+def get_person_info(name: str) -> Person by llm(method="Reason");
+
 
 with entry {
     person_obj = get_person_info('Oppenheimer');

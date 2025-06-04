@@ -561,7 +561,6 @@ class SpliceOrcPlugin:
     @staticmethod
     @hookimpl
     def jac_import(
-        mach: JacMachine,
         target: str,
         base_path: str,
         absorb: bool,
@@ -573,7 +572,6 @@ class SpliceOrcPlugin:
         """Core Import Process with Kubernetes Pod Integration.
 
         Args:
-            mach: JAC machine state
             target: Import target
             base_path: Base path for import
             absorb: Whether to absorb the module
@@ -643,13 +641,13 @@ class SpliceOrcPlugin:
             items,
         )
 
-        if not mach.jac_program:
-            JacMachineInterface.attach_program(mach, JacProgram())
+        if not JacMachine.program:
+            JacMachineInterface.attach_program(JacProgram())
 
         if lng == "py":
-            import_result = PythonImporter(mach).run_import(spec)
+            import_result = PythonImporter().run_import(spec)
         else:
-            import_result = JacImporter(mach).run_import(spec, reload_module)
+            import_result = JacImporter().run_import(spec, reload_module)
 
         return (
             (import_result.ret_mod,)

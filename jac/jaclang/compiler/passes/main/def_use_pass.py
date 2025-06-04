@@ -38,6 +38,7 @@ class DefUsePass(UniPass):
                 + node.get_all_sub_nodes(uni.IgnoreStmt)
                 + node.get_all_sub_nodes(uni.DisengageStmt)
                 + node.get_all_sub_nodes(uni.EdgeOpRef)
+                + node.get_all_sub_nodes(uni.EventSignature)
             ):
                 i.from_walker = True
 
@@ -57,19 +58,15 @@ class DefUsePass(UniPass):
         node.sym_tab.def_insert(node)
 
     def enter_has_var(self, node: uni.HasVar) -> None:
-        if isinstance(node.parent, uni.SubNodeList) and isinstance(
-            node.parent.parent, uni.ArchHas
-        ):
+        if isinstance(node.parent, uni.ArchHas):
             node.sym_tab.def_insert(
-                node,
-                single_decl="has var",
-                access_spec=node.parent.parent,
+                node, single_decl="has var", access_spec=node.parent
             )
         else:
             self.ice("Inconsistency in AST, has var should be under arch has")
 
     def enter_assignment(self, node: uni.Assignment) -> None:
-        for i in node.target.items:
+        for i in node.target:
             if isinstance(i, uni.AtomTrailer):
                 i.sym_tab.chain_def_insert(i.as_attr_list)
                 nodes = i.as_attr_list

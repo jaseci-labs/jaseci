@@ -28,7 +28,6 @@ CLASS_COLOR_MAP: dict[str, str] = {
     "ArchSpec": "#a3d3f0",
     "MatchPattern": "#a0d8b3",
     "SubTag": "#cafafa",
-    "SubNodeList": "#dbbfe5",
     "Module": "#D1FFE2  ",
     "GlobalVars": "#e1d1ff",
     "Test": "#e1d1ff",
@@ -136,7 +135,7 @@ CLASS_COLOR_MAP: dict[str, str] = {
 }
 
 
-def dotgen_ast_tree(
+def printgraph_ast_tree(
     root: UniNode,
     dot_lines: Optional[list[str]] = None,
 ) -> str:
@@ -184,7 +183,7 @@ def dotgen_ast_tree(
     dot_lines.append(f"{gen_node_id(root)} {gen_node_parameters(root)};")
     for i in root.kid:
         dot_lines.append(f"{gen_node_id(root)}  -> {gen_node_id(i)};")
-        dotgen_ast_tree(i, dot_lines)
+        printgraph_ast_tree(i, dot_lines)
     if starting_call:
         return "\ndigraph graph1 {\n" + "\n".join(list(set(dot_lines))) + "\n}"
     return " "
@@ -502,7 +501,7 @@ def get_symtab_tree_str(
     )
 
 
-def dotgen_symtab_tree(node: UniScopeNode) -> str:
+def printgraph_symtab_tree(node: UniScopeNode) -> str:
     """Generate DOT graph representation of a symbol table tree."""
     dot_lines = []
     id_map = {}

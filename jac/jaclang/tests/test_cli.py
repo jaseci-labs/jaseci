@@ -11,7 +11,7 @@ import traceback
 import unittest
 from jaclang.cli import cli
 from jaclang.cli.cmdreg import cmd_registry, extract_param_descriptions
-from jaclang.runtimelib.builtin import dotgen
+from jaclang.runtimelib.builtin import printgraph
 from jaclang.utils.test import TestCase
 
 from jaclang.settings import settings
@@ -192,7 +192,7 @@ class JacCliTests(TestCase):
             r"13\:12 \- 13\:18.*Name - append - .*SymbolPath: builtins.list.append",
         )
 
-    def test_ast_dotgen(self) -> None:
+    def test_ast_printgraph(self) -> None:
         """Testing for print AstTool."""
         captured_output = io.StringIO()
         sys.stdout = captured_output
@@ -298,11 +298,16 @@ class JacCliTests(TestCase):
     def test_graph_coverage(self) -> None:
         """Test for coverage of graph cmd."""
         graph_params = set(inspect.signature(cli.dot).parameters.keys())
-        dotgen_params = set(inspect.signature(dotgen).parameters.keys())
-        dotgen_params = dotgen_params - {"node", "dot_file", "edge_type", "as_json"}
-        dotgen_params.update({"initial", "saveto", "connection", "session"})
-        self.assertTrue(dotgen_params.issubset(graph_params))
-        self.assertEqual(len(dotgen_params) + 1, len(graph_params))
+        printgraph_params = set(inspect.signature(printgraph).parameters.keys())
+        printgraph_params = printgraph_params - {
+            "node",
+            "file",
+            "edge_type",
+            "format",
+        }
+        printgraph_params.update({"initial", "saveto", "connection", "session"})
+        self.assertTrue(printgraph_params.issubset(graph_params))
+        self.assertEqual(len(printgraph_params) + 1, len(graph_params))
 
     def test_graph(self) -> None:
         """Test for graph CLI cmd."""

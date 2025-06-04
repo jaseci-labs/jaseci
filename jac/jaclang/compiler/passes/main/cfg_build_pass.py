@@ -68,7 +68,7 @@ class CFGBuildPass(UniPass):
     def enter_node(self, node: uni.UniNode) -> None:
         """Enter BasicBlockStmt nodes."""
         if isinstance(node, uni.UniCFGNode) and not isinstance(node, uni.Semi):
-            if isinstance(node.parent, uni.SubNodeList) and self.first_exit:
+            if node.parent and isinstance(node, uni.CodeBlockStmt) and self.first_exit:
                 bb_stmts = [
                     bbs for bbs in node.parent.kid if isinstance(bbs, uni.UniCFGNode)
                 ]
@@ -199,7 +199,7 @@ class CoalesceBBPass(UniPass):
             }
             self.bb_counter += 1
 
-    def dotgen_cfg(self) -> str:
+    def printgraph_cfg(self) -> str:
         """Generate dot graph for CFG."""
         cfg: dict = {}
         dot = "digraph G {\n"
