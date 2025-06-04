@@ -44,7 +44,7 @@ class JTypeAnnotatePass(UniPass):
         )
 
         # Iterate over each target in the assignment (e.g., `x` in `x: int = 5`)
-        for target in node.target.items:
+        for target in node.target:
             if isinstance(target, uni.Name):
                 assert target.sym is not None
 

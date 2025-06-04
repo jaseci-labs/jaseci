@@ -145,7 +145,7 @@ class JTypeCheckPass(UniPass):
 
         value_type = self.prog.type_resolver.get_type(value)
         # handle multiple assignment targets
-        for target in node.target.items:
+        for target in node.target:
 
             # check target expression types
             if isinstance(target, ast.FuncCall):
