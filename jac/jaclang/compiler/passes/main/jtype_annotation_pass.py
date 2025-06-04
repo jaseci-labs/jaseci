@@ -7,6 +7,7 @@ using type annotations in the code.
 import jaclang.compiler.jtyping as jtype
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import SymbolAccess, SymbolType
+from jaclang.compiler.passes.main.jsafety_asserts import JSafetyAsserts
 from jaclang.compiler.jtyping.types.jclassmember import MemberKind
 from jaclang.compiler.passes import UniPass
 from jaclang.settings import settings
@@ -76,11 +77,20 @@ class JTypeAnnotatePass(UniPass):
                     try:
                         ability_node = uni.parent_of_type(self_node, uni.Ability)
                     except AssertionError:
-                        self.log_warning("Can't find ability to associated with self, is it an impl file?", self_node)
+                        self.log_warning(
+                            "Can't find ability to associated with self, is it an impl file?",
+                            self_node,
+                        )
+                        return
                     if ability_node.sym_name != "__init__":
                         return
                     self_type = self.prog.type_resolver.get_type(self_node)
-                    assert isinstance(self_type, jtype.JClassInstanceType)
+                    if not JSafetyAsserts.assert_isinstance(
+                        self_type,
+                        jtype.JClassInstanceType,
+                        "self must be a class instance",
+                    ):
+                        return
                     member_node = nodes[1]
                     if isinstance(member_node, uni.Name):
                         self_type.class_type.instance_members[member_node.sym_name] = (
