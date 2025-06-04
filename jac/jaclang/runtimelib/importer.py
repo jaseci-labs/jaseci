@@ -8,6 +8,7 @@ import os
 import site
 import sys
 import types
+from dataclasses import dataclass, field
 from os import getcwd, path
 from typing import Optional, Union
 
@@ -19,28 +20,26 @@ from jaclang.utils.log import logging
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class ImportPathSpec:
     """Import Specification."""
 
-    def __init__(
-        self,
-        target: str,
-        base_path: str,
-        absorb: bool,
-        mdl_alias: Optional[str],
-        override_name: Optional[str],
-        lng: Optional[str],
-        items: Optional[dict[str, Union[str, Optional[str]]]],
-    ) -> None:
-        """Initialize the ImportPathSpec object."""
-        self.target = target
-        self.base_path = base_path
-        self.absorb = absorb
-        self.mdl_alias = mdl_alias
-        self.override_name = override_name
-        self.language = lng
-        self.items = items
-        self.dir_path, self.file_name = path.split(path.join(*(target.split("."))))
+    target: str
+    base_path: str
+    absorb: bool
+    mdl_alias: Optional[str]
+    override_name: Optional[str]
+    language: Optional[str]
+    items: Optional[dict[str, Union[str, Optional[str]]]]
+    dir_path: str = field(init=False)
+    file_name: str = field(init=False)
+    module_name: str = field(init=False)
+    package_path: str = field(init=False)
+    caller_dir: str = field(init=False)
+    full_target: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.dir_path, self.file_name = path.split(path.join(*(self.target.split("."))))
         self.module_name = path.splitext(self.file_name)[0]
         self.package_path = self.dir_path.replace(path.sep, ".")
         self.caller_dir = self.get_caller_dir()
@@ -63,19 +62,13 @@ class ImportPathSpec:
         return path.join(caller_dir, self.dir_path)
 
 
+@dataclass
 class ImportReturn:
     """Import Return Object."""
 
-    def __init__(
-        self,
-        ret_mod: types.ModuleType,
-        ret_items: list[types.ModuleType],
-        importer: Importer,
-    ) -> None:
-        """Initialize the ImportReturn object."""
-        self.ret_mod = ret_mod
-        self.ret_items = ret_items
-        self.importer = importer
+    ret_mod: types.ModuleType
+    ret_items: list[types.ModuleType]
+    importer: "Importer"
 
     def process_items(
         self,
@@ -152,72 +145,59 @@ class Importer:
 class PythonImporter(Importer):
     """Importer for Python modules."""
 
+    def _load_module(self, spec: ImportPathSpec) -> types.ModuleType:
+        """Load the requested Python module."""
+        if spec.target.startswith("."):
+            tgt = spec.target.lstrip(".")
+            if "." in tgt:
+                tgt = tgt.split(".")[-1]
+            full_target = path.normpath(path.join(spec.caller_dir, tgt))
+            imp_spec = importlib.util.spec_from_file_location(tgt, full_target + ".py")
+            if not (imp_spec and imp_spec.loader):
+                raise ImportError(f"Cannot find module {spec.target} at {full_target}")
+            module = importlib.util.module_from_spec(imp_spec)
+            sys.modules[imp_spec.name] = module
+            imp_spec.loader.exec_module(module)
+        else:
+            module = importlib.import_module(name=spec.target)
+        return module
+
+    def _apply_to_main(
+        self, module: types.ModuleType, spec: ImportPathSpec, loaded_items: list
+    ) -> None:
+        """Apply imported items or module to the __main__ namespace."""
+        main_module = sys.modules["__main__"]
+        if spec.absorb:
+            for name in dir(module):
+                if not name.startswith("_"):
+                    setattr(main_module, name, getattr(module, name))
+        elif spec.items:
+            for name, alias in spec.items.items():
+                alias = name if isinstance(alias, bool) else alias or name
+                try:
+                    item = getattr(module, name)
+                except AttributeError:
+                    if hasattr(module, "__path__"):
+                        item = importlib.import_module(f"{spec.target}.{name}")
+                    else:
+                        raise
+                if item not in loaded_items:
+                    setattr(main_module, alias, item)
+                    loaded_items.append(item)
+        else:
+            setattr(
+                main_module,
+                spec.mdl_alias if isinstance(spec.mdl_alias, str) else spec.target,
+                module,
+            )
+
     def run_import(self, spec: ImportPathSpec) -> ImportReturn:
         """Run the import process for Python modules."""
-        try:
-            loaded_items: list = []
-            if spec.target.startswith("."):
-                spec.target = spec.target.lstrip(".")
-                if len(spec.target.split(".")) > 1:
-                    spec.target = spec.target.split(".")[-1]
-                full_target = path.normpath(path.join(spec.caller_dir, spec.target))
-                imp_spec = importlib.util.spec_from_file_location(
-                    spec.target, full_target + ".py"
-                )
-                if imp_spec and imp_spec.loader:
-                    imported_module = importlib.util.module_from_spec(imp_spec)
-                    sys.modules[imp_spec.name] = imported_module
-                    imp_spec.loader.exec_module(imported_module)
-                else:
-                    raise ImportError(
-                        f"Cannot find module {spec.target} at {full_target}"
-                    )
-            else:
-                imported_module = importlib.import_module(name=spec.target)
-
-            main_module = __import__("__main__")
-            if spec.absorb:
-                for name in dir(imported_module):
-                    if not name.startswith("_"):
-                        setattr(main_module, name, getattr(imported_module, name))
-
-            elif spec.items:
-                for name, alias in spec.items.items():
-                    if isinstance(alias, bool):
-                        alias = name
-                    try:
-                        item = getattr(imported_module, name)
-                        if item not in loaded_items:
-                            setattr(
-                                main_module,
-                                alias if isinstance(alias, str) else name,
-                                item,
-                            )
-                            loaded_items.append(item)
-                    except AttributeError as e:
-                        if hasattr(imported_module, "__path__"):
-                            item = importlib.import_module(f"{spec.target}.{name}")
-                            if item not in loaded_items:
-                                setattr(
-                                    main_module,
-                                    alias if isinstance(alias, str) else name,
-                                    item,
-                                )
-                                loaded_items.append(item)
-                        else:
-                            raise e
-
-            else:
-                setattr(
-                    __import__("__main__"),
-                    spec.mdl_alias if isinstance(spec.mdl_alias, str) else spec.target,
-                    imported_module,
-                )
-            self.result = ImportReturn(imported_module, loaded_items, self)
-            return self.result
-
-        except ImportError as e:
-            raise e
+        loaded_items: list = []
+        module = self._load_module(spec)
+        self._apply_to_main(module, spec, loaded_items)
+        self.result = ImportReturn(module, loaded_items, self)
+        return self.result
 
 
 class JacImporter(Importer):
@@ -312,15 +292,8 @@ class JacImporter(Importer):
         JacMachineInterface.load_module(module_name, module)
         return module
 
-    def run_import(
-        self, spec: ImportPathSpec, reload: Optional[bool] = False
-    ) -> ImportReturn:
-        """Run the import process for Jac modules."""
-        from jaclang.runtimelib.machine import JacMachine
-
-        unique_loaded_items: list[types.ModuleType] = []
-        module = None
-        # Gather all possible search paths
+    def _resolve_target(self, spec: ImportPathSpec) -> None:
+        """Resolve the module's full path."""
         jacpaths = os.environ.get("JACPATH", "")
         search_paths = [spec.caller_dir]
         for site_dir in site.getsitepackages():
@@ -337,26 +310,31 @@ class JacImporter(Importer):
                 if p and p not in search_paths:
                     search_paths.append(p)
 
-        found_path = None
-        target_path_components = spec.target.split(".")
+        target_comps = spec.target.split(".")
         for search_path in search_paths:
-            candidate = os.path.join(search_path, "/".join(target_path_components))
-            # Check if the candidate is a directory or a .jac file
-            if (os.path.isdir(candidate)) or (os.path.isfile(candidate + ".jac")):
-                found_path = candidate
-                break
+            candidate = os.path.join(search_path, "/".join(target_comps))
+            if os.path.isdir(candidate) or os.path.isfile(candidate + ".jac"):
+                spec.full_target = os.path.abspath(candidate)
+                return
 
-        # If a suitable path was found, update spec.full_target; otherwise, raise an error
-        if found_path:
-            spec.full_target = os.path.abspath(found_path)
-        elif os.path.exists(spec.full_target) or os.path.exists(
-            spec.full_target + ".jac"
+        if not (
+            os.path.exists(spec.full_target)
+            or os.path.exists(spec.full_target + ".jac")
         ):
-            pass
-        else:
             raise ImportError(
                 f"Unable to locate module '{spec.target}' in {search_paths}"
             )
+
+    def run_import(
+        self, spec: ImportPathSpec, reload: Optional[bool] = False
+    ) -> ImportReturn:
+        """Run the import process for Jac modules."""
+        from jaclang.runtimelib.machine import JacMachine
+
+        unique_loaded_items: list[types.ModuleType] = []
+        module = None
+
+        self._resolve_target(spec)
         if os.path.isfile(spec.full_target + ".jac"):
             module_name = self.get_sys_mod_name(spec.full_target + ".jac")
             module_name = spec.override_name if spec.override_name else module_name
