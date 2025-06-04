@@ -16,6 +16,7 @@ class Settings:
     collect_py_dep_debug: bool = False
     print_py_raised_ast: bool = False
     debug_jac_typing: bool = False
+    safety_assert: bool = True
 
     # Compiler configuration
     disable_mtllm: bool = False

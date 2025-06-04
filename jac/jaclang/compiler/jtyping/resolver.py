@@ -5,6 +5,7 @@ from typing import Optional
 import jaclang.compiler.jtyping as jtype
 import jaclang.compiler.unitree as ast
 from jaclang.compiler.jtyping.registery import JTypeRegistry
+from jaclang.compiler.passes.main.jsafety_asserts import JSafetyAsserts
 from jaclang.settings import settings
 from jaclang.utils.helpers import pascal_to_snake
 
@@ -294,7 +295,12 @@ class JTypeResolver:
             if not archetype_node:
                 return jtype.JAnyType()
             if archetype_node.sym:
-                assert isinstance(archetype_node.sym.jtype, jtype.JClassType)
+                if not JSafetyAsserts.assert_isinstance(
+                    archetype_node.sym.jtype,
+                    jtype.JClassType,
+                    f"Expected JClassType for archetype {archetype_node.sym_name} at {node.loc.mod_path}:{node.loc}",
+                ):
+                    return jtype.JAnyType()
                 if node.sym_name == "super":
                     return jtype.JClassInstanceType(archetype_node.sym.jtype.bases[0])
                 else:
