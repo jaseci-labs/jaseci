@@ -1,23 +1,15 @@
-import from mtllm.llms { BaseLLM }
+import from mtllm.llms { FakeLLM }
 import from mtllm { Image }
 import os;
 
-obj model(BaseLLM) {
-    def init {
-        super.__init__();
-    }
+glob llm = FakeLLM(
+    print_prompt=True,
+    default="[Output] Something",
+);
 
-    def __infer__(meaning_in: str, **kwargs: dict) {
-        print(kwargs);
-        print(meaning_in);
-        return "[Output] Something";
-    }
-}
 
-glob llm = model();
-
-can 'Solve the Given Math Question'
-solve_math_question(question_img: 'Image of the Question': Image) -> 'Answer to the Question': str by llm(method="Chain-of-Thoughts");
+def solve_math_question(question_img: Image) -> str
+    by llm(method="Chain-of-Thoughts");
 
 with entry {
     question_img = Image(

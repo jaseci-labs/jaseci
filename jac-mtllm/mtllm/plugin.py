@@ -6,17 +6,120 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import Constants as Con
 from jaclang.compiler.passes.main.pyast_gen_pass import PyastGenPass
-from jaclang.compiler.semtable import SemInfo, SemRegistry, SemScope
-from jaclang.runtimelib.default import hookimpl
-from jaclang.runtimelib.utils import extract_params, extract_type, get_sem_scope
+from jaclang.runtimelib.machine import JacMachine as Jac, hookimpl
+
+# from jaclang.runtimelib.utils import extract_params, extract_type, get_sem_scope
 
 from mtllm.aott import (
     aott_raise,
     get_all_type_explanations,
 )
 from mtllm.llms.base import BaseLLM
+from mtllm.semtable import SemInfo, SemRegistry, SemScope
 from mtllm.types import Information, InputInformation, OutputHint, Tool
 from mtllm.utils import get_filtered_registry
+
+
+def extract_params(
+    body: uni.FuncCall,
+) -> tuple[dict[str, uni.Expr], list[tuple[str, ast3.AST]], list[tuple[str, ast3.AST]]]:
+    """Extract model parameters, include and exclude information."""
+    model_params = {}
+    include_info = []
+    exclude_info = []
+    if body.params:
+        for param in body.params:
+            if isinstance(param, uni.KWPair) and isinstance(param.key, uni.Name):
+                key = param.key.value
+                value = param.value
+                if key not in ["incl_info", "excl_info"]:
+                    model_params[key] = value
+                elif key == "incl_info":
+                    if isinstance(value, uni.AtomUnit):
+                        var_name = (
+                            value.value.right.value
+                            if isinstance(value.value, uni.AtomTrailer)
+                            and isinstance(value.value.right, uni.Name)
+                            else (
+                                value.value.value
+                                if isinstance(value.value, uni.Name)
+                                else ""
+                            )
+                        )
+                        include_info.append((var_name, value.gen.py_ast[0]))
+                    elif isinstance(value, uni.TupleVal) and value.values:
+                        for i in value.values:
+                            var_name = (
+                                i.right.value
+                                if isinstance(i, uni.AtomTrailer)
+                                and isinstance(i.right, uni.Name)
+                                else (i.value if isinstance(i, uni.Name) else "")
+                            )
+                            include_info.append((var_name, i.gen.py_ast[0]))
+                elif key == "excl_info":
+                    if isinstance(value, uni.AtomUnit):
+                        var_name = (
+                            value.value.right.value
+                            if isinstance(value.value, uni.AtomTrailer)
+                            and isinstance(value.value.right, uni.Name)
+                            else (
+                                value.value.value
+                                if isinstance(value.value, uni.Name)
+                                else ""
+                            )
+                        )
+                        exclude_info.append((var_name, value.gen.py_ast[0]))
+                    elif isinstance(value, uni.TupleVal) and value.values:
+                        for i in value.values:
+                            var_name = (
+                                i.right.value
+                                if isinstance(i, uni.AtomTrailer)
+                                and isinstance(i.right, uni.Name)
+                                else (i.value if isinstance(i, uni.Name) else "")
+                            )
+                            exclude_info.append((var_name, i.gen.py_ast[0]))
+    return model_params, include_info, exclude_info
+
+
+def get_sem_scope(node: uni.UniNode) -> SemScope:
+    """Get scope of the node."""
+    a = (
+        node.name
+        if isinstance(node, uni.Module)
+        else (
+            node.name.value
+            if isinstance(node, (uni.Enum, uni.Archetype))
+            else node.name_ref.sym_name if isinstance(node, uni.Ability) else ""
+        )
+    )
+    if isinstance(node, uni.Module):
+        return SemScope(a, "Module", None)
+    elif isinstance(node, (uni.Enum, uni.Archetype, uni.Ability)):
+        node_type = (
+            node.__class__.__name__
+            if isinstance(node, uni.Enum)
+            else ("Ability" if isinstance(node, uni.Ability) else node.arch_type.value)
+        )
+        if node.parent:
+            return SemScope(
+                a,
+                node_type,
+                get_sem_scope(node.parent),
+            )
+    else:
+        if node.parent:
+            return get_sem_scope(node.parent)
+    return SemScope("", "", None)
+
+
+def extract_type(node: uni.UniNode) -> list[str]:
+    """Collect type information in assignment using bfs."""
+    extracted_type = []
+    if isinstance(node, (uni.BuiltinType, uni.Token)):
+        extracted_type.append(node.value)
+    for child in node.kid:
+        extracted_type.extend(extract_type(child))
+    return extracted_type
 
 
 def callable_to_tool(tool: Callable, mod_registry: SemRegistry) -> Tool:
@@ -51,11 +154,13 @@ class JacMachine:
         _locals: Mapping,
     ) -> Any:  # noqa: ANN401
         """Jac's with_llm feature."""
-        from jaclang.runtimelib.machine import JacMachine
-
-        mod_registry = JacMachine.get().jac_program.sem_ir
-
+        program_head = Jac.program.mod
         _scope = SemScope.get_scope_from_str(scope)
+        mod_registry = SemRegistry(program_head=program_head, by_scope=_scope)
+
+        if not program_head:
+            raise ValueError("Jac program head not found")
+
         assert _scope is not None, f"Invalid scope: {scope}"
 
         method = model_params.pop("method") if "method" in model_params else "Normal"
@@ -76,9 +181,11 @@ class JacMachine:
 
         type_collector: list = []
 
-        filtered_registry = get_filtered_registry(mod_registry, _scope)
+        # filtered_registry = get_filtered_registry(mod_registry, _scope)
         incl_info = [x for x in incl_info if not isinstance(x[1], type)]
-        informations = [Information(filtered_registry, x[0], x[1]) for x in incl_info]
+        informations = (
+            []
+        )  # [Information(filtered_registry, x[0], x[1]) for x in incl_info]
         type_collector.extend([x.get_types() for x in informations])
 
         inputs_information = []
@@ -149,17 +256,7 @@ class JacMachine:
                     _pass.sync(
                         ast3.Tuple(
                             elts=[
-                                (
-                                    _pass.sync(
-                                        ast3.Constant(
-                                            value=(
-                                                param.semstr.lit_value
-                                                if param.semstr
-                                                else None
-                                            )
-                                        )
-                                    )
-                                ),
+                                (_pass.sync(ast3.Constant(value=None))),
                                 (
                                     param.type_tag.tag.gen.py_ast[0]
                                     if param.type_tag
@@ -176,7 +273,7 @@ class JacMachine:
                             ctx=ast3.Load(),
                         )
                     )
-                    for param in node.signature.params.items
+                    for param in node.signature.params
                 ]
                 if isinstance(node.signature, uni.FuncSignature)
                 and node.signature.params
@@ -184,26 +281,20 @@ class JacMachine:
             )
             outputs = (
                 [
-                    (
-                        _pass.sync(
-                            ast3.Constant(
-                                value=(
-                                    node.signature.semstr.lit_value
-                                    if node.signature.semstr
-                                    else ""
-                                )
-                            )
-                        )
-                    ),
+                    (_pass.sync(ast3.Constant(value=("")))),
                     (_pass.sync(ast3.Constant(value=(extracted_type)))),
                 ]
                 if isinstance(node.signature, uni.FuncSignature)
                 else []
             )
-            action = (
-                node.semstr.gen.py_ast[0]
-                if node.semstr
-                else _pass.sync(ast3.Constant(value=node.name_ref.sym_name))
+            # Use the ability name as action, and if docstring exists, append it
+            docstr = (
+                ((node.doc and node.doc.lit_value) or "")
+                if isinstance(node, uni.AstDocNode)
+                else ""
+            )
+            action = _pass.sync(
+                ast3.Constant(value=f"{docstr.strip()} ({node.name_ref.sym_name})\n")
             )
             return [
                 _pass.sync(
@@ -239,14 +330,14 @@ class JacMachine:
         include_info: list[tuple[str, ast3.AST]],
         exclude_info: list[tuple[str, ast3.AST]],
     ) -> ast3.Call:
-        """Return the LLM Call, e.g. _Jac.with_llm()."""
+        """Return the LLM Call, e.g. JacMachine.with_llm()."""
         return _pass.sync(
             ast3.Call(
                 func=_pass.sync(
                     ast3.Attribute(
                         value=_pass.sync(
                             ast3.Name(
-                                id=Con.JAC_FEATURE.value,
+                                id="_",
                                 ctx=ast3.Load(),
                             )
                         ),
@@ -438,7 +529,7 @@ class JacMachine:
                     ast3.Attribute(
                         value=_pass.sync(
                             ast3.Name(
-                                id=Con.JAC_FEATURE.value,
+                                id="_",
                                 ctx=ast3.Load(),
                             )
                         ),
@@ -464,7 +555,7 @@ class JacMachine:
                     ast3.Attribute(
                         value=_pass.sync(
                             ast3.Name(
-                                id=Con.JAC_FEATURE.value,
+                                id="_",
                                 ctx=ast3.Load(),
                             )
                         ),
@@ -484,7 +575,7 @@ class JacMachine:
                 keywords=[],
             )
         )
-        if node.params and node.params.items:
+        if node.params:
             inputs = [
                 _pass.sync(
                     ast3.Tuple(
@@ -495,7 +586,7 @@ class JacMachine:
                                         ast3.Attribute(
                                             value=_pass.sync(
                                                 ast3.Name(
-                                                    id=Con.JAC_FEATURE.value,
+                                                    id="_",
                                                     ctx=ast3.Load(),
                                                 )
                                             ),
@@ -528,7 +619,7 @@ class JacMachine:
                                         ast3.Attribute(
                                             value=_pass.sync(
                                                 ast3.Name(
-                                                    id=Con.JAC_FEATURE.value,
+                                                    id="_",
                                                     ctx=ast3.Load(),
                                                 )
                                             ),
@@ -569,7 +660,7 @@ class JacMachine:
                         ctx=ast3.Load(),
                     )
                 )
-                for kw_pair in node.params.items
+                for kw_pair in node.params
                 if isinstance(kw_pair, uni.KWPair)
             ]
         else:

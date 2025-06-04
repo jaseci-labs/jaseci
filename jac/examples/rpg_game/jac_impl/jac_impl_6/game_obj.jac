@@ -4,9 +4,9 @@
 import pygame;
 
 # Including Jac codebase
-import sprites;
-import settings.config;
-import settings.map;
+include sprites;
+include settings.config;
+include settings.map;
 
 """
 The Game base class

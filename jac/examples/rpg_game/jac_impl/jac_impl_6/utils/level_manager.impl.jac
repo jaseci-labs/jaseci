@@ -13,7 +13,7 @@ impl LevelManager.get_next_level {
         self.prev_levels.append(new_level);
 
         # Using the llm to fill un the attributes of Map_tiles object instance
-        new_level_map = Map_tiles(level=new_level by llm());
+        new_level_map = self.create_next_map(new_level);
         self.prev_level_maps.append(new_level_map);
 
         # Increasing the Difficulty for end of every 2 Levels

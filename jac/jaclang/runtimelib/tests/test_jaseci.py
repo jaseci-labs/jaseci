@@ -117,8 +117,8 @@ class TestJaseciPlugin(TestCase):
             args=[],
         )
         output = self.capturedOutput.getvalue().strip()
-        self.assertEqual(output, "node a\nnode b")
         self._del_session(session)
+        self.assertEqual(output, "node a\nnode b")
 
     def test_get_edge(self) -> None:
         """Test get an edge object."""

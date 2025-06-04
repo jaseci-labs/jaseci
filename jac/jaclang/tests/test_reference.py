@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 import jaclang
 from jaclang.compiler.program import JacProgram
-from jaclang.runtimelib.machine import JacMachine
+from jaclang.runtimelib.machine import JacMachine as Jac
 from jaclang.utils.test import TestCase
 
 
@@ -59,7 +59,6 @@ class JacReferenceTests(TestCase):
                     {
                         "__file__": filename,
                         "__name__": "__main__",
-                        "__jac_mach__": JacMachine(),
                     },
                 )
             return f.getvalue()
@@ -84,7 +83,13 @@ class JacReferenceTests(TestCase):
             # print(f"\nPython Output:\n{output_py}")
 
             self.assertGreater(len(output_py), 0)
-            self.assertEqual(output_py, output_jac)
+            self.assertEqual(len(output_jac.split("\n")), len(output_py.split("\n")))
+            # doing like below for concurrent_expressions.jac and other current tests
+            for i in output_py.split("\n"):
+                self.assertIn(i, output_jac)
+            for i in output_jac.split("\n"):
+                self.assertIn(i, output_py)
+            # self.assertEqual(output_py, output_jac)
         except Exception as e:
             # print(f"\nJAC Output:\n{output_jac}")
             # print(f"\nPython Output:\n{output_py}")

@@ -45,7 +45,7 @@ class JTypeAnnotatePass(UniPass):
         )
 
         # Iterate over each target in the assignment (e.g., `x` in `x: int = 5`)
-        for target in node.target.items:
+        for target in node.target:
             if isinstance(target, uni.Name):
                 assert target.sym is not None
 
@@ -81,7 +81,6 @@ class JTypeAnnotatePass(UniPass):
                             "Can't find ability to associated with self, is it an impl file?",
                             self_node,
                         )
-                        return
                     if ability_node.sym_name != "__init__":
                         return
                     self_type = self.prog.type_resolver.get_type(self_node)
@@ -125,6 +124,10 @@ class JTypeAnnotatePass(UniPass):
             )
             return
 
+        if isinstance(node.signature, uni.EventSignature):
+            self.__debug_print("Event signeatures aren't supported yet")
+            return
+
         ret_type = self.prog.type_resolver.get_type(node.signature.return_type)
         if isinstance(ret_type, jtype.JClassType):
             ret_type = jtype.JClassInstanceType(ret_type)
@@ -142,12 +145,8 @@ class JTypeAnnotatePass(UniPass):
         params: list[jtype.JFuncArgument] = []
         assert isinstance(node.signature, (uni.FuncSignature | uni.EventSignature))
 
-        if isinstance(node.signature, uni.EventSignature):
-            self.__debug_print("Event signeatures aren't supported yet")
-            return
-
         if node.signature.params:
-            for param in node.signature.params.items:
+            for param in node.signature.params:
                 if param.type_tag:
                     type_annotation = self.prog.type_resolver.get_type(
                         param.type_tag.tag
@@ -193,7 +192,7 @@ class JTypeAnnotatePass(UniPass):
 
         # resolve base classes
         if node.base_classes:
-            base_class_list = node.base_classes.items
+            base_class_list = node.base_classes
             for i in base_class_list:
                 base_class_type = self.prog.type_resolver.get_type(i)
                 if isinstance(base_class_type, jtype.JAnyType):

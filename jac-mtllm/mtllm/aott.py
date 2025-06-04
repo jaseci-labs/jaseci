@@ -8,7 +8,7 @@ from typing import Mapping
 
 from PIL import Image as PILImage
 
-from jaclang.compiler.semtable import SemRegistry
+from mtllm.semtable import SemRegistry
 
 from loguru import logger
 
@@ -207,6 +207,8 @@ def execute_react(
             if not contains_media
             else meaning_typed_input_list
         )
+        if 'meida' not in model_params:
+            model_params['media'] = None
         meaning_out = model(meaning_typed_input, **model_params)  # type: ignore
         react_output: ReActOutput = model.resolve_react_output(
             meaning_out, _globals, _locals, tool_prompt, type_explanations_str
@@ -234,7 +236,8 @@ def process_prev_react(prev_react_outputs: list[ReActOutput]) -> str:
         )
     return prev_react_input
 
-
+#here
+# need methods for scraping the UniiR
 def get_all_type_explanations(
     type_list: list, mod_registry: SemRegistry
 ) -> list[TypeExplanation]:

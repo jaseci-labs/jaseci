@@ -1,4 +1,5 @@
 """Test for Jac language server[VSCE] features"""
+
 import os
 import pytest
 
@@ -22,12 +23,17 @@ from jaclang.vendor.pygls.uris import from_fs_path
 from jaclang.vendor.pygls.workspace import Workspace
 from jaclang import JacMachineInterface as _
 
-JacLangServer = _.py_jac_import(
+JacLangServer = _.jac_import(
     "....langserve.engine", __file__, items={"JacLangServer": None}
 )[0]
-(did_open, did_save, did_change, formatting) = _.py_jac_import(    "....langserve.server", __file__, items={"did_open": None, "did_save": None, "did_change": None, "formatting": None})
+(did_open, did_save, did_change, formatting) = _.jac_import(
+    "....langserve.server",
+    __file__,
+    items={"did_open": None, "did_save": None, "did_change": None, "formatting": None},
+)
 
 JAC_FILE = get_jac_file_path()
+
 
 class TestLangServe:
     """Test class for Jac language server features."""
@@ -95,7 +101,7 @@ class TestLangServe:
         temp_file_path = create_temp_jac_file(code)
         uri = from_fs_path(temp_file_path)
         ls.lsp._workspace = Workspace(os.path.dirname(temp_file_path), ls)
-    
+
         params = DidOpenTextDocumentParams(
             text_document=TextDocumentItem(
                 uri=uri,
@@ -130,7 +136,9 @@ class TestLangServe:
         ls.shutdown()
         assert hasattr(sem_tokens, "data")
         assert isinstance(sem_tokens.data, list)
-        assert len(sem_tokens.data) == 0 # TODO: we should retain the sem tokens, will be fixed in next PR 
+        assert (
+            len(sem_tokens.data) == 0
+        )  # TODO: we should retain the sem tokens, will be fixed in next PR
 
         os.remove(temp_file_path)
 
@@ -141,14 +149,17 @@ class TestLangServe:
         temp_file_path = create_temp_jac_file(code)
         uri, ls = create_ls_with_workspace(temp_file_path)
 
-        await did_open(ls, DidOpenTextDocumentParams(
-            text_document=TextDocumentItem(
-                uri=uri,
-                language_id="jac",
-                version=1,
-                text=code,
-            )
-        ))
+        await did_open(
+            ls,
+            DidOpenTextDocumentParams(
+                text_document=TextDocumentItem(
+                    uri=uri,
+                    language_id="jac",
+                    version=1,
+                    text=code,
+                )
+            ),
+        )
 
         params = DidSaveTextDocumentParams(
             text_document=TextDocumentItem(
@@ -166,12 +177,14 @@ class TestLangServe:
 
         # Now simulate a syntax error by updating the workspace and saving
         broken_code = get_code("error")
-        ls.workspace.put_text_document(TextDocumentItem(
-            uri=uri,
-            language_id="jac",
-            version=3,
-            text=broken_code,
-        ))
+        ls.workspace.put_text_document(
+            TextDocumentItem(
+                uri=uri,
+                language_id="jac",
+                version=3,
+                text=broken_code,
+            )
+        )
         params = DidSaveTextDocumentParams(
             text_document=TextDocumentItem(
                 uri=uri,
@@ -181,6 +194,9 @@ class TestLangServe:
             )
         )
         await did_save(ls, params)
+        sem_tokens = ls.get_semantic_tokens(uri)
+        # semantic tokens should still be present even if there is a syntax error
+        assert len(sem_tokens.data) == 300
         diagnostics = ls.diagnostics.get(uri, [])
         assert isinstance(diagnostics, list)
         assert len(diagnostics) == 1
@@ -196,26 +212,31 @@ class TestLangServe:
         temp_file_path = create_temp_jac_file(code)
         uri, ls = create_ls_with_workspace(temp_file_path)
 
-        await did_open(ls, DidOpenTextDocumentParams(
-            text_document=TextDocumentItem(
-                uri=uri,
-                language_id="jac",
-                version=1,
-                text=code,
-            )
-        ))
+        await did_open(
+            ls,
+            DidOpenTextDocumentParams(
+                text_document=TextDocumentItem(
+                    uri=uri,
+                    language_id="jac",
+                    version=1,
+                    text=code,
+                )
+            ),
+        )
 
         # No error, should be no diagnostics
         params = DidChangeTextDocumentParams(
             text_document=VersionedTextDocumentIdentifier(uri=uri, version=2),
-            content_changes=[{"text": "\n" + code}]
+            content_changes=[{"text": "\n" + code}],
         )
-        ls.workspace.put_text_document(TextDocumentItem(
-            uri=uri,
-            language_id="jac",
-            version=2,
-            text="\n" + code,
-        ))
+        ls.workspace.put_text_document(
+            TextDocumentItem(
+                uri=uri,
+                language_id="jac",
+                version=2,
+                text="\n" + code,
+            )
+        )
         await did_change(ls, params)
         diagnostics = ls.diagnostics.get(uri, [])
         assert isinstance(diagnostics, list)
@@ -226,15 +247,20 @@ class TestLangServe:
         error_code = "\nerror"
         params = DidChangeTextDocumentParams(
             text_document=VersionedTextDocumentIdentifier(uri=uri, version=3),
-            content_changes=[{"text": error_code + code}]
+            content_changes=[{"text": error_code + code}],
         )
-        ls.workspace.put_text_document(TextDocumentItem(
-            uri=uri,
-            language_id="jac",
-            version=3,
-            text=error_code + code,
-        ))
+        ls.workspace.put_text_document(
+            TextDocumentItem(
+                uri=uri,
+                language_id="jac",
+                version=3,
+                text=error_code + code,
+            )
+        )
         await did_change(ls, params)
+        sem_tokens = ls.get_semantic_tokens(uri)
+        # semantic tokens should still be present even if there is a syntax error
+        assert len(sem_tokens.data) == 300
         diagnostics = ls.diagnostics.get(uri, [])
         assert isinstance(diagnostics, list)
         assert len(diagnostics) == 1
@@ -250,12 +276,14 @@ class TestLangServe:
         uri, ls = create_ls_with_workspace(temp_file_path)
         params = DocumentFormattingParams(
             text_document=TextDocumentIdentifier(uri=uri),
-            options={"tabSize": 4, "insertSpaces": True}
+            options={"tabSize": 4, "insertSpaces": True},
         )
         edits = formatting(ls, params)
         assert isinstance(edits, list)
         assert isinstance(edits[0], TextEdit)
-        assert len(edits[0].new_text) > 100  # it is a random number to check if the text is changed
+        assert (
+            len(edits[0].new_text) > 100
+        )  # it is a random number to check if the text is changed
         print(edits[0].new_text)
         ls.shutdown()
         os.remove(temp_file_path)

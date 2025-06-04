@@ -14,18 +14,18 @@ import jaclang.compiler.unitree as uni
 from jaclang.cli.cmdreg import CommandShell, cmd_registry
 from jaclang.compiler.passes.main import CompilerMode as CMode, PyastBuildPass
 from jaclang.compiler.program import JacProgram
-from jaclang.runtimelib.builtin import dotgen
+from jaclang.runtimelib.builtin import printgraph
 from jaclang.runtimelib.constructs import WalkerArchetype
 from jaclang.runtimelib.machine import (
-    JacMachine,
-    JacMachineInterface as Jac,
-    call_jac_func_with_machine,
+    ExecutionContext,
+    JacMachine as Jac,
+    JacMachineInterface as JacInterface,
 )
 from jaclang.utils.helpers import debugger as db
 from jaclang.utils.lang_tools import AstTool
 
 
-Jac.create_cmd()
+JacInterface.create_cmd()
 Jac.setup()
 
 
@@ -85,8 +85,8 @@ def format(path: str, outfile: str = "", to_screen: bool = False) -> None:
 
 
 def proc_file_sess(
-    filename: str, session: str, root: Optional[str] = None, interp: bool = False
-) -> tuple[str, str, JacMachine]:
+    filename: str, session: str, root: Optional[str] = None
+) -> tuple[str, str, ExecutionContext]:
     """Create JacMachine and return the base path, module name, and machine state."""
     if session == "":
         session = (
@@ -99,7 +99,8 @@ def proc_file_sess(
     base, mod = os.path.split(filename)
     base = base if base else "./"
     mod = mod[:-4]
-    mach = JacMachine(base, session=session, root=root, interp_mode=interp)
+    mach = ExecutionContext(session=session, root=root)
+    Jac.set_context(mach)
     return base, mod, mach
 
 
@@ -109,7 +110,6 @@ def run(
     session: str = "",
     main: bool = True,
     cache: bool = True,
-    interp: bool = False,
 ) -> None:
     """Run the specified .jac file.
 
@@ -121,7 +121,6 @@ def run(
         session: Optional session identifier for persistent state
         main: Treat the module as __main__ (default: True)
         cache: Use cached compilation if available (default: True)
-        interp: Run in interpreter mode (default: False)
 
     Examples:
         jac run myprogram.jac
@@ -130,12 +129,12 @@ def run(
     """
     # if no session specified, check if it was defined when starting the command shell
     # otherwise default to jaclang.session
-    base, mod, mach = proc_file_sess(filename, session, interp=interp)
+    base, mod, mach = proc_file_sess(filename, session)
+    Jac.set_base_path(base)
 
     if filename.endswith(".jac"):
         try:
             Jac.jac_import(
-                mach=mach,
                 target=mod,
                 base_path=base,
                 override_name="__main__" if main else None,
@@ -145,9 +144,8 @@ def run(
     elif filename.endswith(".jir"):
         try:
             with open(filename, "rb") as f:
-                Jac.attach_program(mach, pickle.load(f))
+                Jac.attach_program(pickle.load(f))
                 Jac.jac_import(
-                    mach=mach,
                     target=mod,
                     base_path=base,
                     override_name="__main__" if main else None,
@@ -181,19 +179,14 @@ def get_object(filename: str, id: str, session: str = "", main: bool = True) -> 
 
     if filename.endswith(".jac"):
         Jac.jac_import(
-            mach=mach,
             target=mod,
             base_path=base,
             override_name="__main__" if main else None,
         )
     elif filename.endswith(".jir"):
         with open(filename, "rb") as f:
-            Jac.attach_program(
-                mach,
-                pickle.load(f),
-            )
+            Jac.attach_program(pickle.load(f))
             Jac.jac_import(
-                mach=mach,
                 target=mod,
                 base_path=base,
                 override_name="__main__" if main else None,
@@ -203,12 +196,11 @@ def get_object(filename: str, id: str, session: str = "", main: bool = True) -> 
         raise ValueError("Not a valid file!\nOnly supports `.jac` and `.jir`")
 
     data = {}
-    obj = call_jac_func_with_machine(mach, Jac.get_object, id)
+    obj = Jac.get_object(id)
     if obj:
         data = obj.__jac__.__getstate__()
     else:
         print(f"Object with id {id} not found.", file=sys.stderr)
-
     mach.close()
     return data
 
@@ -288,7 +280,7 @@ def lsp() -> None:
     """
     from jaclang import JacMachineInterface as _
 
-    run_lang_server_tuple = _.py_jac_import(
+    run_lang_server_tuple = _.jac_import(
         "...jaclang.langserve.server", __file__, items={"run_lang_server": None}
     )
     run_lang_server = run_lang_server_tuple[0]
@@ -328,19 +320,14 @@ def enter(
 
     if filename.endswith(".jac"):
         ret_module = Jac.jac_import(
-            mach=mach,
             target=mod,
             base_path=base,
             override_name="__main__" if main else None,
         )
     elif filename.endswith(".jir"):
         with open(filename, "rb") as f:
-            Jac.attach_program(
-                mach,
-                pickle.load(f),
-            )
+            Jac.attach_program(pickle.load(f))
             ret_module = Jac.jac_import(
-                mach=mach,
                 target=mod,
                 base_path=base,
                 override_name="__main__" if main else None,
@@ -357,11 +344,10 @@ def enter(
             archetype = getattr(loaded_mod, entrypoint)(*args)
 
             mach.set_entry_node(node)
-            if isinstance(archetype, WalkerArchetype) and call_jac_func_with_machine(
-                mach, Jac.check_read_access, mach.entry_node
+            if isinstance(archetype, WalkerArchetype) and Jac.check_read_access(
+                mach.entry_node
             ):
                 Jac.spawn(mach.entry_node.archetype, archetype)
-
     mach.close()
 
 
@@ -399,10 +385,7 @@ def test(
         jac test --xit               # Stop on first failure
         jac test --verbose           # Show detailed output
     """
-    mach = JacMachine()
-
     failcount = Jac.run_test(
-        mach=mach,
         filepath=filepath,
         func_name=("test_" + test_name) if test_name else None,
         filter=filter,
@@ -411,8 +394,6 @@ def test(
         directory=directory,
         verbose=verbose,
     )
-
-    mach.close()
 
     if failcount:
         raise SystemExit(f"Tests failed: {failcount}")
@@ -530,14 +511,12 @@ def dot(
     base, mod, jac_machine = proc_file_sess(filename, session)
 
     if filename.endswith(".jac"):
-        Jac.jac_import(
-            mach=jac_machine, target=mod, base_path=base, override_name="__main__"
-        )
-        module = jac_machine.loaded_modules.get("__main__")
+        Jac.jac_import(target=mod, base_path=base, override_name="__main__")
+        module = Jac.loaded_modules.get("__main__")
         globals().update(vars(module))
         try:
             node = globals().get(initial, eval(initial)) if initial else None
-            graph = dotgen(
+            graph = printgraph(
                 node=node,
                 depth=depth,
                 traverse=traverse,

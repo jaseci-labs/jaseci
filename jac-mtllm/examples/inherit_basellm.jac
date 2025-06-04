@@ -93,8 +93,7 @@ enum DamageType {
     Destroyed
 }
 
-can ""
-predict_vehicle_damage(img: Image) -> DamageType by llm(is_custom=True,raw_output=True);
+def predict_vehicle_damage(img: Image) -> DamageType by llm(is_custom=True,raw_output=True);
 
 with entry {
     img = 'car_scratch.jpg';

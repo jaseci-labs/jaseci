@@ -51,7 +51,7 @@ export async function getDebugGraphData(): Promise<JSON | null> {
 
     // Evaluate to get the graph data.
     const response = await debugSession.customRequest('evaluate', {
-        expression: 'dotgen(as_json=True)',
+        expression: "printgraph(format='json')",
         frameId,
         context: 'clipboard'
     });

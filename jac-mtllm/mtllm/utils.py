@@ -4,7 +4,7 @@ import re
 from enum import Enum
 from typing import Any
 
-from jaclang.compiler.semtable import SemRegistry, SemScope
+from mtllm.semtable import SemRegistry, SemScope
 
 
 def get_object_string(obj: Any) -> str:  # noqa: ANN401
@@ -90,6 +90,8 @@ def get_filtered_registry(mod_registry: SemRegistry, scope: SemScope) -> SemRegi
         if not scope.parent:
             break
         scope = scope.parent
+
+    print(f"Available scopes: {avail_scopes}")
 
     filtered_registry = SemRegistry()
     for _scope, sem_info_list in mod_registry.registry.items():

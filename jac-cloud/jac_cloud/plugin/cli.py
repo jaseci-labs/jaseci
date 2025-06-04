@@ -6,7 +6,7 @@ from os.path import split
 from pickle import load
 from typing import Any
 
-from jaclang import JacMachine, JacMachineInterface as Jac
+from jaclang import JacMachine as Jac
 from jaclang.cli.cmdreg import cmd_registry
 from jaclang.runtimelib.machine import hookimpl
 
@@ -29,42 +29,23 @@ class JacCmd:
         """Create Jac CLI cmds."""
 
         @cmd_registry.register
-        def serve(
-            filename: str,
-            host: str = "0.0.0.0",
-            port: int = 8000,
-            interp_mode: bool = False,
-        ) -> None:
+        def serve(filename: str, host: str = "0.0.0.0", port: int = 8000) -> None:
             """Serve the jac application."""
             base, mod = split(filename)
             base = base if base else "./"
             mod = mod[:-4]
 
             FastAPI.enable()
-            mach = JacMachine(base, interp_mode=interp_mode)
 
             if filename.endswith(".jac"):
-                Jac.jac_import(
-                    mach=mach,
-                    target=mod,
-                    base_path=base,
-                    override_name="__main__",
-                )
+                Jac.jac_import(target=mod, base_path=base, override_name="__main__")
             elif filename.endswith(".jir"):
                 with open(filename, "rb") as f:
-                    Jac.attach_program(mach, load(f))
-                    Jac.jac_import(
-                        mach=mach,
-                        target=mod,
-                        base_path=base,
-                        override_name="__main__",
-                    )
+                    Jac.attach_program(load(f))
+                    Jac.jac_import(target=mod, base_path=base, override_name="__main__")
             else:
-                mach.close()
                 raise ValueError("Not a valid file!\nOnly supports `.jac` and `.jir`")
-
-            FastAPI.start(mach=mach, host=host, port=port)
-            mach.close()
+            FastAPI.start(host=host, port=port)
 
         @cmd_registry.register
         def create_system_admin(
@@ -80,20 +61,17 @@ class JacCmd:
             base, mod = split(filename)
             base = base if base else "./"
             mod = mod[:-4]
-            mach = JacMachine(base)
 
             if filename.endswith(".jac"):
                 Jac.jac_import(
-                    mach=mach,
                     target=mod,
                     base_path=base,
                     override_name="__main__",
                 )
             elif filename.endswith(".jir"):
                 with open(filename, "rb") as f:
-                    Jac.attach_program(mach, load(f))
+                    Jac.attach_program(load(f))
                     Jac.jac_import(
-                        mach=mach,
                         target=mod,
                         base_path=base,
                         override_name="__main__",

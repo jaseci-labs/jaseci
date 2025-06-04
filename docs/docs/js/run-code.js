@@ -1,9 +1,15 @@
 let pyodideWorker = null;
 let pyodideReady = false;
 let pyodideInitPromise = null;
+let monacoLoaded = false;
+let monacoLoadPromise = null;
+const initializedBlocks = new WeakSet();
 
+// Initialize Pyodide Worker
 function initPyodideWorker() {
     if (pyodideWorker) return pyodideInitPromise;
+    if (pyodideInitPromise) return pyodideInitPromise;
+
     pyodideWorker = new Worker("/js/pyodide-worker.js");
     pyodideInitPromise = new Promise((resolve, reject) => {
         pyodideWorker.onmessage = (event) => {
@@ -18,6 +24,7 @@ function initPyodideWorker() {
     return pyodideInitPromise;
 }
 
+// Run Jac Code in Worker
 function runJacCodeInWorker(code) {
     return new Promise(async (resolve, reject) => {
         await initPyodideWorker();
@@ -35,67 +42,147 @@ function runJacCodeInWorker(code) {
     });
 }
 
-function setupCodeBlock(div) {
-    if (div.shadowRoot) return;
+// Load Monaco Editor Globally
+function loadMonacoEditor() {
+    if (monacoLoaded) return monacoLoadPromise;
+    if (monacoLoadPromise) return monacoLoadPromise;
 
-    const shadow = div.attachShadow({ mode: 'open' });
+    monacoLoadPromise = new Promise((resolve, reject) => {
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            monacoLoaded = true;
+            monaco.languages.register({ id: 'jac' });
+            monaco.languages.setMonarchTokensProvider('jac', window.jaclangMonarchSyntax);
 
-    const container = document.createElement('div');
-    container.className = 'code-container';
-
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = '/extra.css';
-    shadow.appendChild(link);
-    shadow.appendChild(container);
-
-    const setupBlock = (code) => {
-        container.innerHTML = `
-            <pre><code class="jac-code" contenteditable="true" spellcheck="false" style="display:block; min-height:80px; padding: 5px;">${code}</code></pre>
-            <button class="md-button md-button--primary run-code-btn">Run</button>
-            <pre class="code-output" style="display:none;"></pre>
-        `;
-
-        const runButton = container.querySelector(".run-code-btn");
-        runButton.addEventListener("click", async () => {
-            const outputBlock = container.querySelector(".code-output");
-            const codeElem = container.querySelector(".jac-code");
-            outputBlock.style.display = "block";
-
-            if (!pyodideReady) {
-                outputBlock.textContent = "Loading Jac runner...";
-                await initPyodideWorker();
-            }
-
-            outputBlock.textContent = "Running...";
-            try {
-                const codeToRun = codeElem.textContent.trim();
-                const result = await runJacCodeInWorker(codeToRun);
-                outputBlock.textContent = `Output:\n${result}`;
-            } catch (error) {
-                outputBlock.textContent = `Error:\n${error}`;
-            }
-        });
-    };
-
-    const inlineCode = div.textContent.trim();
-    setupBlock(inlineCode);
+            fetch('/../playground/language-configuration.json')
+                .then(resp => resp.json())
+                .then(config => monaco.languages.setLanguageConfiguration('jac', config));
+            monaco.editor.defineTheme('jac-theme', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: window.jacThemeRules,
+                colors: window.jacThemeColors
+            });
+            monaco.editor.setTheme('jac-theme');
+            resolve();
+        }, reject);
+    });
+    console.log("Loading Monaco Editor...");
+    return monacoLoadPromise;
 }
 
-// Observe and apply when .code-blocks are added
-const observer = new MutationObserver(() => {
-    document.querySelectorAll('.code-block').forEach(setupCodeBlock);
+// Setup Code Block with Monaco Editor
+async function setupCodeBlock(div) {
+    if (div._monacoInitialized) return;
+
+    div._monacoInitialized = true;
+    const originalCode = div.textContent.trim();
+
+    div.innerHTML = `
+        <div class="jac-code-loading" style="padding: 10px; font-style: italic; color: gray;">
+            Loading editor...
+        </div>
+    `;
+
+    await loadMonacoEditor();
+
+    div.innerHTML = `
+    <div class="jac-code" style="border: 1px solid #ccc;"></div>
+    <button class="md-button md-button--primary run-code-btn">Run</button>
+    <pre class="code-output" style="display:none; white-space: pre-wrap; background: #1e1e1e; color: #d4d4d4; padding: 10px;"></pre>
+    `;
+
+    const container = div.querySelector(".jac-code");
+    const runButton = div.querySelector(".run-code-btn");
+    const outputBlock = div.querySelector(".code-output");
+
+    const editor = monaco.editor.create(container, {
+        value: originalCode || '# Write your Jac code here',
+        language: 'jac',
+        theme: 'jac-theme',
+        scrollBeyondLastLine: false,
+        scrollbar: {
+            vertical: 'hidden',
+            handleMouseWheel: false,
+        },
+        minimap: {
+            enabled: false
+        },
+        automaticLayout: true,
+        padding: {
+            top: 10,
+            bottom: 10
+        }
+    });
+
+    // Update editor height based on content
+    function updateEditorHeight() {
+        const lineCount = editor.getModel().getLineCount();
+        const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight);
+        const height = lineCount * lineHeight + 20;
+        container.style.height = `${height}px`;
+        editor.layout();
+    }
+    updateEditorHeight();
+    editor.onDidChangeModelContent(updateEditorHeight);
+
+    runButton.addEventListener("click", async () => {
+        outputBlock.style.display = "block";
+
+        if (!pyodideReady) {
+            outputBlock.textContent = "Loading Jac runner...";
+            await initPyodideWorker();
+        }
+
+        outputBlock.textContent = "Running...";
+        try {
+            const codeToRun = editor.getValue();
+            const result = await runJacCodeInWorker(codeToRun);
+            outputBlock.textContent = `Output:\n${result}`;
+        } catch (error) {
+            outputBlock.textContent = `Error:\n${error}`;
+        }
+    });
+}
+
+// Lazy load code blocks using Intersection Observer
+const lazyObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            const div = entry.target;
+            if (!initializedBlocks.has(div)) {
+                setupCodeBlock(div);
+                initializedBlocks.add(div);
+                lazyObserver.unobserve(div);
+            }
+        }
+    });
+}, {
+    root: null,
+    rootMargin: "0px",
+    threshold: 0.1
 });
 
-observer.observe(document.body, {
+// Observe all uninitialized code blocks
+function observeUninitializedCodeBlocks() {
+    document.querySelectorAll('.code-block').forEach((block) => {
+        if (!initializedBlocks.has(block)) {
+            lazyObserver.observe(block);
+        }
+    });
+}
+
+const domObserver = new MutationObserver(() => {
+    observeUninitializedCodeBlocks();
+});
+
+domObserver.observe(document.body, {
     childList: true,
     subtree: true
 });
 
-// Initial loading
-document.querySelectorAll('.code-block').forEach(setupCodeBlock);
-
-// Loading Pyodide worker
-document.addEventListener("DOMContentLoaded", () => {
+// Initialize on DOMContentLoaded
+document.addEventListener("DOMContentLoaded", async () => {
+    observeUninitializedCodeBlocks();
     initPyodideWorker();
 });

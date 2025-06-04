@@ -229,7 +229,7 @@ class AstTool:
                     return out
                 case "sym.":
                     return (
-                        ir.sym_tab.sym_dotgen()
+                        ir.sym_tab.sym_printgraph()
                         if isinstance(ir.sym_tab, UniScopeNode)
                         else "Sym_tab is None."
                     )
@@ -241,7 +241,7 @@ class AstTool:
                         out += f"##{t}##\n# {mod_name} #\n##{t}##\n{module_.pp()}\n"
                     return out
                 case "ast.":
-                    return ir.dotgen()
+                    return ir.printgraph()
                 case "unparse":
                     return ir.unparse()
                 case "pyast":
@@ -277,7 +277,6 @@ class AstTool:
                 arrow = "-.->" if "Optional" in kid.typ else "-->"
                 typ = (
                     kid.typ.replace("Optional[", "")
-                    .replace("SubNodeList[", "")
                     .replace("SubTag[", "")
                     .replace("Sequence[", "")
                     .replace("]", "")

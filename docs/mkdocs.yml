@@ -1,12 +1,14 @@
-site_name: The Jac Programming Language and Jaseci Runtime Stack
+site_name: The Jac Programming Language and Jaseci Stack
 site_url: https://jac-lang.org
+repo_url: https://github.com/Jaseci-Labs/jaseci
+edit_uri: edit/main/docs/docs
 use_directory_urls: true
 nav:
   - Learn:
     - Getting Started: "learn/getting_started.md"
     - Tour of Jac/Jaseci: "learn/introduction.md"
     - Jac in a Flash: "learn/jac_in_a_flash.md"
-    - A Robust Example:
+    - End-to-End Examples:
       - LittleX (your own twitter):
         - "learn/examples/littleX/overview.md"
         - "learn/examples/littleX/tutorial.md"
@@ -26,7 +28,17 @@ nav:
         - Bring your own LM: "learn/examples/jac-mtllm/create_own_lm.md"
         - Python MTLLM Interface: "learn/examples/jac-mtllm/python_integration.md"
         - Tutorials: "learn/examples/jac-mtllm/rpg_game.md"
-    - Jac/Jaseci Overview:
+    - Learn Jac Language:
+      - Coding Manual: "learn/jac_coding_manual.md"
+      - Language Reference: "learn/jac_ref.md"
+      - Understanding Data Spatial:
+        - "learn/data_spatial/nodes_and_edges.md" # Introduction to DS primitives
+        - "learn/data_spatial/walkers.md" # Walker
+        - "learn/data_spatial/filtering.md" # Filtering
+        - "learn/data_spatial/sequence.md"
+        - Theoretical Principles: "learn/dspfoundation.md" # DSP Foundation
+        - Quick FAQ: "learn/data_spatial/FAQ.md" # faq
+    - Jac Cloud Guides:
       - "learn/jac-cloud/jac_cloud.md"
       - "learn/jac-cloud/permission.md"
       - "learn/jac-cloud/jac_cloud_logging.md"
@@ -36,23 +48,6 @@ nav:
       - "learn/jac-cloud/jac_cloud_webhook.md"
       - "learn/jac-cloud/jac_cloud_websocket.md"
       - "learn/jac-cloud/cloud-orc-integration.md"
-    - Language Basics:
-      - "learn/jac_coding_manual.md"
-      - "learn/language_basics/basic_syntax.md"
-      - "learn/language_basics/types.md"
-      - "learn/language_basics/can_abilities.md"
-      - "learn/language_basics/import.md"
-      - "learn/language_basics/impl_docs.md"
-      - "learn/tools/testing.md"
-      - Language Reference: "learn/jac_ref.md"
-    - Understanding Data Spatial:
-      # - "learn/data_spatial/dataspatial.md" # Why data spatial
-      - "learn/data_spatial/nodes_and_edges.md" # Introduction to DS primitives
-      - "learn/data_spatial/walkers.md" # Walker
-      - "learn/data_spatial/filtering.md" # Filtering
-      - "learn/data_spatial/sequence.md"
-      - Theoretical Principles: "learn/dspfoundation.md" # DSP Foundation
-      - Quick FAQ: "learn/data_spatial/FAQ.md" # faq
     - Tooling:
       - "learn/tools/cli.md"
 
@@ -70,11 +65,10 @@ nav:
           - "internals/symbol_tables/def_use.md"
           - "internals/symbol_tables/linking.md"
           - "internals/symbol_tables/resolution.md"
-      - Reference:
-        - Language Spec: "learn/jac_ref.md"
-        # - UniIR Nodes: "internals/uniir_node.md"
+        - UniIR Nodes: "internals/uniir_node.md"
       - Runtime Plugin Interface: "internals/jac_plugins.md"
     - Planning Specs and Docs:
+      - Language Ref Roadmap: "internals/planning_specs/ref_roadmap.md"
       - Error System: "internals/planning_specs/error_system.md"
       - Formatter System: "internals/planning_specs/formatter_system.md"
       - Native Type System:
@@ -89,7 +83,14 @@ nav:
 
   - Community Hub:
     - Roadmap: "communityhub/roadmap.md"
+    - Release Notes: "communityhub/release_notes.md"
     - Breaking Changes: "communityhub/breaking_changes.md"
+    - Fun Stuff:
+      - Project Ideas:
+        - "communityhub/fun/projects.md"
+        - "communityhub/fun/p1.md"
+        - "communityhub/fun/p2.md"
+        - "communityhub/fun/p3.md"
 
   - Jac Playground:
     - Playground: "playground/index.html"
@@ -106,7 +107,9 @@ theme:
     code: "Roboto Mono"
   features:
     - content.code.copy
-    - navigation.instant
+    - content.action.edit
+    - content.action.view
+    - navigation.instant: false
     - navigation.tracking
     - navigation.tabs
     - navigation.path
@@ -174,6 +177,9 @@ extra_javascript:
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js
+  - https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.js
+  - https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js
+  - js/jac.monarch.js
   - js/run-code.js
 
 plugins:

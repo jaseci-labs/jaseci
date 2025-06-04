@@ -214,10 +214,6 @@ def run_task(
     save: bool = True,
 ) -> None:
     """Run task."""
-    from ..jaseci import FastAPI
-
-    __jac_mach__ = FastAPI.__jac_mach__  # noqa: F841
-
     jctx = JaseciContext.create(None, node or root)
 
     if root:
@@ -232,7 +228,7 @@ def run_task(
     try:
         Jac.spawn(warch, jctx.entry_node.archetype)
 
-        resp = jctx.response(walker.returns)
+        resp = jctx.response()
         if jctx.custom is not MISSING:
             if isinstance(jctx.custom, JSONResponse):
                 resp["custom"] = jctx.custom.body

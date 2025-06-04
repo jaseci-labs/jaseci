@@ -2,7 +2,7 @@ import from mtllm.llms { OpenAI }
 
 glob llm = OpenAI();
 
-def get_expert(question: str) -> 'Best Expert to Answer the Question': str by llm(method='Reason');
+def get_expert(question: str) -> str by llm(method='Reason');
 def get_answer(question: str, expert: str) -> str by llm();
 
 with entry {

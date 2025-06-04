@@ -7,12 +7,11 @@ glob examples: 'Examples for Picking Odd Word out (Options, Reasoing, Result)': 
     (["Spain", "France", "German", "England", "Singapore"], "Spain, France, England, Singapore is a country, German is a language.", "German")
 ];
 
-can 'Pick the Odd word out'
-odd_word_out(options: 'Options to pick from': list[str]) -> 'REASONING & RESULT': tuple[str, str] by llm(incl_info=(examples));
+def odd_word_out_and_reason(options: list[str]) -> tuple[str, str] by llm(incl_info=(examples));
 
 with entry {
     print(
-        odd_word_out(
+        odd_word_out_and_reason(
             ["Bentley", "Ferrari", "Lamborghini", "Casio", "Toyota"]
         )
     );

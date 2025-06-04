@@ -1,4 +1,5 @@
 """Unit test utilities for JacLangServer."""
+
 import os
 import tempfile
 
@@ -7,26 +8,35 @@ from jaclang.vendor.pygls.workspace import Workspace
 
 from textwrap import dedent
 from jaclang import JacMachineInterface as _
-JacLangServer = _.py_jac_import(
+
+JacLangServer = _.jac_import(
     "....langserve.engine", __file__, items={"JacLangServer": None}
 )[0]
+
 
 def get_jac_file_path():
     """Return the absolute path to the sample Jac file used for testing."""
     return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../../../examples/manual_code/circle.jac")
+        os.path.join(
+            os.path.dirname(__file__), "../../../../examples/manual_code/circle.jac"
+        )
     )
+
 
 def create_temp_jac_file(initial_content: str = "") -> str:
     """Create a temporary Jac file with optional initial content and return its path."""
-    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".jac", mode="w", encoding="utf-8")
+    temp = tempfile.NamedTemporaryFile(
+        delete=False, suffix=".jac", mode="w", encoding="utf-8"
+    )
     temp.write(initial_content)
     temp.close()
     return temp.name
 
+
 def get_code(code: str) -> str:
     """Generate a sample Jac code snippet with optional test code injected."""
-    jac_code = dedent(f'''
+    jac_code = dedent(
+        f'''
     """
     This module demonstrates a simple circle class and a function to calculate
     the area of a circle in all of Jac's glory.
@@ -107,8 +117,10 @@ def get_code(code: str) -> str:
         c = Circle(RAD);
         check c.shape_type == ShapeType.CIRCLE;
     }}
-''')
+'''
+    )
     return jac_code
+
 
 def create_ls_with_workspace(file_path: str):
     """Create JacLangServer and workspace for a given file path, return (uri, ls)."""

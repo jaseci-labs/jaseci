@@ -4,6 +4,44 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ## Latest Breaking Changes
 
+### Version 0.8.1 (Main branch since 5/26/2025) (Unreleased)
+
+#### 1. `dotgen` builtin function is now name `printgraph`
+
+This renaming aims to make the function's purpose clearer, as `printgraph` more accurately reflects its action of outputting graph data, similar to how it can also output in JSON format. Also other formats may be added (like mermaid).
+
+**Before**
+
+```jac
+node N {has val: int;}
+edge E {has val: int = 0;}
+
+with entry {
+    end = root;
+    for i in range(0, 2) {
+        end +>: E : val=i :+> (end := [ N(val=i) for i in range(0, 2) ]);
+    }
+    data = dotgen(node=root);
+    print(data);
+}
+```
+
+**After**
+
+```jac
+node N {has val: int;}
+edge E {has val: int = 0;}
+
+with entry {
+    end = root;
+    for i in range(0, 2) {
+        end +>: E : val=i :+> (end := [ N(val=i) for i in range(0, 2) ]);
+    }
+    data = printgraph(node=root);
+    print(data);
+}
+```
+
 ### Version 0.8.0 (Main branch since 5/5/2025)
 
 #### 1. `impl` keyword introduced to simplify Implementation

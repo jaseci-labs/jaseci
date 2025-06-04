@@ -7,10 +7,10 @@ import pytest
 from jaclang import JacMachineInterface as _
 from jaclang.settings import settings
 
-JacLangServer = _.py_jac_import(
+JacLangServer = _.jac_import(
     "...langserve.engine", __file__, items={"JacLangServer": None}
 )[0]
-LspSession = _.py_jac_import("session", __file__, items={"LspSession": None})[0]
+LspSession = _.jac_import("session", __file__, items={"LspSession": None})[0]
 
 
 class TestJacLangServer(TestCase):

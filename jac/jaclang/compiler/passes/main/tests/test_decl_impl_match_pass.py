@@ -4,7 +4,7 @@ import io
 import sys
 
 import jaclang.compiler.unitree as uni
-from jaclang import JacMachineInterface as Jac, JacMachine
+from jaclang import JacMachine as Jac
 from jaclang.cli import cli
 from jaclang.compiler.program import JacProgram
 from jaclang.utils.test import TestCase
@@ -15,9 +15,8 @@ class DeclImplMatchPassTests(TestCase):
 
     def setUp(self) -> None:
         """Set up test."""
-        self.mach = JacMachine(self.fixture_abs_path("./"))
+        Jac.set_base_path(self.fixture_abs_path("./"))
         Jac.attach_program(
-            self.mach,
             JacProgram(),
         )
         return super().setUp()
@@ -110,7 +109,7 @@ class DeclImplMatchPassTests(TestCase):
         """Test walking through edges and nodes."""
         captured_output = io.StringIO()
         sys.stdout = captured_output
-        Jac.jac_import(self.mach, "mtest", base_path=self.fixture_abs_path("./"))
+        Jac.jac_import("mtest", base_path=self.fixture_abs_path("./"))
         sys.stdout = sys.__stdout__
         stdout_value = captured_output.getvalue()
         self.assertIn("2.0\n", stdout_value)
@@ -119,7 +118,7 @@ class DeclImplMatchPassTests(TestCase):
         """Test walking through edges."""
         captured_output = io.StringIO()
         sys.stdout = captured_output
-        Jac.jac_import(self.mach, "impl_grab", base_path=self.fixture_abs_path("./"))
+        Jac.jac_import("impl_grab", base_path=self.fixture_abs_path("./"))
         sys.stdout = sys.__stdout__
         stdout_value = captured_output.getvalue()
         self.assertIn("1.414", stdout_value)
@@ -128,7 +127,7 @@ class DeclImplMatchPassTests(TestCase):
         """Test complex nested impls."""
         captured_output = io.StringIO()
         sys.stdout = captured_output
-        Jac.jac_import(self.mach, "nested_impls", base_path=self.fixture_abs_path("./"))
+        Jac.jac_import("nested_impls", base_path=self.fixture_abs_path("./"))
         sys.stdout = sys.__stdout__
         stdout_value = captured_output.getvalue().split("\n")
         self.assertIn("Hello,from bar in kk", stdout_value[0])
@@ -142,7 +141,7 @@ class DeclImplMatchPassTests(TestCase):
         """Parse micro jac file."""
         captured_output = io.StringIO()
         sys.stdout = captured_output
-        Jac.jac_import(self.mach, "atest", base_path=self.fixture_abs_path("./"))
+        Jac.jac_import("atest", base_path=self.fixture_abs_path("./"))
         sys.stdout = sys.__stdout__
         stdout_value = captured_output.getvalue()
         self.assertEqual(stdout_value, "42\n")
@@ -151,7 +150,7 @@ class DeclImplMatchPassTests(TestCase):
         """Parse micro jac file."""
         captured_output = io.StringIO()
         sys.stdout = captured_output
-        Jac.jac_import(self.mach, "enumerations", base_path=self.fixture_abs_path("./"))
+        Jac.jac_import("enumerations", base_path=self.fixture_abs_path("./"))
         sys.stdout = sys.__stdout__
         stdout_value = captured_output.getvalue()
         self.assertEqual(stdout_value, "1\n")

@@ -226,7 +226,7 @@
     ```
 
 ??? question "Can I visualize my graph in JacLang?"
-    - Yes, you can visualize your graph using built-in function `dotgen`.
+    - Yes, you can visualize your graph using built-in function `printgraph`.
     ```jac
     node a{
         has val:int;
@@ -236,18 +236,18 @@
         for i in range(0,4){
             end++>(end:=[a(val=i) for i in range(0,3)]);
         }
-        print(dotgen());  # Generates a DOT graph starting from the root node
+        print(printgraph());  # Generates a DOT graph starting from the root node
     }
     ```
 
 ??? question "How to customize the visualization of the graph?"
-    - You can use various parameters such as staring node,  depth, edge limit, node limit, and more to customize the output of `dotgen`. For example:
+    - You can use various parameters such as staring node,  depth, edge limit, node limit, and more to customize the output of `printgraph`. For example:
     ```jac
-    print(dotgen(node_1, bfs=True, traverse=True, edge_type=["Edge1"], node_limit=100, edge_limit=900, depth=300, dot_file='graph.dot'));
+    print(printgraph(node_1, bfs=True, traverse=True, edge_type=["Edge1"], node_limit=100, edge_limit=900, depth=300, dot_file='graph.dot'));
     ```
 
-??? question "What is BFS traversal in `dotgen`?"
-    - By default, `dotgen` uses breadth-first search (BFS) to explore nodes. This can be controlled with the `bfs` flag.
+??? question "What is BFS traversal in `printgraph`?"
+    - By default, `printgraph` uses breadth-first search (BFS) to explore nodes. This can be controlled with the `bfs` flag.
 
 ??? question "Can I export the graph visualization to a file?"
     - Yes, you can specify a `dot_file` to save the output in a `.dot` file, which can be rendered using external graph visualization tools like Graphviz.
@@ -255,10 +255,10 @@
 ??? question "Can I exclude specific edge types from the visualization?"
     - Yes, using the `edge_type` parameter, you can exclude specific edge types from the visualization:
     ```jac
-    print(dotgen(node_1, edge_type=["CustomEdge"]));
+    print(printgraph(node_1, edge_type=["CustomEdge"]));
     ```
 
-??? question " What parameters can I use with `dotgen`?"
+??? question " What parameters can I use with `printgraph`?"
 
     1. **Starting Node**:
     The node from where graph traversal or visualization begins.

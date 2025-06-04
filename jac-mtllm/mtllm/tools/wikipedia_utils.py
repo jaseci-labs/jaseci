@@ -1,6 +1,6 @@
 """Wikipedia Tools for the MTLLM framework."""
 
-from jaclang.compiler.semtable import SemInfo
+from mtllm.semtable import SemInfo
 
 from mtllm.types import Tool
 

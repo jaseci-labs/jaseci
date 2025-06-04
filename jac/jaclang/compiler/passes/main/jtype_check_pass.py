@@ -125,7 +125,7 @@ class JTypeCheckPass(UniPass):
         func_params = {a.name: a.type for a in callable_type.parameters}
 
         actual_params = node.params
-        actual_items = actual_params.items if actual_params else []
+        actual_items = actual_params if actual_params else []
 
         kw_args_seen = False
         arg_count = 0
@@ -165,7 +165,7 @@ class JTypeCheckPass(UniPass):
 
         value_type = self.prog.type_resolver.get_type(value)
         # handle multiple assignment targets
-        for target in node.target.items:
+        for target in node.target:
 
             # check target expression types
             if isinstance(target, ast.FuncCall):

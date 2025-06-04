@@ -13,36 +13,30 @@ obj model(BaseLLM) {
 
 glob llm = model();
 
-class'Personality Index of a Person'
-PersonalityIndex {
-    has index: 'Personality Index': int;
+class PersonalityIndex {
+    has index: int;
 }
 
-enum 'Personality of the Person'
-Personality {
-    INTROVERT: 'Person who is shy and reticent',
-    EXTROVERT: 'Person who is outgoing and socially confident'
+enum Personality {
+    INTROVERT,
+    EXTROVERT
 }
 
-glob personality_examples: 'Personality Information of Famous People': dict[str, Personality | None] = {
-    'Albert Einstein': Personality.INTROVERT,
-    'Barack Obama': Personality.EXTROVERT
+glob personality_examples: dict[str, Personality | None] = {
+    Personality.INTROVERT,
+    Personality.EXTROVERT
 };
 
-obj 'Person'
-Person {
-    has name: 'Name of the Person': str,
-        age: 'Age of the Person': int;
+obj Person {
+    has name:  str,
+        age: int;
 }
 
-obj 'main object '
-outer {
-    obj 'inner object'
-    inner {
-        has diary_entries: 'Diary Entries': list[str];
+obj outer {
+    obj inner {
+        has diary_entries: list[str];
 
-        def 'Get Personality of the Person'
-        get_personality(person: 'Person Object': list[Person]) -> 'Personality of the Person': dict[Personality, PersonalityIndex] by llm(
+        def get_personality(person: list[Person]) -> dict[Personality, PersonalityIndex] by llm(
             method="Reason",
             incl_info=(personality_examples, self.diary_entries)
         );
