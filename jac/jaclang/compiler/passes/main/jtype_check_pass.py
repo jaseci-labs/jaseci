@@ -105,7 +105,7 @@ class JTypeCheckPass(UniPass):
         func_params = {a.name: a.type for a in callable_type.parameters}
 
         actual_params = node.params
-        actual_items = actual_params.items if actual_params else []
+        actual_items = actual_params if actual_params else []
 
         kw_args_seen = False
         arg_count = 0
