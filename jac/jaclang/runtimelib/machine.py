@@ -10,6 +10,7 @@ import inspect
 import os
 import sys
 import tempfile
+import traceback
 import types
 from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -1573,6 +1574,25 @@ class JacUtils:
         """Wait for a thread to finish."""
         return future.result()
 
+class JacSmartAsserts:
+    """Jac Smart Asserts."""
+
+    @staticmethod
+    def smart_assert(
+        condition: Any, msg: Optional[str] = None, condition_str: str = ""  # noqa: ANN401
+    ) -> None:  # noqa: ANN401
+        """Assertion with a message."""
+        if condition:
+            return
+
+        machine = JacMachineInterface.py_get_jac_machine()
+        if machine.gins:
+            tracecallback = traceback.format_exc()
+            raise AssertionError(
+                f"{condition_str} : {msg or 'Condition is False.'}\n{tracecallback}" if tracecallback == "NoneType: None" else (f"{condition_str} : {msg}" if msg else "Condition is False.")
+            )
+        else:
+            assert condition, msg or "Assertion failed."
 
 class JacMachineInterface(
     JacClassReferences,
@@ -1584,6 +1604,7 @@ class JacMachineInterface(
     JacCmd,
     JacBasics,
     JacUtils,
+    JacSmartAsserts,
 ):
     """Jac Feature."""
 

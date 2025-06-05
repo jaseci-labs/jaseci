@@ -1494,16 +1494,27 @@ class PyastGenPass(UniPass):
         ]
 
     def exit_assert_stmt(self, node: uni.AssertStmt) -> None:
+        """Generate the assert statement."""
+        # Generate a function call to JacMachineInterface.smart_assert(test, msg)
         node.gen.py_ast = [
             self.sync(
-                ast3.Assert(
-                    test=cast(ast3.expr, node.condition.gen.py_ast[0]),
-                    msg=(
+            ast3.Expr(
+                value=self.sync(
+                ast3.Call(
+                    func=self.jaclib_obj("smart_assert"),
+                    args=[
+                    cast(ast3.expr, node.condition.gen.py_ast[0]),
+                    (
                         cast(ast3.expr, node.error_msg.gen.py_ast[0])
                         if node.error_msg
-                        else None
+                        else self.sync(ast3.Constant(value=None))
                     ),
+                    self.sync(ast3.Constant(value=node.condition.unparse())),
+                    ],
+                    keywords=[],
                 )
+                )
+            )
             )
         ]
 
