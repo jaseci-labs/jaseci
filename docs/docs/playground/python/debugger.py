@@ -1,8 +1,6 @@
+import time
 import bdb
-
-import sys
 from typing import Callable
-
 
 class Debugger(bdb.Bdb):
 
@@ -61,6 +59,8 @@ class Debugger(bdb.Bdb):
             self.set_break(self.filepath, lineno)
         self.breakpoint_buff.clear()
         self.run(self.code)
+        time.sleep(0.2)
+        self._send_graph()
 
     def do_continue(self) -> None:
         self.set_continue()

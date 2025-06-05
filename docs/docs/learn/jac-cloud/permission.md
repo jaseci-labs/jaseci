@@ -1,298 +1,201 @@
-# Permission Management
+# Permission Management: Secure Multi-User Access
 
-This document provides a guide on managing graph-based access permissions on the cloud using a structure of archetypes. Each user has their own root graph, and access between users' archetypes is restricted by default.
+## Why Permissions Matter
 
-# Anchors vs Archetypes
-- Archetypes are Jaclang class representation
-- Anchors are database class representation
+Jac Cloud's permission system lets you control who can access different parts of your application. This is crucial for:
 
-| type | Anchors | Archetypes |
-| ---- | ---- | ---- |
-| Node | NodeAnchor | NodeArchetype |
-| Edge | EdgeAnchor | EdgeArchetype |
-| Walker | WalkerAnchor | WalkerArchetype |
-| Object | ObjectAnchor | ObjectArchetype |
-| Root | NodeAnchor | Root(NodeArchetype) |
-| GenericEdge | EdgeAnchor | GenericEdge(EdgeArchetype) |
+- Building multi-user applications
+- Protecting sensitive data
+- Enabling collaboration features
+- Creating public/private content
+- Implementing access control
 
-```python
-node Human {
-    has gender: str;
-}
+## Key Concepts for Beginners
 
-# DB NodeAnchor Representation
-{
-    _id: ObjectId('6735b60656e82d6799dc9772'),
-    name: 'Human',
-    root: ObjectId('6735b5e456e82d6799dc976e'),
-    access: { all: 'NO_ACCESS', roots: { anchors: {} } },
-    edges: [ 'e::6735b60656e82d6799dc9775', 'e:Friend:6735b60656e82d6799dc9776' ],
+### Understanding Data Representations
 
-    # the actual NodeArchetype and it's context or `has attributes`
-    archetype: {
-        gender: "boy"
-    },
-}
+In Jac Cloud, your data exists in two forms:
 
-edge Friend {
-    has best: bool;
-}
+| Type | Database (Anchor) | In-Memory (Archetype) | Description |
+|------|-------------------|----------------------|-------------|
+| Node | NodeAnchor | NodeArchetype | Represents graph nodes |
+| Edge | EdgeAnchor | EdgeArchetype | Connections between nodes |
+| Walker | WalkerAnchor | WalkerArchetype | Code that traverses the graph |
+| Root | NodeAnchor | Root(NodeArchetype) | Special node representing a user |
 
-# DB EdgeAnchor Representation
-{
-    _id: ObjectId('6735b60656e82d6799dc9776'),
-    name: 'Friend',
-    root: ObjectId('6735b5e456e82d6799dc976e'),
-    access: { all: 'NO_ACCESS', roots: { anchors: {} } },
-    source: 'n:B:6735b60656e82d6799dc9771',
-    target: 'n:C:6735b60656e82d6799dc9772',
-    is_undirected: false
+### Permission Levels Explained
 
-    # the actual EdgeArchetype and it's context or `has attributes`
-    archetype: {
-        best: true
-    },
-  }
+Jac Cloud has four permission levels that control what users can do:
+
+| Level | Description | Example Use Case |
+|-------|-------------|-----------------|
+| `NO_ACCESS` | Cannot see or interact with the item | Private user data |
+| `READ` | Can view but not modify the item | Public profile information |
+| `CONNECT` | Can link nodes to this node | Friend requests, comments |
+| `WRITE` | Full access to modify the item | User's own content |
+
+## How Permissions Work (Simple Example)
+
+Imagine a social media app with three users:
+
+```
+Root1 → User1 → Post1
+Root2 → User2 → Post2
+Root3 → User3 → Post3
 ```
 
-## Access Levels
-* `NO_ACCESS`: No other user can access current archetype.
-* `READ`: Other user have Read-Only access to current archetype.
-* `CONNECT`: Other user's node can connect to current node.
-* `WRITE`: Other user can do anything to current archetype.
+By default, User2 cannot see Post1 (created by User1). To allow this:
 
-## Default User Graph Structure
-In this setup, each user's archetype (node, edge, walker) is isolated with default permissions as follows:
-```python
-{
-    "all": "NO_ACCESS",
-    "roots": {
-        "anchors": {}
+1. User1 must explicitly grant permission to User2
+2. This creates a connection in the permissions system
+3. Now User2 can access Post1 according to the permission level granted
+
+## Managing Permissions in Code
+
+### Option 1: Grant Access Using Helper Functions
+
+```jac
+// Allow User2 to read a post
+walker grant_access {
+    has target_root_id: str;  // ID of User2's root
+    has access_level: str;    // "READ", "CONNECT", or "WRITE"
+
+    can grant_access with post entry {
+        // Grant access to the current post
+        _.allow_root(here, NodeAnchor.ref(self.target_root_id), self.access_level);
+        report "Access granted!";
     }
 }
 ```
 
-* `all`: Non specific access (Given to all users)
-* `roots`: Root specific access (specific to user)
-    ```python
-    "roots": {
-        "anchors": {
-            "{{root_jid}}": "NO_ACCESS"
+### Option 2: Revoke Access Using Helper Functions
+
+```jac
+// Remove User2's access to a post
+walker revoke_access {
+    has target_root_id: str;  // ID of User2's root
+
+    can revoke_access with post entry {
+        // Revoke access to the current post
+        _.disallow_root(here, NodeAnchor.ref(self.target_root_id));
+        report "Access revoked!";
+    }
+}
+```
+
+### Option 3: Make Content Public
+
+```jac
+// Make a post readable by everyone
+walker make_public {
+    can make_public with post entry {
+        // Grant READ access to all users
+        _.perm_grant(here, "READ");
+        report "Post is now public!";
+    }
+}
+```
+
+### Option 4: Make Content Private
+
+```jac
+// Make a post private (owner-only)
+walker make_private {
+    can make_private with post entry {
+        // Remove all access
+        _.perm_revoke(here);
+        report "Post is now private!";
+    }
+}
+```
+
+## Common Permission Patterns
+
+### Public Read, Private Write
+
+Perfect for social media posts or articles:
+
+```jac
+// Create a public post
+walker create_public_post {
+    has content: str;
+
+    can enter with `root entry {
+        // Create the post
+        post = Post({content: self.content});
+        here ++> post;
+
+        // Make it readable by everyone, but only writable by owner
+        _.perm_grant(post, "READ");
+
+        report "Public post created!";
+    }
+}
+```
+
+### Group Access
+
+Ideal for team collaboration:
+
+```jac
+// Grant access to a team
+walker grant_team_access {
+    has team_members: list[str];  // List of root IDs
+    has access_level: str;        // "READ", "CONNECT", or "WRITE"
+
+    can grant_access with document entry {
+        // Grant access to each team member
+        for member_id in self.team_members {
+            _.allow_root(here, NodeAnchor.ref(member_id), self.access_level);
+        }
+
+        report "Team access granted!";
+    }
+}
+```
+
+### Connection-based Permissions
+
+For friend systems or social networks:
+
+```jac
+// Only friends can see posts
+walker check_access {
+    has viewer_id: str;
+
+    can check with post entry {
+        owner = [<--];
+
+        // Check if viewer is friends with owner
+        is_friend = false;
+        for friend in owner[-->] {
+            if friend.id == self.viewer_id {
+                is_friend = true;
+                break;
+            }
+        }
+
+        if is_friend {
+            // Grant access if they're friends
+            _.allow_root(here, NodeAnchor.ref(self.viewer_id), "READ");
+            report "Access granted to friend!";
+        } else {
+            report "Access denied - not a friend!";
         }
     }
-    ```
-## Access Level Prioritization
-Specific root access will get prioritize over "all" access. This is to support different scenario such as:
- - all: `NO_ACCESS` roots: `root2: CoNNECT`
-   - all user will have no access except user2 which will have connect access
- - all: `WRITE` roots: `root2: NO_ACCESS`
-   - user2 will have no access while all other user have write access
-
-## Example Structure in DB perspective
-Consider the following structure:
-
-```
-User1 -> Root1 -> Node1
-User2 -> Root2 -> Node2
-```
-
-By default, `User2` cannot access `Node1` owns by `Root1`. To allow `User2` access to `node1`, we need to explicitly add a permission mapping in `Root2`.
-
-## Example of Granting Access
-To grant `READ` access to `User2` for `Node1` owns by `Root1`, we modify Node1’s access permissions:
-```python
-# Node1 is the archetype
-# Node1.__jac__ is the anchor
-
-Node1.__jac__.access = {
-    "all": "READ",
-    "roots": {
-        "anchors": {}
-    }
-}
-```
-If `User1` wants to give only `READ` access to `User2`, we set permissions as follows:
-```python
-# Node1 is the archetype
-# Node1.__jac__ is the anchor
-
-Node1.__jac__.access = {
-    "all": "NO_ACCESS",
-    "roots": {
-        "anchors": {
-            "n::123445673 User2's Root JID": "READ"
-        }
-    }
 }
 ```
 
-## Permission Management Walkers
-Consider this scenario:
-```python
-User1 -> Root1 -> Node:boy1
-User2 -> Root2 -> Node:boy2
-User3 -> Root3 -> Node:boy3
-```
-### Granting Access
+## Best Practices for Beginners
 
-To grant `boy1` in `User1`’s graph access to `User2`, we can use a walker.
-#### Granting Access in jac-lang
-```python
-# Run the walker in user1
-walker set_access {
-    has access: str;            # "READ", "WRITE", "CONNECT"
-    has root_uuid: str;
+1. **Start restrictive**: Begin with tight permissions and open up as needed
+2. **Use helper functions**: Prefer `_.allow_root()` over direct manipulation
+3. **Check permissions**: Use `_.check_read_access()` to verify permissions
+4. **Document your scheme**: Keep track of which nodes have which permissions
+5. **Batch similar permissions**: Update permissions for multiple nodes at once
 
-    can give_access with boy entry {
-        # here = boy1
-        Jac.allow_root(here, UUID(self.root_ref_jid), self.access);
-    }
-}
-```
+## Next Steps
 
-#### Granting Access in jac-cloud
-```python
-# Run the walker in user1
-walker set_access {
-    has access: str;            # "READ", "WRITE", "CONNECT"
-    has root_ref_jid: str;
-
-    can give_access with boy entry {
-        # here = boy1
-        Jac.allow_root(here, NodeAnchor.ref(self.root_ref_jid), self.access);
-    }
-}
-```
-This is equivalent to setting boy1’s access in database:
-```python
-boy1.access = {
-    "all": "NO_ACCESS",
-    "roots": {
-        "anchors": {
-            "n::123445673 User2's Root JID": "READ"
-        }
-    }
-}
-```
-## Removing Access
-To remove access, use the walker below.
-
-#### Removing Access in jac-lang
-```python
-# Run the walker in user1
-walker remove_access {
-    has root_uuid: str;
-
-    can remove_access with boy entry {
-        # here = boy1
-        Jac.disallow_root(here, UUID(self.root_uuid));
-    }
-}
-```
-#### Removing Access in jac-cloud
-```python
-# Run the walker in user1
-walker remove_access {
-    has root_ref_jid: str;
-
-    can remove_access with boy entry {
-        # here = boy1
-        Jac.disallow_root(here, NodeAnchor.ref(self.root_ref_jid));
-    }
-}
-```
-This is equivalent to resetting boy1’s access:
-```python
-boy1.access = {
-    "all": "NO_ACCESS",
-    "roots": {
-        "anchors": {}
-    }
-}
-```
-
-## Global Access Control
-To grant read access to all, use the following syntax:
-```python
-Jac.perm_grant(here, "READ")
-```
-Equivalent structure:
-```python
-{
-    "all": "READ",
-    "roots": {
-        "anchors": {}
-    }
-}
-```
-
-To remove access to all, use the following syntax:
-```python
-Jac.restrict(here)
-```
-Equivalent structure:
-```python
-{
-    "all": "NO_ACCESS",
-    "roots": {
-        "anchors": {}
-    }
-}
-```
-
-## Manual Access Management
-
-In some cases, you may need to manually verify, filter, or update access permissions on nodes. The following Python examples demonstrate how to handle these tasks.
-
-### Checking Access Manually
-
-To manually check access levels on a collection of nodes, you can use the following code. This script filters nodes by type and checks for `READ`, `WRITE`, and `CONNECT` access permissions.
-
-```python
-for nodeanchor in NodeArchetype.Collection.find(
-    {
-        "type": "<type of the node>",
-        "context.public": true
-    }
-):
-    # Check read access
-    if not Jac.check_read_access(nodeanchor):
-        continue
-
-    # Check write access
-    if not Jac.check_write_access(nodeanchor):
-        continue
-
-    # Check connect access
-    if not Jac.check_connect_access(nodeanchor):
-        continue
-```
-
-### Filtering Nodes by Type
-To retrieve a specific node based on its type, use the following code snippet. This will find a node of the specified type that is also public in context.
-
-```python
-node = NodeArchetype.Collection.find_one(
-    {
-        "type": "<type of the node>",
-        "context.public": true
-    }
-)
-```
-
-### Updating Access Permissions Manually
-To manually update access permissions for multiple nodes, use the following code. This example sets the `access.all` permission to `CONNECT` for all nodes of a specific type that are publicly accessible.
-```python
-NodeArchetype.Collection.update_many(
-    {
-        "type": "<type of the node>",
-        "context.public": true
-    },
-    {
-        "$set": {
-            "access.all": "CONNECT"
-        }
-    }
-)
-```
-
+- Learn about [WebSocket Communication](websocket.md) for real-time features
+- Explore [Webhook Integration](webhook.md) for third-party service integration
+- Set up [Logging & Monitoring](logging.md) to track access patterns

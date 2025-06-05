@@ -845,7 +845,7 @@ Open your browser and navigate to http://localhost:8000/docs
 
 ### <span style="color: orange">**Lesson 4: Let's add some AI magic to our application using the power of MTLLM:**
 
-In this lesson, we'll explore how to leverage AI to enhance your application. MTLLM supports easy integration of multiple LLM models, and for this tutorial, we are using Llama. If you need more details on integrating different models, please check the [MTLLM documentation](../../for_coders/jac-mtllm/quickstart.md). (You can also explore OpenAI’s LittleX for additional insights.)
+In this lesson, we'll explore how to leverage AI to enhance your application. MTLLM supports easy integration of multiple LLM models, and for this tutorial, we are using Llama. If you need more details on integrating different models, please check the [MTLLM documentation](../../jac-mtllm/quickstart.md). (You can also explore OpenAI’s LittleX for additional insights.)
 Using Llama, you can summarize tweets to quickly understand trends, major events, and notable interactions in just one line.
 
 **Why This Feature Matters**

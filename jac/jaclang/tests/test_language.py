@@ -574,7 +574,7 @@ class JacLanguageTests(TestCase):
                 ),
                 prog=None,
             ).ir_out.unparse()
-        self.assertIn("match Container(inner=Inner(x=a, y=b)) { \n", output)
+        self.assertIn("match Container(inner=Inner(x=a, y=b)) {\n", output)
         self.assertIn("case Container(inner = Inner(x = a, y = 0)):\n", output)
         self.assertIn("case Container(inner = Inner(x = a, y = b)):\n", output)
         self.assertIn("case _:\n", output)

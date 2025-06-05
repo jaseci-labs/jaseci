@@ -18,16 +18,9 @@ nav:
         - "learn/examples/rag_chatbot/1_setting-up-jac-cloud.md"
         - "learn/examples/rag_chatbot/2_building-a-rag-chatbot.md"
         - "learn/examples/rag_chatbot/3_rag-dialogue-routing-chatbot.md"
-      - Programming with Generative AI Models:
-        - "learn/examples/jac-mtllm/with_llm.md"
-        - Quick Start Guide: "learn/examples/jac-mtllm/quickstart.md"
-        - Models: "learn/examples/jac-mtllm/model_declaration.md"
-        - Usage of MTLLM: "learn/examples/jac-mtllm/usage.md"
-        - Optional Meaning Hints: "learn/examples/jac-mtllm/semstrings.md"
-        - Using Multimodal models: "learn/examples/jac-mtllm/multimodality.md"
-        - Bring your own LM: "learn/examples/jac-mtllm/create_own_lm.md"
-        - Python MTLLM Interface: "learn/examples/jac-mtllm/python_integration.md"
-        - Tutorials: "learn/examples/jac-mtllm/rpg_game.md"
+      - AI driven Applications:
+        - "learn/examples/mtp_examples/rpg_game.md"
+        - "learn/examples/mtp_examples/fantasy_trading_game.md"
     - Learn Jac Language:
       - Coding Manual: "learn/jac_coding_manual.md"
       - Language Reference: "learn/jac_ref.md"
@@ -38,16 +31,28 @@ nav:
         - "learn/data_spatial/sequence.md"
         - Theoretical Principles: "learn/dspfoundation.md" # DSP Foundation
         - Quick FAQ: "learn/data_spatial/FAQ.md" # faq
-    - Jac Cloud Guides:
-      - "learn/jac-cloud/jac_cloud.md"
-      - "learn/jac-cloud/permission.md"
-      - "learn/jac-cloud/jac_cloud_logging.md"
-      - "learn/jac-cloud/jac_cloud_env_vars.md"
-      - "learn/jac-cloud/jac_cloud_scheduler.md"
-      - "learn/jac-cloud/jac_cloud_async_walker.md"
-      - "learn/jac-cloud/jac_cloud_webhook.md"
-      - "learn/jac-cloud/jac_cloud_websocket.md"
-      - "learn/jac-cloud/cloud-orc-integration.md"
+    - Jac Cloud Guide:
+      - "learn/jac-cloud/introduction.md"
+      - "learn/jac-cloud/quickstart.md"
+      - Core Features:
+        - "learn/jac-cloud/permission.md"
+        - "learn/jac-cloud/logging.md"
+        - "learn/jac-cloud/env_vars.md"
+      - Real-time & Async:
+        - "learn/jac-cloud/websocket.md"
+        - "learn/jac-cloud/scheduler.md"
+        - "learn/jac-cloud/async_walker.md"
+        - "learn/jac-cloud/webhook.md"
+      - Operations:
+        - "learn/jac-cloud/deployment.md"
+    - Jac LLM Integration Guides:
+        - "learn/jac-mtllm/with_llm.md"
+        - Quick Start Guide: "learn/jac-mtllm/quickstart.md"
+        - Models: "learn/jac-mtllm/model_declaration.md"
+        - Usage of MTP: "learn/jac-mtllm/usage.md"
+        - Using Multimodal models: "learn/jac-mtllm/multimodality.md"
+        - Bring your own LM: "learn/jac-mtllm/create_own_lm.md"
+        - Python MTLLM Interface: "learn/jac-mtllm/python_integration.md"
     - Tooling:
       - "learn/tools/cli.md"
 

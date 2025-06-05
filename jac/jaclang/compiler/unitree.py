@@ -852,15 +852,15 @@ class NameAtom(AtomExpr, EnumBlockStmt):
         return None
 
 
-class ArchSpec(ElementStmt, CodeBlockStmt, AstSymbolNode, AstDocNode):
+class ArchSpec(ElementStmt, CodeBlockStmt, AstSymbolNode, AstAsyncNode, AstDocNode):
     """ArchSpec node type for Jac Ast."""
 
     def __init__(
         self, decorators: Sequence[Expr] | None, is_async: bool = False
     ) -> None:
         self.decorators = decorators
-        self.is_async = is_async
         CodeBlockStmt.__init__(self)
+        AstAsyncNode.__init__(self, is_async=is_async)
 
 
 class MatchPattern(UniNode):

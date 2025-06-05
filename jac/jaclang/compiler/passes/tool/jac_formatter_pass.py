@@ -94,6 +94,8 @@ class JacFormatPass(Transform[uni.Module, uni.Module]):
                 part_str = self.format_doc_ir(
                     part, indent_level, current_line_budget, is_broken
                 )
+                if part_str.startswith("\n"):
+                    result = result.rstrip(" ")
                 result += part_str
 
                 if "\n" in part_str:

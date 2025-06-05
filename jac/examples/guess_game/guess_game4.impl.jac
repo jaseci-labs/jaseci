@@ -5,12 +5,13 @@ impl Game.play {
 
 impl GuessTheNumberGame.init {
     self.attempts = 10;
+    self.correct_number = (1, 10) |> random.randint;
 }
 
 
 impl GuessTheNumberGame.play {
     while self.attempts > 0 {
-        guess = "Guess a number between 1 and 100: " |> input;
+        guess = "Guess a number between 1 and 10: " |> input;
         if |> guess.isdigit {
             guess |> int |> self.process_guess;
         } else {
@@ -26,14 +27,15 @@ impl GuessTheNumberGame.play {
 impl GuessTheNumberGame.process_guess (guess: int) {
     if guess > self.correct_number {
         "Too high!" |> print;
+        self.attempts -= 1;
     } elif guess < self.correct_number {
         "Too low!" |> print;
+        self.attempts -= 1;
     } else {
         "Congratulations! You guessed correctly." |> print;
-        self.attempts = 0;
-        # end the game
         self.won = True;
+        self.attempts = 0;
+        return;
     }
-    self.attempts -= 1;
     f"You have {self.attempts} attempts left." |> print;
 }
