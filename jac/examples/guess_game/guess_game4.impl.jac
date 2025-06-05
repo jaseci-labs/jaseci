@@ -5,6 +5,7 @@ impl Game.play {
 
 impl GuessTheNumberGame.init {
     self.attempts = 10;
+    self.correct_number = (1, 100) |> random.randint;
 }
 
 
@@ -33,6 +34,7 @@ impl GuessTheNumberGame.process_guess (guess: int) {
         self.attempts = 0;
         # end the game
         self.won = True;
+        return;
     }
     self.attempts -= 1;
     f"You have {self.attempts} attempts left." |> print;

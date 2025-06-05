@@ -3,15 +3,15 @@ import random;
 
 
 obj Game {
-    has attempts: int, won: bool = False;
+    has correct_number: int;
+    has attempts: int;
+    has won: bool = False;
     
     def play;
 }
 
 
-obj GuessTheNumberGame (Game) {
-    has correct_number: int = (1, 100) |> random.randint;
-    
+obj GuessTheNumberGame (Game) {    
     def init;
     override def play;
     def process_guess(guess: int);

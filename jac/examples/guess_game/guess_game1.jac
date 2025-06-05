@@ -45,6 +45,7 @@ obj GuessTheNumberGame (Game) {
             self.attempts = 0;
             # end the game
             self.won = True;
+            return;
         }
         self.attempts -= 1;
         print(f"You have {self.attempts} attempts left.");
