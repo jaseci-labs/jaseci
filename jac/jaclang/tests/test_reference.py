@@ -73,7 +73,7 @@ class JacReferenceTests(TestCase):
                 mode="exec",
             )
             output_jac = execute_and_capture_output(code_content, filename=filename)
-
+            Jac.reset_machine()
             filename = filename.replace(".jac", ".py")
             with open(filename, "r") as file:
                 code_content = file.read()
