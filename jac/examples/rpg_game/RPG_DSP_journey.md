@@ -412,14 +412,14 @@ No changes are required on these files as well.
 This new file will include the supporting architecture for the build of the data-spatial implementation and the runtime logic for graph traversal.
 
 ```python
-import:py pygame;
-import:py sys;
-import:py random;
+import pygame;
+import sys;
+import random;
 
-include:jac sprites;
-include:jac config;
-include:jac map;
-include:jac game_obj;
+include sprites;
+include config;
+include map;
+include game_obj;
 ```
 
 Now the visualization of the graph is really important in order to build the architecture.
