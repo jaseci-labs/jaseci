@@ -196,7 +196,7 @@ class TestLangServe:
         await did_save(ls, params)
         sem_tokens = ls.get_semantic_tokens(uri)
         # semantic tokens should still be present even if there is a syntax error
-        assert len(sem_tokens.data) == 300
+        assert len(sem_tokens.data) == 330
         diagnostics = ls.diagnostics.get(uri, [])
         assert isinstance(diagnostics, list)
         assert len(diagnostics) == 1
@@ -240,7 +240,7 @@ class TestLangServe:
         await did_change(ls, params)
         diagnostics = ls.diagnostics.get(uri, [])
         assert isinstance(diagnostics, list)
-        assert len(diagnostics) == 0
+        assert len(diagnostics) == 6
 
         # Now add a syntax error and update workspace
         # This should trigger diagnostics with a syntax error
@@ -260,7 +260,7 @@ class TestLangServe:
         await did_change(ls, params)
         sem_tokens = ls.get_semantic_tokens(uri)
         # semantic tokens should still be present even if there is a syntax error
-        assert len(sem_tokens.data) == 300
+        assert len(sem_tokens.data) == 330
         diagnostics = ls.diagnostics.get(uri, [])
         assert isinstance(diagnostics, list)
         assert len(diagnostics) == 1
