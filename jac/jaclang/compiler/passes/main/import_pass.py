@@ -169,7 +169,9 @@ class PyImportDepsPass(JacImportDepsPass):
                 msg = "Processing import node at href="
                 msg += uni.Module.get_href_path(imp_node)
                 msg += f' path="{imp_node.loc.mod_path}, {imp_node.loc}"'
-                self.__process_import(imp_node)
+                for mod_path in imp_node.items:
+                    assert isinstance(mod_path, uni.ModulePath)
+                    self.__process_import(imp_node, mod_path)
 
     def __process_import_from(self, imp_node: uni.Import) -> None:
         """Process imports in the form of `from X import I`."""
@@ -200,14 +202,12 @@ class PyImportDepsPass(JacImportDepsPass):
             self.import_from_build_list.append((imp_node, imported_mod))
             SymTabBuildPass(ir_in=imported_mod, prog=self.prog)
 
-    def __process_import(self, imp_node: uni.Import) -> None:
+    def __process_import(
+        self, imp_node: uni.Import, imported_item: uni.ModulePath
+    ) -> None:
         """Process the imports in form of `import X`."""
         # Expected that each ImportStatement will import one item
         # In case of this assertion fired then we need to revisit this item
-        assert len(imp_node.items) == 1
-        imported_item = imp_node.items[0]
-        assert isinstance(imported_item, uni.ModulePath)
-
         imported_mod = self.__import_py_module(
             parent_node_path=uni.Module.get_href_path(imported_item),
             mod_path=imported_item.dot_path_str,
