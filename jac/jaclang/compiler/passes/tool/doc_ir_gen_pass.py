@@ -1261,11 +1261,35 @@ class DocIRGenPass(UniPass):
     def exit_impl_def(self, node: uni.ImplDef) -> None:
         """Generate DocIR for implementation definitions."""
         parts: list[doc.DocType] = []
+        body_parts: list[doc.DocType] = []
+        in_body = False
         for i in node.kid:
             if i == node.doc or (node.decorators and i in node.decorators):
                 parts.append(i.gen.doc_ir)
                 parts.append(self.hard_line())
-            elif i == node.target:
+            elif i in node.target:
+                parts.append(i.gen.doc_ir)
+            elif (
+                in_body
+                or isinstance(node.body, Sequence)
+                and node.body
+                and i == node.body[0]
+            ):
+                if not in_body:
+                    parts.pop()
+                    body_parts.append(self.hard_line())
+                if isinstance(i, uni.Token) and i.name == Tok.COMMA:
+                    body_parts.pop()
+                body_parts.append(i.gen.doc_ir)
+                body_parts.append(self.hard_line())
+                in_body = True
+                if in_body and isinstance(node.body, Sequence) and i == node.body[-1]:
+                    in_body = False
+                    body_parts.pop()
+                    parts.append(self.indent(self.concat(body_parts)))
+                    parts.append(self.hard_line())
+            elif isinstance(i, uni.Token) and i.name == Tok.SEMI:
+                parts.pop()
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
             else:
