@@ -6,7 +6,7 @@ from jaclang.cli import cli
 from jaclang.utils.test import TestCase
 
 
-class JacCliTests(TestCase):
+class JTypeCheckTests(TestCase):
     """Test pass module."""
 
     def setUp(self) -> None:

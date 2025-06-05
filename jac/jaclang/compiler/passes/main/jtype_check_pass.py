@@ -43,7 +43,7 @@ class JTypeCheckPass(UniPass):
             return super().exit_node(node)
         else:
             with suppress(Exception):
-                super().enter_node(node)
+                super().exit_node(node)
 
     #############
     # Abilities #
