@@ -28,7 +28,7 @@ class JAnyType(JType):
         name (str): Always 'Any'.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initialize the `Any` type.
 

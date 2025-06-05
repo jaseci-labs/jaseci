@@ -1,5 +1,17 @@
 import jaclang.compiler.jtyping.types as jtypes
-from .types import *
+
+from .types import (
+    JAnyType,
+    JClassInstanceType,
+    JClassMember,
+    JClassType,
+    JFuncArgument,
+    JFunctionType,
+    JNoneType,
+    JType,
+    JTypeVar,
+)
+
 
 __all__ = [
     "jtypes",
@@ -11,5 +23,5 @@ __all__ = [
     "JNoneType",
     "JAnyType",
     "JClassInstanceType",
-    "JTypeVar"
+    "JTypeVar",
 ]

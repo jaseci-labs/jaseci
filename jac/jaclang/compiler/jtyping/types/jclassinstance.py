@@ -1,4 +1,5 @@
-"""Defines `JClassInstanceType`, representing the type of instances of user-defined or primitive classes in the Jac type system.
+"""Defines `JClassInstanceType`, representing the type of instances of user-defined
+ or primitive classes in the Jac type system.
 
 This type wraps a `JClassType` and provides instance-level behavior.
 """

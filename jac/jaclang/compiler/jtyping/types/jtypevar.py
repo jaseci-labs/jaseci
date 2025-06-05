@@ -1,20 +1,21 @@
 from jaclang.compiler.jtyping.types.jtype import JType
 
+
 class JTypeVar(JType):
     _id_counter = 0
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         if name is None:
             name = f"T{JTypeVar._id_counter}"
             JTypeVar._id_counter += 1
         self.name = name
         self.resolved: JType | None = None  # after unification
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.resolved:
             return f"{self.name}={self.resolved}"
         return f"TypeVar[{self.name}]"
-    
+
     def is_instantiable(self) -> bool:
         """
         Indicates whether the type can be directly instantiated at runtime.
@@ -37,7 +38,7 @@ class JTypeVar(JType):
             dict: A dictionary mapping member names to JClassMember objects (or equivalent).
         """
         return {}
-    
+
     def supports_binary_op(self, op: str) -> bool:
         """
         Checks whether a binary operator is supported by this type.

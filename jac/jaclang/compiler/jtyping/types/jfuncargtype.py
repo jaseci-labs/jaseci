@@ -29,7 +29,7 @@ class JFuncArgument:
         name: str,
         type: JType,
         is_optional: bool = False,
-    ):
+    ) -> None:
         """
         Initialize a JFuncArgument.
 

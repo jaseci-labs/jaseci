@@ -7,9 +7,9 @@ where the generic logic is defined in the base `JClassType` and specialized
 with type arguments at the call site.
 """
 
-from jaclang.compiler.jtyping.types.jtype import JType
-from jaclang.compiler.jtyping.types.jclasstype import JClassType
 from jaclang.compiler.jtyping.types.jclassmember import JClassMember
+from jaclang.compiler.jtyping.types.jclasstype import JClassType
+from jaclang.compiler.jtyping.types.jtype import JType
 
 
 class JGenericType(JType):
@@ -28,7 +28,7 @@ class JGenericType(JType):
         - Enforces assignability based on both the base type and type argument compatibility.
     """
 
-    def __init__(self, base: JClassType, args: list[JType]):
+    def __init__(self, base: JClassType, args: list[JType]) -> None:
         """
         Initializes a generic type instance with a given base and type arguments.
 

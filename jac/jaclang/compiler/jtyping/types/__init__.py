@@ -17,5 +17,5 @@ __all__ = [
     "JNoneType",
     "JAnyType",
     "JClassInstanceType",
-    "JTypeVar"
+    "JTypeVar",
 ]

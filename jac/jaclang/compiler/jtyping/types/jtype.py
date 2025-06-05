@@ -11,8 +11,8 @@ should inherit from `JType` and implement the required interface.
 
 from __future__ import annotations
 
-from typing import Optional
 from abc import ABC, abstractmethod
+from typing import Optional
 
 import jaclang.compiler.unitree as uni
 
@@ -31,7 +31,7 @@ class JType(ABC):
             Used for resolving qualified names and generating error messages.
     """
 
-    def __init__(self, name: str, module: Optional[uni.Module]):
+    def __init__(self, name: str, module: Optional[uni.Module]) -> None:
         self.name: str = name
         self.module: Optional[uni.Module] = module
 
@@ -50,7 +50,7 @@ class JType(ABC):
             bool: True if assignment is allowed; False otherwise.
         """
         return isinstance(other, self.__class__)
-    
+
     def is_callable(self) -> bool:
         """
         Indicates whether the type can be used in a function call (i.e., is callable).
@@ -84,7 +84,7 @@ class JType(ABC):
             dict: A dictionary mapping member names to JClassMember objects (or equivalent).
         """
         ...
-    
+
     @abstractmethod
     def supports_binary_op(self, op: str) -> bool:
         """

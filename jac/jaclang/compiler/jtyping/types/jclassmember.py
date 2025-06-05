@@ -7,6 +7,7 @@ metadata describing their behavior.
 """
 
 from __future__ import annotations
+
 from enum import Enum
 from typing import Optional
 
@@ -68,7 +69,7 @@ class JClassMember:
         is_property: bool = False,
         is_method: bool = False,
         decl: Optional[uni.Symbol] = None,
-    ):
+    ) -> None:
         """
         Initialize a JClassMember.
 

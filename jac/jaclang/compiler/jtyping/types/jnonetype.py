@@ -15,7 +15,7 @@ class JNoneType(JType):
     It is commonly used in union types to model optionality.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name="None", module=None)
 
     def is_instantiable(self) -> bool:

@@ -8,8 +8,8 @@ and situations where values may conform to one of several types.
 
 from typing import Iterable
 
-from jaclang.compiler.jtyping.types.jtype import JType
 from jaclang.compiler.jtyping.types.jclassmember import JClassMember
+from jaclang.compiler.jtyping.types.jtype import JType
 
 
 class JUnionType(JType):
@@ -29,7 +29,7 @@ class JUnionType(JType):
         - Member access is limited to common members across all union branches.
     """
 
-    def __init__(self, types: Iterable[JType]):
+    def __init__(self, types: Iterable[JType]) -> None:
         """
         Initialize a JUnionType by flattening and deduplicating input types.
 
@@ -45,8 +45,7 @@ class JUnionType(JType):
         self.options: list[JType] = list(flattened)
 
         super().__init__(
-            name=" | ".join(sorted(t.name for t in self.options)),
-            module=None
+            name=" | ".join(sorted(t.name for t in self.options)), module=None
         )
 
     def is_instantiable(self) -> bool:
@@ -88,7 +87,4 @@ class JUnionType(JType):
         for t in self.options[1:]:
             common_keys.intersection_update(t.get_members().keys())
 
-        return {
-            k: self.options[0].get_members()[k]
-            for k in common_keys
-        }
+        return {k: self.options[0].get_members()[k] for k in common_keys}

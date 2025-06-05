@@ -1,4 +1,5 @@
-"""Defines the JClassType class, which represents both user-defined classes and built-in primitive types in the Jac type system.
+"""Defines the JClassType class, which represents both user-defined classes and built-in
+primitive types in the Jac type system.
 
 This class supports type instantiation, inheritance, callable semantics (via constructors),
 and member access resolution. It also implements assignability checks based on nominal
@@ -42,7 +43,7 @@ class JClassType(JType):
         is_abstract: bool = False,
         instance_members: Optional[dict[str, JClassMember]] = None,
         class_members: Optional[dict[str, JClassMember]] = None,
-        assignable_from: list[str] = list(),
+        assignable_from: Optional[list[str]] = None,
     ) -> None:
         """
         Initialize a new JClassType instance.
@@ -63,7 +64,9 @@ class JClassType(JType):
         self.is_abstract: bool = is_abstract
         self.instance_members: dict[str, JClassMember] = instance_members or {}
         self.class_members: dict[str, JClassMember] = class_members or {}
-        self.assignable_from: list[str] = assignable_from
+        self.assignable_from: list[str] = (
+            assignable_from if assignable_from is not None else []
+        )
 
     def is_instantiable(self) -> bool:
         """

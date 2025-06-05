@@ -10,8 +10,10 @@ from jaclang.compiler.unitree import UniNode
 class JTypeConstraint:
 
     left: JType
-    right: JType    
+    right: JType
     source_node: Optional[UniNode] = None
-    
-    def __repr__(self):
+
+    def __repr__(self) -> str:
+        if self.source_node is None:
+            return f"{self.left} <: {self.right}"
         return f"{self.left} <: {self.right} at {self.source_node.loc}"

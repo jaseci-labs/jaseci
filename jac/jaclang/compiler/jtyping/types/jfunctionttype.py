@@ -9,9 +9,11 @@ This type is used for both standalone functions and methods on classes.
 """
 
 from __future__ import annotations
+
 from typing import List
-from jaclang.compiler.jtyping.types.jtype import JType
+
 from jaclang.compiler.jtyping.types.jfuncargtype import JFuncArgument
+from jaclang.compiler.jtyping.types.jtype import JType
 
 
 class JFunctionType(JType):
@@ -30,7 +32,7 @@ class JFunctionType(JType):
         return_type (JType): The return type of the function.
     """
 
-    def __init__(self, parameters: List[JFuncArgument], return_type: JType):
+    def __init__(self, parameters: List[JFuncArgument], return_type: JType) -> None:
         """
         Initialize a JFunctionType with a parameter list and a return type.
 
@@ -81,8 +83,8 @@ class JFunctionType(JType):
             JFunctionType: This instance.
         """
         return self
-    
-    def get_members(self):
+
+    def get_members(self) -> dict:
         """
         Returns an empty set of members — function types have no accessible attributes.
 
@@ -90,7 +92,7 @@ class JFunctionType(JType):
             dict: Always empty.
         """
         return {}
-    
+
     def supports_binary_op(self, op: str) -> bool:
         """
         Indicates whether a binary operator is supported.
@@ -104,7 +106,7 @@ class JFunctionType(JType):
             bool: Always False.
         """
         return False
-    
+
     def can_assign_from(self, other: JType) -> bool:
         """
         Checks if a value of the given type can be assigned to this function type.
@@ -121,7 +123,7 @@ class JFunctionType(JType):
         if not isinstance(other, JFunctionType):
             return False
         return self.return_type.can_assign_from(other.return_type)
-    
+
     def is_instantiable(self) -> bool:
         """
         Indicates whether this type can be instantiated.

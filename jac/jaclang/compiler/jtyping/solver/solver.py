@@ -1,24 +1,40 @@
+from typing import Optional
+
 from jaclang.compiler.jtyping import JType
-from jaclang.compiler.jtyping.constraint import JTypeConstraint  # assuming it's in a separate file
+from jaclang.compiler.jtyping.solver.constraint import (
+    JTypeConstraint,
+)  # assuming it's in a separate file
+from jaclang.compiler.jtyping.types.jtypevar import JTypeVar
+from jaclang.compiler.unitree import UniNode
 
 
 class JTypeConstraintSolver:
-    def __init__(self):
+    def __init__(self) -> None:
         self.constraints: list[JTypeConstraint] = []
-        self.substitutions: dict[str, JType] = {}  # Map from JTypeVar.name → resolved JType
+        self.substitutions: dict[str, JType] = (
+            {}
+        )  # Map from JTypeVar.name → resolved JType
 
-    def add_constraint(self, left: JType, right: JType, source_node: Optional[UniNode] = None):
-        self.constraints.append(JTypeConstraint(left=left, right=right, source_node=source_node))
+    def add_constraint(
+        self, left: JType, right: JType, source_node: Optional[UniNode] = None
+    ) -> None:
+        self.constraints.append(
+            JTypeConstraint(left=left, right=right, source_node=source_node)
+        )
 
-    def solve(self):
+    def solve(self) -> None:
         for constraint in self.constraints:
             try:
                 self._unify(constraint.left, constraint.right)
             except TypeError as e:
-                loc = constraint.source_node.loc if constraint.source_node else "unknown location"
+                loc = (
+                    constraint.source_node.loc
+                    if constraint.source_node
+                    else "unknown location"
+                )
                 print(f"Type Error at {loc}: {e}")
 
-    def _unify(self, t1: JType, t2: JType):
+    def _unify(self, t1: JType, t2: JType) -> None:
         # Resolve variables if already substituted
         t1 = self._resolve(t1)
         t2 = self._resolve(t2)
@@ -32,8 +48,8 @@ class JTypeConstraintSolver:
             self.substitutions[t1.name] = t2
         elif isinstance(t2, JTypeVar):
             self.substitutions[t2.name] = t1
-        elif is_subtype(t1, t2):
-            return
+        # elif issubtype(t1, t2):
+        #     return
         else:
             raise TypeError(f"Cannot unify {t1} with {t2}")
 
