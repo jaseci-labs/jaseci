@@ -1740,25 +1740,25 @@ class JacUtils:
         """Wait for a thread to finish."""
         return future.result()
 
-class JacSmartAsserts:
-    """Jac Smart Asserts."""
+# class JacSmartAsserts:
+#     """Jac Smart Asserts."""
 
-    @staticmethod
-    def smart_assert(
-        condition: Any, e:Any, msg: Optional[str] = None, condition_str: str = ""
-    ) -> None:
-        """Assertion with enhanced traceback reporting."""
-        if condition:
-            return
+#     @staticmethod
+#     def smart_assert(
+#         condition: Any, e:Any, msg: Optional[str] = None, condition_str: str = ""
+#     ) -> None:
+#         """Assertion with enhanced traceback reporting."""
+#         if condition:
+#             return
 
-        machine = JacMachineInterface.py_get_jac_machine()
-        if machine.gins:
-            tracecallback = traceback.format_exc()
-            print(f"Smart Assert Enabled")
-            raise e
-        else:
-            # assert condition, msg or "Assertion failed."
-            raise e
+#         machine = JacMachineInterface.py_get_jac_machine()
+#         if machine.gins:
+#             tracecallback = traceback.format_exc()
+#             print(f"Smart Assert Enabled")
+#             raise e
+#         else:
+#             # assert condition, msg or "Assertion failed."
+#             raise e
 
 class JacSmartAsserts:
     """Jac Smart Asserts."""
