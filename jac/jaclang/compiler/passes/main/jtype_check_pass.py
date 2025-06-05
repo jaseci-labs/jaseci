@@ -1,5 +1,6 @@
 """Semantic analysis for Jac language."""
 
+from contextlib import suppress
 from typing import cast
 
 import jaclang.compiler.jtyping as jtype
@@ -24,6 +25,25 @@ class JTypeCheckPass(UniPass):
     def __debug_print(self, msg: str) -> None:
         if settings.debug_jac_typing:
             print("[JTypeCheckPass]", msg)
+
+    ####################################################
+    # Safety mechanism to disable crashes at user side #
+    ####################################################
+    def enter_node(self, node: ast.UniNode) -> None:
+        """Enter Node"""
+        if settings.enable_jac_typing_asserts:
+            return super().enter_node(node)
+        else:
+            with suppress(Exception):
+                super().enter_node(node)
+
+    def exit_node(self, node: ast.UniNode) -> None:
+        """Exit node."""
+        if settings.enable_jac_typing_asserts:
+            return super().exit_node(node)
+        else:
+            with suppress(Exception):
+                super().enter_node(node)
 
     #############
     # Abilities #

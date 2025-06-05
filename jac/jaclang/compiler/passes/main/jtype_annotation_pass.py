@@ -4,6 +4,8 @@ This pass is resbponsible for annotating jtype object
 using type annotations in the code.
 """
 
+from contextlib import suppress
+
 import jaclang.compiler.jtyping as jtype
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import SymbolAccess, SymbolType
@@ -33,6 +35,28 @@ class JTypeAnnotatePass(UniPass):
         if self.ir_in.name == "builtins":
             self.terminate()
 
+    ####################################################
+    # Safety mechanism to disable crashes at user side #
+    ####################################################
+    def enter_node(self, node: uni.UniNode) -> None:
+        """Enter Node"""
+        if settings.enable_jac_typing_asserts:
+            return super().enter_node(node)
+        else:
+            with suppress(Exception):
+                super().enter_node(node)
+
+    def exit_node(self, node: uni.UniNode) -> None:
+        """Exit node."""
+        if settings.enable_jac_typing_asserts:
+            return super().exit_node(node)
+        else:
+            with suppress(Exception):
+                super().enter_node(node)
+
+    #########################
+    # Type Annotation logic #
+    #########################
     def exit_assignment(self, node: uni.Assignment) -> None:
         """Propagate type annotations for variable declarations."""
         # Resolve the declared type from the annotation
@@ -73,13 +97,7 @@ class JTypeAnnotatePass(UniPass):
                     continue
                 if isinstance(nodes[0], uni.SpecialVarRef) and nodes[0].value == "self":
                     self_node = nodes[0]
-                    try:
-                        ability_node = uni.parent_of_type(self_node, uni.Ability)
-                    except AssertionError:
-                        self.log_warning(
-                            "Can't find ability to associated with self, is it an impl file?",
-                            self_node,
-                        )
+                    ability_node = uni.parent_of_type(self_node, uni.Ability)
                     if ability_node.sym_name != "__init__":
                         return
                     self_type = self.prog.type_resolver.get_type(self_node)
