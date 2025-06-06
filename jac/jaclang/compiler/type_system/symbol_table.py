@@ -80,7 +80,7 @@ class TypedSymbol:
         return f"{self.name}: {type_info}{constraint_info}"
 
     def __str__(self) -> str:
-        """String representation of the typed symbol."""
+        """Return string representation of the typed symbol."""
         return f"TypedSymbol({self.name}: {self.symbol_type.get_display_name()})"
 
     def __repr__(self) -> str:
@@ -252,14 +252,14 @@ class EnhancedSymbolTable:
         prefix = "  " * indent
         print(f"{prefix}EnhancedSymbolTable({self.scope_id}):")
 
-        for name, symbol in self.symbols.items():
+        for _, symbol in self.symbols.items():
             print(f"{prefix}  {symbol.get_display_info()}")
 
         for child in self.child_tables:
             child.debug_print(indent + 1)
 
     def __str__(self) -> str:
-        """String representation of the enhanced symbol table."""
+        """Return string representation of the enhanced symbol table."""
         return f"EnhancedSymbolTable({self.scope_id}, {len(self.symbols)} symbols)"
 
     def __repr__(self) -> str:
