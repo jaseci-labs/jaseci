@@ -72,6 +72,14 @@ graph TD
     F --> J
 ```
 
+**Key Pyright Files Referenced:**
+- **`analyzer/binder.ts`** (4,418 lines): Symbol binding and scope management
+- **`analyzer/types.ts`** (3,958 lines): Core type system with TypeBase, ClassType, FunctionType, etc.
+- **`analyzer/typeEvaluator.ts`** (1.2MB): Main type evaluation engine
+- **`analyzer/checker.ts`** (7,685 lines): Comprehensive type checking and validation
+- **`analyzer/constraintSolver.ts`** (1,398 lines): Type variable constraint solving
+- **`analyzer/typeEvaluatorTypes.ts`** (880 lines): Interface definitions for type evaluation
+
 ### Proposed Jac Type Checker Architecture
 
 ```mermaid
@@ -124,10 +132,18 @@ graph TD
 
 Create `jac/jaclang/compiler/type_system/types.py`:
 
+> **Pyright Reference**: This directly maps to Pyright's `analyzer/types.ts` which defines TypeBase, TypeCategory, and all core type classes. See lines 1-3958 for the complete type system hierarchy.
+
 ```python
 """
 Core type system for Jac language type checker.
 Inspired by Pyright's type system architecture.
+
+Pyright Reference:
+- analyzer/types.ts: Core type system (TypeBase, TypeCategory, ClassType, etc.)
+- Lines 27-51: TypeCategory enum definition
+- Lines 52-68: TypeFlags enum definition
+- Lines 70-141: TypeBase interface and methods
 """
 
 from abc import ABC, abstractmethod
@@ -186,10 +202,18 @@ class TypeBase(ABC):
 
 Create `jac/jaclang/compiler/type_system/type_evaluator.py`:
 
+> **Pyright Reference**: This maps to Pyright's massive `analyzer/typeEvaluator.ts` (1.2MB) which handles all expression type evaluation. Also references `analyzer/typeEvaluatorTypes.ts` for interfaces and type definitions.
+
 ```python
 """
 Type evaluator for analyzing expressions and statements.
 Core engine for type checking in Jac.
+
+Pyright Reference:
+- analyzer/typeEvaluator.ts: Main type evaluation engine (1.2MB file)
+- analyzer/typeEvaluatorTypes.ts: TypeEvaluator interface (lines 631-880)
+- Lines 631-880: Complete TypeEvaluator interface definition
+- Key methods: getType, getTypeOfExpression, assignType, etc.
 """
 
 import jaclang.compiler.unitree as uni
@@ -233,10 +257,18 @@ class TypeEvaluator(UniPass):
 
 Create `jac/jaclang/compiler/type_system/symbol_table.py`:
 
+> **Pyright Reference**: This extends concepts from Pyright's `analyzer/binder.ts` which manages scopes and symbol tables, and `analyzer/symbol.ts` for symbol definitions.
+
 ```python
 """
 Enhanced symbol table with comprehensive type information.
 Extends the existing symbol table infrastructure.
+
+Pyright Reference:
+- analyzer/binder.ts: Symbol binding and scope creation (lines 1-4418)
+- analyzer/symbol.ts: Symbol class definition (lines 1-312)
+- analyzer/scope.ts: Scope management (lines 1-231)
+- Key classes: Binder, Symbol, Scope with type information tracking
 """
 
 from typing import Dict, List, Optional, Set
@@ -412,6 +444,11 @@ git commit -m "feat: create core type system foundation
 - Establish basic type interface methods
 - Add type_system package structure
 
+Pyright References:
+- Implements TypeBase interface from analyzer/types.ts (lines 70-141)
+- TypeCategory enum from analyzer/types.ts (lines 27-51)
+- TypeFlags enum from analyzer/types.ts (lines 52-68)
+
 Files:
 - jac/jaclang/compiler/type_system/__init__.py
 - jac/jaclang/compiler/type_system/types.py"
@@ -425,6 +462,12 @@ git commit -m "feat: implement primitive type classes
 - Implement basic collection types (List, Dict, Set)
 - Add AnyType, UnknownType, NeverType special types
 - Create type comparison and assignability logic
+
+Pyright References:
+- AnyType class from analyzer/types.ts (lines 2426-2477)
+- UnknownType class from analyzer/types.ts (lines 350-380)
+- NeverType class from analyzer/types.ts (lines 2381-2424)
+- Built-in type creation from analyzer/typeEvaluator.ts
 
 Files:
 - jac/jaclang/compiler/type_system/primitive_types.py
@@ -739,6 +782,12 @@ git commit -m "feat: implement advanced constraint solving algorithm
 - Support for recursive constraint solving
 - Add performance optimizations for large constraint sets
 
+Pyright References:
+- assignTypeVar function from analyzer/constraintSolver.ts (lines 74-108)
+- solveConstraints function from analyzer/constraintSolver.ts (lines 147-170)
+- solveTypeVarRecursive logic from analyzer/constraintSolver.ts (lines 172-220)
+- Constraint backtracking and propagation algorithms
+
 Files:
 - jac/jaclang/compiler/type_system/constraint_solver.py (enhanced)"
 ```
@@ -911,10 +960,19 @@ graph TD
 
 Create `jac/jaclang/compiler/type_system/constraint_solver.py`:
 
+> **Pyright Reference**: This directly implements algorithms from Pyright's `analyzer/constraintSolver.ts` and `analyzer/constraintTracker.ts`.
+
 ```python
 """
 Type constraint solver for advanced type inference.
 Inspired by Pyright's constraint solving algorithm.
+
+Pyright Reference:
+- analyzer/constraintSolver.ts: Main constraint solving logic (lines 1-1398)
+- analyzer/constraintTracker.ts: Constraint tracking and management
+- Key functions: assignTypeVar, solveConstraints, solveConstraintSet
+- Lines 74-108: Main assignTypeVar function implementation
+- Lines 147-170: solveConstraints function
 """
 
 from typing import Dict, List, Set, Optional, Tuple
@@ -991,9 +1049,18 @@ class ConstraintSolver:
 
 Create `jac/jaclang/compiler/type_system/type_variables.py`:
 
+> **Pyright Reference**: This implements the TypeVar system from Pyright's `analyzer/types.ts`, specifically the TypeVarType class and related functionality.
+
 ```python
 """
 Type variable system for generic types and inference.
+
+Pyright Reference:
+- analyzer/types.ts: TypeVarType class definition (lines 2768-3150)
+- Lines 2854-2870: TypeVarType creation methods
+- Lines 2990-3150: TypeVar manipulation and binding methods
+- Lines 2745-2767: TypeVarDetailsShared interface
+- Key concepts: scope binding, variance, constraints, bounds
 """
 
 from typing import List, Optional, Set
@@ -1283,10 +1350,19 @@ graph TD
 
 Create `jac/jaclang/compiler/passes/main/type_evaluator_pass.py`:
 
+> **Pyright Reference**: This integrates concepts from both Pyright's `analyzer/checker.ts` (which walks the entire AST for type checking) and `analyzer/typeEvaluator.ts` for expression evaluation.
+
 ```python
 """
 Type evaluator pass for comprehensive type analysis.
 Integrates with existing compilation pipeline.
+
+Pyright Reference:
+- analyzer/checker.ts: Main type checker walker (lines 1-7685)
+- Lines 150-200: Checker class initialization and setup
+- Lines 300-500: Visit methods for different AST node types
+- analyzer/typeEvaluator.ts: Core type evaluation methods
+- This pass combines walking (like Checker) with evaluation (like TypeEvaluator)
 """
 
 import jaclang.compiler.unitree as uni
@@ -1352,10 +1428,19 @@ class TypeEvaluatorPass(UniPass):
 
 Create `jac/jaclang/compiler/passes/main/type_binder_pass.py`:
 
+> **Pyright Reference**: This directly maps to Pyright's `analyzer/binder.ts` which walks the parse tree and creates symbol tables with scope information.
+
 ```python
 """
 Type binder pass that associates types with symbols.
 Extends existing symbol table functionality.
+
+Pyright Reference:
+- analyzer/binder.ts: Core symbol binding implementation (lines 1-4418)
+- Lines 195-280: Binder class and initialization
+- Lines 400-600: visitClass and visitFunction methods
+- Lines 3500-3650: _bindNameToScope and symbol creation methods
+- This pass extends Binder concepts with type information
 """
 
 import jaclang.compiler.unitree as uni
@@ -1424,47 +1509,56 @@ class TypeBinderPass(UniPass):
 
 The complete type system implementation will have the following structure:
 
+> **Pyright File Mapping**: Each component below maps to specific files in Pyright's `analyzer/` directory.
+
 ```
 jac/jaclang/compiler/type_system/
 ├── __init__.py
-├── types.py                    # Core type system
-├── type_factory.py            # Type creation and management
-├── type_evaluator.py          # Expression type evaluation
-├── symbol_table.py            # Enhanced symbol tables
-├── diagnostics.py             # Type error reporting
-├── constraint_solver.py       # Constraint solving
-├── type_variables.py          # Type variable system
-├── cache_manager.py           # Type caching
-├── incremental_checker.py     # Incremental checking
+├── types.py                    # → analyzer/types.ts (3,958 lines)
+├── type_factory.py            # → type creation utilities in analyzer/typeUtils.ts
+├── type_evaluator.py          # → analyzer/typeEvaluator.ts (1.2MB)
+├── symbol_table.py            # → analyzer/symbol.ts + analyzer/scope.ts
+├── diagnostics.py             # → diagnostic handling in analyzer/checker.ts
+├── constraint_solver.py       # → analyzer/constraintSolver.ts (1,398 lines)
+├── type_variables.py          # → TypeVar system in analyzer/types.ts
+├── cache_manager.py           # → analyzer/typeCacheUtils.ts + analyzer/cacheManager.ts
+├── incremental_checker.py     # → incremental analysis concepts
 │
-├── primitive_types.py         # Built-in primitive types
-├── special_types.py           # Any, Unknown, Never types
-├── union_types.py             # Union type implementation
-├── function_types.py          # Function type system
+├── primitive_types.py         # → built-in types in analyzer/types.ts
+├── special_types.py           # → AnyType, UnknownType, NeverType in analyzer/types.ts
+├── union_types.py             # → UnionType in analyzer/types.ts (lines 2581-2720)
+├── function_types.py          # → FunctionType in analyzer/types.ts (lines 1496-2328)
 │
-├── jac_types/                 # Jac-specific types
+├── jac_types/                 # Jac-specific extensions (no Pyright equivalent)
 │   ├── __init__.py
-│   ├── node_types.py          # Node archetype types
-│   ├── edge_types.py          # Edge archetype types
-│   ├── walker_types.py        # Walker archetype types
-│   ├── ability_types.py       # Ability types
-│   └── spatial_types.py       # Spatial expression types
+│   ├── node_types.py          # Custom for Jac node archetypes
+│   ├── edge_types.py          # Custom for Jac edge archetypes
+│   ├── walker_types.py        # Custom for Jac walker archetypes
+│   ├── ability_types.py       # Custom for Jac ability system
+│   └── spatial_types.py       # Custom for Jac spatial expressions
 │
-├── inference/                 # Type inference engine
+├── inference/                 # Advanced inference algorithms
 │   ├── __init__.py
-│   ├── inference_engine.py    # Main inference logic
-│   ├── control_flow_analysis.py
-│   ├── generic_inference.py   # Generic type inference
-│   └── return_type_inference.py
+│   ├── inference_engine.py    # → inference logic in analyzer/typeEvaluator.ts
+│   ├── control_flow_analysis.py # → analyzer/codeFlowEngine.ts (2,026 lines)
+│   ├── generic_inference.py   # → generic solving in analyzer/constraintSolver.ts
+│   └── return_type_inference.py # → return type inference in analyzer/typeEvaluator.ts
 │
-└── checkers/                  # Specialized type checkers
+└── checkers/                  # Specialized checking modules
     ├── __init__.py
-    ├── assignment_checker.py   # Assignment validation
-    ├── call_checker.py         # Function call validation
-    ├── operator_checker.py     # Operator type checking
-    ├── control_flow_checker.py # Control flow validation
-    └── collection_checker.py   # Collection type checking
+    ├── assignment_checker.py   # → assignment logic in analyzer/checker.ts
+    ├── call_checker.py         # → function call validation in analyzer/checker.ts
+    ├── operator_checker.py     # → operator checking in analyzer/operations.ts
+    ├── control_flow_checker.py # → control flow in analyzer/checker.ts
+    └── collection_checker.py   # → collection type logic in analyzer/checker.ts
 ```
+
+**Key Pyright → Jac Mappings:**
+- `analyzer/types.ts` → Core type system foundation
+- `analyzer/typeEvaluator.ts` → Expression type evaluation engine
+- `analyzer/checker.ts` → Comprehensive type checking and validation
+- `analyzer/binder.ts` → Symbol table and scope management
+- `analyzer/constraintSolver.ts` → Type inference and constraint solving
 
 ## Performance Metrics and Benchmarks
 
@@ -1533,3 +1627,62 @@ Upon completion of this implementation:
 - **Maintainability**: Better code documentation through types, easier refactoring with type-safe transformations
 - **Performance**: Optimized type checking that scales to large Jac codebases
 - **Ecosystem**: Foundation for additional tools like automatic test generation, API documentation, and static analysis
+
+## Pyright Reference Guide
+
+For developers implementing this type checker, here are the key Pyright files and their purposes:
+
+### Core Type System Files
+- **`analyzer/types.ts`** (3,958 lines) - Complete type system foundation
+  - Lines 27-51: TypeCategory enum
+  - Lines 52-68: TypeFlags enum
+  - Lines 70-141: TypeBase interface
+  - Lines 2581-2720: UnionType implementation
+  - Lines 1496-2328: FunctionType implementation
+  - Lines 2768-3150: TypeVarType system
+
+### Type Evaluation and Analysis
+- **`analyzer/typeEvaluator.ts`** (1.2MB) - Main type evaluation engine
+  - Expression type evaluation algorithms
+  - Type inference and constraint solving integration
+  - Complex type operations and transformations
+
+- **`analyzer/typeEvaluatorTypes.ts`** (880 lines) - Type evaluator interfaces
+  - Lines 631-880: Complete TypeEvaluator interface
+  - Type evaluation flags, options, and result types
+
+### Symbol and Scope Management
+- **`analyzer/binder.ts`** (4,418 lines) - Symbol binding and scopes
+  - Lines 195-280: Binder class initialization
+  - Lines 400-600: Class and function binding
+  - Lines 3500-3650: Symbol creation and linking
+
+- **`analyzer/symbol.ts`** (312 lines) - Symbol definitions
+- **`analyzer/scope.ts`** (231 lines) - Scope management
+
+### Type Checking and Validation
+- **`analyzer/checker.ts`** (7,685 lines) - Comprehensive type checking
+  - Lines 150-200: Checker initialization
+  - Lines 300-7000: Visit methods for all AST node types
+  - Type validation, error reporting, and diagnostics
+
+### Constraint Solving and Inference
+- **`analyzer/constraintSolver.ts`** (1,398 lines) - Type constraint solving
+  - Lines 74-108: assignTypeVar function
+  - Lines 147-170: solveConstraints function
+  - Lines 172-220: Recursive constraint solving
+
+- **`analyzer/constraintTracker.ts`** - Constraint tracking and management
+
+### Supporting Utilities
+- **`analyzer/typeUtils.ts`** (4,464 lines) - Type manipulation utilities
+- **`analyzer/operations.ts`** (1,396 lines) - Type operations and operators
+- **`analyzer/typeCacheUtils.ts`** (254 lines) - Type caching mechanisms
+- **`analyzer/codeFlowEngine.ts`** (2,026 lines) - Control flow analysis
+
+### Additional Analysis Components
+- **`analyzer/parseTreeUtils.ts`** (2,733 lines) - AST manipulation utilities
+- **`analyzer/patternMatching.ts`** (2,198 lines) - Pattern matching type analysis
+- **`analyzer/protocols.ts`** (894 lines) - Protocol and structural typing
+
+This reference guide provides direct mappings between Jac type checker components and their Pyright inspirations, enabling developers to study specific algorithms and implementations in detail.
