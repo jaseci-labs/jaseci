@@ -76,16 +76,7 @@ nav:
       - Language Ref Roadmap: "internals/planning_specs/ref_roadmap.md"
       - Error System: "internals/planning_specs/error_system.md"
       - Formatter System: "internals/planning_specs/formatter_system.md"
-      - Native Type System:
-        - Introduction: "internals/planning_specs/native_type_system/index.md"
-        - Architecture: "internals/planning_specs/native_type_system/architecture.md"
-        - Type Representation: "internals/planning_specs/native_type_system/type_representation.md"
-        - Type Resolution: "internals/planning_specs/native_type_system/type_resolution.md"
-        - Type Rules: "internals/planning_specs/native_type_system/type_rules.md"
-        - Type Inference: "internals/planning_specs/native_type_system/type_inference.md"
-        - Compiler Integration: "internals/planning_specs/native_type_system/compiler_integration.md"
-        - Let's Build: "internals/planning_specs/native_type_system/lets_build.md"
-      - The Pyright Project: "internals/pyright_inspiration.md"
+      - Toward Pyright-level Prod-readiness: "internals/pyright_inspiration.md"
 
   - Community Hub:
     - Roadmap: "communityhub/roadmap.md"
