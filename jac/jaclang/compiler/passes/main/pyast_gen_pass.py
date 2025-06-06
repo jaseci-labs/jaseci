@@ -1342,6 +1342,19 @@ class PyastGenPass(UniPass):
                 )
             ]
 
+        # node.gen.py_ast = [
+        #     self.sync(
+        #         ast3.Assert(
+        #             test=cast(ast3.expr, node.condition.gen.py_ast[0]),
+        #             msg=(
+        #                 cast(ast3.expr, node.error_msg.gen.py_ast[0])
+        #                 if node.error_msg
+        #                 else None
+        #             ),
+        #         )
+        #     )
+        # ]
+
     def exit_check_stmt(self, node: uni.CheckStmt) -> None:
         """Sub objects.
 
