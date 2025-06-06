@@ -85,6 +85,7 @@ nav:
         - Type Inference: "internals/planning_specs/native_type_system/type_inference.md"
         - Compiler Integration: "internals/planning_specs/native_type_system/compiler_integration.md"
         - Let's Build: "internals/planning_specs/native_type_system/lets_build.md"
+      - The Pyright Project: "internals/pyright_inspiration.md"
 
   - Community Hub:
     - Roadmap: "communityhub/roadmap.md"
