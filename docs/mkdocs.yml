@@ -76,7 +76,7 @@ nav:
       - Language Ref Roadmap: "internals/planning_specs/ref_roadmap.md"
       - Error System: "internals/planning_specs/error_system.md"
       - Formatter System: "internals/planning_specs/formatter_system.md"
-      - Toward Pyright-level Prod-readiness: "internals/pyright_inspiration.md"
+      - The Pyright Inspiration Project: "internals/pyright_inspiration.md"
 
   - Community Hub:
     - Roadmap: "communityhub/roadmap.md"
