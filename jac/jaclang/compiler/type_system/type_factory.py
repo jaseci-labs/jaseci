@@ -9,7 +9,10 @@ Pyright Reference:
 - Caching and deduplication strategies for performance
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .function_types import FunctionType, FunctionParameter, OverloadedFunctionType
 
 from .primitive_types import (
     BoolType,
@@ -133,27 +136,9 @@ class TypeFactory:
 
         Returns a single type if the union reduces to one type.
         """
-        if not types:
-            return self.get_primitive_type("never")
+        from .union_types import create_union_type
 
-        if len(types) == 1:
-            return types[0]
-
-        # Flatten any nested unions and remove duplicates
-        flattened_types: List[TypeBase] = []
-        for t in types:
-            # For now, just add the type directly since we don't have UnionType yet
-            # This will be enhanced in later commits
-            if not any(t.is_same_type(existing) for existing in flattened_types):
-                flattened_types.append(t)
-
-        # If after deduplication we have only one type, return it
-        if len(flattened_types) == 1:
-            return flattened_types[0]
-
-        # For now, return the first type as a placeholder
-        # This will be replaced with proper UnionType in commit 8
-        return flattened_types[0]
+        return create_union_type(types)
 
     def normalize_type(self, type_instance: TypeBase) -> TypeBase:
         """
@@ -272,3 +257,34 @@ class TypeFactory:
         never_type = self.get_primitive_type("never")
         assert isinstance(never_type, NeverType)
         return never_type
+
+    def create_function_type(
+        self,
+        parameters: List["FunctionParameter"],
+        return_type: TypeBase,
+        name: Optional[str] = None,
+        **kwargs,
+    ) -> "FunctionType":
+        """Create a function type with parameters and return type."""
+        from .function_types import FunctionType
+
+        return FunctionType(parameters, return_type, name, **kwargs)
+
+    def create_simple_function_type(
+        self,
+        param_types: List[TypeBase],
+        return_type: TypeBase,
+        param_names: Optional[List[str]] = None,
+    ) -> "FunctionType":
+        """Create a simple function type with positional parameters."""
+        from .function_types import create_simple_function_type
+
+        return create_simple_function_type(param_types, return_type, param_names)
+
+    def create_overloaded_function_type(
+        self, name: str, overloads: List["FunctionType"]
+    ) -> "OverloadedFunctionType":
+        """Create an overloaded function type with multiple signatures."""
+        from .function_types import OverloadedFunctionType
+
+        return OverloadedFunctionType(name, overloads)

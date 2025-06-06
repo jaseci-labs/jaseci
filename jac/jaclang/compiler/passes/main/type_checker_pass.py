@@ -34,9 +34,8 @@ class TypeCheckerPass(UniPass):
 
     def __init__(self, ir_in: uni.Module, prog: "JacProgram") -> None:
         """Initialize the type checker pass."""
-        super().__init__(ir_in, prog)
-
-        # Initialize type system components
+        # Initialize type system components BEFORE calling super().__init__()
+        # because super().__init__() immediately triggers the transform
         self.type_factory = TypeFactory()
         self.symbol_table_manager = SymbolTableManager(self.type_factory)
         self.type_evaluator = TypeEvaluator(
@@ -49,6 +48,8 @@ class TypeCheckerPass(UniPass):
 
         # Track current enhanced symbol table
         self.current_enhanced_table: Optional[EnhancedSymbolTable] = None
+
+        super().__init__(ir_in, prog)
 
     def before_pass(self) -> None:
         """Initialize type checking context before processing."""
@@ -126,6 +127,7 @@ class TypeCheckerPass(UniPass):
             self.context_stack.append(archetype_context)
 
             # Update current table
+            # old_table = self.current_enhanced_table
             self.current_enhanced_table = archetype_table
 
             # Define archetype type
