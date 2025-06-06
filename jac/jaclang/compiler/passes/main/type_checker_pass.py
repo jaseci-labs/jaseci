@@ -398,7 +398,9 @@ class TypeCheckerPass(UniPass):
         except Exception as e:
             self.log_warning(f"Error updating symbol type: {e}")
 
-    def _update_single_symbol_type(self, target: uni.UniNode, value_type: TypeBase) -> None:
+    def _update_single_symbol_type(
+        self, target: uni.UniNode, value_type: TypeBase
+    ) -> None:
         """Update a single symbol's type from assignment."""
         try:
             if (

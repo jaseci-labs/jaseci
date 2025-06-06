@@ -123,12 +123,11 @@ class JacProgram:
         """Convert a Jac file to an AST."""
         JacAnnexPass(ir_in=mod_targ, prog=self)
         SymTabBuildPass(ir_in=mod_targ, prog=self)
+        TypeBinderPass(ir_in=mod_targ, prog=self)
+        TypeCheckerPass(ir_in=mod_targ, prog=self)
         if mode == CompilerMode.PARSE:
             return mod_targ
         elif mode in (CompilerMode.COMPILE_SINGLE, CompilerMode.NO_CGEN_SINGLE):
-            # Run type checking for single file compilation
-            TypeBinderPass(mod_targ, prog=self)
-            TypeCheckerPass(mod_targ, prog=self)
             self.schedule_runner(mod_targ, mode=mode)
             return mod_targ
         JacImportDepsPass(ir_in=mod_targ, prog=self)
@@ -139,15 +138,15 @@ class JacProgram:
             self.schedule_runner(mod, mode=CompilerMode.COMPILE)
         if mode == CompilerMode.COMPILE:
             return mod_targ
-        PyImportDepsPass(mod_targ, prog=self)
+        PyImportDepsPass(ir_in=mod_targ, prog=self)
         SymTabLinkPass(ir_in=mod_targ, prog=self)
         for mod in self.mod.hub.values():
-            DefUsePass(mod, prog=self)
+            DefUsePass(ir_in=mod, prog=self)
         # Run type checking passes after symbol analysis
         for mod in self.mod.hub.values():
-            TypeBinderPass(mod, prog=self)
+            TypeBinderPass(ir_in=mod, prog=self)
         for mod in self.mod.hub.values():
-            TypeCheckerPass(mod, prog=self)
+            TypeCheckerPass(ir_in=mod, prog=self)
         for mod in self.mod.hub.values():
             self.schedule_runner(mod, mode=CompilerMode.TYPECHECK)
         return mod_targ
