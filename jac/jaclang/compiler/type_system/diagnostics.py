@@ -85,7 +85,7 @@ class TypeDiagnostic:
         return cls(message, DiagnosticSeverity.INFO, node, None, error_code)
 
     def __str__(self) -> str:
-        """String representation of the diagnostic."""
+        """Return string representation of the diagnostic."""
         location_str = f" at {self.location}" if self.location else ""
         error_code_str = f" [{self.error_code}]" if self.error_code else ""
         return f"{self.severity.value.upper()}: {self.message}{location_str}{error_code_str}"
@@ -200,7 +200,7 @@ class DiagnosticSink:
         return len(self.diagnostics)
 
     def __str__(self) -> str:
-        """String representation of the diagnostic sink."""
+        """Return string representation of the diagnostic sink."""
         summary = self.get_summary()
         return f"DiagnosticSink({summary})"
 

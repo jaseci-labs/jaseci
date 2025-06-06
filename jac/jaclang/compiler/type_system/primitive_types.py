@@ -9,7 +9,7 @@ Pyright Reference:
 - Collection type implementations for List, Dict, Set equivalents
 """
 
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from .types import TypeBase, TypeCategory, TypeFlags
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 class PrimitiveType(TypeBase):
     """Base class for primitive types like int, float, str, bool."""
 
-    def __init__(self, name: str, default_value: Any = None) -> None:
+    def __init__(self, name: str, default_value: object | None = None) -> None:
         """Initialize a primitive type."""
         super().__init__(TypeCategory.PRIMITIVE, TypeFlags.INSTANTIABLE_INSTANCE)
         self.name = name
@@ -53,7 +53,7 @@ class PrimitiveType(TypeBase):
         return self.name
 
     def __str__(self) -> str:
-        """String representation of the type."""
+        """Return string representation of the type."""
         return self.name
 
 

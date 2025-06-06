@@ -72,7 +72,7 @@ class TypeBase(ABC):
         pass
 
     def __str__(self) -> str:
-        """String representation of the type."""
+        """Return string representation of the type."""
         return self.get_display_name()
 
     def __repr__(self) -> str:

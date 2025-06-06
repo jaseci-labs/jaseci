@@ -13,7 +13,7 @@ Pyright Reference:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, Sequence, TYPE_CHECKING, Union
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import Tokens as Tok
@@ -344,7 +344,9 @@ class TypeCheckerPass(UniPass):
         except Exception as e:
             self.log_warning(f"Failed to define ability type: {e}")
 
-    def _get_assignment_target_type(self, target: Any) -> Optional[TypeBase]:
+    def _get_assignment_target_type(
+        self, target: Union[Sequence[uni.UniNode], uni.UniNode]
+    ) -> Optional[TypeBase]:
         """Get the type of an assignment target."""
         try:
             if hasattr(target, "__iter__") and not isinstance(target, str):
@@ -360,7 +362,7 @@ class TypeCheckerPass(UniPass):
 
         return None
 
-    def _get_single_target_type(self, target: Any) -> Optional[TypeBase]:
+    def _get_single_target_type(self, target: uni.UniNode) -> Optional[TypeBase]:
         """Get the type of a single assignment target."""
         try:
             # If target is a name, look up its current type
@@ -380,7 +382,7 @@ class TypeCheckerPass(UniPass):
             return self.type_factory.create_unknown_type()
 
     def _update_symbol_type_from_assignment(
-        self, target: Any, value_type: TypeBase
+        self, target: Union[Sequence[uni.UniNode], uni.UniNode], value_type: TypeBase
     ) -> None:
         """Update symbol type based on assignment."""
         try:
@@ -394,7 +396,7 @@ class TypeCheckerPass(UniPass):
         except Exception as e:
             self.log_warning(f"Error updating symbol type: {e}")
 
-    def _update_single_symbol_type(self, target: Any, value_type: TypeBase) -> None:
+    def _update_single_symbol_type(self, target: uni.UniNode, value_type: TypeBase) -> None:
         """Update a single symbol's type from assignment."""
         try:
             if (

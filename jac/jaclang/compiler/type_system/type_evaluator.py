@@ -10,7 +10,7 @@ Pyright Reference:
 - Key methods: getType, getTypeOfExpression, assignType, etc.
 """
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING, Union
 
 import jaclang.compiler.unitree as uni
 
@@ -120,7 +120,7 @@ class TypeEvaluator:
         return result_type
 
     def _evaluate_expression_type(self, node: uni.UniNode) -> TypeBase:
-        """Internal method to evaluate expression types."""
+        """Evaluate expression type of the given node."""
         match type(node):
             case uni.Name:
                 return self._evaluate_name_type(node)
@@ -253,7 +253,11 @@ class TypeEvaluator:
         return self.type_factory.create_unknown_type()
 
     def _evaluate_arithmetic_binary_op(
-        self, left_type: TypeBase, op: Any, right_type: TypeBase, node: uni.UniNode
+        self,
+        left_type: TypeBase,
+        op: Union[uni.Token, uni.DisconnectOp, uni.ConnectOp],
+        right_type: TypeBase,
+        node: uni.UniNode,
     ) -> TypeBase:
         """Evaluate arithmetic binary operations."""
         # String concatenation
@@ -292,14 +296,22 @@ class TypeEvaluator:
         return self.type_factory.create_unknown_type()
 
     def _evaluate_comparison_binary_op(
-        self, left_type: TypeBase, op: Any, right_type: TypeBase, node: uni.UniNode
+        self,
+        left_type: TypeBase,
+        op: Union[uni.Token, uni.DisconnectOp, uni.ConnectOp],
+        right_type: TypeBase,
+        node: uni.UniNode,
     ) -> TypeBase:
         """Evaluate comparison binary operations."""
         # Comparison operations always return bool
         return self.type_factory.get_primitive_type("bool")
 
     def _evaluate_logical_binary_op(
-        self, left_type: TypeBase, op: Any, right_type: TypeBase, node: uni.UniNode
+        self,
+        left_type: TypeBase,
+        op: Union[uni.Token, uni.DisconnectOp, uni.ConnectOp],
+        right_type: TypeBase,
+        node: uni.UniNode,
     ) -> TypeBase:
         """Evaluate logical binary operations."""
         # Logical operations return bool
