@@ -17,6 +17,7 @@ from jaclang.langserve.tests.server_test.utils import (
     create_temp_jac_file,
     get_code,
     get_jac_file_path,
+    get_simple_code,
     create_ls_with_workspace,  # new helper
 )
 from jaclang.vendor.pygls.uris import from_fs_path
@@ -287,3 +288,73 @@ class TestLangServe:
         print(edits[0].new_text)
         ls.shutdown()
         os.remove(temp_file_path)
+
+    @pytest.mark.asyncio
+    async def test_multifile_workspace(self):
+        """Test opening multiple Jac files in a workspace."""
+        code1 = get_simple_code("")
+        code2 = get_simple_code("error")
+        temp_file_path1 = create_temp_jac_file(code1)
+        temp_file_path2 = create_temp_jac_file(code2)
+
+        uri1, ls = create_ls_with_workspace(temp_file_path1)
+        uri2 = from_fs_path(temp_file_path2)
+
+        await did_open(
+            ls,
+            DidOpenTextDocumentParams(
+                text_document=TextDocumentItem(
+                    uri=uri1,
+                    language_id="jac",
+                    version=1,
+                    text=code1,
+                )
+            ),
+        )
+        await did_open(
+            ls,
+            DidOpenTextDocumentParams(
+                text_document=TextDocumentItem(
+                    uri=uri2,
+                    language_id="jac",
+                    version=1,
+                    text=code2,
+                )
+            ),
+        )
+
+        diagnostics1 = ls.diagnostics.get(uri1, [])
+        diagnostics2 = ls.diagnostics.get(uri2, [])
+        assert len(diagnostics1) == 0
+        assert len(diagnostics2) == 1
+        assert diagnostics2[0].message == "Syntax Error"
+
+        before_sem_tokens_1 = ls.get_semantic_tokens(uri1)
+        before_sem_tokens_2 = ls.get_semantic_tokens(uri2)
+        assert len(before_sem_tokens_1.data) ==15
+        assert len(before_sem_tokens_2.data) == 0
+
+        changed_code = get_simple_code("glob x = 90;")
+        ls.workspace.put_text_document(
+            TextDocumentItem(
+                uri=uri1,
+                language_id="jac",
+                version=2,
+                text=changed_code,
+            )
+        )
+        params = DidChangeTextDocumentParams(
+            text_document=VersionedTextDocumentIdentifier(uri=uri1, version=2),
+            content_changes=[{"text": changed_code}],
+        )
+        await did_change(ls, params)
+
+        after_sem_tokens_1 = ls.get_semantic_tokens(uri1)
+        after_sem_tokens_2 = ls.get_semantic_tokens(uri2)
+
+        assert len(after_sem_tokens_1.data) == 20
+        assert len(after_sem_tokens_2.data) == 0
+
+        ls.shutdown()
+        os.remove(temp_file_path1)
+        os.remove(temp_file_path2)

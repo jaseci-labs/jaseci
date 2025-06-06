@@ -92,38 +92,72 @@ class JacLangServer ( JacProgram , LanguageServer ) {
 
     """Rebuild a file (syntax only)."""
     def quick_check(self: JacLangServer, file_path: str) -> bool {
-        try { file_path_fs = file_path.removeprefix('file://'); document = self.workspace.get_text_document(file_path); self._clear_alerts_for_file(file_path_fs); build = self.compile_from_str(
-            source_str=document.source, file_path=document.path, mode=CMode.PARSE
-        ); self.update_modules(file_path_fs, build, need=False); self.publish_diagnostics(
-            file_path, utils.gen_diagnostics(
-                file_path, self.errors_had, self.warnings_had
-            )
-        ); return len(self.errors_had) == 0; } except Exception as e { self.log_error(f"'Error during syntax check: '{e}"); return False; }
+        try {
+            file_path_fs = file_path.removeprefix('file://');
+            document = self.workspace.get_text_document(file_path);
+            self._clear_alerts_for_file(file_path_fs);
+            build = self.compile_from_str(
+                source_str=document.source,
+                file_path=document.path,
+                mode=CMode.PARSE
+            );
+            self.update_modules(file_path_fs, build, need=False); self.publish_diagnostics(
+                file_path, utils.gen_diagnostics(
+                    file_path, self.errors_had, self.warnings_had
+                )
+            );
+            build_errors = [
+                e for e in self.errors_had if e.loc.mod_path == file_path_fs
+            ];
+            return len(build_errors) == 0;
+        }
+        except Exception as e {
+            self.log_error(f"'Error during syntax check: '{e}");
+            return False;
+        }
     }
 
     """Rebuild a file and its dependencies (typecheck)."""
     def deep_check(
         self: JacLangServer, file_path: str, annex_view: Optional[str] = None
     ) -> bool {
-        try { start_time = time.time(); file_path_fs = file_path.removeprefix('file://'); document = self.workspace.get_text_document(file_path); self._clear_alerts_for_file(file_path_fs); build = self.compile_from_str(
-            source_str=document.source, file_path=document.path, mode=CMode.TYPECHECK
-        ); self.update_modules(file_path_fs, build); if build.annexable_by {
-            return self.deep_check(
-                uris.from_fs_path(build.annexable_by), annex_view=file_path
-            );
-        } self.publish_diagnostics(
-            annex_view if annex_view else file_path , utils.gen_diagnostics(
-                annex_view if annex_view else file_path , self.errors_had, self.warnings_had
-            )
-        ); if annex_view {
+        try {
+            start_time = time.time();
+            file_path_fs = file_path.removeprefix('file://');
+            document = self.workspace.get_text_document(file_path);
+            self._clear_alerts_for_file(file_path_fs);
+            build = self.compile_from_str(
+                        source_str=document.source,
+                        file_path=document.path,
+                        mode=CMode.TYPECHECK
+                    );
+            self.update_modules(file_path_fs, build);
+            if build.annexable_by {
+                return self.deep_check(
+                            uris.from_fs_path(build.annexable_by),
+                            annex_view=file_path
+                    );
+            }
             self.publish_diagnostics(
-                file_path, utils.gen_diagnostics(
-                    file_path, self.errors_had, self.warnings_had
+                annex_view if annex_view else file_path , utils.gen_diagnostics(
+                    annex_view if annex_view else file_path , self.errors_had, self.warnings_had
                 )
             );
-        } self.log_py(
-            f"'PROFILE: Deep check took '{(time.time() - start_time)}' seconds.'"
-        ); return len(self.errors_had) == 0; } except Exception as e { self.log_py(f"'Error during deep check: '{e}"); return False; }
+            if annex_view {
+                self.publish_diagnostics(
+                    file_path, utils.gen_diagnostics(
+                        file_path, self.errors_had, self.warnings_had
+                    )
+                );
+            }
+            self.log_py(
+                f"'PROFILE: Deep check took '{(time.time() - start_time)}' seconds.'"
+            ); return len(self.errors_had) == 0;
+        }
+        except Exception as e {
+            self.log_py(f"'Error during deep check: '{e}");
+            return False;
+        }
     }
 
     """Analyze and publish diagnostics."""

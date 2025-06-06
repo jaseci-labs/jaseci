@@ -42,7 +42,7 @@ We start this journey top down. Lets look at a simple but complete program in Py
     ```jac linenums="1"
     --8<-- "jac/examples/manual_code/circle_clean.jac"
     ```
-=== "circle_clean_impl.jac"
+=== "circle_clean.impl.jac"
     ```jac linenums="1"
     --8<-- "jac/examples/manual_code/circle_clean.impl.jac"
     ```
