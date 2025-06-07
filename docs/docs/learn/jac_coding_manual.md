@@ -30,7 +30,25 @@ def find_friends_of_friends(user):
         for friend_of_friend in friend.friends:
             if friend_of_friend != user:
                 fof.add(friend_of_friend)
+
+
+    print(f"Friends of {user.name}'s friends:", [user.name for user in fof])
     return fof
+
+
+# Create users
+alice = User("Alice")
+bob = User("Bob")
+carol = User("Carol")
+dave = User("Dave")
+
+# Build friendship connections
+alice.add_friend(bob)    # Alice ↔ Bob
+bob.add_friend(carol)    # Bob ↔ Carol
+carol.add_friend(dave)   # Carol ↔ Dave
+
+# Test the function
+fof_alice = find_friends_of_friends(alice)
 ```
 
 ```jac
@@ -44,23 +62,40 @@ edge Friendship {
 }
 
 walker FindFriendsOfFriends {
-    has visited: set = {};
-    has friends_of_friends: set = {};
+    has visited: set = set();
+    has friends_of_friends: set = set();
 
     can traverse with entry {
         if here in self.visited { return; }
         self.visited.add(here);
 
         # First hop: direct friends
-        for friend in [-->:Friendship:] {
+        for friend in [->:Friendship:->(`?User)] {
             # Second hop: friends of friends
-            for fof in friend[-->:Friendship:] {
+            for fof in [friend->:Friendship:->(`?User)] {
                 if fof != root {  # root is the starting user
                     self.friends_of_friends.add(fof);
                 }
             }
         }
+
+        print(f"Friends of {here.name}'s friends:", 
+              [fof.name for fof in self.friends_of_friends]);
     }
+}
+
+with entry {
+    alice = User(name = "Alice");
+    bob = User(name = "Bob");
+    carol = User(name = "Carol");
+    dave = User(name = "Dave");
+
+    alice +>:Friendship(since="today"):+> bob;
+    bob +>:Friendship(since="yesterday"):+> carol;
+    carol +>:Friendship(since="last month"):+> dave;
+
+
+    FindFriendsOfFriends() spawn alice;
 }
 ```
 
