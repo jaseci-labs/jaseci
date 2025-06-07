@@ -13,19 +13,15 @@ Pyright Reference:
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence, TYPE_CHECKING, Union
+from typing import Optional, Sequence, Union
 
 import jaclang.compiler.unitree as uni
-from jaclang.compiler.constant import Tokens as Tok
 from jaclang.compiler.passes import UniPass
 
 from ...type_system.diagnostics import TypeErrorCodes
 from ...type_system.type_evaluator import TypeEvaluator
 from ...type_system.type_factory import TypeFactory
 from ...type_system.types import TypeBase
-
-if TYPE_CHECKING:
-    from jaclang.compiler.program import JacProgram
 
 
 class TypeCheckerPass(UniPass):

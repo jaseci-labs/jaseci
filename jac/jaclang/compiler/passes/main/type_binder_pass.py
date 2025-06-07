@@ -11,18 +11,13 @@ Pyright Reference:
 - This pass extends Binder concepts with type information
 """
 
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional
 
 import jaclang.compiler.unitree as uni
-from jaclang.compiler.constant import Tokens as Tok
 from jaclang.compiler.passes import UniPass
-
-from ...type_system.diagnostics import DiagnosticSink
-from ...type_system.type_factory import TypeFactory
-from ...type_system.types import TypeBase
-
-if TYPE_CHECKING:
-    from jaclang.compiler.program import JacProgram
+from jaclang.compiler.type_system.diagnostics import DiagnosticSink
+from jaclang.compiler.type_system.type_factory import TypeFactory
+from jaclang.compiler.type_system.types import TypeBase
 
 
 class TypeBinderPass(UniPass):
@@ -158,28 +153,11 @@ class TypeBinderPass(UniPass):
 
     def _create_archetype_type(self, node: uni.Archetype) -> Optional[TypeBase]:
         """Create a type for an archetype definition."""
-        try:
-            if node.arch_type.name == Tok.KW_NODE:
-                return self.type_factory.create_unknown_type()
-            elif node.arch_type.name == Tok.KW_WALKER:
-                return self.type_factory.create_unknown_type()
-            elif node.arch_type.name == Tok.KW_EDGE:
-                return self.type_factory.create_unknown_type()
-            else:
-                return self.type_factory.create_unknown_type()
-        except Exception as e:
-            self.diagnostic_sink.add_error(
-                f"Failed to create archetype type: {e}", node
-            )
-            return None
+        return self.type_factory.create_unknown_type()
 
     def _create_ability_type(self, node: uni.Ability) -> Optional[TypeBase]:
         """Create a type for an ability definition."""
-        try:
-            return self.type_factory.create_unknown_type()
-        except Exception as e:
-            self.diagnostic_sink.add_error(f"Failed to create ability type: {e}", node)
-            return None
+        return self.type_factory.create_unknown_type()
 
     def _extract_field_types(self, node: uni.Archetype) -> Dict[str, TypeBase]:
         """Extract field types from archetype definition."""
