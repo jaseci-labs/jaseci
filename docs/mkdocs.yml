@@ -99,15 +99,7 @@ nav:
       - Language Ref Roadmap: "internals/planning_specs/ref_roadmap.md"
       - Error System: "internals/planning_specs/error_system.md"
       - Formatter System: "internals/planning_specs/formatter_system.md"
-      - Native Type System:
-        - Introduction: "internals/planning_specs/native_type_system/index.md"
-        - Architecture: "internals/planning_specs/native_type_system/architecture.md"
-        - Type Representation: "internals/planning_specs/native_type_system/type_representation.md"
-        - Type Resolution: "internals/planning_specs/native_type_system/type_resolution.md"
-        - Type Rules: "internals/planning_specs/native_type_system/type_rules.md"
-        - Type Inference: "internals/planning_specs/native_type_system/type_inference.md"
-        - Compiler Integration: "internals/planning_specs/native_type_system/compiler_integration.md"
-        - Let's Build: "internals/planning_specs/native_type_system/lets_build.md"
+      - The Pyright Inspiration Project: "internals/pyright_inspiration.md"
 
   - Community Hub:
     - Roadmap: "communityhub/roadmap.md"
@@ -204,6 +196,8 @@ extra_javascript:
   - assets/mathjax-config.js
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  - https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js
+  - assets/mermaid-init.js
   - https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js
   - https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.js
   - https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js

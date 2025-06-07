@@ -26,6 +26,8 @@ from jaclang.compiler.passes.main import (
     SymTabBuildPass,
     SymTabLinkPass,
     Transform,
+    TypeBinderPass,
+    TypeCheckerPass,
 )
 from jaclang.compiler.passes.tool import (
     DocIRGenPass,
@@ -121,6 +123,8 @@ class JacProgram:
         """Convert a Jac file to an AST."""
         JacAnnexPass(ir_in=mod_targ, prog=self)
         SymTabBuildPass(ir_in=mod_targ, prog=self)
+        TypeBinderPass(ir_in=mod_targ, prog=self)
+        TypeCheckerPass(ir_in=mod_targ, prog=self)
         if mode == CompilerMode.PARSE:
             return mod_targ
         elif mode in (CompilerMode.COMPILE_SINGLE, CompilerMode.NO_CGEN_SINGLE):
@@ -134,10 +138,15 @@ class JacProgram:
             self.schedule_runner(mod, mode=CompilerMode.COMPILE)
         if mode == CompilerMode.COMPILE:
             return mod_targ
-        PyImportDepsPass(mod_targ, prog=self)
+        PyImportDepsPass(ir_in=mod_targ, prog=self)
         SymTabLinkPass(ir_in=mod_targ, prog=self)
         for mod in self.mod.hub.values():
-            DefUsePass(mod, prog=self)
+            DefUsePass(ir_in=mod, prog=self)
+        # Run type checking passes after symbol analysis
+        for mod in self.mod.hub.values():
+            TypeBinderPass(ir_in=mod, prog=self)
+        for mod in self.mod.hub.values():
+            TypeCheckerPass(ir_in=mod, prog=self)
         for mod in self.mod.hub.values():
             self.schedule_runner(mod, mode=CompilerMode.TYPECHECK)
         return mod_targ
@@ -154,7 +163,8 @@ class JacProgram:
             case CompilerMode.COMPILE | CompilerMode.COMPILE_SINGLE:
                 passes = [*ir_gen_sched, *py_code_gen]
             case CompilerMode.TYPECHECK:
-                passes = []
+                # Run only type checking passes for type checking mode
+                passes = []  # Type checking will be handled separately in the pipeline
             case _:
                 raise ValueError(f"Invalid mode: {mode}")
         self.run_schedule(mod, passes)
