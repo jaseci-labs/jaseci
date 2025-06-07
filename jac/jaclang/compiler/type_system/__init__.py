@@ -25,8 +25,7 @@ from .primitive_types import (
     TupleType,
 )
 from .special_types import AnyType, NeverType, UnknownType
-from .symbol_table import EnhancedSymbolTable, SymbolTableManager, TypedSymbol
-from .type_evaluator import EvaluationContext, TypeEvaluator
+from .type_evaluator import TypeEvaluator
 from .type_factory import TypeFactory
 from .types import TypeBase, TypeCategory, TypeFlags
 from .union_types import UnionType, create_union_type, get_union_subtypes, is_union_type
@@ -78,13 +77,8 @@ __all__ = [
     "is_callable_type",
     # Type factory
     "TypeFactory",
-    # Enhanced symbol tables
-    "TypedSymbol",
-    "EnhancedSymbolTable",
-    "SymbolTableManager",
     # Type evaluator
     "TypeEvaluator",
-    "EvaluationContext",
     # Diagnostics
     "TypeDiagnostic",
     "DiagnosticSink",
