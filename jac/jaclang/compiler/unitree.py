@@ -17,6 +17,7 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
+    TYPE_CHECKING,
 )
 
 
@@ -37,6 +38,9 @@ from jaclang.utils.treeprinter import (
     printgraph_ast_tree,
     printgraph_symtab_tree,
 )
+
+if TYPE_CHECKING:
+    from jaclang.compiler.type_system.types import TypeBase
 
 
 class UniNode:
@@ -235,6 +239,7 @@ class Symbol:
         defn: NameAtom,
         access: SymbolAccess,
         parent_tab: UniScopeNode,
+        typ: Optional[TypeBase] = None,
     ) -> None:
         """Initialize."""
         self.defn: list[NameAtom] = [defn]
@@ -242,6 +247,9 @@ class Symbol:
         defn.sym = self
         self.access: SymbolAccess = access
         self.parent_tab = parent_tab
+        self.typ: Optional[TypeBase] = typ
+        self.is_type_inferred: bool = False
+        self.type_constraints: list[TypeBase] = []
 
     @property
     def decl(self) -> NameAtom:
@@ -330,6 +338,7 @@ class UniScopeNode(UniNode):
         self,
         node: AstSymbolNode,
         access_spec: Optional[AstAccessNode] | SymbolAccess = None,
+        typ: Optional[TypeBase] = None,
         single: bool = False,
         force_overwrite: bool = False,
     ) -> Optional[UniNode]:
@@ -352,6 +361,7 @@ class UniScopeNode(UniNode):
                     else access_spec.access_type if access_spec else SymbolAccess.PUBLIC
                 ),
                 parent_tab=self,
+                typ=typ,
             )
         else:
             self.names_in_scope[node.sym_name].add_defn(node.name_spec)
@@ -377,12 +387,13 @@ class UniScopeNode(UniNode):
     def inherit_sym_tab(self, target_sym_tab: UniScopeNode) -> None:
         """Inherit symbol table."""
         for i in target_sym_tab.names_in_scope.values():
-            self.def_insert(i.decl, access_spec=i.access)
+            self.def_insert(i.decl, access_spec=i.access, typ=i.typ)
 
     def def_insert(
         self,
         node: AstSymbolNode,
         access_spec: Optional[AstAccessNode] | SymbolAccess = None,
+        typ: Optional[TypeBase] = None,
         single_decl: Optional[str] = None,
         force_overwrite: bool = False,
     ) -> Optional[Symbol]:
@@ -393,6 +404,7 @@ class UniScopeNode(UniNode):
             node=node,
             single=single_decl is not None,
             access_spec=access_spec,
+            typ=typ,
             force_overwrite=force_overwrite,
         )
         self.update_py_ctx_for_def(node)
