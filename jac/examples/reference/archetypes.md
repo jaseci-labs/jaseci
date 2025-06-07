@@ -1,14 +1,14 @@
-Archetypes represent Jac's extension of traditional object-oriented programming classes, providing specialized constructs that enable data spatial programming. Each archetype type serves a distinct role in building topological computational systems where data and computation are distributed across graph structures.
+Archetypes represent Jac's extension of traditional object-oriented programming classes, providing specialized constructs that enable object-spatial programming. Each archetype type serves a distinct role in building topological computational systems where data and computation are distributed across graph structures.
 
 #### Archetype Types
 
-Jac defines five archetype categories that form the foundation of data spatial programming:
+Jac defines five archetype categories that form the foundation of object-spatial programming:
 
-**Object (`obj`)**: Standard object archetypes that represents tradtional OOP class semantics. Objects serve as the base type from which nodes, walkers, and edges inherit, ensuring compatibility with data spatial programming patterns.
+**Object (`obj`)**: Standard object archetypes that represents tradtional OOP class semantics. Objects serve as the base type from which nodes, walkers, and edges inherit, ensuring compatibility with object-spatial programming patterns.
 
 **Node (`node`)**: Specialized archetypes that represent discrete locations within topological structures. Nodes can store data, host computational abilities, and connect to other nodes through edges, forming the spatial foundation for graph-based computation.
 
-**Walker (`walker`)**: Mobile computational entities that traverse node-edge structures, carrying algorithmic behaviors and state throughout the topological space. Walkers embody the "computation moving to data" paradigm central to data spatial programming.
+**Walker (`walker`)**: Mobile computational entities that traverse node-edge structures, carrying algorithmic behaviors and state throughout the topological space. Walkers embody the "computation moving to data" paradigm central to object-spatial programming.
 
 **Edge (`edge`)**: First-class relationship archetypes that connect nodes while providing their own computational capabilities. Edges represent both connectivity and transition-specific behaviors within the graph structure.
 
@@ -16,9 +16,9 @@ Jac defines five archetype categories that form the foundation of data spatial p
 
 #### Implementation Details
 
-From an implementation standpoint, the four data spatial archetypes (`obj`, `node`, `walker`, `edge`) behave similarly to Python dataclasses. Their constructor semantics and initialization rules mirror the automated constructors that Python generates for dataclasses, providing automatic initialization of `has` variables and proper handling of inheritance hierarchies.
+From an implementation standpoint, the four object-spatial archetypes (`obj`, `node`, `walker`, `edge`) behave similarly to Python dataclasses. Their constructor semantics and initialization rules mirror the automated constructors that Python generates for dataclasses, providing automatic initialization of `has` variables and proper handling of inheritance hierarchies.
 
-#### Class vs Data Spatial Archetypes
+#### Class vs Object-Spatial Archetypes
 
 The `class` archetype provides Python-compatible class definitions, while the semantics for other archetypes are inspired by dataclass-like behavior:
 
@@ -46,7 +46,7 @@ obj DataSpatialObject {
 }
 ```
 
-Note that `class` archetypes require explicit `self` parameters and manual constructor definition, while data spatial archetypes automatically generate constructors based on `has` declarations.
+Note that `class` archetypes require explicit `self` parameters and manual constructor definition, while object-spatial archetypes automatically generate constructors based on `has` declarations.
 
 #### Constructor Rules and Has Variables
 
@@ -158,11 +158,11 @@ node :pub DataNode {
 }
 ```
 
-Access modifiers (`:pub`, `:priv`, `:protect`) enable proper encapsulation while supporting the collaborative nature of data spatial computation.
+Access modifiers (`:pub`, `:priv`, `:protect`) enable proper encapsulation while supporting the collaborative nature of object-spatial computation.
 
-#### Data Spatial Integration
+#### Object-Spatial Integration
 
-Archetypes work together to create complete data spatial systems:
+Archetypes work together to create complete object-spatial systems:
 
 ```jac
 node DataSource {
@@ -193,7 +193,7 @@ walker DataCollector {
 
 This integration enables sophisticated graph-based algorithms where computation flows naturally through topological structures, with each archetype type contributing its specialized capabilities to the overall system behavior.
 
-Archetypes provide the foundational abstractions that make data spatial programming both expressive and maintainable, enabling developers to model complex systems as interconnected computational topologies.
+Archetypes provide the foundational abstractions that make object-spatial programming both expressive and maintainable, enabling developers to model complex systems as interconnected computational topologies.
 
 #### Async Walker
 
@@ -231,4 +231,4 @@ with entry {
 }
 ```
 
-Async walkers provide significant advantages for modern data spatial applications by enabling concurrent execution where multiple async walkers can traverse different graph regions simultaneously, improving overall system throughput. They excel at handling non-blocking I/O operations, ensuring that network requests, file operations, and database queries don't block the traversal of other graph paths. This seamless asyncio integration provides full compatibility with Python's rich async ecosystem, allowing developers to leverage existing async libraries and frameworks within their data spatial programs. The asynchronous nature also leads to superior resource efficiency through better utilization of system resources during I/O operations, as the system can continue processing other graph nodes while waiting for slow operations to complete.
+Async walkers provide significant advantages for modern object-spatial applications by enabling concurrent execution where multiple async walkers can traverse different graph regions simultaneously, improving overall system throughput. They excel at handling non-blocking I/O operations, ensuring that network requests, file operations, and database queries don't block the traversal of other graph paths. This seamless asyncio integration provides full compatibility with Python's rich async ecosystem, allowing developers to leverage existing async libraries and frameworks within their object-spatial programs. The asynchronous nature also leads to superior resource efficiency through better utilization of system resources during I/O operations, as the system can continue processing other graph nodes while waiting for slow operations to complete.

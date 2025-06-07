@@ -43,9 +43,9 @@ Jac follows a systematic approach to module resolution:
 
 Jac's `impl` keyword enables separation of interface declarations from implementation details. Import statements bring only the interface unless the implementation file is found on the module path, supporting lightweight static analysis and efficient incremental builds.
 
-#### Integration with Data Spatial Programming
+#### Integration with Object-Spatial Programming
 
-Import statements work seamlessly with Jac's data spatial constructs, enabling modular organization of walkers, nodes, and edges across multiple files while maintaining the topological relationships essential for graph-based computation.
+Import statements work seamlessly with Jac's object-spatial constructs, enabling modular organization of walkers, nodes, and edges across multiple files while maintaining the topological relationships essential for graph-based computation.
 
 ```jac
 import from graph_utils { PathFinder, DataNode };
@@ -60,7 +60,7 @@ walker MyWalker {
 }
 ```
 
-Organized imports enable the Jac compiler to analyze dependencies effectively and optimize distributed execution graphs for data spatial operations.
+Organized imports enable the Jac compiler to analyze dependencies effectively and optimize distributed execution graphs for object-spatial operations.
 
 #### Application Bundling
 

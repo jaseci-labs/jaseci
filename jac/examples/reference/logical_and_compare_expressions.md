@@ -47,7 +47,7 @@ if min_age <= user.age < max_age and user.is_verified() {
 }
 ```
 
-#### Data Spatial Integration
+#### Object-Spatial Integration
 
 ```jac
 walker GraphValidator {

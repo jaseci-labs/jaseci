@@ -220,7 +220,7 @@ walker GraphValidator {
 4. **Meaningful Error Messages**: Provide context in error handling
 5. **Don't Suppress Errors**: Avoid empty except blocks
 
-#### Integration with Data Spatial
+#### Integration with Object-Spatial
 
 Exception handling in graph contexts:
 

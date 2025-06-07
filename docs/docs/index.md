@@ -39,11 +39,11 @@ Jaseci serves as the implementation of the Jac runtime, functioning in a relatio
 
 
 
-- <span style="color: orange; font-weight: bold">Beyond OOP with Data Spatial Programming</span>
+- <span style="color: orange; font-weight: bold">Beyond OOP with Object-Spatial Programming</span>
 
     ---
 
-    *Jac introduces super OOP constructs for a new paradigmn called data spatial OOP, enhancing the handling and visualization of data in ways traditional programming paradigms might not support.*
+    *Jac introduces super OOP constructs for a new paradigmn called object-spatial OOP, enhancing the handling and visualization of data in ways traditional programming paradigms might not support.*
 
 - <span style="color: orange; font-weight: bold">Cloud Native Abstractions</span>
 
@@ -54,11 +54,11 @@ Jaseci serves as the implementation of the Jac runtime, functioning in a relatio
 </div>
 <!-- # Welcome to Jac
 
-**Jac** combines the power and flexibility of Python's ecosystem and 'pythonic' coding style with a unique 'jactastic' approach to programming. It draws inspiration from a variety of programming languages to improve upon Python to create an engaging, productive, and intuitive coding experience, giving the coder all of python's power, plus superpowers. Additionally, Jac introduces a keystone innovation that may prove to be a monumental advancement in programming languages called the **Data Spatial Programming Model**.
+**Jac** combines the power and flexibility of Python's ecosystem and 'pythonic' coding style with a unique 'jactastic' approach to programming. It draws inspiration from a variety of programming languages to improve upon Python to create an engaging, productive, and intuitive coding experience, giving the coder all of python's power, plus superpowers. Additionally, Jac introduces a keystone innovation that may prove to be a monumental advancement in programming languages called the **Object-Spatial Programming Model**.
 
-Just as Object-Oriented Programming (OOP) brought a higher level of abstraction to C and Fortran's functions offered a new way to manage assembly code, Jac introduces Data Spatial Programming constructs expanding on the concept of OOP. This new model is a higher-level abstraction that lets programmers rethink how they interact with data structures, and enable new ways of thinking and being productive.
+Just as Object-Oriented Programming (OOP) brought a higher level of abstraction to C and Fortran's functions offered a new way to manage assembly code, Jac introduces Object-Spatial Programming constructs expanding on the concept of OOP. This new model is a higher-level abstraction that lets programmers rethink how they interact with data structures, and enable new ways of thinking and being productive.
 
-That being said, Jac was meticulously designed to provide a seamless gradient of expressiveness allowing coders to code in a familiar pythonic style, while using as much or as little data spatial semantics as they'd like.
+That being said, Jac was meticulously designed to provide a seamless gradient of expressiveness allowing coders to code in a familiar pythonic style, while using as much or as little object-spatial semantics as they'd like.
 
 ## A Love Letter to Python, and Beyond
 

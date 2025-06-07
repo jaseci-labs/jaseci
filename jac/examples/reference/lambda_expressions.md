@@ -153,9 +153,9 @@ validator = lambda x: int : x > 0;
 valid_numbers = {x for x in numbers if validator(x)};
 ```
 
-**Data Spatial Integration**
+**Object-Spatial Integration**
 
-Lambdas can be used within data spatial constructs:
+Lambdas can be used within object-spatial constructs:
 
 **Walker abilities:**
 ```jac
@@ -232,4 +232,4 @@ config_getter = lambda key: str : config.get(key, default_value);
 - Detailed documentation needs
 - Reusable algorithms
 
-Lambda expressions in Jac provide a powerful tool for functional programming while maintaining the language's emphasis on type safety and clarity. They enable concise expression of simple operations while integrating seamlessly with both traditional programming constructs and Jac's innovative data spatial features.
+Lambda expressions in Jac provide a powerful tool for functional programming while maintaining the language's emphasis on type safety and clarity. They enable concise expression of simple operations while integrating seamlessly with both traditional programming constructs and Jac's innovative object-spatial features.

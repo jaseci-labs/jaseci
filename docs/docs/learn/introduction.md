@@ -1,12 +1,12 @@
 <h1 style="color: orange; font-weight: bold; text-align: center;">Tour of Jac</h1>
 
-## Beyond OOP with Data Spatial Programming
+## Beyond OOP with Object-Spatial Programming
 
-Data Spatial Programming (DSP) inverts the traditional relationship between data and computation. Rather than moving data to computation, DSP moves computation to data through topologically aware constructs. This paradigm introduces specialized archetypes—objects, nodes, edges and walkers—that model spatial relationships directly in the language and enable optimizations around data locality and distributed execution.    |
+Object-Spatial Programming (OSP) inverts the traditional relationship between data and computation. Rather than moving data to computation, OSP moves computation to data through topologically aware constructs. This paradigm introduces specialized archetypes—objects, nodes, edges and walkers—that model spatial relationships directly in the language and enable optimizations around data locality and distributed execution.    |
 
 ### 🎮 Spatial Game Example
 
-**"Imagine your code is a train, and each station is a game stage. Instead of the station pulling the train in (like in OOP), the train visits each station, performs a task, and moves to the next—this is DSP."**
+**"Imagine your code is a train, and each station is a game stage. Instead of the station pulling the train in (like in OOP), the train visits each station, performs a task, and moves to the next—this is OSP."**
 
 This example shows how computation flows spatially rather than centrally:
 
@@ -50,11 +50,11 @@ with entry {
 ```
 </div>
 
-A walker travels through game stages using edges, demonstrating Data Spatial Programming.
+A walker travels through game stages using edges, demonstrating Object-Spatial Programming.
 
-### 🔄 Traditional OOP vs 🚀 Data Spatial Programming
+### 🔄 Traditional OOP vs 🚀 Object-Spatial Programming
 
-| **Traditional OOP**                                       | **Data Spatial Programming**                                  |
+| **Traditional OOP**                                       | **Object-Spatial Programming**                                  |
 | --------------------------------------------------------- | ------------------------------------------------------------- |
 | • **Centralized Control**: Logic pulls data to itself     | • **Distributed Execution**: Logic travels to data            |
 | • **Global Loops**: `for stage in stages: compute(stage)` | • **Spatial Awareness**: Walker visits GameStage nodes        |

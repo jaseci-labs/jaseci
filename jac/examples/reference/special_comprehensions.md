@@ -73,7 +73,7 @@ Type-specific filtering with property constraints:
 `FriendEdge: (mutual == True, years > 2)
 ```
 
-#### Integration with Data Spatial Operations
+#### Integration with Object-Spatial Operations
 
 Special comprehensions shine in graph operations:
 

@@ -184,7 +184,7 @@ walker Pipeline {
 4. **Resource Limits**: Consider system constraints
 5. **Synchronization**: Use wait appropriately to avoid race conditions
 
-#### Integration with Data Spatial
+#### Integration with Object-Spatial
 
 Concurrent expressions enhance graph processing:
 
@@ -212,4 +212,4 @@ walker GraphAnalyzer {
 }
 ```
 
-Concurrent expressions provide powerful primitives for parallel execution in Jac, enabling efficient utilization of modern multi-core systems while maintaining the clarity and expressiveness of the language's data spatial programming model. 
+Concurrent expressions provide powerful primitives for parallel execution in Jac, enabling efficient utilization of modern multi-core systems while maintaining the clarity and expressiveness of the language's object-spatial programming model. 

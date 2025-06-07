@@ -1,8 +1,8 @@
-Visit statements in Jac implement the fundamental data spatial operation that enables walkers to traverse through node-edge topological structures. This statement embodies the core Data Spatial Programming (DSP) paradigm of "computation moving to data" rather than the traditional approach of moving data to computation.
+Visit statements in Jac implement the fundamental object-spatial operation that enables walkers to traverse through node-edge topological structures. This statement embodies the core Object-Spatial Programming (OSP) paradigm of "computation moving to data" rather than the traditional approach of moving data to computation.
 
 **Theoretical Foundation**
 
-In DSP theory, the visit statement ($\triangleright$) allows walkers to move between nodes and edges in the topological structure, representing the dynamic traversal capability central to the paradigm. Walkers are autonomous computational entities that traverse node-edge structures, carrying state and behaviors that execute based on their current location.
+In OSP theory, the visit statement ($\triangleright$) allows walkers to move between nodes and edges in the topological structure, representing the dynamic traversal capability central to the paradigm. Walkers are autonomous computational entities that traverse node-edge structures, carrying state and behaviors that execute based on their current location.
 
 **Basic Visit Syntax**
 
@@ -100,7 +100,7 @@ When a walker executes a visit statement:
 3. **Next visit**: The walker moves to the node at the front of its queue
 4. **Continuation**: Process repeats until the queue is empty or walker disengages
 
-This queue-based approach enables sophisticated traversal patterns while maintaining the intuitive DSP programming model.
+This queue-based approach enables sophisticated traversal patterns while maintaining the intuitive OSP programming model.
 
 **Conditional Traversal with Else Clauses**
 
@@ -156,7 +156,7 @@ The complete traversal process involves:
 5. **Fallback handling**: If no outgoing edges exist, the else clause executes
 6. **Termination**: `disengage` removes the walker from active traversal
 
-**Data Spatial Benefits**
+**Object-Spatial Benefits**
 
 Visit statements enable several key advantages:
 

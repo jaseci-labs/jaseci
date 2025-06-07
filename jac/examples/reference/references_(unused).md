@@ -42,7 +42,7 @@ let func = processor;  # Functions are first-class objects
 result = func(my_data);
 ```
 
-#### Data Spatial Context
+#### Object-Spatial Context
 
 Reference-like behavior is achieved through spatial navigation:
 
@@ -61,7 +61,7 @@ The unused reference syntax may support future enhancements:
 
 1. Performance optimization for large data structures
 2. Advanced memory management
-3. Enhanced data spatial operations
+3. Enhanced object-spatial operations
 4. Better interoperability with systems programming
 
 #### Documentation Purpose

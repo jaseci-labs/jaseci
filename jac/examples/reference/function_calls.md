@@ -154,9 +154,9 @@ Function calls in Jac are optimized for:
 - **Type specialization**: Optimized execution paths for specific type combinations
 - **Inlining opportunities**: Small functions may be inlined for performance
 
-**Integration with Data Spatial Features**
+**Integration with Object-Spatial Features**
 
-Function calls work seamlessly with Jac's data spatial constructs:
+Function calls work seamlessly with Jac's object-spatial constructs:
 
 **Within walker abilities:**
 ```jac
@@ -206,4 +206,4 @@ if validate_input(user_data, schema=input_schema) {
 4. **Error handling**: Wrap potentially failing function calls in try-catch blocks
 5. **Documentation**: Use type annotations to self-document function interfaces
 
-Function calls in Jac provide a robust foundation for code organization and reuse, combining the familiarity of traditional function invocation with the safety and expressiveness of a modern type system. The support for keyword arguments and complex expressions as parameters enables clear, maintainable code that integrates well with both traditional programming patterns and Jac's innovative data spatial features.
+Function calls in Jac provide a robust foundation for code organization and reuse, combining the familiarity of traditional function invocation with the safety and expressiveness of a modern type system. The support for keyword arguments and complex expressions as parameters enables clear, maintainable code that integrates well with both traditional programming patterns and Jac's innovative object-spatial features.

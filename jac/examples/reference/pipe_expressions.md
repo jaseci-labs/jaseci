@@ -1,4 +1,4 @@
-Pipe expressions enable functional-style data transformation through left-to-right value flow, eliminating deeply nested function calls and creating readable transformation chains. This feature is particularly powerful in data spatial contexts where computation flows through topological structures.
+Pipe expressions enable functional-style data transformation through left-to-right value flow, eliminating deeply nested function calls and creating readable transformation chains. This feature is particularly powerful in object-spatial contexts where computation flows through topological structures.
 
 #### Forward Pipe Operator (`|>`)
 
@@ -60,9 +60,9 @@ result = raw_measurements
     |> processor.round_values;
 ```
 
-#### Data Spatial Pipeline Integration
+#### Object-Spatial Pipeline Integration
 
-Pipe expressions integrate naturally with data spatial operations:
+Pipe expressions integrate naturally with object-spatial operations:
 
 ```jac
 walker GraphAnalyzer {
@@ -206,4 +206,4 @@ final_report = raw_input
     |> analyze_and_report;
 ```
 
-Pipe expressions transform complex data processing into intuitive, maintainable code that naturally expresses the flow of computation through both traditional data structures and data spatial topologies.
+Pipe expressions transform complex data processing into intuitive, maintainable code that naturally expresses the flow of computation through both traditional data structures and object-spatial topologies.

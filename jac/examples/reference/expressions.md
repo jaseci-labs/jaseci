@@ -1,4 +1,4 @@
-Expressions in Jac form the computational backbone of the language, providing a rich hierarchy of operations that combine values, variables, and function calls into meaningful computations. Jac's expression system extends Python's familiar syntax while adding unique features for data spatial programming and enhanced type safety.
+Expressions in Jac form the computational backbone of the language, providing a rich hierarchy of operations that combine values, variables, and function calls into meaningful computations. Jac's expression system extends Python's familiar syntax while adding unique features for object-spatial programming and enhanced type safety.
 
 #### Expression Hierarchy
 
@@ -25,9 +25,9 @@ calculate(x, y)      # Function call
 result = value if condition else alternative;  # Conditional expression
 ```
 
-#### Data Spatial Expression Integration
+#### Object-Spatial Expression Integration
 
-Expressions integrate seamlessly with data spatial constructs:
+Expressions integrate seamlessly with object-spatial constructs:
 
 ```jac
 walker DataProcessor {
@@ -58,4 +58,4 @@ let is_valid: bool = (count > 0) and (ratio < 1.0);
 - Constant folding for literal expressions
 - Type specialization for performance
 
-Expressions provide the foundation for all computational operations in Jac, supporting both traditional programming patterns and data spatial algorithms while maintaining type safety and performance optimization.
+Expressions provide the foundation for all computational operations in Jac, supporting both traditional programming patterns and object-spatial algorithms while maintaining type safety and performance optimization.

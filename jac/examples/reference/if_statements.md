@@ -92,9 +92,9 @@ if temperature < 32 {
 
 Once a condition matches, remaining elif and else blocks are skipped, ensuring exactly one block executes and optimizing performance.
 
-#### Data Spatial Integration
+#### Object-Spatial Integration
 
-If statements integrate seamlessly with data spatial programming constructs:
+If statements integrate seamlessly with object-spatial programming constructs:
 
 ```jac
 walker PathValidator {
@@ -278,4 +278,4 @@ walker SmartTraverser {
 }
 ```
 
-If statements provide the foundation for decision-making in Jac programs, supporting both traditional programming patterns and sophisticated data spatial operations with clear, readable syntax and robust type safety.
+If statements provide the foundation for decision-making in Jac programs, supporting both traditional programming patterns and sophisticated object-spatial operations with clear, readable syntax and robust type safety.

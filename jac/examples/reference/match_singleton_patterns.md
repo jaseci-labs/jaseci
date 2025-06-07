@@ -42,7 +42,7 @@ match user.is_authenticated() {
 }
 ```
 
-#### Data Spatial Integration
+#### Object-Spatial Integration
 
 ```jac
 walker ValidationWalker {
