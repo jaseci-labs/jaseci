@@ -1,14 +1,13 @@
 """Wikipedia Tools for the MTLLM framework."""
 
 from mtllm.semtable import SemInfo
-
 from mtllm.types import Tool
 
 import wikipedia as wikipedia_lib
 
 
 def get_wikipedia_summary(title: str) -> str:
-    """Gets the summary of the related article from Wikipedia."""
+    """Get the summary of the related article from Wikipedia."""
     try:
         return wikipedia_lib.summary(title)
     except Exception:
@@ -40,7 +39,7 @@ wikipedia_get_related_titles = Tool(
 
 
 def wikipedia_get_page(title: str) -> dict:
-    """Gets the page from Wikipedia."""
+    """Get the page from Wikipedia."""
     try:
         pg = wikipedia_lib.page(title)
         return {

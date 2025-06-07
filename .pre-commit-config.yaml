@@ -1,4 +1,4 @@
-exclude: '(_v1|vendor|larkparse|jac/examples|tests|support|setup.py|jac-mtllm|langserve/tests|pygame_mock|docs/docs/playground)'
+exclude: '(_v1|vendor|larkparse|jac/examples|tests|support|setup.py|langserve/tests|pygame_mock|docs/docs/playground)'
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.3.0
@@ -35,4 +35,7 @@ repos:
           - --ignore-missing-imports
           - --install-types
           - --non-interactive
+          - --config-file=mypy.ini
+          - --explicit-package-bases
+          - --exclude=jac-mtllm/scripts
         additional_dependencies: [types-PyYAML]

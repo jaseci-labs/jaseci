@@ -32,3 +32,8 @@ class Feeder(Person, _.Walker):
 @print_base_classes
 class Zoologist(Feeder, _.Walker):
     pass
+
+
+class MyWalker(_.Walker):
+    __jac_async__ = True
+    pass

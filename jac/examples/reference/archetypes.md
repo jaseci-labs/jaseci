@@ -194,3 +194,41 @@ walker DataCollector {
 This integration enables sophisticated graph-based algorithms where computation flows naturally through topological structures, with each archetype type contributing its specialized capabilities to the overall system behavior.
 
 Archetypes provide the foundational abstractions that make data spatial programming both expressive and maintainable, enabling developers to model complex systems as interconnected computational topologies.
+
+#### Async Walker
+
+Async walkers extend the walker archetype with asynchronous capabilities:
+
+```jac
+import time;
+import asyncio;
+import from typing {Coroutine}
+
+node A {
+    has val: int;
+}
+
+async walker W {
+    has num: int;
+
+    async can do1 with A entry {
+        print("A Entry action ", here.val);
+        visit [here-->];
+    }
+}
+
+with entry {
+    root ++> (a1 := A(1)) ++> [a2 := A(2), a3 := A(3), a4 := A(4)];
+    w1 = W(8);
+    async def foo(w:W, a:A)-> None {
+        print("Let's start the task");
+        x = w spawn a;
+        print("It is Coroutine task", isinstance(x, Coroutine));
+        await x;
+        print("Coroutine task is completed");
+    }
+    asyncio.run(foo(w1,a1));
+}
+```
+
+Async walkers provide significant advantages for modern data spatial applications by enabling concurrent execution where multiple async walkers can traverse different graph regions simultaneously, improving overall system throughput. They excel at handling non-blocking I/O operations, ensuring that network requests, file operations, and database queries don't block the traversal of other graph paths. This seamless asyncio integration provides full compatibility with Python's rich async ecosystem, allowing developers to leverage existing async libraries and frameworks within their data spatial programs. The asynchronous nature also leads to superior resource efficiency through better utilization of system resources during I/O operations, as the system can continue processing other graph nodes while waiting for slow operations to complete.

@@ -5,6 +5,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 ## jaclang 0.8.2 / jac-cloud 0.2.2 / mtllm 0.3.7 (Unreleased)
 
 *   **JacMachine Interface Reorganization**: The machine and interface have been refactored to maintain a shared global state—similar to Python's `sys.modules`—removing the need to explicitly pass execution context and dramatically improving performance.
+*   **Async Walker Support**: Introduced comprehensive async walker functionality that brings Python's async/await paradigm to data spatial programming. Async walkers enable non-blocking spawns during graph traversal, allowing for concurrent execution of multiple walkers and efficient handling of I/O-bound operations.
 
 ## jaclang 0.8.1 / jac-cloud 0.2.1 / mtllm 0.3.6
 

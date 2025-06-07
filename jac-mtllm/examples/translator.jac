@@ -9,4 +9,4 @@ with entry {
     print(
         translate("I am a student", "Language used in Somalia")
     );
-}        
+}

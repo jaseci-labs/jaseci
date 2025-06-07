@@ -18,3 +18,5 @@ walker Feeder(Person) {}
 
 @print_base_classes
 walker Zoologist(Feeder) {}
+
+async walker MyWalker {}

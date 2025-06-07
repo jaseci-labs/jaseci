@@ -27,8 +27,8 @@ class SemInfo:
         self.type = type_str
         self.semstr = semstr
 
-        if hasattr(node, "doc") and getattr(node, "doc"):
-            self.docstr = getattr(node, "doc").value.strip("\"'")
+        if hasattr(node, "doc") and node.doc:
+            self.docstr = node.doc.value.strip("\"'")
         else:
             self.docstr = ""
         self.semstr = semstr or self.docstr
@@ -85,12 +85,12 @@ class SemScope:
     @property
     def as_type_str(self) -> Optional[str]:
         """Return the type string representation of the SemScope."""
-        if self.type not in ["class", "node", "obj"]:
+        if self.type not in ["class", "node", "object"]:
             return None
         type_str = self.scope
         node = self.parent
         while node and node.parent:
-            if node.type not in ["class", "node", "obj"]:
+            if node.type not in ["class", "node", "object"]:
                 return type_str
             type_str = f"{node.scope}.{type_str}"
             node = node.parent
@@ -109,9 +109,7 @@ class SemScope:
 class SemRegistry:
     """Registry class for semantic information."""
 
-    def __init__(
-        self, program_head: uni.ProgramModule, by_scope: Optional[SemScope]
-    ) -> None:
+    def __init__(self, program_head: uni.ProgramModule, by_scope: SemScope) -> None:
         """Initialize the registry with the program head and current scope."""
         self.program_head: uni.ProgramModule = program_head
         self.by_scope: SemScope = by_scope
@@ -156,8 +154,8 @@ class SemRegistry:
         name: Optional[str] = None,
         _type: Optional[str] = None,
     ) -> tuple[Optional[SemScope], Optional[SemInfo | list[SemInfo]]]:
-        """
-        Lookup semantic information in the registry.
+        """Lookup semantic information in the registry.
+
         - If 'scope' is provided, look up by scope.
         - If 'name' is provided, look up by name.
         - If '_type' is provided, filter by type.
@@ -167,7 +165,9 @@ class SemRegistry:
         mod = None
         scope_obj = None
         # Find the relevant module and scope object
-        scope_stack = scope.get_scope_trace() if scope else self.by_scope.get_scope_trace()
+        scope_stack = (
+            scope.get_scope_trace() if scope else self.by_scope.get_scope_trace()
+        )
         expected_mod = scope_stack[-1]["scope"] if scope_stack else None
         for m in mods.values():
             if m.name == expected_mod:
@@ -177,6 +177,7 @@ class SemRegistry:
             return None, None
         found_scope = mod
         scope_stack.pop(-1)
+
         while len(scope_stack) > 0:
             found_scope = found_scope.find_scope(name=scope_stack[-1]["scope"])
             if found_scope and len(scope_stack) == 1:
@@ -187,8 +188,12 @@ class SemRegistry:
             return None, None  # Module or scope not found
 
         symbol_table = scope_obj.get_parent()
+
         if not symbol_table:
             return None, None  # Symbol table not found
+
+        sem_scope: Optional[SemScope] = None
+
         # Lookup by scope
         if scope:
             symbol = symbol_table.lookup(scope.scope)
