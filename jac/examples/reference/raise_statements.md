@@ -176,9 +176,9 @@ class StateMachine {
 }
 ```
 
-**Integration with Data Spatial Features**
+**Integration with Object-Spatial Features**
 
-Raise statements work within data spatial contexts:
+Raise statements work within object-spatial contexts:
 
 **Walker Error Handling**
 ```jac

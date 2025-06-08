@@ -176,9 +176,9 @@ while row < height {
 }
 ```
 
-**Data Spatial Integration**
+**Object-Spatial Integration**
 
-While loops work within data spatial contexts:
+While loops work within object-spatial contexts:
 
 **Walker State Loops**
 ```jac

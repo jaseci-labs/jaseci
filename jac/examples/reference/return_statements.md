@@ -178,9 +178,9 @@ walker DataCollector {
 square = lambda x: int : x * x;  # Implicit return
 ```
 
-**Data Spatial Context Returns**
+**Object-Spatial Context Returns**
 
-Returns work within data spatial programming:
+Returns work within object-spatial programming:
 
 **Walker Method Returns**
 ```jac

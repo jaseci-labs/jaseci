@@ -190,7 +190,7 @@ global_ref: GLOBAL_OP name_list
 nonlocal_ref: NONLOCAL_OP name_list
 name_list: (named_ref COMMA)* named_ref
 
-// [Heading]: Data spatial typed context blocks.
+// [Heading]: Object spatial typed context blocks.
 typed_ctx_block: RETURN_HINT expression code_block
 
 // [Heading]: Return statements.
@@ -217,7 +217,7 @@ report_stmt: KW_REPORT expression
 // [Heading]: Control statements.
 ctrl_stmt: KW_SKIP | KW_BREAK | KW_CONTINUE
 
-// [Heading]: Data spatial Walker statements.
+// [Heading]: Object spatial Walker statements.
 spatial_stmt: visit_stmt | ignore_stmt | disenage_stmt
 
 // [Heading]: Visit statements.
@@ -304,10 +304,10 @@ connect: (connect (connect_op | disconnect_op))? atomic_pipe
 atomic_pipe: (atomic_pipe A_PIPE_FWD)? atomic_pipe_back
 
 // [Heading]: Atomic pipe back expressions.
-atomic_pipe_back: (atomic_pipe_back A_PIPE_BKWD)? ds_spawn
+atomic_pipe_back: (atomic_pipe_back A_PIPE_BKWD)? os_spawn
 
-// [Heading]: Data spatial spawn expressions.
-ds_spawn: (ds_spawn KW_SPAWN)? unpack
+// [Heading]: Object spatial spawn expressions.
+os_spawn: (os_spawn KW_SPAWN)? unpack
 
 // [Heading]: Unpack expressions.
 unpack: STAR_MUL? ref
@@ -315,7 +315,7 @@ unpack: STAR_MUL? ref
 // [Heading]: References (unused).
 ref: BW_AND? pipe_call
 
-// [Heading]: Data spatial calls.
+// [Heading]: Object spatial calls.
 pipe_call: (PIPE_FWD | A_PIPE_FWD | KW_SPAWN | KW_AWAIT)? atomic_chain
 
 // [Heading]: Subscripted and dotted expressions.
@@ -398,7 +398,7 @@ tuple_list: expression COMMA expr_list COMMA kw_expr_list COMMA?
 kw_expr_list: (kw_expr_list COMMA)? kw_expr
 kw_expr: named_ref EQ expression | STAR_POW expression
 
-// [Heading]: Data Spatial References.
+// [Heading]: Object-Spatial References.
 edge_ref_chain: LSQUARE (KW_NODE| KW_EDGE)? expression? (edge_op_ref (filter_compr | expression)?)+ RSQUARE
 edge_op_ref: edge_any | edge_from | edge_to
 edge_to: ARROW_R | ARROW_R_P1 typed_filter_compare_list ARROW_R_P2
@@ -589,7 +589,7 @@ KWESC_NAME: /<>[a-zA-Z_][a-zA-Z0-9_]*/
 NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
 
 
-// Data Spatial Operators -------------------------------------------------- //
+// Object-Spatial Operators -------------------------------------------------- //
 
 ARROW_BI: "<-->"
 ARROW_L: "<--"

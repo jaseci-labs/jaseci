@@ -427,7 +427,7 @@
 
     2.  **List of `statement` types (Overview):**
         *   **Grammar:** Provides an exhaustive list of specific statement productions.
-        *   **Documentation:** Categorizes statements broadly (Declaration, Expression, Control Flow, Data Spatial) but does not enumerate all specific types from the grammar in this overview file.
+        *   **Documentation:** Categorizes statements broadly (Declaration, Expression, Control Flow, Object-Spatial) but does not enumerate all specific types from the grammar in this overview file.
         *   **Issue/Nature of Document:** This overview could be more comprehensive by listing more specific statement types (e.g., `import_stmt`, `archetype` (as a statement), `global_ref`, `nonlocal_ref`, `typed_ctx_block`, `delete_stmt`, `report_stmt`, `ctrl_stmt` variants, `SEMI` (empty statement), `py_code_block` as a statement) or clearly stating that full details are in respective dedicated files. Many specific statement types have their own documentation pages.
 
     3.  **Statement Termination:**
@@ -954,7 +954,7 @@
         *   **Status:** Covered.
 
     2.  **Purpose and Usage (Type-Constrained Scope):**
-        *   **Documentation:** Explains its use for compile-time and runtime type assertions within the block, especially for data spatial operations (e.g., constraining `here.data`).
+        *   **Documentation:** Explains its use for compile-time and runtime type assertions within the block, especially for object-spatial operations (e.g., constraining `here.data`).
         *   **Status:** Well-explained.
 
     3.  **As a Statement:**
@@ -2201,7 +2201,7 @@
 
 ---
 
-## Section 65: Data Spatial References (edge_ref_chain)
+## Section 65: Object-Spatial References (edge_ref_chain)
 
 *   **Grammar Rules from `jac.lark` (overview):**
     ```lark
@@ -2453,7 +2453,7 @@
         *   Covered in detail under "Names and references" (Section 67).
         *   **Status:** Covered.
 
-    4.  **Operators (Data Spatial, Assignment, Arithmetic, Other - e.g., `ARROW_R`, `EQ`, `PLUS`, `PIPE_FWD`):**
+    4.  **Operators (Object-Spatial, Assignment, Arithmetic, Other - e.g., `ARROW_R`, `EQ`, `PLUS`, `PIPE_FWD`):**
         *   These terminals define the symbols for various operations.
         *   Their meaning and usage are tied to the expression rules that employ them (e.g., `connect_op` for `ARROW_R`, `assignment` for `EQ`, `arithmetic` for `PLUS`, `pipe` for `PIPE_FWD`). These were covered in their respective expression sections.
         *   The `@` operator (`DECOR_OP`) was noted as missing from arithmetic expression documentation.
@@ -2502,7 +2502,7 @@ The major themes of inconsistencies and areas for improvement include:
     *   **Pattern Matching:** Positional argument patterns in `match_class_pattern`; type-only `ClassName()` match; `list_val` for fancy indexing in `index_slice`; comma-separated multi-dim indexing; `as_pattern` with `or_pattern` on LHS; `assign_compr` syntax (`:` vs. `=`).
     *   **String Literals:** Implicit concatenation of adjacent string/f-string literals; escaped braces `{{ }}` in f-strings; multi-line `f"""..."""` support in grammar vs. f-string tokens.
     *   **Lambda Expressions:** No-param lambdas; `*args`/`**kwargs`; default parameter values; explicit return type annotation.
-    *   **Data Spatial:** Initial context `(KW_NODE|KW_EDGE)? expr?` in `edge_ref_chain`; deep chaining of `edge_op_ref`; `disconnect_op` as part of `connect` expression; semantic meaning of chained `spawn` expressions.
+    *   **Object-Spatial:** Initial context `(KW_NODE|KW_EDGE)? expr?` in `edge_ref_chain`; deep chaining of `edge_op_ref`; `disconnect_op` as part of `connect` expression; semantic meaning of chained `spawn` expressions.
     *   **Operators:** `@` (matrix multiplication) operator in arithmetic expressions; `is not`/`not in` in comparison operator lists.
 
 3.  **Potential Grammar Issues, Typos, or Ambiguities:**

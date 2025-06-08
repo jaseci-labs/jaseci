@@ -1,4 +1,4 @@
-Jac provides two complementary approaches to defining executable code: traditional functions using `def` and data spatial abilities using `can`. This dual system supports both conventional programming patterns and the unique requirements of computation moving through topological structures.
+Jac provides two complementary approaches to defining executable code: traditional functions using `def` and object-spatial abilities using `can`. This dual system supports both conventional programming patterns and the unique requirements of computation moving through topological structures.
 
 #### Omission of Gratuitous `self`
 
@@ -20,7 +20,7 @@ Functions provide explicit parameter passing and return value semantics, making 
 
 #### Abilities
 
-Abilities represent Jac's distinctive approach to defining behaviors that respond to data spatial events:
+Abilities represent Jac's distinctive approach to defining behaviors that respond to object-spatial events:
 
 ```jac
 walker PathFinder {
@@ -37,7 +37,7 @@ walker PathFinder {
 }
 ```
 
-Abilities execute implicitly based on spatial events rather than explicit invocation, embodying the data spatial programming paradigm.
+Abilities execute implicitly based on spatial events rather than explicit invocation, embodying the object-spatial programming paradigm.
 
 #### Access Control
 
@@ -122,9 +122,9 @@ impl DataProcessor {
 }
 ```
 
-#### Data Spatial Integration
+#### Object-Spatial Integration
 
-Abilities integrate seamlessly with data spatial constructs, enabling sophisticated graph algorithms:
+Abilities integrate seamlessly with object-spatial constructs, enabling sophisticated graph algorithms:
 
 ```jac
 node DataNode {
@@ -193,4 +193,4 @@ walker AsyncProcessor {
 }
 ```
 
-Functions and abilities together provide a comprehensive system for organizing computational logic that supports both traditional programming patterns and the innovative data spatial paradigm where computation flows through topological structures.
+Functions and abilities together provide a comprehensive system for organizing computational logic that supports both traditional programming patterns and the innovative object-spatial paradigm where computation flows through topological structures.

@@ -122,6 +122,22 @@ def get_code(code: str) -> str:
     return jac_code
 
 
+def get_simple_code(code: str) -> str:
+    """Generate a sample Jac code snippet with optional test code injected."""
+    jac_code = dedent(
+        f'''
+    
+    # Unit Tests!
+    glob expected_area0 = 78.53981633974483;
+    glob expected_area1 = 78.53981633974483;
+    {code}
+    glob expected_area2 = 78.53981633974483;
+
+
+'''
+    )
+    return jac_code
+
 def create_ls_with_workspace(file_path: str):
     """Create JacLangServer and workspace for a given file path, return (uri, ls)."""
     ls = JacLangServer()

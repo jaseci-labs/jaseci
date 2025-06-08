@@ -22,11 +22,11 @@ Jac supports several categories of statements that serve different purposes:
 
 **Declaration Statements**: Define functions, variables, and archetypes within the current scope, establishing named entities that can be referenced by subsequent code.
 
-**Expression Statements**: Execute expressions for their side effects, including function calls, assignments, and data spatial operations.
+**Expression Statements**: Execute expressions for their side effects, including function calls, assignments, and object-spatial operations.
 
 **Control Flow Statements**: Direct program execution through conditionals, loops, and exception handling constructs.
 
-**Data Spatial Statements**: Control walker movement and graph traversal operations, including visit, ignore, and disengage statements.
+**Object-Spatial Statements**: Control walker movement and graph traversal operations, including visit, ignore, and disengage statements.
 
 #### Statement Termination
 
@@ -58,9 +58,9 @@ with entry {
 # local_var and helper_function not accessible here
 ```
 
-#### Integration with Data Spatial Constructs
+#### Integration with Object-Spatial Constructs
 
-Code blocks work seamlessly with data spatial programming constructs, providing structured contexts for walker abilities and node operations:
+Code blocks work seamlessly with object-spatial programming constructs, providing structured contexts for walker abilities and node operations:
 
 ```jac
 walker Processor {
@@ -78,4 +78,4 @@ walker Processor {
 }
 ```
 
-Code blocks provide the essential organizational structure that enables clear, maintainable Jac programs while supporting both traditional programming patterns and data spatial computation models.
+Code blocks provide the essential organizational structure that enables clear, maintainable Jac programs while supporting both traditional programming patterns and object-spatial computation models.

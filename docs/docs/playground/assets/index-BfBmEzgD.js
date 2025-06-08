@@ -242,7 +242,7 @@ with entry {
     fruits = ["apple", "banana", "cherry", "orange", "kiwi", "melon", "mango"];
     print(fruits[:4]);
 }
-`},{name:"Data Spatial Programming",code:`# Data Spatial programming in Jaclang
+`},{name:"Object-Spatial Programming",code:`# Object-Spatial programming in Jaclang
 walker Creator {
     can create with \`root entry;
 }

@@ -1,8 +1,8 @@
-Disengage statements in Jac provide a mechanism for terminating walker traversal within the data spatial topology. This statement enables walkers to exit their active traversal state and return to inactive object status, representing a controlled termination of the "computation moving to data" process that characterizes Data Spatial Programming.
+Disengage statements in Jac provide a mechanism for terminating walker traversal within the object-spatial topology. This statement enables walkers to exit their active traversal state and return to inactive object status, representing a controlled termination of the "computation moving to data" process that characterizes Object-Spatial Programming.
 
 **Theoretical Foundation**
 
-In DSP theory, the disengage statement allows a walker to immediately terminate its entire data spatial traversal and return to an inactive object state. When executed, it sets the walker's location to inactive (L(w) ← ∅) and clears its traversal queue (Q_w ← []), effectively removing the walker from active participation in the distributed computational system.
+In OSP theory, the disengage statement allows a walker to immediately terminate its entire object-spatial traversal and return to an inactive object state. When executed, it sets the walker's location to inactive (L(w) ← ∅) and clears its traversal queue (Q_w ← []), effectively removing the walker from active participation in the distributed computational system.
 
 **Basic Disengage Syntax**
 
@@ -11,7 +11,7 @@ The disengage statement uses simple syntax:
 disengage;
 ```
 
-This statement can be executed from various contexts within the data spatial execution environment.
+This statement can be executed from various contexts within the object-spatial execution environment.
 
 **Execution Contexts**
 
@@ -41,7 +41,7 @@ node item {
 }
 ```
 
-This showcases the bidirectional nature of data spatial computation, where both walkers and the locations they visit can control the traversal process.
+This showcases the bidirectional nature of object-spatial computation, where both walkers and the locations they visit can control the traversal process.
 
 **Execution Semantics**
 
@@ -56,7 +56,7 @@ When a disengage statement executes:
 
 **Comparison with Traditional Control Flow**
 
-The disengage statement is analogous to the `break` statement in traditional loop constructs, but operates within the context of topological traversal rather than iterative control structures. While `break` exits loops, `disengage` exits the entire data spatial execution context.
+The disengage statement is analogous to the `break` statement in traditional loop constructs, but operates within the context of topological traversal rather than iterative control structures. While `break` exits loops, `disengage` exits the entire object-spatial execution context.
 
 **Use Cases**
 
@@ -111,9 +111,9 @@ Unlike error-based termination, disengage provides graceful termination that:
 
 **Relationship to Other Control Statements**
 
-Disengage complements other data spatial control statements:
+Disengage complements other object-spatial control statements:
 - **Visit**: Adds destinations to walker traversal queue
 - **Skip**: Terminates processing at current location but continues traversal
 - **Disengage**: Terminates entire traversal and returns walker to inactive state
 
-The disengage statement provides essential control over walker lifecycle management, enabling sophisticated algorithms that can terminate based on discovered conditions, computational completion, or resource constraints. It represents a key mechanism for managing the autonomous nature of walkers while maintaining programmatic control over the distributed computational process that characterizes Data Spatial Programming.
+The disengage statement provides essential control over walker lifecycle management, enabling sophisticated algorithms that can terminate based on discovered conditions, computational completion, or resource constraints. It represents a key mechanism for managing the autonomous nature of walkers while maintaining programmatic control over the distributed computational process that characterizes Object-Spatial Programming.

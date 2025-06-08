@@ -52,4 +52,4 @@ with entry:main {
 
 **System Constants**: Global variables store system-wide constants and settings that remain consistent throughout program execution.
 
-Global variables complement Jac's data spatial programming model by providing persistent state that walkers and other computational entities can access during graph traversal and distributed computation operations.
+Global variables complement Jac's object-spatial programming model by providing persistent state that walkers and other computational entities can access during graph traversal and distributed computation operations.

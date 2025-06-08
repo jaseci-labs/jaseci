@@ -2,7 +2,6 @@
 
 import random;
 
-
 walker GuessGame {
     has correct_number: int = (1, 100) |> random.randint;
     
@@ -10,13 +9,9 @@ walker GuessGame {
     def process_guess(guess: int);
 }
 
-
 node turn {
     can check with GuessGame entry;
 }
-
-
-
 
 # Run the game
  with entry {

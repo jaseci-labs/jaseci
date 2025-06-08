@@ -69,9 +69,9 @@ config_value = settings?.["theme"]?.["primary_color"];
 
 This pattern is particularly useful when working with optional configuration data or API responses with variable structure.
 
-#### Integration with Data Spatial Constructs
+#### Integration with Object-Spatial Constructs
 
-Access operations work seamlessly with data spatial programming elements:
+Access operations work seamlessly with object-spatial programming elements:
 
 ```jac
 walker DataInspector {
@@ -108,4 +108,4 @@ Null-safe operations include runtime checks that add minimal overhead while sign
 
 Standard access operations raise appropriate exceptions for invalid keys or attributes, while null-safe operations return `None` for missing intermediate values. This distinction enables explicit error handling strategies based on application requirements.
 
-Subscripted and dotted expressions provide the foundation for safe, expressive data access patterns that integrate naturally with both traditional programming constructs and data spatial operations.
+Subscripted and dotted expressions provide the foundation for safe, expressive data access patterns that integrate naturally with both traditional programming constructs and object-spatial operations.

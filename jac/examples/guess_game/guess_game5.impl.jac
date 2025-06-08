@@ -1,13 +1,12 @@
 impl turn.check {
-    guess = "Guess a number between 1 and 100: " |> input;
+    guess = "Guess a number between 1 and 10: " |> input;
     if |> guess.isdigit {
-        guess |> int |> here.process_guess;
+        guess |> int |> visitor.process_guess;
     } else {
         "That's not a valid number! Try again." |> print;
     }
     visit [-->];
 }
-
 
 impl GuessGame.start_game {
     end : `root | turn = here;

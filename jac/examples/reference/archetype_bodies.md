@@ -1,4 +1,4 @@
-Archetype bodies define the internal structure and behavior of Jac's specialized class constructs. These bodies contain member declarations, abilities, and implementation details that enable both traditional object-oriented programming and data spatial computation patterns.
+Archetype bodies define the internal structure and behavior of Jac's specialized class constructs. These bodies contain member declarations, abilities, and implementation details that enable both traditional object-oriented programming and object-spatial computation patterns.
 
 #### Member Declaration Syntax
 
@@ -23,7 +23,7 @@ The `has` keyword establishes instance variables with explicit type constraints,
 
 #### Ability Definitions
 
-Abilities within archetype bodies define both traditional methods and data spatial behaviors:
+Abilities within archetype bodies define both traditional methods and object-spatial behaviors:
 
 ```jac
 obj DataProcessor {
@@ -66,7 +66,7 @@ obj SecureContainer {
 
 Access modifiers (`:pub`, `:priv`, `:protect`) control visibility and access patterns across module boundaries.
 
-#### Data Spatial Archetype Bodies
+#### Object-Spatial Archetype Bodies
 
 Data spatial archetypes include specialized members and abilities:
 
@@ -235,4 +235,4 @@ obj DocumentedClass {
 }
 ```
 
-Archetype bodies provide the structural foundation for Jac's object-oriented and data spatial programming capabilities, enabling developers to create sophisticated, well-encapsulated components that support both traditional programming patterns and innovative topological computation models.
+Archetype bodies provide the structural foundation for Jac's object-oriented and object-spatial programming capabilities, enabling developers to create sophisticated, well-encapsulated components that support both traditional programming patterns and innovative topological computation models.

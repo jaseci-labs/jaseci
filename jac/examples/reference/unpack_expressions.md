@@ -1,4 +1,4 @@
-Unpack expressions enable the expansion of iterables and mappings into their constituent elements using the `*` and `**` operators. Jac follows Python's unpacking semantics while integrating seamlessly with pipe operations and data spatial programming constructs.
+Unpack expressions enable the expansion of iterables and mappings into their constituent elements using the `*` and `**` operators. Jac follows Python's unpacking semantics while integrating seamlessly with pipe operations and object-spatial programming constructs.
 
 #### Iterable Unpacking
 
@@ -60,9 +60,9 @@ keywords = {"d": 30};
 result = complex_function(*positional, c=15, **keywords);
 ```
 
-#### Integration with Data Spatial Operations
+#### Integration with Object-Spatial Operations
 
-Unpacking works seamlessly with data spatial constructs:
+Unpacking works seamlessly with object-spatial constructs:
 
 ```jac
 walker DataCollector {
@@ -100,4 +100,4 @@ Unpacking operations include runtime type checking:
 
 Unpacking creates new collections rather than sharing references, ensuring data isolation but requiring consideration of memory usage in performance-critical applications. The compiler optimizes common unpacking patterns to minimize overhead.
 
-Unpack expressions provide essential functionality for flexible data manipulation while maintaining the clean, expressive syntax that characterizes Jac's approach to both traditional programming and data spatial operations.
+Unpack expressions provide essential functionality for flexible data manipulation while maintaining the clean, expressive syntax that characterizes Jac's approach to both traditional programming and object-spatial operations.

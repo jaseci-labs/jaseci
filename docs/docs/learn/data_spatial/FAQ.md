@@ -124,7 +124,7 @@
         }
     ```
 
-??? question "How to set up special Data Spatial abilities for a `root` or specific node entry in a walker?"
+??? question "How to set up special Object-Spatial abilities for a `root` or specific node entry in a walker?"
     - Walkers can have special DS abilities triggered through the `root` or a specific node. You can define such abilities based on where the walker starts its traversal:
     ```jac
         # Ability entry through the root
@@ -159,7 +159,7 @@
     ```
 
 ??? question "How can I access the current node instance in DS abilities of a walker?"
-    - Current walker instance can be accessed using the `here` keyword within Data Spatial abilities of the node.
+    - Current walker instance can be accessed using the `here` keyword within Object-Spatial abilities of the node.
     ```jac
     walker walker_name {
 
@@ -170,7 +170,7 @@
     ```
 
 ??? question "How to access the current walker inside DS abilities of a node?"
-    - You can access the current walker instance inside Data Spatial abilities of a node using the `self` keyword.
+    - You can access the current walker instance inside Object-Spatial abilities of a node using the `self` keyword.
     ```jac
     node node_name {
         can node_ability with walker_name entry{
@@ -179,7 +179,7 @@
     }
     ```
 ??? question "How to access the current walker inside DS abilities of the current walker?"
-    - You can access the current walker instance inside Data Spatial abilities of the current walker using the `self` keyword.
+    - You can access the current walker instance inside Object-Spatial abilities of the current walker using the `self` keyword.
     ```jac
     walker walker_name {
         can walker_ability with node_name entry{

@@ -1,4 +1,4 @@
-Jac provides comprehensive assignment operations that extend Python's familiar syntax with enhanced type safety and explicit variable declaration capabilities. These assignment patterns support both traditional programming and data spatial operations.
+Jac provides comprehensive assignment operations that extend Python's familiar syntax with enhanced type safety and explicit variable declaration capabilities. These assignment patterns support both traditional programming and object-spatial operations.
 
 #### Basic Assignment Operations
 
@@ -83,9 +83,9 @@ let (name=user, age=years) = user_data;
 
 Destructuring enables elegant extraction of values from complex data structures.
 
-#### Data Spatial Assignment Patterns
+#### Object-Spatial Assignment Patterns
 
-Assignments work seamlessly with data spatial constructs:
+Assignments work seamlessly with object-spatial constructs:
 
 ```jac
 walker DataCollector {
@@ -160,4 +160,4 @@ for item in items {
 }
 ```
 
-Assignment operations provide the foundation for variable management in Jac programs, supporting both traditional programming patterns and the unique requirements of data spatial computation where variables may hold references to nodes, edges, and walker states.
+Assignment operations provide the foundation for variable management in Jac programs, supporting both traditional programming patterns and the unique requirements of object-spatial computation where variables may hold references to nodes, edges, and walker states.

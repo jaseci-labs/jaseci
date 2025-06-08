@@ -11,9 +11,9 @@ Elements within a Jac module encompass familiar constructs from Python, includin
 | Module Item           | Description       |
 |----------------|-------------------|
 | [**Import Statements**](#importinclude-statements)    |   Same as python with slightly different syntax, works with both `.jac` and `.py` files (in addition to packages)                |
-| [**Archetypes**](#archetypes)       |    Includes traditional python `class` construct with equiviant semantics, and additionaly introduces a number of new class-like constructs including `obj`, `node`, `edge`, and `walker` to enable the data spatial programming paradigmn               |
+| [**Archetypes**](#archetypes)       |    Includes traditional python `class` construct with equiviant semantics, and additionaly introduces a number of new class-like constructs including `obj`, `node`, `edge`, and `walker` to enable the object-spatial programming paradigmn               |
 | [**Function Abilities**](#abilities) | Equivalent to traditional python function semantics with change of keyword `def` to `can`. Type hints are required in parameters and returns |
-| [**Data Spatial Abilities**](#abilities)         |  A function like construct that is triggered by types of `node`s or `walker`s in the data spatial paradigm            |
+| [**Object-Spatial Abilities**](#abilities)         |  A function like construct that is triggered by types of `node`s or `walker`s in the object-spatial paradigm            |
 | [**Free Floating Code**](#free-code)      |  Construct (`with entry {...}`) to express presence of free floating code within a module that is not part of a function or class-like object. Primarily for code cleanliness, readability, and maintainability.    |
 | [**Global Variables**](#global-variables)    |   Module level construct to express global module level variables without using `with entry` syntax. (`glob x=5` is equivalent to `with entry {x=5;}`)                |
 | [**Test**](#tests)           |   A language level construct for testing, functionality realized with `test` and `check` keywords.                |

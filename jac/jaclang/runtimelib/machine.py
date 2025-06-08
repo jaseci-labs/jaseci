@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast as ast3
-import asyncio
 import fnmatch
 import html
 import inspect
@@ -14,12 +13,13 @@ import types
 from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import MISSING, dataclass, field
-from functools import partial, wraps
+from functools import wraps
 from inspect import getfile
 from logging import getLogger
 from typing import (
     Any,
     Callable,
+    Coroutine,
     Mapping,
     Optional,
     ParamSpec,
@@ -504,8 +504,8 @@ class JacWalker:
                     if (
                         i.trigger
                         and (
-                            all_issubclass(i.trigger, JacMachine.Node)
-                            or all_issubclass(i.trigger, JacMachine.Edge)
+                            all_issubclass(i.trigger, NodeArchetype)
+                            or all_issubclass(i.trigger, EdgeArchetype)
                         )
                         and isinstance(current_loc, i.trigger)
                     ):
@@ -524,7 +524,7 @@ class JacWalker:
                 for i in current_loc._jac_entry_funcs_:
                     if (
                         i.trigger
-                        and all_issubclass(i.trigger, JacMachine.Walker)
+                        and all_issubclass(i.trigger, WalkerArchetype)
                         and isinstance(warch, i.trigger)
                     ):
                         i.func(current_loc, warch)
@@ -535,7 +535,7 @@ class JacWalker:
                 for i in current_loc._jac_exit_funcs_:
                     if (
                         i.trigger
-                        and all_issubclass(i.trigger, JacMachine.Walker)
+                        and all_issubclass(i.trigger, WalkerArchetype)
                         and isinstance(warch, i.trigger)
                     ):
                         i.func(current_loc, warch)
@@ -554,8 +554,8 @@ class JacWalker:
                     if (
                         i.trigger
                         and (
-                            all_issubclass(i.trigger, JacMachine.Node)
-                            or all_issubclass(i.trigger, JacMachine.Edge)
+                            all_issubclass(i.trigger, NodeArchetype)
+                            or all_issubclass(i.trigger, EdgeArchetype)
                         )
                         and isinstance(current_loc, i.trigger)
                     ):
@@ -573,7 +573,115 @@ class JacWalker:
         return warch
 
     @staticmethod
-    def spawn(op1: Archetype, op2: Archetype) -> WalkerArchetype | asyncio.Future:
+    async def async_spawn_call(
+        walker: WalkerAnchor,
+        node: NodeAnchor | EdgeAnchor,
+    ) -> WalkerArchetype:
+        """Jac's spawn operator feature."""
+        warch = walker.archetype
+        walker.path = []
+        current_loc = node.archetype
+
+        # walker ability on any entry
+        for i in warch._jac_entry_funcs_:
+            if not i.trigger:
+                result = i.func(warch, current_loc)
+                if isinstance(result, Coroutine):
+                    await result
+            if walker.disengaged:
+                return warch
+
+        while len(walker.next):
+            if current_loc := walker.next.pop(0).archetype:
+                # walker ability with loc entry
+                for i in warch._jac_entry_funcs_:
+                    if (
+                        i.trigger
+                        and (
+                            all_issubclass(i.trigger, NodeArchetype)
+                            or all_issubclass(i.trigger, EdgeArchetype)
+                        )
+                        and isinstance(current_loc, i.trigger)
+                    ):
+                        result = i.func(warch, current_loc)
+                        if isinstance(result, Coroutine):
+                            await result
+                    if walker.disengaged:
+                        return warch
+
+                # loc ability with any entry
+                for i in current_loc._jac_entry_funcs_:
+                    if not i.trigger:
+                        result = i.func(current_loc, warch)
+                        if isinstance(result, Coroutine):
+                            await result
+                    if walker.disengaged:
+                        return warch
+
+                # loc ability with walker entry
+                for i in current_loc._jac_entry_funcs_:
+                    if (
+                        i.trigger
+                        and all_issubclass(i.trigger, WalkerArchetype)
+                        and isinstance(warch, i.trigger)
+                    ):
+                        result = i.func(current_loc, warch)
+                        if isinstance(result, Coroutine):
+                            await result
+                    if walker.disengaged:
+                        return warch
+
+                # loc ability with walker exit
+                for i in current_loc._jac_exit_funcs_:
+                    if (
+                        i.trigger
+                        and all_issubclass(i.trigger, WalkerArchetype)
+                        and isinstance(warch, i.trigger)
+                    ):
+                        result = i.func(current_loc, warch)
+                        if isinstance(result, Coroutine):
+                            await result
+                    if walker.disengaged:
+                        return warch
+
+                # loc ability with any exit
+                for i in current_loc._jac_exit_funcs_:
+                    if not i.trigger:
+                        result = i.func(current_loc, warch)
+                        if isinstance(result, Coroutine):
+                            await result
+                    if walker.disengaged:
+                        return warch
+
+                # walker ability with loc exit
+                for i in warch._jac_exit_funcs_:
+                    if (
+                        i.trigger
+                        and (
+                            all_issubclass(i.trigger, NodeArchetype)
+                            or all_issubclass(i.trigger, EdgeArchetype)
+                        )
+                        and isinstance(current_loc, i.trigger)
+                    ):
+                        result = i.func(warch, current_loc)
+                        if isinstance(result, Coroutine):
+                            await result
+                    if walker.disengaged:
+                        return warch
+        # walker ability with any exit
+        for i in warch._jac_exit_funcs_:
+            if not i.trigger:
+                result = i.func(warch, current_loc)
+                if isinstance(result, Coroutine):
+                    await result
+            if walker.disengaged:
+                return warch
+
+        walker.ignores = []
+        return warch
+
+    @staticmethod
+    def spawn(op1: Archetype, op2: Archetype) -> WalkerArchetype | Coroutine:
         """Jac's spawn operator feature."""
         edge: EdgeAnchor | None = None
         if isinstance(op1, WalkerArchetype):
@@ -607,11 +715,7 @@ class JacWalker:
             walker.next = [node]
 
         if warch.__jac_async__:
-            _event_loop = JacMachine._event_loop
-            func = partial(JacMachineInterface.spawn_call, *(walker, loc))
-            return asyncio.ensure_future(
-                _event_loop.run_in_executor(None, func), loop=_event_loop
-            )
+            return JacMachineInterface.async_spawn_call(walker=walker, node=loc)
         else:
             return JacMachineInterface.spawn_call(walker=walker, node=loc)
 
@@ -1569,12 +1673,6 @@ class JacUtils:
         return None
 
     @staticmethod
-    def await_obj(obj: Any) -> Any:  # noqa: ANN401
-        """Await an object if it is a coroutine or async or future function."""
-        _event_loop = JacMachine._event_loop
-        return _event_loop.run_until_complete(obj)
-
-    @staticmethod
     def thread_run(func: Callable, *args: object) -> Future:  # noqa: ANN401
         """Run a function in a thread."""
         _executor = JacMachine.pool
@@ -1607,7 +1705,6 @@ class JacMachine(JacMachineInterface):
     base_path_dir: str = os.getcwd()
     program: JacProgram = JacProgram()
     pool: ThreadPoolExecutor = ThreadPoolExecutor()
-    _event_loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
     exec_ctx: ExecutionContext = ExecutionContext()
 
     @staticmethod
@@ -1632,7 +1729,6 @@ class JacMachine(JacMachineInterface):
         JacMachine.base_path_dir = os.getcwd()
         JacMachine.program = JacProgram()
         JacMachine.pool = ThreadPoolExecutor()
-        JacMachine._event_loop = asyncio.new_event_loop()
         JacMachine.exec_ctx = ExecutionContext()
 
 
