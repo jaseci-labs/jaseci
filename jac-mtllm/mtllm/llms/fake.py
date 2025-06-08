@@ -1,13 +1,14 @@
 """Fake LLM for testing."""
 
 import json
+from typing import cast
 
 from mtllm.llms.base import (
     BaseLLM,
-    NORMAL_SUFFIX,
-    REASON_SUFFIX,
     CHAIN_OF_THOUGHT_SUFFIX,
+    NORMAL_SUFFIX,
     REACT_SUFFIX,
+    REASON_SUFFIX,
 )
 
 
@@ -26,14 +27,13 @@ class FakeLLM(BaseLLM):
         verbose: bool = False,
         max_tries: int = 10,
         type_check: bool = False,
-        **kwargs: dict
+        **kwargs: dict,
     ) -> None:
         """Initialize the FakeLLM client."""
         super().__init__(verbose, max_tries, type_check)
         self.responses = self.get_responses(**kwargs)
-        self.default: str | None = kwargs.get("default")
-        self.print_prompt: bool = kwargs.get("print_prompt", False)
-
+        self.default: str | None = cast(str | None, kwargs.get("default"))
+        self.print_prompt: bool = cast(bool, kwargs.get("print_prompt", False))
 
     def __infer__(self, meaning_in: str | list[dict], **kwargs: dict) -> str:
         """Infer a response from the input meaning."""
@@ -50,12 +50,16 @@ class FakeLLM(BaseLLM):
             return self.responses[meaning_in]
         return self.default or ""
 
-
     def get_responses(self, **kwargs: dict) -> dict[str, str]:
+        """Get responses from provided responses or file.
+
+        Returns a dictionary of responses based on input kwargs.
+        """
         if responses := kwargs.get("responses"):
             return responses
-        if responses_file := kwargs.get("responses_file"):
-            with open(responses_file, 'r') as file:
+        if (responses_file := kwargs.get("responses_file")) and isinstance(
+            responses_file, str
+        ):
+            with open(responses_file, "r") as file:
                 return json.load(file)
         return {}
-

@@ -51,7 +51,7 @@ match flag_value {
 }
 ```
 
-#### Data Spatial Pattern Matching
+#### Object-Spatial Pattern Matching
 
 ```jac
 walker StatusChecker {

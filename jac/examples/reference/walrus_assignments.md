@@ -29,7 +29,7 @@ valid_items = [processed for item in items
                if (processed := transform(item)).is_valid()];
 ```
 
-#### Data Spatial Integration
+#### Object-Spatial Integration
 
 ```jac
 walker GraphAnalyzer {
@@ -59,4 +59,4 @@ Variables created with walrus assignments:
 3. Combine with guards for conditional logic
 4. Prefer for performance optimization scenarios
 
-Walrus assignments provide efficient code patterns while maintaining readability and type safety in both traditional and data spatial programming contexts.
+Walrus assignments provide efficient code patterns while maintaining readability and type safety in both traditional and object-spatial programming contexts.

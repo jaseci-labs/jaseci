@@ -40,7 +40,7 @@ binary = f"Binary: {number:b}";        # Binary representation
 hex_val = f"Hex: {number:x}";          # Hexadecimal
 ```
 
-#### Data Spatial Integration
+#### Object-Spatial Integration
 
 ```jac
 walker ReportGenerator {

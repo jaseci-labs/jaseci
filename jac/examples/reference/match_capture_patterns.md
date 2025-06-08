@@ -27,7 +27,7 @@ match temperature {
 }
 ```
 
-#### Data Spatial Integration
+#### Object-Spatial Integration
 
 ```jac
 walker PatternProcessor {
@@ -105,4 +105,4 @@ match response {
 3. Combine captures with guards for complex conditions
 4. Always include a capture pattern for unmatched cases
 
-Capture patterns provide essential functionality for extracting and working with matched values in Jac's pattern matching system, enabling elegant data destructuring in both traditional and data spatial programming contexts.
+Capture patterns provide essential functionality for extracting and working with matched values in Jac's pattern matching system, enabling elegant data destructuring in both traditional and object-spatial programming contexts.

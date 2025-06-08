@@ -1,11 +1,11 @@
 
-import from mtllm.llms {FakeLLM}
+import from mtllm.llms {FakeLLM, OpenAI}
 import from os {path}
 
 glob llm = FakeLLM(
     responses_file=path.join(path.dirname(__file__), "llm_mail_summerize.json")
 );
-
+# glob llm = OpenAI(model_name="gpt-4o", verbose=False);
 
 obj Email {
     has sender: str;

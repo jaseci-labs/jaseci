@@ -1,4 +1,4 @@
-Jac provides native enumeration support through the `enum` construct, offering ordered sets of named constants with integrated access control and implementation capabilities. Enumerations behave similarly to Python's `enum.Enum` while supporting Jac's archetype system and data spatial programming features.
+Jac provides native enumeration support through the `enum` construct, offering ordered sets of named constants with integrated access control and implementation capabilities. Enumerations behave similarly to Python's `enum.Enum` while supporting Jac's archetype system and object-spatial programming features.
 
 #### Basic Enumeration Declaration
 
@@ -87,9 +87,9 @@ enum Priority {
 
 The `@unique` decorator ensures all enumeration values are distinct, preventing accidental duplicate assignments.
 
-#### Usage in Data Spatial Contexts
+#### Usage in Object-Spatial Contexts
 
-Enumerations integrate seamlessly with data spatial programming constructs:
+Enumerations integrate seamlessly with object-spatial programming constructs:
 
 ```jac
 enum NodeType {
@@ -111,4 +111,4 @@ node TypedNode {
 }
 ```
 
-Enumerations provide type-safe constants that enhance code clarity and maintainability in both traditional programming contexts and data spatial graph operations.
+Enumerations provide type-safe constants that enhance code clarity and maintainability in both traditional programming contexts and object-spatial graph operations.

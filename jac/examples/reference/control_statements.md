@@ -1,4 +1,4 @@
-Control statements provide essential flow control mechanisms for managing program execution within loops and conditional structures. These statements enable precise control over iteration and branching, complementing Jac's data spatial features with traditional imperative programming constructs.
+Control statements provide essential flow control mechanisms for managing program execution within loops and conditional structures. These statements enable precise control over iteration and branching, complementing Jac's object-spatial features with traditional imperative programming constructs.
 
 #### Basic Control Operations
 
@@ -163,9 +163,9 @@ def process_list(items: list) -> list {
 }
 ```
 
-**Data Spatial Integration**
+**Object-Spatial Integration**
 
-While control statements primarily affect traditional loops, they complement data spatial operations:
+While control statements primarily affect traditional loops, they complement object-spatial operations:
 
 ```jac
 walker Processor {
@@ -265,4 +265,4 @@ for item in large_dataset {
 4. **Limit Scope**: Control statements affect only the immediate loop
 5. **Readable Code**: Combine with clear conditional logic for maintainability
 
-Control statements in Jac provide essential building blocks for algorithmic logic, enabling developers to implement efficient loops with precise flow control. While Jac's data spatial features offer novel traversal mechanisms, traditional control statements remain crucial for implementing conventional algorithms and handling edge cases in data processing workflows.
+Control statements in Jac provide essential building blocks for algorithmic logic, enabling developers to implement efficient loops with precise flow control. While Jac's object-spatial features offer novel traversal mechanisms, traditional control statements remain crucial for implementing conventional algorithms and handling edge cases in data processing workflows.

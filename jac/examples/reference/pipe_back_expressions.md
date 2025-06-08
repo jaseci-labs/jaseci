@@ -52,7 +52,7 @@ final_result = formatter <| (
 
 #### Graph Operations
 
-In data spatial contexts:
+In object-spatial contexts:
 
 ```jac
 walker Analyzer {

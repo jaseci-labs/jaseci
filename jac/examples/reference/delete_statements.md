@@ -247,4 +247,4 @@ can safe_delete(item: any) -> bool {
 }
 ```
 
-Delete statements provide essential cleanup capabilities for managing memory and graph structure integrity in Jac programs. They work seamlessly with the data spatial model to maintain consistent graph states.
+Delete statements provide essential cleanup capabilities for managing memory and graph structure integrity in Jac programs. They work seamlessly with the object-spatial model to maintain consistent graph states.

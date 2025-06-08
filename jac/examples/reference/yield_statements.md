@@ -224,9 +224,9 @@ def squares {
 squares = (i * i for i in range(10));
 ```
 
-**Integration with Data Spatial Features**
+**Integration with Object-Spatial Features**
 
-Generators work within data spatial contexts:
+Generators work within object-spatial contexts:
 
 **Walker Data Generation**
 ```jac
@@ -383,4 +383,4 @@ def paginated_data(source: DataSource) {
 }
 ```
 
-Yield statements in Jac enable powerful generator-based programming patterns that promote memory efficiency, lazy evaluation, and elegant iteration patterns. They provide a foundation for building data processing pipelines, handling large datasets, and implementing custom iteration protocols that integrate seamlessly with both traditional programming constructs and Jac's data spatial features.
+Yield statements in Jac enable powerful generator-based programming patterns that promote memory efficiency, lazy evaluation, and elegant iteration patterns. They provide a foundation for building data processing pipelines, handling large datasets, and implementing custom iteration protocols that integrate seamlessly with both traditional programming constructs and Jac's object-spatial features.

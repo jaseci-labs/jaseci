@@ -1,8 +1,8 @@
-Connect expressions in Jac provide the fundamental mechanism for creating topological relationships between nodes, implementing the edge creation and management aspects of Data Spatial Programming. These expressions enable the construction of graph structures where computation can flow through connected data locations.
+Connect expressions in Jac provide the fundamental mechanism for creating topological relationships between nodes, implementing the edge creation and management aspects of Object-Spatial Programming. These expressions enable the construction of graph structures where computation can flow through connected data locations.
 
 **Theoretical Foundation**
 
-In DSP theory, edges are first-class entities that represent directed relationships between nodes, encoding both the topology of connections and the semantics of those relationships. Connect expressions create these edge instances, establishing the pathways through which walkers can traverse and enabling the "computation moving to data" paradigm.
+In OSP theory, edges are first-class entities that represent directed relationships between nodes, encoding both the topology of connections and the semantics of those relationships. Connect expressions create these edge instances, establishing the pathways through which walkers can traverse and enabling the "computation moving to data" paradigm.
 
 **Basic Connection Syntax**
 
@@ -110,7 +110,7 @@ Jac supports various connection directionalities:
 - **Incoming**: `<++` creates edges from destination to source  
 - **Bidirectional**: `<++>` creates edges in both directions
 
-**Connection in Data Spatial Context**
+**Connection in Object-Spatial Context**
 
 Connect expressions integrate seamlessly with walker traversal:
 
@@ -121,7 +121,7 @@ Connect expressions integrate seamlessly with walker traversal:
 
 **Lifecycle and Memory Management**
 
-Connected structures follow DSP lifecycle rules:
+Connected structures follow OSP lifecycle rules:
 - **Node dependency**: Edges automatically deleted when endpoint nodes are deleted
 - **Referential integrity**: Prevents dangling edge references
 - **Dynamic modification**: Connections can be created and destroyed during execution
@@ -153,6 +153,6 @@ Connect expressions in Jac are designed for efficiency:
 - **Property indexing**: Edge properties can be indexed for fast filtering
 - **Memory locality**: Related nodes and edges can be co-located for cache efficiency
 
-The example demonstrates a complete pattern where a walker constructs a mixed topology using both simple and typed connections, then traverses the structure using edge filtering to process specific subsets of the data. This showcases how connect expressions enable both the construction and utilization phases of data spatial programming, creating rich topological structures that support sophisticated computational patterns.
+The example demonstrates a complete pattern where a walker constructs a mixed topology using both simple and typed connections, then traverses the structure using edge filtering to process specific subsets of the data. This showcases how connect expressions enable both the construction and utilization phases of object-spatial programming, creating rich topological structures that support sophisticated computational patterns.
 
 Connect expressions represent a fundamental departure from traditional data structure approaches, enabling developers to construct and modify graph topologies dynamically while maintaining type safety and semantic clarity through edge typing and property systems.

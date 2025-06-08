@@ -1,4 +1,4 @@
-Report statements provide a mechanism for walkers to communicate results back to their spawning context. This feature is essential for extracting information from graph traversals and data spatial computations.
+Report statements provide a mechanism for walkers to communicate results back to their spawning context. This feature is essential for extracting information from graph traversals and object-spatial computations.
 
 #### Syntax
 
@@ -136,7 +136,7 @@ walker Finder {
 }
 ```
 
-#### Integration with Data Spatial
+#### Integration with Object-Spatial
 
 Reports work seamlessly with graph traversal:
 

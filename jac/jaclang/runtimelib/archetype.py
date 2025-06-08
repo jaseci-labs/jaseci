@@ -76,7 +76,7 @@ DataSpatialFilter: TypeAlias = (
 
 @dataclass(eq=False, repr=False)
 class DataSpatialDestination:
-    """Data Spatial Destination."""
+    """Object-Spatial Destination."""
 
     direction: EdgeDir
     edge: Callable[["Archetype"], bool] | None = None
@@ -93,7 +93,7 @@ class DataSpatialDestination:
 
 @dataclass(eq=False, repr=False)
 class DataSpatialPath:
-    """Data Spatial Path."""
+    """Object-Spatial Path."""
 
     origin: list[NodeArchetype]
     destinations: list[DataSpatialDestination]
@@ -451,7 +451,7 @@ class Root(NodeArchetype):
 
 @dataclass(eq=False)
 class DataSpatialFunction:
-    """Data Spatial Function."""
+    """Object-Spatial Function."""
 
     name: str
     func: Callable[[Any, Any], Any]

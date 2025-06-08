@@ -199,9 +199,9 @@ walker Collector {
 4. **Use Nonlocal for Closures**: Appropriate for nested function state
 5. **Consider Alternatives**: Class attributes or node properties
 
-#### Integration with Data Spatial
+#### Integration with Object-Spatial
 
-In data spatial contexts, consider using node/edge properties instead of global state:
+In object-spatial contexts, consider using node/edge properties instead of global state:
 
 ```jac
 # Instead of global state
@@ -220,4 +220,4 @@ walker Processor {
 }
 ```
 
-Global and nonlocal statements provide necessary escape hatches for scope management, but should be used judiciously in favor of Jac's more structured data spatial approaches.
+Global and nonlocal statements provide necessary escape hatches for scope management, but should be used judiciously in favor of Jac's more structured object-spatial approaches.

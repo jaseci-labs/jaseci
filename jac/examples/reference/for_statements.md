@@ -138,9 +138,9 @@ for name, age, city in user_records {
 }
 ```
 
-#### Data Spatial Integration
+#### Object-Spatial Integration
 
-For loops integrate naturally with data spatial programming constructs:
+For loops integrate naturally with object-spatial programming constructs:
 
 ```jac
 walker GraphTraverser {
@@ -296,4 +296,4 @@ for item in potentially_problematic_collection {
 
 **Control Flow**: Use break and continue judiciously to implement complex iteration logic clearly.
 
-For statements provide flexible, expressive iteration capabilities that support both traditional programming patterns and modern data spatial operations, enabling developers to write clear, efficient code for a wide range of computational scenarios.
+For statements provide flexible, expressive iteration capabilities that support both traditional programming patterns and modern object-spatial operations, enabling developers to write clear, efficient code for a wide range of computational scenarios.

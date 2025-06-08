@@ -1,4 +1,4 @@
-Jac provides two distinct tuple syntaxes that serve different programming needs: traditional positional tuples for ordered data and keyword tuples for labeled data structures that integrate seamlessly with pipe operations and data spatial programming.
+Jac provides two distinct tuple syntaxes that serve different programming needs: traditional positional tuples for ordered data and keyword tuples for labeled data structures that integrate seamlessly with pipe operations and object-spatial programming.
 
 #### Positional Tuples
 
@@ -70,9 +70,9 @@ let (y=latitude, x=longitude) = point;
 
 Keyword destructuring matches variables by label rather than position, providing more robust code when tuple structure evolves.
 
-#### Data Spatial Applications
+#### Object-Spatial Applications
 
-Tuples integrate effectively with data spatial programming patterns:
+Tuples integrate effectively with object-spatial programming patterns:
 
 ```jac
 node MetricsNode {

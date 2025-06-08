@@ -1,4 +1,4 @@
-Jac employs a familiar identifier system similar to Python and C-style languages while introducing specialized references essential for data spatial programming. The naming system supports both traditional programming patterns and the unique requirements of computation moving through topological structures.
+Jac employs a familiar identifier system similar to Python and C-style languages while introducing specialized references essential for object-spatial programming. The naming system supports both traditional programming patterns and the unique requirements of computation moving through topological structures.
 
 #### Standard Identifiers
 
@@ -24,7 +24,7 @@ This escaping mechanism provides flexibility when interfacing with external syst
 
 #### Special References
 
-Jac provides built-in special references that enable data spatial programming patterns. These references have well-defined semantic meanings and cannot be reassigned:
+Jac provides built-in special references that enable object-spatial programming patterns. These references have well-defined semantic meanings and cannot be reassigned:
 
 | Reference | Context | Purpose |
 |-----------|---------|---------|
@@ -39,12 +39,12 @@ Jac provides built-in special references that enable data spatial programming pa
 
 These keywords are reserved by the language and must appear exactly as shown.
 They cannot be redefined or used for other identifiers.  Their explicit spelling
-makes data spatial code easier to read and prevents accidental shadowing of core
+makes object-spatial code easier to read and prevents accidental shadowing of core
 context references.
 
-#### Data Spatial Reference Usage
+#### Object-Spatial Reference Usage
 
-Special references enable the bidirectional interaction model central to data spatial programming:
+Special references enable the bidirectional interaction model central to object-spatial programming:
 
 ```jac
 node DataNode {
@@ -87,7 +87,7 @@ Jac resolves names using a systematic hierarchy:
 4. **Imported modules**: External module references
 5. **Built-in references**: Special references and system functions
 
-This resolution order ensures predictable behavior while supporting both lexical scoping and data spatial context access.
+This resolution order ensures predictable behavior while supporting both lexical scoping and object-spatial context access.
 
 #### Naming Conventions
 
@@ -98,6 +98,6 @@ Consistent naming enhances code clarity and supports Jac's static analysis capab
 - **Constants**: `UPPER_SNAKE_CASE`
 - **Special references**: Reserved lowercase names
 
-Descriptive naming is particularly important in data spatial contexts where walkers, nodes, and edges interact dynamically, making clear semantic meaning essential for maintainable code.
+Descriptive naming is particularly important in object-spatial contexts where walkers, nodes, and edges interact dynamically, making clear semantic meaning essential for maintainable code.
 
-The naming system provides the foundation for clear, expressive data spatial programs where computation flows through well-defined topological structures with unambiguous reference semantics.
+The naming system provides the foundation for clear, expressive object-spatial programs where computation flows through well-defined topological structures with unambiguous reference semantics.
