@@ -1747,20 +1747,20 @@ class JacSmartAsserts:
 
     @staticmethod
     def smart_assert(
-        condition: Any, msg: Optional[str] = None, condition_str: str = ""  # noqa: ANN401
-    ) -> None:  # noqa: ANN401
-        """Assertion with a message."""
+        condition: Any, e:Any, msg: Optional[str] = None, condition_str: str = ""
+    ) -> None:
+        """Assertion with enhanced traceback reporting."""
         if condition:
             return
 
         machine = JacMachineInterface.py_get_jac_machine()
         if machine.gins:
             tracecallback = traceback.format_exc()
-            raise AssertionError(
-                f"{condition_str} : {msg or 'Condition is False.'}\n{tracecallback}" if tracecallback == "NoneType: None" else (f"{condition_str} : {msg}" if msg else "Condition is False.")
-            )
+            print(f"Smart Assert Enabled")
+            raise e
         else:
-            assert condition, msg or "Assertion failed."
+            # assert condition, msg or "Assertion failed."
+            raise e
 
 class JacMachineInterface(
     JacClassReferences,
