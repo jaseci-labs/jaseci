@@ -30,6 +30,8 @@ from jaclang.compiler.constant import (
     SymbolType,
 )
 from jaclang.compiler.constant import DELIM_MAP, SymbolAccess, Tokens as Tok
+from jaclang.compiler.jtyping.types.janytype import JAnyType
+from jaclang.compiler.jtyping.types.jtype import JType
 from jaclang.utils import resolve_relative_path
 from jaclang.utils.treeprinter import (
     print_ast_tree,
@@ -242,6 +244,7 @@ class Symbol:
         defn.sym = self
         self.access: SymbolAccess = access
         self.parent_tab = parent_tab
+        self.jtype: JType = JAnyType()
 
     @property
     def decl(self) -> NameAtom:
@@ -566,7 +569,7 @@ class AstSymbolNode(UniNode):
         return self.name_spec.py_ctx_func
 
     @property
-    def expr_type(self) -> str:
+    def expr_type(self) -> JType:
         return self.name_spec.expr_type
 
     @property
@@ -710,15 +713,15 @@ class Expr(UniNode):
     """
 
     def __init__(self) -> None:
-        self._sym_type: str = "NoType"
+        self._sym_type: JType = JAnyType()
         self._type_sym_tab: Optional[UniScopeNode] = None
 
     @property
-    def expr_type(self) -> str:
+    def expr_type(self) -> JType:
         return self._sym_type
 
     @expr_type.setter
-    def expr_type(self, sym_type: str) -> None:
+    def expr_type(self, sym_type: JType) -> None:
         self._sym_type = sym_type
 
     @property
@@ -799,9 +802,8 @@ class NameAtom(AtomExpr, EnumBlockStmt):
         return self._sym_category
 
     @property
-    def clean_type(self) -> str:
-        ret_type = self.expr_type.replace("builtins.", "").replace("NoType", "")
-        return ret_type
+    def clean_type(self) -> JType:
+        return self.expr_type
 
     @property
     def py_ctx_func(self) -> Type[ast3.expr_context]:
@@ -3591,6 +3593,19 @@ class AtomTrailer(Expr):
             trag_list.insert(0, left)
         return trag_list
 
+    @property
+    def to_list(self) -> list[Expr]:
+        nodes: list[Expr] = []
+        if isinstance(self.target, AtomTrailer):
+            nodes += self.target.to_list
+        else:
+            nodes.append(self.target)
+        if isinstance(self.right, AtomTrailer):
+            nodes += self.right.to_list
+        else:
+            nodes.append(self.right)
+        return nodes
+
 
 class AtomUnit(Expr):
     """AtomUnit node type for Jac Ast."""
@@ -4751,3 +4766,25 @@ class PythonModuleAst(EmptyToken):
         self.ast = ast
         self.orig_src = orig_src
         self.file_path = orig_src.file_path
+
+
+def parent_of_type(node: UniNode, typ: Type[T]) -> T:
+    """Find the parent of a node of a given type."""
+    trial = node.find_parent_of_type(typ)
+    if trial:
+        return trial
+    impl_node = node.parent_of_type(ImplDef)
+    assert isinstance(impl_node.decl_link, typ)
+    return impl_node.decl_link
+
+
+def find_parent_of_type(node: UniNode, typ: Type[T]) -> Optional[T]:
+    """Find the parent of a node of a given type."""
+    trial = node.find_parent_of_type(typ)
+    if trial:
+        return trial
+    impl_node = node.parent_of_type(ImplDef)
+    if impl_node.decl_link:
+        assert isinstance(impl_node.decl_link, typ)
+        return impl_node.decl_link
+    return None
