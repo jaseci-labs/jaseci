@@ -110,7 +110,7 @@ def run(
     session: str = "",
     main: bool = True,
     cache: bool = True,
-    gins: bool  = False,
+    gins: bool = False,
 ) -> None:
     """Run the specified .jac file.
 
