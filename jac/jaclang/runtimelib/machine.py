@@ -1539,11 +1539,9 @@ class JacUtils:
         JacMachine.program = jac_program
 
     @staticmethod
-    def attach_gins(
-        mach: JacMachine,
-    ) -> None:
+    def attach_gins() -> None:
         """Attach the Gins thread to the Jac machine state."""
-        mach.gins = GinSThread()
+        JacMachine.gins = GinSThread()
 
     @staticmethod
     def load_module(
@@ -1753,9 +1751,8 @@ class JacSmartAsserts:
         if condition:
             return
 
-        machine = JacMachineInterface.py_get_jac_machine()
+        machine = JacMachine
         if machine.gins:
-            tracecallback = traceback.format_exc()
             print(f"Smart Assert Enabled")
             raise e
         else:
