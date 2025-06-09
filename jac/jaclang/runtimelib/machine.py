@@ -1703,8 +1703,16 @@ class JacSmartAsserts:
         """Raise an AssertionError with enhanced traceback reporting if --gins is enabled."""
         if condition:
             return
-
         print("Smart Assert Enabled")
+
+        (llm,) = JacMachineInterface.jac_import(
+            target=".smart_assert",
+            base_path=__file__,
+        )
+
+        text = llm.smart_assert_explanation(condition=condition_str, assert_obj=e)
+        print(f"GinS Explanation: \n{text}")
+
         raise e from None  # Has an extra lines, need to figure out
 
 
