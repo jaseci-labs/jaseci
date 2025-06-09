@@ -134,10 +134,7 @@ def run(
     Jac.set_base_path(base)
 
     if gins:
-        Jac.attach_gins(mach=mach)
-
-    if gins:
-        Jac.attach_gins(mach=mach)
+        Jac.attach_gins()
 
     if filename.endswith(".jac"):
         try:
