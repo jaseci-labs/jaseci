@@ -9,7 +9,6 @@ import inspect
 import os
 import sys
 import tempfile
-import traceback
 import types
 from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -1690,24 +1689,24 @@ class JacUtils:
         """Wait for a thread to finish."""
         return future.result()
 
+
 class JacSmartAsserts:
     """Jac Smart Asserts."""
 
     @staticmethod
     def smart_assert(
-        condition: Any, e:Any, msg: Optional[str] = None, condition_str: str = ""
+        condition: bool,
+        e: AssertionError,
+        msg: Optional[str] = None,
+        condition_str: str = "",
     ) -> None:
-        """Assertion with enhanced traceback reporting."""
+        """Raise an AssertionError with enhanced traceback reporting if --gins is enabled."""
         if condition:
             return
 
-        machine = JacMachine
-        if machine.gins:
-            print(f"Smart Assert Enabled")
-            raise e
-        else:
-            # assert condition, msg or "Assertion failed."
-            raise e
+        print("Smart Assert Enabled")
+        raise e from None # Has an extra lines, need to figure out
+
 
 class JacMachineInterface(
     JacClassReferences,
