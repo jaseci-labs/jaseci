@@ -76,6 +76,7 @@ nav:
       - Language Ref Roadmap: "internals/planning_specs/ref_roadmap.md"
       - Error System: "internals/planning_specs/error_system.md"
       - Formatter System: "internals/planning_specs/formatter_system.md"
+      - Concurrency: "internals/planning_specs/concurrency_model.md"
       - Native Type System:
         - Introduction: "internals/planning_specs/native_type_system/index.md"
         - Architecture: "internals/planning_specs/native_type_system/architecture.md"
