@@ -1751,9 +1751,8 @@ class JacSmartAsserts:
         if condition:
             return
 
-        machine = JacMachineInterface.py_get_jac_machine()
+        machine = JacMachine
         if machine.gins:
-            tracecallback = traceback.format_exc()
             print(f"Smart Assert Enabled")
             raise e
         else:
