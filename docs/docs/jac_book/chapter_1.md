@@ -50,35 +50,41 @@ print(fof_alice)
 
 <div class="code-block">
 ```jac
-# Jac's Object-Spatial approach
- node User {
+# Jac's Data Spatial approach
+node User {
     has name: str;
 }
 
-edge Friendship {
-    has since: str;
-}
+edge Friendship {}
 
 walker FindFriendsOfFriends {
-    has person: User , friends_of_friends: set = set();
+    has person: User;
+    has friends_of_friends: set = set();
+    has friends: list = [];
+
 
     can traverse with User entry {
-        if here != self.person {
+        if here == self.person {
+            self.friends = [->:Friendship:->];
+            self.friends.append(here);
+        }
+
+        if here not in self.friends{
             self.friends_of_friends.add(here);
         }
-        visit [->:Friendship :->];
+        else{
+            visit [->:Friendship :->];
+        }
     }
 }
 
 with entry {
-    alice = User(name="Alice");
-    bob = User(name="Bob");
-    carol = User(name="Carol");
-    dave = User(name="Dave");
+    alice = User(name = "Alice");
 
-    alice +>: Friendship(since="today") :+> bob;
-    bob +>: Friendship(since="yesterday") :+> carol;
-    carol +>: Friendship(since="last month") :+> dave;
+    # Build friendship connections
+    alice +>:Friendship:+> User(name = "Bob")
+          +>:Friendship:+> User(name = "Carol")
+          +>:Friendship:+> User(name = "Dave");
 
     fof = FindFriendsOfFriends(alice) spawn alice;
     print(fof.friends_of_friends);
