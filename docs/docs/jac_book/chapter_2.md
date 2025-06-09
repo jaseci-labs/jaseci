@@ -302,7 +302,7 @@ walker Greeter {
         self.greeting_count += 1;
 
         # Visit all people this person knows
-        visit [-->:Knows:];
+        visit [->:Knows:->];
     }
 
     # Ability triggered when walker finishes
@@ -322,8 +322,8 @@ with entry {
     root ++> person1;
 
     # Create relationships
-    person1 ++>:Knows(since="2024-02-01"):++> person2;
-    person2 ++>:Knows(since="2024-03-01"):++> person3;
+    person1 +>:Knows(since="2024-02-01"):+> person2;
+    person2 +>:Knows(since="2024-03-01"):+> person3;
 
     # Spawn walker to greet everyone
     greeter = Greeter();
@@ -388,6 +388,7 @@ test "greet with special characters" {
 ```jac
 # debug_example.jac
 
+import logging;
 walker DebugWalker {
     has visited_nodes: list = [];
 
@@ -417,7 +418,6 @@ walker DebugWalker {
 
 # Enable verbose logging
 with entry {
-    import:py logging;
     logging.basicConfig(level=logging.DEBUG);
 
     # Your code here
