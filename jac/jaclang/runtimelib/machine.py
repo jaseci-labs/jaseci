@@ -1755,7 +1755,7 @@ class JacSmartAsserts:
             return
 
         print("Smart Assert Enabled")
-        raise e from None # Has an extra lines, need to figure out
+        raise e from None  # Has an extra lines, need to figure out
 
 
 class JacMachineInterface(
