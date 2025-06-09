@@ -9,7 +9,6 @@ import inspect
 import os
 import sys
 import tempfile
-import traceback
 import types
 from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -1739,6 +1738,7 @@ class JacUtils:
     def thread_wait(future: Any) -> None:  # noqa: ANN401
         """Wait for a thread to finish."""
         return future.result()
+
 
 class JacSmartAsserts:
     """Jac Smart Asserts."""
