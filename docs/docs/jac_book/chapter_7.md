@@ -61,7 +61,6 @@ graph TD
 ```
 
 Nodes connected to `root` (directly or indirectly) persist between program runs:
-
 ```jac
 # Simple node declaration
 node Person {
@@ -83,7 +82,7 @@ with entry {
 
 # Second run - data still exists!
 with entry {
-    users = [root ->:Person:->];
+    users = [root -->(`?Person)];
     print(f"Found {len(users)} existing users");
 
     for user in users {
@@ -105,6 +104,7 @@ node City {
 }
 
 with entry {
+    # generic edge will be created
     nyc = root ++> City(
         name="New York",
         population=8_336_000,
@@ -118,7 +118,9 @@ with entry {
     );
 
     # Simple connection (unnamed edge)
-    nyc ++> london;  # NYC connects to London
+    nyc ++> london;  # NYC connects to London with GenericEdge
+
+    print(type([edge nyc-->][0]));
 }
 ```
 
@@ -168,6 +170,8 @@ with entry {
         duration_hours=6.0,
         price=380.00
     ):+> lax;
+
+    print(type([edge jfk -->][0]));
 }
 ```
 
