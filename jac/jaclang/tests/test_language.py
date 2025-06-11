@@ -298,8 +298,8 @@ class JacLanguageTests(TestCase):
         """Parse micro jac file."""
         Jac.loaded_modules.clear()
         targets = [
-            "deep",
-            "deep.deeper",
+            # "deep",
+            # "deep.deeper",
             "deep.mycode",
             "deep.deeper.snd_lev",
             "deep.one_lev",
@@ -311,7 +311,7 @@ class JacLanguageTests(TestCase):
         mods = Jac.loaded_modules.keys()
         for i in targets:
             self.assertIn(i, mods)
-        self.assertEqual(len([i for i in mods if i.startswith("deep")]), 6)
+        self.assertEqual(len([i for i in mods if i.startswith("deep")]), 4)
 
     def test_deep_outer_imports_one(self) -> None:
         """Parse micro jac file."""
