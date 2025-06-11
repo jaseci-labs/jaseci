@@ -65,8 +65,8 @@ Following code snippet will be our starting point:
 
 ```jac
 def translate(eng_sentence: str, target_lang: str) -> str {
-    """Normally this would include the translation logic such as calling an API.
-    For the sake of this example, we will return a dummy translated sentence."""
+    #* Normally this would include the translation logic such as calling an API.
+    For the sake of this example, we will return a dummy translated sentence. *#
 
     return "Hola Mundo";
 }
@@ -87,7 +87,7 @@ For this example, we will use OpenAI's GPT-3.5-turbo (default).
 ```jac
 import from mtllm.llms {OpenAI}
 
-llm = OpenAI();
+glob llm = OpenAI();
 
 # Rest of the code
 ```
@@ -96,14 +96,14 @@ llm = OpenAI();
 
 ```jac
 import from mtllm.llms {OpenAI}
-llm = OpenAI();
+glob llm = OpenAI();
 
-def translate(eng_sentence: str, target_lang: str) -> str by llm;
+def translate(eng_sentence: str, target_lang: str) -> str by llm();
 
 with entry {
     print(translate("Hello World", "Language spoken in Somalia"));
 }
-    ```
+```
 
 Thats it! 🎊
 

@@ -6,33 +6,34 @@
 
 ## Functions and Methods
 
-Functions and methods play a crucial role in implementing various functionalities in a traditional GenAI application. In jaclang, we have designed these functions and methods to be highly flexible and powerful. Surprisingly, they don't even require a function or method body thanks to the MTP `by <your_llm>` syntax. This section will guide you on how to effectively utilize functions and methods in jaclang using MTLLM plugin.
+Functions and methods play a crucial role in implementing various functionalities in a traditional GenAI application. In jaclang, we have designed these functions and methods to be highly flexible and powerful. Surprisingly, they don't even require a function or method body thanks to the MTP `by <your_llm>()` syntax. This section will guide you on how to effectively utilize functions and methods in jaclang using MTLLM plugin.
 
 ### Functions
 
-In a traditional GenAI application, you would make API calls inside the function body to perform the desired action. However, in jaclang, you can define the function using the `by <your_llm>` syntax. This way, you can define the function without a body and let the MTLLM model handle the implementation. Here is an example:
+In a traditional GenAI application, you would make API calls inside the function body to perform the desired action. However, in jaclang, you can define the function using the `by <your_llm>()` syntax. This way, you can define the function without a body and let the MTLLM model handle the implementation. Here is an example:
 
 ```jac
 def greet(name: str) -> str by <your_llm>();
 ```
 
-In the above example, the `greet` function takes a `name` parameter of type `str` and returns a `str`. The function is defined using the `by <your_llm>` syntax, which means the implementation of the function is handled by the MTLLM.
+In the above example, the `greet` function takes a `name` parameter of type `str` and returns a `str`. The function is defined using the `by <your_llm>()` syntax, which means the implementation of the function is handled by the MTLLM.
 
-Below is an example where we define a function `get_expert` that takes a question as input and returns the best expert to answer the question in string format using mtllm with openai model with the method `Reason`. `get_answer` function takes a question and an expert as input and returns the answer to the question using mtllm with openai model without any method. and we can call these function as normal functions.
+Below is an example where we define a function `analyze_sentiment` that takes text as input and returns the sentiment analysis using mtllm with openai model with the method `Reason`. `generate_response` function takes the original text and sentiment as input and returns an appropriate response using mtllm with openai model without any method. and we can call these functions as normal functions.
 
 ```jac
 import from mtllm.llms {OpenAI}
 
 glob llm = OpenAI(model_name="gpt-4o");
 
-def get_expert(question: str) -> str by llm(method='Reason');
-def get_answer(question: str, expert: str) -> str by llm();
+def analyze_sentiment(text: str) -> str by llm(method='Reason');
+def generate_response(original_text: str, sentiment: str) -> str by llm();
 
 with entry {
-    question = "What are Large Language Models?";
-    expert = get_expert(question);
-    answer = get_answer(question, expert);
-    print(f"{expert} says: '{answer}' ");
+    customer_feedback = "I'm really disappointed with the product quality. The delivery was late and the item doesn't match the description at all.";
+    sentiment = analyze_sentiment(customer_feedback);
+    response = generate_response(customer_feedback, sentiment);
+    print(f"Customer sentiment: {sentiment}");
+    print(f"Suggested response: {response}");
 }
 ```
 
@@ -104,6 +105,63 @@ with entry {
     print("Grade: ", grade);
 }
 ```
+
+
+### Tool Calling with ReAct method
+
+The ReAct (Reasoning and Acting) method is a powerful paradigm that combines reasoning with tool usage, allowing large language models to interact with external tools and APIs to solve complex problems that require real-time information or computational capabilities beyond the model's training data.
+
+In jaclang with MTLLM, you can define functions that use the ReAct method to reason about when and how to use tools. The model will analyze the problem, determine which tools are needed, call them in the appropriate sequence, and use the results to provide accurate answers.
+
+```jac
+import from mtllm.llms {OpenAI}
+import from datetime {datetime}
+
+glob llm = OpenAI(model_name="gpt-4o");
+
+obj Person {
+  has name: str;
+  has dob: str;
+}
+
+"""
+Calculate the age of the person where current date can be retrieved by the get_date tool.
+"""
+def calculate_age(person: Person) -> int by llm(method="ReAct", tools=[get_date]);
+
+def get_date() -> str {
+  return datetime.now().strftime("%d-%m-%Y");
+}
+
+with entry {
+  mars = Person("Mars", "27-05-1983");
+  print("Age of Mars =", calculate_age(mars));
+}
+
+```
+
+In this example, the `calculate_age` function demonstrates several key concepts:
+
+1. **ReAct Method**: The `method="ReAct"` parameter enables the model to reason about the problem step by step and determine what tools are needed.
+
+2. **Tool Integration**: The `tools=[get_date]` parameter provides the model with access to the `get_date` function, which it can call when needed.
+
+3. **Reasoning Process**: The model will:
+   - Analyze the problem (calculating age requires current date)
+   - Identify that it needs the current date to calculate age
+   - Call the `get_date` tool to retrieve the current date
+   - Perform the age calculation using the person's date of birth and current date
+   - Return the calculated age as an integer
+
+4. **Tool Definition**: The `get_date` function is a regular Python function that returns the current date in a specific format. The model can call this function during its reasoning process.
+
+The ReAct method is particularly useful for tasks that require:
+- Real-time data (like current date, weather, stock prices)
+- Complex calculations that benefit from external tools
+- API calls to external services
+- Multi-step reasoning with tool interactions
+
+When the model executes this function, it will internally reason through the problem, recognize that it needs the current date to calculate the age, call the `get_date` tool, and then use both the person's date of birth and the current date to compute and return the age.
 
 <!-- ## Object Initialization
 

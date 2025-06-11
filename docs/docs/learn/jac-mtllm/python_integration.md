@@ -78,10 +78,9 @@ Just like that with a few lines of code, you have a AI powered Task Manager. The
 ### Integrating the Jac Module
 
 ```python
-from jaclang import jac_import
+from jaclang import JacMachineInterface as _
+create_task = _.jac_import('taskman', __file__)[0].create_task
 
-# Importing the create_task function
-create_task = jac_import("taskman.jac").create_task
 
 tasks: list = []
 
