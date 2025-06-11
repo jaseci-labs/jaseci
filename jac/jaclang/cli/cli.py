@@ -110,6 +110,7 @@ def run(
     session: str = "",
     main: bool = True,
     cache: bool = True,
+    gins: bool = False,
 ) -> None:
     """Run the specified .jac file.
 
@@ -121,16 +122,21 @@ def run(
         session: Optional session identifier for persistent state
         main: Treat the module as __main__ (default: True)
         cache: Use cached compilation if available (default: True)
+        gins: Attach GINS (Global Interpreter Namespace) for debugging (default: False)
 
     Examples:
         jac run myprogram.jac
         jac run myprogram.jac --session mysession
         jac run myprogram.jac --no-main
+        jac run myprogram.jac --gins
     """
     # if no session specified, check if it was defined when starting the command shell
     # otherwise default to jaclang.session
     base, mod, mach = proc_file_sess(filename, session)
     Jac.set_base_path(base)
+
+    if gins:
+        Jac.attach_gins()
 
     if filename.endswith(".jac"):
         try:

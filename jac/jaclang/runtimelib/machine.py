@@ -9,6 +9,7 @@ import inspect
 import os
 import sys
 import tempfile
+import traceback
 import types
 from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -59,6 +60,7 @@ from jaclang.runtimelib.constructs import (
     WalkerAnchor,
     WalkerArchetype,
 )
+from jaclang.runtimelib.gins import GinSThread
 from jaclang.runtimelib.memory import Memory, Shelf, ShelfStorage
 from jaclang.runtimelib.utils import (
     all_issubclass,
@@ -1487,6 +1489,11 @@ class JacUtils:
         JacMachine.program = jac_program
 
     @staticmethod
+    def attach_gins() -> None:
+        """Attach the Gins thread to the Jac machine state."""
+        JacMachine.gins = GinSThread()
+
+    @staticmethod
     def load_module(
         module_name: str, module: types.ModuleType, force: bool = False
     ) -> None:
@@ -1684,6 +1691,70 @@ class JacUtils:
         return future.result()
 
 
+class JacSmartAsserts:
+    """Jac Smart Asserts."""
+
+    @staticmethod
+    def smart_assert(
+        condition: bool,
+        e: AssertionError,
+        msg: Optional[str] = None,
+        condition_str: str = "",
+    ) -> None:
+        """Raise an AssertionError with enhanced traceback reporting if --gins is enabled."""
+        if condition:
+            return
+        print("Smart Assert Enabled")
+
+        (llm,) = JacMachineInterface.jac_import(
+            target=".smart_assert",
+            base_path=__file__,
+        )
+        tb = traceback.format_exception(type(e), e, e.__traceback__)
+        tb_str = "".join(tb)
+        # Remove jaclang-related function calls from the callstack
+        stack = traceback.extract_stack()
+        filtered_stack = stack[6:-5]
+
+        current_frames = inspect.stack()
+        variable_context = []
+
+        for frame_info in current_frames:
+            frame = frame_info.frame
+            # Convert to dict with eval-safe serialization
+            local_vars = {
+                k: repr(v) for k, v in frame.f_locals.items()
+            }
+            # global_vars = {
+            #     k: repr(v) for k, v in frame.f_globals.items()
+            # }
+
+            # Match only the filtered frames
+            if any(
+                frame_info.filename == filtered.filename and frame_info.lineno == filtered.lineno
+                for filtered in filtered_stack
+            ):
+                variable_context.append({
+                    "file": frame_info.filename,
+                    "function": frame_info.function,
+                    "line": frame_info.lineno,
+                    "locals": local_vars,
+                    # "globals": global_vars,
+                })
+        # print(f"Smart Assert Context:\n{variable_context}")
+        # filtered_stack = [
+        #     frame for frame in stack
+        #     if "jaclang" not in frame.filename
+        # ]
+        stack_str = "".join(traceback.format_list(filtered_stack))
+        # print(f"Smart Assert Exception: {tb_str}")
+        # print(f"Smart Assert Stack: {stack_str}")
+        text = llm.smart_assert_explanation(condition=condition_str, traceback=tb_str, call_stack=stack_str, msg=msg, variable_context=variable_context)
+        print(f"GinS Explanation: \n{text}")
+
+        raise e from None  # Has an extra lines, need to figure out
+
+
 class JacMachineInterface(
     JacClassReferences,
     JacAccessValidation,
@@ -1694,6 +1765,7 @@ class JacMachineInterface(
     JacCmd,
     JacBasics,
     JacUtils,
+    JacSmartAsserts,
 ):
     """Jac Feature."""
 
@@ -1704,6 +1776,7 @@ class JacMachine(JacMachineInterface):
     loaded_modules: dict[str, types.ModuleType] = {}
     base_path_dir: str = os.getcwd()
     program: JacProgram = JacProgram()
+    gins: Optional[GinSThread] = None
     pool: ThreadPoolExecutor = ThreadPoolExecutor()
     exec_ctx: ExecutionContext = ExecutionContext()
 
