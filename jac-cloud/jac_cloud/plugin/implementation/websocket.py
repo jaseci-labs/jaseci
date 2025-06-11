@@ -309,10 +309,6 @@ async def websocket_endpoint(
     websocket: WebSocket, channel_id: str | None = None
 ) -> None:
     """Websocket Endpoint."""
-    if not websocket_events:
-        await websocket.close()
-        return
-
     if not authenticate_websocket(websocket):
         websocket._root = PUBLIC_ROOT  # type: ignore[attr-defined]
 
