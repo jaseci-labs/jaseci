@@ -7,9 +7,9 @@ import os
 from types import ModuleType
 from typing import Optional, Sequence
 
-from jaclang.runtimelib.importer import get_jac_search_paths
 from jaclang.runtimelib.machine import JacMachine as Jac
 from jaclang.runtimelib.machine import JacMachineInterface
+from jaclang.utils.module_resolver import get_jac_search_paths
 
 
 class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):

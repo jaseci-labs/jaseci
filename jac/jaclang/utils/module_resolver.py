@@ -4,7 +4,30 @@ from __future__ import annotations
 
 import os
 import site
+import sys
 from typing import Optional, Tuple
+
+
+def get_jac_search_paths(base_path: Optional[str] = None) -> list[str]:
+    """Construct a list of paths to search for Jac modules."""
+    paths = []
+    if base_path:
+        paths.append(base_path)
+    paths.append(os.getcwd())
+    if "JACPATH" in os.environ:
+        paths.extend(
+            p.strip() for p in os.environ["JACPATH"].split(os.pathsep) if p.strip()
+        )
+    paths.extend(sys.path)
+    site_pkgs = site.getsitepackages()
+    if site_pkgs:
+        paths.extend(site_pkgs)
+    user_site = getattr(site, "getusersitepackages", None)
+    if user_site:
+        user_dir = user_site()
+        if user_dir:
+            paths.append(user_dir)
+    return list(dict.fromkeys(filter(None, paths)))
 
 
 def _candidate_from(base: str, parts: list[str]) -> Optional[Tuple[str, str]]:
