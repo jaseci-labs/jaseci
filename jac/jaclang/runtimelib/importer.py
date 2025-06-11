@@ -144,10 +144,6 @@ class Importer:
         """Run the import process."""
         raise NotImplementedError
 
-    def update_sys(self, module: types.ModuleType, spec: ImportPathSpec) -> None:
-        """Update sys.modules with the newly imported module."""
-        JacMachineInterface.load_module(spec.module_name, module)
-
 
 class PythonImporter(Importer):
     """Importer for Python modules."""

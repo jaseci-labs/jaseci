@@ -761,6 +761,10 @@ class JacLanguageTests(TestCase):
 
     def test_list_methods(self) -> None:
         """Test list_modules, list_walkers, list_nodes, and list_edges."""
+        Jac.reset_machine()
+        Jac.set_base_path(self.fixture_abs_path("."))
+        sys.modules.pop("foo", None)
+        sys.modules.pop("bar", None)
         captured_output = io.StringIO()
         sys.stdout = captured_output
 
@@ -788,6 +792,9 @@ class JacLanguageTests(TestCase):
 
     def test_walker_dynamic_update(self) -> None:
         """Test dynamic update of a walker during runtime."""
+        Jac.reset_machine()
+        Jac.set_base_path(self.fixture_abs_path("."))
+        sys.modules.pop("bar", None)
         session = self.fixture_abs_path("bar_walk.session")
         bar_file_path = self.fixture_abs_path("bar.jac")
         update_file_path = self.fixture_abs_path("walker_update.jac")
