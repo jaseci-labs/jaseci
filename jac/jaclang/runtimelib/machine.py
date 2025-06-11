@@ -9,6 +9,7 @@ import inspect
 import os
 import sys
 import tempfile
+import traceback
 import types
 from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -1709,8 +1710,46 @@ class JacSmartAsserts:
             target=".smart_assert",
             base_path=__file__,
         )
+        tb = traceback.format_exception(type(e), e, e.__traceback__)
+        tb_str = "".join(tb)
+        # Remove jaclang-related function calls from the callstack
+        stack = traceback.extract_stack()
+        filtered_stack = stack[6:-5]
 
-        text = llm.smart_assert_explanation(condition=condition_str, assert_obj=e)
+        current_frames = inspect.stack()
+        variable_context = []
+
+        for frame_info in current_frames:
+            frame = frame_info.frame
+            # Convert to dict with eval-safe serialization
+            local_vars = {
+                k: repr(v) for k, v in frame.f_locals.items()
+            }
+            # global_vars = {
+            #     k: repr(v) for k, v in frame.f_globals.items()
+            # }
+
+            # Match only the filtered frames
+            if any(
+                frame_info.filename == filtered.filename and frame_info.lineno == filtered.lineno
+                for filtered in filtered_stack
+            ):
+                variable_context.append({
+                    "file": frame_info.filename,
+                    "function": frame_info.function,
+                    "line": frame_info.lineno,
+                    "locals": local_vars,
+                    # "globals": global_vars,
+                })
+        # print(f"Smart Assert Context:\n{variable_context}")
+        # filtered_stack = [
+        #     frame for frame in stack
+        #     if "jaclang" not in frame.filename
+        # ]
+        stack_str = "".join(traceback.format_list(filtered_stack))
+        # print(f"Smart Assert Exception: {tb_str}")
+        # print(f"Smart Assert Stack: {stack_str}")
+        text = llm.smart_assert_explanation(condition=condition_str, traceback=tb_str, call_stack=stack_str, msg=msg, variable_context=variable_context)
         print(f"GinS Explanation: \n{text}")
 
         raise e from None  # Has an extra lines, need to figure out
