@@ -111,7 +111,7 @@ class DebouncedRebuildHandler(FileSystemEventHandler):
 
 def serve_with_watch() -> None:
     """Serve MkDocs site and watch for file changes to trigger rebuilds."""
-    port = 8002
+    port = 8000
     root_dir = os.path.dirname(os.path.dirname(__file__))
     site_dir = os.path.join(root_dir, "site")
     ignore_paths = [os.path.join(root_dir, "docs", "playground", "jaclang.zip")]
