@@ -26,10 +26,10 @@ def pre_build_hook(**kwargs: dict) -> None:
     This function is called before the build process starts.
     """
     print("Running pre-build hook...")
-    if not os.path.exists(PLAYGROUND_ZIP_PATH):
-        create_playground_zip()
-    else:
-        print(f"Zip file already exists: {PLAYGROUND_ZIP_PATH}. Skipping creation.")
+    if os.path.exists(PLAYGROUND_ZIP_PATH):
+        print(f"Removing existing zip file: {PLAYGROUND_ZIP_PATH}")
+        os.remove(PLAYGROUND_ZIP_PATH)
+    create_playground_zip()
 
     if is_file_older_than_minutes(UNIIR_NODE_DOC, 5):
         with open(UNIIR_NODE_DOC, "w") as f:
