@@ -117,6 +117,7 @@ body,
     background-color: #1a1a1a !important;
     border-bottom: 1px solid #404040;
     box-shadow: none;
+    color: white;
 }
 
 /* Keep header sticky just like landing page */
