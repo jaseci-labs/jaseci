@@ -1308,3 +1308,17 @@ class JacLanguageTests(TestCase):
         self.assertIn("foo1", stdout_value[5])
         self.assertIn("foo2", stdout_value[6])
         self.assertIn("Coroutine task is completed", stdout_value[17])
+
+    def test_unicode_string_literals(self) -> None:
+        """Test unicode characters in string literals are preserved correctly."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        Jac.jac_import("unicode_strings", base_path=self.fixture_abs_path("./"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue().split("\n")
+        self.assertIn("1. ✓ 1st (due: True)", stdout_value[0])
+        self.assertIn("🌟 Star", stdout_value[2])
+        self.assertIn("Multi-line with ✓ unicode and ○ symbols", stdout_value[3])
+        self.assertIn("Raw string with ✓ and ○", stdout_value[4])
+        self.assertIn("Tab ✓", stdout_value[5])
+        self.assertIn("Newline ○", stdout_value[6])
