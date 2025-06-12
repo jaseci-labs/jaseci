@@ -62,28 +62,28 @@ graph LR
 Object-Spatial Programming inverts this relationship. Instead of bringing data to functions, we send computation to where data lives:
 
 ```jac
-// Jac - Computation moves to data
+# Jac - Computation moves to data
 walker CalculateInfluence {
     has influence_score: float = 0.0;
     has engagement_total: float = 0.0;
     has post_count: int = 0;
 
     can calculate with User entry {
-        // Computation happens AT the user node
+        # Computation happens AT the user node
         self.influence_score = len([<--:Follows:]) * 0.3;
 
-        // Visit posts without loading them all
+        # Visit posts without loading them all
         visit [-->:Authored:];
     }
 
     can calculate with Post entry {
-        // Computation happens AT each post
+        # Computation happens AT each post
         self.engagement_total += here.likes;
         self.post_count += 1;
     }
 
     can finalize with User exit {
-        // Back at user node to finalize
+        # Back at user node to finalize
         if self.post_count > 0 {
             engagement_rate = self.engagement_total / self.post_count;
             self.influence_score += engagement_rate * 0.7;
@@ -141,7 +141,7 @@ walker QualityInspector {
 
     can inspect with ProductionLine entry {
         print(f"Inspecting line: {here.name}");
-        visit [-->:Contains:];  // Walk to products on this line
+        visit [-->:Contains:];  # Walk to products on this line
     }
 
     can inspect with Product entry {
@@ -170,7 +170,7 @@ walker ViralContentTracker {
         self.reach += 1;
 
         if self.depth < self.max_depth {
-            // Content spreads through network
+            # Content spreads through network
             self.depth += 1;
             visit [-->:Follows:] where (
                 ?interested_in(here, self.content.topic)
@@ -199,7 +199,7 @@ walker PackageDelivery {
             disengage;
         }
 
-        // Find next hop
+        # Find next hop
         next_hop = here.get_next_hop(self.destination);
         if next_hop {
             visit next_hop;
@@ -225,7 +225,7 @@ Many problems are inherently graph-like:
 ##### 2. **Improved Locality**
 Computation happens where data lives:
 ```jac
-// Traditional: Load all data
+# Traditional: Load all data
 recommendations = []
 for user in all_users:  # Load millions of users
     for friend in user.friends:  # Load all friends
@@ -233,7 +233,7 @@ for user in all_users:  # Load millions of users
             if matches_interests(user, post):
                 recommendations.append(post)
 
-// Object-Spatial: Process in place
+# Object-Spatial: Process in place
 walker RecommendationEngine {
     has user_interests: list;
     has recommendations: list = [];
@@ -244,7 +244,7 @@ walker RecommendationEngine {
     }
 
     can find with User entry via Follows {
-        // At friend node, check recent posts
+        # At friend node, check recent posts
         for post in [-->:Authored:][0:10] {  # Only recent posts
             if self.matches_interests(post) {
                 self.recommendations.append(post);
@@ -302,7 +302,7 @@ node UserProfile {
     has joined_date: str;
     has reputation: int = 0;
 
-    // Node ability - triggered by walker visits
+    # Node ability - triggered by walker visits
     can update_reputation with ReputationCalculator entry {
         old_rep = self.reputation;
         self.reputation = visitor.calculate_for(self);
@@ -312,7 +312,7 @@ node UserProfile {
         }
     }
 
-    // Nodes can have regular methods too
+    # Nodes can have regular methods too
     can get_account_age() -> int {
         import:py from datetime import datetime;
         joined = datetime.fromisoformat(self.joined_date);
@@ -337,7 +337,7 @@ edge Friendship {
     has strength: float = 1.0;
     has interaction_count: int = 0;
 
-    // Edges can have abilities too!
+    # Edges can have abilities too!
     can strengthen with SocialInteraction entry {
         self.interaction_count += 1;
         self.strength = min(10.0, self.strength * 1.1);
@@ -345,7 +345,7 @@ edge Friendship {
         print(f"Friendship strengthened to {self.strength:.1f}");
     }
 
-    // Regular methods
+    # Regular methods
     can get_duration_days() -> int {
         import:py from datetime import datetime;
         start = datetime.fromisoformat(self.since);
@@ -378,25 +378,25 @@ Walkers are the "programs" of OSP—they move through the graph executing comput
 
 ```jac
 walker DataAggregator {
-    // Walker state - travels with the walker
+    # Walker state - travels with the walker
     has totals: dict = {};
     has visit_count: int = 0;
     has max_depth: int = 3;
     has current_depth: int = 0;
 
-    // Entry ability for Department nodes
+    # Entry ability for Department nodes
     can aggregate with Department entry {
         dept_name = here.name;
         dept_total = here.budget;
 
-        // Aggregate sub-departments
+        # Aggregate sub-departments
         if self.current_depth < self.max_depth {
             self.current_depth += 1;
             visit [-->:Contains:];
             self.current_depth -= 1;
         }
 
-        // Store results
+        # Store results
         if dept_name not in self.totals {
             self.totals[dept_name] = 0;
         }
@@ -404,9 +404,9 @@ walker DataAggregator {
         self.visit_count += 1;
     }
 
-    // Exit ability - cleanup or final processing
+    # Exit ability - cleanup or final processing
     can summarize with Department exit {
-        if self.current_depth == 0 {  // Back at starting node
+        if self.current_depth == 0 {  # Back at starting node
             print(f"Visited {self.visit_count} departments");
             print(f"Totals: {self.totals}");
         }
@@ -475,7 +475,7 @@ graph TD
 Let's see all archetypes working together:
 
 ```jac
-// Nodes represent data locations
+# Nodes represent data locations
 node Project {
     has name: str;
     has deadline: str;
@@ -504,10 +504,10 @@ node Task {
 node Developer {
     has name: str;
     has skills: list[str];
-    has capacity: float = 40.0;  // hours per week
+    has capacity: float = 40.0;  # hours per week
 }
 
-// Edges represent relationships
+# Edges represent relationships
 edge Contains {
     has created_at: str;
 }
@@ -517,14 +517,14 @@ edge AssignedTo {
     has priority: int = 5;
 
     can is_overdue() -> bool {
-        // Check if task is overdue based on project deadline
+        # Check if task is overdue based on project deadline
         task = self.target;
         project = task[<--:Contains:][0];
         return not task.completed and now() > project.deadline;
     }
 }
 
-// Walkers perform computations
+# Walkers perform computations
 walker ProjectAnalyzer {
     has total_tasks: int = 0;
     has completed_tasks: int = 0;
@@ -544,7 +544,7 @@ walker ProjectAnalyzer {
             self.total_hours += here.actual_hours;
         }
 
-        // Check assignments
+        # Check assignments
         for assignment in [-->:AssignedTo:] {
             if assignment.is_overdue() {
                 self.overdue_tasks.append({
@@ -570,16 +570,16 @@ walker ProjectAnalyzer {
     }
 }
 
-// Using it all together
+# Using it all together
 with entry {
-    // Create project structure
+    # Create project structure
     web_project = Project(
         name="Website Redesign",
         deadline="2024-12-31"
     );
     root ++> web_project;
 
-    // Add tasks
+    # Add tasks
     task1 = web_project ++>:Contains:++> Task(
         title="Design Homepage",
         estimated_hours=20
@@ -590,7 +590,7 @@ with entry {
         estimated_hours=40
     );
 
-    // Assign to developers
+    # Assign to developers
     alice = root ++> Developer(
         name="Alice",
         skills=["design", "frontend"]
@@ -604,7 +604,7 @@ with entry {
     task1 ++>:AssignedTo(priority=8):++> alice;
     task2 ++>:AssignedTo(priority=9):++> bob;
 
-    // Analyze the project
+    # Analyze the project
     analyzer = ProjectAnalyzer();
     result = analyzer spawn web_project;
     print(result);
