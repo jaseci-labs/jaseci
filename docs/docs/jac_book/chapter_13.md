@@ -77,11 +77,11 @@ graph TB
 Jac automatically partitions nodes across machines based on several strategies:
 
 ```jac
-// This configuration goes in jac.toml
+# This configuration goes in jac.toml
 [distribution]
-strategy = "user_affinity"  // or "load_balanced", "geo_distributed"
+strategy = "user_affinity"  # or "load_balanced", "geo_distributed"
 replication_factor = 3
-consistency_level = "eventual"  // or "strong", "bounded"
+consistency_level = "eventual"  # or "strong", "bounded"
 
 [distribution.rules]
 # Keeps user data together
@@ -103,13 +103,13 @@ distributed_types = [
 Edges that span machines are handled transparently:
 
 ```jac
-// This code works identically for local and cross-machine edges!
+# This code works identically for local and cross-machine edges!
 walker MessageSender {
     has message: str;
     has recipient: User;
 
     can send with entry {
-        // Even if recipient is on another machine, this just works
+        # Even if recipient is on another machine, this just works
         here ++> Message(
             content=self.message,
             from_user=here,
@@ -117,12 +117,12 @@ walker MessageSender {
             timestamp=now()
         );
 
-        // Visit recipient's node (automatic cross-machine travel)
+        # Visit recipient's node (automatic cross-machine travel)
         visit self.recipient;
     }
 
     can notify with User entry {
-        // Now executing on recipient's machine!
+        # Now executing on recipient's machine!
         here ++> Notification(
             type="new_message",
             message=self.message
@@ -136,7 +136,7 @@ walker MessageSender {
 Jac provides built-in functions to inspect distribution:
 
 ```jac
-// Check node location
+# Check node location
 can get_node_info(n: node) -> dict {
     return {
         "machine_id": n.__machine_id__,
@@ -146,7 +146,7 @@ can get_node_info(n: node) -> dict {
     };
 }
 
-// Monitor cross-machine edges
+# Monitor cross-machine edges
 walker DistributionAnalyzer {
     has cross_machine_count: int = 0;
     has local_count: int = 0;
@@ -177,7 +177,7 @@ walker DistributionAnalyzer {
 The beauty of Jac is that the same code scales naturally. Here's a social media application that works identically from one to thousands of machines:
 
 ```jac
-// User profile and social graph
+# User profile and social graph
 node UserProfile {
     has username: str;
     has bio: str;
@@ -201,12 +201,12 @@ edge Likes {
     has timestamp: str;
 }
 
-// This walker works across any number of machines!
+# This walker works across any number of machines!
 walker CreatePost {
     has content: str;
 
     can create with UserProfile entry {
-        // Create post (stays on same machine as user)
+        # Create post (stays on same machine as user)
         new_post = here ++> Post(
             content=self.content,
             timestamp=now()
@@ -214,7 +214,7 @@ walker CreatePost {
 
         here.post_count += 1;
 
-        // Notify followers (may span many machines)
+        # Notify followers (may span many machines)
         spawn NotifyFollowers(post=new_post) on here;
     }
 }
@@ -224,15 +224,15 @@ walker NotifyFollowers {
     has notified_count: int = 0;
 
     can notify with UserProfile entry {
-        // Get all followers (some local, some remote)
+        # Get all followers (some local, some remote)
         followers = [<--:Follows:];
 
-        // Spawn notification walkers (distributed automatically)
+        # Spawn notification walkers (distributed automatically)
         for follower in followers {
             if follower.notifications_enabled {
                 spawn CreateNotification(
                     post=self.post,
-                    user=follower.source  // The following user
+                    user=follower.source  # The following user
                 ) on follower.source;
 
                 self.notified_count += 1;
@@ -251,7 +251,7 @@ walker CreateNotification {
     has user: UserProfile;
 
     can create with UserProfile entry {
-        // This executes on the follower's machine
+        # This executes on the follower's machine
         here ++> Notification(
             type="new_post",
             post=self.post,
@@ -267,21 +267,21 @@ walker CreateNotification {
 Jac can automatically balance load by redistributing nodes:
 
 ```jac
-// Configuration for automatic load balancing
+# Configuration for automatic load balancing
 [distribution.load_balancing]
 enabled = true
-check_interval = 60  // seconds
+check_interval = 60  # seconds
 threshold_cpu = 0.8
 threshold_memory = 0.85
-threshold_edge_latency = 100  // ms
+threshold_edge_latency = 100  # ms
 
-// Nodes can provide hints for distribution
+# Nodes can provide hints for distribution
 node ComputeIntensiveTask {
     has priority: int;
     has estimated_cpu_hours: float;
     has data_size_gb: float;
 
-    // Distribution hints
+    # Distribution hints
     :distribution: {
         "prefer_high_cpu": true,
         "collocate_with": ["TaskData", "TaskResult"],
@@ -289,18 +289,18 @@ node ComputeIntensiveTask {
     }
 }
 
-// Monitor and rebalance
+# Monitor and rebalance
 walker LoadBalancer {
     can check_balance with entry {
-        let machine_stats = get_cluster_stats();
+        machine_stats = get_cluster_stats();
 
         for machine in machine_stats {
             if machine.cpu_usage > 0.8 {
-                // Find nodes to migrate
+                # Find nodes to migrate
                 candidates = get_migration_candidates(machine);
                 target_machine = find_least_loaded_machine();
 
-                for node in candidates[:5] {  // Migrate up to 5 nodes
+                for node in candidates[:5] {  # Migrate up to 5 nodes
                     migrate_node(node, target_machine);
                 }
             }
@@ -314,36 +314,36 @@ walker LoadBalancer {
 Jac provides built-in fault tolerance through replication and automatic recovery:
 
 ```jac
-// Configure replication
+# Configure replication
 node CriticalData {
     has data: dict;
     has version: int = 0;
 
     :replication: {
         "factor": 3,
-        "sync_mode": "async",  // or "sync" for strong consistency
+        "sync_mode": "async",  # or "sync" for strong consistency
         "preferred_regions": ["us-east", "eu-west", "ap-south"]
     }
 }
 
-// Automatic failover handling
+# Automatic failover handling
 walker ResilientOperation {
     has max_retries: int = 3;
     has retry_count: int = 0;
 
     can operate with entry {
         try {
-            // Normal operation
+            # Normal operation
             result = process_critical_data(here);
             report {"success": true, "result": result};
 
         } except NodeUnavailableError as e {
-            // Automatic failover to replica
+            # Automatic failover to replica
             self.retry_count += 1;
 
             if self.retry_count < self.max_retries {
-                // Jac automatically redirects to healthy replica
-                visit here.__replica__;  // Transparent failover
+                # Jac automatically redirects to healthy replica
+                visit here.__replica__;  # Transparent failover
             } else {
                 report {"success": false, "error": "All replicas failed"};
             }
@@ -351,16 +351,16 @@ walker ResilientOperation {
     }
 }
 
-// Health monitoring
+# Health monitoring
 walker HealthChecker {
     can check with entry {
-        let health = {
+        health = {
             "node": here,
             "status": "healthy",
             "checks": {}
         };
 
-        // Check node health
+        # Check node health
         try {
             health["checks"]["data_integrity"] = verify_data_integrity(here);
             health["checks"]["connection_count"] = len([<-->]);
@@ -370,7 +370,7 @@ walker HealthChecker {
             health["status"] = "unhealthy";
             health["error"] = str(e);
 
-            // Trigger automatic recovery
+            # Trigger automatic recovery
             initiate_recovery(here);
         }
 
@@ -384,40 +384,40 @@ walker HealthChecker {
 Deploy Jac applications globally with location-aware distribution:
 
 ```jac
-// Geo-distributed configuration
+# Geo-distributed configuration
 [distribution.geo]
 enabled = true
 regions = ["us-east-1", "eu-west-1", "ap-southeast-1"]
 default_region = "us-east-1"
 
-// Location-aware nodes
+# Location-aware nodes
 node GeoUser {
     has username: str;
     has preferred_region: str;
-    has data_residency: str;  // Legal requirement
+    has data_residency: str;  # Legal requirement
 
     :geo: {
         "pin_to_region": self.data_residency,
         "cache_in_regions": [self.preferred_region],
-        "exclude_regions": []  // For compliance
+        "exclude_regions": []  # For compliance
     }
 }
 
-// Cross-region walker with latency awareness
+# Cross-region walker with latency awareness
 walker GlobalSearch {
     has query: str;
     has max_latency_ms: int = 200;
     has results: list = [];
 
     can search with entry {
-        let regions = get_all_regions();
-        let local_region = here.__region__;
+        regions = get_all_regions();
+        local_region = here.__region__;
 
-        // Search local region first
+        # Search local region first
         local_results = search_region(local_region, self.query);
         self.results.extend(local_results);
 
-        // Search remote regions in parallel
+        # Search remote regions in parallel
         for region in regions {
             if region != local_region {
                 expected_latency = estimate_latency(local_region, region);
@@ -433,7 +433,7 @@ walker GlobalSearch {
     }
 }
 
-// Regional caching for performance
+# Regional caching for performance
 node CachedContent {
     has content: str;
     has cache_regions: list[str] = [];
@@ -452,23 +452,23 @@ node CachedContent {
 Jac handles distributed transactions transparently:
 
 ```jac
-// Distributed transaction example
+# Distributed transaction example
 walker TransferCredits {
     has from_user: User;
     has to_user: User;
     has amount: int;
 
     can transfer with entry {
-        // Start distributed transaction
+        # Start distributed transaction
         :transaction: {
             "isolation": "serializable",
-            "timeout": 5000,  // ms
+            "timeout": 5000,  # ms
             "retry_on_conflict": true
         }
 
-        // These operations are atomic across machines!
+        # These operations are atomic across machines!
         try {
-            // Debit from source (might be on machine A)
+            # Debit from source (might be on machine A)
             visit self.from_user {
                 if here.credits < self.amount {
                     raise InsufficientCreditsError();
@@ -476,12 +476,12 @@ walker TransferCredits {
                 here.credits -= self.amount;
             };
 
-            // Credit to destination (might be on machine B)
+            # Credit to destination (might be on machine B)
             visit self.to_user {
                 here.credits += self.amount;
             };
 
-            // Log transaction (might be on machine C)
+            # Log transaction (might be on machine C)
             spawn LogTransaction(
                 from_user=self.from_user,
                 to_user=self.to_user,
@@ -489,10 +489,10 @@ walker TransferCredits {
                 status="completed"
             ) on get_transaction_log_node();
 
-            :commit:;  // Commit distributed transaction
+            :commit:;  # Commit distributed transaction
 
         } except Exception as e {
-            :rollback:;  // Automatic rollback across all machines
+            :rollback:;  # Automatic rollback across all machines
             report {"success": false, "error": str(e)};
         }
     }
@@ -504,7 +504,7 @@ walker TransferCredits {
 Here's a complete example of a distributed task processing system:
 
 ```jac
-// Distributed task queue implementation
+# Distributed task queue implementation
 node TaskQueue {
     has name: str;
     has priority: int;
@@ -524,7 +524,7 @@ node Task {
     has completed_at: str = "";
 
     :distribution: {
-        "collocate_with_parent": true  // Stay with queue
+        "collocate_with_parent": true  # Stay with queue
     }
 }
 
@@ -533,7 +533,7 @@ edge InQueue {
     has enqueued_at: str;
 }
 
-// Distributed worker pool
+# Distributed worker pool
 walker TaskWorker {
     has worker_id: str;
     has capabilities: list[str];
@@ -541,10 +541,10 @@ walker TaskWorker {
     has current_tasks: list[Task] = [];
 
     can find_work with entry {
-        // Find available task queues across cluster
+        # Find available task queues across cluster
         queues = find_all_nodes(TaskQueue);
 
-        // Sort by priority and machine locality
+        # Sort by priority and machine locality
         queues.sort(key=lambda q: (-q.priority, q.__is_local__));
 
         for queue in queues {
@@ -555,7 +555,7 @@ walker TaskWorker {
             visit queue;
         }
 
-        // Process tasks in parallel
+        # Process tasks in parallel
         for task in self.current_tasks {
             spawn ProcessTask(
                 task=task,
@@ -565,9 +565,9 @@ walker TaskWorker {
     }
 
     can claim_task with TaskQueue entry {
-        // Atomic task claiming across distributed queue
+        # Atomic task claiming across distributed queue
         :transaction: {
-            available_tasks = [-->:InQueue:-->:Task:]
+            available_tasks = [-->(`?InQueue)-->(`?Task)]
                 .filter(lambda t: t.status == "pending")
                 .sort(key=lambda t: t.position);
 
@@ -577,7 +577,7 @@ walker TaskWorker {
                 task.assigned_worker = self.worker_id;
                 self.current_tasks.append(task);
 
-                // Remove from queue
+                # Remove from queue
                 del here --> task;
             }
         :commit:;
@@ -591,20 +591,20 @@ walker ProcessTask {
 
     can process with Task entry {
         try {
-            // Process the task
+            # Process the task
             result = execute_task_payload(here.payload);
 
             here.status = "completed";
             here.completed_at = now();
 
-            // Store result (might be on different machine)
+            # Store result (might be on different machine)
             here ++> TaskResult(
                 result=result,
                 worker_id=self.worker.worker_id,
                 completed_at=now()
             );
 
-            // Update worker
+            # Update worker
             self.worker.current_tasks.remove(here);
 
         } except Exception as e {
@@ -614,16 +614,16 @@ walker ProcessTask {
                 traceback=get_traceback()
             );
 
-            // Requeue for retry
-            find_queue(here.priority) ++>:InQueue:++> here;
+            # Requeue for retry
+            find_queue(here.priority) +>(`?InQueue)+> here;
         }
     }
 }
 
-// Monitoring across distributed system
+# Monitoring across distributed system
 walker SystemMonitor {
     can monitor with entry {
-        let stats = {
+        stats = {
             "total_tasks": 0,
             "pending": 0,
             "processing": 0,
@@ -633,7 +633,7 @@ walker SystemMonitor {
             "queue_depths": {}
         };
 
-        // Gather stats from all machines
+        # Gather stats from all machines
         all_tasks = find_all_nodes(Task);
 
         for task in all_tasks {
@@ -650,9 +650,9 @@ walker SystemMonitor {
             }
         }
 
-        // Check queue depths
+        # Check queue depths
         for queue in find_all_nodes(TaskQueue) {
-            depth = len([queue -->:InQueue:]);
+            depth = len([queue -->(`?InQueue)]);
             stats["queue_depths"][queue.name] = depth;
         }
 
@@ -660,7 +660,7 @@ walker SystemMonitor {
     }
 }
 
-// Auto-scaling based on load
+# Auto-scaling based on load
 walker AutoScaler {
     has min_workers: int = 5;
     has max_workers: int = 50;
@@ -668,34 +668,34 @@ walker AutoScaler {
     has scale_down_threshold: float = 0.3;
 
     can check_scaling with entry {
-        let metrics = spawn SystemMonitor() on root;
+        metrics = spawn SystemMonitor() on root;
 
-        let total_capacity = count_workers() * 5;  // max_concurrent per worker
-        let utilization = metrics["processing"] / total_capacity;
+        total_capacity = count_workers() * 5;  # max_concurrent per worker
+        utilization = metrics["processing"] / total_capacity;
 
         if utilization > self.scale_up_threshold {
-            let new_workers = min(5, self.max_workers - count_workers());
+            new_workers = min(5, self.max_workers - count_workers());
             for i in range(new_workers) {
                 spawn_worker_on_best_machine();
             }
             print(f"Scaled up by {new_workers} workers");
 
         } elif utilization < self.scale_down_threshold {
-            let remove_workers = min(5, count_workers() - self.min_workers);
+            remove_workers = min(5, count_workers() - self.min_workers);
             gracefully_shutdown_workers(remove_workers);
             print(f"Scaled down by {remove_workers} workers");
         }
     }
 }
 
-// Entry point that works at any scale
+# Entry point that works at any scale
 with entry {
-    // Initialize task queues (distributed automatically)
+    # Initialize task queues (distributed automatically)
     high_priority = root ++> TaskQueue(name="high", priority=10);
     medium_priority = root ++> TaskQueue(name="medium", priority=5);
     low_priority = root ++> TaskQueue(name="low", priority=1);
 
-    // Start workers (distributed across available machines)
+    # Start workers (distributed across available machines)
     for i in range(10) {
         spawn TaskWorker(
             worker_id=f"worker_{i}",
@@ -703,7 +703,7 @@ with entry {
         ) on root;
     }
 
-    // Start monitoring and auto-scaling
+    # Start monitoring and auto-scaling
     spawn SystemMonitor() on root;
     spawn AutoScaler() on root;
 
