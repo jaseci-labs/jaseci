@@ -484,30 +484,42 @@
             border-radius: 16px;
             padding: 40px;
             border: 1px solid #404040;
-            transition: all 0.3s;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.1), transparent);
+            transition: left 0.6s;
+        }
+
+        .feature-card:hover::before {
+            left: 100%;
         }
 
         .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-            border-color: #555;
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 25px 50px rgba(255, 107, 53, 0.2);
+            border-color: #ff6b35;
+        }
+
+        .feature-card:hover .feature-icon {
+            transform: scale(1.2) rotate(5deg);
         }
 
         .feature-icon {
             font-size: 40px;
             margin-bottom: 20px;
-        }
-
-        .feature-title {
-            font-size: 22px;
-            font-weight: 600;
-            margin-bottom: 15px;
-        }
-
-        .feature-description {
-            color: #cccccc;
-            font-size: 15px;
-            line-height: 1.6;
+            transition: transform 0.4s ease;
+            display: inline-block;
         }
 
         /* About Section */
@@ -653,125 +665,511 @@
             color: #ff6b35;
         }
 
-        /* Responsive Design */
+        /* Carousel Styles */
+        .carousel-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 16px;
+        }
+
+        .carousel-wrapper {
+            display: flex;
+            transition: transform 0.5s ease-in-out;
+        }
+
+        .carousel-slide {
+            min-width: 100%;
+            display: flex;
+            gap: 30px;
+            padding: 0 10px;
+        }
+
+        .carousel-slide .access-card,
+        .carousel-slide .feature-card {
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .carousel-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .carousel-btn {
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            border: none;
+            color: white;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .carousel-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px rgba(255, 107, 53, 0.4);
+        }
+
+        .carousel-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .carousel-indicators {
+            display: flex;
+            gap: 8px;
+        }
+
+        .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #555;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .indicator.active {
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            transform: scale(1.2);
+        }
+
+        /* Auto-play animation */
+        .carousel-container.auto-play .carousel-wrapper {
+            animation: autoSlide 12s infinite;
+        }
+
+        @keyframes autoSlide {
+            0%, 30% { transform: translateX(0); }
+            35%, 65% { transform: translateX(-100%); }
+            70%, 100% { transform: translateX(-200%); }
+        }
+
+        /* Responsive carousel */
         @media (max-width: 768px) {
-            .hero-title {
-                font-size: 36px;
-            }
-
-            .hero-buttons {
+            .carousel-slide {
                 flex-direction: column;
                 align-items: center;
             }
 
-            .playground-container {
-                grid-template-columns: 1fr;
-                height: auto;
-            }
-
-            .code-editor, .output-panel {
-                min-height: 300px;
-            }
-
-            .floating-nav {
-                padding: 8px 16px;
-            }
-
-            .nav-container {
-                padding: 6px 8px;
-            }
-
-            .nav-links {
-                gap: 4px;
-            }
-
-            .nav-links a {
-                font-size: 12px;
-                padding: 8px 12px;
-            }
-
-            .search-input {
-                width: 150px;
-            }
-
-            .section-title {
-                font-size: 28px;
-            }
-
-            .cards-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .features-grid {
-                grid-template-columns: 1fr;
-                max-width: 100%;
-            }
-
-            /* About section mobile adjustments */
-            .about-content {
-                flex-direction: column;
-                text-align: center;
-            }
-
-            .about-text {
-                text-align: center;
-            }
-
-            .about-stats {
-                gap: 20px;
-            }
-
-            .about-cta {
-                flex-direction: column;
-                align-items: center;
+            .carousel-slide .access-card,
+            .carousel-slide .feature-card {
+                min-width: 100%;
+                max-width: 400px;
             }
         }
 
-        @media (max-width: 480px) {
-            .header-right {
-                gap: 10px;
-            }
+        /* Enhanced card hover effects for carousel - RESTORED */
+        .carousel-slide .access-card {
+            transform: translateY(0);
+            transition: all 0.4s ease;
+        }
 
-            .search-input {
-                width: 120px;
-                font-size: 12px;
-            }
+        .carousel-slide .access-card:hover {
+            transform: translateY(-12px);
+            box-shadow: 0 25px 50px rgba(255, 107, 53, 0.4);
+        }
 
-            .github-link {
-                font-size: 12px;
-            }
+        /* Enhanced Interactive Code Demo */
+        .interactive-demo {
+            background: linear-gradient(145deg, #2d2d2d, #1a1a1a);
+            border-radius: 24px;
+            padding: 40px;
+            margin: 50px 0;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
 
-            .nav-links a {
-                font-size: 11px;
-                padding: 6px 10px;
-            }
+        .interactive-demo::before {
+            content: '';
+            position: absolute;
+            top: -3px;
+            left: -3px;
+            right: -3px;
+            bottom: -3px;
+            background: linear-gradient(45deg, #ff6b35, #f7931e, #ff6b35, #f7931e);
+            background-size: 400% 400%;
+            z-index: -1;
+            border-radius: 24px;
+            animation: gradient-border 4s ease infinite;
+        }
 
-            .about-stats {
-                flex-wrap: wrap;
-                gap: 15px;
+        @keyframes gradient-border {
+            0%, 100% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
             }
         }
 
-        /* Medium screens - keep 2x2 layout */
-        @media (min-width: 769px) and (max-width: 1024px) {
-            .features-grid {
-                max-width: 800px;
-                gap: 35px;
-            }
-
-            .feature-card {
-                padding: 35px;
-            }
+        .demo-header {
+            text-align: center;
+            margin-bottom: 30px;
         }
 
-        /* Scroll-based navigation highlighting */
-        .nav-links a.active {
+        .demo-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .demo-subtitle {
+            color: #cccccc;
+            font-size: 16px;
+            margin-bottom: 25px;
+        }
+
+        .demo-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 30px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .demo-tab {
+            background: linear-gradient(145deg, #404040, #353535);
+            border: 2px solid #555;
+            color: #cccccc;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 14px;
+            font-weight: 600;
+            position: relative;
+            overflow: hidden;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .demo-tab::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.2), transparent);
+            transition: left 0.6s;
+        }
+
+        .demo-tab:hover::before {
+            left: 100%;
+        }
+
+        .demo-tab:hover {
+            border-color: #ff6b35;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 107, 53, 0.3);
+        }
+
+        .demo-tab.active {
             background: linear-gradient(135deg, #ff6b35, #f7931e);
             color: white;
+            border-color: #ff6b35;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(255, 107, 53, 0.4);
         }
+
+        .demo-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            min-height: 400px;
+        }
+
+        .demo-code-panel, .demo-output-panel {
+            background: linear-gradient(145deg, #1a1a1a, #0d1117);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #333;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .demo-panel-header {
+            background: linear-gradient(135deg, #333, #2a2a2a);
+            padding: 15px 20px;
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .demo-panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .demo-panel-title::before {
+            content: '';
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+        }
+
+        /* FIXED: Enhanced Code Content Styling */
+        .demo-code-content {
+            padding: 25px;
+            font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            color: #e1e4e8;
+            background: #0d1117;
+            min-height: 320px;
+            max-height: 450px;
+            overflow-y: auto;
+            position: relative;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+
+        .demo-code-content pre {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            font-family: inherit;
+            font-size: inherit;
+            line-height: inherit;
+            color: inherit;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .demo-code-content code {
+            font-family: inherit;
+            font-size: inherit;
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            color: inherit;
+            display: block;
+        }
+
+        .demo-code-content.executing {
+            background: linear-gradient(45deg, #0d1117, #1a1a2e);
+            border-left: 4px solid #ff6b35;
+        }
+
+        /* Enhanced Syntax Highlighting */
+        .jac-comment {
+            color: #8b949e;
+            font-style: italic;
+        }
+        .jac-keyword {
+            color: #ff7b72;
+            font-weight: 600;
+        }
+        .jac-string {
+            color: #a5c261;
+        }
+        .jac-function {
+            color: #d2a8ff;
+            font-weight: 500;
+        }
+        .jac-variable {
+            color: #79c0ff;
+        }
+        .jac-number {
+            color: #79c0ff;
+        }
+        .jac-operator {
+            color: #ff7b72;
+        }
+        .jac-node {
+            color: #ffa657;
+            font-weight: 600;
+        }
+        .jac-edge {
+            color: #7ee68c;
+            font-weight: 600;
+        }
+        .jac-walker {
+            color: #f69d50;
+            font-weight: 600;
+        }
+
+        /* FIXED: Output Content Styling */
+        .demo-output-content {
+            padding: 25px;
+            font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            background: #0d1117;
+            min-height: 320px;
+            max-height: 450px;
+            color: #58a6ff;
+            position: relative;
+            overflow-y: auto;
+        }
+
+        .output-line {
+            margin-bottom: 8px;
+            opacity: 0;
+            animation: fadeInLine 0.5s ease forwards;
+            padding: 4px 0;
+            border-radius: 4px;
+        }
+
+        .output-line:nth-child(1) { animation-delay: 0.1s; }
+        .output-line:nth-child(2) { animation-delay: 0.3s; }
+        .output-line:nth-child(3) { animation-delay: 0.5s; }
+        .output-line:nth-child(4) { animation-delay: 0.7s; }
+        .output-line:nth-child(5) { animation-delay: 0.9s; }
+        .output-line:nth-child(6) { animation-delay: 1.1s; }
+
+        @keyframes fadeInLine {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .success-line {
+            color: #7ee68c;
+            background: rgba(126, 230, 140, 0.1);
+            padding-left: 8px;
+            border-left: 3px solid #7ee68c;
+        }
+        .info-line {
+            color: #58a6ff;
+            background: rgba(88, 166, 255, 0.1);
+            padding-left: 8px;
+            border-left: 3px solid #58a6ff;
+        }
+        .warning-line {
+            color: #f1c232;
+            background: rgba(241, 194, 50, 0.1);
+            padding-left: 8px;
+            border-left: 3px solid #f1c232;
+        }
+        .error-line {
+            color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+            padding-left: 8px;
+            border-left: 3px solid #ff6b6b;
+        }
+
+        .demo-run-btn {
+            background: linear-gradient(135deg, #238636, #2ea043);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .demo-run-btn:hover {
+            background: linear-gradient(135deg, #2ea043, #238636);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 160, 67, 0.3);
+        }
+
+        .demo-run-btn::before {
+            content: '▶';
+            font-size: 10px;
+        }
+
+        .execution-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .execution-indicator.active {
+            opacity: 1;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+
+        /* Custom scrollbars for code and output */
+        .demo-code-content::-webkit-scrollbar,
+        .demo-output-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .demo-code-content::-webkit-scrollbar-track,
+        .demo-output-content::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+
+        .demo-code-content::-webkit-scrollbar-thumb,
+        .demo-output-content::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+
+        .demo-code-content::-webkit-scrollbar-thumb:hover,
+        .demo-output-content::-webkit-scrollbar-thumb:hover {
+            background: #ff6b35;
+        }
+
+        /* ...existing code... */
     </style>
 </head>
 <body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" id="progress-bar"></div>
+
+    <!-- Mouse Follower -->
+    <div class="mouse-follower" id="mouse-follower"></div>
+
+    <!-- Floating Particles -->
+    <div class="particles-container" id="particles-container"></div>
+
     <!-- Header -->
     <header class="header">
         <!-- Top Bar -->
@@ -809,100 +1207,256 @@
     <main class="container">
         <!-- Hero Section -->
         <section class="hero">
-            <h1 class="hero-title">
+            <h1 class="hero-title animate-on-scroll">
                 <img src="/assets/logo.png" alt="Jaseci Logo" class="logo-img" style="vertical-align:middle;margin-right:14px;width:64px;height:64px;border-radius:10px;">
                 Jac and Jaseci
             </h1>
-            <p class="hero-subtitle">
+            <p class="hero-subtitle animate-on-scroll">
                 The programming language that extends Python with AI-first constructs and spatial programming.
                 Imagine, Create, Launch.
             </p>
-            <div class="hero-buttons">
+            <div class="typing-container animate-on-scroll">
+                <span class="typing-text" id="typing-text"></span>
+            </div>
+            <div class="hero-buttons animate-on-scroll">
                 <a href="#learn" class="btn-primary">Get Started</a>
                 <a href="/playground" class="btn-secondary" target="_blank">Try Playground</a>
+            </div>
+
+            <!-- Enhanced Interactive Code Demo -->
+            <div class="interactive-demo animate-on-scroll">
+                <div class="demo-header">
+                    <h3 class="demo-title">🚀 Try Jac Live</h3>
+                    <p class="demo-subtitle">Experience the power of Object-Spatial Programming and AI integration</p>
+                </div>
+
+                <div class="demo-tabs">
+                    <button class="demo-tab active" data-demo="hello">
+                        👋 Hello World
+                    </button>
+                    <button class="demo-tab" data-demo="graph">
+                        🌐 Graph Magic
+                    </button>
+                    <button class="demo-tab" data-demo="ai">
+                        🤖 AI Power
+                    </button>
+                    <button class="demo-tab" data-demo="cloud">
+                        ☁️ Cloud Deploy
+                    </button>
+                </div>
+
+                <div class="demo-content">
+                    <div class="demo-code-panel">
+                        <div class="demo-panel-header">
+                            <div class="demo-panel-title">📝 Code Editor</div>
+                            <button class="demo-run-btn" onclick="runCurrentDemo()">Run</button>
+                        </div>
+                        <div class="demo-code-content" id="demo-code">
+                            <!-- Code will be inserted here -->
+                        </div>
+                    </div>
+
+                    <div class="demo-output-panel">
+                        <div class="demo-panel-header">
+                            <div class="demo-panel-title">🖥️ Output Console</div>
+                        </div>
+                        <div class="demo-output-content" id="demo-output">
+                            <!-- Output will be shown here -->
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
     </main>
 
-    <!-- Quick Access Cards -->
+    <!-- Quick Access Cards with Carousel -->
     <section class="quick-access" id="learn">
         <div class="container">
             <h2 class="section-title">Get Started with Jac</h2>
-            <div class="cards-grid">
-                <div class="access-card">
-                    <div class="card-icon">🚀</div>
-                    <h3 class="card-title">Getting Started</h3>
-                    <p class="card-description">
-                        Install Jac and setup your development environment. Write your first Jac program.
-                    </p>
-                    <a href="/learn/getting_started/" class="card-link">Start Guide</a>
+            <div class="carousel-container" id="getting-started-carousel">
+                <div class="carousel-wrapper">
+                    <!-- Slide 1: Getting Started -->
+                    <div class="carousel-slide">
+                        <div class="access-card">
+                            <div class="card-icon">🚀</div>
+                            <h3 class="card-title">Getting Started</h3>
+                            <p class="card-description">
+                                Install Jac and setup your development environment. Write your first Jac program.
+                            </p>
+                            <a href="/learn/getting_started/" class="card-link">Start Guide</a>
+                        </div>
+
+                        <div class="access-card">
+                            <div class="card-icon">🎯</div>
+                            <h3 class="card-title">Tour of Jac</h3>
+                            <p class="card-description">
+                                Learn core concepts including Object-Spatial Programming and AI constructs.
+                            </p>
+                            <a href="/learn/introduction/" class="card-link">Take Tour</a>
+                        </div>
+
+                        <div class="access-card">
+                            <div class="card-icon">📚</div>
+                            <h3 class="card-title">The Jac Book</h3>
+                            <p class="card-description">
+                                Complete guide for Python developers transitioning to Jac programming.
+                            </p>
+                            <a href="/jac_book/" class="card-link">Read Book</a>
+                        </div>
+                    </div>
+
+                    <!-- Slide 2: Learn by Example -->
+                    <div class="carousel-slide">
+                        <div class="access-card">
+                            <div class="card-icon">🐦</div>
+                            <h3 class="card-title">LittleX Tutorial</h3>
+                            <p class="card-description">
+                                Build your own Twitter-like app with Jac. Learn object-spatial programming hands-on.
+                            </p>
+                            <a href="/learn/examples/littleX/tutorial/" class="card-link">Build Twitter</a>
+                        </div>
+
+                        <div class="access-card">
+                            <div class="card-icon">🤖</div>
+                            <h3 class="card-title">RAG Chatbot</h3>
+                            <p class="card-description">
+                                Create an AI-powered conversational chatbot with retrieval-augmented generation.
+                            </p>
+                            <a href="/learn/examples/rag_chatbot/readme/" class="card-link">Build Chatbot</a>
+                        </div>
+
+                        <div class="access-card">
+                            <div class="card-icon">🎮</div>
+                            <h3 class="card-title">AI Games</h3>
+                            <p class="card-description">
+                                Explore AI-driven applications with RPG games and fantasy trading systems.
+                            </p>
+                            <a href="/learn/examples/mtp_examples/rpg_game/" class="card-link">Play Games</a>
+                        </div>
+                    </div>
+
+                    <!-- Slide 3: Advanced Topics -->
+                    <div class="carousel-slide">
+                        <div class="access-card">
+                            <div class="card-icon">☁️</div>
+                            <h3 class="card-title">Jac Cloud</h3>
+                            <p class="card-description">
+                                Deploy your Jac applications to the cloud with built-in scaling and persistence.
+                            </p>
+                            <a href="/learn/jac-cloud/introduction/" class="card-link">Go Cloud</a>
+                        </div>
+
+                        <div class="access-card">
+                            <div class="card-icon">🧠</div>
+                            <h3 class="card-title">AI Programming</h3>
+                            <p class="card-description">
+                                Master AI integration with MTLLM and multimodal models in Jac.
+                            </p>
+                            <a href="/learn/jac-mtllm/quickstart/" class="card-link">AI Guide</a>
+                        </div>
+
+                        <div class="access-card">
+                            <div class="card-icon">⚡</div>
+                            <h3 class="card-title">Quick Reference</h3>
+                            <p class="card-description">
+                                Jac in 2 minutes! Quick syntax reference and cheat sheets for fast learning.
+                            </p>
+                            <a href="/learn/jac_in_a_flash/" class="card-link">Quick Start</a>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="access-card">
-                    <div class="card-icon">🎯</div>
-                    <h3 class="card-title">Tour of Jac</h3>
-                    <p class="card-description">
-                        Learn core concepts including Object-Spatial Programming and AI constructs.
-                    </p>
-                    <a href="/learn/introduction/" class="card-link">Take Tour</a>
+                <div class="carousel-controls">
+                    <button class="carousel-btn" id="prev-getting-started">‹</button>
+                    <div class="carousel-indicators" id="indicators-getting-started">
+                        <div class="indicator active"></div>
+                        <div class="indicator"></div>
+                        <div class="indicator"></div>
+                    </div>
+                    <button class="carousel-btn" id="next-getting-started">›</button>
                 </div>
-
-                <div class="access-card">
-                    <div class="card-icon">📚</div>
-                    <h3 class="card-title">The Jac Book</h3>
-                    <p class="card-description">
-                        Complete guide for Python developers transitioning to Jac programming.
-                    </p>
-                    <a href="/jac_book/" class="card-link">Read Book</a>
-                </div>
-
-
             </div>
         </div>
     </section>
 
-    <!-- Features Section -->
+    <!-- Features Section with Carousel -->
     <section class="features">
         <div class="container">
             <h2 class="section-title">Why Choose Jac?</h2>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">🐍</div>
-                    <h3 class="feature-title">Jac supersets Python</h3>
-                    <p class="feature-description">
-                        Jac is a drop-in replacement for Python and supersets Python, much like Typescript
-                        supersets Javascript or C++ supersets C.
-                    </p>
+            <div class="carousel-container" id="features-carousel">
+                <div class="carousel-wrapper">
+                    <!-- Slide 1: Core Features -->
+                    <div class="carousel-slide">
+                        <div class="feature-card">
+                            <div class="feature-icon">🐍</div>
+                            <h3 class="feature-title">Jac supersets Python</h3>
+                            <p class="feature-description">
+                                Jac is a drop-in replacement for Python and supersets Python, much like Typescript
+                                supersets Javascript or C++ supersets C.
+                            </p>
+                        </div>
+
+                        <div class="feature-card">
+                            <div class="feature-icon">🧠</div>
+                            <h3 class="feature-title">Novel Code Construct for AI</h3>
+                            <p class="feature-description">
+                                Jac introduces a new way programmers can integrate LLMs into their code. Simply
+                                replace a function body with an llm call, need for prompt engineering.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Slide 2: Advanced Features -->
+                    <div class="carousel-slide">
+                        <div class="feature-card">
+                            <div class="feature-icon">🌐</div>
+                            <h3 class="feature-title">Object-Spatial Programming</h3>
+                            <p class="feature-description">
+                                Jac introduces super OOP constructs for a new paradigm called object-spatial OOP,
+                                enhancing the handling and visualization of data.
+                            </p>
+                        </div>
+
+                        <div class="feature-card">
+                            <div class="feature-icon">☁️</div>
+                            <h3 class="feature-title">Cloud Native Abstractions</h3>
+                            <p class="feature-description">
+                                Jac makes persistence and user concepts part of the language, enabling simple
+                                programs to run unchanged in terminals or across clouds.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Slide 3: Developer Experience -->
+                    <div class="carousel-slide">
+                        <div class="feature-card">
+                            <div class="feature-icon">⚡</div>
+                            <h3 class="feature-title">Zero DevOps Setup</h3>
+                            <p class="feature-description">
+                                Deploy applications without complex infrastructure setup. Jac handles scaling,
+                                persistence, and user management automatically.
+                            </p>
+                        </div>
+
+                        <div class="feature-card">
+                            <div class="feature-icon">🔄</div>
+                            <h3 class="feature-title">Seamless Interoperability</h3>
+                            <p class="feature-description">
+                                Use any Python library or framework. Jac maintains full compatibility with the
+                                entire Python ecosystem while adding powerful new capabilities.
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="feature-card">
-                    <div class="feature-icon">🧠</div>
-                    <h3 class="feature-title">Novel Code Construct for AI</h3>
-                    <p class="feature-description">
-                        Jac introduces a new way programmers can integrate LLMs into their code. Simply
-                        replace a function body with an llm call, need for prompt engineering, learning
-                        extensive libraries and complicated new syntaxes.
-                    </p>
-                </div>
-
-                <div class="feature-card">
-                    <div class="feature-icon">🌐</div>
-                    <h3 class="feature-title">Beyond OOP with Object-Spatial Programming</h3>
-                    <p class="feature-description">
-                        Jac introduces super OOP constructs for a new paradigm called object-spatial OOP,
-                        enhancing the handling and visualization of data in ways traditional programming
-                        paradigms might not support.
-                    </p>
-                </div>
-
-                <div class="feature-card">
-                    <div class="feature-icon">☁️</div>
-                    <h3 class="feature-title">Cloud Native Abstractions</h3>
-                    <p class="feature-description">
-                        Jac makes persistence and user concepts part of the language, enabling simple
-                        programs to run unchanged in terminals or across clouds. Jac streamlines
-                        development by removing the need for dev ops and cloud setup.
-                    </p>
+                <div class="carousel-controls">
+                    <button class="carousel-btn" id="prev-features">‹</button>
+                    <div class="carousel-indicators" id="indicators-features">
+                        <div class="indicator active"></div>
+                        <div class="indicator"></div>
+                        <div class="indicator"></div>
+                    </div>
+                    <button class="carousel-btn" id="next-features">›</button>
                 </div>
             </div>
         </div>
@@ -912,12 +1466,12 @@
     <section class="about-section" id="about">
         <div class="container">
             <div class="about-container">
-                <div class="about-header">
+                <div class="about-header animate-on-scroll">
                     <h2 class="about-title">Built by Innovators</h2>
                     <p class="about-tagline">~ Imagine, Create, Launch ~</p>
                 </div>
 
-                <div class="about-content">
+                <div class="about-content animate-on-scroll">
                     <div class="about-logo">
                         <img src="/assets/logo.png" alt="Jaseci Logo" class="about-logo-img" style="width:80px;height:80px;border-radius:20px;box-shadow:0 10px 30px rgba(255,107,53,0.3);">
                     </div>
@@ -936,23 +1490,19 @@
                     </div>
                 </div>
 
-                <div class="about-stats">
-                    <div class="stat-item">
-                        <span class="stat-number">169</span>
+                <div class="about-stats animate-on-scroll">
+                    <div class="stat-item animated-stat">
+                        <span class="stat-number" data-count="169">0</span>
                         <span class="stat-label">GitHub Stars</span>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-number">220</span>
+                    <div class="stat-item animated-stat">
+                        <span class="stat-number" data-count="220">0</span>
                         <span class="stat-label">Forks</span>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-number">2025</span>
+                    <div class="stat-item animated-stat">
+                        <span class="stat-number" data-count="2025">0</span>
                         <span class="stat-label">Launch</span>
                     </div>
-                    <!-- <div class="stat-item">
-                        <span class="stat-number">∞</span>
-                        <span class="stat-label">Possibilities</span>
-                    </div> -->
                 </div>
 
                 <div class="about-cta">
@@ -980,44 +1530,548 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Hide loading overlay
+            setTimeout(() => {
+                document.getElementById('loading-overlay').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('loading-overlay').style.display = 'none';
+                }, 500);
+            }, 1500);
 
-            // Smooth scrolling for navigation links
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-                anchor.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const target = document.querySelector(this.getAttribute('href'));
-                    if (target) {
-                        target.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'start'
-                        });
-                    }
-                });
+            // Typing animation
+            const phrases = [
+                "# Write once, scale everywhere",
+                "# AI-first programming language",
+                "# Object-Spatial Programming",
+                "# Cloud-native by design"
+            ];
+            let phraseIndex = 0;
+            let charIndex = 0;
+            let isDeleting = false;
+            const typingElement = document.getElementById('typing-text');
+
+            function typeWriter() {
+                const currentPhrase = phrases[phraseIndex];
+
+                if (isDeleting) {
+                    typingElement.textContent = currentPhrase.substring(0, charIndex - 1);
+                    charIndex--;
+                } else {
+                    typingElement.textContent = currentPhrase.substring(0, charIndex + 1);
+                    charIndex++;
+                }
+
+                let typeSpeed = isDeleting ? 50 : 100;
+
+                if (!isDeleting && charIndex === currentPhrase.length) {
+                    typeSpeed = 2000; // Pause at end
+                    isDeleting = true;
+                } else if (isDeleting && charIndex === 0) {
+                    isDeleting = false;
+                    phraseIndex = (phraseIndex + 1) % phrases.length;
+                    typeSpeed = 500; // Pause before next phrase
+                }
+
+                setTimeout(typeWriter, typeSpeed);
+            }
+
+            typeWriter();
+
+            // Floating particles
+            function createParticle() {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDuration = (Math.random() * 3 + 3) + 's';
+                particle.style.animationDelay = Math.random() * 2 + 's';
+                document.getElementById('particles-container').appendChild(particle);
+
+                // Remove particle after animation
+                setTimeout(() => {
+                    particle.remove();
+                }, 8000);
+            }
+
+            // Create particles periodically
+            setInterval(createParticle, 300);
+
+            // Progress bar
+            function updateProgressBar() {
+                const scrollTop = window.pageYOffset;
+                const docHeight = document.body.scrollHeight - window.innerHeight;
+                const scrollPercent = (scrollTop / docHeight) * 100;
+                document.getElementById('progress-bar').style.width = scrollPercent + '%';
+            }
+
+            window.addEventListener('scroll', updateProgressBar);
+
+            // Mouse follower
+            const mouseFollower = document.getElementById('mouse-follower');
+            let mouseX = 0, mouseY = 0;
+            let followerX = 0, followerY = 0;
+
+            document.addEventListener('mousemove', (e) => {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
             });
 
-            // Navigation active state based on scroll
-            const navLinks = document.querySelectorAll('.nav-link');
-            const sections = document.querySelectorAll('section[id]');
+            function animateFollower() {
+                const dx = mouseX - followerX;
+                const dy = mouseY - followerY;
 
-            function updateActiveNav() {
-                let current = '';
-                sections.forEach(section => {
-                    const sectionTop = section.offsetTop;
-                    const sectionHeight = section.clientHeight;
-                    if (scrollY >= (sectionTop - 200)) {
-                        current = section.getAttribute('id');
+                followerX += dx * 0.1;
+                followerY += dy * 0.1;
+
+                mouseFollower.style.left = followerX + 'px';
+                mouseFollower.style.top = followerY + 'px';
+
+                requestAnimationFrame(animateFollower);
+            }
+
+            animateFollower();
+
+            // Enhanced Interactive code demos with clean syntax
+            const demoData = {
+                hello: {
+                    title: "Hello World - Your First Jac Program",
+                    code: `<span class="jac-comment"># Welcome to Jac! 🎉</span>
+<span class="jac-comment"># Let's create your first spatial program</span>
+
+<span class="jac-keyword">with</span> <span class="jac-keyword">entry</span> {
+    <span class="jac-function">print</span>(<span class="jac-string">"🚀 Hello from Jac!"</span>);
+    <span class="jac-function">print</span>(<span class="jac-string">"Python-compatible, AI-powered! ✨"</span>);
+
+    <span class="jac-comment"># Create your first persistent node</span>
+    <span class="jac-variable">greeting</span> = <span class="jac-variable">root</span> <span class="jac-operator">++></span> <span class="jac-node">Welcome</span>(
+        <span class="jac-variable">message</span>=<span class="jac-string">"Ready to explore?"</span>,
+        <span class="jac-variable">timestamp</span>=<span class="jac-function">datetime.now</span>()
+    );
+
+    <span class="jac-function">print</span>(<span class="jac-string">f"✅ Node created: {greeting.message}"</span>);
+}
+
+<span class="jac-comment"># Define your first node structure</span>
+<span class="jac-keyword">node</span> <span class="jac-node">Welcome</span> {
+    <span class="jac-keyword">has</span> <span class="jac-variable">message</span>: <span class="jac-keyword">str</span>;
+    <span class="jac-keyword">has</span> <span class="jac-variable">timestamp</span>: <span class="jac-keyword">str</span>;
+}`,
+                    output: [
+                        { type: 'success', text: '🚀 Hello from Jac!' },
+                        { type: 'success', text: 'Python-compatible, AI-powered! ✨' },
+                        { type: 'info', text: '📦 Creating Welcome node...' },
+                        { type: 'success', text: '✅ Node created: Ready to explore?' },
+                        { type: 'info', text: '💾 Node persisted to graph database' },
+                        { type: 'success', text: '🎉 Program completed successfully!' }
+                    ]
+                },
+                graph: {
+                    title: "Object-Spatial Programming - Social Network",
+                    code: `<span class="jac-comment"># Build a social network with spatial programming! 🌐</span>
+
+<span class="jac-keyword">node</span> <span class="jac-node">Person</span> {
+    <span class="jac-keyword">has</span> <span class="jac-variable">name</span>: <span class="jac-keyword">str</span>;
+    <span class="jac-keyword">has</span> <span class="jac-variable">age</span>: <span class="jac-keyword">int</span>;
+    <span class="jac-keyword">has</span> <span class="jac-variable">interests</span>: <span class="jac-keyword">list</span>[<span class="jac-keyword">str</span>] = [];
+}
+
+<span class="jac-keyword">edge</span> <span class="jac-edge">Follows</span> {
+    <span class="jac-keyword">has</span> <span class="jac-variable">since</span>: <span class="jac-keyword">str</span>;
+}
+
+<span class="jac-keyword">walker</span> <span class="jac-walker">NetworkExplorer</span> {
+    <span class="jac-keyword">has</span> <span class="jac-variable">discovered</span>: <span class="jac-keyword">list</span> = [];
+
+    <span class="jac-keyword">can</span> <span class="jac-function">explore</span> <span class="jac-keyword">with</span> <span class="jac-node">Person</span> <span class="jac-keyword">entry</span> {
+        <span class="jac-function">print</span>(<span class="jac-string">f"👋 Met {here.name}, age {here.age}"</span>);
+        <span class="jac-variable">self</span>.<span class="jac-variable">discovered</span>.<span class="jac-function">append</span>(<span class="jac-variable">here</span>.<span class="jac-variable">name</span>);
+
+        <span class="jac.comment"># Traverse the social graph</span>
+        <span class="jac-keyword">visit</span> [<span class="jac-operator">--></span>:<span class="jac-edge">Follows</span>:<span class="jac-operator">--></span>];
+    }
+}
+
+<span class="jac-keyword">with</span> <span class="jac-keyword">entry</span> {
+    <span class="jac.comment"># Create our social network</span>
+    <span class="jac-variable">alice</span> = <span class="jac-node">Person</span>(<span class="jac-variable">name</span>=<span class="jac-string">"Alice"</span>, <span class="jac-variable">age</span>=<span class="jac-number">28</span>);
+    <span class="jac-variable">bob</span> = <span class="jac-node">Person</span>(<span class="jac-variable">name</span>=<span class="jac-string">"Bob"</span>, <span class="jac-variable">age</span>=<span class="jac-number">32</span>);
+
+    <span class="jac.comment"># Connect them in the graph</span>
+    <span class="jac-variable">alice</span> <span class="jac-operator">+></span>:<span class="jac-edge">Follows</span>(<span class="jac-variable">since</span>=<span class="jac.string">"2024-01-15"</span>):<span class="jac-operator">+></span> <span class="jac-variable">bob</span>;
+
+    <span class="jac.comment"># Explore the network</span>
+    <span class="jac-variable">explorer</span> = <span class="jac-walker">NetworkExplorer</span>();
+    <span class="jac-keyword">spawn</span> <span class="jac-variable">explorer</span> <span class="jac-keyword">on</span> <span class="jac-variable">alice</span>;
+
+    <span class="jac-function">print</span>(<span class="jac-string">f"🔍 Discovered: {explorer.discovered}"</span>);
+}`,
+                    output: [
+                        { type: 'info', text: '🌐 Building social network...' },
+                        { type: 'success', text: '👋 Met Alice, age 28' },
+                        { type: 'info', text: '🔗 Following connection to Bob...' },
+                        { type: 'success', text: '👋 Met Bob, age 32' },
+                        { type: 'success', text: "🔍 Discovered: ['Alice', 'Bob']" },
+                        { type: 'info', text: '✨ Graph traversal completed!' }
+                    ]
+                },
+                ai: {
+                    title: "AI Integration - Natural Language to Code",
+                    code: `<span class="jac-comment"># AI-First Programming with MTLLM 🤖</span>
+
+<span class="jac-keyword">import</span>:<span class="jac-keyword">jac</span> <span class="jac-keyword">from</span> <span class="jac-variable">mtllm</span>.<span class="jac-variable">llms</span> { <span class="jac-node">Ollama</span> }
+
+<span class="jac-comment"># Initialize AI model</span>
+<span class="jac-keyword">glob</span> <span class="jac-variable">llm</span> = <span class="jac-node">Ollama</span>(<span class="jac-variable">model_name</span>=<span class="jac-string">"llama3.2"</span>);
+
+<span class="jac-comment"># AI-powered function - just describe what you want!</span>
+<span class="jac-keyword">can</span> <span class="jac-string">'Generate a creative name for a social media app
+that focuses on meaningful connections. Return just the name.'</span>
+    <span class="jac-function">generate_app_name</span>() <span class="jac-operator">-></span> <span class="jac-string">'App Name'</span>: <span class="jac-keyword">str</span> <span class="jac-keyword">by</span> <span class="jac-variable">llm</span>();
+
+<span class="jac-keyword">can</span> <span class="jac.string">'Analyze user interests: {interests} and suggest
+3 people they might connect with. Return as simple list.'</span>
+    <span class="jac-function">suggest_connections</span>(<span class="jac-variable">interests</span>: <span class="jac-keyword">str</span>) <span class="jac-operator">-></span> <span class="jac-string">'Suggestions'</span>: <span class="jac-keyword">str</span> <span class="jac-keyword">by</span> <span class="jac-variable">llm</span>();
+
+<span class="jac-keyword">with</span> <span class="jac-keyword">entry</span> {
+    <span class="jac_function">print</span>(<span class="jac_string">"🤖 AI-Powered Social App Demo"</span>);
+
+    <span class="jac.comment"># Get AI-generated app name</span>
+    <span class="jac-variable">app_name</span> = <span class="jac_function">generate_app_name</span>();
+    <span class="jac_function">print</span>(<span class="jac_string">f"✨ App Name: {app_name}"</span>);
+
+    <span class="jac.comment"># Get AI-powered connection suggestions</span>
+    <span class="jac-variable">user_interests</span> = <span class="jac_string">"AI, Photography, Travel"</span>;
+    <span class="jac-variable">suggestions</span> = <span class="jac_function">suggest_connections</span>(<span class="jac-variable">user_interests</span>);
+    <span class="jac_function">print</span>(<span class="jac_string">f"🔍 Suggestions: {suggestions}"</span>);
+}`,
+                    output: [
+                        { type: 'info', text: '🤖 AI-Powered Social App Demo' },
+                        { type: 'info', text: '🧠 Generating app name with AI...' },
+                        { type: 'success', text: '✨ App Name: ConnectSphere' },
+                        { type: 'info', text: '🔍 Analyzing user interests with AI...' },
+                        { type: 'success', text: '🔍 Suggestions: Maya (AI researcher), Chris (Photographer), Sam (Travel blogger)' },
+                        { type: 'info', text: '✨ AI analysis completed!' }
+                    ]
+                },
+                cloud: {
+                    title: "Cloud Deployment - Scale Instantly",
+                    code: `<span class="jac-comment"># Deploy to Cloud with Zero DevOps! ☁️</span>
+
+<span class="jac-keyword">node</span> <span class="jac-node">User</span> {
+    <span class="jac-keyword">has</span> <span class="jac-variable">id</span>: <span class="jac-keyword">str</span>;
+    <span class="jac-keyword">has</span> <span class="jac-variable">username</span>: <span class="jac-keyword">str</span>;
+    <span class="jac-keyword">has</span> <span class="jac-variable">email</span>: <span class="jac-keyword">str</span>;
+}
+
+<span class="jac-comment"># Auto-generated REST API endpoints! 🚀</span>
+<span class="jac-keyword">walker</span> <span class="jac-walker">CreateUser</span> {
+    <span class="jac-keyword">has</span> <span class="jac-variable">username</span>: <span class="jac-keyword">str</span>;
+    <span class="jac-keyword">has</span> <span class="jac-variable">email</span>: <span class="jac-keyword">str</span>;
+
+    <span class="jac-keyword">can</span> <span class="jac-function">create</span> <span class="jac-keyword">with</span> <span class="jac-keyword">entry</span> {
+        <span class="jac-comment"># Automatic validation & persistence</span>
+        <span class="jac-variable">user</span> = <span class="jac-variable">root</span> <span class="jac-operator">++></span> <span class="jac-node">User</span>(
+            <span class="jac-variable">id</span>=<span class="jac-function">uuid4</span>(),
+            <span class="jac-variable">username</span>=<span class="jac-variable">self</span>.<span class="jac-variable">username</span>,
+            <span class="jac-variable">email</span>=<span class="jac-variable">self</span>.<span class="jac-variable">email</span>
+        );
+
+        <span class="jac-keyword">report</span> {
+            <span class="jac-string">"success"</span>: <span class="jac-keyword">true</span>,
+            <span class="jac.string">"user_id"</span>: <span class="jac-variable">user</span>.<span class="jac-variable">id</span>,
+            <span class="jac.string">"message"</span>: <span class="jac.string">"User created! 🎉"</span>
+        };
+    }
+}
+
+<span class="jac-comment"># 🎯 Command to deploy: jac serve myapp.jac</span>
+<span class="jac-comment"># ✨ Instant features: REST API, Swagger docs, Auto-scaling</span>
+
+<span class="jac-keyword">with</span> <span class="jac-keyword">entry</span> {
+    <span class="jac_function">print</span>(<span class="jac_string">"🌐 Cloud API Server Ready!"</span>);
+    <span class="jac_function">print</span>(<span class="jac_string">"📍 POST /CreateUser - Create new user"</span>);
+}`,
+                    output: [
+                        { type: 'success', text: '🌐 Cloud API Server Ready!' },
+                        { type: 'success', text: '🚀 Server running at http://localhost:8000' },
+                        { type: 'info', text: '📍 POST /CreateUser - Create new user' },
+                        { type: 'info', text: '📚 API docs available at /docs' },
+                        { type: 'success', text: '✨ Auto-scaling enabled' },
+                        { type: 'success', text: '💾 Persistent storage ready' }
+                    ]
+                }
+            };
+
+            // Enhanced demo functionality with fake execution
+            const demoTabs = document.querySelectorAll('.demo-tab');
+            const demoCode = document.getElementById('demo-code');
+            const demoOutput = document.getElementById('demo-output');
+            let currentDemo = 'hello';
+
+            function showDemo(demoKey) {
+                currentDemo = demoKey;
+                const demo = demoData[demoKey];
+
+                // Update active tab
+                demoTabs.forEach(tab => {
+                    tab.classList.remove('active');
+                    if (tab.dataset.demo === demoKey) {
+                        tab.classList.add('active');
                     }
                 });
 
-                navLinks.forEach(link => {
-                    link.classList.remove('active');
-                    if (link.getAttribute('href') === `#${current}`) {
-                        link.classList.add('active');
-                    }
+                // Animate code change
+                demoCode.style.opacity = '0';
+                demoCode.style.transform = 'translateY(10px)';
+
+                setTimeout(() => {
+                    demoCode.innerHTML = `<pre><code>${demo.code}</code></pre>`;
+                    demoCode.style.opacity = '1';
+                    demoCode.style.transform = 'translateY(0)';
+
+                    // Clear output
+                    demoOutput.innerHTML = '<div class="output-line info-line">Click "Run" to execute this program ▶️</div>';
+                }, 300);
+            }
+
+            function showOutput(outputLines) {
+                demoOutput.innerHTML = '';
+
+                outputLines.forEach((line, index) => {
+                    setTimeout(() => {
+                        const outputLine = document.createElement('div');
+                        outputLine.className = `output-line ${line.type}-line`;
+                        outputLine.textContent = line.text;
+                        demoOutput.appendChild(outputLine);
+
+                        // Auto-scroll to bottom
+                        demoOutput.scrollTop = demoOutput.scrollHeight;
+                    }, index * 400);
                 });
             }
 
-            window.addEventListener('scroll', updateActiveNav);
+            // Enhanced fake execution
+            window.runCurrentDemo = function() {
+                const demo = demoData[currentDemo];
+                const codePanel = demoCode.parentElement;
+                const indicator = document.createElement('div');
+                indicator.className = 'execution-indicator active';
+                indicator.textContent = 'EXECUTING';
+                codePanel.appendChild(indicator);
+
+                // Add executing class
+                demoCode.classList.add('executing');
+
+                // Show execution start
+                demoOutput.innerHTML = '<div class="output-line info-line">🔄 Compiling Jac program...</div>';
+
+                setTimeout(() => {
+                    demoOutput.innerHTML += '<div class="output-line info-line">✅ Compilation successful</div>';
+                }, 800);
+
+                setTimeout(() => {
+                    demoOutput.innerHTML += '<div class="output-line info-line">🚀 Executing program...</div>';
+                }, 1200);
+
+                setTimeout(() => {
+                    // Remove execution indicator
+                    indicator.remove();
+                    demoCode.classList.remove('executing');
+
+                    // Show actual output
+                    demoOutput.innerHTML = '';
+                    showOutput(demo.output);
+                }, 1800);
+            };
+
+            demoTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    showDemo(tab.dataset.demo);
+                });
+            });
+
+            // Initialize first demo
+            showDemo('hello');
+
+            // FIXED: Carousel functionality
+            function initCarousel(carouselId, prevBtnId, nextBtnId, indicatorsId) {
+                const carousel = document.getElementById(carouselId);
+                const wrapper = carousel.querySelector('.carousel-wrapper');
+                const prevBtn = document.getElementById(prevBtnId);
+                const nextBtn = document.getElementById(nextBtnId);
+                const indicators = document.getElementById(indicatorsId);
+                const indicatorElements = indicators.querySelectorAll('.indicator');
+
+                let currentSlide = 0;
+                const totalSlides = wrapper.children.length;
+
+                function updateCarousel() {
+                    const translateX = -currentSlide * 100;
+                    wrapper.style.transform = `translateX(${translateX}%)`;
+
+                    // Update indicators
+                    indicatorElements.forEach((indicator, index) => {
+                        indicator.classList.toggle('active', index === currentSlide);
+                    });
+
+                    // Update button states
+                    prevBtn.disabled = currentSlide === 0;
+                    nextBtn.disabled = currentSlide === totalSlides - 1;
+                }
+
+                function nextSlide() {
+                    if (currentSlide < totalSlides - 1) {
+                        currentSlide++;
+                        updateCarousel();
+                    }
+                }
+
+                function prevSlide() {
+                    if (currentSlide > 0) {
+                        currentSlide--;
+                        updateCarousel();
+                    }
+                }
+
+                function goToSlide(index) {
+                    currentSlide = index;
+                    updateCarousel();
+                }
+
+                // Event listeners
+                prevBtn.addEventListener('click', prevSlide);
+                nextBtn.addEventListener('click', nextSlide);
+
+                indicatorElements.forEach((indicator, index) => {
+                    indicator.addEventListener('click', () => goToSlide(index));
+                });
+
+                // Auto-play functionality
+                let autoPlayInterval;
+
+                function startAutoPlay() {
+                    autoPlayInterval = setInterval(() => {
+                        if (currentSlide < totalSlides - 1) {
+                            nextSlide();
+                        } else {
+                            currentSlide = 0;
+                            updateCarousel();
+                        }
+                    }, 4000);
+                }
+
+                function stopAutoPlay() {
+                    clearInterval(autoPlayInterval);
+                }
+
+                // Start auto-play and pause on hover
+                startAutoPlay();
+                carousel.addEventListener('mouseenter', stopAutoPlay);
+                carousel.addEventListener('mouseleave', startAutoPlay);
+
+                // Initialize
+                updateCarousel();
+
+                // Touch/swipe support for mobile
+                let startX = 0;
+                let currentX = 0;
+                let isDragging = false;
+
+                carousel.addEventListener('touchstart', (e) => {
+                    startX = e.touches[0].clientX;
+                    isDragging = true;
+                    stopAutoPlay();
+                });
+
+                carousel.addEventListener('touchmove', (e) => {
+                    if (!isDragging) return;
+                    currentX = e.touches[0].clientX;
+                });
+
+                carousel.addEventListener('touchend', () => {
+                    if (!isDragging) return;
+                    isDragging = false;
+
+                    const deltaX = startX - currentX;
+                    if (Math.abs(deltaX) > 50) {
+                        if (deltaX > 0) {
+                            nextSlide();
+                        } else {
+                            prevSlide();
+                        }
+                    }
+
+                    startAutoPlay();
+                });
+            }
+
+            // Initialize carousels
+            initCarousel('getting-started-carousel', 'prev-getting-started', 'next-getting-started', 'indicators-getting-started');
+            initCarousel('features-carousel', 'prev-features', 'next-features', 'indicators-features');
+
+            // Scroll animations
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+
+                        // Animate stats
+                        if (entry.target.classList.contains('animated-stat')) {
+                            const statNumber = entry.target.querySelector('.stat-number');
+                            const targetValue = parseInt(statNumber.dataset.count);
+                            animateCount(statNumber, targetValue);
+                        }
+                    }
+                });
+            }, observerOptions);
+
+            // Observe all animate-on-scroll elements
+            document.querySelectorAll('.animate-on-scroll, .animated-stat').forEach(el => {
+                observer.observe(el);
+            });
+
+            // Animated counting
+            function animateCount(element, target) {
+                let current = 0;
+                const increment = target / 60;
+                const timer = setInterval(() => {
+                    current += increment;
+                    if (current >= target) {
+                        element.textContent = target;
+                        clearInterval(timer);
+                    } else {
+                        element.textContent = Math.floor(current);
+                    }
+                }, 30);
+            }
+
+            // Enhanced feature card interactions
+            document.querySelectorAll('.feature-card').forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    const icon = card.querySelector('.feature-icon');
+                    icon.style.animation = 'bounce 0.6s ease';
+                });
+
+                card.addEventListener('mouseleave', () => {
+                    const icon = card.querySelector('.feature-icon');
+                    icon.style.animation = '';
+                });
+            });
+
+            // Add bounce keyframes
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes bounce {
+                    0%, 20%, 60%, 100% { transform: translateY(0) scale(1); }
+                    40% { transform: translateY(-10px) scale(1.1); }
+                    80% { transform: translateY(-5px) scale(1.05); }
+                }
+            `;
+            document.head.appendChild(style);
         });
     </script>
 </body>
