@@ -39,7 +39,7 @@ obj Person {
 
 # That's it! Constructor, initialization, all automatic
 with entry {
-    let p = Person(name="Alice", age=30);
+    p = Person(name="Alice", age=30);
     print(p);  # Automatic string representation
 }
 ```
@@ -53,16 +53,16 @@ obj Employee {
     has id: int;
     has name: str;
     has department: str;
-    has salary: float = 50000.0;  # Default value
     has start_date: str;
-    has is_active: bool = true;
+    has salary: float = 50000.0;  # Default value
+    has is_active: bool = True;
     has skills: list[str] = [];  # Mutable default handled correctly!
 }
 
 # Automatic constructor handles all of this:
 with entry {
     # All required fields must be provided
-    let emp1 = Employee(
+    emp1 = Employee(
         id=101,
         name="Alice Smith",
         department="Engineering",
@@ -71,13 +71,13 @@ with entry {
     # salary=50000.0, is_active=true, skills=[] are defaults
 
     # Can override defaults
-    let emp2 = Employee(
+    emp2 = Employee(
         id=102,
         name="Bob Jones",
         department="Marketing",
         salary=65000.0,
         start_date="2023-06-01",
-        is_active=true,
+        is_active=True,
         skills=["communication", "analysis"]
     );
 }
@@ -102,15 +102,23 @@ obj Configuration {
     # Private fields (access control)
     has :priv secret_key: str = "";
     has :protect internal_state: dict = {};
+
+    def postinit() {
+        self.config_path = "docs/doc";
+        self.validated =  False;
+    }
 }
 
-# The 'by postinit' fields aren't in constructor
-let config = Configuration(
-    version="1.0.0",
-    debug=true,
-    settings={"theme": "dark"}
-);
-# config_path and validated are set in postinit
+with entry {
+    # The 'by postinit' fields aren't in constructor
+    config = Configuration(
+        version="1.0.0",
+        debug=True,
+        settings={"theme": "dark"}
+    );
+    # config_path and validated are set in postinit
+    print(config);
+}
 ```
 
 ### `class` - Traditional Python-Compatible Classes
@@ -722,7 +730,7 @@ obj Duck {
 }
 
 with entry {
-    let donald = Duck(
+    donald = Duck(
         name="Donald",
         flying=FlyingComponent(wing_span=0.5),
         swimming=SwimmingComponent(swim_speed=5.0)
