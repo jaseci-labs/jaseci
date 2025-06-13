@@ -119,10 +119,13 @@ class DocIRGenPass(UniPass):
         """Exit import node."""
         parts: list[doc.DocType] = []
         for i in node.kid:
-            if isinstance(i, uni.Token) and i.name in (Tok.SEMI, Tok.COMMA):
+            if isinstance(i, uni.Token) and i.name == Tok.COMMA:
                 parts.pop()
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
+            elif isinstance(i, uni.Token) and i.name == Tok.SEMI:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
             elif isinstance(i, uni.Token) and i.name == Tok.RBRACE:
                 parts.append(i.gen.doc_ir)
             else:
