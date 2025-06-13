@@ -1,8 +1,8 @@
 """GH Release script for MTLLM."""
 
-from github_release import gh_release_create
-
 import tomllib
+
+from github_release import gh_release_create
 
 with open("pyproject.toml", "rb") as f:
     data = tomllib.load(f)

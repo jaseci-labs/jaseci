@@ -808,7 +808,7 @@ class JacLanguageTests(TestCase):
         )
         sys.stdout = sys.__stdout__
         stdout_value = captured_output.getvalue()
-        os.remove(session)
+        os.remove(session) if os.path.exists(session) else None
         expected_output = "Created 5 items."
         self.assertIn(expected_output, stdout_value.split("\n"))
         # Define the new behavior to be added
