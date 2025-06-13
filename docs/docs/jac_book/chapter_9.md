@@ -56,7 +56,7 @@ with entry{
     node1 = DataNode(data="hello");
     node2 = DataNode(data="world");
 
-    
+
     processor spawn node1;
     processor spawn node2;
     print(f"Results: {processor.results}");
@@ -216,7 +216,7 @@ with entry {
 
     # Simulate traversal
     walker1 spawn node1;
-    
+
     # Final output
     print(f"Log of actions: {walker1.log}");
     print("OrderTest complete");
