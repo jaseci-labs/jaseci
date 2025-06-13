@@ -271,7 +271,11 @@ class DocIRGenPass(UniPass):
                 else:
                     indent_parts.append(i.gen.doc_ir)
             else:
-                if isinstance(i, uni.Token) and i.name == Tok.RETURN_HINT and not has_parens:
+                if (
+                    isinstance(i, uni.Token)
+                    and i.name == Tok.RETURN_HINT
+                    and not has_parens
+                ):
                     parts.append(self.space())
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
