@@ -1,5 +1,34 @@
 <h1 style="color: orange; font-weight: bold; text-align: center;">Tour of Jac</h1>
 
+## Python Superset Philosophy: All of Python Plus More
+
+Jac is a drop-in replacement for Python and supersets Python, much like Typescript supersets Javascript or C++ supersets C. It extends Python's semantics while maintaining full interoperability with the Python ecosystem, introducing cutting-edge abstractions designed to minimize complexity and embrace AI-forward development.
+
+<div class="code-block">
+```jac
+import math;
+import from random { uniform }
+
+def calc_distance(x1: float, y1: float, x2: float, y2: float) -> float {
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+}
+
+with entry {
+    # Generate random points
+    (x1, y1) = (uniform(0, 10), uniform(0, 10));
+    (x2, y2) = (uniform(0, 10), uniform(0, 10));
+
+    distance = calc_distance(x1, y1, x2, y2);
+    area = math.pi * (distance / 2) ** 2;
+
+    print("Distance:", round(distance, 2), ", Circle area:", round(area, 2));
+}
+```
+</div>
+
+This snippet natively imports Python packages `math` and `random` and runs identically to its Python counterpart. Jac targets Python bytecode, so all Python libraries work with Jac.
+
+
 ## Beyond OOP with Object-Spatial Programming
 
 Object-Spatial Programming (OSP) inverts the traditional relationship between data and computation. Rather than moving data to computation, OSP moves computation to data through topologically aware constructs. This paradigm introduces specialized archetypes—objects, nodes, edges and walkers—that model spatial relationships directly in the language and enable optimizations around data locality and distributed execution.    |
@@ -61,34 +90,6 @@ A walker travels through game stages using edges, demonstrating Object-Spatial P
 | • **Data Movement**: Objects moved to processing units    | • **Data Locality**: Computation happens where data lives     |
 | • **Rigid Structure**: Hard-coded execution patterns      | • **Composable Flows**: Stages as nodes, transitions as edges |
 | • **Single Machine**: Difficult to distribute             | • **Scale-Ready**: Walkers can traverse across devices
-
-## Python Superset Philosophy: All of Python Plus More
-
-Jac is a drop-in replacement for Python and supersets Python, much like Typescript supersets Javascript or C++ supersets C. It extends Python's semantics while maintaining full interoperability with the Python ecosystem, introducing cutting-edge abstractions designed to minimize complexity and embrace AI-forward development.
-
-<div class="code-block">
-```jac
-import math;
-import from random { uniform }
-
-def calc_distance(x1: float, y1: float, x2: float, y2: float) -> float {
-    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-}
-
-with entry {
-    # Generate random points
-    (x1, y1) = (uniform(0, 10), uniform(0, 10));
-    (x2, y2) = (uniform(0, 10), uniform(0, 10));
-
-    distance = calc_distance(x1, y1, x2, y2);
-    area = math.pi * (distance / 2) ** 2;
-
-    print("Distance:", round(distance, 2), ", Circle area:", round(area, 2));
-}
-```
-</div>
-
-This snippet natively imports Python packages `math` and `random` and runs identically to its Python counterpart. Jac targets Python bytecode, so all Python libraries work with Jac.
 
 ## Programming Abstractions for AI
 

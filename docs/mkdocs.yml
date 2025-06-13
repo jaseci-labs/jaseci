@@ -11,11 +11,11 @@ nav:
       - LittleX (your own twitter):
         - "learn/examples/littleX/tutorial.md"
         - "learn/examples/littleX/full_guide.md"
-      - RAG-based Conversational Chatbot:
-        - "learn/examples/rag_chatbot/readme.md"
-        - "learn/examples/rag_chatbot/1_setting-up-jac-cloud.md"
-        - "learn/examples/rag_chatbot/2_building-a-rag-chatbot.md"
-        - "learn/examples/rag_chatbot/3_rag-dialogue-routing-chatbot.md"
+      # - RAG-based Conversational Chatbot:
+      #   - "learn/examples/rag_chatbot/readme.md"
+      #   - "learn/examples/rag_chatbot/1_setting-up-jac-cloud.md"
+      #   - "learn/examples/rag_chatbot/2_building-a-rag-chatbot.md"
+      #   - "learn/examples/rag_chatbot/3_rag-dialogue-routing-chatbot.md"
       - AI driven Applications:
         - "learn/examples/mtp_examples/rpg_game.md"
         - "learn/examples/mtp_examples/fantasy_trading_game.md"
