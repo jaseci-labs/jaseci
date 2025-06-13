@@ -24,15 +24,17 @@ result = processor.process("hello")  # Explicit call
 
 Abilities execute implicitly based on events:
 
+<div class="code-block">
 ```jac
-// Jac - Implicit execution
+# Jac - Implicit execution
 walker DataProcessor {
+    has id: str;
     has results: list = [];
 
-    // This ability executes automatically when entering a DataNode
+    # This ability executes automatically when entering a DataNode
     can process with DataNode entry {
-        // No explicit call needed - triggered by traversal
-        let transformed = here.data.upper();
+        # No explicit call needed - triggered by traversal
+        transformed = here.data.upper();
         self.results.append(transformed);
     }
 }
@@ -40,12 +42,27 @@ walker DataProcessor {
 node DataNode {
     has data: str;
 
-    // This executes automatically when DataProcessor visits
+    # This executes automatically when DataProcessor visits
     can provide_context with DataProcessor entry {
         print(f"Processing {self.data} for {visitor.id}");
     }
 }
+
+with entry{
+    # Create a DataProcessor instance
+    processor = DataProcessor("Processor1");
+
+    # Create some DataNodes with data
+    node1 = DataNode(data="hello");
+    node2 = DataNode(data="world");
+
+    
+    processor spawn node1;
+    processor spawn node2;
+    print(f"Results: {processor.results}");
+}
 ```
+</div>
 
 The key insight: **computation happens as a natural consequence of traversal**, not through explicit invocation chains.
 
@@ -53,75 +70,101 @@ The key insight: **computation happens as a natural consequence of traversal**, 
 
 Each archetype can define abilities that respond to traversal events:
 
+<div class="code-block">
 ```jac
-// Walker abilities - defined in walkers
+# Walker abilities - defined in walkers
 walker Analyzer {
-    // Triggered when entering any node
+    # Triggered when entering any node
     can analyze_any with entry {
         print(f"Entering some node");
     }
 
-    // Triggered when entering specific node type
+    # Triggered when entering specific node type
     can analyze_data with DataNode entry {
         print(f"Entering DataNode: {here.value}");
     }
 
-    // Triggered when entering specific edge type
+    # Triggered when entering specific edge type
     can traverse_connection with Connection entry {
         print(f"Traversing Connection edge: {here.strength}");
     }
 
-    // Exit abilities
+    # Exit abilities
     can complete_analysis with DataNode exit {
         print(f"Leaving DataNode: {here.value}");
     }
 }
 
-// Node abilities - defined in nodes
+# Node abilities - defined in nodes
 node DataNode {
     has value: any;
     has metadata: dict = {};
 
-    // Triggered when any walker enters
+    # Triggered when any walker enters
     can log_visitor with entry {
         self.metadata["last_visitor"] = str(type(visitor).__name__);
         self.metadata["visit_count"] = self.metadata.get("visit_count", 0) + 1;
     }
 
-    // Triggered when specific walker type enters
+    # Triggered when specific walker type enters
     can provide_data with Analyzer entry {
-        // Node can modify the visiting walker
+        print(f"DataNode providing data: {self.value}");
+        # Node can modify the visiting walker
         visitor.collected_data.append(self.value);
+        visit [edge -->];
     }
 
-    // Exit abilities
+    # Exit abilities
     can cleanup with Analyzer exit {
         print(f"Analyzer leaving with {len(visitor.collected_data)} items");
     }
 }
 
-// Edge abilities - defined in edges
+# Edge abilities - defined in edges
 edge Connection {
     has strength: float;
     has established: str;
 
-    // Triggered when any walker traverses
+    # Triggered when any walker traverses
     can log_traversal with entry {
         print(f"Edge traversed: strength={self.strength}");
     }
 
-    // Triggered when specific walker traverses
+    # Triggered when specific walker traverses
     can apply_weight with Analyzer entry {
-        // Edges can influence traversal
+        print(f"Applying weight from edge: {self.strength}");
+        # Edges can influence traversal
         visitor.path_weight += self.strength;
     }
 }
+with entry{
+    print("Starting analysis with Analyzer walker");
+    # Initialize the walker
+    walker1 = Analyzer();
+    walker1.collected_data = [];
+    walker1.path_weight = 0.0;
+
+    # Create nodes and edges
+    node1 = DataNode(value="Node 1");
+    node2 = DataNode(value="Node 2");
+    edge1 = Connection(strength=1.5, established="2023-10-01");
+
+    # Simulate traversal
+    node1 +>: edge1 :+> node2;
+    walker1 spawn node1;
+    # Final output
+    print(f"Collected data: {walker1.collected_data}");
+    print(f"Total path weight: {walker1.path_weight}");
+    print("Analysis complete");
+}
 ```
+</div>
 
 ### Execution Order and Precedence
 
 When a walker interacts with a location, abilities execute in a specific order:
 
+<div class="code-block">
 ```jac
 node ExperimentNode {
     has name: str;
@@ -156,17 +199,30 @@ walker OrderTest {
     }
 
     can demonstrate with entry {
-        // This shows the complete order
+        # This shows the complete order
         visit [-->];
     }
 }
 
-// Execution order is always:
-// 1. Location (node/edge) entry abilities
-// 2. Walker entry abilities
-// 3. Walker exit abilities
-// 4. Location (node/edge) exit abilities
+
+with entry {
+    print("Starting OrderTest with OrderTest walker");
+    # Initialize the walker
+    walker1 = OrderTest();
+    walker1.log = [];
+
+    # Create a node
+    node1 = ExperimentNode(name="Experiment Node");
+
+    # Simulate traversal
+    walker1 spawn node1;
+    
+    # Final output
+    print(f"Log of actions: {walker1.log}");
+    print("OrderTest complete");
+}
 ```
+</div>
 
 ```mermaid
 sequenceDiagram
