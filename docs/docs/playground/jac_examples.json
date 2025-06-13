@@ -1,0 +1,13 @@
+{
+  "Basic": {
+    "For Loop": "reference/for_statements.jac",
+    "While Loop": "reference/while_statements.jac",
+    "Archetypes": "reference/archetype_bodies.jac",
+    "Code Block Statements": "reference/codeblocks_and_statements.jac",
+    "Assignments": "reference/assignments.jac",
+    "Conditional Statements": "reference/if_statements.jac"
+  },
+  "Data Spatial Programming": {
+    "Reference": "reference/data_spatial_references.jac"
+  }
+}
