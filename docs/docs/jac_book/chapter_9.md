@@ -262,7 +262,7 @@ node DataRecord {
         self.validated = false;
 
         # Perform validation
-        let errors = visitor.validate_schema(self.data);
+        errors = visitor.validate_schema(self.data);
 
         if errors {
             self.validation_errors = errors;
@@ -289,7 +289,7 @@ walker DataValidator {
     has invalid_count: int = 0;
 
     can validate_schema(data: dict) -> list {
-        let errors = [];
+        errors = [];
 
         # Check required fields
         for field in self.schema.get("required", []) {
@@ -349,7 +349,7 @@ node Account {
     # Apply interest when processor visits
     can apply_interest with InterestProcessor entry {
         if self.status == "active" and self.balance > 0 {
-            let interest = self.balance * visitor.get_rate(self);
+            interest = self.balance * visitor.get_rate(self);
             self.balance += interest;
 
             self.transactions.append({
@@ -366,7 +366,7 @@ node Account {
 
     # Update status based on balance
     can update_status with StatusUpdater entry {
-        let old_status = self.status;
+        old_status = self.status;
 
         if self.balance < 0 {
             self.status = "overdrawn";
@@ -429,8 +429,8 @@ node SalesRegion {
 
     can contribute_data with SalesAggregator entry {
         # Calculate region metrics
-        let total_sales = sum(sale["amount"] for sale in self.sales_data);
-        let avg_sale = total_sales / len(self.sales_data) if self.sales_data else 0;
+        total_sales = sum(sale["amount"] for sale in self.sales_data);
+        avg_sale = total_sales / len(self.sales_data) if self.sales_data else 0;
 
         # Add to aggregator
         visitor.add_region_data(
@@ -451,8 +451,8 @@ node SalesPerson {
     has quota: float;
 
     can report_performance with SalesAggregator entry {
-        let total = sum(sale["amount"] for sale in self.sales);
-        let performance = (total / self.quota * 100) if self.quota > 0 else 0;
+        total = sum(sale["amount"] for sale in self.sales);
+        performance = (total / self.quota * 100) if self.quota > 0 else 0;
 
         visitor.add_person_data(
             name=self.name,
@@ -463,7 +463,7 @@ node SalesPerson {
 
         # Contribute to region totals
         if here[<--:WorksIn:] {
-            let region = here[<--:WorksIn:][0].source;
+            region = here[<--:WorksIn:][0].source;
             region.sales_data.extend(self.sales);
         }
     }
@@ -634,7 +634,7 @@ node WorkItem {
 
     # First walker marks items
     can mark_ready with DependencyChecker entry {
-        let deps_complete = all(
+        deps_complete = all(
             dep.status == "completed"
             for dep in self.dependencies
         );
@@ -648,7 +648,7 @@ node WorkItem {
     # Second walker assigns work
     can assign_work with WorkAssigner entry {
         if self.status == "ready" and not self.assigned_to {
-            let worker = visitor.get_next_worker();
+            worker = visitor.get_next_worker();
             self.assigned_to = worker;
             self.status = "assigned";
 
@@ -697,7 +697,7 @@ walker WorkflowOrchestrator {
     has current_phase: int = 0;
 
     can orchestrate with entry {
-        let phase = self.phases[self.current_phase];
+        phase = self.phases[self.current_phase];
         print(f"\nExecuting phase: {phase}");
 
         if phase == "check_deps" {
@@ -769,8 +769,8 @@ node SmartDataNode(ObservableNode, CacheableNode) {
 
     # Override data setter to trigger notifications
     can update_data with DataUpdater entry {
-        let old_data = self.data.copy();
-        let changes = visitor.get_changes();
+        old_data = self.data.copy();
+        changes = visitor.get_changes();
 
         # Update data
         self.data.update(changes);
@@ -827,7 +827,7 @@ node AdaptiveProcessor {
         }
 
         # Normal processing
-        let result = self.standard_process(visitor.data);
+        result = self.standard_process(visitor.data);
         visitor.results.append(result);
 
         # Update metrics
@@ -841,7 +841,7 @@ node AdaptiveProcessor {
         }
 
         # Simplified processing for high load
-        let result = self.simple_process(visitor.data);
+        result = self.simple_process(visitor.data);
         visitor.results.append(result);
         visitor.degraded_count += 1;
     }
@@ -853,7 +853,7 @@ node AdaptiveProcessor {
 
         # Careful processing during recovery
         try {
-            let result = self.careful_process(visitor.data);
+            result = self.careful_process(visitor.data);
             visitor.results.append(result);
             self.error_rate *= 0.9;  # Reduce error rate
         } except {
@@ -864,7 +864,7 @@ node AdaptiveProcessor {
     }
 
     can check_mode_change {
-        let old_mode = self.mode;
+        old_mode = self.mode;
 
         if self.error_rate > 0.2 {
             self.mode = "recovery";
@@ -923,9 +923,9 @@ node OptimizedNode {
     can find_item with ItemFinder entry {
         self.build_index();
 
-        let target_id = visitor.target_id;
+        target_id = visitor.target_id;
         if target_id in self.index {
-            let idx = self.index[target_id];
+            idx = self.index[target_id];
             visitor.found_item = self.large_data[idx];
             visitor.comparisons = 1;  # O(1) lookup
         } else {
@@ -1054,7 +1054,7 @@ node Counter {
 
     can increment with CounterWalker entry {
         # Store previous state
-        let old_value = self.value;
+        old_value = self.value;
 
         # Mutate state
         self.value += visitor.increment_by;
@@ -1092,7 +1092,7 @@ node Calculator {
 
     # Ability delegates to pure function
     can provide_result with CalculationWalker entry {
-        let result = self.calculate(visitor.values);
+        result = self.calculate(visitor.values);
         visitor.collect_result(self, result);
     }
 }
