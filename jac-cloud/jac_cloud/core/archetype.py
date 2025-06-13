@@ -995,7 +995,10 @@ class WalkerAnchor(BaseAnchor, _WalkerAnchor):  # type: ignore[misc]
 
     def serialize(self) -> dict[str, object]:
         """Serialize Node Anchor."""
-        return {**super().serialize(), "schedule": asdict(self.schedule)}
+        return {
+            **super().serialize(),
+            "schedule": asdict(self.schedule) if self.schedule else None,
+        }
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
