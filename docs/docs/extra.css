@@ -84,3 +84,168 @@
     overflow: hidden;
     margin-top: 0;
 }
+/* =============================
+   Jac Global Theme Overrides
+   These styles ensure that all documentation pages
+   adopt the same aesthetic as the custom landing page
+   (docs/docs/index.html)
+   ============================= */
+
+/* ---------- Core page colours ---------- */
+body,
+[data-md-color-scheme="slate"] {
+    background-color: #1a1a1a !important;
+    color: #ffffff !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Material uses a lot of CSS variables.  We override the key ones for our palette. */
+[data-md-color-scheme="slate"] {
+    /* Primary & accent colours */
+    --md-primary-fg-color: #000000;         /* black */
+    --md-primary-bg-color: #1a1a1a;         /* background behind header/nav */
+    --md-accent-fg-color: #ff6b35;          /* orange gradient start */
+    --md-accent-fg-color--light: #f7931e;   /* gradient end */
+
+    /* Muted foreground colours */
+    --md-default-fg-color: #cccccc;
+    --md-default-bg-color: #1a1a1a;
+}
+
+/* ---------- Header (site name / search bar) ---------- */
+.md-header {
+    background-color: #1a1a1a !important;
+    border-bottom: 1px solid #404040;
+    box-shadow: none;
+    color: white;
+}
+
+/* Keep header sticky just like landing page */
+.md-header[data-md-state~="primary"] {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+/* Site title & logo */
+.md-header__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.md-header__title img {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+}
+
+/* ---------- Navigation Tabs / Top level nav ---------- */
+.md-tabs {
+    background-color: #2d2d2d;
+    border-bottom: 1px solid #404040;
+}
+
+.md-tabs__item {
+    margin: 0 4px;
+}
+
+.md-tabs__link {
+    color: #cccccc;
+    border-radius: 25px;
+    padding: 8px 16px;
+}
+
+.md-tabs__link:hover {
+    background-color: #404040;
+    color: #ffffff;
+}
+
+/* Active tab gradient */
+.md-tabs__item--active .md-tabs__link,
+.md-tabs__link--active {
+    background-image: linear-gradient(135deg, #ff6b35, #f7931e);
+    color: #ffffff !important;
+}
+
+/* ---------- Sidebar nav ---------- */
+.md-nav {
+    background-color: #1a1a1a;
+}
+
+.md-nav__link {
+    color: #cccccc;
+}
+
+.md-nav__link:hover {
+    color: #ffffff;
+}
+
+.md-nav__link--active {
+    background-image: linear-gradient(135deg, #ff6b35, #f7931e);
+    color: #ffffff !important;
+    border-radius: 6px;
+}
+
+/* ---------- Content area ---------- */
+.md-content,
+.md-main__inner {
+    background-color: #1a1a1a;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+    color: #ffffff;
+}
+
+.md-typeset a {
+    color: #ff6b35;
+}
+
+.md-typeset a:hover {
+    color: #f7931e;
+}
+
+/* ---------- Buttons (e.g., admonition copy button) ---------- */
+.md-clipboard.md-icon {
+    color: #cccccc;
+}
+
+.md-clipboard.md-icon:hover {
+    color: #ff6b35;
+}
+
+/* ---------- Tables ---------- */
+.md-typeset table {
+    border-color: #404040;
+}
+
+.md-typeset table th {
+    background-color: #2d2d2d;
+    color: #ffffff;
+}
+
+/* ---------- Code blocks ---------- */
+.md-typeset pre > code {
+    background-color: #2d2d2d;
+}
+
+/* ---------- Footer ---------- */
+.md-footer {
+    background-color: #2d2d2d;
+    border-top: 1px solid #404040;
+    color: #888;
+}
+
+.md-footer a {
+    color: #cccccc;
+}
+
+.md-footer a:hover {
+    color: #ff6b35;
+}
+

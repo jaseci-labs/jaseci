@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/assets/logo.png" type="image/png" />
+    <title>Jac: Python Supercharged for AI Development</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background-color: #1a1a1a;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background-color: #2d2d2d;
+            padding: 12px 0;
+            border-bottom: 1px solid #404040;
+        }
+
+        .top-bar-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .logo-img {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .search-input {
+            background-color: #404040;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #ffffff;
+            width: 200px;
+            font-size: 14px;
+        }
+
+        .search-input::placeholder {
+            color: #888;
+        }
+
+        .github-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #cccccc;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s;
+        }
+
+        .github-link:hover {
+            color: #ff6b35;
+        }
+
+        /* Floating Navigation */
+        .floating-nav {
+            padding: 12px 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .nav-container {
+            background-color: #2d2d2d;
+            border-radius: 50px;
+            padding: 8px 12px;
+            border: 1px solid #404040;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #cccccc;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 10px 16px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nav-links a:hover {
+            color: #ffffff;
+            background-color: #404040;
+        }
+
+        .nav-links a.active {
+            color: #ffffff;
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 60px 0;
+            text-align: center;
+        }
+
+        .hero-title {
+            font-size: 64px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            color: #cccccc;
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            color: white;
+            padding: 14px 32px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 53, 0.3);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #cccccc;
+            padding: 14px 32px;
+            border: 2px solid #404040;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .btn-secondary:hover {
+            border-color: #ff6b35;
+            color: #ff6b35;
+        }
+
+        /* Quick Access Cards */
+        .quick-access {
+            padding: 80px 0;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 50px;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+        }
+
+        .access-card {
+            background-color: #2d2d2d;
+            border-radius: 16px;
+            padding: 40px 30px;
+            text-align: center;
+            transition: all 0.3s;
+            border: 1px solid #404040;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .access-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .access-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .access-card:hover::before {
+            opacity: 1;
+        }
+
+        .card-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .card-description {
+            color: #cccccc;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+
+        .card-link {
+            color: #ff6b35;
+            text-decoration: none;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: color 0.3s;
+        }
+
+        .card-link:hover {
+            color: #f7931e;
+        }
+
+        .card-link::after {
+            content: "→";
+            font-size: 16px;
+        }
+
+        /* Playground Section */
+        .playground-section {
+            padding: 60px 0;
+            background-color: #222222;
+        }
+
+        .playground-title {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 40px;
+        }
+
+        .playground-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+
+        }
+
+        .code-editor {
+            background-color: #2d2d2d;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-header {
+            background-color: #3d3d3d;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            border-bottom: 1px solid #555;
+        }
+
+        .editor-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #cccccc;
+        }
+
+        .editor-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .editor-btn {
+            background-color: #4a4a4a;
+            border: none;
+            color: #cccccc;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .editor-btn:hover {
+            background-color: #555;
+        }
+
+        .editor-btn.primary {
+            background-color: #ff6b35;
+            color: white;
+        }
+
+        .editor-btn.primary:hover {
+            background-color: #e55a2b;
+        }
+
+        .code-content {
+            flex: 1;
+            padding: 20px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow-y: auto;
+            background-color: #2d2d2d;
+        }
+
+        .code-line {
+            margin-bottom: 2px;
+        }
+
+        .line-number {
+            color: #666;
+            margin-right: 20px;
+            user-select: none;
+        }
+
+        .keyword { color: #ff79c6; }
+        .string { color: #f1fa8c; }
+        .comment { color: #6272a4; }
+        .function { color: #50fa7b; }
+        .variable { color: #8be9fd; }
+
+        .output-panel {
+            background-color: #2d2d2d;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .output-header {
+            background-color: #3d3d3d;
+            padding: 12px 20px;
+            border-bottom: 1px solid #555;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .output-content {
+            flex: 1;
+            padding: 20px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .output-area {
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            min-height: 200px;
+            border: 1px solid #404040;
+        }
+
+        .examples-sidebar {
+            flex: 1;
+        }
+
+        .examples-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #cccccc;
+        }
+
+        .example-item {
+            background-color: #3d3d3d;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            border: 1px solid #555;
+        }
+
+        .example-item:hover {
+            background-color: #4a4a4a;
+        }
+
+        .example-item.active {
+            background-color: #ff6b35;
+            border-color: #ff6b35;
+        }
+
+        .example-name {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .example-desc {
+            font-size: 11px;
+            color: #888;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 80px 0;
+            background-color: #222222;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .feature-card {
+            background-color: #2d2d2d;
+            border-radius: 16px;
+            padding: 40px;
+            border: 1px solid #404040;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+            border-color: #555;
+        }
+
+        .feature-icon {
+            font-size: 40px;
+            margin-bottom: 20px;
+        }
+
+        .feature-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .feature-description {
+            color: #cccccc;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        /* About Section */
+        .about-section {
+            padding: 80px 0;
+            background-color: #1a1a1a;
+            border-top: 1px solid #333;
+        }
+
+        .about-container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .about-header {
+            margin-bottom: 40px;
+        }
+
+        .about-title {
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .about-tagline {
+            font-size: 18px;
+            color: #ff6b35;
+            font-style: italic;
+            margin-bottom: 30px;
+        }
+
+        .about-content {
+            display: flex;
+            align-items: center;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .about-logo {
+            flex-shrink: 0;
+        }
+
+        .about-logo-img {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(255, 107, 53, 0.3);
+        }
+
+        .about-text {
+            flex: 1;
+            text-align: left;
+        }
+
+        .about-description {
+            font-size: 16px;
+            line-height: 1.7;
+            color: #cccccc;
+            margin-bottom: 20px;
+        }
+
+        .about-mission {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #aaaaaa;
+        }
+
+        .about-stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #ff6b35;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .about-cta {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #ff6b35;
+            padding: 12px 24px;
+            border: 2px solid #ff6b35;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .btn-outline:hover {
+            background: #ff6b35;
+            color: white;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #2d2d2d;
+            border-top: 1px solid #404040;
+            padding: 40px 0;
+            text-align: center;
+        }
+
+        .footer-content {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+
+        .footer-links a {
+            color: #cccccc;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: #ff6b35;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 36px;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .playground-container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .code-editor, .output-panel {
+                min-height: 300px;
+            }
+
+            .floating-nav {
+                padding: 8px 16px;
+            }
+
+            .nav-container {
+                padding: 6px 8px;
+            }
+
+            .nav-links {
+                gap: 4px;
+            }
+
+            .nav-links a {
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+
+            .search-input {
+                width: 150px;
+            }
+
+            .section-title {
+                font-size: 28px;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+                max-width: 100%;
+            }
+
+            /* About section mobile adjustments */
+            .about-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .about-text {
+                text-align: center;
+            }
+
+            .about-stats {
+                gap: 20px;
+            }
+
+            .about-cta {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header-right {
+                gap: 10px;
+            }
+
+            .search-input {
+                width: 120px;
+                font-size: 12px;
+            }
+
+            .github-link {
+                font-size: 12px;
+            }
+
+            .nav-links a {
+                font-size: 11px;
+                padding: 6px 10px;
+            }
+
+            .about-stats {
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+        }
+
+        /* Medium screens - keep 2x2 layout */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .features-grid {
+                max-width: 800px;
+                gap: 35px;
+            }
+
+            .feature-card {
+                padding: 35px;
+            }
+        }
+
+        /* Scroll-based navigation highlighting */
+        .nav-links a.active {
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="top-bar-content">
+                <div class="logo">
+                    <img src="/assets/logo.png" alt="Jaseci Logo" class="logo-img" style="width:32px;height:32px;border-radius:6px;">
+                    <span>The Jac Programming Language and Jaseci Stack</span>
+                </div>
+                <div class="header-right">
+                    <!-- <input type="text" class="search-input" placeholder="Search documentation..."> -->
+                    <a href="https://github.com/jaseci-labs/jaseci" class="github-link" target="_blank">
+                        <span>GitHub</span>
+                        <span>⭐ 169 🍴 220</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating Navigation -->
+        <div class="floating-nav">
+            <div class="nav-container">
+                <nav class="nav-links">
+                    <a href="/learn/getting_started" class="nav-link">Learn</a>
+                    <a href="/jac_book" class="nav-link">Jac Book (WIP)</a>
+                    <a href="/internals/contrib" class="nav-link">Internals</a>
+                    <a href="/communityhub/roadmap" class="nav-link">Community Hub</a>
+                    <a href="/playground" class="nav-link" target="_blank">Jac Playground</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Hero Section -->
+        <section class="hero">
+            <h1 class="hero-title">
+                <img src="/assets/logo.png" alt="Jaseci Logo" class="logo-img" style="vertical-align:middle;margin-right:14px;width:64px;height:64px;border-radius:10px;">
+                Jac and Jaseci
+            </h1>
+            <p class="hero-subtitle">
+                The programming language that extends Python with AI-first constructs and spatial programming.
+                Imagine, Create, Launch.
+            </p>
+            <div class="hero-buttons">
+                <a href="#learn" class="btn-primary">Get Started</a>
+                <a href="/playground" class="btn-secondary" target="_blank">Try Playground</a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Quick Access Cards -->
+    <section class="quick-access" id="learn">
+        <div class="container">
+            <h2 class="section-title">Get Started with Jac</h2>
+            <div class="cards-grid">
+                <div class="access-card">
+                    <div class="card-icon">🚀</div>
+                    <h3 class="card-title">Getting Started</h3>
+                    <p class="card-description">
+                        Install Jac and setup your development environment. Write your first Jac program.
+                    </p>
+                    <a href="/learn/getting_started/" class="card-link">Start Guide</a>
+                </div>
+
+                <div class="access-card">
+                    <div class="card-icon">🎯</div>
+                    <h3 class="card-title">Tour of Jac</h3>
+                    <p class="card-description">
+                        Learn core concepts including Object-Spatial Programming and AI constructs.
+                    </p>
+                    <a href="/learn/introduction/" class="card-link">Take Tour</a>
+                </div>
+
+                <div class="access-card">
+                    <div class="card-icon">📚</div>
+                    <h3 class="card-title">The Jac Book</h3>
+                    <p class="card-description">
+                        Complete guide for Python developers transitioning to Jac programming.
+                    </p>
+                    <a href="/jac_book/" class="card-link">Read Book</a>
+                </div>
+
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <h2 class="section-title">Why Choose Jac?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🐍</div>
+                    <h3 class="feature-title">Jac supersets Python</h3>
+                    <p class="feature-description">
+                        Jac is a drop-in replacement for Python and supersets Python, much like Typescript
+                        supersets Javascript or C++ supersets C.
+                    </p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🧠</div>
+                    <h3 class="feature-title">Novel Code Construct for AI</h3>
+                    <p class="feature-description">
+                        Jac introduces a new way programmers can integrate LLMs into their code. Simply
+                        replace a function body with an llm call, need for prompt engineering, learning
+                        extensive libraries and complicated new syntaxes.
+                    </p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3 class="feature-title">Beyond OOP with Object-Spatial Programming</h3>
+                    <p class="feature-description">
+                        Jac introduces super OOP constructs for a new paradigm called object-spatial OOP,
+                        enhancing the handling and visualization of data in ways traditional programming
+                        paradigms might not support.
+                    </p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">☁️</div>
+                    <h3 class="feature-title">Cloud Native Abstractions</h3>
+                    <p class="feature-description">
+                        Jac makes persistence and user concepts part of the language, enabling simple
+                        programs to run unchanged in terminals or across clouds. Jac streamlines
+                        development by removing the need for dev ops and cloud setup.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="about-section" id="about">
+        <div class="container">
+            <div class="about-container">
+                <div class="about-header">
+                    <h2 class="about-title">Built by Innovators</h2>
+                    <p class="about-tagline">~ Imagine, Create, Launch ~</p>
+                </div>
+
+                <div class="about-content">
+                    <div class="about-logo">
+                        <img src="/assets/logo.png" alt="Jaseci Logo" class="about-logo-img" style="width:80px;height:80px;border-radius:20px;box-shadow:0 10px 30px rgba(255,107,53,0.3);">
+                    </div>
+                    <div class="about-text">
+                        <p class="about-description">
+                            Jac is an innovative programming language that extends Python's semantics while maintaining
+                            full interoperability with the Python ecosystem. Created by <a href="https://github.com/marsninja" target="_blank" class="card-link">@marsninja</a>
+                            and <strong>Jac Hackers Everywhere</strong>,
+                            it introduces cutting-edge programming models and abstractions specifically designed to minimize
+                            complexity and embrace AI-forward development.
+                        </p>
+                        <p class="about-mission">
+                            Our mission is to automate categories of common software systems that typically require
+                            manual implementation, making advanced programming paradigms accessible to developers worldwide.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="about-stats">
+                    <div class="stat-item">
+                        <span class="stat-number">169</span>
+                        <span class="stat-label">GitHub Stars</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">220</span>
+                        <span class="stat-label">Forks</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">2025</span>
+                        <span class="stat-label">Launch</span>
+                    </div>
+                    <!-- <div class="stat-item">
+                        <span class="stat-number">∞</span>
+                        <span class="stat-label">Possibilities</span>
+                    </div> -->
+                </div>
+
+                <div class="about-cta">
+                    <a href="https://www.jaseci.org/the-jaseci-project/" class="btn-outline" target="_blank">Learn Our Story</a>
+                    <a href="https://discord.gg/HVfee4xt" class="btn-outline" target="_blank">Join Community</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-links">
+                    <a href="https://github.com/Jaseci-Labs/jaseci" target="_blank">GitHub</a>
+                    <a href="https://discord.gg/HVfee4xt" target="_blank">Community</a>
+                    <a href="/learn/getting_started/">Documentation</a>
+                </div>
+                <p>© 2025 Jac Hackers Everywhere. All rights reserved.</p>
+                <p style="margin-top: 10px; color: #666;">Built with passion for innovative programming languages</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            // Smooth scrolling for navigation links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+
+            // Navigation active state based on scroll
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('section[id]');
+
+            function updateActiveNav() {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    const sectionHeight = section.clientHeight;
+                    if (scrollY >= (sectionTop - 200)) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href') === `#${current}`) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+
+            window.addEventListener('scroll', updateActiveNav);
+        });
+    </script>
+</body>
+</html>

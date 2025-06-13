@@ -4,7 +4,7 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ## Latest Breaking Changes
 
-### Version 0.8.1 (Main branch since 5/26/2025) (Unreleased)
+### Version 0.8.1
 
 #### 1. `dotgen` builtin function is now name `printgraph`
 

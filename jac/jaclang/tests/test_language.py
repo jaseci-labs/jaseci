@@ -296,7 +296,7 @@ class JacLanguageTests(TestCase):
 
     def test_deep_imports_mods(self) -> None:
         """Parse micro jac file."""
-        Jac.loaded_modules.clear()
+        Jac.reset_machine()
         targets = [
             "deep",
             "deep.deeper",
@@ -307,11 +307,13 @@ class JacLanguageTests(TestCase):
         for i in targets:
             if i in sys.modules:
                 del sys.modules[i]
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
         Jac.jac_import("deep_import_mods", base_path=self.fixture_abs_path("./"))
-        mods = Jac.loaded_modules.keys()
+        sys.stdout = sys.__stdout__
+        stdout_value = eval(captured_output.getvalue())
         for i in targets:
-            self.assertIn(i, mods)
-        self.assertEqual(len([i for i in mods if i.startswith("deep")]), 6)
+            self.assertIn(i, stdout_value)
 
     def test_deep_outer_imports_one(self) -> None:
         """Parse micro jac file."""
@@ -759,6 +761,10 @@ class JacLanguageTests(TestCase):
 
     def test_list_methods(self) -> None:
         """Test list_modules, list_walkers, list_nodes, and list_edges."""
+        Jac.reset_machine()
+        Jac.set_base_path(self.fixture_abs_path("."))
+        sys.modules.pop("foo", None)
+        sys.modules.pop("bar", None)
         captured_output = io.StringIO()
         sys.stdout = captured_output
 
@@ -786,6 +792,9 @@ class JacLanguageTests(TestCase):
 
     def test_walker_dynamic_update(self) -> None:
         """Test dynamic update of a walker during runtime."""
+        Jac.reset_machine()
+        Jac.set_base_path(self.fixture_abs_path("."))
+        sys.modules.pop("bar", None)
         session = self.fixture_abs_path("bar_walk.session")
         bar_file_path = self.fixture_abs_path("bar.jac")
         update_file_path = self.fixture_abs_path("walker_update.jac")
@@ -1299,3 +1308,17 @@ class JacLanguageTests(TestCase):
         self.assertIn("foo1", stdout_value[5])
         self.assertIn("foo2", stdout_value[6])
         self.assertIn("Coroutine task is completed", stdout_value[17])
+
+    def test_unicode_string_literals(self) -> None:
+        """Test unicode characters in string literals are preserved correctly."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        Jac.jac_import("unicode_strings", base_path=self.fixture_abs_path("./"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue().split("\n")
+        self.assertIn("1. ✓ 1st (due: True)", stdout_value[0])
+        self.assertIn("🌟 Star", stdout_value[2])
+        self.assertIn("Multi-line with ✓ unicode and ○ symbols", stdout_value[3])
+        self.assertIn("Raw string with ✓ and ○", stdout_value[4])
+        self.assertIn("Tab ✓", stdout_value[5])
+        self.assertIn("Newline ○", stdout_value[6])

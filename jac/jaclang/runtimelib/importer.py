@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import os
-import site
 import sys
 import types
 from os import getcwd, path
@@ -15,30 +14,9 @@ from jaclang.runtimelib.machine import JacMachineInterface
 from jaclang.runtimelib.utils import sys_path_context
 from jaclang.utils.helpers import dump_traceback
 from jaclang.utils.log import logging
+from jaclang.utils.module_resolver import get_jac_search_paths
 
 logger = logging.getLogger(__name__)
-
-
-def get_jac_search_paths(base_path: Optional[str] = None) -> list[str]:
-    """Construct a list of paths to search for Jac modules."""
-    paths = []
-    if base_path:
-        paths.append(base_path)
-    paths.append(os.getcwd())
-    if "JACPATH" in os.environ:
-        paths.extend(
-            p.strip() for p in os.environ["JACPATH"].split(os.pathsep) if p.strip()
-        )
-    paths.extend(sys.path)
-    site_pkgs = site.getsitepackages()
-    if site_pkgs:
-        paths.extend(site_pkgs)
-    user_site = getattr(site, "getusersitepackages", None)
-    if user_site:
-        user_dir = user_site()
-        if user_dir:
-            paths.append(user_dir)
-    return list(dict.fromkeys(filter(None, paths)))
 
 
 class ImportPathSpec:
@@ -165,10 +143,6 @@ class Importer:
     def run_import(self, spec: ImportPathSpec) -> ImportReturn:
         """Run the import process."""
         raise NotImplementedError
-
-    def update_sys(self, module: types.ModuleType, spec: ImportPathSpec) -> None:
-        """Update sys.modules with the newly imported module."""
-        JacMachineInterface.load_module(spec.module_name, module)
 
 
 class PythonImporter(Importer):

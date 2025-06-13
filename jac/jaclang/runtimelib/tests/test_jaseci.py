@@ -818,6 +818,8 @@ class TestJaseciPlugin(TestCase):
         )
         self.assertEqual("None", self.capturedOutput.getvalue().strip())
 
+        self._del_session(session)
+
     def test_traversing_save(self) -> None:
         """Test traversing save."""
         global session
