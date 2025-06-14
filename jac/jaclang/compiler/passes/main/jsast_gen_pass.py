@@ -18,11 +18,10 @@ The output of this pass is a complete JavaScript AST representation that can be
 serialized to JavaScript source code.
 """
 
-from typing import Optional, Sequence, Union, cast
+from typing import Optional, Union, cast
 
 import jaclang.compiler.emcatree as js
 import jaclang.compiler.unitree as uni
-from jaclang.compiler.constant import EdgeDir
 from jaclang.compiler.constant import Tokens as Tok
 from jaclang.compiler.passes import UniPass
 
@@ -97,13 +96,10 @@ class JsastGenPass(UniPass):
         if node.doc:
             self.ice("Docstrings not supported for JS backend yet.")
         for item in node.body:
-            if not isinstance(item, (uni.ImplDef, uni.Semi, uni.CommentToken)):
-                if (
-                    hasattr(item, "gen")
-                    and hasattr(item.gen, "js_ast")
-                    and item.gen.js_ast
-                ):
-                    body_items.extend(item.gen.js_ast)
+            if not isinstance(item, (uni.ImplDef, uni.Semi, uni.CommentToken)) and (
+                hasattr(item, "gen") and hasattr(item.gen, "js_ast") and item.gen.js_ast
+            ):
+                body_items.extend(item.gen.js_ast)
 
         prog = js.JSProgram(
             body=cast(list[Union[js.JSStmt, js.JSExpr]], body_items),
@@ -535,15 +531,39 @@ class JsastGenPass(UniPass):
         """Exit dict val node."""
         properties = []
         for pair in node.kv_pairs:
+            # Handle spread (unsupported for now)
             if pair.key is None:
                 self.ice("Spread in objects not supported for JS backend yet.")
                 continue
+
+            # Ensure key has js_ast; if not, generate
+            if not pair.key.gen.js_ast:
+                if isinstance(pair.key, uni.Name):
+                    pair.key.gen.js_ast = [self.gen_js_ident(pair.key)]
+                elif isinstance(pair.key, uni.String):
+                    lit = js.JSLiteral(
+                        value=pair.key.lit_value, raw=pair.key.value, kid=[pair.key]
+                    )
+                    self.sync_jac_node(lit, pair.key)
+                    pair.key.gen.js_ast = [lit]
+                else:
+                    # Attempt best-effort literal conversion
+                    lit = js.JSLiteral(
+                        value=str(pair.key), raw=str(pair.key), kid=[pair.key]
+                    )
+                    self.sync_jac_node(lit, pair.key)
+                    pair.key.gen.js_ast = [lit]
+
+            if not pair.value.gen.js_ast:
+                # Generate literal null for missing value AST to avoid crash
+                pair.value.gen.js_ast = [
+                    js.JSLiteral(value=None, raw="null", kid=[pair.value])
+                ]
+
             key = pair.key.gen.js_ast[0]
-            # JS object keys can be identifiers or literals. If it's not a valid identifier, it should be a literal.
-            if isinstance(key, js.JSLiteral) and isinstance(key.value, str):
-                computed = True
-            else:  # Assuming identifier
-                computed = False
+            # Determine if the key should be treated as computed (non-identifier literals)
+            computed = isinstance(key, js.JSLiteral) and isinstance(key.value, str)
+
             prop = js.JSProperty(
                 key=key,
                 value=pair.value.gen.js_ast[0],
