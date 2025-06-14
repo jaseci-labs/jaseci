@@ -509,6 +509,10 @@ class JsastGenPass(UniPass):
         else:
             self.ice(f"Unsupported unary operator: {node.op.value}")
 
+    def exit_atom_unit(self, node: uni.AtomUnit) -> None:
+        """Exit atom unit node."""
+        node.gen.js_ast = node.value.gen.js_ast
+
     def exit_if_else_expr(self, node: uni.IfElseExpr) -> None:
         """Exit if else expr node."""
         expr = js.JSConditionalExpression(
@@ -651,6 +655,20 @@ class JsastGenPass(UniPass):
     def exit_string(self, node: uni.String) -> None:
         """Exit string node."""
         lit = js.JSLiteral(value=node.lit_value, raw=node.value, kid=[node])
+        self.sync_jac_node(lit, node)
+        node.gen.js_ast = [lit]
+
+    def exit_multi_string(self, node: uni.MultiString) -> None:
+        """Exit multi-string node."""
+        text = ""
+        for item in node.strings:
+            if isinstance(item, uni.String):
+                text += item.lit_value
+            elif isinstance(item, uni.FString):
+                for part in item.parts:
+                    if isinstance(part, uni.String):
+                        text += part.lit_value
+        lit = js.JSLiteral(value=text, raw=repr(text), kid=[node])
         self.sync_jac_node(lit, node)
         node.gen.js_ast = [lit]
 

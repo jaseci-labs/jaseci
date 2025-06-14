@@ -17,5 +17,5 @@ def function(name: str) {
 
 # Ask the user for their name
  with entry {
-    rl.question("What is your name? ", );
+    rl.question("What is your name? ", function);
 }
