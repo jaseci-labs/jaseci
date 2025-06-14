@@ -272,7 +272,7 @@ def lsp() -> None:
     Examples:
         jac lsp
     """
-    from jaclang.langserve.server import run_lang_server
+    from jaclang.langserve.server import run_lang_server  # type: ignore
 
     run_lang_server()
 
@@ -578,6 +578,24 @@ def jac2py(filename: str) -> None:
         with open(filename, "r"):
             code = JacProgram().compile(file_path=filename).gen.py
         print(code)
+    else:
+        print("Not a .jac file.", file=sys.stderr)
+
+
+@cmd_registry.register
+def js(filename: str) -> None:
+    """Transpile a Jac file to JavaScript.
+
+    Translates Jac source code to equivalent JavaScript code.
+
+    Args:
+        filename: Path to the .jac file to transpile
+
+    Examples:
+        jac js myprogram.jac
+    """
+    if filename.endswith(".jac"):
+        JacProgram().js_transpile(file_path=filename)
     else:
         print("Not a .jac file.", file=sys.stderr)
 

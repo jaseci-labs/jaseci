@@ -15,12 +15,14 @@ class CodeGenTarget:
     def __init__(self) -> None:
         """Initialize code generation target."""
         import jaclang.compiler.passes.tool.doc_ir as doc
+        import jaclang.compiler.emcatree as js
 
         self.py: str = ""
         self.jac: str = ""
         self.doc_ir: doc.DocType = doc.Text("")
         self.js: str = ""
         self.py_ast: list[ast3.AST] = []
+        self.js_ast: list[js.JSNode] = []
         self.py_bytecode: Optional[bytes] = None
 
 

@@ -1944,7 +1944,7 @@ class PyastGenPass(UniPass):
         ]
 
     def exit_unary_expr(self, node: uni.UnaryExpr) -> None:
-        op_cls = UNARY_OP_MAP.get(node.op.name)
+        op_cls = UNARY_OP_MAP.get(Tok[node.op.name])
         if op_cls:
             node.gen.py_ast = [
                 self.sync(
@@ -2316,7 +2316,7 @@ class PyastGenPass(UniPass):
         self, node: uni.FuncCall
     ) -> tuple[list[ast3.expr], list[ast3.keyword]]:
         """Generate the arguments for a function call."""
-        args = []
+        args: list[ast3.expr] = []
         keywords = []
         if node.params:
             for x in node.params:
@@ -2330,7 +2330,7 @@ class PyastGenPass(UniPass):
                         )
                     )
                 elif isinstance(x, uni.Expr):
-                    args.append(x.gen.py_ast[0])
+                    args.append(cast(ast3.expr, x.gen.py_ast[0]))
                 elif isinstance(x, uni.KWPair) and isinstance(
                     x.gen.py_ast[0], ast3.keyword
                 ):
@@ -2825,7 +2825,7 @@ class PyastGenPass(UniPass):
         ]
 
     def exit_token(self, node: uni.Token) -> None:
-        op_cls = TOKEN_AST_MAP.get(node.name)
+        op_cls = TOKEN_AST_MAP.get(Tok[node.name])
         if op_cls:
             node.gen.py_ast = [self.sync(op_cls())]
 
