@@ -27,6 +27,58 @@ class JSNode(UniNode):
     def __init__(self, kid: Sequence[UniNode]) -> None:
         super().__init__(kid=kid or [])
 
+    def to_dict(self) -> dict:
+        """Return dict representation of node."""
+        d = {"node": self.__class__.__name__}
+        for field in [
+            f
+            for f in dir(self)
+            if not f.startswith("_")
+            and f
+            not in [
+                "kid",
+                "parent",
+                "loc",
+                "gen",
+                "name",
+                "pp",
+                "to_dict",
+                "pp_walk",
+                "unparse",
+                "format",
+            ]
+        ]:
+            try:
+                attr = getattr(self, field)
+                if isinstance(attr, (str, int, float, bool, type(None))):
+                    d[field] = attr
+                elif isinstance(attr, list) and all(
+                    isinstance(x, (str, int, float, bool, type(None))) for x in attr
+                ):
+                    d[field] = attr
+            except Exception:
+                pass
+
+        return d
+
+    def pp(self, depth: Optional[int] = None) -> str:
+        """Pretty print."""
+        return self._pp_walk(depth=0 if depth is None else depth)
+
+    def _pp_walk(self, depth: int = 0, prefix: str = "") -> str:
+        """Walk the tree and pretty print."""
+        res = f"{prefix}{type(self).__name__}:"
+        node_dict = self.to_dict()
+        for k, v in node_dict.items():
+            if k == "node":
+                continue
+            res += f"\n{prefix}  {k}: {v}"
+
+        for i in self.kid:
+            if isinstance(i, JSNode):
+                res += "\n" + i._pp_walk(depth=depth + 1, prefix=prefix + "  ")
+        return res
+
 
 # Expression Nodes
 class JSExpr(JSNode, Expr):
@@ -628,7 +680,7 @@ class JSVariableDeclaration(JSStmt):
     ) -> None:
         self.declarations = list(declarations)
         self.kind = kind  # "var", "let", "const"
-        super().__init__(kid=kid)
+        super().__init__(kid=[*kid, *declarations])
 
 
 class JSVariableDeclarator(JSNode):

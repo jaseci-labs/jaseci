@@ -98,11 +98,16 @@ class JsastGenPass(UniPass):
             self.ice("Docstrings not supported for JS backend yet.")
         for item in node.body:
             if not isinstance(item, (uni.ImplDef, uni.Semi, uni.CommentToken)):
-                body_items.extend(item.gen.js_ast)
+                if (
+                    hasattr(item, "gen")
+                    and hasattr(item.gen, "js_ast")
+                    and item.gen.js_ast
+                ):
+                    body_items.extend(item.gen.js_ast)
 
         prog = js.JSProgram(
             body=cast(list[Union[js.JSStmt, js.JSExpr]], body_items),
-            kid=[],
+            kid=body_items if body_items else [uni.EmptyToken(node.source)],
             source_type="module",
         )
         self.sync_jac_node(prog, node)
@@ -112,9 +117,7 @@ class JsastGenPass(UniPass):
         """Exit global vars node."""
         if node.doc:
             self.ice("Docstrings not supported for JS backend yet.")
-        decls = [
-            decl for assign in node.assignments for decl in assign.gen.js_ast
-        ]  # Flattens list
+        decls = [decl for assign in node.assignments for decl in assign.gen.js_ast]
         node.gen.js_ast = decls
 
     def exit_test(self, node: uni.Test) -> None:
@@ -125,7 +128,12 @@ class JsastGenPass(UniPass):
         """Exit module code node."""
         if node.name:
             self.ice("Module code with name not supported for JS backend yet.")
-        node.gen.js_ast = [stmt for item in node.body for stmt in item.gen.js_ast]
+        if node.body:
+            node.gen.js_ast = self.flatten(
+                [i.gen.js_ast for i in node.body if hasattr(i, "gen") and i.gen.js_ast]
+            )
+        else:
+            node.gen.js_ast = []
 
     def exit_py_inline_code(self, node: uni.PyInlineCode) -> None:
         """Exit python inline code node."""
@@ -151,18 +159,25 @@ class JsastGenPass(UniPass):
                     else self.gen_js_ident(item.name)
                 )
                 imported = self.gen_js_ident(item.name)
-                spec = js.JSImportSpecifier(local=local, imported=imported, kid=[])
+                spec = js.JSImportSpecifier(local=local, imported=imported, kid=[item])
                 self.sync_jac_node(spec, item)
                 specifiers.append(spec)
         elif node.is_absorb:
-            path_str = node.from_loc.dot_path_str if node.from_loc else ""
+            if not node.from_loc:
+                self.ice("Absorb import must have a from location.")
+                return
+            path_str = node.from_loc.dot_path_str
             source = js.JSLiteral(value=path_str, raw=f"'{path_str}'", kid=[node])
             if node.from_loc:
                 self.sync_jac_node(source, node.from_loc)
             spec = js.JSImportNamespaceSpecifier(
-                local=js.JSIdentifier(name="*", kid=[]), kid=[]
+                local=js.JSIdentifier(name="*", kid=[node]), kid=[node]
             )
-            if node.items and node.items[0].alias:
+            if (
+                node.items
+                and isinstance(node.items[0], uni.ModulePath)
+                and node.items[0].alias
+            ):
                 spec.local = self.gen_js_ident(node.items[0].alias)
             self.sync_jac_node(spec, node)
             specifiers.append(spec)
@@ -178,15 +193,17 @@ class JsastGenPass(UniPass):
                     if item.alias
                     else self.gen_js_ident(item.path[-1])
                 )
-                spec = js.JSImportDefaultSpecifier(local=local, kid=[])
+                spec = js.JSImportDefaultSpecifier(local=local, kid=[item])
                 self.sync_jac_node(spec, item)
                 specifiers.append(spec)
         if source:
             import_decl = js.JSImportDeclaration(
-                specifiers=specifiers, source=source, kid=[]
+                specifiers=specifiers, source=source, kid=[node]
             )
             self.sync_jac_node(import_decl, node)
             node.gen.js_ast = [import_decl]
+        else:
+            node.gen.js_ast = []
 
     def exit_archetype(self, node: uni.Archetype) -> None:
         """Exit archetype node."""
@@ -197,20 +214,22 @@ class JsastGenPass(UniPass):
         if node.base_classes:
             if len(node.base_classes) > 1:
                 self.ice("JS backend does not support multiple inheritance.")
-            super_class = node.base_classes[0].gen.js_ast[0]
+            if node.base_classes[0].gen.js_ast:
+                super_class = node.base_classes[0].gen.js_ast[0]
 
         body_nodes: list[
             Union[js.JSMethodDefinition, js.JSProperty, js.JSStaticBlock]
         ] = []
         if isinstance(node.body, list):
             for item in node.body:
-                body_nodes.extend(item.gen.js_ast)
+                if item.gen.js_ast:
+                    body_nodes.extend(item.gen.js_ast)
 
-        class_body = js.JSClassBody(body=body_nodes, kid=[])
+        class_body = js.JSClassBody(body=body_nodes, kid=[node])
         self.sync_jac_node(class_body, node)
 
         class_decl = js.JSClassDeclaration(
-            id=name, superClass=super_class, body=class_body, kid=[]
+            id=name, superClass=super_class, body=class_body, kid=[node]
         )
         self.sync_jac_node(class_decl, node)
         node.gen.js_ast = [class_decl]
@@ -231,16 +250,20 @@ class JsastGenPass(UniPass):
         params = []
         if node.signature and node.signature.params:
             for param in node.signature.params:
-                params.append(param.gen.js_ast[0])
+                if param.gen.js_ast:
+                    params.append(param.gen.js_ast[0])
 
         body_stmts: list[js.JSStmt] = []
         if node.body and isinstance(node.body, list):
             for stmt in node.body:
                 if stmt.gen.js_ast:
                     body_stmts.extend(stmt.gen.js_ast)
-        body = js.JSBlockStatement(body=body_stmts, kid=[])
+        body = js.JSBlockStatement(body=body_stmts, kid=[node])
         if node.body:
-            self.sync_jac_node(body, node.body)
+            self.sync_jac_node(
+                body,
+                node.body[0] if isinstance(node.body, list) and node.body else node,
+            )
 
         func_decl = js.JSFunctionDeclaration(
             id=id_node,
@@ -248,7 +271,7 @@ class JsastGenPass(UniPass):
             body=body,
             is_async=is_async,
             generator=is_gen,
-            kid=[],
+            kid=[node],
         )
         self.sync_jac_node(func_decl, node)
         node.gen.js_ast = [func_decl]
@@ -260,7 +283,7 @@ class JsastGenPass(UniPass):
         id_node = self.gen_js_ident(node.name)
         if node.value:
             assign = js.JSAssignmentPattern(
-                left=id_node, right=node.value.gen.js_ast[0], kid=[]
+                left=id_node, right=node.value.gen.js_ast[0], kid=[node]
             )
             self.sync_jac_node(assign, node)
             node.gen.js_ast = [assign]
@@ -269,8 +292,9 @@ class JsastGenPass(UniPass):
 
     def exit_arch_has(self, node: uni.ArchHas) -> None:
         """Exit arch has node."""
-        # Handled in exit_archetype
-        pass
+        node.gen.js_ast = self.flatten(
+            [v.gen.js_ast for v in node.vars if hasattr(v, "gen") and v.gen.js_ast]
+        )
 
     def exit_has_var(self, node: uni.HasVar) -> None:
         """Exit has var node."""
@@ -283,7 +307,7 @@ class JsastGenPass(UniPass):
                 computed=False,
                 method=False,
                 shorthand=False,
-                kid=[],
+                kid=[node],
             )
         else:
             prop = js.JSProperty(
@@ -293,7 +317,7 @@ class JsastGenPass(UniPass):
                 computed=False,
                 method=False,
                 shorthand=False,
-                kid=[],
+                kid=[node],
             )
         self.sync_jac_node(prop, node)
         node.gen.js_ast = [prop]
@@ -304,9 +328,11 @@ class JsastGenPass(UniPass):
         consequent_list: list[js.JSStmt] = []
         if node.body:
             for i in node.body:
-                consequent_list.extend(i.gen.js_ast)
-        consequent = js.JSBlockStatement(body=consequent_list, kid=[])
-        self.sync_jac_node(consequent, node.body)
+                if hasattr(i, "gen") and hasattr(i.gen, "js_ast"):
+                    consequent_list.extend(i.gen.js_ast)
+        consequent = js.JSBlockStatement(body=consequent_list, kid=[node])
+        if node.body:
+            self.sync_jac_node(consequent, node.body[0] if node.body else node)
 
         alternate = None
         if node.else_body:
@@ -316,11 +342,12 @@ class JsastGenPass(UniPass):
                 alternate_list: list[js.JSStmt] = []
                 for i in node.else_body.body:
                     alternate_list.extend(i.gen.js_ast)
-                alternate = js.JSBlockStatement(body=alternate_list, kid=[])
-                self.sync_jac_node(alternate, node.else_body)
+                alternate = js.JSBlockStatement(body=alternate_list, kid=[node])
+                if node.else_body:
+                    self.sync_jac_node(alternate, node.else_body)
 
         if_stmt = js.JSIfStatement(
-            test=test, consequent=consequent, alternate=alternate, kid=[]
+            test=test, consequent=consequent, alternate=alternate, kid=[node]
         )
         self.sync_jac_node(if_stmt, node)
         node.gen.js_ast = [if_stmt]
@@ -336,14 +363,16 @@ class JsastGenPass(UniPass):
             for stmt in node.body:
                 if stmt.gen.js_ast:
                     body_stmts.extend(stmt.gen.js_ast)
-        block = js.JSBlockStatement(body=body_stmts, kid=[])
+        block = js.JSBlockStatement(body=body_stmts, kid=[node])
         if node.body:
-            self.sync_jac_node(block, node.body)
+            self.sync_jac_node(block, node.body[0] if node.body else node)
         node.gen.js_ast = [block]
 
     def exit_expr_stmt(self, node: uni.ExprStmt) -> None:
         """Exit expr stmt node."""
-        expr_stmt = js.JSExpressionStatement(expression=node.expr.gen.js_ast[0], kid=[])
+        expr_stmt = js.JSExpressionStatement(
+            expression=node.expr.gen.js_ast[0], kid=[node]
+        )
         self.sync_jac_node(expr_stmt, node)
         node.gen.js_ast = [expr_stmt]
 
@@ -357,11 +386,11 @@ class JsastGenPass(UniPass):
         if node.body:
             for stmt in node.body:
                 body_stmts.extend(stmt.gen.js_ast)
-        body = js.JSBlockStatement(body=body_stmts, kid=[])
+        body = js.JSBlockStatement(body=body_stmts, kid=[node])
         if node.body:
-            self.sync_jac_node(body, node.body)
+            self.sync_jac_node(body, node.body[0] if node.body else node)
 
-        for_of_stmt = js.JSForOfStatement(left=left, right=right, body=body, kid=[])
+        for_of_stmt = js.JSForOfStatement(left=left, right=right, body=body, kid=[node])
         self.sync_jac_node(for_of_stmt, node)
         node.gen.js_ast = [for_of_stmt]
 
@@ -369,10 +398,11 @@ class JsastGenPass(UniPass):
         """Exit while stmt node."""
         test = node.condition.gen.js_ast[0]
         body = js.JSBlockStatement(
-            body=self.flatten([s.gen.js_ast for s in node.body]), kid=[]
+            body=self.flatten([s.gen.js_ast for s in node.body if s.gen.js_ast]),
+            kid=[node],
         )
         self.sync_jac_node(body, node.body[0] if node.body else node)
-        while_stmt = js.JSWhileStatement(test=test, body=body, kid=[])
+        while_stmt = js.JSWhileStatement(test=test, body=body, kid=[node])
         self.sync_jac_node(while_stmt, node)
         node.gen.js_ast = [while_stmt]
 
@@ -380,11 +410,11 @@ class JsastGenPass(UniPass):
         """Exit ctrl stmt node."""
         stmt: Union[js.JSBreakStatement, js.JSContinueStatement, js.JSReturnStatement]
         if node.ctrl.name == Tok.KW_BREAK:
-            stmt = js.JSBreakStatement(kid=[])
+            stmt = js.JSBreakStatement(kid=[node])
         elif node.ctrl.name == Tok.KW_CONTINUE:
-            stmt = js.JSContinueStatement(kid=[])
+            stmt = js.JSContinueStatement(kid=[node])
         elif node.ctrl.name == Tok.KW_SKIP:  # Treat as return in JS
-            stmt = js.JSReturnStatement(kid=[])
+            stmt = js.JSReturnStatement(kid=[node])
         else:
             self.ice(f"Unsupported control statement: {node.ctrl.value}")
         self.sync_jac_node(stmt, node)
@@ -392,8 +422,8 @@ class JsastGenPass(UniPass):
 
     def exit_return_stmt(self, node: uni.ReturnStmt) -> None:
         """Exit return stmt node."""
-        arg = node.expr.gen.js_ast[0] if node.expr else None
-        ret_stmt = js.JSReturnStatement(argument=arg, kid=[])
+        arg = node.expr.gen.js_ast[0] if node.expr and node.expr.gen.js_ast else None
+        ret_stmt = js.JSReturnStatement(argument=arg, kid=[node])
         self.sync_jac_node(ret_stmt, node)
         node.gen.js_ast = [ret_stmt]
 
@@ -433,10 +463,12 @@ class JsastGenPass(UniPass):
                 operator=op,
                 left=target_node.gen.js_ast[0],
                 right=node.value.gen.js_ast[0],
-                kid=[],
+                kid=[node],
             )
             self.sync_jac_node(assign_expr, node)
-            node.gen.js_ast = [js.JSExpressionStatement(expression=assign_expr, kid=[])]
+            node.gen.js_ast = [
+                js.JSExpressionStatement(expression=assign_expr, kid=[node])
+            ]
 
     def exit_binary_expr(self, node: uni.BinaryExpr) -> None:
         """Exit binary expr node."""
@@ -448,14 +480,14 @@ class JsastGenPass(UniPass):
                     operator=op_str,
                     left=node.left.gen.js_ast[0],
                     right=node.right.gen.js_ast[0],
-                    kid=[],
+                    kid=[node],
                 )
             elif op_str:
                 expr = js.JSBinaryExpression(
                     operator=op_str,
                     left=node.left.gen.js_ast[0],
                     right=node.right.gen.js_ast[0],
-                    kid=[],
+                    kid=[node],
                 )
             else:
                 self.ice(f"Unsupported binary operator: {node.op.value}")
@@ -474,7 +506,7 @@ class JsastGenPass(UniPass):
                 operator=op_str,
                 argument=node.operand.gen.js_ast[0],
                 prefix=True,
-                kid=[],
+                kid=[node],
             )
             self.sync_jac_node(expr, node)
             node.gen.js_ast = [expr]
@@ -487,15 +519,15 @@ class JsastGenPass(UniPass):
             test=node.condition.gen.js_ast[0],
             consequent=node.value.gen.js_ast[0],
             alternate=node.else_value.gen.js_ast[0],
-            kid=[],
+            kid=[node],
         )
         self.sync_jac_node(expr, node)
         node.gen.js_ast = [expr]
 
     def exit_list_val(self, node: uni.ListVal) -> None:
         """Exit list val node."""
-        elements = [val.gen.js_ast[0] for val in node.values]
-        arr_expr = js.JSArrayExpression(elements=elements, kid=[])
+        elements = [val.gen.js_ast[0] for val in node.values if val.gen.js_ast]
+        arr_expr = js.JSArrayExpression(elements=elements, kid=[node])
         self.sync_jac_node(arr_expr, node)
         node.gen.js_ast = [arr_expr]
 
@@ -519,11 +551,11 @@ class JsastGenPass(UniPass):
                 computed=computed,
                 method=False,
                 shorthand=False,  # can be improved
-                kid=[],
+                kid=[pair],
             )
             self.sync_jac_node(prop, pair)
             properties.append(prop)
-        obj_expr = js.JSObjectExpression(properties=properties, kid=[])
+        obj_expr = js.JSObjectExpression(properties=properties, kid=[node])
         self.sync_jac_node(obj_expr, node)
         node.gen.js_ast = [obj_expr]
 
@@ -533,14 +565,14 @@ class JsastGenPass(UniPass):
             if not isinstance(node.right, uni.AstSymbolNode):
                 self.ice("Invalid attribute access.")
                 return
-            prop = js.JSIdentifier(name=node.right.sym_name, kid=[])
+            prop = js.JSIdentifier(name=node.right.sym_name, kid=[node.right])
             self.sync_jac_node(prop, node.right)
             expr = js.JSMemberExpression(
                 object=node.target.gen.js_ast[0],
                 property=prop,
                 computed=False,
                 optional=node.is_null_ok,
-                kid=[],
+                kid=[node],
             )
             self.sync_jac_node(expr, node)
             node.gen.js_ast = [expr]
@@ -550,27 +582,31 @@ class JsastGenPass(UniPass):
                 property=node.right.gen.js_ast[0],
                 computed=True,
                 optional=node.is_null_ok,
-                kid=[],
+                kid=[node],
             )
             self.sync_jac_node(expr, node)
             node.gen.js_ast = [expr]
 
     def exit_func_call(self, node: uni.FuncCall) -> None:
         """Exit func call node."""
-        args = [p.gen.js_ast[0] for p in node.params] if node.params else []
+        args = (
+            [p.gen.js_ast[0] for p in node.params if p.gen.js_ast]
+            if node.params
+            else []
+        )
         callee = node.target.gen.js_ast[0]
-        call_expr = js.JSCallExpression(callee=callee, arguments=args, kid=[])
+        call_expr = js.JSCallExpression(callee=callee, arguments=args, kid=[node])
         self.sync_jac_node(call_expr, node)
         node.gen.js_ast = [call_expr]
 
     def exit_special_var_ref(self, node: uni.SpecialVarRef) -> None:
         """Exit special var ref node."""
         if node.name == Tok.KW_SUPER:
-            node.gen.js_ast = [js.JSSuper(kid=[])]
+            node.gen.js_ast = [js.JSSuper(kid=[node])]
         elif node.name == Tok.KW_ROOT:
-            node.gen.js_ast = [js.JSIdentifier(name=self.jaclib_alias("root"), kid=[])]
+            node.gen.js_ast = [js.JSIdentifier(name="jac.root", kid=[node])]
         elif node.name == Tok.KW_HERE:
-            node.gen.js_ast = [js.JSThisExpression(kid=[])]
+            node.gen.js_ast = [js.JSThisExpression(kid=[node])]
         else:
             ident = self.gen_js_ident(node)
             node.gen.js_ast = [ident]
