@@ -150,7 +150,7 @@ class JTypeCheckPass(UniPass):
 
             if not formal.can_assign_from(actual_type):
                 self.log_error(
-                    f"Error: Can't assign a value {actual_type} to a parameter '{arg_name}' of type {formal}"
+                    f"Can't assign a value {actual_type} to a parameter '{arg_name}' of type {formal}"
                 )
 
     ##################################
@@ -178,7 +178,7 @@ class JTypeCheckPass(UniPass):
             sym_type = self.prog.type_resolver.get_type(target)
             if not sym_type.can_assign_from(value_type):
                 self.log_error(
-                    f"Error: Can't assign a value {value_type} to a {sym_type} object"
+                    f"Can't assign a value {value_type} to a {sym_type} object"
                 )
 
             # if the variable has no annotation and this is the first assignment for it
