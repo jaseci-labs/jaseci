@@ -17,6 +17,7 @@ from jaclang.compiler.passes.main import (
     InheritancePass,
     JacAnnexPass,
     JacImportDepsPass,
+    JsastGenPass,
     PyBytecodeGenPass,
     PyJacAstLinkPass,
     PyastBuildPass,
@@ -47,6 +48,7 @@ py_code_gen = [
     PyJacAstLinkPass,
     PyBytecodeGenPass,
 ]
+js_code_gen = [JsastGenPass]
 format_sched = [FuseCommentsPass, DocIRGenPass, JacFormatPass]
 
 
@@ -108,6 +110,18 @@ class JacProgram:
         self.run_schedule(mod=mod_targ, passes=ir_gen_sched)
         if not no_cgen:
             self.run_schedule(mod=mod_targ, passes=py_code_gen)
+        return mod_targ
+
+    def js_transpile(self, file_path: str, use_str: str | None = None) -> uni.Module:
+        """Convert a Jac file to an AST and transpile to JS."""
+        if not use_str:
+            with open(file_path, "r", encoding="utf-8") as file:
+                use_str = file.read()
+        mod_targ = self.parse_str(use_str, file_path)
+        self.run_schedule(mod=mod_targ, passes=ir_gen_sched)
+        self.run_schedule(mod=mod_targ, passes=js_code_gen)
+        if mod_targ.gen.js_ast:
+            print(mod_targ.gen.js_ast[0].pp())  # print the ast
         return mod_targ
 
     def build(self, file_path: str, use_str: str | None = None) -> uni.Module:
