@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 from jaclang import JacMachine as Jac
 from jaclang.cli import cli
-from jaclang.compiler.passes.main import CompilerMode as CMode
 from jaclang.compiler.program import JacProgram
 from jaclang.utils.test import TestCase
 

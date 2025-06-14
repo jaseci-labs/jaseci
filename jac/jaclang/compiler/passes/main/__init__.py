@@ -1,7 +1,5 @@
 """Collection of passes for Jac IR."""
 
-from enum import Enum
-
 from ..transform import Alert, Transform  # noqa: I100
 from .annex_pass import JacAnnexPass  # noqa: I100
 from .sym_tab_build_pass import SymTabBuildPass, UniPass  # noqa: I100
@@ -16,19 +14,6 @@ from .pybc_gen_pass import PyBytecodeGenPass  # noqa: I100
 from .cfg_build_pass import CFGBuildPass  # noqa: I100
 from .pyjac_ast_link_pass import PyJacAstLinkPass  # noqa: I100
 from .inheritance_pass import InheritancePass  # noqa: I100
-
-
-class CompilerMode(Enum):
-    """Compiler modes."""
-
-    NO_CGEN = "NO_CGEN"
-    NO_CGEN_SINGLE = "NO_CGEN_SINGLE"
-    COMPILE = "COMPILE"
-    COMPILE_SINGLE = "COMPILE_SINGLE"
-    TRANSPILE_JS = "TRANSPILE_JS"
-
-
-TYPECHECK = "TYPECHECK"
 
 
 __all__ = [
@@ -46,7 +31,6 @@ __all__ = [
     "PyastGenPass",
     "JsastGenPass",
     "PyBytecodeGenPass",
-    "CompilerMode",
     "CFGBuildPass",
     "PyJacAstLinkPass",
     "InheritancePass",
