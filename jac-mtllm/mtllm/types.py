@@ -4,7 +4,7 @@ import base64
 import importlib
 import importlib.util
 from io import BytesIO
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from mtllm.semtable import SemInfo, SemRegistry, SemScope
 from mtllm.utils import extract_non_primary_type, get_object_string, get_type_annotation
@@ -214,14 +214,22 @@ class InputInformation:
 class OutputHint:
     """Represent the output hint."""
 
-    def __init__(self, semstr: str, type: str) -> None:  # noqa: ANN401
+    def __init__(self, semstr: str, type: str, type_explanation: Optional["TypeExplanation"] = None) -> None:  # noqa: ANN401
         """Initialize the OutputHint class."""
         self.semstr = semstr
         self.type = type
+        self.type_explanation = type_explanation
 
     def __str__(self) -> str:
         """Return the string representation of the OutputHint class."""
-        return f"{self.semstr if self.semstr else ''} ({self.type})".strip()
+        base_str = f"{self.semstr if self.semstr else ''} ({self.type})".strip()
+        if self.type_explanation and str(self.type_explanation):
+            # Extract the example part from the type explanation
+            explanation_str = str(self.type_explanation)
+            if " eg:- " in explanation_str:
+                example_part = explanation_str.split(" eg:- ", 1)[1]
+                return f"{base_str} eg:- {example_part}"
+        return base_str
 
     def get_types(self) -> list:
         """Get the types of the output."""

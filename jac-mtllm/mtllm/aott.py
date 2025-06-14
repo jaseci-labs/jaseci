@@ -49,6 +49,21 @@ def aott_raise(
     informations_str = "\n".join([str(x) for x in informations])
     inputs_information_repr: list[dict] | str
     media = []
+    
+    # Find the type explanation for the output type
+    output_type_explanation = None
+    for type_explanation in type_explanations:
+        if type_explanation.type_item == output_hint.type:
+            output_type_explanation = type_explanation
+            break
+    
+    # Create enhanced output hint with type explanation
+    enhanced_output_hint = OutputHint(
+        output_hint.semstr, 
+        output_hint.type, 
+        output_type_explanation  # This is properly typed as TypeExplanation | None
+    )
+    
     if contains_media and not is_custom:
         inputs_information_repr = []
         for input_info in inputs_information:
@@ -70,7 +85,7 @@ def aott_raise(
         all_values = {
             "information": informations_str,
             "inputs_information": inputs_information_repr,
-            "output_information": str(output_hint),
+            "output_information": str(enhanced_output_hint),
             "type_explanations": type_explanations_str,
             "action": action,
             "context": context,
@@ -92,8 +107,9 @@ def aott_raise(
             "information": informations_str,
             "context": context,
         }
+
         lower_values = {
-            "output_information": str(output_hint),
+            "output_information": str(enhanced_output_hint),
             "type_explanations": type_explanations_str,
             "action": action,
         }
@@ -105,7 +121,7 @@ def aott_raise(
         ]
         meaning_typed_input_list.extend(inputs_information_repr)
         if is_react:
-            tool_prompt = "[Teools]\n" + "\n".join([str(tool) for tool in tools])
+            tool_prompt = "[Tools]\n" + "\n".join([str(tool) for tool in tools])
             meaning_typed_input_list.append({"type": "text", "text": tool_prompt})
         meaning_typed_input_list.extend(
             [
