@@ -7,9 +7,23 @@ import os
 from types import ModuleType
 from typing import Optional, Sequence
 
-from jaclang.runtimelib.machine import JacMachine as Jac
-from jaclang.runtimelib.machine import JacMachineInterface
 from jaclang.utils.module_resolver import get_jac_search_paths
+
+Jac = None
+JacMachineInterface = None
+
+
+def _ensure_jac_machine():
+    """Lazy load heavy runtime modules only when needed."""
+    global Jac, JacMachineInterface
+    if Jac is None or JacMachineInterface is None:
+        from jaclang.runtimelib.machine import JacMachine as _Jac
+        from jaclang.runtimelib.machine import JacMachineInterface as _JacInt
+
+        Jac = _Jac
+        JacMachineInterface = _JacInt
+
+    return Jac, JacMachineInterface
 
 
 class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
@@ -58,6 +72,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
 
     def exec_module(self, module: ModuleType) -> None:
         """Execute the module."""
+        Jac, JacMachineInterface = _ensure_jac_machine()
         if not module.__spec__ or not module.__spec__.origin:
             raise ImportError(
                 f"Cannot find spec or origin for module {module.__name__}"
