@@ -22,7 +22,7 @@ class CodeGenTarget:
         self.doc_ir: doc.DocType = doc.Text("")
         self.js: str = ""
         self.py_ast: list[ast3.AST] = []
-        self.js_ast: list[js.JSNode] = []
+        self.emca_ast: list[js.JSNode] = []
         self.py_bytecode: Optional[bytes] = None
 
 

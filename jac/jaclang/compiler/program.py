@@ -14,10 +14,10 @@ from jaclang.compiler.passes.main import (
     CFGBuildPass,
     DeclImplMatchPass,
     DefUsePass,
+    EMCAAstGenPass,
     InheritancePass,
     JacAnnexPass,
     JacImportDepsPass,
-    JsastGenPass,
     PyBytecodeGenPass,
     PyJacAstLinkPass,
     PyastBuildPass,
@@ -48,7 +48,7 @@ py_code_gen = [
     PyJacAstLinkPass,
     PyBytecodeGenPass,
 ]
-js_code_gen = [JsastGenPass]
+js_code_gen = [EMCAAstGenPass]
 format_sched = [FuseCommentsPass, DocIRGenPass, JacFormatPass]
 
 
@@ -120,8 +120,8 @@ class JacProgram:
         mod_targ = self.parse_str(use_str, file_path)
         self.run_schedule(mod=mod_targ, passes=ir_gen_sched)
         self.run_schedule(mod=mod_targ, passes=js_code_gen)
-        if mod_targ.gen.js_ast:
-            print(mod_targ.gen.js_ast[0].pp())  # print the ast
+        if mod_targ.gen.emca_ast:
+            print(mod_targ.gen.emca_ast[0].pp())  # print the ast
         return mod_targ
 
     def build(self, file_path: str, use_str: str | None = None) -> uni.Module:
