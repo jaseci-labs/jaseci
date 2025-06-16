@@ -174,6 +174,13 @@ class DocIRGenPass(UniPass):
                 parts.append(self.space())
             elif isinstance(i, uni.Token) and i.name == Tok.LBRACE:
                 parts.append(i.gen.doc_ir)
+            elif isinstance(i, uni.Token) and i.name == Tok.LPAREN:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
+            elif isinstance(i, uni.Token) and i.name == Tok.RPAREN:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
+                parts.append(self.space())
             elif isinstance(node.body, Sequence) and i in node.body:
                 if not in_body:
                     body_parts.append(self.hard_line())
@@ -243,12 +250,14 @@ class DocIRGenPass(UniPass):
         parts: list[doc.DocType] = []
         indent_parts: list[doc.DocType] = []
         in_params = False
+        has_parens = False
         for i in node.kid:
             if isinstance(i, uni.Token) and i.name == Tok.LPAREN and node.params:
                 in_params = True
                 parts.append(i.gen.doc_ir)
             elif isinstance(i, uni.Token) and i.name == Tok.RPAREN and node.params:
                 in_params = False
+                has_parens = True
                 parts.append(
                     self.indent(self.concat([self.tight_line(), *indent_parts]))
                 )
@@ -266,6 +275,12 @@ class DocIRGenPass(UniPass):
                 else:
                     indent_parts.append(i.gen.doc_ir)
             else:
+                if (
+                    isinstance(i, uni.Token)
+                    and i.name == Tok.RETURN_HINT
+                    and not has_parens
+                ):
+                    parts.append(self.space())
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
         parts.pop()

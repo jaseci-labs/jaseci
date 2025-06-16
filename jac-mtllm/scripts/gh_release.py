@@ -2,7 +2,7 @@
 
 import tomllib
 
-from github_release import gh_release_create
+from github_release import gh_release_create  # noqa: I100
 
 import markdown_to_json
 

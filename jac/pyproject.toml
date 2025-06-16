@@ -18,6 +18,8 @@ keywords = [
 repository = "https://github.com/Jaseci-Labs/jaclang"
 homepage = "https://jaseci.org"
 documentation = "https://jac-lang.org"
+packages = [{ include = "jaclang" }]
+include = ["sitecustomize.py"]
 
 [tool.poetry.dependencies]
 python = "^3.11.0"

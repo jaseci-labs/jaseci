@@ -640,6 +640,17 @@ class PyastGenPass(UniPass):
         if isinstance(node.body, uni.ImplDef):
             self.traverse(node.body)
 
+    def gen_llm_call_override(self, node: uni.FuncCall) -> list[ast3.AST]:
+        """Generate python ast nodes for llm function body override syntax.
+
+        example:
+            foo() by llm();
+        """
+        # to Avoid circular import
+        from jaclang.runtimelib.machine import JacMachineInterface
+
+        return JacMachineInterface.gen_llm_call_override(self, node)
+
     def gen_llm_body(self, node: uni.Ability) -> list[ast3.AST]:
         """Generate the by LLM body."""
         # to Avoid circular import
@@ -2301,8 +2312,10 @@ class PyastGenPass(UniPass):
 
         return JacMachineInterface.get_by_llm_call_args(self, node)
 
-    def exit_func_call(self, node: uni.FuncCall) -> None:
-        func = node.target.gen.py_ast[0]
+    def gen_call_args(
+        self, node: uni.FuncCall
+    ) -> tuple[list[ast3.expr], list[ast3.keyword]]:
+        """Generate the arguments for a function call."""
         args = []
         keywords = []
         if node.params:
@@ -2324,10 +2337,21 @@ class PyastGenPass(UniPass):
                     keywords.append(x.gen.py_ast[0])
                 else:
                     self.ice("Invalid Parameter")
-        if node.genai_call:
+        return args, keywords
+
+    def exit_func_call(self, node: uni.FuncCall) -> None:
+        if node.body_genai_call:
+            node.gen.py_ast = self.gen_llm_call_override(node)
+
+        # TODO: This needs to be changed to only generate parameters no the body.
+        elif node.genai_call:
             by_llm_call_args = self.get_by_llm_call_args(node)
             node.gen.py_ast = [self.sync(self.by_llm_call(**by_llm_call_args))]
+
         else:
+            func = node.target.gen.py_ast[0]
+            args, keywords = self.gen_call_args(node)
+
             node.gen.py_ast = [
                 self.sync(
                     ast3.Call(

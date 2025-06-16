@@ -7,7 +7,6 @@ import unittest
 
 import jaclang.compiler.unitree as uni
 from jaclang.cli import cli
-from jaclang.compiler.passes.main import CompilerMode as CMode
 from jaclang.compiler.program import JacProgram
 from jaclang.utils.test import TestCase
 
@@ -66,10 +65,7 @@ class ImportPassPassTests(TestCase):
     @unittest.skip("TODO: Fix when we have the type checker")
     def test_py_raise_map(self) -> None:
         """Basic test for pass."""
-        (build := JacProgram()).compile(
-            self.fixture_abs_path("py_imp_test.jac"),
-            mode=CMode.TYPECHECK,
-        )
+        (build := JacProgram()).build(self.fixture_abs_path("py_imp_test.jac"))
         p = {
             "math": r"jaclang/vendor/mypy/typeshed/stdlib/math.pyi$",
             "pygame_mock": r"pygame_mock/__init__.pyi$",
@@ -91,9 +87,7 @@ class ImportPassPassTests(TestCase):
     @unittest.skip("TODO: Fix when we have the type checker")
     def test_py_raised_mods(self) -> None:
         """Basic test for pass."""
-        (prog := JacProgram()).compile(
-            self.fixture_abs_path("py_imp_test.jac"), mode=CMode.TYPECHECK
-        )
+        (prog := JacProgram()).build(self.fixture_abs_path("py_imp_test.jac"))
         for i in list(
             filter(
                 lambda x: x.is_raised_from_py,

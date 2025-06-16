@@ -223,8 +223,9 @@ Every aspect of the game world is dynamically generated:
 
 To play the Fantasy Trading Game:
 
-1. **Prerequisites**: Install `jac-mtllm` and configure your OpenAI API key
+1. **Prerequisites**: Install `pip install mtllm` and configure your OpenAI API key
 2. **Launch**: Run `jac run fantasy_trading_game.jac`
+    ➡️ [View the Game File on GitHub](https://github.com/jaseci-labs/jaseci/blob/testing-out-rpg-game/jac-mtllm/examples/fantasy_trading_game.jac)
 3. **Play**: Engage with the AI-generated NPC through natural language
 4. **Trade**: Negotiate prices and complete transactions organically
 
