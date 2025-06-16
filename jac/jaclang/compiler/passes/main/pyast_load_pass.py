@@ -96,13 +96,16 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             body: list[stmt]
             type_ignores: list[TypeIgnore]
         """
-        elements: list[uni.UniNode] = [self.convert(i) for i in node.body]
-        elements[0] = (
+        try:
+            elements: list[uni.UniNode] = [self.convert(i) for i in node.body]
+            elements[0] = (
             elements[0].expr
             if isinstance(elements[0], uni.ExprStmt)
             and isinstance(elements[0].expr, uni.String)
             else elements[0]
-        )
+            )
+        except:
+            return
         doc_str_list = [elements[0]] if isinstance(elements[0], uni.String) else []
         valid = (
             (doc_str_list)

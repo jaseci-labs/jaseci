@@ -107,65 +107,51 @@ def _candidate_from_typeshed(base: str, parts: list[str]) -> Optional[Tuple[str,
 
 
 def resolve_module(target: str, base_path: str) -> Tuple[str, str]:
-    """Resolve module path and infer language, using typeshed for .pyi files if available."""
+    """Resolve module path and infer language, prioritizing local Jac/Python modules before typeshed."""
     parts = target.split(".")
     level = 0
     while level < len(parts) and parts[level] == "":
         level += 1
     actual_parts = parts[level:]
 
-    typeshed_paths = get_typeshed_paths()
+    # 1. Search Jac/Python modules in local/configured search paths
+    search_paths = get_jac_search_paths(os.path.dirname(base_path))
+    for search_dir in search_paths:
+        candidate_base_path = os.path.join(search_dir, *actual_parts)
+        # Jac package (__init__.jac)
+        init_jac = os.path.join(candidate_base_path, "__init__.jac")
+        if os.path.isdir(candidate_base_path) and os.path.isfile(init_jac):
+            return init_jac, "jac"
+        # Jac module (.jac)
+        module_jac = candidate_base_path + ".jac"
+        if os.path.isfile(module_jac):
+            return module_jac, "jac"
+        # Python package (__init__.py)
+        init_py = os.path.join(candidate_base_path, "__init__.py")
+        if os.path.isdir(candidate_base_path) and os.path.isfile(init_py):
+            return init_py, "py"
+        # Python module (.py)
+        module_py = candidate_base_path + ".py"
+        if os.path.isfile(module_py):
+            return module_py, "py"
 
+    # 2. If not found, search typeshed for .pyi stubs
+    typeshed_paths = get_typeshed_paths()
     if typeshed_paths:
         for typeshed_dir in typeshed_paths:
             res = _candidate_from_typeshed(typeshed_dir, actual_parts)
             if res:
-                # print(f"Found '{target}' in typeshed: {res[0]}")
                 return res
-
-        # If not found in any typeshed directory, but typeshed is configured,
-        # return a stub .pyi path for type checking.
+        # If not found in any typeshed directory, return a stub .pyi path for type checking.
         stub_pyi_path = os.path.join(typeshed_paths[0], *actual_parts) + ".pyi"
         return stub_pyi_path, "pyi"
-    else:
-        # Typeshed paths are not configured.
-        # Search for .jac modules first. If not found, default to a .pyi stub path.
-        print(
-            f"Warning: Typeshed not configured. Searching for '{target}' as .jac module, otherwise expecting .pyi stub."
-        )
-        search_paths = get_jac_search_paths(os.path.dirname(base_path))
-        for search_dir in search_paths:
-            # Attempt to find as a .jac module or package
-            candidate_base_path = os.path.join(search_dir, *actual_parts)
-            
-            # Check for package __init__.jac
-            init_jac = os.path.join(candidate_base_path, "__init__.jac")
-            if os.path.isdir(candidate_base_path) and os.path.isfile(init_jac):
-                # print(f"Found '{target}' as Jac package in '{search_dir}': {init_jac}")
-                return init_jac, "jac"
-            
-            # Check for module .jac
-            module_jac = candidate_base_path + ".jac"
-            if os.path.isfile(module_jac):
-                # print(f"Found '{target}' as Jac module in '{search_dir}': {module_jac}")
-                return module_jac, "jac"
 
-        # If not found as a .jac module after checking all search paths,
-        # default to a nominal .pyi path. This avoids resolving .py files
-        # from sys.path for type information when typeshed is absent.
-        # print(
-        #     f"Module '{target}' not found as .jac module; Typeshed not configured. Using nominal .pyi path."
-        # )
-        # Use the directory of the importing module (base_path) for the nominal .pyi path.
-        importing_dir = os.path.dirname(base_path)
-        # Ensure importing_dir is a valid directory, fallback to CWD if base_path was unusual.
-        if not os.path.isdir(importing_dir) :
-             importing_dir = os.getcwd()
-
-        nominal_pyi_path = (
-            os.path.join(importing_dir, *actual_parts) + ".pyi"
-        )
-        return nominal_pyi_path, "py"
+    # 3. If not found anywhere, fallback to nominal .pyi path in importing dir
+    importing_dir = os.path.dirname(base_path)
+    if not os.path.isdir(importing_dir):
+        importing_dir = os.getcwd()
+    nominal_pyi_path = os.path.join(importing_dir, *actual_parts) + ".pyi"
+    return nominal_pyi_path, "py"
 
 
 def infer_language(target: str, base_path: str) -> str:

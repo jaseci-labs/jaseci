@@ -1,0 +1,20 @@
+---start modddd-- /home/kuggix/jaseci/a.jac
+from __future__ import annotations
+from jaclang.runtimelib.builtin import *
+from jaclang import JacMachineInterface as _
+from b import *
+from c import C as CCC
+from d import *
+from k import K as KK
+---end modddd--
+---start modddd-- /home/kuggix/jaseci/b.jac
+from __future__ import annotations
+from jaclang.runtimelib.builtin import *
+from jaclang import JacMachineInterface as _
+from e import E
+import requests
+
+class B(_.Obj):
+    pass
+---end modddd--
+Errors: 0, Warnings: 0

@@ -47,3 +47,6 @@ class PyBytecodeGenPass(Transform[uni.Module, uni.Module]):
         mod.gen.py_bytecode = marshal.dumps(
             compile(source=root_node, filename=mod.loc.mod_path, mode="exec")
         )
+        print('---start modddd--',mod.loc.mod_path)
+        print(mod.gen.py)
+        print('---end modddd--')

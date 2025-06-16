@@ -16,7 +16,7 @@ from jaclang.compiler.passes.main import (
     DefUsePass,
     InheritancePass,
     JacAnnexPass,
-    JacImportDepsPass,
+    JacPyImportDepsPass,
     PyBytecodeGenPass,
     PyJacAstLinkPass,
     PyastBuildPass,
@@ -118,7 +118,7 @@ class JacProgram:
                 use_str = file.read()
         mod_targ = self.parse_str(use_str, file_path)
         self.run_schedule(mod=mod_targ, passes=[SymTabBuildPass])
-        DepSolvePass(ir_in=mod_targ, prog=self)
+        JacPyImportDepsPass(ir_in=mod_targ, prog=self)
         return mod_targ
 
     def run_schedule(
