@@ -1340,3 +1340,26 @@ class JacLanguageTests(TestCase):
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertEqual(proc.stdout.strip(), "via meta")
+
+    def test_js_transpile_cli(self) -> None:
+        """Test the js transpiler CLI command."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            jac_code = 'with entry { message: str = "hello"; }'
+            jac_file_path = self.create_temp_jac_file(jac_code, tmpdir, "test_js.jac")
+
+            captured_output = io.StringIO()
+            sys.stdout = captured_output
+
+            cli.js(filename=jac_file_path)
+
+            sys.stdout = sys.__stdout__
+            stdout_value = captured_output.getvalue()
+
+            self.assertIn("JSProgram:", stdout_value)
+            self.assertIn("JSVariableDeclaration:", stdout_value)
+            self.assertIn("kind: let", stdout_value)
+            self.assertIn("JSIdentifier:", stdout_value)
+            self.assertIn("name: message", stdout_value)
+            self.assertIn("JSLiteral:", stdout_value)
+            self.assertIn("value: hello", stdout_value)
+            self.assertIn('raw: "hello"', stdout_value)
