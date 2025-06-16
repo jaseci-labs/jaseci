@@ -221,7 +221,7 @@ def build(filename: str) -> None:
         jac build myprogram.jac --no-typecheck
     """
     if filename.endswith(".jac"):
-        (out := JacProgram()).compile(file_path=filename)
+        (out := JacProgram()).build(file_path=filename)
         errs = len(out.errors_had)
         warnings = len(out.warnings_had)
         print(f"Errors: {errs}, Warnings: {warnings}")

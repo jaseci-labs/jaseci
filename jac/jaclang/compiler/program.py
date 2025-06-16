@@ -21,6 +21,7 @@ from jaclang.compiler.passes.main import (
     PyJacAstLinkPass,
     PyastBuildPass,
     PyastGenPass,
+    DepSolvePass,
     SymTabBuildPass,
     SymTabLinkPass,
     Transform,
@@ -112,12 +113,12 @@ class JacProgram:
 
     def build(self, file_path: str, use_str: str | None = None) -> uni.Module:
         """Convert a Jac file to an AST."""
-        mod_targ = self.compile(file_path, use_str)
-        JacImportDepsPass(ir_in=mod_targ, prog=self)
-        for mod in self.mod.hub.values():
-            SymTabLinkPass(ir_in=mod, prog=self)
-        for mod in self.mod.hub.values():
-            DefUsePass(mod, prog=self)
+        if not use_str:
+            with open(file_path, "r", encoding="utf-8") as file:
+                use_str = file.read()
+        mod_targ = self.parse_str(use_str, file_path)
+        self.run_schedule(mod=mod_targ, passes=[SymTabBuildPass])
+        DepSolvePass(ir_in=mod_targ, prog=self)
         return mod_targ
 
     def run_schedule(
