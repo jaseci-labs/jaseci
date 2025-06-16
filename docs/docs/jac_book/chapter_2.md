@@ -13,7 +13,6 @@ Before installing Jac, ensure you have:
 - **Memory:** 4GB RAM minimum, 8GB recommended
 - **OS:** Linux, macOS, Windows (WSL recommended)
 - **Storage:** 500MB for Jac + dependencies
-- **A code editor:** (VS Code recommended for best experience)
 
 ### Installing Jac
 
@@ -45,7 +44,6 @@ python -m venv jac-env
 
 # Activate it
 source jac-env/bin/activate
-
 
 # Install Jac in the virtual environment
 pip install jaclang
@@ -93,12 +91,7 @@ Create a new file called `hello.jac`:
 === "Python"
     ```python
     # hello.py
-    def greet(name):
-        return f"Hello, {name}!"
-
-    if __name__ == "__main__":
-        message = greet("World")
-        print(message)
+    print("Hello, World!")
     ```
 
 ### Running Your Program
@@ -160,8 +153,8 @@ As your Jac projects grow, following these conventions will help maintain organi
 ```
 my_jac_project/
 ├── main.jac              # main file
-├── main.jac              # main file
-├── main.jac              # main file
+├── main.impl.jac         # main implementations
+├── main.test.jac         # Test main functionalities
 ├── users/
 │   ├── user.jac          # Object definitions
 │   ├── user.impl.jac     # Object implementations
@@ -181,50 +174,20 @@ Jac encourages separating **declarations** from **implementations**:
     <div class="code-block">
 
     ```jac
-    obj User {
-        has name: str, email: str, age: int = 0;
-
-        def validate_email() -> bool;
-        def get_display_name() -> str;
-    }
-
-    impl User.validate_email {
-        return "@" in self.email;
-    }
-
-    impl User.get_display_name() -> str {
-        return f"{self.name} ({self.email})";
-    }
+    --8<-- "docs/examples/user.jac:1:20"
     ```
-
-    with entry {
-        user = User("John", "john@gmai.com", 23);
-        print(user.validate_email());
-        print(user.get_display_name());
-    }
     </div>
 
 === "**user.jac** (declarations)"
 
     ```jac
-    obj User {
-        has name: str, email: str, age: int = 0;
-
-        def validate_email() -> bool;
-        def get_display_name() -> str;
-    }
+    --8<-- "docs/examples/user.jac:1:6"
     ```
 
 === "**user.impl.jac** (implementations)"
 
     ```jac
-    impl User.validate_email {
-        return "@" in self.email;
-    }
-
-    impl User.get_display_name() -> str {
-        return f"{self.name} ({self.email})";
-    }
+    --8<-- "docs/examples/user.jac:8:15"
     ```
 
 This pattern keeps your code organized and interfaces clean.
@@ -237,63 +200,34 @@ Here's a simple example showing Jac's graph capabilities:
 === "Sample Graph"
     ```mermaid
     graph TD
+    style Person1 fill:#de8129,stroke:#333,stroke-width:2px
+    style Person2 fill:#de8129,stroke:#333,stroke-width:2px
+    style Person3 fill:#de8129,stroke:#333,stroke-width:2px
+
     Person1["Alice Joined: 2024-01-15"] -->|Knows Since: 2024-02-01| Person2["Bob Joined: 2024-02-20"]
     Person2 -->|Knows Since: 2024-03-01| Person3["Charlie Joined: 2024-03-10"]
     ```
 
-=== "**graph_demo.jac**"
+=== "**Try it out**"
 
     <div class="code-block">
 
     ```jac
-    # social_hello.jac
-    # Define a Person node
-    node Person {
-        has name: str;
-        has joined: str;
-    }
-
-    # Define a Knows edge
-    edge Knows {
-        has since: str;
-    }
-
-    # Define a Greeter walker
-    walker Greeter {
-        has greeting_count: int = 0;
-
-        # Ability triggered when entering a Person node
-        can greet with Person entry {
-            print(f"Hello, {here.name}! You joined on {here.joined}");
-            self.greeting_count += 1;
-
-            # Visit all people this person knows
-            visit [->:Knows:->];
-        }
-
-        # Ability triggered when walker finishes
-        can summarize with `root exit {
-            print(f"Greeted {self.greeting_count} people total!");
-        }
-    }
-
-    # Main program
-    with entry {
-        # Create a small social network
-        person1 = Person(name="Alice", joined="2024-01-15");
-        person2 = Person(name="Bob", joined="2024-02-20");
-        person3 = Person(name="Charlie", joined="2024-03-10");
-
-        # Create relationships
-        person1 +>:Knows(since="2024-02-01"):+> person2;
-        person2 +>:Knows(since="2024-03-01"):+> person3;
-
-        # Spawn walker to greet everyone
-        greeter = Greeter();
-        greeter spawn person1;
-    }
+    --8<-- "docs/examples/graph.jac:1:48"
     ```
     </div>
+
+=== "**graph.jac**"
+
+    ```jac
+    --8<-- "docs/examples/graph.jac:1:24"
+    ```
+
+=== "**graph.impl.jac**"
+
+    ```jac
+    --8<-- "docs/examples/graph.jac:26:32"
+    ```
 
 This introduces:
 
@@ -370,16 +304,15 @@ jac
 | `SyntaxError: Missing semicolon` | Add `;` at end of statements |
 | `TypeError: Missing type annotation` | Add type hints to all function parameters |
 | `RuntimeError: No entry point` | Add `with entry { ... }` block |
-| `PersistenceError` | Check write permissions for `JAC_PERSIST_PATH` |
 
 ## What's Next?
 
 You now have:
 
-- ✅ Jac installed and working
-- ✅ VS Code extension set up
-- ✅ Your first programs running
-- ✅ Understanding of basic project structure
+- Jac installed and working
+- VS Code extension set up
+- Your first programs running
+- Understanding of basic project structure
 
 In the next chapter, we'll take a rapid tour through Jac's syntax and core features with examples.
 
