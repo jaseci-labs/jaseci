@@ -9,17 +9,17 @@
     border-color: #ffab40;
 }
 
-.md-typeset .question > .admonition-title,
-.md-typeset .question > summary {
+.md-typeset .question>.admonition-title,
+.md-typeset .question>summary {
     background-color: rgba(255, 171, 64, 0.1);
 }
 
-.md-typeset .question > .admonition-title::before,
-.md-typeset .question > summary::before {
+.md-typeset .question>.admonition-title::before,
+.md-typeset .question>summary::before {
     background-color: #ffab40;
 }
 
-.md-typeset details > summary:after {
+.md-typeset details>summary:after {
     color: #ffab40 !important;
 }
 
@@ -46,7 +46,7 @@
     font-weight: 600;
     font-size: 1em;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     transition: background 0.2s, color 0.2s, box-shadow 0.2s;
     outline: none;
     letter-spacing: 0.03em;
@@ -56,7 +56,7 @@
 .code-block .run-code-btn:focus {
     background: linear-gradient(90deg, #ffa726 0%, #ffd180 100%);
     color: #111;
-    box-shadow: 0 4px 16px rgba(255,171,64,0.15);
+    box-shadow: 0 4px 16px rgba(255, 171, 64, 0.15);
 }
 
 .code-block .run-code-btn:active {
@@ -74,7 +74,7 @@
     font-family: monospace;
     max-height: 1000px;
     overflow: auto;
-    transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1), padding 0.3s;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s;
     font-size: 15px;
 }
 
@@ -84,6 +84,7 @@
     overflow: hidden;
     margin-top: 0;
 }
+
 /* =============================
    Jac Global Theme Overrides
    These styles ensure that all documentation pages
@@ -102,10 +103,14 @@ body,
 /* Material uses a lot of CSS variables.  We override the key ones for our palette. */
 [data-md-color-scheme="slate"] {
     /* Primary & accent colours */
-    --md-primary-fg-color: #000000;         /* black */
-    --md-primary-bg-color: #1a1a1a;         /* background behind header/nav */
-    --md-accent-fg-color: #ff6b35;          /* orange gradient start */
-    --md-accent-fg-color--light: #f7931e;   /* gradient end */
+    --md-primary-fg-color: #000000;
+    /* black */
+    --md-primary-bg-color: #1a1a1a;
+    /* background behind header/nav */
+    --md-accent-fg-color: #ff6b35;
+    /* orange gradient start */
+    --md-accent-fg-color--light: #f7931e;
+    /* gradient end */
 
     /* Muted foreground colours */
     --md-default-fg-color: #cccccc;
@@ -140,10 +145,15 @@ body,
     border-radius: 6px;
 }
 
+.md-ellipsis {
+    padding: 5px 10px;
+}
+
 /* ---------- Navigation Tabs / Top level nav ---------- */
 .md-tabs {
     background-color: #2d2d2d;
     border-bottom: 1px solid #404040;
+    padding-bottom: 18px;
 }
 
 .md-tabs__item {
@@ -230,7 +240,7 @@ body,
 }
 
 /* ---------- Code blocks ---------- */
-.md-typeset pre > code {
+.md-typeset pre>code {
     background-color: #2d2d2d;
 }
 
@@ -249,3 +259,32 @@ body,
     color: #ff6b35;
 }
 
+/* ---------- custom Footer ---------- */
+.footer {
+    background-color: #2d2d2d;
+    border-top: 1px solid #404040;
+    padding: 30px 0;
+    text-align: center;
+}
+
+.footer-content {
+    color: #888;
+    font-size: 14px;
+}
+
+.footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-bottom: 20px;
+}
+
+.footer-links a {
+    color: #cccccc;
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+.footer-links a:hover {
+    color: #ff6b35;
+}

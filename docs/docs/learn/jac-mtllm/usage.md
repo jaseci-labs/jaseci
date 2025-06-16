@@ -163,6 +163,38 @@ The ReAct method is particularly useful for tasks that require:
 
 When the model executes this function, it will internally reason through the problem, recognize that it needs the current date to calculate the age, call the `get_date` tool, and then use both the person's date of birth and the current date to compute and return the age.
 
+
+
+### LLM Function Overriding
+
+In addition to defining functions and methods with the `by <your_llm>()` syntax, jaclang also supports **LLM overriding** of existing functions. This powerful feature allows you to take any regular function and override its behavior with LLM-powered implementation at runtime using the `function_call() by llm()` syntax.
+
+You can override any function call by appending `by llm()` to the function call:
+
+```jac
+import from mtllm.llms {OpenAI}
+
+glob llm = OpenAI(model_name="gpt-4o");
+
+"Greet the user with the given name."
+def greet(name: str) -> str {
+    return "Hello " + name;
+}
+
+with entry {
+    # Normal function call
+    print("Normal:", greet("Alice"));
+
+    # LLM override call
+    print("LLM Override:", greet("Alice") by llm());
+}
+```
+
+In this example:
+- `greet("Alice")` executes the normal function and returns `"Hello Alice"`
+- `greet("Alice") by llm()` overrides the function with LLM behavior, potentially returning a more natural or contextual greeting
+
+
 <!-- ## Object Initialization
 
 As MTLLM is really great at handling typed outputs, we have added the ability to initialize a new object with only providing few of the required fields. MTLLM will automatically fill the rest of the fields based on the given context.
