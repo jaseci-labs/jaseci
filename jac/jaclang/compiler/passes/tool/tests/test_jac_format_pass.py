@@ -63,7 +63,6 @@ class JacFormatPassTests(TestCaseMicroSuite):
             os.path.join(self.fixture_abs_path(""), "import_fmt.jac"),
         )
 
-        
     def test_archetype(self) -> None:
         """Tests if the file matches a particular format."""
         self.compare_files(
