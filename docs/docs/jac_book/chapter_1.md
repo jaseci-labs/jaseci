@@ -50,35 +50,41 @@ print(fof_alice)
 
 <div class="code-block">
 ```jac
-# Jac's Object-Spatial approach
- node User {
+# Jac's Data Spatial approach
+node User {
     has name: str;
 }
 
-edge Friendship {
-    has since: str;
-}
+edge Friendship {}
 
 walker FindFriendsOfFriends {
-    has person: User , friends_of_friends: set = set();
+    has person: User;
+    has friends_of_friends: set = set();
+    has ignores: list = [];
+
 
     can traverse with User entry {
-        if here != self.person {
+        if here == self.person {
+            self.ignores = [->:Friendship:->];
+            self.ignores.append(here);
+        }
+
+        if here not in self.ignores {
             self.friends_of_friends.add(here);
         }
-        visit [->:Friendship :->];
+        else{
+            visit [->:Friendship :->];
+        }
     }
 }
 
 with entry {
-    alice = User(name="Alice");
-    bob = User(name="Bob");
-    carol = User(name="Carol");
-    dave = User(name="Dave");
+    alice = User(name = "Alice");
 
-    alice +>: Friendship(since="today") :+> bob;
-    bob +>: Friendship(since="yesterday") :+> carol;
-    carol +>: Friendship(since="last month") :+> dave;
+    # Build friendship connections
+    alice +>:Friendship:+> User(name = "Bob")
+          +>:Friendship:+> User(name = "Carol")
+          +>:Friendship:+> User(name = "Dave");
 
     fof = FindFriendsOfFriends(alice) spawn alice;
     print(fof.friends_of_friends);
@@ -552,11 +558,11 @@ graph TD
     D --> E[Advanced Patterns<br/>Ch 14-16]
     E --> F[Real Applications<br/>Ch 17-19]
 
-    style A fill:#e8f5e9
-    style B fill:#c8e6c9
-    style C fill:#a5d6a7
-    style D fill:#81c784
-    style E fill:#66bb6a
+    style A fill:#4caf50
+    style B fill:#4caf50
+    style C fill:#4caf50
+    style D fill:#4caf50
+    style E fill:#4caf50
     style F fill:#4caf50
 ```
 

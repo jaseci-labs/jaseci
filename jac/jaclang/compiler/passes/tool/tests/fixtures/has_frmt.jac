@@ -1,4 +1,4 @@
-obj Anchor ( ArchetypeProtocol ) {
+obj Anchor(ArchetypeProtocol) {
     has ob: object,
         ds_entry_funcs: list[DSFunc],
         ds_exit_funcs: list[DSFunc],

@@ -249,7 +249,7 @@ obj DatabaseConnection {
     def postinit {
         # Build connection string
         self.connection_string =
-            f"postgresql:#{self.username}:{self.password}@" +
+            f"postgresql://{self.username}:{self.password}@" +
             f"{self.host}:{self.port}/{self.database}";
 
         # Try to connect
@@ -260,14 +260,14 @@ obj DatabaseConnection {
         } except Exception as e {
             print(f"Connection failed: {e}");
             self.connection = None;
-            self.connected = false;
+            self.connected = False;
         }
     }
 
     def close {
         if self.connection {
             self.connection.close();
-            self.connected = false;
+            self.connected = False;
         }
     }
 }
@@ -280,48 +280,65 @@ obj DatabaseConnection {
 Jac allows you to separate interface declarations from their implementations:
 
 ```jac
-# user_interface.jac - Just the interface
+# user.jac - Just the interface
 obj User {
     has id: int;
     has username: str;
     has email: str;
     has created_at: str;
 
-    can authenticate(password: str) -> bool;
-    can update_profile(data: dict) -> bool;
-    can get_permissions() -> list[str];
+    has password_hash: str = "$2b$12$eIXyN/N5DwQ7IayzF6GlEu9s3WdQNmACn.wtMf7pWfd.9D6Mg4hCu";
+
+    def authenticate(password: str) -> bool;
+    def update_profile(data: dict) -> bool;
+    def get_permissions() -> list[str];
+    def validate_email(email: str) -> bool;
 }
 
 # user.impl.jac - The implementation
-impl User {
-    can authenticate(password: str) -> bool {
-        import:py bcrypt;
-        stored_hash = self.load_password_hash();
-        return bcrypt.checkpw(
-            password.encode('utf-8'),
-            stored_hash.encode('utf-8')
-        );
+impl User.authenticate {
+    import bcrypt;
+    return bcrypt.checkpw(
+        password.encode('utf-8'),
+        self.password_hash.encode("utf-8")
+    );
+}
+
+impl User.update_profile {
+    if "email" in data and not self.validate_email(data["email"]) {
+        return False;
     }
 
-    can update_profile(data: dict) -> bool {
-        # Validation
-        if "email" in data and not self.validate_email(data["email"]) {
-            return false;
+    for (key, value) in data.items() {
+        if hasattr(self, key) {
+            setattr(self, key, value);
         }
-
-        # Update fields
-        for key, value in data.items() {
-            if hasattr(self, key) {
-                setattr(self, key, value);
-            }
-        }
-        return true;
     }
+    return True;
+}
 
-    can get_permissions() -> list[str] {
-        # Load from database or cache
-        return ["read", "write", "comment"];
-    }
+impl User.get_permissions {
+    return ["read", "write", "comment"];
+}
+
+impl User.validate_email {
+    return "@" in email and "." in email;
+}
+
+# main.jac - Example usage
+with entry {
+    user = User(
+        id=1,
+        username="johndoe",
+        email="johndoe@example.com",
+        created_at="2023-01-01"
+    );
+
+    result = user.authenticate("password123");
+    print(f"Authenticated: {result}");
+
+    updated = user.update_profile({"email": "new@example.com"});
+    print(f"Profile updated: {updated}");
 }
 ```
 
