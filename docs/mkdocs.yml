@@ -119,7 +119,7 @@ nav:
         - "communityhub/fun/p1.md"
         - "communityhub/fun/p2.md"
         - "communityhub/fun/p3.md"
-
+    - Add Examples to Playground: "communityhub/submit-example.md"
   - Jac Playground:
     - Playground: "/playground/"
 
