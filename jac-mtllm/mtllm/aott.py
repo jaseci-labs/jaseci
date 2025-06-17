@@ -206,7 +206,7 @@ def execute_react(
             if not contains_media
             else meaning_typed_input_list
         )
-        if "meida" not in model_params:
+        if "media" not in model_params:
             model_params["media"] = None
         meaning_out = model(meaning_typed_input, **model_params)  # type: ignore
         react_output: ReActOutput = model.resolve_react_output(

@@ -5,11 +5,12 @@ import os
 import sys
 import sysconfig
 import tempfile
+import subprocess
+from pathlib import Path
 from unittest.mock import patch
 
 from jaclang import JacMachine as Jac
 from jaclang.cli import cli
-from jaclang.compiler.passes.main import CompilerMode as CMode
 from jaclang.compiler.program import JacProgram
 from jaclang.utils.test import TestCase
 
@@ -1322,3 +1323,20 @@ class JacLanguageTests(TestCase):
         self.assertIn("Raw string with ✓ and ○", stdout_value[4])
         self.assertIn("Tab ✓", stdout_value[5])
         self.assertIn("Newline ○", stdout_value[6])
+
+    def test_sitecustomize_meta_importer(self) -> None:
+        """Verify Jac modules importable without importing jaclang."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            Path(tmpdir, "mymod.jac").write_text('with entry {print("via meta");}')
+            env = os.environ.copy()
+            project_root = Path(__file__).resolve().parents[2]
+            env["PYTHONPATH"] = os.pathsep.join([str(project_root), tmpdir])
+            proc = subprocess.run(
+                [sys.executable, "-c", "import mymod"],
+                capture_output=True,
+                text=True,
+                cwd=tmpdir,
+                env=env,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(proc.stdout.strip(), "via meta")

@@ -133,7 +133,10 @@ def serve_with_watch() -> None:
     port = 8000
     root_dir = os.path.dirname(os.path.dirname(__file__))
     site_dir = os.path.join(root_dir, "site")
-    ignore_paths = [os.path.join(root_dir, "docs", "assets")]
+    ignore_paths = [
+        os.path.join(root_dir, "docs", "assets"),
+        os.path.join(root_dir, "docs", "playground", "jaclang.zip"),
+    ]
 
     print("Initial build of MkDocs site...")
     subprocess.run(["mkdocs", "build"], check=True, cwd=root_dir)

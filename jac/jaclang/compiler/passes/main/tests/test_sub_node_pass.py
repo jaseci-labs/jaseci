@@ -1,7 +1,6 @@
 """Test sub node pass module."""
 
 from jaclang.compiler.passes import UniPass
-from jaclang.compiler.passes.main import CompilerMode as CMode
 from jaclang.compiler.program import JacProgram
 from jaclang.utils.test import TestCase
 
