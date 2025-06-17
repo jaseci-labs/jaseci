@@ -338,6 +338,7 @@ walker DataValidator {
 
 Abilities can transform node state based on traversal context:
 
+<div class="code-block">
 ```jac
 node Account {
     has id: str;
@@ -367,7 +368,6 @@ node Account {
     # Update status based on balance
     can update_status with StatusUpdater entry {
         old_status = self.status;
-
         if self.balance < 0 {
             self.status = "overdrawn";
         } elif self.balance == 0 {
@@ -377,7 +377,6 @@ node Account {
         } else {
             self.status = "active";
         }
-
         if old_status != self.status {
             visitor.status_changes.append({
                 "account": self.id,
@@ -394,7 +393,7 @@ walker InterestProcessor {
     has total_interest_paid: float = 0.0;
     has accounts_processed: int = 0;
 
-    can get_rate(account: Account) -> float {
+    def get_rate(account: Account) -> float {
         # Premium accounts get better rates
         if account.balance > 10000 {
             return self.base_rate * 1.5;
@@ -406,17 +405,53 @@ walker InterestProcessor {
 
     can process_batch with entry {
         print(f"Starting interest processing for {self.processing_date}");
-        visit [-->:Account:];
     }
 
     can summarize with exit {
-        print(f"\nInterest Processing Complete:");
+        print(f"\n Interest Processing Complete:");
         print(f"  Date: {self.processing_date}");
         print(f"  Accounts processed: {self.accounts_processed}");
-        print(f"  Total interest paid: ${self.total_interest_paid:.2f}");
+        print(f"  Total interest paid: ${self.total_interest_paid}");
     }
 }
+
+walker StatusUpdater {
+    has status_changes: list = [];
+
+    can summarize with exit {
+        print(f"\nStatus Update Summary:");
+        for change in self.status_changes {
+            print(f"  Account {change['account']} changed from {change['from']} to {change['to']}");
+        }
+    }
+}
+
+with entry {
+    # Initialize walkers
+    interest_processor = InterestProcessor(processing_date="2023-10-01");
+    status_updater = StatusUpdater();
+
+    # Create accounts
+    account1 = Account(id="A001", balance=1500.0);
+    account2 = Account(id="A002", balance=25000.0);
+    account3 = Account(id="A003", balance=-200.0);
+    account4 = Account(id="A004", balance=0.0);
+
+    # Process interest
+    interest_processor spawn account1;
+    interest_processor spawn account2;
+    interest_processor spawn account3;
+    interest_processor spawn account4;
+
+    # Update statuses
+    status_updater spawn account1;
+    status_updater spawn account2;
+    status_updater spawn account3;
+    status_updater spawn account4;
+
+}
 ```
+</div>
 
 ### Aggregation and Reporting
 
