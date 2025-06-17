@@ -109,7 +109,13 @@ class JTypeCheckPass(UniPass):
                     node.target.as_attr_list[-2]
                 )
                 assert isinstance(class_inst_type, jtype.JClassInstanceType)
-                callable_type = class_inst_type.class_type.get_callable_signature()
+                if isinstance(class_inst_type.class_type, jtype.JGenericType):
+                    base_class = class_inst_type.class_type.base
+                elif isinstance(class_inst_type.class_type, jtype.JTypeVar):
+                    assert False
+                else:
+                    base_class = class_inst_type.class_type
+                callable_type = base_class.get_callable_signature()
             else:
                 self.__debug_print("AnyType target func call!!!")
                 return
@@ -199,32 +205,33 @@ class JTypeCheckPass(UniPass):
     #####################
     def enter_atom_trailer(self, node: ast.AtomTrailer) -> None:
         """
-        Resolve and validates chaine attribute accesses (e.g., a.b.c) in the AST.
+        Resolve and validate chained attribute access expressions (e.g., `a.b.c`) in the AST.
 
-        This method performs static analysis on a sequence of attribute accesses by:
-        1. Resolving the type of the base expression.
-        2. Walking through each attribute in the chain.
-        3. Verifying that each attribute exists on the current type.
-        4. Updating the AST with the resolved symbol information for each attribute.
+        This method performs static type checking for a sequence of chained access expressions,
+        which may include attribute accesses, function calls, and index operations. It performs:
+
+        1. Type resolution of the base object (first node in the chain).
+        2. Step-by-step traversal through each subsequent element in the chain.
+        3. Verification that each element is a valid member on the current type.
+        4. Symbol binding for each resolved member to update the AST with type information.
 
         Args:
-            node (ast.AtomTrailer): The AST node representing a chain of attribute accesses.
+            node (ast.AtomTrailer): The AST node representing a chain of accesses.
 
-        Logs errors if:
-            - Any intermediate type in the chain is not a class or instance type.
-            - A requested attribute does not exist on the current type.
+        Raises / Logs:
+            - An error if a member in the chain does not exist on the current type.
+            - An error if a non-instance/class/generic type is used in a chain.
+            - A debug message if unsupported node types (like `EdgeRefTrailer`) are encountered.
         """
-        self.prune()  # prune the traversal into the atom trailer.
-
-        if any(not isinstance(i, ast.Name | ast.FuncCall) for i in node.to_list):
+        if any(not isinstance(i, ast.Name | ast.FuncCall | ast.IndexSlice) for i in node.to_list):
             self.__debug_print(
-                "IndexSlice & EdgeRefTrailer are not supported yet, ignoring this node"
+                "EdgeRefTrailer are not supported yet, ignoring this node"
             )
             return
 
         for n in node.to_list:
             assert isinstance(
-                n, (ast.Name | ast.FuncCall)
+                n, (ast.Name | ast.FuncCall | ast.IndexSlice)
             ), f"Expected all Name or FuncCall, Found {n} --> {n.loc.mod_path} {n.loc}"
         nodes = cast(
             list[ast.Name | ast.FuncCall],
@@ -240,23 +247,26 @@ class JTypeCheckPass(UniPass):
             nodes[0]
         )  # Resolve type of base object.
 
-        last_node_type: jtype.JClassInstanceType | jtype.JClassType
+        last_node_type: jtype.JClassInstanceType | jtype.JClassType | jtype.JGenericType
         next_type: jtype.JType = first_item_type
 
         # Iterate through each attribute in the chain (excluding the first base object).
         for n in nodes[1:]:
             # Ensure the current type can have members.
-            if not isinstance(next_type, (jtype.JClassInstanceType, jtype.JClassType)):
+            if not isinstance(next_type, (jtype.JClassInstanceType, jtype.JClassType, jtype.JGenericType)):
                 self.log_error(
-                    f"Can't access a field from an object of type {first_item_type}"
+                    f"Can't access a field from an object of type {type(next_type)} {n}"
                 )
                 return
             else:
+                assert isinstance(next_type, jtype.JClassInstanceType | jtype.JClassType | jtype.JGenericType)
                 last_node_type = next_type
 
             if isinstance(n, ast.FuncCall):
                 assert isinstance(n.target, ast.Name)
                 node_name = n.target.sym_name
+            elif isinstance(n, ast.IndexSlice):
+                node_name = "__getitem__"
             else:
                 node_name = n.sym_name
             member = last_node_type.get_member(node_name)
@@ -280,9 +290,73 @@ class JTypeCheckPass(UniPass):
                 next_type = member.type
                 if isinstance(n, ast.FuncCall):
                     assert isinstance(n.target, ast.Name)
-                    n.target.name_spec.sym = member.decl
+                    n.target.name_spec._sym = member.decl
                 else:
-                    n.name_spec.sym = member.decl
+                    n.name_spec._sym = member.decl
+                    # No symbols for builtin methods, auto generate the missing
+                    # symbols
+                    # TODO: This should be moved to symbol table build pass not here
+                    if n.name_spec.sym is None:
+                        s = ast.Symbol(
+                            ast.NameAtom(False),
+                            access=ast.SymbolAccess.PUBLIC,
+                            parent_tab=ast.UniScopeNode("AUTO_GEN")
+                        )
+                        s.jtype = member.type
+                        n.name_spec.sym = s
+                    
+                    if isinstance(n, ast.IndexSlice):
+                        assert isinstance(member.type, jtype.JFunctionType)
+                        next_type = member.type.return_type
+    
+    def exit_index_slice(self, node: ast.IndexSlice) -> None:
+        """
+        Type checks a runtime index expression (e.g., `obj[index]`) when not in annotation context.
+
+        This method performs type validation for subscript/indexing operations by:
+        1. Resolving the base type being indexed (e.g., the object before `[...]`).
+        2. Resolving the type(s) of the index expression(s).
+        3. Checking if the base type defines a `__getitem__` method.
+        4. Verifying that the number and types of index arguments match the method signature.
+
+        This logic is only applied outside type annotations (e.g., `List[int]` is handled in resolver).
+
+        Args:
+            node (ast.IndexSlice): The AST node representing the indexing operation.
+
+        Logs:
+            - An error if the number of index arguments does not match the callable signature.
+            - An error if the index argument types are incompatible.
+            - An error if the base type lacks a `__getitem__` method.
+        """
+        parent = node.parent
+        assert isinstance(parent, ast.AtomTrailer)
+        base_type = self.prog.type_resolver.get_type(parent.to_list[-2])
+        if isinstance(base_type, jtype.JAnyType):
+            self.log_warning("This node is not supported yet")
+            return
+        assert isinstance(base_type, jtype.JClassInstanceType), type(base_type)
+
+        indexes = []
+        if isinstance(node.slices[0].start, ast.TupleVal):
+            for v in node.slices[0].start.values:
+                assert isinstance(v, ast.Expr)
+                indexes.append(self.prog.type_resolver.get_type(v))
+        else:
+            indexes = [self.prog.type_resolver.get_type(node.slices[0].start)]
+        
+        is_annotation = node.find_parent_of_type(ast.SubTag)
+        if not is_annotation:
+            index_method = base_type.get_member("__getitem__")
+            if index_method and isinstance(index_method.type, jtype.JFunctionType):
+                params = index_method.type.parameters
+                if len(params) != len(indexes):
+                    self.log_error(f"Object of type {base_type} supports {len(params)} indicies, suppliied number is {len(indexes)}")
+                for p, i in zip(params, indexes):
+                    if not p.type.can_assign_from(i):
+                        self.log_error(f"Can't assign an index of type {p.type} with a value of type {i}")
+            else:
+                self.log_error(f"Object of type {base_type} doesn't support item assignment")
 
     ###############################
     ### Binary/Bool Expressions ###

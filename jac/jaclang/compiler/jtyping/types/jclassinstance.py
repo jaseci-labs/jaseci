@@ -8,6 +8,8 @@ from typing import Optional
 
 from jaclang.compiler.jtyping.types.jclassmember import JClassMember
 from jaclang.compiler.jtyping.types.jclasstype import JClassType
+from jaclang.compiler.jtyping.types.jgenerictype import JGenericType
+from jaclang.compiler.jtyping.types.jtypevar import JTypeVar
 from jaclang.compiler.jtyping.types.jtype import JType
 
 
@@ -24,7 +26,7 @@ class JClassInstanceType(JType):
         class_type (JClassType): The class this instance belongs to.
     """
 
-    def __init__(self, class_type: JClassType) -> None:
+    def __init__(self, class_type: JClassType | JGenericType | JTypeVar) -> None:
         """Initialize a JClassInstanceType from a class type.
 
         Args:
@@ -78,7 +80,8 @@ class JClassInstanceType(JType):
         Returns:
             Optional[JClassMember] : The corresponding member if found, else None.
         """
-        # Check if the member exists in the current class
+        if isinstance(self.class_type, JTypeVar):
+            return None
         return self.class_type.get_member(name)
 
     # TODO: Check this when it comes to support binary operations
@@ -105,4 +108,7 @@ class JClassInstanceType(JType):
 
     def __repr__(self) -> str:
         """Get string representation of the object."""
-        return f"'{self.class_type.full_name}'"
+        if isinstance(self.class_type, JGenericType):
+            return str(self.class_type)
+        else:
+            return f"'{self.class_type.full_name}'"

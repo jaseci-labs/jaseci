@@ -61,5 +61,50 @@
             "__eq__": {"args": ["builtins.bool"], "return": "builtins.bool"}
         },
         "assignable_from": ["builtins.bool"]
+    },
+    "builtins.list": {
+        "generics": ["T"],
+        "assignable_from": ["builtins.list"],
+        "methods": {
+            "append": {"args": ["T"], "return": ""},
+            // "extend": {"args": ["builtins.list[T]"], "return": ""},
+            "insert": {"args": ["builtins.int", "T"], "return": ""},
+            "remove": {"args": ["T"], "return": ""},
+            "pop": {"args": [], "return": "T"},
+            "clear": {"args": [], "return": ""},
+            "index": {"args": ["T"], "return": "builtins.int"},
+            "count": {"args": ["T"], "return": "builtins.int"},
+            "reverse": {"args": [], "return": ""},
+            "sort": {"args": [], "return": ""},
+            // "copy": {"args": [], "return": "builtins.list[T]"},
+            "__getitem__": {"args": ["builtins.int"], "return": "T"},
+            "__setitem__": {"args": ["builtins.int", "T"], "return": ""},
+            "__delitem__": {"args": ["builtins.int"], "return": ""},
+            "__len__": {"args": [], "return": "builtins.int"},
+            // "__iter__": {"args": [], "return": "builtins.iterator[T]"},
+            "__contains__": {"args": ["T"], "return": "builtins.bool"}
+        }
+    },
+    "builtins.dict": {
+        "generics": ["K", "V"],
+        "assignable_from": ["builtins.dict"],
+        "methods": {
+            "get": {"args": ["K"], "return": "V"},
+            "pop": {"args": ["K"], "return": "V"},
+            // "popitem": {"args": [], "return": "builtins.tuple[K, V]"},
+            // "keys": {"args": [], "return": "builtins.list[K]"},
+            // "values": {"args": [], "return": "builtins.list[V]"},
+            // "items": {"args": [], "return": "builtins.list[builtins.tuple[K, V]]"},
+            // "update": {"args": ["builtins.dict[K, V]"], "return": ""},
+            "clear": {"args": [], "return": ""},
+            // "copy": {"args": [], "return": "builtins.dict[K, V]"},
+            "setdefault": {"args": ["K", "V"], "return": "V"},
+            "__getitem__": {"args": ["K"], "return": "V"},
+            "__setitem__": {"args": ["K", "V"], "return": ""},
+            "__delitem__": {"args": ["K"], "return": ""},
+            "__contains__": {"args": ["K"], "return": "builtins.bool"},
+            // "__iter__": {"args": [], "return": "builtins.iterator[K]"},
+            "__len__": {"args": [], "return": "builtins.int"}
+        }
     }
 }

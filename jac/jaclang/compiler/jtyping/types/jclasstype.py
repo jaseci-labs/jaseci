@@ -13,6 +13,7 @@ from typing import Optional
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.jtyping.types.jclassmember import JClassMember
 from jaclang.compiler.jtyping.types.jfunctionttype import JFunctionType
+from jaclang.compiler.jtyping.types.jtypevar import JTypeVar
 from jaclang.compiler.jtyping.types.jtype import JType
 
 
@@ -44,6 +45,7 @@ class JClassType(JType):
         instance_members: Optional[dict[str, JClassMember]] = None,
         class_members: Optional[dict[str, JClassMember]] = None,
         assignable_from: Optional[list[str]] = None,
+        generics: Optional[dict[str, JTypeVar]] = None
     ) -> None:
         """
         Initialize a new JClassType instance.
@@ -57,6 +59,7 @@ class JClassType(JType):
             instance_members (Optional[dict[str, JClassMember]]): Members on instances.
             class_members (Optional[dict[str, JClassMember]]): Members on the class object.
             assignable_from (list[str]): Fully qualified names of types assignable to this one.
+            generics_vars (dict[str, JTypeVar]): Map of all generics used in the class
         """
         super().__init__(name, module)
         self.full_name: str = full_name
@@ -64,9 +67,8 @@ class JClassType(JType):
         self.is_abstract: bool = is_abstract
         self.instance_members: dict[str, JClassMember] = instance_members or {}
         self.class_members: dict[str, JClassMember] = class_members or {}
-        self.assignable_from: list[str] = (
-            assignable_from if assignable_from is not None else []
-        )
+        self.assignable_from: list[str] = assignable_from or []
+        self.generics_vars: dict[str, JTypeVar] = generics or {}
 
     def is_instantiable(self) -> bool:
         """

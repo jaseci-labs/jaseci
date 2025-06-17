@@ -10,6 +10,8 @@ from jaclang.compiler.jtyping import (
     JFunctionType,
     JType,
     JUnionType,
+    JTypeVar,
+    JNoneType,
 )
 from jaclang.compiler.jtyping.types.jclassmember import MemberKind, Visibility
 
@@ -25,7 +27,8 @@ class JTypeRegistry:
     """
 
     def __init__(self) -> None:
-        self._types: dict[str, JType] = {}
+        self._types: dict[str, JType] = {
+        }
         self.__load_builtin_types()
 
     def register(self, type_obj: JClassType) -> None:
@@ -78,13 +81,9 @@ class JTypeRegistry:
         This method performs the following steps:
         1. Reads a JSON file defined by `BUILTIN_PATH`, allowing for comments (lines starting with `//`).
         2. Parses the cleaned JSON content to extract built-in type definitions.
-        3. Registers each built-in type as a `JClassType`, setting its name, full name, and `assignable_from` list.
-        4. For each built-in type, it also registers methods (if any) by:
-        - Resolving method signatures using `__make_callable_type`.
-        - Creating `JClassMember` instances for each method.
-        - Adding them to the type's `instance_members`.
-
-        This ensures that both types and their associated callable methods are available for type checking.
+        3. Registers each built-in type as a `JClassType`.
+        4. For each built-in type, registers its methods by resolving argument and return types,
+        including support for generic type variables.
 
         Raises:
             AssertionError: If a registered type is not an instance of `JClassType`.
@@ -93,34 +92,41 @@ class JTypeRegistry:
             # Remove comments (//) and collect cleaned lines
             lines = (line.split("//")[0].strip() for line in file)
             json_str = "\n".join(line for line in lines if line)
+            builtin_types = json.loads(json_str)
 
-            # Parse the cleaned JSON
-            builtin_types = json.loads("".join(json_str))
-
-            # Register class types
+            # Step 1: Register base class types first
             for type_name, type_info in builtin_types.items():
+                generics_list: dict[str, JTypeVar] = {t: JTypeVar(t) for t in type_info.get("generics", [])}
                 class_type = JClassType(
-                    name=type_name,
+                    name=type_name.split(".")[-1],  # short name
                     full_name=type_name,
                     module=None,
                     is_abstract=False,
                     instance_members={},
                     class_members={},
                     assignable_from=type_info.get("assignable_from", []),
+                    generics=generics_list
                 )
                 self.register(class_type)
 
-            # Register methods for each class type
+            # Step 2: Register method signatures (with generic support)
             for type_name, type_info in builtin_types.items():
                 full_name = type_name
                 type_obj = self.get(full_name)
                 assert isinstance(type_obj, JClassType)
 
+                generics_dict = type_obj.generics_vars
+
                 for method_name, sig in type_info.get("methods", {}).items():
                     args = sig.get("args", [])
-                    ret = sig.get("return", "None")
+                    ret = sig.get("return", "builtins.none")
 
-                    method_type = self.__make_callable_type(args, ret)
+                    method_type = self.__make_callable_type(
+                        arg_types=args,
+                        return_type=ret,
+                        generics=generics_dict
+                    )
+
                     type_obj.instance_members[method_name] = JClassMember(
                         name=method_name,
                         type=method_type,
@@ -131,28 +137,40 @@ class JTypeRegistry:
                     )
 
     def __make_callable_type(
-        self, arg_types: list[list[str] | str], return_type: str
+        self,
+        arg_types: list[list[str] | str],
+        return_type: str,
+        generics: dict[str, JTypeVar]
     ) -> JFunctionType:
         """
-        Construct a `JFunctionType` object based on argument types and a return type.
+        Construct a `JFunctionType` from a list of argument types and a return type.
 
-        This function takes a list of argument types (each can be a string representing a single type,
-        or a list of strings representing a union type) and a return type string. It resolves the
-        types using the internal `_types` dictionary, which maps type names to `JClassType` or similar
-        objects. Union types are handled by constructing a `JUnionType`.
+        This method builds a callable type signature, resolving type names to actual
+        `JClassInstanceType` or `JUnionType` objects, and handles generic type variables.
 
         Args:
             arg_types (list[list[str] | str]):
-                A list of argument type specifications. Each item can either be:
-                - A single string (e.g., "int")
-                - A list of strings (e.g., ["int", "float"]) representing a union type
+                A list specifying the argument types:
+                - A single string (e.g., "int") is treated as a single type.
+                - A list of strings (e.g., ["int", "float"]) is treated as a union type.
+
+                Each type string may refer to either a built-in type (found in `self._types`)
+                or a type variable (found in `generics`).
 
             return_type (str):
-                The name of the return type, which must exist in the `_types` mapping.
+                A string specifying the return type. It may be:
+                - A built-in type (found in `self._types`)
+                - A type variable (from `generics`)
+                - An empty string, which implies `None` as the return type.
+
+            generics (dict[str, JTypeVar]):
+                A mapping of generic type variable names to their corresponding `JTypeVar` objects.
 
         Returns:
             JFunctionType:
-                A function type object composed of typed arguments and the resolved return type.
+                A callable type representation consisting of:
+                - A list of `JFuncArgument` for parameters
+                - A resolved return type (`JClassType`, `JTypeVar`, or `JNoneType`)
         """
         # Resolve the arg type from builtins json
         resolved_types: list[JType] = []
@@ -160,13 +178,13 @@ class JTypeRegistry:
             if isinstance(arg, list):
                 union_types: list[JClassType | JClassInstanceType] = []
                 for t in arg:
-                    resolved_type = self._types[t]
-                    assert isinstance(resolved_type, JClassType)
+                    resolved_type = generics[t] if t in generics else self._types[t]
+                    assert isinstance(resolved_type, JClassType | JTypeVar)
                     union_types.append(JClassInstanceType(resolved_type))
                 resolved_types.append(JUnionType(union_types))
             else:
-                resolved_type = self._types[arg]
-                assert isinstance(resolved_type, JClassType)
+                resolved_type = generics[arg] if arg in generics else self._types[arg]
+                assert isinstance(resolved_type, JClassType | JTypeVar)
                 resolved_types.append(JClassInstanceType(resolved_type))
 
         # Create function arguments based on their types
@@ -176,5 +194,10 @@ class JTypeRegistry:
         ]
 
         return JFunctionType(
-            parameters=resolved_args, return_type=self._types[return_type]
+            parameters=resolved_args,
+            return_type=(
+                JNoneType() if return_type == "" else 
+                generics[return_type] if return_type in generics else
+                self._types[return_type]
+            )
         )

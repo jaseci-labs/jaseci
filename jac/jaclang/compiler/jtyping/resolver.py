@@ -186,6 +186,8 @@ class JTypeResolver:
             "TYP_FLOAT": "builtins.float",
             "TYP_STRING": "builtins.str",
             "TYP_BOOL": "builtins.bool",
+            "TYP_LIST": "builtins.list",
+            "TYP_DICT": "builtins.dict",
         }
 
         if node.name in type_map:
@@ -241,25 +243,72 @@ class JTypeResolver:
 
     def _get_atom_trailer_expr_type(self, node: ast.AtomTrailer) -> jtype.JType:
         """
-        Resolve the type of an attribute access or chained expression.
+        Resolve the type of a chained expression, including attribute and index access.
 
-        The AtomTrailer node represents chained expressions like `a.b.c`. This method
-        returns the type of the final element in the chain, as determined by
-        recursively evaluating the last sub-expression in the access list.
-
-        Note: This assumes that type information has already been propagated
-        for each intermediate node in the chain.
+        This method evaluates the final expression in a chained access like `a.b.c` or `T[int]`,
+        by returning the type of the last node in the trailer list.
 
         Args:
-            node (ast.AtomTrailer): The AST node representing the chained access.
+            node (ast.AtomTrailer): The AST node representing the chained expression.
 
         Returns:
-            JType: The type of the last attribute or element in the chain.
+            JType: The resolved type of the last expression in the access chain.
         """
         last_node = node.to_list[-1]
         assert isinstance(last_node, ast.Expr)
         return self.get_type(last_node)
+    
+    def _get_index_slice_expr_type(self, node: ast.IndexSlice) -> jtype.JType:
+        """
+        Resolve the type of an index slice expression.
 
+        This method handles two distinct contexts:
+
+        1. **Type annotation context (e.g., List[int])**:
+        If the slice is part of a type annotation, it interprets the expression as a generic
+        instantiation and returns a `JClassInstanceType` wrapping a `JGenericType`.
+
+        2. **Runtime indexing (e.g., obj[0])**:
+        If the slice is used outside an annotation, it attempts to resolve the result of
+        `__getitem__` method on the base object.
+
+        Tuple values in the slice are treated as multiple type/index arguments.
+
+        Args:
+            node (ast.IndexSlice): The index slice AST node to resolve.
+
+        Returns:
+            JType:
+                - A `JClassInstanceType` wrapping `JGenericType` for generic instantiations.
+                - The return type of `__getitem__` for runtime indexing.
+                - Raises an error if indexing is unsupported by the base type.
+        """
+        parent = node.parent
+        assert isinstance(parent, ast.AtomTrailer)
+        base_type = self.get_type(parent.to_list[-2])
+        assert isinstance(base_type, jtype.JClassInstanceType)
+
+        if node.find_parent_of_type(ast.SubTag):
+            generic_vars = []
+            if isinstance(node.slices[0].start, ast.TupleVal):
+                for v in node.slices[0].start.values:
+                    assert isinstance(v, ast.Expr)
+                    generic_vars.append(self.get_type(v))
+            else:
+                generic_vars = [self.get_type(node.slices[0].start)]
+            assert isinstance(base_type.class_type, jtype.JClassType)
+            return jtype.JClassInstanceType(jtype.JGenericType(
+                base_type.class_type,
+                generic_vars
+            ))
+        else:
+            index_method = base_type.get_member("__getitem__")
+            if index_method:
+                assert isinstance(index_method.type, jtype.JFunctionType)
+                return index_method.type.return_type
+            else:
+                return jtype.JAnyType()
+    
     def _get_special_var_ref_expr_type(self, node: ast.SpecialVarRef) -> jtype.JType:
         """
         Resolve the type of a special variable reference (e.g., `here`).
