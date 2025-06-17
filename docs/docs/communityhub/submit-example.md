@@ -25,7 +25,7 @@
         <label>✍️ Jac Code:</label>
         <div id="editor"></div>
 
-        <button type="button" onclick="downloadExample()">📥 Download Files</button>
+        <button type="button" onclick="downloadExample()">📥 Submit Files</button>
     </form>
 </div>
 
@@ -38,7 +38,7 @@
     require(['vs/editor/editor.main'], function () {
       editor = monaco.editor.create(document.getElementById('editor'), {
         value: "// Write your Jac code here...",
-        language: 'python', // close to Jac syntax
+        language: 'python',
         theme: 'vs-dark'
       });
 
