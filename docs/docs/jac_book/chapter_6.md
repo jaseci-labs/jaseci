@@ -47,216 +47,33 @@ Jac's pipe operator (`|>`) enables functional programming patterns that make dat
 ### Data Processing Pipeline Example
 
 **Code Example**
-!!! example "Log Analysis Pipeline"
-    === "log_analyzer.jac"
+!!! example "Sales Data Analysis Pipeline"
+    === "sales_pipeline.jac"
         <div class="code-block">
         ```jac
-        # Log analysis pipeline using pipe operations
-        import:py re;
+        # Sales data processing pipeline using pipe operations
         import:py json;
-        from datetime import datetime;
-
-        # Utility functions for the pipeline
-        can parse_log_line(line: str) -> dict {
-            """Parse a single log line into structured data."""
-            pattern = r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (.+)';
-            match = re.match(pattern, line.strip());
-
-            if match {
-                return {
-                    "timestamp": match.group(1),
-                    "level": match.group(2),
-                    "message": match.group(3)
-                };
-            }
-            return None;
-        }
-
-        can filter_by_level(logs: list[dict], level: str) -> list[dict] {
-            """Filter logs by severity level."""
-            return [log for log in logs if log and log.get("level") == level];
-        }
-
-        can extract_errors(logs: list[dict]) -> list[dict] {
-            """Extract error information from log messages."""
-            error_logs = [];
-            for log in logs {
-                if "error" in log.get("message", "").lower() {
-                    log["error_type"] = "runtime_error";
-                    error_logs.append(log);
-                } elif "exception" in log.get("message", "").lower() {
-                    log["error_type"] = "exception";
-                    error_logs.append(log);
-                }
-            }
-            return error_logs;
-        }
-
-        can group_by_hour(logs: list[dict]) -> dict[str, list] {
-            """Group logs by hour."""
-            groups = {};
-            for log in logs {
-                timestamp = log.get("timestamp", "");
-                hour = timestamp[:13] if len(timestamp) >= 13 else "unknown";
-                if hour not in groups {
-                    groups[hour] = [];
-                }
-                groups[hour].append(log);
-            }
-            return groups;
-        }
-
-        can count_by_level(logs: list[dict]) -> dict[str, int] {
-            """Count logs by level."""
-            counts = {};
-            for log in logs {
-                level = log.get("level", "unknown");
-                counts[level] = counts.get(level, 0) + 1;
-            }
-            return counts;
-        }
-
-        can format_summary(data: dict) -> str {
-            """Format the analysis summary."""
-            summary = "=== Log Analysis Summary ===\n";
-            for level, count in data.items() {
-                summary += f"{level}: {count} entries\n";
-            }
-            return summary;
-        }
-
-        # Traditional nested approach (hard to read)
-        can analyze_logs_traditional(log_lines: list[str]) -> str {
-            return format_summary(
-                count_by_level(
-                    extract_errors(
-                        filter_by_level(
-                            [parse_log_line(line) for line in log_lines],
-                            "ERROR"
-                        )
-                    )
-                )
-            );
-        }
-
-        # Pipe-based approach (clear data flow)
-        can analyze_logs_with_pipes(log_lines: list[str]) -> str {
-            return (
-                log_lines
-                |> [parse_log_line(line) for line in _]
-                |> [log for log in _ if log is not None]
-                |> filter_by_level(_, "ERROR")
-                |> extract_errors(_)
-                |> count_by_level(_)
-                |> format_summary(_)
-            );
-        }
-
-        # Advanced pipeline with multiple branches
-        can comprehensive_analysis(log_lines: list[str]) -> dict {
-            # Parse all logs once
-            parsed_logs = (
-                log_lines
-                |> [parse_log_line(line) for line in _]
-                |> [log for log in _ if log is not None]
-            );
-
-            # Create multiple analysis branches
-            error_analysis = (
-                parsed_logs
-                |> filter_by_level(_, "ERROR")
-                |> extract_errors(_)
-                |> group_by_hour(_)
-            );
-
-            warning_analysis = (
-                parsed_logs
-                |> filter_by_level(_, "WARN")
-                |> count_by_level(_)
-            );
-
-            time_distribution = (
-                parsed_logs
-                |> group_by_hour(_)
-                |> {hour: len(logs) for hour, logs in _.items()}
-            );
-
-            return {
-                "errors": error_analysis,
-                "warnings": warning_analysis,
-                "time_distribution": time_distribution,
-                "total_logs": len(parsed_logs)
-            };
-        }
-
-        with entry {
-            # Sample log data
-            sample_logs = [
-                "2024-01-15 10:30:15 [INFO] Application started",
-                "2024-01-15 10:30:16 [DEBUG] Loading configuration",
-                "2024-01-15 10:31:22 [WARN] Deprecated API usage detected",
-                "2024-01-15 10:32:45 [ERROR] Database connection failed",
-                "2024-01-15 10:33:12 [ERROR] Exception in user handler: NullPointerException",
-                "2024-01-15 11:15:33 [INFO] Request processed successfully",
-                "2024-01-15 11:20:45 [ERROR] Runtime error in payment processing",
-                "2024-01-15 11:25:10 [WARN] High memory usage detected"
-            ];
-
-            # Traditional analysis
-            print("=== Traditional Approach ===");
-            traditional_result = analyze_logs_traditional(sample_logs);
-            print(traditional_result);
-
-            # Pipe-based analysis
-            print("=== Pipe-based Approach ===");
-            pipe_result = analyze_logs_with_pipes(sample_logs);
-            print(pipe_result);
-
-            # Comprehensive analysis
-            print("=== Comprehensive Analysis ===");
-            comprehensive_result = comprehensive_analysis(sample_logs);
-            print(json.dumps(comprehensive_result, indent=2));
-        }
-        ```
-        </div>
-
-### Data Transformation Chains
-
-**Code Example**
-!!! example "E-commerce Data Processing"
-    === "data_processing.jac"
-        <div class="code-block">
-        ```jac
-        # E-commerce data processing with pipes
         import:py statistics;
-        from decimal import Decimal;
 
-        # Sample data transformation functions
-        can load_sales_data(filename: str) -> list[dict] {
-            """Simulate loading sales data."""
+        # Sample data and transformation functions
+        can load_sales_data() -> list[dict] {
             return [
                 {"id": 1, "product": "Laptop", "price": 999.99, "quantity": 2, "customer": "Alice"},
                 {"id": 2, "product": "Mouse", "price": 29.99, "quantity": 5, "customer": "Bob"},
                 {"id": 3, "product": "Keyboard", "price": 79.99, "quantity": 1, "customer": "Alice"},
-                {"id": 4, "product": "Monitor", "price": 299.99, "quantity": 1, "customer": "Charlie"},
-                {"id": 5, "product": "Laptop", "price": 999.99, "quantity": 1, "customer": "Diana"},
-                {"id": 6, "product": "Mouse", "price": 29.99, "quantity": 10, "customer": "Eve"}
+                {"id": 4, "product": "Monitor", "price": 299.99, "quantity": 1, "customer": "Charlie"}
             ];
         }
 
-        can calculate_total(sale: dict) -> dict {
-            """Add total value to each sale record."""
-            sale["total"] = sale["price"] * sale["quantity"];
-            return sale;
+        can calculate_totals(sales: list[dict]) -> list[dict] {
+            return [{**sale, "total": sale["price"] * sale["quantity"]} for sale in sales];
         }
 
         can filter_high_value(sales: list[dict], threshold: float = 100.0) -> list[dict] {
-            """Filter sales above threshold."""
             return [sale for sale in sales if sale["total"] >= threshold];
         }
 
         can group_by_customer(sales: list[dict]) -> dict[str, list] {
-            """Group sales by customer."""
             groups = {};
             for sale in sales {
                 customer = sale["customer"];
@@ -268,154 +85,58 @@ Jac's pipe operator (`|>`) enables functional programming patterns that make dat
             return groups;
         }
 
-        can calculate_customer_stats(grouped_sales: dict) -> dict[str, dict] {
-            """Calculate statistics for each customer."""
+        can calculate_customer_stats(grouped_sales: dict) -> dict {
             stats = {};
             for customer, sales in grouped_sales.items() {
                 totals = [sale["total"] for sale in sales];
                 stats[customer] = {
                     "total_spent": sum(totals),
                     "avg_order": statistics.mean(totals),
-                    "num_orders": len(sales),
-                    "products": list(set(sale["product"] for sale in sales))
+                    "num_orders": len(sales)
                 };
             }
             return stats;
         }
 
-        can format_report(customer_stats: dict) -> str {
-            """Format customer analysis report."""
-            report = "=== Customer Analysis Report ===\n\n";
-
-            # Sort customers by total spent
-            sorted_customers = sorted(
-                customer_stats.items(),
-                key=lambda x: x[1]["total_spent"],
-                reverse=True
+        # Traditional nested approach (hard to read)
+        can analyze_traditional() -> dict {
+            return calculate_customer_stats(
+                group_by_customer(
+                    filter_high_value(
+                        calculate_totals(
+                            load_sales_data()
+                        ), 50.0
+                    )
+                )
             );
-
-            for customer, stats in sorted_customers {
-                report += f"Customer: {customer}\n";
-                report += f"  Total Spent: ${stats['total_spent']:.2f}\n";
-                report += f"  Average Order: ${stats['avg_order']:.2f}\n";
-                report += f"  Number of Orders: {stats['num_orders']}\n";
-                report += f"  Products: {', '.join(stats['products'])}\n\n";
-            }
-
-            return report;
         }
 
-        # Complete analysis pipeline
-        can analyze_sales_data(filename: str) -> str {
+        # Pipe-based approach (clear data flow)
+        can analyze_with_pipes() -> dict {
             return (
-                filename
-                |> load_sales_data(_)
-                |> [calculate_total(sale) for sale in _]
+                load_sales_data()
+                |> calculate_totals(_)
                 |> filter_high_value(_, 50.0)
                 |> group_by_customer(_)
                 |> calculate_customer_stats(_)
-                |> format_report(_)
             );
-        }
-
-        # Parallel processing with pipes
-        can parallel_analysis(sales_data: list[dict]) -> dict {
-            # Product analysis branch
-            product_stats = (
-                sales_data
-                |> group_by_product(_)
-                |> calculate_product_performance(_)
-            );
-
-            # Time analysis branch
-            time_stats = (
-                sales_data
-                |> group_by_time_period(_)
-                |> calculate_time_trends(_)
-            );
-
-            # Customer analysis branch
-            customer_stats = (
-                sales_data
-                |> group_by_customer(_)
-                |> calculate_customer_lifetime_value(_)
-            );
-
-            return {
-                "products": product_stats,
-                "time_trends": time_stats,
-                "customers": customer_stats
-            };
-        }
-
-        can group_by_product(sales: list[dict]) -> dict[str, list] {
-            """Group sales by product."""
-            groups = {};
-            for sale in sales {
-                product = sale["product"];
-                if product not in groups {
-                    groups[product] = [];
-                }
-                groups[product].append(sale);
-            }
-            return groups;
-        }
-
-        can calculate_product_performance(grouped_sales: dict) -> dict {
-            """Calculate product performance metrics."""
-            performance = {};
-            for product, sales in grouped_sales.items() {
-                total_revenue = sum(sale["total"] for sale in sales);
-                total_quantity = sum(sale["quantity"] for sale in sales);
-                performance[product] = {
-                    "revenue": total_revenue,
-                    "units_sold": total_quantity,
-                    "avg_price": total_revenue / total_quantity if total_quantity > 0 else 0
-                };
-            }
-            return performance;
-        }
-
-        # Placeholder functions for comprehensive example
-        can group_by_time_period(sales: list[dict]) -> dict {
-            return {"daily": sales};  # Simplified
-        }
-
-        can calculate_time_trends(grouped_sales: dict) -> dict {
-            return {"trend": "increasing"};  # Simplified
-        }
-
-        can calculate_customer_lifetime_value(grouped_sales: dict) -> dict {
-            return {customer: {"ltv": sum(sale["total"] for sale in sales)}
-                   for customer, sales in grouped_sales.items()};
         }
 
         with entry {
-            # Run the analysis
-            report = analyze_sales_data("sales.csv");
-            print(report);
+            print("=== Traditional vs Pipe Approach ===");
 
-            # Load data for parallel analysis
-            sales_data = (
-                load_sales_data("sales.csv")
-                |> [calculate_total(sale) for sale in _]
-            );
+            traditional_result = analyze_traditional();
+            pipe_result = analyze_with_pipes();
 
-            # Run parallel analysis
-            comprehensive_stats = parallel_analysis(sales_data);
-            print("\n=== Comprehensive Analysis ===");
-
-            for category, stats in comprehensive_stats.items() {
-                print(f"\n{category.title()}:");
-                print(f"  {stats}");
-            }
+            print("Results are identical:");
+            print(json.dumps(pipe_result, indent=2));
         }
         ```
         </div>
 
-## AI Integration and MTLLM
+## AI Integration and Semantic Strings
 
-Jac provides built-in AI integration through semantic strings (semstrings) and the MTLLM (Multi-Tool Large Language Model) framework, making it easy to add intelligent features to your applications.
+Jac provides built-in AI integration through semantic strings (semstrings), making it easy to add intelligent features to your applications.
 
 ### Semantic Strings (Semstrings)
 
@@ -436,69 +157,42 @@ Jac provides built-in AI integration through semantic strings (semstrings) and t
 
 --8<-- "jac/examples/reference/semstrings.md"
 
-### Content Summarizer Example
+### Content Analysis Example
 
 **Code Example**
-!!! example "AI-Powered Content Summarizer"
-    === "summarizer.jac"
+!!! example "AI-Powered Content Analyzer"
+    === "content_analyzer.jac"
         <div class="code-block">
         ```jac
-        # AI-powered content summarizer using semstrings
-        import:py requests;
+        # AI-powered content analysis using semstrings and pipes
         import:py json;
 
-        obj ContentSummarizer {
-            has api_key: str;
-            has model: str = "gpt-3.5-turbo";
-            has max_tokens: int = 150;
-
-            can summarize_text(text: str, summary_type: str = "brief") -> str {
-                """Summarize text using AI with different summary types."""
-                if summary_type == "brief" {
-                    return f"Provide a brief 2-3 sentence summary of this text: {text}" by llm();
-                } elif summary_type == "detailed" {
-                    return f"Provide a detailed summary with key points for: {text}" by llm();
-                } elif summary_type == "bullet_points" {
-                    return f"Create bullet points summarizing the main ideas in: {text}" by llm();
-                } else {
-                    return f"Summarize this text: {text}" by llm();
-                }
+        obj ContentAnalyzer {
+            can summarize_text(text: str) -> str {
+                return f"Provide a brief 2-3 sentence summary of this text: {text}" by llm();
             }
 
-            can extract_key_insights(text: str) -> list[str] {
-                """Extract key insights from content."""
+            can extract_insights(text: str) -> list[str] {
                 insights_text = f"""
-                Extract the 5 most important insights from this text as a JSON list:
+                Extract the 3 most important insights from this text as a JSON list:
                 {text}
 
-                Return only a JSON array of strings, no additional text.
+                Return only a JSON array of strings.
                 """ by llm();
 
                 try {
                     insights = json.loads(insights_text);
-                    return insights if isinstance(insights, list) else [insights_text];
+                    return insights if isinstance(insights, list) else [];
                 } except Exception {
-                    # Fallback: split by lines and clean up
-                    return [
-                        line.strip().lstrip("- ").lstrip("• ")
-                        for line in insights_text.split("\n")
-                        if line.strip() and not line.strip().startswith("[")
-                    ][:5];
+                    return [insights_text];  # Fallback
                 }
             }
 
-            can generate_title(text: str) -> str {
-                """Generate an appropriate title for the content."""
-                return f"Generate a concise, engaging title for this content: {text[:500]}..." by llm();
-            }
-
             can analyze_sentiment(text: str) -> dict {
-                """Analyze the sentiment of the text."""
                 analysis = f"""
                 Analyze the sentiment of this text and return a JSON object with:
                 - sentiment: "positive", "negative", or "neutral"
                 - confidence: a number between 0 and 1
-                - key_emotions: list of emotions detected
 
                 Text: {text}
                 """ by llm();
@@ -506,141 +200,255 @@ Jac provides built-in AI integration through semantic strings (semstrings) and t
                 try {
                     return json.loads(analysis);
                 } except Exception {
-                    return {
-                        "sentiment": "neutral",
-                        "confidence": 0.5,
-                        "key_emotions": ["uncertain"]
-                    };
+                    return {"sentiment": "neutral", "confidence": 0.5};
                 }
             }
 
-            can categorize_content(text: str, categories: list[str]) -> str {
-                """Categorize content into predefined categories."""
-                category_list = ", ".join(categories);
-                return f"""
-                Categorize this text into one of these categories: {category_list}
-
-                Text: {text}
-
-                Return only the category name.
-                """ by llm();
-            }
-
             can comprehensive_analysis(text: str) -> dict {
-                """Perform comprehensive content analysis."""
                 return {
-                    "title": self.generate_title(text),
-                    "brief_summary": self.summarize_text(text, "brief"),
-                    "detailed_summary": self.summarize_text(text, "detailed"),
-                    "key_insights": self.extract_key_insights(text),
+                    "summary": self.summarize_text(text),
+                    "insights": self.extract_insights(text),
                     "sentiment": self.analyze_sentiment(text),
-                    "category": self.categorize_content(text, [
-                        "Technology", "Business", "Health", "Entertainment",
-                        "Politics", "Science", "Sports", "Education"
-                    ]),
-                    "word_count": len(text.split()),
-                    "reading_time": f"{len(text.split()) // 200 + 1} minutes"
+                    "word_count": len(text.split())
                 };
             }
         }
 
-        # Batch processing with pipes
-        can process_multiple_articles(articles: list[str]) -> list[dict] {
-            summarizer = ContentSummarizer();
+        # Process multiple articles with pipes
+        can analyze_articles(articles: list[str]) -> list[dict] {
+            analyzer = ContentAnalyzer();
 
             return (
                 articles
-                |> [{"original": article, "analysis": summarizer.comprehensive_analysis(article)}
+                |> [{"text": article, "analysis": analyzer.comprehensive_analysis(article)}
                    for article in _]
                 |> [result for result in _ if result["analysis"] is not None]
             );
         }
 
         with entry {
-            # Sample content for demonstration
-            sample_article = """
-            Artificial Intelligence has been transforming industries at an unprecedented pace.
-            From healthcare diagnostics to financial fraud detection, AI systems are becoming
-            increasingly sophisticated and reliable. Machine learning algorithms can now
-            process vast amounts of data to identify patterns that humans might miss.
-
-            However, this rapid advancement also brings challenges. Privacy concerns, job
-            displacement, and the need for ethical AI development are critical issues that
-            society must address. Companies are investing heavily in AI research while
-            governments are working to establish regulatory frameworks.
-
-            The future of AI looks promising, with potential applications in climate change
-            mitigation, personalized education, and space exploration. As we move forward,
-            the key will be ensuring that AI development remains aligned with human values
-            and benefits all of society.
+            # Sample content
+            sample_text = """
+            Artificial Intelligence is transforming industries rapidly. Machine learning
+            algorithms can now process vast amounts of data to identify patterns. However,
+            this brings challenges like privacy concerns and the need for ethical AI development.
             """;
 
-            # Create summarizer
-            summarizer = ContentSummarizer();
+            analyzer = ContentAnalyzer();
 
-            # Perform comprehensive analysis
             print("=== AI Content Analysis ===");
-            analysis = summarizer.comprehensive_analysis(sample_article);
+            analysis = analyzer.comprehensive_analysis(sample_text);
 
-            print(f"Title: {analysis['title']}");
-            print(f"Category: {analysis['category']}");
-            print(f"Reading Time: {analysis['reading_time']}");
+            print(f"Summary: {analysis['summary']}");
             print(f"Word Count: {analysis['word_count']}");
-
-            print(f"\nBrief Summary:\n{analysis['brief_summary']}");
-
-            print(f"\nKey Insights:");
-            for i, insight in enumerate(analysis['key_insights'], 1) {
+            print(f"Sentiment: {analysis['sentiment']}");
+            print("Key Insights:");
+            for i, insight in enumerate(analysis['insights'], 1) {
                 print(f"  {i}. {insight}");
-
-            print(f"\nSentiment Analysis:");
-            sentiment = analysis['sentiment'];
-            print(f"  Sentiment: {sentiment.get('sentiment', 'unknown')}");
-            print(f"  Confidence: {sentiment.get('confidence', 0):.2f}");
-            print(f"  Emotions: {', '.join(sentiment.get('key_emotions', []))}");
-
-            # Batch processing example
-            print("\n=== Batch Processing ===");
-            articles = [
-                "Technology stocks surged today as investors showed confidence in AI startups...",
-                "New medical research shows promising results for AI-assisted cancer detection...",
-                "Climate scientists are using machine learning to improve weather predictions..."
-            ];
-
-            batch_results = process_multiple_articles(articles);
-            for i, result in enumerate(batch_results, 1) {
-                analysis = result["analysis"];
-                print(f"\nArticle {i}: {analysis['title']}");
-                print(f"Category: {analysis['category']}");
-                print(f"Summary: {analysis['brief_summary'][:100]}...");
             }
         }
         ```
         </div>
 
-### Code Generator Example
+### Code Generation Example
 
 **Code Example**
-!!! example "AI-Powered Code Generator"
+!!! example "AI Code Generator"
     === "code_generator.jac"
         <div class="code-block">
         ```jac
-        # AI-powered code generator for multiple languages
+        # AI-powered code generator
         import:py json;
-        import:py re;
 
         obj CodeGenerator {
-            has supported_languages: list[str] = [
-                "python", "javascript", "java", "jac", "sql", "html", "css"
-            ];
-
             can generate_function(description: str, language: str = "python") -> str {
-                """Generate a function based on description."""
-                if language not in self.supported_languages {
-                    language = "python";
-                }
-
                 return f"""
+                Generate a {language} function based on this description: {description}
+
+                Include proper error handling and documentation.
+                Return only the code.
+                """ by llm();
+            }
+
+            can explain_code(code: str) -> str {
+                return f"""
+                Explain this code in simple terms:
+                {code}
+
+                Include what it does and how it works.
+                """ by llm();
+            }
+
+            can optimize_code(code: str) -> dict {
+                optimization = f"""
+                Analyze and optimize this code. Return JSON with:
+                - "optimized_code": the improved version
+                - "improvements": list of improvements made
+
+                Code: {code}
+                """ by llm();
+
+                try {
+                    return json.loads(optimization);
+                } except Exception {
+                    return {"optimized_code": code, "improvements": []};
+                }
+            }
+        }
+
+        # Code pipeline using pipes
+        can generate_solution(description: str, language: str) -> dict {
+            generator = CodeGenerator();
+
+            return (
+                description
+                |> generator.generate_function(_, language)
+                |> {
+                    "code": _,
+                    "explanation": generator.explain_code(_),
+                    "optimization": generator.optimize_code(_)
+                }
+            );
+        }
+
+        with entry {
+            generator = CodeGenerator();
+
+            # Generate and analyze code
+            description = "A function that calculates fibonacci numbers";
+            solution = generate_solution(description, "python");
+
+            print("=== Generated Code ===");
+            print(solution['code'][:200] + "...");
+            print("\n=== Explanation ===");
+            print(solution['explanation'][:150] + "...");
+        }
+        ```
+        </div>
+
+## MTLLM Configuration
+
+Jac's MTLLM (Multi-Tool Large Language Model) framework provides flexible AI model configuration.
+
+**Code Example**
+!!! example "Model Configuration"
+    === "model_config.jac"
+        <div class="code-block">
+        ```jac
+        # MTLLM model configuration
+        import:py os;
+
+        # Configure AI models
+        model openai_gpt {
+            model_type: "openai";
+            model_name: "gpt-3.5-turbo";
+            temperature: 0.7;
+            max_tokens: 1000;
+            api_key: os.getenv("OPENAI_API_KEY");
+        }
+
+        model claude_anthropic {
+            model_type: "anthropic";
+            model_name: "claude-3-sonnet";
+            temperature: 0.5;
+            max_tokens: 2000;
+            api_key: os.getenv("ANTHROPIC_API_KEY");
+        }
+
+        obj AIService {
+            can generate_with_model(prompt: str, model_name: str) -> str {
+                match model_name {
+                    case "openai": {
+                        return prompt by openai_gpt;
+                    }
+                    case "claude": {
+                        return prompt by claude_anthropic;
+                    }
+                    case _: {
+                        return prompt by llm();  # Default
+                    }
+                }
+            }
+
+            can compare_models(prompt: str) -> dict {
+                models = ["openai", "claude"];
+                results = {};
+
+                for model in models {
+                    try {
+                        response = self.generate_with_model(prompt, model);
+                        results[model] = {"response": response, "status": "success"};
+                    } except Exception as e {
+                        results[model] = {"response": "", "status": f"error: {e}"};
+                    }
+                }
+                return results;
+            }
+        }
+
+        with entry {
+            service = AIService();
+            prompt = "Explain quantum computing briefly";
+
+            comparison = service.compare_models(prompt);
+            for model, result in comparison.items() {
+                print(f"{model}: {result['status']}");
+                if result['status'] == 'success' {
+                    print(f"Response: {result['response'][:100]}...");
+                }
+            }
+        }
+        ```
+        </div>
+
+## Best Practices
+
+### Pipe Operations
+- **Keep functions pure** - avoid side effects in pipeline functions
+- **Use meaningful names** - make the data flow readable
+- **Handle errors gracefully** - include error handling in transformations
+
+```jac
+# Good - clear pipeline
+result = (
+    raw_data
+    |> clean_data(_)
+    |> transform_data(_)
+    |> validate_data(_)
+);
+```
+
+### AI Integration
+- **Validate responses** - always handle AI errors
+- **Use structured prompts** - be specific about expected output
+- **Implement fallbacks** - have backup strategies
+
+```jac
+can safe_ai_call(prompt: str) -> str {
+    try {
+        result = prompt by llm();
+        return result if result else "No response";
+    } except Exception as e {
+        return f"AI Error: {e}";
+    }
+}
+```
+
+## Summary
+
+This chapter introduced Jac's enhanced features:
+
+**Pipe Operations** enable:
+- Clean, readable data transformation pipelines
+- Functional programming patterns
+- Easy composition of operations
+
+**AI Integration** provides:
+- Seamless AI capabilities through semstrings
+- Flexible model configuration with MTLLM
+- Built-in prompt engineering
+
+These features combine elegant data flow with intelligent processing, making complex applications both powerful and maintainable.
                 Generate a {language} function based on this description: {description}
 
                 Requirements:
@@ -650,66 +458,6 @@ Jac provides built-in AI integration through semantic strings (semstrings) and t
                 - Include type hints where applicable
 
                 Return only the code, no additional explanation.
-                """ by llm();
-            }
-
-            can generate_class(description: str, language: str = "python") -> str {
-                """Generate a class with methods."""
-                return f"""
-                Create a {language} class based on this description: {description}
-
-                Include:
-                - Constructor with appropriate parameters
-                - At least 3 relevant methods
-                - Proper documentation
-                - Error handling where needed
-
-                Return only the code.
-                """ by llm();
-            }
-
-            can generate_algorithm(problem: str, language: str = "python") -> str {
-                """Generate an algorithm to solve a specific problem."""
-                return f"""
-                Implement an efficient algorithm in {language} to solve this problem:
-                {problem}
-
-                Requirements:
-                - Optimize for time complexity
-                - Include comments explaining the approach
-                - Add example usage
-                - Handle edge cases
-
-                Return only the code.
-                """ by llm();
-            }
-
-            can generate_api_endpoint(description: str, framework: str = "flask") -> str {
-                """Generate API endpoint code."""
-                return f"""
-                Create a {framework} API endpoint based on this description: {description}
-
-                Include:
-                - Proper HTTP methods
-                - Request validation
-                - Error responses
-                - Documentation
-
-                Return only the code.
-                """ by llm();
-            }
-
-            can explain_code(code: str) -> str {
-                """Explain what a piece of code does."""
-                return f"""
-                Explain this code in simple terms:
-
-                {code}
-
-                Include:
-                - What the code does
-                - How it works
-                - Any notable patterns or techniques used
                 """ by llm();
             }
 
@@ -737,108 +485,47 @@ Jac provides built-in AI integration through semantic strings (semstrings) and t
                 }
             }
 
-            can generate_test_cases(code: str, language: str) -> str {
-                """Generate test cases for given code."""
+            can explain_code(code: str) -> str {
+                """Explain what a piece of code does."""
                 return f"""
-                Generate comprehensive test cases for this {language} code:
+                Explain this code in simple terms:
 
                 {code}
 
                 Include:
-                - Unit tests for normal cases
-                - Edge case tests
-                - Error condition tests
-                - Use appropriate testing framework for {language}
-
-                Return only the test code.
-                """ by llm();
-            }
-
-            can convert_language(code: str, from_lang: str, to_lang: str) -> str {
-                """Convert code from one language to another."""
-                return f"""
-                Convert this {from_lang} code to {to_lang}:
-
-                {code}
-
-                Maintain the same functionality while following {to_lang} best practices.
-                Return only the converted code.
+                - What the code does
+                - How it works
+                - Any notable patterns or techniques used
                 """ by llm();
             }
         }
 
-        # Code generation pipeline
-        can generate_complete_module(requirements: dict) -> dict {
-            """Generate a complete code module with tests and documentation."""
+        # Code generation pipeline using pipes
+        can generate_complete_solution(requirements: dict) -> dict {
+            """Generate a complete code solution with documentation."""
             generator = CodeGenerator();
 
             language = requirements.get("language", "python");
             description = requirements.get("description", "");
 
-            # Generate main code
-            main_code = (
+            return (
                 description
-                |> generator.generate_class(_, language)
+                |> generator.generate_function(_, language)
+                |> {
+                    "code": _,
+                    "explanation": generator.explain_code(_),
+                    "optimization": generator.optimize_code(_, language),
+                    "language": language
+                }
             );
-
-            # Generate tests
-            test_code = (
-                main_code
-                |> generator.generate_test_cases(_, language)
-            );
-
-            # Generate documentation
-    documentation = f"""
-                Create documentation for this {language} code:
-
-                {main_code}
-
-                Include:
-                - Overview of what the code does
-                - Usage examples
-                - API reference
-                - Installation/setup instructions
-                """ by llm();
-
-            return {
-                "main_code": main_code,
-                "test_code": test_code,
-                "documentation": documentation,
-                "language": language
-            };
         }
 
         with entry {
             generator = CodeGenerator();
 
-            # Generate a function
-            print("=== Function Generation ===");
-            function_desc = "A function that calculates the Fibonacci sequence up to n terms";
-            python_func = generator.generate_function(function_desc, "python");
-            print("Python Function:");
-            print(python_func);
+            # Generate and optimize code
+            print("=== Code Generation and Optimization ===");
 
-            # Generate the same function in JavaScript
-            js_func = generator.generate_function(function_desc, "javascript");
-            print("\nJavaScript Function:");
-            print(js_func);
-
-            # Generate a class
-            print("\n=== Class Generation ===");
-            class_desc = "A bank account class with deposit, withdraw, and balance inquiry methods";
-            bank_class = generator.generate_class(class_desc, "python");
-            print("Bank Account Class:");
-            print(bank_class);
-
-            # Generate algorithm
-            print("\n=== Algorithm Generation ===");
-            problem = "Find the shortest path between two nodes in a weighted graph";
-            algorithm = generator.generate_algorithm(problem, "python");
-            print("Shortest Path Algorithm:");
-            print(algorithm);
-
-            # Code optimization
-            print("\n=== Code Optimization ===");
             sample_code = """
 def find_max(numbers):
     max_val = numbers[0]
@@ -848,9 +535,13 @@ def find_max(numbers):
     return max_val
             """;
 
+            # Code explanation
+            explanation = generator.explain_code(sample_code);
+            print("Code Explanation:");
+            print(explanation);
+
+            # Code optimization
             optimization = generator.optimize_code(sample_code, "python");
-            print("Original Code:");
-            print(sample_code);
             print("\nOptimized Code:");
             print(optimization.get("optimized_code", ""));
             print("\nImprovements:");
@@ -858,19 +549,19 @@ def find_max(numbers):
                 print(f"  - {improvement}");
             }
 
-            # Complete module generation
-            print("\n=== Complete Module Generation ===");
+            # Complete solution generation
+            print("\n=== Complete Solution Generation ===");
             requirements = {
-                "description": "A URL shortener service with analytics",
+                "description": "A function that calculates fibonacci numbers efficiently",
                 "language": "python"
             };
 
-            module = generate_complete_module(requirements);
-            print(f"Generated {module['language']} module:");
-            print("\nMain Code (first 300 chars):");
-            print(module['main_code'][:300] + "...");
-            print("\nDocumentation (first 200 chars):");
-            print(module['documentation'][:200] + "...");
+            solution = generate_complete_solution(requirements);
+            print(f"Generated {solution['language']} solution:");
+            print("Code:")
+            print(solution['code'][:300] + "...");
+            print("\nExplanation:")
+            print(solution['explanation'][:200] + "...");
         }
         ```
         </div>
@@ -884,7 +575,6 @@ def find_max(numbers):
         ```jac
         # AI-powered smart search with semantic understanding
         import:py json;
-        import:py re;
         from datetime import datetime;
 
         obj SmartSearchEngine {
@@ -903,17 +593,327 @@ def find_max(numbers):
                 self.documents.append(doc);
             }
 
-            can semantic_search(query: str, max_results: int = 5) -> list[dict] {
+            can semantic_search(query: str, max_results: int = 3) -> list[dict] {
                 """Perform semantic search using AI understanding."""
                 search_prompt = f"""
                 Given this search query: "{query}"
 
-                And these documents (JSON format):
-                {json.dumps(self.documents, indent=2)}
+                And these documents:
+                {json.dumps([{"id": d["id"], "title": d["title"], "content": d["content"][:200]} for d in self.documents], indent=2)}
 
-                Return the {max_results} most relevant documents as a JSON array of objects with:
+                Return the {max_results} most relevant documents as a JSON array with:
                 - id: document id
                 - relevance_score: 0-1 score
+                - relevance_reason: why this document matches
+
+                Consider semantic meaning, not just keywords.
+                """ by llm();
+
+                try {
+                    results = json.loads(search_prompt);
+                    self.log_search(query, results);
+                    return results if isinstance(results, list) else [];
+                } except Exception as e {
+                    print(f"Semantic search failed: {e}");
+                    return self.keyword_search(query, max_results);
+                }
+            }
+
+            can keyword_search(query: str, max_results: int) -> list[dict] {
+                """Fallback keyword-based search."""
+                query_lower = query.lower();
+                results = [];
+
+                for doc in self.documents {
+                    content_lower = (doc["title"] + " " + doc["content"]).lower();
+                    matches = sum(1 for word in query_lower.split() if word in content_lower);
+
+                    if matches > 0 {
+                        score = matches / len(query_lower.split());
+                        results.append({
+                            "id": doc["id"],
+                            "relevance_score": score,
+                            "relevance_reason": f"Keyword matches: {matches}"
+                        });
+                    }
+                }
+
+                results.sort(key=lambda x: x["relevance_score"], reverse=True);
+                return results[:max_results];
+            }
+
+            can summarize_results(query: str, results: list[dict]) -> str {
+                """Generate a summary of search results."""
+                if not results {
+                    return f"No results found for '{query}'.";
+                }
+
+                top_docs = [
+                    next(d for d in self.documents if d["id"] == r["id"])
+                    for r in results[:2]
+                ];
+
+                docs_text = json.dumps([{
+                    "title": doc["title"],
+                    "content": doc["content"][:300]
+                } for doc in top_docs]);
+
+                return f"""
+                Summarize the search results for "{query}":
+                {docs_text}
+
+                Provide a brief overview of what information is available.
+                """ by llm();
+            }
+
+            can log_search(query: str, results: list[dict]) {
+                """Log search for analytics."""
+                self.search_history.append({
+                    "query": query,
+                    "timestamp": datetime.now().isoformat(),
+                    "result_count": len(results)
+                });
+            }
+
+            can smart_search_pipeline(query: str) -> dict {
+                """Complete smart search pipeline."""
+                return (
+                    query
+                    |> {
+                        "query": _,
+                        "results": self.semantic_search(_, 3),
+                        "summary": ""
+                    }
+                    |> {
+                        **_,
+                        "summary": self.summarize_results(_["query"], _["results"])
+                    }
+                );
+            }
+        }
+
+        with entry {
+            # Create search engine and add documents
+            search_engine = SmartSearchEngine();
+
+            search_engine.add_document(
+                "Machine Learning Basics",
+                "Machine learning enables computers to learn from data without explicit programming. It uses algorithms to identify patterns and make predictions.",
+                {"category": "technology", "difficulty": "beginner"}
+            );
+
+            search_engine.add_document(
+                "Healthy Diet Tips",
+                "A balanced diet includes fruits, vegetables, lean proteins, and whole grains. Proper nutrition supports overall health and energy levels.",
+                {"category": "health", "difficulty": "beginner"}
+            );
+
+            search_engine.add_document(
+                "Climate Solutions",
+                "Renewable energy technologies like solar and wind power offer sustainable alternatives to fossil fuels and help combat climate change.",
+                {"category": "environment", "difficulty": "intermediate"}
+            );
+
+            # Perform smart searches
+            queries = ["AI learning algorithms", "nutrition advice", "green energy"];
+
+            for query in queries {
+                print(f"\n=== Search: '{query}' ===");
+                result = search_engine.smart_search_pipeline(query);
+
+                print("Top Results:");
+                for i, res in enumerate(result['results'], 1) {
+                    doc = next(d for d in search_engine.documents if d["id"] == res["id"]);
+                    print(f"  {i}. {doc['title']} (Score: {res['relevance_score']:.2f})");
+                }
+
+                print(f"\nSummary: {result['summary'][:150]}...");
+            }
+        }
+        ```
+        </div>
+
+## MTLLM Configuration and Usage
+
+**Code Example**
+!!! example "MTLLM Model Configuration"
+    === "model_config.jac"
+        <div class="code-block">
+        ```jac
+        # MTLLM model configuration and usage
+        import:py os;
+
+        # Configure different AI models
+        model openai_gpt {
+            model_type: "openai";
+            model_name: "gpt-3.5-turbo";
+            temperature: 0.7;
+            max_tokens: 1000;
+            api_key: os.getenv("OPENAI_API_KEY");
+        }
+
+        model claude_anthropic {
+            model_type: "anthropic";
+            model_name: "claude-3-sonnet";
+            temperature: 0.5;
+            max_tokens: 2000;
+            api_key: os.getenv("ANTHROPIC_API_KEY");
+        }
+
+        # Model-specific implementations
+        obj AIService {
+            can generate_with_model(prompt: str, model_name: str) -> str {
+                """Generate response using specific model."""
+                match model_name {
+                    case "openai": {
+                        return prompt by openai_gpt;
+                    }
+                    case "claude": {
+                        return prompt by claude_anthropic;
+                    }
+                    case _: {
+                        return prompt by llm();  # Default model
+                    }
+                }
+            }
+
+            can compare_models(prompt: str) -> dict {
+                """Compare responses from different models."""
+                models = ["openai", "claude"];
+                results = {};
+
+                for model in models {
+                    try {
+                        response = self.generate_with_model(prompt, model);
+                        results[model] = {
+                            "response": response,
+                            "length": len(response),
+                            "status": "success"
+                        };
+                    } except Exception as e {
+                        results[model] = {
+                            "response": "",
+                            "length": 0,
+                            "status": f"error: {e}"
+                        };
+                    }
+                }
+
+                return results;
+            }
+        }
+
+        with entry {
+            service = AIService();
+            test_prompt = "Explain quantum computing in simple terms";
+
+            print("=== Model Comparison ===");
+            comparison = service.compare_models(test_prompt);
+
+            for model, result in comparison.items() {
+                print(f"\n{model.upper()} Response:");
+                print(f"Status: {result['status']}");
+                if result['status'] == 'success' {
+                    print(f"Response: {result['response'][:150]}...");
+                }
+            }
+        }
+        ```
+        </div>
+
+## Best Practices
+
+### Pipe Operations Best Practices
+
+1. **Keep Functions Pure**: Functions in pipes should avoid side effects
+   ```jac
+   # Good - pure functions
+   result = (
+       data
+       |> clean_data(_)
+       |> transform_data(_)
+       |> validate_data(_)
+   );
+   ```
+
+2. **Use Meaningful Function Names**: Make the pipeline readable
+   ```jac
+   # Good - clear pipeline
+   report = (
+       raw_data
+       |> parse_entries(_)
+       |> filter_valid(_)
+       |> generate_report(_)
+   );
+   ```
+
+3. **Handle Errors Gracefully**: Include error handling in pipeline functions
+   ```jac
+   can safe_transform(data: list) -> list {
+       try {
+           return [process_item(item) for item in data];
+       } except Exception as e {
+           print(f"Transform error: {e}");
+           return [];
+       }
+   }
+   ```
+
+### AI Integration Best Practices
+
+1. **Validate AI Responses**: Always validate and handle potential errors
+   ```jac
+   can safe_ai_call(prompt: str) -> str {
+       try {
+           result = prompt by llm();
+           return result if result else "No response generated";
+       } except Exception as e {
+           return f"AI Error: {e}";
+       }
+   }
+   ```
+
+2. **Use Structured Prompts**: Be specific about expected output format
+   ```jac
+   # Good - structured prompt
+   analysis = f"""
+   Analyze this data and return JSON with:
+   - summary: brief overview
+   - insights: list of key findings
+
+   Data: {data}
+   """ by llm();
+   ```
+
+3. **Implement Fallbacks**: Have backup strategies when AI fails
+   ```jac
+   can intelligent_categorize(text: str) -> str {
+       try {
+           category = f"Categorize this text: {text}" by llm();
+           return category.strip();
+       } except Exception {
+           return keyword_categorize(text);  # Fallback
+       }
+   }
+   ```
+
+## Summary
+
+This chapter introduced Jac's enhanced features that combine functional programming elegance with AI intelligence:
+
+**Pipe Operations** enable:
+- Clean, readable data transformation pipelines
+- Functional programming patterns
+- Easy composition of complex operations
+- Clear separation of concerns
+
+**AI Integration** provides:
+- Seamless AI capabilities through semstrings
+- Flexible model configuration with MTLLM
+- Built-in prompt engineering
+- Support for multiple AI providers
+
+These features work together to create applications that are both powerful and maintainable, combining elegant data flow with intelligent processing capabilities.
                 - relevance_reason: why this document matches the query
                 - key_excerpts: list of relevant text snippets
 
