@@ -16,7 +16,7 @@ from jaclang.compiler.passes.main import (
     DefUsePass,
     InheritancePass,
     JacAnnexPass,
-    JacImportDepsPass,
+    JacPyImportDepsPass,
     PyBytecodeGenPass,
     PyJacAstLinkPass,
     PyastBuildPass,
@@ -113,7 +113,7 @@ class JacProgram:
     def build(self, file_path: str, use_str: str | None = None) -> uni.Module:
         """Convert a Jac file to an AST."""
         mod_targ = self.compile(file_path, use_str)
-        JacImportDepsPass(ir_in=mod_targ, prog=self)
+        JacPyImportDepsPass(ir_in=mod_targ, prog=self)
         for mod in self.mod.hub.values():
             SymTabLinkPass(ir_in=mod, prog=self)
         for mod in self.mod.hub.values():
