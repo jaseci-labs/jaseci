@@ -21,5 +21,5 @@ __all__ = [
     "JClassInstanceType",
     "JTypeVar",
     "JUnionType",
-    "JGenericType"
+    "JGenericType",
 ]

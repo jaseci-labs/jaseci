@@ -27,8 +27,7 @@ class JTypeRegistry:
     """
 
     def __init__(self) -> None:
-        self._types: dict[str, JType] = {
-        }
+        self._types: dict[str, JType] = {}
         self.__load_builtin_types()
 
     def register(self, type_obj: JClassType) -> None:
@@ -96,7 +95,9 @@ class JTypeRegistry:
 
             # Step 1: Register base class types first
             for type_name, type_info in builtin_types.items():
-                generics_list: dict[str, JTypeVar] = {t: JTypeVar(t) for t in type_info.get("generics", [])}
+                generics_list: dict[str, JTypeVar] = {
+                    t: JTypeVar(t) for t in type_info.get("generics", [])
+                }
                 class_type = JClassType(
                     name=type_name.split(".")[-1],  # short name
                     full_name=type_name,
@@ -105,7 +106,7 @@ class JTypeRegistry:
                     instance_members={},
                     class_members={},
                     assignable_from=type_info.get("assignable_from", []),
-                    generics=generics_list
+                    generics=generics_list,
                 )
                 self.register(class_type)
 
@@ -122,9 +123,7 @@ class JTypeRegistry:
                     ret = sig.get("return", "builtins.none")
 
                     method_type = self.__make_callable_type(
-                        arg_types=args,
-                        return_type=ret,
-                        generics=generics_dict
+                        arg_types=args, return_type=ret, generics=generics_dict
                     )
 
                     type_obj.instance_members[method_name] = JClassMember(
@@ -140,7 +139,7 @@ class JTypeRegistry:
         self,
         arg_types: list[list[str] | str],
         return_type: str,
-        generics: dict[str, JTypeVar]
+        generics: dict[str, JTypeVar],
     ) -> JFunctionType:
         """
         Construct a `JFunctionType` from a list of argument types and a return type.
@@ -196,8 +195,12 @@ class JTypeRegistry:
         return JFunctionType(
             parameters=resolved_args,
             return_type=(
-                JNoneType() if return_type == "" else 
-                generics[return_type] if return_type in generics else
-                self._types[return_type]
-            )
+                JNoneType()
+                if return_type == ""
+                else (
+                    generics[return_type]
+                    if return_type in generics
+                    else self._types[return_type]
+                )
+            ),
         )

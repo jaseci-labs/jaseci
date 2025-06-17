@@ -223,7 +223,10 @@ class JTypeCheckPass(UniPass):
             - An error if a non-instance/class/generic type is used in a chain.
             - A debug message if unsupported node types (like `EdgeRefTrailer`) are encountered.
         """
-        if any(not isinstance(i, ast.Name | ast.FuncCall | ast.IndexSlice) for i in node.to_list):
+        if any(
+            not isinstance(i, ast.Name | ast.FuncCall | ast.IndexSlice)
+            for i in node.to_list
+        ):
             self.__debug_print(
                 "EdgeRefTrailer are not supported yet, ignoring this node"
             )
@@ -253,13 +256,19 @@ class JTypeCheckPass(UniPass):
         # Iterate through each attribute in the chain (excluding the first base object).
         for n in nodes[1:]:
             # Ensure the current type can have members.
-            if not isinstance(next_type, (jtype.JClassInstanceType, jtype.JClassType, jtype.JGenericType)):
+            if not isinstance(
+                next_type,
+                (jtype.JClassInstanceType, jtype.JClassType, jtype.JGenericType),
+            ):
                 self.log_error(
                     f"Can't access a field from an object of type {type(next_type)} {n}"
                 )
                 return
             else:
-                assert isinstance(next_type, jtype.JClassInstanceType | jtype.JClassType | jtype.JGenericType)
+                assert isinstance(
+                    next_type,
+                    jtype.JClassInstanceType | jtype.JClassType | jtype.JGenericType,
+                )
                 last_node_type = next_type
 
             if isinstance(n, ast.FuncCall):
@@ -300,15 +309,15 @@ class JTypeCheckPass(UniPass):
                         s = ast.Symbol(
                             ast.NameAtom(False),
                             access=ast.SymbolAccess.PUBLIC,
-                            parent_tab=ast.UniScopeNode("AUTO_GEN")
+                            parent_tab=ast.UniScopeNode("AUTO_GEN"),
                         )
                         s.jtype = member.type
                         n.name_spec.sym = s
-                    
+
                     if isinstance(n, ast.IndexSlice):
                         assert isinstance(member.type, jtype.JFunctionType)
                         next_type = member.type.return_type
-    
+
     def exit_index_slice(self, node: ast.IndexSlice) -> None:
         """
         Type checks a runtime index expression (e.g., `obj[index]`) when not in annotation context.
@@ -344,19 +353,25 @@ class JTypeCheckPass(UniPass):
                 indexes.append(self.prog.type_resolver.get_type(v))
         else:
             indexes = [self.prog.type_resolver.get_type(node.slices[0].start)]
-        
+
         is_annotation = node.find_parent_of_type(ast.SubTag)
         if not is_annotation:
             index_method = base_type.get_member("__getitem__")
             if index_method and isinstance(index_method.type, jtype.JFunctionType):
                 params = index_method.type.parameters
                 if len(params) != len(indexes):
-                    self.log_error(f"Object of type {base_type} supports {len(params)} indicies, suppliied number is {len(indexes)}")
+                    self.log_error(
+                        f"Object of type {base_type} supports {len(params)} indicies, suppliied number is {len(indexes)}"
+                    )
                 for p, i in zip(params, indexes):
                     if not p.type.can_assign_from(i):
-                        self.log_error(f"Can't assign an index of type {p.type} with a value of type {i}")
+                        self.log_error(
+                            f"Can't assign an index of type {p.type} with a value of type {i}"
+                        )
             else:
-                self.log_error(f"Object of type {base_type} doesn't support item assignment")
+                self.log_error(
+                    f"Object of type {base_type} doesn't support item assignment"
+                )
 
     ###############################
     ### Binary/Bool Expressions ###

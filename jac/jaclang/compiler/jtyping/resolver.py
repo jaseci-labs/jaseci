@@ -257,7 +257,7 @@ class JTypeResolver:
         last_node = node.to_list[-1]
         assert isinstance(last_node, ast.Expr)
         return self.get_type(last_node)
-    
+
     def _get_index_slice_expr_type(self, node: ast.IndexSlice) -> jtype.JType:
         """
         Resolve the type of an index slice expression.
@@ -297,10 +297,9 @@ class JTypeResolver:
             else:
                 generic_vars = [self.get_type(node.slices[0].start)]
             assert isinstance(base_type.class_type, jtype.JClassType)
-            return jtype.JClassInstanceType(jtype.JGenericType(
-                base_type.class_type,
-                generic_vars
-            ))
+            return jtype.JClassInstanceType(
+                jtype.JGenericType(base_type.class_type, generic_vars)
+            )
         else:
             index_method = base_type.get_member("__getitem__")
             if index_method:
@@ -308,7 +307,7 @@ class JTypeResolver:
                 return index_method.type.return_type
             else:
                 return jtype.JAnyType()
-    
+
     def _get_special_var_ref_expr_type(self, node: ast.SpecialVarRef) -> jtype.JType:
         """
         Resolve the type of a special variable reference (e.g., `here`).

@@ -26,6 +26,7 @@ class JTypeVar(JType):
             name (str): The name of the type variable (e.g., 'T').
         """
         from jaclang.compiler.jtyping.types.jclassinstance import JClassType
+
         self.module = None
         self.name = name
         self.resolved: Optional[JClassType] = None  # After unification

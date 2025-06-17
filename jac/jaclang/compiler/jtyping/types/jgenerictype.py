@@ -141,14 +141,16 @@ class JGenericType(JType):
                 return typevar_map.get(t.name, t)
 
             if isinstance(t, JClassInstanceType) and isinstance(t.class_type, JTypeVar):
-                return JClassInstanceType(typevar_map.get(t.class_type.name, t.class_type))
+                return JClassInstanceType(
+                    typevar_map.get(t.class_type.name, t.class_type)
+                )
 
             if isinstance(t, JFunctionType):
                 new_params = [
                     JFuncArgument(
                         name=param.name,
                         type=substitute_typevars(param.type),
-                        is_optional=param.is_optional
+                        is_optional=param.is_optional,
                     )
                     for param in t.parameters
                 ]
@@ -168,7 +170,7 @@ class JGenericType(JType):
                 kind=m.kind,
                 visibility=m.visibility,
                 is_method=m.is_method,
-                decl=m.decl
+                decl=m.decl,
             )
             for name, m in base.instance_members.items()
         }
@@ -180,7 +182,7 @@ class JGenericType(JType):
                 kind=m.kind,
                 visibility=m.visibility,
                 is_method=m.is_method,
-                decl=m.decl
+                decl=m.decl,
             )
             for name, m in base.class_members.items()
         }
@@ -193,5 +195,5 @@ class JGenericType(JType):
             instance_members=instance_members,
             class_members=class_members,
             assignable_from=[],  # Can be filled if inheritance chain is needed
-            generics={}  # Specialization removes all generics
+            generics={},  # Specialization removes all generics
         )

@@ -11,7 +11,7 @@ from .types import (
     JType,
     JTypeVar,
     JUnionType,
-    JGenericType
+    JGenericType,
 )
 
 
@@ -27,5 +27,5 @@ __all__ = [
     "JClassInstanceType",
     "JTypeVar",
     "JUnionType",
-    "JGenericType"
+    "JGenericType",
 ]
