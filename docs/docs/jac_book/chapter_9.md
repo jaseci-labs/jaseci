@@ -759,19 +759,20 @@ walker WorkflowOrchestrator {
 
 Abilities can be composed for complex behaviors:
 
+<div class="code-block">
 ```jac
 # Mixin-like node abilities
 node ObservableNode {
     has observers: list = [];
     has change_log: list = [];
 
-    can notify_observers(change: dict) {
+    def notify_observers(change: dict) {
         for observer in self.observers {
             observer.on_change(self, change);
         }
 
         self.change_log.append({
-            "timestamp": now(),
+            "timestamp": str(datetime.now()),
             "change": change
         });
     }
@@ -779,27 +780,26 @@ node ObservableNode {
 
 node CacheableNode {
     has cache_key: str;
-    has cached_at: str? = None;
+    has cached_at: str = None;
     has ttl_seconds: int = 3600;
 
-    can is_cache_valid() -> bool {
+    def is_cache_valid() -> bool {
         if not self.cached_at {
             return false;
         }
 
-        import:py from datetime import datetime, timedelta;
         cached = datetime.fromisoformat(self.cached_at);
         return datetime.now() - cached < timedelta(seconds=self.ttl_seconds);
     }
 
-    can invalidate_cache {
+    def invalidate_cache {
         self.cached_at = None;
     }
 }
 
 # Composed node using both patterns
 node SmartDataNode(ObservableNode, CacheableNode) {
-    has data: dict;
+    has data: dict = {};
     has version: int = 0;
 
     # Override data setter to trigger notifications
@@ -810,7 +810,7 @@ node SmartDataNode(ObservableNode, CacheableNode) {
         # Update data
         self.data.update(changes);
         self.version += 1;
-        self.cached_at = now();
+        self.cached_at = str(datetime.now());
 
         # Notify observers
         self.notify_observers({
@@ -829,26 +829,27 @@ node SmartDataNode(ObservableNode, CacheableNode) {
 
         if self.is_cache_valid() {
             visitor.cache_hits += 1;
-            visitor.receive_data(self.data, cached=true);
+            visitor.receive_data(self.data, cached=True);
         } else {
             # Simulate expensive operation
             self.refresh_data();
-            visitor.receive_data(self.data, cached=false);
+            visitor.receive_data(self.data, cached=False);
         }
     }
 
-    can refresh_data {
-        import:py time;
-        time.sleep(0.1);  # Simulate work
-        self.cached_at = now();
+    def refresh_data {
+        sleep(0.1);  # Simulate work
+        self.cached_at = str(datetime.now());
     }
 }
 ```
+</div>
 
 ### Dynamic Ability Selection
 
 Abilities can conditionally execute based on runtime state:
 
+<div class="code-block">
 ```jac
 node AdaptiveProcessor {
     has mode: str = "normal";
@@ -874,7 +875,6 @@ node AdaptiveProcessor {
         if self.mode != "degraded" {
             return;
         }
-
         # Simplified processing for high load
         result = self.simple_process(visitor.data);
         visitor.results.append(result);
@@ -885,20 +885,20 @@ node AdaptiveProcessor {
         if self.mode != "recovery" {
             return;
         }
-
         # Careful processing during recovery
         try {
+
             result = self.careful_process(visitor.data);
             visitor.results.append(result);
             self.error_rate *= 0.9;  # Reduce error rate
-        } except {
+        } except e {
             self.error_rate = min(1.0, self.error_rate * 1.1);
         }
 
         self.check_mode_change();
     }
 
-    can check_mode_change {
+    def check_mode_change {
         old_mode = self.mode;
 
         if self.error_rate > 0.2 {
@@ -914,22 +914,27 @@ node AdaptiveProcessor {
         }
     }
 
-    can standard_process(data: any) -> any {
+    def standard_process(data: any) -> any {
         # Full processing
         return data;
     }
 
-    can simple_process(data: any) -> any {
+    def simple_process(data: any) -> any {
         # Reduced processing
         return data;
     }
 
-    can careful_process(data: any) -> any {
+    def careful_process(data: any) -> any {
         # Careful processing with validation
         return data;
     }
+    def calculate_load() -> float {
+        # Simulate load calculation
+        return 0.55;  # Placeholder value
+    }
 }
 ```
+</div>
 
 ### Performance Considerations
 
@@ -1115,14 +1120,16 @@ node Counter {
 ##### 4. **Design for Testability**
 Make abilities testable by keeping them pure when possible:
 
+<div class="code-block">
 ```jac
 node Calculator {
     has formula: str;
 
     # Pure calculation - easy to test
-    can calculate(values: dict) -> float {
+    def calculate(values: dict) -> float {
         # Parse and evaluate formula
-        return eval_formula(self.formula, values);
+        # return eval_formula(self.formula, values);
+        return eval(self.formula, values);
     }
 
     # Ability delegates to pure function
@@ -1131,7 +1138,67 @@ node Calculator {
         visitor.collect_result(self, result);
     }
 }
+
 ```
+</div>
+
+
+<!--
+
+# Example 5 - Calculation Walker
+
+node Calculator {
+    has formula: str;
+
+    # Pure calculation - easy to test
+    def calculate(values: dict) -> float {
+        # Parse and evaluate formula
+        return eval(self.formula, values);
+    }
+
+
+    # Ability delegates to pure function
+    can provide_result with CalculationWalker entry {
+        result = self.calculate(visitor.values);
+        visitor.collect_result(self, result);
+    }
+}
+
+walker CalculationWalker {
+    has values: dict;
+    has results: list = [];
+
+    def collect_result(node: Calculator, result: float) {
+        self.results.append({
+            "node": node.formula,
+            "result": result
+        });
+    }
+
+    can summarize with exit {
+        print("Calculation Summary:");
+        for res in self.results {
+            print(f"  {res['node']} = {res['result']}");
+        }
+    }
+}
+with entry {
+    # Create a CalculationWalker
+    walker1 = CalculationWalker(values={"x": 10, "y": 5});
+
+    # Create Calculator nodes with different formulas
+    calc1 = Calculator(formula="x + y");
+    calc2 = Calculator(formula="x * y");
+    calc3 = Calculator(formula="x - y");
+
+    # Simulate traversal
+    walker1 spawn calc1;
+    walker1 spawn calc2;
+    walker1 spawn calc3;
+
+}
+-->
+
 
 ##### 5. **Document Ability Contracts**
 Be clear about what abilities expect and provide:
