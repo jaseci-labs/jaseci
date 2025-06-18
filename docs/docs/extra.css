@@ -23,10 +23,6 @@
     color: #ffab40 !important;
 }
 
-/* .md-sidebar--secondary {
-    display: none !important;
-} */
-
 .code-block {
     margin: 1em 0;
     padding: 1em;
@@ -292,16 +288,3 @@ body,
 .md-main__inner.md-grid {
     max-width: 100vw;
 }
-
-/* These changes breaking the responsivness */
-/* Move left sidebar (navigation) further left */
-/* .md-sidebar--primary {
-    left: 0 !important;
-    margin-left: -150px;
-} */
-
-/* Move right sidebar (TOC) further right */
-/* .md-sidebar--secondary {
-    right: 0 !important;
-    margin-right: -150px;
-} */
