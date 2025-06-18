@@ -1,736 +1,856 @@
-### Chapter 7: Building Your First Graph
+# Chapter 7: Advanced AI Operations
 
-Now that you understand the conceptual foundations of Object-Spatial Programming, let's get hands-on and build real graph structures. In this chapter, you'll learn how to create nodes and edges, connect them into meaningful topologies, and perform basic graph operations that form the foundation of OSP applications.
+Building on the basic AI integration from the previous chapter, this chapter explores advanced AI capabilities in Jac. We'll learn about semantic strings, multimodal AI (vision and audio), custom models, embeddings, and performance optimization. We'll demonstrate these features by building a simple image captioning tool.
 
-#### 7.1 Creating Nodes and Edges
+!!! topic "Advanced AI Features"
+    Jac's advanced AI operations enable you to build sophisticated applications that work with text, images, audio, and custom AI models with simple, intuitive syntax.
 
-### Node Declaration and Instantiation
+## Semantic Strings and Prompt Engineering
 
-Let's start with the basics of creating nodes. Unlike traditional objects, nodes are designed to exist within a graph topology:
+!!! topic "Semantic Strings"
+    Semantic strings (semstrings) let you write AI prompts directly in your code using the `by llm()` syntax. They make AI integration feel natural and readable.
 
-```jac
-# Simple node declaration
-node Person {
-    has name: str;
-    has email: str;
-    has age: int;
-}
+### Basic Semantic String Operations
 
-# Creating node instances
-with entry {
-    # Standalone node (not persistent)
-    alice = Person(
-        name="Alice Johnson",
-        email="alice@example.com",
-        age=28
-    );
-
-    # Connected to root (persistent)
-    bob = root ++> Person(
-        name="Bob Smith",
-        email="bob@example.com",
-        age=32
-    );
-
-    # Alternative: create then connect
-    charlie = Person(
-        name="Charlie Brown",
-        email="charlie@example.com",
-        age=25
-    );
-    root ++> charlie;  # Now persistent
-}
-```
-
-### Understanding Node Persistence
-
-```mermaid
-graph TD
-    R[root<br/>≪persistent≫]
-    A[Alice<br/>≪temporary≫]
-    B[Bob<br/>≪persistent≫]
-    C[Charlie<br/>≪persistent≫]
-
-    R --> B
-    R --> C
-
-    style R fill:#4caf50,color:white
-    style A fill:#ffcdd2
-    style B fill:#c8e6c9
-    style C fill:#c8e6c9
-```
-
-Nodes connected to `root` (directly or indirectly) persist between program runs:
-
-```jac
-# Simple node declaration
-node Person {
-    has name: str;
-    has email: str;
-    has age: int;
-}
-
-# First run - create data
-with entry {
-    print("Creating user profiles...");
-
-    user1 = root ++> Person(
-        name="User One",
-        email="user1@example.com",
-        age=30
-    );
-}
-
-# Second run - data still exists!
-with entry {
-    users = [root ->:Person:->];
-    print(f"Found {len(users)} existing users");
-
-    for user in users {
-        print(f"- {user.name} ({user.email})");
-    }
-}
-```
-
-### Connecting Nodes with Edges
-
-Edges represent relationships between nodes. They can be simple connections or rich objects with properties:
-
-```jac
-# Simple edge creation
-node City {
-    has name: str;
-    has population: int;
-    has country: str;
-}
-
-with entry {
-    nyc = root ++> City(
-        name="New York",
-        population=8_336_000,
-        country="USA"
-    );
-
-    london = root ++> City(
-        name="London",
-        population=9_002_000,
-        country="UK"
-    );
-
-    # Simple connection (unnamed edge)
-    nyc ++> london;  # NYC connects to London
-}
-```
-
-### Edge Types and Properties
-
-Edges can have types and properties, making relationships first-class citizens:
-
-```jac
-node City {
-    has name: str;
-    has population: int;
-    has country: str;
-}
-
-# Typed edge with properties
-edge Flight {
-    has airline: str;
-    has flight_number: str;
-    has departure_time: str;
-    has duration_hours: float;
-    has price: float;
-
-    def is_red_eye() -> bool {
-        hour = int(self.departure_time.split(":")[0]);
-        return hour >= 22 or hour <= 5;
-    }
-}
-
-with entry {
-    lax = root ++> City(name="Los Angeles", population=4_000_000, country="USA");
-    jfk = root ++> City(name="New York", population=8_336_000, country="USA");
-
-    # Create typed edge with properties
-    lax +>:Flight(
-        airline="United",
-        flight_number="UA123",
-        departure_time="23:45",
-        duration_hours=5.5,
-        price=450.00
-    ):+> jfk;
-
-    # Another flight
-    jfk +>:Flight(
-        airline="JetBlue",
-        flight_number="B6456",
-        departure_time="06:30",
-        duration_hours=6.0,
-        price=380.00
-    ):+> lax;
-}
-```
-
-### Graph Construction Patterns
-
-Let's build a more complex example - a social network:
-
-```jac
-import from datetime { datetime }
-
-# Node types for social network
-node User {
-    has username: str;
-    has full_name: str;
-    has joined_date: str;
-    has bio: str = "";
-    has verified: bool = False;
-}
-
-node Post {
-    has content: str;
-    has created_at: str;
-    has likes: int = 0;
-    has views: int = 0;
-}
-
-node Comment {
-    has text: str;
-    has created_at: str;
-    has edited: bool = False;
-}
-
-# Edge types
-edge Follows {
-    has since: str;
-    has notifications: bool = True;
-}
-
-edge Authored {
-    has device: str = "unknown";
-}
-
-edge Likes {
-    has timestamp: str;
-}
-
-edge CommentedOn {
-    has timestamp: str;
-}
-
-# Build the social network
-with entry {
-
-    # Create users
-    alice = root ++> User(
-        username="alice_dev",
-        full_name="Alice Johnson",
-        bio="Software engineer and coffee enthusiast",
-        joined_date="2024-01-15",
-        verified=True
-    );
-
-    bob = root ++> User(
-        username="bob_designer",
-        full_name="Bob Smith",
-        bio="UI/UX Designer | Digital Artist",
-        joined_date="2024-02-20"
-    );
-
-    charlie = root ++> User(
-        username="charlie_data",
-        full_name="Charlie Brown",
-        bio="Data Scientist | ML Enthusiast",
-        joined_date="2024-03-10"
-    );
-
-    # Create follow relationships
-    alice +>:Follows(since="2024-02-21"):+> bob;
-    bob +>:Follows(since="2024-02-22", notifications=False):+> alice;
-    charlie +>:Follows(since="2024-03-11"):+> alice;
-    charlie +>:Follows(since="2024-03-12"):+> bob;
-
-    # Alice creates a post
-    post1 = alice +>:Authored(device="mobile"):+> Post(
-        content="Just discovered Jac's Object-Spatial Programming! 🚀",
-        created_at=datetime.now().isoformat(),
-        views=150
-    );
-
-    # Bob likes and comments
-    bob +>:Likes(timestamp=datetime.now().isoformat()):+> post1;
-    post1[0].likes += 1;
-
-    comment1 = bob +>:Authored:+> Comment(
-        text="This looks amazing! Can't wait to try it out.",
-        created_at=datetime.now().isoformat()
-    );
-    comment1 +>:CommentedOn(timestamp=datetime.now().isoformat()):+> post1;
-
-    # Charlie also interacts
-    charlie +>:Likes(timestamp=datetime.now().isoformat()):+> post1;
-    post1[0].likes += 1;
-
-    print("Social network created successfully!");
-}
-```
-
-### Visualizing the Graph Structure
-
-```mermaid
-graph LR
-    subgraph Users
-        A[alice_dev<br/>≪User≫]
-        B[bob_designer<br/>≪User≫]
-        C[charlie_data<br/>≪User≫]
-    end
-
-    subgraph Content
-        P1[Post: Jac Discovery<br/>≪Post≫]
-        CM1[Comment<br/>≪Comment≫]
-    end
-
-    A -->|Follows| B
-    B -->|Follows| A
-    C -->|Follows| A
-    C -->|Follows| B
-
-    A -->|Authored| P1
-    B -->|Authored| CM1
-    B -->|Likes| P1
-    C -->|Likes| P1
-    CM1 -->|CommentedOn| P1
-
-    style A fill:#e3f2fd
-    style B fill:#e3f2fd
-    style C fill:#e3f2fd
-    style P1 fill:#fff3e0
-    style CM1 fill:#f3e5f5
-```
-
-#### 7.2 Basic Graph Operations
-
-### Navigating with Edge References (`[-->]`, `[<--]`)
-
-Jac provides intuitive syntax for graph navigation:
-
-```jac
-walker SocialAnalyzer {
-    can analyze with User entry {
-        # Get all outgoing edges (who this user follows)
-        following = [-->];
-        print(f"{here.username} follows {len(following)} users");
-
-        # Get all incoming edges (who follows this user)
-        followers = [<--];
-        print(f"{here.username} has {len(followers)} followers");
-
-        # Get specific edge types
-        follow_edges = [->:Follows:->];
-        authored_content = [->:Authored:->];
-
-        print(f"  - Following: {len(follow_edges)}");
-        print(f"  - Posts/Comments: {len(authored_content)}");
-
-        # Navigate to connected nodes
-        followed_users = [->:Follows:->];
-        for user in followed_users {
-            print(f"  → {user.username}");
-        }
-    }
-}
-
-with entry {
-    # Spawn analyzer on each user
-    for user in [root->:User:->] {
-        user spawn SocialAnalyzer();
-        print("---");
-    }
-}
-```
-
-### Edge Reference Syntax Patterns
-
-```jac
-# Basic navigation patterns
-outgoing = [-->];           // All outgoing edges
-incoming = [<--];           // All incoming edges
-bidirectional = [<-->];     // All edges (in or out)
-
-# Typed navigation
-follows_out = [->:Follows:->];              // Outgoing Follows edges
-follows_in = [<-:Follows:<-];               // Incoming Follows edges
-all_follows = [<-:Follows:->];             // All Follows edges
-
-# Navigate to nodes through edges
-following = [->:Follows:->];             // Nodes I follow
-followers = [<-:Follows:->];             // Nodes following me
-friends = [<-:Follows:->];              // All connected via Follows
-
-# Multi-hop navigation
-friends_of_friends = [->:Follows:->->:Follows:->];
-
-# Navigate to specific node types
-my_posts = [->:Authored:->:Post:->];       // Only Post nodes
-my_comments = [->:Authored:->:Comment:->]; // Only Comment nodes
-```
-
-### Filtering Edges and Nodes
-
-Jac provides powerful filtering capabilities:
-
-```jac
-walker ContentFilter {
-    can find_popular with User entry {
-        # Filter by edge properties
-        recent_follows = [->:Follows:(?since > "2024-01-01"):->];
-
-        # Filter by node properties
-        popular_posts = [->:Authored:->->:Post:(?likes > 10):->];
-
-        # Complex filters
-        verified_followers = [<-:Follows:->->:User:(?verified == True):->];
-
-        # Filter with null safety (?)
-        active_users = [->:Follows:->->:User:(?len(bio) > 0):->];
-
-        print(f"User {here.username}:");
-        print(f"  Recent follows: {len(recent_follows)}");
-        print(f"  Popular posts: {len(popular_posts)}");
-        print(f"  Verified followers: {len(verified_followers)}");
-    }
-}
-```
-
-### Type-Safe Graph Operations
-
-```jac
-// Define specific node types
-node Admin(User) {
-    has permissions: list[str] = ["read", "write", "delete"];
-}
-
-node RegularUser(User) {
-    has subscription: str = "free";
-}
-
-walker TypedNavigator {
-    can navigate with entry {
-        # Get only Admin nodes
-        admins = [-->`?Admin];
-
-        # Get only RegularUser nodes
-        regular_users = [-->`?RegularUser];
-
-        # Type-specific operations
-        for admin in admins {
-            print(f"Admin {admin.username} has permissions: {admin.permissions}");
+!!! example "Simple AI Prompts"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        def ask_ai(question: str) -> str {
+            # Simple semantic string - AI responds to the question
+            return f"Please answer this question: {question}" by llm();
         }
 
-        # Combined type and property filtering
-        premium_users = [->:`?RegularUser:(?subscription == "premium"):->];
-    }
-}
-```
-
-### Graph Modification Operations
-
-```jac
-walker GraphModifier {
-    has new_connections: int = 0;
-    has removed_connections: int = 0;
-
-    can modify with User entry {
-        # Add new connections
-        potential_friends = self.find_potential_friends(here);
-
-        for friend in potential_friends {
-            if not self.already_connected(here, friend) {
-                here +>:Follows(since=now()):+> friend;
-                self.new_connections += 1;
-            }
+        def summarize_text(text: str) -> str {
+            # AI summarizes the given text
+            return f"Summarize this text in one sentence: {text}" by llm();
         }
 
-        # Remove old connections
-        old_follows = [->:Follows:(?.since < "2023-01-01"):->];
-        for edge in old_follows {
-            del edge;  // Remove the edge
-            self.removed_connections += 1;
+        with entry {
+            # Ask AI questions
+            answer = ask_ai("What is the capital of France?");
+            print(f"Answer: {answer}");
+
+            # Summarize text
+            long_text = "Artificial intelligence is a branch of computer science that aims to create intelligent machines. It has become an essential part of the technology industry.";
+            summary = summarize_text(long_text);
+            print(f"Summary: {summary}");
         }
-    }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import openai
 
-    can already_connected(user1: User, user2: User) -> bool {
-        connections = user1[->:Follows:->];
-        return user2 in connections;
-    }
+        def ask_ai(question: str) -> str:
+            # Python requires explicit API calls
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": f"Please answer this question: {question}"}]
+            )
+            return response.choices[0].message.content
 
-    can find_potential_friends(user: User) -> list[User] {
-        # Friends of friends who aren't already connected
-        friends = user[->:Follows:->];
-        potential = [];
+        def summarize_text(text: str) -> str:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": f"Summarize this text in one sentence: {text}"}]
+            )
+            return response.choices[0].message.content
 
-        for friend in friends {
-            fof = friend[->:Follows:->];
-            for candidate in fof {
-                if candidate != user and not self.already_connected(user, candidate) {
-                    potential.append(candidate);
-                }
-            }
-        }
+        if __name__ == "__main__":
+            # Ask AI questions
+            answer = ask_ai("What is the capital of France?")
+            print(f"Answer: {answer}")
 
-        return potential[0:5];  # Limit to 5 suggestions
-    }
-}
-```
+            # Summarize text
+            long_text = "Artificial intelligence is a branch of computer science that aims to create intelligent machines. It has become an essential part of the technology industry."
+            summary = summarize_text(long_text)
+            print(f"Summary: {summary}")
+        ```
 
-### Advanced Navigation Patterns
+### Prompt Engineering Patterns
 
-```jac
-# Breadth-first search pattern
-walker BreadthFirstSearch {
-    has target_username: str;
-    has visited: set = {};
-    has found: bool = false;
-    has path: list = [];
+!!! example "Better Prompts with Structure"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        def analyze_sentiment(text: str) -> str {
+            # Structured prompt with clear instructions
+            prompt = f"""
+            Analyze the sentiment of this text and respond with exactly one word:
+            - "positive" for positive sentiment
+            - "negative" for negative sentiment
+            - "neutral" for neutral sentiment
 
-    can search with User entry {
-        if here.username == self.target_username {
-            self.found = true;
-            self.path.append(here.username);
-            report self.path;
-            disengage;
-        }
+            Text: {text}
 
-        if here in self.visited {
-            skip;  # Already visited this node
-        }
+            Sentiment:
+            """;
 
-        self.visited.add(here);
-        self.path.append(here.username);
-
-        # Visit all connected users
-        visit [-->:Follows:-->];
-
-        # Backtrack if not found
-        self.path.pop();
-    }
-}
-
-// Depth-limited search
-walker DepthLimitedExplorer {
-    has max_depth: int = 3;
-    has current_depth: int = 0;
-    has discovered: list = [];
-
-    can explore with User entry {
-        if self.current_depth >= self.max_depth {
-            return;  # Don't go deeper
+            return prompt by llm();
         }
 
-        self.discovered.append({
-            "user": here.username,
-            "depth": self.current_depth
-        });
+        def create_story(character: str, setting: str) -> str {
+            # Creative prompt with specific requirements
+            story_prompt = f"""
+            Write a short 2-sentence story with these elements:
+            - Character: {character}
+            - Setting: {setting}
+            - Make it interesting and family-friendly
 
-        // Go deeper
-        self.current_depth += 1;
-        visit [->:Follows:->];
-        self.current_depth -= 1;
-    }
-}
-```
+            Story:
+            """;
 
-### Graph Metrics and Analysis
-
-```jac
-walker GraphMetrics {
-    has node_count: int = 0;
-    has edge_count: int = 0;
-    has node_types: dict = {};
-    has edge_types: dict = {};
-
-    can analyze with entry {
-        # Count all nodes
-        all_nodes = [-->*];  // * means all reachable
-        self.node_count = len(all_nodes);
-
-        # Count by type
-        for node in all_nodes {
-            node_type = type(node).__name__;
-            if node_type not in self.node_types {
-                self.node_types[node_type] = 0;
-            }
-            self.node_types[node_type] += 1;
-
-            # Count edges from this node
-            for edge in node[-->] {
-                edge_type = type(edge).__name__;
-                if edge_type not in self.edge_types {
-                    self.edge_types[edge_type] = 0;
-                }
-                self.edge_types[edge_type] += 1;
-                self.edge_count += 1;
-            }
+            return story_prompt by llm();
         }
 
-        report {
-            "total_nodes": self.node_count,
-            "total_edges": self.edge_count,
-            "node_types": self.node_types,
-            "edge_types": self.edge_types
-        };
-    }
-}
-```
+        with entry {
+            # Test sentiment analysis
+            text1 = "I love this new feature!";
+            sentiment1 = analyze_sentiment(text1);
+            print(f"'{text1}' -> {sentiment1}");
 
-### Practical Example: Building a Recommendation System
+            # Generate a story
+            story = create_story("a curious robot", "a magical library");
+            print(f"Story: {story}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import openai
 
-Let's combine everything to build a simple recommendation system:
+        def analyze_sentiment(text: str) -> str:
+            prompt = f"""
+            Analyze the sentiment of this text and respond with exactly one word:
+            - "positive" for positive sentiment
+            - "negative" for negative sentiment
+            - "neutral" for neutral sentiment
 
-```jac
-node Movie {
-    has title: str;
-    has genre: str;
-    has year: int;
-    has rating: float;
-}
+            Text: {text}
 
-edge Watched {
-    has rating: int;  # User's rating (1-5)
-    has date: str;
-}
+            Sentiment:
+            """
 
-edge Similar {
-    has similarity_score: float;
-}
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message.content.strip()
 
-walker MovieRecommender {
-    has user_profile: dict = {};
-    has recommendations: list = [];
-    has visited_movies: set = {};
+        def create_story(character: str, setting: str) -> str:
+            story_prompt = f"""
+            Write a short 2-sentence story with these elements:
+            - Character: {character}
+            - Setting: {setting}
+            - Make it interesting and family-friendly
 
-    can analyze with User entry {
-        print(f"Building recommendations for {here.username}...");
+            Story:
+            """
 
-        # Analyze user's watching history
-        watched_movies = [-->:Watched:-->:Movie:];
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": story_prompt}]
+            )
+            return response.choices[0].message.content
 
-        for movie in watched_movies {
-            if movie.genre not in self.user_profile {
-                self.user_profile[movie.genre] = {"count": 0, "avg_rating": 0.0};
+        if __name__ == "__main__":
+            # Test sentiment analysis
+            text1 = "I love this new feature!"
+            sentiment1 = analyze_sentiment(text1)
+            print(f"'{text1}' -> {sentiment1}")
+
+            # Generate a story
+            story = create_story("a curious robot", "a magical library")
+            print(f"Story: {story}")
+        ```
+
+## Multimodality Support (Vision, Audio)
+
+!!! topic "Multimodal AI"
+    Jac can work with images, audio, and text all in the same application. This enables powerful applications like image captioning, audio transcription, and content analysis.
+
+### Vision and Image Processing
+
+!!! example "Simple Image Analysis"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        def describe_image(image_path: str) -> str {
+            # AI looks at an image and describes it
+            prompt = f"""
+            Look at this image and describe what you see in one sentence.
+
+            Image: {image_path}
+            """;
+
+            return prompt by llm(model="vision-model");
+        }
+
+        def find_objects(image_path: str) -> str {
+            # Find objects in the image
+            prompt = f"""
+            List the main objects you can see in this image.
+
+            Image: {image_path}
+
+            Objects:
+            """;
+
+            return prompt by llm(model="vision-model");
+        }
+
+        with entry {
+            # Analyze an image (this would work with a real image file)
+            image_file = "photo.jpg";
+
+            description = describe_image(image_file);
+            print(f"Image description: {description}");
+
+            objects = find_objects(image_file);
+            print(f"Objects found: {objects}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import openai
+        import base64
+
+        def describe_image(image_path: str) -> str:
+            # Python requires more setup for vision
+            with open(image_path, "rb") as image_file:
+                image_data = base64.b64encode(image_file.read()).decode()
+
+            response = openai.ChatCompletion.create(
+                model="gpt-4-vision-preview",
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Look at this image and describe what you see in one sentence."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
+                    ]
+                }]
+            )
+            return response.choices[0].message.content
+
+        def find_objects(image_path: str) -> str:
+            with open(image_path, "rb") as image_file:
+                image_data = base64.b64encode(image_file.read()).decode()
+
+            response = openai.ChatCompletion.create(
+                model="gpt-4-vision-preview",
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "List the main objects you can see in this image."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
+                    ]
+                }]
+            )
+            return response.choices[0].message.content
+
+        if __name__ == "__main__":
+            # This would work with a real image file
+            image_file = "photo.jpg"
+
+            try:
+                description = describe_image(image_file)
+                print(f"Image description: {description}")
+
+                objects = find_objects(image_file)
+                print(f"Objects found: {objects}")
+            except FileNotFoundError:
+                print("Image file not found - this is just an example")
+        ```
+
+### Audio Processing
+
+!!! example "Audio Transcription and Analysis"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        def transcribe_audio(audio_path: str) -> str {
+            # Convert speech to text
+            prompt = f"""
+            Transcribe the speech in this audio file.
+
+            Audio: {audio_path}
+            """;
+
+            return prompt by llm(model="audio-model");
+        }
+
+        def analyze_audio_mood(audio_path: str) -> str {
+            # Analyze the emotional tone of speech
+            prompt = f"""
+            Listen to this audio and describe the speaker's mood in one word.
+
+            Audio: {audio_path}
+            """;
+
+            return prompt by llm(model="audio-model");
+        }
+
+        with entry {
+            # Process an audio file (this would work with a real audio file)
+            audio_file = "recording.mp3";
+
+            transcription = transcribe_audio(audio_file);
+            print(f"Transcription: {transcription}");
+
+            mood = analyze_audio_mood(audio_file);
+            print(f"Speaker mood: {mood}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import openai
+
+        def transcribe_audio(audio_path: str) -> str:
+            # Python requires explicit audio file handling
+            with open(audio_path, "rb") as audio_file:
+                transcript = openai.Audio.transcribe("whisper-1", audio_file)
+            return transcript.text
+
+        def analyze_audio_mood(audio_path: str) -> str:
+            # First transcribe, then analyze mood
+            transcription = transcribe_audio(audio_path)
+
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{
+                    "role": "user",
+                    "content": f"Analyze the mood in this transcription and respond with one word: {transcription}"
+                }]
+            )
+            return response.choices[0].message.content
+
+        if __name__ == "__main__":
+            # This would work with a real audio file
+            audio_file = "recording.mp3"
+
+            try:
+                transcription = transcribe_audio(audio_file)
+                print(f"Transcription: {transcription}")
+
+                mood = analyze_audio_mood(audio_file)
+                print(f"Speaker mood: {mood}")
+            except FileNotFoundError:
+                print("Audio file not found - this is just an example")
+        ```
+
+## Custom Model Integration
+
+!!! topic "Custom Models"
+    You can connect Jac to different AI models and services, including your own custom models, for specialized tasks.
+
+### Model Configuration
+
+!!! example "Using Different AI Models"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        import:py os;
+
+        # Configure different AI models
+        model fast_model {
+            model_type: "openai";
+            model_name: "gpt-3.5-turbo";
+            temperature: 0.5;
+            api_key: os.getenv("OPENAI_API_KEY");
+        }
+
+        model creative_model {
+            model_type: "anthropic";
+            model_name: "claude-3-sonnet";
+            temperature: 0.8;
+            api_key: os.getenv("ANTHROPIC_API_KEY");
+        }
+
+        def quick_answer(question: str) -> str {
+            # Use fast model for simple questions
+            return f"Answer briefly: {question}" by fast_model;
+        }
+
+        def creative_response(topic: str) -> str {
+            # Use creative model for storytelling
+            return f"Write a creative paragraph about: {topic}" by creative_model;
+        }
+
+        with entry {
+            # Test different models
+            answer = quick_answer("What is 2+2?");
+            print(f"Quick answer: {answer}");
+
+            story = creative_response("a magical forest");
+            print(f"Creative story: {story}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import os
+        import openai
+        import anthropic
+
+        class ModelManager:
+            def __init__(self):
+                self.openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                self.anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+            def quick_answer(self, question: str) -> str:
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": f"Answer briefly: {question}"}],
+                    temperature=0.5
+                )
+                return response.choices[0].message.content
+
+            def creative_response(self, topic: str) -> str:
+                response = self.anthropic_client.messages.create(
+                    model="claude-3-sonnet-20240229",
+                    messages=[{"role": "user", "content": f"Write a creative paragraph about: {topic}"}],
+                    temperature=0.8,
+                    max_tokens=1000
+                )
+                return response.content[0].text
+
+        if __name__ == "__main__":
+            manager = ModelManager()
+
+            try:
+                answer = manager.quick_answer("What is 2+2?")
+                print(f"Quick answer: {answer}")
+
+                story = manager.creative_response("a magical forest")
+                print(f"Creative story: {story}")
+            except Exception as e:
+                print(f"Error: {e}")
+        ```
+
+## Embedding and Vector Operations
+
+!!! topic "Embeddings"
+    Embeddings turn text into numbers that capture meaning. This enables semantic search - finding text that means similar things, even if the words are different.
+
+### Semantic Search
+
+!!! example "Simple Semantic Search"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        obj SimpleSearchEngine {
+            has documents: list[str] = [];
+
+            def add_document(text: str) -> None {
+                self.documents.append(text);
             }
 
-            edge = here[-->:Watched:][0];  # Get the edge
-            self.user_profile[movie.genre]["count"] += 1;
-            self.user_profile[movie.genre]["avg_rating"] += edge.rating;
+            def search(query: str) -> str {
+                # AI finds the most relevant document
+                docs_text = "\n".join([f"{i}: {doc}" for (i, doc) in enumerate(self.documents)]);
 
-            self.visited_movies.add(movie);
-        }
+                prompt = f"""
+                Find the document that best matches this query: "{query}"
 
-        # Calculate average ratings per genre
-        for genre, data in self.user_profile.items() {
-            data["avg_rating"] /= data["count"];
-        }
+                Documents:
+                {docs_text}
 
-        # Find movies to recommend
-        visit watched_movies;
-    }
+                Return only the number of the best matching document.
+                """;
 
-    can explore with Movie entry {
-        # Find similar movies
-        similar_movies = [-->:Similar:-->:Movie:];
+                result = prompt by llm();
 
-        for movie in similar_movies {
-            if movie not in self.visited_movies {
-                # Score based on user preferences
-                score = 0.0;
-                if movie.genre in self.user_profile {
-                    score = self.user_profile[movie.genre]["avg_rating"];
-                    score *= movie.rating / 5.0;  # Weight by movie rating
+                try {
+                    doc_index = int(result.strip());
+                    if 0 <= doc_index < len(self.documents) {
+                        return self.documents[doc_index];
+                    }
+                } except ValueError {
+                    pass;
                 }
 
-                if score > 3.0 {  # Threshold
-                    self.recommendations.append({
-                        "movie": movie.title,
-                        "genre": movie.genre,
-                        "score": score
-                    });
-                }
+                return "No matching document found";
             }
         }
-    }
 
-    can finalize with User exit {
-        # Sort and limit recommendations
-        self.recommendations.sort(key=lambda x: x["score"], reverse=true);
+        with entry {
+            # Create a simple search engine
+            search_engine = SimpleSearchEngine();
 
-        print(f"\nTop recommendations for {here.username}:");
-        for i, rec in enumerate(self.recommendations[:5]) {
-            print(f"{i+1}. {rec['movie']} ({rec['genre']}) - Score: {rec['score']:.2f}");
+            # Add some documents
+            search_engine.add_document("How to bake chocolate cookies");
+            search_engine.add_document("Training your dog to sit");
+            search_engine.add_document("Best practices for growing tomatoes");
+            search_engine.add_document("Learning to play guitar chords");
+
+            # Search for similar content
+            result = search_engine.search("cooking desserts");
+            print(f"Search result: {result}");
         }
-    }
-}
+        ```
+        </div>
+    === "Python"
+        ```python
+        import openai
+        from typing import List
 
-# Build movie database
-with entry {
-    # Create movies
-    inception = root ++> Movie(
-        title="Inception",
-        genre="Sci-Fi",
-        year=2010,
-        rating=4.8
-    );
+        class SimpleSearchEngine:
+            def __init__(self):
+                self.documents: List[str] = []
+                self.client = openai.OpenAI()
 
-    interstellar = root ++> Movie(
-        title="Interstellar",
-        genre="Sci-Fi",
-        year=2014,
-        rating=4.6
-    );
+            def add_document(self, text: str) -> None:
+                self.documents.append(text)
 
-    dark_knight = root ++> Movie(
-        title="The Dark Knight",
-        genre="Action",
-        year=2008,
-        rating=4.9
-    );
+            def search(self, query: str) -> str:
+                # AI finds the most relevant document
+                docs_text = "\n".join([f"{i}: {doc}" for i, doc in enumerate(self.documents)])
 
-    # Create similarities
-    inception +>:Similar(similarity_score=0.85):+> interstellar;
-    inception +>:Similar(similarity_score=0.60):+> dark_knight;
+                prompt = f"""
+                Find the document that best matches this query: "{query}"
 
-    # Create user and watch history
-    user = root ++> User(
-        username="movie_buff",
-        full_name="John Doe",
-        joined_date="2024-01-01"
-    );
+                Documents:
+                {docs_text}
 
-    user +>:Watched(rating=5, date="2024-03-01"):+> inception;
-    user +>:Watched(rating=4, date="2024-03-05"):+> dark_knight;
+                Return only the number of the best matching document.
+                """
 
-    # Get recommendations
-    user spawn MovieRecommender();
-}
-```
+                response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": prompt}]
+                )
 
-### Best Practices for Graph Building
+                result = response.choices[0].message.content
 
-1. **Start with Clear Node Types**: Define what entities exist in your domain
-2. **Model Relationships Explicitly**: Use typed edges for meaningful connections
-3. **Keep Edges Lightweight**: Heavy computation belongs in nodes or walkers
-4. **Use Consistent Naming**: Follow patterns like `Verb` for edges, `Noun` for nodes
-5. **Think About Traversal Early**: Design your graph to support intended algorithms
+                try:
+                    doc_index = int(result.strip())
+                    if 0 <= doc_index < len(self.documents):
+                        return self.documents[doc_index]
+                except ValueError:
+                    pass
 
-### Summary
+                return "No matching document found"
 
-In this chapter, we've learned:
+        if __name__ == "__main__":
+            # Create a simple search engine
+            search_engine = SimpleSearchEngine()
 
-- **Node Creation**: How to create persistent and temporary nodes
-- **Edge Types**: Building rich relationships with properties and behavior
-- **Graph Navigation**: Using `[-->]`, `[<--]`, and filtering syntax
-- **Graph Operations**: Modifying, analyzing, and traversing graph structures
+            # Add some documents
+            search_engine.add_document("How to bake chocolate cookies")
+            search_engine.add_document("Training your dog to sit")
+            search_engine.add_document("Best practices for growing tomatoes")
+            search_engine.add_document("Learning to play guitar chords")
 
-We've seen how Jac's syntax makes graph operations intuitive and type-safe. The combination of expressive navigation syntax and powerful filtering capabilities enables complex graph algorithms to be expressed concisely.
+            # Search for similar content
+            try:
+                result = search_engine.search("cooking desserts")
+                print(f"Search result: {result}")
+            except Exception as e:
+                print(f"Error: {e}")
+        ```
 
-Next, we'll explore walkers in depth—the mobile computational entities that bring your graphs to life by moving computation to data.
+## Performance Considerations
+
+!!! topic "AI Performance"
+    AI operations can be slow and expensive. Here are simple ways to make them faster and cheaper.
+
+### Simple Optimization Techniques
+
+!!! example "Basic AI Performance Tips"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        import:py time;
+
+        # Cache AI responses to avoid repeated calls
+        glob ai_cache: dict[str, str] = {};
+
+        def cached_ai_call(prompt: str) -> str {
+            # Check if we already asked this question
+            if prompt in ai_cache {
+                print("Using cached response");
+                return ai_cache[prompt];
+            }
+
+            # Make AI call and cache result
+            response = prompt by llm();
+            ai_cache[prompt] = response;
+            return response;
+        }
+
+        def time_ai_call(prompt: str) -> tuple[str, float] {
+            # Measure how long AI takes
+            start_time = time.time();
+            result = prompt by llm();
+            end_time = time.time();
+
+            duration = end_time - start_time;
+            return (result, duration);
+        }
+
+        with entry {
+            # Test caching
+            question = "What is the largest planet?";
+
+            # First call (slow)
+            response1 = cached_ai_call(question);
+            print(f"First call: {response1}");
+
+            # Second call (fast - from cache)
+            response2 = cached_ai_call(question);
+            print(f"Second call: {response2}");
+
+            # Test timing
+            (result, duration) = time_ai_call("Tell me a fun fact");
+            print(f"AI took {duration:.2f} seconds: {result}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import openai
+        import time
+        from typing import Dict, Tuple
+
+        # Cache AI responses to avoid repeated calls
+        ai_cache: Dict[str, str] = {}
+
+        def cached_ai_call(prompt: str) -> str:
+            # Check if we already asked this question
+            if prompt in ai_cache:
+                print("Using cached response")
+                return ai_cache[prompt]
+
+            # Make AI call and cache result
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            result = response.choices[0].message.content
+            ai_cache[prompt] = result
+            return result
+
+        def time_ai_call(prompt: str) -> Tuple[str, float]:
+            # Measure how long AI takes
+            start_time = time.time()
+
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            end_time = time.time()
+            result = response.choices[0].message.content
+            duration = end_time - start_time
+
+            return (result, duration)
+
+        if __name__ == "__main__":
+            try:
+                # Test caching
+                question = "What is the largest planet?"
+
+                # First call (slow)
+                response1 = cached_ai_call(question)
+                print(f"First call: {response1}")
+
+                # Second call (fast - from cache)
+                response2 = cached_ai_call(question)
+                print(f"Second call: {response2}")
+
+                # Test timing
+                result, duration = time_ai_call("Tell me a fun fact")
+                print(f"AI took {duration:.2f} seconds: {result}")
+
+            except Exception as e:
+                print(f"Error: {e}")
+        ```
+
+## Complete Example: Simple Image Captioning Tool
+
+!!! example "Image Caption Generator"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        obj ImageCaptioner {
+            def generate_caption(image_path: str) -> str {
+                # Generate a basic caption for an image
+                prompt = f"""
+                Look at this image and write a simple caption describing what you see.
+                Keep it to one sentence.
+
+                Image: {image_path}
+                """;
+
+                return prompt by llm(model="vision-model");
+            }
+
+            def generate_detailed_description(image_path: str) -> str {
+                # Generate a more detailed description
+                prompt = f"""
+                Describe this image in detail. Include:
+                - What objects or people you see
+                - The setting or location
+                - Any activities happening
+                - The mood or atmosphere
+
+                Image: {image_path}
+                """;
+
+                return prompt by llm(model="vision-model");
+            }
+
+            def make_accessible_text(image_path: str) -> str {
+                # Generate text for screen readers
+                prompt = f"""
+                Create alt text for this image that would help a visually impaired person understand what's in the picture.
+                Be descriptive but concise.
+
+                Image: {image_path}
+                """;
+
+                return prompt by llm(model="vision-model");
+            }
+        }
+
+        with entry {
+            # Create the captioner
+            captioner = ImageCaptioner();
+
+            # Example with a hypothetical image
+            image_file = "family_photo.jpg";
+
+            print("=== Image Captioning Tool ===");
+
+            # Generate different types of captions
+            caption = captioner.generate_caption(image_file);
+            print(f"Caption: {caption}");
+
+            description = captioner.generate_detailed_description(image_file);
+            print(f"Detailed: {description}");
+
+            alt_text = captioner.make_accessible_text(image_file);
+            print(f"Alt text: {alt_text}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import openai
+        import base64
+        from typing import Optional
+
+        class ImageCaptioner:
+            def __init__(self):
+                self.client = openai.OpenAI()
+
+            def _encode_image(self, image_path: str) -> str:
+                """Helper to encode image for API"""
+                with open(image_path, "rb") as image_file:
+                    return base64.b64encode(image_file.read()).decode()
+
+            def generate_caption(self, image_path: str) -> str:
+                try:
+                    image_data = self._encode_image(image_path)
+
+                    response = self.client.chat.completions.create(
+                        model="gpt-4-vision-preview",
+                        messages=[{
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Look at this image and write a simple caption describing what you see. Keep it to one sentence."},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
+                            ]
+                        }]
+                    )
+
+                    return response.choices[0].message.content
+
+                except FileNotFoundError:
+                    return "Image file not found"
+                except Exception as e:
+                    return f"Error: {e}"
+
+            def generate_detailed_description(self, image_path: str) -> str:
+                try:
+                    image_data = self._encode_image(image_path)
+
+                    response = self.client.chat.completions.create(
+                        model="gpt-4-vision-preview",
+                        messages=[{
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Describe this image in detail. Include what objects or people you see, the setting, any activities, and the mood."},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
+                            ]
+                        }]
+                    )
+
+                    return response.choices[0].message.content
+
+                except FileNotFoundError:
+                    return "Image file not found"
+                except Exception as e:
+                    return f"Error: {e}"
+
+            def make_accessible_text(self, image_path: str) -> str:
+                try:
+                    image_data = self._encode_image(image_path)
+
+                    response = self.client.chat.completions.create(
+                        model="gpt-4-vision-preview",
+                        messages=[{
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Create alt text for this image that would help a visually impaired person understand what's in the picture. Be descriptive but concise."},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
+                            ]
+                        }]
+                    )
+
+                    return response.choices[0].message.content
+
+                except FileNotFoundError:
+                    return "Image file not found"
+                except Exception as e:
+                    return f"Error: {e}"
+
+        if __name__ == "__main__":
+            # Create the captioner
+            captioner = ImageCaptioner()
+
+            # Example with a hypothetical image
+            image_file = "family_photo.jpg"
+
+            print("=== Image Captioning Tool ===")
+
+            # Generate different types of captions
+            caption = captioner.generate_caption(image_file)
+            print(f"Caption: {caption}")
+
+            description = captioner.generate_detailed_description(image_file)
+            print(f"Detailed: {description}")
+
+            alt_text = captioner.make_accessible_text(image_file)
+            print(f"Alt text: {alt_text}")
+        ```
+
+## Key Takeaways
+
+!!! summary "Chapter Summary"
+    - **Semantic Strings**: Use `by llm()` to add AI to your programs naturally
+    - **Multimodal AI**: Work with images, audio, and text in the same application
+    - **Custom Models**: Connect to different AI services for specialized tasks
+    - **Embeddings**: Enable semantic search to find meaning, not just keywords
+    - **Performance**: Cache responses and time operations to optimize AI usage
+    - **Simple Examples**: Start with basic AI features and build up complexity gradually
+
+Advanced AI operations in Jac make it easy to build intelligent applications without complex setup. The natural syntax and multimodal support enable you to create sophisticated tools with just a few lines of code.
+
+In the next chapter, we'll move into Object-Spatial Programming concepts, starting with enhanced object-oriented features that form the foundation for Jac's revolutionary approach to programming.
