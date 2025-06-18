@@ -289,14 +289,19 @@ body,
     color: #ff6b35;
 }
 
-/* Move left sidebar (navigation) further left */
-.md-sidebar--primary {
-    left: 0 !important;           /* Stick to the edge */
-    margin-left: -150px;           /* Adjust this value as needed */
+.md-main__inner.md-grid {
+    max-width: 100vw;
 }
 
+/* These changes breaking the responsivness */
+/* Move left sidebar (navigation) further left */
+/* .md-sidebar--primary {
+    left: 0 !important;
+    margin-left: -150px;
+} */
+
 /* Move right sidebar (TOC) further right */
-.md-sidebar--secondary {
-    right: 0 !important;          /* Stick to the edge */
-    margin-right: -150px;          /* Adjust this value as needed */
-}
+/* .md-sidebar--secondary {
+    right: 0 !important;
+    margin-right: -150px;
+} */

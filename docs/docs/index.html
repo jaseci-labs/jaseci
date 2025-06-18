@@ -156,6 +156,13 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
+        .hero-title img{
+            vertical-align:middle;
+            margin-right:14px;
+            width:64px;
+            height:64px;
+            border-radius:10px;
+        }
 
         .hero-subtitle {
             font-size: 20px;
@@ -670,6 +677,7 @@
             position: relative;
             overflow: hidden;
             border-radius: 16px;
+            padding-top: 14px;
         }
 
         .carousel-wrapper {
@@ -1152,6 +1160,109 @@
             background: #ff6b35;
         }
 
+        .typing-container {
+            height: 36px;
+        }
+
+                /* Mobile responsiveness for demo content */
+                @media (max-width: 768px) {
+            .demo-content {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .demo-code-panel, .demo-output-panel {
+                min-height: 300px;
+            }
+
+            .demo-tabs {
+                gap: 8px;
+            }
+
+            .demo-tab {
+                padding: 10px 16px;
+                font-size: 12px;
+                min-width: auto;
+            }
+
+            .demo-code-content, .demo-output-content {
+                font-size: 12px;
+                padding: 15px;
+                min-height: 250px;
+                max-height: 300px;
+            }
+
+            .interactive-demo {
+                padding: 20px;
+                margin: 30px 0;
+            }
+
+            .demo-title {
+                font-size: 22px;
+            }
+
+            .demo-subtitle {
+                font-size: 14px;
+            }
+        }
+
+        /* Additional adjustments for very small screens */
+        @media (max-width: 480px) {
+            .top-bar-content{
+                gap:14px;
+            }
+            .hero-title {
+                font-size: 42px;
+                text-align: center;
+            }
+            .hero-title img{
+                vertical-align: sub;
+                width: 46px;
+                height: 46px;
+            }
+            .demo-tabs {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .demo-tab {
+                margin-bottom: 5px;
+                width: 100%;
+            }
+
+            .demo-code-content, .demo-output-content {
+                min-height: 200px;
+            }
+
+            .interactive-demo {
+                padding: 15px;
+            }
+            .about-content{
+                flex-direction: column;
+                align-items: center;
+            }
+            .about-text {
+                text-align: justify;
+            }
+            .about-mission{
+                text-align: justify;
+            }
+            .github-link span:last-child{
+                display: none;
+            }
+            .nav-container{
+                width: 90%;
+            }
+            .nav-links{
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            .nav-links a{
+                padding: 0px 12px;;
+            }
+
+        }
+
         /* ...existing code... */
     </style>
 </head>
@@ -1208,7 +1319,7 @@
         <!-- Hero Section -->
         <section class="hero">
             <h1 class="hero-title animate-on-scroll">
-                <img src="/assets/logo.png" alt="Jaseci Logo" class="logo-img" style="vertical-align:middle;margin-right:14px;width:64px;height:64px;border-radius:10px;">
+                <img src="/assets/logo.png" alt="Jaseci Logo" class="" >
                 Jac and Jaseci
             </h1>
             <p class="hero-subtitle animate-on-scroll">
@@ -1717,7 +1828,7 @@
                     title: "AI Integration - Natural Language to Code",
                     code: `<span class="jac-comment"># AI-First Programming with MTLLM 🤖</span>
 
-<span class="jac-keyword">import</span>:<span class="jac-keyword">jac</span> <span class="jac-keyword">from</span> <span class="jac-variable">mtllm</span>.<span class="jac-variable">llms</span> { <span class="jac-node">Ollama</span> }
+<span class="jac-keyword">import</span> <span class="jac-keyword">from</span> <span class="jac-variable">mtllm</span>.<span class="jac-variable">llms</span> { <span class="jac-node">Ollama</span> }
 
 <span class="jac-comment"># Initialize AI model</span>
 <span class="jac-keyword">glob</span> <span class="jac-variable">llm</span> = <span class="jac-node">Ollama</span>(<span class="jac-variable">model_name</span>=<span class="jac-string">"llama3.2"</span>);
