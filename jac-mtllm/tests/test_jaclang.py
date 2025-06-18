@@ -34,6 +34,29 @@ class JacLanguageTests(TestCase):
         for summary in summaries:
             self.assertIn(summary, stdout_value)
 
+    def test_llm_call_override(self) -> None:
+        """Test the foo() by llm(); functionality."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        jac_import("llm_call_override", base_path=self.fixture_abs_path("./"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue()
+
+        # Check normal function outputs
+        self.assertIn("Normal function call: Howdy Alex", stdout_value)
+        self.assertIn("Normal sentiment: Neutral", stdout_value)
+        self.assertIn("Normal translation: Translation not available", stdout_value)
+
+        # Check LLM override outputs (different from normal functions)
+        self.assertIn("LLM override call: Hello there, Alex!", stdout_value)
+        self.assertIn("LLM sentiment: Strongly Positive", stdout_value)
+        self.assertIn("LLM translation: Bonjour le monde!", stdout_value)
+
+        # Check function with more args
+        self.assertIn("42\nfoo\n3.14\n[1]", stdout_value)
+        self.assertIn("1;2;3;4;5", stdout_value)
+        self.assertIn('{"foo": "42"}', stdout_value)
+
     def test_with_llm_function(self) -> None:
         """Parse micro jac file."""
         captured_output = io.StringIO()
@@ -77,25 +100,23 @@ class JacLanguageTests(TestCase):
             stdout_value,
         )
 
-    # FIXME:
-    #
-    # def test_with_llm_type(self) -> None:
-    #     """Parse micro jac file."""
-    #     captured_output = io.StringIO()
-    #     sys.stdout = captured_output
-    #     jac_import("with_llm_type", base_path=self.fixture_abs_path("./"))
-    #     sys.stdout = sys.__stdout__
-    #     stdout_value = captured_output.getvalue()
-    #     self.assertIn("14/03/1879", stdout_value)
-    #     self.assertNotIn(
-    #         'University (University) (obj) = type(__module__="with_llm_type", __doc__=None, '
-    #         "_jac_entry_funcs_`=[`], _jac_exit_funcs_=[], __init__=function(__wrapped__=function()))",
-    #         stdout_value,
-    #     )
-    #     desired_output_count = stdout_value.count(
-    #         "Person(name='Jason Mars', dob='1994-01-01', age=30)"
-    #     )
-    #     self.assertEqual(desired_output_count, 2)
+    def test_with_llm_type(self) -> None:
+        """Parse micro jac file."""
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        jac_import("with_llm_type", base_path=self.fixture_abs_path("./"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue()
+        self.assertIn("14/03/1879", stdout_value)
+        self.assertNotIn(
+            'University (University) (obj) = type(__module__="with_llm_type", __doc__=None, '
+            "_jac_entry_funcs_`=[`], _jac_exit_funcs_=[], __init__=function(__wrapped__=function()))",
+            stdout_value,
+        )
+        desired_output_count = stdout_value.count(
+            "Person(name='Jason Mars', dob='1994-01-01', age=30)"
+        )
+        self.assertEqual(desired_output_count, 2)
 
     def test_with_llm_image(self) -> None:
         """Test MTLLLM Image Implementation."""
@@ -130,3 +151,37 @@ class JacLanguageTests(TestCase):
             self.assertEqual(stdout_value.count("data:image/jpeg;base64"), 4)
         except Exception:
             self.skipTest("This test requires OpenCV to be installed.")
+
+    def test_semstrings(self) -> None:
+        """Test the semstrings with the new sem keyword.
+
+        obj Foo {
+            def bar(baz: int) -> str;
+        }
+        sem Foo.bar.baz = "Some semantic string for Foo.bar.baz";
+        """
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        jac_import("llm_semstrings", base_path=self.fixture_abs_path("./"))
+        sys.stdout = sys.__stdout__
+        stdout_value = captured_output.getvalue()
+        self.assertIn("Specific number generated: 120597", stdout_value)
+
+        i = stdout_value.find("Generated password:")
+        password = stdout_value[i:].split("\n")[0]
+
+        self.assertTrue(
+            len(password) >= 8, "Password should be at least 8 characters long."
+        )
+        self.assertTrue(
+            any(c.isdigit() for c in password),
+            "Password should contain at least one digit.",
+        )
+        self.assertTrue(
+            any(c.isupper() for c in password),
+            "Password should contain at least one uppercase letter.",
+        )
+        self.assertTrue(
+            any(c.islower() for c in password),
+            "Password should contain at least one lowercase letter.",
+        )

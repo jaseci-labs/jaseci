@@ -47,11 +47,11 @@ Control endpoint behavior using the `__specs__` object within your walker:
 walker my_walker {
     has data: str;
 
-    // This is where you configure your endpoint behavior
+    # This is where you configure your endpoint behavior
     obj __specs__ {
-        static has methods: list = ["get", "post"];   // Supports both GET and POST
-        static has auth: bool = false;                // No authentication required
-        static has as_query: list = ["data"];         // "data" will be a query parameter
+        static has methods: list = ["get", "post"];   # Supports both GET and POST
+        static has auth: bool = False;                # No authentication required
+        static has as_query: list = ["data"];         # "data" will be a query parameter
     }
 }
 ```
@@ -91,13 +91,13 @@ walker my_walker {
 ### Basic Endpoint Examples
 
 ```jac
-// Simple POST endpoint
+# Simple POST endpoint
 walker create_user {
     has username: str;
     has email: str;
 }
 
-// GET endpoint with query parameters
+# GET endpoint with query parameters
 walker search_users {
     has query: str;
     has limit: int = 10;
@@ -108,11 +108,11 @@ walker search_users {
     }
 }
 
-// Public endpoint (no authentication)
+# Public endpoint (no authentication)
 walker public_info {
     obj __specs__ {
         static has methods: list = ["get"];
-        static has auth: bool = false;
+        static has auth: bool = False;
     }
 }
 ```
@@ -120,7 +120,9 @@ walker public_info {
 ### File Upload Examples
 
 ```jac
-// Single file upload
+import from fastapi { UploadFile }
+
+# Single file upload
 walker single_file_upload {
     has file: UploadFile;
     has description: str = "";
@@ -131,7 +133,7 @@ walker single_file_upload {
     }
 }
 
-// Multiple file upload
+# Multiple file upload
 walker multi_file_upload {
     has files: list[UploadFile];
     has category: str;

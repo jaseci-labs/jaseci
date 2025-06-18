@@ -19,12 +19,14 @@ tags = {"python", "programming", "tutorial"}
 ```
 
 ```jac
-// Jac - Static typing, safe and predictable
+# Jac - Static typing, safe and predictable
 let numbers: list[int] = [1, 2, 3];
-// numbers.append("four");  // Compile error: type mismatch
+with entry {
+    numbers.append("four");
+    print(numbers);
+}
 
-let person: tuple = ("Alice", 30);  // Positional tuple
-let person_kw: tuple = (name="Alice", age=30);  // Keyword tuple!
+let person: tuple = ("Alice", 30);  # Positional tupl
 let scores: dict[str, int] = {"Alice": 95, "Bob": 87};
 let tags: set[str] = {"python", "programming", "tutorial"};
 ```
@@ -34,81 +36,130 @@ let tags: set[str] = {"python", "programming", "tutorial"};
 Lists in Jac maintain order and allow duplicates, just like Python, but with type safety:
 
 ```jac
-// List creation and basic operations
+# List creation and basic operations
 let fruits: list[str] = ["apple", "banana", "cherry"];
-fruits.append("date");
-fruits.insert(1, "blueberry");
-print(fruits);  // ["apple", "blueberry", "banana", "cherry", "date"]
-
-// List methods with type safety
 let numbers: list[int] = [3, 1, 4, 1, 5, 9, 2, 6];
-numbers.sort();  // In-place sort
-let unique_sorted: list[int] = sorted(set(numbers));  // Remove duplicates and sort
 
-// Slicing works like Python
-let subset: list[int] = numbers[2:5];  // [2, 3, 4]
-let reversed: list[int] = numbers[::-1];  // Reverse the list
+let unique_sorted: list[int] = sorted(set(numbers));  # Remove duplicates and sort → [1, 2, 3, 4, 5, 6, 9]
+let subset: list[int] = numbers[2:5];  # Slice → [4, 1, 5]
+let reversed: list[int] = numbers[::-1];  # Reverse the list → [6, 2, 9, 5, 1, 4, 1, 3]
 
-// Multi-dimensional lists
+with entry {
+    fruits.append("date");
+    fruits.insert(1, "blueberry");
+
+    print("fruits after update: ", fruits);
+    # ['apple', 'blueberry', 'banana', 'cherry', 'date']
+
+    numbers.sort();
+    print("numbers sorted: ", numbers);
+    # [1, 1, 2, 3, 4, 5, 6, 9]
+
+    print("unique sorted numbers: ", unique_sorted);
+    # [1, 2, 3, 4, 5, 6, 9]
+
+    print("subset [2:5]: ", subset);
+    # [4, 1, 5]
+
+    print("reversed numbers: ", reversed);
+    # [6, 2, 9, 5, 1, 4, 1, 3]
+}
+
+
+# Multi-dimensional lists
 let matrix: list[list[int]] = [
     [1, 2, 3],
     [4, 5, 6],
     [7, 8, 9]
 ];
 
-// Safe access with bounds checking
-can safe_get[T](lst: list[T], index: int, default: T) -> T {
-    if 0 <= index < len(lst) {
-        return lst[index];
+with entry {
+    print("matrix:");
+    for row in matrix {
+        print(row);
     }
-    return default;
+
+    print("element at [0][1]:", matrix[0][1]);  # 2
+    print("element at [2][2]:", matrix[2][2]);  # 9
 }
 ```
 
 ### Advanced List Operations
 
 ```jac
-// List comprehensions with filtering
+# List comprehensions with filtering
 let numbers: list[int] = range(1, 21);
 let evens: list[int] = [n for n in numbers if n % 2 == 0];
 let squares: list[int] = [n * n for n in numbers];
 let even_squares: list[int] = [n * n for n in numbers if n % 2 == 0];
 
-// Nested comprehensions
+# Nested comprehensions
 let coords: list[tuple] = [(x, y) for x in range(3) for y in range(3)];
-// [(0,0), (0,1), (0,2), (1,0), (1,1), (1,2), (2,0), (2,1), (2,2)]
+# [(0,0), (0,1), (0,2), (1,0), (1,1), (1,2), (2,0), (2,1), (2,2)]
 
-// Functional operations
-let doubled: list[int] = numbers.map(lambda x: int -> int : x * 2);
-let filtered: list[int] = numbers.filter(lambda x: int -> bool : x > 10);
-let total: int = numbers.reduce(lambda a: int, b: int -> int : a + b, 0);
+# Functional-style operations
+let doubled: list[int] = [x * 2 for x in numbers];
+let filtered: list[int] = [x for x in numbers if x > 10];
+let total: int = 0;
 
-// List flattening
+with entry {
+    for x in numbers {
+    total += x;
+    }
+}
+
+# List flattening
 let nested: list[list[int]] = [[1, 2], [3, 4], [5, 6]];
 let flat: list[int] = [item for sublist in nested for item in sublist];
+
+with entry {
+    print("numbers:", list(numbers));
+    print("evens:", evens);
+    print("squares:", squares);
+    print("even_squares:", even_squares);
+}
+
+with entry {
+    print("coordinates:", coords);
+}
+
+with entry {
+    print("doubled:", doubled);
+    print("filtered (>10):", filtered);
+    print("total sum:", total);
+}
+
+with entry {
+    print("nested:", nested);
+    print("flat:", flat);
+}
 ```
 
 ### Dictionaries with Type Safety
 
 ```jac
-// Dictionary creation and manipulation
-let user_scores: dict[str, int] = {
+# Dictionary creation and manipulation
+glob user_scores: dict[str, int] = {
     "Alice": 95,
     "Bob": 87,
     "Charlie": 92
 };
 
-// Safe access patterns
-let alice_score: int = user_scores.get("Alice", 0);  // Default value
-let david_score: int = user_scores.get("David", 0);  // Returns 0
+# Safe access patterns
+glob alice_score: int = user_scores.get("Alice", 0);
+glob david_score: int = user_scores.get("David", 0);
 
-// Dictionary comprehensions
-let squared_scores: dict[str, int] = {
-    name: score * score for name, score in user_scores.items()
-};
+# Dictionary comprehensions
+glob squared_scores: dict[str, int] = {};
 
-// Nested dictionaries
-let user_profiles: dict[str, dict[str, any]] = {
+with entry {
+    for (name, score) in user_scores.items() {
+        squared_scores[name] = score * score;
+    }
+}
+
+# Nested dictionaries
+glob user_profiles: dict[str, dict[str, any]] = {
     "alice": {
         "email": "alice@example.com",
         "age": 30,
@@ -121,31 +172,30 @@ let user_profiles: dict[str, dict[str, any]] = {
     }
 };
 
-// Merging dictionaries
-let defaults: dict[str, any] = {"status": "active", "role": "user"};
-let user_data: dict[str, any] = {"name": "Alice", "role": "admin"};
-let merged: dict[str, any] = {**defaults, **user_data};
-// {"status": "active", "role": "admin", "name": "Alice"}
+# Merging dictionaries
+glob defaults: dict[str, any] = {"status": "active", "role": "user"};
+glob user_data: dict[str, any] = {"name": "Alice", "role": "admin"};
+glob merged: dict[str, any] = {**defaults, **user_data};
 ```
 
 ### Sets for Unique Collections
 
 ```jac
-// Set operations
+# Set operations
 let skills_a: set[str] = {"Python", "Jac", "SQL", "Git"};
 let skills_b: set[str] = {"Jac", "JavaScript", "Git", "Docker"};
 
-// Set operations
-let common: set[str] = skills_a & skills_b;  // {"Jac", "Git"}
-let all_skills: set[str] = skills_a | skills_b;  // Union
-let unique_to_a: set[str] = skills_a - skills_b;  // {"Python", "SQL"}
-let symmetric_diff: set[str] = skills_a ^ skills_b;  // Unique to either
+# Set operations
+let common: set[str] = skills_a & skills_b;  # {"Jac", "Git"}
+let all_skills: set[str] = skills_a | skills_b;  # Union
+let unique_to_a: set[str] = skills_a - skills_b;  # {"Python", "SQL"}
+let symmetric_diff: set[str] = skills_a ^ skills_b;  # Unique to either
 
-// Set comprehensions
+# Set comprehensions
 let numbers: set[int] = {x * x for x in range(10) if x % 2 == 0};
-// {0, 4, 16, 36, 64}
+# {0, 4, 16, 36, 64}
 
-// Frozen sets (immutable)
+# Frozen sets (immutable)
 let constants: frozenset[str] = frozenset(["PI", "E", "PHI"]);
 ```
 
@@ -154,178 +204,162 @@ let constants: frozenset[str] = frozenset(["PI", "E", "PHI"]);
 Jac introduces powerful filter comprehensions with null-safety:
 
 ```jac
-// Standard filter (may fail on null)
-let active_users = [user for user in users if user.is_active];
-
-// Null-safe filter with ? operator
-let active_users_safe = [user for user in users if ?user.is_active];
-
-// Special filter syntax for graph operations
+# Special filter syntax for graph operations
 node User {
     has name: str;
     has age: int;
     has active: bool;
+    has visited: bool = False;  # Default value
+    has timestamp: datetime = now();  # Default to current time
+}
+
+
+# Standard filter (may fail on null)
+# let active_users = [user for user in users if user.is_active];
+
+# # Null-safe filter with ? operator
+# let active_users_safe = [user for user in users if user.is_active];
+
+with entry {
+    root ++> User(name= "Alice", age= 30, active= True);
+    root ++> User(name= "Bob", age= 17, active= False);
+    root ++> User(name= "Charlie", age= 25, active= True);
+    root ++> User(name= "Diana", age= 22, active= False);
+    root ++> User(name= "Eve", age= 19, active= True);
+    root ++> User(name= "Frank", age= 40, active= True);
+    root ++> User(name= "Grace", age= 15, active= False);
+    root ++> User(name= "Hank", age= 35, active= True);
+    root ++> User(name= "Ivy", age= 28, active= False);
+    root ++> User(name= "Jack", age= 20, active= True);
 }
 
 walker FindActiveAdults {
     can search with entry {
-        // Filter nodes with special syntax
-        let adults = [-->(?age >= 18)];  // Null-safe property access
-        let active_adults = [-->(?age >= 18, ?active == true)];
-
-        // Type-specific filtering
-        let user_nodes = [-->(`User)];  // Only User nodes
-        let typed_adults = [-->(`User: ?age >= 18)];  // Typed + filtered
+        # Filter nodes with special syntax
+        adults = [-->(?age >= 18)];  # Null-safe property access
+        active_adults = [-->(?age >= 18, active == True)];
+        print("Active adults:", active_adults);
+        # Type-specific filtering
+        user_nodes = [-->(`?User)];  # Only User nodes
+        print("User nodes:", user_nodes);
+        typed_adults = [-->(`?User)](?age >= 18);  # Typed + filtered , age >= 18
+        print("Typed adults:", typed_adults);
     }
 }
 
-// Assignment comprehensions - unique to Jac!
+# Assignment comprehensions - unique to Jac!
 walker UpdateNodes {
     can update with entry {
-        // Update all connected nodes
-        [-->](=visited: true, =timestamp: now());
+        # Update all connected nodes
+        [-->](=visited: True, =timestamp: now());
 
-        // Conditional update
+        # Conditional update
         [-->(?score < 50)](=needs_review: true);
 
-        // Update specific types
+        # Update specific types
         [-->(`User: ?age >= 18)](=adult: true);
     }
 }
-```
 
-### Keyword Tuples - Jac's Unique Feature
-
-One of Jac's most innovative features is keyword tuples, which combine the immutability of tuples with the clarity of named fields:
-
-```jac
-// Traditional positional tuple (like Python)
-let point_2d: tuple = (3, 4);
-let x: int = point_2d[0];  // Access by index
-
-// Keyword tuple - Jac's innovation!
-let point_named: tuple = (x=3, y=4);
-let x_coord: int = point_named.x;  // Access by name!
-let y_coord: int = point_named["y"];  // Also works
-
-// Mixed tuples (positional followed by keyword)
-let mixed: tuple = (100, 200, label="origin", visible=true);
-print(mixed[0]);  // 100 (positional)
-print(mixed.label);  // "origin" (keyword)
-
-// Practical example: Database results
-can fetch_user(id: int) -> tuple {
-    // Simulate database fetch
-    return (
-        id=id,
-        name="Alice Smith",
-        email="alice@example.com",
-        created_at="2024-01-15",
-        active=true
-    );
-}
 
 with entry {
-    let user = fetch_user(123);
-    print(f"User: {user.name} ({user.email})");
-    print(f"Active: {user.active}");
+    root spawn FindActiveAdults();
 }
-```
-
-### Keyword Tuples in Practice
-
-```jac
-// Function returning multiple named values
-can calculate_stats(data: list[float]) -> tuple {
-    let total = sum(data);
-    let count = len(data);
-    let avg = total / count if count > 0 else 0.0;
-
-    return (
-        mean=avg,
-        sum=total,
-        count=count,
-        min=min(data) if data else 0.0,
-        max=max(data) if data else 0.0
-    );
-}
-
-// Using the results
-let scores: list[float] = [85.5, 92.0, 78.5, 95.0, 88.0];
-let stats = calculate_stats(scores);
-
-print(f"Average: {stats.mean:.2f}");
-print(f"Range: {stats.min} - {stats.max}");
-
-// Keyword tuples in data structures
-let employees: list[tuple] = [
-    (id=1, name="Alice", dept="Engineering", salary=95000),
-    (id=2, name="Bob", dept="Marketing", salary=75000),
-    (id=3, name="Charlie", dept="Engineering", salary=105000)
-];
-
-// Easy filtering and processing
-let engineers = [emp for emp in employees if emp.dept == "Engineering"];
-let high_earners = [emp for emp in employees if emp.salary > 80000];
-let total_salary = sum([emp.salary for emp in employees]);
 ```
 
 #### 4.2 Pipe Operators
 
-### Forward Pipe (`|>`) and Backward Pipe (`<|`)
+### Forward Pipe (`|>`)
 
 Pipe operators transform nested function calls into readable pipelines:
 
 ```jac
-// Traditional nested approach (hard to read)
-let result = process(transform(validate(parse(data))));
+# Define the data and functions first
+glob data: str = "hello world";
 
-// With forward pipe (left-to-right flow)
-let result = data
-    |> parse
-    |> validate
-    |> transform
-    |> process;
+def parse(text: str) -> str {
+    return f"parsed({text})";
+}
 
-// Backward pipe (right-to-left flow)
-let result = process
-    <| transform
-    <| validate
-    <| parse
-    <| data;
+def validate(text: str) -> str {
+    return f"validated({text})";
+}
+
+def transform(text: str) -> str {
+    return f"transformed({text})";
+}
+
+def process(text: str) -> str {
+    return f"processed({text})";
+}
+
+with entry {
+    # Traditional nested approach (hard to read)
+    let result1 = process(transform(validate(parse(data))));
+    print("Nested approach:", result1);
+
+    # With forward pipe (left-to-right flow)
+    let result2 = data
+        |> parse
+        |> validate
+        |> transform
+        |> process;
+    print("Forward pipe:", result2);
+}
 ```
 
 ### Real-World Pipeline Examples
 
 ```jac
-// Data processing pipeline
-can clean_text(text: str) -> str {
+import string;
+
+# Data processing pipeline
+def clean_text(text: str) -> str {
     return text.strip().lower();
 }
 
-can remove_punctuation(text: str) -> str {
-    import:py string;
+def remove_punctuation(text: str) -> str {
     return "".join([c for c in text if c not in string.punctuation]);
 }
 
-can tokenize(text: str) -> list[str] {
+def tokenize(text: str) -> list[str] {
     return text.split();
 }
 
-can remove_stopwords(words: list[str]) -> list[str] {
+def remove_stopwords(words: list[str]) -> list[str] {
     let stopwords = {"the", "a", "an", "and", "or", "but", "in", "on", "at"};
     return [w for w in words if w not in stopwords];
 }
 
-// Using the pipeline
-let raw_text = "  The Quick Brown Fox Jumps Over the Lazy Dog!  ";
-let processed = raw_text
-    |> clean_text
-    |> remove_punctuation
-    |> tokenize
-    |> remove_stopwords;
+walker TextProcessingPipeline {
+    has text: str;
 
-print(processed);  // ["quick", "brown", "fox", "jumps", "over", "lazy", "dog"]
+    can clean_text with entry {
+        self.text = clean_text(self.text);
+        print("After cleaning:", self.text);
+    }
+    can remove_punctuation with entry {
+        self.text = remove_punctuation(self.text);
+        print("After removing punctuation:", self.text);
+    }
+    can tokenize with entry {
+        self.tokens = tokenize(self.text);
+        print("After tokenizing:", self.tokens);
+    }
+    can remove_stopwords with entry {
+        self.tokens = remove_stopwords(self.tokens);
+        print("After removing stopwords:", self.tokens);
+    }
+}
+
+# Using the pipeline
+with entry {
+    raw_text = "  The Quick Brown Fox Jumps Over the Lazy Dog!  ";
+    text_processor = root spawn TextProcessingPipeline(text=raw_text);
+    processed = text_processor.tokens;
+    print("Raw text:", raw_text);
+    print("Processed tokens:", processed);  # ["quick", "brown", "fox", "jumps", "over", "lazy", "dog"]
+}
 ```
 
 ### Atomic Pipes (`:>` and `<:`)
@@ -333,26 +367,26 @@ print(processed);  // ["quick", "brown", "fox", "jumps", "over", "lazy", "dog"]
 Atomic pipes have higher precedence for tighter binding:
 
 ```jac
-// Standard pipe vs atomic pipe precedence
+# Standard pipe vs atomic pipe precedence
 let data = [1, 2, 3, 4, 5];
 
-// Standard pipe (lower precedence)
-let result1 = data |> sum |> str;  // "15"
+# Standard pipe (lower precedence)
+let result1 = data |> sum |> str;  # "15"
 
-// Atomic pipe (higher precedence)
-let result2 = data :> filter(lambda x: int -> bool : x > 2) :> sum;  // 12
+# Atomic pipe (higher precedence)
+let result2 = data :> filter(lambda x: int -> bool : x > 2) :> sum;  # 12
 
-// Mixing operators (atomic binds tighter)
+# Mixing operators (atomic binds tighter)
 let result3 = data
-    :> filter(lambda x: int -> bool : x % 2 == 0)  // [2, 4]
-    |> sum  // 6
-    |> lambda x: int -> str : f"Sum: {x}";  // "Sum: 6"
+    :> filter(lambda x: int -> bool : x % 2 == 0)  # [2, 4]
+    |> sum  # 6
+    |> lambda x: int -> str : f"Sum: {x}";  # "Sum: 6"
 ```
 
 ### Replacing Nested Function Calls
 
 ```jac
-// Complex nested calls (traditional)
+# Complex nested calls (traditional)
 can traditional_approach(users: list[User]) -> dict[str, list[str]] {
     return group_by(
         map(
@@ -366,7 +400,7 @@ can traditional_approach(users: list[User]) -> dict[str, list[str]] {
     );
 }
 
-// Same logic with pipes (much clearer!)
+# Same logic with pipes (much clearer!)
 can piped_approach(users: list[User]) -> dict[str, list[str]] {
     return users
         |> sort(key=lambda u: User -> str : u.name)
@@ -379,7 +413,7 @@ can piped_approach(users: list[User]) -> dict[str, list[str]] {
 ### Integration with Method Chaining
 
 ```jac
-// Combining pipes with method chaining
+# Combining pipes with method chaining
 obj DataProcessor {
     has data: list[dict[str, any]];
 
@@ -403,7 +437,7 @@ obj DataProcessor {
     }
 }
 
-// Using pipes with methods
+# Using pipes with methods
 let processor = DataProcessor(data=raw_data);
 let results = processor
     |> .filter_by("status", "active")
@@ -411,7 +445,7 @@ let results = processor
     |> .transform(lambda d: dict -> dict : {**d, "processed": true})
     |> .get_results();
 
-// Or with method chaining directly
+# Or with method chaining directly
 let results2 = processor
     .filter_by("status", "active")
     .sort_by("priority")
@@ -419,47 +453,10 @@ let results2 = processor
     .get_results();
 ```
 
-### Pipes with Keyword Tuples
-
-Keyword tuples work beautifully with pipe operators:
-
-```jac
-// Pipeline returning keyword tuple
-can analyze_text(text: str) -> tuple {
-    let words = text.split();
-    let chars = len(text);
-    let lines = text.count("\n") + 1;
-
-    return (
-        word_count=len(words),
-        char_count=chars,
-        line_count=lines,
-        avg_word_length=chars / len(words) if words else 0
-    );
-}
-
-// Function that accepts keyword tuple
-can format_analysis(stats: tuple) -> str {
-    return f"""
-    Text Analysis:
-    - Words: {stats.word_count}
-    - Characters: {stats.char_count}
-    - Lines: {stats.line_count}
-    - Avg Word Length: {stats.avg_word_length:.1f}
-    """;
-}
-
-// Using pipes to flow data
-let report = read_file("document.txt")
-    |> analyze_text
-    |> format_analysis
-    |> print;
-```
-
 ### Advanced Pipeline Patterns
 
 ```jac
-// Error handling in pipelines
+# Error handling in pipelines
 can safe_pipeline[T, R](
     data: T,
     *funcs: list[callable]
@@ -476,13 +473,13 @@ can safe_pipeline[T, R](
     }
 }
 
-// Conditional pipelines
+# Conditional pipelines
 can process_user_data(user: User) -> dict {
     let base_pipeline = user
         |> validate_user
         |> normalize_data;
 
-    // Conditional continuation
+    # Conditional continuation
     if user.age >= 18 {
         return base_pipeline
             |> apply_adult_rules
@@ -494,7 +491,7 @@ can process_user_data(user: User) -> dict {
     }
 }
 
-// Parallel pipelines
+# Parallel pipelines
 can parallel_process(items: list[any]) -> list[any] {
     import:py from concurrent.futures { ThreadPoolExecutor }
 
@@ -514,28 +511,28 @@ can parallel_process(items: list[any]) -> list[any] {
 ### Collection Pipeline Patterns
 
 ```jac
-// Common collection transformations
+# Common collection transformations
 let numbers: list[int] = range(1, 101);
 
-// Statistical pipeline
+# Statistical pipeline
 let stats = numbers
-    |> filter(lambda n: int -> bool : n % 2 == 0)  // Even numbers
-    |> map(lambda n: int -> float : n ** 0.5)      // Square roots
-    |> sorted                                        // Sort
-    |> lambda lst: list -> tuple : (                // Create stats tuple
+    |> filter(lambda n: int -> bool : n % 2 == 0)  # Even numbers
+    |> map(lambda n: int -> float : n ** 0.5)      # Square roots
+    |> sorted                                        # Sort
+    |> lambda lst: list -> tuple : (                # Create stats tuple
         min=lst[0],
         max=lst[-1],
-        median=lst[len(lst)//2],
+        median=lst[len(lst)#2],
         mean=sum(lst)/len(lst)
     );
 
-// Text processing pipeline
+# Text processing pipeline
 let words: list[str] = ["hello", "WORLD", "jAc", "PYTHON"];
 let processed = words
-    |> map(str.lower)                               // Lowercase all
-    |> filter(lambda w: str -> bool : len(w) > 3)  // Keep long words
-    |> sorted                                        // Alphabetize
-    |> lambda lst: list -> dict : {                 // Group by first letter
+    |> map(str.lower)                               # Lowercase all
+    |> filter(lambda w: str -> bool : len(w) > 3)  # Keep long words
+    |> sorted                                        # Alphabetize
+    |> lambda lst: list -> dict : {                 # Group by first letter
         letter: [w for w in lst if w[0] == letter]
         for letter in set(w[0] for w in lst)
     };
@@ -544,23 +541,23 @@ let processed = words
 ### Pipes in Object-Spatial Context
 
 ```jac
-// Using pipes with graph operations
+# Using pipes with graph operations
 walker DataAggregator {
     has process_node: callable;
     has combine_results: callable;
 
     can aggregate with entry {
-        let results = [-->]                          // Get connected nodes
+        let results = [-->]                          # Get connected nodes
             |> filter(lambda n: node -> bool : n.has_data())
-            |> map(self.process_node)                // Process each node
+            |> map(self.process_node)                # Process each node
             |> filter(lambda r: any -> bool : r is not None)
-            |> self.combine_results;                 // Combine all results
+            |> self.combine_results;                 # Combine all results
 
         report results;
     }
 }
 
-// Node data extraction pipeline
+# Node data extraction pipeline
 node DataNode {
     has raw_data: dict;
     has metadata: dict;
@@ -581,19 +578,19 @@ node DataNode {
 
 1. **Type Your Collections**: Always specify element types
    ```jac
-   let numbers: list[int] = [1, 2, 3];  // Good
-   // let numbers = [1, 2, 3];          // Bad - missing type
+   let numbers: list[int] = [1, 2, 3];  # Good
+   # let numbers = [1, 2, 3];          # Bad - missing type
    ```
 
 2. **Use Keyword Tuples for Multiple Returns**: Clearer than positional
    ```jac
-   return (success=true, data=result, errors=[]);  // Good
-   return (true, result, []);                       // Less clear
+   return (success=true, data=result, errors=[]);  # Good
+   return (true, result, []);                       # Less clear
    ```
 
 3. **Build Pipelines Incrementally**: Test each stage
    ```jac
-   // Debug by breaking pipeline
+   # Debug by breaking pipeline
    let step1 = data |> clean;
    print(f"After clean: {step1}");
    let step2 = step1 |> validate;
@@ -602,19 +599,19 @@ node DataNode {
 
 4. **Prefer Pipes Over Nesting**: For readability
    ```jac
-   // Good
+   # Good
    result = data |> process |> transform |> format;
 
-   // Avoid
+   # Avoid
    result = format(transform(process(data)));
    ```
 
 5. **Use Comprehensions for Filtering**: More efficient than loops
    ```jac
-   // Good
+   # Good
    adults = [u for u in users if u.age >= 18];
 
-   // Less efficient
+   # Less efficient
    adults = [];
    for u in users {
        if u.age >= 18 { adults.append(u); }

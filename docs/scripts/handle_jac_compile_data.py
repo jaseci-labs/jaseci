@@ -18,6 +18,8 @@ UNIIR_NODE_DOC = "docs/internals/uniir_node.md"
 LANG_REF_DOC = "docs/learn/jac_ref.md"
 TOP_CONTRIBUTORS_DOC = "docs/communityhub/top_contributors.md"
 AST_TOOL = AstTool()
+EXAMPLE_SOURCE_FOLDER = "../jac/examples"
+EXAMPLE_TARGET_FOLDER = "docs/assets/examples"
 
 
 def pre_build_hook(**kwargs: dict) -> None:
@@ -26,10 +28,11 @@ def pre_build_hook(**kwargs: dict) -> None:
     This function is called before the build process starts.
     """
     print("Running pre-build hook...")
-    if not os.path.exists(PLAYGROUND_ZIP_PATH):
-        create_playground_zip()
-    else:
-        print(f"Zip file already exists: {PLAYGROUND_ZIP_PATH}. Skipping creation.")
+    if os.path.exists(PLAYGROUND_ZIP_PATH):
+        print(f"Removing existing zip file: {PLAYGROUND_ZIP_PATH}")
+        os.remove(PLAYGROUND_ZIP_PATH)
+    create_playground_zip()
+    print("Jaclang zip file created successfully.")
 
     if is_file_older_than_minutes(UNIIR_NODE_DOC, 5):
         with open(UNIIR_NODE_DOC, "w") as f:

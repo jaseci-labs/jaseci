@@ -55,13 +55,13 @@ By default, User2 cannot see Post1 (created by User1). To allow this:
 ### Option 1: Grant Access Using Helper Functions
 
 ```jac
-// Allow User2 to read a post
+# Allow User2 to read a post
 walker grant_access {
-    has target_root_id: str;  // ID of User2's root
-    has access_level: str;    // "READ", "CONNECT", or "WRITE"
+    has target_root_id: str;  # ID of User2's root
+    has access_level: str;    # "READ", "CONNECT", or "WRITE"
 
     can grant_access with post entry {
-        // Grant access to the current post
+        # Grant access to the current post
         _.allow_root(here, NodeAnchor.ref(self.target_root_id), self.access_level);
         report "Access granted!";
     }
@@ -71,12 +71,12 @@ walker grant_access {
 ### Option 2: Revoke Access Using Helper Functions
 
 ```jac
-// Remove User2's access to a post
+# Remove User2's access to a post
 walker revoke_access {
-    has target_root_id: str;  // ID of User2's root
+    has target_root_id: str;  # ID of User2's root
 
     can revoke_access with post entry {
-        // Revoke access to the current post
+        # Revoke access to the current post
         _.disallow_root(here, NodeAnchor.ref(self.target_root_id));
         report "Access revoked!";
     }
@@ -86,10 +86,10 @@ walker revoke_access {
 ### Option 3: Make Content Public
 
 ```jac
-// Make a post readable by everyone
+# Make a post readable by everyone
 walker make_public {
     can make_public with post entry {
-        // Grant READ access to all users
+        # Grant READ access to all users
         _.perm_grant(here, "READ");
         report "Post is now public!";
     }
@@ -99,10 +99,10 @@ walker make_public {
 ### Option 4: Make Content Private
 
 ```jac
-// Make a post private (owner-only)
+# Make a post private (owner-only)
 walker make_private {
     can make_private with post entry {
-        // Remove all access
+        # Remove all access
         _.perm_revoke(here);
         report "Post is now private!";
     }
@@ -116,16 +116,16 @@ walker make_private {
 Perfect for social media posts or articles:
 
 ```jac
-// Create a public post
+# Create a public post
 walker create_public_post {
     has content: str;
 
     can enter with `root entry {
-        // Create the post
+        # Create the post
         post = Post({content: self.content});
         here ++> post;
 
-        // Make it readable by everyone, but only writable by owner
+        # Make it readable by everyone, but only writable by owner
         _.perm_grant(post, "READ");
 
         report "Public post created!";
@@ -138,13 +138,13 @@ walker create_public_post {
 Ideal for team collaboration:
 
 ```jac
-// Grant access to a team
+# Grant access to a team
 walker grant_team_access {
-    has team_members: list[str];  // List of root IDs
-    has access_level: str;        // "READ", "CONNECT", or "WRITE"
+    has team_members: list[str];  # List of root IDs
+    has access_level: str;        # "READ", "CONNECT", or "WRITE"
 
     can grant_access with document entry {
-        // Grant access to each team member
+        # Grant access to each team member
         for member_id in self.team_members {
             _.allow_root(here, NodeAnchor.ref(member_id), self.access_level);
         }
@@ -159,24 +159,24 @@ walker grant_team_access {
 For friend systems or social networks:
 
 ```jac
-// Only friends can see posts
+# Only friends can see posts
 walker check_access {
     has viewer_id: str;
 
     can check with post entry {
-        owner = [<--];
+        owner = [post<--][0];
 
-        // Check if viewer is friends with owner
-        is_friend = false;
-        for friend in owner[-->] {
+        # Check if viewer is friends with owner
+        is_friend = False;
+        for friend in [owner -->] {
             if friend.id == self.viewer_id {
-                is_friend = true;
+                is_friend = True;
                 break;
             }
         }
 
         if is_friend {
-            // Grant access if they're friends
+            # Grant access if they're friends
             _.allow_root(here, NodeAnchor.ref(self.viewer_id), "READ");
             report "Access granted to friend!";
         } else {

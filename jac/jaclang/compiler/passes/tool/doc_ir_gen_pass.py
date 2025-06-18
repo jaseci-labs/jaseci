@@ -119,7 +119,11 @@ class DocIRGenPass(UniPass):
         """Exit import node."""
         parts: list[doc.DocType] = []
         for i in node.kid:
-            if isinstance(i, uni.Token) and i.name == Tok.SEMI:
+            if isinstance(i, uni.Token) and i.name == Tok.COMMA:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
+                parts.append(self.space())
+            elif isinstance(i, uni.Token) and i.name == Tok.SEMI:
                 parts.pop()
                 parts.append(i.gen.doc_ir)
             elif isinstance(i, uni.Token) and i.name == Tok.RBRACE:
@@ -170,6 +174,13 @@ class DocIRGenPass(UniPass):
                 parts.append(self.space())
             elif isinstance(i, uni.Token) and i.name == Tok.LBRACE:
                 parts.append(i.gen.doc_ir)
+            elif isinstance(i, uni.Token) and i.name == Tok.LPAREN:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
+            elif isinstance(i, uni.Token) and i.name == Tok.RPAREN:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
+                parts.append(self.space())
             elif isinstance(node.body, Sequence) and i in node.body:
                 if not in_body:
                     body_parts.append(self.hard_line())
@@ -239,12 +250,14 @@ class DocIRGenPass(UniPass):
         parts: list[doc.DocType] = []
         indent_parts: list[doc.DocType] = []
         in_params = False
+        has_parens = False
         for i in node.kid:
             if isinstance(i, uni.Token) and i.name == Tok.LPAREN and node.params:
                 in_params = True
                 parts.append(i.gen.doc_ir)
             elif isinstance(i, uni.Token) and i.name == Tok.RPAREN and node.params:
                 in_params = False
+                has_parens = True
                 parts.append(
                     self.indent(self.concat([self.tight_line(), *indent_parts]))
                 )
@@ -262,6 +275,12 @@ class DocIRGenPass(UniPass):
                 else:
                     indent_parts.append(i.gen.doc_ir)
             else:
+                if (
+                    isinstance(i, uni.Token)
+                    and i.name == Tok.RETURN_HINT
+                    and not has_parens
+                ):
+                    parts.append(self.space())
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
         parts.pop()
@@ -511,6 +530,8 @@ class DocIRGenPass(UniPass):
             if isinstance(i, uni.Token) and i.name == Tok.LBRACE:
                 parts.append(self.tight_line())
                 parts.append(i.gen.doc_ir)
+            elif isinstance(i, uni.Token) and i.name == Tok.RBRACE:
+                parts.append(i.gen.doc_ir)
             else:
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
@@ -538,6 +559,7 @@ class DocIRGenPass(UniPass):
                 parts.append(i.gen.doc_ir)
             else:
                 parts.append(i.gen.doc_ir)
+        # parts.pop()
         node.gen.doc_ir = self.group(self.concat(parts))
 
     def exit_arch_has(self, node: uni.ArchHas) -> None:
@@ -550,7 +572,10 @@ class DocIRGenPass(UniPass):
             elif isinstance(i, uni.Token) and i.name == Tok.SEMI:
                 parts.pop()
                 parts.append(i.gen.doc_ir)
-                parts.append(self.space())
+            elif isinstance(i, uni.Token) and i.name == Tok.COMMA:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
+                parts.append(self.indent(self.hard_line()))
             else:
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
@@ -1288,6 +1313,21 @@ class DocIRGenPass(UniPass):
                     body_parts.pop()
                     parts.append(self.indent(self.concat(body_parts)))
                     parts.append(self.hard_line())
+            elif isinstance(i, uni.Token) and i.name == Tok.SEMI:
+                parts.pop()
+                parts.append(i.gen.doc_ir)
+                parts.append(self.space())
+            else:
+                parts.append(i.gen.doc_ir)
+                parts.append(self.space())
+        node.gen.doc_ir = self.group(self.concat(parts))
+
+    def exit_sem_def(self, node: uni.SemDef) -> None:
+        """Generate DocIR for semantic definitions."""
+        parts: list[doc.DocType] = []
+        for i in node.kid:
+            if i in node.target:
+                parts.append(i.gen.doc_ir)
             elif isinstance(i, uni.Token) and i.name == Tok.SEMI:
                 parts.pop()
                 parts.append(i.gen.doc_ir)

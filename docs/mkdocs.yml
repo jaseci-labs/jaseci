@@ -11,12 +11,12 @@ nav:
       - LittleX (your own twitter):
         - "learn/examples/littleX/tutorial.md"
         - "learn/examples/littleX/full_guide.md"
-      - RAG-based Conversational Chatbot:
-        - "learn/examples/rag_chatbot/readme.md"
-        - "learn/examples/rag_chatbot/1_setting-up-jac-cloud.md"
-        - "learn/examples/rag_chatbot/2_building-a-rag-chatbot.md"
-        - "learn/examples/rag_chatbot/3_rag-dialogue-routing-chatbot.md"
-      - AI driven Applications:
+      # - RAG-based Conversational Chatbot:
+      #   - "learn/examples/rag_chatbot/readme.md"
+      #   - "learn/examples/rag_chatbot/1_setting-up-jac-cloud.md"
+      #   - "learn/examples/rag_chatbot/2_building-a-rag-chatbot.md"
+      #   - "learn/examples/rag_chatbot/3_rag-dialogue-routing-chatbot.md"
+      - Building Software with AI:
         - "learn/examples/mtp_examples/rpg_game.md"
         - "learn/examples/mtp_examples/fantasy_trading_game.md"
     - Learn Jac Language:
@@ -126,6 +126,7 @@ nav:
 theme:
   logo: "assets/logo.png"
   name: "material"
+  custom_dir: overrides
   palette:
     scheme: "slate"
     primary: "black"
@@ -198,7 +199,7 @@ extra:
   social:
     - icon: fontawesome/brands/mastodon
       link: https://fosstodon.org/@squidfunk
-copyright: Copyright &copy; 2023 - 2024 Jac Hackers Everwhere
+copyright: Copyright &copy; 2025 Jac Hackers Everwhere
 
 extra_javascript:
   - assets/mathjax-config.js

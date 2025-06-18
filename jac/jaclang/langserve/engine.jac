@@ -8,7 +8,6 @@ import from typing { Callable , Optional }
 
 import jaclang.compiler.unitree as uni;
 import from jaclang { JacMachineInterface as Jac }
-import from jaclang.compiler.passes.main { CompilerMode as CMode }
 import from jaclang.compiler.program { JacProgram }
 import from jaclang.compiler.unitree { UniScopeNode }
 import from sem_manager { SemTokManager }

@@ -1,48 +1,55 @@
-### Chapter 10: The Root Node and Persistence
+# Chapter 10: The Root Node and Persistence
 
 One of Jac's most revolutionary features is automatic persistence through the root node. Unlike traditional applications that require explicit database operations, Jac programs naturally persist state between executions. This chapter explores how the root node enables scale-agnostic programming, where the same code works for single-user scripts and multi-user applications.
 
-#### 10.1 Understanding the Root Node
+## 10.1 Understanding the Root Node
 
 ### Global Accessibility via `root` Keyword
 
 The `root` keyword provides global access to a special persistent node that serves as the anchor for your application's data:
 
+<div class="code-block">
+
 ```jac
-// root is available everywhere - no imports needed
-with entry {
-    print(f"Root node: {root}");
-    print(f"Type: {type(root).__name__}");
-
-    // root is always the same node within a user context
-    let id1 = id(root);
-    do_something();
-    let id2 = id(root);
-    assert id1 == id2;  // Always true
-}
-
-can do_something() {
-    // root accessible in any function
-    root ++> node { has data: str = "test"; };
+def do_something() {
+    # root accessible in any function
+    root ++> CustomNode(data = "test");
 }
 
 walker Explorer {
     can explore with entry {
-        // root accessible in walkers
+        # root accessible in walkers
         print(f"Starting from: {root}");
         visit root;
     }
 }
 
 node CustomNode {
-    can check_root with entry {
-        // root accessible in node abilities
+    has data: str ;
+
+    can check_root with root entry {
+        # root accessible in node abilities
         print(f"Root from node: {root}");
     }
 }
+
+# root is available everywhere - no imports needed
+with entry {
+    print(f"Root node: {root}");
+    print(f"Type: {type(root).__name__}");
+
+    # root is always the same node within a user context
+    id1 = id(root);
+    do_something();
+    id2 = id(root);
+    assert id1 == id2;  # Always true
+}
+
 ```
+</div>
 
 The `root` node is special:
+
 - **Always Available**: No declaration or initialization needed
 - **Globally Accessible**: Available in any context without passing
 - **Type-Safe**: It's a real node with all node capabilities
@@ -52,56 +59,61 @@ The `root` node is special:
 
 Everything connected to root persists automatically:
 
+<div class="code-block">
+
 ```jac
-// First run - create data
+node UserProfile {
+    has username: str;
+    has login_count: int;
+}
+# First run - create data
 with entry {
     print("=== First Run - Creating Data ===");
 
-    // Data connected to root persists
-    let user_profile = root ++> node UserProfile {
-        has username: str = "alice";
-        has created_at: str = "2024-01-15";
-        has login_count: int = 1;
-    };
+    # Data connected to root persists
+    user_profile = root ++> UserProfile(username = "alice", login_count = 1);
 
-    print(f"Created profile: {user_profile.username}");
+    print(f"Created profile: {user_profile[0].username}");
 }
 
-// Second run - data still exists!
+# Second run - data still exists!
 with entry {
     print("=== Second Run - Data Persists ===");
 
-    // Find existing data
-    let profiles = root[-->:UserProfile:];
+    # Find existing data
+    profiles = [root --> (`?UserProfile)];
     if profiles {
-        let profile = profiles[0];
+        profile = profiles[0];
         print(f"Found profile: {profile.username}");
         print(f"Previous logins: {profile.login_count}");
 
-        // Update persistent data
+        # Update persistent data
         profile.login_count += 1;
         print(f"Updated logins: {profile.login_count}");
     }
 }
 
-// Third run - updates persist too
+# Third run - updates persist too
 with entry {
     print("=== Third Run - Updates Persist ===");
 
-    let profile = root[-->:UserProfile:][0];
-    print(f"Login count is now: {profile.login_count}");  // Shows 3
+    profile = [root --> (`?UserProfile)][0];
+    profile.login_count += 1;
+    print(f"Login count is now: {profile.login_count}");  # Shows 3
 }
 ```
+</div>
 
 ### Reachability-Based Persistence
 
 Nodes persist based on reachability from root:
 
+<div class="code-block">
+
 ```jac
 node Document {
     has title: str;
     has content: str;
-    has created: str;
 }
 
 node Tag {
@@ -110,30 +122,33 @@ node Tag {
 }
 
 with entry {
-    // Connected to root = persistent
-    let doc1 = root ++> Document(
+    # Connected to root = persistent
+    doc1 = root ++> Document(
         title="My First Document",
-        content="This will persist",
-        created=now()
+        content="This will persist"
     );
 
-    // Connected to persistent node = also persistent
-    let tag1 = doc1 ++> Tag(name="important");
+    # Connected to persistent node = also persistent
+    tag1 = doc1[0] ++> Tag(name="important");
 
-    // NOT connected to root = temporary
-    let doc2 = Document(
+    # NOT connected to root = temporary
+    doc2 = Document(
         title="Temporary Document",
-        content="This will NOT persist",
-        created=now()
+        content="This will NOT persist"
     );
 
-    // Connecting later makes it persistent
-    root ++> doc2;  // Now doc2 will persist
+    # Connecting later makes it persistent
+    root ++> doc2;  # Now doc2 will persist
+    print([root --> ]);
 
-    // Disconnecting makes it non-persistent
-    del root --> doc1;  // doc1 and tag1 no longer persist
+    # Disconnecting makes it non-persistent
+    edge2 = [root -->][1];
+    del edge2;  # doc1 and tag1 no longer persist
+    print([root --> ]);
 }
 ```
+</div>
+
 
 ```mermaid
 graph TD
@@ -157,84 +172,96 @@ graph TD
     style T2 fill:#ffcdd2
 ```
 
-#### 10.2 Building Persistent Applications
+## 10.2 Building Persistent Applications
 
 ### Connecting to Root for Persistence
 
 Here's how to design applications with automatic persistence:
 
+<div class="code-block">
+
 ```jac
-// Application data model
+import from datetime {datetime, timedelta}
+import secrets;
+
+# Application data model
 node AppData {
     has version: str = "1.0.0";
     has settings: dict = {};
-    has initialized: bool = false;
+    has initialized: bool = False;
 }
 
 node User {
-    has id: str;
+    has id: str by postinit;
     has email: str;
-    has preferences: dict = {};
     has created_at: str;
+    has preferences: dict = {};
+
+    def postinit(){
+        self.id = jid(self);
+    }
 }
 
 node Session {
     has token: str;
     has user_id: str;
     has expires_at: str;
-    has active: bool = true;
+    has active: bool = True;
 }
 
-// Initialize or get existing app data
-can get_or_create_app_data() -> AppData {
-    let app_data_nodes = root[-->:AppData:];
+def generate_token(length:int =32) {
+    return secrets.token_hex(length);
+}
+
+
+# Initialize or get existing app data
+def get_or_create_app_data() -> AppData {
+    app_data_nodes = [root -->(`?AppData)];
 
     if not app_data_nodes {
         print("First run - initializing app data");
-        return root ++> AppData(
-            initialized=true,
+        app_data_node = root ++> AppData(
+            initialized=True,
             settings={
                 "theme": "light",
                 "language": "en",
-                "debug": false
+                "debug": False
             }
         );
+        return app_data_node[0];
     }
 
     return app_data_nodes[0];
 }
 
-// User management with persistence
-can create_user(email: str) -> User? {
-    let app = get_or_create_app_data();
+# User management with persistence
+def create_user(email: str) -> User | None {
+    app = get_or_create_app_data();
 
-    // Check if user exists
-    let existing = app[-->:User:].filter(
-        lambda u: User -> bool : u.email == email
-    );
+    # Check if user exists
+    existing = [app -->(`?User)](?email == email);
 
     if existing {
         print(f"User {email} already exists");
-        return None;
+        return existing[0];
     }
 
-    // Create persistent user
-    let user = app ++> User(
-        id=generate_id(),
+    # Create persistent user
+    user = app ++> User(
         email=email,
-        created_at=now()
+        created_at=datetime.now()
     );
 
     print(f"Created user: {email}");
-    return user;
+    print(f"User jid {user[0].id}");
+    return user[0];
 }
 
-// Session management
-can create_session(user: User) -> Session {
-    import:py from datetime import datetime, timedelta;
+# Session management
+def create_session(user: User) -> Session {
 
-    // Sessions connected to user (persistent)
-    let session = user ++> Session(
+    # Sessions connected to user (persistent)
+    session = user ++> Session(
         token=generate_token(),
         user_id=user.id,
         expires_at=(datetime.now() + timedelta(hours=24)).isoformat()
@@ -243,59 +270,62 @@ can create_session(user: User) -> Session {
     return session;
 }
 
-// Example usage
+# Example usage
 with entry {
-    let app = get_or_create_app_data();
+    app = get_or_create_app_data();
     print(f"App version: {app.version}");
 
-    // Create or get user
-    let email = "alice@example.com";
-    let user = create_user(email);
+    # Create or get user
+    email = "alice@example.com";
+    user = create_user(email);
 
     if user {
-        let session = create_session(user);
-        print(f"Session created: {session.token[:8]}...");
+        session = create_session(user);
+        print(f"Session created: {session[0].token[:8]}...");
     } else {
-        // User already exists, find them
-        let user = app[-->:User:].filter(
-            lambda u: User -> bool : u.email == email
-        )[0];
+        # User already exists, find them
+        user = [app -->(`?User)](?email == email);
         print(f"Welcome back, {user.email}!");
         print(f"Account created: {user.created_at}");
     }
 }
 ```
+</div>
 
 ### Managing Ephemeral vs Persistent State
 
 Not everything should persist. Here's how to manage both:
 
+<div class="code-block">
+
 ```jac
 node PersistentCache {
-    has data: dict = {};
     has updated_at: str;
+    has data: dict = {};
 }
 
 node EphemeralCache {
-    has data: dict = {};
     has created_at: str;
+    has data: dict = {};
 }
 
 walker CacheManager {
     has operation: str;
     has key: str;
-    has value: any? = None;
+    has value: any = None;
 
     can manage with entry {
-        // Get or create persistent cache
-        let p_cache = root[-->:PersistentCache:][0] if root[-->:PersistentCache:]
+        # Get or create persistent cache
+        p_cache_list = [root -->(`?PersistentCache)] if [root -->(`?PersistentCache)]
                      else root ++> PersistentCache(updated_at=now());
+        p_cache = p_cache_list[0];
 
-        // Ephemeral cache is not connected to root
-        let e_cache = EphemeralCache(created_at=now());
+        # Ephemeral cache is not connected to root
+        e_cache_list = EphemeralCache(created_at=now());
+        e_cache = e_cache_list[0];
 
         if self.operation == "store" {
-            // Store in both caches
+            # Store in both caches
             p_cache.data[self.key] = self.value;
             p_cache.updated_at = now();
             e_cache.data[self.key] = self.value;
@@ -303,7 +333,7 @@ walker CacheManager {
             print(f"Stored {self.key} in both caches");
 
         } elif self.operation == "get" {
-            // Try ephemeral first (faster)
+            # Try ephemeral first (faster)
             if self.key in e_cache.data {
                 print(f"Found {self.key} in ephemeral cache");
                 report e_cache.data[self.key];
@@ -318,26 +348,26 @@ walker CacheManager {
     }
 }
 
-// Hybrid approach for performance
+# Hybrid approach for performance
 node FastStore {
-    has persistent_data: dict = {};    // Important data
-    has memory_cache: dict = {};      // Temporary cache
-    has stats: dict = {               // Temporary stats
+    has persistent_data: dict = {};    # Important data
+    has memory_cache: dict = {};      # Temporary cache
+    has stats: dict = {               # Temporary stats
         "hits": 0,
         "misses": 0
     };
 
-    can get(key: str) -> any? {
-        // Check memory first
+    def get(key: str) -> any {
+        # Check memory first
         if key in self.memory_cache {
             self.stats["hits"] += 1;
             return self.memory_cache[key];
         }
 
-        // Check persistent
+        # Check persistent
         if key in self.persistent_data {
             self.stats["misses"] += 1;
-            // Populate memory cache
+            # Populate memory cache
             self.memory_cache[key] = self.persistent_data[key];
             return self.persistent_data[key];
         }
@@ -345,7 +375,7 @@ node FastStore {
         return None;
     }
 
-    can store(key: str, value: any, persist: bool = true) {
+    def store(key: str, value: any, persist: bool = True) {
         self.memory_cache[key] = value;
 
         if persist {
@@ -354,37 +384,49 @@ node FastStore {
     }
 }
 ```
+</div>
 
 ### Database-Free Data Persistence
 
 Jac eliminates the need for separate databases in many applications:
 
-```jac
-// Traditional approach requires database setup
-// Python with SQLAlchemy:
-# from sqlalchemy import create_engine, Column, String, Integer
-# from sqlalchemy.ext.declarative import declarative_base
-#
-# Base = declarative_base()
-# engine = create_engine('sqlite:///app.db')
-#
-# class Task(Base):
-#     __tablename__ = 'tasks'
-#     id = Column(Integer, primary_key=True)
-#     title = Column(String)
-#     completed = Column(Boolean)
-#
-# Base.metadata.create_all(engine)
-# session = Session(engine)
-# # ... lots more boilerplate ...
+```python
+# Traditional approach requires database setup
+# Python with SQLAlchemy:
+from sqlalchemy import create_engine, Column, String, Integer
+from sqlalchemy.ext.declarative import declarative_base
 
-// Jac approach - just connect to root!
+Base = declarative_base()
+engine = create_engine('sqlite:///app.db')
+
+class Task(Base):
+    __tablename__ = 'tasks'
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
+    completed = Column(Boolean)
+
+Base.metadata.create_all(engine)
+session = Session(engine)
+# ... lots more boilerplate ...
+```
+
+<div class="code-block">
+
+```jac
+import from datetime { datetime }
+import sys;
+
+# Jac approach - just connect to root!
 node Task {
-    has id: str;
+    has id: str by postinit;
     has title: str;
-    has completed: bool = false;
     has created_at: str;
-    has completed_at: str? = None;
+    has completed: bool = False;
+    has completed_at: str|None = None;
+
+    def postinit() {
+        self.id = jid(self);
+    }
 }
 
 node TaskList {
@@ -392,7 +434,7 @@ node TaskList {
     has created_at: str;
 }
 
-// Complete task management with zero database code
+# Complete task management with zero database code
 walker TaskManager {
     has command: str;
     has title: str = "";
@@ -400,11 +442,11 @@ walker TaskManager {
     has task_id: str = "";
 
     can execute with entry {
-        // Get or create task list
-        let lists = root[-->:TaskList:(?.name == self.list_name):];
-        let task_list = lists[0] if lists else root ++> TaskList(
+        # Get or create task list
+        lists = [root -->(`?TaskList)](?name == self.list_name);
+        task_list = lists[0] if lists else root ++> TaskList(
             name=self.list_name,
-            created_at=now()
+            created_at=datetime.now()
         );
 
         match self.command {
@@ -415,45 +457,44 @@ walker TaskManager {
         }
     }
 
-    can add_task(task_list: TaskList) {
-        let task = task_list ++> Task(
-            id=generate_id(),
+    def add_task(task_list: TaskList) -> None {
+        task = task_list ++> Task(
             title=self.title,
-            created_at=now()
+            created_at=datetime.now()
         );
 
-        print(f"Added task: {task.title} (ID: {task.id[:8]})");
+        print(f"Added task: {task[0].title} (ID: {task[0].id[:8]})");
     }
 
-    can complete_task(task_list: TaskList) {
-        let tasks = task_list[-->:Task:(?.id.startswith(self.task_id)):];
+    def complete_task(task_list: TaskList) {
+        tasks = [task_list-->(`?Task)](id.startswith(self.task_id));
 
         if tasks {
-            let task = tasks[0];
-            task.completed = true;
-            task.completed_at = now();
+            task = tasks[0];
+            task.completed = True;
+            task.completed_at = datetime.now();
             print(f"Completed: {task.title}");
         } else {
             print(f"Task {self.task_id} not found");
         }
     }
 
-    can list_tasks(task_list: TaskList) {
-        let tasks = task_list[-->:Task:];
+    def list_tasks(task_list: TaskList) {
+        tasks = [task_list -->(`?Task)];
         print(f"\n=== {task_list.name} Tasks ===");
 
         for task in tasks {
-            let status = "✓" if task.completed else "○";
+            status = "✓" if task.completed else "○";
             print(f"{status} [{task.id[:8]}] {task.title}");
         }
 
-        let completed = tasks.filter(lambda t: Task -> bool : t.completed);
+        completed = [task_list -->(`?Task)](?completed==True);
         print(f"\nTotal: {len(tasks)} | Completed: {len(completed)}");
     }
 
-    can show_stats(task_list: TaskList) {
-        let tasks = task_list[-->:Task:];
-        let completed = tasks.filter(lambda t: Task -> bool : t.completed);
+    def show_stats(task_list: TaskList) {
+        tasks = [task_list -->(`?Task)];
+        completed = [task_list -->(`?Task)](?completed==True);
 
         print(f"\n=== Task Statistics ===");
         print(f"List: {task_list.name}");
@@ -462,8 +503,7 @@ walker TaskManager {
         print(f"Pending: {len(tasks) - len(completed)}");
 
         if completed {
-            // Calculate average completion time
-            import:py from datetime import datetime;
+            # Calculate average completion time
             total_time = 0;
 
             for task in completed {
@@ -473,14 +513,13 @@ walker TaskManager {
             }
 
             avg_hours = (total_time / len(completed)) / 3600;
-            print(f"Avg completion time: {avg_hours:.1f} hours");
+            print(f"Avg completion time: {avg_hours} hours");
         }
     }
 }
 
-// Usage - all data persists automatically!
+# Usage - all data persists automatically!
 with entry {
-    import:py sys;
 
     if len(sys.argv) < 2 {
         print("Usage: jac run tasks.jac <command> [args]");
@@ -489,11 +528,10 @@ with entry {
         print("  complete <id> - Mark task as complete");
         print("  list - Show all tasks");
         print("  stats - Show statistics");
-        return;
     }
 
-    let command = sys.argv[1];
-    let manager = TaskManager(command=command);
+    command = sys.argv[1];
+    manager = TaskManager(command=command);
 
     if command == "add" and len(sys.argv) > 2 {
         manager.title = " ".join(sys.argv[2:]);
@@ -501,21 +539,26 @@ with entry {
         manager.task_id = sys.argv[2];
     }
 
-    spawn manager on root;
+    root spawn manager;
 }
 ```
+</div>
 
 ### Advanced Persistence Patterns
 
 #### Versioned Data
 
+<div class="code-block">
+
 ```jac
+import from datetime {datetime}
+
 node VersionedDocument {
     has id: str;
     has content: str;
-    has version: int = 1;
     has created_at: str;
     has modified_at: str;
+    has version: int = 1;
 }
 
 node DocumentVersion {
@@ -531,16 +574,16 @@ walker DocumentEditor {
     has user: str;
 
     can edit with entry {
-        // Find document
-        let docs = root[-->:VersionedDocument:(?.id == self.doc_id):];
+        # Find document
+        docs = [root -->(`?VersionedDocument)](id == self.doc_id);
         if not docs {
             print(f"Document {self.doc_id} not found");
-            return;
+            report f"Document {self.doc_id} not found";
         }
 
-        let doc = docs[0];
+        doc = docs[0];
 
-        // Save current version
+        # Save current version
         doc ++> DocumentVersion(
             version=doc.version,
             content=doc.content,
@@ -548,27 +591,27 @@ walker DocumentEditor {
             modified_by=self.user
         );
 
-        // Update document
+        # Update document
         doc.content = self.new_content;
         doc.version += 1;
-        doc.modified_at = now();
+        doc.modified_at = datetime.now();
 
         print(f"Document updated to version {doc.version}");
     }
 
     can get_history with entry {
-        let docs = root[-->:VersionedDocument:(?.id == self.doc_id):];
+        docs = [root -->(`?VersionedDocument)](id == self.doc_id);
         if not docs {
-            return;
+            report f"Document {self.doc_id} not found";
         }
 
-        let doc = docs[0];
-        let versions = doc[-->:DocumentVersion:];
+        doc = docs[0];
+        versions = [doc -->(`?DocumentVersion)];
 
         print(f"\n=== History for {doc.id} ===");
         print(f"Current version: {doc.version}");
 
-        for v in versions.sorted(key=lambda x: x.version, reverse=true) {
+        for v in versions.sorted(key=lambda x:int : x.version, reverse=True) {
             print(f"\nVersion {v.version}:");
             print(f"  Modified: {v.modified_at}");
             print(f"  By: {v.modified_by}");
@@ -577,14 +620,19 @@ walker DocumentEditor {
     }
 }
 ```
+</div>
 
 #### Lazy Loading Pattern
 
+<div class="code-block">
+
 ```jac
+import time;
+
 node DataContainer {
     has id: str;
     has metadata: dict;
-    has data_loaded: bool = false;
+    has data_loaded: bool = False;
 }
 
 node HeavyData {
@@ -598,16 +646,16 @@ walker DataLoader {
 
     can operate with DataContainer entry {
         if self.operation == "get_metadata" {
-            // Just return metadata without loading heavy data
+            # Just return metadata without loading heavy data
             report here.metadata;
 
         } elif self.operation == "load_full" {
             if not here.data_loaded {
-                // Load heavy data only when needed
+                # Load heavy data only when needed
                 self.load_heavy_data(here);
             }
 
-            let heavy = here[-->:HeavyData:][0];
+            heavy = [here -->(`?HeavyData)][0];
             report {
                 "metadata": here.metadata,
                 "data": heavy.payload,
@@ -616,11 +664,10 @@ walker DataLoader {
         }
     }
 
-    can load_heavy_data(container: DataContainer) {
+    def load_heavy_data(container: DataContainer) {
         print(f"Loading heavy data for {container.id}...");
 
-        // Simulate loading large data
-        import:py time;
+        # Simulate loading large data
         time.sleep(1);
 
         container ++> HeavyData(
@@ -628,14 +675,19 @@ walker DataLoader {
             size_mb=7.6
         );
 
-        container.data_loaded = true;
+        container.data_loaded = True;
     }
 }
 ```
+</div>
 
 #### Garbage Collection Pattern
 
+<div class="code-block">
+
 ```jac
+import from datetime { datetime, timedelta }
+
 node CachedItem {
     has key: str;
     has value: any;
@@ -649,7 +701,6 @@ walker CacheCleanup {
     has checked_count: int = 0;
 
     can cleanup with CachedItem entry {
-        import:py from datetime import datetime, timedelta;
 
         self.checked_count += 1;
 
@@ -659,8 +710,8 @@ walker CacheCleanup {
         if age > timedelta(hours=here.ttl_hours) {
             print(f"Removing expired cache item: {here.key}");
 
-            // Disconnect from root to remove persistence
-            for edge in here[<--] {
+            # Disconnect from root to remove persistence
+            for edge in [here <--] {
                 del edge;
             }
 
@@ -677,90 +728,146 @@ walker CacheCleanup {
     }
 }
 
-// Run periodic cleanup
-with entry:cleanup {
+# Run periodic cleanup
+with entry {
     print("Running cache cleanup...");
-    spawn CacheCleanup() on root;
+    root spawn CacheCleanup();
 }
 ```
+</div>
 
 ### Performance Considerations
 
 While persistence is automatic, consider these patterns for optimization:
 
-```jac
-// Indexing pattern for fast lookups
-node IndexedCollection {
-    has name: str;
-    has indices: dict = {};
+```python
+# pythonic_indexing.py - Traditional Python approach with manual indexing
+import json
+from typing import Dict, List, Any, Optional
 
-    can add_item(item: dict) {
-        // Store item
-        let item_node = self ++> node DataItem {
-            has data: dict;
-        }(data=item);
+class DataItem:
+    def __init__(self, data: Dict[str, Any]):
+        self.data = data
 
-        // Update indices
-        for key, value in item.items() {
-            if key not in self.indices {
-                self.indices[key] = {};
-            }
+    def __repr__(self):
+        return f"DataItem({self.data})"
 
-            if value not in self.indices[key] {
-                self.indices[key][value] = [];
-            }
+class IndexedCollection:
+    def __init__(self, name: str):
+        self.name = name
+        self.items: List[DataItem] = []
+        self.indices: Dict[str, Dict[Any, List[DataItem]]] = {}
 
-            self.indices[key][value].append(item_node);
-        }
-    }
+    def add_item(self, item_data: Dict[str, Any]) -> None:
+        """Add item with automatic indexing - Pythonic approach"""
+        # Store item
+        item = DataItem(item_data)
+        self.items.append(item)
 
-    can find_by(key: str, value: any) -> list {
-        if key in self.indices and value in self.indices[key] {
-            return self.indices[key][value];
-        }
-        return [];
-    }
-}
+        # Update indices manually (traditional Python way)
+        for key, value in item_data.items():
+            if key not in self.indices:
+                self.indices[key] = {}
 
-// Pagination pattern for large collections
-walker PaginatedQuery {
-    has page: int = 1;
-    has page_size: int = 20;
-    has filters: dict = {};
-    has total_count: int = 0;
-    has results: list = [];
+            if value not in self.indices[key]:
+                self.indices[key][value] = []
 
-    can query with entry {
-        // Get all matching items
-        let all_items = root[-->:DataItem:];
+            self.indices[key][value].append(item)
 
-        // Apply filters
-        let filtered = all_items;
-        for key, value in self.filters.items() {
-            filtered = filtered.filter(
-                lambda item: DataItem -> bool : item.data.get(key) == value
-            );
-        }
+    def find_by(self, key: str, value: Any) -> List[DataItem]:
+        """Fast O(1) lookup using indices - Pythonic optimization"""
+        if key in self.indices and value in self.indices[key]:
+            return self.indices[key][value]
+        return []
 
-        self.total_count = len(filtered);
+print("=== PYTHONIC APPROACH: Manual Indexing in Python ===")
 
-        // Paginate
-        let start = (self.page - 1) * self.page_size;
-        let end = start + self.page_size;
-        self.results = filtered[start:end];
+# Create indexed collection
+collection = IndexedCollection("python_collection")
 
-        report {
-            "page": self.page,
-            "page_size": self.page_size,
-            "total": self.total_count,
-            "pages": (self.total_count + self.page_size - 1) // self.page_size,
-            "data": self.results
-        };
-    }
-}
+# Add test data
+test_data = [
+    {"name": "Alice", "age": 30, "city": "New York", "department": "Engineering"},
+    {"name": "Bob", "age": 25, "city": "Boston", "department": "Sales"},
+    {"name": "Charlie", "age": 30, "city": "Chicago", "department": "Engineering"},
+    {"name": "Diana", "age": 28, "city": "New York", "department": "Marketing"},
+    {"name": "Eve", "age": 25, "city": "Seattle", "department": "Engineering"}
+]
+
+for item in test_data:
+    collection.add_item(item)
+    print("Data is added")
+
+# Fast index-based queries
+print("--- Fast Index-based Queries (O(1)) ---")
+
+age_30_users = collection.find_by("age", 30)
+print("Users with age 30")
+for user in age_30_users:
+    print(f"  - {user.data['name']} from {user.data['city']}, age {user.data['age']}")
+
+engineers = collection.find_by("department", "Engineering")
+print("Engineers")
+for engineer in engineers:
+    print(f"  - {engineer.data['name']} from {engineer.data['city']}, age {engineer.data['age']}")
 ```
 
-### Summary
+<div class="code-block">
+
+```jac
+# Indexing pattern for fast lookups
+node DataItem {
+    has data: dict;
+}
+
+walker add_item {
+    has data: dict;
+
+    can add with `root entry {
+        root ++> DataItem(self.data);
+        print("Data is added");
+    }
+}
+
+walker finder {
+    has key: str;
+    has value: any;
+
+    can find with `root entry {
+        visit [root --> (`?DataItem)];
+    }
+
+    can reported with DataItem entry {
+        if here.data.get(self.key) == self.value {
+            print(f"  - {here.data['name']} from {here.data['city']}, age {here.data['age']}");
+        }
+    }
+}
+
+# Example usage
+with entry {
+    test_data = [
+        {"name": "Alice", "age": 30, "city": "New York", "department": "Engineering"},
+        {"name": "Bob", "age": 25, "city": "Boston", "department": "Sales"},
+        {"name": "Charlie", "age": 30, "city": "Chicago", "department": "Engineering"},
+        {"name": "Diana", "age": 28, "city": "New York", "department": "Marketing"},
+        {"name": "Eve", "age": 25, "city": "Seattle", "department": "Engineering"}
+    ];
+    for data in test_data {
+        add_item(data) spawn root;
+    }
+
+    print("--- Fast Jac Based Filtering ---");
+    print("Users with age 30");
+    finder("age", 30) spawn root;
+    print("Engineers");
+    finder("department", "Engineering") spawn root;
+
+}
+```
+</div>
+
+## Summary
 
 In this chapter, we've explored Jac's revolutionary persistence model:
 

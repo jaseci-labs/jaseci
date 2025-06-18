@@ -19,6 +19,7 @@ class SymbolType(Enum):
     TEST = "test"  # LSP: Function
     TYPE = "type"  # LSP: TypeParameter
     IMPL = "impl"  # LSP: Interface or Property
+    SEM = "sem"  # LSP: Property
     HAS_VAR = "field"  # LSP: Field
     METHOD = "method"  # LSP: Method
     CONSTRUCTOR = "constructor"  # LSP: Constructor
@@ -290,6 +291,7 @@ class Tokens(str, Enum):
     KW_ROOT = "KW_ROOT"
     KW_POST_INIT = "KW_POST_INIT"
     KW_IMPL = "KW_IMPL"
+    KW_SEM = "KW_SEM"
     TYPE_OP = "TYPE_OP"
     A_PIPE_FWD = "A_PIPE_FWD"
     A_PIPE_BKWD = "A_PIPE_BKWD"

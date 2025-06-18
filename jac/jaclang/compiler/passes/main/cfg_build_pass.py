@@ -10,6 +10,8 @@ The CFG provides a foundation for data flow analysis, optimization, and understa
 The pass also includes functionality to coalesce basic blocks and generate visual representations of the CFG.
 """
 
+from typing import Sequence
+
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.passes import UniPass
 
@@ -65,26 +67,48 @@ class CFGBuildPass(UniPass):
             else:
                 target.bb_in = [source]
 
+    def get_code_block_sequence(
+        self, node: uni.CodeBlockStmt
+    ) -> list[uni.UniCFGNode] | None:
+        """Get code block sequence."""
+        sequence: list[uni.UniCFGNode] = []
+        if hasattr(node, "body") and isinstance(node.body, Sequence):
+            for bbs in node.body:
+                if isinstance(bbs, uni.UniCFGNode):
+                    sequence.append(bbs)
+            if sequence:
+                return sequence
+            else:
+                return None
+        else:
+            return None
+
     def enter_node(self, node: uni.UniNode) -> None:
         """Enter BasicBlockStmt nodes."""
         if isinstance(node, uni.UniCFGNode) and not isinstance(node, uni.Semi):
-            if node.parent and isinstance(node, uni.CodeBlockStmt) and self.first_exit:
-                bb_stmts = [
-                    bbs for bbs in node.parent.kid if isinstance(bbs, uni.UniCFGNode)
-                ]
+            # check if the current node is a CodeBlockStmt in a sequence of statements
+            bb_stmts = self.get_code_block_sequence(node.parent)
+            if (
+                isinstance(node, uni.CodeBlockStmt)
+                and node.parent
+                and (not (isinstance(node, (uni.ElseIf, uni.ElseStmt))))
+                and bb_stmts
+                and self.first_exit
+            ):
+                # bb_stmts = self.get_code_block_sequence(node.parent)
+                # bb_stmts = [
+                #     bbs for bbs in node.parent.body if isinstance(bbs, uni.UniCFGNode)
+                # ]
                 if (
-                    node.parent.parent
-                    and isinstance(node.parent.parent, uni.Archetype)
+                    node.parent
+                    and isinstance(node.parent, uni.Archetype)
                     # and isinstance(node.parent.parent, uni.BasicBlockStmt)
                 ):
-                    parent_obj = node.parent.parent
+                    parent_obj = node.parent
                     if parent_obj:
                         self.link_bbs(parent_obj, node)
                 elif bb_stmts[0] == node:
-                    if (
-                        isinstance(node.parent.parent, uni.ModuleCode)
-                        and self.to_connect
-                    ):
+                    if isinstance(node.parent, uni.ModuleCode) and self.to_connect:
                         for bb in self.to_connect:
                             self.link_bbs(bb, node)
                             self.to_connect.remove(bb)  # if self.to_connect:
@@ -92,7 +116,9 @@ class CFGBuildPass(UniPass):
                         parent_bb = self.get_parent_bb_stmt(node)
                         if parent_bb:
                             self.link_bbs(parent_bb, node)
-                elif self.to_connect:
+                elif self.to_connect and not isinstance(
+                    node, (uni.ElseIf, uni.ElseStmt)
+                ):
                     to_remove = []
                     for parent in self.to_connect:
                         if isinstance(parent, uni.UniCFGNode):

@@ -178,16 +178,20 @@ class SemRegistry:
         found_scope = mod
         scope_stack.pop(-1)
 
-        while len(scope_stack) > 0:
-            found_scope = found_scope.find_scope(name=scope_stack[-1]["scope"])
-            if found_scope and len(scope_stack) == 1:
-                scope_obj = found_scope
-                break
-            scope_stack.pop(-1)
-        if not mod or not scope_obj:
-            return None, None  # Module or scope not found
+        if len(scope_stack) == 0:
+            scope_obj = mod
+            symbol_table = mod
+        else:
+            while len(scope_stack) > 0:
+                found_scope = found_scope.find_scope(name=scope_stack[-1]["scope"])
+                if found_scope and len(scope_stack) == 1:
+                    scope_obj = found_scope
+                    break
+                scope_stack.pop(-1)
 
-        symbol_table = scope_obj.get_parent()
+            if not scope_obj:
+                return None, None  # Module or scope not found
+            symbol_table = scope_obj.get_parent()
 
         if not symbol_table:
             return None, None  # Symbol table not found
@@ -230,7 +234,7 @@ class SemRegistry:
                             node_of_sym,
                             sym.sym_name,
                             node_type,
-                            "",
+                            node_of_sym.semstr,
                         )
                     )
             return sem_scope, sem_info_list
@@ -251,7 +255,7 @@ class SemRegistry:
             else:
                 # If the node has no parent, use the node itself (likely a module)
                 sem_scope = get_sem_scope(node)
-            sem_info = SemInfo(node, name, node_type, "")
+            sem_info = SemInfo(node, name, node_type, node.semstr)
             if _type and sem_info.type != _type:
                 return None, None
             return sem_scope, sem_info
@@ -287,7 +291,9 @@ class SemRegistry:
                             else:
                                 sem_scope = get_sem_scope(decl_node)
                     sem_info_list.append(
-                        SemInfo(node_of_sym, sym.sym_name, node_type, "")
+                        SemInfo(
+                            node_of_sym, sym.sym_name, node_type, node_of_sym.semstr
+                        )
                     )
 
             if sem_info_list:

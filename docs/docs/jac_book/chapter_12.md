@@ -14,13 +14,13 @@ walker GetUserProfile {
     has include_stats: bool = false;
 
     can fetch_profile with entry {
-        // If no user_id provided, get current user's profile
+        # If no user_id provided, get current user's profile
         if not self.user_id {
             self.user_id = get_current_user_id();
         }
 
-        // Find profile
-        let profiles = root[-->:UserProfile:(?.user_id == self.user_id):];
+        # Find profile
+        profiles = root[-->:UserProfile:(?.user_id == self.user_id):];
         if not profiles {
             report {
                 "success": false,
@@ -29,8 +29,8 @@ walker GetUserProfile {
             return;
         }
 
-        let profile = profiles[0];
-        let response = {
+        profile = profiles[0];
+        response = {
             "success": true,
             "data": {
                 "user_id": profile.user_id,
@@ -97,7 +97,7 @@ walker CreatePost {
     has tags: list[str] = [];
     has draft: bool = false;
 
-    // Type validation happens automatically!
+    # Type validation happens automatically!
     can validate_input() -> tuple {
         if not self.title {
             return (false, "Title is required");
@@ -119,8 +119,8 @@ walker CreatePost {
     }
 
     can create with entry {
-        // Validate input
-        let (valid, error) = self.validate_input();
+        # Validate input
+        (valid, error) = self.validate_input();
         if not valid {
             report {
                 "success": false,
@@ -129,25 +129,25 @@ walker CreatePost {
             return;
         }
 
-        // Create post
-        let posts_container = root[-->:PostsContainer:][0]
+        # Create post
+        posts_container = root[-->:PostsContainer:][0]
             if root[-->:PostsContainer:]
             else root ++> PostsContainer();
 
-        let post = posts_container ++> Post(
+        post = posts_container ++> Post(
             id=generate_id(),
             title=self.title,
             content=self.content,
             tags=self.tags,
             draft=self.draft,
             author_id=get_current_user_id(),
-            created_at=now(),
-            updated_at=now()
+            created_at=datetime.now(),
+            updated_at=datetime.now()
         );
 
-        // Add tags as nodes
+        # Add tags as nodes
         for tag_name in self.tags {
-            let tag = get_or_create_tag(tag_name);
+            tag = get_or_create_tag(tag_name);
             post ++>:HasTag:++> tag;
         }
 
@@ -212,28 +212,28 @@ walker SearchPosts {
     has author: str = "";
     has limit: int = 20;
     has offset: int = 0;
-    has sort_by: str = "relevance";  // relevance, date, popularity
+    has sort_by: str = "relevance";  # relevance, date, popularity
 
     has results: list = [];
     has total_count: int = 0;
 
     can search with entry {
-        let all_posts = root[-->:PostsContainer:][0][-->:Post:];
+        all_posts = root[-->:PostsContainer:][0][-->:Post:];
 
-        // Filter posts
-        let filtered = all_posts.filter(lambda p: Post -> bool :
+        # Filter posts
+        filtered = all_posts.filter(lambda p: Post -> bool :
             self.matches_criteria(p)
         );
 
         self.total_count = len(filtered);
 
-        // Sort
-        let sorted_posts = self.sort_posts(filtered);
+        # Sort
+        sorted_posts = self.sort_posts(filtered);
 
-        // Paginate
-        let paginated = sorted_posts[self.offset:self.offset + self.limit];
+        # Paginate
+        paginated = sorted_posts[self.offset:self.offset + self.limit];
 
-        // Transform for response
+        # Transform for response
         for post in paginated {
             self.results.append(self.transform_post(post));
         }
@@ -253,29 +253,29 @@ walker SearchPosts {
     }
 
     can matches_criteria(post: Post) -> bool {
-        // Text search
+        # Text search
         if self.query {
-            let text = (post.title + " " + post.content).lower();
+            text = (post.title + " " + post.content).lower();
             if self.query.lower() not in text {
                 return false;
             }
         }
 
-        // Tag filter
+        # Tag filter
         if self.tags {
-            let post_tags = set(post.tags);
-            let required_tags = set(self.tags);
+            post_tags = set(post.tags);
+            required_tags = set(self.tags);
             if not required_tags.issubset(post_tags) {
                 return false;
             }
         }
 
-        // Author filter
+        # Author filter
         if self.author and post.author_id != self.author {
             return false;
         }
 
-        // Don't show drafts unless author is searching own posts
+        # Don't show drafts unless author is searching own posts
         if post.draft and post.author_id != get_current_user_id() {
             return false;
         }
@@ -288,8 +288,8 @@ walker SearchPosts {
             return posts.sorted(key=lambda p: p.created_at, reverse=true);
         } elif self.sort_by == "popularity" {
             return posts.sorted(key=lambda p: p.view_count, reverse=true);
-        } else {  // relevance
-            // Simple relevance: posts with query in title rank higher
+        } else {  # relevance
+            # Simple relevance: posts with query in title rank higher
             return posts.sorted(
                 key=lambda p: (
                     self.query.lower() in p.title.lower(),
@@ -301,8 +301,8 @@ walker SearchPosts {
     }
 
     can transform_post(post: Post) -> dict {
-        // Get author info
-        let author = root[-->:UserProfile:(?.user_id == post.author_id):][0];
+        # Get author info
+        author = root[-->:UserProfile:(?.user_id == post.author_id):][0];
 
         return {
             "id": post.id,
@@ -327,11 +327,11 @@ walker SearchPosts {
 Implement complete REST APIs using walker patterns:
 
 ```jac
-// Base CRUD walker pattern
+# Base CRUD walker pattern
 walker ResourceManager {
     has resource_type: str;
     has resource_id: str = "";
-    has method: str;  // GET, POST, PUT, DELETE
+    has method: str;  # GET, POST, PUT, DELETE
     has data: dict = {};
 
     can route with entry {
@@ -363,17 +363,17 @@ walker ResourceManager {
     }
 }
 
-// Concrete implementation for Posts
+# Concrete implementation for Posts
 walker PostAPI(ResourceManager) {
     can get_one {
-        let posts = root[-->*:Post:(?.id == self.resource_id):];
+        posts = root[-->*:Post:(?.id == self.resource_id):];
         if not posts {
             report {"success": false, "error": "Post not found"};
             return;
         }
 
-        let post = posts[0];
-        post.view_count += 1;  // Increment views
+        post = posts[0];
+        post.view_count += 1;  # Increment views
 
         report {
             "success": true,
@@ -382,8 +382,8 @@ walker PostAPI(ResourceManager) {
     }
 
     can get_many {
-        let container = root[-->:PostsContainer:][0];
-        let posts = container[-->:Post:].filter(
+        container = root[-->:PostsContainer:][0];
+        posts = container[-->:Post:].filter(
             lambda p: Post -> bool : not p.draft or p.author_id == get_current_user_id()
         );
 
@@ -397,19 +397,19 @@ walker PostAPI(ResourceManager) {
     }
 
     can create {
-        let container = root[-->:PostsContainer:][0]
+        container = root[-->:PostsContainer:][0]
             if root[-->:PostsContainer:]
             else root ++> PostsContainer();
 
-        let post = container ++> Post(
+        post = container ++> Post(
             id=generate_id(),
             title=self.data.get("title", ""),
             content=self.data.get("content", ""),
             tags=self.data.get("tags", []),
             draft=self.data.get("draft", false),
             author_id=get_current_user_id(),
-            created_at=now(),
-            updated_at=now()
+            created_at=datetime.now(),
+            updated_at=datetime.now()
         );
 
         report {
@@ -420,27 +420,27 @@ walker PostAPI(ResourceManager) {
     }
 
     can update {
-        let posts = root[-->*:Post:(?.id == self.resource_id):];
+        posts = root[-->*:Post:(?.id == self.resource_id):];
         if not posts {
             report {"success": false, "error": "Post not found"};
             return;
         }
 
-        let post = posts[0];
+        post = posts[0];
 
-        // Check ownership
+        # Check ownership
         if post.author_id != get_current_user_id() {
             report {"success": false, "error": "Forbidden"};
             return;
         }
 
-        // Update fields
+        # Update fields
         if "title" in self.data { post.title = self.data["title"]; }
         if "content" in self.data { post.content = self.data["content"]; }
         if "tags" in self.data { post.tags = self.data["tags"]; }
         if "draft" in self.data { post.draft = self.data["draft"]; }
 
-        post.updated_at = now();
+        post.updated_at = datetime.now();
 
         report {
             "success": true,
@@ -449,21 +449,21 @@ walker PostAPI(ResourceManager) {
     }
 
     can delete {
-        let posts = root[-->*:Post:(?.id == self.resource_id):];
+        posts = root[-->*:Post:(?.id == self.resource_id):];
         if not posts {
             report {"success": false, "error": "Post not found"};
             return;
         }
 
-        let post = posts[0];
+        post = posts[0];
 
-        // Check ownership
+        # Check ownership
         if post.author_id != get_current_user_id() {
             report {"success": false, "error": "Forbidden"};
             return;
         }
 
-        // Delete post and all its edges
+        # Delete post and all its edges
         for edge in post[<-->] {
             del edge;
         }
@@ -476,7 +476,7 @@ walker PostAPI(ResourceManager) {
     }
 
     can serialize_post(post: Post, detailed: bool = false) -> dict {
-        let data = {
+        data = {
             "id": post.id,
             "title": post.title,
             "tags": post.tags,
@@ -498,12 +498,12 @@ walker PostAPI(ResourceManager) {
     }
 }
 
-// Usage examples:
-// GET /api/posts -> PostAPI(method="GET")
-// GET /api/posts/123 -> PostAPI(method="GET", resource_id="123")
-// POST /api/posts -> PostAPI(method="POST", data={...})
-// PUT /api/posts/123 -> PostAPI(method="PUT", resource_id="123", data={...})
-// DELETE /api/posts/123 -> PostAPI(method="DELETE", resource_id="123")
+# Usage examples:
+# GET /api/posts -> PostAPI(method="GET")
+# GET /api/posts/123 -> PostAPI(method="GET", resource_id="123")
+# POST /api/posts -> PostAPI(method="POST", data={...})
+# PUT /api/posts/123 -> PostAPI(method="PUT", resource_id="123", data={...})
+# DELETE /api/posts/123 -> PostAPI(method="DELETE", resource_id="123")
 ```
 
 ### Event Handlers as Walkers
@@ -527,22 +527,22 @@ walker WebSocketHandler {
     }
 
     can handle_subscribe {
-        let channel = self.payload.get("channel", "");
+        channel = self.payload.get("channel", "");
         if not channel {
             self.send_error("Channel required");
             return;
         }
 
-        // Get or create subscription node
-        let subs = root[-->:Subscriptions:][0]
+        # Get or create subscription node
+        subs = root[-->:Subscriptions:][0]
             if root[-->:Subscriptions:]
             else root ++> Subscriptions();
 
-        // Add subscription
-        let sub = subs ++> Subscription(
+        # Add subscription
+        sub = subs ++> Subscription(
             connection_id=self.connection_id,
             channel=channel,
-            subscribed_at=now()
+            subscribed_at=datetime.now()
         );
 
         self.send_response({
@@ -550,33 +550,33 @@ walker WebSocketHandler {
             "channel": channel
         });
 
-        // Send recent messages
+        # Send recent messages
         self.send_recent_messages(channel);
     }
 
     can handle_message {
-        let channel = self.payload.get("channel", "");
-        let text = self.payload.get("text", "");
+        channel = self.payload.get("channel", "");
+        text = self.payload.get("text", "");
 
         if not channel or not text {
             self.send_error("Channel and text required");
             return;
         }
 
-        // Create message
-        let msg = Message(
+        # Create message
+        msg = Message(
             id=generate_id(),
             channel=channel,
             author_id=get_current_user_id(),
             text=text,
-            created_at=now()
+            created_at=datetime.now()
         );
 
-        // Store in channel
-        let channel_node = get_or_create_channel(channel);
+        # Store in channel
+        channel_node = get_or_create_channel(channel);
         channel_node ++> msg;
 
-        // Broadcast to subscribers
+        # Broadcast to subscribers
         self.broadcast_to_channel(channel, {
             "event": "message",
             "data": {
@@ -589,13 +589,13 @@ walker WebSocketHandler {
     }
 
     can broadcast_to_channel(channel: str, message: dict) {
-        // Find all subscriptions to this channel
-        let all_subs = root[-->:Subscriptions:][0][-->:Subscription:];
-        let channel_subs = all_subs.filter(
+        # Find all subscriptions to this channel
+        all_subs = root[-->:Subscriptions:][0][-->:Subscription:];
+        channel_subs = all_subs.filter(
             lambda s: Subscription -> bool : s.channel == channel
         );
 
-        // Send to each subscriber
+        # Send to each subscriber
         for sub in channel_subs {
             self.send_to_connection(sub.connection_id, message);
         }
@@ -622,10 +622,10 @@ walker WebSocketHandler {
 Build services that maintain state across requests:
 
 ```jac
-// Background job processor
+# Background job processor
 walker JobProcessor {
     has job_id: str = "";
-    has action: str = "process";  // submit, status, cancel
+    has action: str = "process";  # submit, status, cancel
     has job_type: str = "";
     has job_data: dict = {};
 
@@ -639,19 +639,19 @@ walker JobProcessor {
     }
 
     can submit_job {
-        // Get or create job queue
-        let queue = root[-->:JobQueue:][0]
+        # Get or create job queue
+        queue = root[-->:JobQueue:][0]
             if root[-->:JobQueue:]
             else root ++> JobQueue();
 
-        // Create job
-        let job = queue ++> Job(
+        # Create job
+        job = queue ++> Job(
             id=generate_id(),
             type=self.job_type,
             data=self.job_data,
             status="pending",
             submitted_by=get_current_user_id(),
-            submitted_at=now()
+            submitted_at=datetime.now()
         );
 
         report {
@@ -660,47 +660,47 @@ walker JobProcessor {
             "status": "pending"
         };
 
-        // Trigger processing (in real system, this would be async)
+        # Trigger processing (in real system, this would be async)
         spawn JobProcessor(action="process") on root;
     }
 
     can process_next_job {
-        let queue = root[-->:JobQueue:][0];
+        queue = root[-->:JobQueue:][0];
         if not queue { return; }
 
-        // Find next pending job
-        let pending = queue[-->:Job:(?.status == "pending"):];
+        # Find next pending job
+        pending = queue[-->:Job:(?.status == "pending"):];
         if not pending { return; }
 
-        let job = pending[0];
+        job = pending[0];
 
-        // Mark as processing
+        # Mark as processing
         job.status = "processing";
-        job.started_at = now();
+        job.started_at = datetime.now();
 
         try {
-            // Process based on job type
-            let result = match job.type {
+            # Process based on job type
+            result = match job.type {
                 case "image_resize": self.process_image_resize(job);
                 case "report_generation": self.process_report(job);
                 case "data_export": self.process_export(job);
                 case _: {"error": "Unknown job type"};
             };
 
-            // Mark complete
+            # Mark complete
             job.status = "completed";
-            job.completed_at = now();
+            job.completed_at = datetime.now();
             job.result = result;
 
         } except Exception as e {
             job.status = "failed";
             job.error = str(e);
-            job.failed_at = now();
+            job.failed_at = datetime.now();
         }
     }
 
     can process_image_resize(job: Job) -> dict {
-        // Simulate image processing
+        # Simulate image processing
         import:py time;
         time.sleep(2);
 
@@ -712,13 +712,13 @@ walker JobProcessor {
     }
 
     can check_status {
-        let jobs = root[-->*:Job:(?.id == self.job_id):];
+        jobs = root[-->*:Job:(?.id == self.job_id):];
         if not jobs {
             report {"success": false, "error": "Job not found"};
             return;
         }
 
-        let job = jobs[0];
+        job = jobs[0];
 
         report {
             "success": true,
@@ -796,14 +796,14 @@ walker APIRouter {
     }
 }
 
-// Version-specific implementations
+# Version-specific implementations
 walker UserAPIv1 {
     has method: str;
     has params: dict;
 
     can handle with entry {
-        // V1 implementation - basic user info
-        let user = get_current_user_profile();
+        # V1 implementation - basic user info
+        user = get_current_user_profile();
         report {
             "name": user.display_name,
             "created": user.created_at
@@ -813,8 +813,8 @@ walker UserAPIv1 {
 
 walker UserAPIv2(UserAPIv1) {
     can handle with entry {
-        // V2 adds more fields
-        let user = get_current_user_profile();
+        # V2 adds more fields
+        user = get_current_user_profile();
         report {
             "id": user.user_id,
             "name": user.display_name,
@@ -841,7 +841,7 @@ walker AuthMiddleware {
     has next_params: dict = {};
 
     can authenticate with entry {
-        // Verify token
+        # Verify token
         if not self.token {
             report {
                 "success": false,
@@ -851,8 +851,8 @@ walker AuthMiddleware {
             return;
         }
 
-        // Validate token and get user
-        let session = self.validate_token(self.token);
+        # Validate token and get user
+        session = self.validate_token(self.token);
         if not session {
             report {
                 "success": false,
@@ -862,7 +862,7 @@ walker AuthMiddleware {
             return;
         }
 
-        // Check role if required
+        # Check role if required
         if self.required_role {
             if not self.has_role(session.user_id, self.required_role) {
                 report {
@@ -874,25 +874,25 @@ walker AuthMiddleware {
             }
         }
 
-        // Set user context and continue
+        # Set user context and continue
         set_current_user(session.user_id);
 
-        // Spawn next walker
+        # Spawn next walker
         if self.next_walker {
             spawn self.next_walker(**self.next_params) on root;
         }
     }
 
     can validate_token(token: str) -> Session? {
-        // Find active session
-        let sessions = root[-->*:Session:(?.token == token and ?.active):];
+        # Find active session
+        sessions = root[-->*:Session:(?.token == token and ?.active):];
 
         if sessions {
-            let session = sessions[0];
+            session = sessions[0];
 
-            // Check expiration
+            # Check expiration
             import:py from datetime import datetime;
-            if datetime.fromisoformat(session.expires_at) > datetime.now() {
+            if datetime.fromisoformat(session.expires_at) > datetime.datetime.now() {
                 return session;
             }
         }
@@ -901,7 +901,7 @@ walker AuthMiddleware {
     }
 
     can has_role(user_id: str, role: str) -> bool {
-        let profiles = root[-->:UserProfile:(?.user_id == user_id):];
+        profiles = root[-->:UserProfile:(?.user_id == user_id):];
         if profiles {
             return role in profiles[0].roles;
         }
@@ -909,13 +909,13 @@ walker AuthMiddleware {
     }
 }
 
-// Usage: Wrap endpoints with auth
+# Usage: Wrap endpoints with auth
 walker AdminEndpoint {
     has token: str;
     has action: str;
 
     can handle with entry {
-        // First, authenticate with admin role
+        # First, authenticate with admin role
         spawn AuthMiddleware(
             token=self.token,
             required_role="admin",
@@ -929,7 +929,7 @@ walker AdminAction {
     has action: str;
 
     can execute with entry {
-        // This only runs if authentication passed
+        # This only runs if authentication passed
         match self.action {
             case "list_users": self.list_all_users();
             case "system_stats": self.get_system_stats();
@@ -947,38 +947,38 @@ Implement rate limiting at the walker level:
 walker RateLimiter {
     has user_id: str = "";
     has endpoint: str;
-    has limit: int = 100;  // requests per hour
-    has window: int = 3600;  // seconds
+    has limit: int = 100;  # requests per hour
+    has window: int = 3600;  # seconds
 
     can check_limit with entry {
         if not self.user_id {
             self.user_id = get_current_user_id();
         }
 
-        // Get or create rate limit node
-        let limits = root[-->:RateLimits:][0]
+        # Get or create rate limit node
+        limits = root[-->:RateLimits:][0]
             if root[-->:RateLimits:]
             else root ++> RateLimits();
 
-        let key = f"{self.user_id}:{self.endpoint}";
-        let tracker = limits[-->:RequestTracker:(?.key == key):];
+        key = f"{self.user_id}:{self.endpoint}";
+        tracker = limits[-->:RequestTracker:(?.key == key):];
 
         if not tracker {
-            // Create new tracker
+            # Create new tracker
             tracker = [limits ++> RequestTracker(
                 key=key,
                 requests=[]
             )];
         }
 
-        let tracker_node = tracker[0];
+        tracker_node = tracker[0];
 
-        // Clean old requests
+        # Clean old requests
         import:py from datetime import datetime, timedelta;
-        let cutoff = (datetime.now() - timedelta(seconds=self.window)).isoformat();
+        cutoff = (datetime.now() - timedelta(seconds=self.window)).isoformat();
         tracker_node.requests = [r for r in tracker_node.requests if r > cutoff];
 
-        // Check limit
+        # Check limit
         if len(tracker_node.requests) >= self.limit {
             report {
                 "success": false,
@@ -989,10 +989,10 @@ walker RateLimiter {
             return;
         }
 
-        // Add current request
-        tracker_node.requests.append(now());
+        # Add current request
+        tracker_node.requests.append(datetime.now());
 
-        // Continue to actual endpoint
+        # Continue to actual endpoint
         report {
             "success": true,
             "remaining": self.limit - len(tracker_node.requests),
@@ -1015,7 +1015,7 @@ walker RateLimiter {
 
 node RequestTracker {
     has key: str;
-    has requests: list[str];  // timestamps
+    has requests: list[str];  # timestamps
 }
 ```
 
@@ -1025,10 +1025,10 @@ Standardize error handling across APIs:
 
 ```jac
 walker APIBase {
-    has include_stack_trace: bool = false;  // Only in dev
+    has include_stack_trace: bool = false;  # Only in dev
 
     can handle_error(e: Exception, code: int = 500) {
-        let response = {
+        response = {
             "success": false,
             "error": {
                 "message": str(e),
@@ -1046,7 +1046,7 @@ walker APIBase {
     }
 
     can validate_required(data: dict, fields: list[str]) -> tuple {
-        let missing = [f for f in fields if f not in data or not data[f]];
+        missing = [f for f in fields if f not in data or not data[f]];
 
         if missing {
             return (false, f"Missing required fields: {', '.join(missing)}");
@@ -1056,7 +1056,7 @@ walker APIBase {
     }
 
     can success_response(data: any = None, message: str = "") -> dict {
-        let response = {"success": true};
+        response = {"success": true};
 
         if data is not None {
             response["data"] = data;
@@ -1082,7 +1082,7 @@ walker APIBase {
                 "total": total,
                 "page": page,
                 "per_page": per_page,
-                "pages": (total + per_page - 1) // per_page,
+                "pages": (total + per_page - 1) # per_page,
                 "has_prev": page > 1,
                 "has_next": page * per_page < total
             }
@@ -1090,7 +1090,7 @@ walker APIBase {
     }
 }
 
-// Use base class for consistent responses
+# Use base class for consistent responses
 walker UserSearchAPI(APIBase) {
     has query: str = "";
     has page: int = 1;
@@ -1106,18 +1106,18 @@ walker UserSearchAPI(APIBase) {
                 return;
             }
 
-            // Search users
-            let all_users = root[-->:UserProfile:];
-            let matches = all_users.filter(
+            # Search users
+            all_users = root[-->:UserProfile:];
+            matches = all_users.filter(
                 lambda u: UserProfile -> bool :
                     self.query.lower() in u.display_name.lower() or
                     self.query.lower() in u.bio.lower()
             );
 
-            // Paginate
-            let total = len(matches);
-            let start = (self.page - 1) * self.per_page;
-            let items = matches[start:start + self.per_page];
+            # Paginate
+            total = len(matches);
+            start = (self.page - 1) * self.per_page;
+            items = matches[start:start + self.per_page];
 
             report self.paginated_response(
                 items=[self.serialize_user(u) for u in items],
@@ -1146,13 +1146,13 @@ walker UserSearchAPI(APIBase) {
 ##### 1. **Design Resource-Oriented Endpoints**
 
 ```jac
-// Good: Resource-focused
+# Good: Resource-focused
 walker GetUserPosts {
     has user_id: str;
-    has status: str = "published";  // published, draft, all
+    has status: str = "published";  # published, draft, all
 }
 
-// Bad: Action-focused
+# Bad: Action-focused
 walker FetchPostsForUser {
     has user_id: str;
     has include_drafts: bool;
@@ -1162,9 +1162,9 @@ walker FetchPostsForUser {
 ##### 2. **Use Clear Naming Conventions**
 
 ```jac
-// Good: Clear, RESTful naming
+# Good: Clear, RESTful naming
 walker UserAPI {
-    has method: str;  // GET, POST, PUT, DELETE
+    has method: str;  # GET, POST, PUT, DELETE
 }
 
 walker CreateUser {
@@ -1172,7 +1172,7 @@ walker CreateUser {
     has password: str;
 }
 
-// Bad: Unclear or inconsistent
+# Bad: Unclear or inconsistent
 walker DoUserStuff {
     has action: str;
 }
@@ -1210,7 +1210,7 @@ walker UpdateProfile {
 walker SafeAPI {
     can execute with entry {
         try {
-            // Main logic
+            # Main logic
             self.process();
         } except ValidationError as e {
             report {"success": false, "error": str(e), "code": 400};
@@ -1219,7 +1219,7 @@ walker SafeAPI {
         } except NotFoundException as e {
             report {"success": false, "error": str(e), "code": 404};
         } except Exception as e {
-            // Log unexpected errors
+            # Log unexpected errors
             log_error(e);
             report {"success": false, "error": "Internal server error", "code": 500};
         }
@@ -1230,23 +1230,23 @@ walker SafeAPI {
 ##### 5. **Version Your APIs**
 
 ```jac
-// Include version in walker name or property
+# Include version in walker name or property
 walker UserAPIv1 {
-    // V1 implementation
+    # V1 implementation
 }
 
 walker UserAPIv2 {
-    // V2 with breaking changes
+    # V2 with breaking changes
 }
 
-// Or use versioning router
+# Or use versioning router
 walker APIGateway {
     has version: str = "v1";
     has endpoint: str;
 
     can route with entry {
-        let walker_name = f"{self.endpoint}API{self.version}";
-        // Dynamic routing based on version
+        walker_name = f"{self.endpoint}API{self.version}";
+        # Dynamic routing based on version
     }
 }
 ```

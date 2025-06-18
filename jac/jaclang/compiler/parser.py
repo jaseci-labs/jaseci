@@ -546,6 +546,22 @@ class JacParser(Transform[uni.Source, uni.Module]):
             )
             return impl
 
+        def sem_def(self, _: None) -> uni.SemDef:
+            """Grammar rule.
+
+            sem_def: KW_SEM dotted_name EQ multistring SEMI
+            """
+            self.consume_token(Tok.KW_SEM)
+            target = self.extract_from_list(self.consume(list), uni.NameAtom)
+            self.consume_token(Tok.EQ)
+            value = self.consume(uni.String)
+            self.consume_token(Tok.SEMI)
+            return uni.SemDef(
+                target=target,
+                value=value,
+                kid=self.flat_cur_nodes,
+            )
+
         def impl_spec(
             self, _: None
         ) -> Sequence[uni.Expr] | uni.FuncSignature | uni.EventSignature:
@@ -1749,10 +1765,10 @@ class JacParser(Transform[uni.Source, uni.Module]):
             """
             return self._binary_expr_unwind(self.cur_nodes)
 
-        def ds_spawn(self, _: None) -> uni.Expr:
+        def os_spawn(self, _: None) -> uni.Expr:
             """Grammar rule.
 
-            ds_spawn: (ds_spawn KW_SPAWN)? unpack
+            os_spawn: (os_spawn KW_SPAWN)? unpack
             """
             return self._binary_expr_unwind(self.cur_nodes)
 
@@ -1862,15 +1878,16 @@ class JacParser(Transform[uni.Source, uni.Module]):
         def atomic_call(self, _: None) -> uni.FuncCall:
             """Grammar rule.
 
-            atomic_call: atomic_chain LPAREN param_list? (KW_BY atomic_call)? RPAREN
+            atomic_call: atomic_chain LPAREN param_list? by_call? RPAREN by_call?
             """
             genai_call: uni.FuncCall | None = None
             target = self.consume(uni.Expr)
             self.consume_token(Tok.LPAREN)
             params_sn = self.match(list)
-            if self.match_token(Tok.KW_BY):
-                genai_call = self.consume(uni.FuncCall)
+            genai_call = self.match(uni.FuncCall)
             self.consume_token(Tok.RPAREN)
+            body_genai_call = self.match(uni.FuncCall)
+
             return uni.FuncCall(
                 target=target,
                 params=(
@@ -1879,8 +1896,19 @@ class JacParser(Transform[uni.Source, uni.Module]):
                     else []
                 ),
                 genai_call=genai_call,
+                body_genai_call=body_genai_call,
                 kid=self.flat_cur_nodes,
             )
+
+        def by_call(self, _: None) -> uni.FuncCall:
+            """Grammar rule.
+
+            by_call: KW_BY expression
+            """
+            self.consume_token(Tok.KW_BY)
+            if call := self.match(uni.FuncCall):
+                return call
+            raise ValueError("Expected a function call")
 
         def index_slice(self, _: None) -> uni.IndexSlice:
             """Grammar rule.

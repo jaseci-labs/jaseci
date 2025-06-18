@@ -21,6 +21,7 @@ from jaclang.compiler.passes.main import (
     PyJacAstLinkPass,
     PyastBuildPass,
     PyastGenPass,
+    SemDefMatchPass,
     SymTabBuildPass,
     SymTabLinkPass,
     Transform,
@@ -39,6 +40,7 @@ ir_gen_sched = [
     SymTabBuildPass,
     DeclImplMatchPass,
     DefUsePass,
+    SemDefMatchPass,
     CFGBuildPass,
     InheritancePass,
 ]
