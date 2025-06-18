@@ -38,7 +38,7 @@ walker SimpleVisitor {
     # Ability triggered when entering a node
     can visit with entry {
         self.visited_nodes.append(here);  # Add current node to visited list
-        
+
         # Continue traversal to connected nodes
         visit [-->];
     }
