@@ -1,5 +1,8 @@
 """Ollama client for MTLLM."""
 
+import json
+from pydantic import TypeAdapter
+from typing import Any
 from mtllm.llms.base import BaseLLM
 
 REASON_SUFFIX = """
@@ -57,7 +60,13 @@ class Ollama(BaseLLM):
             k: v for k, v in kwargs.items() if k not in ["model_name", "host"]
         }
 
-    def __infer__(self, meaning_in: str | list[dict], **kwargs: dict) -> str:
+
+    def __infer__(
+        self,
+        meaning_in: str | list[dict],
+        output_type: Any | None = None,
+        **kwargs: dict,
+    ) -> str:
         """Infer a response from the input meaning."""
         assert isinstance(
             meaning_in, str
@@ -85,11 +94,33 @@ class Ollama(BaseLLM):
         #     # ----------------------------------
         #     return output
 
+        output_schema = TypeAdapter(output_type).json_schema() if output_type else None
         output = self.client.chat(
             model=model,
             messages=messages,
             options={**self.default_model_params, **model_params},
+            format=output_schema,
         )
+
+        # FIXME:
+        if output_schema:
+            try:
+                output_json_str = output["message"]["content"]
+                output_json = json.loads(output_json_str)
+                output_obj = TypeAdapter(output_type).validate_python(output_json)
+                output_str = str(output_obj)
+
+                # FIXME: I know this is ugly.
+                if "[Tools]" in meaning_in:
+                    return "[Thought] I was thinking something..." + \
+                          f"[Tool Usage] finish_tool(output={output_str})"
+                else:
+                    return "[Output] " + output_str
+
+            except Exception as e:
+                raise ValueError(
+                    f"Output validation failed for model {model} with error: {e}"
+                ) from e
         return output["message"]["content"]
 
     def check_model(self, model_name: str) -> bool:

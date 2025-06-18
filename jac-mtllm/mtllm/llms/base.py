@@ -158,7 +158,12 @@ class BaseLLM:
         self.max_tries = max_tries
         self.type_check = type_check
 
-    def __infer__(self, meaning_in: str | list[dict], **kwargs: dict) -> str:
+    def __infer__(
+        self,
+        meaning_in: str | list[dict],
+        output_type: Any | None = None,
+        **kwargs: dict,
+    ) -> str:
         """Infer a response from the input meaning."""
         raise NotImplementedError
 
