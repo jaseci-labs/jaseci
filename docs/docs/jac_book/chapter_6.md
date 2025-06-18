@@ -13,13 +13,14 @@ Jac introduces powerful pipe operations for elegant data flow programming and se
     === "Jac"
         <div class="code-block">
         ```jac
+        import re;
+
         # Basic pipe operations for data transformation
         def clean_text(text: str) -> str {
             return text.strip().lower();
         }
 
         def remove_extra_spaces(text: str) -> str {
-            import:py re;
             return re.sub(r'\s+', ' ', text);
         }
 
@@ -98,7 +99,7 @@ Jac introduces powerful pipe operations for elegant data flow programming and se
         }
 
         def get_top_words(word_counts: dict[str, int], limit: int = 5) -> list[tuple[str, int]] {
-            sorted_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True);
+            sorted_words = sorted(word_counts.items(), key=lambda x:int: x[1], reverse=True);
             return sorted_words[:limit];
         }
 
@@ -108,12 +109,12 @@ Jac introduces powerful pipe operations for elegant data flow programming and se
             # Processing pipeline with pipes
             top_words = sample_text
                 |> extract_words
-                |> (lambda words: filter_long_words(words, 3))
+                |> (lambda words:list: filter_long_words(words, 3))
                 |> count_words
-                |> (lambda counts: get_top_words(counts, 3));
+                |> (lambda counts:list: get_top_words(counts, 3));
 
             print("Top words:");
-            for word, count in top_words {
+            for (word, count) in top_words {
                 print(f"  {word}: {count}");
             }
         }
