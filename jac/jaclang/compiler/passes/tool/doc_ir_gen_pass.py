@@ -344,9 +344,7 @@ class DocIRGenPass(UniPass):
             node.gen.doc_ir = self.group(self.concat(lhs_parts + rhs_parts))
 
     def is_within(self, node: uni.UniNode, block: uni.UniNode) -> bool:
-        """
-        Checks if a block is strictly within the lines of a block node,
-        """
+        """Check if a block is within the bounds of a node."""
         return (
             block.loc.first_line > node.loc.first_line
             and block.loc.last_line < node.loc.last_line
