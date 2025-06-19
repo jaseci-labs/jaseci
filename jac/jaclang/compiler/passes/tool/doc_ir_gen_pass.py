@@ -351,14 +351,14 @@ class DocIRGenPass(UniPass):
             and block.loc.last_line < node.loc.last_line
         ) and not (isinstance(block, uni.Token) and block.name == Tok.RBRACE)
 
-    def _emit_block_runs(self, node, parts, items):
+    def _emit_block_runs(self, parts: uni.UniNode, items: uni.UniNode) -> None:
         block = []
         for child in items:
             block.append(self.hard_line())
             block.append(child.gen.doc_ir)
         parts.append(self.indent(self.concat(block)))
 
-    def _emit_non_block_runs(self, items, parts):
+    def _emit_non_block_runs(self, items: uni.UniNode, parts: uni.UniNode) -> None:
         for child in items:
             if isinstance(child, uni.Token) and child.name == Tok.RBRACE:
                 parts.append(self.hard_line())
@@ -374,7 +374,7 @@ class DocIRGenPass(UniPass):
         ):
             items = list(group_items)
             if in_body:
-                self._emit_block_runs(node, parts, items)
+                self._emit_block_runs(parts, items)
             else:
                 self._emit_non_block_runs(items, parts)
 
