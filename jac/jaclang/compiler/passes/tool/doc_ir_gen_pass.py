@@ -3,6 +3,7 @@
 This is a pass for generating DocIr for Jac code.
 """
 
+from itertools import groupby
 from typing import List, Optional, Sequence
 
 import jaclang.compiler.passes.tool.doc_ir as doc
@@ -353,33 +354,28 @@ class DocIRGenPass(UniPass):
     def exit_if_stmt(self, node: uni.IfStmt) -> None:
         """Generate DocIR for if statements."""
         parts: list[doc.DocType] = []
-        body_parts: list[doc.DocType] = []
-        in_body = False
 
-        for i in node.kid:
-            is_body_item = self.is_within(node, i)
-            is_closing_brace = isinstance(i, uni.Token) and i.name == Tok.RBRACE
-            if is_body_item and not is_closing_brace:
-                if not in_body:
-                    in_body = True
-                    body_parts.append(self.hard_line())
-                body_parts.append(i.gen.doc_ir)
-                body_parts.append(self.hard_line())
-            elif in_body:
-                in_body = False
-                if body_parts:
-                    body_parts.pop()
-                parts.append(self.indent(self.concat(body_parts)))
-                body_parts = []
-                if is_closing_brace:
-                    parts.append(self.hard_line())
-                parts.append(i.gen.doc_ir)
+        def is_body_item(i: uni.UniNode) -> bool:
+            return self.is_within(node, i) and not (
+                isinstance(i, uni.Token) and i.name == Tok.RBRACE
+            )
+
+        for in_body, items in groupby(node.kid, key=is_body_item):
+            items = list(items)
+
+            if in_body:
+                block = []
+                for child in items:
+                    block.append(self.hard_line())
+                    block.append(child.gen.doc_ir)
+                parts.append(self.indent(self.concat(block)))
 
             else:
-                if isinstance(i, uni.ElseStmt):
+                for child in items:
+                    if isinstance(child, uni.Token) and child.name == Tok.RBRACE:
+                        parts.append(self.hard_line())
+                    parts.append(child.gen.doc_ir)
                     parts.append(self.space())
-                parts.append(i.gen.doc_ir)
-                parts.append(self.space())
 
         node.gen.doc_ir = self.group(self.concat(parts))
 
