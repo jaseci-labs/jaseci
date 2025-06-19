@@ -349,33 +349,34 @@ class DocIRGenPass(UniPass):
         return (
             block.loc.first_line > node.loc.first_line
             and block.loc.last_line < node.loc.last_line
-        )
+        ) and not (isinstance(block, uni.Token) and block.name == Tok.RBRACE)
+
+    def _emit_block_runs(self, node, parts, items):
+        block = []
+        for child in items:
+            block.append(self.hard_line())
+            block.append(child.gen.doc_ir)
+        parts.append(self.indent(self.concat(block)))
+
+    def _emit_non_block_runs(self, items, parts):
+        for child in items:
+            if isinstance(child, uni.Token) and child.name == Tok.RBRACE:
+                parts.append(self.hard_line())
+            parts.append(child.gen.doc_ir)
+            parts.append(self.space())
 
     def exit_if_stmt(self, node: uni.IfStmt) -> None:
         """Generate DocIR for if statements."""
         parts: list[doc.DocType] = []
 
-        def is_body_item(i: uni.UniNode) -> bool:
-            return self.is_within(node, i) and not (
-                isinstance(i, uni.Token) and i.name == Tok.RBRACE
-            )
-
-        for in_body, items in groupby(node.kid, key=is_body_item):
-            items = list(items)
-
+        for in_body, group_items in groupby(
+            node.kid, key=lambda c: self.is_within(node, c)
+        ):
+            items = list(group_items)
             if in_body:
-                block = []
-                for child in items:
-                    block.append(self.hard_line())
-                    block.append(child.gen.doc_ir)
-                parts.append(self.indent(self.concat(block)))
-
+                self._emit_block_runs(node, parts, items)
             else:
-                for child in items:
-                    if isinstance(child, uni.Token) and child.name == Tok.RBRACE:
-                        parts.append(self.hard_line())
-                    parts.append(child.gen.doc_ir)
-                    parts.append(self.space())
+                self._emit_non_block_runs(items, parts)
 
         node.gen.doc_ir = self.group(self.concat(parts))
 
