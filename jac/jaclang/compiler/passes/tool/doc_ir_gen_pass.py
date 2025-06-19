@@ -376,6 +376,8 @@ class DocIRGenPass(UniPass):
                 parts.append(i.gen.doc_ir)
 
             else:
+                if isinstance(i, uni.ElseStmt):
+                    parts.append(self.space())
                 parts.append(i.gen.doc_ir)
                 parts.append(self.space())
 
