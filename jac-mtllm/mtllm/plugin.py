@@ -1,7 +1,8 @@
 """Plugin for Jac's with_llm feature."""
 
 import ast as ast3
-from typing import Any, Callable, Mapping, Optional, Sequence, cast
+import inspect
+from typing import Any, Callable, Mapping, Optional, Sequence, cast, get_type_hints
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.passes.main.pyast_gen_pass import PyastGenPass
@@ -207,6 +208,24 @@ class JacMachine:
         else:
             _tools = []
 
+        # FIXME: I know this is ugly, but the SemInfo, and SemRegistry doesn't
+        # have any meaningful correlation with the actual types or scopes, fixing
+        # that would take longer and require a re-write of the plugin.
+        # I can add the necessary information via parameters but it's both tedious
+        # the parameter list is already long and unwieldy. This would be a fix
+        # till we re-write the mtllm interface.
+        output_type: Any | None = None
+
+        # ['with_llm', '_multicall', '_hookexec', '__call__', 'proxy', 'caller', ... ]
+        #  0            1            2             3           4        5
+        caller_frame = inspect.stack()[5]  # Calling function's stack frame.
+
+        function_name = caller_frame.function
+        frame = caller_frame.frame
+        function = frame.f_locals.get(function_name) or frame.f_globals.get(function_name)  # type: ignore
+        if function:
+            output_type = get_type_hints(function).get('return')
+
         meaning_out = aott_raise(
             model,
             information,  # TODO: Collect and pass information here.
@@ -221,6 +240,7 @@ class JacMachine:
             model_params,
             _globals,
             _locals,
+            output_type=output_type,
         )
         _output = (
             model.resolve_output(

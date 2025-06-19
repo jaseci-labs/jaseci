@@ -4,8 +4,7 @@ AOTT: Automated Operational Type Transformation.
 This has all the necessary functions to perform the AOTT operations.
 """
 
-from typing import Mapping
-
+from typing import Any, Mapping
 from PIL import Image as PILImage
 
 from loguru import logger
@@ -40,6 +39,7 @@ def aott_raise(
     model_params: dict,
     _globals: dict,
     _locals: Mapping,
+    output_type: Any | None = None,
 ) -> str:
     """AOTT Raise uses the information (Meanings types values) provided to generate a prompt(meaning in)."""
     _globals["finish_tool"] = finish_tool
@@ -123,6 +123,7 @@ def aott_raise(
             _locals,
             tool_prompt,
             type_explanations_str,
+            output_type=output_type,
         )
         return f"[Output] {result}"
     meaning_typed_input = (
@@ -150,7 +151,7 @@ def aott_raise(
                 meaning_typed_input, media=media, **model_params  # type: ignore
             )
     else:
-        return model(meaning_typed_input, media=media, **model_params)  # type: ignore
+        return model(meaning_typed_input, media=media, output_type=output_type, **model_params)  # type: ignore
 
 
 def execute_react(
@@ -162,6 +163,7 @@ def execute_react(
     _locals: Mapping,
     tool_prompt: str,
     type_explanations_str: str,
+    output_type: Any | None = None,
 ) -> str:
     """Execute the ReAct method."""
     max_react_iterations = model_params.pop("max_react_iterations", 10)
@@ -208,7 +210,7 @@ def execute_react(
         )
         if "media" not in model_params:
             model_params["media"] = None
-        meaning_out = model(meaning_typed_input, **model_params)  # type: ignore
+        meaning_out = model(meaning_typed_input, output_type=output_type, **model_params)  # type: ignore
         react_output: ReActOutput = model.resolve_react_output(
             meaning_out, _globals, _locals, tool_prompt, type_explanations_str
         )

@@ -1,7 +1,7 @@
 """Fake LLM for testing."""
 
 import json
-from typing import cast
+from typing import Any, cast
 
 from mtllm.llms.base import (
     BaseLLM,
@@ -35,7 +35,12 @@ class FakeLLM(BaseLLM):
         self.default: str | None = cast(str | None, kwargs.get("default"))
         self.print_prompt: bool = cast(bool, kwargs.get("print_prompt", False))
 
-    def __infer__(self, meaning_in: str | list[dict], **kwargs: dict) -> str:
+    def __infer__(
+        self,
+        meaning_in: str | list[dict],
+        output_type: Any | None = None,
+        **kwargs: dict,
+    ) -> str:
         """Infer a response from the input meaning."""
         if self.print_prompt:
             print(meaning_in)

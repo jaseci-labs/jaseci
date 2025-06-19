@@ -1,5 +1,6 @@
 """Anthropic API client for MTLLM."""
 
+from typing import Any
 from mtllm.llms.base import BaseLLM
 
 
@@ -57,7 +58,12 @@ class Anthropic(BaseLLM):
         self.temperature = kwargs.get("temperature", 0.7)
         self.max_tokens = kwargs.get("max_tokens", 1024)
 
-    def __infer__(self, meaning_in: str | list[dict], **kwargs: dict) -> str:
+    def __infer__(
+        self,
+        meaning_in: str | list[dict],
+        output_type: Any | None = None,
+        **kwargs: dict,
+    ) -> str:
         """Infer a response from the input meaning."""
         if not isinstance(meaning_in, str):
             assert self.model_name.startswith(

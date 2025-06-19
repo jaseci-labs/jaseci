@@ -1,11 +1,18 @@
 import from mtllm.llms {Ollama, OpenAI}
 
-glob llm = OpenAI(model_name="gpt-4o");
+# glob llm = OpenAI(model_name="gpt-4o");
+
+glob llm = Ollama(
+    host="http://127.0.0.1:11434",
+    model_name="llama3.2:1b",
+    verbose=True,
+);
 
 glob person_record: dict = {};
 
 obj InventoryItem {
     has name: str;
+    has description: str;
     has price: float;
 }
 
@@ -99,10 +106,10 @@ def chat_with_player(player: Person, npc: Person, chat_history: list[Chat]) -> C
 
 with entry {
 
-    # player = Person(name="Arin", age=24, hobby="swordsmanship", description="A brave and agile warrior skilled with the blade, ready to face any challenge.", money=150.0, inventory=[InventoryItem(name="Iron Sword", description="A sturdy iron sword, balanced and reliable.", price=100.0), InventoryItem(name="Leather Armor", description="Lightweight armor offering decent protection.", price=75.0), InventoryItem(name="Healing Potion", description="Restores health when consumed.", price=25.0)]);
-    # npc = Person(name="Thalor", age=137, hobby="herbalism", description="An ancient elf who loves tending to mystical plants and caring for his pet raven.", money=80.0, inventory=[InventoryItem(name="Herb Pouch", description="A collection of rare herbs for potions.", price=40.0), InventoryItem(name="Raven Feather", description="A magical feather from his pet raven.", price=30.0)]);
-    player = make_player();
-    npc = make_random_npc();
+    player = Person(name="Arin", age=24, hobby="swordsmanship", description="A brave and agile warrior skilled with the blade, ready to face any challenge.", money=150.0, inventory=[InventoryItem(name="Iron Sword", description="A sturdy iron sword, balanced and reliable.", price=100.0), InventoryItem(name="Leather Armor", description="Lightweight armor offering decent protection.", price=75.0), InventoryItem(name="Healing Potion", description="Restores health when consumed.", price=25.0)]);
+    npc = Person(name="Thalor", age=137, hobby="herbalism", description="An ancient elf who loves tending to mystical plants and caring for his pet raven.", money=80.0, inventory=[InventoryItem(name="Herb Pouch", description="A collection of rare herbs for potions.", price=40.0), InventoryItem(name="Raven Feather", description="A magical feather from his pet raven.", price=30.0)]);
+    # player = make_player();
+    # npc = make_random_npc();
 
     person_record[player.name] = player;
     person_record[npc.name] = npc;
