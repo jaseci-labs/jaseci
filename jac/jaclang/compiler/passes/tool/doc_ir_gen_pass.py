@@ -3,6 +3,7 @@
 This is a pass for generating DocIr for Jac code.
 """
 
+from itertools import groupby
 from typing import List, Optional, Sequence
 
 import jaclang.compiler.passes.tool.doc_ir as doc
@@ -343,34 +344,40 @@ class DocIRGenPass(UniPass):
         else:
             node.gen.doc_ir = self.group(self.concat(lhs_parts + rhs_parts))
 
+    def is_within(self, node: uni.UniNode, block: uni.UniNode) -> bool:
+        """Check if a block is within the bounds of a node."""
+        return (
+            block.loc.first_line > node.loc.first_line
+            and block.loc.last_line < node.loc.last_line
+        ) and not (isinstance(block, uni.Token) and block.name == Tok.RBRACE)
+
+    def _emit_block_runs(self, parts: uni.UniNode, items: uni.UniNode) -> None:
+        block = []
+        for child in items:
+            block.append(self.hard_line())
+            block.append(child.gen.doc_ir)
+        parts.append(self.indent(self.concat(block)))
+
+    def _emit_non_block_runs(self, items: uni.UniNode, parts: uni.UniNode) -> None:
+        for child in items:
+            if isinstance(child, uni.Token) and child.name == Tok.RBRACE:
+                parts.append(self.hard_line())
+            parts.append(child.gen.doc_ir)
+            parts.append(self.space())
+
     def exit_if_stmt(self, node: uni.IfStmt) -> None:
         """Generate DocIR for if statements."""
         parts: list[doc.DocType] = []
-        body_parts: list[doc.DocType] = []
-        in_body = False
-        for i in node.kid:
-            if isinstance(node.body, Sequence) and i in node.body:
-                if not in_body:
-                    parts.pop()
-                    body_parts.append(self.hard_line())
-                body_parts.append(i.gen.doc_ir)
-                body_parts.append(self.hard_line())
-                in_body = True
-            elif in_body:
-                in_body = False
-                body_parts.pop()
-                parts.append(self.indent(self.concat(body_parts)))
-                parts.append(self.hard_line())
-                parts.append(i.gen.doc_ir)
-                parts.append(self.space())
-            elif isinstance(i, uni.Token) and i.name == Tok.SEMI:
-                parts.pop()
-                parts.append(i.gen.doc_ir)
-                parts.append(self.space())
+
+        for in_body, group_items in groupby(
+            node.kid, key=lambda c: self.is_within(node, c)
+        ):
+            items = list(group_items)
+            if in_body:
+                self._emit_block_runs(parts, items)
             else:
-                parts.append(i.gen.doc_ir)
-                parts.append(self.space())
-        parts.pop()
+                self._emit_non_block_runs(items, parts)
+
         node.gen.doc_ir = self.group(self.concat(parts))
 
     def exit_else_if(self, node: uni.ElseIf) -> None:
