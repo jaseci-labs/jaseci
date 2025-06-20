@@ -243,8 +243,6 @@ walker DFSWalker(GraphWalker) {
         print(here.name);
         self.visited.append(here.name);
 
-        neighbors = self.get_neighbors(here);
-
         next_nodes = self.get_unvisited_neighbors(here);
         self.stack.extend(next_nodes);
 
@@ -288,6 +286,74 @@ with entry{
     dfs = DFSWalker() spawn root;
 }
 ```
+
+## Practical Walker Patterns
+### The Aggregator Pattern
+
+<div class="code-block">
+
+```jac
+node DataNode {
+    has name: str;
+    has value: float;
+    has category: str;
+
+}
+
+walker DataAggregator {
+    has aggregation: dict = {};
+    has visit_count: int = 0;
+
+    can aggregate with DataNode entry {
+        category = here.category;
+        if category not in self.aggregation {
+            self.aggregation[category] = {
+                "count": 0,
+                "total": 0.0,
+                "items": []
+            };
+        }
+
+        self.aggregation[category]["count"] += 1;
+        self.aggregation[category]["total"] += here.value;
+        self.aggregation[category]["items"].append(here.name);
+
+        self.visit_count += 1;
+        visit [-->];
+    }
+
+    can report_summary with exit {
+        print(f"Aggregation complete. Visited {self.visit_count} nodes.");
+
+        for (category, data) in self.aggregation.items() {
+            avg = data["total"] / data["count"];
+            print(f"{category}:");
+            print(f"  Count: {data['count']}");
+            print(f"  Average: {avg}");
+            print(f"  Total: {data['total']}");
+        }
+    }
+}
+
+with entry {
+    print("Starting data aggregation...");
+
+    # Create a sample data structure with DataNode instances
+    parent = DataNode(name="Root", value=0, category="A");
+    child1 = DataNode(name="Child1", value=10, category="A");
+    child2 = DataNode(name="Child2", value=20, category="B");
+    child3 = DataNode(name="Child3", value=30, category="B");
+
+    parent ++> child1;
+    parent ++> child2;
+    child1 ++> child3;
+
+    # Initialize the DataAggregator walker
+    aggregator = DataAggregator() spawn parent;
+}
+```
+</div>
+
 
 ## Summary
 
