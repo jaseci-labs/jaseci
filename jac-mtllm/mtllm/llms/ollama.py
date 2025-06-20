@@ -1,6 +1,12 @@
 """Ollama client for MTLLM."""
 
-from mtllm.llms.base import BaseLLM
+from mtllm.llms.base import (
+    BaseLLM,
+    CompletionRequest,
+    CompletionResult,
+    Tool,
+    ToolCall,
+)
 
 REASON_SUFFIX = """
 Reason and return the output result(s) only, adhering to the provided Type in the following format
@@ -45,11 +51,42 @@ class Ollama(BaseLLM):
         import ollama  # type: ignore
 
         super().__init__(verbose)
-        self.client = ollama.Client(host=kwargs.get("host", "http://localhost:11434"))
-        self.model_name = kwargs.get("model_name", "phi3")
-        self.default_model_params = {
-            k: v for k, v in kwargs.items() if k not in ["model_name", "host"]
-        }
+        self.client = ollama.Client(host=kwargs.get("host", "http://localhost:11434"))  # type: ignore
+        self.model_name: str = kwargs.pop("model_name", "llama3.2:1b")  # type: ignore
+        self.default_model_params = kwargs
+        if not self.check_model(self.model_name):
+            self.download_model(self.model_name)
+
+    def completion(self, req: CompletionRequest) -> CompletionResult:
+        """Return the completion result."""
+        messages = req.get_msg_list()
+        tools = req.get_tool_list()
+        output = self.client.chat(
+            model=self.model_name,
+            messages=messages,
+            tools=tools,
+            format=req.get_output_schema(),
+            options={**self.default_model_params, **req.params},
+        )
+
+        output_str = output["message"]["content"]
+        output_value = req.parse_response(output_str)
+
+        tool_calls: list[ToolCall] = []
+        for tool_call in output["message"].get("tool_calls", []):
+            if tool := req.get_tool(tool_call["function"]["name"]):
+                args = tool.parse_arguments(tool_call["function"]["arguments"])
+                tool_calls.append(ToolCall(tool=tool, args=args))
+            else:
+                raise RuntimeError(
+                    f"Attempted to call tool: '{tool_call['function']['name']}' which was not present."
+                )
+
+        return CompletionResult(
+            output=output_value,
+            tool_calls=tool_calls,
+        )
+
 
     def __infer__(self, meaning_in: str | list[dict], **kwargs: dict) -> str:
         """Infer a response from the input meaning."""

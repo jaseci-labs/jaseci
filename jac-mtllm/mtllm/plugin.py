@@ -1,7 +1,8 @@
 """Plugin for Jac's with_llm feature."""
 
 import ast as ast3
-from typing import Any, Callable, Mapping, Optional, Sequence, cast
+import inspect
+from typing import Any, Callable, Mapping, Optional, Sequence, cast, get_type_hints
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.passes.main.pyast_gen_pass import PyastGenPass
@@ -13,7 +14,15 @@ from mtllm.aott import (
     aott_raise,
     get_all_type_explanations,
 )
-from mtllm.llms.base import BaseLLM
+from mtllm.llms.base import (
+    SYSTEM_PERSONA,
+    INSTRUCTION_TOOL,
+    BaseLLM,
+    CompletionRequest,
+    Message,
+    MessageRole,
+    Tool as newTool,
+)
 from mtllm.semtable import SemInfo, SemRegistry, SemScope
 from mtllm.types import Information, InputInformation, OutputHint, Tool
 
@@ -131,6 +140,9 @@ def callable_to_tool(tool: Callable, mod_registry: SemRegistry) -> Tool:
     return Tool(tool, tool_info, tool_info.get_children(mod_registry, uni.ParamVar))
 
 
+def llm_call() -> Any:  # noqa: ANN401
+    pass
+
 class JacMachine:
     """Jac's with_llm feature."""
 
@@ -152,6 +164,60 @@ class JacMachine:
         _locals: Mapping,
     ) -> Any:  # noqa: ANN401
         """Jac's with_llm feature."""
+        # FIXME: This is incremental change only did for the ollama models.
+        # Everything else will remain the older way.
+        if getattr(model, "model_name", None) == "llama3.2:1b":
+            # ['with_llm', '_multicall', '_hookexec', '__call__', 'proxy', 'caller', ... ]
+            #  0            1            2             3           4        5
+            caller_frame = inspect.stack()[5]
+            function_name = caller_frame.function
+            frame = caller_frame.frame
+            function = frame.f_locals.get(function_name) or frame.f_globals.get(function_name)  # type: ignore
+            output_type = get_type_hints(function).get('return') if function else None
+
+            tools = [
+                newTool.from_function(func)
+                for func in model_params.pop("tools", [])
+            ]
+
+            semstr = function.__doc__ or function_name
+            messages = [
+                Message(
+                    role=MessageRole.SYSTEM,
+                    content=SYSTEM_PERSONA + (INSTRUCTION_TOOL if tools else ""),
+                ),
+                Message(
+                    role=MessageRole.USER,
+                    content=(
+                        semstr + "\n\n" +
+                        "\n".join([
+                            f"{name} = {value}"
+                            for _, _, name, value in inputs
+                        ])
+                    ),
+                ),
+            ]
+
+            req = CompletionRequest(
+                messages=messages,
+                tools=tools,
+                resp_type=output_type,
+                params={},
+            )
+
+            while True:
+                resp = model.completion(req)
+                if resp.tool_calls:
+                    for tool_call in resp.tool_calls:
+                        if tool_call.is_finish_tool():
+                            return tool_call.get_output()
+                        else:
+                            req.add_message(tool_call())
+                else:
+                    break
+
+            return resp.output
+
         program_head = Jac.program.mod
         _scope = SemScope.get_scope_from_str(scope) or SemScope(
             program_head.main.name, "Module", None

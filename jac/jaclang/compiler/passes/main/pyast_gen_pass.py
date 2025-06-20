@@ -747,6 +747,10 @@ class PyastGenPass(UniPass):
             )
             body = [self.sync(ast3.Pass(), node)]
 
+        ast_returns: ast3.expr = self.sync(ast3.Constant(value=None))
+        if isinstance(node.signature, uni.FuncSignature) and node.signature.return_type:
+            ast_returns = cast(ast3.expr, node.signature.return_type.gen.py_ast[0])
+
         node.gen.py_ast = [
             self.sync(
                 func_type(
@@ -772,7 +776,7 @@ class PyastGenPass(UniPass):
                     ),
                     body=[cast(ast3.stmt, i) for i in body],
                     decorator_list=[cast(ast3.expr, i) for i in decorator_list],
-                    returns=self.sync(ast3.Constant(value=None)),
+                    returns=ast_returns,
                     type_params=[],
                 )
             )

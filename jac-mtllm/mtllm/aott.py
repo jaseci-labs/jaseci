@@ -152,7 +152,6 @@ def aott_raise(
     else:
         return model(meaning_typed_input, media=media, **model_params)  # type: ignore
 
-
 def execute_react(
     model: BaseLLM,
     meaning_typed_input_list: list[dict] | list[str],
