@@ -112,7 +112,7 @@ class JTypeCheckPass(UniPass):
                 if isinstance(class_inst_type.class_type, jtype.JGenericType):
                     base_class = class_inst_type.class_type.base
                 elif isinstance(class_inst_type.class_type, jtype.JTypeVar):
-                    assert False
+                    raise AssertionError()
                 else:
                     base_class = class_inst_type.class_type
                 callable_type = base_class.get_callable_signature()
@@ -354,7 +354,9 @@ class JTypeCheckPass(UniPass):
         else:
             indexes = [self.prog.type_resolver.get_type(node.slices[0].start)]
 
-        is_annotation = node.find_parent_of_type(ast.SubTag)
+        is_annotation = node.find_parent_of_type(
+            ast.SubTag
+        ) or node.find_parent_of_type(ast.FuncSignature)
         if not is_annotation:
             index_method = base_type.get_member("__getitem__")
             if index_method and isinstance(index_method.type, jtype.JFunctionType):
@@ -432,12 +434,12 @@ class JTypeCheckPass(UniPass):
                 if op_function_type.parameters[0].type.can_assign_from(type2):
                     if node.op.name in ["PLUS", "MINUS", "MUL"] and (
                         (
-                            type1.class_type.name == "builtins.float"
-                            and type2.class_type.name == "builtins.int"
+                            type1.class_type.name == "float"
+                            and type2.class_type.name == "int"
                         )
                         or (
-                            type2.class_type.name == "builtins.float"
-                            and type1.class_type.name == "builtins.int"
+                            type2.class_type.name == "float"
+                            and type1.class_type.name == "int"
                         )
                     ):
                         float_type = self.prog.type_registry.get("builtins.float")

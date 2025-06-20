@@ -288,7 +288,9 @@ class JTypeResolver:
         base_type = self.get_type(parent.to_list[-2])
         assert isinstance(base_type, jtype.JClassInstanceType)
 
-        if node.find_parent_of_type(ast.SubTag):
+        if node.find_parent_of_type(ast.SubTag) or node.find_parent_of_type(
+            ast.FuncSignature
+        ):
             generic_vars: list[
                 jtype.JClassType | jtype.JGenericType | jtype.JUnionType
             ] = []
@@ -296,15 +298,9 @@ class JTypeResolver:
                 for v in node.slices[0].start.values:
                     assert isinstance(v, ast.Expr)
                     expression_type = self.get_type(v)
-                    assert isinstance(
-                        expression_type, (jtype.JClassType, jtype.JGenericType)
-                    )
                     generic_vars.append(expression_type)
             else:
                 expression_type = self.get_type(node.slices[0].start)
-                assert isinstance(
-                    expression_type, (jtype.JClassType, jtype.JGenericType)
-                )
                 generic_vars = [expression_type]
             assert isinstance(base_type.class_type, jtype.JClassType)
             return jtype.JClassInstanceType(
@@ -370,7 +366,9 @@ class JTypeResolver:
 
         list_type = self.type_registry.get("builtins.list")
         assert isinstance(list_type, jtype.JClassType)
-        if len(list(union_types.values())) == 1:
+        if len(list(union_types.values())) == 0:
+            return jtype.JClassInstanceType(list_type)
+        elif len(list(union_types.values())) == 1:
             return jtype.JClassInstanceType(
                 jtype.JGenericType(list_type, union_types.values())
             )
