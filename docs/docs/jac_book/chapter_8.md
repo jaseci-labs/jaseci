@@ -173,6 +173,122 @@ walker InventoryChecker {
 }
 ```
 
+## Advance Traversal Patterns
+
+### Breadth-First Search (BFS)
+BFS is a classic algorithm for traversing graphs level by level. It can be implemented using walkers to explore all nodes at the current level before moving deeper. 
+
+First, lets define a simple graph structure and a helper ability to get unvisited neighbors:
+```jac
+node GraphNode {
+    has name: str;
+}
+
+walker GraphWalker{
+    has visited: list = [];
+
+    def get_unvisited_neighbors(_here: node) -> list {
+        return [_here-->](`?GraphNode:name not in self.visited);
+    }
+}
+```
+
+Next we can define the BFS walker that uses that keeps track of the nodes remaining to visit in a queue. It processes nodes in the order they were added, ensuring a breadth-first traversal.
+
+```jac
+import from collections {deque}
+
+walker BFSWalker(GraphWalker) {
+    has q: list = deque();
+
+    can bfs with GraphNode entry {
+        self.q.popleft();
+
+        print(here.name);
+
+        self.visited.append(here.name);
+        next_nodes = self.get_unvisited_neighbors(here);
+        next_nodes = [n for n in next_nodes if n not in self.q];
+        self.q.extend(next_nodes);
+
+
+        if not self.q{
+            print("BFS complete");
+            return;
+        }
+
+
+        visit self.q[0];
+    }
+
+    can enter with `root entry{
+        print("Starting BFS from root node");
+        next_nodes = [-->];
+        self.q.append(next_nodes[0]);
+
+        visit next_nodes;
+    }
+}
+```
+
+### Depth-First Search (DFS)
+DFS explores as far down a branch as possible before backtracking. It can be implemented using a stack to keep track of nodes to visit next.
+
+
+```jac
+walker DFSWalker(GraphWalker) {
+    has stack: list = [];
+
+    can dfs with GraphNode entry {
+        print(here.name);
+        self.visited.append(here.name);
+
+        neighbors = self.get_neighbors(here);
+
+        next_nodes = self.get_unvisited_neighbors(here);
+        self.stack.extend(next_nodes);
+
+        if not self.stack{
+            print("DFS complete");
+            return;
+        }
+
+        visit self.stack.pop();
+    }
+
+    can enter with `root entry{
+        print("Starting DFS from root node");
+        next_nodes = [-->];
+        self.stack.extend(next_nodes);
+
+        visit self.stack.pop();
+    }
+}
+```
+Finally, we can create a simple graph and spawn both walkers to see them in action:
+
+```jac
+with entry{
+    a = GraphNode(name="A");
+    b = GraphNode(name="B");
+    c = GraphNode(name="C");
+    d = GraphNode(name="D");
+    e = GraphNode(name="E");
+
+    a ++> b;
+    a ++> c;
+    b ++> c;
+    b ++> d;
+    c ++> e;
+    d ++> e;
+
+    root ++> a;
+
+    bfs = BFSWalker() spawn root;
+    dfs = DFSWalker() spawn root;
+}
+```
+
 ## Summary
 
 In this chapter, we've mastered walkers—the mobile computational entities that make Object-Spatial Programming unique:
