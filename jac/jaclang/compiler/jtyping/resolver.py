@@ -289,13 +289,23 @@ class JTypeResolver:
         assert isinstance(base_type, jtype.JClassInstanceType)
 
         if node.find_parent_of_type(ast.SubTag):
-            generic_vars = []
+            generic_vars: list[
+                jtype.JClassType | jtype.JGenericType | jtype.JUnionType
+            ] = []
             if isinstance(node.slices[0].start, ast.TupleVal):
                 for v in node.slices[0].start.values:
                     assert isinstance(v, ast.Expr)
-                    generic_vars.append(self.get_type(v))
+                    expression_type = self.get_type(v)
+                    assert isinstance(
+                        expression_type, (jtype.JClassType, jtype.JGenericType)
+                    )
+                    generic_vars.append(expression_type)
             else:
-                generic_vars = [self.get_type(node.slices[0].start)]
+                expression_type = self.get_type(node.slices[0].start)
+                assert isinstance(
+                    expression_type, (jtype.JClassType, jtype.JGenericType)
+                )
+                generic_vars = [expression_type]
             assert isinstance(base_type.class_type, jtype.JClassType)
             return jtype.JClassInstanceType(
                 jtype.JGenericType(base_type.class_type, generic_vars)
@@ -351,6 +361,45 @@ class JTypeResolver:
 
     def _get_binary_expr_expr_type(self, node: ast.BinaryExpr) -> jtype.JType:
         return node.expr_type
+
+    def _get_list_val_expr_type(self, node: ast.ListVal) -> jtype.JType:
+        union_types = {}
+        for val in node.values:
+            val_type = self.get_type(val)
+            union_types[str(val_type)] = val_type
+
+        list_type = self.type_registry.get("builtins.list")
+        assert isinstance(list_type, jtype.JClassType)
+        if len(list(union_types.values())) == 1:
+            return jtype.JClassInstanceType(
+                jtype.JGenericType(list_type, union_types.values())
+            )
+        else:
+            return jtype.JClassInstanceType(
+                jtype.JGenericType(
+                    list_type, [jtype.JUnionType(list(union_types.values()))]
+                )
+            )
+
+    def _get_dict_val_expr_type(self, node: ast.DictVal) -> jtype.JType:
+        key_types: dict[str, jtype.JType] = {}
+        values_types: dict[str, jtype.JType] = {}
+        for kv in node.kv_pairs:
+            k_type = self.get_type(kv.key)
+            key_types[str(k_type)] = k_type
+            v_type = self.get_type(kv.value)
+            values_types[str(v_type)] = v_type
+        if len(list(key_types.values())) == 1:
+            k_type = list(key_types.values())[0]
+        else:
+            k_type = jtype.JUnionType(key_types.values())
+        if len(list(values_types.values())) == 1:
+            v_type = list(values_types.values())[0]
+        else:
+            v_type = jtype.JUnionType(values_types.values())
+        dict_type = self.type_registry.get("builtins.dict")
+        assert isinstance(dict_type, jtype.JClassType)
+        return jtype.JClassInstanceType(jtype.JGenericType(dict_type, [k_type, v_type]))
 
     def set_type(
         self, node: ast.Expr, expr_type: jtype.JType, quite: bool = False

@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 from typing import Optional
 
 from jaclang.compiler.jtyping.types.jclassmember import JClassMember
 from jaclang.compiler.jtyping.types.jclasstype import JClassType
-from jaclang.compiler.jtyping.types.jtypevar import JTypeVar
-from jaclang.compiler.jtyping.types.jtype import JType
-from jaclang.compiler.jtyping.types.jfunctionttype import JFunctionType
 from jaclang.compiler.jtyping.types.jfuncargtype import JFuncArgument
+from jaclang.compiler.jtyping.types.jfunctionttype import JFunctionType
+from jaclang.compiler.jtyping.types.jtype import JType
+from jaclang.compiler.jtyping.types.jtypevar import JTypeVar
+from jaclang.compiler.jtyping.types.juniontype import JUnionType
 
 
 class JGenericType(JType):
@@ -24,7 +27,9 @@ class JGenericType(JType):
         base (JClassType): The resulting class type after type substitution.
     """
 
-    def __init__(self, base: JClassType, args: list[JType]) -> None:
+    def __init__(
+        self, base: JClassType, args: list[JClassType | JGenericType | JUnionType]
+    ) -> None:
         """
         Initialize a new generic type instance.
 
@@ -32,7 +37,7 @@ class JGenericType(JType):
             base (JClassType): The generic class definition (e.g., `List`).
             args (list[JType]): The type arguments to apply (e.g., `[int]`).
         """
-        self.args: list[JType] = args
+        self.args: list[JClassType | JGenericType | JUnionType] = args
         self.base: JClassType = self.__specialize_base(base, args)
         name = f"{base.name}[{', '.join(arg.name for arg in args)}]"
         super().__init__(name=name, module=base.module)
@@ -110,7 +115,9 @@ class JGenericType(JType):
         """
         return self.base.get_members()
 
-    def __specialize_base(self, base: JClassType, args: list[JType]) -> JClassType:
+    def __specialize_base(
+        self, base: JClassType, args: list[JClassType | JGenericType | JUnionType]
+    ) -> JClassType:
         """
         Specialize a generic class type by substituting its type variables with concrete types.
 
@@ -134,16 +141,16 @@ class JGenericType(JType):
         """
         from jaclang.compiler.jtyping.types.jclassinstance import JClassInstanceType
 
-        typevar_map: dict[str, JType] = dict(zip(base.generics_vars.keys(), args))
+        typevar_map: dict[str, JClassType | JGenericType | JUnionType] = dict(
+            zip(base.generics_vars.keys(), args)
+        )
 
         def substitute_typevars(t: JType) -> JType:
             if isinstance(t, JTypeVar):
                 return typevar_map.get(t.name, t)
 
             if isinstance(t, JClassInstanceType) and isinstance(t.class_type, JTypeVar):
-                return JClassInstanceType(
-                    typevar_map.get(t.class_type.name, t.class_type)
-                )
+                return typevar_map.get(t.class_type.name, t.class_type)
 
             if isinstance(t, JFunctionType):
                 new_params = [
@@ -158,7 +165,11 @@ class JGenericType(JType):
                 return JFunctionType(new_params, new_ret)
 
             if isinstance(t, JGenericType):
-                new_args = [substitute_typevars(a) for a in t.args]
+                new_args: list[JGenericType | JClassType | JUnionType] = []
+                for a in t.args:
+                    a_new = substitute_typevars(a)
+                    assert isinstance(a_new, (JGenericType, JClassType, JUnionType))
+                    new_args.append(a_new)
                 return JGenericType(t.base, new_args)
 
             return t
