@@ -69,7 +69,7 @@ nav:
     - Chapter 10 - Automatic Persistence: "jac_book/chapter_10.md"
     - Chapter 11 - Multi-User Support: "jac_book/chapter_11.md"
     - Chapter 12 - Distributed Systems with Jac: "jac_book/chapter_12.md"
-    - Chapter 13 - Asynchronous Operations: "jac_book/chapter_13.md"
+    # - Chapter 13 - Asynchronous Operations: "jac_book/chapter_13.md"
     - Chapter 14 - Advanced Walker Patterns: "jac_book/chapter_14.md"
     - Chapter 15 - Python Interoperability: "jac_book/chapter_15.md"
     - Chapter 16 - Type System Deep Dive: "jac_book/chapter_16.md"
