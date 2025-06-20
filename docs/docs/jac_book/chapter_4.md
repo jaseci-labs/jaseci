@@ -1,632 +1,902 @@
-### Chapter 4: Data Structures and Collections
+# Chapter 4: Functions and Decorators
 
-Jac's data structures will feel familiar to Python developers, but they come with enhanced type safety, powerful new operations, and unique features like keyword tuples and pipe operators. This chapter explores how to work with collections effectively in Jac.
+Jac provides a powerful function system with mandatory type annotations, decorators, and first-class support for functional programming patterns. This chapter builds a math functions library with timing capabilities to demonstrate these features.
 
-#### 4.1 Collections Comparison
+!!! topic "Function Philosophy"
+    In Jac, functions are first-class citizens with mandatory typing that prevents runtime errors and improves code clarity.
 
-### Lists, Tuples, Dicts, Sets - Familiar but Enhanced
+## Function Definitions with Type Safety
 
-Let's start by comparing Python and Jac collections:
+### Basic Math Functions
 
-```python
-# Python - Dynamic typing, flexible but potentially error-prone
-numbers = [1, 2, 3]
-numbers.append("four")  # Allowed, but might cause issues later
-
-person = ("Alice", 30)  # Simple tuple
-scores = {"Alice": 95, "Bob": 87}
-tags = {"python", "programming", "tutorial"}
-```
-
-```jac
-# Jac - Static typing, safe and predictable
-let numbers: list[int] = [1, 2, 3];
-with entry {
-    numbers.append("four");
-    print(numbers);
-}
-
-let person: tuple = ("Alice", 30);  # Positional tupl
-let scores: dict[str, int] = {"Alice": 95, "Bob": 87};
-let tags: set[str] = {"python", "programming", "tutorial"};
-```
-
-### Working with Lists
-
-Lists in Jac maintain order and allow duplicates, just like Python, but with type safety:
-
-```jac
-# List creation and basic operations
-let fruits: list[str] = ["apple", "banana", "cherry"];
-let numbers: list[int] = [3, 1, 4, 1, 5, 9, 2, 6];
-
-let unique_sorted: list[int] = sorted(set(numbers));  # Remove duplicates and sort → [1, 2, 3, 4, 5, 6, 9]
-let subset: list[int] = numbers[2:5];  # Slice → [4, 1, 5]
-let reversed: list[int] = numbers[::-1];  # Reverse the list → [6, 2, 9, 5, 1, 4, 1, 3]
-
-with entry {
-    fruits.append("date");
-    fruits.insert(1, "blueberry");
-
-    print("fruits after update: ", fruits);
-    # ['apple', 'blueberry', 'banana', 'cherry', 'date']
-
-    numbers.sort();
-    print("numbers sorted: ", numbers);
-    # [1, 1, 2, 3, 4, 5, 6, 9]
-
-    print("unique sorted numbers: ", unique_sorted);
-    # [1, 2, 3, 4, 5, 6, 9]
-
-    print("subset [2:5]: ", subset);
-    # [4, 1, 5]
-
-    print("reversed numbers: ", reversed);
-    # [6, 2, 9, 5, 1, 4, 1, 3]
-}
-
-
-# Multi-dimensional lists
-let matrix: list[list[int]] = [
-    [1, 2, 3],
-    [4, 5, 6],
-    [7, 8, 9]
-];
-
-with entry {
-    print("matrix:");
-    for row in matrix {
-        print(row);
-    }
-
-    print("element at [0][1]:", matrix[0][1]);  # 2
-    print("element at [2][2]:", matrix[2][2]);  # 9
-}
-```
-
-### Advanced List Operations
-
-```jac
-# List comprehensions with filtering
-let numbers: list[int] = range(1, 21);
-let evens: list[int] = [n for n in numbers if n % 2 == 0];
-let squares: list[int] = [n * n for n in numbers];
-let even_squares: list[int] = [n * n for n in numbers if n % 2 == 0];
-
-# Nested comprehensions
-let coords: list[tuple] = [(x, y) for x in range(3) for y in range(3)];
-# [(0,0), (0,1), (0,2), (1,0), (1,1), (1,2), (2,0), (2,1), (2,2)]
-
-# Functional-style operations
-let doubled: list[int] = [x * 2 for x in numbers];
-let filtered: list[int] = [x for x in numbers if x > 10];
-let total: int = 0;
-
-with entry {
-    for x in numbers {
-    total += x;
-    }
-}
-
-# List flattening
-let nested: list[list[int]] = [[1, 2], [3, 4], [5, 6]];
-let flat: list[int] = [item for sublist in nested for item in sublist];
-
-with entry {
-    print("numbers:", list(numbers));
-    print("evens:", evens);
-    print("squares:", squares);
-    print("even_squares:", even_squares);
-}
-
-with entry {
-    print("coordinates:", coords);
-}
-
-with entry {
-    print("doubled:", doubled);
-    print("filtered (>10):", filtered);
-    print("total sum:", total);
-}
-
-with entry {
-    print("nested:", nested);
-    print("flat:", flat);
-}
-```
-
-### Dictionaries with Type Safety
-
-```jac
-# Dictionary creation and manipulation
-glob user_scores: dict[str, int] = {
-    "Alice": 95,
-    "Bob": 87,
-    "Charlie": 92
-};
-
-# Safe access patterns
-glob alice_score: int = user_scores.get("Alice", 0);
-glob david_score: int = user_scores.get("David", 0);
-
-# Dictionary comprehensions
-glob squared_scores: dict[str, int] = {};
-
-with entry {
-    for (name, score) in user_scores.items() {
-        squared_scores[name] = score * score;
-    }
-}
-
-# Nested dictionaries
-glob user_profiles: dict[str, dict[str, any]] = {
-    "alice": {
-        "email": "alice@example.com",
-        "age": 30,
-        "scores": [95, 87, 91]
-    },
-    "bob": {
-        "email": "bob@example.com",
-        "age": 25,
-        "scores": [87, 89, 85]
-    }
-};
-
-# Merging dictionaries
-glob defaults: dict[str, any] = {"status": "active", "role": "user"};
-glob user_data: dict[str, any] = {"name": "Alice", "role": "admin"};
-glob merged: dict[str, any] = {**defaults, **user_data};
-```
-
-### Sets for Unique Collections
-
-```jac
-# Set operations
-let skills_a: set[str] = {"Python", "Jac", "SQL", "Git"};
-let skills_b: set[str] = {"Jac", "JavaScript", "Git", "Docker"};
-
-# Set operations
-let common: set[str] = skills_a & skills_b;  # {"Jac", "Git"}
-let all_skills: set[str] = skills_a | skills_b;  # Union
-let unique_to_a: set[str] = skills_a - skills_b;  # {"Python", "SQL"}
-let symmetric_diff: set[str] = skills_a ^ skills_b;  # Unique to either
-
-# Set comprehensions
-let numbers: set[int] = {x * x for x in range(10) if x % 2 == 0};
-# {0, 4, 16, 36, 64}
-
-# Frozen sets (immutable)
-let constants: frozenset[str] = frozenset(["PI", "E", "PHI"]);
-```
-
-### Special Comprehensions and Filter Syntax
-
-Jac introduces powerful filter comprehensions with null-safety:
-
-```jac
-# Special filter syntax for graph operations
-node User {
-    has name: str;
-    has age: int;
-    has active: bool;
-    has visited: bool = False;  # Default value
-    has timestamp: datetime = now();  # Default to current time
-}
-
-
-# Standard filter (may fail on null)
-# let active_users = [user for user in users if user.is_active];
-
-# # Null-safe filter with ? operator
-# let active_users_safe = [user for user in users if user.is_active];
-
-with entry {
-    root ++> User(name= "Alice", age= 30, active= True);
-    root ++> User(name= "Bob", age= 17, active= False);
-    root ++> User(name= "Charlie", age= 25, active= True);
-    root ++> User(name= "Diana", age= 22, active= False);
-    root ++> User(name= "Eve", age= 19, active= True);
-    root ++> User(name= "Frank", age= 40, active= True);
-    root ++> User(name= "Grace", age= 15, active= False);
-    root ++> User(name= "Hank", age= 35, active= True);
-    root ++> User(name= "Ivy", age= 28, active= False);
-    root ++> User(name= "Jack", age= 20, active= True);
-}
-
-walker FindActiveAdults {
-    can search with entry {
-        # Filter nodes with special syntax
-        adults = [-->(?age >= 18)];  # Null-safe property access
-        active_adults = [-->(?age >= 18, active == True)];
-        print("Active adults:", active_adults);
-        # Type-specific filtering
-        user_nodes = [-->(`?User)];  # Only User nodes
-        print("User nodes:", user_nodes);
-        typed_adults = [-->(`?User)](?age >= 18);  # Typed + filtered , age >= 18
-        print("Typed adults:", typed_adults);
-    }
-}
-
-# Assignment comprehensions - unique to Jac!
-walker UpdateNodes {
-    can update with entry {
-        # Update all connected nodes
-        [-->](=visited: True, =timestamp: now());
-
-        # Conditional update
-        [-->(?score < 50)](=needs_review: true);
-
-        # Update specific types
-        [-->(`User: ?age >= 18)](=adult: true);
-    }
-}
-
-
-with entry {
-    root spawn FindActiveAdults();
-}
-```
-
-#### 4.2 Pipe Operators
-
-### Forward Pipe (`|>`)
-
-Pipe operators transform nested function calls into readable pipelines:
-
-```jac
-# Define the data and functions first
-glob data: str = "hello world";
-
-def parse(text: str) -> str {
-    return f"parsed({text})";
-}
-
-def validate(text: str) -> str {
-    return f"validated({text})";
-}
-
-def transform(text: str) -> str {
-    return f"transformed({text})";
-}
-
-def process(text: str) -> str {
-    return f"processed({text})";
-}
-
-with entry {
-    # Traditional nested approach (hard to read)
-    let result1 = process(transform(validate(parse(data))));
-    print("Nested approach:", result1);
-
-    # With forward pipe (left-to-right flow)
-    let result2 = data
-        |> parse
-        |> validate
-        |> transform
-        |> process;
-    print("Forward pipe:", result2);
-}
-```
-
-### Real-World Pipeline Examples
-
-```jac
-import string;
-
-# Data processing pipeline
-def clean_text(text: str) -> str {
-    return text.strip().lower();
-}
-
-def remove_punctuation(text: str) -> str {
-    return "".join([c for c in text if c not in string.punctuation]);
-}
-
-def tokenize(text: str) -> list[str] {
-    return text.split();
-}
-
-def remove_stopwords(words: list[str]) -> list[str] {
-    let stopwords = {"the", "a", "an", "and", "or", "but", "in", "on", "at"};
-    return [w for w in words if w not in stopwords];
-}
-
-walker TextProcessingPipeline {
-    has text: str;
-
-    can clean_text with entry {
-        self.text = clean_text(self.text);
-        print("After cleaning:", self.text);
-    }
-    can remove_punctuation with entry {
-        self.text = remove_punctuation(self.text);
-        print("After removing punctuation:", self.text);
-    }
-    can tokenize with entry {
-        self.tokens = tokenize(self.text);
-        print("After tokenizing:", self.tokens);
-    }
-    can remove_stopwords with entry {
-        self.tokens = remove_stopwords(self.tokens);
-        print("After removing stopwords:", self.tokens);
-    }
-}
-
-# Using the pipeline
-with entry {
-    raw_text = "  The Quick Brown Fox Jumps Over the Lazy Dog!  ";
-    text_processor = root spawn TextProcessingPipeline(text=raw_text);
-    processed = text_processor.tokens;
-    print("Raw text:", raw_text);
-    print("Processed tokens:", processed);  # ["quick", "brown", "fox", "jumps", "over", "lazy", "dog"]
-}
-```
-
-### Atomic Pipes (`:>` and `<:`)
-
-Atomic pipes have higher precedence for tighter binding:
-
-```jac
-# Standard pipe vs atomic pipe precedence
-let data = [1, 2, 3, 4, 5];
-
-# Standard pipe (lower precedence)
-let result1 = data |> sum |> str;  # "15"
-
-# Atomic pipe (higher precedence)
-let result2 = data :> filter(lambda x: int -> bool : x > 2) :> sum;  # 12
-
-# Mixing operators (atomic binds tighter)
-let result3 = data
-    :> filter(lambda x: int -> bool : x % 2 == 0)  # [2, 4]
-    |> sum  # 6
-    |> lambda x: int -> str : f"Sum: {x}";  # "Sum: 6"
-```
-
-### Replacing Nested Function Calls
-
-```jac
-# Complex nested calls (traditional)
-can traditional_approach(users: list[User]) -> dict[str, list[str]] {
-    return group_by(
-        map(
-            lambda u: User -> tuple : (u.department, u.name),
-            filter(
-                lambda u: User -> bool : u.active and u.age >= 18,
-                sort(users, key=lambda u: User -> str : u.name)
-            )
-        ),
-        key=lambda t: tuple -> str : t[0]
-    );
-}
-
-# Same logic with pipes (much clearer!)
-can piped_approach(users: list[User]) -> dict[str, list[str]] {
-    return users
-        |> sort(key=lambda u: User -> str : u.name)
-        |> filter(lambda u: User -> bool : u.active and u.age >= 18)
-        |> map(lambda u: User -> tuple : (u.department, u.name))
-        |> group_by(key=lambda t: tuple -> str : t[0]);
-}
-```
-
-### Integration with Method Chaining
-
-```jac
-# Combining pipes with method chaining
-obj DataProcessor {
-    has data: list[dict[str, any]];
-
-    can filter_by(key: str, value: any) -> DataProcessor {
-        self.data = [d for d in self.data if d.get(key) == value];
-        return self;
-    }
-
-    can sort_by(key: str) -> DataProcessor {
-        self.data.sort(key=lambda d: dict -> any : d.get(key, 0));
-        return self;
-    }
-
-    can transform(func: callable) -> DataProcessor {
-        self.data = [func(d) for d in self.data];
-        return self;
-    }
-
-    can get_results() -> list[dict[str, any]] {
-        return self.data;
-    }
-}
-
-# Using pipes with methods
-let processor = DataProcessor(data=raw_data);
-let results = processor
-    |> .filter_by("status", "active")
-    |> .sort_by("priority")
-    |> .transform(lambda d: dict -> dict : {**d, "processed": true})
-    |> .get_results();
-
-# Or with method chaining directly
-let results2 = processor
-    .filter_by("status", "active")
-    .sort_by("priority")
-    .transform(lambda d: dict -> dict : {**d, "processed": true})
-    .get_results();
-```
-
-### Advanced Pipeline Patterns
-
-```jac
-# Error handling in pipelines
-can safe_pipeline[T, R](
-    data: T,
-    *funcs: list[callable]
-) -> R? {
-    try {
-        let result: any = data;
-        for func in funcs {
-            result = func(result);
+!!! example "Basic Function Definitions"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # Basic math functions with mandatory types
+        def add(a: float, b: float) -> float {
+            return a + b;
         }
-        return result;
-    } except Exception as e {
-        print(f"Pipeline failed: {e}");
-        return None;
-    }
-}
 
-# Conditional pipelines
-can process_user_data(user: User) -> dict {
-    let base_pipeline = user
-        |> validate_user
-        |> normalize_data;
+        def multiply(a: float, b: float) -> float {
+            return a * b;
+        }
 
-    # Conditional continuation
-    if user.age >= 18 {
-        return base_pipeline
-            |> apply_adult_rules
-            |> generate_full_profile;
-    } else {
-        return base_pipeline
-            |> apply_minor_rules
-            |> generate_restricted_profile;
-    }
-}
+        def power(base: float, exponent: float) -> float {
+            return base ** exponent;
+        }
 
-# Parallel pipelines
-can parallel_process(items: list[any]) -> list[any] {
-    import:py from concurrent.futures { ThreadPoolExecutor }
+        # Function with error handling
+        def safe_divide(a: float, b: float) -> float | None {
+            if b == 0.0 {
+                return None;
+            }
+            return a / b;
+        }
 
-    can process_item(item: any) -> any {
-        return item
-            |> validate
-            |> transform
-            |> enrich;
-    }
+        with entry {
+            print(f"5 + 3 = {add(5.0, 3.0)}");
+            print(f"4 * 6 = {multiply(4.0, 6.0)}");
+            print(f"2^3 = {power(2.0, 3.0)}");
+            print(f"10 / 2 = {safe_divide(10.0, 2.0)}");
+            print(f"10 / 0 = {safe_divide(10.0, 0.0)}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        from typing import Optional
 
-    with ThreadPoolExecutor() as executor {
-        return list(executor.map(process_item, items));
-    }
-}
-```
+        # Python functions with optional type hints
+        def add(a: float, b: float) -> float:
+            return a + b
 
-### Collection Pipeline Patterns
+        def multiply(a: float, b: float) -> float:
+            return a * b
 
-```jac
-# Common collection transformations
-let numbers: list[int] = range(1, 101);
+        def power(base: float, exponent: float) -> float:
+            return base ** exponent
 
-# Statistical pipeline
-let stats = numbers
-    |> filter(lambda n: int -> bool : n % 2 == 0)  # Even numbers
-    |> map(lambda n: int -> float : n ** 0.5)      # Square roots
-    |> sorted                                        # Sort
-    |> lambda lst: list -> tuple : (                # Create stats tuple
-        min=lst[0],
-        max=lst[-1],
-        median=lst[len(lst)#2],
-        mean=sum(lst)/len(lst)
-    );
+        # Function with error handling
+        def safe_divide(a: float, b: float) -> Optional[float]:
+            if b == 0.0:
+                return None
+            return a / b
 
-# Text processing pipeline
-let words: list[str] = ["hello", "WORLD", "jAc", "PYTHON"];
-let processed = words
-    |> map(str.lower)                               # Lowercase all
-    |> filter(lambda w: str -> bool : len(w) > 3)  # Keep long words
-    |> sorted                                        # Alphabetize
-    |> lambda lst: list -> dict : {                 # Group by first letter
-        letter: [w for w in lst if w[0] == letter]
-        for letter in set(w[0] for w in lst)
-    };
-```
+        if __name__ == "__main__":
+            print(f"5 + 3 = {add(5.0, 3.0)}")
+            print(f"4 * 6 = {multiply(4.0, 6.0)}")
+            print(f"2^3 = {power(2.0, 3.0)}")
+            print(f"10 / 2 = {safe_divide(10.0, 2.0)}")
+            print(f"10 / 0 = {safe_divide(10.0, 0.0)}")
+        ```
 
-### Pipes in Object-Spatial Context
+### Advanced Math Functions
 
-```jac
-# Using pipes with graph operations
-walker DataAggregator {
-    has process_node: callable;
-    has combine_results: callable;
+!!! topic "Complex Calculations"
+    Build more sophisticated mathematical operations using Jac's type system.
 
-    can aggregate with entry {
-        let results = [-->]                          # Get connected nodes
-            |> filter(lambda n: node -> bool : n.has_data())
-            |> map(self.process_node)                # Process each node
-            |> filter(lambda r: any -> bool : r is not None)
-            |> self.combine_results;                 # Combine all results
+!!! example "Advanced Mathematical Operations"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # More complex math functions
+        def factorial(n: int) -> int {
+            if n <= 1 {
+                return 1;
+            }
+            return n * factorial(n - 1);
+        }
 
-        report results;
-    }
-}
+        def fibonacci(n: int) -> int {
+            if n <= 1 {
+                return n;
+            }
+            return fibonacci(n - 1) + fibonacci(n - 2);
+        }
 
-# Node data extraction pipeline
-node DataNode {
-    has raw_data: dict;
-    has metadata: dict;
+        def calculate_statistics(numbers: list[float]) -> dict[str, float] {
+            if len(numbers) == 0 {
+                return {"mean": 0.0, "sum": 0.0, "count": 0.0};
+            }
 
-    can extract_info with Extractor entry {
-        let info = self.raw_data
-            |> validate_structure
-            |> extract_fields(visitor.required_fields)
-            |> apply_transformations(visitor.transforms)
-            |> add_metadata(self.metadata);
+            total = sum(numbers);
+            count = len(numbers);
+            mean = total / count;
 
-        visitor.collect(info);
-    }
-}
-```
+            return {
+                "sum": total,
+                "count": float(count),
+                "mean": mean
+            };
+        }
 
-### Best Practices for Collections and Pipes
+        with entry {
+            print(f"5! = {factorial(5)}");
+            print(f"Fibonacci(10) = {fibonacci(10)}");
 
-1. **Type Your Collections**: Always specify element types
-   ```jac
-   let numbers: list[int] = [1, 2, 3];  # Good
-   # let numbers = [1, 2, 3];          # Bad - missing type
-   ```
+            test_numbers = [1.0, 2.0, 3.0, 4.0, 5.0];
+            stats = calculate_statistics(test_numbers);
+            print(f"Statistics: {stats}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        from typing import List, Dict
 
-2. **Use Keyword Tuples for Multiple Returns**: Clearer than positional
-   ```jac
-   return (success=true, data=result, errors=[]);  # Good
-   return (true, result, []);                       # Less clear
-   ```
+        # More complex math functions
+        def factorial(n: int) -> int:
+            if n <= 1:
+                return 1
+            return n * factorial(n - 1)
 
-3. **Build Pipelines Incrementally**: Test each stage
-   ```jac
-   # Debug by breaking pipeline
-   let step1 = data |> clean;
-   print(f"After clean: {step1}");
-   let step2 = step1 |> validate;
-   print(f"After validate: {step2}");
-   ```
+        def fibonacci(n: int) -> int:
+            if n <= 1:
+                return n
+            return fibonacci(n - 1) + fibonacci(n - 2)
 
-4. **Prefer Pipes Over Nesting**: For readability
-   ```jac
-   # Good
-   result = data |> process |> transform |> format;
+        def calculate_statistics(numbers: List[float]) -> Dict[str, float]:
+            if len(numbers) == 0:
+                return {"mean": 0.0, "sum": 0.0, "count": 0.0}
 
-   # Avoid
-   result = format(transform(process(data)));
-   ```
+            total = sum(numbers)
+            count = len(numbers)
+            mean = total / count
 
-5. **Use Comprehensions for Filtering**: More efficient than loops
-   ```jac
-   # Good
-   adults = [u for u in users if u.age >= 18];
+            return {
+                "sum": total,
+                "count": float(count),
+                "mean": mean
+            }
 
-   # Less efficient
-   adults = [];
-   for u in users {
-       if u.age >= 18 { adults.append(u); }
-   }
-   ```
+        if __name__ == "__main__":
+            print(f"5! = {factorial(5)}")
+            print(f"Fibonacci(10) = {fibonacci(10)}")
 
-### Summary
+            test_numbers = [1.0, 2.0, 3.0, 4.0, 5.0]
+            stats = calculate_statistics(test_numbers)
+            print(f"Statistics: {stats}")
+        ```
 
-In this chapter, we've explored Jac's powerful collection features:
+## Decorators for Enhanced Functionality
 
-- **Type-safe collections** that prevent runtime errors
-- **Special comprehensions** with null-safety and assignment operations
-- **Keyword tuples** that combine structure with flexibility
-- **Pipe operators** that transform nested calls into readable flows
+!!! topic "Decorators"
+    Decorators provide a clean way to add functionality to functions without modifying their core logic.
 
-These features work together to make data manipulation in Jac both safer and more expressive than traditional approaches. The combination of static typing and functional pipeline patterns creates code that is both robust and maintainable.
+### Timing Decorator
 
-Next, we'll explore how Jac enhances object-oriented programming with archetypes, automatic constructors, and implementation separation—features that make large-scale development more manageable.
+!!! example "Performance Timing Decorator"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        import time;
+
+        # Timing decorator to measure function performance
+        def timing_decorator(func: callable) -> callable {
+            def wrapper(*args: any, **kwargs: any) -> any {
+                start_time = time.time();
+                result = func(*args, **kwargs);
+                end_time = time.time();
+                execution_time = end_time - start_time;
+                print(f"{func.__name__} executed in {execution_time} seconds");
+                return result;
+            }
+            return wrapper;
+        }
+
+        # Apply timing to our math functions
+        @timing_decorator
+        def slow_fibonacci(n: int) -> int {
+            if n <= 1 {
+                return n;
+            }
+            return slow_fibonacci(n - 1) + slow_fibonacci(n - 2);
+        }
+
+        @timing_decorator
+        def slow_factorial(n: int) -> int {
+            if n <= 1 {
+                return 1;
+            }
+            return n * slow_factorial(n - 1);
+        }
+
+        with entry {
+            print("=== Timing Decorator Demo ===");
+            result1 = slow_fibonacci(2);
+            print(f"Fibonacci(2) = {result1}");
+
+            result2 = slow_factorial(3);
+            print(f"Factorial(3) = {result2}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import time
+        from typing import Callable, Any
+        from functools import wraps
+
+        # Timing decorator to measure function performance
+        def timing_decorator(func: Callable) -> Callable:
+            @wraps(func)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                start_time = time.time()
+                result = func(*args, **kwargs)
+                end_time = time.time()
+                execution_time = end_time - start_time
+                print(f"{func.__name__} executed in {execution_time:.4f} seconds")
+                return result
+            return wrapper
+
+        # Apply timing to our math functions
+        @timing_decorator
+        def slow_fibonacci(n: int) -> int:
+            if n <= 1:
+                return n
+            return slow_fibonacci(n - 1) + slow_fibonacci(n - 2)
+
+        @timing_decorator
+        def slow_factorial(n: int) -> int:
+            if n <= 1:
+                return 1
+            return n * slow_factorial(n - 1)
+
+        if __name__ == "__main__":
+            print("=== Timing Decorator Demo ===")
+            result1 = slow_fibonacci(2)
+            print(f"Fibonacci(2) = {result1}")
+
+            result2 = slow_factorial(3)
+            print(f"Factorial(3) = {result2}")
+        ```
+
+### Caching Decorator for Optimization
+
+!!! example "Memoization Decorator"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        import time;
+
+        # Timing decorator to measure function performance
+        def timing_decorator(func: callable) -> callable {
+            def wrapper(*args: any, **kwargs: any) -> any {
+                start_time = time.time();
+                result = func(*args, **kwargs);
+                end_time = time.time();
+                execution_time = end_time - start_time;
+                print(f"{func.__name__} executed in {execution_time} seconds");
+                return result;
+            }
+            return wrapper;
+        }
+
+        # Caching decorator for expensive computations
+        def cache_decorator(func: callable) -> callable {
+            cache: dict[str, any] = {};
+
+            def wrapper(*args: any) -> any {
+                # Create a simple cache key from arguments
+                cache_key = str(args);
+
+                if cache_key in cache {
+                    print(f"Cache hit for {func.__name__}{args}");
+                    return cache[cache_key];
+                }
+
+                print(f"Computing {func.__name__}{args}");
+                result = func(*args);
+                cache[cache_key] = result;
+                return result;
+            }
+            return wrapper;
+        }
+
+        # Combine timing and caching decorators
+        @timing_decorator
+        @cache_decorator
+        def optimized_fibonacci(n: int) -> int {
+            if n <= 1 {
+                return n;
+            }
+            return optimized_fibonacci(n - 1) + optimized_fibonacci(n - 2);
+        }
+
+        @timing_decorator
+        @cache_decorator
+        def expensive_calculation(n: int) -> int {
+            # Simulate expensive computation
+            result = 0;
+            for i in range(n * 1000) {
+                result += i;
+            }
+            return result;
+        }
+
+        with entry {
+            print("=== Cached Functions Demo ===");
+
+            # First call - computed and cached
+            result1 = optimized_fibonacci(3);
+            print(f"Fibonacci(3) = {result1}");
+
+            # Second call - retrieved from cache
+            result2 = optimized_fibonacci(3);
+            print(f"Fibonacci(3) again = {result2}");
+
+            # Expensive calculation test
+            result3 = expensive_calculation(10);
+            print(f"Expensive calculation result: {result3}");
+
+            # Second call to expensive calculation
+            result4 = expensive_calculation(10);
+            print(f"Expensive calculation again: {result4}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import time
+        from typing import Callable, Any, Dict
+        from functools import wraps
+
+        # Caching decorator for expensive computations
+        def cache_decorator(func: Callable) -> Callable:
+            cache: Dict[str, Any] = {}
+
+            @wraps(func)
+            def wrapper(*args: Any) -> Any:
+                # Create a simple cache key from arguments
+                cache_key = str(args)
+
+                if cache_key in cache:
+                    print(f"Cache hit for {func.__name__}{args}")
+                    return cache[cache_key]
+
+                print(f"Computing {func.__name__}{args}")
+                result = func(*args)
+                cache[cache_key] = result
+                return result
+            return wrapper
+
+        # Combine timing and caching decorators
+        @timing_decorator
+        @cache_decorator
+        def optimized_fibonacci(n: int) -> int:
+            if n <= 1:
+                return n
+            return optimized_fibonacci(n - 1) + optimized_fibonacci(n - 2)
+
+        @timing_decorator
+        @cache_decorator
+        def expensive_calculation(n: int) -> int:
+            # Simulate expensive computation
+            result = 0
+            for i in range(n * 1000):
+                result += i
+            return result
+
+        if __name__ == "__main__":
+            print("=== Cached Functions Demo ===")
+
+            # First call - computed and cached
+            result1 = optimized_fibonacci(3)
+            print(f"Fibonacci(3) = {result1}")
+
+            # Second call - retrieved from cache
+            result2 = optimized_fibonacci(3)
+            print(f"Fibonacci(3) again = {result2}")
+
+            # Expensive calculation test
+            result3 = expensive_calculation(10)
+            print(f"Expensive calculation result: {result3}")
+
+            # Second call to expensive calculation
+            result4 = expensive_calculation(10)
+            print(f"Expensive calculation again: {result4}")
+        ```
+
+## Lambda Functions and Functional Programming
+
+!!! topic "Functional Programming"
+    Lambda functions provide a concise way to create small, focused functions for data processing.
+
+### Lambda Functions for Data Processing
+
+!!! example "Lambda Functions in Data Processing"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        with entry {
+            # Basic lambda functions for math operations
+            square = lambda x: float: x * x;
+            double = lambda x: float: x * 2;
+            is_even = lambda x: int: x % 2 == 0;
+
+            # Test basic lambdas
+            print(f"square(5) = {square(5.0)}");
+            print(f"double(7) = {double(7.0)}");
+            print(f"is_even(4) = {is_even(4)}");
+
+            # Using lambdas with lists
+            numbers = [1.0, 2.0, 3.0, 4.0, 5.0];
+
+            # Map operations
+            squared_numbers = [square(x) for x in numbers];
+            doubled_numbers = [double(x) for x in numbers];
+
+            print(f"Original: {numbers}");
+            print(f"Squared: {squared_numbers}");
+            print(f"Doubled: {doubled_numbers}");
+
+            # Filter operations
+            int_numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+            even_numbers = [x for x in int_numbers if is_even(x)];
+            print(f"Even numbers: {even_numbers}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        if __name__ == "__main__":
+            # Basic lambda functions for math operations
+            square = lambda x: x * x
+            double = lambda x: x * 2
+            is_even = lambda x: x % 2 == 0
+
+            # Test basic lambdas
+            print(f"square(5) = {square(5.0)}")
+            print(f"double(7) = {double(7.0)}")
+            print(f"is_even(4) = {is_even(4)}")
+
+            # Using lambdas with lists
+            numbers = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+            # Map operations
+            squared_numbers = [square(x) for x in numbers]
+            doubled_numbers = [double(x) for x in numbers]
+
+            print(f"Original: {numbers}")
+            print(f"Squared: {squared_numbers}")
+            print(f"Doubled: {doubled_numbers}")
+
+            # Filter operations
+            int_numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            even_numbers = [x for x in int_numbers if is_even(x)]
+            print(f"Even numbers: {even_numbers}")
+        ```
+
+### Higher-Order Functions
+
+!!! example "Functions that Work with Functions"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # Higher-order function that applies operation to list
+        def apply_operation(numbers: list[float], operation: callable[[float], float]) -> list[float] {
+            return [operation(num) for num in numbers];
+        }
+
+        # Function that creates specialized functions
+        def create_multiplier(factor: float) -> callable[[float], float] {
+            return lambda x: float: x * factor;
+        }
+
+        # Function composition
+        def compose(f: callable, g: callable) -> callable {
+            return lambda x: any: f(g(x));
+        }
+
+        # Reduce-like function
+        def reduce_list(numbers: list[float], operation: callable[[float, float], float], initial: float) -> float {
+            result = initial;
+            for num in numbers {
+                result = operation(result, num);
+            }
+            return result;
+        }
+
+        with entry {
+            print("=== Higher-Order Functions Demo ===");
+
+            numbers = [1.0, 2.0, 3.0, 4.0, 5.0];
+
+            # Create specialized multiplier functions
+            triple = create_multiplier(3.0);
+            quadruple = create_multiplier(4.0);
+
+            # Apply operations
+            tripled = apply_operation(numbers, triple);
+            quadrupled = apply_operation(numbers, quadruple);
+
+            print(f"Original: {numbers}");
+            print(f"Tripled: {tripled}");
+            print(f"Quadrupled: {quadrupled}");
+
+            # Function composition
+            add_one = lambda x: float: x + 1.0;
+            square_func = lambda x: float: x * x;
+            add_then_square = compose(square_func, add_one);
+
+            result = add_then_square(4.0);  # (4 + 1)^2 = 25
+            print(f"(4 + 1)^2 = {result}");
+
+            # Reduce operations
+            sum_result = reduce_list(numbers, lambda a:float, b: float: a + b, 0.0);
+            product_result = reduce_list(numbers, lambda a:float, b: float: a * b, 1.0);
+
+            print(f"Sum: {sum_result}");
+            print(f"Product: {product_result}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        from typing import List, Callable
+
+        # Higher-order function that applies operation to list
+        def apply_operation(numbers: List[float], operation: Callable[[float], float]) -> List[float]:
+            return [operation(num) for num in numbers]
+
+        # Function that creates specialized functions
+        def create_multiplier(factor: float) -> Callable[[float], float]:
+            return lambda x: x * factor
+
+        # Function composition
+        def compose(f: Callable, g: Callable) -> Callable:
+            return lambda x: f(g(x))
+
+        # Reduce-like function
+        def reduce_list(numbers: List[float], operation: Callable[[float, float], float], initial: float) -> float:
+            result = initial
+            for num in numbers:
+                result = operation(result, num)
+            return result
+
+        if __name__ == "__main__":
+            print("=== Higher-Order Functions Demo ===")
+
+            numbers = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+            # Create specialized multiplier functions
+            triple = create_multiplier(3.0)
+            quadruple = create_multiplier(4.0)
+
+            # Apply operations
+            tripled = apply_operation(numbers, triple)
+            quadrupled = apply_operation(numbers, quadruple)
+
+            print(f"Original: {numbers}")
+            print(f"Tripled: {tripled}")
+            print(f"Quadrupled: {quadrupled}")
+
+            # Function composition
+            add_one = lambda x: x + 1.0
+            square_func = lambda x: x * x
+            add_then_square = compose(square_func, add_one)
+
+            result = add_then_square(4.0)  # (4 + 1)^2 = 25
+            print(f"(4 + 1)^2 = {result}")
+
+            # Reduce operations
+            sum_result = reduce_list(numbers, lambda a, b: a + b, 0.0)
+            product_result = reduce_list(numbers, lambda a, b: a * b, 1.0)
+
+            print(f"Sum: {sum_result}")
+            print(f"Product: {product_result}")
+        ```
+
+## Complete Example: Math Functions Library
+
+!!! example "Complete Math Library with Timing"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        import time;
+
+        # Enhanced timing decorator that works with methods
+        def enhanced_timing(func: callable) -> callable {
+            def wrapper(*args: any, **kwargs: any) -> any {
+                start_time = time.time();
+                result = func(*args, **kwargs);
+                end_time = time.time();
+                execution_time = end_time - start_time;
+
+                print(f"{func.__name__} completed in {execution_time}s");
+                return result;
+            }
+            return wrapper;
+        }
+
+        # Enhanced caching decorator
+        def smart_cache(func: callable) -> callable {
+            cache: dict[str, any] = {};
+
+            def wrapper(*args: any, **kwargs: any) -> any {
+                cache_key = f"{func.__name__}:{str(args)}";
+
+                if cache_key in cache {
+                    print(f"Cache hit for {cache_key}");
+                    return cache[cache_key];
+                }
+
+                result = func(*args, **kwargs);
+                cache[cache_key] = result;
+                return result;
+            }
+            return wrapper;
+        }
+
+        # Math library with comprehensive functionality
+        obj MathLibrary {
+            has calculation_count: int = 0;
+
+            def increment_counter() -> None;
+            def get_stats() -> dict[str, any];
+
+            @enhanced_timing
+            def fibonacci(n: int) -> int;
+
+            @enhanced_timing
+            @smart_cache
+            def cached_fibonacci(n: int) -> int;
+
+            @enhanced_timing
+            def factorial(n: int) -> int;
+
+            @enhanced_timing
+            def prime_check(n: int) -> bool;
+
+            def batch_process(numbers: list[int], operation: str) -> list[any];
+        }
+
+        impl MathLibrary.increment_counter {
+            self.calculation_count += 1;
+        }
+
+        impl MathLibrary.get_stats {
+            return {
+                "total_calculations": self.calculation_count,
+                "library_version": "1.0"
+            };
+        }
+
+        # Add methods to MathLibrary
+        impl MathLibrary.fibonacci {
+            if n <= 1 {
+                return n;
+            }
+            return self.fibonacci(n - 1) + self.fibonacci(n - 2);
+        }
+
+        impl MathLibrary.cached_fibonacci {
+            if n <= 1 {
+                return n;
+            }
+            return self.cached_fibonacci(n - 1) + self.cached_fibonacci(n - 2);
+        }
+
+        impl MathLibrary.factorial {
+            if n <= 1 {
+                return 1;
+            }
+            return n * self.factorial(n - 1);
+        }
+
+        impl MathLibrary.prime_check {
+            if n < 2 {
+                return False;
+            }
+            for i in range(2, int(n ** 0.5) + 1) {
+                if n % i == 0 {
+                    return False;
+                }
+            }
+            return True;
+        }
+
+        impl MathLibrary.batch_process {
+            operations = {
+                "fibonacci": self.cached_fibonacci,
+                "factorial": self.factorial,
+                "prime": self.prime_check
+            };
+
+            if operation not in operations {
+                raise ValueError(f"Unknown operation: {operation}");
+            }
+
+            func = operations[operation];
+            return [func(num) for num in numbers];
+        }
+
+        with entry {
+            print("=== Math Library Demo ===");
+
+            math_lib = MathLibrary();
+
+            # Test individual functions
+            print("Testing Fibonacci (slow):");
+            result1 = math_lib.fibonacci(2);
+            print(f"Fibonacci(2) = {result1}");
+
+            print("\nTesting Cached Fibonacci (fast):");
+            result2 = math_lib.cached_fibonacci(3);
+            print(f"Cached Fibonacci(3) = {result2}");
+
+            print("\nTesting Factorial:");
+            result3 = math_lib.factorial(3);
+            print(f"Factorial(3) = {result3}");
+
+            print("\nTesting Prime Check:");
+            test_numbers = [17, 18, 19, 20, 21];
+            for num in test_numbers {
+                is_prime = math_lib.prime_check(num);
+                print(f"{num} is {'prime' if is_prime else 'not prime'}");
+            }
+
+            print("\nBatch Processing:");
+            batch_numbers = [5, 6, 7, 8];
+            fib_results = math_lib.batch_process(batch_numbers, "fibonacci");
+            print(f"Fibonacci results: {fib_results}");
+
+            # Show library statistics
+            stats = math_lib.get_stats();
+            print(f"\nLibrary Statistics: {stats}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import time
+        from typing import Dict, List, Any, Callable
+        from functools import wraps
+
+        # Math library with comprehensive functionality
+        class MathLibrary:
+            def __init__(self):
+                self.calculation_count = 0
+
+            def increment_counter(self) -> None:
+                self.calculation_count += 1
+
+            def get_stats(self) -> Dict[str, Any]:
+                return {
+                    "total_calculations": self.calculation_count,
+                    "library_version": "1.0"
+                }
+
+        # Enhanced timing decorator that works with methods
+        def enhanced_timing(func: Callable) -> Callable:
+            @wraps(func)
+            def wrapper(self, *args: Any, **kwargs: Any) -> Any:
+                start_time = time.time()
+                result = func(self, *args, **kwargs)
+                end_time = time.time()
+                execution_time = end_time - start_time
+
+                self.increment_counter()
+                print(f"{func.__name__} completed in {execution_time:.6f}s (Call #{self.calculation_count})")
+                return result
+            return wrapper
+
+        # Enhanced caching decorator
+        def smart_cache(func: Callable) -> Callable:
+            cache: Dict[str, Any] = {}
+
+            @wraps(func)
+            def wrapper(self, *args: Any, **kwargs: Any) -> Any:
+                cache_key = f"{func.__name__}:{str(args)}"
+
+                if cache_key in cache:
+                    print(f"Cache hit for {cache_key}")
+                    return cache[cache_key]
+
+                result = func(self, *args, **kwargs)
+                cache[cache_key] = result
+                return result
+            return wrapper
+
+        # Add methods to MathLibrary
+        class MathLibrary:
+            def __init__(self):
+                self.calculation_count = 0
+
+            def increment_counter(self) -> None:
+                self.calculation_count += 1
+
+            def get_stats(self) -> Dict[str, Any]:
+                return {
+                    "total_calculations": self.calculation_count,
+                    "library_version": "1.0"
+                }
+
+            @enhanced_timing
+            def fibonacci(self, n: int) -> int:
+                if n <= 1:
+                    return n
+                return self.fibonacci(n - 1) + self.fibonacci(n - 2)
+
+            @enhanced_timing
+            @smart_cache
+            def cached_fibonacci(self, n: int) -> int:
+                if n <= 1:
+                    return n
+                return self.cached_fibonacci(n - 1) + self.cached_fibonacci(n - 2)
+
+            @enhanced_timing
+            def factorial(self, n: int) -> int:
+                if n <= 1:
+                    return 1
+                return n * self.factorial(n - 1)
+
+            @enhanced_timing
+            def prime_check(self, n: int) -> bool:
+                if n < 2:
+                    return False
+                for i in range(2, int(n ** 0.5) + 1):
+                    if n % i == 0:
+                        return False
+                return True
+
+            def batch_process(self, numbers: List[int], operation: str) -> List[Any]:
+                operations = {
+                    "fibonacci": self.cached_fibonacci,
+                    "factorial": self.factorial,
+                    "prime": self.prime_check
+                }
+
+                if operation not in operations:
+                    raise ValueError(f"Unknown operation: {operation}")
+
+                func = operations[operation]
+                return [func(num) for num in numbers]
+
+        if __name__ == "__main__":
+            print("=== Math Library Demo ===")
+
+            math_lib = MathLibrary()
+
+            # Test individual functions
+            print("Testing Fibonacci (slow):")
+            result1 = math_lib.fibonacci(2)
+            print(f"Fibonacci(2) = {result1}")
+
+            print("\nTesting Cached Fibonacci (fast):")
+            result2 = math_lib.cached_fibonacci(3)
+            print(f"Cached Fibonacci(3) = {result2}")
+
+            print("\nTesting Factorial:")
+            result3 = math_lib.factorial(3)
+            print(f"Factorial(3) = {result3}")
+
+            print("\nTesting Prime Check:")
+            test_numbers = [17, 18, 19, 20, 21]
+            for num in test_numbers:
+                is_prime = math_lib.prime_check(num)
+                print(f"{num} is {'prime' if is_prime else 'not prime'}")
+
+            print("\nBatch Processing:")
+            batch_numbers = [5, 6, 7, 8]
+            fib_results = math_lib.batch_process(batch_numbers, "fibonacci")
+            print(f"Fibonacci results: {fib_results}")
+
+            # Show library statistics
+            stats = math_lib.get_stats()
+            print(f"\nLibrary Statistics: {stats}")
+        ```
+
+## Key Takeaways
+
+!!! summary "Chapter Summary"
+    - **Mandatory Types**: All function parameters and return types must be explicitly declared
+    - **Decorators**: Powerful tools for adding functionality like timing, caching, and validation
+    - **Lambda Functions**: Concise syntax for simple operations and functional programming
+    - **Higher-Order Functions**: Functions can accept and return other functions for flexible abstractions
+    - **Performance**: Use decorators to add timing and caching without modifying core logic
+    - **Code Organization**: Group related functions into objects or modules for better structure
+
+!!! topic "Coming Up"
+    In the next chapter, we'll explore Jac's import system and how to organize code across multiple files and modules.

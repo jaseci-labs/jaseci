@@ -1,880 +1,539 @@
-# Chapter 10: The Root Node and Persistence
+# Chapter 10: Nodes and Edges
 
-One of Jac's most revolutionary features is automatic persistence through the root node. Unlike traditional applications that require explicit database operations, Jac programs naturally persist state between executions. This chapter explores how the root node enables scale-agnostic programming, where the same code works for single-user scripts and multi-user applications.
+Nodes and edges are the fundamental building blocks of Object-Spatial Programming. Nodes represent data locations in your graph, while edges represent the relationships between them. This chapter shows you how to create, connect, and work with these spatial constructs using a simple classroom management system.
 
-## 10.1 Understanding the Root Node
+!!! topic "Graph-Based Data Modeling"
+    Instead of storing data in isolated objects, OSP organizes data as connected nodes in a graph. This makes relationships explicit and enables powerful traversal patterns.
 
-### Global Accessibility via `root` Keyword
+## Node Creation and Properties
 
-The `root` keyword provides global access to a special persistent node that serves as the anchor for your application's data:
+!!! topic "What are Nodes?"
+    Nodes are special objects that can be connected to other nodes through edges. They automatically persist when connected to the root node and can react to visiting walkers.
 
-<div class="code-block">
+### Basic Node Declaration
 
-```jac
-def do_something() {
-    # root accessible in any function
-    root ++> CustomNode(data = "test");
-}
-
-walker Explorer {
-    can explore with entry {
-        # root accessible in walkers
-        print(f"Starting from: {root}");
-        visit root;
-    }
-}
-
-node CustomNode {
-    has data: str ;
-
-    can check_root with root entry {
-        # root accessible in node abilities
-        print(f"Root from node: {root}");
-    }
-}
-
-# root is available everywhere - no imports needed
-with entry {
-    print(f"Root node: {root}");
-    print(f"Type: {type(root).__name__}");
-
-    # root is always the same node within a user context
-    id1 = id(root);
-    do_something();
-    id2 = id(root);
-    assert id1 == id2;  # Always true
-}
-
-```
-</div>
-
-The `root` node is special:
-
-- **Always Available**: No declaration or initialization needed
-- **Globally Accessible**: Available in any context without passing
-- **Type-Safe**: It's a real node with all node capabilities
-- **User-Specific**: Each user gets their own isolated root
-
-### Automatic Persistence Model
-
-Everything connected to root persists automatically:
-
-<div class="code-block">
-
-```jac
-node UserProfile {
-    has username: str;
-    has login_count: int;
-}
-# First run - create data
-with entry {
-    print("=== First Run - Creating Data ===");
-
-    # Data connected to root persists
-    user_profile = root ++> UserProfile(username = "alice", login_count = 1);
-
-    print(f"Created profile: {user_profile[0].username}");
-}
-
-# Second run - data still exists!
-with entry {
-    print("=== Second Run - Data Persists ===");
-
-    # Find existing data
-    profiles = [root --> (`?UserProfile)];
-    if profiles {
-        profile = profiles[0];
-        print(f"Found profile: {profile.username}");
-        print(f"Previous logins: {profile.login_count}");
-
-        # Update persistent data
-        profile.login_count += 1;
-        print(f"Updated logins: {profile.login_count}");
-    }
-}
-
-# Third run - updates persist too
-with entry {
-    print("=== Third Run - Updates Persist ===");
-
-    profile = [root --> (`?UserProfile)][0];
-    profile.login_count += 1;
-    print(f"Login count is now: {profile.login_count}");  # Shows 3
-}
-```
-</div>
-
-### Reachability-Based Persistence
-
-Nodes persist based on reachability from root:
-
-<div class="code-block">
-
-```jac
-node Document {
-    has title: str;
-    has content: str;
-}
-
-node Tag {
-    has name: str;
-    has color: str = "#0000FF";
-}
-
-with entry {
-    # Connected to root = persistent
-    doc1 = root ++> Document(
-        title="My First Document",
-        content="This will persist"
-    );
-
-    # Connected to persistent node = also persistent
-    tag1 = doc1[0] ++> Tag(name="important");
-
-    # NOT connected to root = temporary
-    doc2 = Document(
-        title="Temporary Document",
-        content="This will NOT persist"
-    );
-
-    # Connecting later makes it persistent
-    root ++> doc2;  # Now doc2 will persist
-    print([root --> ]);
-
-    # Disconnecting makes it non-persistent
-    edge2 = [root -->][1];
-    del edge2;  # doc1 and tag1 no longer persist
-    print([root --> ]);
-}
-```
-</div>
-
-
-```mermaid
-graph TD
-    R[root<br/>≪always persistent≫]
-    D1[Document 1<br/>≪persistent≫]
-    D2[Document 2<br/>≪persistent≫]
-    D3[Document 3<br/>≪temporary≫]
-    T1[Tag 1<br/>≪persistent≫]
-    T2[Tag 2<br/>≪temporary≫]
-
-    R --> D1
-    R --> D2
-    D1 --> T1
-    D3 --> T2
-
-    style R fill:#4caf50,color:white
-    style D1 fill:#c8e6c9
-    style D2 fill:#c8e6c9
-    style D3 fill:#ffcdd2
-    style T1 fill:#c8e6c9
-    style T2 fill:#ffcdd2
-```
-
-## 10.2 Building Persistent Applications
-
-### Connecting to Root for Persistence
-
-Here's how to design applications with automatic persistence:
-
-<div class="code-block">
-
-```jac
-import from datetime {datetime, timedelta}
-import secrets;
-
-# Application data model
-node AppData {
-    has version: str = "1.0.0";
-    has settings: dict = {};
-    has initialized: bool = False;
-}
-
-node User {
-    has id: str by postinit;
-    has email: str;
-    has created_at: str;
-    has preferences: dict = {};
-
-    def postinit(){
-        self.id = jid(self);
-    }
-}
-
-node Session {
-    has token: str;
-    has user_id: str;
-    has expires_at: str;
-    has active: bool = True;
-}
-
-def generate_token(length:int =32) {
-    return secrets.token_hex(length);
-}
-
-
-# Initialize or get existing app data
-def get_or_create_app_data() -> AppData {
-    app_data_nodes = [root -->(`?AppData)];
-
-    if not app_data_nodes {
-        print("First run - initializing app data");
-        app_data_node = root ++> AppData(
-            initialized=True,
-            settings={
-                "theme": "light",
-                "language": "en",
-                "debug": False
-            }
-        );
-        return app_data_node[0];
-    }
-
-    return app_data_nodes[0];
-}
-
-# User management with persistence
-def create_user(email: str) -> User | None {
-    app = get_or_create_app_data();
-
-    # Check if user exists
-    existing = [app -->(`?User)](?email == email);
-
-    if existing {
-        print(f"User {email} already exists");
-        return existing[0];
-    }
-
-    # Create persistent user
-    user = app ++> User(
-        email=email,
-        created_at=datetime.now()
-    );
-
-    print(f"Created user: {email}");
-    print(f"User jid {user[0].id}");
-    return user[0];
-}
-
-# Session management
-def create_session(user: User) -> Session {
-
-    # Sessions connected to user (persistent)
-    session = user ++> Session(
-        token=generate_token(),
-        user_id=user.id,
-        expires_at=(datetime.now() + timedelta(hours=24)).isoformat()
-    );
-
-    return session;
-}
-
-# Example usage
-with entry {
-    app = get_or_create_app_data();
-    print(f"App version: {app.version}");
-
-    # Create or get user
-    email = "alice@example.com";
-    user = create_user(email);
-
-    if user {
-        session = create_session(user);
-        print(f"Session created: {session[0].token[:8]}...");
-    } else {
-        # User already exists, find them
-        user = [app -->(`?User)](?email == email);
-        print(f"Welcome back, {user.email}!");
-        print(f"Account created: {user.created_at}");
-    }
-}
-```
-</div>
-
-### Managing Ephemeral vs Persistent State
-
-Not everything should persist. Here's how to manage both:
-
-<div class="code-block">
-
-```jac
-node PersistentCache {
-    has updated_at: str;
-    has data: dict = {};
-}
-
-node EphemeralCache {
-    has created_at: str;
-    has data: dict = {};
-}
-
-walker CacheManager {
-    has operation: str;
-    has key: str;
-    has value: any = None;
-
-    can manage with entry {
-        # Get or create persistent cache
-        p_cache_list = [root -->(`?PersistentCache)] if [root -->(`?PersistentCache)]
-                     else root ++> PersistentCache(updated_at=now());
-        p_cache = p_cache_list[0];
-
-        # Ephemeral cache is not connected to root
-        e_cache_list = EphemeralCache(created_at=now());
-        e_cache = e_cache_list[0];
-
-        if self.operation == "store" {
-            # Store in both caches
-            p_cache.data[self.key] = self.value;
-            p_cache.updated_at = now();
-            e_cache.data[self.key] = self.value;
-
-            print(f"Stored {self.key} in both caches");
-
-        } elif self.operation == "get" {
-            # Try ephemeral first (faster)
-            if self.key in e_cache.data {
-                print(f"Found {self.key} in ephemeral cache");
-                report e_cache.data[self.key];
-            } elif self.key in p_cache.data {
-                print(f"Found {self.key} in persistent cache");
-                report p_cache.data[self.key];
-            } else {
-                print(f"Key {self.key} not found");
-                report None;
-            }
-        }
-    }
-}
-
-# Hybrid approach for performance
-node FastStore {
-    has persistent_data: dict = {};    # Important data
-    has memory_cache: dict = {};      # Temporary cache
-    has stats: dict = {               # Temporary stats
-        "hits": 0,
-        "misses": 0
-    };
-
-    def get(key: str) -> any {
-        # Check memory first
-        if key in self.memory_cache {
-            self.stats["hits"] += 1;
-            return self.memory_cache[key];
+!!! example "Simple Node Types"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # Basic node for representing students
+        node Student {
+            has name: str;
+            has age: int;
+            has grade_level: int;
+            has student_id: str;
         }
 
-        # Check persistent
-        if key in self.persistent_data {
-            self.stats["misses"] += 1;
-            # Populate memory cache
-            self.memory_cache[key] = self.persistent_data[key];
-            return self.persistent_data[key];
+        # Basic node for representing teachers
+        node Teacher {
+            has name: str;
+            has subject: str;
+            has years_experience: int;
+            has email: str;
         }
 
-        return None;
-    }
+        with entry {
+            # Create student nodes
+            alice = Student(
+                name="Alice Johnson",
+                age=16,
+                grade_level=10,
+                student_id="S001"
+            );
 
-    def store(key: str, value: any, persist: bool = True) {
-        self.memory_cache[key] = value;
+            bob = Student(
+                name="Bob Smith",
+                age=15,
+                grade_level=9,
+                student_id="S002"
+            );
 
-        if persist {
-            self.persistent_data[key] = value;
+            # Create teacher node
+            ms_brown = Teacher(
+                name="Ms. Brown",
+                subject="Mathematics",
+                years_experience=8,
+                email="brown@school.edu"
+            );
+
+            print(f"Created student: {alice.name} (Grade {alice.grade_level})");
+            print(f"Created teacher: {ms_brown.name} teaches {ms_brown.subject}");
         }
-    }
-}
-```
-</div>
+        ```
+        </div>
+    === "Python"
+        ```python
+        # Python equivalent using regular classes
+        class Student:
+            def __init__(self, name: str, age: int, grade_level: int, student_id: str):
+                self.name = name
+                self.age = age
+                self.grade_level = grade_level
+                self.student_id = student_id
 
-### Database-Free Data Persistence
+        class Teacher:
+            def __init__(self, name: str, subject: str, years_experience: int, email: str):
+                self.name = name
+                self.subject = subject
+                self.years_experience = years_experience
+                self.email = email
 
-Jac eliminates the need for separate databases in many applications:
+        if __name__ == "__main__":
+            # Create student objects
+            alice = Student(
+                name="Alice Johnson",
+                age=16,
+                grade_level=10,
+                student_id="S001"
+            )
 
-```python
-# Traditional approach requires database setup
-# Python with SQLAlchemy:
-from sqlalchemy import create_engine, Column, String, Integer
-from sqlalchemy.ext.declarative import declarative_base
+            bob = Student(
+                name="Bob Smith",
+                age=15,
+                grade_level=9,
+                student_id="S002"
+            )
 
-Base = declarative_base()
-engine = create_engine('sqlite:///app.db')
+            # Create teacher object
+            ms_brown = Teacher(
+                name="Ms. Brown",
+                subject="Mathematics",
+                years_experience=8,
+                email="brown@school.edu"
+            )
 
-class Task(Base):
-    __tablename__ = 'tasks'
-    id = Column(Integer, primary_key=True)
-    title = Column(String)
-    completed = Column(Boolean)
+            print(f"Created student: {alice.name} (Grade {alice.grade_level})")
+            print(f"Created teacher: {ms_brown.name} teaches {ms_brown.subject}")
+        ```
 
-Base.metadata.create_all(engine)
-session = Session(engine)
-# ... lots more boilerplate ...
-```
+### Node Persistence with Root
 
-<div class="code-block">
+!!! topic "The Root Node"
+    Nodes connected to `root` (directly or indirectly) automatically persist between program runs. This gives you a database-like behavior without setup.
 
-```jac
-import from datetime { datetime }
-import sys;
-
-# Jac approach - just connect to root!
-node Task {
-    has id: str by postinit;
-    has title: str;
-    has created_at: str;
-    has completed: bool = False;
-    has completed_at: str|None = None;
-
-    def postinit() {
-        self.id = jid(self);
-    }
-}
-
-node TaskList {
-    has name: str;
-    has created_at: str;
-}
-
-# Complete task management with zero database code
-walker TaskManager {
-    has command: str;
-    has title: str = "";
-    has list_name: str = "default";
-    has task_id: str = "";
-
-    can execute with entry {
-        # Get or create task list
-        lists = [root -->(`?TaskList)](?name == self.list_name);
-        task_list = lists[0] if lists else root ++> TaskList(
-            name=self.list_name,
-            created_at=datetime.now()
-        );
-
-        match self.command {
-            case "add": self.add_task(task_list);
-            case "complete": self.complete_task(task_list);
-            case "list": self.list_tasks(task_list);
-            case "stats": self.show_stats(task_list);
-        }
-    }
-
-    def add_task(task_list: TaskList) -> None {
-        task = task_list ++> Task(
-            title=self.title,
-            created_at=datetime.now()
-        );
-
-        print(f"Added task: {task[0].title} (ID: {task[0].id[:8]})");
-    }
-
-    def complete_task(task_list: TaskList) {
-        tasks = [task_list-->(`?Task)](id.startswith(self.task_id));
-
-        if tasks {
-            task = tasks[0];
-            task.completed = True;
-            task.completed_at = datetime.now();
-            print(f"Completed: {task.title}");
-        } else {
-            print(f"Task {self.task_id} not found");
-        }
-    }
-
-    def list_tasks(task_list: TaskList) {
-        tasks = [task_list -->(`?Task)];
-        print(f"\n=== {task_list.name} Tasks ===");
-
-        for task in tasks {
-            status = "✓" if task.completed else "○";
-            print(f"{status} [{task.id[:8]}] {task.title}");
+!!! example "Persistent Classroom Data"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # Basic node for representing students
+        node Student {
+            has name: str;
+            has age: int;
+            has grade_level: int;
+            has student_id: str;
         }
 
-        completed = [task_list -->(`?Task)](?completed==True);
-        print(f"\nTotal: {len(tasks)} | Completed: {len(completed)}");
-    }
-
-    def show_stats(task_list: TaskList) {
-        tasks = [task_list -->(`?Task)];
-        completed = [task_list -->(`?Task)](?completed==True);
-
-        print(f"\n=== Task Statistics ===");
-        print(f"List: {task_list.name}");
-        print(f"Total tasks: {len(tasks)}");
-        print(f"Completed: {len(completed)}");
-        print(f"Pending: {len(tasks) - len(completed)}");
-
-        if completed {
-            # Calculate average completion time
-            total_time = 0;
-
-            for task in completed {
-                created = datetime.fromisoformat(task.created_at);
-                completed = datetime.fromisoformat(task.completed_at);
-                total_time += (completed - created).total_seconds();
-            }
-
-            avg_hours = (total_time / len(completed)) / 3600;
-            print(f"Avg completion time: {avg_hours} hours");
-        }
-    }
-}
-
-# Usage - all data persists automatically!
-with entry {
-
-    if len(sys.argv) < 2 {
-        print("Usage: jac run tasks.jac <command> [args]");
-        print("Commands:");
-        print("  add <title> - Add a new task");
-        print("  complete <id> - Mark task as complete");
-        print("  list - Show all tasks");
-        print("  stats - Show statistics");
-    }
-
-    command = sys.argv[1];
-    manager = TaskManager(command=command);
-
-    if command == "add" and len(sys.argv) > 2 {
-        manager.title = " ".join(sys.argv[2:]);
-    } elif command == "complete" and len(sys.argv) > 2 {
-        manager.task_id = sys.argv[2];
-    }
-
-    root spawn manager;
-}
-```
-</div>
-
-### Advanced Persistence Patterns
-
-#### Versioned Data
-
-<div class="code-block">
-
-```jac
-import from datetime {datetime}
-
-node VersionedDocument {
-    has id: str;
-    has content: str;
-    has created_at: str;
-    has modified_at: str;
-    has version: int = 1;
-}
-
-node DocumentVersion {
-    has version: int;
-    has content: str;
-    has modified_at: str;
-    has modified_by: str;
-}
-
-walker DocumentEditor {
-    has doc_id: str;
-    has new_content: str;
-    has user: str;
-
-    can edit with entry {
-        # Find document
-        docs = [root -->(`?VersionedDocument)](id == self.doc_id);
-        if not docs {
-            print(f"Document {self.doc_id} not found");
-            report f"Document {self.doc_id} not found";
+        node Classroom {
+            has room_number: str;
+            has capacity: int;
+            has has_projector: bool = True;
         }
 
-        doc = docs[0];
+        with entry {
+            # Connect to root for persistence
+            math_room = root ++> Classroom(
+                room_number="101",
+                capacity=30,
+                has_projector=True
+            );
 
-        # Save current version
-        doc ++> DocumentVersion(
-            version=doc.version,
-            content=doc.content,
-            modified_at=doc.modified_at,
-            modified_by=self.user
-        );
+            # Also persistent (connected through math_room)
+            alice = math_room ++> Student(
+                name="Alice Johnson",
+                age=16,
+                grade_level=10,
+                student_id="S001"
+            );
 
-        # Update document
-        doc.content = self.new_content;
-        doc.version += 1;
-        doc.modified_at = datetime.now();
+            # Temporary node (not connected to root)
+            temp_student = Student(
+                name="Temporary",
+                age=15,
+                grade_level=9,
+                student_id="TEMP"
+            );
 
-        print(f"Document updated to version {doc.version}");
-    }
-
-    can get_history with entry {
-        docs = [root -->(`?VersionedDocument)](id == self.doc_id);
-        if not docs {
-            report f"Document {self.doc_id} not found";
+            print(f"Persistent classroom: {math_room[0].room_number}");
+            print(f"Persistent student: {alice[0].name}");
+            print(f"Temporary student: {temp_student.name} (will not persist)");
         }
+        ```
+        </div>
+    === "Python"
+        ```python
+        # Python simulation using a simple registry
+        class NodeRegistry:
+            def __init__(self):
+                self.nodes = {}
+                self.connections = {}
 
-        doc = docs[0];
-        versions = [doc -->(`?DocumentVersion)];
+            def add_node(self, node_id: str, node):
+                self.nodes[node_id] = node
+                self.connections[node_id] = []
 
-        print(f"\n=== History for {doc.id} ===");
-        print(f"Current version: {doc.version}");
+            def connect(self, from_id: str, to_id: str):
+                if from_id in self.connections:
+                    self.connections[from_id].append(to_id)
 
-        for v in versions.sorted(key=lambda x:int : x.version, reverse=True) {
-            print(f"\nVersion {v.version}:");
-            print(f"  Modified: {v.modified_at}");
-            print(f"  By: {v.modified_by}");
-            print(f"  Content: {v.content[:50]}...");
-        }
-    }
-}
-```
-</div>
+        class Classroom:
+            def __init__(self, room_number: str, capacity: int, has_projector: bool = True):
+                self.room_number = room_number
+                self.capacity = capacity
+                self.has_projector = has_projector
 
-#### Lazy Loading Pattern
+        if __name__ == "__main__":
+            # Simulate persistence with a registry
+            registry = NodeRegistry()
 
-<div class="code-block">
+            # Create classroom
+            math_room = Classroom(
+                room_number="101",
+                capacity=30,
+                has_projector=True
+            )
+            registry.add_node("math_room", math_room)
 
-```jac
-import time;
+            # Create student connected to classroom
+            alice = Student(
+                name="Alice Johnson",
+                age=16,
+                grade_level=10,
+                student_id="S001"
+            )
+            registry.add_node("alice", alice)
+            registry.connect("math_room", "alice")
 
-node DataContainer {
-    has id: str;
-    has metadata: dict;
-    has data_loaded: bool = False;
-}
+            # Temporary object (not in registry)
+            temp_student = Student(
+                name="Temporary",
+                age=15,
+                grade_level=9,
+                student_id="TEMP"
+            )
 
-node HeavyData {
-    has payload: list;
-    has size_mb: float;
-}
+            print(f"Registered classroom: {math_room.room_number}")
+            print(f"Registered student: {alice.name}")
+            print(f"Temporary student: {temp_student.name} (not registered)")
+        ```
 
-walker DataLoader {
-    has container_id: str;
-    has operation: str;
+## Edge Types and Relationships
 
-    can operate with DataContainer entry {
-        if self.operation == "get_metadata" {
-            # Just return metadata without loading heavy data
-            report here.metadata;
+!!! topic "First-Class Relationships"
+    Edges in Jac are not just connections - they're full objects with their own properties and behaviors. This makes relationships as important as the data they connect.
 
-        } elif self.operation == "load_full" {
-            if not here.data_loaded {
-                # Load heavy data only when needed
-                self.load_heavy_data(here);
-            }
+### Basic Edge Declaration
 
-            heavy = [here -->(`?HeavyData)][0];
-            report {
-                "metadata": here.metadata,
-                "data": heavy.payload,
-                "size": heavy.size_mb
-            };
-        }
-    }
+!!! example "Classroom Relationships"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        --8<-- "docs/examples/chapter_10_school.jac:1:158"
+        ```
+        </div>
+    === "Python"
+        ```python
+        from typing import List, Dict
+        import uuid
 
-    def load_heavy_data(container: DataContainer) {
-        print(f"Loading heavy data for {container.id}...");
+        class Edge:
+            def __init__(self, edge_type: str, from_node, to_node, **properties):
+                self.id = str(uuid.uuid4())
+                self.edge_type = edge_type
+                self.from_node = from_node
+                self.to_node = to_node
+                self.properties = properties
 
-        # Simulate loading large data
-        time.sleep(1);
+        class EnrolledIn(Edge):
+            def __init__(self, from_node, to_node, enrollment_date: str, grade: str = "Not Assigned", attendance_rate: float = 100.0):
+                super().__init__("EnrolledIn", from_node, to_node)
+                self.enrollment_date = enrollment_date
+                self.grade = grade
+                self.attendance_rate = attendance_rate
 
-        container ++> HeavyData(
-            payload=list(range(1000000)),
-            size_mb=7.6
-        );
+        class Teaches(Edge):
+            def __init__(self, from_node, to_node, start_date: str, schedule: str, is_primary: bool = True):
+                super().__init__("Teaches", from_node, to_node)
+                self.start_date = start_date
+                self.schedule = schedule
+                self.is_primary = is_primary
 
-        container.data_loaded = True;
-    }
-}
-```
-</div>
+        class FriendsWith(Edge):
+            def __init__(self, from_node, to_node, since: str, closeness: int = 5):
+                super().__init__("FriendsWith", from_node, to_node)
+                self.since = since
+                self.closeness = closeness
 
-#### Garbage Collection Pattern
+        class GraphDatabase:
+            def __init__(self):
+                self.nodes = {}
+                self.edges = []
 
-<div class="code-block">
+            def add_node(self, node):
+                node.id = str(uuid.uuid4())
+                self.nodes[node.id] = node
+                return node
 
-```jac
-import from datetime { datetime, timedelta }
+            def add_edge(self, edge):
+                self.edges.append(edge)
+                return edge
 
-node CachedItem {
-    has key: str;
-    has value: any;
-    has created_at: str;
-    has last_accessed: str;
-    has ttl_hours: int = 24;
-}
+        if __name__ == "__main__":
+            db = GraphDatabase()
 
-walker CacheCleanup {
-    has cleaned_count: int = 0;
-    has checked_count: int = 0;
+            # Create nodes
+            math_class = db.add_node(Classroom(room_number="101", capacity=30))
+            alice = db.add_node(Student(name="Alice", age=16, grade_level=10, student_id="S001"))
+            bob = db.add_node(Student(name="Bob", age=16, grade_level=10, student_id="S002"))
+            ms_brown = db.add_node(Teacher(name="Ms. Brown", subject="Math", years_experience=8, email="brown@school.edu"))
 
-    can cleanup with CachedItem entry {
+            # Create edges with properties
+            db.add_edge(EnrolledIn(
+                alice, math_class,
+                enrollment_date="2024-08-15",
+                grade="A",
+                attendance_rate=95.0
+            ))
 
-        self.checked_count += 1;
+            db.add_edge(EnrolledIn(
+                bob, math_class,
+                enrollment_date="2024-08-15",
+                grade="B+",
+                attendance_rate=88.0
+            ))
 
-        last_access = datetime.fromisoformat(here.last_accessed);
-        age = datetime.now() - last_access;
+            db.add_edge(Teaches(
+                ms_brown, math_class,
+                start_date="2024-08-01",
+                schedule="MWF 9:00-10:00",
+                is_primary=True
+            ))
 
-        if age > timedelta(hours=here.ttl_hours) {
-            print(f"Removing expired cache item: {here.key}");
+            db.add_edge(FriendsWith(
+                alice, bob,
+                since="2023-09-01",
+                closeness=8
+            ))
 
-            # Disconnect from root to remove persistence
-            for edge in [here <--] {
-                del edge;
-            }
+            print("Classroom connections created successfully!")
+            print(f"Database has {len(db.nodes)} nodes and {len(db.edges)} edges")
+        ```
 
-            self.cleaned_count += 1;
-        }
+## Graph Creation Syntax
 
-        visit [-->];
-    }
+!!! topic "Connection Operators"
+    Jac provides intuitive syntax for connecting nodes: `++>` creates a new connection, while `-->` references existing connections.
 
-    can report with exit {
-        print(f"\nCache cleanup complete:");
-        print(f"  Checked: {self.checked_count} items");
-        print(f"  Cleaned: {self.cleaned_count} items");
-    }
-}
+### Connection Patterns
 
-# Run periodic cleanup
-with entry {
-    print("Running cache cleanup...");
-    root spawn CacheCleanup();
-}
-```
-</div>
+!!! example "Building a Complete Classroom"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        --8<-- "docs/examples/chapter_10_school.jac:1:158"
+        ```
+        </div>
+    === "Python"
+        ```python
+        if __name__ == "__main__":
+            db = GraphDatabase()
 
-### Performance Considerations
+            # Create the main classroom
+            science_lab = db.add_node(Classroom(
+                room_number="Lab-A",
+                capacity=24,
+                has_projector=True
+            ))
 
-While persistence is automatic, consider these patterns for optimization:
+            # Create teacher
+            dr_smith = db.add_node(Teacher(
+                name="Dr. Smith",
+                subject="Chemistry",
+                years_experience=12,
+                email="smith@school.edu"
+            ))
 
-```python
-# pythonic_indexing.py - Traditional Python approach with manual indexing
-import json
-from typing import Dict, List, Any, Optional
+            # Connect teacher to classroom
+            db.add_edge(Teaches(
+                dr_smith, science_lab,
+                start_date="2024-08-01",
+                schedule="TR 10:00-11:30"
+            ))
 
-class DataItem:
-    def __init__(self, data: Dict[str, Any]):
-        self.data = data
+            # Create students and enroll them
+            students = [
+                ("Charlie", 17, 11, "S003"),
+                ("Diana", 16, 11, "S004"),
+                ("Eve", 17, 11, "S005")
+            ]
 
-    def __repr__(self):
-        return f"DataItem({self.data})"
+            for name, age, grade, id in students:
+                student = db.add_node(Student(
+                    name=name,
+                    age=age,
+                    grade_level=grade,
+                    student_id=id
+                ))
 
-class IndexedCollection:
-    def __init__(self, name: str):
-        self.name = name
-        self.items: List[DataItem] = []
-        self.indices: Dict[str, Dict[Any, List[DataItem]]] = {}
+                db.add_edge(EnrolledIn(
+                    student, science_lab,
+                    enrollment_date="2024-08-15",
+                    attendance_rate=92.0
+                ))
 
-    def add_item(self, item_data: Dict[str, Any]) -> None:
-        """Add item with automatic indexing - Pythonic approach"""
-        # Store item
-        item = DataItem(item_data)
-        self.items.append(item)
+                print(f"Enrolled {student.name} in {science_lab.room_number}")
 
-        # Update indices manually (traditional Python way)
-        for key, value in item_data.items():
-            if key not in self.indices:
-                self.indices[key] = {}
+            print(f"Created classroom {science_lab.room_number} with {dr_smith.name}")
+            print(f"Total nodes: {len(db.nodes)}, Total edges: {len(db.edges)}")
+        ```
 
-            if value not in self.indices[key]:
-                self.indices[key][value] = []
+## Graph Navigation and Filtering
 
-            self.indices[key][value].append(item)
+!!! topic "Traversal Syntax"
+    Jac provides powerful syntax for navigating graphs: `[-->]` gets outgoing connections, `[<--]` gets incoming connections, and filters can be applied to find specific nodes or edges.
 
-    def find_by(self, key: str, value: Any) -> List[DataItem]:
-        """Fast O(1) lookup using indices - Pythonic optimization"""
-        if key in self.indices and value in self.indices[key]:
-            return self.indices[key][value]
-        return []
+### Basic Navigation
 
-print("=== PYTHONIC APPROACH: Manual Indexing in Python ===")
+!!! example "Finding Connected Nodes"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        --8<-- "docs/examples/chapter_10_school.jac:1:166"
+        ```
+        </div>
+    === "Python"
+        ```python
+        class ClassroomExplorer:
+            def __init__(self, db: GraphDatabase):
+                self.db = db
 
-# Create indexed collection
-collection = IndexedCollection("python_collection")
+            def explore_classroom(self, classroom):
+                print(f"\n=== Exploring {classroom.room_number} ===")
 
-# Add test data
-test_data = [
-    {"name": "Alice", "age": 30, "city": "New York", "department": "Engineering"},
-    {"name": "Bob", "age": 25, "city": "Boston", "department": "Sales"},
-    {"name": "Charlie", "age": 30, "city": "Chicago", "department": "Engineering"},
-    {"name": "Diana", "age": 28, "city": "New York", "department": "Marketing"},
-    {"name": "Eve", "age": 25, "city": "Seattle", "department": "Engineering"}
-]
+                # Find all students enrolled in this classroom
+                students = []
+                for edge in self.db.edges:
+                    if (isinstance(edge, EnrolledIn) and
+                        edge.to_node == classroom):
+                        students.append(edge.from_node)
 
-for item in test_data:
-    collection.add_item(item)
-    print("Data is added")
+                print(f"Students enrolled: {len(students)}")
+                for student in students:
+                    print(f"  - {student.name} (ID: {student.student_id})")
 
-# Fast index-based queries
-print("--- Fast Index-based Queries (O(1)) ---")
+                # Find the teacher
+                teachers = []
+                for edge in self.db.edges:
+                    if (isinstance(edge, Teaches) and
+                        edge.to_node == classroom):
+                        teachers.append(edge.from_node)
 
-age_30_users = collection.find_by("age", 30)
-print("Users with age 30")
-for user in age_30_users:
-    print(f"  - {user.data['name']} from {user.data['city']}, age {user.data['age']}")
+                if teachers:
+                    teacher = teachers[0]
+                    print(f"Teacher: {teacher.name} ({teacher.subject})")
 
-engineers = collection.find_by("department", "Engineering")
-print("Engineers")
-for engineer in engineers:
-    print(f"  - {engineer.data['name']} from {engineer.data['city']}, age {engineer.data['age']}")
-```
+                # Show classroom info
+                equipment = "Projector" if classroom.has_projector else "No projector"
+                print(f"Equipment: {equipment}")
+                print(f"Capacity: {classroom.capacity} students")
 
-<div class="code-block">
+        if __name__ == "__main__":
+            # Continuing from previous example...
+            explorer = ClassroomExplorer(db)
 
-```jac
-# Indexing pattern for fast lookups
-node DataItem {
-    has data: dict;
-}
+            # Find all classrooms and explore them
+            classrooms = [node for node in db.nodes.values()
+                         if isinstance(node, Classroom)]
 
-walker add_item {
-    has data: dict;
+            for classroom in classrooms:
+                explorer.explore_classroom(classroom)
+        ```
 
-    can add with `root entry {
-        root ++> DataItem(self.data);
-        print("Data is added");
-    }
-}
+### Advanced Filtering
 
-walker finder {
-    has key: str;
-    has value: any;
+!!! example "Filtered Graph Queries"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        --8<-- "docs/examples/chapter_10_school.jac:1:177"
+        ```
+        </div>
+    === "Python"
+        ```python
+        class StudentAnalyzer:
+            def __init__(self, db: GraphDatabase):
+                self.db = db
+                self.high_performers = []
+                self.needs_help = []
 
-    can find with `root entry {
-        visit [root --> (`?DataItem)];
-    }
+            def analyze_all_students(self):
+                # Find all students
+                students = [node for node in self.db.nodes.values()
+                           if isinstance(node, Student)]
 
-    can reported with DataItem entry {
-        if here.data.get(self.key) == self.value {
-            print(f"  - {here.data['name']} from {here.data['city']}, age {here.data['age']}");
-        }
-    }
-}
+                for student in students:
+                    self.analyze_student(student)
 
-# Example usage
-with entry {
-    test_data = [
-        {"name": "Alice", "age": 30, "city": "New York", "department": "Engineering"},
-        {"name": "Bob", "age": 25, "city": "Boston", "department": "Sales"},
-        {"name": "Charlie", "age": 30, "city": "Chicago", "department": "Engineering"},
-        {"name": "Diana", "age": 28, "city": "New York", "department": "Marketing"},
-        {"name": "Eve", "age": 25, "city": "Seattle", "department": "Engineering"}
-    ];
-    for data in test_data {
-        add_item(data) spawn root;
-    }
+                self.generate_report()
 
-    print("--- Fast Jac Based Filtering ---");
-    print("Users with age 30");
-    finder("age", 30) spawn root;
-    print("Engineers");
-    finder("department", "Engineering") spawn root;
+            def analyze_student(self, student):
+                # Find enrollment information for this student
+                for edge in self.db.edges:
+                    if (isinstance(edge, EnrolledIn) and
+                        edge.from_node == student):
 
-}
-```
-</div>
+                        grade = edge.grade
+                        attendance = edge.attendance_rate
 
-## Summary
+                        # Categorize students
+                        if grade in ["A", "A-", "B+"] and attendance >= 90.0:
+                            self.high_performers.append({
+                                "name": student.name,
+                                "grade": grade,
+                                "attendance": attendance
+                            })
+                        elif attendance < 85.0 or grade in ["D", "F"]:
+                            self.needs_help.append({
+                                "name": student.name,
+                                "grade": grade,
+                                "attendance": attendance
+                            })
 
-In this chapter, we've explored Jac's revolutionary persistence model:
+            def generate_report(self):
+                print("\n=== Student Analysis Report ===")
 
-- **The Root Node**: A globally accessible anchor for persistent data
-- **Automatic Persistence**: No database required—just connect to root
-- **Reachability Model**: Data persists based on graph connectivity
-- **Zero Configuration**: No schema definitions, migrations, or connection strings
-- **Performance Patterns**: Indexing, lazy loading, and cleanup strategies
+                print(f"High Performers ({len(self.high_performers)}):")
+                for student in self.high_performers:
+                    print(f"  {student['name']}: {student['grade']} grade, {student['attendance']:.1f}% attendance")
 
-This persistence model eliminates entire categories of boilerplate code. You focus on your domain logic while Jac handles data persistence automatically. The same patterns that work for a simple script scale to multi-user applications—which we'll explore in the next chapter.
+                print(f"\nNeeds Support ({len(self.needs_help)}):")
+                for student in self.needs_help:
+                    print(f"  {student['name']}: {student['grade']} grade, {student['attendance']:.1f}% attendance")
+
+        if __name__ == "__main__":
+            # Continuing from previous example...
+            analyzer = StudentAnalyzer(db)
+            analyzer.analyze_all_students()
+        ```
+
+## Best Practices for Nodes and Edges
+
+!!! summary "Design Guidelines"
+    - **Nodes for Entities**: Use nodes for things that exist independently (students, teachers, classrooms)
+    - **Edges for Relationships**: Use edges for connections between entities (enrollment, teaching, friendship)
+    - **Rich Edge Properties**: Store relationship-specific data in edges (grades, dates, status)
+    - **Consistent Naming**: Use clear, descriptive names for node and edge types
+    - **Connect to Root**: Always connect important nodes to root for persistence
+
+## Key Takeaways
+
+!!! summary "Chapter Summary"
+    - **Nodes** are spatial objects that can be connected and persisted automatically
+    - **Edges** are first-class relationships with their own properties and behaviors
+    - **Root Connection** provides automatic persistence for connected nodes
+    - **Navigation Syntax** makes finding related data intuitive with `[-->]` and `[<--]`
+    - **Filtering** enables powerful queries directly in the traversal syntax
+    - **Walkers** can traverse and analyze the graph structure effectively
+
+Nodes and edges form the foundation of Object-Spatial Programming. By modeling your data as connected entities rather than isolated objects, you create more natural representations that enable powerful traversal and analysis patterns.
+
+In the next chapter, we'll explore walkers and abilities - the mobile computational entities that bring your graphs to life by moving through and processing your spatial data structures.

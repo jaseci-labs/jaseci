@@ -1,871 +1,705 @@
-### Chapter 8: Walkers - Computation in Motion
+# Chapter 8: Enhanced OOP - Objects and Classes
 
-Walkers are the beating heart of Object-Spatial Programming. They embody the paradigm shift from static functions to mobile computational entities that traverse your data graph, processing information where it lives. In this chapter, we'll master the art of creating and controlling walkers to build powerful, scalable algorithms.
+Jac takes the familiar concepts of object-oriented programming and enhances them with modern features like automatic constructors, implementation separation, and improved access control. This chapter shows how Jac builds on traditional OOP while making it more powerful and convenient.
 
-#### 8.1 Walker Basics
+!!! topic "Enhanced Object-Oriented Programming"
+    Jac's enhanced OOP features eliminate boilerplate code while providing better type safety and code organization than traditional approaches.
 
-### Declaring Walker Classes
+## From Python `class` to Jac `obj`
 
-Walkers are declared using the `walker` keyword and can contain state, abilities, and methods:
+!!! topic "The Evolution of Classes"
+    While Python classes require manual constructor writing, Jac's `obj` archetype automatically generates constructors and handles common patterns for you.
 
-```jac
-walker SimpleVisitor {
-    # Walker state - travels with the walker
-    has visits: int = 0;
-    has path: list[str] = [];
+### Traditional Python Classes
 
-    # Regular method
-    def get_stats() -> dict {
-        return {
-            "total_visits": self.visits,
-            "path_length": len(self.path),
-            "current_path": self.path
-        };
-    }
+In Python, you must manually write constructors and handle instance variables:
 
-    # Walker ability - triggered on node entry
-    can visit_node with entry {
-        self.visits += 1;
-        self.path.append(here.name if hasattr(here, 'name') else str(here));
-        print(f"Visit {self.visits}: {self.path[-1]}");
-    }
-}
+```python
+class Pet:
+    def __init__(self, name: str, species: str, age: int):
+        self.name = name
+        self.species = species
+        self.age = age
+        self.is_adopted = False  # Default value
+
+    def adopt(self):
+        self.is_adopted = True
+        print(f"{self.name} has been adopted!")
+
+    def get_info(self):
+        status = "adopted" if self.is_adopted else "available"
+        return f"{self.name} is a {self.age}-year-old {self.species} ({status})"
+
+# Usage
+pet = Pet("Buddy", "dog", 3)
+print(pet.get_info())
 ```
 
-Key walker components:
-
-- **State Variables** (`has`): Data that travels with the walker
-- **Methods** (`def`): Regular functions for computation
-- **Abilities** (`can ... with`): Event-triggered behaviors
-
-### Spawning Walkers on Nodes
-
-Walkers start as inactive objects and must be "spawned" to begin traversal:
-
-```jac
-node Location {
-    has name: str;
-    has description: str;
-}
-
-with entry {
-    # Create a simple graph
-    home = root ++> Location(name="Home", description="Starting point");
-    park = home ++> Location(name="Park", description="Green space");
-    store = home ++> Location(name="Store", description="Shopping center");
-
-    # Create walker instance (inactive)
-    visitor1 = SimpleVisitor();
-    print(f"Walker created. Stats: {visitor1.get_stats()}");
-
-    # Spawn walker on a node (activates it)
-    home spawn visitor1;
-
-    # Or use alternative syntax
-    visitor2 = SimpleVisitor();
-    visitor2 spawn home;
-}
-```
-
-```mermaid
-graph LR
-    subgraph "Walker Lifecycle"
-        I[Inactive<br/>Walker Object]
-        A[Active<br/>Walker on Node]
-        T[Traversing<br/>Graph]
-        D[Done<br/>Disengaged]
-
-        I -->|spawn| A
-        A -->|visit| T
-        T -->|visit| T
-        T -->|disengage| D
-        T -->|queue empty| D
-    end
-
-    style I fill:#ffcdd2
-    style A fill:#c8e6c9
-    style T fill:#fff9c4
-    style D fill:#e1bee7
-```
-
-### The Walker Lifecycle
-
-Understanding the walker lifecycle is crucial:
-
-```jac
-walker LifecycleDemo {
-    has state: str = "created";
-    has nodes_visited: list = [];
-
-    # Called when walker is created (optional)
-    can init(mission: str = "explore") {
-        print(f"Walker initialized with mission: {mission}");
-        self.state = "initialized";
-    }
-
-    # Entry ability - when arriving at a node
-    can on_entry with entry {
-        self.state = "active";
-        self.nodes_visited.append(here);
-        print(f"Entered node. Total visits: {len(self.nodes_visited)}");
-
-        # Decide whether to continue
-        if len(self.nodes_visited) < 5 {
-            visit [-->];  # Continue to connected nodes
-        } else {
-            print("Mission complete!");
-            self.state = "completed";
-            disengage;  # End traversal
-        }
-    }
-
-    # Exit ability - when leaving a node
-    can on_exit with exit {
-        print(f"Leaving node after processing");
-    }
-
-    # Final cleanup (if needed)
-    def cleanup {
-        print(f"Walker finished. State: {self.state}");
-        print(f"Visited {len(self.nodes_visited)} nodes");
-    }
-}
-```
-
-#### 8.2 Traversal Patterns
-
-### `visit` Statements for Navigation
-
-The `visit` statement is how walkers move through the graph:
-
-```jac
-walker Explorer {
-    has max_depth: int = 3;
-    has current_depth: int = 0;
-
-    can explore with entry {
-        print(f"At depth {self.current_depth}: {here.name}");
-
-        if self.current_depth < self.max_depth {
-            # Visit all connected nodes
-            visit [-->];
-
-            # Or visit specific nodes
-            important_nodes = [-->].filter(
-                lambda n: n.priority > 5 if hasattr(n, 'priority') else False
-            );
-            visit important_nodes;
-
-            # Or visit with type filtering
-            visit [->:ImportantEdge:->];
-        }
-    }
-}
-```
-
-### `disengage` for Early Termination
-
-Use `disengage` to stop traversal immediately:
-
-```jac
-walker SearchWalker {
-    has target_name: str;
-    has found: bool = false;
-    has result: node? = None;
-
-    can search with entry {
-        print(f"Checking: {here.name if hasattr(here, 'name') else 'unknown'}");
-
-        if hasattr(here, 'name') and here.name == self.target_name {
-            print(f"Found target: {here.name}!");
-            self.found = True;
-            self.result = here;
-            report here;  # Report finding
-            disengage;    # Stop searching
-        }
-
-        # Continue search if not found
-        visit [-->];
-    }
-}
-
-with entry {
-    searcher = SearchWalker(target_name="Store");
-    result = spawn searcher on root;
-
-    if searcher.found {
-        print(f"Search successful! Found: {searcher.result.name}");
-    } else {
-        print("Target not found in graph");
-    }
-}
-```
-
-### `skip` for Conditional Processing
-
-The `skip` statement ends processing at the current node but continues traversal:
-
-```jac
-walker ConditionalProcessor {
-    has process_count: int = 0;
-    has skip_count: int = 0;
-
-    can process with entry {
-        # Skip nodes that don't meet criteria
-        if hasattr(here, 'active') and not here.active {
-            self.skip_count += 1;
-            print(f"Skipping inactive node");
-            skip;  # Move to next node without further processing
-        }
-
-        # Process active nodes
-        print(f"Processing node {self.process_count + 1}");
-        self.process_count += 1;
-
-        # Expensive operation only for active nodes
-        self.perform_expensive_operation();
-
-        # Continue traversal
-        visit [-->];
-    }
-
-    can perform_expensive_operation {
-        import:py time;
-        time.sleep(0.1);  # Simulate work
-        print("  - Expensive operation completed");
-    }
-}
-```
-
-### Queue-Based Traversal Model
-
-Walkers use an internal queue for traversal:
-
-```jac
-walker QueueDemo {
-    has visited_order: list = [];
-
-    can demonstrate with entry {
-        self.visited_order.append(here.name);
-        print(f"Current queue after visiting {here.name}:");
-
-        # The visit statement adds to queue
-        neighbors = [-->];
-        for i, neighbor in enumerate(neighbors) {
-            print(f"  Adding to queue: {neighbor.name}");
-            visit neighbor;
-        }
-
-        print(f"Queue will be processed in order\n");
-    }
-
-    can summarize with exit {
-        if len([-->]) == 0 {  # At a leaf node
-            print(f"Traversal order: {' -> '.join(self.visited_order)}");
-        }
-    }
-}
-```
-
-### Advanced Traversal Patterns
-
-#### Breadth-First Search (BFS)
-
-```jac
-walker BFSWalker {
-    has visited: set = {};
-    has level: dict = {};
-    has current_level: int = 0;
-
-    can bfs with entry {
-        # Mark as visited
-        if here in self.visited {
-            skip;
-        }
-
-        self.visited.add(here);
-        self.level[here] = self.current_level;
-
-        print(f"Level {self.current_level}: {here.name}");
-
-        # Queue all unvisited neighbors (BFS behavior)
-        unvisited = [-->].filter(lambda n: n not in self.visited);
-        visit unvisited;
-
-        # Increment level for next wave
-        if all(n in self.visited for n in [-->]) {
-            self.current_level += 1;
-        }
-    }
-}
-```
-
-#### Depth-First Search (DFS)
-
-```jac
-walker DFSWalker {
-    has visited: set = {};
-    has stack: list = [];
-    has dfs_order: list = [];
-
-    can dfs with entry {
-        if here in self.visited {
-            skip;
-        }
-
-        self.visited.add(here);
-        self.dfs_order.append(here.name);
-        self.stack.append(here.name);
-
-        print(f"DFS visiting: {here.name}");
-        print(f"  Stack: {self.stack}");
-
-        # Visit one unvisited neighbor at a time (DFS)
-        unvisited = [-->].filter(lambda n: n not in self.visited);
-        if unvisited {
-            visit unvisited[0];  # Visit first unvisited
-        } else {
-            # Backtrack
-            self.stack.pop();
-        }
-
-        # After exploring all children, visit siblings
-        for neighbor in unvisited[1:] {
-            visit neighbor;
-        }
-    }
-}
-```
-
-#### Bidirectional Search
-
-```jac
-walker BidirectionalSearch {
-    has target: node;
-    has forward_visited: set = {};
-    has backward_visited: set = {};
-    has meeting_point: node? = None;
-    has search_forward: bool = true;
-
-    can search with entry {
-        if self.search_forward {
-            # Forward search from source
-            if here in self.backward_visited {
-                self.meeting_point = here;
-                print(f"Paths met at: {here.name}!");
-                disengage;
+### Jac's Enhanced `obj`
+
+!!! example "Simple Pet Class"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        obj Pet {
+            has name: str;
+            has species: str;
+            has age: int;
+            has is_adopted: bool = False;  # Automatic default
+
+            def adopt() -> None {
+                self.is_adopted = True;
+                print(f"{self.name} has been adopted!");
             }
 
-            self.forward_visited.add(here);
-            visit [-->];
-
-        } else {
-            # Backward search from target
-            if here in self.forward_visited {
-                self.meeting_point = here;
-                print(f"Paths met at: {here.name}!");
-                disengage;
-            }
-
-            self.backward_visited.add(here);
-            visit [<--];  # Reverse direction
-        }
-    }
-}
-
-# Usage: Spawn two walkers
-with entry {
-    source = get_node("A");
-    target = get_node("Z");
-
-    # Forward search
-    forward = BidirectionalSearch(target=target, search_forward=true);
-    spawn forward on source;
-
-    # Backward search
-    backward = BidirectionalSearch(target=source, search_forward=false);
-    spawn backward on target;
-}
-```
-
-#### 8.3 Walker Abilities
-
-### Entry and Exit Abilities
-
-Abilities are event-driven methods that execute automatically:
-
-```jac
-node Store {
-    has name: str;
-    has inventory: dict = {};
-    has revenue: float = 0.0;
-}
-
-walker InventoryChecker {
-    has low_stock_items: list = [];
-    has total_value: float = 0.0;
-    has stores_checked: int = 0;
-
-    # Entry ability - main processing
-    can check_inventory with Store entry {
-        print(f"\nChecking store: {here.name}");
-        self.stores_checked += 1;
-
-        store_value = 0.0;
-        for item, details in here.inventory.items() {
-            quantity = details["quantity"];
-            price = details["price"];
-
-            store_value += quantity * price;
-
-            if quantity < 10 {
-                self.low_stock_items.append({
-                    "store": here.name,
-                    "item": item,
-                    "quantity": quantity
-                });
+            def get_info() -> str {
+                status = "adopted" if self.is_adopted else "available";
+                return f"{self.name} is a {self.age}-year-old {self.species} ({status})";
             }
         }
 
-        self.total_value += store_value;
-        print(f"  Store value: ${store_value:.2f}");
-    }
-
-    # Exit ability - cleanup or summary
-    can summarize with Store exit {
-        if len([-->]) == 0 {  # Last store
-            print(f"\n=== Inventory Check Complete ===");
-            print(f"Stores checked: {self.stores_checked}");
-            print(f"Total inventory value: ${self.total_value:.2f}");
-            print(f"Low stock items: {len(self.low_stock_items)}");
-
-            for item in self.low_stock_items {
-                print(f"  - {item['store']}: {item['item']} ({item['quantity']} left)");
-            }
+        with entry {
+            # Automatic constructor from 'has' declarations
+            pet = Pet(name="Buddy", species="dog", age=3);
+            print(pet.get_info());
+            pet.adopt();
         }
-    }
-}
-```
+        ```
+        </div>
+    === "Python"
+        ```python
+        class Pet:
+            def __init__(self, name: str, species: str, age: int, is_adopted: bool = False):
+                self.name = name
+                self.species = species
+                self.age = age
+                self.is_adopted = is_adopted
 
-### Context References: `here`, `self`, `visitor`
+            def adopt(self):
+                self.is_adopted = True
+                print(f"{self.name} has been adopted!")
 
-Understanding context references is crucial for walker abilities:
+            def get_info(self):
+                status = "adopted" if self.is_adopted else "available"
+                return f"{self.name} is a {self.age}-year-old {self.species} ({status})"
 
-```jac
-node Server {
-    has name: str;
-    has status: str = "running";
-    has load: float = 0.0;
-    has last_check: str = "";
+        if __name__ == "__main__":
+            pet = Pet(name="Buddy", species="dog", age=3)
+            print(pet.get_info())
+            pet.adopt()
+        ```
 
-    # Node ability - 'visitor' refers to the walker
-    can log_visit with HealthChecker entry {
-        print(f"Server {self.name} being checked by {visitor.checker_id}");
-        self.last_check = visitor.check_time;
-    }
+## Automatic Constructors with `has`
 
-    can provide_metrics with HealthChecker entry {
-        return {
-            "name": self.name,
-            "status": self.status,
-            "load": self.load
-        };
-    }
-}
+!!! topic "Automatic Constructor Generation"
+    The `has` keyword declares instance variables and automatically generates constructors, eliminating boilerplate code.
 
-walker HealthChecker {
-    has checker_id: str;
-    has check_time: str;
-    has unhealthy_servers: list = [];
+### Multiple Pets Example
 
-    # Walker ability - 'here' refers to current node, 'self' to walker
-    can check_health with Server entry {
-        print(f"Checker {self.checker_id} at server {here.name}");
+!!! example "Pet Shop with Multiple Animals"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        obj Animal {
+            has name: str;
+            has age: int;
+            has is_healthy: bool by postinit;
 
-        # Get metrics from the server (node calling its method)
-        metrics = here.provide_metrics();
+            def postinit() -> None {
+                self.is_healthy = True;
+            }
 
-        # Check health criteria
-        if here.status != "running" or here.load > 0.8 {
-            self.unhealthy_servers.append({
-                "server": here.name,
-                "status": here.status,
-                "load": here.load,
-                "checked_at": self.check_time
-            });
-
-            # Try to fix issues
-            if here.load > 0.8 {
-                self.rebalance_load(here);
+            def birthday() -> None {
+                self.age += 1;
+                print(f"Happy birthday {self.name}! Now {self.age} years old.");
             }
         }
 
-        # Continue to connected servers
-        visit [->:NetworkLink:];
-    }
+        obj Dog(Animal) {
+            has breed: str;
+            has is_trained: bool = False;
 
-    can rebalance_load(server: Server) {
-        print(f"  Attempting to rebalance load on {server.name}");
-        # Rebalancing logic here
-        server.load *= 0.7;  # Simplified rebalancing
-    }
-}
-```
-
-### Bidirectional Computation Model
-
-The power of OSP comes from bidirectional interaction between walkers and nodes:
-
-```jac
-node SmartDevice {
-    has device_id: str;
-    has device_type: str;
-    has settings: dict = {};
-    has metrics: dict = {};
-
-    # Node responds to configuration walker
-    can apply_config with ConfigUpdater entry {
-        print(f"Device {self.device_id} receiving config");
-
-        # Node can access walker data
-        new_settings = visitor.get_settings_for(self.device_type);
-
-        # Node updates itself
-        self.settings.update(new_settings);
-
-        # Node can modify walker state
-        visitor.devices_updated += 1;
-        visitor.log_update(self.device_id, new_settings);
-    }
-
-    # Node provides data to analytics walker
-    can share_metrics with AnalyticsCollector entry {
-        # Complex computation at the node
-        processed_metrics = self.process_raw_metrics();
-
-        # Give data to walker
-        visitor.collect_metrics(self.device_id, processed_metrics);
-    }
-
-    can process_raw_metrics() -> dict {
-        # Node's own complex logic
-        return {
-            "uptime": self.metrics.get("uptime", 0),
-            "efficiency": self.calculate_efficiency(),
-            "health_score": self.calculate_health()
-        };
-    }
-
-    can calculate_efficiency() -> float {
-        # Complex calculation
-        return 0.85;  # Simplified
-    }
-
-    can calculate_health() -> float {
-        return 0.92;  # Simplified
-    }
-}
-
-walker ConfigUpdater {
-    has config_version: str;
-    has devices_updated: int = 0;
-    has update_log: list = [];
-
-    can get_settings_for(device_type: str) -> dict {
-        # Walker provides configuration based on device type
-        configs = {
-            "thermostat": {"temp_unit": "celsius", "schedule": "auto"},
-            "camera": {"resolution": "1080p", "night_mode": true},
-            "sensor": {"sensitivity": "high", "interval": 60}
-        };
-
-        return configs.get(device_type, {});
-    }
-
-    can log_update(device_id: str, settings: dict) {
-        self.update_log.append({
-            "device": device_id,
-            "settings": settings,
-            "timestamp": now()
-        });
-    }
-
-    can update_devices with SmartDevice entry {
-        # Walker's main logic is in the node ability
-        # This is just navigation
-        visit [->:ConnectedTo:];
-    }
-
-    can report with exit {
-        print(f"\nConfiguration Update Complete:");
-        print(f"  Version: {self.config_version}");
-        print(f"  Devices updated: {self.devices_updated}");
-    }
-}
-
-walker AnalyticsCollector {
-    has metrics_db: dict = {};
-    has device_count: int = 0;
-
-    can collect_metrics(device_id: str, metrics: dict) {
-        self.metrics_db[device_id] = metrics;
-        self.device_count += 1;
-    }
-
-    can analyze with SmartDevice entry {
-        # Trigger node's ability
-        # Node will call walker's collect_metrics
-        visit [-->];
-    }
-
-    can generate_report with exit {
-        if self.device_count > 0 {
-            print(f"\n=== Analytics Report ===");
-            print(f"Devices analyzed: {self.device_count}");
-
-            # Calculate aggregates
-            avg_uptime = sum(m["uptime"] for m in self.metrics_db.values()) / self.device_count;
-            avg_health = sum(m["health_score"] for m in self.metrics_db.values()) / self.device_count;
-
-            print(f"Average uptime: {avg_uptime:.1f} hours");
-            print(f"Average health score: {avg_health:.2%}");
-        }
-    }
-}
-```
-
-### Practical Walker Patterns
-
-#### The Aggregator Pattern
-
-```jac
-walker DataAggregator {
-    has aggregation: dict = {};
-    has visit_count: int = 0;
-
-    can aggregate with DataNode entry {
-        category = here.category;
-        if category not in self.aggregation {
-            self.aggregation[category] = {
-                "count": 0,
-                "total": 0.0,
-                "items": []
-            };
-        }
-
-        self.aggregation[category]["count"] += 1;
-        self.aggregation[category]["total"] += here.value;
-        self.aggregation[category]["items"].append(here.name);
-
-        self.visit_count += 1;
-        visit [-->];
-    }
-
-    can report_summary with exit {
-        print(f"\nAggregation complete. Visited {self.visit_count} nodes.");
-
-        for category, data in self.aggregation.items() {
-            avg = data["total"] / data["count"];
-            print(f"\n{category}:");
-            print(f"  Count: {data['count']}");
-            print(f"  Average: {avg:.2f}");
-            print(f"  Total: {data['total']:.2f}");
-        }
-    }
-}
-```
-
-#### The Validator Pattern
-
-```jac
-walker GraphValidator {
-    has errors: list = [];
-    has warnings: list = [];
-    has nodes_validated: int = 0;
-
-    can validate with entry {
-        self.nodes_validated += 1;
-
-        # Check node properties
-        if not hasattr(here, 'name') or not here.name {
-            self.errors.append({
-                "node": here,
-                "error": "Missing or empty name"
-            });
-        }
-
-        # Check connections
-        outgoing = [-->];
-        incoming = [<--];
-
-        if len(outgoing) == 0 and len(incoming) == 0 {
-            self.warnings.append({
-                "node": here.name if hasattr(here, 'name') else "unknown",
-                "warning": "Isolated node (no connections)"
-            });
-        }
-
-        # Type-specific validation
-        if hasattr(here, 'validate') {
-            validation_result = here.validate();
-            if not validation_result["valid"] {
-                self.errors.extend(validation_result["errors"]);
+            def bark() -> None {
+                print(f"{self.name} the {self.breed} says: Woof!");
             }
         }
 
-        visit [-->];
-    }
+        obj Cat(Animal) {
+            has indoor: bool = True;
+            has favorite_toy: str = "ball of yarn";
 
-    can report with exit {
-        print(f"\n=== Validation Report ===");
-        print(f"Nodes validated: {self.nodes_validated}");
-        print(f"Errors found: {len(self.errors)}");
-        print(f"Warnings: {len(self.warnings)}");
-
-        if self.errors {
-            print("\nErrors:");
-            for error in self.errors {
-                print(f"  - {error}");
+            def meow() -> None {
+                print(f"{self.name} says: Meow!");
             }
         }
 
-        if self.warnings {
-            print("\nWarnings:");
-            for warning in self.warnings {
-                print(f"  - {warning}");
+        with entry {
+            # Automatic constructors include parent class fields
+            dog = Dog(name="Max", age=2, breed="Golden Retriever");
+            cat = Cat(name="Whiskers", age=3, indoor=False, favorite_toy="feather");
+
+            dog.bark();
+            dog.birthday();
+
+            cat.meow();
+            print(f"{cat.name} is {'indoor' if cat.indoor else 'outdoor'}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        class Animal:
+            def __init__(self, name: str, age: int, is_healthy: bool = True):
+                self.name = name
+                self.age = age
+                self.is_healthy = is_healthy
+
+            def birthday(self):
+                self.age += 1
+                print(f"Happy birthday {self.name}! Now {self.age} years old.")
+
+        class Dog(Animal):
+            def __init__(self, name: str, age: int, breed: str, is_healthy: bool = True, is_trained: bool = False):
+                super().__init__(name, age, is_healthy)
+                self.breed = breed
+                self.is_trained = is_trained
+
+            def bark(self):
+                print(f"{self.name} the {self.breed} says: Woof!")
+
+        class Cat(Animal):
+            def __init__(self, name: str, age: int, is_healthy: bool = True, indoor: bool = True, favorite_toy: str = "ball of yarn"):
+                super().__init__(name, age, is_healthy)
+                self.indoor = indoor
+                self.favorite_toy = favorite_toy
+
+            def meow(self):
+                print(f"{self.name} says: Meow!")
+
+        if __name__ == "__main__":
+            dog = Dog(name="Max", age=2, breed="Golden Retriever")
+            cat = Cat(name="Whiskers", age=3, indoor=False, favorite_toy="feather")
+
+            dog.bark()
+            dog.birthday()
+
+            cat.meow()
+            print(f"{cat.name} is {'indoor' if cat.indoor else 'outdoor'}")
+        ```
+
+### Advanced Constructor Features
+
+!!! example "Constructor with Validation"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        obj Pet {
+            has name: str;
+            has species: str;
+            has age: int;
+            has is_adopted: bool = False;  # Automatic default
+
+            def adopt() -> None {
+                self.is_adopted = True;
+                print(f"{self.name} has been adopted!");
+            }
+
+            def get_info() -> str {
+                status = "adopted" if self.is_adopted else "available";
+                return f"{self.name} is a {self.age}-year-old {self.species} ({status})";
             }
         }
-    }
-}
-```
 
-#### The Transformer Pattern
+        obj PetShop {
+            has name: str;
+            has pets: list[Pet] = [];
+            has capacity: int = 10;
+            has is_open: bool by postinit;  # Set in postinit
 
-```jac
-walker DataTransformer {
-    has transformation_rules: dict;
-    has transformed_count: int = 0;
-    has backup: dict = {};
+            def postinit() -> None {
+                # Run after automatic initialization
+                self.is_open = len(self.pets) < self.capacity;
+                print(f"{self.name} shop initialized with {len(self.pets)} pets");
+            }
 
-    can init(rules: dict) {
-        self.transformation_rules = rules;
-    }
+            def add_pet(pet: Pet) -> bool {
+                if len(self.pets) >= self.capacity {
+                    print("Shop is at capacity!");
+                    return False;
+                }
 
-    can transform with entry {
-        # Backup original data
-        if hasattr(here, 'data') {
-            self.backup[here] = here.data.copy();
+                self.pets.append(pet);
+                self.is_open = len(self.pets) < self.capacity;
+                print(f"Added {pet.name} to {self.name}");
+                return True;
+            }
 
-            # Apply transformations
-            for field, rule in self.transformation_rules.items() {
-                if field in here.data {
-                    here.data[field] = self.apply_rule(here.data[field], rule);
+            def list_available_pets() -> None {
+                available = [p for p in self.pets if not p.is_adopted];
+                print(f"\nAvailable pets at {self.name}:");
+                for pet in available {
+                    print(f"  - {pet.get_info()}");
                 }
             }
-
-            self.transformed_count += 1;
         }
 
-        visit [-->];
-    }
+        with entry {
+            # Shop starts empty, postinit sets is_open
+            shop = PetShop(name="Happy Paws Pet Shop");
 
-    can apply_rule(value: any, rule: dict) -> any {
-        if rule["type"] == "multiply" {
-            return value * rule["factor"];
-        } elif rule["type"] == "uppercase" {
-            return str(value).upper();
-        } elif rule["type"] == "round" {
-            return round(float(value), rule["decimals"]);
-        }
-        return value;
-    }
+            # Add some pets
+            dog = Pet(name="Buddy", species="dog", age=3);
+            cat = Pet(name="Mittens", species="cat", age=2);
 
-    can rollback {
-        # Restore original data if needed
-        for node, original_data in self.backup.items() {
-            node.data = original_data;
+            shop.add_pet(dog);
+            shop.add_pet(cat);
+            shop.list_available_pets();
+
+            # Adopt a pet
+            dog.adopt();
+            shop.list_available_pets();
         }
-    }
-}
+        ```
+        </div>
+    === "Python"
+        ```python
+        from typing import List
+
+        class PetShop:
+            def __init__(self, name: str, capacity: int = 10):
+                self.name = name
+                self.pets: List[Pet] = []
+                self.capacity = capacity
+                self.is_open = len(self.pets) < self.capacity
+                print(f"{self.name} shop initialized with {len(self.pets)} pets")
+
+            def add_pet(self, pet):
+                if len(self.pets) >= self.capacity:
+                    print("Shop is at capacity!")
+                    return False
+
+                self.pets.append(pet)
+                self.is_open = len(self.pets) < self.capacity
+                print(f"Added {pet.name} to {self.name}")
+                return True
+
+            def list_available_pets(self):
+                available = [p for p in self.pets if not p.is_adopted]
+                print(f"\nAvailable pets at {self.name}:")
+                for pet in available:
+                    print(f"  - {pet.get_info()}")
+
+        if __name__ == "__main__":
+            shop = PetShop(name="Happy Paws Pet Shop")
+
+            dog = Pet(name="Buddy", species="dog", age=3)
+            cat = Pet(name="Mittens", species="cat", age=2)
+
+            shop.add_pet(dog)
+            shop.add_pet(cat)
+            shop.list_available_pets()
+
+            dog.adopt()
+            shop.list_available_pets()
+        ```
+
+## Access Control with `:pub`, `:priv`, `:protect`
+
+!!! topic "Explicit Access Control"
+    Unlike Python's naming conventions, Jac provides explicit access control that's enforced at compile time.
+
+### Python's Convention-Based Privacy
+
+In Python, privacy is based on naming conventions that aren't enforced:
+
+```python
+class BankAccount:
+    def __init__(self, account_number, balance):
+        self.account_number = account_number  # Public
+        self._balance = balance               # "Protected" (convention)
+        self.__pin = "1234"                  # "Private" (name mangling)
+
+    def get_balance(self):
+        return self._balance  # Can still be accessed externally
 ```
 
-### Walker Composition
+### Jac's Enforced Access Control
 
-Multiple walkers can work together:
+!!! example "Access Control in Pet Management"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        obj PetRecord {
+            # Public - anyone can access
+            has :pub name: str;
+            has :pub species: str;
 
-```jac
-# First walker identifies targets
-walker TargetIdentifier {
-    has criteria: dict;
-    has targets: list = [];
+            # Private - only this class
+            has :priv owner_contact: str;
+            has :priv microchip_id: str;
 
-    can identify with entry {
-        if self.matches_criteria(here) {
-            self.targets.append(here);
-            here.mark_as_target();  # Mark for second walker
+            # Protected - only this class and subclasses
+            has :protect medical_history: list[str] = [];
+            has :protect last_checkup: str = "";
+
+            # Public method
+            def :pub get_basic_info() -> str {
+                return f"{self.name} is a {self.species}";
+            }
+
+            # Protected method - for vets and staff
+            def :protect add_medical_record(record: str) -> None {
+                self.medical_history.append(record);
+                print(f"Medical record added for {self.name}");
+            }
+
+            # Private method - internal use only
+            def :priv validate_contact(contact: str) -> bool {
+                return "@" in contact and len(contact) > 5;
+            }
+
+            def :pub update_owner_contact(new_contact: str) -> bool {
+                if self.validate_contact(new_contact) {
+                    self.owner_contact = new_contact;
+                    return True;
+                }
+                return False;
+            }
         }
-        visit [-->];
-    }
 
-    can matches_criteria(node: any) -> bool {
-        # Check criteria
-        return true;  # Simplified
-    }
-}
+        obj VetRecord(PetRecord) {
+            has :protect vet_notes: str = "";
 
-# Second walker processes marked targets
-walker TargetProcessor {
-    has processed: int = 0;
+            def :pub add_vet_note(note: str) -> None {
+                # Can access protected members from parent
+                self.add_medical_record(f"Vet note: {note}");
+                self.vet_notes = note;
+            }
 
-    can process with entry {
-        if hasattr(here, 'is_target') and here.is_target {
-            self.perform_processing(here);
-            self.processed += 1;
+            def :pub get_medical_summary() -> str {
+                # Can access protected data
+                record_count = len(self.medical_history);
+                return f"{self.name} has {record_count} medical records";
+            }
         }
-        visit [-->];
-    }
 
-    can perform_processing(node: any) {
-        print(f"Processing target: {node.name if hasattr(node, 'name') else node}");
-        # Processing logic
-    }
-}
+        with entry {
+            # Create a pet record
+            pet = PetRecord(
+                name="Fluffy",
+                species="cat",
+                owner_contact="owner@example.com",
+                microchip_id="123456789"
+            );
 
-# Orchestrator walker coordinates others
-walker Orchestrator {
-    has phase: str = "identify";
+            # Public access works
+            print(pet.get_basic_info());
+            print(f"Pet name: {pet.name}");
 
-    can orchestrate with entry {
-        if self.phase == "identify" {
-            # Spawn identifier
-            identifier = TargetIdentifier(criteria={"type": "important"});
-            spawn identifier on here;
+            # Update contact through public method
+            success = pet.update_owner_contact("new_owner@example.com");
+            print(f"Contact updated: {success}");
 
-            # Move to next phase
-            self.phase = "process";
-            visit here;  # Revisit this node
+            # Vet record with access to protected methods
+            vet_record = VetRecord(
+                name="Rex",
+                species="dog",
+                owner_contact="owner2@example.com",
+                microchip_id="987654321"
+            );
 
-        } elif self.phase == "process" {
-            # Spawn processor
-            processor = TargetProcessor();
-            spawn processor on here;
-
-            self.phase = "complete";
+            vet_record.add_vet_note("Annual checkup - healthy");
+            print(vet_record.get_medical_summary());
         }
-    }
-}
-```
+        ```
+        </div>
+    === "Python"
+        ```python
+        from typing import List
 
-### Summary
+        class PetRecord:
+            def __init__(self, name: str, species: str, owner_contact: str, microchip_id: str):
+                # Public
+                self.name = name
+                self.species = species
 
-In this chapter, we've mastered walkers—the mobile computational entities that make Object-Spatial Programming unique:
+                # Protected (convention only)
+                self._medical_history: List[str] = []
+                self._last_checkup = ""
 
-- **Walker Basics**: Creating, spawning, and managing walker lifecycle
-- **Traversal Control**: Using `visit`, `disengage`, and `skip` effectively
-- **Walker Abilities**: Writing entry/exit abilities with proper context usage
-- **Bidirectional Computation**: Leveraging the interplay between walkers and nodes
-- **Advanced Patterns**: Implementing search algorithms and walker composition
+                # Private (name mangling, but still accessible)
+                self.__owner_contact = owner_contact
+                self.__microchip_id = microchip_id
 
-Walkers transform static data structures into dynamic, reactive systems. They enable algorithms that naturally adapt to the shape and content of your data, scaling from simple traversals to complex distributed computations.
+            def get_basic_info(self) -> str:
+                return f"{self.name} is a {self.species}"
 
-Next, we'll explore abilities in depth—the event-driven computation model that makes the interaction between walkers and nodes so powerful.
+            def _add_medical_record(self, record: str) -> None:
+                self._medical_history.append(record)
+                print(f"Medical record added for {self.name}")
+
+            def __validate_contact(self, contact: str) -> bool:
+                return "@" in contact and len(contact) > 5
+
+            def update_owner_contact(self, new_contact: str) -> bool:
+                if self._PetRecord__validate_contact(new_contact):
+                    self.__owner_contact = new_contact
+                    return True
+                return False
+
+        class VetRecord(PetRecord):
+            def __init__(self, name: str, species: str, owner_contact: str, microchip_id: str):
+                super().__init__(name, species, owner_contact, microchip_id)
+                self._vet_notes = ""
+
+            def add_vet_note(self, note: str) -> None:
+                self._add_medical_record(f"Vet note: {note}")
+                self._vet_notes = note
+
+            def get_medical_summary(self) -> str:
+                record_count = len(self._medical_history)
+                return f"{self.name} has {record_count} medical records"
+
+        if __name__ == "__main__":
+            pet = PetRecord(
+                name="Fluffy",
+                species="cat",
+                owner_contact="owner@example.com",
+                microchip_id="123456789"
+            )
+
+            print(pet.get_basic_info())
+            print(f"Pet name: {pet.name}")
+
+            success = pet.update_owner_contact("new_owner@example.com")
+            print(f"Contact updated: {success}")
+
+            vet_record = VetRecord(
+                name="Rex",
+                species="dog",
+                owner_contact="owner2@example.com",
+                microchip_id="987654321"
+            )
+
+            vet_record.add_vet_note("Annual checkup - healthy")
+            print(vet_record.get_medical_summary())
+        ```
+
+## Inheritance and Composition
+
+!!! topic "Building Class Hierarchies"
+    Jac supports both inheritance and composition patterns, making it easy to build flexible and maintainable class hierarchies.
+
+### Simple Inheritance Example
+
+!!! example "Pet Store Management System"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        obj Pet {
+            has name: str;
+            has species: str;
+            has age: int;
+            has is_adopted: bool = False;  # Automatic default
+
+            def adopt() -> None {
+                self.is_adopted = True;
+                print(f"{self.name} has been adopted!");
+            }
+
+            def get_info() -> str {
+                status = "adopted" if self.is_adopted else "available";
+                return f"{self.name} is a {self.age}-year-old {self.species} ({status})";
+            }
+        }
+
+        obj Employee {
+            has name: str;
+            has hire_date: str;
+            has hourly_wage: float;
+
+            def get_weekly_pay(hours: float) -> float {
+                return hours * self.hourly_wage;
+            }
+
+            def introduce() -> str {
+                return f"Hi, I'm {self.name}, an employee";
+            }
+        }
+
+        obj Manager(Employee) {
+            has department: str;
+            has bonus_rate: float = 0.1;
+
+            def get_weekly_pay(hours: float) -> float {
+                # Override parent method
+                base_pay = super.get_weekly_pay(hours);
+                bonus = base_pay * self.bonus_rate;
+                return base_pay + bonus;
+            }
+
+            def introduce() -> str {
+                return f"Hi, I'm {self.name}, manager of {self.department}";
+            }
+
+            def conduct_meeting() -> None {
+                print(f"{self.name} is conducting a {self.department} meeting");
+            }
+        }
+
+        obj Veterinarian(Employee) {
+            has license_number: str;
+            has specialization: str = "general";
+
+            def introduce() -> str {
+                return f"Hi, I'm Dr. {self.name}, a {self.specialization} veterinarian";
+            }
+
+            def examine_pet(pet: Pet) -> str {
+                print(f"Dr. {self.name} is examining {pet.name}");
+                return f"{pet.name} appears healthy";
+            }
+        }
+
+        with entry {
+            # Create different types of employees
+            manager = Manager(
+                name="Sarah",
+                hire_date="2023-01-15",
+                hourly_wage=25.0,
+                department="Pet Care"
+            );
+
+            vet = Veterinarian(
+                name="Johnson",
+                hire_date="2023-03-01",
+                hourly_wage=45.0,
+                license_number="VET-12345",
+                specialization="small animals"
+            );
+
+            # Test polymorphism
+            employees = [manager, vet];
+
+            for employee in employees {
+                print(employee.introduce());
+                weekly_pay = employee.get_weekly_pay(40.0);
+                print(f"  Weekly pay for 40 hours: ${weekly_pay}");
+            }
+
+            # Manager-specific behavior
+            manager.conduct_meeting();
+
+            # Vet-specific behavior
+            pet = Pet(name="Buddy", species="dog", age=3);
+            diagnosis = vet.examine_pet(pet);
+            print(diagnosis);
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        from typing import List
+
+        class Employee:
+            def __init__(self, name: str, hire_date: str, hourly_wage: float):
+                self.name = name
+                self.hire_date = hire_date
+                self.hourly_wage = hourly_wage
+
+            def get_weekly_pay(self, hours: float) -> float:
+                return hours * self.hourly_wage
+
+            def introduce(self) -> str:
+                return f"Hi, I'm {self.name}, an employee"
+
+        class Manager(Employee):
+            def __init__(self, name: str, hire_date: str, hourly_wage: float, department: str, bonus_rate: float = 0.1):
+                super().__init__(name, hire_date, hourly_wage)
+                self.department = department
+                self.bonus_rate = bonus_rate
+
+            def get_weekly_pay(self, hours: float) -> float:
+                base_pay = super().get_weekly_pay(hours)
+                bonus = base_pay * self.bonus_rate
+                return base_pay + bonus
+
+            def introduce(self) -> str:
+                return f"Hi, I'm {self.name}, manager of {self.department}"
+
+            def conduct_meeting(self) -> None:
+                print(f"{self.name} is conducting a {self.department} meeting")
+
+        class Veterinarian(Employee):
+            def __init__(self, name: str, hire_date: str, hourly_wage: float, license_number: str, specialization: str = "general"):
+                super().__init__(name, hire_date, hourly_wage)
+                self.license_number = license_number
+                self.specialization = specialization
+
+            def introduce(self) -> str:
+                return f"Hi, I'm Dr. {self.name}, a {self.specialization} veterinarian"
+
+            def examine_pet(self, pet) -> str:
+                print(f"Dr. {self.name} is examining {pet.name}")
+                return f"{pet.name} appears healthy"
+
+        if __name__ == "__main__":
+            manager = Manager(
+                name="Sarah",
+                hire_date="2023-01-15",
+                hourly_wage=25.0,
+                department="Pet Care"
+            )
+
+            vet = Veterinarian(
+                name="Johnson",
+                hire_date="2023-03-01",
+                hourly_wage=45.0,
+                license_number="VET-12345",
+                specialization="small animals"
+            )
+
+            employees = [manager, vet]
+
+            for employee in employees:
+                print(employee.introduce())
+                weekly_pay = employee.get_weekly_pay(40.0)
+                print(f"  Weekly pay for 40 hours: ${weekly_pay:.2f}")
+
+            manager.conduct_meeting()
+
+            pet = Pet(name="Buddy", species="dog", age=3)
+            diagnosis = vet.examine_pet(pet)
+            print(diagnosis)
+        ```
+
+## Key Differences from Traditional OOP
+
+!!! summary "Jac vs Traditional OOP"
+    - **Automatic Constructors**: No need to write `__init__` methods
+    - **Enforced Access Control**: `:pub`, `:priv`, `:protect` are actually enforced
+    - **Clean Inheritance**: Automatic constructor chaining in inheritance
+    - **Type Safety**: All method parameters and returns must be typed
+    - **Implementation Separation**: Can separate interface from implementation
+
+## Best Practices
+
+!!! summary "Best Practices"
+    1. **Use `obj` by Default**: Unless you need Python compatibility, prefer `obj` over `class`
+    2. **Leverage Automatic Constructors**: Don't write manual constructors unless necessary
+    3. **Use Access Control Meaningfully**: Make intentional decisions about public vs private
+    4. **Favor Composition**: When inheritance gets complex, consider composition
+    5. **Type Everything**: Explicit types make code more maintainable
+
+## Key Takeaways
+
+!!! summary "Chapter Summary"
+    - **`obj` archetype** automatically generates constructors from `has` declarations
+    - **Access control** is enforced at compile time, not just convention
+    - **Inheritance** works naturally with automatic constructor chaining
+    - **Type safety** is mandatory, preventing many runtime errors
+    - **Less boilerplate** means more focus on business logic
+
+Jac's enhanced OOP features eliminate much of the tedious boilerplate found in traditional object-oriented languages while providing better safety guarantees. This foundation prepares you for the revolutionary Object-Spatial Programming concepts we'll explore next, where these enhanced objects become spatially-aware nodes in a graph.
+
+In the next chapter, we'll dive into the core innovation of Jac: Object-Spatial Programming and the paradigm shift from moving data to computation to moving computation to data.

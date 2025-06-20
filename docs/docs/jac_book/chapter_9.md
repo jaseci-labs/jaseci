@@ -1,1087 +1,705 @@
-### Chapter 9: Abilities - Event-Driven Computation
+# Chapter 9: OSP Introduction and Paradigm Shift
 
-Abilities represent a fundamental shift from traditional method invocation to event-driven computation. Instead of explicitly calling functions, abilities automatically execute when specific conditions are met during graph traversal. This chapter explores how abilities enable the bidirectional computation model that makes Object-Spatial Programming so powerful.
+Object-Spatial Programming (OSP) represents a fundamental shift in how we think about and organize computation. Instead of the traditional approach of moving data to computation, OSP moves computation to data. This chapter introduces this revolutionary paradigm through simple examples that demonstrate the power and elegance of spatial thinking.
 
-#### 9.1 Understanding Abilities
+!!! topic "The Core Paradigm Shift"
+    Traditional programming brings all data to a central location for processing. OSP sends computation to where the data lives, creating more natural, efficient, and scalable programs.
 
-### Implicit Execution vs Explicit Invocation
+## From "Data to Computation" to "Computation to Data"
 
-Traditional programming relies on explicit function calls:
+!!! topic "Traditional vs Object-Spatial"
+    Understanding the difference between these approaches is key to unlocking the power of Jac's unique programming model.
 
-```python
-# Python - Explicit invocation
-class DataProcessor:
-    def process(self, data):
-        return self.transform(data)
+### Traditional Programming: Centralized Processing
 
-    def transform(self, data):
-        # Must be explicitly called
-        return data.upper()
+In traditional programming, we gather all data in one place and then process it:
 
-processor = DataProcessor()
-result = processor.process("hello")  # Explicit call
-```
+!!! example "Traditional Data Processing"
+    === "Jac (Traditional Style)"
+        <div class="code-block">
+        ```jac
+        # Traditional approach - bring all data to one place
+        obj FamilyTraditional {
+            has members: list[dict] = [];
 
-Abilities execute implicitly based on events:
-
-```jac
-// Jac - Implicit execution
-walker DataProcessor {
-    has results: list = [];
-
-    // This ability executes automatically when entering a DataNode
-    can process with DataNode entry {
-        // No explicit call needed - triggered by traversal
-        let transformed = here.data.upper();
-        self.results.append(transformed);
-    }
-}
-
-node DataNode {
-    has data: str;
-
-    // This executes automatically when DataProcessor visits
-    can provide_context with DataProcessor entry {
-        print(f"Processing {self.data} for {visitor.id}");
-    }
-}
-```
-
-The key insight: **computation happens as a natural consequence of traversal**, not through explicit invocation chains.
-
-### Walker, Node, and Edge Abilities
-
-Each archetype can define abilities that respond to traversal events:
-
-```jac
-// Walker abilities - defined in walkers
-walker Analyzer {
-    // Triggered when entering any node
-    can analyze_any with entry {
-        print(f"Entering some node");
-    }
-
-    // Triggered when entering specific node type
-    can analyze_data with DataNode entry {
-        print(f"Entering DataNode: {here.value}");
-    }
-
-    // Triggered when entering specific edge type
-    can traverse_connection with Connection entry {
-        print(f"Traversing Connection edge: {here.strength}");
-    }
-
-    // Exit abilities
-    can complete_analysis with DataNode exit {
-        print(f"Leaving DataNode: {here.value}");
-    }
-}
-
-// Node abilities - defined in nodes
-node DataNode {
-    has value: any;
-    has metadata: dict = {};
-
-    // Triggered when any walker enters
-    can log_visitor with entry {
-        self.metadata["last_visitor"] = str(type(visitor).__name__);
-        self.metadata["visit_count"] = self.metadata.get("visit_count", 0) + 1;
-    }
-
-    // Triggered when specific walker type enters
-    can provide_data with Analyzer entry {
-        // Node can modify the visiting walker
-        visitor.collected_data.append(self.value);
-    }
-
-    // Exit abilities
-    can cleanup with Analyzer exit {
-        print(f"Analyzer leaving with {len(visitor.collected_data)} items");
-    }
-}
-
-// Edge abilities - defined in edges
-edge Connection {
-    has strength: float;
-    has established: str;
-
-    // Triggered when any walker traverses
-    can log_traversal with entry {
-        print(f"Edge traversed: strength={self.strength}");
-    }
-
-    // Triggered when specific walker traverses
-    can apply_weight with Analyzer entry {
-        // Edges can influence traversal
-        visitor.path_weight += self.strength;
-    }
-}
-```
-
-### Execution Order and Precedence
-
-When a walker interacts with a location, abilities execute in a specific order:
-
-```jac
-node ExperimentNode {
-    has name: str;
-    has data: dict = {};
-
-    can phase1 with OrderTest entry {
-        print(f"1. Node entry ability (general)");
-    }
-
-    can phase2 with OrderTest entry {
-        print(f"2. Node entry ability (specific to OrderTest)");
-        visitor.log.append("node-entry");
-    }
-
-    can phase5 with OrderTest exit {
-        print(f"5. Node exit ability");
-        visitor.log.append("node-exit");
-    }
-}
-
-walker OrderTest {
-    has log: list = [];
-
-    can phase3 with ExperimentNode entry {
-        print(f"3. Walker entry ability");
-        self.log.append("walker-entry");
-    }
-
-    can phase4 with ExperimentNode exit {
-        print(f"4. Walker exit ability");
-        self.log.append("walker-exit");
-    }
-
-    can demonstrate with entry {
-        // This shows the complete order
-        visit [-->];
-    }
-}
-
-// Execution order is always:
-// 1. Location (node/edge) entry abilities
-// 2. Walker entry abilities
-// 3. Walker exit abilities
-// 4. Location (node/edge) exit abilities
-```
-
-```mermaid
-sequenceDiagram
-    participant W as Walker
-    participant N as Node
-
-    W->>N: Arrives at node
-    N->>N: Node entry abilities execute
-    N->>W: Control passes to walker
-    W->>W: Walker entry abilities execute
-    W->>W: Walker processes/decides
-    W->>W: Walker exit abilities execute
-    W->>N: Control returns to node
-    N->>N: Node exit abilities execute
-    W->>N: Walker departs
-```
-
-#### 9.2 Practical Ability Patterns
-
-### Data Validation on Arrival
-
-Abilities excel at validating data as walkers traverse:
-
-```jac
-node DataRecord {
-    has id: str;
-    has data: dict;
-    has validated: bool = false;
-    has validation_errors: list = [];
-
-    // Validate when validator arrives
-    can validate_record with DataValidator entry {
-        print(f"Validating record {self.id}");
-
-        // Clear previous validation
-        self.validation_errors = [];
-        self.validated = false;
-
-        // Perform validation
-        let errors = visitor.validate_schema(self.data);
-
-        if errors {
-            self.validation_errors = errors;
-            visitor.invalid_count += 1;
-        } else {
-            self.validated = true;
-            visitor.valid_count += 1;
-        }
-    }
-
-    // Provide data to collectors only if valid
-    can provide_data with DataCollector entry {
-        if self.validated {
-            visitor.collect(self.id, self.data);
-        } else {
-            visitor.skip_invalid(self.id, self.validation_errors);
-        }
-    }
-}
-
-walker DataValidator {
-    has schema: dict;
-    has valid_count: int = 0;
-    has invalid_count: int = 0;
-
-    can validate_schema(data: dict) -> list {
-        let errors = [];
-
-        // Check required fields
-        for field in self.schema.get("required", []) {
-            if field not in data {
-                errors.append(f"Missing required field: {field}");
-            }
-        }
-
-        // Check field types
-        for field, expected_type in self.schema.get("types", {}).items() {
-            if field in data and not isinstance(data[field], expected_type) {
-                errors.append(f"Invalid type for {field}: expected {expected_type.__name__}");
-            }
-        }
-
-        // Check constraints
-        for field, constraints in self.schema.get("constraints", {}).items() {
-            if field in data {
-                value = data[field];
-
-                if "min" in constraints and value < constraints["min"] {
-                    errors.append(f"{field} below minimum: {value} < {constraints['min']}");
-                }
-
-                if "max" in constraints and value > constraints["max"] {
-                    errors.append(f"{field} above maximum: {value} > {constraints['max']}");
-                }
-        }
-
-        return errors;
-    }
-
-    can validate_all with entry {
-        visit [-->];
-    }
-
-    can report with exit {
-        print(f"\nValidation Complete:");
-        print(f"  Valid records: {self.valid_count}");
-        print(f"  Invalid records: {self.invalid_count}");
-    }
-}
-```
-
-### State Transformation During Traversal
-
-Abilities can transform node state based on traversal context:
-
-```jac
-node Account {
-    has id: str;
-    has balance: float;
-    has status: str = "active";
-    has transactions: list = [];
-    has interest_rate: float = 0.02;
-
-    // Apply interest when processor visits
-    can apply_interest with InterestProcessor entry {
-        if self.status == "active" and self.balance > 0 {
-            let interest = self.balance * visitor.get_rate(self);
-            self.balance += interest;
-
-            self.transactions.append({
-                "type": "interest",
-                "amount": interest,
-                "date": visitor.processing_date,
-                "balance_after": self.balance
-            });
-
-            visitor.total_interest_paid += interest;
-            visitor.accounts_processed += 1;
-        }
-    }
-
-    // Update status based on balance
-    can update_status with StatusUpdater entry {
-        let old_status = self.status;
-
-        if self.balance < 0 {
-            self.status = "overdrawn";
-        } elif self.balance == 0 {
-            self.status = "zero_balance";
-        } elif self.balance < 100 {
-            self.status = "low_balance";
-        } else {
-            self.status = "active";
-        }
-
-        if old_status != self.status {
-            visitor.status_changes.append({
-                "account": self.id,
-                "from": old_status,
-                "to": self.status
-            });
-        }
-    }
-}
-
-walker InterestProcessor {
-    has processing_date: str;
-    has base_rate: float = 0.02;
-    has total_interest_paid: float = 0.0;
-    has accounts_processed: int = 0;
-
-    can get_rate(account: Account) -> float {
-        // Premium accounts get better rates
-        if account.balance > 10000 {
-            return self.base_rate * 1.5;
-        } elif account.balance > 5000 {
-            return self.base_rate * 1.25;
-        }
-        return self.base_rate;
-    }
-
-    can process_batch with entry {
-        print(f"Starting interest processing for {self.processing_date}");
-        visit [-->:Account:];
-    }
-
-    can summarize with exit {
-        print(f"\nInterest Processing Complete:");
-        print(f"  Date: {self.processing_date}");
-        print(f"  Accounts processed: {self.accounts_processed}");
-        print(f"  Total interest paid: ${self.total_interest_paid:.2f}");
-    }
-}
-```
-
-### Aggregation and Reporting
-
-Abilities enable elegant aggregation patterns:
-
-```jac
-node SalesRegion {
-    has name: str;
-    has sales_data: list = [];
-
-    can contribute_data with SalesAggregator entry {
-        // Calculate region metrics
-        let total_sales = sum(sale["amount"] for sale in self.sales_data);
-        let avg_sale = total_sales / len(self.sales_data) if self.sales_data else 0;
-
-        // Add to aggregator
-        visitor.add_region_data(
-            region=self.name,
-            total=total_sales,
-            average=avg_sale,
-            count=len(self.sales_data)
-        );
-
-        // Visit sub-regions
-        visit [-->:Contains:];
-    }
-}
-
-node SalesPerson {
-    has name: str;
-    has sales: list = [];
-    has quota: float;
-
-    can report_performance with SalesAggregator entry {
-        let total = sum(sale["amount"] for sale in self.sales);
-        let performance = (total / self.quota * 100) if self.quota > 0 else 0;
-
-        visitor.add_person_data(
-            name=self.name,
-            total=total,
-            quota=self.quota,
-            performance=performance
-        );
-
-        // Contribute to region totals
-        if here[<--:WorksIn:] {
-            let region = here[<--:WorksIn:][0].source;
-            region.sales_data.extend(self.sales);
-        }
-    }
-}
-
-walker SalesAggregator {
-    has period: str;
-    has region_data: dict = {};
-    has person_data: list = [];
-    has summary: dict = {};
-
-    can add_region_data(region: str, total: float, average: float, count: int) {
-        self.region_data[region] = {
-            "total": total,
-            "average": average,
-            "count": count
-        };
-    }
-
-    can add_person_data(name: str, total: float, quota: float, performance: float) {
-        self.person_data.append({
-            "name": name,
-            "total": total,
-            "quota": quota,
-            "performance": performance
-        });
-    }
-
-    can aggregate with entry {
-        print(f"Aggregating sales data for {self.period}");
-        visit [-->];
-    }
-
-    can generate_summary with exit {
-        // Calculate company-wide metrics
-        self.summary = {
-            "period": self.period,
-            "total_sales": sum(r["total"] for r in self.region_data.values()),
-            "regions_analyzed": len(self.region_data),
-            "salespeople_count": len(self.person_data),
-            "top_region": max(self.region_data.items(), key=lambda x: x[1]["total"])[0],
-            "top_performer": max(self.person_data, key=lambda x: x["performance"])["name"]
-        };
-
-        print(f"\n=== Sales Summary for {self.period} ===");
-        print(f"Total Sales: ${self.summary['total_sales']:,.2f}");
-        print(f"Top Region: {self.summary['top_region']}");
-        print(f"Top Performer: {self.summary['top_performer']}");
-    }
-}
-```
-
-### Error Handling in Abilities
-
-Abilities should handle errors gracefully:
-
-```jac
-node DataSource {
-    has url: str;
-    has cache: dict? = None;
-    has last_fetch: str? = None;
-    has error_count: int = 0;
-
-    can provide_data with DataFetcher entry {
-        try {
-            // Try cache first
-            if self.cache and self.is_cache_valid() {
-                visitor.receive_data(self.cache);
-                visitor.cache_hits += 1;
-                return;
-            }
-
-            // Fetch fresh data
-            import:py requests;
-            response = requests.get(self.url, timeout=5);
-
-            if response.status_code == 200 {
-                self.cache = response.json();
-                self.last_fetch = now();
-                self.error_count = 0;
-
-                visitor.receive_data(self.cache);
-                visitor.fetch_count += 1;
-            } else {
-                self.handle_error(f"HTTP {response.status_code}");
-                visitor.error_sources.append(self);
-            }
-
-        } except TimeoutError {
-            self.handle_error("Timeout");
-            visitor.timeout_sources.append(self);
-
-        } except Exception as e {
-            self.handle_error(str(e));
-            visitor.error_sources.append(self);
-        }
-    }
-
-    can handle_error(error: str) {
-        self.error_count += 1;
-        print(f"Error fetching from {self.url}: {error}");
-
-        // Exponential backoff
-        if self.error_count > 3 {
-            print(f"  Source marked as unreliable after {self.error_count} errors");
-        }
-    }
-
-    can is_cache_valid() -> bool {
-        if not self.last_fetch {
-            return false;
-        }
-
-        // Cache valid for 1 hour
-        import:py from datetime import datetime, timedelta;
-        last = datetime.fromisoformat(self.last_fetch);
-        return datetime.now() - last < timedelta(hours=1);
-    }
-}
-
-walker DataFetcher {
-    has data_buffer: list = [];
-    has fetch_count: int = 0;
-    has cache_hits: int = 0;
-    has error_sources: list = [];
-    has timeout_sources: list = [];
-
-    can receive_data(data: dict) {
-        self.data_buffer.append(data);
-    }
-
-    can fetch_all with entry {
-        visit [-->:DataSource:];
-    }
-
-    can report_status with exit {
-        print(f"\nData Fetch Complete:");
-        print(f"  Sources fetched: {self.fetch_count}");
-        print(f"  Cache hits: {self.cache_hits}");
-        print(f"  Errors: {len(self.error_sources)}");
-        print(f"  Timeouts: {len(self.timeout_sources)}");
-        print(f"  Total data collected: {len(self.data_buffer)} items");
-
-        if self.error_sources {
-            print("\nFailed sources:");
-            for source in self.error_sources {
-                print(f"  - {source.url} (errors: {source.error_count})");
-            }
-        }
-    }
-}
-```
-
-### Advanced Ability Patterns
-
-### Cooperative Processing
-
-Multiple walkers can cooperate through abilities:
-
-```jac
-node WorkItem {
-    has id: str;
-    has status: str = "pending";
-    has data: dict;
-    has assigned_to: str? = None;
-    has result: any? = None;
-    has dependencies: list = [];
-
-    // First walker marks items
-    can mark_ready with DependencyChecker entry {
-        let deps_complete = all(
-            dep.status == "completed"
-            for dep in self.dependencies
-        );
-
-        if deps_complete and self.status == "pending" {
-            self.status = "ready";
-            visitor.ready_count += 1;
-        }
-    }
-
-    // Second walker assigns work
-    can assign_work with WorkAssigner entry {
-        if self.status == "ready" and not self.assigned_to {
-            let worker = visitor.get_next_worker();
-            self.assigned_to = worker;
-            self.status = "assigned";
-
-            visitor.assignments[worker].append(self);
-        }
-    }
-
-    // Third walker processes
-    can process_work with WorkProcessor entry {
-        if self.status == "assigned" and self.assigned_to == visitor.worker_id {
-            try {
-                // Simulate processing
-                self.result = self.perform_work();
-                self.status = "completed";
-                visitor.completed_items.append(self.id);
-
-                // Notify dependents
-                self.notify_dependents();
-
-            } except Exception as e {
-                self.status = "failed";
-                visitor.failed_items.append({
-                    "id": self.id,
-                    "error": str(e)
+            def add_member(name: str, age: int, generation: int) -> None {
+                self.members.append({
+                    "name": name,
+                    "age": age,
+                    "generation": generation
                 });
             }
-        }
-    }
 
-    can perform_work() -> any {
-        // Actual work logic
-        return f"Processed: {self.data}";
-    }
-
-    can notify_dependents {
-        // Find items depending on this
-        for item in [<--:DependsOn:] {
-            print(f"  Notifying dependent: {item.source.id}");
-        }
-    }
-}
-
-// Orchestrator spawns walkers in sequence
-walker WorkflowOrchestrator {
-    has phases: list = ["check_deps", "assign", "process"];
-    has current_phase: int = 0;
-
-    can orchestrate with entry {
-        let phase = self.phases[self.current_phase];
-        print(f"\nExecuting phase: {phase}");
-
-        if phase == "check_deps" {
-            spawn DependencyChecker() on here;
-        } elif phase == "assign" {
-            spawn WorkAssigner(workers=["w1", "w2", "w3"]) on here;
-        } elif phase == "process" {
-            // Spawn processor for each worker
-            for worker in ["w1", "w2", "w3"] {
-                spawn WorkProcessor(worker_id=worker) on here;
+            def count_by_generation() -> dict[int, int] {
+                counts = {};
+                # Process all data in one loop
+                for member in self.members {
+                    gen = member["generation"];
+                    counts[gen] = counts.get(gen, 0) + 1;
+                }
+                return counts;
             }
         }
 
-        // Move to next phase
-        self.current_phase += 1;
-        if self.current_phase < len(self.phases) {
-            visit here;  // Revisit to continue
+        with entry {
+            family = FamilyTraditional();
+
+            # Add all family members
+            family.add_member("Grandpa Joe", 75, 1);
+            family.add_member("Grandma Sue", 72, 1);
+            family.add_member("Dad Mike", 45, 2);
+            family.add_member("Mom Lisa", 43, 2);
+            family.add_member("Son Alex", 16, 3);
+            family.add_member("Daughter Emma", 14, 3);
+
+            # Process all data centrally
+            generation_counts = family.count_by_generation();
+            print(f"Generation counts: {generation_counts}");
         }
-    }
-}
-```
+        ```
+        </div>
+    === "Python"
+        ```python
+        class FamilyTraditional:
+            def __init__(self):
+                self.members = []
 
-### Ability Composition
+            def add_member(self, name: str, age: int, generation: int):
+                self.members.append({
+                    "name": name,
+                    "age": age,
+                    "generation": generation
+                })
 
-Abilities can be composed for complex behaviors:
+            def count_by_generation(self):
+                counts = {}
+                # Process all data in one loop
+                for member in self.members:
+                    gen = member["generation"]
+                    counts[gen] = counts.get(gen, 0) + 1
+                return counts
 
-```jac
-// Mixin-like node abilities
-node ObservableNode {
-    has observers: list = [];
-    has change_log: list = [];
+        if __name__ == "__main__":
+            family = FamilyTraditional()
 
-    can notify_observers(change: dict) {
-        for observer in self.observers {
-            observer.on_change(self, change);
-        }
+            # Add all family members
+            family.add_member("Grandpa Joe", 75, 1)
+            family.add_member("Grandma Sue", 72, 1)
+            family.add_member("Dad Mike", 45, 2)
+            family.add_member("Mom Lisa", 43, 2)
+            family.add_member("Son Alex", 16, 3)
+            family.add_member("Daughter Emma", 14, 3)
 
-        self.change_log.append({
-            "timestamp": now(),
-            "change": change
-        });
-    }
-}
+            # Process all data centrally
+            generation_counts = family.count_by_generation()
+            print(f"Generation counts: {generation_counts}")
+        ```
 
-node CacheableNode {
-    has cache_key: str;
-    has cached_at: str? = None;
-    has ttl_seconds: int = 3600;
+### Object-Spatial Programming: Distributed Processing
 
-    can is_cache_valid() -> bool {
-        if not self.cached_at {
-            return false;
-        }
+In OSP, computation moves to where the data naturally lives:
 
-        import:py from datetime import datetime, timedelta;
-        cached = datetime.fromisoformat(self.cached_at);
-        return datetime.now() - cached < timedelta(seconds=self.ttl_seconds);
-    }
-
-    can invalidate_cache {
-        self.cached_at = None;
-    }
-}
-
-// Composed node using both patterns
-node SmartDataNode(ObservableNode, CacheableNode) {
-    has data: dict;
-    has version: int = 0;
-
-    // Override data setter to trigger notifications
-    can update_data with DataUpdater entry {
-        let old_data = self.data.copy();
-        let changes = visitor.get_changes();
-
-        // Update data
-        self.data.update(changes);
-        self.version += 1;
-        self.cached_at = now();
-
-        // Notify observers
-        self.notify_observers({
-            "type": "data_update",
-            "old": old_data,
-            "new": self.data,
-            "version": self.version
-        });
-
-        visitor.nodes_updated += 1;
-    }
-
-    // Provide cached data efficiently
-    can get_data with DataReader entry {
-        visitor.requests += 1;
-
-        if self.is_cache_valid() {
-            visitor.cache_hits += 1;
-            visitor.receive_data(self.data, cached=true);
-        } else {
-            // Simulate expensive operation
-            self.refresh_data();
-            visitor.receive_data(self.data, cached=false);
-        }
-    }
-
-    can refresh_data {
-        import:py time;
-        time.sleep(0.1);  // Simulate work
-        self.cached_at = now();
-    }
-}
-```
-
-### Dynamic Ability Selection
-
-Abilities can conditionally execute based on runtime state:
-
-```jac
-node AdaptiveProcessor {
-    has mode: str = "normal";
-    has load: float = 0.0;
-    has error_rate: float = 0.0;
-
-    // Different processing strategies based on mode
-    can process_normal with DataWalker entry {
-        if self.mode != "normal" {
-            return;  // Skip if not in normal mode
+!!! example "Object-Spatial Family Tree"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # OSP approach - computation goes to data
+        node Person {
+            has name: str;
+            has age: int;
+            has generation: int;
         }
 
-        // Normal processing
-        let result = self.standard_process(visitor.data);
-        visitor.results.append(result);
-
-        // Update metrics
-        self.load = self.calculate_load();
-        self.check_mode_change();
-    }
-
-    can process_degraded with DataWalker entry {
-        if self.mode != "degraded" {
-            return;
+        edge ParentOf {
+            has relationship_type: str = "parent";
         }
 
-        // Simplified processing for high load
-        let result = self.simple_process(visitor.data);
-        visitor.results.append(result);
-        visitor.degraded_count += 1;
-    }
+        walker GenerationCounter {
+            has generation_counts: dict[int, int] = {};
 
-    can process_recovery with DataWalker entry {
-        if self.mode != "recovery" {
-            return;
-        }
+            can count with Person entry {
+                # Computation happens AT each person
+                gen = here.generation;
+                self.generation_counts[gen] = self.generation_counts.get(gen, 0) + 1;
 
-        // Careful processing during recovery
-        try {
-            let result = self.careful_process(visitor.data);
-            visitor.results.append(result);
-            self.error_rate *= 0.9;  // Reduce error rate
-        } except {
-            self.error_rate = min(1.0, self.error_rate * 1.1);
-        }
+                print(f"Counted {here.name} (Generation {gen})");
 
-        self.check_mode_change();
-    }
-
-    can check_mode_change {
-        let old_mode = self.mode;
-
-        if self.error_rate > 0.2 {
-            self.mode = "recovery";
-        } elif self.load > 0.8 {
-            self.mode = "degraded";
-        } else {
-            self.mode = "normal";
-        }
-
-        if old_mode != self.mode {
-            print(f"Mode changed: {old_mode} -> {self.mode}");
-        }
-    }
-
-    can standard_process(data: any) -> any {
-        // Full processing
-        return data;
-    }
-
-    can simple_process(data: any) -> any {
-        // Reduced processing
-        return data;
-    }
-
-    can careful_process(data: any) -> any {
-        // Careful processing with validation
-        return data;
-    }
-}
-```
-
-### Performance Considerations
-
-Abilities should be designed for efficiency:
-
-```jac
-node OptimizedNode {
-    has large_data: list;
-    has index: dict? = None;
-    has stats_cache: dict? = None;
-    has stats_valid: bool = false;
-
-    // Lazy initialization
-    can build_index {
-        if self.index is None {
-            print("Building index...");
-            self.index = {};
-            for i, item in enumerate(self.large_data) {
-                if "id" in item {
-                    self.index[item["id"]] = i;
+                # Visit children
+                visit [->:ParentOf:->];
             }
         }
-    }
 
-    // Efficient lookup using index
-    can find_item with ItemFinder entry {
-        self.build_index();
+        with entry {
+            # Create family tree structure
+            grandpa = root ++> Person(name="Grandpa Joe", age=75, generation=1);
+            grandma = root ++> Person(name="Grandma Sue", age=72, generation=1);
 
-        let target_id = visitor.target_id;
-        if target_id in self.index {
-            let idx = self.index[target_id];
-            visitor.found_item = self.large_data[idx];
-            visitor.comparisons = 1;  // O(1) lookup
-        } else {
-            visitor.found_item = None;
-            visitor.comparisons = 0;
+            # Second generation
+            dad = grandpa[0] +>:ParentOf:+> Person(name="Dad Mike", age=45, generation=2);
+            mom = grandma[0] +>:ParentOf:+> Person(name="Mom Lisa", age=43, generation=2);
+
+            # Third generation
+            son = dad[0] +>:ParentOf:+> Person(name="Son Alex", age=16, generation=3);
+            daughter = mom[0] +>:ParentOf:+> Person(name="Daughter Emma", age=14, generation=3);
+
+            # Send computation to the data
+            counter = GenerationCounter();
+            counter spawn grandpa[0];  # Start traversal from grandpa
+
+            print(f"Final counts: {counter.generation_counts}");
         }
-    }
+        ```
+        </div>
+    === "Python"
+        ```python
+        # Python simulation of OSP concepts
+        class Person:
+            def __init__(self, name: str, age: int, generation: int):
+                self.name = name
+                self.age = age
+                self.generation = generation
+                self.children = []
 
-    // Cached statistics
-    can get_stats with StatsCollector entry {
-        if not self.stats_valid {
-            self.stats_cache = {
-                "count": len(self.large_data),
-                "total": sum(item.get("value", 0) for item in self.large_data),
-                "average": sum(item.get("value", 0) for item in self.large_data) / len(self.large_data)
-            };
-            self.stats_valid = true;
-        }
+            def add_child(self, child):
+                self.children.append(child)
 
-        visitor.collect_stats(self.stats_cache);
-    }
+        class GenerationCounter:
+            def __init__(self):
+                self.generation_counts = {}
 
-    // Invalidate cache on updates
-    can update_data with DataUpdater entry {
-        self.large_data.extend(visitor.new_data);
-        self.stats_valid = false;  // Invalidate cache
-        self.index = None;  // Rebuild index on next search
-    }
-}
+            def count(self, person):
+                # Simulate "computation goes to data"
+                gen = person.generation
+                self.generation_counts[gen] = self.generation_counts.get(gen, 0) + 1
 
-// Batch processing for efficiency
-walker BatchProcessor {
-    has batch_size: int = 100;
-    has current_batch: list = [];
-    has processed_count: int = 0;
+                print(f"Counted {person.name} (Generation {gen})")
 
-    can collect with DataNode entry {
-        self.current_batch.append(here.data);
+                # Visit children recursively
+                for child in person.children:
+                    self.count(child)
 
-        if len(self.current_batch) >= self.batch_size {
-            self.process_batch();
-            self.current_batch = [];
-        }
+        if __name__ == "__main__":
+            # Create family tree structure
+            grandpa = Person("Grandpa Joe", 75, 1)
+            grandma = Person("Grandma Sue", 72, 1)
 
-        visit [-->];
-    }
+            # Second generation
+            dad = Person("Dad Mike", 45, 2)
+            mom = Person("Mom Lisa", 43, 2)
+            grandpa.add_child(dad)
+            grandma.add_child(mom)
 
-    can process_batch {
-        // Process entire batch at once
-        print(f"Processing batch of {len(self.current_batch)} items");
+            # Third generation
+            son = Person("Son Alex", 16, 3)
+            daughter = Person("Daughter Emma", 14, 3)
+            dad.add_child(son)
+            mom.add_child(daughter)
 
-        // Batch operations are often more efficient
-        import:py numpy as np;
-        if all(isinstance(item, (int, float)) for item in self.current_batch) {
-            batch_array = np.array(self.current_batch);
-            result = np.mean(batch_array);  // Vectorized operation
-            print(f"  Batch mean: {result}");
-        }
+            # Send computation to the data
+            counter = GenerationCounter()
+            counter.count(grandpa)  # Start traversal from grandpa
 
-        self.processed_count += len(self.current_batch);
-    }
+            print(f"Final counts: {counter.generation_counts}")
+        ```
 
-    can finalize with exit {
-        // Process remaining items
-        if self.current_batch {
-            self.process_batch();
-        }
+## Data Spatial Programming Foundation
 
-        print(f"Total processed: {self.processed_count}");
-    }
-}
-```
+!!! topic "Spatial Awareness"
+    In OSP, data structures are inherently spatial - they know their relationships and can react to visitors. This creates more intuitive and natural program organization.
 
-### Best Practices for Abilities
+### Spatial Relationships in Data
 
-##### 1. **Keep Abilities Focused**
-Each ability should have a single, clear purpose:
+!!! example "Family Relationships"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        node FamilyMember {
+            has name: str;
+            has birth_year: int;
 
-```jac
-// Good - focused abilities
-node Order {
-    can validate_items with OrderValidator entry {
-        // Only validation logic
-    }
-
-    can calculate_total with PriceCalculator entry {
-        // Only price calculation
-    }
-
-    can check_inventory with InventoryChecker entry {
-        // Only inventory checking
-    }
-}
-
-// Bad - doing too much
-node Order {
-    can process_everything with OrderProcessor entry {
-        // Validation, calculation, inventory, shipping, etc.
-        // Too much in one ability!
-    }
-}
-```
-
-##### 2. **Use Guards for Conditional Execution**
-Prevent unnecessary processing with early returns:
-
-```jac
-can process_premium with PremiumProcessor entry {
-    // Guard clause
-    if not here.is_premium_eligible() {
-        return;  // Skip processing
-    }
-
-    // Main logic only for eligible nodes
-    self.apply_premium_benefits(here);
-}
-```
-
-##### 3. **Handle State Mutations Carefully**
-Be explicit about state changes:
-
-```jac
-node Counter {
-    has value: int = 0;
-    has history: list = [];
-
-    can increment with CounterWalker entry {
-        // Store previous state
-        let old_value = self.value;
-
-        // Mutate state
-        self.value += visitor.increment_by;
-
-        // Track changes
-        self.history.append({
-            "from": old_value,
-            "to": self.value,
-            "by": visitor.walker_id,
-            "at": now()
-        });
-
-        // Notify visitor of change
-        visitor.changes_made.append({
-            "node": self,
-            "old": old_value,
-            "new": self.value
-        });
-    }
-}
-```
-
-##### 4. **Design for Testability**
-Make abilities testable by keeping them pure when possible:
-
-```jac
-node Calculator {
-    has formula: str;
-
-    // Pure calculation - easy to test
-    can calculate(values: dict) -> float {
-        // Parse and evaluate formula
-        return eval_formula(self.formula, values);
-    }
-
-    // Ability delegates to pure function
-    can provide_result with CalculationWalker entry {
-        let result = self.calculate(visitor.values);
-        visitor.collect_result(self, result);
-    }
-}
-```
-
-##### 5. **Document Ability Contracts**
-Be clear about what abilities expect and provide:
-
-```jac
-node DataProvider {
-    """
-    Provides data to visiting walkers.
-
-    Expected visitor interface:
-    - receive_data(data: dict, metadata: dict)
-    - can_handle_format(format: str) -> bool
-
-    Modifies visitor state:
-    - Adds data to visitor's collection
-    - Updates visitor's metadata
-    """
-    can provide with DataCollector entry {
-        if not visitor.can_handle_format(self.format) {
-            visitor.skip_unsupported(self);
-            return;
+            def get_age() -> int {
+                return 2024 - self.birth_year;
+            }
         }
 
-        visitor.receive_data(
-            data=self.data,
-            metadata=self.get_metadata()
-        );
-    }
-}
+        edge MarriedTo {
+            has marriage_year: int;
+
+            def get_marriage_duration() -> int {
+                return 2024 - self.marriage_year;
+            }
+        }
+
+        edge ChildOf {
+            has birth_order: int;  # 1st child, 2nd child, etc.
+        }
+
+        walker RelationshipFinder {
+            has relationships: list[str] = [];
+
+            can find_relationships with FamilyMember entry {
+                name = here.name;
+
+                # Find spouse
+                spouses= [->:MarriedTo:->];
+                for spouse in spouses {
+                    duration = [edge here --> spouse][0].get_marriage_duration();
+                    self.relationships.append(f"{name} married to {spouse.name} for {duration} years");
+                }
+
+                # Find children
+                children = [->:ChildOf:->];
+                if children {
+                    child_names = [child.name for child in children];
+                    self.relationships.append(f"{name} has children: {', '.join(child_names)}");
+                }
+
+                # Continue exploring family tree
+                visit [-->];
+            }
+        }
+
+        with entry {
+            # Create a simple family
+            john = root ++> FamilyMember(name="John", birth_year=1980);
+            mary = root ++> FamilyMember(name="Mary", birth_year=1982);
+
+            # Marriage relationship
+            john[0] +>:MarriedTo(marriage_year=2005):+> mary;
+
+            # Children
+            alice = john[0] +>:ChildOf(birth_order=1):+> FamilyMember(name="Alice", birth_year=2008);
+            bob = john[0] +>:ChildOf(birth_order=2):+> FamilyMember(name="Bob", birth_year=2010);
+
+            # Explore relationships
+            finder = RelationshipFinder();
+            finder spawn john[0];
+
+            for relationship in finder.relationships {
+                print(relationship);
+            }
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        from typing import List
+
+        class FamilyMember:
+            def __init__(self, name: str, birth_year: int):
+                self.name = name
+                self.birth_year = birth_year
+                self.spouse = None
+                self.children = []
+                self.marriage_year = None
+
+            def get_age(self) -> int:
+                return 2024 - self.birth_year
+
+            def marry(self, spouse, marriage_year: int):
+                self.spouse = spouse
+                self.marriage_year = marriage_year
+                spouse.spouse = self
+                spouse.marriage_year = marriage_year
+
+            def add_child(self, child):
+                self.children.append(child)
+
+        class RelationshipFinder:
+            def __init__(self):
+                self.relationships = []
+                self.visited = set()
+
+            def find_relationships(self, person: FamilyMember):
+                if person in self.visited:
+                    return
+
+                self.visited.add(person)
+                name = person.name
+
+                # Find spouse
+                if person.spouse:
+                    duration = 2024 - person.marriage_year
+                    self.relationships.append(f"{name} married to {person.spouse.name} for {duration} years")
+
+                # Find children
+                if person.children:
+                    child_names = [child.name for child in person.children]
+                    self.relationships.append(f"{name} has children: {', '.join(child_names)}")
+
+                # Continue exploring family tree
+                if person.spouse:
+                    self.find_relationships(person.spouse)
+                for child in person.children:
+                    self.find_relationships(child)
+
+        if __name__ == "__main__":
+            # Create a simple family
+            john = FamilyMember("John", 1980)
+            mary = FamilyMember("Mary", 1982)
+
+            # Marriage relationship
+            john.marry(mary, 2005)
+
+            # Children
+            alice = FamilyMember("Alice", 2008)
+            bob = FamilyMember("Bob", 2010)
+            john.add_child(alice)
+            john.add_child(bob)
+
+            # Explore relationships
+            finder = RelationshipFinder()
+            finder.find_relationships(john)
+
+            for relationship in finder.relationships:
+                print(relationship)
+        ```
+
+## Graph Thinking vs Object Thinking
+
+!!! topic "Mental Models"
+    OSP encourages thinking in terms of connections and relationships rather than isolated objects. This leads to more natural representations of real-world problems.
+
+### Object-Oriented Thinking
+
+In traditional OOP, we think about individual objects with their own data and methods:
+
+```python
+# Traditional OO thinking - isolated objects
+class Student:
+    def __init__(self, name):
+        self.name = name
+        self.grades = []
+
+    def add_grade(self, grade):
+        self.grades.append(grade)
+
+class Teacher:
+    def __init__(self, name):
+        self.name = name
+        self.students = []  # List of student references
+
+    def add_student(self, student):
+        self.students.append(student)
 ```
 
-### Summary
+### Graph-Oriented Thinking
 
-In this chapter, we've explored abilities—the event-driven computation model at the heart of Object-Spatial Programming:
+In OSP, we think about entities and their relationships as a connected graph:
 
-- **Implicit Execution**: Abilities trigger automatically during traversal
-- **Multi-Actor System**: Walkers, nodes, and edges all participate
-- **Execution Order**: Predictable sequencing enables complex interactions
-- **Practical Patterns**: Validation, transformation, aggregation, and error handling
-- **Advanced Techniques**: Composition, cooperation, and performance optimization
+!!! example "Classroom as a Graph"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # Graph thinking - connected entities
+        node Student {
+            has name: str;
+            has grade_level: int;
+        }
 
-Abilities transform static data structures into reactive, intelligent systems. They enable computation to happen exactly where and when it's needed, without explicit orchestration. This event-driven model, combined with mobile walkers, creates systems that are both powerful and maintainable.
+        node Teacher {
+            has name: str;
+            has subject: str;
+        }
 
-Next, we'll explore the scale-agnostic features that make Jac applications automatically persist data and handle multiple users without additional code—taking the concepts we've learned and making them production-ready.
+        edge Teaches {
+            has semester: str;
+            has classroom: str;
+        }
+
+        edge Attends {
+            has grade: str = "Not Set";
+        }
+
+        walker ClassroomAnalyzer {
+            has teacher_student_count: dict[str, int] = {};
+            has student_subjects: dict[str, list[str]] = {};
+
+            can analyze with Teacher entry {
+                # Count students for this teacher
+                students = [->:Teaches:->];
+                self.teacher_student_count[here.name] = len(students);
+
+                print(f"{here.name} teaches {here.subject} to {len(students)} students");
+
+                # Visit students to gather more info
+                visit students;
+            }
+
+            can analyze with Student entry {
+                # Find what subjects this student takes
+                teachers = [<-:Teaches:<-];
+                subjects = [teacher.subject for teacher in teachers];
+                self.student_subjects[here.name] = subjects;
+
+                print(f"{here.name} (Grade {here.grade_level}) takes: {', '.join(subjects)}");
+            }
+        }
+
+        with entry {
+            # Create classroom graph
+            ms_smith = root ++> Teacher(name="Ms. Smith", subject="Math");
+            mr_jones = root ++> Teacher(name="Mr. Jones", subject="Science");
+
+            # Create students
+            alice = root ++> Student(name="Alice", grade_level=9);
+            bob = root ++> Student(name="Bob", grade_level=9);
+            charlie = root ++> Student(name="Charlie", grade_level=10);
+
+            # Create teaching relationships
+            ms_smith[0] +>:Teaches(semester="Fall 2024", classroom="Room 101"):+> alice;
+            ms_smith[0] +>:Teaches(semester="Fall 2024", classroom="Room 101"):+> bob;
+            mr_jones[0] +>:Teaches(semester="Fall 2024", classroom="Room 205"):+> alice;
+            mr_jones[0] +>:Teaches(semester="Fall 2024", classroom="Room 205"):+> charlie;
+
+            # Analyze the classroom network
+            analyzer = ClassroomAnalyzer();
+            analyzer spawn ms_smith[0];
+            analyzer spawn mr_jones[0];
+
+            print(f"\nTeacher-student counts: {analyzer.teacher_student_count}");
+            print(f"Student subjects: {analyzer.student_subjects}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        from typing import List, Dict
+
+        class Student:
+            def __init__(self, name: str, grade_level: int):
+                self.name = name
+                self.grade_level = grade_level
+                self.teachers = []  # References to teachers
+
+        class Teacher:
+            def __init__(self, name: str, subject: str):
+                self.name = name
+                self.subject = subject
+                self.students = []  # References to students
+
+            def add_student(self, student: Student):
+                self.students.append(student)
+                student.teachers.append(self)
+
+        class ClassroomAnalyzer:
+            def __init__(self):
+                self.teacher_student_count = {}
+                self.student_subjects = {}
+                self.visited = set()
+
+            def analyze(self, entity):
+                if entity in self.visited:
+                    return
+
+                self.visited.add(entity)
+
+                if isinstance(entity, Teacher):
+                    # Count students for this teacher
+                    self.teacher_student_count[entity.name] = len(entity.students)
+                    print(f"{entity.name} teaches {entity.subject} to {len(entity.students)} students")
+
+                    # Visit students
+                    for student in entity.students:
+                        self.analyze(student)
+
+                elif isinstance(entity, Student):
+                    # Find what subjects this student takes
+                    subjects = [teacher.subject for teacher in entity.teachers]
+                    self.student_subjects[entity.name] = subjects
+                    print(f"{entity.name} (Grade {entity.grade_level}) takes: {', '.join(subjects)}")
+
+        if __name__ == "__main__":
+            # Create classroom network
+            ms_smith = Teacher("Ms. Smith", "Math")
+            mr_jones = Teacher("Mr. Jones", "Science")
+
+            # Create students
+            alice = Student("Alice", 9)
+            bob = Student("Bob", 9)
+            charlie = Student("Charlie", 10)
+
+            # Create teaching relationships
+            ms_smith.add_student(alice)
+            ms_smith.add_student(bob)
+            mr_jones.add_student(alice)
+            mr_jones.add_student(charlie)
+
+            # Analyze the classroom network
+            analyzer = ClassroomAnalyzer()
+            analyzer.analyze(ms_smith)
+            analyzer.analyze(mr_jones)
+
+            print(f"\nTeacher-student counts: {analyzer.teacher_student_count}")
+            print(f"Student subjects: {analyzer.student_subjects}")
+        ```
+
+## Benefits of the OSP Paradigm
+
+!!! topic "Why OSP Matters"
+    The spatial approach to programming offers several key advantages over traditional centralized processing.
+
+### Natural Problem Modeling
+
+OSP allows you to model problems the way they naturally exist in the real world:
+
+!!! example "Three-Generation Family Tree"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        node Person {
+            has name: str;
+            has birth_year: int;
+            has generation: int;
+
+            def get_age() -> int {
+                return 2024 - self.birth_year;
+            }
+        }
+
+        edge ParentChild {
+            has relationship: str;  # "father", "mother", "son", "daughter"
+        }
+
+        walker FamilyTreeExplorer {
+            has family_info: list[str] = [];
+
+            can explore with Person entry {
+                age = here.get_age();
+                gen = here.generation;
+
+                # Find parents
+                parents = [<-:ParentChild:<-];
+                parent_names = [p.name for p in parents];
+
+                # Find children
+                children = [->:ParentChild:->];
+                child_names = [c.name for c in children];
+
+                info = f"Generation {gen}: {here.name} (age {age})";
+                if parent_names {
+                    info += f" - Parents: {', '.join(parent_names)}";
+                }
+                if child_names {
+                    info += f" - Children: {', '.join(child_names)}";
+                }
+
+                self.family_info.append(info);
+
+                # Continue exploring
+                visit [->:ParentChild:->];
+            }
+        }
+
+        with entry {
+            # Generation 1 (Grandparents)
+            grandpa = root ++> Person(name="Robert", birth_year=1945, generation=1);
+            grandma = root ++> Person(name="Helen", birth_year=1948, generation=1);
+
+            # Generation 2 (Parents)
+            dad = grandpa[0] +>:ParentChild(relationship="father"):+> Person(name="Michael", birth_year=1975, generation=2);
+            mom = grandma[0] +>:ParentChild(relationship="mother"):+> Person(name="Sarah", birth_year=1977, generation=2);
+
+            # Generation 3 (Children)
+            son = dad[0] +>:ParentChild(relationship="father"):+> Person(name="David", birth_year=2005, generation=3);
+            daughter = mom[0] +>:ParentChild(relationship="mother"):+> Person(name="Emma", birth_year=2007, generation=3);
+            youngest = dad[0] +>:ParentChild(relationship="father"):+> Person(name="Luke", birth_year=2010, generation=3);
+
+            # Explore the family tree
+            explorer = FamilyTreeExplorer();
+            explorer spawn grandpa[0];
+
+            print("=== Family Tree ===");
+            for info in explorer.family_info {
+                print(info);
+            }
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        class Person:
+            def __init__(self, name: str, birth_year: int, generation: int):
+                self.name = name
+                self.birth_year = birth_year
+                self.generation = generation
+                self.parents = []
+                self.children = []
+
+            def get_age(self) -> int:
+                return 2024 - self.birth_year
+
+            def add_child(self, child):
+                self.children.append(child)
+                child.parents.append(self)
+
+        class FamilyTreeExplorer:
+            def __init__(self):
+                self.family_info = []
+                self.visited = set()
+
+            def explore(self, person: Person):
+                if person in self.visited:
+                    return
+
+                self.visited.add(person)
+
+                age = person.get_age()
+                gen = person.generation
+
+                # Find family relationships
+                parent_names = [p.name for p in person.parents]
+                child_names = [c.name for c in person.children]
+
+                info = f"Generation {gen}: {person.name} (age {age})"
+                if parent_names:
+                    info += f" - Parents: {', '.join(parent_names)}"
+                if child_names:
+                    info += f" - Children: {', '.join(child_names)}"
+
+                self.family_info.append(info)
+
+                # Continue exploring
+                for child in person.children:
+                    self.explore(child)
+
+        if __name__ == "__main__":
+            # Generation 1 (Grandparents)
+            grandpa = Person("Robert", 1945, 1)
+            grandma = Person("Helen", 1948, 1)
+
+            # Generation 2 (Parents)
+            dad = Person("Michael", 1975, 2)
+            mom = Person("Sarah", 1977, 2)
+            grandpa.add_child(dad)
+            grandma.add_child(mom)
+
+            # Generation 3 (Children)
+            son = Person("David", 2005, 3)
+            daughter = Person("Emma", 2007, 3)
+            youngest = Person("Luke", 2010, 3)
+            dad.add_child(son)
+            mom.add_child(daughter)
+            dad.add_child(youngest)
+
+            # Explore the family tree
+            explorer = FamilyTreeExplorer()
+            explorer.explore(grandpa)
+
+            print("=== Family Tree ===")
+            for info in explorer.family_info:
+                print(info)
+        ```
+
+## Key Takeaways
+
+!!! summary "OSP Paradigm Fundamentals"
+    - **Computation to Data**: Instead of gathering data centrally, send computation to where data lives
+    - **Spatial Relationships**: Model data with its natural connections and relationships
+    - **Graph Thinking**: Think in terms of nodes, edges, and traversal patterns
+    - **Natural Modeling**: Represent real-world problems in their natural graph structure
+    - **Distributed Processing**: Each piece of data can be processed independently where it lives
+
+The Object-Spatial Programming paradigm opens up new ways of thinking about and solving problems. By modeling the world as connected entities rather than isolated objects, we create more intuitive, efficient, and scalable programs.
+
+In the next chapter, we'll dive deeper into the building blocks of OSP: nodes and edges, and learn how to create rich, connected data structures that form the foundation of your spatial programs.
