@@ -88,25 +88,11 @@ walker my_walker {
 
 ## Examples for Beginners
 
-### Basic Endpoint Examples
+### Basic Endpoint Example - Time Service
+Let's create a simple endpoint that returns the current time. For this example, we create a walker named `public_info` which provides one rest method `get` at the url `http://localhost:8000/walker/public_info`. The ability `get_current_time` will return the current timestamp in ISO format via the use of the `report` statement.
 
 ```jac
-# Simple POST endpoint
-walker create_user {
-    has username: str;
-    has email: str;
-}
-
-# GET endpoint with query parameters
-walker search_users {
-    has query: str;
-    has limit: int = 10;
-
-    obj __specs__ {
-        static has methods: list = ["get"];
-        static has as_query: list = ["query", "limit"];
-    }
-}
+import from datetime {datetime}
 
 # Public endpoint (no authentication)
 walker public_info {
@@ -114,35 +100,122 @@ walker public_info {
         static has methods: list = ["get"];
         static has auth: bool = False;
     }
+
+    can get_current_time with `root entry{
+        report {
+            "timestamp": datetime.now().isoformat()
+        };
+    }
 }
 ```
 
-### File Upload Examples
+
+### Parameterized Endpoint Example - User Search
+This example demonstrates how to create an endpoint from a walker that accepts query parameters for searching users. The walker `search_users` will allow users to search for a user by their username.
 
 ```jac
+# GET endpoint with query parameters
+walker search_users {
+    has query: str;
+    static has users: list = [
+        {"username": "alice", "email": "alice@example.com"},
+        {"username": "bob", "email": "bob@example.com"}
+    ];
+
+    obj __specs__ {
+        static has methods: list = ["get"];
+        static has as_query: list = ["query"];
+        static has auth: bool = False;
+    }
+
+    can search_by_name with `root entry{
+        for user in self.users {
+            if user['username'] == self.query {
+                report user;
+                return;
+            }
+        }
+
+        report {
+            "error": f"User with username {self.query} not found"
+        };
+    }
+}
+```
+
+To test this endpoint, you can use a web browser or a tool like `curl`:
+
+```bash
+curl -X 'GET' \
+  'http://0.0.0.0:8000/walker/search_users?query=alice' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json'
+```
+
+If the user is found, the response will look like this:
+
+```json
+{
+    "status": 200,
+    "reports": [
+        {
+            "username": "alice",
+            "email": "alice@example.com"
+        }
+    ]
+}
+```
+
+### File Upload Example
+In this example, we will create a walker that allows users to upload a file. The walker `single_file_upload` will accept a single file and return the filename in the response. This shows how the walker can handle post requests with file uploads.
+
+Since jac is a superset of Python, we can use the `UploadFile` type from FastAPI to handle file uploads.
+
+First, we create the upload_file.jac file with the following content:
+```jac
+# upload_file.jac
 import from fastapi { UploadFile }
 
 # Single file upload
 walker single_file_upload {
     has file: UploadFile;
-    has description: str = "";
+
+    obj __specs__ {
+        static has methods: list = ["post"];
+        static has auth: bool = False;
+    }
 
     can enter with `root entry {
-        print(f"Received file: {self.file.filename}");
-        print(f"Description: {self.description}");
+        report {
+            "output": f"Received file: {self.file.filename}"
+        };
     }
 }
 
-# Multiple file upload
-walker multi_file_upload {
-    has files: list[UploadFile];
-    has category: str;
+```
 
-    can enter with `root entry {
-        for file in self.files {
-            print(f"Processing: {file.filename}");
+Next we can create a test text file named `test.txt` with the content "Hello, Jac Cloud!".
+```bash
+echo "Hello, Jac Cloud!" > test.txt
+```
+
+Now we can test the file upload endpoint using `curl`:
+
+```bash
+curl -L -F "file=@test.txt" \
+"http://0.0.0.0:8080/walker/single_file_upload" \
+```
+
+Successful file upload will return a response like this:
+
+```json
+{
+    "status": 200,
+    "reports": [
+        {
+            "output": "Received file: test.txt"
         }
-    }
+    ]
 }
 ```
 
