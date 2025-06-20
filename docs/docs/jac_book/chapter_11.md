@@ -1,926 +1,708 @@
-### Chapter 11: Multi-User Applications
+# Chapter 11: Walkers and Abilities
 
-Jac's automatic user isolation transforms single-user code into multi-user applications without modification. Each user gets their own isolated root node and data space, enabling secure multi-tenancy by default. This chapter explores how to build applications that serve multiple users simultaneously while maintaining data isolation and enabling controlled sharing.
+Walkers are the heart of Object-Spatial Programming - they are mobile computational entities that traverse your graph and execute code at each location. Combined with abilities, they enable reactive, event-driven programming where computation happens exactly where and when it's needed.
 
-#### 11.1 Automatic User Isolation
+!!! topic "Mobile Computation"
+    Unlike traditional functions that operate on data passed to them, walkers travel to where data lives, making computation truly spatial and enabling powerful distributed processing patterns.
 
-### User-Specific Root Nodes
+## Walker Creation
 
-In Jac, each user automatically gets their own isolated root node:
+!!! topic "What are Walkers?"
+    Walkers are special objects that can move through your graph, carrying state and executing abilities when they encounter different types of nodes and edges.
 
-```jac
-import from datetime { datetime }
+### Basic Walker Declaration
 
-node UserProfile {
-    has created_at: str;
-    has last_login: str;
-    has preferences: dict = {};
-    has subscription: str = "free";
-}
+!!! example "Simple Walker"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # Simple walker for visiting nodes
+        walker MessageDelivery {
+            has message: str;
+            has delivery_count: int = 0;
+            has visited_locations: list[str] = [];
 
-# This same code works for ANY user
-with entry {
-    # 'root' always refers to the current user's root
-    profile = [root -->(`?UserProfile)];
-
-    if not profile {
-        # First time user
-        print("Welcome! Creating your profile...");
-        root ++> UserProfile(
-            created_at=datetime.now(),
-            last_login=datetime.now()
-        );
-    } else {
-        # Returning user
-        prof = profile[0];
-        print(f"Welcome back! Last login: {prof.last_login}");
-        prof.last_login = now();
-    }
-}
-```
-
-When different users run this code:
-- Alice sees only Alice's data
-- Bob sees only Bob's data
-- No explicit user management needed!
-
-```mermaid
-graph TD
-    subgraph "User: Alice"
-        RA[root<br/>≪Alice's≫]
-        PA[Profile<br/>≪Alice's≫]
-        DA[Data<br/>≪Alice's≫]
-        RA --> PA
-        PA --> DA
-    end
-
-    subgraph "User: Bob"
-        RB[root<br/>≪Bob's≫]
-        PB[Profile<br/>≪Bob's≫]
-        DB[Data<br/>≪Bob's≫]
-        RB --> PB
-        PB --> DB
-    end
-
-    subgraph "User: Charlie"
-        RC[root<br/>≪Charlie's≫]
-        PC[Profile<br/>≪Charlie's≫]
-        DC[Data<br/>≪Charlie's≫]
-        RC --> PC
-        PC --> DC
-    end
-
-    style RA fill:#e8f5e9
-    style RB fill:#e3f2fd
-    style RC fill:#fff3e0
-```
-
-### Built-in Session Management
-
-Jac handles user sessions automatically:
-
-```jac
-import from datetime { datetime }
-
-node Task {
-    has title: str;
-    has created_at: str;
-    has owner: str;
-    has completed: bool = False;
-}
-
-# No session management code needed!
-walker TodoManager {
-    has command: str;
-    has task_title: str = "";
-
-    can manage with entry {
-        # Automatically executes in correct user context
-        match self.command {
-            case "add": self.add_task();
-            case "list": self.list_tasks();
-            case "stats": self.show_stats();
-        }
-    }
-
-    def add_task {
-        # Creates task in current user's space
-        task = root ++> Task(
-            title=self.task_title,
-            created_at=datetime.now(),
-            owner=get_current_user_id()  # Automatic!
-        );
-
-        print(f"Task added: {task.title}");
-    }
-
-    def list_tasks {
-        # Only sees current user's tasks
-        tasks = [root -->(`?Task)];
-
-        print(f"\nYour tasks ({len(tasks)} total):");
-        for task in tasks {
-            status = "✓" if task.completed else "○";
-            print(f"  {status} {task.title}");
-        }
-    }
-}
-```
-
-### Security Through Topology
-
-User isolation is enforced at the graph level:
-
-```jac
-node PrivateData {
-    has content: str;
-    has classification: str = "confidential";
-}
-
-# Attempting cross-user access
-walker SecurityTest {
-    has target_user_id: str;
-
-    can test_isolation with entry {
-        # This will NEVER access another user's data
-        my_data = [root -->(`?PrivateData)];
-        print(f"Found {len(my_data)} private items");
-
-        # Even if you somehow got another user's node reference,
-        # the runtime prevents cross-user traversal
-        try {
-            other_root = self.get_other_user_root(self.target_user_id);
-            their_data = [other_root -->(`?PrivateData)];  # BLOCKED!
-        } except SecurityError as e {
-            print(f"Security: {e}");  # "Cross-user access denied"
-        }
-    }
-}
-```
-
-#### 11.2 Multi-User Patterns
-
-### User Data Organization
-
-Best practices for organizing user-specific data:
-
-```jac
-import from datetime { datetime }
-
-# User data hierarchy pattern
-node UserSpace {
-    has user_id: str;
-    has created_at: str;
-    has tier: str = "free";
-}
-
-node Projects {
-    has active_count: int = 0;
-    has archived_count: int = 0;
-}
-
-node Settings {
-    has theme: str = "light";
-    has language: str = "en";
-    has notifications: dict = {
-        "email": True,
-        "push": False,
-        "sms": False
-    };
-}
-
-# Initialize user space
-walker InitializeUser {
-    has user_id: str;
-    has tier: str = "free";
-
-    can setup with entry {
-        # Check if already initialized
-        existing = [root -->(`?UserSpace)];
-        if existing {
-            print(f"User {self.user_id} already initialized");
-            return;
-        }
-
-        # Create organized structure
-        space = root ++> UserSpace(
-            user_id=self.user_id,
-            created_at=datetime.now(),
-            tier=self.tier
-        );
-
-        space ++> Projects();
-        space ++> Settings();
-
-        print(f"Initialized user space for {self.user_id}");
-    }
-}
-
-# Organize user projects
-node Project {
-    has name: str;
-    has created_at: str;
-    has updated_at: str;
-    has description: str = "";
-    has archived: bool = False;
-    has collaborators: list[str] = [];
-}
-
-walker ProjectManager {
-    has action: str;
-    has project_name: str;
-    has description: str = "";
-
-    can manage with entry {
-        # Get user's project container
-        space = [root -->(`?UserSpace)][0];
-        projects = [space -->(`?Projects)][0];
-
-        match self.action {
-            case "create": self.create_project(projects);
-            case "list": self.list_projects(projects);
-            case "archive": self.archive_project(projects);
-            case "share": self.share_project(projects);
-        }
-    }
-
-    def create_project(projects: Projects) {
-        project = projects ++> Project(
-            name=self.project_name,
-            description=self.description,
-            created_at=datetime.now(),
-            updated_at=datetime.now()
-        );
-
-        projects.active_count += 1;
-        print(f"Created project: {project.name}");
-    }
-
-    def list_projects(projects: Projects) {
-        all_projects = [projects -->(`?Project)];
-        active = [projects -->(`?Project)](archived == False);
-        archived = [projects -->(`?Project)](archived == True);
-
-        print(f"\n=== Your Projects ===");
-        print(f"Active ({len(active)}):");
-        for p in active {
-            print(f"  - {p.name}: {p.description}");
-        }
-
-        if archived {
-            print(f"\nArchived ({len(archived)}):");
-            for p in archived {
-                print(f"  - {p.name} (archived)");
+            # Regular methods work like normal
+            def get_status() -> str {
+                return f"Delivered {self.delivery_count} messages to {len(self.visited_locations)} locations";
             }
         }
-    }
-}
-```
 
-### Shared vs Private Subgraphs
-
-Creating controlled sharing between users:
-
-```jac
-import from datetime { datetime }
-
-# Shared workspace pattern
-node SharedWorkspace {
-    has id: str;
-    has name: str;
-    has created_by: str;
-    has created_at: str;
-    has members: list[str] = [];
-}
-
-node WorkspaceLink {
-    has workspace_id: str;
-    has joined_at: str;
-    has role: str = "viewer";  # viewer, editor, admin
-}
-
-edge CanAccess {
-    has permissions: list[str];
-}
-
-walker WorkspaceManager {
-    has action: str;
-    has workspace_name: str = "";
-    has workspace_id: str = "";
-    has invite_user: str = "";
-    has role: str = "viewer";
-
-    can manage with entry {
-        match self.action {
-            case "create": self.create_workspace();
-            case "invite": self.invite_to_workspace();
-            case "list": self.list_workspaces();
-            case "access": self.access_workspace();
-        }
-    }
-
-    def create_workspace {
-        # Create in shared space (not under user root)
-        workspace = SharedWorkspace(
-            id=generate_id(),
-            name=self.workspace_name,
-            created_by=get_current_user_id(),
-            created_at=datetime.now(),
-            members=[get_current_user_id()]
-        );
-
-        # Link to user's root
-        root ++> WorkspaceLink(
-            workspace_id=workspace.id,
-            role="admin",
-            joined_at=datetime.now()
-        );
-
-        print(f"Created workspace: {workspace.name} (ID: {workspace.id})");
-        report workspace.id;
-    }
-
-    def invite_to_workspace {
-        # Check if current user has permission
-        links = [root -->(`?WorkspaceLink)](?workspace_id == self.workspace_id);
-        if not links or links[0].role != "admin" {
-            print("Only admins can invite users");
-            return;
+        # Basic classroom nodes
+        node Student {
+            has name: str;
+            has messages: list[str] = [];
         }
 
-        # Create invitation (would be sent to other user)
-        invitation = {
-            "workspace_id": self.workspace_id,
-            "invited_by": get_current_user_id(),
-            "role": self.role,
-            "created_at": datetime.now()
-        };
-
-        # In real app, this would notify the other user
-        print(f"Invitation sent to {self.invite_user}");
-        report invitation;
-    }
-
-    def access_workspace {
-        # Find workspace link
-        links = [root -->(`?WorkspaceLink)](?workspace_id == self.workspace_id);
-        if not links {
-            print("You don't have access to this workspace");
-            return;
+        node Teacher {
+            has name: str;
+            has subject: str;
         }
 
-        link = links[0];
-        print(f"Accessing workspace {self.workspace_id} as {link.role}");
+        with entry {
+            # Create walker instance (but don't activate it yet)
+            messenger = MessageDelivery(message="Hello from the principal!");
 
-        # In real app, would load shared workspace data
-        # based on permissions
-    }
-}
-```
-
-### Cross-User Communication Patterns
-
-Enabling users to interact while maintaining isolation:
-
-```jac
-import from datetime { datetime }
-
-# Message passing between users
-node Message {
-    has id: str;
-    has from_user: str;
-    has to_user: str;
-    has subject: str;
-    has content: str;
-    has sent_at: str;
-    has read_at: str| None = None;
-}
-
-node Inbox {}
-node Outbox {}
-
-walker MessageSystem {
-    has action: str;
-    has to_user: str = "";
-    has subject: str = "";
-    has content: str = "";
-    has message_id: str = "";
-
-    can setup_messaging with entry {
-        # Ensure user has inbox/outbox
-        if not [root -->(`?Inbox)] {
-            root ++> Inbox();
+            # Check initial state
+            print(f"Initial status: {messenger.get_status()}");
         }
-        if not [root -->(`?Outbox)] {
-            root ++> Outbox();
-        }
-    }
+        ```
+        </div>
+    === "Python"
+        ```python
+        class MessageDelivery:
+            def __init__(self, message: str):
+                self.message = message
+                self.delivery_count = 0
+                self.visited_locations = []
 
-    can send_message with entry {
-        self.setup_messaging();
+            def get_status(self) -> str:
+                return f"Delivered {self.delivery_count} messages to {len(self.visited_locations)} locations"
 
-        outbox = [root -->(`?Outbox)][0];
-        from_user = get_current_user_id();
+        class Student:
+            def __init__(self, name: str):
+                self.name = name
+                self.messages = []
 
-        # Create message in sender's outbox
-        message = outbox ++> Message(
-            id=generate_id(),
-            from_user=from_user,
-            to_user=self.to_user,
-            subject=self.subject,
-            content=self.content,
-            sent_at=datetime.now()
-        );
+        class Teacher:
+            def __init__(self, name: str, subject: str):
+                self.name = name
+                self.subject = subject
 
-        # In real system, this would trigger delivery to recipient
-        # For demo, we'll simulate it
-        self.deliver_message(message);
+        if __name__ == "__main__":
+            # Create messenger instance
+            messenger = MessageDelivery(message="Hello from the principal!")
 
-        print(f"Message sent to {self.to_user}");
-    }
+            # Check initial state
+            print(f"Initial status: {messenger.get_status()}")
+        ```
 
-    def deliver_message(message: Message) {
-        # This would run in recipient's context
-        # Simulating cross-user delivery
-        print(f"[System] Delivering message {message.id} to {message.to_user}");
+## Ability Definitions and Triggers
 
-        # Would create a copy in recipient's inbox
-        # recipient_root[-->:Inbox:][0] ++> message_copy;
-    }
+!!! topic "Event-Driven Execution"
+    Abilities are methods that execute automatically when certain events occur during graph traversal. They create reactive, context-aware behavior.
 
-    can list_inbox with entry {
-        self.setup_messaging();
+### Entry and Exit Abilities
 
-        inbox = [root -->(`?Outbox)];
-        if not inbox {
-            print("No inbox found");
-            return;
+!!! example "Basic Abilities"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # Basic classroom nodes
+        node Student {
+            has name: str;
+            has messages: list[str] = [];
         }
 
-        messages = [inbox[0] -->(`?Message)];
-        print(f"\n=== Inbox ({len(messages)} messages) ===");
-
-        for msg in messages.sorted(key=lambda m: str : m.sent_at, reverse=True) {
-            status = "📬" if msg.read_at else "📨";
-            print(f"{status} From: {msg.from_user}");
-            print(f"   Subject: {msg.subject}");
-            print(f"   Sent: {msg.sent_at}");
-        }
-    }
-}
-```
-
-### Public Profiles and Discovery
-
-Allowing users to discover each other:
-
-```jac
-import from datetime { datetime }
-
-# Public profile system
-node PublicProfile {
-    has user_id: str;
-    has display_name: str;
-    has bio: str = "";
-    has avatar_url: str = "";
-    has is_public: bool = True;
-    has followers_count: int = 0;
-    has following_count: int = 0;
-}
-
-# Global discovery space (not under any user's root)
-node GlobalDirectory {
-    has profile_count: int = 0;
-}
-
-edge Follows {
-    has since: str;
-}
-
-walker ProfileManager {
-    has action: str;
-    has display_name: str = "";
-    has bio: str = "";
-    has target_user: str = "";
-
-    can manage with entry {
-        match self.action {
-            case "create": self.create_public_profile();
-            case "update": self.update_profile();
-            case "follow": self.follow_user();
-            case "discover": self.discover_users();
-        }
-    }
-
-    def create_public_profile {
-        # Check if profile exists
-        existing = [root -->(`?PublicProfile)];
-        if existing {
-            print("Profile already exists");
-            return;
+        node Teacher {
+            has name: str;
+            has subject: str;
         }
 
-        # Create profile linked to user
-        profile = root ++> PublicProfile(
-            user_id=get_current_user_id(),
-            display_name=self.display_name,
-            bio=self.bio
-        );
+        walker MessageDelivery {
+            has message: str;
+            has delivery_count: int = 0;
+            has visited_locations: list[str] = [];
 
-        # Also add to global directory
-        # (In real system, this would be in shared space)
-        print(f"Created public profile: {profile.display_name}");
-    }
-
-    def follow_user {
-        # Get my profile
-        my_profile = [root -->(`?PublicProfile)][0];
-
-        # In real system, would find target user's profile
-        # For demo, we'll simulate
-        print(f"Following user: {self.target_user}");
-
-        # Create follow relationship
-        my_profile +>:Follows(since=datetime.now()):+> self.target_user;
-        my_profile.following_count += 1;
-
-        # Target user's follower count would increase
-        # target_profile.followers_count += 1;
-    }
-
-    def discover_users {
-        # In real system, would search global directory
-        print("\n=== Discover Users ===");
-        print("Featured profiles:");
-        print("  - @alice_dev - Software engineer and Jac enthusiast");
-        print("  - @bob_designer - UI/UX Designer");
-        print("  - @charlie_data - Data scientist");
-
-        # Would actually search/filter profiles
-    }
-}
-```
-
-### Activity Feeds and Notifications
-
-Building user-specific activity streams:
-
-```jac
-import from datetime { datetime }
-
-node Activity {
-    has id: str;
-    has type: str;  # post, comment, like, follow
-    has actor_id: str;
-    has actor_name: str;
-    has content: dict;
-    has created_at: str;
-    has read: bool = False;
-}
-
-node ActivityFeed {
-    has last_checked: str;
-}
-
-walker ActivityManager {
-    has action: str;
-    has activity_type: str = "";
-    has content: dict = {};
-
-    can manage with entry {
-        # Ensure feed exists
-        if not [root -->(`?ActivityFeed)] {
-            root ++> ActivityFeed(last_checked=datetime.now());
-        }
-
-        match self.action {
-            case "add": self.add_activity();
-            case "view": self.view_feed();
-            case "mark_read": self.mark_all_read();
-        }
-    }
-
-    def add_activity {
-        feed = [root -->(`?ActivityFeed)][0];
-
-        feed ++> Activity(
-            id=generate_id(),
-            type=self.activity_type,
-            actor_id=get_current_user_id(),
-            actor_name="Current User",
-            content=self.content,
-            created_at=datetime.now()
-        );
-
-        print(f"Activity added: {self.activity_type}");
-    }
-
-    def view_feed {
-        feed = [root -->(`?ActivityFeed)][0];
-        activities = [feed -->(`?Activity)];
-
-        # Sort by time, newest first
-        sorted_activities = activities.sorted(
-            key=lambda a: str: a.created_at,
-            reverse=True
-        );
-
-        print(f"\n=== Activity Feed ===");
-        print(f"Last checked: {feed.last_checked}");
-
-        unread_count = len([a for a in activities if not a.read]);
-        if unread_count > 0 {
-            print(f"🔔 {unread_count} new activities\n");
-        }
-
-        for activity in sorted_activities[:10] {  # Show latest 10
-            indicator = "●" if not activity.read else "○";
-
-            match activity.type {
-                case "post":
-                    print(f"{indicator} {activity.actor_name} created a new post");
-                case "comment":
-                    print(f"{indicator} {activity.actor_name} commented on your post");
-                case "like":
-                    print(f"{indicator} {activity.actor_name} liked your content");
-                case "follow":
-                    print(f"{indicator} {activity.actor_name} started following you");
+            # Entry ability - triggered when entering any Student
+            can deliver_to_student with Student entry {
+                print(f"Delivering message to student {here.name}");
+                here.messages.append(self.message);
+                self.delivery_count += 1;
+                self.visited_locations.append(here.name);
             }
 
-            print(f"   {activity.created_at}");
+            # Entry ability - triggered when entering any Teacher
+            can deliver_to_teacher with Teacher entry {
+                print(f"Delivering message to teacher {here.name} ({here.subject})");
+                # Teachers just acknowledge the message
+                print(f"  {here.name} says: 'Message received!'");
+                self.delivery_count += 1;
+                self.visited_locations.append(here.name);
+            }
+
+            # Exit ability - triggered when leaving any node
+            can log_visit with entry {
+                node_type = type(here).__name__;
+                print(f"  Visited {node_type}");
+            }
         }
 
-        # Update last checked
-        feed.last_checked = datetime.now();
-    }
-}
-```
+        with entry {
+            # Create simple classroom
+            alice = root ++> Student(name="Alice");
+            bob = root ++> Student(name="Bob");
+            ms_smith = root ++> Teacher(name="Ms. Smith", subject="Math");
 
-### Permission Systems
+            # Create and activate messenger
+            messenger = MessageDelivery(message="School assembly at 2 PM");
 
-Implementing fine-grained permissions:
+            # Spawn walker on Alice - this activates it
+            alice[0] spawn messenger;
 
-```jac
-node Resource {
-    has id: str;
-    has type: str;  # document, folder, etc
-    has name: str;
-    has owner: str;
-    has created_at: str;
-}
+            # Check Alice's messages
+            print(f"Alice's messages: {alice[0].messages}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        class MessageDelivery:
+            def __init__(self, message: str):
+                self.message = message
+                self.delivery_count = 0
+                self.visited_locations = []
 
-edge HasPermission {
-    has permissions: list[str];  # read, write, delete, share
-    has granted_by: str;
-    has granted_at: str;
-}
+            def deliver_to_student(self, student):
+                print(f"Delivering message to student {student.name}")
+                student.messages.append(self.message)
+                self.delivery_count += 1
+                self.visited_locations.append(student.name)
 
-walker PermissionManager {
-    has action: str;
-    has resource_id: str = "";
-    has user_id: str = "";
-    has permissions: list[str] = [];
+            def deliver_to_teacher(self, teacher):
+                print(f"Delivering message to teacher {teacher.name} ({teacher.subject})")
+                print(f"  {teacher.name} says: 'Message received!'")
+                self.delivery_count += 1
+                self.visited_locations.append(teacher.name)
 
-    def check_permission(resource: Resource, permission: str) -> bool {
-        current_user = get_current_user_id();
+            def visit_node(self, node):
+                node_type = type(node).__name__
+                print(f"  Visited {node_type}")
 
-        # Owner has all permissions
-        if resource.owner == current_user {
-            return True;
+                # Manually check type and call appropriate method
+                if isinstance(node, Student):
+                    self.deliver_to_student(node)
+                elif isinstance(node, Teacher):
+                    self.deliver_to_teacher(node)
+
+        if __name__ == "__main__":
+            # Create simple classroom
+            alice = Student("Alice")
+            bob = Student("Bob")
+            ms_smith = Teacher("Ms. Smith", "Math")
+
+            # Create and use messenger manually
+            messenger = MessageDelivery("School assembly at 2 PM")
+
+            # Manually visit nodes (simulating walker spawn)
+            messenger.visit_node(alice)
+
+            # Check Alice's messages
+            print(f"Alice's messages: {alice.messages}")
+        ```
+
+## Walker Spawn and Visit
+
+!!! topic "Graph Traversal"
+    Walkers move through graphs using `spawn` (to start) and `visit` (to continue to connected nodes). This enables complex traversal patterns with simple syntax.
+
+### Basic Traversal Patterns
+
+!!! example "Classroom Message Delivery"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # Basic classroom nodes
+        node Student {
+            has name: str;
+            has messages: list[str] = [];
         }
 
-        # Check granted permissions
-        perms = [resource <-:HasPermission:current_user in permissions:<-];
-
-        return permission in perms[0].permissions if perms else False;
-    }
-
-    can grant_permission with entry {
-        # Find resource
-        resources = [root -->(`?Resource)](?id == self.resource_id);
-        if not resources {
-            print("Resource not found");
-            return;
+        node Teacher {
+            has name: str;
+            has subject: str;
         }
 
-        resource = resources[0];
+        walker MessageDelivery {
+            has message: str;
+            has delivery_count: int = 0;
+            has visited_locations: list[str] = [];
 
-        # Check if current user can share
-        if not self.check_permission(resource, "share") {
-            print("You don't have permission to share this resource");
-            return;
+            # Entry ability - triggered when entering any Student
+            can deliver_to_student with Student entry {
+                print(f"Delivering message to student {here.name}");
+                here.messages.append(self.message);
+                self.delivery_count += 1;
+                self.visited_locations.append(here.name);
+            }
+
+            # Entry ability - triggered when entering any Teacher
+            can deliver_to_teacher with Teacher entry {
+                print(f"Delivering message to teacher {here.name} ({here.subject})");
+                # Teachers just acknowledge the message
+                print(f"  {here.name} says: 'Message received!'");
+                self.delivery_count += 1;
+                self.visited_locations.append(here.name);
+            }
+
+            # Exit ability - triggered when leaving any node
+            can log_visit with entry {
+                node_type = type(here).__name__;
+                print(f"  Visited {node_type}");
+            }
         }
 
-        # Grant permission
-        resource +>:HasPermission(
-            permissions=self.permissions,
-            granted_by=get_current_user_id(),
-            granted_at=datetime.now()
-        ):+> self.user_id;
-
-        print(f"Granted {self.permissions} to {self.user_id}");
-    }
-}
-```
-
-### Multi-User Analytics
-
-Aggregate analytics while preserving privacy:
-
-```jac
-import from datetime { datetime }
-# User analytics node
-node UserAnalytics {
-    has user_id: str;
-    has events: list[dict] = [];
-    has summary: dict = {};
-}
-
-# Global analytics (anonymized)
-node GlobalAnalytics {
-    has total_users: int = 0;
-    has total_events: int = 0;
-    has event_types: dict = {};
-    has daily_active: dict = {};
-}
-
-walker AnalyticsTracker {
-    has event_type: str;
-    has event_data: dict = {};
-
-    can track_event with entry {
-        # Get or create user analytics
-        analytics = [root -->(`?UserAnalytics)];
-        user_analytics = analytics[0] if analytics else root ++> UserAnalytics(
-            user_id=get_current_user_id()
-        );
-
-        # Record event
-        event = {
-            "type": self.event_type,
-            "data": self.event_data,
-            "timestamp": datetime.now()
-        };
-
-        user_analytics.events.append(event);
-
-        # Update user summary
-        if self.event_type not in user_analytics.summary {
-            user_analytics.summary[self.event_type] = 0;
-        }
-        user_analytics.summary[self.event_type] += 1;
-
-        # Would also update global analytics (anonymized)
-        print(f"Tracked event: {self.event_type}");
-    }
-}
-
-walker AnalyticsReporter {
-    has scope: str = "user";  # user or global
-
-    can generate_report with entry {
-        if self.scope == "user" {
-            self.user_report();
-        } else {
-            self.global_report();
-        }
-    }
-
-    def user_report {
-        analytics = [root -->(`?UserAnalytics)];
-        if not analytics {
-            print("No analytics data found");
-            return;
+        edge InClass {
+            has room: str;
         }
 
-        data = analytics[0];
-        print(f"\n=== Your Analytics ===");
-        print(f"Total events: {len(data.events)}");
+        walker ClassroomMessenger {
+            has announcement: str;
+            has rooms_visited: set[str] = {};
+            has people_reached: int = 0;
 
-        print("\nEvent breakdown:");
-        for (event_type, count) in data.summary.items() {
-            print(f"  {event_type}: {count}");
+            can deliver with Student entry {
+                print(f" Student {here.name}: {self.announcement}");
+                self.people_reached += 1;
+
+                # Continue to connected nodes
+                visit [-->];
+            }
+
+            can deliver with Teacher entry {
+                print(f" Teacher {here.name}: {self.announcement}");
+                self.people_reached += 1;
+
+                # Continue to connected nodes
+                visit [-->];
+            }
+
+            can track_room with InClass entry {
+                room = here.room;
+                if room not in self.rooms_visited {
+                    self.rooms_visited.add(room);
+                    print(f" Now in {room}");
+                }
+            }
+
+            can summarize with Student exit {
+                # Only report once at the end
+                if len([-->]) == 0 {  # At a node with no outgoing connections
+                    print(f"\n Delivery complete!");
+                    print(f"   People reached: {self.people_reached}");
+                    print(f"   Rooms visited: {list(self.rooms_visited)}");
+                }
+            }
         }
 
-        # Recent activity
-        recent = data.events[-5:] if len(data.events) >= 5 else data.events;
-        print(f"\nRecent activity:");
-        for event in recent {
-            print(f"  - {event['type']} at {event['timestamp']}");
+        with entry {
+            # Create classroom structure
+            alice = root ++> Student(name="Alice");
+            bob = root ++> Student(name="Bob");
+            charlie = root ++> Student(name="Charlie");
+            ms_jones = root ++> Teacher(name="Ms. Jones", subject="Science");
+
+            # Connect them in the same classroom
+            alice +>:InClass(room="Room 101"):+> bob;
+            bob +>:InClass(room="Room 101"):+> charlie;
+            charlie +>:InClass(room="Room 101"):+> ms_jones;
+
+            # Send a message through the classroom
+            messenger = ClassroomMessenger(announcement="Fire drill in 5 minutes");
+            alice[0] spawn messenger;
         }
-    }
-}
-```
+        ```
+        </div>
+    === "Python"
+        ```python
+        class InClass:
+            def __init__(self, from_node, to_node, room: str):
+                self.from_node = from_node
+                self.to_node = to_node
+                self.room = room
 
-### Best Practices for Multi-User Apps
+        class ClassroomMessenger:
+            def __init__(self, announcement: str):
+                self.announcement = announcement
+                self.rooms_visited = set()
+                self.people_reached = 0
+                self.visited_nodes = set()
 
-##### 1. **Design for Isolation First**
+            def deliver_to_student(self, student):
+                print(f" Student {student.name}: {self.announcement}")
+                self.people_reached += 1
 
-```jac
-# Good: User data naturally isolated
-node UserContent {
-    has title: str;
-    has content: str;
-    has private: bool = True;
-}
+            def deliver_to_teacher(self, teacher):
+                print(f" Teacher {teacher.name}: {self.announcement}")
+                self.people_reached += 1
 
-walker ContentManager {
-    can create_content with entry {
-        # Automatically in user's space
-        root ++> UserContent(
-            title=self.title,
-            content=self.content
-        );
-    }
-}
+            def track_room(self, edge):
+                if edge.room not in self.rooms_visited:
+                    self.rooms_visited.add(edge.room)
+                    print(f"   Now in {edge.room}")
 
-# Bad: Trying to manage users manually
-node BadContent {
-    has owner_id: str;  # Don't do this!
-    has title: str;
-}
-```
+            def visit_network(self, node, connections):
+                # Avoid infinite loops
+                if node in self.visited_nodes:
+                    return
 
-##### 2. **Use Topology for Permissions**
+                self.visited_nodes.add(node)
 
-```jac
-# Good: Permissions through graph structure
-node Team {
-    has name: str;
-}
+                # Process current node
+                if isinstance(node, Student):
+                    self.deliver_to_student(node)
+                elif isinstance(node, Teacher):
+                    self.deliver_to_teacher(node)
 
-edge MemberOf {
-    has role: str;
-}
+                # Visit connected nodes
+                for edge in connections.get(node, []):
+                    self.track_room(edge)
+                    self.visit_network(edge.to_node, connections)
 
-def user_can_access_team(team: Team) -> bool {
-    # Check if path exists from user to team
-    return len([root ->:MemberOf:->(`?Team)](?role == "team")) > 0;
-}
+                # Check if we're at the end
+                if not connections.get(node, []):
+                    print(f"\n elivery complete!")
+                    print(f"   People reached: {self.people_reached}")
+                    print(f"   Rooms visited: {list(self.rooms_visited)}")
 
-# Bad: Storing permissions in lists
-node BadTeam {
-    has member_ids: list[str];  # Don't do this!
-}
-```
+        if __name__ == "__main__":
+            # Create classroom structure
+            alice = Student("Alice")
+            bob = Student("Bob")
+            charlie = Student("Charlie")
+            ms_jones = Teacher("Ms. Jones", "Science")
 
-##### 3. **Plan for Sharing Early**
+            # Create connections manually
+            connections = {
+                alice: [InClass(alice, bob, "Room 101")],
+                bob: [InClass(bob, charlie, "Room 101")],
+                charlie: [InClass(charlie, ms_jones, "Room 101")],
+                ms_jones: []
+            }
 
-```jac
-# Sharing pattern
-node SharedContent {
-    has id: str;
-    has created_by: str;
-}
+            # Send message through classroom
+            messenger = ClassroomMessenger("Fire drill in 5 minutes")
+            messenger.visit_network(alice, connections)
+        ```
 
-node ContentRef {
-    has content_id: str;
-    has permissions: list[str];
-}
+### Advanced Traversal Control
 
-# Users have references to shared content
-def share_content(content: SharedContent, with_user: str, perms: list[str]) {
-    # Would create ContentRef in other user's space
-    # other_user_root ++> ContentRef(content_id=content.id, permissions=perms);
-}
-```
-
-##### 4. **Handle Concurrent Access**
-
-```jac
-node Counter {
-    has value: int = 0;
-    has version: int = 0;
-}
-
-walker IncrementCounter {
-    can increment with Counter entry {
-        # Optimistic concurrency control
-        expected_version = here.version;
-
-        here.value += 1;
-        here.version += 1;
-
-        # In real system, would check version hasn't changed
-        if here.version != expected_version + 1 {
-            print("Concurrent modification detected!");
-            # Handle conflict
+!!! example "Selective Message Delivery"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        node Student {
+            has name: str;
+            has grade_level: int;
+            has messages: list[str] = [];
         }
-    }
-}
-```
 
-### Summary
+        edge StudyGroup {
+            has subject: str;
+        }
 
-In this chapter, we've explored Jac's powerful multi-user capabilities:
+        walker GradeSpecificMessenger {
+            has message: str;
+            has target_grade: int;
+            has delivered_to: list[str] = [];
 
-- **Automatic Isolation**: Each user gets their own root and data space
-- **Zero Configuration**: No user management code needed
-- **Security by Design**: Cross-user access prevented at runtime
-- **Sharing Patterns**: Controlled sharing through graph topology
-- **Communication**: Message passing and activity feeds
-- **Scale-Agnostic**: Same code works for 1 or 1 million users
+            can deliver with Student entry {
+                if here.grade_level == self.target_grade {
+                    print(f" Delivering to {here.name} (Grade {here.grade_level}): {self.message}");
+                    here.messages.append(self.message);
+                    self.delivered_to.append(here.name);
+                } else {
+                    print(f" Skipping {here.name} (Grade {here.grade_level}) - not target grade");
+                }
 
-Jac's multi-user support isn't bolted on—it's fundamental to the architecture. You write code as if for a single user, and Jac handles the complexity of user isolation, session management, and data security automatically.
+                # Continue to study group members
+                visit [->:StudyGroup:->];
+            }
 
-Next, we'll see how walkers can serve as API endpoints, turning your graph traversals into web services that can serve these multiple users over the network.
+            can filter_by_subject with StudyGroup entry {
+                print(f"  Moving through {here.subject} study group");
+                # Could add subject-based filtering here if needed
+            }
+
+            can report_delivery with Student exit {
+                # Report when we've finished exploring from a student
+                outgoing = [->:StudyGroup:->];
+                if not outgoing {  # No more connections
+                    print(f"\n Delivery Summary:");
+                    print(f"   Target: Grade {self.target_grade} students");
+                    print(f"   Message: '{self.message}'");
+                    print(f"   Delivered to: {self.delivered_to}");
+                }
+            }
+        }
+
+        with entry {
+            # Create multi-grade study network
+            alice = root ++> Student(name="Alice", grade_level=9);
+            bob = root ++> Student(name="Bob", grade_level=10);
+            charlie = root ++> Student(name="Charlie", grade_level=9);
+            diana = root ++> Student(name="Diana", grade_level=11);
+
+            # Connect through study groups
+            alice +>:StudyGroup(subject="Math"):+> bob;
+            bob +>:StudyGroup(subject="Science"):+> charlie;
+            charlie +>:StudyGroup(subject="History"):+> diana;
+
+            # Send grade-specific message
+            messenger = GradeSpecificMessenger(
+                message="Grade 9 field trip permission slips due Friday!",
+                target_grade=9
+            );
+
+            alice[0] spawn messenger;
+
+            # Check who got the message
+            print(f"\nAlice's messages: {alice.messages}");
+            print(f"Bob's messages: {bob.messages}");
+            print(f"Charlie's messages: {charlie.messages}");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        class StudyGroup:
+            def __init__(self, from_node, to_node, subject: str):
+                self.from_node = from_node
+                self.to_node = to_node
+                self.subject = subject
+
+        class Student:
+            def __init__(self, name: str, grade_level: int):
+                self.name = name
+                self.grade_level = grade_level
+                self.messages = []
+
+        class GradeSpecificMessenger:
+            def __init__(self, message: str, target_grade: int):
+                self.message = message
+                self.target_grade = target_grade
+                self.delivered_to = []
+                self.visited = set()
+
+            def visit_student(self, student, connections):
+                if student in self.visited:
+                    return
+
+                self.visited.add(student)
+
+                if student.grade_level == self.target_grade:
+                    print(f"Delivering to {student.name} (Grade {student.grade_level}): {self.message}")
+                    student.messages.append(self.message)
+                    self.delivered_to.append(student.name)
+                else:
+                    print(f"Skipping {student.name} (Grade {student.grade_level}) - not target grade")
+
+                # Visit connected students
+                for edge in connections.get(student, []):
+                    print(f"  Moving through {edge.subject} study group")
+                    self.visit_student(edge.to_node, connections)
+
+                # Report if at end
+                if not connections.get(student, []):
+                    print(f"\n Delivery Summary:")
+                    print(f"   Target: Grade {self.target_grade} students")
+                    print(f"   Message: '{self.message}'")
+                    print(f"   Delivered to: {self.delivered_to}")
+
+        if __name__ == "__main__":
+            # Create multi-grade study network
+            alice = Student("Alice", 9)
+            bob = Student("Bob", 10)
+            charlie = Student("Charlie", 9)
+            diana = Student("Diana", 11)
+
+            # Create connections
+            connections = {
+                alice: [StudyGroup(alice, bob, "Math")],
+                bob: [StudyGroup(bob, charlie, "Science")],
+                charlie: [StudyGroup(charlie, diana, "History")],
+                diana: []
+            }
+
+            # Send grade-specific message
+            messenger = GradeSpecificMessenger(
+                "Grade 9 field trip permission slips due Friday!",
+                9
+            )
+
+            messenger.visit_student(alice, connections)
+
+            # Check who got the message
+            print(f"\nAlice's messages: {alice.messages}")
+            print(f"Bob's messages: {bob.messages}")
+            print(f"Charlie's messages: {charlie.messages}")
+        ```
+
+## Walker Control Flow
+
+!!! topic "Traversal Control"
+    Walkers can control their movement through the graph using special statements like `visit`, `disengage`, and `skip`.
+
+### Controlling Walker Behavior
+
+!!! example "Smart Walker Control"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        walker AttendanceChecker {
+            has present_students: list[str] = [];
+            has absent_students: list[str] = [];
+            has max_checks: int = 5;
+            has checks_done: int = 0;
+
+            can check_attendance with Student entry {
+                self.checks_done += 1;
+
+                # Simulate checking if student is present (random for demo)
+                import:py random;
+                is_present = random.choice([True, False]);
+
+                if is_present {
+                    print(f"{here.name} is present");
+                    self.present_students.append(here.name);
+                } else {
+                    print(f"{here.name} is absent");
+                    self.absent_students.append(here.name);
+                }
+
+                # Control flow based on conditions
+                if self.checks_done >= self.max_checks {
+                    print(f"Reached maximum checks ({self.max_checks})");
+                    self.report_final();
+                    disengage;  # Stop the walker
+                }
+
+                # Skip if no more connections
+                connections = [-->];
+                if not connections {
+                    print("No more students to check");
+                    self.report_final();
+                    disengage;
+                }
+
+                # Continue to next student
+                visit [-->];
+            }
+
+            def report_final() -> None {
+                print(f"\n Attendance Report:");
+                print(f"   Present: {self.present_students}");
+                print(f"   Absent: {self.absent_students}");
+                print(f"   Total checked: {self.checks_done}");
+            }
+        }
+
+        with entry {
+            # Create a chain of students
+            alice = root ++> Student(name="Alice", grade_level=9);
+            bob = alice ++> Student(name="Bob", grade_level=9);
+            charlie = bob ++> Student(name="Charlie", grade_level=9);
+            diana = charlie ++> Student(name="Diana", grade_level=9);
+            eve = diana ++> Student(name="Eve", grade_level=9);
+
+            # Start attendance check
+            checker = AttendanceChecker(max_checks=3);
+            alice spawn checker;
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import random
+
+        class AttendanceChecker:
+            def __init__(self, max_checks: int = 5):
+                self.present_students = []
+                self.absent_students = []
+                self.max_checks = max_checks
+                self.checks_done = 0
+                self.should_stop = False
+
+            def check_student(self, student, connections):
+                if self.should_stop:
+                    return
+
+                self.checks_done += 1
+
+                # Simulate checking if student is present
+                is_present = random.choice([True, False])
+
+                if is_present:
+                    print(f" {student.name} is present")
+                    self.present_students.append(student.name)
+                else:
+                    print(f" {student.name} is absent")
+                    self.absent_students.append(student.name)
+
+                # Control flow based on conditions
+                if self.checks_done >= self.max_checks:
+                    print(f" Reached maximum checks ({self.max_checks})")
+                    self.report_final()
+                    return  # Stop checking
+
+                # Continue to next student if available
+                next_students = connections.get(student, [])
+                if not next_students:
+                    print(" No more students to check")
+                    self.report_final()
+                    return
+
+                # Visit next student
+                for next_student in next_students:
+                    self.check_student(next_student, connections)
+
+            def report_final(self):
+                print(f"\n Attendance Report:")
+                print(f"   Present: {self.present_students}")
+                print(f"   Absent: {self.absent_students}")
+                print(f"   Total checked: {self.checks_done}")
+
+        if __name__ == "__main__":
+            # Create a chain of students
+            alice = Student("Alice", 9)
+            bob = Student("Bob", 9)
+            charlie = Student("Charlie", 9)
+            diana = Student("Diana", 9)
+            eve = Student("Eve", 9)
+
+            # Create connections (linear chain)
+            connections = {
+                alice: [bob],
+                bob: [charlie],
+                charlie: [diana],
+                diana: [eve],
+                eve: []
+            }
+
+            # Start attendance check
+            checker = AttendanceChecker(max_checks=3)
+            checker.check_student(alice, connections)
+        ```
+
+## Key Concepts Summary
+
+!!! summary "Walker and Ability Fundamentals"
+    - **Walkers** are mobile computational entities that traverse graphs
+    - **Abilities** are event-driven methods that execute automatically during traversal
+    - **Entry abilities** trigger when a walker arrives at a node
+    - **Exit abilities** trigger when a walker leaves a node
+    - **Spawn** activates a walker at a specific starting location
+    - **Visit** moves a walker to connected nodes
+    - **Disengage** stops a walker's execution
+
+## Best Practices
+
+!!! summary "Walker Design Guidelines"
+    - **Keep abilities focused**: Each ability should have a single, clear purpose
+    - **Use descriptive names**: Make it clear what each walker and ability does
+    - **Handle edge cases**: Check for empty connections before visiting
+    - **Control traversal flow**: Use conditions to avoid infinite loops
+    - **Report results**: Use exit abilities to summarize walker activities
+
+## Key Takeaways
+
+!!! summary "Chapter Summary"
+    - **Walkers** bring computation to data through graph traversal
+    - **Abilities** create reactive, event-driven behavior at each graph location
+    - **Entry/Exit patterns** provide fine-grained control over processing
+    - **Spawn and Visit** enable flexible navigation through connected data
+    - **Control flow** statements like `disengage` allow smart traversal decisions
+
+Walkers and abilities transform static data structures into dynamic, reactive systems. They enable algorithms that naturally adapt to the shape and content of your data, creating programs that are both intuitive and powerful.
+
+In the next chapter, we'll explore advanced object-spatial operations including complex traversal patterns and sophisticated filtering techniques that unlock the full potential of graph-based programming.
