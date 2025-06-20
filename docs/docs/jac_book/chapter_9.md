@@ -24,15 +24,17 @@ result = processor.process("hello")  # Explicit call
 
 Abilities execute implicitly based on events:
 
+<div class="code-block">
 ```jac
-// Jac - Implicit execution
+# Jac - Implicit execution
 walker DataProcessor {
+    has id: str;
     has results: list = [];
 
-    // This ability executes automatically when entering a DataNode
+    # This ability executes automatically when entering a DataNode
     can process with DataNode entry {
-        // No explicit call needed - triggered by traversal
-        let transformed = here.data.upper();
+        # No explicit call needed - triggered by traversal
+        transformed = here.data.upper();
         self.results.append(transformed);
     }
 }
@@ -40,12 +42,27 @@ walker DataProcessor {
 node DataNode {
     has data: str;
 
-    // This executes automatically when DataProcessor visits
+    # This executes automatically when DataProcessor visits
     can provide_context with DataProcessor entry {
         print(f"Processing {self.data} for {visitor.id}");
     }
 }
+
+with entry{
+    # Create a DataProcessor instance
+    processor = DataProcessor("Processor1");
+
+    # Create some DataNodes with data
+    node1 = DataNode(data="hello");
+    node2 = DataNode(data="world");
+
+
+    processor spawn node1;
+    processor spawn node2;
+    print(f"Results: {processor.results}");
+}
 ```
+</div>
 
 The key insight: **computation happens as a natural consequence of traversal**, not through explicit invocation chains.
 
@@ -53,75 +70,101 @@ The key insight: **computation happens as a natural consequence of traversal**, 
 
 Each archetype can define abilities that respond to traversal events:
 
+<div class="code-block">
 ```jac
-// Walker abilities - defined in walkers
+# Walker abilities - defined in walkers
 walker Analyzer {
-    // Triggered when entering any node
+    # Triggered when entering any node
     can analyze_any with entry {
         print(f"Entering some node");
     }
 
-    // Triggered when entering specific node type
+    # Triggered when entering specific node type
     can analyze_data with DataNode entry {
         print(f"Entering DataNode: {here.value}");
     }
 
-    // Triggered when entering specific edge type
+    # Triggered when entering specific edge type
     can traverse_connection with Connection entry {
         print(f"Traversing Connection edge: {here.strength}");
     }
 
-    // Exit abilities
+    # Exit abilities
     can complete_analysis with DataNode exit {
         print(f"Leaving DataNode: {here.value}");
     }
 }
 
-// Node abilities - defined in nodes
+# Node abilities - defined in nodes
 node DataNode {
     has value: any;
     has metadata: dict = {};
 
-    // Triggered when any walker enters
+    # Triggered when any walker enters
     can log_visitor with entry {
         self.metadata["last_visitor"] = str(type(visitor).__name__);
         self.metadata["visit_count"] = self.metadata.get("visit_count", 0) + 1;
     }
 
-    // Triggered when specific walker type enters
+    # Triggered when specific walker type enters
     can provide_data with Analyzer entry {
-        // Node can modify the visiting walker
+        print(f"DataNode providing data: {self.value}");
+        # Node can modify the visiting walker
         visitor.collected_data.append(self.value);
+        visit [edge -->];
     }
 
-    // Exit abilities
+    # Exit abilities
     can cleanup with Analyzer exit {
         print(f"Analyzer leaving with {len(visitor.collected_data)} items");
     }
 }
 
-// Edge abilities - defined in edges
+# Edge abilities - defined in edges
 edge Connection {
     has strength: float;
     has established: str;
 
-    // Triggered when any walker traverses
+    # Triggered when any walker traverses
     can log_traversal with entry {
         print(f"Edge traversed: strength={self.strength}");
     }
 
-    // Triggered when specific walker traverses
+    # Triggered when specific walker traverses
     can apply_weight with Analyzer entry {
-        // Edges can influence traversal
+        print(f"Applying weight from edge: {self.strength}");
+        # Edges can influence traversal
         visitor.path_weight += self.strength;
     }
 }
+with entry{
+    print("Starting analysis with Analyzer walker");
+    # Initialize the walker
+    walker1 = Analyzer();
+    walker1.collected_data = [];
+    walker1.path_weight = 0.0;
+
+    # Create nodes and edges
+    node1 = DataNode(value="Node 1");
+    node2 = DataNode(value="Node 2");
+    edge1 = Connection(strength=1.5, established="2023-10-01");
+
+    # Simulate traversal
+    node1 +>: edge1 :+> node2;
+    walker1 spawn node1;
+    # Final output
+    print(f"Collected data: {walker1.collected_data}");
+    print(f"Total path weight: {walker1.path_weight}");
+    print("Analysis complete");
+}
 ```
+</div>
 
 ### Execution Order and Precedence
 
 When a walker interacts with a location, abilities execute in a specific order:
 
+<div class="code-block">
 ```jac
 node ExperimentNode {
     has name: str;
@@ -156,17 +199,30 @@ walker OrderTest {
     }
 
     can demonstrate with entry {
-        // This shows the complete order
+        # This shows the complete order
         visit [-->];
     }
 }
 
-// Execution order is always:
-// 1. Location (node/edge) entry abilities
-// 2. Walker entry abilities
-// 3. Walker exit abilities
-// 4. Location (node/edge) exit abilities
+
+with entry {
+    print("Starting OrderTest with OrderTest walker");
+    # Initialize the walker
+    walker1 = OrderTest();
+    walker1.log = [];
+
+    # Create a node
+    node1 = ExperimentNode(name="Experiment Node");
+
+    # Simulate traversal
+    walker1 spawn node1;
+
+    # Final output
+    print(f"Log of actions: {walker1.log}");
+    print("OrderTest complete");
+}
 ```
+</div>
 
 ```mermaid
 sequenceDiagram
@@ -197,16 +253,16 @@ node DataRecord {
     has validated: bool = false;
     has validation_errors: list = [];
 
-    // Validate when validator arrives
+    # Validate when validator arrives
     can validate_record with DataValidator entry {
         print(f"Validating record {self.id}");
 
-        // Clear previous validation
+        # Clear previous validation
         self.validation_errors = [];
         self.validated = false;
 
-        // Perform validation
-        let errors = visitor.validate_schema(self.data);
+        # Perform validation
+        errors = visitor.validate_schema(self.data);
 
         if errors {
             self.validation_errors = errors;
@@ -217,7 +273,7 @@ node DataRecord {
         }
     }
 
-    // Provide data to collectors only if valid
+    # Provide data to collectors only if valid
     can provide_data with DataCollector entry {
         if self.validated {
             visitor.collect(self.id, self.data);
@@ -233,23 +289,23 @@ walker DataValidator {
     has invalid_count: int = 0;
 
     can validate_schema(data: dict) -> list {
-        let errors = [];
+        errors = [];
 
-        // Check required fields
+        # Check required fields
         for field in self.schema.get("required", []) {
             if field not in data {
                 errors.append(f"Missing required field: {field}");
             }
         }
 
-        // Check field types
+        # Check field types
         for field, expected_type in self.schema.get("types", {}).items() {
             if field in data and not isinstance(data[field], expected_type) {
                 errors.append(f"Invalid type for {field}: expected {expected_type.__name__}");
             }
         }
 
-        // Check constraints
+        # Check constraints
         for field, constraints in self.schema.get("constraints", {}).items() {
             if field in data {
                 value = data[field];
@@ -282,6 +338,7 @@ walker DataValidator {
 
 Abilities can transform node state based on traversal context:
 
+<div class="code-block">
 ```jac
 node Account {
     has id: str;
@@ -290,10 +347,10 @@ node Account {
     has transactions: list = [];
     has interest_rate: float = 0.02;
 
-    // Apply interest when processor visits
+    # Apply interest when processor visits
     can apply_interest with InterestProcessor entry {
         if self.status == "active" and self.balance > 0 {
-            let interest = self.balance * visitor.get_rate(self);
+            interest = self.balance * visitor.get_rate(self);
             self.balance += interest;
 
             self.transactions.append({
@@ -308,10 +365,9 @@ node Account {
         }
     }
 
-    // Update status based on balance
+    # Update status based on balance
     can update_status with StatusUpdater entry {
-        let old_status = self.status;
-
+        old_status = self.status;
         if self.balance < 0 {
             self.status = "overdrawn";
         } elif self.balance == 0 {
@@ -321,7 +377,6 @@ node Account {
         } else {
             self.status = "active";
         }
-
         if old_status != self.status {
             visitor.status_changes.append({
                 "account": self.id,
@@ -338,8 +393,8 @@ walker InterestProcessor {
     has total_interest_paid: float = 0.0;
     has accounts_processed: int = 0;
 
-    can get_rate(account: Account) -> float {
-        // Premium accounts get better rates
+    def get_rate(account: Account) -> float {
+        # Premium accounts get better rates
         if account.balance > 10000 {
             return self.base_rate * 1.5;
         } elif account.balance > 5000 {
@@ -350,17 +405,53 @@ walker InterestProcessor {
 
     can process_batch with entry {
         print(f"Starting interest processing for {self.processing_date}");
-        visit [-->:Account:];
     }
 
     can summarize with exit {
-        print(f"\nInterest Processing Complete:");
+        print(f"\n Interest Processing Complete:");
         print(f"  Date: {self.processing_date}");
         print(f"  Accounts processed: {self.accounts_processed}");
-        print(f"  Total interest paid: ${self.total_interest_paid:.2f}");
+        print(f"  Total interest paid: ${self.total_interest_paid}");
     }
 }
+
+walker StatusUpdater {
+    has status_changes: list = [];
+
+    can summarize with exit {
+        print(f"\nStatus Update Summary:");
+        for change in self.status_changes {
+            print(f"  Account {change['account']} changed from {change['from']} to {change['to']}");
+        }
+    }
+}
+
+with entry {
+    # Initialize walkers
+    interest_processor = InterestProcessor(processing_date="2023-10-01");
+    status_updater = StatusUpdater();
+
+    # Create accounts
+    account1 = Account(id="A001", balance=1500.0);
+    account2 = Account(id="A002", balance=25000.0);
+    account3 = Account(id="A003", balance=-200.0);
+    account4 = Account(id="A004", balance=0.0);
+
+    # Process interest
+    interest_processor spawn account1;
+    interest_processor spawn account2;
+    interest_processor spawn account3;
+    interest_processor spawn account4;
+
+    # Update statuses
+    status_updater spawn account1;
+    status_updater spawn account2;
+    status_updater spawn account3;
+    status_updater spawn account4;
+
+}
 ```
+</div>
 
 ### Aggregation and Reporting
 
@@ -372,11 +463,11 @@ node SalesRegion {
     has sales_data: list = [];
 
     can contribute_data with SalesAggregator entry {
-        // Calculate region metrics
-        let total_sales = sum(sale["amount"] for sale in self.sales_data);
-        let avg_sale = total_sales / len(self.sales_data) if self.sales_data else 0;
+        # Calculate region metrics
+        total_sales = sum(sale["amount"] for sale in self.sales_data);
+        avg_sale = total_sales / len(self.sales_data) if self.sales_data else 0;
 
-        // Add to aggregator
+        # Add to aggregator
         visitor.add_region_data(
             region=self.name,
             total=total_sales,
@@ -384,7 +475,7 @@ node SalesRegion {
             count=len(self.sales_data)
         );
 
-        // Visit sub-regions
+        # Visit sub-regions
         visit [-->:Contains:];
     }
 }
@@ -395,8 +486,8 @@ node SalesPerson {
     has quota: float;
 
     can report_performance with SalesAggregator entry {
-        let total = sum(sale["amount"] for sale in self.sales);
-        let performance = (total / self.quota * 100) if self.quota > 0 else 0;
+        total = sum(sale["amount"] for sale in self.sales);
+        performance = (total / self.quota * 100) if self.quota > 0 else 0;
 
         visitor.add_person_data(
             name=self.name,
@@ -405,9 +496,9 @@ node SalesPerson {
             performance=performance
         );
 
-        // Contribute to region totals
+        # Contribute to region totals
         if here[<--:WorksIn:] {
-            let region = here[<--:WorksIn:][0].source;
+            region = here[<--:WorksIn:][0].source;
             region.sales_data.extend(self.sales);
         }
     }
@@ -442,7 +533,7 @@ walker SalesAggregator {
     }
 
     can generate_summary with exit {
-        // Calculate company-wide metrics
+        # Calculate company-wide metrics
         self.summary = {
             "period": self.period,
             "total_sales": sum(r["total"] for r in self.region_data.values()),
@@ -473,14 +564,14 @@ node DataSource {
 
     can provide_data with DataFetcher entry {
         try {
-            // Try cache first
+            # Try cache first
             if self.cache and self.is_cache_valid() {
                 visitor.receive_data(self.cache);
                 visitor.cache_hits += 1;
                 return;
             }
 
-            // Fetch fresh data
+            # Fetch fresh data
             import:py requests;
             response = requests.get(self.url, timeout=5);
 
@@ -510,7 +601,7 @@ node DataSource {
         self.error_count += 1;
         print(f"Error fetching from {self.url}: {error}");
 
-        // Exponential backoff
+        # Exponential backoff
         if self.error_count > 3 {
             print(f"  Source marked as unreliable after {self.error_count} errors");
         }
@@ -521,7 +612,7 @@ node DataSource {
             return false;
         }
 
-        // Cache valid for 1 hour
+        # Cache valid for 1 hour
         import:py from datetime import datetime, timedelta;
         last = datetime.fromisoformat(self.last_fetch);
         return datetime.now() - last < timedelta(hours=1);
@@ -576,9 +667,9 @@ node WorkItem {
     has result: any? = None;
     has dependencies: list = [];
 
-    // First walker marks items
+    # First walker marks items
     can mark_ready with DependencyChecker entry {
-        let deps_complete = all(
+        deps_complete = all(
             dep.status == "completed"
             for dep in self.dependencies
         );
@@ -589,10 +680,10 @@ node WorkItem {
         }
     }
 
-    // Second walker assigns work
+    # Second walker assigns work
     can assign_work with WorkAssigner entry {
         if self.status == "ready" and not self.assigned_to {
-            let worker = visitor.get_next_worker();
+            worker = visitor.get_next_worker();
             self.assigned_to = worker;
             self.status = "assigned";
 
@@ -600,16 +691,16 @@ node WorkItem {
         }
     }
 
-    // Third walker processes
+    # Third walker processes
     can process_work with WorkProcessor entry {
         if self.status == "assigned" and self.assigned_to == visitor.worker_id {
             try {
-                // Simulate processing
+                # Simulate processing
                 self.result = self.perform_work();
                 self.status = "completed";
                 visitor.completed_items.append(self.id);
 
-                // Notify dependents
+                # Notify dependents
                 self.notify_dependents();
 
             } except Exception as e {
@@ -623,25 +714,25 @@ node WorkItem {
     }
 
     can perform_work() -> any {
-        // Actual work logic
+        # Actual work logic
         return f"Processed: {self.data}";
     }
 
     can notify_dependents {
-        // Find items depending on this
+        # Find items depending on this
         for item in [<--:DependsOn:] {
             print(f"  Notifying dependent: {item.source.id}");
         }
     }
 }
 
-// Orchestrator spawns walkers in sequence
+# Orchestrator spawns walkers in sequence
 walker WorkflowOrchestrator {
     has phases: list = ["check_deps", "assign", "process"];
     has current_phase: int = 0;
 
     can orchestrate with entry {
-        let phase = self.phases[self.current_phase];
+        phase = self.phases[self.current_phase];
         print(f"\nExecuting phase: {phase}");
 
         if phase == "check_deps" {
@@ -649,16 +740,16 @@ walker WorkflowOrchestrator {
         } elif phase == "assign" {
             spawn WorkAssigner(workers=["w1", "w2", "w3"]) on here;
         } elif phase == "process" {
-            // Spawn processor for each worker
+            # Spawn processor for each worker
             for worker in ["w1", "w2", "w3"] {
                 spawn WorkProcessor(worker_id=worker) on here;
             }
         }
 
-        // Move to next phase
+        # Move to next phase
         self.current_phase += 1;
         if self.current_phase < len(self.phases) {
-            visit here;  // Revisit to continue
+            visit here;  # Revisit to continue
         }
     }
 }
@@ -668,19 +759,20 @@ walker WorkflowOrchestrator {
 
 Abilities can be composed for complex behaviors:
 
+<div class="code-block">
 ```jac
-// Mixin-like node abilities
+# Mixin-like node abilities
 node ObservableNode {
     has observers: list = [];
     has change_log: list = [];
 
-    can notify_observers(change: dict) {
+    def notify_observers(change: dict) {
         for observer in self.observers {
             observer.on_change(self, change);
         }
 
         self.change_log.append({
-            "timestamp": now(),
+            "timestamp": str(datetime.now()),
             "change": change
         });
     }
@@ -688,40 +780,39 @@ node ObservableNode {
 
 node CacheableNode {
     has cache_key: str;
-    has cached_at: str? = None;
+    has cached_at: str = None;
     has ttl_seconds: int = 3600;
 
-    can is_cache_valid() -> bool {
+    def is_cache_valid() -> bool {
         if not self.cached_at {
             return false;
         }
 
-        import:py from datetime import datetime, timedelta;
         cached = datetime.fromisoformat(self.cached_at);
         return datetime.now() - cached < timedelta(seconds=self.ttl_seconds);
     }
 
-    can invalidate_cache {
+    def invalidate_cache {
         self.cached_at = None;
     }
 }
 
-// Composed node using both patterns
+# Composed node using both patterns
 node SmartDataNode(ObservableNode, CacheableNode) {
-    has data: dict;
+    has data: dict = {};
     has version: int = 0;
 
-    // Override data setter to trigger notifications
+    # Override data setter to trigger notifications
     can update_data with DataUpdater entry {
-        let old_data = self.data.copy();
-        let changes = visitor.get_changes();
+        old_data = self.data.copy();
+        changes = visitor.get_changes();
 
-        // Update data
+        # Update data
         self.data.update(changes);
         self.version += 1;
-        self.cached_at = now();
+        self.cached_at = str(datetime.now());
 
-        // Notify observers
+        # Notify observers
         self.notify_observers({
             "type": "data_update",
             "old": old_data,
@@ -732,49 +823,50 @@ node SmartDataNode(ObservableNode, CacheableNode) {
         visitor.nodes_updated += 1;
     }
 
-    // Provide cached data efficiently
+    # Provide cached data efficiently
     can get_data with DataReader entry {
         visitor.requests += 1;
 
         if self.is_cache_valid() {
             visitor.cache_hits += 1;
-            visitor.receive_data(self.data, cached=true);
+            visitor.receive_data(self.data, cached=True);
         } else {
-            // Simulate expensive operation
+            # Simulate expensive operation
             self.refresh_data();
-            visitor.receive_data(self.data, cached=false);
+            visitor.receive_data(self.data, cached=False);
         }
     }
 
-    can refresh_data {
-        import:py time;
-        time.sleep(0.1);  // Simulate work
-        self.cached_at = now();
+    def refresh_data {
+        sleep(0.1);  # Simulate work
+        self.cached_at = str(datetime.now());
     }
 }
 ```
+</div>
 
 ### Dynamic Ability Selection
 
 Abilities can conditionally execute based on runtime state:
 
+<div class="code-block">
 ```jac
 node AdaptiveProcessor {
     has mode: str = "normal";
     has load: float = 0.0;
     has error_rate: float = 0.0;
 
-    // Different processing strategies based on mode
+    # Different processing strategies based on mode
     can process_normal with DataWalker entry {
         if self.mode != "normal" {
-            return;  // Skip if not in normal mode
+            return;  # Skip if not in normal mode
         }
 
-        // Normal processing
-        let result = self.standard_process(visitor.data);
+        # Normal processing
+        result = self.standard_process(visitor.data);
         visitor.results.append(result);
 
-        // Update metrics
+        # Update metrics
         self.load = self.calculate_load();
         self.check_mode_change();
     }
@@ -783,9 +875,8 @@ node AdaptiveProcessor {
         if self.mode != "degraded" {
             return;
         }
-
-        // Simplified processing for high load
-        let result = self.simple_process(visitor.data);
+        # Simplified processing for high load
+        result = self.simple_process(visitor.data);
         visitor.results.append(result);
         visitor.degraded_count += 1;
     }
@@ -794,21 +885,21 @@ node AdaptiveProcessor {
         if self.mode != "recovery" {
             return;
         }
-
-        // Careful processing during recovery
+        # Careful processing during recovery
         try {
-            let result = self.careful_process(visitor.data);
+
+            result = self.careful_process(visitor.data);
             visitor.results.append(result);
-            self.error_rate *= 0.9;  // Reduce error rate
-        } except {
+            self.error_rate *= 0.9;  # Reduce error rate
+        } except e {
             self.error_rate = min(1.0, self.error_rate * 1.1);
         }
 
         self.check_mode_change();
     }
 
-    can check_mode_change {
-        let old_mode = self.mode;
+    def check_mode_change {
+        old_mode = self.mode;
 
         if self.error_rate > 0.2 {
             self.mode = "recovery";
@@ -823,22 +914,27 @@ node AdaptiveProcessor {
         }
     }
 
-    can standard_process(data: any) -> any {
-        // Full processing
+    def standard_process(data: any) -> any {
+        # Full processing
         return data;
     }
 
-    can simple_process(data: any) -> any {
-        // Reduced processing
+    def simple_process(data: any) -> any {
+        # Reduced processing
         return data;
     }
 
-    can careful_process(data: any) -> any {
-        // Careful processing with validation
+    def careful_process(data: any) -> any {
+        # Careful processing with validation
         return data;
+    }
+    def calculate_load() -> float {
+        # Simulate load calculation
+        return 0.55;  # Placeholder value
     }
 }
 ```
+</div>
 
 ### Performance Considerations
 
@@ -851,7 +947,7 @@ node OptimizedNode {
     has stats_cache: dict? = None;
     has stats_valid: bool = false;
 
-    // Lazy initialization
+    # Lazy initialization
     can build_index {
         if self.index is None {
             print("Building index...");
@@ -863,22 +959,22 @@ node OptimizedNode {
         }
     }
 
-    // Efficient lookup using index
+    # Efficient lookup using index
     can find_item with ItemFinder entry {
         self.build_index();
 
-        let target_id = visitor.target_id;
+        target_id = visitor.target_id;
         if target_id in self.index {
-            let idx = self.index[target_id];
+            idx = self.index[target_id];
             visitor.found_item = self.large_data[idx];
-            visitor.comparisons = 1;  // O(1) lookup
+            visitor.comparisons = 1;  # O(1) lookup
         } else {
             visitor.found_item = None;
             visitor.comparisons = 0;
         }
     }
 
-    // Cached statistics
+    # Cached statistics
     can get_stats with StatsCollector entry {
         if not self.stats_valid {
             self.stats_cache = {
@@ -892,15 +988,15 @@ node OptimizedNode {
         visitor.collect_stats(self.stats_cache);
     }
 
-    // Invalidate cache on updates
+    # Invalidate cache on updates
     can update_data with DataUpdater entry {
         self.large_data.extend(visitor.new_data);
-        self.stats_valid = false;  // Invalidate cache
-        self.index = None;  // Rebuild index on next search
+        self.stats_valid = false;  # Invalidate cache
+        self.index = None;  # Rebuild index on next search
     }
 }
 
-// Batch processing for efficiency
+# Batch processing for efficiency
 walker BatchProcessor {
     has batch_size: int = 100;
     has current_batch: list = [];
@@ -918,14 +1014,14 @@ walker BatchProcessor {
     }
 
     can process_batch {
-        // Process entire batch at once
+        # Process entire batch at once
         print(f"Processing batch of {len(self.current_batch)} items");
 
-        // Batch operations are often more efficient
+        # Batch operations are often more efficient
         import:py numpy as np;
         if all(isinstance(item, (int, float)) for item in self.current_batch) {
             batch_array = np.array(self.current_batch);
-            result = np.mean(batch_array);  // Vectorized operation
+            result = np.mean(batch_array);  # Vectorized operation
             print(f"  Batch mean: {result}");
         }
 
@@ -933,7 +1029,7 @@ walker BatchProcessor {
     }
 
     can finalize with exit {
-        // Process remaining items
+        # Process remaining items
         if self.current_batch {
             self.process_batch();
         }
@@ -949,26 +1045,26 @@ walker BatchProcessor {
 Each ability should have a single, clear purpose:
 
 ```jac
-// Good - focused abilities
+# Good - focused abilities
 node Order {
     can validate_items with OrderValidator entry {
-        // Only validation logic
+        # Only validation logic
     }
 
     can calculate_total with PriceCalculator entry {
-        // Only price calculation
+        # Only price calculation
     }
 
     can check_inventory with InventoryChecker entry {
-        // Only inventory checking
+        # Only inventory checking
     }
 }
 
-// Bad - doing too much
+# Bad - doing too much
 node Order {
     can process_everything with OrderProcessor entry {
-        // Validation, calculation, inventory, shipping, etc.
-        // Too much in one ability!
+        # Validation, calculation, inventory, shipping, etc.
+        # Too much in one ability!
     }
 }
 ```
@@ -978,12 +1074,12 @@ Prevent unnecessary processing with early returns:
 
 ```jac
 can process_premium with PremiumProcessor entry {
-    // Guard clause
+    # Guard clause
     if not here.is_premium_eligible() {
-        return;  // Skip processing
+        return;  # Skip processing
     }
 
-    // Main logic only for eligible nodes
+    # Main logic only for eligible nodes
     self.apply_premium_benefits(here);
 }
 ```
@@ -997,13 +1093,13 @@ node Counter {
     has history: list = [];
 
     can increment with CounterWalker entry {
-        // Store previous state
-        let old_value = self.value;
+        # Store previous state
+        old_value = self.value;
 
-        // Mutate state
+        # Mutate state
         self.value += visitor.increment_by;
 
-        // Track changes
+        # Track changes
         self.history.append({
             "from": old_value,
             "to": self.value,
@@ -1011,7 +1107,7 @@ node Counter {
             "at": now()
         });
 
-        // Notify visitor of change
+        # Notify visitor of change
         visitor.changes_made.append({
             "node": self,
             "old": old_value,
@@ -1024,23 +1120,85 @@ node Counter {
 ##### 4. **Design for Testability**
 Make abilities testable by keeping them pure when possible:
 
+<div class="code-block">
 ```jac
 node Calculator {
     has formula: str;
 
-    // Pure calculation - easy to test
-    can calculate(values: dict) -> float {
-        // Parse and evaluate formula
-        return eval_formula(self.formula, values);
+    # Pure calculation - easy to test
+    def calculate(values: dict) -> float {
+        # Parse and evaluate formula
+        # return eval_formula(self.formula, values);
+        return eval(self.formula, values);
     }
 
-    // Ability delegates to pure function
+    # Ability delegates to pure function
     can provide_result with CalculationWalker entry {
-        let result = self.calculate(visitor.values);
+        result = self.calculate(visitor.values);
         visitor.collect_result(self, result);
     }
 }
+
 ```
+</div>
+
+
+<!--
+
+# Example 5 - Calculation Walker
+
+node Calculator {
+    has formula: str;
+
+    # Pure calculation - easy to test
+    def calculate(values: dict) -> float {
+        # Parse and evaluate formula
+        return eval(self.formula, values);
+    }
+
+
+    # Ability delegates to pure function
+    can provide_result with CalculationWalker entry {
+        result = self.calculate(visitor.values);
+        visitor.collect_result(self, result);
+    }
+}
+
+walker CalculationWalker {
+    has values: dict;
+    has results: list = [];
+
+    def collect_result(node: Calculator, result: float) {
+        self.results.append({
+            "node": node.formula,
+            "result": result
+        });
+    }
+
+    can summarize with exit {
+        print("Calculation Summary:");
+        for res in self.results {
+            print(f"  {res['node']} = {res['result']}");
+        }
+    }
+}
+with entry {
+    # Create a CalculationWalker
+    walker1 = CalculationWalker(values={"x": 10, "y": 5});
+
+    # Create Calculator nodes with different formulas
+    calc1 = Calculator(formula="x + y");
+    calc2 = Calculator(formula="x * y");
+    calc3 = Calculator(formula="x - y");
+
+    # Simulate traversal
+    walker1 spawn calc1;
+    walker1 spawn calc2;
+    walker1 spawn calc3;
+
+}
+-->
+
 
 ##### 5. **Document Ability Contracts**
 Be clear about what abilities expect and provide:
