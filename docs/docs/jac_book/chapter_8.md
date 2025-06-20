@@ -176,7 +176,7 @@ walker InventoryChecker {
 ## Advance Traversal Patterns
 
 ### Breadth-First Search (BFS)
-BFS is a classic algorithm for traversing graphs level by level. It can be implemented using walkers to explore all nodes at the current level before moving deeper. 
+BFS is a classic algorithm for traversing graphs level by level. It can be implemented using walkers to explore all nodes at the current level before moving deeper.
 
 First, lets define a simple graph structure and a helper ability to get unvisited neighbors:
 ```jac
