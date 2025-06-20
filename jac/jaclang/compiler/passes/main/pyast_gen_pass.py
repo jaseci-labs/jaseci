@@ -1523,29 +1523,6 @@ class PyastGenPass(UniPass):
                 )
             ]
 
-    def exit_ignore_stmt(self, node: uni.IgnoreStmt) -> None:
-        walker = self.sync(
-            ast3.Name(id="self", ctx=ast3.Load())
-            if node.from_walker
-            else ast3.Name(id=Con.VISITOR.value, ctx=ast3.Load())
-        )
-
-        node.gen.py_ast = [
-            self.sync(
-                ast3.Expr(
-                    value=self.sync(
-                        ast3.Call(
-                            func=self.jaclib_obj("ignore"),
-                            args=cast(
-                                list[ast3.expr], [walker, node.target.gen.py_ast[0]]
-                            ),
-                            keywords=[],
-                        )
-                    )
-                )
-            )
-        ]
-
     def exit_visit_stmt(self, node: uni.VisitStmt) -> None:
         loc = self.sync(
             ast3.Name(id="self", ctx=ast3.Load())

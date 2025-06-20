@@ -117,8 +117,7 @@ impl create_tweet.tweet {
     }
 
 impl load_feed.load {
-        visit [->:Post:->];
-        ignore [--> (`?Comment)];
+        visit [-->(`?Tweet)];
         for user_node in [->:Follow:->(`?Profile)] {
             visit [user_node-->(`?Tweet)];
         }

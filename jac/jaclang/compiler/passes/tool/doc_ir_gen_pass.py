@@ -973,14 +973,6 @@ class DocIRGenPass(UniPass):
                 parts.append(self.space())
         node.gen.doc_ir = self.group(self.concat(parts))
 
-    def exit_ignore_stmt(self, node: uni.IgnoreStmt) -> None:
-        """Generate DocIR for ignore statements."""
-        parts: list[doc.DocType] = []
-        for i in node.kid:
-            parts.append(i.gen.doc_ir)
-            parts.append(self.space())
-        node.gen.doc_ir = self.group(self.concat(parts))
-
     def exit_connect_op(self, node: uni.ConnectOp) -> None:
         """Generate DocIR for connect operator."""
         parts: list[doc.DocType] = []

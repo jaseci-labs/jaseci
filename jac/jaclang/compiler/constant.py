@@ -160,7 +160,6 @@ class Tokens(str, Enum):
     KW_CLASS = "KW_CLASS"
     KW_ENUM = "KW_ENUM"
     KW_NODE = "KW_NODE"
-    KW_IGNORE = "KW_IGNORE"
     KW_VISIT = "KW_VISIT"
     KW_SPAWN = "KW_SPAWN"
     KW_WITH = "KW_WITH"

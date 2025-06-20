@@ -42,6 +42,57 @@ with entry {
 }
 ```
 
+#### 2. `ignore` feature is removed
+
+This removal aims to avoid being over specifc with data spatial features.
+
+**Before**
+
+```jac
+node MyNode {
+    has val:int;
+}
+
+walker MyWalker {
+    can func1 with MyNode entry {
+        ignore [here];
+        visit [-->]; # before
+        print(here);
+    }
+}
+
+with entry {
+    n1 = MyNode(5);
+    n1 ++> MyNode(10) ++> MyNode(15) ++> n1; # will result circular
+    n1 spawn MyWalker();
+}
+```
+
+**After**
+
+```jac
+node MyNode {
+    has val:int;
+}
+
+glob Ignore = [];
+
+walker MyWalker {
+    can func1 with MyNode entry {
+        :g: Ignore;
+        Ignore.append(here); # comment here to check the circular graph
+        visit [i for i in [-->] if i not in Ignore]; # now
+        print(here);
+    }
+}
+
+with entry {
+    n1 = MyNode(5);
+    n1 ++> MyNode(10) ++> MyNode(15) ++> n1; # will result circular
+    n1 spawn MyWalker();
+}
+```
+
 ### Version 0.8.0 (Main branch since 5/5/2025)
 
 #### 1. `impl` keyword introduced to simplify Implementation

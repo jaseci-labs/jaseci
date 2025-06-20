@@ -1377,19 +1377,6 @@ class JacParser(Transform[uni.Source, uni.Module]):
             """
             return self.consume(uni.CodeBlockStmt)
 
-        def ignore_stmt(self, _: None) -> uni.IgnoreStmt:
-            """Grammar rule.
-
-            ignore_stmt: KW_IGNORE expression SEMI
-            """
-            self.consume_token(Tok.KW_IGNORE)
-            target = self.consume(uni.Expr)
-            self.consume_token(Tok.SEMI)
-            return uni.IgnoreStmt(
-                target=target,
-                kid=self.cur_nodes,
-            )
-
         def disenage_stmt(self, _: None) -> uni.DisengageStmt:
             """Grammar rule.
 

@@ -222,13 +222,10 @@ report_stmt: KW_REPORT expression
 ctrl_stmt: KW_SKIP | KW_BREAK | KW_CONTINUE
 
 // [Heading]: Object spatial Walker statements.
-spatial_stmt: visit_stmt | ignore_stmt | disenage_stmt
+spatial_stmt: visit_stmt | disenage_stmt
 
 // [Heading]: Visit statements.
 visit_stmt: KW_VISIT (COLON expression COLON)? expression (else_stmt | SEMI)
-
-// [Heading]: Ignore statements.
-ignore_stmt: KW_IGNORE expression SEMI
 
 // [Heading]: Disengage statements.
 disenage_stmt: KW_DISENGAGE SEMI
@@ -506,7 +503,6 @@ KW_CLASS: "class"
 KW_OBJECT: "obj"
 KW_ENUM: "enum"
 KW_NODE: "node"
-KW_IGNORE: "ignore"
 KW_VISIT: "visit"
 KW_SPAWN: "spawn"
 KW_WITH: "with"

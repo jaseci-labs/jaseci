@@ -2800,32 +2800,6 @@ class ReturnStmt(CodeBlockStmt):
         return res
 
 
-class IgnoreStmt(WalkerStmtOnlyNode, CodeBlockStmt):
-    """IgnoreStmt node type for Jac Ast."""
-
-    def __init__(
-        self,
-        target: Expr,
-        kid: Sequence[UniNode],
-    ) -> None:
-        self.target = target
-        UniNode.__init__(self, kid=kid)
-        WalkerStmtOnlyNode.__init__(self)
-        CodeBlockStmt.__init__(self)
-
-    def normalize(self, deep: bool = False) -> bool:
-        res = True
-        if deep:
-            res = self.target.normalize(deep)
-        new_kid: list[UniNode] = [
-            self.gen_token(Tok.KW_IGNORE),
-            self.target,
-            self.gen_token(Tok.SEMI),
-        ]
-        self.set_kids(nodes=new_kid)
-        return res
-
-
 class VisitStmt(WalkerStmtOnlyNode, AstElseBodyNode, CodeBlockStmt):
     """VisitStmt node type for Jac Ast."""
 

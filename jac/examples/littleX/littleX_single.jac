@@ -219,9 +219,10 @@ walker load_feed ( visit_profile ) {
     has results: list = [];
 
     can load with Profile entry {
-        visit [->:Post :->];
-        ignore [-->( ` ? Comment ) ] ;
-        for user_node in [->:Follow :->( ` ? Profile ) ] { visit [user_node-->( ` ? Tweet ) ];  }
+        visit [-->(`?Tweet)];
+        for user_node in [->:Follow:->(`?Profile)] {
+            visit [user_node-->(`?Tweet)];
+        }
     }
 
     can report_feed with exit {
