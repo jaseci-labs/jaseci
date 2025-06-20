@@ -1,907 +1,679 @@
-### Chapter 5: Object-Oriented Programming Enhanced
+# Chapter 5: Imports System and File Operations
 
-Jac takes the familiar concepts of object-oriented programming and enhances them with modern features like automatic constructors, implementation separation, and object-spatial archetypes. This chapter explores how Jac improves upon traditional OOP while maintaining compatibility with Python when needed.
+Jac provides a powerful module system for organizing code across multiple files and seamless integration with external systems. This chapter demonstrates building a simple configuration management system that showcases import patterns and file operations.
 
-#### 5.1 From Classes to Archetypes
+!!! topic "Module Organization"
+    Well-organized modules make your code maintainable, reusable, and easier to test. Jac's import system supports both local modules and Python libraries.
 
-### `obj` - Enhanced Dataclass-like Behavior
+## Import Statements and Module Organization
 
-Jac's `obj` archetype combines the best of Python classes and dataclasses with automatic constructor generation:
+### Basic Import Patterns
 
-#### Python - Traditional class
+!!! example "Basic Import Statements"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # Import Python modules
+        import os;
+        import json;
+        import sys;
 
-- This Python example shows how you must manually define constructors and string representations for even simple classes.
+        # Import specific functions from Python modules
+        import from datetime  {datetime}
+        import from pathlib {Path}
 
-```python
-class Person:
-    def __init__(self, name: str, age: int, email: str = ""):
-        self.name = name
-        self.age = age
-        self.email = email
+        # Import Jac modules
+        # include my_module;
+        # include utils.file_helper;
 
-    def __repr__(self):
-        return f"Person(name={self.name}, age={self.age})"
-```
-
-#### Python - Dataclass (closer to Jac's `obj`)
-
-- Python’s `@dataclass` reduces boilerplate by auto-generating constructors and common methods, though it still lacks deeper architectural semantics and extensibility.
-
-```python
-from dataclasses import dataclass
-
-@dataclass
-class PersonDC:
-    name: str
-    age: int
-    email: str = ""
-```
-
-#### Jac `obj` Archetype
-
-- Jac's `obj` archetype automatically handles constructors, default values, and representations with minimal syntax, offering clean and powerful object definitions.
-
-```jac
-obj Person {
-    has name: str;
-    has age: int;
-    has email: str = "";
-}
-
-# That's it! Constructor, initialization, all automatic
-with entry {
-    let p = Person(name="Alice", age=30);
-    print(p);  # Automatic string representation
-}
-```
-
-### Automatic Constructors with `has` Declarations
-
-The `has` keyword declares instance variables and automatically generates constructors:
-
-```jac
-obj Employee {
-    has id: int;
-    has name: str;
-    has department: str;
-    has start_date: str;
-    has salary: float = 50000.0;  # Default value
-    has is_active: bool = True;
-    has skills: list[str] = [];  # Mutable default handled correctly!
-}
-
-# Automatic constructor handles all of this:
-with entry {
-    # All required fields must be provided
-    let emp1 = Employee(
-        id=101,
-        name="Alice Smith",
-        department="Engineering",
-        start_date="2024-01-15"
-    );
-    # salary=50000.0, is_active=True, skills=[] are defaults
-
-    # Can override defaults
-    let emp2 = Employee(
-        id=102,
-        name="Bob Jones",
-        department="Marketing",
-        salary=65000.0,
-        start_date="2023-06-01",
-        is_active=True,
-        skills=["communication", "analysis"]
-    );
-}
-```
-
-### Advanced `has` Patterns
-
-```jac
-obj Configuration {
-    # Simple fields
-    has version: str;
-    has debug: bool = False;
-
-    # Complex types
-    has settings: dict[str, any] = {};
-    has modules: list[str] = [];
-
-    # Computed fields (set in postinit)
-    has config_path: str by postinit;
-    has validated: bool by postinit;
-
-    # Private fields (access control)
-    has :priv secret_key: str = "";
-    has :protect internal_state: dict = {};
-
-    def postinit {
-        # config_path and validated are set in postinit
-    }
-}
-
-# The 'by postinit' fields aren't in constructor
-let config = Configuration(
-    version="1.0.0",
-    debug=True,
-    settings={"theme": "dark"}
-);
-```
-
-### `class` - Traditional Python-Compatible Classes
-
-When you need full Python compatibility, use the `class` archetype:
-
-```jac
-# Python-style class with explicit self
-class PythonStyleClass {
-    def __init__(self:self, value: int) {
-        self.value = value;
-        self.history = [];
-    }
-
-    def increment(self:self, amount: int = 1) {
-        self.value += amount;
-        self.history.append(("increment", amount));
-    }
-
-    def get_value(self:self) -> int {
-        return self.value;
-    }
-
-    def __str__(self:self) -> str {
-        return f"PythonStyleClass(value={self.value})";
-    }
-}
-
-# Compare with obj style
-obj JacStyleClass {
-    has value: int;
-    has history: list[tuple] = [];
-
-    def increment(amount: int = 1) {
-        self.value += amount;
-        self.history.append(("increment", amount));
-    }
-
-    def get_value() -> int {
-        return self.value;
-    }
-}
-```
-
-### When to Use Each Archetype
-
-```mermaid
-graph TD
-    A[<b>Need a Class?</b>] --> B{<b>Python<br/>Compatibility?</b>}
-    B -->|Yes| C[<b>Use 'class'</b>]
-    B -->|No| D{<b>Graph<br/>Structure?</b>}
-    D -->|Yes| E{<b>Type?</b>}
-    D -->|No| F[<b>Use 'obj'</b>]
-    E -->|Data Location| G[<b>Use 'node'</b>]
-    E -->|Connection| H[<b>Use 'edge'</b>]
-    E -->|Mobile Code| I[<b>Use 'walker'</b>]
-
-    %% Updated styles for better readability
-    style C fill:#1565c0,stroke:#0d47a1,color:#fff
-    style F fill:#2e7d32,stroke:#1b5e20,color:#fff
-    style G fill:#ff8f00,stroke:#ef6c00,color:#fff
-    style H fill:#c2185b,stroke:#880e4f,color:#fff
-    style I fill:#6a1b9a,stroke:#4a148c,color:#fff
-```
-
-### `postinit` vs Python's `__post_init__`
-
-The `postinit` method runs after automatic initialization:
-
-```python
-# Python dataclass post-init
-from dataclasses import dataclass, field
-
-@dataclass
-class PythonExample:
-    radius: float
-    area: float = field(init=False)
-
-    def __post_init__(self):
-        self.area = 3.14159 * self.radius ** 2
-```
-
-```jac
-# Jac postinit - cleaner syntax
-obj Circle {
-    has radius: float;
-    has area: float by postinit;
-    has circumference: float by postinit;
-    has valid: bool by postinit;
-
-    def postinit {
-        self.area = 3.14159 * self.radius ** 2;
-        self.circumference = 2 * 3.14159 * self.radius;
-        self.valid = self.radius > 0;
-    }
-}
-
-# Usage
-with entry {
-    c = Circle(radius=5.0);
-    print(f"Area: {c.area}");  # Area: 78.53975
-    print(f"Circumference: {c.circumference}");  # Circumference: 31.4159
-    print(f"Valid: {c.valid}");  # Valid: True
-}
-```
-
-### Complex Initialization Patterns
-
-```jac
-obj DatabaseConnection {
-    has host: str;
-    has username: str;
-    has password: str;
-    has database: str;
-    has port: int = 5432;
-
-    # Runtime computed fields
-    has connection_string: str by postinit;
-    has connection: any by postinit;
-    has connected: bool by postinit;
-
-    def postinit {
-        # Build connection string
-        self.connection_string =
-            f"postgresql://{self.username}:{self.password}@" +
-            f"{self.host}:{self.port}/{self.database}";
-
-        # Try to connect
-        try {
-            import psycopg2;
-            self.connection = psycopg2.connect(self.connection_string);
-            self.connected = true;
-        } except Exception as e {
-            print(f"Connection failed: {e}");
-            self.connection = None;
-            self.connected = False;
+        with entry {
+            # Use imported modules
+            current_time = datetime.now();
+            current_dir = os.getcwd();
+            print(f"Current time: {current_time}");
+            print(f"Current directory: {current_dir}");
         }
-    }
+        ```
+        </div>
+    === "Python"
+        ```python
+        # Import Python modules
+        import os
+        import json
+        import sys
 
-    def close {
-        if self.connection {
-            self.connection.close();
-            self.connected = False;
+        # Import specific functions
+        from datetime import datetime
+        from pathlib import Path
+
+        # Import local modules
+        import my_module
+        from utils import file_helper
+
+        if __name__ == "__main__":
+            # Use imported modules
+            current_time = datetime.now()
+            current_dir = os.getcwd()
+            print(f"Current time: {current_time}")
+            print(f"Current directory: {current_dir}")
+        ```
+
+### Implementation Separation
+
+!!! topic "Implementation Files"
+    Jac supports separating interface definitions from implementations using `.impl.jac` files, promoting clean architecture and modularity.
+
+!!! example "Interface and Implementation Separation"
+    === "math_ops.jac"
+        <div class="code-block">
+        ```jac
+        # Interface definition
+        obj Calculator {
+            has precision: int = 2;
+
+            def add(a: float, b: float) -> float;
+            def subtract(a: float, b: float) -> float;
+            def multiply(a: float, b: float) -> float;
+            def divide(a: float, b: float) -> float;
         }
-    }
-}
-```
-
-#### 5.2 Implementation Separation
-
-### Declaring Interfaces vs Implementations
-
-Jac allows you to separate interface declarations from their implementations:
-
-```jac
-# user.jac - Just the interface
-obj User {
-    has id: int;
-    has username: str;
-    has email: str;
-    has created_at: str;
-
-    has password_hash: str = "$2b$12$eIXyN/N5DwQ7IayzF6GlEu9s3WdQNmACn.wtMf7pWfd.9D6Mg4hCu";
-
-    def authenticate(password: str) -> bool;
-    def update_profile(data: dict) -> bool;
-    def get_permissions() -> list[str];
-    def validate_email(email: str) -> bool;
-}
-
-# user.impl.jac - The implementation
-impl User.authenticate {
-    import bcrypt;
-    return bcrypt.checkpw(
-        password.encode('utf-8'),
-        self.password_hash.encode("utf-8")
-    );
-}
-
-impl User.update_profile {
-    if "email" in data and not self.validate_email(data["email"]) {
-        return False;
-    }
-
-    for (key, value) in data.items() {
-        if hasattr(self, key) {
-            setattr(self, key, value);
-        }
-    }
-    return True;
-}
-
-impl User.get_permissions {
-    return ["read", "write", "comment"];
-}
-
-impl User.validate_email {
-    return "@" in email and "." in email;
-}
-
-# main.jac - Example usage
-with entry {
-    user = User(
-        id=1,
-        username="johndoe",
-        email="johndoe@example.com",
-        created_at="2023-01-01"
-    );
-
-    result = user.authenticate("password123");
-    print(f"Authenticated: {result}");
-
-    updated = user.update_profile({"email": "new@example.com"});
-    print(f"Profile updated: {updated}");
-}
-```
-
-### File Organization with `.impl.jac`
-
-```
-project/
-├── models/
-│   ├── user.jac              # Interface declaration
-│   ├── user.impl.jac         # Implementation
-│   ├── user.test.jac         # Tests
-│   │
-│   ├── product.jac           # Another model
-│   ├── product.impl/         # Implementation directory
-│   │   ├── crud.impl.jac     # CRUD operations
-│   │   ├── search.impl.jac   # Search functionality
-│   │   └── analytics.impl.jac # Analytics methods
-│   │
-│   └── order.jac
-│       └── order.impl.jac
-```
-
-### Implementation Separation Example
-
-```jac
-# shape.jac - Abstract interface
-obj Shape {
-    has name: str;
-
-    can area() -> float abs;  # Abstract method
-    can perimeter() -> float abs;
-    can describe() -> str;
-}
-
-# circle.jac - Concrete shape
-obj Circle(Shape) {
-    has radius: float;
-}
-
-# circle.impl.jac - Implementation
-impl Circle {
-    can area() -> float {
-        return 3.14159 * self.radius ** 2;
-    }
-
-    can perimeter() -> float {
-        return 2 * 3.14159 * self.radius;
-    }
-
-    can describe() -> str {
-        return f"{self.name}: Circle with radius {self.radius}";
-    }
-}
-
-# rectangle.jac
-obj Rectangle(Shape) {
-    has width: float;
-    has height: float;
-}
-
-# rectangle.impl.jac
-impl Rectangle {
-    can area() -> float {
-        return self.width * self.height;
-    }
-
-    can perimeter() -> float {
-        return 2 * (self.width + self.height);
-    }
-
-    can describe() -> str {
-        return f"{self.name}: Rectangle {self.width}x{self.height}";
-    }
-}
-```
-
-### Benefits for Large Codebases
-
-1. **Parallel Development**: Teams can work on interfaces and implementations separately
-2. **Cleaner Organization**: Separate concerns into different files
-3. **Easier Testing**: Mock implementations for testing
-4. **Better Documentation**: Interfaces serve as documentation
-
-```jac
-# api_service.jac - Interface for external team
-obj ApiService {
-    has base_url: str;
-    has auth_token: str;
-
-    can fetch_data(endpoint: str) -> dict;
-    can post_data(endpoint: str, data: dict) -> dict;
-    can delete_resource(endpoint: str, id: str) -> bool;
-}
-
-# api_service_mock.impl.jac - Mock for testing
-impl ApiService {
-    can fetch_data(endpoint: str) -> dict {
-        # Return mock data for testing
-        return {
-            "status": "success",
-            "data": {"mock": true, "endpoint": endpoint}
-        };
-    }
-
-    can post_data(endpoint: str, data: dict) -> dict {
-        return {
-            "status": "created",
-            "id": "mock_123",
-            "data": data
-        };
-    }
-
-    can delete_resource(endpoint: str, id: str) -> bool {
-        return true;  # Always successful in tests
-    }
-}
-
-# api_service_real.impl.jac - Real implementation
-impl ApiService {
-    can fetch_data(endpoint: str) -> dict {
-        import:py requests;
-
-        response = requests.get(
-            f"{self.base_url}/{endpoint}",
-            headers={"Authorization": f"Bearer {self.auth_token}"}
-        );
-
-        if response.status_code == 200 {
-            return response.json();
-        } else {
-            raise Exception(f"API error: {response.status_code}");
-        }
-    }
-
-    # ... real implementations
-}
-```
-
-#### 5.3 Access Control
-
-### `:pub`, `:priv`, `:protect` Modifiers
-
-Jac provides explicit access control modifiers:
-
-```jac
-obj BankAccount {
-    # Public - accessible from anywhere
-    has :pub account_number: str;
-    has :pub holder_name: str;
-
-    # Protected - accessible within module and subclasses
-    has :protect balance: float;
-    has :protect transaction_history: list[dict] = [];
-
-    # Private - only accessible within this class
-    has :priv pin: str;
-    has :priv security_questions: dict[str, str] = {};
-
-    # Public methods
-    can :pub get_balance() -> float {
-        return self.balance;
-    }
-
-    can :pub deposit(amount: float) -> bool {
-        if amount > 0 {
-            self.balance += amount;
-            self.log_transaction("deposit", amount);
-            return true;
-        }
-        return false;
-    }
-
-    # Protected method - for subclasses
-    can :protect log_transaction(type: str, amount: float) {
-        self.transaction_history.append({
-            "type": type,
-            "amount": amount,
-            "timestamp": timestamp_now(),
-            "balance": self.balance
-        });
-    }
-
-    # Private method - internal only
-    can :priv validate_pin(pin: str) -> bool {
-        return self.pin == pin;
-    }
-
-    can :pub withdraw(amount: float, pin: str) -> bool {
-        if not self.validate_pin(pin) {
-            return false;
+        ```
+        </div>
+    === "math_ops.impl.jac"
+        <div class="code-block">
+        ```jac
+        # Implementation file
+        impl Calculator.add {
+            result = a + b;
+            return round(result, self.precision);
         }
 
-        if amount > 0 and amount <= self.balance {
-            self.balance -= amount;
-            self.log_transaction("withdrawal", amount);
-            return true;
+        impl Calculator.subtract {
+            result = a - b;
+            return round(result, self.precision);
         }
-        return false;
-    }
-}
-```
 
-### Comparison with Python's Convention-Based Privacy
-
-```python
-# Python - Convention-based privacy
-class PythonBankAccount:
-    def __init__(self, account_number, pin):
-        self.account_number = account_number  # Public by convention
-        self._balance = 0.0  # "Protected" by convention (single underscore)
-        self.__pin = pin     # "Private" by convention (double underscore)
-
-    def _internal_method(self):  # "Protected" method
-        pass
-
-    def __private_method(self):  # "Private" method (name mangled)
-        pass
-```
-
-```jac
-# Jac - Enforced privacy
-obj JacBankAccount {
-    has :pub account_number: str;     # Truly public
-    has :protect balance: float = 0.0;  # Truly protected
-    has :priv pin: str;               # Truly private
-
-    can :protect internal_method() {  # Enforced protected
-        # ...
-    }
-
-    can :priv private_method() {      # Enforced private
-        # ...
-    }
-}
-```
-
-### Access Control in Inheritance
-
-```jac
-obj Vehicle {
-    has :pub brand: str;
-    has :pub model: str;
-    has :protect engine_code: str;
-    has :priv vin: str;
-
-    can :pub get_info() -> str {
-        return f"{self.brand} {self.model}";
-    }
-
-    can :protect start_engine() {
-        print(f"Starting engine {self.engine_code}");
-    }
-
-    can :priv validate_vin() -> bool {
-        return len(self.vin) == 17;
-    }
-}
-
-obj ElectricVehicle(Vehicle) {
-    has :pub battery_capacity: float;
-    has :protect battery_health: float = 100.0;
-
-    can :pub get_range() -> float {
-        # Can access protected members from parent
-        if self.engine_code.startswith("EV") {
-            return self.battery_capacity * self.battery_health / 100;
+        impl Calculator.multiply {
+            result = a * b;
+            return round(result, self.precision);
         }
-        return 0.0;
-    }
 
-    can :protect start_engine() {
-        # Override protected method
-        print("Initializing electric motor...");
-        super.start_engine();  # Call parent's protected method
-    }
-
-    # Cannot access parent's private members!
-    # can test() {
-    #     print(self.vin);  # Error: Cannot access private member
-    # }
-}
-```
-
-### Module-Level Access Control
-
-```jac
-# utilities.jac
-
-# Public function - exported
-can :pub calculate_tax(amount: float, rate: float) -> float {
-    return amount * rate;
-}
-
-# Protected function - module and submodules only
-can :protect validate_rate(rate: float) -> bool {
-    return 0.0 <= rate <= 1.0;
-}
-
-# Private function - this file only
-can :priv round_to_cents(amount: float) -> float {
-    return round(amount, 2);
-}
-
-# Public class
-obj :pub TaxCalculator {
-    has :priv rates: dict[str, float];
-
-    can :pub calculate(amount: float, category: str) -> float {
-        if category in self.rates {
-            return calculate_tax(amount, self.rates[category]);
+        impl Calculator.divide {
+            if b == 0.0 {
+                raise ValueError("Division by zero");
+            }
+            result = a / b;
+            return round(result, self.precision);
         }
-        return 0.0;
-    }
-}
+        ```
+        </div>
+    === "Python Equivalent"
+        ```python
+        # Python class definition
+        class Calculator:
+            def __init__(self, precision: int = 2):
+                self.precision = precision
 
-# Private class - not exported
-obj :priv InternalCache {
-    has data: dict = {};
-}
-```
+            def add(self, a: float, b: float) -> float:
+                result = a + b
+                return round(result, self.precision)
 
-### Advanced OOP Patterns
+            def subtract(self, a: float, b: float) -> float:
+                result = a - b
+                return round(result, self.precision)
 
-```jac
-# Abstract base with template method pattern
-obj DataProcessor {
-    can :pub process(data: list) -> list {
-        # Template method - defines algorithm structure
-        validated = self.validate(data);
-        transformed = self.transform(validated);
-        return self.finalize(transformed);
-    }
+            def multiply(self, a: float, b: float) -> float:
+                result = a * b
+                return round(result, self.precision)
 
-    # Abstract methods for subclasses
-    can :protect validate(data: list) -> list abs;
-    can :protect transform(data: list) -> list abs;
+            def divide(self, a: float, b: float) -> float:
+                if b == 0.0:
+                    raise ValueError("Division by zero")
+                result = a / b
+                return round(result, self.precision)
+        ```
 
-    # Hook method with default implementation
-    can :protect finalize(data: list) -> list {
-        return data;  # Default: no finalization
-    }
-}
+## File Operations and External Integration
 
-# Concrete implementation
-obj CsvProcessor(DataProcessor) {
-    has :priv delimiter: str = ",";
+!!! topic "File Handling"
+    File operations are essential for configuration management, data processing, and system integration.
 
-    can :protect validate(data: list) -> list {
-        # Remove empty rows
-        return [row for row in data if row.strip()];
-    }
+### Basic File Operations
 
-    can :protect transform(data: list) -> list {
-        # Parse CSV rows
-        import:py csv;
-        reader = csv.reader(data, delimiter=self.delimiter);
-        return list(reader);
-    }
+!!! example "File Reading and Writing"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        import os;
+        import json;
 
-    can :protect finalize(data: list) -> list {
-        # Convert to dictionaries using first row as headers
-        if not data { return []; }
-
-        headers = data[0];
-        return [
-            {headers[i]: row[i] for i in range(len(headers))}
-            for row in data[1:]
-        ];
-    }
-}
-```
-
-### Composition over Inheritance
-
-```jac
-# Component interfaces
-obj Flyable {
-    can fly() -> str abs;
-}
-
-obj Swimmable {
-    can swim() -> str abs;
-}
-
-obj Walkable {
-    can walk() -> str abs;
-}
-
-# Concrete components
-obj FlyingComponent(Flyable) {
-    has :priv wing_span: float;
-
-    can fly() -> str {
-        return f"Flying with {self.wing_span}m wingspan";
-    }
-}
-
-obj SwimmingComponent(Swimmable) {
-    has :priv swim_speed: float;
-
-    can swim() -> str {
-        return f"Swimming at {self.swim_speed} km/h";
-    }
-}
-
-# Composition-based design
-obj Duck {
-    has :priv flying: Flyable;
-    has :priv swimming: Swimmable;
-    has name: str;
-
-    can :pub fly() -> str {
-        return f"{self.name}: {self.flying.fly()}";
-    }
-
-    can :pub swim() -> str {
-        return f"{self.name}: {self.swimming.swim()}";
-    }
-}
-
-with entry {
-    let donald = Duck(
-        name="Donald",
-        flying=FlyingComponent(wing_span=0.5),
-        swimming=SwimmingComponent(swim_speed=5.0)
-    );
-
-    print(donald.fly());   # Donald: Flying with 0.5m wingspan
-    print(donald.swim());  # Donald: Swimming at 5.0 km/h
-}
-```
-
-### Design Patterns in Jac
-
-```jac
-# Singleton pattern with access control
-obj :pub Database {
-    has :priv static instance: Database? = None;
-    has :priv connection: any;
-
-    # Private constructor
-    can :priv init(connection_string: str) {
-        import:py psycopg2;
-        self.connection = psycopg2.connect(connection_string);
-    }
-
-    # Public factory method
-    can :pub static get_instance() -> Database {
-        if Database.instance is None {
-            Database.instance = Database._create_instance();
+        # Read text file safely
+        def read_file(filepath: str) -> str | None {
+            try {
+                with open(filepath, 'r') as file {
+                    return file.read();
+                }
+            } except FileNotFoundError {
+                print(f"File not found: {filepath}");
+                return None;
+            } except Exception as e {
+                print(f"Error reading file: {e}");
+                return None;
+            }
         }
-        return Database.instance;
-    }
 
-    can :priv static _create_instance() -> Database {
-        return Database(connection_string=get_db_config());
-    }
-}
-
-# Observer pattern
-obj :pub Subject {
-    has :priv observers: list[Observer] = [];
-
-    can :pub attach(observer: Observer) {
-        self.observers.append(observer);
-    }
-
-    can :pub detach(observer: Observer) {
-        self.observers.remove(observer);
-    }
-
-    can :protect notify(data: any) {
-        for observer in self.observers {
-            observer.update(self, data);
+        # Write text file safely
+        def write_file(filepath: str, content: str) -> bool {
+            try {
+                with open(filepath, 'w') as file {
+                    file.write(content);
+                }
+                return True;
+            } except Exception as e {
+                print(f"Error writing file: {e}");
+                return False;
+            }
         }
-    }
-}
 
-obj :pub Observer {
-    can update(subject: Subject, data: any) abs;
-}
-```
+        # Read JSON file
+        def read_json(filepath: str) -> dict | None {
+            try {
+                with open(filepath, 'r') as file {
+                    return json.load(file);
+                }
+            } except FileNotFoundError {
+                print(f"JSON file not found: {filepath}");
+                return None;
+            } except json.JSONDecodeError {
+                print(f"Invalid JSON in file: {filepath}");
+                return None;
+            }
+        }
 
-### Best Practices for OOP in Jac
+        with entry {
+            # Test file operations
+            test_content = "Hello from Jac!";
+            if write_file("test.txt", test_content) {
+                content = read_file("test.txt");
+                print(f"File content: {content}");
+            }
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        import os
+        import json
+        from typing import Optional
 
-1. **Use `obj` by Default**: Unless you need Python compatibility
-   ```jac
-   obj User {  # Preferred
-       has name: str;
-   }
+        # Read text file safely
+        def read_file(filepath: str) -> Optional[str]:
+            try:
+                with open(filepath, 'r') as file:
+                    return file.read()
+            except FileNotFoundError:
+                print(f"File not found: {filepath}")
+                return None
+            except Exception as e:
+                print(f"Error reading file: {e}")
+                return None
 
-   class User {  # Only for Python interop
-       def __init__(self, name: str) {
-           self.name = name;
-       }
-   }
-   ```
+        # Write text file safely
+        def write_file(filepath: str, content: str) -> bool:
+            try:
+                with open(filepath, 'w') as file:
+                    file.write(content)
+                return True
+            except Exception as e:
+                print(f"Error writing file: {e}")
+                return False
 
-2. **Leverage Automatic Constructors**: Don't write boilerplate
-   ```jac
-   # Good
-   obj Point {
-       has x: float;
-       has y: float;
-   }
+        # Read JSON file
+        def read_json(filepath: str) -> Optional[dict]:
+            try:
+                with open(filepath, 'r') as file:
+                    return json.load(file)
+            except FileNotFoundError:
+                print(f"JSON file not found: {filepath}")
+                return None
+            except json.JSONDecodeError:
+                print(f"Invalid JSON in file: {filepath}")
+                return None
 
-   # Unnecessary
-   obj Point {
-       has x: float;
-       has y: float;
+        if __name__ == "__main__":
+            # Test file operations
+            test_content = "Hello from Python!"
+            if write_file("test.txt", test_content):
+                content = read_file("test.txt")
+                print(f"File content: {content}")
+        ```
 
-       can init(x: float, y: float) {
-           self.x = x;
-           self.y = y;
-       }
-   }
-   ```
+## Complete Example: Configuration Management System
 
-3. **Use Access Control Meaningfully**: Don't make everything public
-   ```jac
-   obj Service {
-       has :pub api_key: str;      # Public: part of interface
-       has :protect cache: dict;    # Protected: for extensions
-       has :priv secrets: dict;     # Private: implementation detail
-   }
-   ```
+!!! topic "Multi-Module Application"
+    This example demonstrates how to build a configuration system using multiple modules working together.
 
-4. **Separate Interface from Implementation**: For large classes
-   ```jac
-   # Good for large projects
-   # user.jac - just interface
-   # user.impl.jac - implementation
-   # user.test.jac - tests
-   ```
+### Configuration Reader Module
 
-5. **Prefer Composition for Flexibility**: Especially for cross-cutting concerns
-   ```jac
-   # Instead of deep inheritance
-   obj LoggingMixin {
-       can log(message: str) {
-           print(f"[{timestamp_now()}] {message}");
-       }
-   }
+!!! example "Configuration Reader (config_reader.jac)"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # config_reader.jac
+        import json;
+        import os;
+        import from pathlib { Path }
 
-   obj Service {
-       has :priv logger: LoggingMixin;
+        obj ConfigReader {
+            has config_file: str;
+            has config_data: dict[str, any] = {};
 
-       can process() {
-           self.logger.log("Processing started");
-       }
-   }
-   ```
+            def load_config() -> bool;
+            def get_value(key: str, default: any = None) -> any;
+            def set_value(key: str, value: any) -> None;
+            def save_config() -> bool;
+            def create_default_config() -> None;
+        }
 
-### Summary
+        impl ConfigReader.load_config {
+            if not os.path.exists(self.config_file) {
+                print(f"Config file {self.config_file} not found, creating default");
+                self.create_default_config();
+                return True;
+            }
 
-In this chapter, we've seen how Jac enhances object-oriented programming with:
+            try {
+                with open(self.config_file, 'r') as file {
+                    self.config_data = json.load(file);
+                }
+                print(f"Config loaded from {self.config_file}");
+                return True;
+            } except json.JSONDecodeError {
+                print(f"Invalid JSON in {self.config_file}");
+                return False;
+            } except Exception as e {
+                print(f"Error loading config: {e}");
+                return False;
+            }
+        }
 
-- **Automatic constructors** that eliminate boilerplate
-- **Implementation separation** for better code organization
-- **Enforced access control** instead of naming conventions
-- **Dataclass-like `obj`** with more power and less syntax
-- **Python compatibility** when you need it
+        impl ConfigReader.get_value {
+            return self.config_data.get(key, default);
+        }
 
-These features make Jac's OOP both more powerful and more convenient than traditional approaches. The automatic constructor generation alone can save hundreds of lines of boilerplate in larger projects, while implementation separation enables better team collaboration and code organization.
+        impl ConfigReader.set_value {
+            self.config_data[key] = value;
+        }
 
-Next, we'll dive into the revolutionary Object-Spatial Programming features that make Jac truly unique—nodes, edges, and walkers that transform how we think about program structure and execution.
+        impl ConfigReader.save_config {
+            try {
+                with open(self.config_file, 'w') as file {
+                    json.dump(self.config_data, file, indent=2);
+                }
+                print(f"Config saved to {self.config_file}");
+                return True;
+            } except Exception as e {
+                print(f"Error saving config: {e}");
+                return False;
+            }
+        }
+
+        impl ConfigReader.create_default_config {
+            self.config_data = {
+                "app_name": "My Jac App",
+                "version": "1.0.0",
+                "debug": False,
+                "database": {
+                    "host": "localhost",
+                    "port": 5432,
+                    "name": "myapp_db"
+                },
+                "logging": {
+                    "level": "INFO",
+                    "file": "app.log"
+                }
+            };
+            self.save_config();
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        # config_reader.py
+        import json
+        import os
+        from pathlib import Path
+        from typing import Any, Dict, Optional
+
+        class ConfigReader:
+            def __init__(self, config_file: str):
+                self.config_file = config_file
+                self.config_data: Dict[str, Any] = {}
+
+            def load_config(self) -> bool:
+                if not os.path.exists(self.config_file):
+                    print(f"Config file {self.config_file} not found, creating default")
+                    self.create_default_config()
+                    return True
+
+                try:
+                    with open(self.config_file, 'r') as file:
+                        self.config_data = json.load(file)
+                    print(f"Config loaded from {self.config_file}")
+                    return True
+                except json.JSONDecodeError:
+                    print(f"Invalid JSON in {self.config_file}")
+                    return False
+                except Exception as e:
+                    print(f"Error loading config: {e}")
+                    return False
+
+            def get_value(self, key: str, default: Any = None) -> Any:
+                return self.config_data.get(key, default)
+
+            def set_value(self, key: str, value: Any) -> None:
+                self.config_data[key] = value
+
+            def save_config(self) -> bool:
+                try:
+                    with open(self.config_file, 'w') as file:
+                        json.dump(self.config_data, file, indent=2)
+                    print(f"Config saved to {self.config_file}")
+                    return True
+                except Exception as e:
+                    print(f"Error saving config: {e}")
+                    return False
+
+            def create_default_config(self) -> None:
+                self.config_data = {
+                    "app_name": "My Python App",
+                    "version": "1.0.0",
+                    "debug": False,
+                    "database": {
+                        "host": "localhost",
+                        "port": 5432,
+                        "name": "myapp_db"
+                    },
+                    "logging": {
+                        "level": "INFO",
+                        "file": "app.log"
+                    }
+                }
+                self.save_config()
+        ```
+
+### Application Module
+
+!!! example "Application Module (app.jac)"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # app.jac
+        # include config_reader;
+        import logging;
+
+        obj Application {
+            has config: ConfigReader;
+            has logger: any;
+
+            def start() -> None;
+            def setup_logging() -> None;
+            def get_database_config() -> dict[str, any];
+            def run_debug_mode() -> None;
+            def run_normal_mode() -> None;
+        }
+
+        impl Application.start {
+            print("=== Starting Application ===");
+
+            # Load configuration
+            if self.config.load_config() {
+                self.setup_logging();
+
+                # Display app info
+                app_name = self.config.get_value("app_name", "Unknown App");
+                version = self.config.get_value("version", "1.0.0");
+                debug_mode = self.config.get_value("debug", False);
+
+                print(f"App: {app_name} v{version}");
+                print(f"Debug mode: {debug_mode}");
+
+                # Show database config
+                db_config = self.get_database_config();
+                print(f"Database: {db_config['host']}:{db_config['port']}/{db_config['name']}");
+
+                if debug_mode {
+                    self.run_debug_mode();
+                } else {
+                    self.run_normal_mode();
+                }
+            } else {
+                print("Failed to load configuration");
+            }
+        }
+
+        impl Application.setup_logging {
+            log_config = self.config.get_value("logging", {});
+            log_level = log_config.get("level", "INFO");
+            log_file = log_config.get("file", "app.log");
+
+            logging.basicConfig(
+                level=getattr(logging, log_level),
+                format='%(asctime)s - %(levelname)s - %(message)s',
+                handlers=[
+                    logging.FileHandler(log_file),
+                    logging.StreamHandler()
+                ]
+            );
+
+            self.logger = logging.getLogger("app");
+            self.logger.info("Logging configured");
+        }
+
+        impl Application.get_database_config {
+            default_db = {"host": "localhost", "port": 5432, "name": "default_db"};
+            return self.config.get_value("database", default_db);
+        }
+
+        impl Application.run_debug_mode {
+            print(">>> Running in DEBUG mode");
+            print(f">>> Full config: {self.config.config_data}");
+        }
+
+        impl Application.run_normal_mode {
+            print(">>> Running in NORMAL mode");
+            print(">>> Application ready");
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        # app.py
+        from config_reader import ConfigReader
+        import logging
+        from typing import Dict, Any
+
+        class Application:
+            def __init__(self, config_file: str):
+                self.config = ConfigReader(config_file)
+                self.logger = None
+
+            def start(self) -> None:
+                print("=== Starting Application ===")
+
+                # Load configuration
+                if self.config.load_config():
+                    self.setup_logging()
+
+                    # Display app info
+                    app_name = self.config.get_value("app_name", "Unknown App")
+                    version = self.config.get_value("version", "1.0.0")
+                    debug_mode = self.config.get_value("debug", False)
+
+                    print(f"App: {app_name} v{version}")
+                    print(f"Debug mode: {debug_mode}")
+
+                    # Show database config
+                    db_config = self.get_database_config()
+                    print(f"Database: {db_config['host']}:{db_config['port']}/{db_config['name']}")
+
+                    if debug_mode:
+                        self.run_debug_mode()
+                    else:
+                        self.run_normal_mode()
+                else:
+                    print("Failed to load configuration")
+
+            def setup_logging(self) -> None:
+                log_config = self.config.get_value("logging", {})
+                log_level = log_config.get("level", "INFO")
+                log_file = log_config.get("file", "app.log")
+
+                logging.basicConfig(
+                    level=getattr(logging, log_level),
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[
+                        logging.FileHandler(log_file),
+                        logging.StreamHandler()
+                    ]
+                )
+
+                self.logger = logging.getLogger("app")
+                self.logger.info("Logging configured")
+
+            def get_database_config(self) -> Dict[str, Any]:
+                default_db = {"host": "localhost", "port": 5432, "name": "default_db"}
+                return self.config.get_value("database", default_db)
+
+            def run_debug_mode(self) -> None:
+                print(">>> Running in DEBUG mode")
+                print(f">>> Full config: {self.config.config_data}")
+
+            def run_normal_mode(self) -> None:
+                print(">>> Running in NORMAL mode")
+                print(">>> Application ready")
+        ```
+
+### Main Application Entry Point
+
+!!! example "Main Entry Point (main.jac)"
+    === "Jac"
+        <div class="code-block">
+        ```jac
+        # main.jac
+        include app;
+
+        with entry {
+            print("=== Configuration Management Demo ===");
+
+            # Create and run application
+            application = Application(config=ConfigReader(config_file="app_config.json"));
+            application.start();
+
+            print("\n=== Configuration Update Demo ===");
+
+            # Update configuration at runtime
+            application.config.set_value("debug", True);
+            application.config.set_value("app_name", "Updated Jac App");
+            application.config.save_config();
+
+            # Restart with new config
+            print("\nRestarting with updated configuration:");
+            application.start();
+        }
+        ```
+        </div>
+    === "Python"
+        ```python
+        # main.py
+        from app import Application
+
+        if __name__ == "__main__":
+            print("=== Configuration Management Demo ===")
+
+            # Create and run application
+            application = Application("app_config.json")
+            application.start()
+
+            print("\n=== Configuration Update Demo ===")
+
+            # Update configuration at runtime
+            application.config.set_value("debug", True)
+            application.config.set_value("app_name", "Updated Python App")
+            application.config.save_config()
+
+            # Restart with new config
+            print("\nRestarting with updated configuration:")
+            application.start()
+        ```
+
+## Package Structure and Organization
+
+!!! topic "Project Structure"
+    Well-organized project structure makes your code maintainable and scalable.
+
+!!! example "Recommended Project Structure"
+    === "Jac Project Structure"
+        ```
+        my_jac_project/
+        ├── main.jac                 # Main entry point
+        ├── app.jac                  # Application logic
+        ├── app.test.jac             # App tests
+        ├── config_reader.jac        # Config management
+        ├── config_reader.impl.jac   # Config implementation
+        ├── config_reader.test.jac   # Config tests
+        ├── utils/
+        │   ├── file_utils.jac       # File utilities
+        │   └── data_utils.jac       # Data processing
+        ├── models/
+        │   ├── user.jac             # User model
+        │   └── user.impl.jac        # User implementation
+        ├── docs/
+        │   └── README.md            # Documentation
+        └── config/
+            └── app_config.json      # Configuration files
+        ```
+    === "Python Project Structure"
+        ```
+        my_python_project/
+        ├── main.py                  # Main entry point
+        ├── app.py                   # Application logic
+        ├── config_reader.py         # Config management
+        ├── utils/
+        │   ├── __init__.py
+        │   ├── file_utils.py        # File utilities
+        │   └── data_utils.py        # Data processing
+        ├── models/
+        │   ├── __init__.py
+        │   └── user.py              # User model
+        ├── tests/
+        │   ├── __init__.py
+        │   ├── test_config.py       # Config tests
+        │   └── test_app.py          # App tests
+        ├── docs/
+        │   └── README.md            # Documentation
+        └── config/
+            └── app_config.json      # Configuration files
+        ```
+
+## Best Practices
+
+!!! summary "Import and File Operation Best Practices"
+    - **Organize by functionality**: Group related code into logical modules
+    - **Use explicit imports**: Import only what you need for clarity
+    - **Handle errors gracefully**: Always use try-catch for file operations
+    - **Separate interface from implementation**: Use `.impl.jac` files for complex objects
+    - **Validate file inputs**: Check file existence and format before processing
+    - **Use configuration files**: Externalize settings for flexibility
+    - **Document your modules**: Clear documentation helps team collaboration
+
+## Key Takeaways
+
+!!! summary "Chapter Summary"
+    - **Import System**: Jac supports both local modules and Python libraries seamlessly
+    - **Implementation Separation**: `.impl.jac` files promote clean architecture
+    - **File Operations**: Safe file handling with proper error management
+    - **Configuration Management**: External configuration files improve flexibility
+    - **Module Organization**: Well-structured projects are easier to maintain and scale
+    - **Python Integration**: Leverage existing Python ecosystem alongside Jac features
+
+In the next chapter, we'll explore Jac's unique pipe operations and AI integration features that make data processing and AI workflows much more intuitive.
