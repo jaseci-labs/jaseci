@@ -1740,6 +1740,30 @@ class JacUtils:
         return future.result()
 
 
+class JacSmartAsserts:
+    """Jac Smart Asserts."""
+
+    @staticmethod
+    def smart_assert(
+        condition: bool,
+        e: AssertionError,
+        msg: Optional[str] = None,
+        condition_str: str = "",
+    ) -> None:
+        """Raise an AssertionError with enhanced traceback reporting if --gins is enabled."""
+        if condition:
+            return
+        print("Smart Assert Enabled")
+        try:
+            import mtllm  # noqa: F401
+        except ImportError:
+            print(
+                "mtllm is not installed. Please install it with `pip install mtllm` to enable smart assert behavior."
+            )
+            raise e from None
+        raise e from None  # Has an extra lines, need to figure out
+
+
 class JacMachineInterface(
     JacClassReferences,
     JacAccessValidation,
@@ -1750,6 +1774,7 @@ class JacMachineInterface(
     JacCmd,
     JacBasics,
     JacUtils,
+    JacSmartAsserts,
 ):
     """Jac Feature."""
 
