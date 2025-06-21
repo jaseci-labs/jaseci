@@ -11,10 +11,10 @@ def smart_assert_explanation(
         use_def_chain:str = ''
     ) -> str by llm();
 
-# sem smart_assert_explanation =  "Explain why this assert triggered."
-#                                 "Give details about what the root cause can be in the code."
-#                                 "Try to explain in depth and pinpoint to exact line numbers."
-#                                 "Output should be consise and poitwise explanation and possible actionables to the developer.";
+sem smart_assert_explanation =  "Explain why this assert triggered."
+                                "Give details about what the root cause can be in the code."
+                                "Try to explain in depth and pinpoint to exact line numbers."
+                                "Output should be consise and poitwise explanation and possible actionables to the developer.";
 
 def help_func() {
     return 'Helper function called' ;
