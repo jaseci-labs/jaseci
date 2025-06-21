@@ -122,6 +122,7 @@ def run(
         session: Optional session identifier for persistent state
         main: Treat the module as __main__ (default: True)
         cache: Use cached compilation if available (default: True)
+        gins: Attach GINS (Global Interpreter Namespace) for debugging (default: False)
 
     Examples:
         jac run myprogram.jac
