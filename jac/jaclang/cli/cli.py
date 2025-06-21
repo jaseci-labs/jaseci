@@ -127,6 +127,7 @@ def run(
         jac run myprogram.jac
         jac run myprogram.jac --session mysession
         jac run myprogram.jac --no-main
+        jac run myprogram.jac --gins
     """
     # if no session specified, check if it was defined when starting the command shell
     # otherwise default to jaclang.session
