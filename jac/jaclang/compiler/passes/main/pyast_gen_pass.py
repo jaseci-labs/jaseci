@@ -1245,18 +1245,102 @@ class PyastGenPass(UniPass):
         ]
 
     def exit_assert_stmt(self, node: uni.AssertStmt) -> None:
-        node.gen.py_ast = [
-            self.sync(
-                ast3.Assert(
-                    test=cast(ast3.expr, node.condition.gen.py_ast[0]),
-                    msg=(
-                        cast(ast3.expr, node.error_msg.gen.py_ast[0])
-                        if node.error_msg
-                        else None
-                    ),
+        """Generate the assert statement."""
+        from jaclang.runtimelib.machine import JacMachine
+
+        if JacMachine.gins:
+            node.gen.py_ast = [
+                self.sync(
+                    ast3.Try(
+                        body=[
+                            # Generate the assert statement
+                            self.sync(
+                                ast3.Assert(
+                                    test=cast(ast3.expr, node.condition.gen.py_ast[0]),
+                                    msg=(
+                                        cast(ast3.expr, node.error_msg.gen.py_ast[0])
+                                        if node.error_msg
+                                        else None
+                                    ),
+                                )
+                            )
+                        ],
+                        handlers=[
+                            self.sync(
+                                ast3.ExceptHandler(
+                                    type=self.sync(
+                                        ast3.Name(id="AssertionError", ctx=ast3.Load())
+                                    ),
+                                    name="e",
+                                    body=[
+                                        # Call smart_assert with the captured AssertionError
+                                        self.sync(
+                                            ast3.Expr(
+                                                value=self.sync(
+                                                    ast3.Call(
+                                                        func=self.jaclib_obj(
+                                                            "smart_assert"
+                                                        ),
+                                                        args=[
+                                                            cast(
+                                                                ast3.expr,
+                                                                node.condition.gen.py_ast[
+                                                                    0
+                                                                ],
+                                                            ),
+                                                            self.sync(
+                                                                ast3.Name(
+                                                                    id="e",
+                                                                    ctx=ast3.Load(),
+                                                                )
+                                                            ),  # Pass the exception object
+                                                            (
+                                                                cast(
+                                                                    ast3.expr,
+                                                                    node.error_msg.gen.py_ast[
+                                                                        0
+                                                                    ],
+                                                                )
+                                                                if node.error_msg
+                                                                else self.sync(
+                                                                    ast3.Constant(
+                                                                        value=None
+                                                                    )
+                                                                )
+                                                            ),
+                                                            self.sync(
+                                                                ast3.Constant(
+                                                                    value=node.condition.unparse()
+                                                                )
+                                                            ),
+                                                        ],
+                                                        keywords=[],
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    ],
+                                )
+                            )
+                        ],
+                        orelse=[],
+                        finalbody=[],
+                    )
                 )
-            )
-        ]
+            ]
+        else:
+            node.gen.py_ast = [
+                self.sync(
+                    ast3.Assert(
+                        test=cast(ast3.expr, node.condition.gen.py_ast[0]),
+                        msg=(
+                            cast(ast3.expr, node.error_msg.gen.py_ast[0])
+                            if node.error_msg
+                            else None
+                        ),
+                    )
+                )
+            ]
 
     def exit_check_stmt(self, node: uni.CheckStmt) -> None:
         """Sub objects.
