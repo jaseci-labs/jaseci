@@ -35,7 +35,7 @@ from typing import (
 from uuid import UUID
 
 
-from jaclang.compiler import unitree as ast
+from jaclang.compiler import unitree as uni
 from jaclang.compiler.constant import Constants as Con, EdgeDir, colors
 from jaclang.compiler.passes.main.pyast_gen_pass import PyastGenPass
 from jaclang.compiler.program import JacProgram
@@ -60,7 +60,12 @@ from jaclang.runtimelib.constructs import (
     WalkerAnchor,
     WalkerArchetype,
 )
-from jaclang.runtimelib.gins import GinSThread
+from jaclang.runtimelib.gins import (
+    GetAssertNodes,
+    GinSThread,
+    fetch_altering_code,
+    format_code_dict_printable,
+)
 from jaclang.runtimelib.memory import Memory, Shelf, ShelfStorage
 from jaclang.runtimelib.utils import (
     all_issubclass,
@@ -1344,7 +1349,7 @@ class JacBasics:
 
     @staticmethod
     def gen_llm_call_override(
-        _pass: PyastGenPass, node: ast.FuncCall
+        _pass: PyastGenPass, node: uni.FuncCall
     ) -> list[ast3.AST]:
         """Generate python ast nodes for llm function body override syntax.
 
@@ -1377,7 +1382,7 @@ class JacBasics:
         ]
 
     @staticmethod
-    def gen_llm_body(_pass: PyastGenPass, node: ast.Ability) -> list[ast3.AST]:
+    def gen_llm_body(_pass: PyastGenPass, node: uni.Ability) -> list[ast3.AST]:
         """Generate the by LLM body."""
         _pass.log_warning(
             "MT-LLM is not installed. Please install it with `pip install mtllm`."
@@ -1408,7 +1413,7 @@ class JacBasics:
     def by_llm_call(
         _pass: PyastGenPass,
         model: ast3.AST,
-        model_params: dict[str, ast.Expr],
+        model_params: dict[str, uni.Expr],
         scope: ast3.AST,
         inputs: Sequence[Optional[ast3.AST]],
         outputs: Sequence[Optional[ast3.AST]] | ast3.Call,
@@ -1500,7 +1505,7 @@ class JacBasics:
         )
 
     @staticmethod
-    def get_by_llm_call_args(_pass: PyastGenPass, node: ast.FuncCall) -> dict:
+    def get_by_llm_call_args(_pass: PyastGenPass, node: uni.FuncCall) -> dict:
         """Get the by LLM call args."""
         return {
             "model": None,
@@ -1755,7 +1760,13 @@ class JacSmartAsserts:
         if condition:
             return
         print("Smart Assert Enabled")
-
+        try:
+            import mtllm  # noqa: F401
+        except ImportError:
+            print(
+                "mtllm is not installed. Please install it with `pip install mtllm` to enable smart assert behavior."
+            )
+            raise e from None
         (llm,) = JacMachineInterface.jac_import(
             target=".smart_assert",
             base_path=__file__,
@@ -1772,25 +1783,26 @@ class JacSmartAsserts:
         for frame_info in current_frames:
             frame = frame_info.frame
             # Convert to dict with eval-safe serialization
-            local_vars = {
-                k: repr(v) for k, v in frame.f_locals.items()
-            }
+            local_vars = {k: repr(v) for k, v in frame.f_locals.items()}
             # global_vars = {
             #     k: repr(v) for k, v in frame.f_globals.items()
             # }
 
             # Match only the filtered frames
             if any(
-                frame_info.filename == filtered.filename and frame_info.lineno == filtered.lineno
+                frame_info.filename == filtered.filename
+                and frame_info.lineno == filtered.lineno
                 for filtered in filtered_stack
             ):
-                variable_context.append({
-                    "file": frame_info.filename,
-                    "function": frame_info.function,
-                    "line": frame_info.lineno,
-                    "locals": local_vars,
-                    # "globals": global_vars,
-                })
+                variable_context.append(
+                    {
+                        "file": frame_info.filename,
+                        "function": frame_info.function,
+                        "line": frame_info.lineno,
+                        "locals": local_vars,
+                        # "globals": global_vars,
+                    }
+                )
         # print(f"Smart Assert Context:\n{variable_context}")
         # filtered_stack = [
         #     frame for frame in stack
@@ -1799,7 +1811,62 @@ class JacSmartAsserts:
         stack_str = "".join(traceback.format_list(filtered_stack))
         # print(f"Smart Assert Exception: {tb_str}")
         # print(f"Smart Assert Stack: {stack_str}")
-        text = llm.smart_assert_explanation(condition=condition_str, traceback=tb_str, call_stack=stack_str, msg=msg, variable_context=variable_context)
+
+        # Capture Code
+        assert_nodes = GetAssertNodes(
+            ir_in=JacMachine.program.mod, prog=JacMachine.program
+        ).assert_nodes
+
+        # print(f"Smart Assert Nodes: {assert_nodes}")
+        # Get the last frame from the traceback of the exception
+        tb_last = e.__traceback__
+        while tb_last and tb_last.tb_next:
+            tb_last = tb_last.tb_next
+        if tb_last:
+            last_frame = tb_last.tb_frame
+            last_file = last_frame.f_code.co_filename
+            last_line = tb_last.tb_lineno
+
+        for node in assert_nodes:
+            if last_file == node.loc.mod_path and last_line == node.loc.first_line:
+                current_assert = node
+                break
+        # print(current_assert.sym_tab.lookup(name="max_rounds", deep=True))
+        symbols = current_assert.gather_external_symbols()
+        code = []
+        for symbol in symbols:
+            new_code, _ = fetch_altering_code(
+                node=current_assert,
+                symbol=symbol,
+            )
+            for code_item in new_code:
+                if code_item not in code:
+                    code.append(code_item)
+        # print (f"Smart Assert Code: {[code_item.unparse() for code_item in code]}")
+
+        code_dict: dict = {}
+        for code_item in code:
+            if code_item.loc.mod_path not in code_dict.keys():
+                code_dict[code_item.loc.mod_path] = [code_item]
+            else:
+                code_dict[code_item.loc.mod_path].append(code_item)
+
+        # print(f"Smart Assert Code Dict: {code_dict}")
+
+        # Format and print the code dict in a readable format
+        formatted_output = format_code_dict_printable(code_dict)
+        # print(f"Smart Assert Formatted Code:\n{formatted_output}")
+
+        # for mod_path, code_items in code_dict.items():
+
+        text = llm.smart_assert_explanation(
+            condition=condition_str,
+            traceback=tb_str,
+            call_stack=stack_str,
+            msg=msg,
+            variable_context=variable_context,
+            use_def_chain=formatted_output,
+        )
         print(f"GinS Explanation: \n{text}")
 
         raise e from None  # Has an extra lines, need to figure out

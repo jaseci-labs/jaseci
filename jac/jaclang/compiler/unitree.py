@@ -2612,6 +2612,17 @@ class AssertStmt(CodeBlockStmt):
         self.set_kids(nodes=new_kid)
         return res
 
+    def gather_external_symbols(self) -> set[Symbol]:
+        """Gather external symbols used in this expression statement."""
+        name_atoms = self.condition.get_all_sub_nodes(Name)
+        symbols = set()
+        for name in name_atoms:
+            new_symbol = self.sym_tab.lookup(name=name.value, deep=True)
+            if new_symbol:
+                symbols.add(new_symbol)
+
+        return symbols
+
 
 class CheckStmt(CodeBlockStmt):
     """CheckStmt node type for Jac Ast."""
