@@ -1,20 +1,14 @@
 """
-Gins thread which can be attached when rubn with the --gins option.
+Gins thread module for Jac runtime.
 
-This is a placeholder for the Jac Gins thread. It is not yet implemented.
+This module provides the GinSThread class, which can be attached to the Jac machine state
+when run with the --gins option. The GinSThread is currently a placeholder and not yet fully implemented.
 """
 
-# import copy
-# import os
-# import sys
-# import threading
-# import types
 from threading import Thread
 
-# from typing import Any, Callable, Optional
-
-
-# from typing import Optional
+import jaclang.compiler.unitree as uni
+from jaclang.compiler.passes import UniPass
 
 
 class GinSThread:
@@ -37,142 +31,130 @@ class GinSThread:
         print("Gins thread started")
 
 
-# class CFGTracker:
-#     """CFG Tracker."""
+class GetAssertNodes(UniPass):
+    """Fetch code pass."""
 
-#     def __init__(self) -> None:
-#         """Create CFG Tracker."""
-#         self.executed_insts: dict = {}
-#         self.inst_lock = threading.Lock()
+    def before_pass(self) -> None:
+        """Before pass."""
+        self.assert_nodes: list[uni.AssertStmt] = []
 
-#         self.curr_variables_lock = threading.Lock()
-#         self.curr_variables: dict = {}
+    def enter_assert_stmt(self, node: uni.AssertStmt) -> None:
+        """Enter assert statement."""
+        self.assert_nodes.append(node)
 
-#         # tracking inputs
-#         self.inputs: list = []
 
-#     def start_tracking(self) -> None:
-#         """Start tracking branch coverage."""
-#         frame = sys._getframe()
-#         frame.f_trace_opcodes = True
-#         sys.settrace(self.trace_callback)
+def fetch_altering_code(
+    node: uni.UniCFGNode, symbol: uni.Symbol
+) -> tuple[list[uni.UniCFGNode], list[uni.Symbol]]:
+    """Fetch all nodes that alter the symbol from the start node."""
+    code_nodes = []
+    new_symbols = []
+    # print(f"Node: {node} with {symbol.parent_tab}")
+    for use in symbol.uses:
+        node_i = use.parent_of_type(uni.UniCFGNode)
+        if node == node_i:
+            current_use = use
+            node_use = node_i
+            break
+    for i, defn in enumerate(symbol.defn):
+        if len(symbol.defn) != i + 1:
+            if current_use.loc.first_line < symbol.defn[i + 1].loc.first_line:
+                current_defn = defn
+                break
+        else:
+            current_defn = defn
+            break
 
-#     def stop_tracking(self) -> None:
-#         """Stop tracking branch coverage."""
-#         sys.settrace(None)
+    # print(f"Symbol: {symbol} with {current_use} and {current_defn}")
+    node_defn = current_defn.parent_of_type(uni.UniCFGNode)
+    if node_use not in code_nodes:
+        code_nodes.append(node_use)
+    if node_defn not in code_nodes:
+        code_nodes.append(node_defn)
 
-#     def get_exec_inst(self) -> dict:
-#         """Get executed instructions."""
-#         self.inst_lock.acquire()
-#         cpy = copy.deepcopy(self.executed_insts)
-#         self.executed_insts = {}
-#         self.inst_lock.release()
+    # print(f"Node Use: {node_use.unparse()} and Node Defn: {node_defn.unparse()}")
 
-#         return cpy
+    def_sym_list = list(node_defn.sym_tab.names_in_scope.values())
+    for sym in def_sym_list:
+        for use in sym.uses:
+            if (
+                use.parent_of_type(uni.UniCFGNode) == node_defn
+                and node_defn != node_use
+            ):
+                new_symbols.append(sym)
+                break
 
-#     def get_inputs(self) -> list:
-#         """Get inputs."""
-#         self.inst_lock.acquire()
-#         cpy = copy.deepcopy(self.inputs)
-#         self.inputs = []
-#         self.inst_lock.release()
+    # print (f"Definition node: {node_defn} and Use Node: {node_use}")
 
-#         return cpy
+    if new_symbols != []:
+        for sym in new_symbols:
+            nodes, _ = fetch_altering_code(
+                node=node_defn,
+                symbol=sym,
+            )
+            for n in nodes:
+                if n not in code_nodes:
+                    code_nodes.append(n)
+    return code_nodes, []
 
-#     def get_variable_values(self) -> dict:
-#         """Get current variable values."""
-#         self.curr_variables_lock.acquire()
-#         cpy = copy.deepcopy(self.curr_variables)
-#         # print(cpy)
-#         self.curr_variables_lock.release()
 
-#         return cpy
+def format_code_dict_printable(code_dict: dict) -> str:
+    """Format code_dict into a printable format with line numbers and code snippets.
 
-#     def trace_callback(
-#         self, frame: types.FrameType, event: str, arg: Any
-#     ) -> Optional[Callable]:  # type: ignore[ANN401]
-#         """Trace function to track executed branches."""
-#         code = frame.f_code
-#         if ".jac" not in code.co_filename:
-#             return self.trace_callback
+    Args:
+        code_dict: Dictionary with mod_path as keys and list of UniCFGNode as values
 
-#         if event == "call":
-#             frame.f_trace_opcodes = True
-#         elif event == "opcode":
-#             # edge case to handle executing code not within a function
-#             filename = os.path.basename(code.co_filename)
-#             module = (
-#                 code.co_name
-#                 if code.co_name != "<module>"
-#                 else os.path.splitext(filename)[0]
-#             )
+    Returns:
+        Formatted string representation of the code dict
+    """
+    output_lines = []
 
-#             self.inst_lock.acquire()
-#             if module not in self.executed_insts:
-#                 self.executed_insts[module] = []
-#             self.executed_insts[module].append(frame.f_lasti)
-#             self.inst_lock.release()
-#             variable_dict = {}
-#             if "__annotations__" in frame.f_locals:
-#                 self.curr_variables_lock.acquire()
-#                 for var_name in frame.f_locals["__annotations__"]:
-#                     if var_name == "input_val" and (
-#                         len(self.inputs) == 0
-#                         or frame.f_locals[var_name] != self.inputs[-1]
-#                     ):
-#                         self.inputs.append(frame.f_locals[var_name])
+    for mod_path, code_items in code_dict.items():
+        output_lines.append(f"\n{mod_path}")
 
-#                     variable_dict[var_name] = frame.f_locals[var_name]
-#                 self.curr_variables[module] = (frame.f_lasti, variable_dict)
-#                 self.curr_variables_lock.release()
-#         # elif event == "line":
-#         #     ###
-#         #     # this is really circumlocutious, but is also how
-#         #     # [watchpoints](https://github.com/gaogaotiantian/watchpoints/tree/master)
-#         #     # works
-#         #     ###
-#         #     try:
-#         #         #print(inspect.getsourcefile(frame.f_code))
-#         #         #print(frame.f_lineno)
-#         #         # TODO: super inefficient but just for now
-#         #         # inspect.getsource doesn't seem to work like it does for
-#         #         # regular python (see test_tracer.py)
-#         #         # NOTE: we're parsing jac lines as python, fingers crossed
-#         #         with open(inspect.getsourcefile(frame.f_code)) as file:
-#         #             line_asts = ast.parse(file.readlines()[frame.f_lineno - 1].lstrip().rstrip(';'))
-#         #         #print("                       ", frame.f_lineno, ast.unparse(line_ast))
-#         #     except (IndexError, SyntaxError):
-#         #         return self.trace_callback
-#         #     #print(ast.dump(a))
-#         #     #print(len(a.body))
-#         #     assert len(line_asts.body) == 1 # we only parsed one line
-#         #     line_ast = line_asts.body[0]
-#         #     if isinstance(line_ast, ast.Assign) or isinstance(line_ast, ast.AugAssign):
-#         #         # yes, I know this isn't strictly necessary in python
-#         #         lhs_ast = None
-#         #         rhs_ast = None
-#         #         if isinstance(line_ast, ast.Assign):
-#         #             assert len(line_ast.targets) == 1, "Only handling single targets right now"
-#         #             lhs_ast = line_ast.targets[0]
-#         #         elif isinstance(line_ast, ast.AugAssign):
-#         #             lhs_ast = line_ast.target
-#         #         lhs_var = ast.unparse(lhs_ast)
-#         #         rhs_ast = line_ast.value
-#         #         # NOTE: for some reason, eval(ast.Expression(rhs_ast)) doesn't work
-#         #         rhs_value = eval(ast.unparse(rhs_ast), frame.f_globals, frame.f_locals)
-#         #         if isinstance(line_ast, ast.Assign):
-#         #             exec(f"{lhs_var} = {rhs_value}\n", frame.f_globals, frame.f_locals)
-#         #             print(f"{lhs_var} = {rhs_value}")
-#         #         elif isinstance(line_ast, ast.AugAssign):
-#         #             exec(f"{lhs_var} += {rhs_value}\n", frame.f_globals, frame.f_locals)
-#         #             print(f"{lhs_var} (+)= {rhs_value}")
-#         #         #print(frame.f_locals)
-#         #         if lhs_var == 'PROGRAM_INPUT':
-#         #             if isinstance(line_ast, ast.AugAssign):
-#         #                 assert False, "Unimplemented"
-#         #             print("tracer: PROGRAM_INPUT = ", rhs_value)
-#         #         # this only silences some of the
-#         #         # "RuntimeWarning: assigning None to unbound local" warnings
-#         #         with warnings.catch_warnings(action="ignore"):
-#         #             frame.f_lineno += 1
-#         return self.trace_callback
+        # Sort code items by line number for better readability
+        sorted_items = sorted(code_items, key=lambda item: item.loc.first_line)
+
+        # Group consecutive lines to show context
+        if not sorted_items:
+            continue
+
+        current_group = [sorted_items[0]]
+
+        for item in sorted_items[1:]:
+            # If the current item is within 3 lines of the last item in current group,
+            # add it to the current group, otherwise start a new group
+            if item.loc.first_line - current_group[-1].loc.last_line <= 3:
+                current_group.append(item)
+            else:
+                # Process current group
+                _add_group_to_output(output_lines, current_group)
+                current_group = [item]
+
+        # Process the last group
+        _add_group_to_output(output_lines, current_group)
+
+    return "\n".join(output_lines)
+
+
+def _add_group_to_output(output_lines: list[str], group: list) -> None:
+    """Add a group of code items to output lines."""
+    if not group:
+        return
+
+    output_lines.append("    ...")
+
+    for item in group:
+        # Get the unparsed code
+        unparsed_code = item.unparse()
+
+        # Handle multi-line code by splitting and numbering each line
+        code_lines = unparsed_code.split("\n")
+        start_line = item.loc.first_line
+
+        for i, code_line in enumerate(code_lines):
+            line_num = start_line + i
+            # Right-align line numbers for better formatting
+            output_lines.append(f"  {line_num:3d} | {code_line}")
+
+    output_lines.append("")
