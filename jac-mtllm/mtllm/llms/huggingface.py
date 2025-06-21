@@ -43,18 +43,12 @@ class Huggingface(BaseLLM):
         "ReAct": REACT_SUFFIX,
     }
 
-    def __init__(
-        self,
-        verbose: bool = False,
-        max_tries: int = 10,
-        type_check: bool = False,
-        **kwargs: dict
-    ) -> None:
+    def __init__(self, verbose: bool = False, **kwargs: dict) -> None:
         """Initialize the Huggingface API client."""
         import torch  # type: ignore
         from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline  # type: ignore
 
-        super().__init__(verbose, max_tries, type_check)
+        super().__init__(verbose)
         torch.random.manual_seed(0)
         model = AutoModelForCausalLM.from_pretrained(
             kwargs.get("model_name", "microsoft/Phi-3-mini-128k-instruct"),

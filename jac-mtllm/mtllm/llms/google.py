@@ -40,15 +40,13 @@ class Gemini(BaseLLM):
     def __init__(
         self,
         verbose: bool = False,
-        max_tries: int = 10,
-        type_check: bool = False,
         **kwargs: dict,
     ) -> None:
         """Initialize the Google API client."""
         from google import genai  # type: ignore
         import os  # type: ignore
 
-        super().__init__(verbose, max_tries, type_check)
+        super().__init__(verbose)
         self.client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
         self.model_name = str(kwargs.get("model_name", "gemini-1.5-flash"))
         self.temperature = kwargs.get("temperature", 0.7)

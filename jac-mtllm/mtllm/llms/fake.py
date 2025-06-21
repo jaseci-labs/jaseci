@@ -25,12 +25,10 @@ class FakeLLM(BaseLLM):
     def __init__(
         self,
         verbose: bool = False,
-        max_tries: int = 10,
-        type_check: bool = False,
         **kwargs: dict,
     ) -> None:
         """Initialize the FakeLLM client."""
-        super().__init__(verbose, max_tries, type_check)
+        super().__init__(verbose)
         self.responses = self.get_responses(**kwargs)
         self.default: str | None = cast(str | None, kwargs.get("default"))
         self.print_prompt: bool = cast(bool, kwargs.get("print_prompt", False))

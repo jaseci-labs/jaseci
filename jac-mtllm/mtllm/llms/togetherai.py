@@ -40,17 +40,11 @@ class TogetherAI(BaseLLM):
         "ReAct": REACT_SUFFIX,
     }
 
-    def __init__(
-        self,
-        verbose: bool = False,
-        max_tries: int = 10,
-        type_check: bool = False,
-        **kwargs: dict
-    ) -> None:
+    def __init__(self, verbose: bool = False, **kwargs: dict) -> None:
         """Initialize the Anthropic API client."""
         import together  # type: ignore
 
-        super().__init__(verbose, max_tries, type_check)
+        super().__init__(verbose)
         self.client = together.Together()
         self.model_name = kwargs.get("model_name", "mistralai/Mistral-7B-Instruct-v0.3")
         self.temperature = kwargs.get("temperature", 0.7)

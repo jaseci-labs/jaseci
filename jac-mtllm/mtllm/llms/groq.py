@@ -41,17 +41,11 @@ class Groq(BaseLLM):
         "ReAct": REACT_SUFFIX,
     }
 
-    def __init__(
-        self,
-        verbose: bool = False,
-        max_tries: int = 10,
-        type_check: bool = False,
-        **kwargs: dict
-    ) -> None:
+    def __init__(self, verbose: bool = False, **kwargs: dict) -> None:
         """Initialize the Groq API client."""
         import groq  # type: ignore
 
-        super().__init__(verbose, max_tries, type_check)
+        super().__init__(verbose)
         self.client = groq.Groq()
         self.model_name = kwargs.get("model_name", "mixtral-8x7b-32768")
         self.temperature = kwargs.get("temperature", 0.7)
