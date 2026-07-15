@@ -38,3 +38,16 @@ code emitted (6.4–8.5 KB). Only the final static-musl link is blocked locally
 are therefore **pending CI** (or a local musl / system-`cc` link). Notably the
 dict-return shape did **not** ICE here — better than the folklore; the ratchet
 records the measured truth per CPython/jaclang bump.
+
+**The leaf itself compiles.** `t7_gate.sh` also nacompiles the whole na-clean
+object core (`jacpython/objects.jac`) self-contained: all 18 data types + slots
++ the `isinstance`-based helpers generate LLVM IR and emit **122 KB of object
+code** with zero E5090 (musl link env-blocked, as above). So the leaf is na-clean
+in fact, not just by inspection.
+
+**Known na multi-module gap.** Compiling `objects.jac` via a separate entry that
+`import from objects { … }` fails with E5090 on the *imported* symbols — na's
+multi-module native resolution (see memory `na-resolver-import-order-priming`,
+`na-shared-multimodule-rc-wrapper`), not a leaf defect. The eventual
+`jacpython.na.jac` native entry will need the flat-module-set priming or the
+`--shared` path; tracked for P7.

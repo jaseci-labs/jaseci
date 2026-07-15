@@ -69,264 +69,19 @@ glob MOD_MARSHAL: list[int] = [227, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0,
 glob SCALE_MARSHAL: list[int] = [227, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 243, 20, 0, 0, 0, 128, 0, 86, 0, 94, 10, 44, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 35, 0, 41, 1, 233, 10, 0, 0, 0, 169, 0, 41, 1, 218, 1, 97, 115, 1, 0, 0, 0, 38, 218, 7, 60, 83, 67, 65, 76, 69, 62, 218, 5, 115, 99, 97, 108, 101, 114, 6, 0, 0, 0, 1, 0, 0, 0, 115, 11, 0, 0, 0, 128, 0, 216, 11, 12, 136, 114, 141, 54, 128, 77, 243, 0, 0, 0, 0];
 glob YMODULE_MARSHAL: list[int] = [227, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 243, 10, 0, 0, 0, 128, 0, 94, 43, 116, 0, 82, 1, 35, 0, 41, 2, 233, 6, 0, 0, 0, 78, 41, 1, 218, 1, 121, 169, 0, 243, 0, 0, 0, 0, 218, 9, 60, 89, 77, 79, 68, 85, 76, 69, 62, 218, 8, 60, 109, 111, 100, 117, 108, 101, 62, 114, 7, 0, 0, 0, 1, 0, 0, 0, 115, 10, 0, 0, 0, 240, 3, 1, 1, 1, 216, 4, 13, 130, 1, 114, 5, 0, 0, 0];
 
-# The object model dispatches behavior through virtual slot methods on the
-# PyObj hierarchy -- the exact analog of CPython's tp_*/nb_*/sq_*/mp_* slot
-# tables, but as overridable methods so na resolves them through a vtable
-# (no function-pointer indirection). Base defaults raise the right Python
-# error; each concrete type overrides only the slots it implements. The `t`
-# tag survives as tp_name (a type label for isinstance / exception matching),
-# NOT as a behavior selector -- selection is virtual dispatch on the receiver.
-obj PyObj {
-    has t: str;
-
-    def nb_binop(kind: int, other: PyObj) -> PyObj { return py_error("TypeError", "unsupported operand types"); }
-
-    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
-        if kind == 2 { return PyBool(t="bool", val=self.t == other.t); }
-        if kind == 3 { return PyBool(t="bool", val=self.t != other.t); }
-        return PyBool(t="bool", val=False);
-    }
-
-    def mp_subscript(index: PyObj) -> PyObj { return py_error("TypeError", "object is not subscriptable"); }
-
-    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj { return py_error("TypeError", "object does not support item assignment"); }
-
-    def tp_iter() -> PyObj { return py_error("TypeError", "object is not iterable"); }
-
-    def tp_bool() -> bool { return True; }
-
-    def tp_getattro(name: str) -> PyObj { return py_error("AttributeError", name); }
-
-    def tp_setattro(name: str, value: PyObj) -> PyObj { return py_error("AttributeError", name); }
-
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj { return py_error("TypeError", "object is not callable"); }
-}
-
-obj PyInt(PyObj) {
-    has val: int;
-
-    def nb_binop(kind: int, other: PyObj) -> PyObj {
-        if other.t != "int" { return py_error("TypeError", "unsupported operand types"); }
-        b = (other as PyInt).val;
-        a = self.val;
-        if kind == 0 { return PyInt(t="int", val=a + b); }
-        if kind == 5 { return PyInt(t="int", val=a * b); }
-        if kind == 6 {
-            if b == 0 { return py_error("ZeroDivisionError", "integer modulo by zero"); }
-            return PyInt(t="int", val=a % b);
-        }
-        if kind == 10 { return PyInt(t="int", val=a - b); }
-        if kind == 1 { return PyInt(t="int", val=a & b); }
-        if kind == 2 {
-            if b == 0 { return py_error("ZeroDivisionError", "integer division or modulo by zero"); }
-            return PyInt(t="int", val=a // b);
-        }
-        if kind == 7 { return PyInt(t="int", val=a | b); }
-        if kind == 11 { return PyInt(t="int", val=a ^ b); }
-        if kind == 3 { return PyInt(t="int", val=a << b); }
-        if kind == 9 { return PyInt(t="int", val=a >> b); }
-        if kind == 8 { return PyInt(t="int", val=a ** b); }
-        return py_error("TypeError", "unsupported operand types");
-    }
-
-    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
-        if other.t != "int" {
-            if kind == 2 { return PyBool(t="bool", val=False); }
-            if kind == 3 { return PyBool(t="bool", val=True); }
-            return PyBool(t="bool", val=False);
-        }
-        a = self.val; b = (other as PyInt).val;
-        if kind == 0 { return PyBool(t="bool", val=a < b); }
-        if kind == 1 { return PyBool(t="bool", val=a <= b); }
-        if kind == 2 { return PyBool(t="bool", val=a == b); }
-        if kind == 3 { return PyBool(t="bool", val=a != b); }
-        if kind == 4 { return PyBool(t="bool", val=a > b); }
-        if kind == 5 { return PyBool(t="bool", val=a >= b); }
-        return PyBool(t="bool", val=False);
-    }
-
-    def tp_bool() -> bool { return self.val != 0; }
-}
-
-obj PyStr(PyObj) {
-    has val: str;
-
-    def nb_binop(kind: int, other: PyObj) -> PyObj {
-        if kind == 0 and other.t == "str" { return PyStr(t="str", val=self.val + (other as PyStr).val); }
-        return py_error("TypeError", "unsupported operand types");
-    }
-
-    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
-        if other.t != "str" {
-            if kind == 2 { return PyBool(t="bool", val=False); }
-            if kind == 3 { return PyBool(t="bool", val=True); }
-            return PyBool(t="bool", val=False);
-        }
-        a = self.val; b = (other as PyStr).val;
-        if kind == 0 { return PyBool(t="bool", val=a < b); }
-        if kind == 1 { return PyBool(t="bool", val=a <= b); }
-        if kind == 2 { return PyBool(t="bool", val=a == b); }
-        if kind == 3 { return PyBool(t="bool", val=a != b); }
-        if kind == 4 { return PyBool(t="bool", val=a > b); }
-        if kind == 5 { return PyBool(t="bool", val=a >= b); }
-        return PyBool(t="bool", val=False);
-    }
-
-    def mp_subscript(index: PyObj) -> PyObj {
-        if index.t != "int" { return py_error("TypeError", "index must be an integer"); }
-        i = (index as PyInt).val;
-        text = self.val;
-        if i < 0 { i = len(text) + i; }
-        if i >= 0 and i < len(text) { return PyStr(t="str", val=text[i]); }
-        return py_error("IndexError", "string index out of range");
-    }
-
-    def tp_iter() -> PyObj {
-        chars: list[PyObj] = [];
-        for ch in self.val { chars.append(PyStr(t="str", val=ch)); }
-        return PyIter(t="iter", items=chars, index=0);
-    }
-
-    def tp_bool() -> bool { return len(self.val) != 0; }
-}
-
-obj PyBytes(PyObj) {
-    has val: list[int];
-
-    def mp_subscript(index: PyObj) -> PyObj {
-        if index.t != "int" { return py_error("TypeError", "index must be an integer"); }
-        i = (index as PyInt).val;
-        vals = self.val;
-        if i < 0 { i = len(vals) + i; }
-        if i >= 0 and i < len(vals) { return PyInt(t="int", val=vals[i]); }
-        return py_error("IndexError", "index out of range");
-    }
-
-    def tp_bool() -> bool { return len(self.val) != 0; }
-}
-
-obj PyFloat(PyObj) {
-    has val: float;
-
-    def tp_bool() -> bool { return self.val != 0.0; }
-}
-
-obj PyBool(PyObj) {
-    has val: bool;
-
-    def tp_bool() -> bool { return self.val; }
-}
-
-obj PyNoneType(PyObj) {
-    def tp_bool() -> bool { return False; }
-}
-
-obj PyComplex(PyObj) {
-    has real: float;
-    has imag: float;
-}
-
-obj PyTuple(PyObj) {
-    has items: list[PyObj];
-
-    def nb_binop(kind: int, other: PyObj) -> PyObj {
-        if kind == 0 and other.t == "tuple" {
-            return PyTuple(t="tuple", items=concat_items(self.items, (other as PyTuple).items));
-        }
-        return py_error("TypeError", "unsupported operand types");
-    }
-
-    def mp_subscript(index: PyObj) -> PyObj {
-        if index.t != "int" { return py_error("TypeError", "index must be an integer"); }
-        i = (index as PyInt).val;
-        if i < 0 { i = len(self.items) + i; }
-        if i >= 0 and i < len(self.items) { return self.items[i]; }
-        return py_error("IndexError", "tuple index out of range");
-    }
-
-    def tp_iter() -> PyObj { return PyIter(t="iter", items=self.items, index=0); }
-
-    def tp_bool() -> bool { return len(self.items) != 0; }
-}
-
-obj PyList(PyObj) {
-    has items: list[PyObj];
-
-    def nb_binop(kind: int, other: PyObj) -> PyObj {
-        if kind == 0 and other.t == "list" {
-            return PyList(t="list", items=concat_items(self.items, (other as PyList).items));
-        }
-        return py_error("TypeError", "unsupported operand types");
-    }
-
-    def mp_subscript(index: PyObj) -> PyObj {
-        if index.t != "int" { return py_error("TypeError", "index must be an integer"); }
-        i = (index as PyInt).val;
-        if i < 0 { i = len(self.items) + i; }
-        if i >= 0 and i < len(self.items) { return self.items[i]; }
-        return py_error("IndexError", "list index out of range");
-    }
-
-    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
-        if index.t != "int" { return py_error("TypeError", "list indices must be integers"); }
-        i = (index as PyInt).val;
-        if i < 0 { i = len(self.items) + i; }
-        if i >= 0 and i < len(self.items) { self.items[i] = value; return py_none(); }
-        return py_error("IndexError", "list assignment index out of range");
-    }
-
-    def tp_iter() -> PyObj { return PyIter(t="iter", items=self.items, index=0); }
-
-    def tp_bool() -> bool { return len(self.items) != 0; }
-}
-
-obj PyCode(PyObj) {
-    has argcount: int;
-    has posonlyargcount: int;
-    has kwonlyargcount: int;
-    has stacksize: int;
-    has flags: int;
-    has co_code: list[int];
-    has consts: list[PyObj];
-    has names: list[str];
-    has varnames: list[str];
-    has cellvars: list[str];
-    has freevars: list[str];
-    has filename: str;
-    has name: str;
-    has qualname: str;
-    has firstlineno: int;
-    has linetable: list[int];
-    has exceptiontable: list[int];
-}
-
-obj PyCell(PyObj) {
-    has val: PyObj;
-}
-
-obj PyDict(PyObj) {
-    has items: dict[str, PyObj];
-
-    def mp_subscript(index: PyObj) -> PyObj {
-        key = expect_str(index);
-        if key in self.items { return self.items[key]; }
-        return py_error("KeyError", key);
-    }
-
-    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
-        self.items[expect_str(index)] = value;
-        return py_none();
-    }
-
-    def tp_getattro(name: str) -> PyObj {
-        if name == "get" or name == "items" or name == "keys" or name == "values" {
-            return host_getattr(self, name);
-        }
-        if name in self.items { return self.items[name]; }
-        return py_error("AttributeError", name);
-    }
-
-    def tp_bool() -> bool { return len(self.items) != 0; }
+# The object core -- the PyObj data-type hierarchy, value/container slots, and
+# pure helpers -- lives in the na-clean leaf `objects.jac`. This module (the
+# ceval + host bridge + marshal transport) imports it and adds the callable/
+# heap/proxy types that OVERRIDE the call/attr slots (cross-module inheritance),
+# because those slots re-enter the interpreter or the host and so cannot live in
+# the acyclic leaf. See PLAN.md §4 (module-boundary constraint).
+import from objects {
+    PyObj, PyInt, PyStr, PyBytes, PyFloat, PyBool, PyNoneType, PyComplex,
+    PyTuple, PyList, PyCode, PyCell, PyDict, PyExceptionType, PyException,
+    PyError, PyIter, PyHandler,
+    bytes_value, tuple_value, str_value, str_values, int_values, expect_int,
+    expect_str, list_value, concat_items, find_name, py_none, py_error,
+    py_exception_type, is_error
 }
 
 # The proxy archetype (PLAN.md §5, TODO.md Layer 1): wraps a host object and
@@ -341,32 +96,6 @@ obj PyHostProxy(PyObj) {
     def tp_setattro(name: str, value: PyObj) -> PyObj { return host_setattr(self, name, value); }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj { return py_call_host(self, args, kwargs); }
-}
-
-obj PyExceptionType(PyObj) {
-    has name: str;
-
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        message = "";
-        if len(args) > 0 { message = expect_str(args[0]); }
-        return PyException(t="exception", type_name=self.name, message=message);
-    }
-}
-
-obj PyException(PyObj) {
-    has type_name: str;
-    has message: str;
-    has raw: any = None;
-}
-
-obj PyError(PyObj) {
-    has exception: PyException;
-    has lasti: int = -1;
-}
-
-obj PyIter(PyObj) {
-    has items: list[PyObj];
-    has index: int;
 }
 
 obj PyClass(PyObj) {
@@ -447,72 +176,6 @@ obj PyFunction(PyObj) {
         );
     }
 }
-
-obj PyHandler(PyObj) {
-    has start: int;
-    has end: int;
-    has target: int;
-    has depth: int;
-    has lasti: bool;
-}
-
-def bytes_value(o: PyObj) -> list[int] {
-    match o {
-        case PyBytes():
-            return o.val;
-    }
-    return [];
-}
-
-def tuple_value(o: PyObj) -> list[PyObj] {
-    match o {
-        case PyTuple():
-            return o.items;
-    }
-    return [];
-}
-
-def str_value(o: PyObj) -> str {
-    match o {
-        case PyStr():
-            return o.val;
-    }
-    return "";
-}
-
-def str_values(o: PyObj) -> list[str] {
-    result: list[str] = [];
-    for it in tuple_value(o) {
-        result.append(str_value(it));
-    }
-    return result;
-}
-
-def int_values(o: PyObj) -> list[int] {
-    result: list[int] = [];
-    for it in tuple_value(o) {
-        match it {
-            case PyInt():
-                result.append(it.val);
-        }
-    }
-    return result;
-}
-
-def py_none() -> PyObj { return PyNoneType(t="none"); }
-
-def py_error(type_name: str, message: str) -> PyObj {
-    return PyError(
-        t="error",
-        exception=PyException(t="exception", type_name=type_name, message=message),
-    );
-}
-
-def py_exception_type(name: str) -> PyObj {
-    return PyExceptionType(t="exception_type", name=name);
-}
-
-def is_error(value: PyObj) -> bool { return value.t == "error"; }
 
 def host_result_ok(result: any) -> bool { return result[0] == True; }
 
@@ -1002,37 +665,6 @@ def opcode_cache_count(op: int) -> int {
 glob OP_FOR_ITER: int = 70;
 glob OP_POP_ITER: int = 30;
 
-def expect_int(o: PyObj) -> int {
-    match o {
-        case PyInt():
-            return o.val;
-    }
-    return 0;
-}
-
-def expect_str(o: PyObj) -> str {
-    match o {
-        case PyStr():
-            return o.val;
-    }
-    return "";
-}
-
-def list_value(o: PyObj) -> list[PyObj] {
-    match o {
-        case PyList():
-            return o.items;
-    }
-    return [];
-}
-
-def concat_items(left: list[PyObj], right: list[PyObj]) -> list[PyObj] {
-    result: list[PyObj] = [];
-    result.extend(left);
-    result.extend(right);
-    return result;
-}
-
 # The dispatchers below are thin adapters over the object model's virtual
 # slots: they exist only so the ceval reads naturally. Behavior selection is
 # the method call (self's vtable), never a tag comparison.
@@ -1065,12 +697,6 @@ def bind_attribute(value: PyObj, receiver: PyObj) -> PyObj {
 def py_set_attr(value: PyObj, name: str, field: PyObj) -> PyObj { return value.tp_setattro(name, field); }
 
 def py_iter(value: PyObj) -> PyObj { return value.tp_iter(); }
-
-def find_name(names: list[str], name: str) -> int {
-    i = 0;
-    while i < len(names) { if names[i] == name { return i; } i = i + 1; }
-    return -1;
-}
 
 def find_cell(cells: list[PyCell], names: list[str], name: str) -> PyCell | None {
     i = find_name(names, name);

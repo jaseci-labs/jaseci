@@ -22,4 +22,28 @@ for f in jac-py/tests/na_cliffs/cliff_*.na.jac; do
         echo "UNKNOWN (no object emit, no E5090 -- inspect): $f"; fail=1
     fi
 done
+
+# Leaf check: the whole na-clean object core (objects.jac) must nacompile.
+# Compiled self-contained (its own defs + an entry) so na's multi-module import
+# resolution -- a separate maturity gap -- does not mask the leaf's own status.
+leaf=jac-py/jacpython/objects.jac
+if [ -f "$leaf" ]; then
+    tmp=/tmp/t7_objects_selfcontained.na.jac
+    cp "$leaf" "$tmp"
+    cat >> "$tmp" <<'ENTRY'
+
+with entry {
+    a: PyInt = PyInt(t="int", val=2);
+    print(expect_int(a.nb_binop(0, PyInt(t="int", val=3))));
+}
+ENTRY
+    out=$(PYTHONPATH=jac "$PY" -m jaclang nacompile "$tmp" -o /tmp/t7_objects.o 2>&1)
+    if echo "$out" | grep -qE "E5090"; then
+        echo "FAIL (leaf not na-clean, E5090): $leaf"; fail=1
+    elif echo "$out" | grep -q "Object code emitted"; then
+        echo "PASS (leaf na-clean, object emitted): $leaf"
+    else
+        echo "UNKNOWN (leaf -- inspect): $leaf"; fail=1
+    fi
+fi
 exit $fail

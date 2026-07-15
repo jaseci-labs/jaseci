@@ -14,7 +14,8 @@
 # this leg alone is substantial. Fixture-dependent asserts (self.value, setUp
 # state) are detected on the host and skipped -- later layers pick them up.
 
-import from pyc_first { PyObj, unmarshal, exec_code, to_host }
+import from objects { PyObj }
+import from pyc_first { unmarshal, exec_code, to_host }
 
 ::py::
 import ast
