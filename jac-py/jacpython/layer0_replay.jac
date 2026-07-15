@@ -188,3 +188,32 @@ test "layer0: non-ASCII str constants survive marshal UTF-8 decode" {
     assert replay_expr("int('\\N{EM SPACE}-3\\N{EN SPACE}')") == True;
     assert replay_expr("'café' + 'x'") == True;
 }
+
+test "layer0: str %-format (Gap #2) replays against the host" {
+    # Conversions, flags, width, precision, tuple/single/mapping args.
+    assert replay_expr("'%d' % 42") == True;
+    assert replay_expr("'%d' % -7") == True;
+    assert replay_expr("'%x' % 255") == True;
+    assert replay_expr("'%X' % 255") == True;
+    assert replay_expr("'%o' % 8") == True;
+    assert replay_expr("'%#x' % 255") == True;
+    assert replay_expr("'%05d' % 42") == True;
+    assert replay_expr("'%-5d|' % 42") == True;
+    assert replay_expr("'%+d' % 42") == True;
+    assert replay_expr("'%.3d' % 7") == True;
+    assert replay_expr("'%c' % 65") == True;
+    assert replay_expr("'%s=%d' % ('x', 5)") == True;
+    assert replay_expr("'%r' % 'hi'") == True;
+    assert replay_expr("'%(a)s-%(b)d' % {'a': 'p', 'b': 3}") == True;
+    assert replay_expr("'%d' % True") == True;
+    assert replay_expr("'%x' % False") == True;
+}
+
+test "layer0: LOAD_SMALL_INT decodes 128..255 as non-negative" {
+    # Regression guard: the ceval LOAD_SMALL_INT handler sign-extended its
+    # unsigned oparg, mis-decoding 128..255 (e.g. 255 -> -1).
+    assert replay_expr("255") == True;
+    assert replay_expr("128") == True;
+    assert replay_expr("200 + 55") == True;
+    assert replay_expr("255 % 16") == True;
+}

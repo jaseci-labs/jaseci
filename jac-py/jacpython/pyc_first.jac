@@ -1751,11 +1751,10 @@ def exec_code_frame(
             continue;
         }
         if op == OP_LOAD_SMALL_INT {
-            small_value: int = arg;
-            if small_value > 127 {
-                small_value = small_value - 256;
-            }
-            stack.append(PyInt(t="int", val=small_value));
+            # oparg is an unsigned int in [0, 256); it is ALWAYS non-negative
+            # (CPython emits LOAD_CONST for negative literals). Do NOT sign-extend
+            # -- doing so mis-decoded 128..255 as negatives.
+            stack.append(PyInt(t="int", val=arg));
             continue;
         }
         if op == OP_LOAD_FAST or op == OP_LOAD_FAST_BORROW {

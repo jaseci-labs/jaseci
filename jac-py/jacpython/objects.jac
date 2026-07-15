@@ -90,6 +90,7 @@ obj PyStr(PyObj) {
 
     def nb_binop(kind: int, other: PyObj) -> PyObj {
         if kind == 0 and other.t == "str" { return PyStr(t="str", val=self.val + (other as PyStr).val); }
+        if kind == 6 { return str_mod_format(self.val, other); }
         return py_error("TypeError", "unsupported operand types");
     }
 
@@ -376,3 +377,179 @@ def py_exception_type(name: str) -> PyObj {
 }
 
 def is_error(value: PyObj) -> bool { return value.t == "error"; }
+
+# ---------------- str %-format (CPython PyUnicode_Format subset) ----------------
+# na-clean: integer bases are built from digit tables (no host str()/hex()); the
+# only intrinsic used is chr() for %c (primitives_native). Covers conversions
+# d i u o x X c s r %; flags - + space 0 #; field width; precision; and both the
+# tuple/single-value and %(key) mapping argument conventions.
+
+def _digit_val(c: str) -> int {
+    digits = "0123456789";
+    j = 0;
+    while j < 10 { if digits[j] == c { return j; } j = j + 1; }
+    return -1;
+}
+
+def _is_digit(c: str) -> bool { return _digit_val(c) >= 0; }
+
+def _uint_to_str(n: int, base: int, digits: str) -> str {
+    if n == 0 { return "0"; }
+    out = "";
+    while n > 0 { out = digits[n % base] + out; n = n // base; }
+    return out;
+}
+
+# Conversion flags packed into a bitmask: - + space 0 #.
+glob F_MINUS: int = 1;
+glob F_PLUS: int = 2;
+glob F_SPACE: int = 4;
+glob F_ZERO: int = 8;
+glob F_HASH: int = 16;
+
+def _fmt_int(val: int, base: int, digits: str, prefix: str, flags: int, prec: int, width: int) -> str {
+    neg = val < 0;
+    mag = val;
+    if neg { mag = -val; }
+    body = _uint_to_str(mag, base, digits);
+    if prec >= 0 { while len(body) < prec { body = "0" + body; } }
+    sign = "";
+    if neg { sign = "-"; }
+    elif (flags & F_PLUS) != 0 { sign = "+"; }
+    elif (flags & F_SPACE) != 0 { sign = " "; }
+    pfx = "";
+    if (flags & F_HASH) != 0 and mag != 0 { pfx = prefix; }
+    # zero-fill goes between the sign/prefix and the digits, and only when there
+    # is no explicit precision and the field is right-justified.
+    if (flags & F_ZERO) != 0 and (flags & F_MINUS) == 0 and prec < 0 {
+        total = len(sign) + len(pfx) + len(body);
+        while total < width { body = "0" + body; total = total + 1; }
+    }
+    return sign + pfx + body;
+}
+
+def _int_of(o: PyObj) -> int {
+    if isinstance(o, PyBool) { if (o as PyBool).val { return 1; } return 0; }
+    if isinstance(o, PyInt) { return (o as PyInt).val; }
+    return 0;
+}
+
+def _is_intlike(o: PyObj) -> bool { return isinstance(o, PyInt) or isinstance(o, PyBool); }
+
+def _pyobj_str(o: PyObj) -> str {
+    if isinstance(o, PyStr) { return (o as PyStr).val; }
+    if isinstance(o, PyBool) { if (o as PyBool).val { return "True"; } return "False"; }
+    if isinstance(o, PyInt) { return _fmt_int((o as PyInt).val, 10, "0123456789", "", 0, -1, 0); }
+    if isinstance(o, PyNoneType) { return "None"; }
+    return "<object>";
+}
+
+def _pyobj_repr(o: PyObj) -> str {
+    if isinstance(o, PyStr) { return "'" + (o as PyStr).val + "'"; }
+    return _pyobj_str(o);
+}
+
+def _pad_spaces(s: str, width: int, left: bool) -> str {
+    while len(s) < width {
+        if left { s = s + " "; } else { s = " " + s; }
+    }
+    return s;
+}
+
+def _trunc(s: str, prec: int) -> str {
+    if prec < 0 or len(s) <= prec { return s; }
+    out = "";
+    i = 0;
+    while i < prec { out = out + s[i]; i = i + 1; }
+    return out;
+}
+
+def str_mod_format(fmt: str, args: PyObj) -> PyObj {
+    argv: list[PyObj] = [];
+    mapping = False;
+    if isinstance(args, PyTuple) { argv = (args as PyTuple).items; }
+    elif isinstance(args, PyDict) { mapping = True; }
+    else { argv.append(args); }
+    ai = 0;
+    out = "";
+    n = len(fmt);
+    i = 0;
+    while i < n {
+        c = fmt[i];
+        if c != "%" { out = out + c; i = i + 1; continue; }
+        i = i + 1;
+        if i >= n { return py_error("ValueError", "incomplete format"); }
+        if fmt[i] == "%" { out = out + "%"; i = i + 1; continue; }
+        key = "";
+        haskey = False;
+        if fmt[i] == "(" {
+            i = i + 1;
+            while i < n and fmt[i] != ")" { key = key + fmt[i]; i = i + 1; }
+            if i >= n { return py_error("ValueError", "incomplete format key"); }
+            i = i + 1;
+            haskey = True;
+        }
+        flags = 0;
+        while i < n {
+            f = fmt[i];
+            if f == "-" { flags = flags | F_MINUS; i = i + 1; }
+            elif f == "+" { flags = flags | F_PLUS; i = i + 1; }
+            elif f == " " { flags = flags | F_SPACE; i = i + 1; }
+            elif f == "0" { flags = flags | F_ZERO; i = i + 1; }
+            elif f == "#" { flags = flags | F_HASH; i = i + 1; }
+            else { break; }
+        }
+        fminus = (flags & F_MINUS) != 0;
+        width = 0;
+        while i < n and _is_digit(fmt[i]) { width = width * 10 + _digit_val(fmt[i]); i = i + 1; }
+        prec = -1;
+        if i < n and fmt[i] == "." {
+            i = i + 1; prec = 0;
+            while i < n and _is_digit(fmt[i]) { prec = prec * 10 + _digit_val(fmt[i]); i = i + 1; }
+        }
+        while i < n and (fmt[i] == "l" or fmt[i] == "h" or fmt[i] == "L") { i = i + 1; }
+        if i >= n { return py_error("ValueError", "incomplete format"); }
+        conv = fmt[i]; i = i + 1;
+
+        arg: PyObj = py_none();
+        if haskey {
+            if not mapping { return py_error("TypeError", "format requires a mapping"); }
+            d = (args as PyDict).items;
+            if key in d { arg = d[key]; }
+            else { return py_error("KeyError", key); }
+        } else {
+            if ai >= len(argv) { return py_error("TypeError", "not enough arguments for format string"); }
+            arg = argv[ai]; ai = ai + 1;
+        }
+
+        piece = "";
+        if conv == "d" or conv == "i" or conv == "u" {
+            if not _is_intlike(arg) { return py_error("TypeError", "%d format: a number is required"); }
+            piece = _fmt_int(_int_of(arg), 10, "0123456789", "", flags, prec, width);
+        } elif conv == "x" {
+            if not _is_intlike(arg) { return py_error("TypeError", "%x format: an integer is required"); }
+            piece = _fmt_int(_int_of(arg), 16, "0123456789abcdef", "0x", flags, prec, width);
+        } elif conv == "X" {
+            if not _is_intlike(arg) { return py_error("TypeError", "%X format: an integer is required"); }
+            piece = _fmt_int(_int_of(arg), 16, "0123456789ABCDEF", "0X", flags, prec, width);
+        } elif conv == "o" {
+            if not _is_intlike(arg) { return py_error("TypeError", "%o format: an integer is required"); }
+            piece = _fmt_int(_int_of(arg), 8, "01234567", "0o", flags, prec, width);
+        } elif conv == "c" {
+            if _is_intlike(arg) { piece = chr(_int_of(arg)); }
+            elif isinstance(arg, PyStr) { piece = (arg as PyStr).val; }
+            else { return py_error("TypeError", "%c requires int or char"); }
+        } elif conv == "s" {
+            piece = _trunc(_pyobj_str(arg), prec);
+        } elif conv == "r" {
+            piece = _trunc(_pyobj_repr(arg), prec);
+        } else {
+            return py_error("ValueError", "unsupported format character");
+        }
+        out = out + _pad_spaces(piece, width, fminus);
+    }
+    if (not mapping) and ai < len(argv) {
+        return py_error("TypeError", "not all arguments converted during string formatting");
+    }
+    return PyStr(t="str", val=out);
+}
