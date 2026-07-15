@@ -13,7 +13,6 @@
 # test_list asserts are self-contained literal expressions, so coverage from
 # this leg alone is substantial. Fixture-dependent asserts (self.value, setUp
 # state) are detected on the host and skipped -- later layers pick them up.
-
 import from objects { PyObj }
 import from pyc_first { unmarshal, exec_code, to_host }
 
@@ -69,6 +68,7 @@ def _l0_host_equal(a, b):
         return False
 ::py::
 
+
 # The two-dimensional ledger TODO.md Layer 1 calls for, seeded at Layer 0:
 # passed/failed are real conformance; skipped is the honest scaffolding count
 # (asserts that need fixture state this layer can't carry).
@@ -76,7 +76,7 @@ obj ReplayResult {
     has passed: int = 0;
     has failed: int = 0;
     has skipped: int = 0;
-    has errored: int = 0;   # jacpython raised while replaying (marshal/ceval gap)
+    has errored: int = 0;  # jacpython raised while replaying (marshal/ceval gap)
     has failures: list[str] = [];
     has errors: list[str] = [];
 }
@@ -99,9 +99,13 @@ def replay_expr(expr_src: str) -> bool {
 # Returns 1 (match), 0 (mismatch), or -1 (jacpython raised -- a real gap).
 def _replay_pair(expr_src: str, expected_src: str) -> int {
     try {
-        got: PyObj = exec_code(unmarshal(_l0_compile_eval(expr_src) as list[int]), [], {});
+        got: PyObj = exec_code(
+            unmarshal(_l0_compile_eval(expr_src) as list[int]), [], {}
+        );
         expected = _l0_expected(expected_src);
-        if _l0_host_equal(to_host(got), expected) as bool { return 1; }
+        if _l0_host_equal(to_host(got), expected) as bool {
+            return 1;
+        }
         return 0;
     } except Exception as e {
         return -1;
@@ -117,7 +121,10 @@ def layer0_replay_source(source: str) -> ReplayResult {
     for pair in pairs {
         expr_src: str = pair[0] as str;
         expected_src: str = pair[1] as str;
-        if not ((_l0_is_selfcontained(expr_src) as bool) and (_l0_is_selfcontained(expected_src) as bool)) {
+        if not (
+            (_l0_is_selfcontained(expr_src) as bool)
+            and (_l0_is_selfcontained(expected_src) as bool)
+        ) {
             result.skipped = result.skipped + 1;
             continue;
         }
@@ -136,32 +143,29 @@ def layer0_replay_source(source: str) -> ReplayResult {
 }
 
 # ---------------- tests ----------------
-
 test "layer0: self-contained integer asserts replay against the host" {
-    src =
-        "class TestInt(unittest.TestCase):\n"
-        "    def test_arithmetic(self):\n"
-        "        self.assertEqual(1 + 1, 2)\n"
-        "        self.assertEqual(17 % 5, 2)\n"
-        "        self.assertEqual(2 ** 10, 1024)\n"
-        "        self.assertEqual(100 // 7, 14)\n"
-        "        self.assertEqual((3 < 5), True)\n"
-        "        self.assertEqual(self.value, 5)\n";
+    src = "class TestInt(unittest.TestCase):\n"
+    "    def test_arithmetic(self):\n"
+    "        self.assertEqual(1 + 1, 2)\n"
+    "        self.assertEqual(17 % 5, 2)\n"
+    "        self.assertEqual(2 ** 10, 1024)\n"
+    "        self.assertEqual(100 // 7, 14)\n"
+    "        self.assertEqual((3 < 5), True)\n"
+    "        self.assertEqual(self.value, 5)\n";
     result = layer0_replay_source(src);
     assert result.passed == 5;
-    assert result.skipped == 1;   # self.value is fixture-dependent
+    assert result.skipped == 1;  # self.value is fixture-dependent
     assert result.failed == 0;
 }
 
 test "layer0: container and string asserts replay" {
-    src =
-        "class TestSeq(unittest.TestCase):\n"
-        "    def test_seq(self):\n"
-        "        self.assertEqual([1, 2, 3][1], 2)\n"
-        "        self.assertEqual((1, 2) + (3, 4), (1, 2, 3, 4))\n"
-        "        self.assertEqual('ab' + 'cd', 'abcd')\n"
-        "        self.assertEqual({'k': 7}['k'], 7)\n"
-        "        self.assertEqual('hello'[1], 'e')\n";
+    src = "class TestSeq(unittest.TestCase):\n"
+    "    def test_seq(self):\n"
+    "        self.assertEqual([1, 2, 3][1], 2)\n"
+    "        self.assertEqual((1, 2) + (3, 4), (1, 2, 3, 4))\n"
+    "        self.assertEqual('ab' + 'cd', 'abcd')\n"
+    "        self.assertEqual({'k': 7}['k'], 7)\n"
+    "        self.assertEqual('hello'[1], 'e')\n";
     result = layer0_replay_source(src);
     assert result.passed == 5;
     assert result.skipped == 0;
@@ -173,4 +177,14 @@ test "layer0: a genuine divergence is reported, not hidden" {
     assert replay_expr("6 * 7") == True;
     assert replay_expr("2 + 3 * 4") == True;
     assert replay_expr("[0, 1, 2][2]") == True;
+}
+
+test "layer0: non-ASCII str constants survive marshal UTF-8 decode" {
+    # Regression guard for the read_utf8 Latin-1 bug: multi-byte codepoints in a
+    # marshaled str constant must round-trip so int() sees the real digits.
+    # Devanagari, Arabic-Indic, unicode whitespace, and a Latin-1 supplement char.
+    assert replay_expr("int('१२३४५६७८९०1234567890')") == True;
+    assert replay_expr("int('١٢٣٤٥٦٧٨٩٠')") == True;
+    assert replay_expr("int('\\N{EM SPACE}-3\\N{EN SPACE}')") == True;
+    assert replay_expr("'café' + 'x'") == True;
 }
