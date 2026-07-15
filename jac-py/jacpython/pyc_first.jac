@@ -72,6 +72,19 @@ def _jac_host_format(value, spec):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_build_set(host_members):
+    # host_members is a jac list of already-host-converted values.
+    return set(host_members)
+
+def _jac_set_update(host_set, host_iterable):
+    host_set.update(host_iterable)
+    return host_set
+
+def _jac_make_set(host_members, frozen):
+    if frozen:
+        return frozenset(host_members)
+    return set(host_members)
+
 def _jac_host_binop(kind, a, b):
     import operator
     _NB = {
@@ -1185,9 +1198,27 @@ obj Reader {
             return self.refs[self.r_long()];
         } elif type == 58 {
             return self.read_slice();
+        } elif type == 60 {
+            return self.read_set(False);
+        } elif type == 62 {
+            return self.read_set(True);
         } else {
             return py_none();
         }
+    }
+
+    # TYPE_SET ('<' == 60) / TYPE_FROZENSET ('>' == 62): r_long count then N
+    # members. No native PySet yet, so the const is materialized as an opaque
+    # host set/frozenset wrapped in a PyHostProxy (mirrors BUILD_SET).
+    def read_set(frozen: bool) -> PyObj {
+        n = self.r_long();
+        host_members: list[any] = [];
+        i = 0;
+        while i < n {
+            host_members.append(to_host(self.r_object()));
+            i = i + 1;
+        }
+        return PyHostProxy(t="host", val=_jac_make_set(host_members, frozen));
     }
 
     # TYPE_SLICE (':' == 58): three marshaled objects -- start, stop, step.
@@ -1461,6 +1492,8 @@ glob OP_CACHE: int = 0,
      OP_SWAP: int = 117,
      OP_CHECK_EXC_MATCH: int = 6,
      OP_POP_EXCEPT: int = 29,
+     OP_BUILD_SET: int = 48,
+     OP_SET_UPDATE: int = 109,
      OP_CONVERT_VALUE: int = 58,
      OP_FORMAT_SIMPLE: int = 12,
      OP_FORMAT_WITH_SPEC: int = 13,
@@ -1534,9 +1567,15 @@ def host_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     return py_error(str(result[1]), str(result[2]));
 }
 
+def _host_representable(t: str) -> bool {
+    return _is_host_backed(t) or t == "host";
+}
+
 def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     result = lhs.nb_binop(kind, rhs);
-    if is_error(result) and _is_host_backed(lhs.t) and _is_host_backed(rhs.t) {
+    if is_error(result)
+        and _host_representable(lhs.t)
+        and _host_representable(rhs.t) {
         return host_binop(kind, lhs, rhs);
     }
     return result;
@@ -2111,6 +2150,29 @@ def exec_code_frame(
                 j = j + 1;
             }
             stack.append(PyDict(t="dict", items=values));
+            continue;
+        }
+        if op == OP_BUILD_SET {
+            # No native PySet yet: build the set on the host and keep it opaque
+            # (mirrors non-str dict handling). Set operators (|, &, -, ^) then
+            # route through the host binop fallback.
+            members: list[PyObj] = [];
+            while len(members) < arg {
+                members.insert(0, stack.pop());
+            }
+            host_members: list[any] = [];
+            for member in members {
+                host_members.append(to_host(member));
+            }
+            host_set: any = _jac_build_set(host_members);
+            stack.append(PyHostProxy(t="host", val=host_set));
+            continue;
+        }
+        if op == OP_SET_UPDATE {
+            iterable = stack.pop();
+            target_index = len(stack) - arg;
+            target_set: PyHostProxy = stack[target_index] as PyHostProxy;
+            target_set.val = _jac_set_update(target_set.val, to_host(iterable));
             continue;
         }
         if op == OP_CONVERT_VALUE {

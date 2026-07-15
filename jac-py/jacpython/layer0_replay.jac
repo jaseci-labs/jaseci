@@ -246,6 +246,24 @@ test "layer0: non-str-keyed host dicts stay opaque and round-trip" {
     assert replay_expr("{1: 'a', 2: 'b'}") == True;
 }
 
+test "layer0: sets build opaque on the host (BUILD_SET / SET_UPDATE / const)" {
+    # No native PySet: set literals build on the host and stay opaque, set
+    # operators route through the host binop fallback, and TYPE_SET/
+    # TYPE_FROZENSET marshal constants (>=3 members => LOAD_CONST frozenset +
+    # SET_UPDATE) decode to opaque host sets.
+    assert replay_expr("{1, 2}") == True;
+    assert replay_expr("{1, 2, 3}") == True;
+    assert replay_expr("{1, 2, 3} & {2, 3, 4}") == True;
+    assert replay_expr("{1, 2, 3} - {2}") == True;
+    assert replay_expr("{1, 2, 3} ^ {2, 3, 4}") == True;
+    assert replay_expr("{1, 2} | {2, 3}") == True;
+    assert replay_expr("len({1, 2, 3, 4})") == True;
+    assert replay_expr("frozenset({1, 2}) | {3}") == True;
+    # dict-view set operations (the test_dict cases that drove this).
+    assert replay_expr("{1: 1}.keys() | {2}") == True;
+    assert replay_expr("{2} | {1: 1}.items()") == True;
+}
+
 test "layer0: unported binops fall back to the host" {
     # Native nb_binop covers the ported fast paths; combos it doesn't (str %
     # with %f/%i or multiple args, str * int, list * int) fall back to host
