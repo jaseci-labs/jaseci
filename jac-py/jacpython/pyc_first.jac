@@ -1548,6 +1548,7 @@ glob OP_CACHE: int = 0,
      OP_SEND: int = 106,
      OP_END_SEND: int = 10,
      OP_GET_YIELD_FROM_ITER: int = 19,
+     OP_GET_AWAITABLE: int = 71,
      OP_CLEANUP_THROW: int = 7,
      OP_DELETE_NAME: int = 65,
      OP_NOP: int = 27;
@@ -2141,7 +2142,7 @@ def gen_throw(gen: PyGenerator, thrown: PyObj) -> PyObj {
 # Throw `err` into a yield-from sub-iterator (the SEND-in-throw-mode step).
 # Returns the same yielded-value | PyGenStop | error shape as send_into.
 def send_throw_into(receiver: PyObj, err: PyObj) -> PyObj {
-    if receiver.t == "generator" {
+    if receiver.t == "generator" or receiver.t == "coroutine" {
         return gen_throw(receiver as PyGenerator, err);
     }
     # A non-generator sub-iterator with a .throw() gets it; otherwise the
@@ -2192,7 +2193,9 @@ def gen_close(gen: PyGenerator) -> PyObj {
 # Drive one step of a yield-from sub-iterator (SEND). Returns the yielded value,
 # a PyGenStop(return value) on exhaustion, or a propagating error.
 def send_into(receiver: PyObj, sent: PyObj) -> PyObj {
-    if receiver.t == "generator" {
+    # A native coroutine drives through the identical suspend/resume machinery as
+    # a generator -- `await` lowers to the same SEND loop `yield from` uses.
+    if receiver.t == "generator" or receiver.t == "coroutine" {
         return gen_resume(receiver as PyGenerator, sent);
     }
     if receiver.t == "iter" {
@@ -2354,6 +2357,12 @@ def exec_code_frame(
     );
     # A generator-flagged code object does not run on call: it returns a
     # generator wrapping the (unstarted) frame; execution begins on first resume.
+    # CO_COROUTINE (0x80) is the async-def analogue -- the same suspendable frame,
+    # tagged "coroutine" so type(coro).__name__ and the await/SEND driver treat it
+    # as an awaitable (not a for-iterable) while reusing gen_resume/send_into.
+    if (co.flags & 128) != 0 {
+        return PyGenerator(t="coroutine", frame=frame, started=False, finished=False);
+    }
     if (co.flags & 32) != 0 {
         return PyGenerator(t="generator", frame=frame, started=False, finished=False);
     }
@@ -2758,6 +2767,26 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             stack.append(iterable);
             continue;
+        }
+        if op == OP_GET_AWAITABLE {
+            # `await x`: resolve x to the iterator the following SEND loop drives.
+            # A native coroutine is its own awaitable (coroutine.__await__ returns
+            # self), so it is left in place -- identical to a generator under
+            # GET_YIELD_FROM_ITER. Anything else needs a real __await__ we don't
+            # port yet.
+            top = stack[len(stack) - 1];
+            if top.t == "coroutine" or top.t == "generator" {
+                continue;
+            }
+            awaitable = py_error(
+                "TypeError", "object can't be used in 'await' expression"
+            );
+            target = recover_exception(co, awaitable, offset, stack);
+            if target >= 0 {
+                ip = target;
+                continue;
+            }
+            return awaitable;
         }
         if op == OP_SEND {
             # yield-from step. Stack: [..., receiver, sent]. Drive the receiver
@@ -3722,4 +3751,43 @@ test "pyc-first: gen.close() finalizes; further next() reports exhaustion" {
     );
     assert expect_int(returning["first"]) == 7;
     assert returning["second"].t == "none";
+}
+
+test "pyc-first: async def / await drives a coroutine through the SEND path" {
+    # A CO_COROUTINE-flagged def returns a coroutine on call; the body only runs
+    # on drive. `await inner()` lowers to GET_AWAITABLE + the same SEND loop
+    # `yield from` uses, so awaiting a native coroutine completes synchronously.
+    outs = run_source(
+        "async def inner():\n"
+        "    return 42\n"
+        "async def main():\n"
+        "    x = await inner()\n"
+        "    return x + 1\n"
+        "c = main()\n"
+    );
+    coro = outs["c"];
+    assert coro.t == "coroutine";
+    # Driving a coroutine to completion raises StopIteration(return value), the
+    # same protocol asyncio's event loop reads to collect a coroutine's result.
+    done = gen_send(coro as PyGenerator, py_none());
+    assert is_error(done);
+    finished = (done as PyError).exception;
+    assert finished.type_name == "StopIteration";
+    assert expect_int(finished.value as PyObj) == 43;
+
+    # await chains: main -> b -> a, each awaiting the next. The nested SEND loops
+    # thread the returned values back up through END_SEND.
+    chain = run_source(
+        "async def a():\n"
+        "    return 10\n"
+        "async def b():\n"
+        "    r = await a()\n"
+        "    return r * 2\n"
+        "async def main():\n"
+        "    return await b()\n"
+        "c = main()\n"
+    );
+    chained = gen_send(chain["c"] as PyGenerator, py_none());
+    assert is_error(chained);
+    assert expect_int((chained as PyError).exception.value as PyObj) == 20;
 }
