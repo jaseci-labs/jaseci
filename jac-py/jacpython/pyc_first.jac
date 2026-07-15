@@ -858,6 +858,19 @@ def from_host(raw: any) -> PyObj {
         return PyTuple(t="tuple", items=values);
     }
     if isinstance(raw, dict) {
+        # The native PyDict keys on str (object-core limitation). A host dict
+        # with any non-str key (e.g. str.maketrans -> {ordinal: repl}) would be
+        # corrupted by stringifying keys, so keep it opaque as a PyHostProxy: it
+        # round-trips through to_host unchanged and its methods route to host.
+        all_str = True;
+        for key in raw {
+            if not isinstance(key, str) {
+                all_str = False;
+            }
+        }
+        if not all_str {
+            return PyHostProxy(t="host", val=raw);
+        }
         values: dict[str, PyObj] = {};
         for key in raw {
             values[str(key)] = from_host(raw[key]);

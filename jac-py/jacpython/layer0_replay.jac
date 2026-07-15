@@ -229,6 +229,17 @@ test "layer0: int/bool .real/.imag (Gap #3) replay against the host" {
     assert replay_expr("False.imag") == True;
 }
 
+test "layer0: non-str-keyed host dicts stay opaque and round-trip" {
+    # The native PyDict keys on str; a host dict with non-str keys (maketrans
+    # returns {ordinal: repl}) is kept opaque as a PyHostProxy so it round-trips
+    # through to_host unchanged instead of being corrupted by str(key).
+    assert replay_expr("'abc'.translate(str.maketrans('a', 'X'))") == True;
+    assert replay_expr("'abc'.translate(str.maketrans({'a': 'X'}))") == True;
+    assert replay_expr("'abc'.translate(str.maketrans({'a': None}))") == True;
+    assert replay_expr("'axb'.translate(str.maketrans({'a': None, 'b': '12'}))") == True;
+    assert replay_expr("len(str.maketrans('ab', 'XY'))") == True;
+}
+
 test "layer0: unported binops fall back to the host" {
     # Native nb_binop covers the ported fast paths; combos it doesn't (str %
     # with %f/%i or multiple args, str * int, list * int) fall back to host
