@@ -229,6 +229,20 @@ test "layer0: int/bool .real/.imag (Gap #3) replay against the host" {
     assert replay_expr("False.imag") == True;
 }
 
+test "layer0: LIST_EXTEND addresses the list under a callable+NULL" {
+    # Regression guard: a >=3-const list literal compiles to BUILD_LIST 0 +
+    # LOAD_CONST tuple + LIST_EXTEND. When a callable and its PUSH_NULL sit
+    # below it (len([...]), tuple([...])), the extend must target the list, not
+    # the NULL. The prior off-by-one only survived on bare list literals.
+    assert replay_expr("len([0, 1, 2])") == True;
+    assert replay_expr("len([0, 1, 2, 3, 4])") == True;
+    assert replay_expr("tuple([0, 1, 2, 3])") == True;
+    assert replay_expr("sum([1, 2, 3, 4])") == True;
+    assert replay_expr("[1, 2, 3]") == True;
+    assert replay_expr("[1, 2, 3][1]") == True;
+    assert replay_expr("max([3, 1, 4, 1, 5])") == True;
+}
+
 test "layer0: memoryview + slicing (Gap #4) replay against the host" {
     # memoryview host proxy + constant-slice subscript (BINARY_OP []) + int().
     assert replay_expr("int(memoryview(b'123')[1:3])") == True;

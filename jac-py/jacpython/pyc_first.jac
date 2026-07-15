@@ -1980,8 +1980,13 @@ def exec_code_frame(
             continue;
         }
         if op == OP_LIST_EXTEND {
+            # After popping the iterable, the target list sits at STACK[-arg]
+            # (CPython extends STACK[-arg-1] pre-pop). The prior `-1-arg` form
+            # only worked for a bare list literal, where a negative index still
+            # landed on the list; with a callable+NULL below (e.g. len([...]))
+            # it addressed the NULL instead.
             iterable = stack.pop();
-            target_index = len(stack) - 1 - arg;
+            target_index = len(stack) - arg;
             append_to_list(stack[target_index], iterable);
             continue;
         }
