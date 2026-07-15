@@ -229,6 +229,21 @@ test "layer0: int/bool .real/.imag (Gap #3) replay against the host" {
     assert replay_expr("False.imag") == True;
 }
 
+test "layer0: f-string / format opcodes replay against the host" {
+    # CONVERT_VALUE (!s/!r/!a), FORMAT_SIMPLE, FORMAT_WITH_SPEC, BUILD_STRING.
+    # CPython also folds "%s" % x into these, so plain %s-format lands here too.
+    assert replay_expr("f'{5}-{3.14:.1f}'") == True;
+    assert replay_expr("f'{\"hi\"!r}'") == True;
+    assert replay_expr("f'{255:05d}'") == True;
+    assert replay_expr("f'{42:x}'") == True;
+    assert replay_expr("f'{\"ab\"!a}'") == True;
+    assert replay_expr("'%s, %s' % ('abc', 'abc')") == True;
+    assert replay_expr("'{0:^12}'.format(3 + 2.0j)") == True;
+    assert replay_expr("'{0:.2f}'.format(3.14159)") == True;
+    assert replay_expr("format(255, 'x')") == True;
+    assert replay_expr("f'{1}{2}{3}'") == True;
+}
+
 test "layer0: native-container methods route to host during bootstrap" {
     # py_attr falls back to host_getattr for host-backed tags (str/list/dict/...)
     # when the native tp_getattro has no method yet. The bound method comes back

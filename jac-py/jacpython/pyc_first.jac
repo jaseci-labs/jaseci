@@ -65,6 +65,22 @@ def _jac_host_builtin(name):
 
 def _jac_host_type_name(value):
     return type(value).__name__
+
+def _jac_host_format(value, spec):
+    try:
+        return (True, format(value, spec))
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
+def _jac_host_convert(value, conv):
+    try:
+        if conv == 2:
+            return (True, repr(value))
+        if conv == 3:
+            return (True, ascii(value))
+        return (True, str(value))
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
 ::py::
 
 
@@ -848,6 +864,9 @@ def to_host(value: PyObj) -> any {
         case PyFloat():
             return value.val;
 
+        case PyComplex():
+            return complex(value.real, value.imag);
+
         case PyStr():
             return value.val;
 
@@ -909,6 +928,25 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
     result = _jac_host_import(name, to_host(fromlist));
     if host_result_ok(result) {
         return PyHostProxy(t="host", val=result[1]);
+    }
+    return py_error(str(result[1]), str(result[2]));
+}
+
+# f-string / format machinery. Formatting is delegated to host CPython's
+# format()/repr()/ascii() during bootstrap -- the __format__ / __str__ protocols
+# are not natively ported yet, and routing here keeps objects.jac na-clean.
+def host_format(value: PyObj, spec: str) -> PyObj {
+    result = _jac_host_format(to_host(value), spec);
+    if host_result_ok(result) {
+        return from_host(result[1]);
+    }
+    return py_error(str(result[1]), str(result[2]));
+}
+
+def host_convert(value: PyObj, conv: int) -> PyObj {
+    result = _jac_host_convert(to_host(value), conv);
+    if host_result_ok(result) {
+        return from_host(result[1]);
     }
     return py_error(str(result[1]), str(result[2]));
 }
@@ -1393,6 +1431,10 @@ glob OP_CACHE: int = 0,
      OP_SWAP: int = 117,
      OP_CHECK_EXC_MATCH: int = 6,
      OP_POP_EXCEPT: int = 29,
+     OP_CONVERT_VALUE: int = 58,
+     OP_FORMAT_SIMPLE: int = 12,
+     OP_FORMAT_WITH_SPEC: int = 13,
+     OP_BUILD_STRING: int = 50,
      OP_NOP: int = 27;
 
 # Inline caches occupy real code units in 3.14.  Returning the number of cache
@@ -2001,6 +2043,46 @@ def exec_code_frame(
                 j = j + 1;
             }
             stack.append(PyDict(t="dict", items=values));
+            continue;
+        }
+        if op == OP_CONVERT_VALUE {
+            value = stack.pop();
+            result = host_convert(value, arg);
+            if is_error(result) {
+                return result;
+            }
+            stack.append(result);
+            continue;
+        }
+        if op == OP_FORMAT_SIMPLE {
+            value = stack.pop();
+            result = host_format(value, "");
+            if is_error(result) {
+                return result;
+            }
+            stack.append(result);
+            continue;
+        }
+        if op == OP_FORMAT_WITH_SPEC {
+            spec = stack.pop();
+            value = stack.pop();
+            result = host_format(value, expect_str(spec));
+            if is_error(result) {
+                return result;
+            }
+            stack.append(result);
+            continue;
+        }
+        if op == OP_BUILD_STRING {
+            parts: list[PyObj] = [];
+            while len(parts) < arg {
+                parts.insert(0, stack.pop());
+            }
+            joined = "";
+            for part in parts {
+                joined = joined + expect_str(part);
+            }
+            stack.append(PyStr(t="str", val=joined));
             continue;
         }
         if op == OP_LIST_EXTEND {
