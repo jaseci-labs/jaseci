@@ -72,6 +72,23 @@ def _jac_host_format(value, spec):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_host_binop(kind, a, b):
+    import operator
+    _NB = {
+        0: operator.add, 1: operator.and_, 2: operator.floordiv,
+        3: operator.lshift, 4: operator.matmul, 5: operator.mul,
+        6: operator.mod, 7: operator.or_, 8: operator.pow,
+        9: operator.rshift, 10: operator.sub, 11: operator.truediv,
+        12: operator.xor,
+    }
+    fn = _NB.get(kind)
+    if fn is None:
+        return (False, "TypeError", "unsupported binary op " + str(kind))
+    try:
+        return (True, fn(a, b))
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
 def _jac_host_convert(value, conv):
     try:
         if conv == 2:
@@ -1491,8 +1508,25 @@ def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     return lhs.tp_richcompare(kind, rhs);
 }
 
+# Native nb_binop covers the ported fast paths (int/str Gap #2 %-format, tuple/
+# list concat, ...). Operand/format combos not yet ported (str % with %f/%i or
+# multiple args, str * int, ...) fall back across the substrate to host CPython
+# when both operands are host-backed. Purely additive: only a native error
+# triggers the fallback, so ported semantics always win.
+def host_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
+    result = _jac_host_binop(kind, to_host(lhs), to_host(rhs));
+    if host_result_ok(result) {
+        return from_host(result[1]);
+    }
+    return py_error(str(result[1]), str(result[2]));
+}
+
 def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
-    return lhs.nb_binop(kind, rhs);
+    result = lhs.nb_binop(kind, rhs);
+    if is_error(result) and _is_host_backed(lhs.t) and _is_host_backed(rhs.t) {
+        return host_binop(kind, lhs, rhs);
+    }
+    return result;
 }
 
 def py_subscript(container: PyObj, index: PyObj) -> PyObj {

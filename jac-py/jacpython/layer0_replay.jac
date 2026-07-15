@@ -229,6 +229,19 @@ test "layer0: int/bool .real/.imag (Gap #3) replay against the host" {
     assert replay_expr("False.imag") == True;
 }
 
+test "layer0: unported binops fall back to the host" {
+    # Native nb_binop covers the ported fast paths; combos it doesn't (str %
+    # with %f/%i or multiple args, str * int, list * int) fall back to host
+    # CPython. Only a native error triggers the fallback, so ported paths win.
+    assert replay_expr("'%s, %s, %i, %f, %5.2f' % ('a', 'b', 1, 2, 3)") == True;
+    assert replay_expr("'%.2f' % 3.14159") == True;
+    assert replay_expr("'%i-%f' % (5, 2.5)") == True;
+    assert replay_expr("'ab' * 3") == True;
+    assert replay_expr("3 * 'ab'") == True;
+    assert replay_expr("[1, 2] * 2") == True;
+    assert replay_expr("(1, 2) * 3") == True;
+}
+
 test "layer0: f-string / format opcodes replay against the host" {
     # CONVERT_VALUE (!s/!r/!a), FORMAT_SIMPLE, FORMAT_WITH_SPEC, BUILD_STRING.
     # CPython also folds "%s" % x into these, so plain %s-format lands here too.
