@@ -229,6 +229,27 @@ test "layer0: int/bool .real/.imag (Gap #3) replay against the host" {
     assert replay_expr("False.imag") == True;
 }
 
+test "layer0: native-container methods route to host during bootstrap" {
+    # py_attr falls back to host_getattr for host-backed tags (str/list/dict/...)
+    # when the native tp_getattro has no method yet. The bound method comes back
+    # as a callable PyHostProxy, so the CALL executes it on the host and marshals
+    # the result home. This is the bootstrap seam; objects.jac stays na-clean.
+    assert replay_expr("'hello'.upper()") == True;
+    assert replay_expr("'HELLO'.lower()") == True;
+    assert replay_expr("'a,b,c'.split(',')") == True;
+    assert replay_expr("'  hi  '.strip()") == True;
+    assert replay_expr("'abcabc'.replace('a', 'X')") == True;
+    assert replay_expr("'abc'.startswith('ab')") == True;
+    assert replay_expr("'x'.join(['a', 'b', 'c'])") == True;
+    assert replay_expr("[3, 1, 2].count(1)") == True;
+    assert replay_expr("[1, 2, 3].index(2)") == True;
+    assert replay_expr("{'a': 1, 'b': 2}.get('a')") == True;
+    assert replay_expr("list({'a': 1}.keys())") == True;
+    assert replay_expr("list({'a': 1, 'b': 2}.values())") == True;
+    assert replay_expr("{'a': 1}.copy()") == True;
+    assert replay_expr("(5).bit_length()") == True;
+}
+
 test "layer0: LIST_EXTEND addresses the list under a callable+NULL" {
     # Regression guard: a >=3-const list literal compiles to BUILD_LIST 0 +
     # LOAD_CONST tuple + LIST_EXTEND. When a callable and its PUSH_NULL sit

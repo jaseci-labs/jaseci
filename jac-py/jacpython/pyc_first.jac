@@ -1474,8 +1474,24 @@ def append_to_list(target: PyObj, iterable: PyObj) {
     }
 }
 
+# Native scalar/container tags whose method surface is not yet ported. During
+# bootstrap their attribute lookups fall back across the substrate boundary to
+# host CPython (host_getattr returns a bound method, which from_host wraps as a
+# callable PyHostProxy). This is the object-core-clean seam: the fallback lives
+# here in pyc_first (host-allowed), never in the na-clean objects.jac, so e.g.
+# 'abc'.upper() / {}.copy() / dict().keys() work before their native ports land.
+def _is_host_backed(t: str) -> bool {
+    return t == "str" or t == "bytes" or t == "int" or t == "bool"
+        or t == "float" or t == "list" or t == "tuple" or t == "dict"
+        or t == "complex";
+}
+
 def py_attr(value: PyObj, name: str) -> PyObj {
-    return value.tp_getattro(name);
+    result = value.tp_getattro(name);
+    if is_error(result) and _is_host_backed(value.t) {
+        return host_getattr(value, name);
+    }
+    return result;
 }
 
 def bind_attribute(value: PyObj, receiver: PyObj) -> PyObj {
@@ -1968,12 +1984,20 @@ def exec_code_frame(
             continue;
         }
         if op == OP_BUILD_MAP {
+            # key0,val0,key1,val1,... are pushed in source order; popping walks
+            # them backwards, so buffer and replay forward to preserve insertion
+            # order (dict iteration / .values() / .items() are order-sensitive).
+            popped: list[PyObj] = [];
+            j = 0;
+            while j < arg * 2 {
+                popped.insert(0, stack.pop());
+                j = j + 1;
+            }
             values: dict[str, PyObj] = {};
             j = 0;
             while j < arg {
-                value = stack.pop();
-                key = expect_str(stack.pop());
-                values[key] = value;
+                key = expect_str(popped[j * 2]);
+                values[key] = popped[j * 2 + 1];
                 j = j + 1;
             }
             stack.append(PyDict(t="dict", items=values));
