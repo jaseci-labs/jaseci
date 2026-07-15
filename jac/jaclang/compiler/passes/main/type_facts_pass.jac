@@ -9,20 +9,6 @@ def type_tag_name(type_tag: uni.SubTag[uni.Expr] | None) -> str;
 
 def ret_type_name(ret: uni.Expr | None) -> str;
 
-def arch_type_maps(arch: uni.Archetype) -> tuple[dict[str, str], dict[str, str]];
-
-def _attr_name(nd: object) -> str;
-
-def infer_type(
-    e: object,
-    local_types: dict[str, str],
-    ref_types: object,
-    func_returns: dict[str, str],
-    method_returns: dict[str, dict[str, str]],
-    field_types: dict[str, dict[str, str]],
-    scope: dict[str, str] = {}
-) -> str;
-
 obj ScopeTypes {
     static def for_ability(
         sig: object, self_type: str, scope: dict[str, str] = {}
@@ -43,6 +29,7 @@ obj TypeFacts {
     ) -> str;
 
     def type_of_via_checker(e: uni.Expr) -> str;
+    def typebase_to_typename(ty: object) -> str;
     def is_ref(name: str) -> bool;
 }
 
@@ -75,4 +62,5 @@ obj TypeFactsPass(Transform[uni.Module, uni.Module]) {
     def index_module(mod: uni.Module);
     def index_arch(arch: uni.Archetype);
     def ret_name(ret: uni.Expr | None) -> str;
+    def resolve_ann_token(ann: uni.Expr | None, syntactic: str) -> str;
 }

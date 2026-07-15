@@ -2,25 +2,12 @@ impl TypeFacts.type_of(
     e: object, local_types: dict[str, str], scope: dict[str, str] = {}
 ) -> str {
     if self.prog is not None and isinstance(e, uni.Expr) {
-        resolved = self.type_of_via_checker(e);
-        if resolved {
-            return resolved;
-        }
+        return self.type_of_via_checker(e);
     }
-    return infer_type(
-        e,
-        local_types,
-        self.ref_types,
-        self.func_returns,
-        self.method_returns,
-        self.field_types,
-        scope
-    );
+    return "";
 }
 
 impl TypeFacts.type_of_via_checker(e: uni.Expr) -> str {
-    import from jaclang.compiler.type_system.type_utils { primitive_type_name_of }
-    import from jaclang.compiler.type_system.types { ClassType }
     if self.prog is None {
         return "";
     }
@@ -35,6 +22,12 @@ impl TypeFacts.type_of_via_checker(e: uni.Expr) -> str {
             return "";
         }
     }
+    return self.typebase_to_typename(ty);
+}
+
+impl TypeFacts.typebase_to_typename(ty: object) -> str {
+    import from jaclang.compiler.type_system.type_utils { primitive_type_name_of }
+    import from jaclang.compiler.type_system.types { ClassType }
     if ty is None {
         return "";
     }
@@ -44,10 +37,16 @@ impl TypeFacts.type_of_via_checker(e: uni.Expr) -> str {
         return prim;
     }
 
-    if self.type_ids is not None and isinstance(ty, ClassType) {
+    if isinstance(ty, ClassType) {
         arch = ty.shared.symbol_table;
-        if isinstance(arch, uni.Archetype) and self.type_ids.has_arch(arch) {
-            return self.type_ids.tid_of_arch(arch);
+        if isinstance(arch, uni.Archetype) {
+            if self.type_ids is not None {
+                if self.type_ids.has_arch(arch) {
+                    return self.type_ids.tid_of_arch(arch);
+                }
+            } else {
+                return arch.name.value;
+            }
         }
     }
     return "";
@@ -59,6 +58,7 @@ impl TypeFacts.is_ref(name: str) -> bool {
 
 impl TypeFactsPass.transform(ir_in: uni.Module) -> uni.Module {
     self.facts = TypeFacts();
+    self.facts.prog = self.prog;
     try {
         self.index_module(ir_in);
         self.facts.ok = True;
@@ -80,8 +80,9 @@ impl TypeFactsPass.index_module(mod: uni.Module) {
             self.index_arch(stmt);
         } elif isinstance(stmt, uni.Ability) and stmt.name_ref is not None {
             sig = stmt.signature;
-            self.facts.func_returns[stmt.name_ref.sym_name] = self.ret_name(
-                sig.return_type if isinstance(sig, uni.FuncSignature) else None
+            ret = sig.return_type if isinstance(sig, uni.FuncSignature) else None;
+            self.facts.func_returns[stmt.name_ref.sym_name] = self.resolve_ann_token(
+                ret, self.ret_name(ret)
             );
         }
     }
@@ -89,13 +90,50 @@ impl TypeFactsPass.index_module(mod: uni.Module) {
 
 impl TypeFactsPass.index_arch(arch: uni.Archetype) {
     name = arch.name.value;
-    (fmap, rmap) = arch_type_maps(arch);
+    fmap: dict[str, str] = {};
+    rmap: dict[str, str] = {};
+    for member in (arch.body or []) {
+        if isinstance(member, uni.ArchHas) {
+            for hv in member.vars {
+                ann = hv.type_tag.tag if hv.type_tag is not None else None;
+                fmap[hv.name.value] = self.resolve_ann_token(
+                    ann, type_tag_name(hv.type_tag)
+                );
+            }
+        } elif isinstance(member, uni.Ability) and member.name_ref is not None {
+            sig = member.signature;
+            ret = sig.return_type if isinstance(sig, uni.FuncSignature) else None;
+            rmap[member.name_ref.sym_name] = self.resolve_ann_token(
+                ret, ret_type_name(ret)
+            );
+        }
+    }
     self.facts.field_types[name] = fmap;
     self.facts.method_returns[name] = rmap;
 }
 
 impl TypeFactsPass.ret_name(ret: uni.Expr | None) -> str {
     return ret_type_name(ret);
+}
+
+impl TypeFactsPass.resolve_ann_token(ann: uni.Expr | None, syntactic: str) -> str {
+    if ann is None or self.prog is None {
+        return syntactic;
+    }
+    tok = "";
+    try {
+        te = self.prog.get_type_evaluator();
+        if te {
+            ty = te.get_type_of_expression(ann);
+            tok = self.facts.typebase_to_typename(ty);
+        }
+    } except Exception {
+        tok = "";
+    }
+    if tok {
+        return tok;
+    }
+    return syntactic;
 }
 
 impl get_type_facts(module: uni.Module, prog: JacProgram | None = None) -> TypeFacts {
@@ -161,148 +199,6 @@ impl ret_type_name(ret: uni.Expr | None) -> str {
         return ret.value;
     }
     return ret.unparse();
-}
-
-impl arch_type_maps(arch: uni.Archetype) -> tuple[dict[str, str], dict[str, str]] {
-    fmap: dict[str, str] = {};
-    rmap: dict[str, str] = {};
-    for member in (arch.body or []) {
-        if isinstance(member, uni.ArchHas) {
-            for hv in member.vars {
-                fmap[hv.name.value] = type_tag_name(hv.type_tag);
-            }
-        } elif isinstance(member, uni.Ability) and member.name_ref is not None {
-            sig = member.signature;
-            rmap[member.name_ref.sym_name] = ret_type_name(
-                sig.return_type if isinstance(sig, uni.FuncSignature) else None
-            );
-        }
-    }
-    return (fmap, rmap);
-}
-
-impl _attr_name(nd: object) -> str {
-    if isinstance(nd, uni.Name) {
-        return nd.value;
-    }
-    return "";
-}
-
-impl infer_type(
-    e: object,
-    local_types: dict[str, str],
-    ref_types: object,
-    func_returns: dict[str, str],
-    method_returns: dict[str, dict[str, str]],
-    field_types: dict[str, dict[str, str]],
-    scope: dict[str, str] = {}
-) -> str {
-    if isinstance(e, uni.AtomUnit) {
-        return infer_type(
-            e.value,
-            local_types,
-            ref_types,
-            func_returns,
-            method_returns,
-            field_types,
-            scope
-        );
-    }
-    if isinstance(e, (uni.String, uni.MultiString)) {
-        return "str";
-    }
-    if isinstance(e, uni.Bool) {
-        return "bool";
-    }
-    if isinstance(e, uni.Int) {
-        return "int";
-    }
-    if isinstance(e, uni.Float) {
-        return "float";
-    }
-    if isinstance(e, uni.Name) {
-        return local_types.get(e.value, "");
-    }
-    if isinstance(e, uni.BinaryExpr) {
-        lt = infer_type(
-            e.left,
-            local_types,
-            ref_types,
-            func_returns,
-            method_returns,
-            field_types,
-            scope
-        );
-        rt = infer_type(
-            e.right,
-            local_types,
-            ref_types,
-            func_returns,
-            method_returns,
-            field_types,
-            scope
-        );
-        if isinstance(e.op, uni.Token)
-        and e.op.value == "+"
-        and (lt == "str" or rt == "str") {
-            return "str";
-        }
-        if lt == "float" or rt == "float" {
-            return "float";
-        }
-        if lt == "int" or rt == "int" {
-            return "int";
-        }
-        return "";
-    }
-    if isinstance(e, uni.CompareExpr) {
-        return "bool";
-    }
-    if isinstance(e, uni.FuncCall) {
-        tgt = e.target;
-
-        if isinstance(tgt, uni.Name) {
-            tv = scope.get(tgt.value, tgt.value);
-            if tv in ref_types or tv in field_types {
-                return tv;
-            }
-            if tgt.value in func_returns {
-                return func_returns[tgt.value];
-            }
-        }
-        if isinstance(tgt, uni.AtomTrailer) and tgt.is_attr {
-            recv = infer_type(
-                tgt.target,
-                local_types,
-                ref_types,
-                func_returns,
-                method_returns,
-                field_types,
-                scope
-            );
-            m = _attr_name(tgt.right);
-            if recv in method_returns and m in method_returns[recv] {
-                return method_returns[recv][m];
-            }
-        }
-        return "";
-    }
-    if isinstance(e, uni.AtomTrailer) and e.is_attr {
-        recv = infer_type(
-            e.target,
-            local_types,
-            ref_types,
-            func_returns,
-            method_returns,
-            field_types,
-            scope
-        );
-        f = _attr_name(e.right);
-        if recv in field_types and f in field_types[recv] {
-            return field_types[recv][f];
-        }
-    }
-    return "";
 }
 
 impl get_shared_type_facts(
