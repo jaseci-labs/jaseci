@@ -238,6 +238,12 @@ test "layer0: non-str-keyed host dicts stay opaque and round-trip" {
     assert replay_expr("'abc'.translate(str.maketrans({'a': None}))") == True;
     assert replay_expr("'axb'.translate(str.maketrans({'a': None, 'b': '12'}))") == True;
     assert replay_expr("len(str.maketrans('ab', 'XY'))") == True;
+    # A dict literal with non-str keys (BUILD_MAP) is likewise built on the host
+    # and kept opaque, so subscript / len / equality all replay.
+    assert replay_expr("{1: 2}") == True;
+    assert replay_expr("{1: 2, 3: 4}[3]") == True;
+    assert replay_expr("len({10: 20, 30: 40})") == True;
+    assert replay_expr("{1: 'a', 2: 'b'}") == True;
 }
 
 test "layer0: unported binops fall back to the host" {

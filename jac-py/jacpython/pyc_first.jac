@@ -2082,6 +2082,27 @@ def exec_code_frame(
                 popped.insert(0, stack.pop());
                 j = j + 1;
             }
+            all_str_keys = True;
+            j = 0;
+            while j < arg {
+                if popped[j * 2].t != "str" {
+                    all_str_keys = False;
+                }
+                j = j + 1;
+            }
+            if not all_str_keys {
+                # A literal with any non-str key can't live in the str-keyed
+                # native PyDict; build it on the host and keep it opaque (mirrors
+                # from_host's non-str-key handling).
+                host_map: dict[any, any] = {};
+                j = 0;
+                while j < arg {
+                    host_map[to_host(popped[j * 2])] = to_host(popped[j * 2 + 1]);
+                    j = j + 1;
+                }
+                stack.append(PyHostProxy(t="host", val=host_map));
+                continue;
+            }
             values: dict[str, PyObj] = {};
             j = 0;
             while j < arg {
