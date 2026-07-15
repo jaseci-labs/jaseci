@@ -734,7 +734,7 @@ obj PyHostProxy(PyObj) {
         return host_getitem(self, index);
     }
 
-    def tp_iter() -> PyObj {
+    def tp_iter -> PyObj {
         return host_iter(self);
     }
 }
@@ -954,7 +954,9 @@ def to_host(value: PyObj) -> any {
             return result;
 
         case PySlice():
-            return slice(to_host(value.start), to_host(value.stop), to_host(value.step));
+            return slice(
+                to_host(value.start), to_host(value.stop), to_host(value.step)
+            );
 
         case PyHostProxy():
             return value.val;
@@ -982,6 +984,11 @@ def host_builtin(name: str) -> PyObj {
     or name == "ZeroDivisionError"
     or name == "ImportError" {
         return py_exception_type(name);
+    }
+    # next()/iter() are handled natively so a native generator or iterator is
+    # driven one step in-VM instead of being drained across the host boundary.
+    if name == "next" or name == "iter" {
+        return PyNativeBuiltin(t="native_builtin", name=name);
     }
     result = _jac_host_builtin(name);
     if host_result_ok(result) {
@@ -1529,6 +1536,11 @@ glob OP_CACHE: int = 0,
      OP_LOAD_COMMON_CONSTANT: int = 81,
      OP_CALL_INTRINSIC_1: int = 53,
      OP_LOAD_FAST_AND_CLEAR: int = 85,
+     OP_SEND: int = 106,
+     OP_END_SEND: int = 10,
+     OP_GET_YIELD_FROM_ITER: int = 19,
+     OP_CLEANUP_THROW: int = 7,
+     OP_DELETE_NAME: int = 65,
      OP_NOP: int = 27;
 
 # Inline caches occupy real code units in 3.14.  Returning the number of cache
@@ -1546,7 +1558,11 @@ def opcode_cache_count(op: int) -> int {
     if op == OP_FOR_ITER {
         return 1;
     }
-    if op == OP_JUMP_BACKWARD or op == OP_JUMP_BACKWARD_NO_INTERRUPT {
+    if op == OP_SEND {
+        return 1;
+    }
+    # JUMP_BACKWARD carries a counter cache; the NO_INTERRUPT variant does not.
+    if op == OP_JUMP_BACKWARD {
         return 1;
     }
     if op == OP_LOAD_ATTR {
@@ -1610,9 +1626,7 @@ def _host_representable(t: str) -> bool {
 
 def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     result = lhs.nb_binop(kind, rhs);
-    if is_error(result)
-        and _host_representable(lhs.t)
-        and _host_representable(rhs.t) {
+    if is_error(result) and _host_representable(lhs.t) and _host_representable(rhs.t) {
         return host_binop(kind, lhs, rhs);
     }
     return result;
@@ -1656,9 +1670,15 @@ def append_to_list(target: PyObj, iterable: PyObj) {
 # here in pyc_first (host-allowed), never in the na-clean objects.jac, so e.g.
 # 'abc'.upper() / {}.copy() / dict().keys() work before their native ports land.
 def _is_host_backed(t: str) -> bool {
-    return t == "str" or t == "bytes" or t == "int" or t == "bool"
-        or t == "float" or t == "list" or t == "tuple" or t == "dict"
-        or t == "complex";
+    return t == "str"
+    or t == "bytes"
+    or t == "int"
+    or t == "bool"
+    or t == "float"
+    or t == "list"
+    or t == "tuple"
+    or t == "dict"
+    or t == "complex";
 }
 
 def py_attr(value: PyObj, name: str) -> PyObj {
@@ -1902,22 +1922,102 @@ obj PyFrame(PyObj) {
         stack: list[PyObj],
         globals: dict[str, PyObj],
         locals: dict[str, PyObj],
-        ip: int = 0;
+        ip: int = 0,
+        # True when suspended inside `yield from` (YIELD_VALUE oparg 1). A throw
+        # is then delegated into the sub-iterator via the SEND loop rather than
+        # injected at the outer suspend point.
+        yf: bool = False,
+        # A pending exception to throw into the current yield-from sub-iterator,
+        # consumed by the next SEND instead of a normal send.
+        pending_throw: any = None;
 }
 
 obj PyYield(PyObj) {
     has val: PyObj;
 }
 
-obj PyGenStop(PyObj) {}
+# next()/iter() as native callables (host_builtin routes these here) so they
+# drive a native generator/iterator in-VM rather than draining it to a host list.
+obj PyNativeBuiltin(PyObj) {
+    has name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if self.name == "iter" {
+            if len(args) == 0 {
+                return py_error("TypeError", "iter expected at least 1 argument");
+            }
+            result = py_iter(args[0]);
+            if is_error(result) {
+                # Types without a native tp_iter (dict views, etc.) iterate on
+                # the host, materialized into a native PyIter.
+                return host_iter(PyHostProxy(t="host", val=to_host(args[0])));
+            }
+            return result;
+        }
+        # next(iterator[, default])
+        if len(args) == 0 {
+            return py_error("TypeError", "next expected at least 1 argument");
+        }
+        step = send_into(args[0], py_none());
+        if step.t == "genstop" {
+            if len(args) > 1 {
+                return args[1];
+            }
+            return stop_iteration(py_none());
+        }
+        return step;
+    }
+}
+
+# A frame that ran to RETURN_VALUE. `val` is the generator's return value, which
+# `yield from` yields as the sub-expression result and .send()/next() surface as
+# StopIteration(val).
+obj PyGenStop(PyObj) {
+    has val: PyObj;
+}
 
 obj PyGenerator(PyObj) {
     has frame: PyFrame,
         started: bool = False,
         finished: bool = False;
 
-    def tp_iter() -> PyObj {
+    def tp_iter -> PyObj {
         return self;
+    }
+
+    # gen.send / gen.throw / gen.close / gen.__next__ resolve to native bound
+    # driver methods; every other attribute is a real AttributeError.
+    def tp_getattro(name: str) -> PyObj {
+        if name == "send" or name == "throw" or name == "close" or name == "__next__" {
+            return PyGenMethod(t="gen_method", gen=self, kind=name);
+        }
+        return py_error("AttributeError", name);
+    }
+}
+
+# A bound generator driver (gen.send/throw/close/__next__). Calling it drives the
+# suspended frame and raises StopIteration on exhaustion, matching CPython's
+# generator method surface (unlike FOR_ITER, which swallows the StopIteration).
+obj PyGenMethod(PyObj) {
+    has gen: PyGenerator,
+        kind: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if self.kind == "throw" {
+            thrown = py_none();
+            if len(args) > 0 {
+                thrown = args[0];
+            }
+            return gen_throw(self.gen, thrown);
+        }
+        if self.kind == "close" {
+            return gen_close(self.gen);
+        }
+        sent = py_none();
+        if self.kind == "send" and len(args) > 0 {
+            sent = args[0];
+        }
+        return gen_send(self.gen, sent);
     }
 }
 
@@ -1926,7 +2026,7 @@ obj PyGenerator(PyObj) {
 # return (exhaustion), or a propagating error object on a raise.
 def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {
     if gen.finished {
-        return PyGenStop(t="genstop");
+        return PyGenStop(t="genstop", val=py_none());
     }
     if gen.started {
         # YIELD_VALUE popped its operand when it suspended; the resume value
@@ -1936,6 +2036,13 @@ def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {
     }
     gen.started = True;
     result = run_frame(gen.frame);
+    return finish_gen_result(gen, result);
+}
+
+# Common tail for every generator re-entry (resume/send/throw): translate the
+# raw run_frame outcome into the yielded value | PyGenStop(return value) | error
+# shape that all generator drivers speak.
+def finish_gen_result(gen: PyGenerator, result: PyObj) -> PyObj {
     if is_error(result) {
         gen.finished = True;
         return result;
@@ -1944,7 +2051,171 @@ def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {
         return (result as PyYield).val;
     }
     gen.finished = True;
-    return PyGenStop(t="genstop");
+    return PyGenStop(t="genstop", val=result);
+}
+
+# gen.send(v): resume with v, returning the next yielded value or raising
+# StopIteration(return_value) on exhaustion. A just-started generator only
+# accepts None (CPython raises TypeError otherwise).
+def gen_send(gen: PyGenerator, sent: PyObj) -> PyObj {
+    if not gen.started and not gen.finished and sent.t != "none" {
+        return py_error(
+            "TypeError", "can't send non-None value to a just-started generator"
+        );
+    }
+    result = gen_resume(gen, sent);
+    if result.t == "genstop" {
+        return stop_iteration((result as PyGenStop).val);
+    }
+    return result;
+}
+
+# StopIteration carrying the generator's return value as its .value payload.
+def stop_iteration(value: PyObj) -> PyObj {
+    return PyError(
+        t="error",
+        exception=PyException(
+            t="exception", type_name="StopIteration", message="", value=value
+        ),
+    );
+}
+
+# Coerce a thrown operand (exception instance, exception type, or already-raised
+# error) into a PyError for injection at the suspend point.
+def as_error(value: PyObj) -> PyObj {
+    if value.t == "error" {
+        return value;
+    }
+    return py_raise_value(value);
+}
+
+# gen.throw(exc): resume the generator as though `exc` were raised at the point
+# where it last suspended, so a try/except surrounding the yield can catch it.
+def gen_throw(gen: PyGenerator, thrown: PyObj) -> PyObj {
+    err = as_error(thrown);
+    if err.t != "error" {
+        return err;
+    }
+    if not gen.started or gen.finished {
+        # Nothing suspended to resume into: the exception propagates directly.
+        gen.finished = True;
+        return err;
+    }
+    frame = gen.frame;
+    if frame.yf {
+        # Suspended inside `yield from`: delegate the throw into the sub-iterator
+        # by re-running the SEND loop in throw mode. SEND's existing yield /
+        # exhaustion / error handling then completes or unwinds the yield-from.
+        frame.pending_throw = err;
+        frame.stack.append(py_none());  # sent-value placeholder SEND reads below
+        return finish_gen_result(gen, run_frame(frame));
+    }
+    # frame.ip sits one instruction past YIELD_VALUE; the handler lookup wants
+    # the yield's own offset (YIELD_VALUE has no inline cache, so -2 bytes).
+    offset = frame.ip - 2;
+    target = recover_exception(frame.co, err, offset, frame.stack);
+    if target < 0 {
+        gen.finished = True;
+        return err;
+    }
+    frame.ip = target;
+    result = run_frame(frame);
+    return finish_gen_result(gen, result);
+}
+
+# Throw `err` into a yield-from sub-iterator (the SEND-in-throw-mode step).
+# Returns the same yielded-value | PyGenStop | error shape as send_into.
+def send_throw_into(receiver: PyObj, err: PyObj) -> PyObj {
+    if receiver.t == "generator" {
+        return gen_throw(receiver as PyGenerator, err);
+    }
+    # A non-generator sub-iterator with a .throw() gets it; otherwise the
+    # exception simply propagates at the delegation point.
+    thrower = py_attr(receiver, "throw");
+    if is_error(thrower) {
+        return err;
+    }
+    result = py_invoke(thrower, [(err as PyError).exception], {});
+    if is_error(result) {
+        exc = (result as PyError).exception;
+        if exc.type_name == "StopIteration" {
+            payload = py_none();
+            if exc.value is not None {
+                payload = exc.value as PyObj;
+            }
+            return PyGenStop(t="genstop", val=payload);
+        }
+        return result;
+    }
+    return result;
+}
+
+# gen.close(): throw GeneratorExit in. Swallowing it (StopIteration or letting
+# GeneratorExit propagate) is a clean close; yielding again is a RuntimeError.
+def gen_close(gen: PyGenerator) -> PyObj {
+    if gen.finished or not gen.started {
+        gen.finished = True;
+        return py_none();
+    }
+    exit = PyException(t="exception", type_name="GeneratorExit", message="");
+    result = gen_throw(gen, exit);
+    gen.finished = True;
+    if result.t == "genstop" {
+        return py_none();
+    }
+    if is_error(result) {
+        if (result as PyError).exception.type_name == "GeneratorExit" {
+            return py_none();
+        }
+        return result;
+    }
+    return py_error("RuntimeError", "generator ignored GeneratorExit");
+}
+
+# Drive one step of a yield-from sub-iterator (SEND). Returns the yielded value,
+# a PyGenStop(return value) on exhaustion, or a propagating error.
+def send_into(receiver: PyObj, sent: PyObj) -> PyObj {
+    if receiver.t == "generator" {
+        return gen_resume(receiver as PyGenerator, sent);
+    }
+    if receiver.t == "iter" {
+        it = receiver as PyIter;
+        if sent.t != "none" {
+            return py_error("AttributeError", "send");
+        }
+        if it.index < len(it.items) {
+            item = it.items[it.index];
+            it.index = it.index + 1;
+            return item;
+        }
+        return PyGenStop(t="genstop", val=py_none());
+    }
+    # Any other iterator: drive it through its own send/__next__ surface.
+    method_name = "send";
+    if sent.t == "none" {
+        method_name = "__next__";
+    }
+    driver = py_attr(receiver, method_name);
+    if is_error(driver) {
+        return driver;
+    }
+    call_args: list[PyObj] = [];
+    if method_name == "send" {
+        call_args.append(sent);
+    }
+    result = py_invoke(driver, call_args, {});
+    if is_error(result) {
+        exc = (result as PyError).exception;
+        if exc.type_name == "StopIteration" {
+            payload = py_none();
+            if exc.value is not None {
+                payload = exc.value as PyObj;
+            }
+            return PyGenStop(t="genstop", val=payload);
+        }
+        return result;
+    }
+    return result;
 }
 
 # Drain a generator to exhaustion through the real suspend/resume machinery and
@@ -2249,6 +2520,20 @@ def run_frame(frame: PyFrame) -> PyObj {
             locals[co.names[arg]] = stack.pop();
             continue;
         }
+        if op == OP_DELETE_NAME {
+            del_name = co.names[arg];
+            if del_name in locals {
+                del locals[del_name];
+                continue;
+            }
+            deleted = py_error("NameError", "name '" + del_name + "' is not defined");
+            target = recover_exception(co, deleted, offset, stack);
+            if target >= 0 {
+                ip = target;
+                continue;
+            }
+            return deleted;
+        }
         if op == OP_LOAD_BUILD_CLASS {
             stack.append(PyBuildClass(t="build_class"));
             continue;
@@ -2437,6 +2722,94 @@ def run_frame(frame: PyFrame) -> PyObj {
             stack.append(iterable);
             continue;
         }
+        if op == OP_GET_YIELD_FROM_ITER {
+            # `yield from`: a generator (or coroutine) is already its own
+            # iterator and is left in place so send()/throw() reach it directly;
+            # anything else is turned into an iterator like GET_ITER.
+            top = stack[len(stack) - 1];
+            if top.t == "generator" {
+                continue;
+            }
+            iterable = py_iter(stack.pop());
+            if is_error(iterable) {
+                target = recover_exception(co, iterable, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return iterable;
+            }
+            stack.append(iterable);
+            continue;
+        }
+        if op == OP_SEND {
+            # yield-from step. Stack: [..., receiver, sent]. Drive the receiver
+            # one step; on a yield replace `sent` with the yielded value and fall
+            # through to YIELD_VALUE (re-suspending the outer generator); on
+            # exhaustion replace `sent` with the sub-iterator's return value and
+            # jump past the loop to END_SEND.
+            sent = stack[len(stack) - 1];
+            receiver = stack[len(stack) - 2];
+            if frame.pending_throw is not None {
+                thrown_err = frame.pending_throw as PyObj;
+                frame.pending_throw = None;
+                step = send_throw_into(receiver, thrown_err);
+            } else {
+                step = send_into(receiver, sent);
+            }
+            if is_error(step) {
+                target = recover_exception(co, step, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return step;
+            }
+            if step.t == "genstop" {
+                stack[len(stack) - 1] = (step as PyGenStop).val;
+                ip = ip + 2 * arg;
+            } else {
+                stack[len(stack) - 1] = step;
+            }
+            continue;
+        }
+        if op == OP_END_SEND {
+            # (receiver, value -- value): drop the exhausted sub-iterator, keep
+            # its return value as the yield-from expression result.
+            value = stack.pop();
+            stack.pop();
+            stack.append(value);
+            continue;
+        }
+        if op == OP_CLEANUP_THROW {
+            # Reached when an exception thrown into a yield-from lands here. Stack:
+            # [sub_iter, last_sent, exc]. A StopIteration means the sub-iterator
+            # finished handling the throw: unwind to (None, value) and loop to
+            # END_SEND. Any other exception re-raises out of the outer generator.
+            exc = stack.pop();
+            stack.pop();
+            stack.pop();
+            exc_name = "";
+            if exc.t == "exception" {
+                exc_name = (exc as PyException).type_name;
+            }
+            if exc_name == "StopIteration" {
+                payload = py_none();
+                if (exc as PyException).value is not None {
+                    payload = (exc as PyException).value as PyObj;
+                }
+                stack.append(py_none());
+                stack.append(payload);
+                continue;
+            }
+            reraised = py_raise_value(exc);
+            target = recover_exception(co, reraised, offset, stack);
+            if target >= 0 {
+                ip = target;
+                continue;
+            }
+            return reraised;
+        }
         if op == OP_FOR_ITER {
             top = stack[len(stack) - 1];
             if top.t == "generator" {
@@ -2546,7 +2919,9 @@ def run_frame(frame: PyFrame) -> PyObj {
             stop = stack.pop();
             start = stack.pop();
             container = stack.pop();
-            result = py_subscript(container, PySlice(t="slice", start=start, stop=stop, step=py_none()));
+            result = py_subscript(
+                container, PySlice(t="slice", start=start, stop=stop, step=py_none())
+            );
             if is_error(result) {
                 target = recover_exception(co, result, offset, stack);
                 if target >= 0 {
@@ -2561,10 +2936,14 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_BUILD_SLICE {
             # oparg is 2 (start:stop) or 3 (start:stop:step); operands on stack.
             slice_step: PyObj = py_none();
-            if arg == 3 { slice_step = stack.pop(); }
+            if arg == 3 {
+                slice_step = stack.pop();
+            }
             slice_stop = stack.pop();
             slice_start = stack.pop();
-            stack.append(PySlice(t="slice", start=slice_start, stop=slice_stop, step=slice_step));
+            stack.append(
+                PySlice(t="slice", start=slice_start, stop=slice_stop, step=slice_step)
+            );
             continue;
         }
         if op == OP_LOAD_ATTR {
@@ -2740,11 +3119,11 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_SWAP {
             # SWAP(i) exchanges TOS with the item i positions down (stack[-i],
             # index len-i). TOS itself is position 1.
-            top = len(stack) - 1;
-            other = len(stack) - arg;
-            temporary = stack[top];
-            stack[top] = stack[other];
-            stack[other] = temporary;
+            swap_top = len(stack) - 1;
+            swap_other = len(stack) - arg;
+            swapped: PyObj = stack[swap_top];
+            stack[swap_top] = stack[swap_other];
+            stack[swap_other] = swapped;
             continue;
         }
         if op == OP_RETURN_GENERATOR {
@@ -2756,8 +3135,11 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_YIELD_VALUE {
             # Suspend: pop the yielded value, freeze the resume point, and hand
             # the value up to gen_resume. run_frame re-enters here from ip.
+            # oparg 1 marks a yield-from delegation, so a later throw knows to
+            # route into the sub-iterator rather than inject at this point.
             value = stack.pop();
             frame.ip = ip;
+            frame.yf = arg == 1;
             return PyYield(t="yield", val=value);
         }
         if op == OP_TO_BOOL {
@@ -2811,16 +3193,26 @@ def run_frame(frame: PyFrame) -> PyObj {
                 continue;
             }
             if arg == 3 {
-                # INTRINSIC_STOPITERATION_ERROR: only reached when a generator is
-                # torn down early; surface it as a StopIteration.
-                target = recover_exception(
-                    co, py_error("StopIteration", ""), offset, stack
-                );
-                if target >= 0 {
-                    ip = target;
-                    continue;
+                # INTRINSIC_STOPITERATION_ERROR (PEP 479): the pending exception
+                # is on the stack. A StopIteration escaping a generator body is
+                # converted to RuntimeError; everything else passes through. The
+                # following RERAISE propagates whatever we push back.
+                exc_name = "";
+                if operand.t == "exception" {
+                    exc_name = (operand as PyException).type_name;
                 }
-                return py_error("StopIteration", "");
+                if exc_name == "StopIteration" or exc_name == "StopAsyncIteration" {
+                    stack.append(
+                        PyException(
+                            t="exception",
+                            type_name="RuntimeError",
+                            message="generator raised " + exc_name,
+                        )
+                    );
+                } else {
+                    stack.append(operand);
+                }
+                continue;
             }
             if arg == 5 {
                 # INTRINSIC_UNARY_POSITIVE
@@ -3019,4 +3411,158 @@ test "pyc-first: real CPython 3.14 marshal -> jacpython ceval" {
     function_co = unmarshal(host_compile_marshal(function_source));
     function_globals = exec_module(function_co);
     assert expect_int(function_globals["result"]) == 5;
+}
+
+test "pyc-first: DELETE_NAME unbinds a module global" {
+    deleted = run_source("x = 5\ndel x\nresult = 1\n");
+    assert expect_int(deleted["result"]) == 1;
+    assert not ("x" in deleted);
+}
+
+test "pyc-first: full generator functions (def + yield) drive natively" {
+    # A CO_GENERATOR-flagged def returns a generator on call; the body only runs
+    # on resume. Plain iteration (list/sum) drains through gen_drain.
+    simple = run_source(
+        "def g():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "    yield 3\n"
+        "result = list(g())\n"
+        "total = sum(g())\n"
+    );
+    assert expect_int(py_subscript(simple["result"], PyInt(t="int", val=0))) == 1;
+    assert expect_int(py_subscript(simple["result"], PyInt(t="int", val=2))) == 3;
+    assert expect_int(simple["total"]) == 6;
+}
+
+test "pyc-first: generator .send() round-trips values through the yield" {
+    # `v = yield total` binds the sent value; a just-started generator is primed
+    # with send(None). Each send resumes at the suspended yield.
+    accum = run_source(
+        "def accumulate():\n"
+        "    total = 0\n"
+        "    while True:\n"
+        "        v = yield total\n"
+        "        total = total + v\n"
+        "gen = accumulate()\n"
+        "first = gen.send(None)\n"
+        "a = gen.send(10)\n"
+        "b = gen.send(5)\n"
+    );
+    assert expect_int(accum["first"]) == 0;
+    assert expect_int(accum["a"]) == 10;
+    assert expect_int(accum["b"]) == 15;
+}
+
+test "pyc-first: next() drives one step and honors a StopIteration default" {
+    stepped = run_source(
+        "def two():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "gen = two()\n"
+        "a = next(gen)\n"
+        "b = next(gen)\n"
+        "c = next(gen, 99)\n"
+    );
+    assert expect_int(stepped["a"]) == 1;
+    assert expect_int(stepped["b"]) == 2;
+    assert expect_int(stepped["c"]) == 99;
+}
+
+test "pyc-first: yield from delegates and captures the sub-generator return" {
+    # SEND / END_SEND / GET_YIELD_FROM_ITER: `yield from inner()` re-yields each
+    # of inner's values and binds inner's `return` as the yield-from result.
+    delegated = run_source(
+        "def inner():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "    return 3\n"
+        "def outer():\n"
+        "    r = yield from inner()\n"
+        "    yield r\n"
+        "result = list(outer())\n"
+    );
+    assert expect_int(py_subscript(delegated["result"], PyInt(t="int", val=0))) == 1;
+    assert expect_int(py_subscript(delegated["result"], PyInt(t="int", val=1))) == 2;
+    assert expect_int(py_subscript(delegated["result"], PyInt(t="int", val=2))) == 3;
+}
+
+test "pyc-first: yield from a plain (native) iterable re-yields its items" {
+    delegated = run_source(
+        "def outer():\n" "    yield from [10, 20, 30]\n" "result = list(outer())\n"
+    );
+    assert expect_int(py_subscript(delegated["result"], PyInt(t="int", val=0))) == 10;
+    assert expect_int(py_subscript(delegated["result"], PyInt(t="int", val=2))) == 30;
+}
+
+test "pyc-first: gen.throw() raises at the suspend point for the body to catch" {
+    caught = run_source(
+        "def catcher():\n"
+        "    try:\n"
+        "        yield 1\n"
+        "    except ValueError:\n"
+        "        yield 2\n"
+        "    yield 3\n"
+        "gen = catcher()\n"
+        "a = next(gen)\n"
+        "b = gen.throw(ValueError)\n"
+        "c = next(gen)\n"
+    );
+    assert expect_int(caught["a"]) == 1;
+    assert expect_int(caught["b"]) == 2;
+    assert expect_int(caught["c"]) == 3;
+}
+
+test "pyc-first: send() and throw() thread through yield from into the sub" {
+    # Values sent into the delegating generator reach the sub-generator's yields,
+    # and its return becomes the yield-from result.
+    threaded = run_source(
+        "def inner():\n"
+        "    a = yield 1\n"
+        "    b = yield a + 1\n"
+        "    return b\n"
+        "def outer():\n"
+        "    r = yield from inner()\n"
+        "    yield r\n"
+        "gen = outer()\n"
+        "x = next(gen)\n"
+        "y = gen.send(10)\n"
+        "z = gen.send(20)\n"
+    );
+    assert expect_int(threaded["x"]) == 1;
+    assert expect_int(threaded["y"]) == 11;
+    assert expect_int(threaded["z"]) == 20;
+
+    # A throw is delegated into the sub-generator, which catches it.
+    caught = run_source(
+        "def inner():\n"
+        "    try:\n"
+        "        yield 1\n"
+        "    except ValueError:\n"
+        "        yield 2\n"
+        "    yield 3\n"
+        "def outer():\n"
+        "    yield from inner()\n"
+        "gen = outer()\n"
+        "a = next(gen)\n"
+        "b = gen.throw(ValueError)\n"
+        "c = next(gen)\n"
+    );
+    assert expect_int(caught["a"]) == 1;
+    assert expect_int(caught["b"]) == 2;
+    assert expect_int(caught["c"]) == 3;
+}
+
+test "pyc-first: gen.close() finalizes; further next() reports exhaustion" {
+    closed = run_source(
+        "def g():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "gen = g()\n"
+        "a = next(gen)\n"
+        "gen.close()\n"
+        "c = next(gen, -1)\n"
+    );
+    assert expect_int(closed["a"]) == 1;
+    assert expect_int(closed["c"]) == -1;
 }
