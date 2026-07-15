@@ -702,6 +702,8 @@ import from objects {
     int_values,
     expect_int,
     expect_str,
+    expect_float,
+    expect_bool,
     list_value,
     concat_items,
     find_name,
@@ -3455,6 +3457,59 @@ test "pyc-first: augmented assignment (NB_INPLACE_* binops) matches base ops" {
     assert expect_int(ops["i"]) == 4;
     assert expect_int(ops["j"]) == 16;
     assert expect_str(ops["k"]) == "abcd";
+}
+
+test "pyc-first: PyFloat nb_binop/tp_richcompare drive natively" {
+    # Arithmetic promotes int/bool operands to float and routes through the
+    # native PyFloat.nb_binop slot (not the host fallback).
+    ops = run_source(
+        "add = 1.5 + 2\n"
+        "sub = 5.0 - 1.5\n"
+        "mul = 2.5 * 4\n"
+        "div = 7.0 / 2\n"
+        "flr = 7.5 // 2.0\n"
+        "mod = 7.5 % 2.0\n"
+        "pw = 2.0 ** 3\n"
+        "mixed = 1.5 + True\n"
+    );
+    assert expect_float(ops["add"]) == 3.5;
+    assert expect_float(ops["sub"]) == 3.5;
+    assert expect_float(ops["mul"]) == 10.0;
+    assert expect_float(ops["div"]) == 3.5;
+    assert expect_float(ops["flr"]) == 3.0;
+    assert expect_float(ops["mod"]) == 1.5;
+    assert expect_float(ops["pw"]) == 8.0;
+    assert expect_float(ops["mixed"]) == 2.5;
+
+    # Ordered comparisons -- previously the tag-comparing default gave wrong
+    # answers for float-on-left.
+    cmps = run_source(
+        "lt = 1.5 < 2.5\n"
+        "gt = 1.5 > 2.5\n"
+        "eq = 2.5 == 2.5\n"
+        "le = 2.0 <= 2\n"
+        "mixed_eq = 3.0 == 3\n"
+    );
+    assert expect_bool(cmps["lt"]) == True;
+    assert expect_bool(cmps["gt"]) == False;
+    assert expect_bool(cmps["eq"]) == True;
+    assert expect_bool(cmps["le"]) == True;
+    assert expect_bool(cmps["mixed_eq"]) == True;
+
+    # NaN: every comparison but != is False; != is True.
+    nans = run_source(
+        "n = float('nan')\n"
+        "self_eq = n == n\n"
+        "self_ne = n != n\n"
+        "self_lt = n < n\n"
+    );
+    assert expect_bool(nans["self_eq"]) == False;
+    assert expect_bool(nans["self_ne"]) == True;
+    assert expect_bool(nans["self_lt"]) == False;
+
+    # Division by zero raises rather than falling through to host.
+    zdiv = PyFloat(t="float", val=1.0).nb_binop(11, PyFloat(t="float", val=0.0));
+    assert is_error(zdiv);
 }
 
 test "pyc-first: DELETE_NAME unbinds a module global" {

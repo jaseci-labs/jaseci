@@ -267,6 +267,100 @@ obj PyBytes(PyObj) {
 
 obj PyFloat(PyObj) {
     has val: float;
+    # Numeric coercion: float ops accept int/bool operands and promote to float
+    # (CPython nb_float coercion). Returns True in the first slot iff `other` is a
+    # numeric the float protocol can absorb; the coerced value lands in `out`.
+    def _coerce(other: PyObj) -> tuple[bool, float] {
+        if other.t == "float" {
+            return (True, (other as PyFloat).val);
+        }
+        if other.t == "int" {
+            return (True, float((other as PyInt).val));
+        }
+        if other.t == "bool" {
+            if (other as PyBool).val {
+                return (True, 1.0);
+            }
+            return (True, 0.0);
+        }
+        return (False, 0.0);
+    }
+
+    def nb_binop(kind: int, other: PyObj) -> PyObj {
+        (ok, b) = self._coerce(other);
+        if not ok {
+            return py_error("TypeError", "unsupported operand types");
+        }
+        a = self.val;
+        if kind == 0 {
+            return PyFloat(t="float", val=a + b);
+        }
+        if kind == 5 {
+            return PyFloat(t="float", val=a * b);
+        }
+        if kind == 10 {
+            return PyFloat(t="float", val=a - b);
+        }
+        if kind == 11 {
+            if b == 0.0 {
+                return py_error("ZeroDivisionError", "float division by zero");
+            }
+            return PyFloat(t="float", val=a / b);
+        }
+        if kind == 6 {
+            if b == 0.0 {
+                return py_error("ZeroDivisionError", "float modulo");
+            }
+            return PyFloat(t="float", val=a % b);
+        }
+        if kind == 2 {
+            if b == 0.0 {
+                return py_error(
+                    "ZeroDivisionError", "float floor division by zero"
+                );
+            }
+            return PyFloat(t="float", val=a // b);
+        }
+        if kind == 8 {
+            return PyFloat(t="float", val=a ** b);
+        }
+        return py_error("TypeError", "unsupported operand types");
+    }
+
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        (ok, b) = self._coerce(other);
+        if not ok {
+            if kind == 2 {
+                return PyBool(t="bool", val=False);
+            }
+            if kind == 3 {
+                return PyBool(t="bool", val=True);
+            }
+            return PyBool(t="bool", val=False);
+        }
+        a = self.val;
+        # NaN comparisons: every operator but != is False, != is True. The
+        # underlying float operators already encode this, so no special-casing.
+        if kind == 0 {
+            return PyBool(t="bool", val=a < b);
+        }
+        if kind == 1 {
+            return PyBool(t="bool", val=a <= b);
+        }
+        if kind == 2 {
+            return PyBool(t="bool", val=a == b);
+        }
+        if kind == 3 {
+            return PyBool(t="bool", val=a != b);
+        }
+        if kind == 4 {
+            return PyBool(t="bool", val=a > b);
+        }
+        if kind == 5 {
+            return PyBool(t="bool", val=a >= b);
+        }
+        return PyBool(t="bool", val=False);
+    }
 
     def tp_bool -> bool {
         return self.val != 0.0;
@@ -553,6 +647,20 @@ def expect_str(o: PyObj) -> str {
         return (o as PyStr).val;
     }
     return "";
+}
+
+def expect_float(o: PyObj) -> float {
+    if isinstance(o, PyFloat) {
+        return (o as PyFloat).val;
+    }
+    return 0.0;
+}
+
+def expect_bool(o: PyObj) -> bool {
+    if isinstance(o, PyBool) {
+        return (o as PyBool).val;
+    }
+    return False;
 }
 
 def list_value(o: PyObj) -> list[PyObj] {
