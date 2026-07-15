@@ -119,6 +119,7 @@ obj PyStr(PyObj) {
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
+        if isinstance(index, PySlice) { return PyStr(t="str", val=_slice_str(self.val, index as PySlice)); }
         if index.t != "int" { return py_error("TypeError", "index must be an integer"); }
         i = (index as PyInt).val;
         text = self.val;
@@ -140,6 +141,7 @@ obj PyBytes(PyObj) {
     has val: list[int];
 
     def mp_subscript(index: PyObj) -> PyObj {
+        if isinstance(index, PySlice) { return PyBytes(t="bytes", val=_slice_ints(self.val, index as PySlice)); }
         if index.t != "int" { return py_error("TypeError", "index must be an integer"); }
         i = (index as PyInt).val;
         vals = self.val;
@@ -182,6 +184,12 @@ obj PyComplex(PyObj) {
     has imag: float;
 }
 
+obj PySlice(PyObj) {
+    has start: PyObj;
+    has stop: PyObj;
+    has step: PyObj;
+}
+
 obj PyTuple(PyObj) {
     has items: list[PyObj];
 
@@ -193,6 +201,7 @@ obj PyTuple(PyObj) {
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
+        if isinstance(index, PySlice) { return PyTuple(t="tuple", items=_slice_objs(self.items, index as PySlice)); }
         if index.t != "int" { return py_error("TypeError", "index must be an integer"); }
         i = (index as PyInt).val;
         if i < 0 { i = len(self.items) + i; }
@@ -216,6 +225,7 @@ obj PyList(PyObj) {
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
+        if isinstance(index, PySlice) { return PyList(t="list", items=_slice_objs(self.items, index as PySlice)); }
         if index.t != "int" { return py_error("TypeError", "index must be an integer"); }
         i = (index as PyInt).val;
         if i < 0 { i = len(self.items) + i; }
@@ -395,6 +405,66 @@ def py_exception_type(name: str) -> PyObj {
 }
 
 def is_error(value: PyObj) -> bool { return value.t == "error"; }
+
+# ---------------- slicing (CPython PySlice_AdjustIndices) ----------------
+
+def _adjust_index(i: int, length: int, neg: bool) -> int {
+    if i < 0 {
+        i = i + length;
+        if i < 0 { if neg { i = -1; } else { i = 0; } }
+    } elif i >= length {
+        if neg { i = length - 1; } else { i = length; }
+    }
+    return i;
+}
+
+# Resolve a PySlice against a sequence of `length` into concrete
+# [start, stop, step], applying CPython's negative-index and clamping rules.
+def slice_indices(sl: PySlice, length: int) -> list[int] {
+    step = 1;
+    if not isinstance(sl.step, PyNoneType) { step = expect_int(sl.step); }
+    neg = step < 0;
+    start = 0;
+    if isinstance(sl.start, PyNoneType) {
+        if neg { start = length - 1; } else { start = 0; }
+    } else {
+        start = _adjust_index(expect_int(sl.start), length, neg);
+    }
+    stop = 0;
+    if isinstance(sl.stop, PyNoneType) {
+        if neg { stop = -1; } else { stop = length; }
+    } else {
+        stop = _adjust_index(expect_int(sl.stop), length, neg);
+    }
+    return [start, stop, step];
+}
+
+def _slice_objs(items: list[PyObj], sl: PySlice) -> list[PyObj] {
+    b = slice_indices(sl, len(items));
+    i = b[0]; stop = b[1]; step = b[2];
+    out: list[PyObj] = [];
+    if step > 0 { while i < stop { out.append(items[i]); i = i + step; } }
+    else { while i > stop { out.append(items[i]); i = i + step; } }
+    return out;
+}
+
+def _slice_ints(vals: list[int], sl: PySlice) -> list[int] {
+    b = slice_indices(sl, len(vals));
+    i = b[0]; stop = b[1]; step = b[2];
+    out: list[int] = [];
+    if step > 0 { while i < stop { out.append(vals[i]); i = i + step; } }
+    else { while i > stop { out.append(vals[i]); i = i + step; } }
+    return out;
+}
+
+def _slice_str(s: str, sl: PySlice) -> str {
+    b = slice_indices(sl, len(s));
+    i = b[0]; stop = b[1]; step = b[2];
+    out = "";
+    if step > 0 { while i < stop { out = out + s[i]; i = i + step; } }
+    else { while i > stop { out = out + s[i]; i = i + step; } }
+    return out;
+}
 
 # ---------------- str %-format (CPython PyUnicode_Format subset) ----------------
 # na-clean: integer bases are built from digit tables (no host str()/hex()); the

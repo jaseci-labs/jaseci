@@ -228,3 +228,20 @@ test "layer0: int/bool .real/.imag (Gap #3) replay against the host" {
     assert replay_expr("False.real") == True;
     assert replay_expr("False.imag") == True;
 }
+
+test "layer0: memoryview + slicing (Gap #4) replay against the host" {
+    # memoryview host proxy + constant-slice subscript (BINARY_OP []) + int().
+    assert replay_expr("int(memoryview(b'123')[1:3])") == True;
+    assert replay_expr("int(memoryview(b'1234')[1:3])") == True;
+    assert replay_expr("bytes(memoryview(b'abcdef')[2:4])") == True;
+    # native-container slicing across the three slice opcodes (LOAD_CONST slice,
+    # BINARY_SLICE, BUILD_SLICE) and negative index/step.
+    assert replay_expr("'abcdef'[1:4]") == True;
+    assert replay_expr("'abcdef'[::-1]") == True;
+    assert replay_expr("'abcdef'[-2:]") == True;
+    assert replay_expr("[1, 2, 3, 4, 5][1:3]") == True;
+    assert replay_expr("[1, 2, 3, 4, 5][::-1]") == True;
+    assert replay_expr("(1, 2, 3, 4, 5)[1:4]") == True;
+    assert replay_expr("b'abcdef'[2:4]") == True;
+    assert replay_expr("list(range(10))[2:5]") == True;
+}

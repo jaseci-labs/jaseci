@@ -50,6 +50,12 @@ def _jac_host_call(fn, args, kwargs):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_host_getitem(value, index):
+    try:
+        return (True, value[index])
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
 def _jac_host_builtin(name):
     import builtins
     try:
@@ -620,6 +626,7 @@ import from objects {
     PyBool,
     PyNoneType,
     PyComplex,
+    PySlice,
     PyTuple,
     PyList,
     PyCode,
@@ -663,6 +670,10 @@ obj PyHostProxy(PyObj) {
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         return py_call_host(self, args, kwargs);
+    }
+
+    def mp_subscript(index: PyObj) -> PyObj {
+        return host_getitem(self, index);
     }
 }
 
@@ -864,6 +875,9 @@ def to_host(value: PyObj) -> any {
             }
             return result;
 
+        case PySlice():
+            return slice(to_host(value.start), to_host(value.stop), to_host(value.step));
+
         case PyHostProxy():
             return value.val;
 
@@ -901,6 +915,14 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
 
 def host_getattr(value: PyObj, name: str) -> PyObj {
     result = _jac_host_getattr(to_host(value), name);
+    if host_result_ok(result) {
+        return from_host(result[1]);
+    }
+    return py_error(str(result[1]), str(result[2]));
+}
+
+def host_getitem(value: PyObj, index: PyObj) -> PyObj {
+    result = _jac_host_getitem(to_host(value), to_host(index));
     if host_result_ok(result) {
         return from_host(result[1]);
     }
@@ -1093,9 +1115,19 @@ obj Reader {
             return self.read_code();
         } elif type == 114 {
             return self.refs[self.r_long()];
+        } elif type == 58 {
+            return self.read_slice();
         } else {
             return py_none();
         }
+    }
+
+    # TYPE_SLICE (':' == 58): three marshaled objects -- start, stop, step.
+    def read_slice -> PyObj {
+        start = self.r_object();
+        stop = self.r_object();
+        step = self.r_object();
+        return PySlice(t="slice", start=start, stop=stop, step=step);
     }
 
     # CPython 3.14 big-int: n = r_long (signed count); digit_size=2 layout ->
@@ -1311,6 +1343,8 @@ glob OP_CACHE: int = 0,
      OP_PUSH_EXC_INFO: int = 32,
      OP_PUSH_NULL: int = 33,
      OP_RETURN_VALUE: int = 35,
+     OP_BINARY_SLICE: int = 1,
+     OP_BUILD_SLICE: int = 49,
      OP_STORE_SUBSCR: int = 38,
      OP_UNARY_NOT: int = 42,
      OP_BINARY_OP: int = 44,
@@ -2049,6 +2083,32 @@ def exec_code_frame(
                 return result;
             }
             stack.append(result);
+            continue;
+        }
+        if op == OP_BINARY_SLICE {
+            # container[start:stop] -- step is always None for this opcode.
+            stop = stack.pop();
+            start = stack.pop();
+            container = stack.pop();
+            result = py_subscript(container, PySlice(t="slice", start=start, stop=stop, step=py_none()));
+            if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return result;
+            }
+            stack.append(result);
+            continue;
+        }
+        if op == OP_BUILD_SLICE {
+            # oparg is 2 (start:stop) or 3 (start:stop:step); operands on stack.
+            slice_step: PyObj = py_none();
+            if arg == 3 { slice_step = stack.pop(); }
+            slice_stop = stack.pop();
+            slice_start = stack.pop();
+            stack.append(PySlice(t="slice", start=slice_start, stop=slice_stop, step=slice_step));
             continue;
         }
         if op == OP_LOAD_ATTR {
