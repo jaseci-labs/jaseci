@@ -13,7 +13,7 @@
 # test_list asserts are self-contained literal expressions, so coverage from
 # this leg alone is substantial. Fixture-dependent asserts (self.value, setUp
 # state) are detected on the host and skipped -- later layers pick them up.
-import from objects { PyObj }
+import from objects { PyObj, PyError, is_error }
 import from pyc_first { unmarshal, exec_code, exec_module, to_host }
 
 ::py::
@@ -120,6 +120,32 @@ def _l1_harvest_methods(source):
                     break
                 checks.append((stmt.value.func.attr, args))
                 continue
+            # A `with self.assertRaises(E): body` raises-check. Stored as
+            # ("assertRaises", [exc_src, body_src]); body_src is a dedented
+            # statement block whose execution must raise a matching exception.
+            if (
+                isinstance(stmt, ast.With)
+                and len(stmt.items) == 1
+                and isinstance(stmt.items[0].context_expr, ast.Call)
+                and isinstance(stmt.items[0].context_expr.func, ast.Attribute)
+                and isinstance(stmt.items[0].context_expr.func.value, ast.Name)
+                and stmt.items[0].context_expr.func.value.id == "self"
+                and stmt.items[0].context_expr.func.attr == "assertRaises"
+                and len(stmt.items[0].context_expr.args) >= 1
+            ):
+                exc_src = ast.get_source_segment(
+                    source, stmt.items[0].context_expr.args[0]
+                )
+                body_segs = [ast.get_source_segment(source, s) for s in stmt.body]
+                if exc_src is None or any(s is None for s in body_segs) or any(
+                    isinstance(n, ast.Name) and n.id == "self"
+                    for s in stmt.body for n in ast.walk(s)
+                ):
+                    ok = False
+                    break
+                checks.append(("assertRaises", [exc_src, textwrap.dedent(
+                    "\n".join(body_segs))]))
+                continue
             # A bare docstring/expression constant is inert setup.
             if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
                 continue
@@ -152,14 +178,36 @@ def _l1_host_eval_in(ns, expr_src):
     return eval(compile(expr_src, "<layer1>", "eval"), ns)
 
 
+def _l1_host_raises(ns, body_src):
+    """Execute a statement block; return the raised exception's type name, or
+    None if it completed without raising."""
+    try:
+        exec(compile(body_src, "<layer1>", "exec"), ns)
+        return None
+    except BaseException as e:
+        return type(e).__name__
+
+
+def _l1_raise_match(jac_name, host_name):
+    """Conformance for a raises-check: jacpython must raise the same concrete
+    exception type CPython did (both non-empty and equal)."""
+    return bool(host_name is not None and jac_name != "" and jac_name == host_name)
+
+
 def _l1_host_replayable(setup_src, checks):
     """True iff the method runs end-to-end on the HOST with no fixture state --
-    setup execs and every assert argument evaluates. Filters out methods that
-    need imports/state we don't carry, so they're honestly counted as skipped
-    rather than charged against jacpython as failures."""
+    setup execs, every assert argument evaluates, and every raises-check body
+    actually raises its expected type. Filters out methods that need imports/
+    state we don't carry, so they're honestly counted as skipped rather than
+    charged against jacpython as failures."""
     try:
         ns = _l1_host_setup(setup_src)
-        for _name, args in checks:
+        for name, args in checks:
+            if name == "assertRaises":
+                _l1_host_eval_in(ns, args[0])  # expected-exc name must resolve
+                if _l1_host_raises(ns, args[1]) is None:
+                    return False
+                continue
             for arg_src in args:
                 _l1_host_eval_in(ns, arg_src)
         return True
@@ -259,6 +307,18 @@ def layer1_eval_in(ns: dict[str, PyObj], expr_src: str) -> PyObj {
     return exec_code(unmarshal(_l0_compile_eval(expr_src) as list[int]), [], ns);
 }
 
+# Execute a statement block (exec-mode) against a jacpython namespace and report
+# the type name of a raised exception, or "" if it completed without raising --
+# the jac side of an assertRaises check. run_frame surfaces an uncaught raise as
+# its return value, so an error result IS jacpython's raise.
+def _l1_jac_raise_name(ns: dict[str, PyObj], body_src: str) -> str {
+    outcome = exec_code(unmarshal(_l1_compile_setup(body_src) as list[int]), [], ns);
+    if is_error(outcome) {
+        return (outcome as PyError).exception.type_name;
+    }
+    return "";
+}
+
 # Replay one harvested method: build the jacpython and host namespaces once, then
 # evaluate every assert argument against both in source order (so shared
 # generator state advances identically) and diff each. Returns 1 (all match),
@@ -268,6 +328,16 @@ def _l1_replay_method(setup_src: str, checks: any) -> int {
         ns_jac = layer1_run_setup(setup_src);
         ns_host = _l1_host_setup(setup_src);
         for chk in checks {
+            if (chk[0] as str) == "assertRaises" {
+                # jacpython and CPython must raise the same exception type when
+                # the check body runs against the shared namespace.
+                jac_name = _l1_jac_raise_name(ns_jac, chk[1][1] as str);
+                host_name = _l1_host_raises(ns_host, chk[1][1]);
+                if not (_l1_raise_match(jac_name, host_name) as bool) {
+                    return 0;
+                }
+                continue;
+            }
             for arg_src in chk[1] {
                 jac_got: PyObj = layer1_eval_in(ns_jac, arg_src as str);
                 host_exp = _l1_host_eval_in(ns_host, arg_src);
@@ -576,12 +646,26 @@ test "layer1: generator functions replay through the exec-mode method harness" {
     "            r = yield from inner()\n"
     "            yield r\n"
     "        self.assertEqual(list(outer()), [1, 2, 3])\n"
+    "    def test_exhaustion_raises(self):\n"
+    "        def g():\n"
+    "            yield 1\n"
+    "        it = g()\n"
+    "        self.assertEqual(next(it), 1)\n"
+    "        with self.assertRaises(StopIteration):\n"
+    "            next(it)\n"
+    "    def test_send_non_none_to_new_gen(self):\n"
+    "        def g():\n"
+    "            yield 1\n"
+    "        it = g()\n"
+    "        with self.assertRaises(TypeError):\n"
+    "            it.send(0)\n"
     "    def test_uses_fixture(self):\n"
     "        self.assertEqual(self.value, 5)\n";
     result = layer1_replay_source(src);
-    # Four self-contained generator methods replay clean; the fixture-dependent
-    # method (self.value) fails the host self-containment probe and is skipped.
-    assert result.passed == 4;
+    # Six self-contained generator methods replay clean (four value-diff, two
+    # assertRaises); the fixture-dependent method (self.value) fails the host
+    # self-containment probe and is skipped.
+    assert result.passed == 6;
     assert result.skipped == 1;
     assert result.failed == 0;
     assert result.errored == 0;
