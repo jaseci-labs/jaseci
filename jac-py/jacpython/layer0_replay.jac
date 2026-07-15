@@ -217,3 +217,14 @@ test "layer0: LOAD_SMALL_INT decodes 128..255 as non-negative" {
     assert replay_expr("200 + 55") == True;
     assert replay_expr("255 % 16") == True;
 }
+
+test "layer0: int/bool .real/.imag (Gap #3) replay against the host" {
+    assert replay_expr("(5).real") == True;
+    assert replay_expr("(5).imag") == True;
+    assert replay_expr("(7).numerator") == True;
+    assert replay_expr("(7).denominator") == True;
+    assert replay_expr("True.real") == True;
+    assert replay_expr("True.imag") == True;
+    assert replay_expr("False.real") == True;
+    assert replay_expr("False.imag") == True;
+}

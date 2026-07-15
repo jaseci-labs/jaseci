@@ -83,6 +83,14 @@ obj PyInt(PyObj) {
     }
 
     def tp_bool() -> bool { return self.val != 0; }
+
+    # int is its own real part / numerator; imag is 0, denominator is 1.
+    def tp_getattro(name: str) -> PyObj {
+        if name == "real" or name == "numerator" { return PyInt(t="int", val=self.val); }
+        if name == "imag" { return PyInt(t="int", val=0); }
+        if name == "denominator" { return PyInt(t="int", val=1); }
+        return py_error("AttributeError", name);
+    }
 }
 
 obj PyStr(PyObj) {
@@ -153,6 +161,16 @@ obj PyBool(PyObj) {
     has val: bool;
 
     def tp_bool() -> bool { return self.val; }
+
+    # bool is an int subclass: real/numerator are int 0 or 1 (not bool), imag 0.
+    def tp_getattro(name: str) -> PyObj {
+        v = 0;
+        if self.val { v = 1; }
+        if name == "real" or name == "numerator" { return PyInt(t="int", val=v); }
+        if name == "imag" { return PyInt(t="int", val=0); }
+        if name == "denominator" { return PyInt(t="int", val=1); }
+        return py_error("AttributeError", name);
+    }
 }
 
 obj PyNoneType(PyObj) {
