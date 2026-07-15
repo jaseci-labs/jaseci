@@ -982,7 +982,11 @@ def host_builtin(name: str) -> PyObj {
     or name == "AttributeError"
     or name == "NameError"
     or name == "ZeroDivisionError"
-    or name == "ImportError" {
+    or name == "ImportError"
+    or name == "StopIteration"
+    or name == "StopAsyncIteration"
+    or name == "GeneratorExit"
+    or name == "RuntimeError" {
         return py_exception_type(name);
     }
     # next()/iter() are handled natively so a native generator or iterator is
@@ -1625,6 +1629,12 @@ def _host_representable(t: str) -> bool {
 }
 
 def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
+    # NB_INPLACE_* (13..25) reduce to their base binop (0..12). jacpython values
+    # are immutable at this layer, so `x += y` is `x = x + y` -- the trailing
+    # STORE rebinds the name, matching CPython's immutable-type fallback.
+    if kind >= 13 and kind <= 25 {
+        kind = kind - 13;
+    }
     result = lhs.nb_binop(kind, rhs);
     if is_error(result) and _host_representable(lhs.t) and _host_representable(rhs.t) {
         return host_binop(kind, lhs, rhs);
@@ -2161,7 +2171,9 @@ def gen_close(gen: PyGenerator) -> PyObj {
     result = gen_throw(gen, exit);
     gen.finished = True;
     if result.t == "genstop" {
-        return py_none();
+        # The generator caught GeneratorExit and returned; close() surfaces that
+        # return value (None if it just fell off the end). (CPython 3.13+.)
+        return (result as PyGenStop).val;
     }
     if is_error(result) {
         if (result as PyError).exception.type_name == "GeneratorExit" {
@@ -3413,6 +3425,35 @@ test "pyc-first: real CPython 3.14 marshal -> jacpython ceval" {
     assert expect_int(function_globals["result"]) == 5;
 }
 
+test "pyc-first: augmented assignment (NB_INPLACE_* binops) matches base ops" {
+    # BINARY_OP opargs 13..25 are the in-place operators; jacpython folds them to
+    # their base binop (x += y == x = x + y) since these values are immutable.
+    ops = run_source(
+        "a = 10\na += 5\n"
+        "b = 10\nb -= 3\n"
+        "c = 4\nc *= 3\n"
+        "d = 17\nd %= 5\n"
+        "e = 20\ne //= 6\n"
+        "f = 2\nf **= 5\n"
+        "g = 6\ng &= 3\n"
+        "h = 5\nh |= 2\n"
+        "i = 5\ni ^= 1\n"
+        "j = 1\nj <<= 4\n"
+        "k = 'ab'\nk += 'cd'\n"
+    );
+    assert expect_int(ops["a"]) == 15;
+    assert expect_int(ops["b"]) == 7;
+    assert expect_int(ops["c"]) == 12;
+    assert expect_int(ops["d"]) == 2;
+    assert expect_int(ops["e"]) == 3;
+    assert expect_int(ops["f"]) == 32;
+    assert expect_int(ops["g"]) == 2;
+    assert expect_int(ops["h"]) == 7;
+    assert expect_int(ops["i"]) == 4;
+    assert expect_int(ops["j"]) == 16;
+    assert expect_str(ops["k"]) == "abcd";
+}
+
 test "pyc-first: DELETE_NAME unbinds a module global" {
     deleted = run_source("x = 5\ndel x\nresult = 1\n");
     assert expect_int(deleted["result"]) == 1;
@@ -3565,4 +3606,20 @@ test "pyc-first: gen.close() finalizes; further next() reports exhaustion" {
     );
     assert expect_int(closed["a"]) == 1;
     assert expect_int(closed["c"]) == -1;
+
+    # A generator that catches GeneratorExit and returns a value: close()
+    # surfaces that value (CPython 3.13+), and a second close() returns None.
+    returning = run_source(
+        "def f():\n"
+        "    try:\n"
+        "        yield\n"
+        "    except GeneratorExit:\n"
+        "        return 7\n"
+        "gen = f()\n"
+        "gen.send(None)\n"
+        "first = gen.close()\n"
+        "second = gen.close()\n"
+    );
+    assert expect_int(returning["first"]) == 7;
+    assert returning["second"].t == "none";
 }

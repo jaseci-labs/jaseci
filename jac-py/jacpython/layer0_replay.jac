@@ -14,7 +14,7 @@
 # this leg alone is substantial. Fixture-dependent asserts (self.value, setUp
 # state) are detected on the host and skipped -- later layers pick them up.
 import from objects { PyObj }
-import from pyc_first { unmarshal, exec_code, to_host }
+import from pyc_first { unmarshal, exec_code, exec_module, to_host }
 
 ::py::
 import ast
@@ -66,7 +66,111 @@ def _l0_host_equal(a, b):
         return bool(a == b)
     except BaseException:
         return False
+
+
+# ---- Layer 1: statement-shaped (exec-mode) replay --------------------------
+# Layer 0 replays self-contained *expressions*. Layer 1 lifts that to whole test
+# *methods*: run a method's self-contained setup statements (a generator def, a
+# few binds) in BOTH host CPython and jacpython, then evaluate each `self.assert*`
+# argument against that shared, stateful namespace on both sides and diff. This
+# is what exercises generator FUNCTIONS (def+yield, .send/.throw/.close, yield
+# from) -- none of which fit Layer 0's single-expression eval -- against the real
+# corpus, and threads generator state across a method's asserts exactly as
+# CPython does when it runs the method once.
+_L1_CHECKS = {
+    "assertEqual", "assertNotEqual", "assertTrue", "assertFalse",
+    "assertIs", "assertIsNot", "assertIsNone", "assertIsNotNone",
+    "assertGreater", "assertLess", "assertGreaterEqual", "assertLessEqual",
+}
+
+
+def _l1_harvest_methods(source):
+    """Split each `test_*` method into (name, setup_src, checks).
+
+    setup_src is the dedented block of the method's non-assert statements;
+    checks is a list of (assert_name, [arg_src, ...]). A method is dropped here
+    (never reported) if any setup statement touches `self` (fixture state this
+    layer can't reproduce) or the body uses constructs this layer doesn't model
+    (with/try/assertRaises); those are counted as skipped by the caller when the
+    host self-containment probe also declines them.
+    """
+    out = []
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return out
+    import textwrap
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.FunctionDef) and node.name.startswith("test")):
+            continue
+        setup_stmts, checks, ok = [], [], True
+        for stmt in node.body:
+            # A `self.assertX(...)` check statement.
+            if (
+                isinstance(stmt, ast.Expr)
+                and isinstance(stmt.value, ast.Call)
+                and isinstance(stmt.value.func, ast.Attribute)
+                and isinstance(stmt.value.func.value, ast.Name)
+                and stmt.value.func.value.id == "self"
+                and stmt.value.func.attr in _L1_CHECKS
+            ):
+                args = [ast.get_source_segment(source, a) for a in stmt.value.args]
+                if any(a is None for a in args):
+                    ok = False
+                    break
+                checks.append((stmt.value.func.attr, args))
+                continue
+            # A bare docstring/expression constant is inert setup.
+            if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
+                continue
+            # Anything referencing `self` (or an unharvestable segment) is out.
+            if any(
+                isinstance(n, ast.Name) and n.id == "self" for n in ast.walk(stmt)
+            ):
+                ok = False
+                break
+            seg = ast.get_source_segment(source, stmt)
+            if seg is None:
+                ok = False
+                break
+            setup_stmts.append(seg)
+        if not ok or not checks:
+            continue
+        setup_src = textwrap.dedent("\n".join(setup_stmts)) if setup_stmts else ""
+        out.append((node.name, setup_src, checks))
+    return out
+
+
+def _l1_host_setup(setup_src):
+    ns = {"__name__": "__main__", "__builtins__": __builtins__}
+    if setup_src:
+        exec(compile(setup_src, "<layer1>", "exec"), ns)
+    return ns
+
+
+def _l1_host_eval_in(ns, expr_src):
+    return eval(compile(expr_src, "<layer1>", "eval"), ns)
+
+
+def _l1_host_replayable(setup_src, checks):
+    """True iff the method runs end-to-end on the HOST with no fixture state --
+    setup execs and every assert argument evaluates. Filters out methods that
+    need imports/state we don't carry, so they're honestly counted as skipped
+    rather than charged against jacpython as failures."""
+    try:
+        ns = _l1_host_setup(setup_src)
+        for _name, args in checks:
+            for arg_src in args:
+                _l1_host_eval_in(ns, arg_src)
+        return True
+    except BaseException:
+        return False
+
+
+def _l1_compile_setup(setup_src):
+    return marshal.dumps(compile(setup_src or "pass", "<layer1>", "exec"))
 ::py::
+
 
 
 # The two-dimensional ledger TODO.md Layer 1 calls for, seeded at Layer 0:
@@ -137,6 +241,68 @@ def layer0_replay_source(source: str) -> ReplayResult {
         } else {
             result.errored = result.errored + 1;
             result.errors.append(expr_src);
+        }
+    }
+    return result;
+}
+
+# ---- Layer 1 driver (jac side) --------------------------------------------
+
+# Run a method's setup in jacpython, returning the resulting module namespace.
+def layer1_run_setup(setup_src: str) -> dict[str, PyObj] {
+    return exec_module(unmarshal(_l1_compile_setup(setup_src) as list[int]));
+}
+
+# Evaluate `expr_src` (eval-mode) against a jacpython namespace, so names bound
+# by the setup (generators, locals) resolve. Eval-mode code ends in RETURN_VALUE.
+def layer1_eval_in(ns: dict[str, PyObj], expr_src: str) -> PyObj {
+    return exec_code(unmarshal(_l0_compile_eval(expr_src) as list[int]), [], ns);
+}
+
+# Replay one harvested method: build the jacpython and host namespaces once, then
+# evaluate every assert argument against both in source order (so shared
+# generator state advances identically) and diff each. Returns 1 (all match),
+# 0 (a real divergence), or -1 (jacpython raised -- a ceval/marshal gap).
+def _l1_replay_method(setup_src: str, checks: any) -> int {
+    try {
+        ns_jac = layer1_run_setup(setup_src);
+        ns_host = _l1_host_setup(setup_src);
+        for chk in checks {
+            for arg_src in chk[1] {
+                jac_got: PyObj = layer1_eval_in(ns_jac, arg_src as str);
+                host_exp = _l1_host_eval_in(ns_host, arg_src);
+                if not (_l0_host_equal(to_host(jac_got), host_exp) as bool) {
+                    return 0;
+                }
+            }
+        }
+        return 1;
+    } except Exception as e {
+        return -1;
+    }
+}
+
+# Drive a whole test-file source through Layer 1: harvest replayable methods,
+# probe each for host self-containment (fixture-free), and replay the rest.
+def layer1_replay_source(source: str) -> ReplayResult {
+    result = ReplayResult();
+    methods = _l1_harvest_methods(source);
+    for method in methods {
+        setup_src: str = method[1] as str;
+        checks = method[2];
+        if not (_l1_host_replayable(setup_src, checks) as bool) {
+            result.skipped = result.skipped + 1;
+            continue;
+        }
+        verdict = _l1_replay_method(setup_src, checks);
+        if verdict == 1 {
+            result.passed = result.passed + 1;
+        } elif verdict == 0 {
+            result.failed = result.failed + 1;
+            result.failures.append(method[0] as str);
+        } else {
+            result.errored = result.errored + 1;
+            result.errors.append(method[0] as str);
         }
     }
     return result;
@@ -236,7 +402,9 @@ test "layer0: non-str-keyed host dicts stay opaque and round-trip" {
     assert replay_expr("'abc'.translate(str.maketrans('a', 'X'))") == True;
     assert replay_expr("'abc'.translate(str.maketrans({'a': 'X'}))") == True;
     assert replay_expr("'abc'.translate(str.maketrans({'a': None}))") == True;
-    assert replay_expr("'axb'.translate(str.maketrans({'a': None, 'b': '12'}))") == True;
+    assert replay_expr(
+        "'axb'.translate(str.maketrans({'a': None, 'b': '12'}))"
+    ) == True;
     assert replay_expr("len(str.maketrans('ab', 'XY'))") == True;
     # A dict literal with non-str keys (BUILD_MAP) is likewise built on the host
     # and kept opaque, so subscript / len / equality all replay.
@@ -363,4 +531,58 @@ test "layer0: memoryview + slicing (Gap #4) replay against the host" {
     assert replay_expr("(1, 2, 3, 4, 5)[1:4]") == True;
     assert replay_expr("b'abcdef'[2:4]") == True;
     assert replay_expr("list(range(10))[2:5]") == True;
+}
+
+test "layer1: generator functions replay through the exec-mode method harness" {
+    # Layer 1 lifts conformance from single expressions to whole test methods:
+    # each method's setup (a generator def + binds) runs in both host and
+    # jacpython, then every `self.assert*` argument is evaluated against that
+    # shared, stateful namespace and diffed. This is the only leg that exercises
+    # full generator FUNCTIONS -- def+yield, next()/state threading, .send(),
+    # and `yield from` -- against a real test-file shape.
+    src = "import unittest\n"
+    "class TestGen(unittest.TestCase):\n"
+    "    def test_drain(self):\n"
+    "        def g():\n"
+    "            yield 1\n"
+    "            yield 2\n"
+    "            yield 3\n"
+    "        self.assertEqual(list(g()), [1, 2, 3])\n"
+    "        self.assertEqual(sum(g()), 6)\n"
+    "    def test_next_threads_state(self):\n"
+    "        def g():\n"
+    "            yield 10\n"
+    "            yield 20\n"
+    "        it = g()\n"
+    "        self.assertEqual(next(it), 10)\n"
+    "        self.assertEqual(next(it), 20)\n"
+    "        self.assertEqual(next(it, -1), -1)\n"
+    "    def test_send(self):\n"
+    "        def acc():\n"
+    "            total = 0\n"
+    "            while True:\n"
+    "                v = yield total\n"
+    "                total += v\n"
+    "        g = acc()\n"
+    "        self.assertEqual(g.send(None), 0)\n"
+    "        self.assertEqual(g.send(5), 5)\n"
+    "        self.assertEqual(g.send(3), 8)\n"
+    "    def test_yield_from(self):\n"
+    "        def inner():\n"
+    "            yield 1\n"
+    "            yield 2\n"
+    "            return 3\n"
+    "        def outer():\n"
+    "            r = yield from inner()\n"
+    "            yield r\n"
+    "        self.assertEqual(list(outer()), [1, 2, 3])\n"
+    "    def test_uses_fixture(self):\n"
+    "        self.assertEqual(self.value, 5)\n";
+    result = layer1_replay_source(src);
+    # Four self-contained generator methods replay clean; the fixture-dependent
+    # method (self.value) fails the host self-containment probe and is skipped.
+    assert result.passed == 4;
+    assert result.skipped == 1;
+    assert result.failed == 0;
+    assert result.errored == 0;
 }
