@@ -3512,6 +3512,48 @@ test "pyc-first: PyFloat nb_binop/tp_richcompare drive natively" {
     assert is_error(zdiv);
 }
 
+test "pyc-first: PyInt tp_richcompare handles float/bool right operand" {
+    # int-on-left, float-on-right: previously the tag-mismatch default returned
+    # a bogus bool. Now int promotes to float and compares correctly.
+    cmps = run_source(
+        "lt = 1 < 2.5\n"
+        "gt = 5 > 2.5\n"
+        "ge = 3 >= 3.0\n"
+        "le = 2 <= 2.5\n"
+        "eqf = 3 == 3.0\n"
+        "nef = 3 != 3.5\n"
+    );
+    assert expect_bool(cmps["lt"]) == True;
+    assert expect_bool(cmps["gt"]) == True;
+    assert expect_bool(cmps["ge"]) == True;
+    assert expect_bool(cmps["le"]) == True;
+    assert expect_bool(cmps["eqf"]) == True;
+    assert expect_bool(cmps["nef"]) == True;
+
+    # int vs bool (bool is an int subclass -- compare by numeric value).
+    bools = run_source(
+        "eqt = 1 == True\n"
+        "eqf0 = 0 == False\n"
+        "gtb = 2 > True\n"
+        "ltb = 0 < True\n"
+    );
+    assert expect_bool(bools["eqt"]) == True;
+    assert expect_bool(bools["eqf0"]) == True;
+    assert expect_bool(bools["gtb"]) == True;
+    assert expect_bool(bools["ltb"]) == True;
+
+    # int vs NaN on the right: only != is True.
+    nans = run_source(
+        "n = float('nan')\n"
+        "eqn = 1 == n\n"
+        "nen = 1 != n\n"
+        "ltn = 1 < n\n"
+    );
+    assert expect_bool(nans["eqn"]) == False;
+    assert expect_bool(nans["nen"]) == True;
+    assert expect_bool(nans["ltn"]) == False;
+}
+
 test "pyc-first: DELETE_NAME unbinds a module global" {
     deleted = run_source("x = 5\ndel x\nresult = 1\n");
     assert expect_int(deleted["result"]) == 1;

@@ -112,34 +112,49 @@ obj PyInt(PyObj) {
     }
 
     def tp_richcompare(kind: int, other: PyObj) -> PyObj {
-        if other.t != "int" {
+        # int vs int/bool: exact integer comparison (bool is an int subclass,
+        # so `1 == True` and `0 < False` compare by numeric value).
+        if other.t == "int" or other.t == "bool" {
+            a = self.val;
+            b = 0;
+            if other.t == "int" {
+                b = (other as PyInt).val;
+            } elif (other as PyBool).val {
+                b = 1;
+            }
+            if kind == 0 {
+                return PyBool(t="bool", val=a < b);
+            }
+            if kind == 1 {
+                return PyBool(t="bool", val=a <= b);
+            }
             if kind == 2 {
-                return PyBool(t="bool", val=False);
+                return PyBool(t="bool", val=a == b);
             }
             if kind == 3 {
-                return PyBool(t="bool", val=True);
+                return PyBool(t="bool", val=a != b);
+            }
+            if kind == 4 {
+                return PyBool(t="bool", val=a > b);
+            }
+            if kind == 5 {
+                return PyBool(t="bool", val=a >= b);
             }
             return PyBool(t="bool", val=False);
         }
-        a = self.val;
-        b = (other as PyInt).val;
-        if kind == 0 {
-            return PyBool(t="bool", val=a < b);
+        # int-on-left vs float-on-right: CPython returns NotImplemented from
+        # int.__cmp__ and runs the reflected float comparison. py_compare has no
+        # NotImplemented plumbing, so promote self to float and reuse PyFloat's
+        # coercion + NaN rules directly (the reflected result is identical).
+        if other.t == "float" {
+            return PyFloat(t="float", val=float(self.val)).tp_richcompare(kind, other);
         }
-        if kind == 1 {
-            return PyBool(t="bool", val=a <= b);
-        }
+        # Non-numeric right operand: identity-tag (in)equality only.
         if kind == 2 {
-            return PyBool(t="bool", val=a == b);
+            return PyBool(t="bool", val=False);
         }
         if kind == 3 {
-            return PyBool(t="bool", val=a != b);
-        }
-        if kind == 4 {
-            return PyBool(t="bool", val=a > b);
-        }
-        if kind == 5 {
-            return PyBool(t="bool", val=a >= b);
+            return PyBool(t="bool", val=True);
         }
         return PyBool(t="bool", val=False);
     }
