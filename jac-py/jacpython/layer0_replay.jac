@@ -327,6 +327,27 @@ test "layer0: LIST_EXTEND addresses the list under a callable+NULL" {
     assert replay_expr("max([3, 1, 4, 1, 5])") == True;
 }
 
+test "layer0: generator expressions replay through real frame suspend/resume" {
+    # P5 generators-as-state-machines: a genexpr-flagged code object returns a
+    # PyGenerator on call; YIELD_VALUE suspends the frame and gen_resume drives
+    # it forward one value at a time. Consumers reach it either natively
+    # (FOR_ITER over the generator) or across the host boundary (list()/tuple()/
+    # sum() drain it via gen_drain). Covers the tuple()/frozenset() fast path
+    # (LOAD_COMMON_CONSTANT + CALL_INTRINSIC_1 LIST_TO_TUPLE), the SWAP-heavy
+    # inlined list comprehension (LOAD_FAST_AND_CLEAR), host-iterable sources
+    # (range), and the `if` filter.
+    assert replay_expr("list(x * 2 for x in [1, 2, 3])") == True;
+    assert replay_expr("tuple(x for x in range(4))") == True;
+    assert replay_expr("sum(x for x in [1, 2, 3, 4])") == True;
+    assert replay_expr("list(x for x in [1, 2, 3, 4] if x > 2)") == True;
+    assert replay_expr("[x * x for x in range(5)]") == True;
+    assert replay_expr("tuple(y for y in (x * 2 for x in range(3)))") == True;
+    assert replay_expr("max(x for x in [3, 1, 4, 1, 5])") == True;
+    assert replay_expr("sorted(x for x in [3, 1, 2])") == True;
+    assert replay_expr("list(c for c in 'abc')") == True;
+    assert replay_expr("frozenset(x % 2 for x in range(5))") == True;
+}
+
 test "layer0: memoryview + slicing (Gap #4) replay against the host" {
     # memoryview host proxy + constant-slice subscript (BINARY_OP []) + int().
     assert replay_expr("int(memoryview(b'123')[1:3])") == True;

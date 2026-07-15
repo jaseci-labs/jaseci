@@ -56,6 +56,18 @@ def _jac_host_getitem(value, index):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_host_contains(member, container):
+    try:
+        return (True, member in container)
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
+def _jac_host_iter(value):
+    try:
+        return (True, list(value))
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
 def _jac_host_builtin(name):
     import builtins
     try:
@@ -721,6 +733,10 @@ obj PyHostProxy(PyObj) {
     def mp_subscript(index: PyObj) -> PyObj {
         return host_getitem(self, index);
     }
+
+    def tp_iter() -> PyObj {
+        return host_iter(self);
+    }
 }
 
 obj PyClass(PyObj) {
@@ -942,6 +958,13 @@ def to_host(value: PyObj) -> any {
 
         case PyHostProxy():
             return value.val;
+
+        case PyGenerator():
+            # A native genexpr reaching the host boundary (list(gen)/tuple(gen)/
+            # sum(gen)/...) is drained through the real suspend/resume machinery
+            # into a host list, which every iterable-consuming builtin accepts.
+            drained = gen_drain(value);
+            return to_host(drained);
 
     }
     return None;
@@ -1498,6 +1521,14 @@ glob OP_CACHE: int = 0,
      OP_FORMAT_SIMPLE: int = 12,
      OP_FORMAT_WITH_SPEC: int = 13,
      OP_BUILD_STRING: int = 50,
+     OP_RETURN_GENERATOR: int = 34,
+     OP_YIELD_VALUE: int = 120,
+     OP_STORE_FAST_LOAD_FAST: int = 113,
+     OP_TO_BOOL: int = 39,
+     OP_CONTAINS_OP: int = 57,
+     OP_LOAD_COMMON_CONSTANT: int = 81,
+     OP_CALL_INTRINSIC_1: int = 53,
+     OP_LOAD_FAST_AND_CLEAR: int = 85,
      OP_NOP: int = 27;
 
 # Inline caches occupy real code units in 3.14.  Returning the number of cache
@@ -1534,6 +1565,12 @@ def opcode_cache_count(op: int) -> int {
         return 1;
     }
     if op == OP_STORE_SUBSCR {
+        return 1;
+    }
+    if op == OP_TO_BOOL {
+        return 3;
+    }
+    if op == OP_CONTAINS_OP {
         return 1;
     }
     return 0;
@@ -1583,6 +1620,16 @@ def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
 
 def py_subscript(container: PyObj, index: PyObj) -> PyObj {
     return container.mp_subscript(index);
+}
+
+# Membership test (CONTAINS_OP). Routed through the host so every container
+# shape -- native or opaque proxy -- answers `in` consistently during bootstrap.
+def py_contains(container: PyObj, member: PyObj) -> PyObj {
+    result = _jac_host_contains(to_host(member), to_host(container));
+    if host_result_ok(result) {
+        return from_host(result[1]);
+    }
+    return py_error(str(result[1]), str(result[2]));
 }
 
 def py_store_subscript(container: PyObj, index: PyObj, value: PyObj) -> PyObj {
@@ -1635,6 +1682,20 @@ def py_set_attr(value: PyObj, name: str, field: PyObj) -> PyObj {
 
 def py_iter(value: PyObj) -> PyObj {
     return value.tp_iter();
+}
+
+# Materialize a host iterable (range, dict-view, map/filter object, ...) into a
+# native PyIter so GET_ITER/FOR_ITER drive it without a host round-trip per step.
+def host_iter(value: PyHostProxy) -> PyObj {
+    result = _jac_host_iter(value.val);
+    if host_result_ok(result) {
+        items: list[PyObj] = [];
+        for item in result[1] {
+            items.append(from_host(item));
+        }
+        return PyIter(t="iter", items=items, index=0);
+    }
+    return py_error(str(result[1]), str(result[2]));
 }
 
 def find_cell(cells: list[PyCell], names: list[str], name: str) -> PyCell | None {
@@ -1826,6 +1887,84 @@ def make_function_from_stack(stack: list[PyObj], globals: dict[str, PyObj]) -> P
     return PyFunction(t="function", code=code, globals=globals, name=code.name);
 }
 
+# ---------------- generator frame machinery (PLAN.md §5, P5) ----------------
+# CPython implements a generator as a suspended frame; jacpython mirrors that.
+# PyFrame captures the resumable eval state (stack/fast/cells/ip). YIELD_VALUE
+# saves it and hands a PyYield up to run_frame's caller; PyGenerator drives the
+# frame forward one yield at a time. PyGenStop is the "frame returned normally"
+# (StopIteration) sentinel that distinguishes exhaustion from a real raise.
+obj PyFrame(PyObj) {
+    has co: PyCode,
+        fast: list[PyObj],
+        assigned: list[bool],
+        cells: list[PyCell],
+        closure: list[PyCell],
+        stack: list[PyObj],
+        globals: dict[str, PyObj],
+        locals: dict[str, PyObj],
+        ip: int = 0;
+}
+
+obj PyYield(PyObj) {
+    has val: PyObj;
+}
+
+obj PyGenStop(PyObj) {}
+
+obj PyGenerator(PyObj) {
+    has frame: PyFrame,
+        started: bool = False,
+        finished: bool = False;
+
+    def tp_iter() -> PyObj {
+        return self;
+    }
+}
+
+# Resume `gen` with `sent` (the value YIELD_VALUE produces on wake; None for
+# plain iteration). Returns the yielded PyObj on a yield, a PyGenStop on normal
+# return (exhaustion), or a propagating error object on a raise.
+def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {
+    if gen.finished {
+        return PyGenStop(t="genstop");
+    }
+    if gen.started {
+        # YIELD_VALUE popped its operand when it suspended; the resume value
+        # takes its place on the stack (the trailing POP_TOP discards it in a
+        # genexpr; `x = yield` would bind it in a full generator).
+        gen.frame.stack.append(sent);
+    }
+    gen.started = True;
+    result = run_frame(gen.frame);
+    if is_error(result) {
+        gen.finished = True;
+        return result;
+    }
+    if result.t == "yield" {
+        return (result as PyYield).val;
+    }
+    gen.finished = True;
+    return PyGenStop(t="genstop");
+}
+
+# Drain a generator to exhaustion through the real suspend/resume machinery and
+# return the yielded PyObjs as a list. Used at the host boundary (to_host) so
+# list()/tuple()/sum()/... consume a native genexpr without an eager-eval shim.
+def gen_drain(gen: PyGenerator) -> PyObj {
+    items: list[PyObj] = [];
+    while True {
+        nxt = gen_resume(gen, py_none());
+        if nxt.t == "genstop" {
+            return PyList(t="list", items=items);
+        }
+        if is_error(nxt) {
+            return nxt;
+        }
+        items.append(nxt);
+    }
+    return PyList(t="list", items=items);
+}
+
 def exec_code_frame(
     co: PyCode,
     args: list[PyObj],
@@ -1913,9 +2052,37 @@ def exec_code_frame(
         }
         cells.append(PyCell(t="cell", val=value));
     }
-    stack: list[PyObj] = [];
+    frame = PyFrame(
+        t="frame",
+        co=co,
+        fast=fast,
+        assigned=assigned,
+        cells=cells,
+        closure=closure,
+        stack=[],
+        globals=globals,
+        locals=locals,
+        ip=0,
+    );
+    # A generator-flagged code object does not run on call: it returns a
+    # generator wrapping the (unstarted) frame; execution begins on first resume.
+    if (co.flags & 32) != 0 {
+        return PyGenerator(t="generator", frame=frame, started=False, finished=False);
+    }
+    return run_frame(frame);
+}
+
+def run_frame(frame: PyFrame) -> PyObj {
+    co = frame.co;
+    fast = frame.fast;
+    assigned = frame.assigned;
+    cells = frame.cells;
+    closure = frame.closure;
+    stack = frame.stack;
+    globals = frame.globals;
+    locals = frame.locals;
     code = co.co_code;
-    ip = 0;
+    ip = frame.ip;
     while ip < len(code) {
         offset = ip;
         op = code[ip];
@@ -1950,6 +2117,36 @@ def exec_code_frame(
                 continue;
             }
             return py_error("UnboundLocalError", "invalid local variable");
+        }
+        if op == OP_LOAD_FAST_AND_CLEAR {
+            # Inlined comprehensions save the loop var's outer binding here and
+            # clear the slot; a STORE_FAST at the tail restores it. NULL (an
+            # unbound slot) is modeled with the None placeholder.
+            if arg < len(fast) and assigned[arg] {
+                stack.append(fast[arg]);
+            } else {
+                stack.append(py_none());
+            }
+            if arg < len(fast) {
+                fast[arg] = py_none();
+                assigned[arg] = False;
+            }
+            continue;
+        }
+        if op == OP_STORE_FAST_LOAD_FAST {
+            store_index = arg // 16;
+            load_index = arg % 16;
+            if store_index >= len(fast) {
+                return py_error("UnboundLocalError", "invalid local variable");
+            }
+            fast[store_index] = stack.pop();
+            assigned[store_index] = True;
+            load_result = fast_value(co, load_index, fast, cells);
+            if is_error(load_result) {
+                return load_result;
+            }
+            stack.append(load_result);
+            continue;
         }
         if op == OP_LOAD_FAST_BORROW_2 or op == OP_LOAD_FAST_LOAD_FAST {
             first = arg // 16;
@@ -2241,7 +2438,25 @@ def exec_code_frame(
             continue;
         }
         if op == OP_FOR_ITER {
-            iterator = stack[len(stack) - 1] as PyIter;
+            top = stack[len(stack) - 1];
+            if top.t == "generator" {
+                nxt = gen_resume(top as PyGenerator, py_none());
+                if nxt.t == "genstop" {
+                    stack.pop();
+                    ip = ip + 2 * arg;
+                } elif is_error(nxt) {
+                    target = recover_exception(co, nxt, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                    } else {
+                        return nxt;
+                    }
+                } else {
+                    stack.append(nxt);
+                }
+                continue;
+            }
+            iterator = top as PyIter;
             if iterator.index < len(iterator.items) {
                 stack.append(iterator.items[iterator.index]);
                 iterator.index = iterator.index + 1;
@@ -2449,11 +2664,18 @@ def exec_code_frame(
             if len(stack) == 0 {
                 return py_error("RuntimeError", "CALL stack underflow");
             }
-            stack.pop();
+            self_or_null = stack.pop();
             if len(stack) == 0 {
                 return py_error("RuntimeError", "CALL stack underflow");
             }
             fn = stack.pop();
+            # CPython's CALL convention carries a `self_or_null` slot below the
+            # args. NULL (a plain call after PUSH_NULL, modeled here as None) is
+            # dropped; a real value (a bound self, or a genexpr's `.0` iterator
+            # under `CALL 0`) is prepended as the first positional argument.
+            if self_or_null.t != "none" {
+                call_args.insert(0, self_or_null);
+            }
             result = py_invoke(fn, call_args, kwargs_for_call);
             if is_error(result) {
                 target = recover_exception(co, result, offset, stack);
@@ -2516,12 +2738,96 @@ def exec_code_frame(
             continue;
         }
         if op == OP_SWAP {
+            # SWAP(i) exchanges TOS with the item i positions down (stack[-i],
+            # index len-i). TOS itself is position 1.
             top = len(stack) - 1;
-            other = top - arg;
+            other = len(stack) - arg;
             temporary = stack[top];
             stack[top] = stack[other];
             stack[other] = temporary;
             continue;
+        }
+        if op == OP_RETURN_GENERATOR {
+            # The generator object already exists (created at call time). Push a
+            # placeholder standing in for it; the following POP_TOP discards it.
+            stack.append(py_none());
+            continue;
+        }
+        if op == OP_YIELD_VALUE {
+            # Suspend: pop the yielded value, freeze the resume point, and hand
+            # the value up to gen_resume. run_frame re-enters here from ip.
+            value = stack.pop();
+            frame.ip = ip;
+            return PyYield(t="yield", val=value);
+        }
+        if op == OP_TO_BOOL {
+            condition = stack.pop();
+            stack.append(PyBool(t="bool", val=py_truth(condition)));
+            continue;
+        }
+        if op == OP_CONTAINS_OP {
+            container = stack.pop();
+            member = stack.pop();
+            contained = py_contains(container, member);
+            if is_error(contained) {
+                target = recover_exception(co, contained, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return contained;
+            }
+            present = py_truth(contained);
+            if arg == 1 {
+                present = not present;
+            }
+            stack.append(PyBool(t="bool", val=present));
+            continue;
+        }
+        if op == OP_LOAD_COMMON_CONSTANT {
+            # _common_constants: [AssertionError, NotImplementedError, tuple,
+            # all, any]. Resolved through host_builtin so an identity check like
+            # `tuple is <common tuple>` (the tuple()/frozenset() genexpr fast
+            # path) sees the same host-proxy tag on both sides.
+            common_name = "tuple";
+            if arg == 0 {
+                common_name = "AssertionError";
+            } elif arg == 1 {
+                common_name = "NotImplementedError";
+            } elif arg == 3 {
+                common_name = "all";
+            } elif arg == 4 {
+                common_name = "any";
+            }
+            stack.append(host_builtin(common_name));
+            continue;
+        }
+        if op == OP_CALL_INTRINSIC_1 {
+            operand = stack.pop();
+            if arg == 6 {
+                # INTRINSIC_LIST_TO_TUPLE: the tuple()-of-genexpr fast path
+                # builds a list, then converts it in place.
+                stack.append(PyTuple(t="tuple", items=(operand as PyList).items));
+                continue;
+            }
+            if arg == 3 {
+                # INTRINSIC_STOPITERATION_ERROR: only reached when a generator is
+                # torn down early; surface it as a StopIteration.
+                target = recover_exception(
+                    co, py_error("StopIteration", ""), offset, stack
+                );
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return py_error("StopIteration", "");
+            }
+            if arg == 5 {
+                # INTRINSIC_UNARY_POSITIVE
+                stack.append(operand);
+                continue;
+            }
+            return py_error("SystemError", "unsupported CALL_INTRINSIC_1");
         }
         if op == OP_RETURN_VALUE {
             if len(stack) == 0 {
