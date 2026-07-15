@@ -63,6 +63,10 @@ def _l0_compile_eval(expr_src):
 
 def _l0_host_equal(a, b):
     try:
+        # Two NaNs are a conformance MATCH (both sides computed NaN); `nan == nan`
+        # is False, which would otherwise flag a correct jacpython result.
+        if a != a and b != b:
+            return True
         return bool(a == b)
     except BaseException:
         return False
@@ -601,6 +605,19 @@ test "layer0: memoryview + slicing (Gap #4) replay against the host" {
     assert replay_expr("(1, 2, 3, 4, 5)[1:4]") == True;
     assert replay_expr("b'abcdef'[2:4]") == True;
     assert replay_expr("list(range(10))[2:5]") == True;
+}
+
+test "layer0: marshal decodes inf/nan float constants (no 0.0/0.0 trap)" {
+    # CPython constant-folds these to inf/nan float consts; the marshal reader's
+    # bytes_to_double must materialize them without `0.0 / 0.0` (a Jac
+    # ZeroDivisionError). NaN compares equal to NaN as a conformance match.
+    assert replay_expr("1e300 * 1e300") == True;
+    assert replay_expr("-1e300 * 1e300") == True;
+    assert replay_expr("1e300 * 1e300 * 0") == True;
+    assert replay_expr("repr(1e300 * 1e300 * 0)") == True;
+    assert replay_expr("str(1e300 * 1e300)") == True;
+    assert replay_expr("float('inf')") == True;
+    assert replay_expr("repr(float('nan'))") == True;
 }
 
 test "layer1: generator functions replay through the exec-mode method harness" {

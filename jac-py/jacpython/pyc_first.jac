@@ -1119,14 +1119,17 @@ def bytes_to_double(bs: list[int]) -> float {
         return (1 - 2 * sign) * (frac / (2 ** 52)) * (2 ** (-1022));
     }
     if exp == 0x7FF {
+        # exp all-ones: infinity (frac 0) or NaN. Build them by overflow /
+        # inf-minus-inf -- `0.0 / 0.0` raises ZeroDivisionError in Jac.
+        huge = 1e300 * 1e300;
         if frac == 0 {
             if sign == 1 {
-                return -1e300 * 1e300;
+                return -huge;
             } else {
-                return 1e300 * 1e300;
+                return huge;
             }
         }
-        return 0.0 / 0.0;
+        return huge - huge;
     }
     mant = 1.0 + frac / (2.0 ** 52.0);
     return (1 - 2 * sign) * mant * (2.0 ** (exp - 1023));
