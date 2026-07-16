@@ -62,6 +62,9 @@ def _jac_host_contains(member, container):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_is_notimpl(v):
+    return v is NotImplemented
+
 def _jac_host_iter(value):
     try:
         return (True, list(value))
@@ -861,30 +864,26 @@ obj PyUserObj(PyObj) {
     # its boxed value: MyInt(5)+1 == 6, MyInt(5) is a valid dict key, etc. The
     # right operand is unwrapped too so MyInt(5)+MyInt(1) works.
     def nb_binop(kind: int, other: PyObj) -> PyObj {
-        if self._has_base() {
-            return self._base_obj().nb_binop(kind, unwrap_base(other));
-        }
-        return py_error("TypeError", "unsupported operand types");
+        return user_binop(kind, self, other);
     }
 
     def tp_richcompare(kind: int, other: PyObj) -> PyObj {
-        if self._has_base() {
-            return self._base_obj().tp_richcompare(kind, unwrap_base(other));
-        }
-        if kind == 2 {
-            return PyBool(t="bool", val=self is other);
-        }
-        if kind == 3 {
-            return PyBool(t="bool", val=self is not other);
-        }
-        return py_error("TypeError", "unorderable types");
+        return user_compare(kind, self, other);
     }
 
     def tp_hashkey -> str {
         if self._has_base() {
             return self._base_obj().tp_hashkey();
         }
-        # Identity hash for a plain user object: distinct per object.
+        # A user-defined __hash__ keys the object by value (shares the numeric
+        # "n:" namespace so hash()-equal objects bucket together); otherwise a
+        # plain user object hashes by identity, distinct per object.
+        if user_has_dunder(self, "__hash__") {
+            h = call_user_dunder(self, "__hash__", []);
+            if isinstance(h, PyInt) {
+                return "n:" + str((h as PyInt).val);
+            }
+        }
         return "obj:" + str(id(self));
     }
 
@@ -1782,6 +1781,9 @@ def py_truth(value: PyObj) -> bool {
 }
 
 def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
+    if isinstance(lhs, PyUserObj) or isinstance(rhs, PyUserObj) {
+        return user_compare(kind, lhs, rhs);
+    }
     return lhs.tp_richcompare(kind, rhs);
 }
 
@@ -1855,12 +1857,165 @@ def py_id(o: PyObj) -> int {
     return id(o);
 }
 
+# A dunder returned NotImplemented (only a host proxy can wrap the singleton).
+def is_notimplemented(o: PyObj) -> bool {
+    if isinstance(o, PyHostProxy) {
+        return _jac_is_notimpl((o as PyHostProxy).val) as bool;
+    }
+    return False;
+}
+
+# ---- user-class operator overloading (__add__/__eq__/... dispatch) ---------
+# The native nb_binop/tp_richcompare slots only know builtin types; a plain user
+# class defines operators as `__add__`/`__eq__`/... methods in its class dict.
+# These helpers implement CPython's binary-operator protocol (normal slot, then
+# reflected slot, then TypeError) over the MRO for PyUserObj operands.
+
+# NB_ binop kind -> dunder name ("" if the kind has no overload slot).
+def binop_dunder(kind: int) -> str {
+    names = [
+        "__add__", "__and__", "__floordiv__", "__lshift__", "__matmul__",
+        "__mul__", "__mod__", "__or__", "__pow__", "__rshift__",
+        "__sub__", "__truediv__", "__xor__"
+    ];
+    if kind >= 0 and kind < len(names) {
+        return names[kind];
+    }
+    return "";
+}
+
+# Reflected counterpart (__radd__/__rmul__/...) for the same kind.
+def binop_rdunder(kind: int) -> str {
+    names = [
+        "__radd__", "__rand__", "__rfloordiv__", "__rlshift__", "__rmatmul__",
+        "__rmul__", "__rmod__", "__ror__", "__rpow__", "__rrshift__",
+        "__rsub__", "__rtruediv__", "__rxor__"
+    ];
+    if kind >= 0 and kind < len(names) {
+        return names[kind];
+    }
+    return "";
+}
+
+# Rich-compare kind (0<,1<=,2==,3!=,4>,5>=) -> dunder name.
+def compare_dunder(kind: int) -> str {
+    names = ["__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__"];
+    if kind >= 0 and kind < len(names) {
+        return names[kind];
+    }
+    return "";
+}
+
+# Reflected comparison kind: < <-> >, <= <-> >=, ==/!= are self-reflected.
+def compare_swap(kind: int) -> int {
+    swap = [4, 5, 2, 3, 0, 1];
+    if kind >= 0 and kind < len(swap) {
+        return swap[kind];
+    }
+    return kind;
+}
+
+def user_has_dunder(u: PyUserObj, name: str) -> bool {
+    return not is_error(class_lookup_attr(u.cls, name));
+}
+
+# Bind the MRO-resolved dunder to the receiver and call it with `args`. The
+# result -- a value, a raised exception (PyError), or NotImplemented -- is
+# returned verbatim for the protocol layer to interpret.
+def call_user_dunder(u: PyUserObj, name: str, args: list[PyObj]) -> PyObj {
+    method = class_lookup_attr(u.cls, name);
+    return bind_attribute(method, u).tp_call(args, {});
+}
+
+# CPython binary-operator protocol for PyUserObj operands: try lhs.__op__(rhs),
+# then the reflected rhs.__rop__(lhs); a builtin-subclass operand with no user
+# override delegates to its boxed value; otherwise TypeError. A raised exception
+# from a dunder propagates immediately (it is not NotImplemented).
+def user_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
+    name = binop_dunder(kind);
+    if isinstance(lhs, PyUserObj) {
+        lu = lhs as PyUserObj;
+        if name != "" and user_has_dunder(lu, name) {
+            res = call_user_dunder(lu, name, [rhs]);
+            if not is_notimplemented(res) {
+                return res;
+            }
+        }
+    }
+    rname = binop_rdunder(kind);
+    if isinstance(rhs, PyUserObj) {
+        ru = rhs as PyUserObj;
+        if rname != "" and user_has_dunder(ru, rname) {
+            res = call_user_dunder(ru, rname, [lhs]);
+            if not is_notimplemented(res) {
+                return res;
+            }
+        }
+    }
+    # No user override matched: a builtin subclass acts as its boxed value.
+    if isinstance(lhs, PyUserObj) and (lhs as PyUserObj)._has_base() {
+        r = (lhs as PyUserObj)._base_obj().nb_binop(kind, unwrap_base(rhs));
+        if not is_error(r) {
+            return r;
+        }
+    }
+    if isinstance(rhs, PyUserObj) and (rhs as PyUserObj)._has_base() {
+        r = unwrap_base(lhs).nb_binop(kind, (rhs as PyUserObj)._base_obj());
+        if not is_error(r) {
+            return r;
+        }
+    }
+    return py_error("TypeError", "unsupported operand type(s)");
+}
+
+# CPython rich-comparison protocol for PyUserObj operands. Same shape as
+# user_binop, plus the == / != identity fallback when neither side overrides.
+def user_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
+    name = compare_dunder(kind);
+    if isinstance(lhs, PyUserObj) and not (lhs as PyUserObj)._has_base() {
+        lu = lhs as PyUserObj;
+        if name != "" and user_has_dunder(lu, name) {
+            res = call_user_dunder(lu, name, [rhs]);
+            if not is_notimplemented(res) {
+                return res;
+            }
+        }
+    }
+    rname = compare_dunder(compare_swap(kind));
+    if isinstance(rhs, PyUserObj) and not (rhs as PyUserObj)._has_base() {
+        ru = rhs as PyUserObj;
+        if rname != "" and user_has_dunder(ru, rname) {
+            res = call_user_dunder(ru, rname, [lhs]);
+            if not is_notimplemented(res) {
+                return res;
+            }
+        }
+    }
+    if isinstance(lhs, PyUserObj) and (lhs as PyUserObj)._has_base() {
+        return (lhs as PyUserObj)._base_obj().tp_richcompare(kind, unwrap_base(rhs));
+    }
+    if isinstance(rhs, PyUserObj) and (rhs as PyUserObj)._has_base() {
+        return unwrap_base(lhs).tp_richcompare(kind, (rhs as PyUserObj)._base_obj());
+    }
+    if kind == 2 {
+        return PyBool(t="bool", val=lhs is rhs);
+    }
+    if kind == 3 {
+        return PyBool(t="bool", val=lhs is not rhs);
+    }
+    return py_error("TypeError", "unorderable types");
+}
+
 def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     # NB_INPLACE_* (13..25) reduce to their base binop (0..12). jacpython values
     # are immutable at this layer, so `x += y` is `x = x + y` -- the trailing
     # STORE rebinds the name, matching CPython's immutable-type fallback.
     if kind >= 13 and kind <= 25 {
         kind = kind - 13;
+    }
+    # A user-class operand routes through the operator-overload protocol first.
+    if isinstance(lhs, PyUserObj) or isinstance(rhs, PyUserObj) {
+        return user_binop(kind, lhs, rhs);
     }
     result = lhs.nb_binop(kind, rhs);
     if is_error(result) {
@@ -4584,6 +4739,99 @@ test "pyc-first: builtin subclassing (Track B)" {
     assert expect_bool(uc["isa"]) == True;
     assert expect_bool(uc["isd"]) == True;
     assert expect_bool(uc["sub"]) == True;
+}
+
+test "pyc-first: user-class operator overloading (__add__/__eq__/... dispatch)" {
+    # A plain user class defines operators as dunder methods; nb_binop /
+    # tp_richcompare route through the MRO (normal slot, then reflected) instead
+    # of only the builtin native slots.
+    ops = run_source(
+        "class V:\n"
+        "    def __init__(self, x):\n"
+        "        self.x = x\n"
+        "    def __add__(self, o):\n"
+        "        return V(self.x + o.x)\n"
+        "    def __mul__(self, k):\n"
+        "        return V(self.x * k)\n"
+        "    def __eq__(self, o):\n"
+        "        return self.x == o.x\n"
+        "    def __lt__(self, o):\n"
+        "        return self.x < o.x\n"
+        "add = (V(3) + V(4)).x\n"
+        "mul = (V(5) * 3).x\n"
+        "eq = (V(5) == V(5))\n"
+        "ne = (V(5) != V(6))\n"
+        "lt = (V(1) < V(2))\n"
+        "gt = (V(3) < V(2))\n"
+    );
+    assert expect_int(ops["add"]) == 7;
+    assert expect_int(ops["mul"]) == 15;
+    assert expect_bool(ops["eq"]) == True;
+    assert expect_bool(ops["ne"]) == True;
+    assert expect_bool(ops["lt"]) == True;
+    assert expect_bool(ops["gt"]) == False;
+
+    # Reflected slot: a builtin left operand with no matching native path falls
+    # to the user right operand's __radd__ / __rmul__.
+    refl = run_source(
+        "class R:\n"
+        "    def __radd__(self, o):\n"
+        "        return o + 100\n"
+        "    def __rmul__(self, o):\n"
+        "        return o * 10\n"
+        "a = 1 + R()\n"
+        "b = 5 * R()\n"
+    );
+    assert expect_int(refl["a"]) == 101;
+    assert expect_int(refl["b"]) == 50;
+
+    # __add__ returning NotImplemented yields to the other operand's __radd__.
+    ni = run_source(
+        "class A:\n"
+        "    def __add__(self, o):\n"
+        "        return NotImplemented\n"
+        "class B:\n"
+        "    def __radd__(self, o):\n"
+        "        return 77\n"
+        "w = A() + B()\n"
+    );
+    assert expect_int(ni["w"]) == 77;
+
+    # A user-defined __hash__ (+ __eq__) makes an instance a value-keyed dict key
+    # and set member; a plain user object keys by identity. Verified through the
+    # fully native mp_subscript / set_contains paths (no host round-trip).
+    hk = run_source(
+        "class H:\n"
+        "    def __init__(self, k):\n"
+        "        self.k = k\n"
+        "    def __hash__(self):\n"
+        "        return self.k\n"
+        "    def __eq__(self, o):\n"
+        "        return self.k == o.k\n"
+        "d = {H(1): 'one', H(2): 'two'}\n"
+        "v1 = d[H(1)]\nv2 = d[H(2)]\n"
+        "s = {H(1), H(2)}\n"
+        "hit = H(1) in s\nmiss = H(3) in s\n"
+    );
+    assert expect_str(hk["v1"]) == "one";
+    assert expect_str(hk["v2"]) == "two";
+    assert expect_bool(hk["hit"]) == True;
+    assert expect_bool(hk["miss"]) == False;
+
+    # An exception raised inside a comparison dunder propagates (it is not
+    # swallowed as NotImplemented) -- the substrate the corpus's raising-__eq__
+    # cases build on.
+    raising = run_source(
+        "class Bad:\n"
+        "    def __eq__(self, o):\n"
+        "        raise ValueError('boom')\n"
+        "hit = 0\n"
+        "try:\n"
+        "    Bad() == Bad()\n"
+        "except ValueError:\n"
+        "    hit = 1\n"
+    );
+    assert expect_int(raising["hit"]) == 1;
 }
 
 test "pyc-first: object identity -- is / id (Track I)" {
