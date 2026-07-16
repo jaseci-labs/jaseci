@@ -889,24 +889,19 @@ def from_host(raw: any) -> PyObj {
         return PyTuple(t="tuple", items=values);
     }
     if isinstance(raw, dict) {
-        # The native PyDict keys on str (object-core limitation). A host dict
-        # with any non-str key (e.g. str.maketrans -> {ordinal: repl}) would be
-        # corrupted by stringifying keys, so keep it opaque as a PyHostProxy: it
-        # round-trips through to_host unchanged and its methods route to host.
-        all_str = True;
+        # Native PyDict now keys on the hash-key protocol, so any hashable key
+        # (int, tuple, float, ...) lands natively. A key whose from_host wrapper
+        # is unhashable (e.g. an opaque host object) keeps the whole dict opaque
+        # as a PyHostProxy -- it round-trips through to_host unchanged.
+        native = PyDict(t="dict", items={});
         for key in raw {
-            if not isinstance(key, str) {
-                all_str = False;
+            keyobj = from_host(key);
+            if keyobj.tp_hashkey() == "" {
+                return PyHostProxy(t="host", val=raw);
             }
+            native.dict_set(keyobj, from_host(raw[key]));
         }
-        if not all_str {
-            return PyHostProxy(t="host", val=raw);
-        }
-        values: dict[str, PyObj] = {};
-        for key in raw {
-            values[str(key)] = from_host(raw[key]);
-        }
-        return PyDict(t="dict", items=values);
+        return native;
     }
     return PyHostProxy(t="host", val=raw);
 }
@@ -949,9 +944,10 @@ def to_host(value: PyObj) -> any {
             return result;
 
         case PyDict():
-            result: dict[str, any] = {};
-            for key in value.items {
-                result[key] = to_host(value.items[key]);
+            result: dict[any, any] = {};
+            for hk in value.items {
+                entry = value.items[hk];
+                result[to_host(entry.key)] = to_host(entry.value);
             }
             return result;
 
@@ -1682,6 +1678,16 @@ def py_delete_subscript(container: PyObj, index: PyObj) -> PyObj {
 # the target dict. Native PyDict is returned directly; a host-backed mapping
 # (PyHostProxy) is converted via from_host, which lands as a PyDict when its
 # keys are strings. Non-mapping / non-str-key sources produce an empty view.
+def pydict_from_str_map(m: dict[str, PyObj]) -> PyDict {
+    # Wrap an inherently str-keyed implementation map (frame locals / class
+    # namespace) into a PyDict with PyStr keys under the hash-key protocol.
+    d = PyDict(t="dict", items={});
+    for name in m {
+        d.dict_set(PyStr(t="str", val=name), m[name]);
+    }
+    return d;
+}
+
 def dict_merge_pairs(source: PyObj) -> PyDict {
     if isinstance(source, PyDict) {
         return source as PyDict;
@@ -2615,7 +2621,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_LOAD_LOCALS {
-            stack.append(PyDict(t="dict", items=locals));
+            stack.append(pydict_from_str_map(locals));
             continue;
         }
         if op == OP_STORE_NAME {
@@ -2654,7 +2660,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             if arg == 1 and attribute.t == "tuple" {
                 function.defaults = tuple_value(attribute);
             } elif arg == 2 and attribute.t == "dict" {
-                function.kwdefaults = (attribute as PyDict).items;
+                function.kwdefaults = (attribute as PyDict).dict_str_map();
             } elif arg == 8 and attribute.t == "tuple" {
                 function.closure = [];
                 closure_index = 0;
@@ -2705,18 +2711,18 @@ def run_frame(frame: PyFrame) -> PyObj {
                 popped.insert(0, stack.pop());
                 j = j + 1;
             }
-            all_str_keys = True;
+            # Any hashable key lands in the native PyDict (hash-key protocol).
+            # An unhashable key would raise TypeError in real Python; keep the
+            # literal opaque on the host rather than raising during bootstrap.
+            any_unhashable = False;
             j = 0;
             while j < arg {
-                if popped[j * 2].t != "str" {
-                    all_str_keys = False;
+                if popped[j * 2].tp_hashkey() == "" {
+                    any_unhashable = True;
                 }
                 j = j + 1;
             }
-            if not all_str_keys {
-                # A literal with any non-str key can't live in the str-keyed
-                # native PyDict; build it on the host and keep it opaque (mirrors
-                # from_host's non-str-key handling).
+            if any_unhashable {
                 host_map: dict[any, any] = {};
                 j = 0;
                 while j < arg {
@@ -2726,14 +2732,13 @@ def run_frame(frame: PyFrame) -> PyObj {
                 stack.append(PyHostProxy(t="host", val=host_map));
                 continue;
             }
-            values: dict[str, PyObj] = {};
+            native_map = PyDict(t="dict", items={});
             j = 0;
             while j < arg {
-                key = expect_str(popped[j * 2]);
-                values[key] = popped[j * 2 + 1];
+                native_map.dict_set(popped[j * 2], popped[j * 2 + 1]);
                 j = j + 1;
             }
-            stack.append(PyDict(t="dict", items=values));
+            stack.append(native_map);
             continue;
         }
         if op == OP_BUILD_SET {
@@ -2822,7 +2827,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             map_value: PyObj = stack.pop();
             map_key: PyObj = stack.pop();
             target_index = len(stack) - arg;
-            (stack[target_index] as PyDict).items[expect_str(map_key)] = map_value;
+            (stack[target_index] as PyDict).dict_set(map_key, map_value);
             continue;
         }
         if op == OP_DICT_UPDATE {
@@ -2831,29 +2836,37 @@ def run_frame(frame: PyFrame) -> PyObj {
             update_source: PyObj = stack.pop();
             target_index = len(stack) - arg;
             update_target = stack[target_index] as PyDict;
-            update_pairs = dict_merge_pairs(update_source).items;
-            for uk in update_pairs {
-                update_target.items[uk] = update_pairs[uk];
+            update_pairs = dict_merge_pairs(update_source);
+            ukeys = update_pairs.dict_keys();
+            uvals = update_pairs.dict_values();
+            uj = 0;
+            while uj < len(ukeys) {
+                update_target.dict_set(ukeys[uj], uvals[uj]);
+                uj = uj + 1;
             }
             continue;
         }
         if op == OP_DICT_MERGE {
             # f(**kw): merge source (TOS) into the kwargs dict at STACK[-arg-1].
             # Unlike DICT_UPDATE, a duplicate key is a TypeError (a keyword passed
-            # more than once).
+            # more than once). Keyword keys are always strings.
             merge_source: PyObj = stack.pop();
             target_index = len(stack) - arg - 1;
             merge_target = stack[target_index] as PyDict;
-            merge_pairs = dict_merge_pairs(merge_source).items;
+            merge_pairs = dict_merge_pairs(merge_source);
+            mkeys = merge_pairs.dict_keys();
+            mvals = merge_pairs.dict_values();
             dup_key = "";
             has_dup = False;
-            for mk in merge_pairs {
-                if mk in merge_target.items {
-                    dup_key = mk;
+            mj = 0;
+            while mj < len(mkeys) {
+                if merge_target.dict_contains(mkeys[mj]) {
+                    dup_key = expect_str(mkeys[mj]);
                     has_dup = True;
                 } else {
-                    merge_target.items[mk] = merge_pairs[mk];
+                    merge_target.dict_set(mkeys[mj], mvals[mj]);
                 }
+                mj = mj + 1;
             }
             if has_dup {
                 merge_err = py_error(
@@ -3893,6 +3906,65 @@ test "pyc-first: DELETE_NAME unbinds a module global" {
     deleted = run_source("x = 5\ndel x\nresult = 1\n");
     assert expect_int(deleted["result"]) == 1;
     assert not ("x" in deleted);
+}
+
+test "pyc-first: value-keyed dicts via the hash-key protocol (H2)" {
+    # int / float / bool keys with Python's numeric collapse: 1, 1.0 and True
+    # all address the same slot, so the last write wins and len stays 2.
+    numk = run_source(
+        "d = {1: 'a', 2: 'b'}\n"
+        "d[1.0] = 'c'\n"
+        "d[True] = 'd'\n"
+        "one = d[1]\ntwo = d[2]\nsize = len(d)\n"
+    );
+    assert expect_str(numk["one"]) == "d";
+    assert expect_str(numk["two"]) == "b";
+    assert expect_int(numk["size"]) == 2;
+
+    # tuple keys (recursive, length-framed hashkey), including a nested tuple.
+    tupk = run_source(
+        "d = {(1, 2): 'x', (3, (4, 5)): 'y'}\n"
+        "a = d[(1, 2)]\nb = d[(3, (4, 5))]\nhas = (1, 2) in d\n"
+    );
+    assert expect_str(tupk["a"]) == "x";
+    assert expect_str(tupk["b"]) == "y";
+    assert expect_bool(tupk["has"]) == True;
+
+    # int-keyed dict comprehension -- previously fell back to an opaque host map.
+    comp = run_source(
+        "sq = {n: n * n for n in range(4)}\n"
+        "s0 = sq[0]\ns3 = sq[3]\nn = len(sq)\n"
+    );
+    assert expect_int(comp["s0"]) == 0;
+    assert expect_int(comp["s3"]) == 9;
+    assert expect_int(comp["n"]) == 4;
+
+    # del with a non-str key; float/int collapse means del d[2.0] removes key 2.
+    deld = run_source(
+        "d = {1: 'a', 2: 'b', 3: 'c'}\ndel d[2.0]\n"
+        "has2 = 2 in d\nkept = d[3]\n"
+    );
+    assert expect_bool(deld["has2"]) == False;
+    assert expect_str(deld["kept"]) == "c";
+
+    # str "1" and int 1 are distinct keys (prefix disambiguation), no collision.
+    mix = run_source(
+        "d = {'1': 'str-one', 1: 'int-one'}\n"
+        "s = d['1']\ni = d[1]\nn = len(d)\n"
+    );
+    assert expect_str(mix["s"]) == "str-one";
+    assert expect_str(mix["i"]) == "int-one";
+    assert expect_int(mix["n"]) == 2;
+
+    # A missing non-str key raises KeyError, not a silent wrong value.
+    miss = run_source("d = {1: 'a'}\nout = 0\ntry:\n    d[9]\nexcept KeyError:\n    out = 1\n");
+    assert expect_int(miss["out"]) == 1;
+
+    # An unhashable key (list) is a TypeError at the slot, not a mis-key.
+    unh = PyDict(t="dict", items={}).mp_ass_subscript(
+        PyList(t="list", items=[]), PyStr(t="str", val="v")
+    );
+    assert is_error(unh);
 }
 
 test "pyc-first: full generator functions (def + yield) drive natively" {

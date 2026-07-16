@@ -60,6 +60,16 @@ obj PyObj {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         return py_error("TypeError", "object is not callable");
     }
+
+    # Canonical dict/set key string (the internal hash-key protocol). Encodes a
+    # VALUE into a type-prefixed, collision-safe string so the backing Jac dict
+    # keys on value-equality with Python's numeric collapse (see PyInt/PyFloat).
+    # The empty string is the "unhashable" sentinel (na-clean: no exceptions in
+    # this leaf) -- callers turn it into a TypeError. Real keys are never empty
+    # (every hashable type emits a non-empty prefix).
+    def tp_hashkey -> str {
+        return "";
+    }
 }
 
 obj PyInt(PyObj) {
@@ -180,6 +190,11 @@ obj PyInt(PyObj) {
     def tp_bool -> bool {
         return self.val != 0;
     }
+    # Shared numeric namespace so `hash(1) == hash(1.0) == hash(True)` and all
+    # three key the same dict/set slot (PyBool and integral PyFloat emit "n:" too).
+    def tp_hashkey -> str {
+        return "n:" + str(self.val);
+    }
     # int is its own real part / numerator; imag is 0, denominator is 1.
     def tp_getattro(name: str) -> PyObj {
         if name == "real" or name == "numerator" {
@@ -270,6 +285,11 @@ obj PyStr(PyObj) {
     def tp_bool -> bool {
         return len(self.val) != 0;
     }
+    # "s:" keeps strings disjoint from the numeric namespace (the string "n:5"
+    # hashes to "s:n:5", never colliding with int 5's "n:5").
+    def tp_hashkey -> str {
+        return "s:" + self.val;
+    }
 }
 
 obj PyBytes(PyObj) {
@@ -295,6 +315,14 @@ obj PyBytes(PyObj) {
 
     def tp_bool -> bool {
         return len(self.val) != 0;
+    }
+
+    def tp_hashkey -> str {
+        key = "b:";
+        for v in self.val {
+            key = key + str(v) + ",";
+        }
+        return key;
     }
 }
 
@@ -398,6 +426,25 @@ obj PyFloat(PyObj) {
     def tp_bool -> bool {
         return self.val != 0.0;
     }
+    # Integral floats collapse into the shared "n:" namespace (1.0 keys with
+    # int 1); non-integral floats live in "f:". inf/nan are detected without
+    # float("inf") parsing (na-safe): v != v is nan, v*0.0 != 0.0 is +/-inf.
+    # NB: all nan collapse to one key (value-based), unlike CPython's per-object
+    # nan keys -- an accepted edge divergence given the leaf has no key identity.
+    def tp_hashkey -> str {
+        v = self.val;
+        if v != v {
+            return "f:nan";
+        }
+        if v * 0.0 != 0.0 {
+            return "f:" + str(v);
+        }
+        iv = int(v);
+        if float(iv) == v {
+            return "n:" + str(iv);
+        }
+        return "f:" + str(v);
+    }
 }
 
 obj PyBool(PyObj) {
@@ -405,6 +452,13 @@ obj PyBool(PyObj) {
 
     def tp_bool -> bool {
         return self.val;
+    }
+    # bool is an int subclass: True keys as int 1, False as int 0.
+    def tp_hashkey -> str {
+        if self.val {
+            return "n:1";
+        }
+        return "n:0";
     }
     # bool is an int subclass: real/numerator are int 0 or 1 (not bool), imag 0.
     def tp_getattro(name: str) -> PyObj {
@@ -428,6 +482,10 @@ obj PyBool(PyObj) {
 obj PyNoneType(PyObj) {
     def tp_bool -> bool {
         return False;
+    }
+
+    def tp_hashkey -> str {
+        return "none";
     }
 }
 
@@ -477,6 +535,19 @@ obj PyTuple(PyObj) {
 
     def tp_bool -> bool {
         return len(self.items) != 0;
+    }
+    # Recursive, length-framed so ("a","b") and ("a","b","") stay distinct.
+    # An unhashable element (empty sub-key) makes the whole tuple unhashable.
+    def tp_hashkey -> str {
+        key = "t:";
+        for item in self.items {
+            sub = item.tp_hashkey();
+            if sub == "" {
+                return "";
+            }
+            key = key + str(len(sub)) + ":" + sub;
+        }
+        return key;
     }
 }
 
@@ -572,29 +643,98 @@ obj PyCell(PyObj) {
     has val: PyObj;
 }
 
+# Backing slot for the hash-key protocol: the original key object is kept next
+# to its value so keys()/iteration/repr/KeyError return real keys, never the
+# internal hashkey string. A plain obj (not a PyObj) -- pure storage.
+obj DictEntry {
+    has key: PyObj,
+        value: PyObj;
+}
+
 obj PyDict(PyObj) {
-    has items: dict[str, PyObj];
+    # Keyed on tp_hashkey() (value-equality with numeric collapse), not on the
+    # raw string. Jac dict insertion order is preserved, matching CPython.
+    has items: dict[str, DictEntry];
 
     def mp_subscript(index: PyObj) -> PyObj {
-        key = expect_str(index);
-        if key in self.items {
-            return self.items[key];
+        hk = index.tp_hashkey();
+        if hk == "" {
+            return py_error("TypeError", "unhashable type");
         }
-        return py_error("KeyError", key);
+        if hk in self.items {
+            return self.items[hk].value;
+        }
+        return py_error("KeyError", dict_key_repr(index));
     }
 
     def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
-        self.items[expect_str(index)] = value;
+        hk = index.tp_hashkey();
+        if hk == "" {
+            return py_error("TypeError", "unhashable type");
+        }
+        if hk in self.items {
+            # Overwrite value, keep the FIRST key object + slot position (CPython
+            # semantics). Rebuild the entry rather than writing a nested obj field
+            # in place (na external-field-write header hazard on the leaf).
+            self.items[hk] = DictEntry(key=self.items[hk].key, value=value);
+        } else {
+            self.items[hk] = DictEntry(key=index, value=value);
+        }
         return py_none();
     }
 
     def mp_del_subscript(index: PyObj) -> PyObj {
-        key = expect_str(index);
-        if key in self.items {
-            del self.items[key];
+        hk = index.tp_hashkey();
+        if hk == "" {
+            return py_error("TypeError", "unhashable type");
+        }
+        if hk in self.items {
+            del self.items[hk];
             return py_none();
         }
-        return py_error("KeyError", key);
+        return py_error("KeyError", dict_key_repr(index));
+    }
+
+    # Public helpers so bootstrap/ceval code never touches the raw entry map.
+    def dict_set(keyobj: PyObj, value: PyObj) -> PyObj {
+        return self.mp_ass_subscript(keyobj, value);
+    }
+
+    def dict_contains(keyobj: PyObj) -> bool {
+        hk = keyobj.tp_hashkey();
+        if hk == "" {
+            return False;
+        }
+        return hk in self.items;
+    }
+
+    def dict_keys -> list[PyObj] {
+        out: list[PyObj] = [];
+        for hk in self.items {
+            out.append(self.items[hk].key);
+        }
+        return out;
+    }
+
+    def dict_values -> list[PyObj] {
+        out: list[PyObj] = [];
+        for hk in self.items {
+            out.append(self.items[hk].value);
+        }
+        return out;
+    }
+
+    # Values re-keyed by their string key (only entries whose key is a PyStr).
+    # For the inherently str-keyed consumers: kwdefaults, %(name) mapping format.
+    def dict_str_map -> dict[str, PyObj] {
+        out: dict[str, PyObj] = {};
+        for hk in self.items {
+            entry = self.items[hk];
+            if entry.key.t == "str" {
+                out[expect_str(entry.key)] = entry.value;
+            }
+        }
+        return out;
     }
 
     # NOTE: dict host-method attr access (get/keys/values/items) is deliberately
@@ -602,8 +742,9 @@ obj PyDict(PyObj) {
     # leaf depend on the host bridge (an import cycle) for a bootstrap-only,
     # untested convenience. If needed it belongs in the ceval/bootstrap layer.
     def tp_getattro(name: str) -> PyObj {
-        if name in self.items {
-            return self.items[name];
+        hk = "s:" + name;
+        if hk in self.items {
+            return self.items[hk].value;
         }
         return py_error("AttributeError", name);
     }
@@ -704,6 +845,18 @@ def expect_str(o: PyObj) -> str {
         return (o as PyStr).val;
     }
     return "";
+}
+
+# Best-effort repr of a missing dict key for KeyError messages: str keys are
+# quoted, ints show their value, other keys fall back to their hashkey.
+def dict_key_repr(index: PyObj) -> str {
+    if isinstance(index, PyStr) {
+        return "'" + (index as PyStr).val + "'";
+    }
+    if isinstance(index, PyInt) {
+        return str((index as PyInt).val);
+    }
+    return index.tp_hashkey();
 }
 
 def expect_float(o: PyObj) -> float {
@@ -1116,7 +1269,7 @@ def str_mod_format(fmt: str, args: PyObj) -> PyObj {
             if not mapping {
                 return py_error("TypeError", "format requires a mapping");
             }
-            d = (args as PyDict).items;
+            d = (args as PyDict).dict_str_map();
             if key in d {
                 arg = d[key];
             } else {
