@@ -1145,8 +1145,11 @@ def host_builtin(name: str) -> PyObj {
     # next()/iter() are handled natively so a native generator or iterator is
     # driven one step in-VM instead of being drained across the host boundary.
     # id() is native so it reports stable object identity (consistent with `is`)
-    # rather than the host id of a throwaway to_host value.
+    # rather than the host id of a throwaway to_host value. len() reads a native
+    # container's own size (and dispatches __len__) instead of counting a
+    # to_host copy, which drops plain user objects held as members/keys.
     if name == "next" or name == "iter" or name == "id"
+    or name == "len"
     or name == "isinstance" or name == "issubclass" {
         return PyNativeBuiltin(t="native_builtin", name=name);
     }
@@ -2178,6 +2181,51 @@ def py_iter(value: PyObj) -> PyObj {
     return value.tp_iter();
 }
 
+# len() computed in-VM from a native container's own storage so a native
+# list/tuple/str/bytes/dict/set -- and especially one holding plain user
+# objects -- reports its size directly instead of round-tripping through
+# to_host (where a plain PyUserObj collapses to None and the count is lost).
+# A builtin subclass measures its boxed value; a user class dispatches __len__.
+def py_len(value: PyObj) -> PyObj {
+    if isinstance(value, PyStr) {
+        return PyInt(t="int", val=len((value as PyStr).val));
+    }
+    if isinstance(value, PyBytes) {
+        return PyInt(t="int", val=len((value as PyBytes).val));
+    }
+    if isinstance(value, PyTuple) {
+        return PyInt(t="int", val=len((value as PyTuple).items));
+    }
+    if isinstance(value, PyList) {
+        return PyInt(t="int", val=len((value as PyList).items));
+    }
+    if isinstance(value, PyDict) {
+        return PyInt(t="int", val=len((value as PyDict).items));
+    }
+    if isinstance(value, PySet) {
+        return PyInt(t="int", val=len((value as PySet).items));
+    }
+    if isinstance(value, PyUserObj) {
+        u = value as PyUserObj;
+        if user_has_dunder(u, "__len__") {
+            res = call_user_dunder(u, "__len__", []);
+            if is_error(res) {
+                return res;
+            }
+            if isinstance(res, PyInt) {
+                return res;
+            }
+            return py_error("TypeError", "'__len__' should return an integer");
+        }
+        if u._has_base() {
+            return py_len(u._base_obj());
+        }
+    }
+    return py_error(
+        "TypeError", "object of type '" + value.t + "' has no len()"
+    );
+}
+
 # Materialize a host iterable (range, dict-view, map/filter object, ...) into a
 # native PyIter so GET_ITER/FOR_ITER drive it without a host round-trip per step.
 def host_iter(value: PyHostProxy) -> PyObj {
@@ -2627,6 +2675,14 @@ obj PyNativeBuiltin(PyObj) {
                 return py_error("TypeError", "id expected 1 argument");
             }
             return PyInt(t="int", val=py_id(args[0]));
+        }
+        if self.name == "len" {
+            if len(args) != 1 {
+                return py_error(
+                    "TypeError", "len() takes exactly one argument"
+                );
+            }
+            return py_len(args[0]);
         }
         if self.name == "isinstance" {
             if len(args) < 2 {
@@ -4832,6 +4888,67 @@ test "pyc-first: user-class operator overloading (__add__/__eq__/... dispatch)" 
         "    hit = 1\n"
     );
     assert expect_int(raising["hit"]) == 1;
+}
+
+test "pyc-first: len() reads native container size in-VM (no to_host drain)" {
+    # len() over the native container types is measured from their own storage.
+    sizes = run_source(
+        "a = len('hello')\n"
+        "b = len(b'ab')\n"
+        "c = len((1, 2, 3))\n"
+        "d = len([1, 2])\n"
+        "e = len({'x': 1, 'y': 2})\n"
+        "f = len({1, 2, 3, 3})\n"
+    );
+    assert expect_int(sizes["a"]) == 5;
+    assert expect_int(sizes["b"]) == 2;
+    assert expect_int(sizes["c"]) == 3;
+    assert expect_int(sizes["d"]) == 2;
+    assert expect_int(sizes["e"]) == 2;
+    assert expect_int(sizes["f"]) == 3;
+
+    # The regression: a native set/list/dict of PLAIN user objects. Each member
+    # to_host-es to None, so counting a host copy loses them; the native path
+    # reads the real member count. __hash__/__eq__ make them distinct set/key
+    # members without collapsing.
+    plain = run_source(
+        "class P:\n"
+        "    def __init__(self, k):\n"
+        "        self.k = k\n"
+        "    def __hash__(self):\n"
+        "        return self.k\n"
+        "    def __eq__(self, o):\n"
+        "        return self.k == o.k\n"
+        "s = len({P(1), P(2), P(3)})\n"
+        "l = len([P(1), P(1), P(1)])\n"
+        "d = len({P(1): 'a', P(2): 'b'})\n"
+    );
+    assert expect_int(plain["s"]) == 3;
+    assert expect_int(plain["l"]) == 3;
+    assert expect_int(plain["d"]) == 2;
+
+    # A user class with __len__ dispatches to it; truthiness of the count works.
+    dunder = run_source(
+        "class Box:\n"
+        "    def __init__(self, n):\n"
+        "        self.n = n\n"
+        "    def __len__(self):\n"
+        "        return self.n\n"
+        "z = len(Box(7))\n"
+    );
+    assert expect_int(dunder["z"]) == 7;
+
+    # A user object with no __len__ raises TypeError (recoverable).
+    err = run_source(
+        "class Bare:\n"
+        "    pass\n"
+        "hit = 0\n"
+        "try:\n"
+        "    len(Bare())\n"
+        "except TypeError:\n"
+        "    hit = 1\n"
+    );
+    assert expect_int(err["hit"]) == 1;
 }
 
 test "pyc-first: object identity -- is / id (Track I)" {
