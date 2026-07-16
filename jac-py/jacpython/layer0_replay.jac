@@ -488,11 +488,11 @@ test "layer0: non-str-keyed host dicts stay opaque and round-trip" {
     assert replay_expr("{1: 'a', 2: 'b'}") == True;
 }
 
-test "layer0: sets build opaque on the host (BUILD_SET / SET_UPDATE / const)" {
-    # No native PySet: set literals build on the host and stay opaque, set
-    # operators route through the host binop fallback, and TYPE_SET/
-    # TYPE_FROZENSET marshal constants (>=3 members => LOAD_CONST frozenset +
-    # SET_UPDATE) decode to opaque host sets.
+test "layer0: native sets (BUILD_SET / SET_UPDATE / const) via hash-key protocol" {
+    # Native PySet (H3): set literals + set algebra (&, -, ^, |) run natively
+    # through PySet.nb_binop, and TYPE_SET/TYPE_FROZENSET marshal constants
+    # (>=3 members => LOAD_CONST frozenset + SET_UPDATE) decode to native sets.
+    # Mixed native-set / host-view ops (dict.keys() | {2}) fall back to the host.
     assert replay_expr("{1, 2}") == True;
     assert replay_expr("{1, 2, 3}") == True;
     assert replay_expr("{1, 2, 3} & {2, 3, 4}") == True;

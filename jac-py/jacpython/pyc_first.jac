@@ -84,19 +84,6 @@ def _jac_host_format(value, spec):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
-def _jac_build_set(host_members):
-    # host_members is a jac list of already-host-converted values.
-    return set(host_members)
-
-def _jac_set_update(host_set, host_iterable):
-    host_set.update(host_iterable)
-    return host_set
-
-def _jac_make_set(host_members, frozen):
-    if frozen:
-        return frozenset(host_members)
-    return set(host_members)
-
 def _jac_host_binop(kind, a, b):
     import operator
     _NB = {
@@ -690,6 +677,7 @@ import from objects {
     PyCode,
     PyCell,
     PyDict,
+    PySet,
     PyExceptionType,
     PyException,
     PyError,
@@ -903,6 +891,28 @@ def from_host(raw: any) -> PyObj {
         }
         return native;
     }
+    if isinstance(raw, frozenset) {
+        fs = PySet(t="frozenset", items={}, frozen=True);
+        for member in raw {
+            memberobj = from_host(member);
+            if memberobj.tp_hashkey() == "" {
+                return PyHostProxy(t="host", val=raw);
+            }
+            fs.set_add(memberobj);
+        }
+        return fs;
+    }
+    if isinstance(raw, set) {
+        ns = PySet(t="set", items={}, frozen=False);
+        for member in raw {
+            memberobj = from_host(member);
+            if memberobj.tp_hashkey() == "" {
+                return PyHostProxy(t="host", val=raw);
+            }
+            ns.set_add(memberobj);
+        }
+        return ns;
+    }
     return PyHostProxy(t="host", val=raw);
 }
 
@@ -950,6 +960,16 @@ def to_host(value: PyObj) -> any {
                 result[to_host(entry.key)] = to_host(entry.value);
             }
             return result;
+
+        case PySet():
+            members: list[any] = [];
+            for member in value.set_members() {
+                members.append(to_host(member));
+            }
+            if value.frozen {
+                return frozenset(members);
+            }
+            return set(members);
 
         case PySlice():
             return slice(
@@ -1243,17 +1263,20 @@ obj Reader {
     }
 
     # TYPE_SET ('<' == 60) / TYPE_FROZENSET ('>' == 62): r_long count then N
-    # members. No native PySet yet, so the const is materialized as an opaque
-    # host set/frozenset wrapped in a PyHostProxy (mirrors BUILD_SET).
+    # members, materialized as a native PySet under the hash-key protocol.
     def read_set(frozen: bool) -> PyObj {
         n = self.r_long();
-        host_members: list[any] = [];
+        name = "set";
+        if frozen {
+            name = "frozenset";
+        }
+        result = PySet(t=name, items={}, frozen=frozen);
         i = 0;
         while i < n {
-            host_members.append(to_host(self.r_object()));
+            result.set_add(self.r_object());
             i = i + 1;
         }
-        return PyHostProxy(t="host", val=_jac_make_set(host_members, frozen));
+        return result;
     }
 
     # TYPE_SLICE (':' == 58): three marshaled objects -- start, stop, step.
@@ -1499,6 +1522,7 @@ glob OP_CACHE: int = 0,
      OP_JUMP_BACKWARD_NO_INTERRUPT: int = 76,
      OP_JUMP_FORWARD: int = 77,
      OP_LIST_APPEND: int = 78,
+     OP_SET_ADD: int = 107,
      OP_LIST_EXTEND: int = 79,
      OP_LOAD_ATTR: int = 80,
      OP_LOAD_CONST: int = 82,
@@ -1635,7 +1659,10 @@ def host_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
 }
 
 def _host_representable(t: str) -> bool {
-    return _is_host_backed(t) or t == "host";
+    # Native PySet is fully to_host-representable, so a mixed native-set / host
+    # operand binop (e.g. dict.keys() | {2}) can still fall back to the host.
+    # Native set | set never reaches here -- PySet.nb_binop answers it directly.
+    return _is_host_backed(t) or t == "host" or t == "set" or t == "frozenset";
 }
 
 def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
@@ -1656,9 +1683,16 @@ def py_subscript(container: PyObj, index: PyObj) -> PyObj {
     return container.mp_subscript(index);
 }
 
-# Membership test (CONTAINS_OP). Routed through the host so every container
-# shape -- native or opaque proxy -- answers `in` consistently during bootstrap.
+# Membership test (CONTAINS_OP). Native sets/dicts answer via the hash-key
+# protocol; other container shapes route through the host so `in` stays
+# consistent for opaque proxies during bootstrap.
 def py_contains(container: PyObj, member: PyObj) -> PyObj {
+    if isinstance(container, PySet) {
+        return PyBool(t="bool", val=(container as PySet).set_contains(member));
+    }
+    if isinstance(container, PyDict) {
+        return PyBool(t="bool", val=(container as PyDict).dict_contains(member));
+    }
     result = _jac_host_contains(to_host(member), to_host(container));
     if host_result_ok(result) {
         return from_host(result[1]);
@@ -2742,26 +2776,40 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_BUILD_SET {
-            # No native PySet yet: build the set on the host and keep it opaque
-            # (mirrors non-str dict handling). Set operators (|, &, -, ^) then
-            # route through the host binop fallback.
+            # Native PySet via the hash-key protocol; set algebra (|, &, -, ^) and
+            # membership then run natively (PySet.nb_binop / set_contains).
             members: list[PyObj] = [];
             while len(members) < arg {
                 members.insert(0, stack.pop());
             }
-            host_members: list[any] = [];
+            native_set = PySet(t="set", items={}, frozen=False);
+            set_err: PyObj = py_none();
+            had_set_err = False;
             for member in members {
-                host_members.append(to_host(member));
+                set_err = native_set.set_add(member);
+                if is_error(set_err) {
+                    had_set_err = True;
+                    break;
+                }
             }
-            host_set: any = _jac_build_set(host_members);
-            stack.append(PyHostProxy(t="host", val=host_set));
+            if had_set_err {
+                target = recover_exception(co, set_err, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return set_err;
+            }
+            stack.append(native_set);
             continue;
         }
         if op == OP_SET_UPDATE {
             iterable = stack.pop();
             target_index = len(stack) - arg;
-            target_set: PyHostProxy = stack[target_index] as PyHostProxy;
-            target_set.val = _jac_set_update(target_set.val, to_host(iterable));
+            target_set: PySet = stack[target_index] as PySet;
+            for hostel in to_host(iterable) {
+                target_set.set_add(from_host(hostel));
+            }
             continue;
         }
         if op == OP_CONVERT_VALUE {
@@ -2819,6 +2867,13 @@ def run_frame(frame: PyFrame) -> PyObj {
             value = stack.pop();
             target_index = len(stack) - arg;
             (stack[target_index] as PyList).items.append(value);
+            continue;
+        }
+        if op == OP_SET_ADD {
+            # set comprehension step: value=TOS, target set at STACK[-arg].
+            set_member: PyObj = stack.pop();
+            target_index = len(stack) - arg;
+            (stack[target_index] as PySet).set_add(set_member);
             continue;
         }
         if op == OP_MAP_ADD {
@@ -3965,6 +4020,73 @@ test "pyc-first: value-keyed dicts via the hash-key protocol (H2)" {
         PyList(t="list", items=[]), PyStr(t="str", val="v")
     );
     assert is_error(unh);
+}
+
+test "pyc-first: native sets via the hash-key protocol (H3)" {
+    # Membership + numeric collapse: 2.0 and True find the same slots as 2 / 1.
+    mem = run_source(
+        "s = {1, 2, 3}\n"
+        "a = 2.0 in s\nb = True in s\nc = 4 in s\nn = len(s)\n"
+    );
+    assert expect_bool(mem["a"]) == True;
+    assert expect_bool(mem["b"]) == True;
+    assert expect_bool(mem["c"]) == False;
+    assert expect_int(mem["n"]) == 3;
+
+    # Set algebra runs natively (PySet.nb_binop). Compare sizes to dodge
+    # element-order noise across the boundary.
+    ops = run_source(
+        "u = len({1, 2, 3} | {3, 4})\n"
+        "i = len({1, 2, 3} & {2, 3, 4})\n"
+        "d = len({1, 2, 3} - {2})\n"
+        "x = len({1, 2, 3} ^ {2, 3, 4})\n"
+    );
+    assert expect_int(ops["u"]) == 4;
+    assert expect_int(ops["i"]) == 2;
+    assert expect_int(ops["d"]) == 2;
+    assert expect_int(ops["x"]) == 2;
+
+    # Subset / equality comparisons.
+    cmp = run_source(
+        "sub = {1, 2} <= {1, 2, 3}\n"
+        "eq = {1, 2} == {2, 1}\n"
+        "psub = {1, 2} < {1, 2}\n"
+        "sup = {1, 2, 3} > {1, 2}\n"
+    );
+    assert expect_bool(cmp["sub"]) == True;
+    assert expect_bool(cmp["eq"]) == True;
+    assert expect_bool(cmp["psub"]) == False;
+    assert expect_bool(cmp["sup"]) == True;
+
+    # Set comprehension dedupes value-equal members (1 and 1.0 collapse).
+    comp = run_source("s = {n % 3 for n in range(10)}\nn = len(s)\n");
+    assert expect_int(comp["n"]) == 3;
+
+    # frozenset is hashable and order-independent as a dict key.
+    fz = run_source(
+        "d = {frozenset({1, 2}): 'x'}\n"
+        "hit = d[frozenset({2, 1})]\nmem = frozenset({1, 2}) in d\n"
+    );
+    assert expect_str(fz["hit"]) == "x";
+    assert expect_bool(fz["mem"]) == True;
+
+    # A mutable set is unhashable.
+    unh = PySet(t="set", items={}, frozen=False).tp_hashkey();
+    assert unh == "";
+}
+
+test "pyc-first: hash() builtin + float.__hash__ collapse (H4)" {
+    # The user-facing hash() int (distinct from the internal tp_hashkey string)
+    # resolves through the host-builtin fallback with Python's collapse:
+    # hash(1) == hash(1.0) == hash(True). float.__hash__ and tuple hashing work.
+    h = run_source(
+        "collapse = hash(1) == hash(1.0) == hash(True)\n"
+        "fh = (2.0).__hash__() == hash(2)\n"
+        "th = hash((1, 2)) == hash((1, 2))\n"
+    );
+    assert expect_bool(h["collapse"]) == True;
+    assert expect_bool(h["fh"]) == True;
+    assert expect_bool(h["th"]) == True;
 }
 
 test "pyc-first: full generator functions (def + yield) drive natively" {

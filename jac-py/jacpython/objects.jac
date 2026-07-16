@@ -754,6 +754,168 @@ obj PyDict(PyObj) {
     }
 }
 
+# Native set / frozenset -- one type, `frozen` selects mutability + hashability.
+# Backed by the hash-key protocol (hashkey -> member obj), so membership and set
+# algebra are value-based with the same numeric collapse as PyDict.
+obj PySet(PyObj) {
+    has items: dict[str, PyObj],
+        frozen: bool = False;
+
+    def set_contains(member: PyObj) -> bool {
+        hk = member.tp_hashkey();
+        if hk == "" {
+            return False;
+        }
+        return hk in self.items;
+    }
+
+    def set_add(member: PyObj) -> PyObj {
+        hk = member.tp_hashkey();
+        if hk == "" {
+            return py_error("TypeError", "unhashable type");
+        }
+        self.items[hk] = member;
+        return py_none();
+    }
+
+    def set_members -> list[PyObj] {
+        out: list[PyObj] = [];
+        for hk in self.items {
+            out.append(self.items[hk]);
+        }
+        return out;
+    }
+
+    def tp_iter -> PyObj {
+        return PyIter(t="iter", items=self.set_members(), index=0);
+    }
+
+    def tp_bool -> bool {
+        return len(self.items) != 0;
+    }
+
+    # Only frozensets are hashable (mutable set -> "" unhashable). The digest is
+    # order-independent: member subkeys are sorted (manual insertion sort, na-
+    # clean) so frozenset({1,2}) and frozenset({2,1}) share one key.
+    def tp_hashkey -> str {
+        if not self.frozen {
+            return "";
+        }
+        keys: list[str] = [];
+        for hk in self.items {
+            keys.append(hk);
+        }
+        i = 1;
+        while i < len(keys) {
+            cur = keys[i];
+            j = i - 1;
+            while j >= 0 and keys[j] > cur {
+                keys[j + 1] = keys[j];
+                j = j - 1;
+            }
+            keys[j + 1] = cur;
+            i = i + 1;
+        }
+        result = "fs:" + str(len(keys));
+        for k in keys {
+            result = result + ":" + str(len(k)) + ":" + k;
+        }
+        return result;
+    }
+
+    def nb_binop(kind: int, other: PyObj) -> PyObj {
+        if not isinstance(other, PySet) {
+            return py_error("TypeError", "unsupported operand types");
+        }
+        o = other as PySet;
+        result_items: dict[str, PyObj] = {};
+        if kind == 7 {
+            # union
+            for hk in self.items {
+                result_items[hk] = self.items[hk];
+            }
+            for hk in o.items {
+                result_items[hk] = o.items[hk];
+            }
+        } elif kind == 1 {
+            # intersection
+            for hk in self.items {
+                if hk in o.items {
+                    result_items[hk] = self.items[hk];
+                }
+            }
+        } elif kind == 10 {
+            # difference
+            for hk in self.items {
+                if not (hk in o.items) {
+                    result_items[hk] = self.items[hk];
+                }
+            }
+        } elif kind == 12 {
+            # symmetric difference
+            for hk in self.items {
+                if not (hk in o.items) {
+                    result_items[hk] = self.items[hk];
+                }
+            }
+            for hk in o.items {
+                if not (hk in self.items) {
+                    result_items[hk] = o.items[hk];
+                }
+            }
+        } else {
+            return py_error("TypeError", "unsupported operand types");
+        }
+        # Result type follows the left operand (frozenset|set -> frozenset).
+        return PySet(t=self.t, items=result_items, frozen=self.frozen);
+    }
+
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        if not isinstance(other, PySet) {
+            if kind == 2 {
+                return PyBool(t="bool", val=False);
+            }
+            if kind == 3 {
+                return PyBool(t="bool", val=True);
+            }
+            return py_error("TypeError", "unorderable types");
+        }
+        o = other as PySet;
+        self_sub = True;
+        for hk in self.items {
+            if not (hk in o.items) {
+                self_sub = False;
+            }
+        }
+        o_sub = True;
+        for hk in o.items {
+            if not (hk in self.items) {
+                o_sub = False;
+            }
+        }
+        eq = self_sub and o_sub;
+        if kind == 2 {
+            return PyBool(t="bool", val=eq);
+        }
+        if kind == 3 {
+            return PyBool(t="bool", val=not eq);
+        }
+        if kind == 1 {
+            return PyBool(t="bool", val=self_sub);
+        }
+        if kind == 0 {
+            return PyBool(t="bool", val=self_sub and not eq);
+        }
+        if kind == 5 {
+            return PyBool(t="bool", val=o_sub);
+        }
+        if kind == 4 {
+            return PyBool(t="bool", val=o_sub and not eq);
+        }
+        return PyBool(t="bool", val=False);
+    }
+}
+
 obj PyExceptionType(PyObj) {
     has name: str;
 
