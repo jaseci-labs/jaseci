@@ -1551,6 +1551,14 @@ glob OP_CACHE: int = 0,
      OP_GET_AWAITABLE: int = 71,
      OP_CLEANUP_THROW: int = 7,
      OP_DELETE_NAME: int = 65,
+     OP_UNARY_NEGATIVE: int = 41,
+     OP_UNARY_INVERT: int = 40,
+     OP_UNPACK_SEQUENCE: int = 119,
+     OP_DELETE_SUBSCR: int = 8,
+     OP_MAP_ADD: int = 98,
+     OP_DICT_MERGE: int = 66,
+     OP_DICT_UPDATE: int = 67,
+     OP_STORE_FAST_STORE_FAST: int = 114,
      OP_NOP: int = 27;
 
 # Inline caches occupy real code units in 3.14.  Returning the number of cache
@@ -1664,6 +1672,61 @@ def py_contains(container: PyObj, member: PyObj) -> PyObj {
 
 def py_store_subscript(container: PyObj, index: PyObj, value: PyObj) -> PyObj {
     return container.mp_ass_subscript(index, value);
+}
+
+def py_delete_subscript(container: PyObj, index: PyObj) -> PyObj {
+    return container.mp_del_subscript(index);
+}
+
+# DICT_UPDATE/DICT_MERGE source view: yields the str-keyed pairs to merge into
+# the target dict. Native PyDict is returned directly; a host-backed mapping
+# (PyHostProxy) is converted via from_host, which lands as a PyDict when its
+# keys are strings. Non-mapping / non-str-key sources produce an empty view.
+def dict_merge_pairs(source: PyObj) -> PyDict {
+    if isinstance(source, PyDict) {
+        return source as PyDict;
+    }
+    if isinstance(source, PyHostProxy) {
+        converted = from_host((source as PyHostProxy).val);
+        if isinstance(converted, PyDict) {
+            return converted as PyDict;
+        }
+    }
+    return PyDict(t="dict", items={});
+}
+
+# UNARY_NEGATIVE (-x). int/bool negate to int (-True == -1), float to float; any
+# other operand is a TypeError, matching CPython's nb_negative == NULL path.
+def py_negative(value: PyObj) -> PyObj {
+    if isinstance(value, PyBool) {
+        v = 0;
+        if (value as PyBool).val {
+            v = 1;
+        }
+        return PyInt(t="int", val=-v);
+    }
+    if isinstance(value, PyInt) {
+        return PyInt(t="int", val=-(value as PyInt).val);
+    }
+    if isinstance(value, PyFloat) {
+        return PyFloat(t="float", val=-(value as PyFloat).val);
+    }
+    return py_error("TypeError", "bad operand type for unary -");
+}
+
+# UNARY_INVERT (~x). Defined only for ints/bools: ~x == -x - 1.
+def py_invert(value: PyObj) -> PyObj {
+    if isinstance(value, PyBool) {
+        v = 0;
+        if (value as PyBool).val {
+            v = 1;
+        }
+        return PyInt(t="int", val=-v - 1);
+    }
+    if isinstance(value, PyInt) {
+        return PyInt(t="int", val=-(value as PyInt).val - 1);
+    }
+    return py_error("TypeError", "bad operand type for unary ~");
 }
 
 def append_to_list(target: PyObj, iterable: PyObj) {
@@ -2445,6 +2508,19 @@ def run_frame(frame: PyFrame) -> PyObj {
             stack.append(load_result);
             continue;
         }
+        if op == OP_STORE_FAST_STORE_FAST {
+            # Packed two-register store: TOS -> reg(arg>>4), TOS1 -> reg(arg&15).
+            first_index = arg // 16;
+            second_index = arg % 16;
+            if first_index >= len(fast) or second_index >= len(fast) {
+                return py_error("UnboundLocalError", "invalid local variable");
+            }
+            fast[first_index] = stack.pop();
+            assigned[first_index] = True;
+            fast[second_index] = stack.pop();
+            assigned[second_index] = True;
+            continue;
+        }
         if op == OP_LOAD_FAST_BORROW_2 or op == OP_LOAD_FAST_LOAD_FAST {
             first = arg // 16;
             second = arg % 16;
@@ -2740,6 +2816,118 @@ def run_frame(frame: PyFrame) -> PyObj {
             (stack[target_index] as PyList).items.append(value);
             continue;
         }
+        if op == OP_MAP_ADD {
+            # dict comprehension step: value=TOS, key=TOS1, target dict at
+            # STACK[-arg] after the two pops (mirrors LIST_APPEND's addressing).
+            map_value: PyObj = stack.pop();
+            map_key: PyObj = stack.pop();
+            target_index = len(stack) - arg;
+            (stack[target_index] as PyDict).items[expect_str(map_key)] = map_value;
+            continue;
+        }
+        if op == OP_DICT_UPDATE {
+            # {**a, **b}: merge source (TOS) into the dict at STACK[-arg-1];
+            # duplicate keys are overwritten (last wins), no error.
+            update_source: PyObj = stack.pop();
+            target_index = len(stack) - arg;
+            update_target = stack[target_index] as PyDict;
+            update_pairs = dict_merge_pairs(update_source).items;
+            for uk in update_pairs {
+                update_target.items[uk] = update_pairs[uk];
+            }
+            continue;
+        }
+        if op == OP_DICT_MERGE {
+            # f(**kw): merge source (TOS) into the kwargs dict at STACK[-arg-1].
+            # Unlike DICT_UPDATE, a duplicate key is a TypeError (a keyword passed
+            # more than once).
+            merge_source: PyObj = stack.pop();
+            target_index = len(stack) - arg - 1;
+            merge_target = stack[target_index] as PyDict;
+            merge_pairs = dict_merge_pairs(merge_source).items;
+            dup_key = "";
+            has_dup = False;
+            for mk in merge_pairs {
+                if mk in merge_target.items {
+                    dup_key = mk;
+                    has_dup = True;
+                } else {
+                    merge_target.items[mk] = merge_pairs[mk];
+                }
+            }
+            if has_dup {
+                merge_err = py_error(
+                    "TypeError",
+                    "got multiple values for keyword argument '" + dup_key + "'",
+                );
+                target = recover_exception(co, merge_err, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return merge_err;
+            }
+            continue;
+        }
+        if op == OP_UNPACK_SEQUENCE {
+            seq = stack.pop();
+            it = py_iter(seq);
+            if is_error(it) {
+                target = recover_exception(co, it, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return it;
+            }
+            unpacked: list[PyObj] = [];
+            if isinstance(it, PyIter) {
+                unpacked = (it as PyIter).items;
+            } elif it.t == "generator" {
+                while True {
+                    nxt = gen_resume(it as PyGenerator, py_none());
+                    if is_error(nxt) {
+                        return nxt;
+                    }
+                    if nxt.t == "genstop" {
+                        break;
+                    }
+                    unpacked.append(nxt);
+                }
+            }
+            unpack_err: PyObj = py_none();
+            if len(unpacked) < arg {
+                unpack_err = py_error(
+                    "ValueError",
+                    "not enough values to unpack (expected "
+                    + str(arg)
+                    + ", got "
+                    + str(len(unpacked))
+                    + ")",
+                );
+            } elif len(unpacked) > arg {
+                unpack_err = py_error(
+                    "ValueError",
+                    "too many values to unpack (expected " + str(arg) + ")",
+                );
+            }
+            if is_error(unpack_err) {
+                target = recover_exception(co, unpack_err, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return unpack_err;
+            }
+            # Push in reverse so the first element lands on top of the stack for
+            # the successive STORE ops (CPython's UNPACK_SEQUENCE ordering).
+            k = arg - 1;
+            while k >= 0 {
+                stack.append(unpacked[k]);
+                k = k - 1;
+            }
+            continue;
+        }
         if op == OP_GET_ITER {
             iterable = py_iter(stack.pop());
             if is_error(iterable) {
@@ -2945,6 +3133,32 @@ def run_frame(frame: PyFrame) -> PyObj {
             stack.append(PyBool(t="bool", val=not py_truth(stack.pop())));
             continue;
         }
+        if op == OP_UNARY_NEGATIVE {
+            result = py_negative(stack.pop());
+            if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return result;
+            }
+            stack.append(result);
+            continue;
+        }
+        if op == OP_UNARY_INVERT {
+            result = py_invert(stack.pop());
+            if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return result;
+            }
+            stack.append(result);
+            continue;
+        }
         if op == OP_BINARY_OP {
             rhs = stack.pop();
             lhs = stack.pop();
@@ -3032,6 +3246,20 @@ def run_frame(frame: PyFrame) -> PyObj {
             stored_value: PyObj = stack.pop();
             result = py_store_subscript(owner, stored_index, stored_value);
             if is_error(result) {
+                return result;
+            }
+            continue;
+        }
+        if op == OP_DELETE_SUBSCR {
+            deleted_index: PyObj = stack.pop();
+            owner = stack.pop();
+            result = py_delete_subscript(owner, deleted_index);
+            if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
                 return result;
             }
             continue;
@@ -3486,6 +3714,84 @@ test "pyc-first: augmented assignment (NB_INPLACE_* binops) matches base ops" {
     assert expect_int(ops["i"]) == 4;
     assert expect_int(ops["j"]) == 16;
     assert expect_str(ops["k"]) == "abcd";
+}
+
+test "pyc-first: true divide, xor, unary neg/invert on non-constant int operands" {
+    # Non-constant operands defeat the compiler's constant folding, so these hit
+    # the native PyInt.nb_binop / unary slots. True divide (oparg 11) must yield a
+    # float even when it divides evenly; XOR is a distinct oparg (12).
+    ops = run_source(
+        "a = 6\nb = 2\n"
+        "q_even = a / b\n"
+        "c = 7\nq_frac = c / b\n"
+        "x = 6\ny = 3\nz = x ^ y\n"
+        "n = 5\nneg = -n\ninv = ~n\n"
+    );
+    assert ops["q_even"].t == "float";
+    assert expect_float(ops["q_even"]) == 3.0;
+    assert expect_float(ops["q_frac"]) == 3.5;
+    assert ops["z"].t == "int";
+    assert expect_int(ops["z"]) == 5;
+    assert expect_int(ops["neg"]) == -5;
+    assert expect_int(ops["inv"]) == -6;
+
+    # int / 0 raises ZeroDivisionError natively rather than returning a bogus int.
+    zdiv = PyInt(t="int", val=1).nb_binop(11, PyInt(t="int", val=0));
+    assert is_error(zdiv);
+
+    # A negative shift count is a ValueError, not a native crash (oparg 3 = <<).
+    negshift = PyInt(t="int", val=1).nb_binop(3, PyInt(t="int", val=-1));
+    assert is_error(negshift);
+
+    # test_augassign::testBasic verbatim: the trailing `x /= 2` on int 6 must
+    # produce float 3.0 (this is the case the true-divide/XOR oparg swap broke).
+    basic = run_source(
+        "x = 2\nx += 1\nx *= 2\nx **= 2\nx -= 8\nx //= 5\n"
+        "x %= 3\nx &= 2\nx |= 5\nx ^= 1\nx /= 2\n"
+    );
+    assert basic["x"].t == "float";
+    assert expect_float(basic["x"]) == 3.0;
+}
+
+test "pyc-first: UNPACK_SEQUENCE, DELETE_SUBSCR, MAP_ADD, DICT_UPDATE opcodes" {
+    # Sequence unpacking from tuple, list, and string.
+    un = run_source(
+        "ta, tb = (10, 20)\n"
+        "la, lb, lc = [1, 2, 3]\n"
+        "s1, s2 = 'hi'\n"
+    );
+    assert expect_int(un["ta"]) == 10;
+    assert expect_int(un["tb"]) == 20;
+    assert expect_int(un["la"]) == 1;
+    assert expect_int(un["lc"]) == 3;
+    assert expect_str(un["s1"]) == "h";
+    assert expect_str(un["s2"]) == "i";
+
+    # del on dict and list; the deleted keys/indices are gone afterward.
+    dl = run_source(
+        "d = {'x': 1, 'y': 2}\ndel d['x']\n"
+        "has_x = 'x' in d\nkept = d['y']\n"
+        "L = [1, 2, 3]\ndel L[1]\nl0 = L[0]\nl1 = L[1]\n"
+    );
+    assert expect_bool(dl["has_x"]) == False;
+    assert expect_int(dl["kept"]) == 2;
+    assert expect_int(dl["l0"]) == 1;
+    assert expect_int(dl["l1"]) == 3;
+
+    # dict comprehension (MAP_ADD + STORE_FAST_STORE_FAST) with str keys, which
+    # the str-keyed native PyDict supports.
+    dc = run_source("m = {c: c + c for c in ['a', 'b']}\nma = m['a']\nmb = m['b']\n");
+    assert expect_str(dc["ma"]) == "aa";
+    assert expect_str(dc["mb"]) == "bb";
+
+    # {**a, **b} dict-display merge (DICT_UPDATE); later mapping wins on overlap.
+    mg = run_source(
+        "merged = {**{'a': 1, 'b': 2}, **{'b': 3, 'c': 4}}\n"
+        "va = merged['a']\nvb = merged['b']\nvc = merged['c']\n"
+    );
+    assert expect_int(mg["va"]) == 1;
+    assert expect_int(mg["vb"]) == 3;
+    assert expect_int(mg["vc"]) == 4;
 }
 
 test "pyc-first: PyFloat nb_binop/tp_richcompare drive natively" {

@@ -37,6 +37,10 @@ obj PyObj {
         return py_error("TypeError", "object does not support item assignment");
     }
 
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        return py_error("TypeError", "object does not support item deletion");
+    }
+
     def tp_iter -> PyObj {
         return py_error("TypeError", "object is not iterable");
     }
@@ -96,13 +100,27 @@ obj PyInt(PyObj) {
         if kind == 7 {
             return PyInt(t="int", val=a | b);
         }
+        # NB_TRUE_DIVIDE (11): int / int is always float, even when it divides
+        # evenly (6 / 2 == 3.0, not 3). NB_XOR is a separate oparg (12).
         if kind == 11 {
+            if b == 0 {
+                return py_error("ZeroDivisionError", "division by zero");
+            }
+            return PyFloat(t="float", val=float(a) / float(b));
+        }
+        if kind == 12 {
             return PyInt(t="int", val=a ^ b);
         }
         if kind == 3 {
+            if b < 0 {
+                return py_error("ValueError", "negative shift count");
+            }
             return PyInt(t="int", val=a << b);
         }
         if kind == 9 {
+            if b < 0 {
+                return py_error("ValueError", "negative shift count");
+            }
             return PyInt(t="int", val=a >> b);
         }
         if kind == 8 {
@@ -506,6 +524,21 @@ obj PyList(PyObj) {
         return py_error("IndexError", "list assignment index out of range");
     }
 
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        if index.t != "int" {
+            return py_error("TypeError", "list indices must be integers");
+        }
+        i = (index as PyInt).val;
+        if i < 0 {
+            i = len(self.items) + i;
+        }
+        if i >= 0 and i < len(self.items) {
+            del self.items[i];
+            return py_none();
+        }
+        return py_error("IndexError", "list assignment index out of range");
+    }
+
     def tp_iter -> PyObj {
         return PyIter(t="iter", items=self.items, index=0);
     }
@@ -553,6 +586,15 @@ obj PyDict(PyObj) {
     def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
         self.items[expect_str(index)] = value;
         return py_none();
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        key = expect_str(index);
+        if key in self.items {
+            del self.items[key];
+            return py_none();
+        }
+        return py_error("KeyError", key);
     }
 
     # NOTE: dict host-method attr access (get/keys/values/items) is deliberately
