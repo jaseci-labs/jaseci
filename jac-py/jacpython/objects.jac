@@ -651,10 +651,49 @@ obj DictEntry {
         value: PyObj;
 }
 
+# Native, size-guarded dict iterator (mode = keys|values|items). Holds the dict
+# it came from plus the version stamp at creation; the eval loop (FOR_ITER) and
+# next() consult `snap_version` against `d.version` and raise RuntimeError on a
+# structural change mid-iteration. `keys` is the hashkey list snapshotted at
+# creation so iteration order is stable even as the backing map churns.
+obj PyDictIter(PyObj) {
+    has d: PyDict,
+        keys: list[str],
+        index: int,
+        snap_version: int,
+        mode: str;
+
+    # True when the dict mutated since this iterator was created.
+    def dictiter_stale -> bool {
+        return self.d.version != self.snap_version;
+    }
+}
+
 obj PyDict(PyObj) {
     # Keyed on tp_hashkey() (value-equality with numeric collapse), not on the
     # raw string. Jac dict insertion order is preserved, matching CPython.
-    has items: dict[str, DictEntry];
+    has items: dict[str, DictEntry],
+        # Bumped on every structural mutation (set/overwrite/delete). A dict
+        # iterator snapshots it and raises RuntimeError when it changes mid-loop
+        # -- catching both size change AND net-zero delete+reinsert, matching
+        # CPython's "dictionary changed size during iteration".
+        version: int = 0;
+
+    def tp_iter -> PyObj {
+        return self.dict_iter("keys");
+    }
+
+    # A native, size-guarded iterator over this dict. mode = keys|values|items.
+    def dict_iter(mode: str) -> PyDictIter {
+        keys: list[str] = [];
+        for hk in self.items {
+            keys.append(hk);
+        }
+        return PyDictIter(
+            t="dictiter", d=self, keys=keys, index=0,
+            snap_version=self.version, mode=mode
+        );
+    }
 
     def mp_subscript(index: PyObj) -> PyObj {
         hk = index.tp_hashkey();
@@ -680,6 +719,7 @@ obj PyDict(PyObj) {
         } else {
             self.items[hk] = DictEntry(key=index, value=value);
         }
+        self.version = self.version + 1;
         return py_none();
     }
 
@@ -690,6 +730,7 @@ obj PyDict(PyObj) {
         }
         if hk in self.items {
             del self.items[hk];
+            self.version = self.version + 1;
             return py_none();
         }
         return py_error("KeyError", dict_key_repr(index));
@@ -774,8 +815,47 @@ obj PySet(PyObj) {
         if hk == "" {
             return py_error("TypeError", "unhashable type");
         }
-        self.items[hk] = member;
+        # First occurrence wins: {1, 1.0, True} keeps the int 1 it saw first
+        # (CPython set-literal insertion order). Overwriting would keep the last.
+        if not (hk in self.items) {
+            self.items[hk] = member;
+        }
         return py_none();
+    }
+
+    # Remove and return an arbitrary member (the first in iteration order, which
+    # is deterministic here). Empty set -> KeyError, matching CPython's set.pop().
+    def set_pop -> PyObj {
+        for hk in self.items {
+            member = self.items[hk];
+            del self.items[hk];
+            return member;
+        }
+        return py_error("KeyError", "pop from an empty set");
+    }
+
+    def set_discard(member: PyObj) -> PyObj {
+        hk = member.tp_hashkey();
+        if hk == "" {
+            return py_error("TypeError", "unhashable type");
+        }
+        if hk in self.items {
+            del self.items[hk];
+        }
+        return py_none();
+    }
+
+    def set_clear -> PyObj {
+        self.items = {};
+        return py_none();
+    }
+
+    def set_copy -> PyObj {
+        copy_items: dict[str, PyObj] = {};
+        for hk in self.items {
+            copy_items[hk] = self.items[hk];
+        }
+        return PySet(t=self.t, items=copy_items, frozen=self.frozen);
     }
 
     def set_members -> list[PyObj] {

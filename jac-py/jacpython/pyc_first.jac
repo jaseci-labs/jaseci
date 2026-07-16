@@ -120,6 +120,11 @@ def _jac_host_isinstance(host_obj, host_type):
     except BaseException:
         return False
 
+def _jac_is_exception_type(host_val):
+    # True iff host_val is a class deriving from BaseException (used to recognize
+    # a user class like `class Exc(Exception)` whose host base proxy is here).
+    return isinstance(host_val, type) and issubclass(host_val, BaseException)
+
 def _jac_host_issubclass(host_cls, host_type):
     try:
         return issubclass(host_cls, host_type)
@@ -725,6 +730,7 @@ import from objects {
     PyCode,
     PyCell,
     PyDict,
+    PyDictIter,
     PySet,
     PyExceptionType,
     PyException,
@@ -746,6 +752,7 @@ import from objects {
     py_none,
     py_error,
     py_exception_type,
+    dict_key_repr,
     is_error
 }
 
@@ -1120,6 +1127,15 @@ def to_host(value: PyObj) -> any {
             # into a host list, which every iterable-consuming builtin accepts.
             drained = gen_drain(value);
             return to_host(drained);
+
+        case PyDictView():
+            # list()/sorted()/set() over a view: materialize its elements to a
+            # host list, which every iterable-consuming builtin accepts.
+            velems: list[any] = [];
+            for e in dictview_elements(value) {
+                velems.append(to_host(e));
+            }
+            return velems;
 
     }
     return None;
@@ -1783,9 +1799,78 @@ def py_truth(value: PyObj) -> bool {
     return value.tp_bool();
 }
 
+# A key/value that is NOT a builtin (a user object or a host proxy) can carry a
+# custom __eq__, so the hashkey-bucket match must be confirmed with a real
+# comparison. Between two builtins the hashkey protocol already IS value equality
+# (numeric collapse included), so the confirming eq is skipped -- the fast path.
+def _needs_eq_confirm(o: PyObj) -> bool {
+    return isinstance(o, PyUserObj) or isinstance(o, PyHostProxy);
+}
+
+# CPython dict equality: equal length, and every key of `a` maps in `b` to an
+# equal value. The key lookup and the value compare both go through py_compare,
+# so an element __eq__ that raises (e.g. dict test_eq's BadCmp) propagates rather
+# than being silently answered by the hashkey model. Returns a PyBool or a
+# PyError (a raised element comparison).
+def dict_equal(a: PyDict, b: PyDict) -> PyObj {
+    if len(a.items) != len(b.items) {
+        return PyBool(t="bool", val=False);
+    }
+    for hk in a.items {
+        ak = a.items[hk].key;
+        av = a.items[hk].value;
+        if not (hk in b.items) {
+            return PyBool(t="bool", val=False);
+        }
+        bk = b.items[hk].key;
+        bv = b.items[hk].value;
+        if _needs_eq_confirm(ak) or _needs_eq_confirm(bk) {
+            keq = py_compare(2, bk, ak);
+            if is_error(keq) {
+                return keq;
+            }
+            if not py_truth(keq) {
+                return PyBool(t="bool", val=False);
+            }
+        }
+        veq = py_compare(2, av, bv);
+        if is_error(veq) {
+            return veq;
+        }
+        if not py_truth(veq) {
+            return PyBool(t="bool", val=False);
+        }
+    }
+    return PyBool(t="bool", val=True);
+}
+
+def dict_richcompare(kind: int, a: PyDict, b: PyDict) -> PyObj {
+    if kind != 2 and kind != 3 {
+        return py_error(
+            "TypeError", "'<' not supported between instances of 'dict' and 'dict'"
+        );
+    }
+    eq = dict_equal(a, b);
+    if is_error(eq) {
+        return eq;
+    }
+    if kind == 2 {
+        return eq;
+    }
+    return PyBool(t="bool", val=not py_truth(eq));
+}
+
 def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     if isinstance(lhs, PyUserObj) or isinstance(rhs, PyUserObj) {
         return user_compare(kind, lhs, rhs);
+    }
+    # A dict view on either side compares set-like (keys/items), invoking element
+    # __eq__: {1:1}.keys() == {1}, and d1.items() == d2.items() propagating a raise.
+    if isinstance(lhs, PyDictView) or isinstance(rhs, PyDictView) {
+        return dictview_richcompare(kind, lhs, rhs);
+    }
+    if isinstance(lhs, PyDict) and isinstance(rhs, PyDict) {
+        return dict_richcompare(kind, lhs as PyDict, rhs as PyDict);
     }
     return lhs.tp_richcompare(kind, rhs);
 }
@@ -2020,6 +2105,11 @@ def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     if isinstance(lhs, PyUserObj) or isinstance(rhs, PyUserObj) {
         return user_binop(kind, lhs, rhs);
     }
+    # A dict view on either side does set algebra (| & - ^) yielding a PySet,
+    # e.g. {1:1}.keys() | {2} and {2} | {1:1}.items().
+    if isinstance(lhs, PyDictView) or isinstance(rhs, PyDictView) {
+        return dictview_binop(kind, lhs, rhs);
+    }
     result = lhs.nb_binop(kind, rhs);
     if is_error(result) {
         # A builtin-subclass operand the other side's slot didn't recognize
@@ -2045,6 +2135,9 @@ def py_subscript(container: PyObj, index: PyObj) -> PyObj {
 # protocol; other container shapes route through the host so `in` stays
 # consistent for opaque proxies during bootstrap.
 def py_contains(container: PyObj, member: PyObj) -> PyObj {
+    if isinstance(container, PyDictView) {
+        return view_contains(container as PyDictView, member);
+    }
     if isinstance(container, PySet) {
         return PyBool(t="bool", val=(container as PySet).set_contains(member));
     }
@@ -2160,6 +2253,17 @@ def _is_host_backed(t: str) -> bool {
 
 def py_attr(value: PyObj, name: str) -> PyObj {
     result = value.tp_getattro(name);
+    # A native dict's keys()/values()/items() are bound zero-arg constructors of
+    # a live, set-like PyDictView (not host proxies), so view comparison / set
+    # algebra can invoke element __eq__ and iteration carries the mutation guard.
+    if is_error(result) and isinstance(value, PyDict)
+    and (name == "keys" or name == "values" or name == "items") {
+        return PyDictViewCtor(t="view_ctor", d=value as PyDict, mode=name);
+    }
+    if is_error(result) and isinstance(value, PySet)
+    and is_set_method(name, (value as PySet).frozen) {
+        return PySetMethod(t="set_method", target=value as PySet, name=name);
+    }
     if is_error(result) and _is_host_backed(value.t) {
         return host_getattr(value, name);
     }
@@ -2205,6 +2309,9 @@ def py_len(value: PyObj) -> PyObj {
     if isinstance(value, PySet) {
         return PyInt(t="int", val=len((value as PySet).items));
     }
+    if isinstance(value, PyDictView) {
+        return PyInt(t="int", val=len((value as PyDictView).d.items));
+    }
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
         if user_has_dunder(u, "__len__") {
@@ -2238,6 +2345,25 @@ def host_iter(value: PyHostProxy) -> PyObj {
         return PyIter(t="iter", items=items, index=0);
     }
     return py_error(str(result[1]), str(result[2]));
+}
+
+# The PyObj yielded by a dict iterator at its current position: the key (keys),
+# the value (values), or a (key, value) PyTuple (items). The caller has already
+# confirmed the iterator is not stale, so the hashkey is still present.
+def dictiter_yield(di: PyDictIter) -> PyObj {
+    hk = di.keys[di.index];
+    entry = di.d.items[hk];
+    if di.mode == "values" {
+        return entry.value;
+    }
+    if di.mode == "items" {
+        return PyTuple(t="tuple", items=[entry.key, entry.value]);
+    }
+    return entry.key;
+}
+
+def dictiter_error -> PyObj {
+    return py_error("RuntimeError", "dictionary changed size during iteration");
 }
 
 def find_cell(cells: list[PyCell], names: list[str], name: str) -> PyCell | None {
@@ -2347,6 +2473,19 @@ def exception_matches(value: PyObj, target: PyObj) -> bool {
         return False;
     }
     exception = value as PyException;
+    # A user exception class target (except Exc): match by the raised instance's
+    # MRO if we kept the instance, else by class name.
+    if isinstance(target, PyClass) {
+        raw = exception.raw;
+        if raw is not None and isinstance(raw, PyUserObj) {
+            for klass in class_mro((raw as PyUserObj).cls) {
+                if klass is (target as PyClass) {
+                    return True;
+                }
+            }
+        }
+        return (target as PyClass).name == exception.type_name;
+    }
     target_name: str = "";
     if target.t == "exception_type" {
         target_name = (target as PyExceptionType).name;
@@ -2359,6 +2498,27 @@ def exception_matches(value: PyObj, target: PyObj) -> bool {
     return target_name == exception.type_name;
 }
 
+# True iff `cls` (a user class) derives from a builtin exception -- i.e. one of
+# its MRO classes lists a host BaseException-subclass proxy among its bases.
+# `class Exc(Exception)` has native_base "" (Exception is not a subclassable
+# builtin layout), so we detect it through the recorded host base, not the layout.
+def class_is_exception(cls: PyClass) -> bool {
+    for klass in class_mro(cls) {
+        for base in klass.bases {
+            # Builtin exceptions resolve to a native PyExceptionType (Exception,
+            # ValueError, ...); a not-yet-native one arrives as a host proxy.
+            if isinstance(base, PyExceptionType) {
+                return True;
+            }
+            if isinstance(base, PyHostProxy)
+            and bool(_jac_is_exception_type((base as PyHostProxy).val)) {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
 def py_raise_value(value: PyObj) -> PyObj {
     if value.t == "exception" {
         return PyError(t="error", exception=value as PyException);
@@ -2369,6 +2529,28 @@ def py_raise_value(value: PyObj) -> PyObj {
             t="error",
             exception=PyException(t="exception", type_name=typ.name, message="")
         );
+    }
+    # A raised user exception instance (class Exc(Exception); raise Exc()) surfaces
+    # as a PyException tagged with the user class name, keeping the instance in
+    # `raw` so `except <UserClass>` can match it by MRO.
+    if isinstance(value, PyUserObj) {
+        u = value as PyUserObj;
+        if class_is_exception(u.cls) {
+            return PyError(
+                t="error",
+                exception=PyException(
+                    t="exception", type_name=u.cls.name, message="", raw=value
+                )
+            );
+        }
+    }
+    # A raised exception CLASS (raise Exc) auto-instantiates, then re-raises.
+    if isinstance(value, PyClass) and class_is_exception(value as PyClass) {
+        instance = (value as PyClass).tp_call([], {});
+        if is_error(instance) {
+            return instance;
+        }
+        return py_raise_value(instance);
     }
     return py_error("TypeError", "exceptions must derive from BaseException");
 }
@@ -2723,6 +2905,471 @@ obj PyNativeBuiltin(PyObj) {
     }
 }
 
+# ---- native set methods (.pop/.difference/.union/... ) --------------------
+# PySet is a native (na-clean leaf) container, so its methods can't route to the
+# host the way str/list/dict do -- to_host would round-trip and lose identity.
+# The method surface lives here (host-adjacent: arbitrary-iterable args are
+# drained through py_iter/host_iter), wrapping the leaf's value-based set algebra.
+
+# Materialize any iterable arg into a PyList of its members, or return a PyError
+# if it is not iterable (this is the TypeError set().difference(123) must raise).
+def members_of(arg: PyObj) -> PyObj {
+    if isinstance(arg, PySet) {
+        return PyList(t="list", items=(arg as PySet).set_members());
+    }
+    if isinstance(arg, PyList) {
+        return arg;
+    }
+    it = py_iter(arg);
+    if is_error(it) {
+        it = host_iter(PyHostProxy(t="host", val=to_host(arg)));
+        if is_error(it) {
+            return it;
+        }
+    }
+    out: list[PyObj] = [];
+    while True {
+        step = send_into(it, py_none());
+        if step.t == "genstop" {
+            break;
+        }
+        if is_error(step) {
+            return step;
+        }
+        out.append(step);
+    }
+    return PyList(t="list", items=out);
+}
+
+def set_from_members(members: list[PyObj], frozen: bool) -> PyObj {
+    tag = "set";
+    if frozen {
+        tag = "frozenset";
+    }
+    s = PySet(t=tag, items={}, frozen=frozen);
+    for m in members {
+        r = s.set_add(m);
+        if is_error(r) {
+            return r;
+        }
+    }
+    return s;
+}
+
+# Build a fresh PySet from one iterable arg (used to coerce a .difference([...])
+# operand into set algebra). Propagates the not-iterable TypeError.
+def coerce_set(arg: PyObj) -> PyObj {
+    om = members_of(arg);
+    if is_error(om) {
+        return om;
+    }
+    return set_from_members((om as PyList).items, False);
+}
+
+def is_set_method(name: str, frozen: bool) -> bool {
+    shared = name == "copy"
+    or name == "union"
+    or name == "intersection"
+    or name == "difference"
+    or name == "symmetric_difference"
+    or name == "issubset"
+    or name == "issuperset"
+    or name == "isdisjoint";
+    if shared {
+        return True;
+    }
+    if frozen {
+        return False;
+    }
+    return name == "add"
+    or name == "discard"
+    or name == "remove"
+    or name == "pop"
+    or name == "clear"
+    or name == "update"
+    or name == "difference_update"
+    or name == "intersection_update"
+    or name == "symmetric_difference_update";
+}
+
+obj PySetMethod(PyObj) {
+    has target: PySet,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        n = self.name;
+        s = self.target;
+        # --- no-arg mutating / accessor methods ---
+        if n == "pop" {
+            return s.set_pop();
+        }
+        if n == "copy" {
+            return s.set_copy();
+        }
+        if n == "clear" {
+            return s.set_clear();
+        }
+        if n == "add" {
+            if len(args) < 1 {
+                return py_error("TypeError", "add expected 1 argument");
+            }
+            return s.set_add(args[0]);
+        }
+        if n == "discard" {
+            if len(args) < 1 {
+                return py_error("TypeError", "discard expected 1 argument");
+            }
+            return s.set_discard(args[0]);
+        }
+        if n == "remove" {
+            if len(args) < 1 {
+                return py_error("TypeError", "remove expected 1 argument");
+            }
+            if not s.set_contains(args[0]) {
+                return py_error("KeyError", dict_key_repr(args[0]));
+            }
+            return s.set_discard(args[0]);
+        }
+        # --- single-iterable-arg predicates ---
+        if n == "issubset" or n == "issuperset" or n == "isdisjoint" {
+            if len(args) < 1 {
+                return py_error("TypeError", n + " expected 1 argument");
+            }
+            other = coerce_set(args[0]);
+            if is_error(other) {
+                return other;
+            }
+            os = other as PySet;
+            if n == "issubset" {
+                return s.tp_richcompare(1, os);
+            }
+            if n == "issuperset" {
+                return s.tp_richcompare(5, os);
+            }
+            # isdisjoint: no shared member.
+            for hk in s.items {
+                if hk in os.items {
+                    return PyBool(t="bool", val=False);
+                }
+            }
+            return PyBool(t="bool", val=True);
+        }
+        # --- *others set-algebra (non-mutating) ---
+        if n == "union" or n == "intersection" or n == "difference"
+        or n == "symmetric_difference" {
+            kind = 7;
+            if n == "intersection" {
+                kind = 1;
+            } elif n == "difference" {
+                kind = 10;
+            } elif n == "symmetric_difference" {
+                kind = 12;
+            }
+            acc = s.set_copy();
+            for a in args {
+                other = coerce_set(a);
+                if is_error(other) {
+                    return other;
+                }
+                acc = acc.nb_binop(kind, other as PySet);
+                if is_error(acc) {
+                    return acc;
+                }
+            }
+            return acc;
+        }
+        # --- *others mutating updates ---
+        if n == "update" or n == "difference_update"
+        or n == "intersection_update" or n == "symmetric_difference_update" {
+            kind = 7;
+            if n == "difference_update" {
+                kind = 10;
+            } elif n == "intersection_update" {
+                kind = 1;
+            } elif n == "symmetric_difference_update" {
+                kind = 12;
+            }
+            acc = s.set_copy();
+            for a in args {
+                other = coerce_set(a);
+                if is_error(other) {
+                    return other;
+                }
+                acc = acc.nb_binop(kind, other as PySet);
+                if is_error(acc) {
+                    return acc;
+                }
+            }
+            # Write the result back into the receiver's storage in place.
+            s.items = (acc as PySet).items;
+            return py_none();
+        }
+        return py_error("AttributeError", n);
+    }
+}
+
+# ---- native dict views (.keys()/.values()/.items()) -----------------------
+# CPython dict views are lazy, set-like windows on a live dict. Native ones let
+# view comparison / set operations invoke element __eq__ (so a raising element
+# comparison propagates, unlike the by-hashkey set model) and let view iteration
+# carry the dict's mutation guard. keys/items are set-like; values is not.
+
+# Sentinel returned by dict_lookup_value when a key is absent (None is a valid
+# stored value, so it can't double as the not-found marker).
+obj PyAbsent(PyObj) {}
+
+# Membership test for a key, confirming a hashkey-bucket hit with a real eq when
+# either side carries a custom __eq__. Returns PyBool or a PyError (raising eq).
+def dict_haskey(d: PyDict, key: PyObj) -> PyObj {
+    hk = key.tp_hashkey();
+    if hk == "" {
+        return py_error("TypeError", "unhashable type");
+    }
+    if not (hk in d.items) {
+        return PyBool(t="bool", val=False);
+    }
+    stored = d.items[hk].key;
+    if _needs_eq_confirm(stored) or _needs_eq_confirm(key) {
+        keq = py_compare(2, stored, key);
+        if is_error(keq) {
+            return keq;
+        }
+        return PyBool(t="bool", val=py_truth(keq));
+    }
+    return PyBool(t="bool", val=True);
+}
+
+# The stored value for a key, a PyAbsent sentinel if not present, or a PyError.
+def dict_lookup_value(d: PyDict, key: PyObj) -> PyObj {
+    hk = key.tp_hashkey();
+    if hk == "" {
+        return py_error("TypeError", "unhashable type");
+    }
+    if not (hk in d.items) {
+        return PyAbsent(t="absent");
+    }
+    stored = d.items[hk].key;
+    if _needs_eq_confirm(stored) or _needs_eq_confirm(key) {
+        keq = py_compare(2, stored, key);
+        if is_error(keq) {
+            return keq;
+        }
+        if not py_truth(keq) {
+            return PyAbsent(t="absent");
+        }
+    }
+    return d.items[hk].value;
+}
+
+# The bound method object d.keys / d.values / d.items resolves to; calling it
+# builds the view (matching CPython, where `d.keys` is a builtin method and
+# `d.keys()` is the view).
+obj PyDictViewCtor(PyObj) {
+    has d: PyDict,
+        mode: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return PyDictView(t="dictview_obj", d=self.d, mode=self.mode);
+    }
+}
+
+obj PyDictView(PyObj) {
+    has d: PyDict,
+        mode: str;
+
+    def tp_iter -> PyObj {
+        return self.d.dict_iter(self.mode);
+    }
+
+    def tp_bool -> bool {
+        return len(self.d.items) != 0;
+    }
+
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        return dictview_richcompare(kind, self, other);
+    }
+
+    def nb_binop(kind: int, other: PyObj) -> PyObj {
+        return dictview_binop(kind, self, other);
+    }
+}
+
+# The view's elements as PyObjs: keys, values, or (key, value) tuples.
+def dictview_elements(view: PyDictView) -> list[PyObj] {
+    out: list[PyObj] = [];
+    for hk in view.d.items {
+        entry = view.d.items[hk];
+        if view.mode == "values" {
+            out.append(entry.value);
+        } elif view.mode == "items" {
+            out.append(PyTuple(t="tuple", items=[entry.key, entry.value]));
+        } else {
+            out.append(entry.key);
+        }
+    }
+    return out;
+}
+
+# Element-wise containment that invokes __eq__ where CPython does: a keys/values
+# element by comparison, an items (k, v) pair by key lookup + value compare.
+def view_contains(view: PyDictView, elem: PyObj) -> PyObj {
+    if view.mode == "keys" {
+        return dict_haskey(view.d, elem);
+    }
+    if view.mode == "items" {
+        if not isinstance(elem, PyTuple) {
+            return PyBool(t="bool", val=False);
+        }
+        pair = elem as PyTuple;
+        if len(pair.items) != 2 {
+            return PyBool(t="bool", val=False);
+        }
+        look = dict_lookup_value(view.d, pair.items[0]);
+        if is_error(look) {
+            return look;
+        }
+        if look.t == "absent" {
+            return PyBool(t="bool", val=False);
+        }
+        return py_compare(2, pair.items[1], look);
+    }
+    # values view: linear scan, comparing each stored value.
+    for hk in view.d.items {
+        c = py_compare(2, view.d.items[hk].value, elem);
+        if is_error(c) {
+            return c;
+        }
+        if py_truth(c) {
+            return PyBool(t="bool", val=True);
+        }
+    }
+    return PyBool(t="bool", val=False);
+}
+
+# Elements of any set-like operand (view / native set / dict[keys]).
+def setlike_elements(o: PyObj) -> list[PyObj] {
+    if isinstance(o, PyDictView) {
+        return dictview_elements(o as PyDictView);
+    }
+    if isinstance(o, PySet) {
+        return (o as PySet).set_members();
+    }
+    if isinstance(o, PyDict) {
+        return (o as PyDict).dict_keys();
+    }
+    return [];
+}
+
+def setlike_count(o: PyObj) -> int {
+    if isinstance(o, PyDictView) {
+        return len((o as PyDictView).d.items);
+    }
+    if isinstance(o, PySet) {
+        return len((o as PySet).items);
+    }
+    if isinstance(o, PyDict) {
+        return len((o as PyDict).items);
+    }
+    return len(setlike_elements(o));
+}
+
+# elem in a set-like container, routing to the eq-invoking path per container.
+def setlike_contains(container: PyObj, elem: PyObj) -> PyObj {
+    if isinstance(container, PyDictView) {
+        return view_contains(container as PyDictView, elem);
+    }
+    if isinstance(container, PySet) {
+        return PyBool(t="bool", val=(container as PySet).set_contains(elem));
+    }
+    if isinstance(container, PyDict) {
+        return dict_haskey(container as PyDict, elem);
+    }
+    return py_contains(container, elem);
+}
+
+# True iff every element of x is contained in y (PyBool), or a PyError if an
+# element comparison raised. The subset primitive under set-like comparison.
+def all_contained(x: PyObj, y: PyObj) -> PyObj {
+    for e in setlike_elements(x) {
+        c = setlike_contains(y, e);
+        if is_error(c) {
+            return c;
+        }
+        if not py_truth(c) {
+            return PyBool(t="bool", val=False);
+        }
+    }
+    return PyBool(t="bool", val=True);
+}
+
+# CPython dict-view set comparison (==, !=, <, <=, >, >=). Both operands are
+# treated as sets; an element __eq__ raised mid-comparison propagates.
+def dictview_richcompare(kind: int, a: PyObj, b: PyObj) -> PyObj {
+    la = setlike_count(a);
+    lb = setlike_count(b);
+    if kind == 2 {
+        if la != lb {
+            return PyBool(t="bool", val=False);
+        }
+        return all_contained(a, b);
+    }
+    if kind == 3 {
+        if la != lb {
+            return PyBool(t="bool", val=True);
+        }
+        r = all_contained(a, b);
+        if is_error(r) {
+            return r;
+        }
+        return PyBool(t="bool", val=not py_truth(r));
+    }
+    if kind == 1 {
+        return all_contained(a, b);
+    }
+    if kind == 5 {
+        return all_contained(b, a);
+    }
+    if kind == 0 {
+        if not (la < lb) {
+            return PyBool(t="bool", val=False);
+        }
+        return all_contained(a, b);
+    }
+    if kind == 4 {
+        if not (la > lb) {
+            return PyBool(t="bool", val=False);
+        }
+        return all_contained(b, a);
+    }
+    return py_error("TypeError", "unorderable types");
+}
+
+# Coerce a set-op operand to a PySet: a view materializes its elements, a set
+# passes through, anything else is drained as an iterable (propagating the
+# not-iterable TypeError).
+def to_set_like(o: PyObj) -> PyObj {
+    if isinstance(o, PySet) {
+        return o;
+    }
+    if isinstance(o, PyDictView) {
+        return set_from_members(dictview_elements(o as PyDictView), False);
+    }
+    return coerce_set(o);
+}
+
+# Dict-view set algebra (| & - ^) with a view on either side, producing a PySet.
+def dictview_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
+    ls = to_set_like(lhs);
+    if is_error(ls) {
+        return ls;
+    }
+    rs = to_set_like(rhs);
+    if is_error(rs) {
+        return rs;
+    }
+    return (ls as PySet).nb_binop(kind, rs as PySet);
+}
+
 # A frame that ran to RETURN_VALUE. `val` is the generator's return value, which
 # `yield from` yields as the sub-expression result and .send()/next() surface as
 # StopIteration(val).
@@ -2944,6 +3591,21 @@ def send_into(receiver: PyObj, sent: PyObj) -> PyObj {
         if it.index < len(it.items) {
             item = it.items[it.index];
             it.index = it.index + 1;
+            return item;
+        }
+        return PyGenStop(t="genstop", val=py_none());
+    }
+    if receiver.t == "dictiter" {
+        di = receiver as PyDictIter;
+        if sent.t != "none" {
+            return py_error("AttributeError", "send");
+        }
+        if di.dictiter_stale() {
+            return dictiter_error();
+        }
+        if di.index < len(di.keys) {
+            item = dictiter_yield(di);
+            di.index = di.index + 1;
             return item;
         }
         return PyGenStop(t="genstop", val=py_none());
@@ -3749,6 +4411,25 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_FOR_ITER {
             top = stack[len(stack) - 1];
+            if top.t == "dictiter" {
+                di = top as PyDictIter;
+                if di.dictiter_stale() {
+                    nxt = dictiter_error();
+                    target = recover_exception(co, nxt, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                    } else {
+                        return nxt;
+                    }
+                } elif di.index < len(di.keys) {
+                    stack.append(dictiter_yield(di));
+                    di.index = di.index + 1;
+                } else {
+                    stack.pop();
+                    ip = ip + 2 * arg;
+                }
+                continue;
+            }
             if top.t == "generator" {
                 nxt = gen_resume(top as PyGenerator, py_none());
                 if nxt.t == "genstop" {
@@ -5209,4 +5890,219 @@ test "pyc-first: async def / await drives a coroutine through the SEND path" {
     chained = gen_send(chain["c"] as PyGenerator, py_none());
     assert is_error(chained);
     assert expect_int((chained as PyError).exception.value as PyObj) == 20;
+}
+
+test "pyc-first: dict equality invokes element __eq__ (container compare, Track a)" {
+    # dict richcompare walks keys/values through py_compare, so a user element's
+    # __eq__ runs (and a raise propagates) instead of the by-hashkey model
+    # silently answering. Value-level inequality is now detected, not tag-matched.
+    basics = run_source(
+        "a = ({1: 2} == {1: 2})\n"
+        "b = ({1: 2} == {1: 3})\n"
+        "c = ({1: 2} == {2: 2})\n"
+        "d = ({1: 1} == {1: 1, 2: 2})\n"
+        "e = ({1: 2} != {1: 3})\n"
+        "f = ({} == {})\n"
+    );
+    assert expect_bool(basics["a"]) == True;
+    assert expect_bool(basics["b"]) == False;
+    assert expect_bool(basics["c"]) == False;
+    assert expect_bool(basics["d"]) == False;
+    assert expect_bool(basics["e"]) == True;
+    assert expect_bool(basics["f"]) == True;
+
+    # test_dict.test_eq verbatim: BadCmp hashes to 1 (colliding with int 1) and
+    # its __eq__ raises, so `{BadCmp(): 1} == {1: 1}` must raise, not compare equal.
+    raised = run_source(
+        "class Exc(Exception): pass\n"
+        "class BadCmp:\n"
+        "    def __eq__(self, other): raise Exc()\n"
+        "    def __hash__(self): return 1\n"
+        "hit = 0\n"
+        "try:\n"
+        "    {BadCmp(): 1} == {1: 1}\n"
+        "except Exc:\n"
+        "    hit = 1\n"
+    );
+    assert expect_int(raised["hit"]) == 1;
+}
+
+test "pyc-first: user-defined exception classes raise and match (except UserExc)" {
+    # `class Exc(Exception)` instances raise as an exception tagged with the class
+    # name and match `except Exc` / `except Exception` by MRO; a raised class
+    # auto-instantiates; a sibling except does not catch.
+    caught = run_source(
+        "class Exc(Exception): pass\n"
+        "class MyErr(ValueError): pass\n"
+        "a = b = c = d = 0\n"
+        "try:\n"
+        "    raise Exc()\n"
+        "except Exc:\n"
+        "    a = 1\n"
+        "try:\n"
+        "    raise MyErr()\n"
+        "except Exception:\n"
+        "    b = 1\n"
+        "try:\n"
+        "    raise Exc\n"
+        "except Exc:\n"
+        "    c = 1\n"
+        "class A(Exception): pass\n"
+        "class B(Exception): pass\n"
+        "try:\n"
+        "    try:\n"
+        "        raise A()\n"
+        "    except B:\n"
+        "        d = 9\n"
+        "except A:\n"
+        "    d = 1\n"
+    );
+    assert expect_int(caught["a"]) == 1;
+    assert expect_int(caught["b"]) == 1;
+    assert expect_int(caught["c"]) == 1;
+    assert expect_int(caught["d"]) == 1;
+}
+
+test "pyc-first: set literal first-value-wins + native .pop()/methods (Track d/e)" {
+    # {1, 1.0, True} collapses to one member and KEEPS the first (int 1) it saw.
+    lit = run_source(
+        "s = {1, 1.0, True}\n"
+        "n = len(s)\n"
+        "popped = s.pop()\n"
+        "kind = type(popped).__name__\n"
+    );
+    assert expect_int(lit["n"]) == 1;
+    assert expect_str(lit["kind"]) == "int";
+
+    # Native set algebra methods over arbitrary iterables.
+    methods = run_source(
+        "a = str(sorted({1, 2, 3}.difference([2])))\n"
+        "b = str(sorted({1, 2}.union([3, 4])))\n"
+        "c = str(sorted({1, 2, 3}.intersection([2, 3, 4])))\n"
+        "d = {1, 2}.issubset([1, 2, 3])\n"
+        "e = {1, 2}.isdisjoint([3, 4])\n"
+        "s = {1, 2}\n"
+        "s.update([3])\n"
+        "f = str(sorted(s))\n"
+    );
+    assert expect_str(methods["a"]) == "[1, 3]";
+    assert expect_str(methods["b"]) == "[1, 2, 3, 4]";
+    assert expect_str(methods["c"]) == "[2, 3]";
+    assert expect_bool(methods["d"]) == True;
+    assert expect_bool(methods["e"]) == True;
+    assert expect_str(methods["f"]) == "[1, 2, 3]";
+
+    # test_set.test_issue_37219: a non-iterable difference arg is a TypeError.
+    err = run_source(
+        "h1 = h2 = 0\n"
+        "try:\n"
+        "    set().difference(123)\n"
+        "except TypeError:\n"
+        "    h1 = 1\n"
+        "try:\n"
+        "    set().difference_update(123)\n"
+        "except TypeError:\n"
+        "    h2 = 1\n"
+    );
+    assert expect_int(err["h1"]) == 1;
+    assert expect_int(err["h2"]) == 1;
+}
+
+test "pyc-first: dict mutation during iteration raises RuntimeError (Track b)" {
+    # A size change OR a net-zero delete+reinsert bumps the dict version, which
+    # the native iterator snapshots and checks -- both raise, matching CPython.
+    insert = run_source(
+        "d = {}\n"
+        "d[1] = 1\n"
+        "hit = 0\n"
+        "try:\n"
+        "    for i in d:\n"
+        "        d[i + 1] = 1\n"
+        "except RuntimeError:\n"
+        "    hit = 1\n"
+    );
+    assert expect_int(insert["hit"]) == 1;
+
+    reinsert = run_source(
+        "d = {}\n"
+        "d[0] = 0\n"
+        "hit = 0\n"
+        "try:\n"
+        "    for i in d:\n"
+        "        del d[0]\n"
+        "        d[0] = 0\n"
+        "except RuntimeError:\n"
+        "    hit = 1\n"
+    );
+    assert expect_int(reinsert["hit"]) == 1;
+
+    # A clean iteration (no mutation) still runs to completion.
+    clean = run_source(
+        "d = {1: 10, 2: 20, 3: 30}\n"
+        "total = 0\n"
+        "for k in d:\n"
+        "    total = total + k\n"
+    );
+    assert expect_int(clean["total"]) == 6;
+}
+
+test "pyc-first: native dict views -- set ops + element-eq compare (Track c)" {
+    # keys()/items() are set-like: comparison and | & - ^ against sets/views work.
+    mixed = run_source(
+        "a = ({1: 1}.keys() == {1})\n"
+        "b = ({1} == {1: 1}.keys())\n"
+        "c = str(sorted({1: 1}.keys() | {2}))\n"
+        "d = str(sorted({2} | {1: 1}.keys()))\n"
+        "e = ({1: 1}.items() == {(1, 1)})\n"
+        "k1 = {1: 1, 2: 2}.keys()\n"
+        "k2 = {1: 1, 2: 2, 3: 3}.keys()\n"
+        "f = str(sorted(k2 - k1))\n"
+        "g = str(sorted(k1 & k2))\n"
+    );
+    assert expect_bool(mixed["a"]) == True;
+    assert expect_bool(mixed["b"]) == True;
+    assert expect_str(mixed["c"]) == "[1, 2]";
+    assert expect_str(mixed["d"]) == "[1, 2]";
+    assert expect_bool(mixed["e"]) == True;
+    assert expect_str(mixed["f"]) == "[3]";
+    assert expect_str(mixed["g"]) == "[1, 2]";
+
+    # test_dict.test_errors_in_view_containment_check: an items-view comparison
+    # looks up keys and compares values, so a raising element __eq__ propagates.
+    raising = run_source(
+        "class C:\n"
+        "    def __eq__(self, other): raise RuntimeError\n"
+        "d1 = {1: C()}\n"
+        "d2 = {1: C()}\n"
+        "eqh = neh = leh = 0\n"
+        "try:\n"
+        "    d1.items() == d2.items()\n"
+        "except RuntimeError:\n"
+        "    eqh = 1\n"
+        "try:\n"
+        "    d1.items() != d2.items()\n"
+        "except RuntimeError:\n"
+        "    neh = 1\n"
+        "try:\n"
+        "    d1.items() <= d2.items()\n"
+        "except RuntimeError:\n"
+        "    leh = 1\n"
+    );
+    assert expect_int(raising["eqh"]) == 1;
+    assert expect_int(raising["neh"]) == 1;
+    assert expect_int(raising["leh"]) == 1;
+
+    # Mutation while iterating a values()/items() view also raises.
+    mut = run_source(
+        "d = {}\n"
+        "d[0] = 0\n"
+        "hit = 0\n"
+        "try:\n"
+        "    for i in d.items():\n"
+        "        del d[0]\n"
+        "        d[0] = 0\n"
+        "except RuntimeError:\n"
+        "    hit = 1\n"
+    );
+    assert expect_int(mut["hit"]) == 1;
 }
