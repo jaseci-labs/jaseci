@@ -78,6 +78,51 @@ def _jac_host_builtin(name):
 def _jac_host_type_name(value):
     return type(value).__name__
 
+# Track B (builtin subclassing) host helpers.
+_JAC_BUILTIN_BASES = (
+    "int", "str", "float", "bool", "list", "dict",
+    "tuple", "set", "frozenset", "bytes", "object",
+)
+
+def _jac_builtin_base_name(host_val):
+    # If host_val is one of the subclassable builtin TYPES, return its name.
+    import builtins
+    if isinstance(host_val, type):
+        n = getattr(host_val, "__name__", "")
+        if n in _JAC_BUILTIN_BASES:
+            return n
+    return ""
+
+def _jac_construct_builtin(name, raw_args):
+    import builtins
+    t = getattr(builtins, name)
+    try:
+        if raw_args:
+            return (True, t(*raw_args))
+        return (True, t())
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
+def _jac_isinstance_of_builtin(host_val, name):
+    # True iff host_val is an instance of the named builtin type.
+    import builtins
+    t = getattr(builtins, name, None)
+    if t is None:
+        return False
+    return isinstance(host_val, t)
+
+def _jac_host_isinstance(host_obj, host_type):
+    try:
+        return isinstance(host_obj, host_type)
+    except BaseException:
+        return False
+
+def _jac_host_issubclass(host_cls, host_type):
+    try:
+        return issubclass(host_cls, host_type)
+    except BaseException:
+        return False
+
 def _jac_host_format(value, spec):
     try:
         return (True, format(value, spec))
@@ -731,13 +776,18 @@ obj PyHostProxy(PyObj) {
 
 obj PyClass(PyObj) {
     has name: str,
-        attrs: dict[str, PyObj];
+        attrs: dict[str, PyObj],
+        bases: list[PyObj] = [],
+        native_base: str = "";
 
+    # Attribute lookup walks the MRO (self first, then bases) so an inherited
+    # method/attr is visible on a subclass. Instance access binds via PyUserObj.
     def tp_getattro(name: str) -> PyObj {
-        if name in self.attrs {
-            return self.attrs[name];
+        found = class_lookup_attr(self, name);
+        if is_error(found) {
+            return py_error("AttributeError", name);
         }
-        return py_error("AttributeError", name);
+        return found;
     }
 
     def tp_setattro(name: str, value: PyObj) -> PyObj {
@@ -746,11 +796,19 @@ obj PyClass(PyObj) {
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        instance = PyUserObj(t="instance", cls=self, attrs={});
-        if "__init__" in self.attrs {
-            initialized = bind_attribute(self.attrs["__init__"], instance).tp_call(
-                args, kwargs
-            );
+        # A subclass of a builtin (native_base != "") boxes the underlying value
+        # by running the builtin constructor over the args (int("5") -> 5, ...).
+        boxed: PyObj = py_none();
+        if self.native_base != "" {
+            boxed = construct_native_base(self.native_base, args);
+            if is_error(boxed) {
+                return boxed;
+            }
+        }
+        instance = PyUserObj(t="instance", cls=self, attrs={}, base=boxed);
+        init = class_lookup_attr(self, "__init__");
+        if not is_error(init) {
+            initialized = bind_attribute(init, instance).tp_call(args, kwargs);
             if initialized.t == "error" {
                 return initialized;
             }
@@ -764,14 +822,31 @@ obj PyClass(PyObj) {
 # than a per-type vtable -- exactly the static-vs-heap line CPython draws.
 obj PyUserObj(PyObj) {
     has cls: PyClass,
-        attrs: dict[str, PyObj];
+        attrs: dict[str, PyObj],
+        base: any = None;
+
+    # The boxed builtin value (int/str/...) for a builtin subclass, or a
+    # PyNoneType sentinel for a plain user class. _has_base tells them apart.
+    def _has_base -> bool {
+        return self.base is not None and not isinstance(self.base, PyNoneType);
+    }
+
+    def _base_obj -> PyObj {
+        return self.base as PyObj;
+    }
 
     def tp_getattro(name: str) -> PyObj {
         if name in self.attrs {
             return bind_attribute(self.attrs[name], self);
         }
-        if name in self.cls.attrs {
-            return bind_attribute(self.cls.attrs[name], self);
+        found = class_lookup_attr(self.cls, name);
+        if not is_error(found) {
+            return bind_attribute(found, self);
+        }
+        # Fall through to the boxed builtin value's own attributes/methods
+        # (str.upper on a str subclass, etc.).
+        if self._has_base() {
+            return py_attr(self._base_obj(), name);
         }
         return py_error("AttributeError", name);
     }
@@ -779,6 +854,59 @@ obj PyUserObj(PyObj) {
     def tp_setattro(name: str, value: PyObj) -> PyObj {
         self.attrs[name] = value;
         return py_none();
+    }
+
+    # ---- boxed-builtin slot delegation (subclass of int/str/list/...) --------
+    # When the class dict doesn't override a slot, a builtin subclass behaves as
+    # its boxed value: MyInt(5)+1 == 6, MyInt(5) is a valid dict key, etc. The
+    # right operand is unwrapped too so MyInt(5)+MyInt(1) works.
+    def nb_binop(kind: int, other: PyObj) -> PyObj {
+        if self._has_base() {
+            return self._base_obj().nb_binop(kind, unwrap_base(other));
+        }
+        return py_error("TypeError", "unsupported operand types");
+    }
+
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        if self._has_base() {
+            return self._base_obj().tp_richcompare(kind, unwrap_base(other));
+        }
+        if kind == 2 {
+            return PyBool(t="bool", val=self is other);
+        }
+        if kind == 3 {
+            return PyBool(t="bool", val=self is not other);
+        }
+        return py_error("TypeError", "unorderable types");
+    }
+
+    def tp_hashkey -> str {
+        if self._has_base() {
+            return self._base_obj().tp_hashkey();
+        }
+        # Identity hash for a plain user object: distinct per object.
+        return "obj:" + str(id(self));
+    }
+
+    def tp_bool -> bool {
+        if self._has_base() {
+            return self._base_obj().tp_bool();
+        }
+        return True;
+    }
+
+    def tp_iter -> PyObj {
+        if self._has_base() {
+            return self._base_obj().tp_iter();
+        }
+        return py_error("TypeError", "object is not iterable");
+    }
+
+    def mp_subscript(index: PyObj) -> PyObj {
+        if self._has_base() {
+            return self._base_obj().mp_subscript(index);
+        }
+        return py_error("TypeError", "object is not subscriptable");
     }
 }
 
@@ -979,6 +1107,14 @@ def to_host(value: PyObj) -> any {
         case PyHostProxy():
             return value.val;
 
+        case PyUserObj():
+            # A builtin subclass reaching the host boundary (len/print/format)
+            # presents as its boxed value; a plain user object has no host form.
+            if value._has_base() {
+                return to_host(value._base_obj());
+            }
+            return None;
+
         case PyGenerator():
             # A native genexpr reaching the host boundary (list(gen)/tuple(gen)/
             # sum(gen)/...) is drained through the real suspend/resume machinery
@@ -1011,7 +1147,8 @@ def host_builtin(name: str) -> PyObj {
     # driven one step in-VM instead of being drained across the host boundary.
     # id() is native so it reports stable object identity (consistent with `is`)
     # rather than the host id of a throwaway to_host value.
-    if name == "next" or name == "iter" or name == "id" {
+    if name == "next" or name == "iter" or name == "id"
+    or name == "isinstance" or name == "issubclass" {
         return PyNativeBuiltin(t="native_builtin", name=name);
     }
     result = _jac_host_builtin(name);
@@ -1527,6 +1664,7 @@ glob OP_CACHE: int = 0,
      OP_SET_ADD: int = 107,
      OP_LIST_EXTEND: int = 79,
      OP_LOAD_ATTR: int = 80,
+     OP_LOAD_SUPER_ATTR: int = 96,
      OP_LOAD_CONST: int = 82,
      OP_LOAD_DEREF: int = 83,
      OP_LOAD_CLOSURE: int = 261,
@@ -1725,6 +1863,16 @@ def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
         kind = kind - 13;
     }
     result = lhs.nb_binop(kind, rhs);
+    if is_error(result) {
+        # A builtin-subclass operand the other side's slot didn't recognize
+        # (e.g. 1 + MyInt(5), where int.nb_binop rejects the "instance" tag):
+        # retry with both operands unwrapped to their boxed values.
+        ul = unwrap_base(lhs);
+        ur = unwrap_base(rhs);
+        if not (ul is lhs) or not (ur is rhs) {
+            result = ul.nb_binop(kind, ur);
+        }
+    }
     if is_error(result) and _host_representable(lhs.t) and _host_representable(rhs.t) {
         return host_binop(kind, lhs, rhs);
     }
@@ -2050,6 +2198,184 @@ def py_invoke(fn: PyObj, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     return fn.tp_call(args, kwargs);
 }
 
+# ---------------- Track B: builtin subclassing support -----------------------
+
+# Depth-first MRO over PyClass bases (dedup by identity). Single inheritance +
+# one builtin base -- the common case -- linearizes correctly; deeper diamonds
+# get a valid-but-not-strict-C3 order, sufficient for attribute lookup.
+def class_mro(cls: PyClass) -> list[PyClass] {
+    result: list[PyClass] = [cls];
+    for base in cls.bases {
+        if isinstance(base, PyClass) {
+            for ancestor in class_mro(base as PyClass) {
+                if not (ancestor in result) {
+                    result.append(ancestor);
+                }
+            }
+        }
+    }
+    return result;
+}
+
+def class_lookup_attr(cls: PyClass, name: str) -> PyObj {
+    for klass in class_mro(cls) {
+        if name in klass.attrs {
+            return klass.attrs[name];
+        }
+    }
+    return py_error("AttributeError", name);
+}
+
+# super().name lookup: search the instance's MRO starting AFTER the defining
+# class (zero-arg super semantics). defining_cls comes from the __class__ cell;
+# if it isn't a PyClass, fall back to the instance's own class.
+def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
+    if not isinstance(instance, PyUserObj) {
+        return py_error("AttributeError", name);
+    }
+    start: PyClass = (instance as PyUserObj).cls;
+    if isinstance(defining_cls, PyClass) {
+        start = defining_cls as PyClass;
+    }
+    mro = class_mro((instance as PyUserObj).cls);
+    past = False;
+    for klass in mro {
+        if past and name in klass.attrs {
+            return klass.attrs[name];
+        }
+        if klass is start {
+            past = True;
+        }
+    }
+    return py_error("AttributeError", name);
+}
+
+# Box a builtin subclass instance by running the builtin constructor over the
+# call args (int("5") -> 5, list(x) -> [...]). Errors propagate.
+def construct_native_base(name: str, args: list[PyObj]) -> PyObj {
+    raw_args: list[any] = [];
+    for a in args {
+        raw_args.append(to_host(a));
+    }
+    result = _jac_construct_builtin(name, raw_args);
+    if host_result_ok(result) {
+        return from_host(result[1]);
+    }
+    return py_error(str(result[1]), str(result[2]));
+}
+
+# For operator delegation: a builtin subclass on either operand acts as its
+# boxed value (MyInt(5) + MyInt(1) -> 5 + 1).
+def unwrap_base(o: PyObj) -> PyObj {
+    if isinstance(o, PyUserObj) {
+        u = o as PyUserObj;
+        if u._has_base() {
+            return u._base_obj();
+        }
+    }
+    return o;
+}
+
+# True iff `obj` counts as an instance of the builtin named `name`, honoring
+# builtin-subclass boxing and the bool<:int relationship.
+def obj_is_builtin(ob: PyObj, name: str) -> bool {
+    if name == "object" {
+        return True;
+    }
+    if isinstance(ob, PyUserObj) {
+        u = ob as PyUserObj;
+        for klass in class_mro(u.cls) {
+            if klass.native_base == name {
+                return True;
+            }
+        }
+        if u._has_base() {
+            return obj_is_builtin(u._base_obj(), name);
+        }
+        return False;
+    }
+    if ob.t == name {
+        return True;
+    }
+    if name == "int" and ob.t == "bool" {
+        return True;
+    }
+    return False;
+}
+
+def py_isinstance(ob: PyObj, typ: PyObj) -> bool {
+    if isinstance(typ, PyTuple) {
+        for t in (typ as PyTuple).items {
+            if py_isinstance(ob, t) {
+                return True;
+            }
+        }
+        return False;
+    }
+    if isinstance(typ, PyClass) {
+        if isinstance(ob, PyUserObj) {
+            for klass in class_mro((ob as PyUserObj).cls) {
+                if klass is (typ as PyClass) {
+                    return True;
+                }
+            }
+        }
+        return False;
+    }
+    if isinstance(typ, PyHostProxy) {
+        host_type = (typ as PyHostProxy).val;
+        name: str = str(_jac_builtin_base_name(host_type));
+        if name != "" {
+            return obj_is_builtin(ob, name);
+        }
+        return bool(_jac_host_isinstance(to_host(ob), host_type));
+    }
+    return False;
+}
+
+def py_issubclass(cls: PyObj, typ: PyObj) -> bool {
+    if isinstance(typ, PyTuple) {
+        for t in (typ as PyTuple).items {
+            if py_issubclass(cls, t) {
+                return True;
+            }
+        }
+        return False;
+    }
+    if isinstance(cls, PyClass) {
+        c = cls as PyClass;
+        if isinstance(typ, PyClass) {
+            for klass in class_mro(c) {
+                if klass is (typ as PyClass) {
+                    return True;
+                }
+            }
+            return False;
+        }
+        if isinstance(typ, PyHostProxy) {
+            name: str = str(_jac_builtin_base_name((typ as PyHostProxy).val));
+            if name == "object" {
+                return True;
+            }
+            if name != "" {
+                for klass in class_mro(c) {
+                    if klass.native_base == name {
+                        return True;
+                    }
+                }
+            }
+            return False;
+        }
+        return False;
+    }
+    if isinstance(cls, PyHostProxy) and isinstance(typ, PyHostProxy) {
+        return bool(_jac_host_issubclass(
+            (cls as PyHostProxy).val, (typ as PyHostProxy).val
+        ));
+    }
+    return False;
+}
+
 def py_build_class(args: list[PyObj]) -> PyObj {
     if len(args) < 2 {
         return py_error("TypeError", "__build_class__ needs a body and name");
@@ -2063,7 +2389,35 @@ def py_build_class(args: list[PyObj]) -> PyObj {
     if body_result.t == "error" {
         return body_result;
     }
-    return PyClass(t="class", name=class_name, attrs=namespace);
+    # args[2:] are the base objects. Record them, and the single builtin ancestor
+    # (if any) that dictates instance layout -- inherited from a user base's own
+    # native_base when subclassing a subclass.
+    bases: list[PyObj] = [];
+    native_base = "";
+    j = 2;
+    while j < len(args) {
+        base = args[j];
+        bases.append(base);
+        if isinstance(base, PyClass) {
+            inherited = (base as PyClass).native_base;
+            if inherited != "" {
+                native_base = inherited;
+            }
+        } elif isinstance(base, PyHostProxy) {
+            builtin_name: str = str(_jac_builtin_base_name((base as PyHostProxy).val));
+            if builtin_name != "" and builtin_name != "object" {
+                native_base = builtin_name;
+            }
+        }
+        j = j + 1;
+    }
+    return PyClass(
+        t="class",
+        name=class_name,
+        attrs=namespace,
+        bases=bases,
+        native_base=native_base
+    );
 }
 
 def make_function_from_stack(stack: list[PyObj], globals: dict[str, PyObj]) -> PyObj {
@@ -2118,6 +2472,18 @@ obj PyNativeBuiltin(PyObj) {
                 return py_error("TypeError", "id expected 1 argument");
             }
             return PyInt(t="int", val=py_id(args[0]));
+        }
+        if self.name == "isinstance" {
+            if len(args) < 2 {
+                return py_error("TypeError", "isinstance expected 2 arguments");
+            }
+            return PyBool(t="bool", val=py_isinstance(args[0], args[1]));
+        }
+        if self.name == "issubclass" {
+            if len(args) < 2 {
+                return py_error("TypeError", "issubclass expected 2 arguments");
+            }
+            return PyBool(t="bool", val=py_issubclass(args[0], args[1]));
         }
         if self.name == "iter" {
             if len(args) == 0 {
@@ -3352,6 +3718,31 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             continue;
         }
+        if op == OP_LOAD_SUPER_ATTR {
+            # Stack (top-down): self, class(__class__ cell), global super. arg
+            # encodes name>>2, bit0 = method-call form, bit1 = two-arg super.
+            super_self = stack.pop();
+            super_class = stack.pop();
+            super_global = stack.pop();
+            super_name = co.names[arg >> 2];
+            result = super_lookup(super_class, super_self, super_name);
+            if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return result;
+            }
+            bound = bind_attribute(result, super_self);
+            if (arg & 1) != 0 {
+                stack.append(bound);
+                stack.append(py_none());
+            } else {
+                stack.append(bound);
+            }
+            continue;
+        }
         if op == OP_STORE_ATTR {
             owner = stack.pop();
             field = stack.pop();
@@ -4131,6 +4522,68 @@ test "pyc-first: native sets via the hash-key protocol (H3)" {
     # A mutable set is unhashable.
     unh = PySet(t="set", items={}, frozen=False).tp_hashkey();
     assert unh == "";
+}
+
+test "pyc-first: builtin subclassing (Track B)" {
+    # Subclass of int: operator + hashkey delegation to the boxed value, plus a
+    # method override, and isinstance/issubclass across the builtin ancestor.
+    mi = run_source(
+        "class MyInt(int):\n"
+        "    def double(self):\n"
+        "        return self * 2\n"
+        "x = MyInt(5)\n"
+        "add = x + 1\n"
+        "radd = 1 + x\n"
+        "dbl = x.double()\n"
+        "isi = isinstance(x, int)\n"
+        "iso = isinstance(x, object)\n"
+        "iss = isinstance(x, str)\n"
+        "sub = issubclass(MyInt, int)\n"
+        "d = {x: 'five'}\nkeyed = d[5]\n"
+    );
+    assert expect_int(mi["add"]) == 6;
+    assert expect_int(mi["radd"]) == 6;
+    assert expect_int(mi["dbl"]) == 10;
+    assert expect_bool(mi["isi"]) == True;
+    assert expect_bool(mi["iso"]) == True;
+    assert expect_bool(mi["iss"]) == False;
+    assert expect_bool(mi["sub"]) == True;
+    assert expect_str(mi["keyed"]) == "five";
+
+    # Subclass of str: base-method delegation (upper) + operator (concat).
+    ms = run_source(
+        "class MyStr(str):\n    pass\n"
+        "m = MyStr('hi')\nup = m.upper()\ncat = m + '!'\n"
+        "iss = isinstance(m, str)\n"
+    );
+    assert expect_str(ms["up"]) == "HI";
+    assert expect_str(ms["cat"]) == "hi!";
+    assert expect_bool(ms["iss"]) == True;
+
+    # Plain user-class hierarchy: method override + inherited attr + super().
+    uc = run_source(
+        "class Animal:\n"
+        "    def __init__(self, n):\n"
+        "        self.n = n\n"
+        "    def speak(self):\n"
+        "        return self.n\n"
+        "class Dog(Animal):\n"
+        "    def __init__(self, n, breed):\n"
+        "        super().__init__(n)\n"
+        "        self.breed = breed\n"
+        "    def speak(self):\n"
+        "        return super().speak() + ' woof'\n"
+        "d = Dog('rex', 'lab')\n"
+        "name = d.n\nbreed = d.breed\nsound = d.speak()\n"
+        "isa = isinstance(d, Animal)\nisd = isinstance(d, Dog)\n"
+        "sub = issubclass(Dog, Animal)\n"
+    );
+    assert expect_str(uc["name"]) == "rex";
+    assert expect_str(uc["breed"]) == "lab";
+    assert expect_str(uc["sound"]) == "rex woof";
+    assert expect_bool(uc["isa"]) == True;
+    assert expect_bool(uc["isd"]) == True;
+    assert expect_bool(uc["sub"]) == True;
 }
 
 test "pyc-first: object identity -- is / id (Track I)" {
