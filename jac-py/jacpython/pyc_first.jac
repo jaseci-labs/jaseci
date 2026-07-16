@@ -1009,7 +1009,9 @@ def host_builtin(name: str) -> PyObj {
     }
     # next()/iter() are handled natively so a native generator or iterator is
     # driven one step in-VM instead of being drained across the host boundary.
-    if name == "next" or name == "iter" {
+    # id() is native so it reports stable object identity (consistent with `is`)
+    # rather than the host id of a throwaway to_host value.
+    if name == "next" or name == "iter" or name == "id" {
         return PyNativeBuiltin(t="native_builtin", name=name);
     }
     result = _jac_host_builtin(name);
@@ -1665,6 +1667,56 @@ def _host_representable(t: str) -> bool {
     return _is_host_backed(t) or t == "host" or t == "set" or t == "frozenset";
 }
 
+# Object identity for `is` / `id()`. None and booleans are true singletons in
+# CPython, and small ints [-5, 256] are cached, so for these three identity is
+# deterministically value-equality -- we answer them by value and match CPython
+# without interning every construction site (which the na-clean leaf can't hold
+# a persistent singleton for anyway). Every other object uses real Jac reference
+# identity: fresh containers/strings/big-ints are `is`-equal only when aliased.
+def _small_int_cached(v: int) -> bool {
+    return v >= -5 and v <= 256;
+}
+
+def py_identity(a: PyObj, b: PyObj) -> bool {
+    if isinstance(a, PyNoneType) or isinstance(b, PyNoneType) {
+        return isinstance(a, PyNoneType) and isinstance(b, PyNoneType);
+    }
+    if isinstance(a, PyBool) and isinstance(b, PyBool) {
+        return (a as PyBool).val == (b as PyBool).val;
+    }
+    if isinstance(a, PyInt) and isinstance(b, PyInt) {
+        av = (a as PyInt).val;
+        bv = (b as PyInt).val;
+        if av == bv and _small_int_cached(av) {
+            return True;
+        }
+        return a is b;
+    }
+    return a is b;
+}
+
+# id(): stable per-object integer. For the cached-immutable classes above, return
+# a synthetic id in a reserved low band so `id(x) == id(y)` iff `x is y` stays
+# consistent with py_identity; every other object reports its Jac reference id.
+def py_id(o: PyObj) -> int {
+    if isinstance(o, PyNoneType) {
+        return 1;
+    }
+    if isinstance(o, PyBool) {
+        if (o as PyBool).val {
+            return 3;
+        }
+        return 2;
+    }
+    if isinstance(o, PyInt) {
+        v = (o as PyInt).val;
+        if _small_int_cached(v) {
+            return 1000 + v;
+        }
+    }
+    return id(o);
+}
+
 def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     # NB_INPLACE_* (13..25) reduce to their base binop (0..12). jacpython values
     # are immutable at this layer, so `x += y` is `x = x + y` -- the trailing
@@ -2061,6 +2113,12 @@ obj PyNativeBuiltin(PyObj) {
     has name: str;
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if self.name == "id" {
+            if len(args) == 0 {
+                return py_error("TypeError", "id expected 1 argument");
+            }
+            return PyInt(t="int", val=py_id(args[0]));
+        }
         if self.name == "iter" {
             if len(args) == 0 {
                 return py_error("TypeError", "iter expected at least 1 argument");
@@ -3190,7 +3248,7 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_IS_OP {
             rhs = stack.pop();
             lhs = stack.pop();
-            same = lhs.t == rhs.t;
+            same = py_identity(lhs, rhs);
             if arg == 1 {
                 same = not same;
             }
@@ -4073,6 +4131,49 @@ test "pyc-first: native sets via the hash-key protocol (H3)" {
     # A mutable set is unhashable.
     unh = PySet(t="set", items={}, frozen=False).tp_hashkey();
     assert unh == "";
+}
+
+test "pyc-first: object identity -- is / id (Track I)" {
+    # None/bool singletons + small-int cache match CPython; mutable containers
+    # and big ints use real reference identity. Previously IS_OP compared type
+    # tags, so [] is [] wrongly returned True.
+    ident = run_source(
+        "n = None is None\n"
+        "t = True is True\n"
+        "f = False is False\n"
+        "tf = True is False\n"
+        "k1 = 200\nk2 = 56\nc256 = 256\nsi = (k1 + k2) is c256\n"
+        "b1 = 1000\nb2 = 1\nc1001 = 1001\nbi = (b1 + b2) is c1001\n"
+        "el = [] is []\n"
+        "nn = None is not None\n"
+    );
+    assert expect_bool(ident["n"]) == True;
+    assert expect_bool(ident["t"]) == True;
+    assert expect_bool(ident["f"]) == True;
+    assert expect_bool(ident["tf"]) == False;
+    assert expect_bool(ident["si"]) == True;
+    assert expect_bool(ident["bi"]) == False;
+    assert expect_bool(ident["el"]) == False;
+    assert expect_bool(ident["nn"]) == False;
+
+    # Aliasing: an object is identical to itself, distinct from an equal literal.
+    alias = run_source(
+        "a = [1, 2]\nb = a\nsame = a is b\nc = [1, 2]\ndiff = a is c\n"
+    );
+    assert expect_bool(alias["same"]) == True;
+    assert expect_bool(alias["diff"]) == False;
+
+    # id() is stable, singleton-consistent, and distinct for distinct live objects.
+    ids = run_source(
+        "x = [1]\nself_id = id(x) == id(x)\n"
+        "none_id = id(None) == id(None)\n"
+        "small_id = id(5) == id(5)\n"
+        "p = [1]\nq = [2]\ndistinct = id(p) != id(q)\n"
+    );
+    assert expect_bool(ids["self_id"]) == True;
+    assert expect_bool(ids["none_id"]) == True;
+    assert expect_bool(ids["small_id"]) == True;
+    assert expect_bool(ids["distinct"]) == True;
 }
 
 test "pyc-first: hash() builtin + float.__hash__ collapse (H4)" {
