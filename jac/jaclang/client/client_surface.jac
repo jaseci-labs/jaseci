@@ -84,8 +84,8 @@ def with_runtime_globals(
 }
 
 def prepend_active_runtime_globals(js_code: str) -> str {
-    import from jaclang.compiler.backends.es.backends.registry {
-        resolve_active_backend
+    import from jaclang.compiler.backends.es.js_runtime_globals {
+        finalize_js_for_emission
     }
-    return with_runtime_globals(js_code, resolve_active_backend());
+    return finalize_js_for_emission(js_code);
 }
