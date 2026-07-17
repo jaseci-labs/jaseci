@@ -14,7 +14,7 @@
 # this leg alone is substantial. Fixture-dependent asserts (self.value, setUp
 # state) are detected on the host and skipped -- later layers pick them up.
 import from objects { PyObj, PyError, is_error }
-import from pyc_first { unmarshal, exec_code, exec_module, to_host }
+import from pyc_first { unmarshal, exec_code, exec_module, to_host, build_copy_module }
 
 ::py::
 import ast
@@ -172,7 +172,8 @@ def _l1_harvest_methods(source):
 
 
 def _l1_host_setup(setup_src):
-    ns = {"__name__": "__main__", "__builtins__": __builtins__}
+    import copy
+    ns = {"__name__": "__main__", "__builtins__": __builtins__, "copy": copy}
     if setup_src:
         exec(compile(setup_src, "<layer1>", "exec"), ns)
     return ns
@@ -301,8 +302,15 @@ def layer0_replay_source(source: str) -> ReplayResult {
 # ---- Layer 1 driver (jac side) --------------------------------------------
 
 # Run a method's setup in jacpython, returning the resulting module namespace.
+# `copy` is seeded with the native copy shim (matching the host setup) so a
+# `copy.copy(gen)` check raises CPython's TypeError natively rather than draining
+# the generator to a host list; a setup that binds `copy` itself takes precedence.
 def layer1_run_setup(setup_src: str) -> dict[str, PyObj] {
-    return exec_module(unmarshal(_l1_compile_setup(setup_src) as list[int]));
+    ns = exec_module(unmarshal(_l1_compile_setup(setup_src) as list[int]));
+    if not ("copy" in ns) {
+        ns["copy"] = build_copy_module();
+    }
+    return ns;
 }
 
 # Evaluate `expr_src` (eval-mode) against a jacpython namespace, so names bound
@@ -506,6 +514,20 @@ test "layer0: native sets (BUILD_SET / SET_UPDATE / const) via hash-key protocol
     assert replay_expr("{2} | {1: 1}.items()") == True;
 }
 
+test "layer0: dict-view repr round-trips as dict_keys/values/items(...)" {
+    # A native PyDictView reaching repr() must present as `dict_keys([...])`, not a
+    # bare list -- to_host rebuilds a real host view (keys/values/items) so both
+    # iteration AND repr conform. Order follows the dict's insertion order.
+    assert replay_expr("repr({'a': 1, 'b': 2}.keys())") == True;
+    assert replay_expr("repr({'a': 1, 'b': 2}.values())") == True;
+    assert replay_expr("repr({'a': 1, 'b': 2}.items())") == True;
+    assert replay_expr("repr({}.keys())") == True;
+    # And the materializing consumers still work off the rebuilt view.
+    assert replay_expr("list({'a': 1, 'b': 2}.keys())") == True;
+    assert replay_expr("sorted({'b': 2, 'a': 1}.values())") == True;
+    assert replay_expr("set({'a': 1, 'b': 2}.items())") == True;
+}
+
 test "layer0: unported binops fall back to the host" {
     # Native nb_binop covers the ported fast paths; combos it doesn't (str %
     # with %f/%i or multiple args, str * int, list * int) fall back to host
@@ -676,13 +698,38 @@ test "layer1: generator functions replay through the exec-mode method harness" {
     "        it = g()\n"
     "        with self.assertRaises(TypeError):\n"
     "            it.send(0)\n"
+    "    def test_copy(self):\n"
+    "        def f():\n"
+    "            yield 1\n"
+    "        g = f()\n"
+    "        with self.assertRaises(TypeError):\n"
+    "            copy.copy(g)\n"
+    "    def test_close_clears_frame(self):\n"
+    "        class DetectDelete:\n"
+    "            def __init__(self):\n"
+    "                DetectDelete.deleted = False\n"
+    "            def __del__(self):\n"
+    "                DetectDelete.deleted = True\n"
+    "        def generator(arg):\n"
+    "            yield\n"
+    "        g = generator(DetectDelete())\n"
+    "        g.close()\n"
+    "        self.assertTrue(DetectDelete.deleted)\n"
+    "        g = generator(DetectDelete())\n"
+    "        next(g)\n"
+    "        g.close()\n"
+    "        self.assertTrue(DetectDelete.deleted)\n"
+    "        g = generator(DetectDelete())\n"
+    "        g.gi_frame.clear()\n"
+    "        self.assertTrue(DetectDelete.deleted)\n"
     "    def test_uses_fixture(self):\n"
     "        self.assertEqual(self.value, 5)\n";
     result = layer1_replay_source(src);
-    # Six self-contained generator methods replay clean (four value-diff, two
-    # assertRaises); the fixture-dependent method (self.value) fails the host
-    # self-containment probe and is skipped.
-    assert result.passed == 6;
+    # Eight self-contained generator methods replay clean: four value-diff, three
+    # assertRaises (send-to-new-gen, uncopyable generator), and the frame-clearing
+    # __del__ test (close()/gi_frame.clear() finalize the frame's held arg). The
+    # fixture-dependent method (self.value) fails the host probe and is skipped.
+    assert result.passed == 8;
     assert result.skipped == 1;
     assert result.failed == 0;
     assert result.errored == 0;

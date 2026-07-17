@@ -1,3 +1,53 @@
+# jac-python - Differential Audit TODO (refreshed 2026-07-16)
+
+> This document was originally written 2026-07-13/14 as an audit of the c2jac/jac2c
+> **tooling** branch. It is refreshed here against repo state as of 2026-07-16. The
+> jacpython port (the D-track / Layers items) has since progressed substantially, so
+> many items the original marked OPEN are now resolved or in flight.
+
+## Status tally - refreshed 2026-07-16
+
+**25 tracked items: 16 ✅ resolved (64%), 7 🟡 partial (28%), 2 ❌ open (8%).**
+(was 8 / 4 / 13 → 32% / 16% / 52%)
+
+| Item | Old | New | What changed |
+|---|---|---|---|
+| A1 value/ref heuristic | ✅ | ✅ | unchanged |
+| A2 RC + longjmp | ✅ | ✅ | unchanged |
+| A3 two type systems | 🟡 | ✅ | `055b2899b` makes TypeFacts a thin adapter over the real checker (facts-vs-checker split consolidated) |
+| A4 fidelity containment | ✅ | ✅ | unchanged |
+| A5 cross-TU ingestion | ✅ | ✅ | unchanged |
+| A6 fake-libc widths | ✅ | ✅ | unchanged |
+| A7 round-trip oracle | 🟡 | 🟡 | no change; emit-leg differential runs, jac2c still can't re-emit all idiomatic Jac |
+| A8 type registry | 🟡 | 🟡 | hash-based ids landed; whole-program-only emission still open |
+| B1 lifter behavior-proven | ✅ | ✅ | unchanged |
+| B2 ingestion type-check | 🟡 | ✅ | `a055aa045` (PR #6973) brought cfront under the checker; numbered marker was stale |
+| B3 local oracle | ✅ | ✅ | unchanged |
+| B4 D4 na risk list | ❌ | 🟡 | `jac-py/tests/na_cliffs/` now exists (cliff fixtures + `t7_gate.sh` + README) |
+| B5 hygiene machinery | ✅ | ✅ | unchanged |
+| B6 moving-alpha target | ❌ | ✅ | pinned to CPython **3.14.6** (2026-07-14, `CURRENT.md`) |
+| C1 D2 dependency closure | ❌ | 🟡 | Layer 0/1 host-side replay harness implements the "don't run the runner inside jacpython" strategy |
+| C2 double-interp throughput | ❌ | 🟡 | harness exists; explicit CI sharding/timeout design not yet built |
+| C3 pyc-before-compile | ❌ | ✅ | Bootstrap bridge done: host compiles+marshals, jacpython executes the code object |
+| C4 RC advantage / cycle collector | ❌ | 🟡 | jaclang ships a native Bacon-Rajan cycle collector for ARC, **on by default** (phase-0-1; #6905/#7149, release note 7208) - external dependency resolved; jacpython `gc`-module wiring still unstarted |
+| C5 living vs demo | ❌ | ✅ | `CURRENT.md`/`PLAN.md §12.1`: living implementation tracking CPython releases |
+| C6 tooling-forever | ❌ | 🟡 | feared stall has NOT happened - jacpython actively ported (P3.0–P6 shipped); standing weekly-ratchet forcing function not yet evidenced |
+| Housekeeping: tests-dir naming | ❌ | ❌ | unchanged |
+| Layer 0 replay harness | ❌ | ✅ | `53bc7742b` P3.0 slot pivot + Layer 0 harness live; `test_int` 114/114 |
+| Layer 1 method replay | ❌ | ✅ | Layer 1 exec-mode harness DONE; `test_generators` 8 pass / 1 fail / 5 skip |
+| Layer 2 shim unittest | ❌ | ✅ | `layer2_unittest.jac`: proxy-free unittest + test.support shim, discovery runner, ceval LOAD_SPECIAL/WITH_EXCEPT_START hooks |
+| Layer 3 real unittest boots | ❌ | 🟡 | `layer3_import.jac`: native source-importing loader (`import_native`) runs real CPython module source in-VM proxy-free; `keyword`/`operator`/`token`/`reprlib`/`types`/`collections` (a builtin-subclassing, closure-heavy package) boot un-proxied. Drove 6 ceval/object fixes (STORE_GLOBAL, merged-localsplus cell layout, native getattr/setattr/hasattr, INTRINSIC_IMPORT_STAR, host-proxy `is`/`id`, user `__iter__`). Frontier to full unittest: enum metaclass + namedtuple's host-`type()`/`classmethod`/`property` on native functions (native-callable↔host round-trip). |
+
+## jacpython progress since the doc was written (not in original TODO)
+
+- **P3.0** object-model slot skeleton + Layer 0 replay harness - DONE
+- **P3.1** four conformance gaps closed; `test_int` 119/0, `test_bool` 50/0, `test_str` 345/0, `test_dict` 20/0
+- **P5** generators (genexpr, full generator funcs, yield-from, send/throw/close) + coroutines - DONE; `pyc_first` 6→35
+- **P6** Tier-3 (hash-key protocol, object identity, builtin subclassing), operator overloading, container set/dict semantics (a)–(e) - DONE; `test_set` 1→4/0, `test_dict` 10→17/0
+- na-clean `objects.jac` leaf kept T7-gated at every commit; `jac check` clean
+
+---
+
   1. ✅ [RESOLVED] is_ref_arch is a syntactic heuristic that silently decides value-vs-reference semantics.
   type_facts_pass.impl.jac:89: an archetype is reference-semantic iff it has any method or any base class. Everything else emits as a bare by-value C struct
   (c_gen_pass.impl.jac:308-315 -- assignment copies). But on the bytecode backend every obj instance is a heap reference, Python-style. So a methodless obj Point { has x: int;
@@ -13,7 +63,7 @@
   CPython's goto-error-ladders into try/finally. That pipes the port's single hottest pattern straight into the emitter's weakest seam. The fix is architectural, not
   incremental: frames need to record owned locals so the handler can release them (landing-pad style), decided before GOTO_LIFTER ships.
 
-  3. 🟡 [PARTIAL] Two parallel type systems, with name-keyed identity.
+  3. ✅ [RESOLVED] Two parallel type systems, with name-keyed identity.
   TypeFacts is a syntactic re-inference living beside the real checker/TypeEvaluator -- the PLAN.md refactor consolidated duplication within the facts layer, but the
   facts-vs-checker split remains, and it has already drifted once (the expr_type_name divergence PLAN.md documents). RESOLVED: the name-keyed identity half.
   get_shared_type_facts / get_shared_layout_registry no longer merge first-wins by bare archetype name -- a shared TypeIdIndex assigns every archetype a program-unique
@@ -24,7 +74,7 @@
   consolidation task, independent of identity.
 
   4. ✅ [RESOLVED] Fidelity is tracked per-node, but there's no containment unit.
-  The surrogate/twin-band design is genuinely good, but one __c_unsupported__ inside a function makes that function a runtime landmine in a module that imports cleanly -- and
+  The surrogate/twin-band design is genuinely good, but one **c_unsupported** inside a function makes that function a runtime landmine in a module that imports cleanly -- and
   on the native lane, one surrogate breaks static call resolution for the whole module, so Tier-B contaminates at module granularity there. There's no quarantine story: e.g.,
   "this one function stays as original C reached via clib until its Tier-B sites burn down," or at minimum a stub that traps at call time with the diag reason. Relatedly,
   the W-band conflates stylistic infidelity (cast elided, W4201) with behavioral change (W4206 drops static-local persistence; W4205 drops volatile) -- lenient ingest will
@@ -75,7 +125,7 @@
   type-check, none proven to compute the right answers. Cheapest fix ties into the run-then-refactor idea: execute every lifted breadth fixture on the bytecode backend and
   diff against the cc-compiled original C. The fixtures and drivers already exist; only the harness leg is missing.
 
-  2. 🟡 [PARTIAL] The entire ingestion leg is exempt from the type checker.
+  2. ✅ [RESOLVED] The entire ingestion leg is exempt from the type checker.
   .jacignore lines 271–282 list all ten cfront/ modules, cast_load_pass.jac + its impl, and bindgen.jac; compiler/ownership.jac is in there too (line 348). So the tool that's
   going to chew through 260k LOC of CPython has no static safety net -- regressions surface only through fixtures, which per point 1 are compile-only. Notably, this branch
   just fixed the same problem for the emit side (commit 956eaf28d brought the c_gen/type-facts/ownership passes under jac check by narrowing module.gen.X with isinstance
@@ -88,7 +138,7 @@
   on PATH -- locally and in CI alike -- and the leg asserts `ran_any` instead of printing a skip line. (`test_jac2c_differential.jac`, third test.) The residual C-leg cc-absent
   degradation remains, but that only fires on a machine with no C compiler at all, where neither backend can be compiled anyway.
 
-  4. ❌ [OPEN] The D4 native lane's real risk is a specific list, not a risk-register row.
+  4. 🟡 [PARTIAL] The D4 native lane's real risk is a specific list, not a risk-register row.
   jac-py/PLAN.md treats "na maturity" as one line item. But accumulated experience across the sibling worktrees gives a concrete inventory of na landmines, and jacpython's
   core is shaped exactly like the code that hits them: string concat drops NUL bytes and len() is strlen (fatal for marshal/bytes/code-object work), dict-return ICEs,
   list[int] subscript gaps, method calls on T|None receivers silently dropped, the external field-write header-offset bug, scalar globals not persisting across calls. The
@@ -102,7 +152,7 @@
   recipe is SKIP=jac-format with pre-stripped comments. Thousands of lifted files flowing through those hooks will find new failure modes; the port pipeline should own its
   formatting at emission time and keep jac-py out of lintfix's jurisdiction.
 
-  6. ❌ [OPEN] The porting target itself is a moving alpha.
+  6. ✅ [RESOLVED] The porting target itself is a moving alpha.
   reference/cpython is 3.16.0a0, unpinned. The plan's own P0 says pin to a 3.14 release tag, but the decision was never executed -- which means every calibration made so far
   (the three lifted fixtures, the LOC survey, the bucket decomposition in PLAN.md §3) is against source that drifts under you. This is a five-minute decision with compounding
   value; I'd make it before the first raw-TU experiment, since Tier-B density numbers against an alpha won't be comparable to numbers against the pin.
@@ -111,35 +161,35 @@
   to a file and reformatted -- the same fact from the architecture list, but the practical consequence is that today there is no durable record anywhere of which sites in a
   lifted file are best-effort. For a one-file demo that's fine; for a burndown metric across 400 files it's the first thing project mode needs.
 
-  1. ❌ [OPEN] D2 has a hidden dependency closure: you can't run Lib/test until unittest runs.
+  1. 🟡 [PARTIAL] D2 has a hidden dependency closure: you can't run Lib/test until unittest runs.
   "A pinned subset of CPython's own test suite passes" sounds like a per-module gate, but every test_*.py file imports unittest, which transitively drags in re (so_sre),
   traceback (so frame objects and sys._getframe-adjacent introspection), os, io, inspect, functools, collections… Historically this is the reimplementation trap -- Jython and
   early PyPy both hit it: the test runner's bootstrap set is ~50 stdlib modules that must all work before conformance measurement begins. Your plan half-knows this (the
   harness "runs module-level differential tests before jacpython can import"), but I'd promote that from stopgap to primary strategy: a minimal test-vector runner shim (not
   real unittest) should carry you through P2–P4, and "real unittest boots" should be an explicit named milestone around P5 -- it's a bigger deal than pystone.
 
-  2. ❌ [OPEN] Double interpretation makes conformance CI a throughput problem, not just a correctness one.
+  2. 🟡 [PARTIAL] Double interpretation makes conformance CI a throughput problem, not just a correctness one.
   jacpython on the bytecode backend is Python interpreting Python -- expect 100×+ slowdown. A single CPython test file can run tens of thousands of cases; the full ratchet
   under double interpretation is plausibly a multi-day run. PyPy learned this the hard way and ran most tests only on translated builds. Design the harness for it now:
   per-case timeouts, per-module sharding, a small always-on PR subset with nightly full runs, and treat getting jacpython itself through nacompile as a CI-infrastructure
   investment (fast conformance runs), not just the D4 trophy at the end.
 
-  3. ❌ [OPEN] You can re-sequence P4 and P5 -- execute .pyc before you can compile.
+  3. ✅ [RESOLVED] You can re-sequence P4 and P5 -- execute .pyc before you can compile.
   D1 currently gates on the whole front end (tokenizer → parser → symtable → compile → marshal). But the object core plus ceval can run real programs today's CPython
   compiles: have the host compile() the source, marshal it, and have jacpython execute the code object. That collapses M1's dependency chain to P3 + P5 and turns the entire
   front end into parallel, non-gating work -- while giving you an exquisite oracle for free (the same .pyc executed by both interpreters, which is also what makes the lockstep
   lltrace idea work). The plan already borrows the host tokenizer; borrowing the whole compiler during bootstrap is the same move with much larger payoff. Early PyPy did
   exactly this.
 
-  4. ❌ [OPEN] RC hands you an advantage no other Python reimplementation had -- and one external dependency you should file today.
-  PyPy's single biggest compatibility tax was that its GC broke CPython's deterministic finalization: __del__ timing, files closing on scope exit, weakref callbacks --
+  4. 🟡 [PARTIAL] RC hands you an advantage no other Python reimplementation had -- and one external dependency you should file today.
+  PyPy's single biggest compatibility tax was that its GC broke CPython's deterministic finalization: **del** timing, files closing on scope exit, weakref callbacks --
   thousands of tests implicitly depend on refcount semantics. Jac is RC-based, so jacpython gets CPython-faithful finalization for free; you're structurally better positioned
   on the long tail than PyPy was, and it's worth exploiting (don't design that away, e.g. by adding deferred-release optimizations to the runtime later). The flip side:
   reference cycles. With deep-release semantics still constrained on the jaclang side and no cycle collector, test_gc and every cycle-leaking suite is permanently out of
   reach -- and that's a dependency on someone else's roadmap. The plan says "file jaclang issue early"; concretely, that issue is the longest-lead-time item in the entire
   project and it isn't filed. I'd do it this week, with jacpython named as the driving consumer.
 
-  5. ❌ [OPEN] Decide now whether jacpython is a living implementation or a demonstration.
+  5. ✅ [RESOLVED] Decide now whether jacpython is a living implementation or a demonstration.
   Everything about T3's value (regenerable parsers/eval loops), the provenance-DB idea, and the upstream-sync playbook hinges on one strategic question the plan defers to P8:
   does jacpython track CPython releases, or is it pinned forever at 3.14? If it's a demo, T3 regenerability is over-engineering and hand-porting generated code is fine; if
   it's living, the content-addressed function-level translation DB stops being a nice-to-have and becomes core architecture, and you should vendor the exact Tools/
@@ -147,7 +197,7 @@
   is worse than retargeting a frozen one once. One housekeeping line while you're at it: the port is a derivative work of CPython, so jac-py needs the PSF license carried
   alongside (and MIT attribution if you pull PyPy-sourced pure-Python implementations, which mixes fine).
 
-  6. ❌ [OPEN] Name the failure mode: tooling-forever.
+  6. 🟡 [PARTIAL] Name the failure mode: tooling-forever.
   Candidly, the revealed preference of the last several months is beautiful substrate work -- the TypeFacts extraction, cross-module vdispatch, transitive chains -- while
   jac-py/ sat at a plan and zero ported modules (the one staged port got deleted as slop). The plan's thesis ("treat the port as a tooling problem") is right, but
   tooling-first strategies fail by never declaring the tooling done. The antidote is a demand-driven forcing function: a standing ratchet that ingests one raw,
@@ -155,7 +205,7 @@
   prioritized by what the target actually needs -- which is also the only way to find out whether GOTO_LIFTER's pattern-directed subset covers real CPython, the single
   assumption the entire effort-shape estimate in §11 rests on.
 
-  ❌ [OPEN] Layer 0 (P3, day one): keep the harness on the host, replay at the code-object boundary
+  ✅ [RESOLVED] Layer 0 (P3, day one): keep the harness on the host, replay at the code-object boundary
 
   The trap only exists if the test runner must run inside jacpython. It doesn't. Run the test file under host CPython with an AST-instrumented shim: rewrite each
   assertEqual(expr, expected) so the harness captures the source expression, has the host compile it to a code object, ships that code object (marshal) plus the host-computed
@@ -165,7 +215,7 @@
   test_int/test_dict/test_list asserts are self-contained expressions over literals, so coverage from this alone is substantial. Fixture-dependent cases (setUp state,
   mutation across cases) fall out of scope for this layer -- that's fine; they're what the later layers pick up.
 
-  ❌ [OPEN] Layer 1 (P3–P5): proxy the closure instead of porting it
+  ✅ [RESOLVED] Layer 1 (P3–P5): proxy the closure instead of porting it
 
   Here's the structural advantage the plan under-uses: during bootstrap, jacpython runs inside a host CPython process (the bytecode backend). So any stdlib module jacpython
   can't provide yet can be a proxy module -- a thin shim that wraps host objects in PyObj shells and delegates calls through the substrate boundary. import re inside jacpython
@@ -181,7 +231,7 @@
   One design consequence worth deciding in the P3.0 spike, not later: the object model needs a PyHostProxy(PyObj) archetype (wraps a host object, dispatches slots through it)
   from the beginning. It's small, but it touches the same slot-dispatch architecture as PyUserObj, so it should be born in the same design decision rather than bolted on.
 
-  ❌ [OPEN] Layer 2 (P4–P5): a shim unittest for the middle distance
+  ✅ [RESOLVED] Layer 2 (P4–P5): a shim unittest for the middle distance - `jac-py/jacpython/layer2_unittest.jac` installs a proxy-free `unittest` + `test.support` shim (TestCase assertions, skip decorators, discovery runner). Callable and `with self.assertRaises` context-manager forms work; ceval `LOAD_SPECIAL`/`WITH_EXCEPT_START` stack layout matches CPython 3.14 `with` codegen.
 
   Between "expression replay" and "real unittest boots," carry a ~200-line minitest -- TestCase, assertEqual/assertTrue/assertRaises, method discovery, zero imports beyond
   builtins -- installed as sys.modules["unittest"], plus a stub test.support whose decorators (cpython_only, requires_resource, bigmemtest…) all resolve to skip. That lets
@@ -212,16 +262,16 @@
 
 ## Evidence for RESOLVED items
 
-- __A1 value/ref semantics:__ `is_ref_arch` now defaults to ref-semantic and flips only on an explicit `@__jac_value__` stamp; c2jac stamps lifted C PODs (commit `168f07a9c`). Mutate-after-alias aliasing is covered by fixtures `obj_value_alias.jac` / `test_jac2c_value_arch.jac`.
-- __A2 RC + longjmp:__ `c_gen_pass.impl.jac` now emits a landing-pad / cleanup frame that releases owned locals on the longjmp path (`scope_release_lines`, lines ~637–638, ~1069–1070).
-- __A4 fidelity containment:__ new `cfront/fidelity.jac` splits STYLE/BEHAVIOR/HOLE bands; `band_quarantines()` quarantines the containing function for behavior/hole sites; `cfront/report.jac` records `quarantined_functions`.
-- __A5 cross-TU ingestion:__ new `cfront/project.jac` adds multi-TU lift with a cross-TU symbol registry; `cfront/report.jac` writes `*.c2jac.report.json` sidecars for re-lifts/aggregates/AI loop; commit `168f07a9c` adds transitive cross-module emit.
-- __A3 name-keyed type identity:__ ✅ RESOLVED by `e344d5ffe` -- module-qualified `TypeIdIndex` identity is shared across TypeFacts, layout, emitted symbols, runtime ids, and cross-module references; collision coverage is in `test_jac2c_name_collision.jac`.
-- __A6 LP64 libc:__ new `cfront/lp64_scalars.jac` is a curated LP64-correct scalar map (`size_t`/`Py_ssize_t` → u64/i64), name-matched ahead of alias resolution.
-- __B1 behavior-proven:__ `test_jac2c_runtime.jac` now executes lifted fixtures on both the cc-linked binary and the stock Jac interpreter and diffs them (`interpreter_run` / `link_and_run`).
-- __B5 hygiene:__ `jac.toml` already excludes `jac-py/*` from deslop/format; the `SKIP=jac-format` + pre-stripped-comments recipe is intact; this branch did not regress it.
-- __B2 ingestion type-check:__ ✅ RESOLVED -- untyped `jaclang/vendor` modules are classified as foreign `Any`; C-ingestion and ownership files are no longer ignored by the checker. Focused checker gate: 13/13; `test_bindgen.jac` + `test_cast_ingest.jac`: 31/31.
-- __Foreign-Any propagation:__ ✅ RESOLVED -- iteration, tuple destructuring, subscripting, and operators preserve foreign `Any`, while ordinary `Any` remains on its existing path. Regression suite: 6/6, with positive and negative controls.
+- **A1 value/ref semantics:** `is_ref_arch` now defaults to ref-semantic and flips only on an explicit `@__jac_value__` stamp; c2jac stamps lifted C PODs (commit `168f07a9c`). Mutate-after-alias aliasing is covered by fixtures `obj_value_alias.jac` / `test_jac2c_value_arch.jac`.
+- **A2 RC + longjmp:** `c_gen_pass.impl.jac` now emits a landing-pad / cleanup frame that releases owned locals on the longjmp path (`scope_release_lines`, lines ~637–638, ~1069–1070).
+- **A4 fidelity containment:** new `cfront/fidelity.jac` splits STYLE/BEHAVIOR/HOLE bands; `band_quarantines()` quarantines the containing function for behavior/hole sites; `cfront/report.jac` records `quarantined_functions`.
+- **A5 cross-TU ingestion:** new `cfront/project.jac` adds multi-TU lift with a cross-TU symbol registry; `cfront/report.jac` writes `*.c2jac.report.json` sidecars for re-lifts/aggregates/AI loop; commit `168f07a9c` adds transitive cross-module emit.
+- **A3 name-keyed type identity:** ✅ RESOLVED by `e344d5ffe` -- module-qualified `TypeIdIndex` identity is shared across TypeFacts, layout, emitted symbols, runtime ids, and cross-module references; collision coverage is in `test_jac2c_name_collision.jac`.
+- **A6 LP64 libc:** new `cfront/lp64_scalars.jac` is a curated LP64-correct scalar map (`size_t`/`Py_ssize_t` → u64/i64), name-matched ahead of alias resolution.
+- **B1 behavior-proven:** `test_jac2c_runtime.jac` now executes lifted fixtures on both the cc-linked binary and the stock Jac interpreter and diffs them (`interpreter_run` / `link_and_run`).
+- **B5 hygiene:** `jac.toml` already excludes `jac-py/*` from deslop/format; the `SKIP=jac-format` + pre-stripped-comments recipe is intact; this branch did not regress it.
+- **B2 ingestion type-check:** ✅ RESOLVED -- untyped `jaclang/vendor` modules are classified as foreign `Any`; C-ingestion and ownership files are no longer ignored by the checker. Focused checker gate: 13/13; `test_bindgen.jac` + `test_cast_ingest.jac`: 31/31.
+- **Foreign-Any propagation:** ✅ RESOLVED -- iteration, tuple destructuring, subscripting, and operators preserve foreign `Any`, while ordinary `Any` remains on its existing path. Regression suite: 6/6, with positive and negative controls.
 
 ## Recent work completed (2026-07-14)
 
@@ -231,10 +281,10 @@
 
 ## PARTIAL items
 
-- __A7 round-trip oracle:__ emit-leg differential now runs (cc-binary vs interpreter), but jac2c still can't re-emit all idiomatic Jac and the oracle was not re-pointed at bytecode-backend execution.
-- __A8 type registry:__ `exception_type_id` is now sha256 hash-based (derivable/stable); emission is still whole-program-only (no separate compilation).
+- **A7 round-trip oracle:** emit-leg differential now runs (cc-binary vs interpreter), but jac2c still can't re-emit all idiomatic Jac and the oracle was not re-pointed at bytecode-backend execution.
+- **A8 type registry:** `exception_type_id` is now sha256 hash-based (derivable/stable); emission is still whole-program-only (no separate compilation).
 
 ## OPEN (not on this branch)
 
-- __B3 local oracle:__ ✅ RESOLVED -- na-vs-C runtime leg now links the na object with the host `cc` (dynamic libc) so it runs locally, not just CI (`test_jac2c_differential.jac`).
-- __B4, B6, C1–C6, Layers 0–3:__ jacpython / D-track items -- `jac-py/PLAN.md` is still design/scoping (one module ported), `reference/cpython` still `3.16.0a0` (P0 pin unexecuted).
+- **B3 local oracle:** ✅ RESOLVED -- na-vs-C runtime leg now links the na object with the host `cc` (dynamic libc) so it runs locally, not just CI (`test_jac2c_differential.jac`).
+- **B4, B6, C1–C6, Layers 0–3:** [Updated 2026-07-17] largely overtaken by events. `reference/cpython` is now pinned **3.14.6** (not 3.16.0a0); `jac-py/PLAN.md` has shipped **P3.0, P3.1, P5, and P6** (object core, generators, operator overloading, container set/dict semantics) with live Layer-0/1 conformance harnesses - no longer "one module ported." Resolved since this note: **B6** (pin), **C3** (pyc bootstrap bridge), **C5** (living impl), **Layer 0 + Layer 1** (harnesses), **Layer 2** (shim unittest). Partially mitigated: **B4** (na_cliffs fixtures exist), **C1/C2/C6** (host-side replay strategy). Still open: **Layer 3** (real unittest boots). **C4** is now 🟡 PARTIAL: jaclang ships a native Bacon-Rajan cycle collector for ARC, on by default (phase-0-1; #6905/#7149, release note 7208) - the external dependency is resolved; jacpython's own `gc`-module wiring/integration remains.

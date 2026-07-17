@@ -163,6 +163,43 @@ def _jac_host_convert(value, conv):
         return (True, str(value))
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
+
+def _jac_module_info(absname):
+    # Layer 3 module locator: resolve a fully-qualified module name to its source.
+    # Returns (status, source, is_pkg, origin):
+    #   "py"      -> pure-Python module; `source` is its text, run in-VM proxy-free
+    #   "native"  -> built-in / frozen / C extension (no .py); caller host-proxies it
+    #   "missing" -> no such module (ModuleNotFoundError)
+    # find_spec locates the file the same way CPython's import system does; it may
+    # host-import parent packages purely to read their __path__ (never the module
+    # itself), which is fine -- only the .py bytes cross back for in-VM execution.
+    import importlib.util as _u
+    try:
+        spec = _u.find_spec(absname)
+    except BaseException:
+        return ("missing", "", False, "")
+    if spec is None:
+        return ("missing", "", False, "")
+    origin = spec.origin or ""
+    is_pkg = spec.submodule_search_locations is not None
+    if origin.endswith(".py"):
+        try:
+            with open(origin, "r", encoding="utf-8") as fh:
+                return ("py", fh.read(), is_pkg, origin)
+        except OSError:
+            return ("native", "", is_pkg, origin)
+    return ("native", "", is_pkg, origin)
+
+def _jac_star_names(host_val):
+    # `from proxied_module import *` name set: __all__ if defined, else every
+    # public (non-underscore) attribute -- CPython's import_all_from rule.
+    try:
+        alln = getattr(host_val, "__all__", None)
+        if alln is not None:
+            return (True, [str(n) for n in alln])
+        return (True, [n for n in dir(host_val) if not n.startswith("_")])
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
 ::py::
 
 
@@ -760,6 +797,321 @@ import from objects {
 # routes every slot across the substrate boundary. Born here on the same slot
 # mechanism as PyUserObj so bootstrap-time module proxying (import re -> host
 # re wrapped in a PyHostProxy) has its socket from day one, not bolted on later.
+# Native module object for Layer 2 shim imports (unittest, test.support).
+# Installed via register_shim_module so IMPORT_NAME resolves proxy-free.
+obj PyModule(PyObj) {
+    has name: str,
+        attrs: dict[str, PyObj] = {};
+
+    def tp_getattro(attr: str) -> PyObj {
+        if attr in self.attrs {
+            return self.attrs[attr];
+        }
+        return py_error("AttributeError", attr);
+    }
+
+    def tp_setattro(attr: str, value: PyObj) -> PyObj {
+        self.attrs[attr] = value;
+        return py_none();
+    }
+}
+
+# Layer 2 shim registry: name -> PyModule. Checked before host import.
+glob shim_modules: dict[str, PyObj] = {};
+
+def register_shim_module(name: str, module: PyObj) -> None {
+    shim_modules[name] = module;
+}
+
+def clear_shim_modules() -> None {
+    shim_modules = {};
+}
+
+def shim_module_get(name: str) -> PyObj {
+    if name in shim_modules {
+        return shim_modules[name];
+    }
+    return py_error("ImportError", "shim module '" + name + "' is not installed");
+}
+
+# ---------------- Layer 3: real un-proxied module import ---------------------
+# (jac-py/PLAN.md Layer 3 -- "real unittest boots un-proxied".) When
+# layer3_active is set, IMPORT_NAME resolves a module by running its actual
+# CPython source as bytecode INSIDE jacpython's own ceval, building a native
+# PyModule from the resulting namespace -- rather than wrapping the host module
+# in a PyHostProxy. C-extension / built-in / frozen modules (no .py source) stay
+# host-proxied; every pure-Python module in the closure executes proxy-free. The
+# recursion through IMPORT_NAME pulls the whole dependency closure in-VM. This is
+# the milestone that proves the interpreter is real: unittest exercises classes,
+# descriptors, exceptions, comprehensions, and the full language surface.
+
+glob sys3_modules: dict[str, PyObj] = {};
+# Modules deliberately kept host-proxied even though pure-Python source exists,
+# because they rely on VM features not yet native (custom metaclasses: enum's
+# EnumType drives __prepare__/__new__/__iter__). Proxying a metaclass-heavy leaf
+# is the same pragmatic line drawn for C extensions -- it keeps the rest of the
+# closure (unittest's own code) running proxy-free. Revisit when metaclasses land.
+glob layer3_force_host: list[str] = ["enum"];
+# One-slot holder rather than a bare `glob layer3_active: bool` -- a scalar glob
+# rebound inside a function is scoped local and never persists (see PLAN/memory);
+# a list mutated in place does. Read via layer3_is_active() on the IMPORT_NAME path.
+glob layer3_flag: list[bool] = [False];
+
+def set_layer3_active(flag: bool) -> None {
+    layer3_flag[0] = flag;
+}
+
+def layer3_is_active() -> bool {
+    return layer3_flag[0];
+}
+
+def clear_sys3_modules() -> None {
+    sys3_modules = {};
+}
+
+# Drop one key from the module cache (used to un-register a module whose in-VM
+# execution raised, so a retry re-runs it instead of seeing a half-built shell).
+def _sys3_forget(name: str) -> None {
+    if name in sys3_modules {
+        del sys3_modules[name];
+    }
+}
+
+def _last_component(dotted: str) -> str {
+    parts = dotted.split(".");
+    return parts[len(parts) - 1];
+}
+
+def _parent_package(dotted: str) -> str {
+    parts = dotted.split(".");
+    if len(parts) <= 1 {
+        return "";
+    }
+    out = parts[0];
+    i = 1;
+    while i < len(parts) - 1 {
+        out = out + "." + parts[i];
+        i = i + 1;
+    }
+    return out;
+}
+
+# Resolve a (possibly relative) import to its absolute module name. `level` is the
+# IMPORT_NAME dot-count: 0 = absolute, 1 = current package, 2 = its parent, ...
+def _resolve_relative(current_package: str, name: str, level: int) -> str {
+    if level == 0 {
+        return name;
+    }
+    parts = current_package.split(".");
+    drop = level - 1;
+    keep = len(parts) - drop;
+    if keep < 0 {
+        keep = 0;
+    }
+    base = "";
+    i = 0;
+    while i < keep {
+        if base == "" {
+            base = parts[i];
+        } else {
+            base = base + "." + parts[i];
+        }
+        i = i + 1;
+    }
+    if name == "" {
+        return base;
+    }
+    if base == "" {
+        return name;
+    }
+    return base + "." + name;
+}
+
+# Import one fully-qualified module natively, caching it in sys3_modules. Parent
+# packages import first (and the submodule is bound as an attribute on its
+# parent, per CPython). Pure-Python source runs in-VM; anything else is proxied.
+def import_native(absname: str) -> PyObj {
+    if absname in sys3_modules {
+        return sys3_modules[absname];
+    }
+    if absname in shim_modules {
+        return shim_modules[absname];
+    }
+    if absname in layer3_force_host {
+        star2: list[PyObj] = [PyStr(t="str", val="*")];
+        forced = host_import(absname, PyList(t="list", items=star2));
+        if is_error(forced) {
+            return forced;
+        }
+        sys3_modules[absname] = forced;
+        return forced;
+    }
+    info = _jac_module_info(absname);
+    status = str(info[0]);
+    if status == "missing" {
+        return py_error("ModuleNotFoundError", "No module named '" + absname + "'");
+    }
+    if status == "native" {
+        # C extension / built-in / frozen: no source to run in-VM. Proxy the real
+        # host module (fromlist truthy so importlib returns the named submodule,
+        # not just the top package).
+        star: list[PyObj] = [PyStr(t="str", val="*")];
+        proxy = host_import(absname, PyList(t="list", items=star));
+        if is_error(proxy) {
+            return proxy;
+        }
+        sys3_modules[absname] = proxy;
+        return proxy;
+    }
+    source = str(info[1]);
+    is_pkg = info[2] as bool;
+    origin = str(info[3]);
+    parent = _parent_package(absname);
+    if parent != "" {
+        pmod = import_native(parent);
+        if is_error(pmod) {
+            return pmod;
+        }
+    }
+    pkg_name = parent;
+    if is_pkg {
+        pkg_name = absname;
+    }
+    modglobals: dict[str, PyObj] = {
+        "__name__": PyStr(t="str", val=absname),
+        "__package__": PyStr(t="str", val=pkg_name),
+        "__file__": PyStr(t="str", val=origin),
+        "__doc__": py_none(),
+    };
+    module = PyModule(t="module", name=absname, attrs=modglobals);
+    # Register the (still-executing) module before running its body so a circular
+    # import mid-closure resolves to this partial module instead of re-entering.
+    sys3_modules[absname] = module;
+    outcome = exec_code(unmarshal(host_compile_marshal(source)), [], modglobals);
+    if is_error(outcome) {
+        _sys3_forget(absname);
+        return outcome;
+    }
+    # attrs aliases modglobals (same dict), so STORE_NAME writes are already live.
+    if parent != "" and isinstance(sys3_modules[parent], PyModule) {
+        (sys3_modules[parent] as PyModule).attrs[_last_component(absname)] = module;
+    }
+    return module;
+}
+
+# The public names `from module import *` binds: a native PyModule's __all__ (or
+# its non-underscore keys); a proxied module's __all__/dir() via the host.
+def import_star_names(module: PyObj) -> list[str] {
+    if isinstance(module, PyModule) {
+        attrs = (module as PyModule).attrs;
+        if "__all__" in attrs {
+            # __all__ is commonly a list literal (not only a tuple); read either.
+            allobj = attrs["__all__"];
+            items: list[PyObj] = [];
+            if isinstance(allobj, PyList) {
+                items = (allobj as PyList).items;
+            } else {
+                items = tuple_value(allobj);
+            }
+            allnames: list[str] = [];
+            for it in items {
+                allnames.append(str_value(it));
+            }
+            return allnames;
+        }
+        out: list[str] = [];
+        for k in attrs {
+            if not k.startswith("_") {
+                out.append(k);
+            }
+        }
+        return out;
+    }
+    result = _jac_star_names(to_host(module));
+    if host_result_ok(result) {
+        names: list[str] = [];
+        for n in result[1] {
+            names.append(str(n));
+        }
+        return names;
+    }
+    return [];
+}
+
+# INTRINSIC_IMPORT_STAR: bind every exported name of `module` into `globals`.
+def import_star_into(module: PyObj, globals: dict[str, PyObj]) -> PyObj {
+    for nm in import_star_names(module) {
+        val = py_attr(module, nm);
+        if is_error(val) {
+            return val;
+        }
+        globals[nm] = val;
+    }
+    return py_none();
+}
+
+# IMPORT_NAME entry point under Layer 3. Mirrors CPython's __import__ contract:
+# with no fromlist, `import a.b.c` binds and returns the TOP package `a`; with a
+# fromlist, returns the named module and ensures each requested submodule exists.
+def py_import_name(
+    name: str, fromlist: PyObj, level: int, globals: dict[str, PyObj]
+) -> PyObj {
+    current_package = "";
+    if "__package__" in globals {
+        pkg = globals["__package__"];
+        if isinstance(pkg, PyStr) {
+            current_package = (pkg as PyStr).val;
+        }
+    }
+    if current_package == "" and "__name__" in globals {
+        nm = globals["__name__"];
+        if isinstance(nm, PyStr) {
+            current_package = (nm as PyStr).val;
+        }
+    }
+    absname = _resolve_relative(current_package, name, level);
+    mod = import_native(absname);
+    if is_error(mod) {
+        return mod;
+    }
+    has_fromlist = False;
+    from_names: list[str] = [];
+    if fromlist.t != "none" {
+        from_names = str_values(fromlist);
+        if len(from_names) > 0 {
+            has_fromlist = True;
+        }
+    }
+    if not has_fromlist {
+        if level == 0 and "." in absname {
+            # `import a.b.c` returns the top package a (STORE_NAME binds `a`).
+            top = absname.split(".")[0];
+            return import_native(top);
+        }
+        return mod;
+    }
+    # `from pkg import x, y`: x/y may be submodules that aren't imported yet. Try
+    # to import each as a submodule; a plain attribute (not a module) simply
+    # isn't found here and is resolved later by IMPORT_FROM off `mod`.
+    for item in from_names {
+        if item == "*" {
+            continue;
+        }
+        existing = py_attr(mod, item);
+        if is_error(existing) {
+            sub = import_native(absname + "." + item);
+            # A ModuleNotFoundError just means `item` is a plain attribute, not a
+            # submodule -- IMPORT_FROM resolves it off `mod`. Any other error is a
+            # real failure importing the submodule and must propagate.
+            if is_error(sub)
+            and (sub as PyError).exception.type_name != "ModuleNotFoundError" {
+                return sub;
+            }
+        }
+    }
+    return mod;
+}
+
 obj PyHostProxy(PyObj) {
     has val: any;
 
@@ -794,10 +1146,18 @@ obj PyClass(PyObj) {
     # method/attr is visible on a subclass. Instance access binds via PyUserObj.
     def tp_getattro(name: str) -> PyObj {
         found = class_lookup_attr(self, name);
-        if is_error(found) {
-            return py_error("AttributeError", name);
+        if not is_error(found) {
+            return found;
         }
-        return found;
+        # Standard type dunders CPython always answers: a missing docstring is
+        # None, and __name__/__qualname__ report the class name.
+        if name == "__doc__" {
+            return py_none();
+        }
+        if name == "__name__" or name == "__qualname__" {
+            return PyStr(t="str", val=self.name);
+        }
+        return py_error("AttributeError", name);
     }
 
     def tp_setattro(name: str, value: PyObj) -> PyObj {
@@ -902,6 +1262,11 @@ obj PyUserObj(PyObj) {
     }
 
     def tp_iter -> PyObj {
+        # A user-defined __iter__ returns the iterator (driven by FOR_ITER/SEND
+        # via its __next__); fall back to a boxed builtin base, else not iterable.
+        if user_has_dunder(self, "__iter__") {
+            return call_user_dunder(self, "__iter__", []);
+        }
         if self._has_base() {
             return self._base_obj().tp_iter();
         }
@@ -939,13 +1304,56 @@ obj PyFunction(PyObj) {
         name: str,
         defaults: list[PyObj] = [],
         kwdefaults: dict[str, PyObj] = {},
-        closure: list[PyCell] = [];
+        closure: list[PyCell] = [],
+        # The function's writable __dict__ + overridable dunders. functools.wraps
+        # / update_wrapper copy __module__/__name__/__qualname__/__doc__ and set
+        # __wrapped__ here, so decorators (pervasive in the unittest closure) work.
+        attrs: dict[str, PyObj] = {};
+
+    def _func_doc -> PyObj {
+        if len(self.code.consts) > 0 and isinstance(self.code.consts[0], PyStr) {
+            return self.code.consts[0];
+        }
+        return py_none();
+    }
 
     def tp_getattro(name: str) -> PyObj {
+        if name in self.attrs {
+            return self.attrs[name];
+        }
         if name == "__name__" {
             return PyStr(t="str", val=self.name);
         }
+        if name == "__qualname__" {
+            return PyStr(t="str", val=self.code.qualname);
+        }
+        if name == "__doc__" {
+            return self._func_doc();
+        }
+        if name == "__module__" {
+            if "__name__" in self.globals {
+                return self.globals["__name__"];
+            }
+            return py_none();
+        }
+        if name == "__defaults__" {
+            if len(self.defaults) == 0 {
+                return py_none();
+            }
+            return PyTuple(t="tuple", items=self.defaults);
+        }
+        if name == "__code__" {
+            return self.code;
+        }
+        if name == "__wrapped__" {
+            return py_error("AttributeError", name);
+        }
         return py_error("AttributeError", name);
+    }
+
+    def tp_setattro(name: str, value: PyObj) -> PyObj {
+        self.attrs[name] = value;
+        return py_none();
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
@@ -1129,13 +1537,22 @@ def to_host(value: PyObj) -> any {
             return to_host(drained);
 
         case PyDictView():
-            # list()/sorted()/set() over a view: materialize its elements to a
-            # host list, which every iterable-consuming builtin accepts.
-            velems: list[any] = [];
-            for e in dictview_elements(value) {
-                velems.append(to_host(e));
+            # Rebuild a real host dict and hand back the matching live view, so
+            # both iteration (list()/sorted()/set()) AND repr round-trip: repr of
+            # the result is `dict_keys([...])`/`dict_values([...])`/`dict_items([
+            # ...])`, not a bare list. Order follows the dict's insertion order.
+            hd: dict[any, any] = {};
+            for hk in value.d.items {
+                entry = value.d.items[hk];
+                hd[to_host(entry.key)] = to_host(entry.value);
             }
-            return velems;
+            if value.mode == "values" {
+                return hd.values();
+            }
+            if value.mode == "items" {
+                return hd.items();
+            }
+            return hd.keys();
 
     }
     return None;
@@ -1164,9 +1581,16 @@ def host_builtin(name: str) -> PyObj {
     # rather than the host id of a throwaway to_host value. len() reads a native
     # container's own size (and dispatches __len__) instead of counting a
     # to_host copy, which drops plain user objects held as members/keys.
+    # getattr/setattr/hasattr must be native: they route through py_attr so a
+    # native object's own attributes (a PyFunction's __module__, a PyModule's
+    # members, a user class's descriptors) are seen, instead of host getattr on
+    # a lossy to_host copy. This is load-bearing for the import closure, where
+    # decorators (functools.wraps, reprlib.recursive_repr) copy dunders via
+    # getattr(fn, '__module__').
     if name == "next" or name == "iter" or name == "id"
     or name == "len"
-    or name == "isinstance" or name == "issubclass" {
+    or name == "isinstance" or name == "issubclass"
+    or name == "getattr" or name == "setattr" or name == "hasattr" {
         return PyNativeBuiltin(t="native_builtin", name=name);
     }
     result = _jac_host_builtin(name);
@@ -1177,6 +1601,9 @@ def host_builtin(name: str) -> PyObj {
 }
 
 def host_import(name: str, fromlist: PyObj) -> PyObj {
+    if name in shim_modules {
+        return shim_modules[name];
+    }
     result = _jac_host_import(name, to_host(fromlist));
     if host_result_ok(result) {
         return PyHostProxy(t="host", val=result[1]);
@@ -1661,6 +2088,7 @@ glob OP_CACHE: int = 0,
      OP_BUILD_SLICE: int = 49,
      OP_STORE_SUBSCR: int = 38,
      OP_UNARY_NOT: int = 42,
+     OP_WITH_EXCEPT_START: int = 43,
      OP_BINARY_OP: int = 44,
      OP_BUILD_LIST: int = 46,
      OP_BUILD_MAP: int = 47,
@@ -1693,6 +2121,7 @@ glob OP_CACHE: int = 0,
      OP_LOAD_GLOBAL: int = 92,
      OP_LOAD_NAME: int = 93,
      OP_LOAD_SMALL_INT: int = 94,
+     OP_LOAD_SPECIAL: int = 95,
      OP_MAKE_CELL: int = 97,
      OP_MAKE_FUNCTION: int = 23,
      OP_POP_JUMP_IF_FALSE: int = 100,
@@ -1706,6 +2135,8 @@ glob OP_CACHE: int = 0,
      OP_STORE_DEREF: int = 111,
      OP_STORE_FAST: int = 112,
      OP_STORE_NAME: int = 116,
+     OP_STORE_GLOBAL: int = 115,
+     OP_DELETE_GLOBAL: int = 64,
      OP_SWAP: int = 117,
      OP_CHECK_EXC_MATCH: int = 6,
      OP_POP_EXCEPT: int = 29,
@@ -1920,6 +2351,12 @@ def py_identity(a: PyObj, b: PyObj) -> bool {
         }
         return a is b;
     }
+    # Two proxies to the SAME host object are the same object: `type(x) is str`
+    # (str being a host-type proxy, type(x) another) must hold, or CPython idioms
+    # like namedtuple's `type(name) is not str` field-name check spuriously fail.
+    if isinstance(a, PyHostProxy) and isinstance(b, PyHostProxy) {
+        return (a as PyHostProxy).val is (b as PyHostProxy).val;
+    }
     return a is b;
 }
 
@@ -1941,6 +2378,11 @@ def py_id(o: PyObj) -> int {
         if _small_int_cached(v) {
             return 1000 + v;
         }
+    }
+    # A proxy's identity is its underlying host object's identity (consistent
+    # with py_identity treating same-host-object proxies as one object).
+    if isinstance(o, PyHostProxy) {
+        return id((o as PyHostProxy).val);
     }
     return id(o);
 }
@@ -2374,13 +2816,57 @@ def find_cell(cells: list[PyCell], names: list[str], name: str) -> PyCell | None
     return None;
 }
 
-def fast_value(co: PyCode, arg: int, fast: list[PyObj], cells: list[PyCell]) -> PyObj {
-    if arg < len(co.varnames) {
-        return fast[arg];
+# CPython 3.11+ indexes LOAD_FAST / *_DEREF / MAKE_CELL into a single merged
+# "localsplus" array laid out as [varnames(nlocals)] [cellvars-not-already-a-var]
+# [freevars]. A cell variable that is ALSO an argument keeps its varname slot
+# (it is NOT duplicated in the appended region) -- so the appended region holds
+# only the non-arg cellvars, then the freevars. resolve_cell maps a merged index
+# to its PyCell (or None for a plain local). Getting this layout wrong swaps a
+# parameter-cell with a sibling local-cell (breaks every closure/decorator).
+def resolve_cell(
+    co: PyCode, arg: int, cells: list[PyCell], closure: list[PyCell]
+) -> PyCell | None {
+    nl = len(co.varnames);
+    if arg < nl {
+        pos = find_name(co.cellvars, co.varnames[arg]);
+        if pos >= 0 and pos < len(cells) {
+            return cells[pos];
+        }
+        return None;
     }
-    cell_index = arg - len(co.varnames);
-    if cell_index >= 0 and cell_index < len(cells) {
-        return cells[cell_index].val;
+    j = arg - nl;
+    # Walk the non-arg cellvars in cellvar order; the j-th is this slot.
+    seen = 0;
+    ci = 0;
+    while ci < len(co.cellvars) {
+        if find_name(co.varnames, co.cellvars[ci]) < 0 {
+            if seen == j and ci < len(cells) {
+                return cells[ci];
+            }
+            seen = seen + 1;
+        }
+        ci = ci + 1;
+    }
+    # Past the non-arg cellvars lies the freevar region (the closure cells).
+    free_index = j - seen;
+    if free_index >= 0 and free_index < len(closure) {
+        return closure[free_index];
+    }
+    return None;
+}
+
+def fast_value(
+    co: PyCode, arg: int, fast: list[PyObj], cells: list[PyCell], closure: list[PyCell]
+) -> PyObj {
+    # A cell slot (an arg-cell in the varname region, or any appended cell/free
+    # slot) yields the CELL OBJECT -- that is how LOAD_FAST/LOAD_CLOSURE fetch a
+    # cell to seed an inner function's closure. A plain local yields its value.
+    cell = resolve_cell(co, arg, cells, closure);
+    if cell is not None {
+        return cell as PyObj;
+    }
+    if arg < len(fast) {
+        return fast[arg];
     }
     return py_error("UnboundLocalError", "local variable is not set");
 }
@@ -2388,18 +2874,7 @@ def fast_value(co: PyCode, arg: int, fast: list[PyObj], cells: list[PyCell]) -> 
 def deref_cell(
     co: PyCode, arg: int, fast: list[PyObj], cells: list[PyCell], closure: list[PyCell]
 ) -> PyCell | None {
-    if arg < len(co.varnames) and co.varnames[arg] in co.cellvars {
-        return find_cell(cells, co.cellvars, co.varnames[arg]);
-    }
-    cell_index = arg - len(co.varnames);
-    if cell_index >= 0 and cell_index < len(cells) {
-        return cells[cell_index];
-    }
-    free_index = arg - len(co.varnames);
-    if free_index >= 0 and free_index < len(closure) {
-        return closure[free_index];
-    }
-    return None;
+    return resolve_cell(co, arg, cells, closure);
 }
 
 def read_varint(data: list[int], pos: int) -> tuple[int, int] {
@@ -2839,7 +3314,10 @@ obj PyFrame(PyObj) {
         yf: bool = False,
         # A pending exception to throw into the current yield-from sub-iterator,
         # consumed by the next SEND instead of a normal send.
-        pending_throw: any = None;
+        pending_throw: any = None,
+        # True once the frame's locals/stack have been released (gen.close() or
+        # gi_frame.clear()); guards against running __del__ finalizers twice.
+        cleared: bool = False;
 }
 
 obj PyYield(PyObj) {
@@ -2877,6 +3355,32 @@ obj PyNativeBuiltin(PyObj) {
                 return py_error("TypeError", "issubclass expected 2 arguments");
             }
             return PyBool(t="bool", val=py_issubclass(args[0], args[1]));
+        }
+        if self.name == "getattr" {
+            # getattr(obj, name[, default]): native attribute access, honoring a
+            # 3rd-arg default on AttributeError (CPython only swallows that one).
+            if len(args) < 2 {
+                return py_error("TypeError", "getattr expected at least 2 arguments");
+            }
+            attr = py_attr(args[0], expect_str(args[1]));
+            if is_error(attr) and len(args) >= 3
+            and (attr as PyError).exception.type_name == "AttributeError" {
+                return args[2];
+            }
+            return attr;
+        }
+        if self.name == "hasattr" {
+            if len(args) < 2 {
+                return py_error("TypeError", "hasattr expected 2 arguments");
+            }
+            probe = py_attr(args[0], expect_str(args[1]));
+            return PyBool(t="bool", val=not is_error(probe));
+        }
+        if self.name == "setattr" {
+            if len(args) < 3 {
+                return py_error("TypeError", "setattr expected 3 arguments");
+            }
+            return py_set_attr(args[0], expect_str(args[1]), args[2]);
         }
         if self.name == "iter" {
             if len(args) == 0 {
@@ -2974,7 +3478,8 @@ def is_set_method(name: str, frozen: bool) -> bool {
     or name == "symmetric_difference"
     or name == "issubset"
     or name == "issuperset"
-    or name == "isdisjoint";
+    or name == "isdisjoint"
+    or name == "__contains__";
     if shared {
         return True;
     }
@@ -2999,6 +3504,12 @@ obj PySetMethod(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         n = self.name;
         s = self.target;
+        if n == "__contains__" {
+            if len(args) < 1 {
+                return py_error("TypeError", "__contains__ expected 1 argument");
+            }
+            return PyBool(t="bool", val=s.set_contains(args[0]));
+        }
         # --- no-arg mutating / accessor methods ---
         if n == "pop" {
             return s.set_pop();
@@ -3392,6 +3903,9 @@ obj PyGenerator(PyObj) {
         if name == "send" or name == "throw" or name == "close" or name == "__next__" {
             return PyGenMethod(t="gen_method", gen=self, kind=name);
         }
+        if name == "gi_frame" {
+            return PyGenFrame(t="genframe", gen=self);
+        }
         return py_error("AttributeError", name);
     }
 }
@@ -3551,16 +4065,124 @@ def send_throw_into(receiver: PyObj, err: PyObj) -> PyObj {
     return result;
 }
 
+# Release a frame's held references (fast locals, evaluation stack, cell
+# contents) and run __del__ finalizers on any user object thereby dropped. This
+# models CPython's frame teardown on gen.close()/gi_frame.clear(): a local whose
+# last reference lived in the frame is finalized. We approximate "last reference"
+# by the common case the generator machinery guarantees -- an argument passed
+# straight into the generator call is reachable only through its frame -- since
+# jacpython does not carry Python-level refcounts. Idempotent via frame.cleared.
+def frame_clear(frame: PyFrame) -> None {
+    if frame.cleared {
+        return;
+    }
+    frame.cleared = True;
+    held: list[PyObj] = [];
+    idx = 0;
+    while idx < len(frame.fast) {
+        if idx < len(frame.assigned) and frame.assigned[idx] {
+            held.append(frame.fast[idx]);
+        }
+        idx = idx + 1;
+    }
+    for item in frame.stack {
+        held.append(item);
+    }
+    for cell in frame.cells {
+        held.append(cell.val);
+    }
+    for name in frame.locals {
+        held.append(frame.locals[name]);
+    }
+    frame.fast = [];
+    frame.stack = [];
+    frame.locals = {};
+    for obj in held {
+        if isinstance(obj, PyUserObj) and user_has_dunder(obj as PyUserObj, "__del__") {
+            _ = call_user_dunder(obj as PyUserObj, "__del__", []);
+        }
+    }
+}
+
+# A generator's gi_frame surface: only .clear() is modeled (the frame-teardown
+# entry point CPython exposes), which releases the suspended frame's locals and
+# finalizes any user object dropped -- then marks the generator exhausted.
+obj PyGenFrame(PyObj) {
+    has gen: PyGenerator;
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "clear" {
+            return PyGenFrameClear(t="genframe_clear", gen=self.gen);
+        }
+        return py_error("AttributeError", name);
+    }
+}
+
+obj PyGenFrameClear(PyObj) {
+    has gen: PyGenerator;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        frame_clear(self.gen.frame);
+        self.gen.finished = True;
+        return py_none();
+    }
+}
+
+# Native copy.copy / copy.deepcopy. Generators (and coroutines) are uncopyable in
+# CPython -- no __copy__/__reduce_ex__ support, so copy raises TypeError -- and a
+# native generator can't cross to_host as a live generator anyway (it would drain
+# to a list, spuriously succeeding). Every other value delegates to host copy.
+obj PyCopyFn(PyObj) {
+    has deep: bool;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 {
+            return py_error("TypeError", "copy expected at least 1 argument");
+        }
+        if isinstance(args[0], PyGenerator) {
+            return py_error("TypeError", "cannot pickle 'generator' object");
+        }
+        mod = host_import("copy", py_none());
+        if is_error(mod) {
+            return mod;
+        }
+        fnname = "copy";
+        if self.deep {
+            fnname = "deepcopy";
+        }
+        fn = mod.tp_getattro(fnname);
+        if is_error(fn) {
+            return fn;
+        }
+        return py_invoke(fn, args, kwargs);
+    }
+}
+
+# The native `copy` module, seeded into a Layer-1 namespace so a test that does
+# copy.copy(gen) sees CPython's TypeError natively (the host proxy would drain).
+def build_copy_module() -> PyObj {
+    return PyModule(
+        t="module",
+        name="copy",
+        attrs={
+            "copy": PyCopyFn(t="copy_fn", deep=False),
+            "deepcopy": PyCopyFn(t="copy_fn", deep=True),
+        },
+    );
+}
+
 # gen.close(): throw GeneratorExit in. Swallowing it (StopIteration or letting
 # GeneratorExit propagate) is a clean close; yielding again is a RuntimeError.
 def gen_close(gen: PyGenerator) -> PyObj {
     if gen.finished or not gen.started {
         gen.finished = True;
+        frame_clear(gen.frame);
         return py_none();
     }
     exit = PyException(t="exception", type_name="GeneratorExit", message="");
     result = gen_throw(gen, exit);
     gen.finished = True;
+    frame_clear(gen.frame);
     if result.t == "genstop" {
         # The generator caught GeneratorExit and returned; close() surfaces that
         # return value (None if it just fell off the end). (CPython 3.13+.)
@@ -3800,7 +4422,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_LOAD_FAST or op == OP_LOAD_FAST_BORROW {
-            fast_result = fast_value(co, arg, fast, cells);
+            fast_result = fast_value(co, arg, fast, cells, closure);
             if is_error(fast_result) {
                 return fast_result;
             }
@@ -3838,7 +4460,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             fast[store_index] = stack.pop();
             assigned[store_index] = True;
-            load_result = fast_value(co, load_index, fast, cells);
+            load_result = fast_value(co, load_index, fast, cells, closure);
             if is_error(load_result) {
                 return load_result;
             }
@@ -3861,8 +4483,8 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_LOAD_FAST_BORROW_2 or op == OP_LOAD_FAST_LOAD_FAST {
             first = arg // 16;
             second = arg % 16;
-            first_result = fast_value(co, first, fast, cells);
-            second_result = fast_value(co, second, fast, cells);
+            first_result = fast_value(co, first, fast, cells, closure);
+            second_result = fast_value(co, second, fast, cells, closure);
             if is_error(first_result) {
                 return first_result;
             }
@@ -3958,6 +4580,28 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_STORE_NAME {
             locals[co.names[arg]] = stack.pop();
             continue;
+        }
+        if op == OP_STORE_GLOBAL {
+            # `global x; x = ...` inside a function -- write straight to the
+            # module globals, bypassing the frame's fast/locals.
+            globals[co.names[arg]] = stack.pop();
+            continue;
+        }
+        if op == OP_DELETE_GLOBAL {
+            gdel_name = co.names[arg];
+            if gdel_name in globals {
+                del globals[gdel_name];
+                continue;
+            }
+            gdeleted = py_error(
+                "NameError", "name '" + gdel_name + "' is not defined"
+            );
+            target = recover_exception(co, gdeleted, offset, stack);
+            if target >= 0 {
+                ip = target;
+                continue;
+            }
+            return gdeleted;
         }
         if op == OP_DELETE_NAME {
             del_name = co.names[arg];
@@ -4675,8 +5319,19 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_IMPORT_NAME {
             fromlist = stack.pop();
-            stack.pop();
-            result = host_import(co.names[arg], fromlist);
+            level_obj = stack.pop();
+            result: PyObj = py_none();
+            if layer3_is_active() {
+                import_level = 0;
+                if isinstance(level_obj, PyInt) {
+                    import_level = (level_obj as PyInt).val;
+                }
+                result = py_import_name(
+                    co.names[arg], fromlist, import_level, globals
+                );
+            } else {
+                result = host_import(co.names[arg], fromlist);
+            }
             if is_error(result) {
                 target = recover_exception(co, result, offset, stack);
                 if target >= 0 {
@@ -4809,6 +5464,73 @@ def run_frame(frame: PyFrame) -> PyObj {
             stack[swap_other] = swapped;
             continue;
         }
+        if op == OP_LOAD_SPECIAL {
+            # LOAD_SPECIAL macro (_INSERT_NULL + _LOAD_SPECIAL): pop the context
+            # manager, look up __enter__/__exit__, push [func, self_or_null] for
+            # the CALL convention (method descriptors keep the owner as self).
+            if len(stack) < 1 {
+                return py_error("RuntimeError", "LOAD_SPECIAL stack underflow");
+            }
+            owner = stack.pop();
+            spec_name = "__enter__";
+            if arg == 1 {
+                spec_name = "__exit__";
+            } elif arg == 2 {
+                spec_name = "__aenter__";
+            } elif arg == 3 {
+                spec_name = "__aexit__";
+            }
+            method = py_attr(owner, spec_name);
+            if is_error(method) {
+                target = recover_exception(co, method, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return method;
+            }
+            if isinstance(method, PyBoundMethod) {
+                stack.append((method as PyBoundMethod).function);
+                stack.append(py_none());
+            } else {
+                stack.append(method);
+                stack.append(owner);
+            }
+            continue;
+        }
+        if op == OP_WITH_EXCEPT_START {
+            # WITH_EXCEPT_START: call the context manager's __exit__ with the
+            # active exception info and push its truthy suppress flag.
+            if len(stack) < 5 {
+                return py_error("RuntimeError", "WITH_EXCEPT_START stack underflow");
+            }
+            val = stack[len(stack) - 1];
+            exit_self = stack[len(stack) - 4];
+            exit_func = stack[len(stack) - 5];
+            exc_type: PyObj = py_none();
+            if val.t == "exception" {
+                exc_type = py_exception_type((val as PyException).type_name);
+            }
+            exit_args: list[PyObj] = [exc_type, val, py_none()];
+            exit_result: PyObj = py_none();
+            if exit_self.t != "none" {
+                exit_result = bind_attribute(exit_func, exit_self).tp_call(
+                    exit_args, {}
+                );
+            } else {
+                exit_result = py_invoke(exit_func, exit_args, {});
+            }
+            if is_error(exit_result) {
+                target = recover_exception(co, exit_result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return exit_result;
+            }
+            stack.append(exit_result);
+            continue;
+        }
         if op == OP_RETURN_GENERATOR {
             # The generator object already exists (created at call time). Push a
             # placeholder standing in for it; the following POP_TOP discards it.
@@ -4902,7 +5624,23 @@ def run_frame(frame: PyFrame) -> PyObj {
                 stack.append(operand);
                 continue;
             }
-            return py_error("SystemError", "unsupported CALL_INTRINSIC_1");
+            if arg == 2 {
+                # INTRINSIC_IMPORT_STAR: `from module import *` binds the module's
+                # exported names into the current globals. (Layer 3 only.)
+                star_out = import_star_into(operand, globals);
+                if is_error(star_out) {
+                    target = recover_exception(co, star_out, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        continue;
+                    }
+                    return star_out;
+                }
+                # CPython pushes None for the following POP_TOP.
+                stack.append(py_none());
+                continue;
+            }
+            return py_error("SystemError", "unsupported CALL_INTRINSIC_1 " + str(arg));
         }
         if op == OP_RETURN_VALUE {
             if len(stack) == 0 {
@@ -4916,8 +5654,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             continue;
         }
-        print("pyc_first: unsupported opcode " + str(op));
-        return py_none();
+        return py_error("SystemError", "unsupported opcode " + str(op));
     }
     return py_none();
 }
