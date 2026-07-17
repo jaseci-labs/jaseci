@@ -127,7 +127,6 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
     }
 
     import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.client.client_surface { prepend_active_runtime_globals }
 
     import jaclang.compiler.frontend.unitree as uni;
     import from jaclang.compiler.frontend.constant { SymbolType }
@@ -166,9 +165,7 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
             js_rel = _to_js_rel_path(rel);
             js_out = frontend_src_dir / js_rel;
             js_out.parent.mkdir(parents=True, exist_ok=True);
-            js_out.write_text(
-                prepend_active_runtime_globals(js_code), encoding="utf-8"
-            );
+            js_out.write_text(js_code, encoding="utf-8");
             js_count += 1;
 
             stem = str(_strip_jac_suffix(rel.name));
