@@ -458,7 +458,12 @@ impl _run_harness(
                 runtime_js = runtime_js.replace(
                     core_match.group(1), "./client_runtime_core.js"
                 );
+<<<<<<< HEAD:jac/jaclang/testing/impl/cl_test_runner.impl.jac
                 staged["client_runtime_core.js"] = _compile_runtime_core_js();
+=======
+                core_js = core_js.replace('"@jac/runtime"', '"./jac_runtime.js"');
+                core_js = core_js.replace("'@jac/runtime'", "'./jac_runtime.js'");
+>>>>>>> b15f01670 (fix(jac2js): resolve @jac/runtime self-import in cl runtime core test harness):jac/jaclang/runtimelib/impl/cl_test_runner.impl.jac
             }
             staged["jac_runtime.js"] = runtime_js;
         }

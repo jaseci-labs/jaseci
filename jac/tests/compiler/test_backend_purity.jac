@@ -78,6 +78,7 @@ glob FORBIDDEN: dict[str, str] = {
              "StaticAnalysisPass, which is the point - the emit path and "
              "the check path must not disagree about what is bound"
          ),
+<<<<<<< HEAD
          ("es/impl/esast_gen_pass.impl.jac", ".lookup("): (
              2,
              "declaration-surface reads: (1) cross-module archetype kind "
@@ -91,6 +92,19 @@ glob FORBIDDEN: dict[str, str] = {
              "consumed fact, not a resolved type. The former sv-import "
              "stub lookup is deleted (#7760): signatures come from the "
              "recorded InteropBinding"
+=======
+         ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
+             3,
+             "declaration-surface reads: (1) sv-import client stub "
+             "generation resolves the SOURCE module's exported ability - "
+             "no fact on the local tree exists; (2) component PascalCase "
+             "rename collision guard checks whether the capitalized name "
+             "is already declared in the module - the declared NAME is "
+             "the consumed fact, not a resolved type; (3) runtime-import "
+             "injection guard checks whether the imported name is already "
+             "declared in the module before emitting a @jac/runtime import - "
+             "the declared NAME is the consumed fact, not a resolved type"
+>>>>>>> b15f01670 (fix(jac2js): resolve @jac/runtime self-import in cl runtime core test harness)
          ),
          ("native/foreign.jac", "type_tag.tag"): (
              4,
