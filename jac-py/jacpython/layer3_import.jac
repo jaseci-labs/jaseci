@@ -222,6 +222,46 @@ test "layer3: namedtuple's dynamic class boots in-VM (native<->host trampoline)"
     assert to_host(g["fields"]) == ("x", "y");
 }
 
+test "layer3: native objects expose __dict__ (functions, classes, instances, modules)" {
+    # __dict__ backs introspection and functools.wraps/update_wrapper. It reads the
+    # object's writable attribute map (a snapshot; live-mapping is a later refinement).
+    layer3_reset();
+    src = "def f(): pass\n"
+    "f.tag = 7\n"
+    "fd = f.__dict__['tag']\n"
+    "class C:\n"
+    "    cvar = 5\n"
+    "cd = 'cvar' in C.__dict__\n"
+    "o = C()\n"
+    "o.iv = 9\n"
+    "od = o.__dict__['iv']\n"
+    "import operator\n"
+    "md = 'add' in operator.__dict__\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m"), "__package__": PyStr(t="str", val="")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["fd"]) == 7;
+    assert to_host(g["cd"]) == True;
+    assert to_host(g["od"]) == 9;
+    assert to_host(g["md"]) == True;
+}
+
+test "layer3: functools and contextlib boot in-VM (wraps / __dict__ / type-keyed dispatch)" {
+    # functools trips on @wraps(reduce) needing wrapper.__dict__; contextlib on
+    # the same closure machinery. Both now boot proxy-free, proving __dict__ plus
+    # the hashable-proxy and trampoline work compose into a real module load.
+    layer3_reset();
+    fmod = import_native("functools");
+    assert not is_error(fmod);
+    assert isinstance(fmod, PyModule);
+    assert "reduce" in (fmod as PyModule).attrs;
+    assert "wraps" in (fmod as PyModule).attrs;
+    assert "lru_cache" in (fmod as PyModule).attrs;
+    cmod = import_native("contextlib");
+    assert isinstance(cmod, PyModule);
+    assert "contextmanager" in (cmod as PyModule).attrs;
+}
+
 test "layer3: a proxied host object (a type) is usable as a dict/set key" {
     # Type-keyed dispatch tables are everywhere in the stdlib closure
     # (functools.singledispatch, copyreg, typing, contextlib). A PyHostProxy now

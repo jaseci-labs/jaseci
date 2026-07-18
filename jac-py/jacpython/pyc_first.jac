@@ -887,6 +887,9 @@ obj PyModule(PyObj) {
         if attr in self.attrs {
             return self.attrs[attr];
         }
+        if attr == "__dict__" {
+            return dict_from_str_map(self.attrs);
+        }
         return py_error("AttributeError", attr);
     }
 
@@ -1241,6 +1244,9 @@ obj PyClass(PyObj) {
         if name == "__name__" or name == "__qualname__" {
             return PyStr(t="str", val=self.name);
         }
+        if name == "__dict__" {
+            return dict_from_str_map(self.attrs);
+        }
         return py_error("AttributeError", name);
     }
 
@@ -1301,6 +1307,11 @@ obj PyUserObj(PyObj) {
         # (str.upper on a str subclass, etc.).
         if self._has_base() {
             return py_attr(self._base_obj(), name);
+        }
+        # A plain instance's __dict__ is its own attribute namespace (an explicit
+        # `self.__dict__ = ...` assignment, handled above, wins over this).
+        if name == "__dict__" {
+            return dict_from_str_map(self.attrs);
         }
         return py_error("AttributeError", name);
     }
@@ -1428,6 +1439,11 @@ obj PyFunction(PyObj) {
         }
         if name == "__code__" {
             return self.code;
+        }
+        if name == "__dict__" {
+            # functools.wraps / update_wrapper reads and updates a function's
+            # __dict__ (WRAPPER_UPDATES). Snapshot of the writable attr map.
+            return dict_from_str_map(self.attrs);
         }
         if name == "__wrapped__" {
             return py_error("AttributeError", name);
@@ -2843,6 +2859,20 @@ def py_iter(value: PyObj) -> PyObj {
 # objects -- reports its size directly instead of round-tripping through
 # to_host (where a plain PyUserObj collapses to None and the count is lost).
 # A builtin subclass measures its boxed value; a user class dispatches __len__.
+# Build a native PyDict from a str-keyed attribute map. Used to answer __dict__
+# on native functions/classes/instances/modules. NOTE: this is a snapshot -- it
+# reads the live attrs but mutations to the returned dict do not write back.
+# Enough for the stdlib closure's dominant pattern (functools.wraps /
+# update_wrapper, whose `__dict__.update(...)` source is normally empty), and for
+# introspection; a fully live mapping-proxy is a later refinement.
+def dict_from_str_map(m: dict[str, PyObj]) -> PyDict {
+    d = PyDict(t="dict", items={});
+    for k in m {
+        d.dict_set(PyStr(t="str", val=k), m[k]);
+    }
+    return d;
+}
+
 def py_len(value: PyObj) -> PyObj {
     if isinstance(value, PyStr) {
         return PyInt(t="int", val=len((value as PyStr).val));
