@@ -35,13 +35,4 @@ def runtime_import_source(name: str, backend: (FrameworkBackend | None) = None) 
     }
     return "@jac/runtime";
 }
-
-def backend_jsx_factory_name(backend: (FrameworkBackend | None) = None) -> str {
-    if backend is not None {
-        name = backend.jsx_factory_name();
-        if isinstance(name, str) and name {
-            return name;
-        }
-    }
-    return "__jacJsx";
-}
+(refactor(jac2js): drop dead jsx-factory helper and tidy client bundle return):jac/jaclang/runtimelib/client_surface.jac
