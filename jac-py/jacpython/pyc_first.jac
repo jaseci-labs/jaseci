@@ -110,6 +110,13 @@ def _jac_host_builtin(name):
 def _jac_host_type_name(value):
     return type(value).__name__
 
+def _jac_host_delattr(host_obj, name):
+    try:
+        delattr(host_obj, name)
+        return (True, None)
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
 def _jac_wrap_classmethod(host_fn):
     return classmethod(host_fn)
 
@@ -1281,12 +1288,45 @@ obj PyClass(PyObj) {
         if name == "__dict__" {
             return dict_from_str_map(self.attrs);
         }
+        if name == "__mro__" {
+            mro_items: list[PyObj] = [];
+            for klass in class_mro(self) {
+                mro_items.append(klass);
+            }
+            return PyTuple(t="tuple", items=mro_items);
+        }
+        if name == "__bases__" {
+            return PyTuple(t="tuple", items=self.bases);
+        }
+        if name == "__base__" {
+            if len(self.bases) > 0 {
+                return self.bases[0];
+            }
+            return py_none();
+        }
+        # A class with no user __new__ inherits object.__new__ (or the builtin base
+        # constructor). Attribute access -- unlike class_lookup_attr, which drives
+        # construction -- exposes it so `Cls.__new__` reads and compares (enum's
+        # _find_new_ tests target against object.__new__/Enum.__new__).
+        if name == "__new__" {
+            base = self.native_base;
+            if base == "" or base == "type" {
+                base = "object";
+            }
+            return PyNativeNew(t="native_new", base_name=base);
+        }
         return py_error("AttributeError", name);
     }
 
     def tp_setattro(name: str, value: PyObj) -> PyObj {
         self.attrs[name] = value;
         return py_none();
+    }
+
+    # A class is hashable by identity (type-keyed dispatch tables, base_chain sets
+    # in enum's _find_data_type_). Distinct classes get distinct buckets.
+    def tp_hashkey -> str {
+        return "obj:" + str(id(self));
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
@@ -1316,18 +1356,28 @@ obj PyClass(PyObj) {
             }
             return made;
         }
-        # A subclass of a builtin (native_base != "") boxes the underlying value
-        # by running the builtin constructor over the args (int("5") -> 5, ...).
+        # A subclass of a builtin (native_base != "") boxes the underlying value.
+        # An immutable base (int/str/...) takes its value at __new__ time from the
+        # args. A mutable base (dict/list/set) WITH a user __init__ is created empty
+        # -- __init__ (which typically calls super().__init__(...)) fills it -- so
+        # `class D(dict): def __init__(self, name): super().__init__()` boxes an
+        # empty dict, not dict(name). Without a user __init__ the args fill it
+        # directly (MyList([1,2,3])).
+        init = class_lookup_attr(self, "__init__");
+        has_user_init = not is_error(init);
         boxed: PyObj = py_none();
         if self.native_base != "" {
-            boxed = construct_native_base(self.native_base, args);
+            box_args = args;
+            if has_user_init and is_mutable_base(self.native_base) {
+                box_args = [];
+            }
+            boxed = construct_native_base(self.native_base, box_args);
             if is_error(boxed) {
                 return boxed;
             }
         }
         instance = PyUserObj(t="instance", cls=self, attrs={}, base=boxed);
-        init = class_lookup_attr(self, "__init__");
-        if not is_error(init) {
+        if has_user_init {
             initialized = bind_attribute(init, instance).tp_call(args, kwargs);
             if initialized.t == "error" {
                 return initialized;
@@ -1460,10 +1510,41 @@ obj PyUserObj(PyObj) {
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
+        if user_has_dunder(self, "__getitem__") {
+            return call_user_dunder(self, "__getitem__", [index]);
+        }
         if self._has_base() {
             return self._base_obj().mp_subscript(index);
         }
         return py_error("TypeError", "object is not subscriptable");
+    }
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        if user_has_dunder(self, "__setitem__") {
+            r = call_user_dunder(self, "__setitem__", [index, value]);
+            if is_error(r) {
+                return r;
+            }
+            return py_none();
+        }
+        if self._has_base() {
+            return self._base_obj().mp_ass_subscript(index, value);
+        }
+        return py_error("TypeError", "object does not support item assignment");
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        if user_has_dunder(self, "__delitem__") {
+            r = call_user_dunder(self, "__delitem__", [index]);
+            if is_error(r) {
+                return r;
+            }
+            return py_none();
+        }
+        if self._has_base() {
+            return self._base_obj().mp_del_subscript(index);
+        }
+        return py_error("TypeError", "object does not support item deletion");
     }
 }
 
@@ -1702,6 +1783,12 @@ obj PyFunction(PyObj) {
     def tp_setattro(name: str, value: PyObj) -> PyObj {
         self.attrs[name] = value;
         return py_none();
+    }
+
+    # Functions are hashable by identity (enum keys candidate __new__ callables in
+    # a set; dispatch tables key on functions).
+    def tp_hashkey -> str {
+        return "obj:" + str(id(self));
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
@@ -1981,6 +2068,7 @@ def host_builtin(name: str) -> PyObj {
     or name == "len"
     or name == "isinstance" or name == "issubclass"
     or name == "getattr" or name == "setattr" or name == "hasattr"
+    or name == "delattr"
     or name == "globals" {
         # globals() must be native: it returns a LIVE view of the running frame's
         # module namespace, so `globals().update({...})` / `globals()[k] = v`
@@ -2540,8 +2628,10 @@ glob OP_CACHE: int = 0,
      OP_RERAISE: int = 105,
      OP_SET_FUNCTION_ATTRIBUTE: int = 108,
      OP_STORE_ATTR: int = 110,
+     OP_DELETE_ATTR: int = 61,
      OP_STORE_DEREF: int = 111,
      OP_STORE_FAST: int = 112,
+     OP_DELETE_FAST: int = 63,
      OP_STORE_NAME: int = 116,
      OP_STORE_GLOBAL: int = 115,
      OP_DELETE_GLOBAL: int = 64,
@@ -3112,12 +3202,27 @@ def py_attr(value: PyObj, name: str) -> PyObj {
     and (name == "keys" or name == "values" or name == "items") {
         return PyDictViewCtor(t="view_ctor", d=value as PyDict, mode=name);
     }
+    # Native mutating/accessor dict methods, so a dict-subclass mutation lands in
+    # real storage rather than a to_host copy.
+    if is_error(result) and isinstance(value, PyDict) and is_dict_method(name) {
+        return PyDictMethod(t="dict_method", target=value as PyDict, name=name);
+    }
+    # Native list methods, so `lst.append(x)` mutates the real list, not a copy.
+    if is_error(result) and isinstance(value, PyList) and is_list_method(name) {
+        return PyListMethod(t="list_method", target=value as PyList, name=name);
+    }
     if is_error(result) and isinstance(value, PySet)
     and is_set_method(name, (value as PySet).frozen) {
         return PySetMethod(t="set_method", target=value as PySet, name=name);
     }
     if is_error(result) and _is_host_backed(value.t) {
         return host_getattr(value, name);
+    }
+    # `.__new__` on any object with no override is object.__new__ (inherited), so
+    # None.__new__ / instance.__new__ resolve instead of raising -- enum compares
+    # candidate constructors against object.__new__.
+    if is_error(result) and name == "__new__" {
+        return PyNativeNew(t="native_new", base_name="object");
     }
     return result;
 }
@@ -3137,6 +3242,48 @@ def bind_attribute(value: PyObj, receiver: PyObj) -> PyObj {
 
 def py_set_attr(value: PyObj, name: str, field: PyObj) -> PyObj {
     return value.tp_setattro(name, field);
+}
+
+# `del obj.name` / delattr(obj, name). Native objects delete from their own
+# writable attribute map; anything else falls back to the host.
+def py_del_attr(value: PyObj, name: str) -> PyObj {
+    if isinstance(value, PyClass) {
+        c = value as PyClass;
+        if name in c.attrs {
+            del c.attrs[name];
+            return py_none();
+        }
+        return py_error("AttributeError", name);
+    }
+    if isinstance(value, PyUserObj) {
+        u = value as PyUserObj;
+        if name in u.attrs {
+            del u.attrs[name];
+            return py_none();
+        }
+        return py_error("AttributeError", name);
+    }
+    if isinstance(value, PyModule) {
+        m = value as PyModule;
+        if name in m.attrs {
+            del m.attrs[name];
+            return py_none();
+        }
+        return py_error("AttributeError", name);
+    }
+    if isinstance(value, PyFunction) {
+        f = value as PyFunction;
+        if name in f.attrs {
+            del f.attrs[name];
+            return py_none();
+        }
+        return py_error("AttributeError", name);
+    }
+    result = _jac_host_delattr(to_host(value), name);
+    if host_result_ok(result) {
+        return py_none();
+    }
+    return py_error(str(result[1]), str(result[2]));
 }
 
 def py_iter(value: PyObj) -> PyObj {
@@ -3536,6 +3683,24 @@ def class_lookup_attr(cls: PyClass, name: str) -> PyObj {
 obj PyNativeNew(PyObj) {
     has base_name: str;
 
+    # Value identity by base_name so every object.__new__ producer compares equal
+    # (enum's _find_new_ does `target in {object.__new__, ...}`).
+    def tp_hashkey -> str {
+        return "nativenew:" + self.base_name;
+    }
+
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        same = isinstance(other, PyNativeNew)
+            and self.base_name == (other as PyNativeNew).base_name;
+        if kind == 2 {
+            return PyBool(t="bool", val=same);
+        }
+        if kind == 3 {
+            return PyBool(t="bool", val=not same);
+        }
+        return py_error("TypeError", "unsupported comparison");
+    }
+
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) == 0 {
             return py_error("TypeError", "__new__() takes a class argument");
@@ -3578,6 +3743,54 @@ obj PyNativeNew(PyObj) {
     }
 }
 
+# super().<dunder>(...) inside a builtin-subclass method (dict/list/... subclass)
+# resolves to the boxed base's own slot -- e.g. _EnumDict(dict).__setitem__ calling
+# super().__setitem__(k, v) mutates the underlying dict. Bound to the instance's
+# boxed value at lookup time, so the call site applies only the operands.
+obj PyBuiltinSuperMethod(PyObj) {
+    has base: PyObj,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        n = self.name;
+        b = self.base;
+        if n == "__init__" {
+            # super().__init__(...) on a mutable base. Empty (the common case, e.g.
+            # EnumDict) is a no-op; a mapping argument fills the boxed dict.
+            if len(args) == 0 {
+                return py_none();
+            }
+            if isinstance(b, PyDict) and isinstance(args[0], PyDict) {
+                src = args[0] as PyDict;
+                for keyobj in src.dict_keys() {
+                    (b as PyDict).dict_set(keyobj, src.mp_subscript(keyobj));
+                }
+                return py_none();
+            }
+            return py_none();
+        }
+        if n == "__setitem__" {
+            return b.mp_ass_subscript(args[0], args[1]);
+        }
+        if n == "__getitem__" {
+            return b.mp_subscript(args[0]);
+        }
+        if n == "__delitem__" {
+            return b.mp_del_subscript(args[0]);
+        }
+        if n == "__len__" {
+            return py_len(b);
+        }
+        if n == "__iter__" {
+            return b.tp_iter();
+        }
+        if n == "__contains__" {
+            return py_contains(b, args[0]);
+        }
+        return py_error("AttributeError", n);
+    }
+}
+
 # True iff `inst` is an instance of `cls` (walks the instance class's MRO).
 def instance_of_class(inst: PyUserObj, cls: PyClass) -> bool {
     for klass in class_mro(inst.cls) {
@@ -3612,6 +3825,17 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
         }
         if klass is start {
             past = True;
+        }
+    }
+    # No python ancestor defines it. A super().<dunder>() on a boxed-builtin
+    # subclass (dict/list/... subclass calling super().__setitem__ etc.) delegates
+    # to the base value's own slot.
+    if name != "__new__" and isinstance(instance, PyUserObj) {
+        inst = instance as PyUserObj;
+        if inst._has_base() {
+            return PyBuiltinSuperMethod(
+                t="builtin_super", base=inst._base_obj(), name=name
+            );
         }
     }
     # No python ancestor defines it. super().__new__ resolves to the base
@@ -3702,6 +3926,18 @@ def py_isinstance(ob: PyObj, typ: PyObj) -> bool {
                 }
             }
         }
+        # isinstance(SomeClass, Meta): a class is an instance of its metaclass, so
+        # walk the class's metaclass MRO (isinstance(Enum, EnumType) is True).
+        if isinstance(ob, PyClass) {
+            meta = (ob as PyClass).metaclass;
+            if meta is not None and isinstance(meta, PyClass) {
+                for klass in class_mro(meta as PyClass) {
+                    if klass is (typ as PyClass) {
+                        return True;
+                    }
+                }
+            }
+        }
         return False;
     }
     if isinstance(typ, PyHostProxy) {
@@ -3761,6 +3997,13 @@ def py_issubclass(cls: PyObj, typ: PyObj) -> bool {
 # The builtin ancestor (if any) that dictates a class's instance layout, plus the
 # `type` marker for a metaclass. Inherited from a user base's own native_base when
 # subclassing a subclass; read off a host builtin/`type` base directly.
+# The subclassable builtins whose instances are filled by __init__ rather than
+# frozen at __new__ time. A user __init__ on such a subclass creates an empty base
+# and fills it (usually via super().__init__).
+def is_mutable_base(name: str) -> bool {
+    return name == "dict" or name == "list" or name == "set";
+}
+
 def compute_native_base(bases: list[PyObj]) -> str {
     native_base = "";
     for base in bases {
@@ -3817,11 +4060,7 @@ def type_new(args: list[PyObj]) -> PyObj {
     } elif isinstance(bases_obj, PyList) {
         bases = (bases_obj as PyList).items;
     }
-    namespace: dict[str, PyObj] = {};
-    ns_obj = args[3];
-    if isinstance(ns_obj, PyDict) {
-        namespace = pydict_to_str_map(ns_obj as PyDict);
-    }
+    namespace = extract_namespace(args[3]);
     return make_pyclass_from_map(class_name, bases, namespace, mcls);
 }
 
@@ -3833,6 +4072,23 @@ def pydict_to_str_map(d: PyDict) -> dict[str, PyObj] {
         m[expect_str(keyobj)] = val;
     }
     return m;
+}
+
+# The class namespace as a str map, whether the metaclass __prepare__ returned a
+# plain dict or a custom mapping (a dict-subclass like enum's _EnumDict, which
+# boxes a real dict). A mapping's own tracking attributes stay on the object; the
+# stored member/method entries live in the boxed dict.
+def extract_namespace(ns_obj: PyObj) -> dict[str, PyObj] {
+    if isinstance(ns_obj, PyDict) {
+        return pydict_to_str_map(ns_obj as PyDict);
+    }
+    if isinstance(ns_obj, PyUserObj) {
+        u = ns_obj as PyUserObj;
+        if u._has_base() and isinstance(u._base_obj(), PyDict) {
+            return pydict_to_str_map(u._base_obj() as PyDict);
+        }
+    }
+    return {};
 }
 
 # The metaclass of a base object (its `type`), or None. Only PyClass bases carry a
@@ -3921,7 +4177,7 @@ def build_class_via_metaclass(
     body: PyFunction, class_kwds: dict[str, PyObj]
 ) -> PyObj {
     bases_tuple = PyTuple(t="tuple", items=bases);
-    namespace: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
+    prepared: PyObj = py_none();
     prep = class_lookup_attr(metaclass, "__prepare__");
     if not is_error(prep) {
         prep_args: list[PyObj] = [PyStr(t="str", val=class_name), bases_tuple];
@@ -3929,24 +4185,54 @@ def build_class_via_metaclass(
         if is_error(prepared) {
             return prepared;
         }
-        if isinstance(prepared, PyDict) {
-            prep_map = pydict_to_str_map(prepared as PyDict);
-            for pk in prep_map {
-                namespace[pk] = prep_map[pk];
+    }
+    # A custom mapping namespace (enum's _EnumDict, a dict subclass): run the body
+    # into a plain ordered map, then replay each binding through the mapping's
+    # __setitem__ so its member-tracking side effects fire in source order. The
+    # mapping itself is handed to the metaclass as the classdict.
+    if isinstance(prepared, PyUserObj) {
+        namespace: dict[str, PyObj] = {};
+        body_result = exec_code_frame(
+            body.code, [], {}, body.globals, namespace, body.closure, [], {}
+        );
+        if body_result.t == "error" {
+            return body_result;
+        }
+        mapping = prepared as PyUserObj;
+        if user_has_dunder(mapping, "__setitem__") {
+            for k in namespace {
+                res = call_user_dunder(
+                    mapping, "__setitem__", [PyStr(t="str", val=k), namespace[k]]
+                );
+                if is_error(res) {
+                    return res;
+                }
             }
         }
+        call_args: list[PyObj] = [
+            PyStr(t="str", val=class_name), bases_tuple, prepared
+        ];
+        return py_invoke(metaclass, call_args, class_kwds);
     }
-    body_result = exec_code_frame(
-        body.code, [], {}, body.globals, namespace, body.closure, [], {}
+    # A plain-dict (or absent) namespace: seed, run the body, box a real dict.
+    namespace2: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
+    if isinstance(prepared, PyDict) {
+        prep_map = pydict_to_str_map(prepared as PyDict);
+        for pk in prep_map {
+            namespace2[pk] = prep_map[pk];
+        }
+    }
+    body_result2 = exec_code_frame(
+        body.code, [], {}, body.globals, namespace2, body.closure, [], {}
     );
-    if body_result.t == "error" {
-        return body_result;
+    if body_result2.t == "error" {
+        return body_result2;
     }
-    ns_dict = dict_from_str_map(namespace);
-    call_args: list[PyObj] = [
+    ns_dict = dict_from_str_map(namespace2);
+    call_args2: list[PyObj] = [
         PyStr(t="str", val=class_name), bases_tuple, ns_dict
     ];
-    return py_invoke(metaclass, call_args, class_kwds);
+    return py_invoke(metaclass, call_args2, class_kwds);
 }
 
 def make_function_from_stack(stack: list[PyObj], globals: dict[str, PyObj]) -> PyObj {
@@ -4050,6 +4336,12 @@ obj PyNativeBuiltin(PyObj) {
                 return py_error("TypeError", "setattr expected 3 arguments");
             }
             return py_set_attr(args[0], expect_str(args[1]), args[2]);
+        }
+        if self.name == "delattr" {
+            if len(args) < 2 {
+                return py_error("TypeError", "delattr expected 2 arguments");
+            }
+            return py_del_attr(args[0], expect_str(args[1]));
         }
         if self.name == "iter" {
             if len(args) == 0 {
@@ -4418,6 +4710,309 @@ obj PySetMethod(PyObj) {
             # Write the result back into the receiver's storage in place.
             s.items = (acc as PySet).items;
             return py_none();
+        }
+        return py_error("AttributeError", n);
+    }
+}
+
+# Native mutating/accessor list methods. Without these, `lst.append(x)` routes to
+# host_getattr on a to_host COPY of the list -- the mutation is lost. Load-bearing
+# for any code that builds a list by `.append` (enum's EnumDict._member_names
+# tracking, most stdlib), not just comprehensions (which use LIST_APPEND).
+def is_list_method(name: str) -> bool {
+    return name == "append" or name == "extend" or name == "insert"
+        or name == "pop" or name == "remove" or name == "clear"
+        or name == "index" or name == "count" or name == "reverse"
+        or name == "copy";
+}
+
+# Materialize the elements of a native iterable argument (list/tuple/set/iter).
+def iterable_items(src: PyObj) -> list[PyObj] {
+    if isinstance(src, PyList) {
+        return (src as PyList).items;
+    }
+    if isinstance(src, PyTuple) {
+        return (src as PyTuple).items;
+    }
+    if isinstance(src, PySet) {
+        return (src as PySet).set_members();
+    }
+    if isinstance(src, PyIter) {
+        return (src as PyIter).items;
+    }
+    it = py_iter(src);
+    if isinstance(it, PyIter) {
+        return (it as PyIter).items;
+    }
+    return [];
+}
+
+obj PyListMethod(PyObj) {
+    has target: PyList,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        n = self.name;
+        lst = self.target;
+        if n == "append" {
+            lst.items.append(args[0]);
+            return py_none();
+        }
+        if n == "extend" {
+            for x in iterable_items(args[0]) {
+                lst.items.append(x);
+            }
+            return py_none();
+        }
+        if n == "insert" {
+            i = (args[0].to_index() as PyInt).val;
+            if i < 0 {
+                i = len(lst.items) + i;
+            }
+            if i < 0 {
+                i = 0;
+            }
+            if i > len(lst.items) {
+                i = len(lst.items);
+            }
+            rebuilt: list[PyObj] = [];
+            j = 0;
+            while j < len(lst.items) {
+                if j == i {
+                    rebuilt.append(args[1]);
+                }
+                rebuilt.append(lst.items[j]);
+                j = j + 1;
+            }
+            if i >= len(lst.items) {
+                rebuilt.append(args[1]);
+            }
+            lst.items = rebuilt;
+            return py_none();
+        }
+        if n == "pop" {
+            if len(lst.items) == 0 {
+                return py_error("IndexError", "pop from empty list");
+            }
+            i = len(lst.items) - 1;
+            if len(args) >= 1 {
+                i = (args[0].to_index() as PyInt).val;
+                if i < 0 {
+                    i = len(lst.items) + i;
+                }
+            }
+            if i < 0 or i >= len(lst.items) {
+                return py_error("IndexError", "pop index out of range");
+            }
+            v = lst.items[i];
+            kept: list[PyObj] = [];
+            j = 0;
+            while j < len(lst.items) {
+                if j != i {
+                    kept.append(lst.items[j]);
+                }
+                j = j + 1;
+            }
+            lst.items = kept;
+            return v;
+        }
+        if n == "remove" {
+            j = 0;
+            while j < len(lst.items) {
+                if list_elem_eq(lst.items[j], args[0]) {
+                    kept2: list[PyObj] = [];
+                    k = 0;
+                    while k < len(lst.items) {
+                        if k != j {
+                            kept2.append(lst.items[k]);
+                        }
+                        k = k + 1;
+                    }
+                    lst.items = kept2;
+                    return py_none();
+                }
+                j = j + 1;
+            }
+            return py_error("ValueError", "list.remove(x): x not in list");
+        }
+        if n == "clear" {
+            lst.items = [];
+            return py_none();
+        }
+        if n == "index" {
+            j = 0;
+            while j < len(lst.items) {
+                if list_elem_eq(lst.items[j], args[0]) {
+                    return PyInt(t="int", val=j);
+                }
+                j = j + 1;
+            }
+            return py_error("ValueError", "not in list");
+        }
+        if n == "count" {
+            c = 0;
+            for x in lst.items {
+                if list_elem_eq(x, args[0]) {
+                    c = c + 1;
+                }
+            }
+            return PyInt(t="int", val=c);
+        }
+        if n == "reverse" {
+            rev: list[PyObj] = [];
+            j = len(lst.items) - 1;
+            while j >= 0 {
+                rev.append(lst.items[j]);
+                j = j - 1;
+            }
+            lst.items = rev;
+            return py_none();
+        }
+        if n == "copy" {
+            dup: list[PyObj] = [];
+            for x in lst.items {
+                dup.append(x);
+            }
+            return PyList(t="list", items=dup);
+        }
+        return py_error("AttributeError", n);
+    }
+}
+
+# Element equality for list membership (remove/index/count): a real __eq__ so a
+# user object or boxed value compares by value, not identity.
+def list_elem_eq(a: PyObj, b: PyObj) -> bool {
+    res = py_compare(2, a, b);
+    if isinstance(res, PyBool) {
+        return (res as PyBool).val;
+    }
+    return False;
+}
+
+# The native mutating/accessor dict methods. keys()/values()/items() are served
+# separately by PyDictViewCtor; these must be native too so that a mutation on a
+# dict subclass instance (enum's EnumDict.setdefault/pop) hits the real storage
+# instead of a throwaway to_host copy.
+def is_dict_method(name: str) -> bool {
+    return name == "get" or name == "setdefault" or name == "pop"
+        or name == "popitem" or name == "update" or name == "clear"
+        or name == "copy" or name == "__contains__" or name == "__getitem__"
+        or name == "__setitem__" or name == "__delitem__";
+}
+
+obj PyDictMethod(PyObj) {
+    has target: PyDict,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        n = self.name;
+        d = self.target;
+        if n == "get" {
+            if d.dict_contains(args[0]) {
+                return d.mp_subscript(args[0]);
+            }
+            return args[1] if len(args) >= 2 else py_none();
+        }
+        if n == "setdefault" {
+            if d.dict_contains(args[0]) {
+                return d.mp_subscript(args[0]);
+            }
+            default = args[1] if len(args) >= 2 else py_none();
+            r = d.mp_ass_subscript(args[0], default);
+            if is_error(r) {
+                return r;
+            }
+            return default;
+        }
+        if n == "pop" {
+            if d.dict_contains(args[0]) {
+                v = d.mp_subscript(args[0]);
+                d.mp_del_subscript(args[0]);
+                return v;
+            }
+            if len(args) >= 2 {
+                return args[1];
+            }
+            return py_error("KeyError", dict_key_repr(args[0]));
+        }
+        if n == "popitem" {
+            for keyobj in d.dict_keys() {
+                v = d.mp_subscript(keyobj);
+                d.mp_del_subscript(keyobj);
+                return PyTuple(t="tuple", items=[keyobj, v]);
+            }
+            return py_error("KeyError", "popitem(): dictionary is empty");
+        }
+        if n == "clear" {
+            for keyobj in d.dict_keys() {
+                d.mp_del_subscript(keyobj);
+            }
+            return py_none();
+        }
+        if n == "copy" {
+            nd = PyDict(t="dict", items={});
+            for keyobj in d.dict_keys() {
+                nd.dict_set(keyobj, d.mp_subscript(keyobj));
+            }
+            return nd;
+        }
+        if n == "update" {
+            if len(args) >= 1 {
+                src = args[0];
+                if isinstance(src, PyDict) {
+                    sd = src as PyDict;
+                    for keyobj in sd.dict_keys() {
+                        d.dict_set(keyobj, sd.mp_subscript(keyobj));
+                    }
+                } elif isinstance(src, PyUserObj)
+                    and (src as PyUserObj)._has_base()
+                    and isinstance((src as PyUserObj)._base_obj(), PyDict) {
+                    sd = (src as PyUserObj)._base_obj() as PyDict;
+                    for keyobj in sd.dict_keys() {
+                        d.dict_set(keyobj, sd.mp_subscript(keyobj));
+                    }
+                } else {
+                    # An iterable of (key, value) pairs.
+                    pairs: list[PyObj] = [];
+                    if isinstance(src, PyList) {
+                        pairs = (src as PyList).items;
+                    } elif isinstance(src, PyTuple) {
+                        pairs = (src as PyTuple).items;
+                    } else {
+                        seq = py_iter(src);
+                        if is_error(seq) {
+                            return seq;
+                        }
+                        if isinstance(seq, PyIter) {
+                            pairs = (seq as PyIter).items;
+                        }
+                    }
+                    for pair in pairs {
+                        if isinstance(pair, PyTuple) {
+                            pt = (pair as PyTuple).items;
+                            if len(pt) == 2 {
+                                d.dict_set(pt[0], pt[1]);
+                            }
+                        }
+                    }
+                }
+            }
+            for k in kwargs {
+                d.dict_set(PyStr(t="str", val=k), kwargs[k]);
+            }
+            return py_none();
+        }
+        if n == "__contains__" {
+            return PyBool(t="bool", val=d.dict_contains(args[0]));
+        }
+        if n == "__getitem__" {
+            return d.mp_subscript(args[0]);
+        }
+        if n == "__setitem__" {
+            return d.mp_ass_subscript(args[0], args[1]);
+        }
+        if n == "__delitem__" {
+            return d.mp_del_subscript(args[0]);
         }
         return py_error("AttributeError", n);
     }
@@ -5234,6 +5829,11 @@ def run_frame(frame: PyFrame) -> PyObj {
     code = co.co_code;
     ip = frame.ip;
     ext_arg = 0;
+    # The stack of exceptions currently being handled (one entry per active except
+    # block). A bare `raise` re-raises the top; PUSH_EXC_INFO pushes on handler
+    # entry, POP_EXCEPT pops on handler exit. Frame-local: a bare raise across a
+    # generator yield boundary is not modeled (vanishingly rare).
+    exc_handling: list[PyObj] = [];
     while ip < len(code) {
         offset = ip;
         op = code[ip];
@@ -5274,6 +5874,16 @@ def run_frame(frame: PyFrame) -> PyObj {
             if arg < len(fast) {
                 fast[arg] = stack.pop();
                 assigned[arg] = True;
+                continue;
+            }
+            return py_error("UnboundLocalError", "invalid local variable");
+        }
+        if op == OP_DELETE_FAST {
+            # `del local`: unbind the fast slot. A later LOAD_FAST raises
+            # UnboundLocalError (the assigned flag gates that).
+            if arg < len(fast) {
+                fast[arg] = py_none();
+                assigned[arg] = False;
                 continue;
             }
             return py_error("UnboundLocalError", "invalid local variable");
@@ -6137,6 +6747,19 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             continue;
         }
+        if op == OP_DELETE_ATTR {
+            owner = stack.pop();
+            result = py_del_attr(owner, co.names[arg]);
+            if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return result;
+            }
+            continue;
+        }
         if op == OP_STORE_SUBSCR {
             stored_index: PyObj = stack.pop();
             owner = stack.pop();
@@ -6301,6 +6924,8 @@ def run_frame(frame: PyFrame) -> PyObj {
                 exception = stack.pop();
                 stack.append(py_none());
                 stack.append(exception);
+                # Mark this exception as the one being handled (for bare `raise`).
+                exc_handling.append(exception);
             }
             continue;
         }
@@ -6316,12 +6941,24 @@ def run_frame(frame: PyFrame) -> PyObj {
             if len(stack) > 0 {
                 stack.pop();
             }
+            if len(exc_handling) > 0 {
+                exc_handling.pop();
+            }
             continue;
         }
         if op == OP_RAISE_VARARGS {
+            # arg: 0 = re-raise, 1 = raise exc, 2 = raise exc from cause. For the
+            # `from` form the cause is on top, the exception below it; the cause is
+            # popped and (for now) discarded -- what matters is raising `exc`.
             raised = py_none();
-            if arg > 0 {
+            if arg == 2 {
+                stack.pop();
                 raised = stack.pop();
+            } elif arg == 1 {
+                raised = stack.pop();
+            } elif len(exc_handling) > 0 {
+                # Bare `raise`: re-raise the exception currently being handled.
+                raised = exc_handling[len(exc_handling) - 1];
             }
             result = py_raise_value(raised);
             target = recover_exception(co, result, offset, stack);

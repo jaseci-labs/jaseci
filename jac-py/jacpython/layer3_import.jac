@@ -460,6 +460,77 @@ test "layer3: a custom metaclass drives class creation (metaclass= + super().__n
     assert to_host(g["xval"]) == 1;
 }
 
+test "layer3: a dict subclass with __setitem__ / super() / native dict methods" {
+    # The _EnumDict shape: a dict subclass whose __setitem__ tracks keys and calls
+    # super().__setitem__ to store. get/setdefault/pop/items must hit the real
+    # backing storage (not a to_host copy), and a subscript assignment dispatches
+    # the overridden __setitem__.
+    layer3_reset();
+    src = "class Track(dict):\n"
+    "    def __init__(self):\n"
+    "        super().__init__()\n"
+    "        self.seen = []\n"
+    "    def __setitem__(self, k, v):\n"
+    "        self.seen.append(k)\n"
+    "        super().__setitem__(k, v)\n"
+    "d = Track()\n"
+    "d['a'] = 1\n"
+    "d['b'] = 2\n"
+    "sd = d.setdefault('a', 99)\n"
+    "sd2 = d.setdefault('c', 3)\n"
+    "g = d.get('b')\n"
+    "gm = d.get('z', -1)\n"
+    "popped = d.pop('b')\n"
+    "keys = list(d.keys())\n"
+    "seen = d.seen\n"
+    "n = len(d)\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["sd"]) == 1;
+    assert to_host(g["sd2"]) == 3;
+    assert to_host(g["g"]) == 2;
+    assert to_host(g["gm"]) == -1;
+    assert to_host(g["popped"]) == 2;
+    assert to_host(g["keys"]) == ["a", "c"];
+    assert to_host(g["seen"]) == ["a", "b"];
+    assert to_host(g["n"]) == 2;
+}
+
+test "layer3: del attr, bare raise re-raise, and DELETE_FAST" {
+    # delattr / `del obj.x` on a native instance, a bare `raise` re-raising the
+    # active exception from an except block, and `del local`.
+    layer3_reset();
+    src = "class C:\n"
+    "    pass\n"
+    "o = C()\n"
+    "o.x = 5\n"
+    "had = hasattr(o, 'x')\n"
+    "del o.x\n"
+    "gone = not hasattr(o, 'x')\n"
+    "caught = 0\n"
+    "reached = 0\n"
+    "def f():\n"
+    "    try:\n"
+    "        raise ValueError('boom')\n"
+    "    except ValueError:\n"
+    "        raise\n"
+    "try:\n"
+    "    f()\n"
+    "except ValueError:\n"
+    "    caught = 1\n"
+    "tmp = 10\n"
+    "del tmp\n"
+    "reached = 1\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["had"]) == True;
+    assert to_host(g["gone"]) == True;
+    assert to_host(g["caught"]) == 1;
+    assert to_host(g["reached"]) == 1;
+}
+
 test "layer3: native classmethod / staticmethod / property descriptors resolve in-VM" {
     # classmethod binds the class as the first arg, staticmethod unwraps to a
     # plain function, and property invokes its getter on instance access. All
