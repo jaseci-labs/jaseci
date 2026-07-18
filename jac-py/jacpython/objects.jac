@@ -1052,21 +1052,56 @@ obj PyExceptionType(PyObj) {
     has name: str;
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        # Exception(*args): keep the FULL args tuple (BaseException.args), not just
+        # the first, so `e.args`, str(e), and repr(e) round-trip faithfully. The
+        # single-arg `message` shortcut stays for the common one-string case.
         message = "";
-        if len(args) > 0 {
+        if len(args) == 1 {
             message = expect_str(args[0]);
         }
-        return PyException(t="exception", type_name=self.name, message=message);
+        exc_args: list[PyObj] = [];
+        exc_args.extend(args);
+        return PyException(
+            t="exception", type_name=self.name, message=message, args=exc_args
+        );
     }
 }
 
 obj PyException(PyObj) {
     has type_name: str,
         message: str,
+        # BaseException.args: the full constructor argument tuple. VM-raised
+        # errors (py_error) leave this empty and carry `message` instead; to_host
+        # falls back to [message] when args is empty (see host_exception).
+        args: list[PyObj] = [],
         raw: any = None,
         # StopIteration payload: `return x` in a generator surfaces as
         # StopIteration(x); .send()/next() carry the value here.
         value: any = None;
+
+    # Attribute reads on a caught exception. `args` is served natively as a real
+    # tuple; a user-exception instance (kept in `raw`) delegates to its own
+    # attributes; the standard exception-chaining dunders default to None. Any
+    # host-only attribute is left to the ceval's to_host bridge (host_getattr on a
+    # real host exception), which this leaf can't reach.
+    def tp_getattro(name: str) -> PyObj {
+        if name == "args" {
+            items: list[PyObj] = [];
+            items.extend(self.args);
+            return PyTuple(t="tuple", items=items);
+        }
+        if self.raw is not None {
+            r = (self.raw as PyObj).tp_getattro(name);
+            if not is_error(r) {
+                return r;
+            }
+        }
+        if name == "__cause__" or name == "__context__"
+        or name == "__traceback__" or name == "__suppress_context__" {
+            return py_none();
+        }
+        return py_error("AttributeError", name);
+    }
 }
 
 obj PyError(PyObj) {

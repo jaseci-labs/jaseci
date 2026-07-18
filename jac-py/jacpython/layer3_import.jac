@@ -45,6 +45,44 @@ def layer3_probe(name: str) -> str {
 
 # ---------------- tests ----------------
 
+test "layer3: a caught builtin exception has real str/repr/type/args" {
+    # Exceptions were value-structs whose to_host was None, so str(e) printed
+    # "None", type(e) was NoneType, and e.args failed. A caught exception must
+    # present as a real host exception: str(e)==message, type(e).__name__ matches,
+    # e.args is the constructor tuple.
+    layer3_reset();
+    src = "def f():\n"
+    "    try:\n"
+    "        raise ValueError('boom', 42)\n"
+    "    except ValueError as e:\n"
+    "        return (str(e), type(e).__name__, e.args, repr(e))\n"
+    "s, tn, a, r = f()\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["s"]) == "('boom', 42)";
+    assert to_host(g["tn"]) == "ValueError";
+    assert to_host(g["a"]) == ("boom", 42);
+    assert to_host(g["r"]) == "ValueError('boom', 42)";
+}
+
+test "layer3: single-arg exception str is the message; args is a 1-tuple" {
+    layer3_reset();
+    src = "def f():\n"
+    "    try:\n"
+    "        raise KeyError('missing')\n"
+    "    except Exception as e:\n"
+    "        return (str(e), e.args, type(e).__name__)\n"
+    "s, a, tn = f()\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    # KeyError.str quotes its key (CPython special-case); args is the raw tuple.
+    assert to_host(g["s"]) == "'missing'";
+    assert to_host(g["a"]) == ("missing",);
+    assert to_host(g["tn"]) == "KeyError";
+}
+
 test "layer3: a builtin subclass with a custom __new__ controls its boxed value" {
     # re._constants._NamedIntConstant(int) pattern: __new__(cls, value, name)
     # boxes only `value` through super().__new__(cls, value) and stashes name.

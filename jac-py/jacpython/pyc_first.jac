@@ -2088,6 +2088,13 @@ def to_host(value: PyObj) -> any {
         case PyHostProxy():
             return value.val;
 
+        case PyException():
+            # A caught exception crossing to the host (str(e)/repr(e)/type(e), or
+            # handed to host logging/warnings) becomes a REAL host exception
+            # instance carrying the same args -- previously this fell through to
+            # None, so str(e) was "None" and type(e) was NoneType.
+            return host_exception(value);
+
         case PyUserObj():
             # A builtin subclass reaching the host boundary (len/print/format)
             # presents as its boxed value; a plain user object has no host form.
@@ -2195,6 +2202,29 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         return PyHostProxy(t="host", val=result[1]);
     }
     return py_error(str(result[1]), str(result[2]));
+}
+
+# Build a real host exception instance from a native PyException, so the host's
+# own str()/repr()/type()/isinstance machinery drives it. Uses the recorded args
+# (falling back to `message` for VM-raised errors, which carry no args tuple). A
+# non-builtin type_name (a user Exception subclass) can't be reconstructed as a
+# host type, so it degrades to a plain Exception carrying the message -- enough
+# for str()/repr(); `except <UserClass>` matching stays native (exception_matches
+# uses the raw PyUserObj's MRO, never this host form).
+def host_exception(exc: PyException) -> any {
+    raw_args: list[any] = [];
+    for a in exc.args {
+        raw_args.append(to_host(a));
+    }
+    if len(raw_args) == 0 and exc.message != "" {
+        raw_args.append(exc.message);
+    }
+    built = _jac_construct_builtin(exc.type_name, raw_args);
+    if bool(built[0]) {
+        return built[1];
+    }
+    fallback = _jac_construct_builtin("Exception", raw_args);
+    return fallback[1];
 }
 
 # f-string / format machinery. Formatting is delegated to host CPython's
