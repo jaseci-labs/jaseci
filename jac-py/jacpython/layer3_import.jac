@@ -222,6 +222,31 @@ test "layer3: namedtuple's dynamic class boots in-VM (native<->host trampoline)"
     assert to_host(g["fields"]) == ("x", "y");
 }
 
+test "layer3: a proxied host object (a type) is usable as a dict/set key" {
+    # Type-keyed dispatch tables are everywhere in the stdlib closure
+    # (functools.singledispatch, copyreg, typing, contextlib). A PyHostProxy now
+    # buckets by its host hash so it can key a native dict/set; the dict layer
+    # confirms a bucket hit with a real ==, so distinct classes stay distinct.
+    layer3_reset();
+    src = "X = type('X', (), {})\n"
+    "Y = type('Y', (), {})\n"
+    "d = {int: 'i', str: 's', X: 'x'}\n"
+    "by_type = d[str]\n"
+    "by_cls = d[X]\n"
+    "x_in = X in d\n"
+    "y_in = Y in d\n"
+    "s = {X, Y}\n"
+    "s_has = X in s\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["by_type"]) == "s";
+    assert to_host(g["by_cls"]) == "x";
+    assert to_host(g["x_in"]) == True;
+    assert to_host(g["y_in"]) == False;
+    assert to_host(g["s_has"]) == True;
+}
+
 test "layer3: namedtuple with defaults instantiates with omitted trailing fields" {
     layer3_reset();
     src = "from collections import namedtuple\n"

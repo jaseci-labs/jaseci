@@ -62,6 +62,16 @@ def _jac_host_len(value):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_host_hashkey(value):
+    # Bucket a proxied host object by its host hash so it can be a dict/set key
+    # (type-keyed dispatch tables in functools/copyreg/typing/contextlib). Equal
+    # host objects share a hash, hence a bucket; the dict layer confirms a bucket
+    # hit with a real == (PyHostProxy needs_eq_confirm). '' means unhashable.
+    try:
+        return "host:" + str(hash(value))
+    except BaseException:
+        return ""
+
 def _jac_host_contains(member, container):
     try:
         return (True, member in container)
@@ -1195,6 +1205,10 @@ obj PyHostProxy(PyObj) {
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         return py_call_host(self, args, kwargs);
+    }
+
+    def tp_hashkey -> str {
+        return _jac_host_hashkey(self.val);
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
