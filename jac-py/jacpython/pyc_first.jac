@@ -110,6 +110,12 @@ def _jac_host_builtin(name):
 def _jac_host_type_name(value):
     return type(value).__name__
 
+def _jac_host_type(value):
+    # type(value) for a host object -- the fallback for py_type_of when the
+    # argument has no in-VM class (a proxied host value, or a native scalar whose
+    # to_host round-trips cleanly to int/str/float/...).
+    return type(value)
+
 def _jac_host_delattr(host_obj, name):
     try:
         delattr(host_obj, name)
@@ -1269,6 +1275,14 @@ obj PyHostProxy(PyObj) {
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        # `type(x)` (one positional arg) must be answered in-VM: a native user
+        # instance's type is its own PyClass, not host type(to_host(x)) -- which
+        # was NoneType because to_host of a plain user object is None. The 3-arg
+        # `type(name, bases, ns)` class constructor and every real metaclass call
+        # stay host-routed. `type` is the exact builtin here, never a subclass.
+        if len(args) == 1 and len(kwargs) == 0 and bool(_jac_is_type_type(self.val)) {
+            return py_type_of(args[0]);
+        }
         return py_call_host(self, args, kwargs);
     }
 
@@ -1298,6 +1312,14 @@ obj PyClass(PyObj) {
     # Attribute lookup walks the MRO (self first, then bases) so an inherited
     # method/attr is visible on a subclass. Instance access binds via PyUserObj.
     def tp_getattro(name: str) -> PyObj {
+        # A class's __name__ is its own name, NOT whatever the body namespace left
+        # behind: the class-body frame seeds `__name__` to the module name (correct
+        # inside the body), and that entry leaks into attrs. Answer from self.name
+        # before the attribute lookup so `Cls.__name__` isn't the module. (__module__
+        # legitimately IS that seeded module name, so it stays an attrs lookup.)
+        if name == "__name__" {
+            return PyStr(t="str", val=self.name);
+        }
         found = class_lookup_attr(self, name);
         if not is_error(found) {
             # Class-level access: a classmethod binds this class, a staticmethod
@@ -2202,6 +2224,23 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         return PyHostProxy(t="host", val=result[1]);
     }
     return py_error(str(result[1]), str(result[2]));
+}
+
+# type(obj): the object's type. A native user instance answers with its own
+# PyClass; a class answers with its metaclass (or the host `type` for the default);
+# everything else (scalars, proxied host values) round-trips through host type().
+def py_type_of(o: PyObj) -> PyObj {
+    if isinstance(o, PyUserObj) {
+        return (o as PyUserObj).cls as PyObj;
+    }
+    if isinstance(o, PyClass) {
+        m = (o as PyClass).metaclass;
+        if m is not None and isinstance(m, PyClass) {
+            return m as PyObj;
+        }
+        return host_builtin("type");
+    }
+    return from_host(_jac_host_type(to_host(o)));
 }
 
 # Build a real host exception instance from a native PyException, so the host's

@@ -66,6 +66,31 @@ test "layer3: a caught builtin exception has real str/repr/type/args" {
     assert to_host(g["r"]) == "ValueError('boom', 42)";
 }
 
+test "layer3: type(instance) is the class and Cls.__name__ is the class name" {
+    # Two identity bugs: Cls.__name__ read the leaked module-name seed ("__main__")
+    # from the class body namespace, and type(instance) went through host
+    # type(to_host(x))=type(None)=NoneType because a plain user object has no host
+    # form. type(self) is pervasive (repr, ==, dispatch) so both must be right.
+    layer3_reset();
+    src = "class Widget:\n"
+    "    def kind(self):\n"
+    "        return type(self).__name__\n"
+    "w = Widget()\n"
+    "cn = Widget.__name__\n"
+    "tn = type(w).__name__\n"
+    "same = type(w) is Widget\n"
+    "km = w.kind()\n"
+    "it = type(5).__name__\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["cn"]) == "Widget";
+    assert to_host(g["tn"]) == "Widget";
+    assert to_host(g["same"]) == True;
+    assert to_host(g["km"]) == "Widget";
+    assert to_host(g["it"]) == "int";
+}
+
 test "layer3: single-arg exception str is the message; args is a 1-tuple" {
     layer3_reset();
     src = "def f():\n"
