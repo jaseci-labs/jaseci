@@ -56,6 +56,12 @@ def _jac_host_getitem(value, index):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_host_len(value):
+    try:
+        return (True, len(value))
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
 def _jac_host_contains(member, container):
     try:
         return (True, member in container)
@@ -200,6 +206,70 @@ def _jac_star_names(host_val):
         return (True, [n for n in dir(host_val) if not n.startswith("_")])
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
+
+def _jac_make_host_trampoline(native_fn):
+    # Native-callable -> host round-trip. When a native PyFunction crosses the
+    # host boundary (to_host), it can't become None -- host machinery that wraps
+    # or invokes it (type(name, bases, ns) installing a native __repr__, a
+    # classmethod/property over a native function, functools.partial, a callback
+    # handed to a proxied C module) needs a REAL callable. Return a host closure
+    # that marshals host args back into PyObjs, runs the function in jacpython's
+    # own ceval via tp_call, and marshals the result back out. A raised PyError
+    # is re-raised as the matching host exception so host control flow sees it.
+    import builtins as _b
+    def _trampoline(*args, **kwargs):
+        pyargs = [from_host(a) for a in args]
+        pykwargs = {}
+        for k in kwargs:
+            pykwargs[k] = from_host(kwargs[k])
+        result = native_fn.tp_call(pyargs, pykwargs)
+        if isinstance(result, PyError):
+            exc = result.exception
+            etype = getattr(_b, exc.type_name, None)
+            if etype is None or not isinstance(etype, type):
+                etype = RuntimeError
+            raise etype(exc.message)
+        return to_host(result)
+    # Present as the wrapped function so introspection (functools.wraps,
+    # type()'s method registration, repr) sees the right identity. Keep a
+    # back-pointer so a round-trip (from_host of this trampoline) recovers the
+    # native function instead of re-wrapping it as an opaque proxy.
+    try:
+        _trampoline.__name__ = native_fn.name
+        _trampoline.__qualname__ = native_fn.code.qualname
+        doc = native_fn._func_doc()
+        _trampoline.__doc__ = doc.val if isinstance(doc, PyStr) else None
+        _trampoline.__jac_native__ = native_fn
+    except BaseException:
+        pass
+    return _trampoline
+
+def _jac_recover_native(raw):
+    # If raw is a trampoline we minted, hand back the native function it wraps
+    # so a host->native round-trip collapses instead of nesting proxies. Read the
+    # marker from the object's OWN __dict__, not via getattr: a bound method
+    # delegates attribute access to its __func__, so getattr(bound_method,
+    # '__jac_native__') would unwrap it to the UNBOUND native function and lose
+    # the receiver -- exactly what breaks `instance.method()`.
+    import types as _types
+    if not isinstance(raw, _types.FunctionType):
+        return None
+    return raw.__dict__.get("__jac_native__")
+
+_JAC_EXACT_BUILTINS = (
+    int, float, str, bytes, tuple, list, dict, set, frozenset, bool,
+)
+
+def _jac_is_builtin_subclass_instance(raw):
+    # True iff raw is an instance of a container/scalar builtin whose type is a
+    # PROPER SUBCLASS (namedtuple, IntEnum, a user `class X(list)` built on the
+    # host, ...). Such an instance must stay a PyHostProxy: converting it to a
+    # native PyTuple/PyList/PyInt would discard its real type and its own
+    # attributes/descriptors (namedtuple field access, enum .name/.value).
+    t = type(raw)
+    if t in _JAC_EXACT_BUILTINS:
+        return False
+    return isinstance(raw, _JAC_EXACT_BUILTINS)
 ::py::
 
 
@@ -1378,6 +1448,18 @@ def from_host(raw: any) -> PyObj {
     if raw is None {
         return py_none();
     }
+    # A host instance whose type is a PROPER subclass of a builtin container/
+    # scalar (namedtuple, IntEnum, a host-built `class X(list)`) must not be
+    # flattened into a native PyTuple/PyList/PyInt -- that would erase its real
+    # type and its own descriptors. Keep it as a proxy so p.x / .name / repr all
+    # route back to the host object. (A trampoline we minted is recovered first.)
+    if _jac_is_builtin_subclass_instance(raw) {
+        recovered = _jac_recover_native(raw);
+        if recovered is not None {
+            return recovered;
+        }
+        return PyHostProxy(t="host", val=raw);
+    }
     if isinstance(raw, bool) {
         return PyBool(t="bool", val=raw);
     }
@@ -1455,6 +1537,13 @@ def from_host(raw: any) -> PyObj {
         }
         return ns;
     }
+    # A host trampoline coming back home (e.g. a native __new__ that host type()
+    # stored, then handed back on class construction) recovers its original
+    # native function rather than nesting host->native->host indirection.
+    recovered = _jac_recover_native(raw);
+    if recovered is not None {
+        return recovered;
+    }
     return PyHostProxy(t="host", val=raw);
 }
 
@@ -1517,6 +1606,14 @@ def to_host(value: PyObj) -> any {
             return slice(
                 to_host(value.start), to_host(value.stop), to_host(value.step)
             );
+
+        case PyFunction():
+            # A native function crossing to the host becomes a trampoline that
+            # calls back into ceval (see _jac_make_host_trampoline). This is what
+            # lets host type()/classmethod/property/functools wrap and later
+            # invoke jacpython functions -- the round-trip that unblocks
+            # namedtuple's dynamic class creation and decorator machinery.
+            return _jac_make_host_trampoline(value);
 
         case PyHostProxy():
             return value.val;
@@ -2769,6 +2866,15 @@ def py_len(value: PyObj) -> PyObj {
         if u._has_base() {
             return py_len(u._base_obj());
         }
+    }
+    if isinstance(value, PyHostProxy) {
+        # A proxied host object (e.g. a namedtuple instance produced by
+        # tuple.__new__, or any C-extension container) answers len() on the host.
+        result = _jac_host_len(to_host(value));
+        if host_result_ok(result) {
+            return from_host(result[1]);
+        }
+        return py_error(str(result[1]), str(result[2]));
     }
     return py_error(
         "TypeError", "object of type '" + value.t + "' has no len()"
@@ -4297,34 +4403,61 @@ def exec_code_frame(
         i = i + 1;
     }
     positional_count = co.argcount;
+    has_varargs = (co.flags & 4) != 0;
+    has_varkw = (co.flags & 8) != 0;
+    # Named-parameter slots occupy [0 .. argcount + kwonlyargcount); the *args and
+    # **kwargs slots (when present) follow, in that order (CPython's localsplus
+    # layout). Keywords that don't name a parameter belong in **kwargs.
+    param_slots = positional_count + co.kwonlyargcount;
     i = 0;
     while i < len(args) and i < positional_count {
         fast[i] = args[i];
         assigned[i] = True;
         i = i + 1;
     }
-    if len(args) > positional_count and (co.flags & 4) == 0 {
+    if has_varargs {
+        # Surplus positionals gather into the *args tuple slot.
+        extra: list[PyObj] = [];
+        j = positional_count;
+        while j < len(args) {
+            extra.append(args[j]);
+            j = j + 1;
+        }
+        fast[param_slots] = PyTuple(t="tuple", items=extra);
+        assigned[param_slots] = True;
+    } elif len(args) > positional_count {
         return py_error("TypeError", "too many positional arguments");
     }
-    i = 0;
-    while i < len(kwargs) {
-        # Dict iteration is stable, but the key is obtained through a small list
-        # to keep this path independent of Python's dict view types.
-        i = i + 1;
+    varkw_slot = -1;
+    if has_varkw {
+        varkw_slot = param_slots;
+        if has_varargs {
+            varkw_slot = varkw_slot + 1;
+        }
+        fast[varkw_slot] = PyDict(t="dict", items={});
+        assigned[varkw_slot] = True;
     }
     for key in kwargs {
         index = find_name(co.varnames, key);
-        if index < 0 or index >= len(fast) {
-            return py_error("TypeError", "unexpected keyword argument " + key);
-        }
-        if index < co.posonlyargcount {
-            return py_error("TypeError", "positional-only argument passed by name");
-        }
-        if assigned[index] {
+        # A keyword binds a named parameter only if it lands in the parameter
+        # region and isn't positional-only; otherwise it flows into **kwargs (or
+        # is an error when the function has none).
+        is_param = index >= 0 and index < param_slots and index >= co.posonlyargcount;
+        if is_param and assigned[index] {
             return py_error("TypeError", "multiple values for argument " + key);
         }
-        fast[index] = kwargs[key];
-        assigned[index] = True;
+        if is_param {
+            fast[index] = kwargs[key];
+            assigned[index] = True;
+        } elif has_varkw {
+            (fast[varkw_slot] as PyDict).dict_set(
+                PyStr(t="str", val=key), kwargs[key]
+            );
+        } elif index >= 0 and index < co.posonlyargcount {
+            return py_error("TypeError", "positional-only argument passed by name");
+        } else {
+            return py_error("TypeError", "unexpected keyword argument " + key);
+        }
     }
     i = 0;
     while i < positional_count {

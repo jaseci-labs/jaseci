@@ -147,3 +147,89 @@ test "layer3: from-import-star binds a module's public names" {
     assert to_host(g["s"]) == 7;
     assert to_host(g["p"]) == 12;
 }
+
+test "layer3: *args / **kwargs collection binds surplus positional and keyword args" {
+    # exec_code_frame lays out the [params][*args][**kwargs] localsplus region the
+    # way CPython does: surplus positionals gather into the *args tuple, and
+    # keywords that don't name a parameter flow into the **kwargs dict. Every
+    # `def f(self, /, **kwds)` in the stdlib closure (namedtuple._replace, dozens
+    # of dunder shims) depends on this.
+    layer3_reset();
+    src = "def f(a, *args, **kw):\n"
+    "    return (a, args, sorted(kw.items()))\n"
+    "r = f(1, 2, 3, x=4, y=5)\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["r"]) == (1, (2, 3), [("x", 4), ("y", 5)]);
+}
+
+test "layer3: a host builtin-subclass instance keeps its type across from_host" {
+    # A host instance whose type is a proper subclass of a builtin (here a
+    # tuple subclass) must not be flattened into a native PyTuple by from_host --
+    # that would erase its real type and descriptors. It stays a proxy, so
+    # `type(x).__name__` is the subclass and instance-specific attributes survive.
+    layer3_reset();
+    src = "T = type('T', (tuple,), {'tag': 'mine'})\n"
+    "x = tuple.__new__(T, (1, 2))\n"
+    "tn = type(x).__name__\n"
+    "tg = x.tag\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["tn"]) == "T";
+    assert to_host(g["tg"]) == "mine";
+}
+
+test "layer3: namedtuple's dynamic class boots in-VM (native<->host trampoline)" {
+    # The named sub-milestone: collections.namedtuple builds a class at runtime
+    # via host type(name, bases, ns) whose namespace holds NATIVE functions
+    # (__new__ from eval, _make/_asdict/__repr__), then wraps some as
+    # classmethod. to_host(PyFunction) hands each a host trampoline that calls
+    # back into ceval, and from_host preserves the resulting tuple-subclass
+    # instances. Field access, repr, _asdict, _make, ==, indexing, len, and
+    # unpacking all run proxy-free end to end.
+    layer3_reset();
+    src = "from collections import namedtuple\n"
+    "Point = namedtuple('Point', ['x', 'y'])\n"
+    "p = Point(1, 2)\n"
+    "tn = type(p).__name__\n"
+    "a = p.x\n"
+    "b = p.y\n"
+    "s = str(p)\n"
+    "d = p._asdict()\n"
+    "m = Point._make([3, 4])\n"
+    "ms = str(m)\n"
+    "eq = (p == Point(1, 2))\n"
+    "idx = p[0]\n"
+    "cnt = len(p)\n"
+    "ux, uy = p\n"
+    "fields = p._fields\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["tn"]) == "Point";
+    assert to_host(g["a"]) == 1;
+    assert to_host(g["b"]) == 2;
+    assert to_host(g["s"]) == "Point(x=1, y=2)";
+    assert to_host(g["d"]) == {"x": 1, "y": 2};
+    assert to_host(g["ms"]) == "Point(x=3, y=4)";
+    assert to_host(g["eq"]) == True;
+    assert to_host(g["idx"]) == 1;
+    assert to_host(g["cnt"]) == 2;
+    assert to_host(g["ux"]) == 1;
+    assert to_host(g["uy"]) == 2;
+    assert to_host(g["fields"]) == ("x", "y");
+}
+
+test "layer3: namedtuple with defaults instantiates with omitted trailing fields" {
+    layer3_reset();
+    src = "from collections import namedtuple\n"
+    "C = namedtuple('C', ['a', 'b', 'c'], defaults=[10, 20])\n"
+    "x = C(1)\n"
+    "s = str(x)\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["s"]) == "C(a=1, b=10, c=20)";
+}
