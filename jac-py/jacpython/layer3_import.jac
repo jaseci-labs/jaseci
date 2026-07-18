@@ -460,6 +460,44 @@ test "layer3: a custom metaclass drives class creation (metaclass= + super().__n
     assert to_host(g["xval"]) == 1;
 }
 
+test "layer3: native classmethod / staticmethod / property descriptors resolve in-VM" {
+    # classmethod binds the class as the first arg, staticmethod unwraps to a
+    # plain function, and property invokes its getter on instance access. All
+    # three are pervasive in enum/abc/typing/dataclasses. The setter rebuilds the
+    # property; namedtuple reads `.__func__` off a classmethod.
+    layer3_reset();
+    src = "class C:\n"
+    "    tag = 'cls'\n"
+    "    def __init__(self, v):\n"
+    "        self._v = v\n"
+    "    @classmethod\n"
+    "    def make(cls, v):\n"
+    "        return (cls.tag, v)\n"
+    "    @staticmethod\n"
+    "    def add(a, b):\n"
+    "        return a + b\n"
+    "    @property\n"
+    "    def v(self):\n"
+    "        return self._v\n"
+    "    @v.setter\n"
+    "    def v(self, nv):\n"
+    "        self._v = nv * 2\n"
+    "cm = C.make(7)\n"
+    "sm = C.add(2, 3)\n"
+    "o = C(10)\n"
+    "pg = o.v\n"
+    "o.v = 5\n"
+    "pg2 = o.v\n"
+    "fn = C.make.__func__\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["cm"]) == ("cls", 7);
+    assert to_host(g["sm"]) == 5;
+    assert to_host(g["pg"]) == 10;
+    assert to_host(g["pg2"]) == 10;
+}
+
 test "layer3: a subclass re-derives its base's metaclass and re-runs it" {
     # `class D(C)` where C was made by Meta must resolve Meta from C (no explicit
     # metaclass= kwarg) and run it again -- the inheritance path enum members rely

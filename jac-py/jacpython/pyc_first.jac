@@ -110,6 +110,15 @@ def _jac_host_builtin(name):
 def _jac_host_type_name(value):
     return type(value).__name__
 
+def _jac_wrap_classmethod(host_fn):
+    return classmethod(host_fn)
+
+def _jac_wrap_staticmethod(host_fn):
+    return staticmethod(host_fn)
+
+def _jac_wrap_property(fget, fset, fdel):
+    return property(fget, fset, fdel)
+
 # Track B (builtin subclassing) host helpers.
 _JAC_BUILTIN_BASES = (
     "int", "str", "float", "bool", "list", "dict",
@@ -1257,7 +1266,9 @@ obj PyClass(PyObj) {
     def tp_getattro(name: str) -> PyObj {
         found = class_lookup_attr(self, name);
         if not is_error(found) {
-            return found;
+            # Class-level access: a classmethod binds this class, a staticmethod
+            # unwraps, a property object is returned as-is (no instance to invoke).
+            return descriptor_get(found, py_none(), self);
         }
         # Standard type dunders CPython always answers: a missing docstring is
         # None, and __name__/__qualname__ report the class name.
@@ -1345,12 +1356,20 @@ obj PyUserObj(PyObj) {
     }
 
     def tp_getattro(name: str) -> PyObj {
+        # A property is a data descriptor: it wins over the instance dict, so
+        # `o.v` runs the getter even after `o.v = ...` routed through the setter.
+        classattr = class_lookup_attr(self.cls, name);
+        if isinstance(classattr, PyProperty) {
+            return descriptor_get(classattr, self, self.cls);
+        }
         if name in self.attrs {
             return bind_attribute(self.attrs[name], self);
         }
-        found = class_lookup_attr(self.cls, name);
+        found = classattr;
         if not is_error(found) {
-            return bind_attribute(found, self);
+            # Instance access: bind a method, invoke a property getter, unwrap a
+            # staticmethod, or bind a classmethod to the instance's class.
+            return descriptor_get(found, self, self.cls);
         }
         # Fall through to the boxed builtin value's own attributes/methods
         # (str.upper on a str subclass, etc.).
@@ -1366,6 +1385,20 @@ obj PyUserObj(PyObj) {
     }
 
     def tp_setattro(name: str, value: PyObj) -> PyObj {
+        # A property with a setter is a data descriptor: assignment routes through
+        # fset instead of writing the instance dict.
+        classattr = class_lookup_attr(self.cls, name);
+        if isinstance(classattr, PyProperty) {
+            p = classattr as PyProperty;
+            if p.fset is not None {
+                res = py_invoke(p.fset as PyObj, [self, value], {});
+                if is_error(res) {
+                    return res;
+                }
+                return py_none();
+            }
+            return py_error("AttributeError", "can't set attribute '" + name + "'");
+        }
         self.attrs[name] = value;
         return py_none();
     }
@@ -1443,12 +1476,169 @@ obj PyBoundMethod(PyObj) {
         call_args.extend(args);
         return self.function.tp_call(call_args, kwargs);
     }
+
+    # A bound method exposes __func__/__self__ and otherwise forwards attribute
+    # reads (__name__, __qualname__, __doc__) to the underlying function.
+    def tp_getattro(name: str) -> PyObj {
+        if name == "__func__" {
+            return self.function;
+        }
+        if name == "__self__" {
+            return self.receiver;
+        }
+        return py_attr(self.function, name);
+    }
 }
 
 obj PyBuildClass(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         return py_build_class(args, kwargs);
     }
+}
+
+# ---------------- native descriptors: classmethod / staticmethod / property ----
+# These are pervasive across the stdlib closure (enum, typing, abc, dataclasses).
+# Each is a descriptor: attribute lookup on a class/instance resolves it through
+# descriptor_get, which binds the class (classmethod), unwraps (staticmethod), or
+# invokes the getter (property).
+obj PyClassMethod(PyObj) {
+    has func: PyObj;
+
+    # `__func__` exposes the wrapped function (namedtuple rewrites
+    # `_make.__func__.__qualname__`; functools/abc read it too).
+    def tp_getattro(name: str) -> PyObj {
+        if name == "__func__" {
+            return self.func;
+        }
+        return py_attr(self.func, name);
+    }
+
+    def tp_setattro(name: str, value: PyObj) -> PyObj {
+        return self.func.tp_setattro(name, value);
+    }
+}
+
+obj PyStaticMethod(PyObj) {
+    has func: PyObj;
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "__func__" {
+            return self.func;
+        }
+        return py_attr(self.func, name);
+    }
+
+    def tp_setattro(name: str, value: PyObj) -> PyObj {
+        return self.func.tp_setattro(name, value);
+    }
+}
+
+obj PyProperty(PyObj) {
+    has fget: any = None,
+        fset: any = None,
+        fdel: any = None;
+
+    # `@x.setter` / `.getter` / `.deleter` each yield a modifier that rebuilds the
+    # property with one accessor replaced.
+    def tp_getattro(name: str) -> PyObj {
+        if name == "setter" {
+            return PyPropModifier(t="propmod", prop=self, which="set");
+        }
+        if name == "getter" {
+            return PyPropModifier(t="propmod", prop=self, which="get");
+        }
+        if name == "deleter" {
+            return PyPropModifier(t="propmod", prop=self, which="del");
+        }
+        if name == "fget" {
+            return self.fget if self.fget is not None else py_none();
+        }
+        return py_error("AttributeError", name);
+    }
+}
+
+obj PyPropModifier(PyObj) {
+    has prop: PyProperty,
+        which: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        fn = args[0];
+        p = self.prop;
+        if self.which == "set" {
+            return PyProperty(t="property", fget=p.fget, fset=fn, fdel=p.fdel);
+        }
+        if self.which == "del" {
+            return PyProperty(t="property", fget=p.fget, fset=p.fset, fdel=fn);
+        }
+        return PyProperty(t="property", fget=fn, fset=p.fset, fdel=p.fdel);
+    }
+}
+
+obj PyClassMethodCtor(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 {
+            return py_error("TypeError", "classmethod expected 1 argument");
+        }
+        return PyClassMethod(t="classmethod", func=args[0]);
+    }
+}
+
+obj PyStaticMethodCtor(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 {
+            return py_error("TypeError", "staticmethod expected 1 argument");
+        }
+        return PyStaticMethod(t="staticmethod", func=args[0]);
+    }
+}
+
+obj PyPropertyCtor(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        fget: PyObj = py_none();
+        fset: PyObj = py_none();
+        fdel: PyObj = py_none();
+        if len(args) >= 1 { fget = args[0]; }
+        if len(args) >= 2 { fset = args[1]; }
+        if len(args) >= 3 { fdel = args[2]; }
+        if "fget" in kwargs { fget = kwargs["fget"]; }
+        if "fset" in kwargs { fset = kwargs["fset"]; }
+        if "fdel" in kwargs { fdel = kwargs["fdel"]; }
+        return PyProperty(
+            t="property",
+            fget=fget if not isinstance(fget, PyNoneType) else None,
+            fset=fset if not isinstance(fset, PyNoneType) else None,
+            fdel=fdel if not isinstance(fdel, PyNoneType) else None
+        );
+    }
+}
+
+# The descriptor protocol for attribute access. `instance` is the object the
+# attribute was fetched from (None for class-level access); `owner` is the class
+# that supplied the attribute. Plain functions bind to a real instance and stay
+# unbound on class access; the native descriptors do their own binding.
+def descriptor_get(value: PyObj, instance: PyObj, owner: PyObj) -> PyObj {
+    if isinstance(value, PyClassMethod) {
+        return PyBoundMethod(
+            t="bound_method", function=(value as PyClassMethod).func, receiver=owner
+        );
+    }
+    if isinstance(value, PyStaticMethod) {
+        return (value as PyStaticMethod).func;
+    }
+    if isinstance(value, PyProperty) {
+        prop = value as PyProperty;
+        if not isinstance(instance, PyNoneType) {
+            if prop.fget is None {
+                return py_error("AttributeError", "unreadable attribute");
+            }
+            return py_invoke(prop.fget as PyObj, [instance], {});
+        }
+        return value;
+    }
+    if value.t == "function" and not isinstance(instance, PyNoneType) {
+        return PyBoundMethod(t="bound_method", function=value, receiver=instance);
+    }
+    return value;
 }
 
 obj PyFunction(PyObj) {
@@ -1703,6 +1893,21 @@ def to_host(value: PyObj) -> any {
             # namedtuple's dynamic class creation and decorator machinery.
             return _jac_make_host_trampoline(value);
 
+        case PyClassMethod():
+            # A native classmethod handed to host type()/a host class becomes a
+            # real host classmethod over the wrapped function's trampoline, so
+            # `Cls.cmeth(...)` dispatched by the host binds the class correctly.
+            return _jac_wrap_classmethod(to_host(value.func));
+
+        case PyStaticMethod():
+            return _jac_wrap_staticmethod(to_host(value.func));
+
+        case PyProperty():
+            fget = to_host(value.fget as PyObj) if value.fget is not None else None;
+            fset = to_host(value.fset as PyObj) if value.fset is not None else None;
+            fdel = to_host(value.fdel as PyObj) if value.fdel is not None else None;
+            return _jac_wrap_property(fget, fset, fdel);
+
         case PyHostProxy():
             return value.val;
 
@@ -1782,6 +1987,19 @@ def host_builtin(name: str) -> PyObj {
         # (module init idioms, e.g. re._constants) bind real module globals that a
         # later LOAD_GLOBAL can see. The call site in run_frame supplies the ns.
         return PyNativeBuiltin(t="native_builtin", name=name);
+    }
+    # classmethod/staticmethod/property are native descriptors so a method decorated
+    # with them is resolved in-VM (bound to the class, unwrapped, or invoked as a
+    # getter) instead of being frozen into an uncallable host wrapper. Pervasive in
+    # enum/abc/typing/dataclasses.
+    if name == "classmethod" {
+        return PyClassMethodCtor(t="classmethod_ctor");
+    }
+    if name == "staticmethod" {
+        return PyStaticMethodCtor(t="staticmethod_ctor");
+    }
+    if name == "property" {
+        return PyPropertyCtor(t="property_ctor");
     }
     result = _jac_host_builtin(name);
     if host_result_ok(result) {
@@ -2905,6 +3123,12 @@ def py_attr(value: PyObj, name: str) -> PyObj {
 }
 
 def bind_attribute(value: PyObj, receiver: PyObj) -> PyObj {
+    # Explicit bind (a looked-up __init__/__new__/__prepare__ against a known
+    # receiver). Routes through the descriptor protocol so a classmethod binds its
+    # class and a staticmethod unwraps, not just a plain function.
+    if isinstance(value, PyClassMethod) or isinstance(value, PyStaticMethod) {
+        return descriptor_get(value, receiver, receiver);
+    }
     if value.t == "function" {
         return PyBoundMethod(t="bound_method", function=value, receiver=receiver);
     }
