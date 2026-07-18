@@ -1363,6 +1363,19 @@ obj PyClass(PyObj) {
         return "obj:" + str(id(self));
     }
 
+    # Classes compare by identity: `ReprEnum in (Enum,)` must be False so enum's
+    # ReprEnum-mixin check doesn't misfire on distinct classes.
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        same = self is other;
+        if kind == 2 {
+            return PyBool(t="bool", val=same);
+        }
+        if kind == 3 {
+            return PyBool(t="bool", val=not same);
+        }
+        return py_error("TypeError", "unsupported comparison between classes");
+    }
+
     # A metaclass instance dunder: looked up on the class's metaclass MRO and bound
     # to this class. `for m in EnumColor` dispatches EnumType.__iter__(cls); the
     # same channel serves __getitem__/__contains__/__len__ on a class.
@@ -3162,6 +3175,27 @@ def py_contains(container: PyObj, member: PyObj) -> PyObj {
     }
     if isinstance(container, PyDict) {
         return PyBool(t="bool", val=(container as PyDict).dict_contains(member));
+    }
+    # Native tuple/list membership compares elements with a real == in-VM. Routing
+    # through the host collapses every native class/instance to None (to_host), so
+    # `SomeClass in (OtherClass,)` would wrongly match; keep it native.
+    if isinstance(container, PyTuple) or isinstance(container, PyList) {
+        elems: list[PyObj] = [];
+        if isinstance(container, PyTuple) {
+            elems = (container as PyTuple).items;
+        } else {
+            elems = (container as PyList).items;
+        }
+        for item in elems {
+            cmp = py_compare(2, member, item);
+            if is_error(cmp) {
+                return cmp;
+            }
+            if cmp.tp_bool() {
+                return PyBool(t="bool", val=True);
+            }
+        }
+        return PyBool(t="bool", val=False);
     }
     result = _jac_host_contains(to_host(member), to_host(container));
     if host_result_ok(result) {
