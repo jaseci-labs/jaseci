@@ -222,6 +222,64 @@ test "layer3: namedtuple's dynamic class boots in-VM (native<->host trampoline)"
     assert to_host(g["fields"]) == ("x", "y");
 }
 
+test "layer3: CALL_FUNCTION_EX drives f(*args, **kwargs) and forwarding" {
+    # The unpacked-call opcode plus the DICT_MERGE target-index fix. Arg
+    # forwarding (def f(*a, **k): g(*a, **k)) is the backbone of decorators
+    # across the closure; functools.wraps needs it too.
+    layer3_reset();
+    src = "def f(a, b, c): return (a, b, c)\n"
+    "star = f(*(1, 2, 3))\n"
+    "starkw = f(*(1,), **{'b': 2, 'c': 3})\n"
+    "def target(a, b, x=0): return a + b + x\n"
+    "def fwd(*a, **k): return target(*a, **k)\n"
+    "forwarded = fwd(10, 20, x=5)\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["star"]) == (1, 2, 3);
+    assert to_host(g["starkw"]) == (1, 2, 3);
+    assert to_host(g["forwarded"]) == 35;
+}
+
+test "layer3: EXTENDED_ARG decodes a wide oparg" {
+    # A large constant/name index needs the EXTENDED_ARG prefix to carry the high
+    # bits; big modules (typing) rely on it. Subscript past 255 forces a wide arg
+    # only indirectly, so exercise a large tuple display which emits EXTENDED_ARG.
+    layer3_reset();
+    src = "xs = list(range(300))\n"
+    "hi = xs[257]\n"
+    "big = tuple(range(280))\n"
+    "last = big[279]\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["hi"]) == 257;
+    assert to_host(g["last"]) == 279;
+}
+
+test "layer3: functools.wraps copies name/doc and forwards through the wrapper" {
+    layer3_reset();
+    src = "import functools\n"
+    "def deco(fn):\n"
+    "    @functools.wraps(fn)\n"
+    "    def w(*a, **k):\n"
+    "        return fn(*a, **k)\n"
+    "    return w\n"
+    "@deco\n"
+    "def g(x):\n"
+    "    'the doc'\n"
+    "    return x + 1\n"
+    "called = g(5)\n"
+    "nm = g.__name__\n"
+    "dc = g.__doc__\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m"), "__package__": PyStr(t="str", val="")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["called"]) == 6;
+    assert to_host(g["nm"]) == "g";
+    assert to_host(g["dc"]) == "the doc";
+}
+
 test "layer3: native objects expose __dict__ (functions, classes, instances, modules)" {
     # __dict__ backs introspection and functools.wraps/update_wrapper. It reads the
     # object's writable attribute map (a snapshot; live-mapping is a later refinement).

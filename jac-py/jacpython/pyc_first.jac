@@ -2295,6 +2295,8 @@ glob OP_CACHE: int = 0,
      OP_DICT_MERGE: int = 66,
      OP_DICT_UPDATE: int = 67,
      OP_STORE_FAST_STORE_FAST: int = 114,
+     OP_EXTENDED_ARG: int = 69,
+     OP_CALL_FUNCTION_EX: int = 4,
      OP_NOP: int = 27;
 
 # Inline caches occupy real code units in 3.14.  Returning the number of cache
@@ -4579,11 +4581,21 @@ def run_frame(frame: PyFrame) -> PyObj {
     locals = frame.locals;
     code = co.co_code;
     ip = frame.ip;
+    ext_arg = 0;
     while ip < len(code) {
         offset = ip;
         op = code[ip];
         arg = code[ip + 1];
         ip = ip + 2 + 2 * opcode_cache_count(op);
+        # EXTENDED_ARG carries the high bits of the FOLLOWING instruction's oparg
+        # (up to four may chain). Fold any accumulated prefix into this arg, then
+        # either stash it (this op IS the prefix) or clear it for the real op.
+        arg = arg | (ext_arg << 8);
+        ext_arg = 0;
+        if op == OP_EXTENDED_ARG {
+            ext_arg = arg;
+            continue;
+        }
         if op == OP_CACHE or op == OP_NOT_TAKEN or op == OP_NOP or op == OP_RESUME {
             continue;
         }
@@ -5024,7 +5036,10 @@ def run_frame(frame: PyFrame) -> PyObj {
             # Unlike DICT_UPDATE, a duplicate key is a TypeError (a keyword passed
             # more than once). Keyword keys are always strings.
             merge_source: PyObj = stack.pop();
-            target_index = len(stack) - arg - 1;
+            # Stack effect (CPython): (callable, unused, unused, dict,
+            # unused[oparg-1], update). After popping `update`, the target dict
+            # sits `oparg` slots below the top.
+            target_index = len(stack) - arg;
             merge_target = stack[target_index] as PyDict;
             merge_pairs = dict_merge_pairs(merge_source);
             mkeys = merge_pairs.dict_keys();
@@ -5580,6 +5595,46 @@ def run_frame(frame: PyFrame) -> PyObj {
                 return result;
             }
             stack.append(result);
+            continue;
+        }
+        if op == OP_CALL_FUNCTION_EX {
+            # f(*args, **kwargs). Stack (bottom->top): func, self_or_null,
+            # callargs (a materialized iterable), kwargs (a mapping or NULL). The
+            # oparg is unused in 3.14: a NULL kwargs slot (PUSH_NULL) means no
+            # keywords.
+            kwargs_obj = stack.pop();
+            callargs_obj = stack.pop();
+            self_or_null_ex = stack.pop();
+            fn_ex = stack.pop();
+            ex_args_list = members_of(callargs_obj);
+            if is_error(ex_args_list) {
+                return ex_args_list;
+            }
+            ex_call_args: list[PyObj] = (ex_args_list as PyList).items;
+            if self_or_null_ex.t != "none" {
+                ex_call_args.insert(0, self_or_null_ex);
+            }
+            ex_kwargs: dict[str, PyObj] = {};
+            if isinstance(kwargs_obj, PyDict) {
+                ex_kwargs = (kwargs_obj as PyDict).dict_str_map();
+            } elif kwargs_obj.t != "none" {
+                # A non-dict, non-NULL mapping (e.g. a proxied host mapping):
+                # normalize through from_host(to_host(...)) into a PyDict.
+                coerced = from_host(to_host(kwargs_obj));
+                if isinstance(coerced, PyDict) {
+                    ex_kwargs = (coerced as PyDict).dict_str_map();
+                }
+            }
+            ex_result = py_invoke(fn_ex, ex_call_args, ex_kwargs);
+            if is_error(ex_result) {
+                target = recover_exception(co, ex_result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return ex_result;
+            }
+            stack.append(ex_result);
             continue;
         }
         if op == OP_PUSH_EXC_INFO {
