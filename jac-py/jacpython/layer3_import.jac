@@ -45,6 +45,85 @@ def layer3_probe(name: str) -> str {
 
 # ---------------- tests ----------------
 
+test "layer3: a builtin subclass with a custom __new__ controls its boxed value" {
+    # re._constants._NamedIntConstant(int) pattern: __new__(cls, value, name)
+    # boxes only `value` through super().__new__(cls, value) and stashes name.
+    # PyClass.tp_call must honor the user __new__ (not auto-box all args), and
+    # super().__new__ on a builtin base must produce a tagged PyUserObj.
+    layer3_reset();
+    src = "class NIC(int):\n"
+    "    def __new__(cls, value, name):\n"
+    "        self = super(NIC, cls).__new__(cls, value)\n"
+    "        self.name = name\n"
+    "        return self\n"
+    "x = NIC(42, 'ANSWER')\n"
+    "asint = int(x)\n"
+    "nm = x.name\n"
+    "summed = x + 8\n"
+    "isint = isinstance(x, int)\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["asint"]) == 42;
+    assert to_host(g["nm"]) == "ANSWER";
+    assert to_host(g["summed"]) == 50;
+    assert to_host(g["isint"]) == True;
+}
+
+test "layer3: object.__new__/super().__new__ build plain instances (singleton __new__)" {
+    # functools._PlaceholderType pattern: __new__ caches a single instance via
+    # object.__new__(cls). object.__new__ must yield an in-VM PyUserObj.
+    layer3_reset();
+    src = "class Singleton:\n"
+    "    _inst = None\n"
+    "    def __new__(cls):\n"
+    "        if cls._inst is None:\n"
+    "            cls._inst = object.__new__(cls)\n"
+    "        return cls._inst\n"
+    "a = Singleton()\n"
+    "b = Singleton()\n"
+    "same = a is b\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["same"]) == True;
+}
+
+test "layer3: a builtin-int subclass indexes a list, and slice-deletion works" {
+    layer3_reset();
+    src = "class NI(int):\n"
+    "    pass\n"
+    "xs = [10, 20, 30, 40, 50]\n"
+    "at = xs[NI(2)]\n"
+    "del xs[-2:]\n"
+    "kept = list(xs)\n"
+    "atbool = xs[True]\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["at"]) == 30;
+    assert to_host(g["kept"]) == [10, 20, 30];
+    assert to_host(g["atbool"]) == 20;
+}
+
+test "layer3: globals() is a live view -- update binds module names" {
+    # re._constants._makecodes does globals().update({...}); the names must become
+    # real module globals a later LOAD_GLOBAL resolves.
+    layer3_reset();
+    src = "def install():\n"
+    "    globals().update({'INJECTED': 7, 'OTHER': 9})\n"
+    "install()\n"
+    "total = INJECTED + OTHER\n"
+    "names = sorted(n for n in globals() if not n.startswith('_'))\n"
+    "got = globals().get('INJECTED', 0)\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["total"]) == 16;
+    assert to_host(g["got"]) == 7;
+    assert "INJECTED" in to_host(g["names"]);
+}
+
 test "layer3: a leaf pure-Python module (keyword) boots in-VM proxy-free" {
     layer3_reset();
     mod = layer3_import("keyword");

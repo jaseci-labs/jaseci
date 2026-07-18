@@ -70,10 +70,22 @@ obj PyObj {
     def tp_hashkey -> str {
         return "";
     }
+
+    # __index__: the PyInt to use when this object is a sequence index / slice
+    # bound. int is itself; bool coerces; a builtin-int subclass (a PyUserObj
+    # boxing an int, e.g. re._constants._NamedIntConstant) unwraps to its base.
+    # Everything else is not an integer index.
+    def to_index -> PyObj {
+        return py_error("TypeError", "object cannot be interpreted as an integer");
+    }
 }
 
 obj PyInt(PyObj) {
     has val: int;
+
+    def to_index -> PyObj {
+        return self;
+    }
 
     def nb_binop(kind: int, other: PyObj) -> PyObj {
         if other.t != "int" {
@@ -453,6 +465,13 @@ obj PyBool(PyObj) {
     def tp_bool -> bool {
         return self.val;
     }
+    # bool is an int subclass: True indexes as 1, False as 0.
+    def to_index -> PyObj {
+        if self.val {
+            return PyInt(t="int", val=1);
+        }
+        return PyInt(t="int", val=0);
+    }
     # bool is an int subclass: True keys as int 1, False as int 0.
     def tp_hashkey -> str {
         if self.val {
@@ -567,10 +586,11 @@ obj PyList(PyObj) {
         if isinstance(index, PySlice) {
             return PyList(t="list", items=_slice_objs(self.items, index as PySlice));
         }
-        if index.t != "int" {
-            return py_error("TypeError", "index must be an integer");
+        idx = index.to_index();
+        if is_error(idx) {
+            return py_error("TypeError", "list indices must be integers or slices");
         }
-        i = (index as PyInt).val;
+        i = (idx as PyInt).val;
         if i < 0 {
             i = len(self.items) + i;
         }
@@ -581,10 +601,11 @@ obj PyList(PyObj) {
     }
 
     def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
-        if index.t != "int" {
+        idx = index.to_index();
+        if is_error(idx) {
             return py_error("TypeError", "list indices must be integers");
         }
-        i = (index as PyInt).val;
+        i = (idx as PyInt).val;
         if i < 0 {
             i = len(self.items) + i;
         }
@@ -596,10 +617,41 @@ obj PyList(PyObj) {
     }
 
     def mp_del_subscript(index: PyObj) -> PyObj {
-        if index.t != "int" {
+        if isinstance(index, PySlice) {
+            # del lst[a:b:c] -- rebuild the list without the sliced positions
+            # (re._constants does `del OPCODES[-2:]`).
+            b = slice_indices(index as PySlice, len(self.items));
+            si = b[0];
+            stop = b[1];
+            step = b[2];
+            drop: dict[int, bool] = {};
+            if step > 0 {
+                while si < stop {
+                    drop[si] = True;
+                    si = si + step;
+                }
+            } else {
+                while si > stop {
+                    drop[si] = True;
+                    si = si + step;
+                }
+            }
+            kept: list[PyObj] = [];
+            k = 0;
+            while k < len(self.items) {
+                if not (k in drop) {
+                    kept.append(self.items[k]);
+                }
+                k = k + 1;
+            }
+            self.items = kept;
+            return py_none();
+        }
+        idx = index.to_index();
+        if is_error(idx) {
             return py_error("TypeError", "list indices must be integers");
         }
-        i = (index as PyInt).val;
+        i = (idx as PyInt).val;
         if i < 0 {
             i = len(self.items) + i;
         }

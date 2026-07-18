@@ -62,6 +62,13 @@ def _jac_host_len(value):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_is_object_type(value):
+    # True iff value is exactly the builtin `object` type. object.__new__(cls) is
+    # the canonical plain-instance constructor (functools._PlaceholderType, any
+    # singleton). Other types' __new__ stays host-routed so namedtuple's
+    # tuple.__new__(HostClass, ...) is unaffected.
+    return value is object
+
 def _jac_host_hashkey(value):
     # Bucket a proxied host object by its host hash so it can be a dict/set key
     # (type-keyed dispatch tables in functools/copyreg/typing/contextlib). Equal
@@ -1199,6 +1206,12 @@ obj PyHostProxy(PyObj) {
     has val: any;
 
     def tp_getattro(name: str) -> PyObj {
+        # object.__new__ builds a plain in-VM instance (so a user class's __new__
+        # that calls it produces a PyUserObj, not a host object). Narrow to the
+        # exact `object` type; every other type's __new__ stays host-routed.
+        if name == "__new__" and _jac_is_object_type(self.val) {
+            return PyNativeNew(t="native_new", base_name="object");
+        }
         return host_getattr(self, name);
     }
 
@@ -1256,6 +1269,32 @@ obj PyClass(PyObj) {
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        # A python-level __new__ (common on builtin subclasses that control their
+        # boxed value, e.g. re._constants._NamedIntConstant) governs construction:
+        # call __new__(cls, *args) and use its return value. __init__ then runs
+        # only if __new__ returned an instance of this class (CPython's rule).
+        user_new = class_lookup_attr(self, "__new__");
+        if not is_error(user_new) and isinstance(user_new, PyFunction) {
+            new_args: list[PyObj] = [self];
+            for a in args {
+                new_args.append(a);
+            }
+            made = py_invoke(user_new, new_args, kwargs);
+            if is_error(made) {
+                return made;
+            }
+            if isinstance(made, PyUserObj)
+                and instance_of_class(made as PyUserObj, self) {
+                init2 = class_lookup_attr(self, "__init__");
+                if not is_error(init2) and isinstance(init2, PyFunction) {
+                    ir = bind_attribute(init2, made).tp_call(args, kwargs);
+                    if ir.t == "error" {
+                        return ir;
+                    }
+                }
+            }
+            return made;
+        }
         # A subclass of a builtin (native_base != "") boxes the underlying value
         # by running the builtin constructor over the args (int("5") -> 5, ...).
         boxed: PyObj = py_none();
@@ -1331,6 +1370,15 @@ obj PyUserObj(PyObj) {
 
     def tp_richcompare(kind: int, other: PyObj) -> PyObj {
         return user_compare(kind, self, other);
+    }
+
+    def to_index -> PyObj {
+        # A builtin-int subclass instance (re._constants._NamedIntConstant, an
+        # IntEnum member, ...) indexes as its boxed int.
+        if self._has_base() {
+            return self._base_obj().to_index();
+        }
+        return py_error("TypeError", "object cannot be interpreted as an integer");
     }
 
     def tp_hashkey -> str {
@@ -1717,7 +1765,12 @@ def host_builtin(name: str) -> PyObj {
     if name == "next" or name == "iter" or name == "id"
     or name == "len"
     or name == "isinstance" or name == "issubclass"
-    or name == "getattr" or name == "setattr" or name == "hasattr" {
+    or name == "getattr" or name == "setattr" or name == "hasattr"
+    or name == "globals" {
+        # globals() must be native: it returns a LIVE view of the running frame's
+        # module namespace, so `globals().update({...})` / `globals()[k] = v`
+        # (module init idioms, e.g. re._constants) bind real module globals that a
+        # later LOAD_GLOBAL can see. The call site in run_frame supplies the ns.
         return PyNativeBuiltin(t="native_builtin", name=name);
     }
     result = _jac_host_builtin(name);
@@ -3241,15 +3294,77 @@ def class_lookup_attr(cls: PyClass, name: str) -> PyObj {
 # super().name lookup: search the instance's MRO starting AFTER the defining
 # class (zero-arg super semantics). defining_cls comes from the __class__ cell;
 # if it isn't a PyClass, fall back to the instance's own class.
+# `builtin.__new__(cls, *box_args)` reached through super() from a subclass's
+# own __new__ (e.g. re._constants._NamedIntConstant, IntEnum members). The first
+# arg is the class to instantiate; the rest box the builtin base. Returns a
+# PyUserObj tagged with that class so the subclass's identity and attributes
+# (a .name set right after) survive -- exactly the value/ref line Track B draws.
+obj PyNativeNew(PyObj) {
+    has base_name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) == 0 {
+            return py_error("TypeError", "__new__() takes a class argument");
+        }
+        target_cls = args[0];
+        # object.__new__(cls): a plain instance, no boxed builtin value. This is
+        # the super().__new__(cls) / object.__new__(cls) path of a class whose
+        # only base is object (functools._PlaceholderType, most user classes).
+        if self.base_name == "object" {
+            if isinstance(target_cls, PyClass) {
+                return PyUserObj(
+                    t="instance", cls=target_cls as PyClass, attrs={}, base=py_none()
+                );
+            }
+            return py_error("TypeError", "object.__new__ requires a class");
+        }
+        box_args: list[PyObj] = [];
+        j = 1;
+        while j < len(args) {
+            box_args.append(args[j]);
+            j = j + 1;
+        }
+        boxed = construct_native_base(self.base_name, box_args);
+        if is_error(boxed) {
+            return boxed;
+        }
+        if isinstance(target_cls, PyClass) {
+            return PyUserObj(
+                t="instance", cls=target_cls as PyClass, attrs={}, base=boxed
+            );
+        }
+        # Called with the exact builtin type (not a user subclass): plain value.
+        return boxed;
+    }
+}
+
+# True iff `inst` is an instance of `cls` (walks the instance class's MRO).
+def instance_of_class(inst: PyUserObj, cls: PyClass) -> bool {
+    for klass in class_mro(inst.cls) {
+        if klass is cls {
+            return True;
+        }
+    }
+    return False;
+}
+
 def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
-    if not isinstance(instance, PyUserObj) {
+    # `instance` is a real instance for a normal super().method(), but a CLASS
+    # for super(Cls, cls).__new__(...) inside a __new__. Resolve which class's
+    # MRO to walk from either shape.
+    walk_cls = py_none();
+    if isinstance(instance, PyUserObj) {
+        walk_cls = (instance as PyUserObj).cls;
+    } elif isinstance(instance, PyClass) {
+        walk_cls = instance;
+    } else {
         return py_error("AttributeError", name);
     }
-    start: PyClass = (instance as PyUserObj).cls;
+    start: PyClass = walk_cls as PyClass;
     if isinstance(defining_cls, PyClass) {
         start = defining_cls as PyClass;
     }
-    mro = class_mro((instance as PyUserObj).cls);
+    mro = class_mro(walk_cls as PyClass);
     past = False;
     for klass in mro {
         if past and name in klass.attrs {
@@ -3258,6 +3373,21 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
         if klass is start {
             past = True;
         }
+    }
+    # No python ancestor defines it. super().__new__ resolves to the base
+    # constructor: a builtin (int.__new__, str.__new__, ...) when the chain boxes
+    # one, else object.__new__ (a plain instance of the class).
+    if name == "__new__" {
+        base = start.native_base;
+        for klass in mro {
+            if klass.native_base != "" {
+                base = klass.native_base;
+            }
+        }
+        if base == "" {
+            base = "object";
+        }
+        return PyNativeNew(t="native_new", base_name=base);
     }
     return py_error("AttributeError", name);
 }
@@ -3558,6 +3688,141 @@ obj PyNativeBuiltin(PyObj) {
             return stop_iteration(py_none());
         }
         return step;
+    }
+}
+
+# A live view of a running frame's globals (`dict[str, PyObj]`, held by
+# reference). globals() returns one so module init idioms that MUTATE the module
+# namespace -- globals().update({...}), globals()[name] = value -- bind real
+# globals a later LOAD_GLOBAL/LOAD_NAME resolves. A snapshot dict would silently
+# drop those writes (re._constants._makecodes builds its OPCODES this way).
+obj PyGlobalsProxy(PyObj) {
+    has ns: dict[str, PyObj];
+
+    def mp_subscript(index: PyObj) -> PyObj {
+        key = expect_str(index);
+        if key in self.ns {
+            return self.ns[key];
+        }
+        return py_error("KeyError", key);
+    }
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        self.ns[expect_str(index)] = value;
+        return py_none();
+    }
+
+    # Iterating globals() yields its keys (module code does
+    # `[n for n in globals() if ...]` to compute __all__).
+    def tp_iter -> PyObj {
+        keys: list[PyObj] = [];
+        for k in self.ns {
+            keys.append(PyStr(t="str", val=k));
+        }
+        return PyIter(t="iter", items=keys, index=0);
+    }
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "update" {
+            return PyNsMethod(t="ns_method", ns=self.ns, op="update");
+        }
+        if name == "get" {
+            return PyNsMethod(t="ns_method", ns=self.ns, op="get");
+        }
+        if name == "keys" {
+            return PyNsMethod(t="ns_method", ns=self.ns, op="keys");
+        }
+        if name == "values" {
+            return PyNsMethod(t="ns_method", ns=self.ns, op="values");
+        }
+        if name == "items" {
+            return PyNsMethod(t="ns_method", ns=self.ns, op="items");
+        }
+        if name == "setdefault" {
+            return PyNsMethod(t="ns_method", ns=self.ns, op="setdefault");
+        }
+        return py_error("AttributeError", name);
+    }
+}
+
+# The bound dict-method objects a PyGlobalsProxy hands out. Kept minimal to the
+# surface module-init code exercises; each mutates/reads the shared ns directly.
+obj PyNsMethod(PyObj) {
+    has ns: dict[str, PyObj],
+        op: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if self.op == "update" {
+            if len(args) > 0 {
+                src = args[0];
+                pairs: PyObj = py_none();
+                if isinstance(src, PyDict) {
+                    pairs = src;
+                } else {
+                    pairs = from_host(to_host(src));
+                }
+                if isinstance(pairs, PyDict) {
+                    smap = (pairs as PyDict).dict_str_map();
+                    for k in smap {
+                        self.ns[k] = smap[k];
+                    }
+                }
+            }
+            for kw in kwargs {
+                self.ns[kw] = kwargs[kw];
+            }
+            return py_none();
+        }
+        if self.op == "get" {
+            if len(args) > 0 {
+                key = expect_str(args[0]);
+                if key in self.ns {
+                    return self.ns[key];
+                }
+            }
+            if len(args) > 1 {
+                return args[1];
+            }
+            return py_none();
+        }
+        if self.op == "setdefault" {
+            if len(args) > 0 {
+                key = expect_str(args[0]);
+                if key in self.ns {
+                    return self.ns[key];
+                }
+                fallback = py_none();
+                if len(args) > 1 {
+                    fallback = args[1];
+                }
+                self.ns[key] = fallback;
+                return fallback;
+            }
+            return py_none();
+        }
+        if self.op == "keys" {
+            out: list[PyObj] = [];
+            for k in self.ns {
+                out.append(PyStr(t="str", val=k));
+            }
+            return PyList(t="list", items=out);
+        }
+        if self.op == "values" {
+            vout: list[PyObj] = [];
+            for k in self.ns {
+                vout.append(self.ns[k]);
+            }
+            return PyList(t="list", items=vout);
+        }
+        if self.op == "items" {
+            iout: list[PyObj] = [];
+            for k in self.ns {
+                pair: list[PyObj] = [PyStr(t="str", val=k), self.ns[k]];
+                iout.append(PyTuple(t="tuple", items=pair));
+            }
+            return PyList(t="list", items=iout);
+        }
+        return py_error("TypeError", "unsupported namespace op");
     }
 }
 
@@ -5578,6 +5843,13 @@ def run_frame(frame: PyFrame) -> PyObj {
                 return py_error("RuntimeError", "CALL stack underflow");
             }
             fn = stack.pop();
+            # globals() binds to THIS frame's namespace (a live view), which only
+            # the ceval holds -- resolve it here rather than in PyNativeBuiltin.
+            if fn.t == "native_builtin"
+                and (fn as PyNativeBuiltin).name == "globals" {
+                stack.append(PyGlobalsProxy(t="globals", ns=globals));
+                continue;
+            }
             # CPython's CALL convention carries a `self_or_null` slot below the
             # args. NULL (a plain call after PUSH_NULL, modeled here as None) is
             # dropped; a real value (a bound self, or a genexpr's `.0` iterator
