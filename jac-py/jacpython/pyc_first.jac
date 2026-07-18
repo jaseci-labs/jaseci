@@ -151,6 +151,23 @@ def _jac_construct_builtin(name, raw_args):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_builtin_new(name, host_cls, raw_args):
+    # builtin.__new__(host_cls, *raw_args): the host builtin constructor over a
+    # HOST class (namedtuple's dynamic tuple subclass). Keeps the host subclass
+    # instance intact instead of collapsing it to a native value.
+    import builtins
+    t = getattr(builtins, name)
+    try:
+        return (True, t.__new__(host_cls, *raw_args))
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
+def _jac_builtin_new_slot(name):
+    import builtins
+    if name == "" or name == "object":
+        return object.__new__
+    return getattr(builtins, name).__new__
+
 def _jac_isinstance_of_builtin(host_val, name):
     # True iff host_val is an instance of the named builtin type.
     import builtins
@@ -1234,6 +1251,16 @@ obj PyHostProxy(PyObj) {
         if name == "__new__" and _jac_is_object_type(self.val) {
             return PyNativeNew(t="native_new", base_name="object");
         }
+        # A subclassable builtin's __new__ (str.__new__, int.__new__, ...) builds a
+        # native subclass instance boxing that value, so `str.__new__(EnumCls, v)`
+        # (enum member creation for a str/int mixin) yields a PyUserObj tagged with
+        # the native class -- not a host str.__new__(None) on a lost to_host class.
+        if name == "__new__" {
+            builtin_name: str = str(_jac_builtin_base_name(self.val));
+            if builtin_name != "" {
+                return PyNativeNew(t="native_new", base_name=builtin_name);
+            }
+        }
         return host_getattr(self, name);
     }
 
@@ -1315,6 +1342,13 @@ obj PyClass(PyObj) {
             }
             return PyNativeNew(t="native_new", base_name=base);
         }
+        # A method defined on the metaclass (EnumType._add_member_, __call__) is
+        # accessible on the class itself, bound to it -- the class is an instance
+        # of its metaclass.
+        meta_found = self._meta_dunder(name);
+        if not is_error(meta_found) {
+            return meta_found;
+        }
         return py_error("AttributeError", name);
     }
 
@@ -1327,6 +1361,35 @@ obj PyClass(PyObj) {
     # in enum's _find_data_type_). Distinct classes get distinct buckets.
     def tp_hashkey -> str {
         return "obj:" + str(id(self));
+    }
+
+    # A metaclass instance dunder: looked up on the class's metaclass MRO and bound
+    # to this class. `for m in EnumColor` dispatches EnumType.__iter__(cls); the
+    # same channel serves __getitem__/__contains__/__len__ on a class.
+    def _meta_dunder(name: str) -> PyObj {
+        if self.metaclass is not None and isinstance(self.metaclass, PyClass) {
+            found = class_lookup_attr(self.metaclass as PyClass, name);
+            if not is_error(found) {
+                return bind_attribute(found, self);
+            }
+        }
+        return py_error("AttributeError", name);
+    }
+
+    def tp_iter -> PyObj {
+        it = self._meta_dunder("__iter__");
+        if is_error(it) {
+            return py_error("TypeError", "object is not iterable");
+        }
+        return it.tp_call([], {});
+    }
+
+    def mp_subscript(index: PyObj) -> PyObj {
+        gi = self._meta_dunder("__getitem__");
+        if is_error(gi) {
+            return py_error("TypeError", "object is not subscriptable");
+        }
+        return gi.tp_call([index], {});
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
@@ -1655,6 +1718,15 @@ obj PyPropModifier(PyObj) {
     }
 }
 
+# object.__init__ / a builtin's default __init__: accepts any args, does nothing.
+# Reached when `inst.__init__(*args)` runs on an object whose class defines no
+# __init__ (enum calls enum_member.__init__(*args) unconditionally).
+obj PyNoOpInit(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return py_none();
+    }
+}
+
 obj PyClassMethodCtor(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 1 {
@@ -1979,6 +2051,11 @@ def to_host(value: PyObj) -> any {
             # invoke jacpython functions -- the round-trip that unblocks
             # namedtuple's dynamic class creation and decorator machinery.
             return _jac_make_host_trampoline(value);
+
+        case PyNativeNew():
+            # object.__new__ / tuple.__new__ crossing to the host (namedtuple binds
+            # `_tuple_new = tuple.__new__`) becomes the real host builtin __new__.
+            return _jac_builtin_new_slot(value.base_name);
 
         case PyClassMethod():
             # A native classmethod handed to host type()/a host class becomes a
@@ -3224,6 +3301,11 @@ def py_attr(value: PyObj, name: str) -> PyObj {
     if is_error(result) and name == "__new__" {
         return PyNativeNew(t="native_new", base_name="object");
     }
+    # `.__init__` with no user override is object.__init__ (a no-op accepting any
+    # args), so inst.__init__(*args) resolves rather than raising.
+    if is_error(result) and name == "__init__" {
+        return PyNoOpInit(t="noop_init");
+    }
     return result;
 }
 
@@ -3729,6 +3811,21 @@ obj PyNativeNew(PyObj) {
             box_args.append(args[j]);
             j = j + 1;
         }
+        # builtin.__new__ over a HOST class (namedtuple's dynamic tuple subclass)
+        # stays host-side so the host subclass instance is preserved.
+        if isinstance(target_cls, PyHostProxy) {
+            raw_box: list[any] = [];
+            for a in box_args {
+                raw_box.append(to_host(a));
+            }
+            hres = _jac_builtin_new(
+                self.base_name, (target_cls as PyHostProxy).val, raw_box
+            );
+            if host_result_ok(hres) {
+                return from_host(hres[1]);
+            }
+            return py_error(str(hres[1]), str(hres[2]));
+        }
         boxed = construct_native_base(self.base_name, box_args);
         if is_error(boxed) {
             return boxed;
@@ -4061,7 +4158,35 @@ def type_new(args: list[PyObj]) -> PyObj {
         bases = (bases_obj as PyList).items;
     }
     namespace = extract_namespace(args[3]);
-    return make_pyclass_from_map(class_name, bases, namespace, mcls);
+    cls = make_pyclass_from_map(class_name, bases, namespace, mcls);
+    ordered: list[str] = [];
+    for k in namespace {
+        ordered.append(k);
+    }
+    return apply_set_name_hooks(cls, ordered);
+}
+
+# After a class is built, type.__new__ calls __set_name__(cls, name) on every
+# namespace value that defines it, in definition order (PEP 487). This drives
+# enum member creation: each _proto_member's __set_name__ builds the real member
+# and registers it on the class. Returns the class, or the first hook's error.
+def apply_set_name_hooks(cls: PyClass, ordered_names: list[str]) -> PyObj {
+    for name in ordered_names {
+        if name in cls.attrs {
+            value = cls.attrs[name];
+            if isinstance(value, PyUserObj)
+                and user_has_dunder(value as PyUserObj, "__set_name__") {
+                res = call_user_dunder(
+                    value as PyUserObj, "__set_name__",
+                    [cls, PyStr(t="str", val=name)]
+                );
+                if is_error(res) {
+                    return res;
+                }
+            }
+        }
+    }
+    return cls;
 }
 
 # Read a PyDict whose keys are all strings (a class namespace) into a jac str map.
@@ -4164,7 +4289,12 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     if body_result.t == "error" {
         return body_result;
     }
-    return make_pyclass_from_map(class_name, bases, namespace, None);
+    cls = make_pyclass_from_map(class_name, bases, namespace, None);
+    ordered: list[str] = [];
+    for k in namespace {
+        ordered.append(k);
+    }
+    return apply_set_name_hooks(cls, ordered);
 }
 
 # The custom-metaclass class-creation protocol: metaclass.__prepare__ produces the
@@ -6394,6 +6524,11 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_GET_ITER {
             iterable = py_iter(stack.pop());
             if is_error(iterable) {
+                target = recover_exception(co, iterable, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
                 return iterable;
             }
             stack.append(iterable);
