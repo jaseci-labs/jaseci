@@ -7,9 +7,9 @@ module silently inherited the other's fields and ref-ness. jac2c now keys every
 type by a module-qualified `tid`: same-named types across modules emit distinct
 `a3_col_main__Token` / `a3_col_lib__Token` structs, constructors, and methods,
 and each reference (local decl, import alias, cross-module return) resolves to
-the right one. A type name that is unique across the program still keeps its
-bare name, so single-module emission is byte-identical (guarded by the rest of
-the emit-leg corpus).
+the right one. Every archetype struct name is namespaced as `module__Name`
+unconditionally -- even a program-unique type -- so separately-built TUs never
+emit a bare `struct Token` that would clash when fused/linked.
 
 The differential oracle (shared via `emit_support`) links the emitted TUs and
 compares their runtime output against the stock interpreter, so the coexistence

@@ -30,8 +30,13 @@ obj TypeFacts {
 
     def type_of_via_checker(e: uni.Expr) -> str;
     def typebase_to_typename(ty: object) -> str;
+    def infer_type(
+        e: object, local_types: dict[str, str], scope: dict[str, str] = {}
+    ) -> str;
     def is_ref(name: str) -> bool;
 }
+
+def _attr_name(nd: object) -> str;
 
 obj TypeIdIndex {
     has tids: dict[str, str] = {};

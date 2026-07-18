@@ -36,6 +36,18 @@ impl CGenPass.tid(name: str) -> str {
     return self.type_scope.get(name, name);
 }
 
+impl CGenPass.consume_class(tid: str) -> str {
+    # OwnershipFacts keys `consumed_params` by an archetype's *declared* name
+    # (its per-module bare name), while every emit-name here is the namespaced
+    # tid. Map the tid back to that declared name so callee-convention lookups
+    # line up with what the ownership pass recorded.
+    arch = self.arch_nodes.get(tid);
+    if arch is not None and arch.name is not None {
+        return arch.name.value;
+    }
+    return tid;
+}
+
 impl CGenPass.classify(mod: uni.Module) {
     for stmt in mod.body {
         if isinstance(stmt, uni.Archetype) and self.is_ref_arch(stmt) {
@@ -48,6 +60,12 @@ impl CGenPass.classify(mod: uni.Module) {
             self.index_arch(stmt);
         } elif isinstance(stmt, uni.Ability) and stmt.name_ref is not None {
             self.local_funcs[stmt.name_ref.sym_name] = True;
+        }
+    }
+    for a in self.module_consts(mod) {
+        tgt = a.target[0];
+        if isinstance(tgt, uni.Name) {
+            self.local_consts[tgt.value] = True;
         }
     }
     self.classify_imports(mod);
@@ -104,6 +122,46 @@ impl CGenPass.index_imported(sub: uni.Module) {
             self.extern_func_defs[fname] = stmt;
         }
     }
+    # Module-level constants of an imported module carry external linkage in
+    # their defining TU; the importing TU must `extern` them or references to
+    # the bare Jac name resolve to an undefined symbol at link time.
+    for a in self.module_consts(sub) {
+        tgt = a.target[0];
+        if not isinstance(tgt, uni.Name) {
+            continue;
+        }
+        cname = tgt.value;
+        if cname in self.local_consts or cname in self.extern_const_names {
+            continue;
+        }
+        self.extern_const_names.append(cname);
+        self.extern_consts.append(a);
+    }
+}
+
+impl CGenPass.module_consts(mod: uni.Module) -> list[uni.Assignment] {
+    out: list[uni.Assignment] = [];
+    for stmt in mod.body {
+        if isinstance(stmt, uni.GlobalVars) {
+            for a in stmt.assignments {
+                out.append(a);
+            }
+        }
+    }
+    return out;
+}
+
+impl CGenPass.const_head(a: uni.Assignment) -> str {
+    # The `<c-type> <name>` prefix shared by a module constant's definition
+    # (in its own TU) and its `extern` declaration (in an importing TU).
+    tgt = a.target[0];
+    name = self.gen_expr(tgt);
+    if a.type_tag is not None {
+        cty = self.c_type(self.tid(self.type_name(a.type_tag)));
+    } else {
+        cty = self.c_type(self.expr_type_name(a.value));
+    }
+    return f"{cty} {name}";
 }
 
 impl CGenPass.index_arch(arch: uni.Archetype) {
@@ -168,6 +226,13 @@ impl CGenPass.gen_module(mod: uni.Module) {
     vtables: list[str] = [];
     protos: list[str] = [];
     funcs: list[str] = [];
+    consts: list[str] = [];
+    for a in self.module_consts(mod) {
+        if a.value is None {
+            continue;
+        }
+        consts.append(self.const_head(a) + " = " + self.gen_expr(a.value) + ";");
+    }
     for stmt in mod.body {
         if isinstance(stmt, uni.Archetype) {
             if self.arch_tid(stmt) in self.type_ids {
@@ -202,6 +267,13 @@ impl CGenPass.gen_module(mod: uni.Module) {
             s
             for s in structs
             if s
+        ]
+    );
+    parts.extend(
+        [
+            c
+            for c in consts
+            if c
         ]
     );
     parts.extend(
@@ -253,6 +325,10 @@ impl CGenPass.extern_decls -> list[str] {
         }
         self.type_scope = self._defining_scope(ab);
         out.append("extern " + self.func_head(ab) + ";");
+    }
+    for a in self.extern_consts {
+        self.type_scope = self._defining_scope(a);
+        out.append("extern " + self.const_head(a) + ";");
     }
     self.type_scope = saved;
     return out;
@@ -944,7 +1020,18 @@ impl CGenPass.render_stmt(st: object, ind: int, is_last: bool) -> str {
         return self.gen_for(st, ind);
     }
     if isinstance(st, uni.ExprStmt) {
-        rendered = pad + self.gen_expr(st.expr) + ";";
+        if self.facts is not None
+        and self.facts.is_owned(st.expr)
+        and self.expr_type_name(st.expr) == "str" {
+            # Discarded owned-str value (concat / str-returning call): bind
+            # and release it immediately so the allocation does not leak.
+            self.tmp_ctr += 1;
+            tmp = f"_str{self.tmp_ctr}";
+            rendered = pad + f"const char* {tmp} = " + self.gen_expr(st.expr)
+                + f"; jac_rc_release({tmp});";
+        } else {
+            rendered = pad + self.gen_expr(st.expr) + ";";
+        }
         if is_last and not self.exc_frames {
             cleanup = self.scope_release_lines(pad, "");
             if cleanup {
@@ -1220,7 +1307,9 @@ impl CGenPass.gen_assign(a: uni.Assignment) -> str {
                 if self.exc_frames {
                     return f"{tgt}";
                 }
-                return f"{cty} {tgt}";
+                # Decl-only owned local: NULL-init so the scope-exit
+                # jac_rc_release() runs on a defined pointer, not garbage.
+                return f"{cty} {tgt} = NULL";
             }
         }
         if a.value is not None {
@@ -1238,6 +1327,24 @@ impl CGenPass.gen_assign(a: uni.Assignment) -> str {
             cty = self.c_type(inferred);
             self.local_types[tgt_node.value] = inferred;
             if inferred in self.type_ids {
+                track = self.own_local(tgt_node.value, cty);
+                if self.exc_frames {
+                    base = f"{tgt} = " + self.gen_expr(a.value);
+                } else {
+                    base = f"{cty} {tgt} = " + self.gen_expr(a.value);
+                }
+                if track {
+                    return base + "; " + " ".join(track);
+                }
+                return base;
+            }
+            if inferred == "str"
+            and self.facts is not None
+            and self.facts.is_owned(a.value) {
+                # A freshly heap-allocated str (concat/str-returning call)
+                # bound to a local: track it so every exit path (return,
+                # exception unwind) releases it. Borrowed literals stay
+                # untracked C statics and are never released.
                 track = self.own_local(tgt_node.value, cty);
                 if self.exc_frames {
                     base = f"{tgt} = " + self.gen_expr(a.value);
@@ -1359,7 +1466,7 @@ impl CGenPass.gen_call(e: uni.FuncCall) -> str {
 
     if isinstance(tgt, uni.Name) and self.tid(tgt.value) in self.type_ids {
         ctor_tid = self.tid(tgt.value);
-        args = self.gen_args(e, ctor_tid);
+        args = self.gen_args(e, self.consume_class(ctor_tid));
         return f"{ctor_tid}__new(" + ", ".join(args) + ")";
     }
 
@@ -1375,7 +1482,8 @@ impl CGenPass.gen_call(e: uni.FuncCall) -> str {
     and len(e.params) == 1
     and self.expr_type_name(e.params[0]) == "str" {
         self.needs_rt = True;
-        return "jac_str_len(" + self.gen_expr(e.params[0]) + ")";
+        arg = self.hoist_owned_str(self.gen_expr(e.params[0]), e.params[0]);
+        return "jac_str_len(" + arg + ")";
     }
 
     if isinstance(tgt, uni.AtomTrailer) and tgt.is_attr {
@@ -1383,7 +1491,7 @@ impl CGenPass.gen_call(e: uni.FuncCall) -> str {
         mname = self.attr_name(tgt.right);
         if recv_ty in self.type_ids and mname != "init" {
             recv = self.gen_expr(tgt.target);
-            args = self.gen_args(e, recv_ty + "." + mname);
+            args = self.gen_args(e, self.consume_class(recv_ty) + "." + mname);
             slot = None;
             if self.layout is not None {
                 slot = self.layout.get_method_slot(recv_ty, mname);
@@ -1449,9 +1557,32 @@ impl CGenPass.gen_args(e: uni.FuncCall, callee_key: str) -> list[str] {
     return args;
 }
 
+impl CGenPass.hoist_owned_str(argstr: str, e: object) -> str {
+    # A freshly heap-allocated str temporary (concat / str-returning call)
+    # that is consumed inline and bound to no tracked local: hoist it into a
+    # named temp and release it after the statement, so the allocation is
+    # balanced on every exit path. Borrowed literals and Name reads are
+    # is_owned==False and pass through untouched -- a static `const char*`
+    # never reaches jac_rc_release.
+    if not self.hoist_ok
+    or self.facts is None
+    or not self.facts.is_owned(e)
+    or self.expr_type_name(e) != "str" {
+        return argstr;
+    }
+    self.tmp_ctr += 1;
+    tmp = f"_str{self.tmp_ctr}";
+    self.arg_pre.append(self.cur_pad + f"const char* {tmp} = {argstr};");
+    self.arg_post.append(self.cur_pad + f"jac_rc_release({tmp});");
+    return tmp;
+}
+
 impl CGenPass.emit_arg(p: uni.Expr, callee_key: str, idx: int) -> str {
     argstr = self.gen_expr(p);
     ty = self.expr_type_name(p);
+    if ty == "str" {
+        return self.hoist_owned_str(argstr, p);
+    }
     if ty not in self.type_ids or self.facts is None or not self.hoist_ok {
         return argstr;
     }

@@ -14,8 +14,10 @@ enum FidelityBand {
 # W4208 remains BEHAVIOR for residual lossy for-lowerings (e.g. unmappable
 # condition → `while True`). Continue-in-for is now faithful: promotable fors
 # become IterForStmt, and while-lowerings splice the step before continue.
-glob STYLE_NUMS: set[int] = {4201, 4204, 4209, 4210, 4211},
-     BEHAVIOR_NUMS: set[int] = {4202, 4203, 4205, 4206, 4207, 4208},
+glob STYLE_NUMS: set[int] = {4201, 4209, 4210, 4211},
+     BEHAVIOR_NUMS: set[int] = {
+         4202, 4203, 4204, 4205, 4206, 4207, 4208, 4212, 4213
+     },
      HOLE_NUMS: set[int] = {4290};
 
 def fidelity_band(num: int) -> FidelityBand {

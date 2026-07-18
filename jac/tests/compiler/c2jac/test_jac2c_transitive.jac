@@ -45,12 +45,12 @@ test "jac2c transitive import resolves a leaf type reached through the middle mo
     # leaf struct and extern its methods, and lower the method calls to the
     # mangled cross-module symbols rather than emitting raw Jac names.
     for needle in [
-        "struct Cell {",
-        "extern int Cell__bump(struct Cell *self);",
-        "extern int Cell__get(struct Cell *self);",
-        "extern struct Cell * make_cell(int start);",
-        "Cell__bump(",
-        "Cell__get(",
+        "struct chain_leaf__Cell {",
+        "extern int chain_leaf__Cell__bump(struct chain_leaf__Cell *self);",
+        "extern int chain_leaf__Cell__get(struct chain_leaf__Cell *self);",
+        "extern struct chain_leaf__Cell * make_cell(int start);",
+        "chain_leaf__Cell__bump(",
+        "chain_leaf__Cell__get(",
         "make_cell("
     ] {
         assert needle in main_c , f"missing {needle!r} in:\n{main_c}";

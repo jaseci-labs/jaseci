@@ -39,6 +39,7 @@ import from tests.compiler.c2jac.emit_support {
     int_tuple_line,
     link_and_run,
     interpreter_run,
+    require_cc,
     FIXTURES
 }
 import from jaclang.jac0core.program { JacProgram }
@@ -161,9 +162,7 @@ def _na_binary_output(fixture: str, calls: list[str]) -> (str | None) {
 
 
 test "jac2c emitted C matches the stock interpreter for every runtime fixture" {
-    if cc() is None {
-        return;
-    }
+    require_cc();
     for (fixture, calls) in SPECS {
         c_out = link_and_run(emit_units(fixture), calls);
         py_out = interpreter_run([fixture], fixture, calls);
@@ -182,9 +181,7 @@ test "na backend accepts and lowers every jac2c runtime fixture" {
 
 
 test "na native binary and emitted C agree at run time" {
-    if cc() is None {
-        return;
-    }
+    require_cc();
     ran_any = False;
     for (fixture, calls) in SPECS {
         na_out = _na_binary_output(fixture, calls);

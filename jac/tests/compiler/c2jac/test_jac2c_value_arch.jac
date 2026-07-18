@@ -42,8 +42,8 @@ test "methodless archetype is emitted as a reference (pointer), not a value stru
     # constructor; a value-classified archetype would emit a bare `struct Point`
     # with copy-on-assign. The uniform reference classification is what keeps
     # the C backend substitutable for the interpreter.
-    assert "struct Point *" in src , f"Point not reference-classified:\n{src}";
-    assert "Point__new" in src , f"no rc constructor for Point:\n{src}";
+    assert "struct obj_value_alias__Point *" in src , f"Point not reference-classified:\n{src}";
+    assert "obj_value_alias__Point__new" in src , f"no rc constructor for Point:\n{src}";
 }
 
 

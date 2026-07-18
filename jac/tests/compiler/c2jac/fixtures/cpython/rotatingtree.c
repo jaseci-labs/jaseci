@@ -1,10 +1,6 @@
 typedef struct rotating_node_s rotating_node_t;
 typedef int (*rotating_tree_enum_fn)(rotating_node_t *node, void *arg);
 
-#ifndef NULL
-#define NULL ((void *)0)
-#endif
-
 struct rotating_node_s {
     void *key;
     rotating_node_t *left;
@@ -36,7 +32,6 @@ static int randombits(int bits) {
     return result;
 }
 
-/* Stable scalar entry for the lift oracle (seeded LCG; first call is deterministic). */
 int RotatingTree_RandomBits(int bits) {
     return randombits(bits);
 }

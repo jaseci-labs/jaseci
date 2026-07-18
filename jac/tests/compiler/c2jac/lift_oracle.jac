@@ -85,6 +85,8 @@ def run_c(
             [
                 compiler,
                 "-std=c11",
+                "-include",
+                "stddef.h",
                 "-c",
                 "-Dmain=__c2jac_fixture_main",
                 *incs,
@@ -109,7 +111,7 @@ def run_c(
     }
     binp = os.path.join(work, "bin");
     linked = subprocess.run(
-        [compiler, "-std=c11", *incs, *objs, drv, "-o", binp],
+        [compiler, "-std=c11", "-include", "stddef.h", *incs, *objs, drv, "-o", binp],
         capture_output=True,
         text=True
     );

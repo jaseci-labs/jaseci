@@ -4,6 +4,7 @@ impl CastBuildPass.postinit -> None {
     self._list_bound = set();
     self._enum_member_owner = self._build_member_owner_map();
     self._var_types = {};
+    self._var_unsigned = set();
     self._func_depth = 0;
     self._func_name = None;
     self._func_contam = [];
@@ -263,6 +264,7 @@ impl CastBuildPass.proc_file_ast(nd: c_ast.Node) -> uni.Module {
         doc=None,
         body=elements,
         terminals=[],
+        has_synthesized_tokens=True,
         kid=elements
     );
     return cast(uni.Module, self.nu(ret));
@@ -289,6 +291,7 @@ impl CastBuildPass.proc_compound(nd: c_ast.Node) -> list[uni.CodeBlockStmt] {
 impl CastBuildPass.proc_func_def(nd: c_ast.Node) -> uni.Ability {
     self._list_bound = set();
     self._var_types = {};
+    self._var_unsigned = set();
     fname = nd.decl.name;
     name = self._ident(nd.decl, fname);
     self._func_name = fname;
@@ -464,12 +467,21 @@ impl CastBuildPass.proc_binary_op(nd: c_ast.Node) -> object {
     (kind, tok, text) = entry;
 
     if (
-        nd.op == "/"
-        and self._expr_prim(nd.left) == JacPrim.INT
+        self._expr_prim(nd.left) == JacPrim.INT
         and self._expr_prim(nd.right) == JacPrim.INT
     ) {
-        tok = Tok.FLOOR_DIV;
-        text = "//";
+        signed = not (
+            self._expr_unsigned(nd.left) and self._expr_unsigned(nd.right)
+        );
+        if nd.op == "/" {
+            tok = Tok.FLOOR_DIV;
+            text = "//";
+            if signed {
+                self.emit_c_diag(nd, 4212);
+            }
+        } elif nd.op == "%" and signed {
+            self.emit_c_diag(nd, 4213);
+        }
     }
     left = self.conv_expr(nd.left);
     right = self.conv_expr(nd.right);
@@ -1153,6 +1165,35 @@ impl CastBuildPass._record_scalar_type(name: str, type_node: c_ast.Node) -> None
     } elif name in self._var_types {
         del self._var_types[name];
     }
+    self._var_unsigned.discard(name);
+    if isinstance(type_node, c_ast.TypeDecl)
+    and isinstance(type_node.type, c_ast.IdentifierType)
+    and c_type_is_unsigned(type_node.type.names) {
+        self._var_unsigned.add(name);
+    }
+}
+
+impl CastBuildPass._expr_unsigned(c_node: c_ast.Node) -> bool {
+    # True only when the operand is provably non-negative: an unsigned-typed
+    # variable, a `(unsigned...)` cast, or an unsigned integer literal. Signed `/`
+    # and `%` diverge from Jac's floor semantics, but unsigned ones do not, so
+    # this gates the W4212/W4213 fidelity diagnostics.
+    if isinstance(c_node, c_ast.Constant) {
+        return "u" in (c_node.type or "").lower()
+            and classify_c_constant(c_node.type) == CLIT_INT;
+    }
+    if isinstance(c_node, c_ast.ID) {
+        return c_node.name in self._var_unsigned;
+    }
+    if isinstance(c_node, c_ast.Cast) {
+        inner = c_node?.to_type?.type;
+        if isinstance(inner, c_ast.TypeDecl)
+        and isinstance(inner.type, c_ast.IdentifierType) {
+            return c_type_is_unsigned(inner.type.names);
+        }
+        return False;
+    }
+    return False;
 }
 
 impl CastBuildPass._expr_prim(c_node: c_ast.Node) -> JacPrim | None {

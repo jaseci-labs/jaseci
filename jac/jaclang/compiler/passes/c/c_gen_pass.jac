@@ -69,6 +69,9 @@ obj CGenPass(Transform[uni.Module, uni.Module]) {
         extern_types: list[str] = [],
         extern_funcs: list[str] = [],
         extern_func_defs: dict[str, uni.Ability] = {},
+        local_consts: dict[str, bool] = {},
+        extern_consts: list[uni.Assignment] = [],
+        extern_const_names: list[str] = [],
         seen_imports: list[str] = [],
         shared_layout: LayoutRegistry | None = None,
         tid_index: TypeIdIndex | None = None,
@@ -81,11 +84,14 @@ obj CGenPass(Transform[uni.Module, uni.Module]) {
     def is_ref_arch(arch: uni.Archetype) -> bool;
     def arch_tid(arch: uni.Archetype) -> str;
     def tid(name: str) -> str;
+    def consume_class(tid: str) -> str;
     def _defining_scope(nd: uni.UniNode) -> dict[str, str];
     def classify(mod: uni.Module);
     def classify_imports(mod: uni.Module);
     def index_imported(sub: uni.Module);
     def index_arch(arch: uni.Archetype);
+    def module_consts(mod: uni.Module) -> list[uni.Assignment];
+    def const_head(a: uni.Assignment) -> str;
     def gen_module(mod: uni.Module);
     def extern_decls -> list[str];
     def load_layout(mod: uni.Module);
@@ -140,6 +146,7 @@ obj CGenPass(Transform[uni.Module, uni.Module]) {
     def gen_value_ctor(e: uni.FuncCall, name: str) -> str;
     def gen_args(e: uni.FuncCall, callee_key: str) -> list[str];
     def emit_arg(p: uni.Expr, callee_key: str, idx: int) -> str;
+    def hoist_owned_str(argstr: str, e: object) -> str;
     def emit_ability_body(sig: object, body: object, self_type: str) -> str;
     def virtual_call(
         recv_ty: str, mname: str, recv: str, slot: int, args: list[str]

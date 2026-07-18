@@ -36,6 +36,7 @@ import from jaclang.compiler.cfront.c_types {
     jac_prim,
     JacPrim,
     C_PRIM_MAP,
+    c_type_is_unsigned,
     is_char_ptr,
     walk_to_typedecl,
     TypeKind
@@ -119,6 +120,7 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
         _list_bound: set[str] by postinit,
         _enum_member_owner: dict[str, str] by postinit,
         _var_types: dict[str, JacPrim] by postinit,
+        _var_unsigned: set[str] by postinit,
         _func_depth: int by postinit,
         _func_name: str | None by postinit,
         _func_contam: list[CLiftSite] by postinit,
@@ -207,6 +209,7 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
     def _scalar_prim(type_node: c_ast.Node) -> JacPrim | None;
     def _record_scalar_type(name: str, type_node: c_ast.Node) -> None;
     def _expr_prim(c_node: c_ast.Node) -> JacPrim | None;
+    def _expr_unsigned(c_node: c_ast.Node) -> bool;
     def _is_str_cursor(c_node: c_ast.Node) -> bool;
     def _index_expr(
         c_node: c_ast.Node, base: uni.Expr, idx: uni.Expr

@@ -87,6 +87,35 @@ def jac_prim(names: list[str]) -> JacPrim {
     return C_PRIM_MAP.get(names[-1], JacPrim.INT);
 }
 
+glob C_UNSIGNED_TYPES: set[str] = {
+         "size_t",
+         "uintptr_t",
+         "uintmax_t",
+         "uint8_t",
+         "uint16_t",
+         "uint32_t",
+         "uint64_t"
+     };
+
+def c_type_is_unsigned(names: list[str]) -> bool {
+    # True when the C scalar type is unambiguously unsigned: `unsigned` (with or
+    # without a base type), or a fixed-width / size unsigned typedef. Such
+    # operands are non-negative, so C `/` and `%` on them match Jac's floor
+    # semantics and need no fidelity diagnostic.
+    if "unsigned" in names {
+        return True;
+    }
+    if "signed" in names {
+        return False;
+    }
+    for n in names {
+        if n in C_UNSIGNED_TYPES {
+            return True;
+        }
+    }
+    return False;
+}
+
 def user_type_name(t: c_ast.Node) -> str | None {
     if isinstance(t, c_ast.Struct) and t.name {
         return t.name;

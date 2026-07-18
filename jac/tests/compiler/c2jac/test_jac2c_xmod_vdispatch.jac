@@ -46,11 +46,11 @@ test "jac2c cross-module vtable slots agree across translation units" {
 
     # The defining unit emits the base's vtable; the whole-program shared layout
     # is what marks `Shape` vtable-bearing even though no subclass lives here.
-    assert "Shape__vtable[" in base_c , f"base TU missing Shape__vtable:\n{base_c}";
+    assert "xmod_base__Shape__vtable[" in base_c , f"base TU missing Shape__vtable:\n{base_c}";
 
     # The importing unit's extern struct must carry the vtable pointer as its
     # first member so the cross-TU object layout matches the defining unit.
-    assert "struct Shape {" in main_c , f"main TU missing extern struct Shape:\n{main_c}";
+    assert "struct xmod_base__Shape {" in main_c , f"main TU missing extern struct Shape:\n{main_c}";
     vptr_at = main_c.find("void **__vtable;");
     assert vptr_at != -1 , f"main TU extern struct Shape lacks vtable pointer:\n{main_c}";
 

@@ -131,7 +131,9 @@ test "cfor.c promotes a C for-loop to a Jac IterForStmt" {
     out = res.module.unparse(requires_format=True);
     assert "for i = 0 to i < n by i += 1 {" in out , out;
     assert "continue;" in out;
-    assert res.diags == [] , f"expected no diags, got {res.diags}";
+    # `sum_for` promotes faithfully; the only diag is W4213 from `count_odds`'s
+    # `i % 2` parity test (signed `%`), orthogonal to the for-loop promotion here.
+    assert [d[0] for d in res.diags] == ["W4213"] , res.diags;
 }
 
 test "for_incdec_body.c lowers statement-position ++/-- to augassign" {

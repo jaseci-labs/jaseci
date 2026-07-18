@@ -23,7 +23,6 @@ int point_sum(void) {
     return p.x + p.y;
 }
 
-/* Positional + designated compound inits → Point(field=…) ctors. */
 int point_init_sum(void) {
     Point p = {3, 4, 0};
     return p.x + p.y;

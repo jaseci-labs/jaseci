@@ -1277,6 +1277,18 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "constant of unrecognized type — emitted as a string placeholder",
          blocks_codegen=True
      ),
+     E4212 = _err(
+         "E4212",
+         Category.SEMANTIC,
+         "signed `/` lowered to floor-division `//` — C truncates toward zero, so the result differs for negative operands",
+         blocks_codegen=True
+     ),
+     E4213 = _err(
+         "E4213",
+         Category.SEMANTIC,
+         "signed `%` lowered to Python `%` — C modulo truncates toward zero, so the result sign differs for negative operands",
+         blocks_codegen=True
+     ),
      E4290 = _err(
          "E4290",
          Category.SEMANTIC,
@@ -1327,6 +1339,16 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "W4211",
          Category.SYNTAX,
          "constant of unrecognized type — emitted as a string placeholder"
+     ),
+     W4212 = _warn(
+         "W4212",
+         Category.SEMANTIC,
+         "signed `/` lowered to floor-division `//` — C truncates toward zero, so the result differs for negative operands"
+     ),
+     W4213 = _warn(
+         "W4213",
+         Category.SEMANTIC,
+         "signed `%` lowered to Python `%` — C modulo truncates toward zero, so the result sign differs for negative operands"
      ),
      W4290 = _warn(
          "W4290",

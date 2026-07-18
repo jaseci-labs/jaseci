@@ -34,12 +34,12 @@ test "jac2c cross-module emission resolves imported types and functions" {
     # constructor, methods, and the free function, then calls the mangled
     # cross-module symbols rather than emitting raw Jac names.
     for needle in [
-        "struct Counter {",
-        "extern struct Counter *Counter__new(int start);",
-        "extern int Counter__bump(struct Counter *self);",
+        "struct mod_lib__Counter {",
+        "extern struct mod_lib__Counter *mod_lib__Counter__new(int start);",
+        "extern int mod_lib__Counter__bump(struct mod_lib__Counter *self);",
         "extern int add(int x, int y);",
-        "Counter__new(10)",
-        "Counter__bump(",
+        "mod_lib__Counter__new(10)",
+        "mod_lib__Counter__bump(",
         "add("
     ] {
         assert needle in main_c , f"missing {needle!r} in:\n{main_c}";

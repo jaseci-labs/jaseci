@@ -264,6 +264,12 @@ def build_binding_module(
         return uni.Module.make_stub(inject_src=src);
     }
     return uni.Module(
-        name=mod_name, source=src, doc=None, body=elements, terminals=[], kid=elements
+        name=mod_name,
+        source=src,
+        doc=None,
+        body=elements,
+        terminals=[],
+        has_synthesized_tokens=True,
+        kid=elements
     );
 }

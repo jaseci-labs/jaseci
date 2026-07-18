@@ -79,13 +79,17 @@ test "for_comma.c promotes past a pure comma-init and flags a dropped operand" {
     assert res.diags[0][0] == "W4204";
 }
 
-test "for_cast.c elides a representation-changing cast in the body (W4201)" {
+test "for_cast.c elides a cast (W4201) and quarantines signed `/` (W4212)" {
     res = lift_c_str(_read("for_cast.c"), "for_cast.c");
     out = res.module.unparse(requires_format=True);
-    # Known-int `/` lowers to `//` (C truncating divide); the `(int)` cast
-    # itself is still elided as W4201.
-    assert "total = total + (i // 2);" in out , out;
-    assert res.diags[0][0] == "W4201";
+    codes = [d[0] for d in res.diags];
+    # The `(int)` cast is elided (W4201, style band). The signed `/` cannot be
+    # faithfully lowered -- C truncates toward zero where Jac `//` floors -- so
+    # it emits behavior-band W4212 and quarantines the containing function.
+    assert "W4201" in codes , res.diags;
+    assert "W4212" in codes , res.diags;
+    assert "truncate_sum" in res.quarantined_functions;
+    assert "quarantined function 'truncate_sum'" in out , out;
 }
 
 test "for_ternary.c lifts a body ternary to a Jac if-else expression" {
@@ -108,7 +112,10 @@ test "switch_fallthrough.c flags fall-through and quarantines the function" {
 test "do_while_continue.c flags W4203 and quarantines the function" {
     res = lift_c_str(_read("do_while_continue.c"), "do_while_continue.c");
     out = res.module.unparse(requires_format=True);
-    assert res.diags[0][0] == "W4203";
+    codes = [d[0] for d in res.diags];
+    # The `n % 2` parity test also flags signed `%` (W4213); both it and the
+    # do-while `continue` (W4203) are behavior-band and quarantine the function.
+    assert "W4203" in codes , res.diags;
     assert res.quarantined_functions;
     assert "quarantined function" in out , out;
     assert "raise" in out;

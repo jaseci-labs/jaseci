@@ -72,12 +72,12 @@ test "jac2c emits structurally faithful C for the minilib" {
     );
     c_src = _main_tu_src(units);
     for needle in [
-        "struct Vec2 {",
-        "struct Vec2 vec2_add(struct Vec2 a, struct Vec2 b)",
-        "int vec2_dot(struct Vec2 a, struct Vec2 b)",
+        "struct vec2__Vec2 {",
+        "struct vec2__Vec2 vec2_add(struct vec2__Vec2 a, struct vec2__Vec2 b)",
+        "int vec2_dot(struct vec2__Vec2 a, struct vec2__Vec2 b)",
         "int vec2_sum_to(int n)",
         "for (int i = 0; (i < n); i += 1)",
-        "(struct Vec2){"
+        "(struct vec2__Vec2){"
     ] {
         assert needle in c_src , f"missing {needle!r} in:\n{c_src}";
     }

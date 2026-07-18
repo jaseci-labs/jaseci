@@ -18,6 +18,7 @@ import shutil;
 import subprocess;
 import sys;
 import tempfile;
+import unittest;
 import from tests.support { JAC_ROOT }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.compiler.passes.c.c_gen_pass { emit_translation_units }
@@ -33,6 +34,24 @@ glob FIXTURES: str = os.path.join(
 def cc -> (str | None) {
     # The system C compiler, or None so the runtime legs cleanly skip.
     return shutil.which("cc") or shutil.which("gcc") or shutil.which("clang");
+}
+
+
+def require_cc -> str {
+    # Gate the runtime/differential legs on a real C compiler. Missing `cc`
+    # must never look like a green pass: on CI (where a compiler is expected)
+    # it fails loudly; elsewhere it registers as an explicit skip.
+    compiler = cc();
+    if compiler is not None {
+        return compiler;
+    }
+    if os.environ.get("CI") {
+        raise AssertionError(
+            "no C compiler (cc/gcc/clang) on PATH; the jac2c runtime and "
+            "differential legs cannot run on CI"
+        );
+    }
+    raise unittest.SkipTest("no C compiler (cc/gcc/clang) on PATH");
 }
 
 

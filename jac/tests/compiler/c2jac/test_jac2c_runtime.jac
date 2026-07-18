@@ -19,6 +19,7 @@ import from tests.compiler.c2jac.emit_support {
     emit_units,
     interpreter_run,
     link_and_run,
+    require_cc,
     unit_src
 }
 
@@ -34,16 +35,16 @@ def _fn_body(c_src: str, sig: str) -> str {
 test "jac2c emits RC objects, constructors, methods, and balanced retain/release" {
     import from jaclang.compiler.passes.c.c_gen_pass { stable_type_id }
     c_src = unit_src("obj_rc.jac", "obj_rc.jac");
-    tid = stable_type_id("Counter");
+    tid = stable_type_id("obj_rc__Counter");
     assert tid >= 2;
-    needle_alloc = f"jac_rc_alloc(sizeof(struct Counter), {tid}, Counter__dtor)";
+    needle_alloc = f"jac_rc_alloc(sizeof(struct obj_rc__Counter), {tid}, obj_rc__Counter__dtor)";
     assert needle_alloc in c_src , f"missing hash-stable alloc {needle_alloc!r} in:\n{c_src}";
     for needle in [
         "#include \"jacrt.h\"",
-        "struct Counter *Counter__new(int start)",
-        "int Counter__bump(struct Counter *self)",
+        "struct obj_rc__Counter *obj_rc__Counter__new(int start)",
+        "int obj_rc__Counter__bump(struct obj_rc__Counter *self)",
         "self->n = (self->n + 1)",
-        "Counter__get(self->c)",
+        "obj_rc__Counter__get(self->c)",
         "jac_rc_retain(",
         "jac_rc_release(self->c)",
         "jac_rc_release(c)",
@@ -57,27 +58,27 @@ test "jac2c emits RC objects, constructors, methods, and balanced retain/release
 
 test "jac2c type_ids are name-stable across defining and importing TUs" {
     import from jaclang.compiler.passes.c.c_gen_pass { stable_type_id }
-    shape_tid = stable_type_id("Shape");
-    sq_tid = stable_type_id("Sq");
+    shape_tid = stable_type_id("xmod_base__Shape");
+    sq_tid = stable_type_id("xmod_main__Sq");
     assert shape_tid >= 2 and sq_tid >= 2 and shape_tid != sq_tid;
     base_src = unit_src("xmod_main.jac", "xmod_base.jac");
     main_src = unit_src("xmod_main.jac", "xmod_main.jac");
-    assert f"jac_rc_alloc(sizeof(struct Shape), {shape_tid}," in base_src , base_src;
-    assert f"jac_rc_alloc(sizeof(struct Sq), {sq_tid}," in main_src , main_src;
+    assert f"jac_rc_alloc(sizeof(struct xmod_base__Shape), {shape_tid}," in base_src , base_src;
+    assert f"jac_rc_alloc(sizeof(struct xmod_main__Sq), {sq_tid}," in main_src , main_src;
     # Importer sees the same Shape id as the defining TU would compute.
-    assert shape_tid == stable_type_id("Shape");
+    assert shape_tid == stable_type_id("xmod_base__Shape");
 }
 
 test "jac2c emits per-class vtables and virtual dispatch for inheritance" {
     c_src = unit_src("obj_poly.jac", "obj_poly.jac");
     for needle in [
         "void **__vtable;",
-        "static void *Animal__vtable[]",
-        "static void *Dog__vtable[]",
-        "(void *)Dog__speak",
-        "(void *)Animal__who",
+        "static void *obj_poly__Animal__vtable[]",
+        "static void *obj_poly__Dog__vtable[]",
+        "(void *)obj_poly__Dog__speak",
+        "(void *)obj_poly__Animal__who",
         "jac_vtable_slot(self->__vtable,",
-        "self->__vtable = Dog__vtable;"
+        "self->__vtable = obj_poly__Dog__vtable;"
     ] {
         assert needle in c_src , f"missing {needle!r} in:\n{c_src}";
     }
@@ -90,6 +91,18 @@ test "jac2c lowers string concat, equality, and length to the runtime" {
         assert needle in c_src , f"missing {needle!r} in:\n{c_src}";
     }
     assert "unsupported" not in c_src , f"unsupported nodes remain:\n{c_src}";
+}
+
+test "jac2c releases owned string temporaries and locals (rc balanced)" {
+    require_cc();
+    # Owned strings (concat results, str-returning calls) bound to a local or
+    # consumed inline by `len` / discarded must be released on every exit path;
+    # borrowed literals stay untracked. A leak would leave the live count > 0.
+    calls = ["run_len", "run_eq", "run_greet_len"];
+    c_out = link_and_run(emit_units("str_ops.jac"), calls, rc_live=True);
+    py_out = interpreter_run(["str_ops.jac"], "str_ops.jac", calls);
+    assert c_out is not None , "runtime leg produced no output";
+    assert c_out == f"{py_out} 0" , f"got {c_out!r}, want {py_out!r} + ' 0'";
 }
 
 test "jac2c lowers try/except/raise to the setjmp runtime" {
@@ -115,13 +128,11 @@ test "jac2c tracks owned locals on exception frames for landing-pad unwind" {
     }
     try_local = _fn_body(c_src, "int run_try_local(void)");
     assert "jac_exc_track(c)" in try_local , f"try-body owned local must be tracked:\n{try_local}";
-    assert "struct Counter * c = NULL;" in try_local , f"try-body owned local must be function-hoisted:\n{try_local}";
+    assert "struct exc_rc_unwind__Counter * c = NULL;" in try_local , f"try-body owned local must be function-hoisted:\n{try_local}";
 }
 
 test "jac2c exception unwind releases owned locals (rc balanced)" {
-    if cc() is None {
-        return;
-    }
+    require_cc();
     calls = ["run_try_local", "run_callee_raise", "run_nothrow"];
     c_out = link_and_run(emit_units("exc_rc_unwind.jac"), calls, rc_live=True);
     py_out = interpreter_run(["exc_rc_unwind.jac"], "exc_rc_unwind.jac", calls);
@@ -131,28 +142,26 @@ test "jac2c exception unwind releases owned locals (rc balanced)" {
 test "jac2c uses OwnershipFacts callee conventions to move or copy across calls" {
     c_src = unit_src("obj_move.jac", "obj_move.jac");
     # Holder stores a fresh Counter(5): owned -> moved, no retain.
-    holder = _fn_body(c_src, "struct Holder *Holder__new(void)");
-    assert "Counter__new(5)" in holder , f"missing constructor store:\n{holder}";
+    holder = _fn_body(c_src, "struct obj_move__Holder *obj_move__Holder__new(void)");
+    assert "obj_move__Counter__new(5)" in holder , f"missing constructor store:\n{holder}";
     assert "jac_rc_retain(" not in holder , f"owned store should move, not retain:\n{holder}";
     # Wrap consumes its parameter (stored once, used nowhere else): the callee
     # takes ownership, so no retain on store.
-    wrap = _fn_body(c_src, "struct Wrap *Wrap__new(struct Counter * inner)");
+    wrap = _fn_body(c_src, "struct obj_move__Wrap *obj_move__Wrap__new(struct obj_move__Counter * inner)");
     assert "jac_rc_retain(" not in wrap , f"consumed param should move, not retain:\n{wrap}";
     # Keep also reads its parameter, so it only borrows: retain on store.
-    keep = _fn_body(c_src, "struct Keep *Keep__new(struct Counter * inner)");
+    keep = _fn_body(c_src, "struct obj_move__Keep *obj_move__Keep__new(struct obj_move__Counter * inner)");
     assert "jac_rc_retain(" in keep , f"borrowed param should retain:\n{keep}";
     # Caller: the owned Counter(9) moves into the consuming Wrap (passed inline,
     # no temp), while the owned Counter(4) handed to the borrowing Keep is hoisted
     # into a temp and released after the call.
     run = _fn_body(c_src, "int run_move(void)");
-    assert "Wrap__new(Counter__new(9))" in run , f"consumed arg should move inline:\n{run}";
+    assert "obj_move__Wrap__new(obj_move__Counter__new(9))" in run , f"consumed arg should move inline:\n{run}";
     assert "jac_rc_release(_arg" in run , f"borrowed owned arg should be released:\n{run}";
 }
 
 test "jac2c callee-convention moves and copies stay balanced under cc" {
-    if cc() is None {
-        return;
-    }
+    require_cc();
     calls = ["run_move"];
     c_out = link_and_run(emit_units("obj_move.jac"), calls, rc_live=True);
     py_out = interpreter_run(["obj_move.jac"], "obj_move.jac", calls);
@@ -174,9 +183,7 @@ test "jac2c copies an aliased reference local but moves it at its last use" {
 }
 
 test "jac2c reference-local aliasing is refcount-balanced under cc" {
-    if cc() is None {
-        return;
-    }
+    require_cc();
     calls = ["run_alias", "run_transfer"];
     c_out = link_and_run(emit_units("obj_alias.jac"), calls, rc_live=True);
     py_out = interpreter_run(["obj_alias.jac"], "obj_alias.jac", calls);
@@ -191,19 +198,17 @@ test "jac2c throws a constructed exception object and binds it typed" {
     # raise builds the object and throws it as the owned payload (not the bare
     # first constructor argument).
     assert "jac_exc_throw_owned(" in c_src , f"raise must throw owned:\n{c_src}";
-    assert "AppError__new(7, 5)" in c_src , f"raise must construct the object:\n{c_src}";
+    assert "exc_typed__AppError__new(7, 5)" in c_src , f"raise must construct the object:\n{c_src}";
     # except binds a real typed struct pointer, so field access compiles.
     read = _fn_body(c_src, "int run_read_field(void)");
-    assert "struct AppError * e = (struct AppError *)jac_exc_take_payload();" in read , f"handler must bind a typed exception object:\n{read}";
+    assert "struct exc_typed__AppError * e = (struct exc_typed__AppError *)jac_exc_take_payload();" in read , f"handler must bind a typed exception object:\n{read}";
     assert "e->code" in read , f"typed payload must allow field access:\n{read}";
     # the taken payload is released on the handler exit path (rc-balanced).
     assert "jac_rc_release(e)" in read , f"handler must release the owned payload:\n{read}";
 }
 
 test "jac2c typed exception payloads are value-correct and rc-balanced under cc" {
-    if cc() is None {
-        return;
-    }
+    require_cc();
     calls = ["run_read_field", "run_field_across_call", "run_nothrow"];
     c_out = link_and_run(emit_units("exc_typed.jac"), calls, rc_live=True);
     py_out = interpreter_run(["exc_typed.jac"], "exc_typed.jac", calls);
