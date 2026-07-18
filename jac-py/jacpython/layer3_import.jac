@@ -435,3 +435,50 @@ test "layer3: namedtuple with defaults instantiates with omitted trailing fields
     assert not is_error(outcome);
     assert to_host(g["s"]) == "C(a=1, b=10, c=20)";
 }
+
+test "layer3: a custom metaclass drives class creation (metaclass= + super().__new__)" {
+    # `class C(metaclass=Meta)` resolves Meta, runs its __new__, and reaches
+    # type.__new__ via super() -- the class factory that builds the real class
+    # object. Meta stamps an attribute onto the finished class. This is the
+    # machinery enum/ABCMeta/typing need: metaclass resolution, the type.__new__
+    # super-call producing a PyClass, and the metaclass recorded on it.
+    layer3_reset();
+    src = "class Meta(type):\n"
+    "    def __new__(mcls, name, bases, ns, **kw):\n"
+    "        cls = super().__new__(mcls, name, bases, ns)\n"
+    "        cls.tag = 99\n"
+    "        return cls\n"
+    "class C(metaclass=Meta):\n"
+    "    x = 1\n"
+    "tag = C.tag\n"
+    "xval = C.x\n"
+    "inst = C()\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["tag"]) == 99;
+    assert to_host(g["xval"]) == 1;
+}
+
+test "layer3: a subclass re-derives its base's metaclass and re-runs it" {
+    # `class D(C)` where C was made by Meta must resolve Meta from C (no explicit
+    # metaclass= kwarg) and run it again -- the inheritance path enum members rely
+    # on (every Enum subclass is created by EnumType).
+    layer3_reset();
+    src = "class Meta(type):\n"
+    "    def __new__(mcls, name, bases, ns, **kw):\n"
+    "        cls = super().__new__(mcls, name, bases, ns)\n"
+    "        cls.stamp = name\n"
+    "        return cls\n"
+    "class C(metaclass=Meta):\n"
+    "    pass\n"
+    "class D(C):\n"
+    "    pass\n"
+    "cstamp = C.stamp\n"
+    "dstamp = D.stamp\n";
+    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m")};
+    outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
+    assert not is_error(outcome);
+    assert to_host(g["cstamp"]) == "C";
+    assert to_host(g["dstamp"]) == "D";
+}

@@ -69,6 +69,12 @@ def _jac_is_object_type(value):
     # tuple.__new__(HostClass, ...) is unaffected.
     return value is object
 
+def _jac_is_type_type(value):
+    # True iff value is exactly the builtin `type`. A user class listing `type`
+    # among its bases is a metaclass; super().__new__ inside its __new__ must
+    # build a class object (type.__new__), not a plain instance.
+    return value is type
+
 def _jac_host_hashkey(value):
     # Bucket a proxied host object by its host hash so it can be a dict/set key
     # (type-keyed dispatch tables in functools/copyreg/typing/contextlib). Equal
@@ -1240,7 +1246,11 @@ obj PyClass(PyObj) {
     has name: str,
         attrs: dict[str, PyObj],
         bases: list[PyObj] = [],
-        native_base: str = "";
+        native_base: str = "",
+        # The type OF this class (its metaclass). None means the default `type`.
+        # A user metaclass (EnumType, ABCMeta) is recorded here by type.__new__ so
+        # `class Sub(Base)` can re-derive it from a base and re-run the protocol.
+        metaclass: any = None;
 
     # Attribute lookup walks the MRO (self first, then bases) so an inherited
     # method/attr is visible on a subclass. Instance access binds via PyUserObj.
@@ -1437,7 +1447,7 @@ obj PyBoundMethod(PyObj) {
 
 obj PyBuildClass(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        return py_build_class(args);
+        return py_build_class(args, kwargs);
     }
 }
 
@@ -3307,6 +3317,12 @@ obj PyNativeNew(PyObj) {
             return py_error("TypeError", "__new__() takes a class argument");
         }
         target_cls = args[0];
+        # type.__new__(mcls, name, bases, namespace): the class factory reached by
+        # super().__new__ inside a metaclass __new__. Builds a PyClass tagged with
+        # mcls as its metaclass so a subclass re-runs the same protocol.
+        if self.base_name == "type" {
+            return type_new(args);
+        }
         # object.__new__(cls): a plain instance, no boxed builtin value. This is
         # the super().__new__(cls) / object.__new__(cls) path of a class whose
         # only base is object (functools._PlaceholderType, most user classes).
@@ -3518,12 +3534,149 @@ def py_issubclass(cls: PyObj, typ: PyObj) -> bool {
     return False;
 }
 
-def py_build_class(args: list[PyObj]) -> PyObj {
+# The builtin ancestor (if any) that dictates a class's instance layout, plus the
+# `type` marker for a metaclass. Inherited from a user base's own native_base when
+# subclassing a subclass; read off a host builtin/`type` base directly.
+def compute_native_base(bases: list[PyObj]) -> str {
+    native_base = "";
+    for base in bases {
+        if isinstance(base, PyClass) {
+            inherited = (base as PyClass).native_base;
+            if inherited != "" {
+                native_base = inherited;
+            }
+        } elif isinstance(base, PyHostProxy) {
+            hostval = (base as PyHostProxy).val;
+            if _jac_is_type_type(hostval) {
+                # `class Meta(type)` -- a metaclass. super().__new__ builds classes.
+                native_base = "type";
+            } else {
+                builtin_name: str = str(_jac_builtin_base_name(hostval));
+                if builtin_name != "" and builtin_name != "object" {
+                    native_base = builtin_name;
+                }
+            }
+        }
+    }
+    return native_base;
+}
+
+# Box a PyClass from a resolved name/bases/namespace. `meta` is the metaclass that
+# produced it (None = the default `type`), recorded so a later subclass can
+# re-derive and re-run the metaclass protocol.
+def make_pyclass_from_map(
+    class_name: str, bases: list[PyObj],
+    namespace: dict[str, PyObj], meta: any
+) -> PyClass {
+    return PyClass(
+        t="class",
+        name=class_name,
+        attrs=namespace,
+        bases=bases,
+        native_base=compute_native_base(bases),
+        metaclass=meta
+    );
+}
+
+# type.__new__(mcls, name, bases, namespace): build a class object. Serves both
+# the metaclass super().__new__ path and a bare 3-arg type(name, bases, ns) call.
+def type_new(args: list[PyObj]) -> PyObj {
+    if len(args) < 4 {
+        return py_error("TypeError", "type.__new__() takes name, bases, dict");
+    }
+    mcls = args[0];
+    class_name = expect_str(args[1]);
+    bases: list[PyObj] = [];
+    bases_obj = args[2];
+    if isinstance(bases_obj, PyTuple) {
+        bases = (bases_obj as PyTuple).items;
+    } elif isinstance(bases_obj, PyList) {
+        bases = (bases_obj as PyList).items;
+    }
+    namespace: dict[str, PyObj] = {};
+    ns_obj = args[3];
+    if isinstance(ns_obj, PyDict) {
+        namespace = pydict_to_str_map(ns_obj as PyDict);
+    }
+    return make_pyclass_from_map(class_name, bases, namespace, mcls);
+}
+
+# Read a PyDict whose keys are all strings (a class namespace) into a jac str map.
+def pydict_to_str_map(d: PyDict) -> dict[str, PyObj] {
+    m: dict[str, PyObj] = {};
+    for keyobj in d.dict_keys() {
+        val = d.mp_subscript(keyobj);
+        m[expect_str(keyobj)] = val;
+    }
+    return m;
+}
+
+# The metaclass of a base object (its `type`), or None. Only PyClass bases carry a
+# recorded metaclass; a host base (object/type/builtins) resolves to the default.
+def metaclass_of(base: PyObj) -> any {
+    if isinstance(base, PyClass) {
+        m = (base as PyClass).metaclass;
+        if m is not None and isinstance(m, PyClass) {
+            return m;
+        }
+    }
+    return None;
+}
+
+# Pick the class's metaclass: the most-derived of an explicit `metaclass=` kwarg
+# and every base's own metaclass (CPython's winner rule). Returns None for the
+# default `type` path. An explicit `metaclass=type` (host proxy) stays default.
+def resolve_metaclass(kwargs: dict[str, PyObj], bases: list[PyObj]) -> any {
+    winner: any = None;
+    if "metaclass" in kwargs {
+        m = kwargs["metaclass"];
+        if isinstance(m, PyClass) {
+            winner = m;
+        }
+    }
+    for base in bases {
+        bm = metaclass_of(base);
+        if isinstance(bm, PyClass) {
+            if winner is None {
+                winner = bm;
+            } elif py_issubclass(bm as PyObj, winner as PyObj) {
+                winner = bm;
+            }
+        }
+    }
+    return winner;
+}
+
+def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     if len(args) < 2 {
         return py_error("TypeError", "__build_class__ needs a body and name");
     }
     body = args[0] as PyFunction;
     class_name = expect_str(args[1]);
+    # args[2:] are the base objects.
+    bases: list[PyObj] = [];
+    j = 2;
+    while j < len(args) {
+        bases.append(args[j]);
+        j = j + 1;
+    }
+    # Class keyword args other than `metaclass` are forwarded to __prepare__ and
+    # the metaclass call (e.g. __init_subclass__ kwargs).
+    class_kwds: dict[str, PyObj] = {};
+    for k in kwargs {
+        if k != "metaclass" {
+            class_kwds[k] = kwargs[k];
+        }
+    }
+    metaclass = resolve_metaclass(kwargs, bases);
+    # A user metaclass (EnumType, ABCMeta): run the full protocol -- __prepare__
+    # for the body namespace, then call the metaclass as the class factory.
+    if isinstance(metaclass, PyClass) {
+        return build_class_via_metaclass(
+            metaclass as PyClass, class_name, bases, body, class_kwds
+        );
+    }
+    # Default `type`: execute the body into a plain namespace and box a PyClass.
     namespace: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
     body_result = exec_code_frame(
         body.code, [], {}, body.globals, namespace, body.closure, [], {}
@@ -3531,35 +3684,45 @@ def py_build_class(args: list[PyObj]) -> PyObj {
     if body_result.t == "error" {
         return body_result;
     }
-    # args[2:] are the base objects. Record them, and the single builtin ancestor
-    # (if any) that dictates instance layout -- inherited from a user base's own
-    # native_base when subclassing a subclass.
-    bases: list[PyObj] = [];
-    native_base = "";
-    j = 2;
-    while j < len(args) {
-        base = args[j];
-        bases.append(base);
-        if isinstance(base, PyClass) {
-            inherited = (base as PyClass).native_base;
-            if inherited != "" {
-                native_base = inherited;
-            }
-        } elif isinstance(base, PyHostProxy) {
-            builtin_name: str = str(_jac_builtin_base_name((base as PyHostProxy).val));
-            if builtin_name != "" and builtin_name != "object" {
-                native_base = builtin_name;
+    return make_pyclass_from_map(class_name, bases, namespace, None);
+}
+
+# The custom-metaclass class-creation protocol: metaclass.__prepare__ produces the
+# body namespace, the body runs into it, then the metaclass is called as
+# (name, bases, namespace, **kwds) -- its __new__/__init__ build and finish the
+# class. Only a plain-dict namespace is supported; a custom mapping (enum's
+# _EnumDict) as a live body namespace is a later refinement.
+def build_class_via_metaclass(
+    metaclass: PyClass, class_name: str, bases: list[PyObj],
+    body: PyFunction, class_kwds: dict[str, PyObj]
+) -> PyObj {
+    bases_tuple = PyTuple(t="tuple", items=bases);
+    namespace: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
+    prep = class_lookup_attr(metaclass, "__prepare__");
+    if not is_error(prep) {
+        prep_args: list[PyObj] = [PyStr(t="str", val=class_name), bases_tuple];
+        prepared = py_invoke(bind_attribute(prep, metaclass), prep_args, class_kwds);
+        if is_error(prepared) {
+            return prepared;
+        }
+        if isinstance(prepared, PyDict) {
+            prep_map = pydict_to_str_map(prepared as PyDict);
+            for pk in prep_map {
+                namespace[pk] = prep_map[pk];
             }
         }
-        j = j + 1;
     }
-    return PyClass(
-        t="class",
-        name=class_name,
-        attrs=namespace,
-        bases=bases,
-        native_base=native_base
+    body_result = exec_code_frame(
+        body.code, [], {}, body.globals, namespace, body.closure, [], {}
     );
+    if body_result.t == "error" {
+        return body_result;
+    }
+    ns_dict = dict_from_str_map(namespace);
+    call_args: list[PyObj] = [
+        PyStr(t="str", val=class_name), bases_tuple, ns_dict
+    ];
+    return py_invoke(metaclass, call_args, class_kwds);
 }
 
 def make_function_from_stack(stack: list[PyObj], globals: dict[str, PyObj]) -> PyObj {
