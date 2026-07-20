@@ -959,7 +959,6 @@ test "solid file-based routing mounts, navigates, and guards in jsdom" {
         testskip("bun is required but could not be located/installed");
     }
 
-    backend = SolidBackend();
     rdir = os.path.join(FIXTURES, "solid_routing");
     home_js = _compile_page(os.path.join(rdir, "home_page.jac"), backend);
     about_js = _compile_page(os.path.join(rdir, "about_page.jac"), backend);
