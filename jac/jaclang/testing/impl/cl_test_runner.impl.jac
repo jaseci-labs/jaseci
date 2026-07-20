@@ -458,6 +458,9 @@ impl _run_harness(
                 runtime_js = runtime_js.replace(
                     core_match.group(1), "./client_runtime_core.js"
                 );
+
+                core_js = core_js.replace('"@jac/runtime"', '"./jac_runtime.js"');
+                core_js = core_js.replace("'@jac/runtime'", "'./jac_runtime.js'");
             }
             staged["jac_runtime.js"] = runtime_js;
         }
