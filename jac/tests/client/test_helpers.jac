@@ -199,6 +199,42 @@ def _signal_group(server: any, sig: int) -> bool {
     return True;
 }
 
+"""Terminate a process tree started with ``start_new_session=True``.
+
+Closes any captured streams first so pipe readers cannot wedge, then signals
+the whole process group (jac start -> bun/vite/esbuild). Falls back to
+terminate()/kill() on the lone process if the group is already gone.
+"""
+def stop_process_group(process: any) -> None {
+    if process is None {
+        return;
+    }
+    for stream in (process.stdout, process.stderr) {
+        if stream {
+            try {
+                stream.close();
+            } except Exception {
+                0;
+            }
+        }
+    }
+    if not _signal_group(process, signal.SIGTERM) {
+        process.terminate();
+    }
+    try {
+        process.wait(timeout=15);
+    } except Exception {
+        if not _signal_group(process, signal.SIGKILL) {
+            process.kill();
+        }
+        try {
+            process.wait(timeout=5);
+        } except Exception {
+            0;
+        }
+    }
+}
+
 """Terminate a server process tree, escalating to kill if it lingers.
 
 Signals the entire process group (see ``start_app_server``) so bun/vite/esbuild
