@@ -797,6 +797,88 @@ test "output conversion error not raised for str return type" {
     assert result == raw , "str return type should return the raw response as-is";
 }
 
+# The following four tests contrast str vs int return handling. A `str` return
+# is the unconstrained default: no response_format schema is emitted (the prompt
+# "ignores" it) and any text passes through verbatim. An `int` return instead
+# takes the structured path: a JSON-schema grammar constraint IS emitted, the
+# output is coerced via pydantic, and malformed output raises OutputConversionError
+# (which drives the typed-output retry loop).
+test "str return type emits no response_format schema" {
+    # str is schema-free: get_output_schema returns None, so [RESPONSE FORMAT]
+    # logs "None" and no grammar constraint is sent to the provider.
+    mt_run = MTRuntime(
+        messages=[],
+        resp_type=str,
+        stream=False,
+        tools=[],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+
+    assert mt_run.get_output_schema() is None , "str return type should produce no response_format schema";
+}
+
+test "int return type emits a structured response_format schema" {
+    # int is NOT ignored: schema generation produces a json_schema wrapping the
+    # scalar in an object (schema_object_wrapper) typed as integer.
+    mt_run = MTRuntime(
+        messages=[],
+        resp_type=int,
+        stream=False,
+        tools=[],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+
+    schema = mt_run.get_output_schema();
+    assert schema is not None , "int return type should produce a response_format schema";
+    assert schema["type"] == "json_schema" , f"Expected json_schema, got: {schema}";
+    inner = schema["json_schema"]["schema"];
+    wrapped = inner["properties"]["schema_object_wrapper"];
+    assert wrapped["type"] == "integer" , f"Expected wrapped property typed 'integer', got: {wrapped}";
+}
+
+test "int return type coerces valid json to int" {
+    # Given the wrapped-object shape a real provider returns under the schema,
+    # parse_response unwraps and coerces to a native int.
+    mt_run = MTRuntime(
+        messages=[],
+        resp_type=int,
+        stream=False,
+        tools=[],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+
+    raw = "{\"schema_object_wrapper\": 42}";
+    result = mt_run.parse_response(raw);
+    assert result == 42 , f"Expected 42, got '{result}'";
+    assert isinstance(result, int) , f"Expected int, got {type(result).__name__}";
+}
+
+test "int return type raises conversion error on malformed output" {
+    # A bare / non-conforming response cannot be coerced to int: parse_response
+    # raises OutputConversionError, which the invoke loop turns into a retry.
+    mt_run = MTRuntime(
+        messages=[],
+        resp_type=int,
+        stream=False,
+        tools=[],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+
+    raw = "Good morning, Ada!";
+    raised = False;
+    try {
+        mt_run.parse_response(raw);
+    } except OutputConversionError as e {
+        raised = True;
+        assert e.raw_output == raw , f"Expected raw_output='{raw}', got '{e.raw_output}'";
+    }
+    assert raised , "Expected OutputConversionError for non-numeric int output";
+}
+
 test "output conversion error not raised for valid json" {
     # Valid JSON that matches the type should succeed with no exception
     mt_run = MTRuntime(
