@@ -195,8 +195,8 @@ obj Model(BaseLLM) {
     def _raise_mapped_provider_error(e: Exception) -> None;
     def model_call_no_stream(params: dict) -> dict;
     async def model_call_no_stream_async(params: dict) -> dict;
-    def model_call_with_stream(params: dict);
-    async def model_call_with_stream_async(params: dict);
+    def model_call_with_stream(params: dict) -> object;
+    async def model_call_with_stream_async(params: dict) -> object;
     def model_call_http(
         url: str, token: str, payload: dict, ca_bundle: str | bool
     ) -> object;

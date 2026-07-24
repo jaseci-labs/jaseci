@@ -1163,6 +1163,86 @@ test "all exception types log and propagate regardless of debug" {
     }
 }
 
+# A model that explicitly rejects an explicitly-set `temperature` (e.g. a very
+# new model litellm's registry does not yet know about, so `drop_params` cannot
+# save it) must not hard-fail the turn. byLLM retries once without `temperature`
+# instead of surfacing the provider's 400. Covers all four call sites — they
+# duplicate the same retry logic independently, so each can regress on its own.
+# See jacBuilder#896.
+test "model_call_* retries without temperature on provider rejection" {
+    import asyncio;
+
+    cases = [
+        ("model_call_no_stream", "litellm.completion", False),
+        ("model_call_with_stream", "litellm.completion", False),
+        ("model_call_no_stream_async", "litellm.acompletion", True),
+        ("model_call_with_stream_async", "litellm.acompletion", True)
+    ];
+
+    for (method_name, patch_target, is_async) in cases {
+        model = Model(model_name="claude-fable-5");
+        bad_temp_err = litellm.exceptions.BadRequestError(
+            message="`temperature` is deprecated for this model.",
+            llm_provider="anthropic",
+            model="claude-fable-5"
+        );
+        fake_success = {"choices": [{"message": {"content": "ok", "tool_calls": []}}]};
+        params = {"model": "claude-fable-5", "messages": [], "temperature": 0.2};
+        method = getattr(model, method_name);
+
+        with unittest.mock.patch(
+            patch_target, side_effect=[bad_temp_err, fake_success]
+        ) as mock_call {
+            if is_async {
+                async def _run {
+                    return await method(params);
+                }
+                result = asyncio.run(_run());
+            } else {
+                result = method(params);
+            }
+            assert result is fake_success , (
+                f"{method_name}: retry should return the successful response"
+            );
+            assert mock_call.call_count == 2 , (
+                f"{method_name}: expected exactly one retry, got {mock_call.call_count}"
+            );
+            second_call_kwargs = mock_call.call_args_list[1].kwargs;
+            assert "temperature" not in second_call_kwargs , (
+                f"{method_name}: retry call must omit temperature"
+            );
+        }
+    }
+}
+
+# Unrelated BadRequestErrors (e.g. a malformed request) must not be swallowed
+# by the temperature-retry path — they should propagate like before. The retry
+# guard is identical boilerplate across all four call sites, so one case is
+# enough to prove it doesn't over-trigger.
+test "model_call_no_stream does not retry on unrelated BadRequestError" {
+    model = Model(model_name="claude-fable-5");
+    other_err = litellm.exceptions.BadRequestError(
+        message="messages: at least one message is required",
+        llm_provider="anthropic",
+        model="claude-fable-5"
+    );
+    with unittest.mock.patch(
+        "litellm.completion", side_effect=other_err
+    ) as mock_completion {
+        raised = False;
+        try {
+            model.model_call_no_stream(
+                {"model": "claude-fable-5", "messages": [], "temperature": 0.2}
+            );
+        } except litellm.exceptions.BadRequestError as e {
+            raised = True;
+            assert e is other_err , "The original error must propagate unchanged";
+        }
+        assert raised , "Unrelated BadRequestError should still propagate";
+        assert mock_completion.call_count == 1 , "Unrelated error must not trigger a retry";
+    }
+}
+
 """Test ModelPool fallback strategy: router is configured with unique aliases and
 a fallbacks chain; successful responses are returned via the dispatch pipeline."""
 test "model pool router fallback" {

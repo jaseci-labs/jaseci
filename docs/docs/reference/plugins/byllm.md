@@ -532,6 +532,8 @@ compaction_model       = ""       # Empty = copy of the active model; set to use
 | `max_tokens` | int | `0` | Maximum response tokens (0 = no limit / model default) |
 | `max_output_retries` | int | `3` | Retries after the first attempt to regenerate a structured output that came back empty or unparseable (`0` disables). See [Typed-Output Retry](#typed-output-retry) |
 
+If `temperature` is set (here or inline via `by llm(temperature=...)`) and the target model rejects it outright (a newer model that only accepts the default, missing from litellm's `drop_params` registry), byLLM retries the call once with `temperature` omitted instead of failing the turn.
+
 **`[byllm.litellm]` options:**
 
 | Key | Type | Default | Description |
