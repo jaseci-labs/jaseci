@@ -2,34 +2,52 @@ import os;
 import sysconfig;
 import site;
 import from pathlib { Path }
+import from jaclang.project.config { get_config }
+import from jaclang.project.pyvenv { get_venv_site_packages }
 
 
 def _project_venv_site_packages -> str {
-    directory = os.getcwd();
-    while True {
-        toml = os.path.join(directory, "jac.toml");
-        if os.path.isfile(toml) {
-            venv = os.path.join(directory, ".jac", "venv");
-            lib = os.path.join(venv, "lib");
-            if os.path.isdir(lib) {
-                for entry in sorted(os.listdir(lib)) {
-                    cand = os.path.join(lib, entry, "site-packages");
-                    if entry.startswith("python") and os.path.isdir(cand) {
-                        return cand;
-                    }
-                }
-            }
-            win = os.path.join(venv, "Lib", "site-packages");
-            if os.path.isdir(win) {
-                return win;
-            }
-            return "";
-        }
-        parent = os.path.dirname(directory);
-        if parent == directory {
-            return "";
-        }
-        directory = parent;
+    config = get_config(force_discover=True);
+    if config is None {
+        return "";
+    }
+    site_pkgs = get_venv_site_packages(config.get_venv_dir());
+    if site_pkgs.is_dir() {
+        return str(site_pkgs);
+    }
+    return "";
+}
+
+
+def jac_desktop_deps_shell_export -> str {
+    return (
+        "VENV_LIB=\"$(CDPATH= cd -- \"$(dirname \"$0\")/../../venv/lib\" 2>/dev/null && pwd)\"\n"
+        "if [ -n \"$VENV_LIB\" ] && [ -d \"$VENV_LIB\" ]; then\n"
+        "  for sp in \"$VENV_LIB\"/python*/site-packages; do\n"
+        "    if [ -d \"$sp\" ]; then\n"
+        "      if [ -n \"${JAC_DESKTOP_DEPS:-}\" ]; then\n"
+        "        export JAC_DESKTOP_DEPS=\"$sp${JAC_DESKTOP_DEPS:+:$JAC_DESKTOP_DEPS}\"\n"
+        "      else\n"
+        "        export JAC_DESKTOP_DEPS=\"$sp\"\n"
+        "      fi\n"
+        "      break\n"
+        "    fi\n"
+        "  done\n"
+        "fi\n"
+    );
+}
+
+
+def _prepend_env_path(env: dict[str, str], key: str, path: str) -> None {
+    if not path {
+        return;
+    }
+    existing = env.get(key, "");
+    if existing {
+        parts = [path] + [p for p in existing.split(os.pathsep) if p and p != path];
+        env[key] = os.pathsep.join(parts);
+    } else {
+        env[key] = path;
     }
 }
 
@@ -121,20 +139,7 @@ def desktop_app_runtime_env(base: any = None) -> dict[str, str] {
     env.setdefault("GDK_BACKEND", "x11");
     env.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     env.setdefault("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-    site_pkgs = _project_venv_site_packages();
-    if site_pkgs {
-        existing = env.get("JAC_DESKTOP_DEPS", "");
-        if existing {
-            parts = [site_pkgs] + [
-                p
-                for p in existing.split(os.pathsep)
-                if p and p != site_pkgs
-            ];
-            env["JAC_DESKTOP_DEPS"] = os.pathsep.join(parts);
-        } else {
-            env["JAC_DESKTOP_DEPS"] = site_pkgs;
-        }
-    }
+    _prepend_env_path(env, "JAC_DESKTOP_DEPS", _project_venv_site_packages());
     return env;
 }
 

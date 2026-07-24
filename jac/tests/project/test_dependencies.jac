@@ -267,6 +267,40 @@ test "run_pip uses plain pip install without target rewrite" {
     }
 }
 
+test "ensure_venv keeps symlinked python venv outside standalone" {
+    # In pip-install mode venv/bin/python symlinks to sys.executable; that must
+    # not trigger the fused-venv recreation path reserved for standalone.
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        config = JacConfig.load(project_dir / "jac.toml");
+        venv_dir = config.get_venv_dir();
+        bin_dir = venv_dir / "bin";
+        bin_dir.mkdir(parents=True, exist_ok=True);
+        py = bin_dir / "python";
+        try {
+            py.symlink_to(Path(sys.executable));
+        } except OSError {
+            py.write_text(sys.executable);
+        }
+        (venv_dir / "pyvenv.cfg").write_text("home = /usr/bin\nversion = 3.14.0\n");
+        assert _is_fused_venv(venv_dir);
+        with patch.dict(os.environ, {}, clear=False) {
+            os.environ.pop("JAC_STANDALONE", None);
+            with patch("shutil.rmtree") as rm, patch("venv.EnvBuilder") as mock_builder_class {
+                mock_builder = MagicMock();
+                mock_builder_class.return_value = mock_builder;
+                ensure_venv(venv_dir, verbose=False);
+                rm.assert_not_called();
+                mock_builder.create.assert_not_called();
+            }
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
 test "ensure_venv recreates fused jac-as-python venvs" {
     reset_config();
     (tmp, project_dir) = make_temp_project();
@@ -283,7 +317,9 @@ test "ensure_venv recreates fused jac-as-python venvs" {
         }
         (venv_dir / "pyvenv.cfg").write_text("home = /usr/bin\nversion = 3.14.0\n");
         assert _is_fused_venv(venv_dir);
-        with patch("shutil.rmtree") as rm, patch("subprocess.run") as run, patch(
+        with patch.dict(os.environ, {"JAC_STANDALONE": "1"}, clear=False), patch(
+            "shutil.rmtree"
+        ) as rm, patch("subprocess.run") as run, patch(
             "jaclang.project.pyvenv.run_pip", return_value=(0, "", "")
         ), patch(
             "jaclang.project.pyvenv._venv_create_interpreter",

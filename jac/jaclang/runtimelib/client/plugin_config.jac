@@ -142,12 +142,11 @@ def _load_template(template_name: str) -> dict[str, any] | None {
     }
 }
 
-def _post_create_client(project_path: Path, project_name: str) -> None {
+def _post_create_client(project_path: Path, project_name: str) {
     import from jaclang.cli.console { console }
-    import from jaclang.runtimelib.client { get_bun }
 
-    console.print();
     if os.environ.get("JAC_CLIENT_SKIP_NPM_INSTALL") {
+        console.print();
         console.print(
             "\n  ⏭ Skipping dependency installation (JAC_CLIENT_SKIP_NPM_INSTALL is set)",
             style="muted"
@@ -156,18 +155,6 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
             "  Run 'jac install' when ready to install Python and npm packages.\n",
             style="muted"
         );
-        return;
     }
-
-    if get_bun() is None {
-        console.warning(
-            "Bun was not found; npm packages may be skipped during create-time install."
-        );
-        console.print(
-            "  Install Bun (https://bun.sh), then re-run: jac install\n", style="muted"
-        );
-        return;
-    }
-
-    console.print("  ✔ Bun is installed", style="success");
+    _ = (project_path, project_name);
 }

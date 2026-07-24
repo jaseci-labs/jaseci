@@ -180,17 +180,14 @@ test "desktop launch wires JAC_DESKTOP_DEPS from the project venv" {
     import shutil;
     import from pathlib { Path }
     import from jaclang.runtimelib.client.targets.desktop._dev_launch {
-        desktop_app_runtime_env
+        desktop_app_runtime_env,
+        jac_desktop_deps_shell_export
     }
 
-    # Pin the launch-script template contract without needing nacompile/webview.
-    import jaclang;
-    impl_path = (
-        Path(str(jaclang.__file__)).resolve().parent / "runtimelib" / "client" / "targets" / "desktop" / "impl" / "native_desktop_target.impl.jac"
-    );
-    impl_src = impl_path.read_text(encoding="utf-8");
-    assert "JAC_DESKTOP_DEPS" in impl_src , "launch script must export JAC_DESKTOP_DEPS";
-    assert "venv/lib" in impl_src , "launch script must discover the sibling project venv";
+    # Pin the launch-script contract on the shared shell fragment.
+    snippet = jac_desktop_deps_shell_export();
+    assert "JAC_DESKTOP_DEPS" in snippet , "launch script must export JAC_DESKTOP_DEPS";
+    assert "venv/lib" in snippet , "launch script must discover the sibling project venv";
 
     tmp = tempfile.mkdtemp(prefix="jac_desktop_deps_");
     _saved = os.environ.get("JAC_DESKTOP_DEPS");

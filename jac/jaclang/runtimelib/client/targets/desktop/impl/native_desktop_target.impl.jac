@@ -19,7 +19,8 @@ import from jaclang.runtimelib.client.targets.desktop._host_bootstrap {
 }
 import from jaclang.runtimelib.client.targets.desktop._dev_launch {
     ensure_dev_build_env,
-    desktop_app_runtime_env
+    desktop_app_runtime_env,
+    jac_desktop_deps_shell_export
 }
 
 def _ensure_libwebview(webview_dir: Path) -> Path {
@@ -130,25 +131,15 @@ def _assemble_native_host(
     launcher = output_dir / f"{app_name}-launch.sh";
 
     launcher.write_text(
-        "#!/bin/sh\n"
-        "cd \"$(dirname \"$0\")\" || exit 1\n"
-        "export GDK_BACKEND=\"${GDK_BACKEND:-x11}\"\n"
-        "export WEBKIT_DISABLE_DMABUF_RENDERER=\"${WEBKIT_DISABLE_DMABUF_RENDERER:-1}\"\n"
-        "export WEBKIT_DISABLE_COMPOSITING_MODE=\"${WEBKIT_DISABLE_COMPOSITING_MODE:-1}\"\n"
-        "VENV_LIB=\"$(CDPATH= cd -- \"$(dirname \"$0\")/../../venv/lib\" 2>/dev/null && pwd)\"\n"
-        "if [ -n \"$VENV_LIB\" ] && [ -d \"$VENV_LIB\" ]; then\n"
-        "  for sp in \"$VENV_LIB\"/python*/site-packages; do\n"
-        "    if [ -d \"$sp\" ]; then\n"
-        "      if [ -n \"${JAC_DESKTOP_DEPS:-}\" ]; then\n"
-        "        export JAC_DESKTOP_DEPS=\"$sp${JAC_DESKTOP_DEPS:+:$JAC_DESKTOP_DEPS}\"\n"
-        "      else\n"
-        "        export JAC_DESKTOP_DEPS=\"$sp\"\n"
-        "      fi\n"
-        "      break\n"
-        "    fi\n"
-        "  done\n"
-        "fi\n"
-        f"exec ./{app_name} \"$@\"\n"
+        (
+            "#!/bin/sh\n"
+            "cd \"$(dirname \"$0\")\" || exit 1\n"
+            "export GDK_BACKEND=\"${GDK_BACKEND:-x11}\"\n"
+            "export WEBKIT_DISABLE_DMABUF_RENDERER=\"${WEBKIT_DISABLE_DMABUF_RENDERER:-1}\"\n"
+            "export WEBKIT_DISABLE_COMPOSITING_MODE=\"${WEBKIT_DISABLE_COMPOSITING_MODE:-1}\"\n"
+        )
+        + jac_desktop_deps_shell_export()
+        + f"exec ./{app_name} \"$@\"\n"
     );
     os.chmod(launcher, 0o755);
     return binary;

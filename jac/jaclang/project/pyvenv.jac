@@ -109,7 +109,6 @@ def _bundled_runtime_python -> str | None {
         for name in [
             f"python{sys.version_info.major}{sys.version_info.minor}.exe",
             "python.exe",
-
         ] {
             cand = prefix_dir / name;
             if cand.is_file() {
@@ -150,10 +149,16 @@ def _is_fused_venv(venv_dir: Path) -> bool {
 
 
 def _venv_needs_recreate(venv_dir: Path) -> bool {
+    import os;
     pyvenv_cfg = venv_dir / "pyvenv.cfg";
     python_path = Path(venv_python(venv_dir));
     if not pyvenv_cfg.exists() or not python_path.exists() {
         return True;
+    }
+    # Fused venvs (jac-as-python) only exist in standalone binaries; in
+    # pip-install mode venv/bin/python is a symlink to sys.executable by design.
+    if not os.environ.get("JAC_STANDALONE") {
+        return False;
     }
     return _is_fused_venv(venv_dir);
 }
@@ -176,11 +181,7 @@ def ensure_venv(venv_dir: Path, verbose: bool = False) {
             } except Exception as e {
                 err_msg = str(e).lower();
                 if "ensurepip" in err_msg or "no module named" in err_msg {
-                    raise RuntimeError(
-                        "Failed to create virtual environment: ensurepip is not available.\n"
-                        "On Debian/Ubuntu, install it with: sudo apt install python3-venv\n"
-                        "On Fedora/RHEL: sudo dnf install python3-libs"
-                    ) from e;
+                    _raise_ensurepip_unavailable(str(e));
                 }
                 raise;
             }
