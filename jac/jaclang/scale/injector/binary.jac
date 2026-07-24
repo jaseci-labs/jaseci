@@ -81,7 +81,6 @@ glob GH_REPO: str = "jaseci-labs/jac";
 
 
 def _ver_key(v: str) -> tuple[int, int, int] {
-    # Numeric major.minor.patch as an int triple, for comparison and max().
     parts = (v.strip().split(".") + ["0", "0", "0"])[:3];
     out: list[int] = [];
     for p in parts {
@@ -114,7 +113,6 @@ def _split_op(clause: str) -> tuple[str, str] {
 
 
 def _satisfies(version: str, spec: str) -> bool {
-    # True when `version` meets every comma-joined clause of the spec.
     v = _ver_key(version);
     for raw in spec.split(",") {
         clause = raw.strip();
@@ -136,7 +134,6 @@ def _satisfies(version: str, spec: str) -> bool {
         } elif op == "<" and v >= t {
             return False;
         } elif op == "~=" {
-            # Compatible release: >= target and same leading components.
             ncomp = len(
                 [
                     x
@@ -155,7 +152,6 @@ def _satisfies(version: str, spec: str) -> bool {
 
 
 def _exact_of(spec: str) -> str {
-    # An `==X` (or bare `X`) pin -> "X" (skips the release listing), else "".
     clauses = [
         c.strip()
         for c in spec.split(",")
@@ -192,9 +188,6 @@ def _list_release_versions(repo: str) -> list[str] {
 
 
 def _resolve_target_version(repo: str, spec: str) -> str {
-    # Resolve a spec to a concrete published version ("" = use latest). Exact
-    # pins skip the network; ranges list releases and take the newest match. A
-    # malformed clause is unresolvable -> "" (a declared pin then aborts).
     spec = spec.strip();
     if not spec {
         return "";
@@ -241,8 +234,6 @@ def _pick_stable_assets(meta: any, suffix: str) -> tuple[str, str] {
 
 
 def resolve_deploy_version(project_dir: str, channel: str) -> str {
-    # Resolve the pin to one release tag, or "" for latest. A pin matching no
-    # release aborts -- a pinned deploy never silently ships latest instead.
     import from jaclang.scale.config.dev_config { resolve_pinned_spec, Channel }
     if channel != Channel.STABLE.value {
         return "";
@@ -297,7 +288,6 @@ def download_release_binary(channel: str, arch: str, version: str = "") -> bytes
         binary_url = f"{base}/jac-dev{suffix}";
         checksum_url = f"{binary_url}.sha256";
     } else {
-        # STABLE: the pinned release tag if the app declares one, else latest.
         if version {
             api = f"https://api.github.com/repos/{repo}/releases/tags/v{version}";
         } else {
@@ -430,13 +420,10 @@ def resolve_pod_base_image(
     } elif channel == Channel.DEV {
         tag = "dev";
     } else {
-        # Same resolver as the pod binary and console, so the image can never
-        # drift from them. --dry-run (probe=False) is network-free, so it
-        # applies exact pins only; ranges show `latest`.
         target = resolve_deploy_version(project_dir, channel.value)
             if probe
             else _exact_of(resolve_pinned_spec(project_dir));
-        tag = target if target else "latest";
+        tag = target or "latest";
     }
     image = f"{OFFICIAL_IMAGE}:{tag}";
 
@@ -520,7 +507,6 @@ def _admin_dist_urls(channel: str, version: str = "") -> tuple[str, str] {
         return ("", "");
     }
     if version {
-        # Same release tag as the pinned pod binary, so the console matches it.
         url = f"https://github.com/{repo}/releases/download/v{version}/jac-{version}{suffix}";
         return (url, url + ".sha256");
     }
@@ -565,8 +551,6 @@ def download_admin_dist(channel: str, version: str = "") -> bytes | None {
             f"{channel} admin console"
         );
     } except HTTPError as e {
-        # A pinned release that never published a console asset is fine; any
-        # other pinned failure must not quietly ship a stale/absent console.
         if version and e.code == 404 {
             logger.warning(
                 f"Pinned jac {version} publishes no admin console asset; "
@@ -594,6 +578,13 @@ def stage_admin_dist(project_dir: str, channel: str, version: str = "") -> bool 
     try {
         payload = download_admin_dist(channel, version);
         if payload is None {
+            if version and dest.exists() {
+                shutil.rmtree(str(dest));
+                logger.info(
+                    f"Removed the previously staged admin console; pinned jac "
+                    f"{version} publishes none."
+                );
+            }
             return False;
         }
 
@@ -622,7 +613,6 @@ def stage_admin_dist(project_dir: str, channel: str, version: str = "") -> bool 
         logger.info("Staged the downloaded admin console into the app bundle.");
         return True;
     } except Exception as e {
-        # A pinned deploy promised this exact console; never fall back quietly.
         if version {
             raise;
         }

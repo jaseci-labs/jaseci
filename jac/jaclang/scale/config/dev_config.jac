@@ -46,7 +46,6 @@ def resolve_experimental_pr(project_dir: str) -> str {
 
 
 def resolve_pinned_spec(project_dir: str) -> str {
-    # The [project] jac-version pin, or "". Only the STABLE channel honors it.
     import from jaclang.project.config { get_config_for_path }
     config = get_config_for_path(Path(project_dir));
     if config is None {

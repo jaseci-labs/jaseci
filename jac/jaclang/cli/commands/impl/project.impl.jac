@@ -284,7 +284,7 @@ def _stamp_kind(config: dict, kind: str) -> None {
     }
 }
 
-def _stamp_jac_version(config: dict) -> None {
+def _stamp_jac_version(config: dict) {
     proj = config.get("project");
     if not isinstance(proj, dict) {
         proj = {};

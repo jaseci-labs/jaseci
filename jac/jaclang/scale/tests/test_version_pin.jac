@@ -127,9 +127,7 @@ test "the base image uses the same resolver as the pinned binary" {
 test "a pinned console failure aborts; unpinned stays soft" {
     d = _project('[project]\nname = "x"\nversion = "0.1.0"\n');
     with unittest.mock.patch.object(
-        binary_mod,
-        "download_admin_dist",
-        side_effect=RuntimeError("checksum mismatch")
+        binary_mod, "download_admin_dist", side_effect=RuntimeError("checksum mismatch")
     ) {
         raised = False;
         try {
@@ -152,6 +150,35 @@ test "a pinned release with no console asset is skipped, not fatal" {
         side_effect=HTTPError("url", 404, "Not Found", None, None)
     ) {
         assert binary_mod.download_admin_dist("stable", "0.30.0") is None;
+    }
+}
+
+
+test "a pinned no-console release clears a previously staged console" {
+    import from urllib.error { HTTPError }
+    d = _project('[project]\nname = "x"\nversion = "0.1.0"\n');
+    stale = Path(d) / ".jac" / "admin";
+    stale.mkdir(parents=True);
+    (stale / "index.html").write_text("stale", encoding="utf-8");
+    with unittest.mock.patch.object(
+        binary_mod,
+        "_fetch_verified_asset",
+        side_effect=HTTPError("url", 404, "Not Found", None, None)
+    ) {
+        with unittest.mock.patch.object(
+            binary_mod,
+            "_http_get_bytes",
+            side_effect=HTTPError("url", 404, "Not Found", None, None)
+        ) {
+            # Pinned: the stale console from an earlier deploy must not ship.
+            assert binary_mod.stage_admin_dist(d, "stable", "0.30.0") == False;
+            assert not stale.exists();
+            # Unpinned keeps whatever was staged before.
+            (stale).mkdir(parents=True);
+            (stale / "index.html").write_text("stale", encoding="utf-8");
+            assert binary_mod.stage_admin_dist(d, "stable") == False;
+            assert stale.exists();
+        }
     }
 }
 

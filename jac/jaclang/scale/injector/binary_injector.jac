@@ -22,7 +22,6 @@ obj BinaryInjector(PvcInjector) {
         _pod_binary_bytes: bytes = b"";
 
     def prepare(app_name: str, namespace: str, project_dir: str) {
-        # One release tag for the whole pod: binary, console, and base image.
         version = resolve_deploy_version(project_dir, self.channel.value);
         stage_admin_dist(project_dir, self.channel.value, version);
 
