@@ -430,18 +430,13 @@ def resolve_pod_base_image(
     } elif channel == Channel.DEV {
         tag = "dev";
     } else {
-        tag = "latest";
-        spec = resolve_pinned_spec(project_dir);
-        if spec {
-            # Match the image to the pinned binary. --dry-run (probe=False) is
-            # network-free, so it applies exact pins only; ranges show `latest`.
-            target = _resolve_target_version(GH_REPO, spec)
-                if probe
-                else _exact_of(spec);
-            if target {
-                tag = target;
-            }
-        }
+        # Same resolver as the pod binary and console, so the image can never
+        # drift from them. --dry-run (probe=False) is network-free, so it
+        # applies exact pins only; ranges show `latest`.
+        target = resolve_deploy_version(project_dir, channel.value)
+            if probe
+            else _exact_of(resolve_pinned_spec(project_dir));
+        tag = target if target else "latest";
     }
     image = f"{OFFICIAL_IMAGE}:{tag}";
 
@@ -569,7 +564,25 @@ def download_admin_dist(channel: str, version: str = "") -> bytes | None {
             _admin_dist_cache_path(channel),
             f"{channel} admin console"
         );
+    } except HTTPError as e {
+        # A pinned release that never published a console asset is fine; any
+        # other pinned failure must not quietly ship a stale/absent console.
+        if version and e.code == 404 {
+            logger.warning(
+                f"Pinned jac {version} publishes no admin console asset; "
+                f"the gateway builds it on boot."
+            );
+            return None;
+        }
+        if version {
+            raise;
+        }
+        logger.warning(f"Could not download the admin console asset ({e}).");
+        return None;
     } except Exception as e {
+        if version {
+            raise;
+        }
         logger.warning(f"Could not download the admin console asset ({e}).");
         return None;
     }
@@ -593,6 +606,11 @@ def stage_admin_dist(project_dir: str, channel: str, version: str = "") -> bool 
         }
         if not (tmp / "index.html").is_file() {
             shutil.rmtree(str(tmp));
+            if version {
+                raise RuntimeError(
+                    f"Pinned jac {version} admin console asset has no index.html."
+                );
+            }
             logger.warning("Admin console asset has no index.html; not staging it.");
             return False;
         }
@@ -604,6 +622,10 @@ def stage_admin_dist(project_dir: str, channel: str, version: str = "") -> bool 
         logger.info("Staged the downloaded admin console into the app bundle.");
         return True;
     } except Exception as e {
+        # A pinned deploy promised this exact console; never fall back quietly.
+        if version {
+            raise;
+        }
         logger.warning(
             f"Could not stage the admin console ({e}); the gateway builds it on boot."
         );

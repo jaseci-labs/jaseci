@@ -96,6 +96,66 @@ test "the admin console uses the same release tag as the pinned binary" {
 }
 
 
+test "the base image uses the same resolver as the pinned binary" {
+    d = _project(
+        '[project]\nname = "x"\nversion = "0.1.0"\njac-version = ">=0.34,<0.35"\n'
+    );
+    with unittest.mock.patch.object(
+        binary_mod, "resolve_deploy_version", return_value="0.34.2"
+    ) {
+        with unittest.mock.patch.object(
+            binary_mod, "_http_get_bytes", return_value=b"{}"
+        ) {
+            assert binary_mod.resolve_pod_base_image(d, "") == "jaseci/jaclang:0.34.2";
+        }
+    }
+    # An unresolvable pin aborts the image resolution too -- no silent `latest`.
+    with unittest.mock.patch.object(
+        binary_mod, "resolve_deploy_version", side_effect=RuntimeError("no match")
+    ) {
+        raised = False;
+        try {
+            binary_mod.resolve_pod_base_image(d, "");
+        } except RuntimeError {
+            raised = True;
+        }
+        assert raised;
+    }
+}
+
+
+test "a pinned console failure aborts; unpinned stays soft" {
+    d = _project('[project]\nname = "x"\nversion = "0.1.0"\n');
+    with unittest.mock.patch.object(
+        binary_mod,
+        "download_admin_dist",
+        side_effect=RuntimeError("checksum mismatch")
+    ) {
+        raised = False;
+        try {
+            binary_mod.stage_admin_dist(d, "stable", "0.34.2");
+        } except RuntimeError {
+            raised = True;
+        }
+        assert raised;
+        # Unpinned keeps the warn-and-continue behavior.
+        assert binary_mod.stage_admin_dist(d, "stable") == False;
+    }
+}
+
+
+test "a pinned release with no console asset is skipped, not fatal" {
+    import from urllib.error { HTTPError }
+    with unittest.mock.patch.object(
+        binary_mod,
+        "_fetch_verified_asset",
+        side_effect=HTTPError("url", 404, "Not Found", None, None)
+    ) {
+        assert binary_mod.download_admin_dist("stable", "0.30.0") is None;
+    }
+}
+
+
 test "config round-trips the stamped jac-version pin" {
     toml = '[project]\nname = "x"\nversion = "0.1.0"\njac-version = "==0.34.3"\n';
     cfg = JacConfig.from_toml_str(toml);

@@ -89,7 +89,7 @@ repository = "https://github.com/user/repo"
 | `description` | string | One-line summary (also shown on PyPI) |
 | `entry-point` | string | Main file for `jac run` (default: `main.jac`) |
 | `kind` | string | Project kind that drives `jac run` dispatch (execute / serve / build). Empty = inferred from the entry-point codespace. One of: `cli`, `cli-native`, `native-binary`, `native-lib`, `service`, `service-mesh`, `py-package`, `js-package`, `web-app`, `web-static`, `desktop`, `mobile` |
-| `jac-version` | string | Jac toolchain version the project targets, as a PEP 440-style specifier. `jac create` stamps `==<current>`; at `jac start --scale` the pod runtime binary and base image are chosen to satisfy it, falling back to the latest release when nothing published matches. See [jac-version](#jac-version). |
+| `jac-version` | string | Jac toolchain version the project targets, as a PEP 440-style specifier. `jac create` stamps `==<current>`; at `jac start --scale` the pod runtime binary, admin console, and base image are all taken from the release that satisfies it, and the deploy aborts if none does. See [jac-version](#jac-version). |
 | `license` | string | SPDX license identifier (e.g. `"MIT"`) |
 | `readme` | string | Path to README file (default: `README.md`) |
 | `requires-python` | string | Minimum Python version (e.g. `">=3.12"`) |
@@ -110,11 +110,12 @@ jac-version = "==0.34.3"
 
 You can widen or move it by editing the value -- `>=0.34.3`, `<=0.34.3`, `>=0.34,<0.35`, `~=0.34.3`, or a bare `0.34.3` (same as `==`).
 
-At deploy time (`jac start --scale`), the pin selects the **pod runtime**: the deployer downloads the released `jac` binary and base image that satisfy `jac-version` and ships them to the pods, so the app runs on the toolchain it was built against -- not on whatever `latest` happens to be. Resolution rules:
+At deploy time (`jac start --scale`), the pin selects the **pod runtime**: the deployer downloads the released `jac` binary, admin console, and base image from the release that satisfies `jac-version` and ships them to the pods, so the app runs on the toolchain it was built against -- not on whatever `latest` happens to be. Resolution rules:
 
-- **Exact pin** (`==X` / `X`) -> the `vX` release, if published.
+- **Unset** -> the latest published release.
+- **Exact pin** (`==X` / `X`) -> the `vX` release.
 - **Range** -> the newest published release that satisfies it.
-- **Nothing matches** (unset, unsatisfiable, or that release lacks the pod's CPU arch) -> falls back to the latest published release.
+- **No published release satisfies the pin** (or the matching release lacks the pod's CPU arch or a `jac-*` asset) -> the deploy **aborts** with an error naming the pin; a pinned deploy never silently ships a different version. Fix or remove `jac-version` to proceed.
 
 The pin is honored only on the default (stable) channel; the `[dev]`, `[experimental]`, and `JAC_SCALE_BINARY_PATH` (local) channels select the pod binary by their own rules and ignore it.
 
