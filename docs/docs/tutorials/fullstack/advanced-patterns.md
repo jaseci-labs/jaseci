@@ -487,13 +487,10 @@ Browser DevTools source maps should point back to your original `.jac` files whe
 
 ### Service Layer Pattern
 
-Organize API calls and WebSocket logic into service modules separate from UI components:
+Organize API calls and WebSocket logic into service modules separate from UI components. Every non-component module lives in one flat `lib/` package - what separates a transport module from a helper is its filename, not its folder:
 
 ```
 myapp/
-├── services/
-│   ├── apiService.cl.jac      # REST API calls
-│   └── wsService.cl.jac       # WebSocket management
 ├── hooks/
 │   ├── useAuth.cl.jac         # Auth state hook
 │   └── useData.cl.jac         # Data fetching hook
@@ -501,8 +498,12 @@ myapp/
 │   └── ui/                    # Reusable UI components
 ├── pages/                     # Route pages
 └── lib/
+    ├── apiService.cl.jac      # REST API calls
+    ├── wsService.cl.jac       # WebSocket management
     └── utils.cl.jac           # cn() and other utilities
 ```
+
+Keeping them in one package also keeps intra-package imports `.`-relative. Reaching across two sibling top-level folders works under `jac start` but fails under `jac test <file>`, which roots the package at the target file's own directory.
 
 ### Custom Hook Pattern
 

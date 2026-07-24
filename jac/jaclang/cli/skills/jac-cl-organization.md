@@ -53,16 +53,19 @@ my-app/
 │   ├── ItemCard.jac
 │   ├── ItemCard.style.css      # optional scoped styles - SAME basename
 │   └── ItemList.jac            # composes ItemCard
-├── services/
-│   ├── recipes.sv.jac          # server endpoints + types (see jac-sv-endpoints)
-│   └── wsService.jac           # client-side service module (WebSocket, API glue)
 ├── hooks/
 │   └── useItems.jac            # only for REUSED fetch+state units - `use` prefix
-└── lib/
+└── lib/                        # every non-component module, one flat package
+    ├── recipes.jac             # server endpoints + types (see jac-sv-endpoints)
+    ├── wsService.jac           # client service module (WebSocket, API glue)
     └── utils.jac               # pure helper fns (cn, formatDate)
 ```
 
-The client files above are plain `.jac` - placement is inferred from their JSX/npm imports; the explicit `cl` marker style stays available if you want the boundary visible, so keep whichever convention the project already uses. Service modules separate transport logic from UI: server endpoint modules live under `services/` (plain `.jac` is equally idiomatic - server is the default; `.sv.jac` is the explicit pin); a client service module (e.g. `wsService.jac`) holds client-side WebSocket/API plumbing with `glob` module state (see `jac-cl-js-interop`). Components and hooks import from services - never the reverse.
+The client files above are plain `.jac` - placement is inferred from their JSX/npm imports; the explicit `cl` marker style stays available if you want the boundary visible, so keep whichever convention the project already uses.
+
+**Everything that isn't a component, page, or hook lives in `lib/`** - server endpoint modules, client transport modules, and pure helpers alike. Don't split them across sibling top-level folders. What separates them is the **filename**, not the directory: `lib/recipes.jac` is the recipes API (plain `.jac` is idiomatic - server is the default; `.sv.jac` is the explicit pin), `lib/wsService.jac` holds client-side WebSocket/API plumbing with `glob` module state (see `jac-cl-js-interop`), `lib/utils.jac` holds pure helpers. Components and hooks import from `lib/` - never the reverse.
+
+One flat `lib/` also keeps every intra-package import `.`-relative (`import from .utils { cn }` inside `lib/`). Reaching across two sibling top-level folders (`..otherdir.mod` from inside `lib/`) works under `jac start` but fails under `jac test <file>` with `attempted relative import beyond top-level package`, because the test runner roots the package at the target file's own directory.
 
 ## Hook pattern - reusable fetch+state units
 
@@ -93,7 +96,7 @@ def:pub useItems() -> dict {
 }
 ```
 
-In a real hook, replace the local `Item` declaration with `sv import from ..services.todo { Item, get_items, add_item }` (2 dots = up one folder from `hooks/` into `services/`) and call those in `async can with entry` / handlers. Consume as `data = useItems(); items = data["items"] or [];` - `[key]` access, not `.get()`. See `jac-fullstack-patterns`.
+In a real hook, replace the local `Item` declaration with `sv import from ..lib.todo { Item, get_items, add_item }` (2 dots = up one folder from `hooks/` into `lib/`) and call those in `async can with entry` / handlers. Consume as `data = useItems(); items = data["items"] or [];` - `[key]` access, not `.get()`. See `jac-fullstack-patterns`.
 
 ## Global state: createContext / useContext
 
@@ -140,7 +143,7 @@ When the project has `components/ui/` (jac-shadcn primitives are pre-installed):
 - **Scoped styles share the basename.** `Button.style.css` beside the component file (`Button.jac`) auto-scopes, no import. See `jac-cl-styling`.
 - **PascalCase** for components + files: `UserCard.jac`. `snake_case` for variables and handlers.
 - **Pages are thin orchestrators of sections.** JSX > ~80 lines in a shell's return = extract blocks into section components (props down, callbacks up); handler bodies > a screenful = move to the `.impl.jac`.
-- **Domain-meaningful names, not structural.** `CalculatorApp`, not `App`. `recipes_data`, not `data`. `services/recipes.sv.jac`, not `services/api.sv.jac`. Generic `Layout`/`App` only for the single top-level wrapper.
+- **Domain-meaningful names, not structural.** `CalculatorApp`, not `App`. `recipes_data`, not `data`. `lib/recipes.jac`, not `lib/api.jac` - in a flat `lib/` the filename carries the whole distinction, so it has to say what the module is. Generic `Layout`/`App` only for the single top-level wrapper.
 - **Hook name = `use<DomainNoun>`** (`useRecipes`, NOT `useData`); hooks live under `hooks/`, return dicts consumed with `[key]`. Don't call a hook from a non-component `def` - `has` fields only wire up inside `def:pub` that renders JSX or inside another `useXxx()`.
 - **Extract to a hook when** the same fetch+state *logic* recurs in ≥2 components. If ≥2 components must see the same *live values*, a hook is NOT enough - use the context pattern above.
 
