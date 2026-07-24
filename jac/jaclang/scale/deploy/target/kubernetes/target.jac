@@ -1298,7 +1298,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         if self.k8s_config.autoscaler_engine != "keda" {
             try {
                 KEDAAutoscaler(logger=self.logger).destroy_collection(
-                    namespace, ms_selector
+                    namespace, ms_selector, best_effort=True
                 );
             } except ApiException as e {
                 if e.status != 404 {
