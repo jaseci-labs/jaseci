@@ -3,19 +3,19 @@ name: jac-fullstack-patterns
 description: Wiring `main.jac` as the entry for a fullstack Jac app - endpoint registration, client mount, calling walkers from the client (`root spawn`), the `sv import` rules that tie client modules to server modules, endpoint caching, `[serve]` config. Load when starting a new app, adding the first server endpoint, creating a server module, or debugging how the top-level pieces connect. Pair with `jac-sv-endpoints`, `jac-cl-components`, `jac-scaffold`.
 ---
 
-A fullstack Jac app has three layers: `main.jac` (entry), server modules (plain `.jac` files - server is the default context; `.sv.jac` is the explicit-marker option, e.g. `lib/*.sv.jac`), and client components under `components/**` (plain `.jac` with JSX infers client). Codespace placement is **inferred** (see `jac-codespaces`): JSX and string-path npm imports mark a declaration client, references pull helpers/`glob`s/imports into the bundle, and `def:pub` endpoints always stay server. `main.jac` mixes contexts naturally - server imports and endpoints first, client section below, no wrapper required (a `cl` block around the client section is the equivalent explicit form):
+A fullstack Jac app has three layers: `main.jac` (entry), server modules (plain `.jac` files - server is the default context; `.sv.jac` is the explicit-marker option), and client components (plain `.jac` with JSX infers client). Both halves of a feature live in the same folder - see `jac-cl-organization`. Codespace placement is **inferred** (see `jac-codespaces`): JSX and string-path npm imports mark a declaration client, references pull helpers/`glob`s/imports into the bundle, and `def:pub` endpoints always stay server. `main.jac` mixes contexts naturally - server imports and endpoints first, client section below, no wrapper required (a `cl` block around the client section is the equivalent explicit form):
 
 ```jac
-import from lib.recipe {
+import from recipes.store {
     ApiResponse, RecipePayload,
     save_profile, list_recipes,
 }
 
 import ".styles.global.css";                    # string-path import -> client
-import from .components.AppShell { AppShell }   # pulled client: app() below renders it
+import from .recipes.RecipesShell { RecipesShell }   # pulled client: app() renders it
 
 def:pub app() -> JsxElement {                   # JSX -> inferred client
-    return <AppShell />;
+    return <RecipesShell />;
 }
 ```
 
@@ -50,9 +50,9 @@ Return `node`/`obj` instances (or `report` them from walkers) directly - no manu
 
 ## Rules
 
-- **Endpoints register two ways.** Any endpoint a client module references through `sv import` **self-registers at server start**: the compile-time interop manifest records the client-to-server binding and the runtime imports the providing module itself (verified live; the flagship app imports ONE endpoint in `main.jac` while ~25 others serve through stub references alone). A top-level entry-module import (`import from lib.X { fn, Types }`) is needed only for endpoints NO client stub references - streams consumed via raw fetch (`jac-sv-streaming`), REST-only/webhook walkers. **404 on RPC = nothing references it: no cl-side `sv import` AND no entry-module import.** Caveat (verified): an `sv import` inside the entry module's own `cl` block does NOT register the endpoint - keep server-calling client code in separate client modules, or add the entry-module import.
-- **In `main.jac`: plain `import from lib.X { ... }`** (NEVER `sv import`). Plain = in-process import; the endpoint registers at `/function/<name>` (walkers at `/walker/<name>`).
-- **In client modules (inferred-client `.jac`): `sv import from ..lib.X { ... }`** (prefix required). Generates the JS RPC stub. `sv import` is a **boundary fact, not placement**: it states the target module stays on the server and calls cross over RPC; the import itself lives with its client consumer. Plain `import from` to a `.sv.jac` fails the Vite build with `Could not resolve "lib/X.js"`.
+- **Name every endpoint in the entry module's import list.** `import from <feature>.X { fn, Types }` in `main.jac` is what reliably registers `fn` at `/function/fn` (walkers at `/walker/<name>`). The compile-time interop manifest is *meant* to let any endpoint a client `sv import`s self-register at server start, and often it does - but registration tracks the **exact name**, and a newly added `def:pub` in a module the entry already imports still returns **405 Method Not Allowed** until that new name joins the same import (jaseci-labs/jac#7695). Renaming it or changing its return type does not help; adding it to the entry import does. **405/404 on RPC = the name is missing from the entry-module import.** Related: an `sv import` inside the entry module's own `cl` block never registers - keep server-calling client code in separate client modules.
+- **In `main.jac`: plain `import from <feature>.X { ... }`** (NEVER `sv import`). Plain = in-process import; the endpoint registers at `/function/<name>` (walkers at `/walker/<name>`).
+- **In client modules (inferred-client `.jac`): `sv import` with the `sv` prefix required.** Within a feature that is the sibling form - `sv import from .store { list_recipes }` - which is the whole point of keeping both halves together. Generates the JS RPC stub. `sv import` is a **boundary fact, not placement**: it states the target module stays on the server and calls cross over RPC; the import itself lives with its client consumer. Plain `import from` to a `.sv.jac` fails the Vite build with `Could not resolve "<feature>/X.js"`.
 - **Always `await` `sv import` function calls.** Stubs are `async` - `items = fetch_items()` assigns a `Promise` → silent runtime crash. `items = await fetch_items()`.
 - **`sv import` from server code (e.g. in `main.jac`) declares a server-to-server microservice boundary.** Spawns a separate provider server process; session cookies don't cross → `def:priv` fails with `401 Unauthorized`. Only use for actual microservices (see `jac-sv-microservices`).
 - **Import obj/node TYPES alongside functions** in both places - missing types mean a server `NameError` at runtime or lost typed attribute access on the client (`has posts: list[Post] = [];` needs `Post` imported).
