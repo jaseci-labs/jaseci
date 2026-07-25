@@ -56,10 +56,10 @@ $1.17\times$ ratio is a small fixed cost seen at one small size that amortizes t
 $\approx$$1.0\times$ once the callee does real work. Family-1 timings are captured
 under a pinned CPU governor with turbo disabled; the ratios are reproducible
 while the absolute nanosecond figures are clock-specific. A complementary payload sweep over the same loopback RPC, from $1$ to $100{,}000$
-returned elements, resolves the crossing into a $\approx$$17$\,ms fixed cost plus
-a $911$\,ns/element serialization slope (95\% bootstrap CI $889$--$1002$)---$2.7\times$ the in-process list's
+returned elements, resolves the crossing into a $\approx$$15$\,ms fixed cost plus
+an $890$\,ns/element serialization slope (95\% bootstrap CI $848$--$983$)---$2.6\times$ the in-process list's
 $342$\,ns/element---with byte-identical digests at every size, and directly
-observes that slope overtake the fixed cost at $N\approx19{,}000$. We further report
+observes that slope overtake the fixed cost at $N\approx17{,}000$. We further report
 low-nanosecond \code{C}-ABI foreign-call costs and, for the two loopback RPC
 cells re-captured under the pinned governor (median of three runs at $n{=}20$,
 run-to-run CV $\le$$4\%$), cross-runtime floors of $241\times$ (\code{xop\_feed})
@@ -458,12 +458,12 @@ All numbers below were captured on host \code{zaitop}: Linux~6.18 x86\_64,
 (\code{args = 200, 20}); Section~\ref{sec:sweep} sweeps eight callee-work sizes
 and Section~\ref{sec:payload} sixteen payload cardinalities. All family-1 cells
 (the single-size bridge table below, the \code{iop\_ffi\_*} cells, and the
-eight-point sweep of Section~\ref{sec:sweep}) and all three family-2
-cross-runtime cells are captured under the pinned governor with turbo disabled
-(Section~\ref{sec:controls}), as medians of three runs at $n{=}20$; the payload
-sweep (Section~\ref{sec:payload}) is a single pinned sweep at $n{=}20$ per size.
-Every cell's variants produced byte-identical canonical digests---the oracle
-passed for all ten measured kernels at every size, independent of clock.
+eight-point sweep of Section~\ref{sec:sweep}), all three family-2 cross-runtime
+cells, and the payload sweep (Section~\ref{sec:payload}) are all captured under
+the pinned governor with turbo disabled (Section~\ref{sec:controls}), as medians
+of three runs at $n{=}20$. Every cell's variants produced byte-identical
+canonical digests---the oracle passed for all ten measured kernels at every size,
+independent of clock.
 
 \subsection{Native bridges}
 
@@ -811,59 +811,58 @@ round-trip preserves the list exactly.
 
 Both paths fit $t(N)\approx t_0 + s\cdot N$ per call, but with opposite dominant
 terms. The \code{direct} path is a near-perfect line of slope $s=342$\,ns/element
-(95\% CI $340$--$343$, $R^2>0.9999$ over the whole range): building an
-$N$-element list in-process costs essentially just per-element construction, with
-no fixed floor to speak of. The \code{rpc} path is the mirror image---a
-$\approx$$17$\,ms fixed per-call cost dominates at small $N$, and the per-element
-serialization slope is buried beneath it until the payload grows large. Over the
-full range the \code{rpc} fit is $s=911$\,ns/element (95\% CI $889$--$1002$) on a
-$\approx$$17$\,ms floor ($R^2=0.997$); the earlier sweep, which stopped at
-$N{=}20{,}000$---essentially at break-even (below)---could only extrapolate this
-slope, but the extended range now measures it directly, and cleanly: restricting
-to the post-crossing band ($N\ge30{,}000$) gives $s=823$\,ns/element
-(95\% CI $808$--$846$) on a $\approx$$23$\,ms floor at $R^2=0.9998$. That is the
-result: \emph{crossing the RPC boundary costs $\approx$$2.7\times$ per element
-what the in-process list costs} ($911$ vs.\ $342$\,ns/element)---the
+(95\% CI $339$--$343$, $R^2>0.9999$ over the whole range, run-to-run CV $0.1\%$):
+building an $N$-element list in-process costs essentially just per-element
+construction, with no fixed floor to speak of. The \code{rpc} path is the mirror
+image---a $\approx$$15$\,ms fixed per-call cost dominates at small $N$, and the
+per-element serialization slope is buried beneath it until the payload grows
+large. Over the full range the \code{rpc} fit is $s=890$\,ns/element (95\% CI
+$848$--$983$) on a $\approx$$15$\,ms floor ($R^2=0.994$); the earlier sweep, which
+stopped at $N{=}20{,}000$---essentially at break-even (below)---could only
+extrapolate this slope, but the extended range now measures it directly. That is
+the result: \emph{crossing the RPC boundary costs $\approx$$2.6\times$ per element
+what the in-process list costs} ($890$ vs.\ $342$\,ns/element)---the
 JSON-encode/HTTP/decode marshalling tax laid bare as a slope, exactly the quantity
 the family-1 method isolates, now measured on payload rather than work. The
 consequence is visible in the ratio column of Table~\ref{tab:payload}: it
-collapses from $\approx$$21{,}700\times$ at $N{=}1$ to $\approx$$3\times$ at
+collapses from $\approx$$19{,}500\times$ at $N{=}1$ to $\approx$$3\times$ at
 $N{=}100{,}000$---the inverse of the \code{iop\_cb} decay. There a fixed boundary was amortized by
 growing \emph{work}; here a fixed RPC floor is amortized by growing \emph{payload},
 while the direct twin it is measured against grows linearly.
 
-Crucially, the crossing is now \emph{observed}, not inferred, and the fit
-coefficients are reported with bootstrap confidence intervals rather than bare
-spread (percentile pairs bootstrap over the sixteen sweep points, $B{=}10^4$).
+Crucially, the crossing is now \emph{observed}, not inferred, and it reproduces:
+the sweep was run three times end to end under the pinned clock, and the fit
+coefficients are stable run to run---the \code{direct} slope at CV $0.1\%$, the
+\code{rpc} serialization slope at CV $1.8\%$ ($871$--$911$\,ns/element), the
+\code{rpc}/\code{direct} ratio at CV $1.8\%$. The one noisy term is the fixed-cost
+floor (CV $7.2\%$, $14.6$--$17.0$\,ms), which is exactly the loopback/HTTP setup
+cost and does not touch the slope. Coefficients are also reported with a within-run
+bootstrap CI (percentile pairs bootstrap over the sixteen sweep points, $B{=}10^4$).
 The break-even payload at which the serialization term equals the fixed cost is
-$N\approx19{,}000$ elements---almost exactly where the earlier sweep stopped,
-which is why it could not see past the floor---and the extended sweep measures
-$N$ more than five times beyond it: at $N{=}100{,}000$ the slope term
-($\approx$$91$\,ms) is $\approx$$5.4\times$ the $\approx$$17$\,ms fixed cost, so
-the crossing is firmly \emph{slope-dominated}. This inverts the earlier
-reading---bounded at $20{,}000$, the crossing looked fixed-cost-dominated
-throughout and the slope was a second-order extrapolation---and replaces it: the
-loopback RPC is a fixed-cost floor at small payloads that hands off to a
-serialization curve at large ones, with the handoff directly witnessed. The
-confidence intervals put numbers on what was previously only
-``order-of-magnitude'': the full-range slope is $911$\,ns/element (CI
-$889$--$1002$), tightening to $808$--$846$ in the clean post-crossing regime,
-while the per-point crossing medians stay wide at small $N$. That small-$N$ width
-is the fixed-cost floor's noise, not the slope's: the \code{rpc} medians are
-non-monotone only for $N\le2000$ and become strictly monotone from $N{=}5000$
-onward---exactly where the slope emerges.
+$N\approx17{,}000$ elements---almost exactly where the earlier sweep stopped, which
+is why it could not see past the floor---and the extended sweep measures $N$ nearly
+six times beyond it: at $N{=}100{,}000$ the slope term ($\approx$$89$\,ms) is
+$\approx$$5.9\times$ the $\approx$$15$\,ms fixed cost, so the crossing is firmly
+\emph{slope-dominated}. This inverts the earlier reading---bounded at $20{,}000$,
+the crossing looked fixed-cost-dominated throughout and the slope was a
+second-order extrapolation---and replaces it: the loopback RPC is a fixed-cost
+floor at small payloads that hands off to a serialization curve at large ones,
+with the handoff directly witnessed. The per-point crossing medians stay wide at
+small $N$, where the fixed-cost floor's noise dominates: the \code{rpc} medians are
+non-monotone for $N\le100$ and become strictly monotone from $N{=}250$ onward---%
+exactly where the slope begins to emerge.
 
 \begin{table}[t]
 \caption{\code{xop\_feed\_payload}: per-call time returning a \code{list[$N$]}
 over a loopback \code{sv$\rightarrow$sv} RPC vs.\ in-process, $N$ swept $1$ to
-$100{,}000$ at $20$ calls, a single pinned-governor sweep at $n{=}20$
-interleaved invocations per size (Section~\ref{sec:controls}). Every
-row's \code{direct} and \code{rpc} canonical digests were byte-identical
-($\checkmark$). \code{direct} fits $342$\,ns/element ($R^2{>}.9999$); \code{rpc}
-fits a $\approx$$17$\,ms fixed cost plus a $911$\,ns/element serialization slope
-(95\% CI $889$--$1002$, $R^2{=}.997$), the slope directly observed to overtake the
-fixed cost at $N\approx19{,}000$. Bootstrap CIs are in the released
-\code{payload\_noturbo\_n20.json}.}
+$100{,}000$ at $20$ calls; per-cell values are the median of three pinned-governor
+sweeps at $n{=}20$ interleaved invocations per size (Section~\ref{sec:controls}).
+Every row's \code{direct} and \code{rpc} canonical digests were byte-identical
+($\checkmark$). \code{direct} fits $342$\,ns/element ($R^2{>}.9999$, run-to-run CV
+$0.1\%$); \code{rpc} fits a $\approx$$15$\,ms fixed cost plus an $890$\,ns/element
+serialization slope (95\% CI $848$--$983$, $R^2{=}.994$, run-to-run CV $1.8\%$),
+the slope directly observed to overtake the fixed cost at $N\approx17{,}000$.
+Per-run data are in \code{payload\_noturbo\_n20\_rep\{1,2,3\}.json}.}
 \label{tab:payload}
 \centering
 \small
@@ -871,22 +870,22 @@ fixed cost at $N\approx19{,}000$. Bootstrap CIs are in the released
 \toprule
 $N$ & \code{direct} (\textmu s) & \code{rpc} (ms) & rpc/direct & dig. \\
 \midrule
-1      & $0.76$   & $16.5$ & $21{,}708\times$ & $\checkmark$ \\
-10     & $4.01$   & $16.1$ & $4{,}025\times$  & $\checkmark$ \\
-50     & $17.9$   & $17.2$ & $961\times$      & $\checkmark$ \\
-100    & $34.6$   & $16.8$ & $485\times$      & $\checkmark$ \\
-250    & $86.1$   & $16.4$ & $190\times$      & $\checkmark$ \\
-500    & $172$    & $16.3$ & $95\times$       & $\checkmark$ \\
-1000   & $345$    & $17.3$ & $50\times$       & $\checkmark$ \\
-2000   & $691$    & $17.0$ & $25\times$       & $\checkmark$ \\
-5000   & $1{,}708$ & $21.1$ & $12\times$      & $\checkmark$ \\
-10000  & $3{,}410$ & $26.4$ & $8\times$       & $\checkmark$ \\
-20000  & $6{,}812$ & $36.5$ & $5\times$       & $\checkmark$ \\
-30000  & $10{,}171$ & $47.7$ & $5\times$      & $\checkmark$ \\
-40000  & $13{,}590$ & $55.5$ & $4\times$      & $\checkmark$ \\
-50000  & $17{,}057$ & $64.6$ & $4\times$      & $\checkmark$ \\
-75000  & $25{,}539$ & $85.1$ & $3\times$      & $\checkmark$ \\
-100000 & $34{,}282$ & $105.0$ & $3\times$     & $\checkmark$ \\
+1      & $0.75$   & $14.6$ & $19{,}502\times$ & $\checkmark$ \\
+10     & $3.98$   & $13.5$ & $3{,}398\times$  & $\checkmark$ \\
+50     & $17.8$   & $15.0$ & $841\times$      & $\checkmark$ \\
+100    & $34.4$   & $14.1$ & $410\times$      & $\checkmark$ \\
+250    & $85.8$   & $14.9$ & $174\times$      & $\checkmark$ \\
+500    & $171$    & $15.8$ & $93\times$       & $\checkmark$ \\
+1000   & $347$    & $16.2$ & $47\times$       & $\checkmark$ \\
+2000   & $689$    & $17.0$ & $25\times$       & $\checkmark$ \\
+5000   & $1{,}711$ & $18.3$ & $11\times$      & $\checkmark$ \\
+10000  & $3{,}410$ & $21.9$ & $6\times$       & $\checkmark$ \\
+20000  & $6{,}795$ & $32.6$ & $5\times$       & $\checkmark$ \\
+30000  & $10{,}171$ & $42.3$ & $4\times$      & $\checkmark$ \\
+40000  & $13{,}584$ & $52.9$ & $4\times$      & $\checkmark$ \\
+50000  & $17{,}026$ & $64.4$ & $4\times$      & $\checkmark$ \\
+75000  & $25{,}539$ & $83.7$ & $3\times$      & $\checkmark$ \\
+100000 & $34{,}293$ & $99.1$ & $3\times$     & $\checkmark$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -905,19 +904,20 @@ $N$ & \code{direct} (\textmu s) & \code{rpc} (ms) & rpc/direct & dig. \\
   every axis plot/.append style={thick, mark size=1.1pt},
 ]
 \addplot[mark=*,red!70!black] coordinates {
-  (1,16476266)(10,16136632)(50,17192893)(100,16776468)(250,16364385)(500,16318333)(1000,17291125)(2000,16963593)(5000,21103224)(10000,26410197)(20000,36492200)(30000,47651657)(40000,55483578)(50000,64567664)(75000,85056282)(100000,105028790)};
+  (1,14606736)(10,13511981)(50,14968466)(100,14122879)(250,14925034)(500,15819482)(1000,16229288)(2000,16963593)(5000,18311699)(10000,21855446)(20000,32645548)(30000,42324280)(40000,52900132)(50000,64394525)(75000,83659745)(100000,99055558)};
 \addplot[mark=square*,blue!70!black] coordinates {
-  (1,759)(10,4009)(50,17893)(100,34558)(250,86099)(500,171496)(1000,344727)(2000,690931)(5000,1708301)(10000,3409932)(20000,6811651)(30000,10170737)(40000,13589606)(50000,17056895)(75000,25538996)(100000,34281541)};
+  (1,749)(10,3977)(50,17795)(100,34448)(250,85831)(500,170755)(1000,346525)(2000,688588)(5000,1711470)(10000,3409932)(20000,6795209)(30000,10170737)(40000,13584290)(50000,17026283)(75000,25538996)(100000,34292691)};
 \legend{rpc (crossing),direct (in-process)}
 \end{loglogaxis}
 \end{tikzpicture}
-\caption{Payload-cardinality sweep, $N{=}1$ to $100{,}000$. \code{direct} is a
-clean slope-$1$ line ($342$\,ns/element); \code{rpc} is a flat $\approx$$17$\,ms
-floor that rises once the $911$\,ns/element serialization term climbs above it,
-directly crossing break-even at $N\approx19{,}000$. The two curves converge as
-$N$ grows---the crossing's fixed cost amortizes over a larger payload while the
-in-process twin grows linearly---and by $N{=}100{,}000$ the crossing is
-slope-dominated ($\approx$$5.4\times$ the fixed cost).}
+\caption{Payload-cardinality sweep, $N{=}1$ to $100{,}000$ (median of three pinned
+sweeps). \code{direct} is a clean slope-$1$ line ($342$\,ns/element); \code{rpc}
+is a flat $\approx$$15$\,ms floor that rises once the $890$\,ns/element
+serialization term climbs above it, directly crossing break-even at
+$N\approx17{,}000$. The two curves converge as $N$ grows---the crossing's fixed
+cost amortizes over a larger payload while the in-process twin grows
+linearly---and by $N{=}100{,}000$ the crossing is slope-dominated
+($\approx$$5.9\times$ the fixed cost).}
 \label{fig:payload}
 \end{figure}
 
@@ -961,11 +961,11 @@ cells are swept across eight callee-work sizes and fit to a fixed-cost intercept
 plus an execution slope (Section~\ref{sec:sweep}); the complementary
 \emph{payload-bytes} axis, once future work, is now measured by
 \code{xop\_feed\_payload} across sixteen cardinalities to $100{,}000$ elements
-(Section~\ref{sec:payload}), separating the loopback RPC's $\approx$$17$\,ms fixed
-cost from its $911$\,ns/element serialization slope. That cell is now gated by
-bootstrap confidence intervals ($B{=}10^4$ percentile pairs bootstrap): the slope
-CI is $889$--$1002$\,ns/element and the crossing is directly observed to cross
-break-even at $N\approx19{,}000$ and reach $\approx$$5.4\times$ slope-dominance by
+(Section~\ref{sec:payload}), separating the loopback RPC's $\approx$$15$\,ms fixed
+cost from its $890$\,ns/element serialization slope, reproducible across three
+pinned sweeps (slope run-to-run CV $1.8\%$). The slope's within-run bootstrap CI
+is $848$--$983$\,ns/element and the crossing is directly observed to cross
+break-even at $N\approx17{,}000$ and reach $\approx$$5.9\times$ slope-dominance by
 $N{=}100{,}000$. One caveat remains: the per-point crossing medians are wide at
 small $N$, noise that lives in the fixed-cost floor, not the slope. Family-2
 cross-runtime cells are now medians of three pinned runs at $n{=}20$ with
@@ -1010,8 +1010,8 @@ while an in-process dispatch costs $\sim$$10^{5}$; the break-even call count
 above which batching or computation-migration wins is the ratio Table~%
 \ref{tab:xruntime} brackets ($\sim$$10^2$). Applying the intercept/slope method
 to \emph{payload} rather than work makes the two terms concrete
-(Section~\ref{sec:payload}): the loopback RPC resolves into a $\approx$$17$\,ms
-fixed cost plus a $911$\,ns/element serialization slope---$2.7\times$ the
+(Section~\ref{sec:payload}): the loopback RPC resolves into a $\approx$$15$\,ms
+fixed cost plus an $890$\,ns/element serialization slope---$2.6\times$ the
 in-process list's $342$\,ns/element---so a compiler that knows a call's static
 payload cardinality can compute both when the crossing amortizes (large $N$) and
 what each additional element on the wire will cost. \emph{(iii)~ABI class is a codegen choice,
@@ -1034,8 +1034,8 @@ gRPC's benchmark methodology~\cite{grpc} separates fixed per-call cost from
 per-byte work---the intercept/slope decomposition we implement over callee work
 for the family-1 cells (Section~\ref{sec:sweep}) and over payload cardinality for
 \code{xop\_feed\_payload} (Section~\ref{sec:payload}), which resolves a loopback
-RPC into a $\approx$$17$\,ms fixed cost and a $911$\,ns/element serialization
-slope, observed to cross break-even at $N\approx19{,}000$. HyperProtoBench~\cite{hyperproto} characterizes serialization at scale;
+RPC into a $\approx$$15$\,ms fixed cost and an $890$\,ns/element serialization
+slope, observed to cross break-even at $N\approx17{,}000$. HyperProtoBench~\cite{hyperproto} characterizes serialization at scale;
 our payload sweep is a minimal instance of that payload-growing axis, still on a
 loopback \code{sv$\rightarrow$sv} seam rather than realistic proto messages. TechEmpower~\cite{techempower} defines realistic web-endpoint
 workloads that a future \code{xop\_crud} would slice. The manually engineered interop these boundaries replace has its own
@@ -1084,10 +1084,10 @@ boundary, $\approx$$3.7$\,\textmu s to enter \code{na}) and a placement slope
 ($\approx$$42\times$, \code{na} vs.\ \code{sv})---so the $1.17\times$ callback
 headline is a small fixed cost that amortizes to $\approx$$1.0\times$ as the callee does real work---%
 and a sixteen-point payload sweep to $N{=}100{,}000$ resolves the loopback RPC into a
-$\approx$$17$\,ms fixed cost plus a $911$\,ns/element serialization slope
-(95\% bootstrap CI $889$--$1002$),
-$2.7\times$ its in-process twin and directly observed to overtake the fixed cost
-at $N\approx19{,}000$. We add low-nanosecond \code{C}-ABI foreign-call
+$\approx$$15$\,ms fixed cost plus an $890$\,ns/element serialization slope
+(95\% bootstrap CI $848$--$983$, run-to-run CV $1.8\%$),
+$2.6\times$ its in-process twin and directly observed to overtake the fixed cost
+at $N\approx17{,}000$. We add low-nanosecond \code{C}-ABI foreign-call
 costs, placement-dependent run-to-run variance spanning $1.5$ orders of magnitude,
 and pinned-governor cross-runtime floors of $241\times$ and $374\times$ for the
 two loopback RPC cells and a $6.8\times$ WebAssembly floor. The suite's most
