@@ -5,6 +5,13 @@ import from pathlib { Path }
 import from jaclang.project.config { get_config }
 import from jaclang.project.pyvenv { get_venv_site_packages }
 
+# Shared by desktop_app_runtime_env and the generated *-launch.sh script.
+glob DESKTOP_WEBKIT_ENV: list[tuple[str, str]] = [
+    ("GDK_BACKEND", "x11"),
+    ("WEBKIT_DISABLE_DMABUF_RENDERER", "1"),
+    ("WEBKIT_DISABLE_COMPOSITING_MODE", "1"),
+];
+
 
 def _project_venv_site_packages -> str {
     config = get_config(force_discover=True);
@@ -16,6 +23,13 @@ def _project_venv_site_packages -> str {
         return str(site_pkgs);
     }
     return "";
+}
+
+
+def jac_desktop_webkit_shell_export -> str {
+    return "".join(
+        [f'export {key}="${{{key}:-{val}}}"\n' for (key, val) in DESKTOP_WEBKIT_ENV]
+    );
 }
 
 
@@ -140,9 +154,9 @@ def desktop_app_runtime_env(base: any = None) -> dict[str, str] {
     for key in ["PYTHONEXECUTABLE", "JAC_EXECUTABLE", "VIRTUAL_ENV", ] {
         env.pop(key, None);
     }
-    env.setdefault("GDK_BACKEND", "x11");
-    env.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-    env.setdefault("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+    for (key, val) in DESKTOP_WEBKIT_ENV {
+        env.setdefault(key, val);
+    }
     _prepend_env_path(env, "JAC_DESKTOP_DEPS", _project_venv_site_packages());
     return env;
 }

@@ -58,42 +58,42 @@ def _raise_ensurepip_unavailable(err: str) {
 }
 
 
-def _bootstrap_venv_pip(target: Path) {
-    import subprocess;
-    result = subprocess.run(
-        [venv_python(target), "-m", "ensurepip", "--upgrade"],
-        capture_output=True,
-        text=True,
-    );
-    if result.returncode != 0 {
-        err_msg = (result.stderr or result.stdout or "").lower();
-        if "ensurepip" in err_msg or "no module named" in err_msg {
-            _raise_ensurepip_unavailable(result.stderr or result.stdout or "");
-        }
-        raise RuntimeError(
-            result.stderr.strip()
-            or result.stdout.strip()
-            or "ensurepip bootstrap failed"
-        );
+def _maybe_raise_ensurepip(err: str) {
+    err_msg = err.lower();
+    if "ensurepip" in err_msg or "no module named" in err_msg {
+        _raise_ensurepip_unavailable(err);
     }
 }
 
 
-def _create_venv_with_interpreter(interpreter: str, target: Path) {
-    import subprocess;
+def _raise_venv_subprocess_failure(result: any, fallback: str) {
+    raw = result.stderr or result.stdout or "";
+    _maybe_raise_ensurepip(raw);
+    raise RuntimeError(raw.strip() or fallback);
+}
 
-    result = subprocess.run(
-        [interpreter, "-m", "venv", str(target)], capture_output=True, text=True,
-    );
+
+def _run_venv_subprocess(cmd: list[str], fallback: str) {
+    import subprocess;
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300);
     if result.returncode != 0 {
-        err_msg = (result.stderr or result.stdout or "").lower();
-        if "ensurepip" in err_msg or "no module named" in err_msg {
-            _raise_ensurepip_unavailable(result.stderr or result.stdout or "");
-        }
-        raise RuntimeError(
-            result.stderr.strip() or result.stdout.strip() or "venv creation failed"
-        );
+        _raise_venv_subprocess_failure(result, fallback);
     }
+}
+
+
+def _bootstrap_venv_pip(target: Path) {
+    _run_venv_subprocess(
+        [venv_python(target), "-m", "ensurepip", "--upgrade"],
+        "ensurepip bootstrap failed",
+    );
+}
+
+
+def _create_venv_with_interpreter(interpreter: str, target: Path) {
+    _run_venv_subprocess(
+        [interpreter, "-m", "venv", str(target)], "venv creation failed"
+    );
     _bootstrap_venv_pip(target);
 }
 
@@ -174,10 +174,7 @@ def ensure_venv(venv_dir: Path, verbose: bool = False) {
             try {
                 builder.create(str(target));
             } except Exception as e {
-                err_msg = str(e).lower();
-                if "ensurepip" in err_msg or "no module named" in err_msg {
-                    _raise_ensurepip_unavailable(str(e));
-                }
+                _maybe_raise_ensurepip(str(e));
                 raise;
             }
         }

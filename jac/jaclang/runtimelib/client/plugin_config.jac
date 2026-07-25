@@ -128,7 +128,7 @@ def _load_template(template_name: str) -> dict[str, any] | None {
     }
 
     try {
-        template = load_template_from_directory(template_dir, post_create_hook=None);
+        template = load_template_from_directory(template_dir);
         return template.to_dict();
     } except Exception as e {
         console.error(f"Warning: Could not load {template_name} template: {e}");

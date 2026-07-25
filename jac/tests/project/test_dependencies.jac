@@ -225,6 +225,22 @@ test "ensure_venv ensurepip missing" {
 }
 
 # ===== Project venv interpreter selection =====
+def _make_fused_venv_stub(project_dir: Path) -> Path {
+    # Stub a venv whose bin/python resolves to sys.executable (fused-like).
+    config = JacConfig.load(project_dir / "jac.toml");
+    venv_dir = config.get_venv_dir();
+    bin_dir = venv_dir / "bin";
+    bin_dir.mkdir(parents=True, exist_ok=True);
+    py = bin_dir / "python";
+    try {
+        py.symlink_to(Path(sys.executable));
+    } except OSError {
+        py.write_text(sys.executable);
+    }
+    (venv_dir / "pyvenv.cfg").write_text("home = /usr/bin\nversion = 3.14.0\n");
+    return venv_dir;
+}
+
 test "bundled runtime python is None outside standalone" {
     with patch.dict(os.environ, {}, clear=False) {
         os.environ.pop("JAC_STANDALONE", None);
@@ -238,17 +254,7 @@ test "ensure_venv keeps symlinked python venv outside standalone" {
     reset_config();
     (tmp, project_dir) = make_temp_project();
     try {
-        config = JacConfig.load(project_dir / "jac.toml");
-        venv_dir = config.get_venv_dir();
-        bin_dir = venv_dir / "bin";
-        bin_dir.mkdir(parents=True, exist_ok=True);
-        py = bin_dir / "python";
-        try {
-            py.symlink_to(Path(sys.executable));
-        } except OSError {
-            py.write_text(sys.executable);
-        }
-        (venv_dir / "pyvenv.cfg").write_text("home = /usr/bin\nversion = 3.14.0\n");
+        venv_dir = _make_fused_venv_stub(project_dir);
         assert _is_fused_venv(venv_dir);
         with patch.dict(os.environ, {}, clear=False) {
             os.environ.pop("JAC_STANDALONE", None);
@@ -272,17 +278,7 @@ test "ensure_venv recreates fused jac-as-python venvs" {
     reset_config();
     (tmp, project_dir) = make_temp_project();
     try {
-        config = JacConfig.load(project_dir / "jac.toml");
-        venv_dir = config.get_venv_dir();
-        bin_dir = venv_dir / "bin";
-        bin_dir.mkdir(parents=True, exist_ok=True);
-        py = bin_dir / "python";
-        try {
-            py.symlink_to(Path(sys.executable));
-        } except OSError {
-            py.write_text(sys.executable);
-        }
-        (venv_dir / "pyvenv.cfg").write_text("home = /usr/bin\nversion = 3.14.0\n");
+        venv_dir = _make_fused_venv_stub(project_dir);
         assert _is_fused_venv(venv_dir);
         with patch.dict(os.environ, {"JAC_STANDALONE": "1"}, clear=False), patch(
             "shutil.rmtree"

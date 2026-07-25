@@ -181,10 +181,14 @@ test "desktop launch wires JAC_DESKTOP_DEPS from the project venv" {
     import from pathlib { Path }
     import from jaclang.runtimelib.client.targets.desktop._dev_launch {
         desktop_app_runtime_env,
-        jac_desktop_deps_shell_export
+        jac_desktop_deps_shell_export,
+        jac_desktop_webkit_shell_export
     }
 
-    # Pin the launch-script contract on the shared shell fragment.
+    # Pin the launch-script contract on the shared shell fragments.
+    webkit = jac_desktop_webkit_shell_export();
+    assert "GDK_BACKEND" in webkit , "launch script must export GDK_BACKEND";
+    assert "WEBKIT_DISABLE_DMABUF_RENDERER" in webkit;
     snippet = jac_desktop_deps_shell_export();
     assert "JAC_DESKTOP_DEPS" in snippet , "launch script must export JAC_DESKTOP_DEPS";
     assert "venv/lib" in snippet , "launch script must discover the sibling project venv";

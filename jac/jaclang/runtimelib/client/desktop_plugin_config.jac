@@ -1,7 +1,6 @@
 import os;
 
 import from importlib.metadata { version as pkg_version }
-import from pathlib { Path }
 
 
 obj PluginMetadata {
@@ -215,19 +214,6 @@ class JacDesktopPluginConfig {
 }
 
 def _load_desktop_template -> dict[str, object] | None {
-    import from jaclang.project.template_loader { load_template_from_directory }
-    import from jaclang.cli.console { console }
-
-    module_dir = Path(str(__file__)).parent;
-    template_dir = module_dir / "templates" / "desktop";
-    if not template_dir.exists() or not template_dir.is_dir() {
-        return None;
-    }
-    try {
-        template = load_template_from_directory(template_dir, post_create_hook=None);
-        return template.to_dict();
-    } except Exception as e {
-        console.warning(f"Could not load desktop template: {e}");
-        return None;
-    }
+    import from jaclang.runtimelib.client.plugin_config { _load_template }
+    return _load_template("desktop");
 }
