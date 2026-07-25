@@ -1362,6 +1362,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Argument '{name}' for server function '{func}' is given both positionally and by keyword"
      ),
      E5081 = _err("E5081", Category.CODEGEN, "Unknown client framework '{framework}'"),
+     E5083 = _err(
+         "E5083",
+         Category.CODEGEN,
+         "na import targets collide on wasm artifact '{stem}.wasm': '{path}' vs '{other}'",
+         help="Every `na import` target emits /static/<stem>.wasm named by its file stem, and set_na_env / __na_bind address the module by that stem, so two different native modules with the same basename would overwrite each other's artifact and bind to the wrong exports. Rename one of the files."
+     ),
      E5082 = _err(
          "E5082",
          Category.CODEGEN,

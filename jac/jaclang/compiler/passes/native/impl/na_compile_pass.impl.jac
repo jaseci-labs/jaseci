@@ -314,6 +314,30 @@ impl NativeCompilePass._compile_and_link_native_imports(
             } except Exception { }
         }
     }
+    _gc_opts = self.prog?._compile_options;
+    _gc_sig_parts = [
+        getattr(_gc_opts, "na_gc_mode", "cycles") if _gc_opts else "cycles",
+        "all" if (_gc_opts and getattr(_gc_opts, "nogc_enforce_all", False)) else "",
+        getattr(_gc_opts, "nogc_cli_target", "") if _gc_opts else "",
+        ",".join(sorted(getattr(_gc_opts, "nogc_enforce_modules", []) or []))
+            if _gc_opts
+            else "",
+        ",".join(sorted(getattr(_gc_opts, "nogc_grandfathered", []) or []))
+            if _gc_opts
+            else ""
+    ];
+    try {
+        import from jaclang.project { get_config }
+        _gc_cfg = get_config();
+        if _gc_cfg {
+            _gc_sig_parts.append(_gc_cfg.gc.default);
+            _gc_sig_parts.append(",".join(sorted(list(_gc_cfg.gc.enforce.modules))));
+            _gc_sig_parts.append(
+                ",".join(sorted(list(_gc_cfg.gc.enforce.grandfathered)))
+            );
+        }
+    } except Exception { }
+    _comp_h.update("|".join(_gc_sig_parts).encode());
     _compiler_fp = _comp_h.hexdigest()[:8];
 
     linked_modules: dict = {};
@@ -466,7 +490,31 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
         } else {
             import from jaclang.jac0core.compile_options { CompileOptions }
-            import_options = CompileOptions(skip_native_engine=True, type_check=False);
+            _parent_opts = self.prog?._compile_options;
+            import_options = CompileOptions(
+                skip_native_engine=True,
+                type_check=False,
+                na_gc_mode=(
+                    getattr(_parent_opts, "na_gc_mode", "cycles")
+                        if _parent_opts
+                        else "cycles"
+                ),
+                nogc_enforce_all=(
+                    getattr(_parent_opts, "nogc_enforce_all", False)
+                        if _parent_opts
+                        else False
+                ),
+                nogc_enforce_modules=(
+                    list(getattr(_parent_opts, "nogc_enforce_modules", []) or [])
+                        if _parent_opts
+                        else []
+                ),
+                nogc_grandfathered=(
+                    list(getattr(_parent_opts, "nogc_grandfathered", []) or [])
+                        if _parent_opts
+                        else []
+                )
+            );
             try {
                 imported_ir = self.prog.compile(
                     file_path=full_path, options=import_options

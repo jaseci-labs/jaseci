@@ -178,6 +178,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         _view_acc_counter: int = 0,
         _view_awaiting_tries: set[int] = set(),
         sv_import_stubs: list[es.Statement] = [],
+        na_import_stubs: list[es.Statement] = [],
         needs_jac_runtime: bool = False,
         needs_osp_kernel: bool = False,
         needs_osp_graph: bool = False,
@@ -281,6 +282,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
 
     def _sv_import_item_is_type(nd: uni.Import, item: uni.ModuleItem) -> bool;
     def _record_sv_backend(nd: uni.Import) -> None;
+    def _generate_na_import_binding(nd: uni.Import) -> None;
     def _emit_boundary_type_stubs(nd: uni.Module) -> list;
     def _es_json_literal(value: any) -> any;
     def exit_type_alias(nd: uni.TypeAlias) -> None;

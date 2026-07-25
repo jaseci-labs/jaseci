@@ -364,3 +364,32 @@ test "a floor without a manifest still links" {
         shutil.rmtree(d, ignore_errors=True);
     }
 }
+
+"""[gc] default = "none" promises an RC-free artifact; the audit is what makes
+compile_to_wasm fail loudly instead of shipping RC machinery the shim then has
+to service. Pure-IR checks -- no vendored libc needed."""
+test "rc audit passes clean IR and rejects rc machinery" {
+    import from jaclang.compiler.passes.native.wasm_build { _assert_ir_rc_free }
+    _assert_ir_rc_free("define void @jac_entry() {\nret void\n}", "clean.na.jac");
+    dirty = "declare void @__rc_retain(ptr)\ndefine void @jac_entry() {\nret void\n}";
+    raised = False;
+    try {
+        _assert_ir_rc_free(dirty, "dirty.na.jac");
+    } except RuntimeError as e {
+        raised = True;
+        assert "__rc_retain" in str(e);
+    }
+    assert raised;
+}
+
+test "rc audit rejects entry-point gc env probes" {
+    import from jaclang.compiler.passes.native.wasm_build { _assert_ir_rc_free }
+    probing = '@.s = constant [10 x i8] c"JAC_NO_GC\\00"';
+    raised = False;
+    try {
+        _assert_ir_rc_free(probing, "probe.na.jac");
+    } except RuntimeError {
+        raised = True;
+    }
+    assert raised;
+}

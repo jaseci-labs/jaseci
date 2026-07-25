@@ -4710,6 +4710,14 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         }
         return;
     }
+
+    if nd.is_na_marked {
+        if (nd.from_loc and nd.items) {
+            self._generate_na_import_binding(nd);
+        }
+        nd.gen.es_ast = None;
+        return;
+    }
     emit_items: list = list(nd.items);
     if (nd.from_loc and nd.items) {
         resolved_path = nd.from_loc.resolve_relative_path();
@@ -4962,6 +4970,121 @@ impl EsastGenPass._generate_sv_import_stubs(
 
         self.sv_import_stubs.extend(stubs);
     }
+}
+
+def _na_wasm_stem(path: str) -> str {
+    import os;
+    stem = os.path.splitext(os.path.basename(path))[0];
+    for marker in ('.na', '.cl', '.sv') {
+        if stem.endswith(marker) {
+            stem = stem[0:-len(marker)];
+        }
+    }
+    return stem;
+}
+
+impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
+    resolved_path = nd.from_loc.resolve_relative_path();
+    stem = _na_wasm_stem(resolved_path);
+
+    if self.client_manifest {
+        for existing in self.client_manifest.na_modules {
+            if existing != resolved_path and _na_wasm_stem(existing) == stem {
+                import from jaclang.jac0core.diagnostics { E5083 }
+                self.emit(
+                    E5083,
+                    node_override=nd,
+                    stem=stem,
+                    path=resolved_path,
+                    other=existing
+                );
+            }
+        }
+        if resolved_path not in self.client_manifest.na_modules {
+            self.client_manifest.na_modules.append(resolved_path);
+        }
+        self.client_manifest.has_client = True;
+    }
+
+    bind_local = '__jac_na_bind';
+    if bind_local not in self.injected_imports {
+        specifier = self.sync_loc(
+            es.ImportSpecifier(
+                imported=es.Identifier(name='__na_bind'),
+                local=es.Identifier(name=bind_local)
+            ),
+            jac_node=nd
+        );
+        source = self.sync_loc(
+            es.Literal(value='@jac/wasm_host', raw='"@jac/wasm_host"'), jac_node=nd
+        );
+        self.imports.append(
+            self.sync_loc(
+                es.ImportDeclaration(specifiers=[specifier], source=source), jac_node=nd
+            )
+        );
+        self.injected_imports.add(bind_local);
+    }
+
+    props: list[(es.AssignmentProperty | es.RestElement)] = [];
+    export_names: list[(es.Expression | es.SpreadElement | None)] = [];
+    for item in nd.items {
+        if not isinstance(item, uni.ModuleItem)
+        or not isinstance(item.name, uni.Name) {
+            continue;
+        }
+        export_name = item.name.sym_name;
+        local_name = item.alias.sym_name if item.alias else export_name;
+        export_names.append(
+            self.sync_loc(
+                es.Literal(value=export_name, raw=f'"{export_name}"'), jac_node=item
+            )
+        );
+        props.append(
+            self.sync_loc(
+                es.AssignmentProperty(
+                    key=es.Identifier(name=export_name),
+                    value=es.Identifier(name=local_name),
+                    shorthand=(export_name == local_name)
+                ),
+                jac_node=item
+            )
+        );
+    }
+    if not props {
+        return;
+    }
+
+    bind_call = self.sync_loc(
+        es.CallExpression(
+            callee=es.Identifier(name=bind_local),
+            arguments=[
+                self.sync_loc(es.Literal(value=stem, raw=f'"{stem}"'), jac_node=nd),
+                self.sync_loc(es.ArrayExpression(elements=export_names), jac_node=nd),
+
+            ]
+        ),
+        jac_node=nd
+    );
+    self.na_import_stubs.append(
+        self.sync_loc(
+            es.VariableDeclaration(
+                kind='const',
+                declarations=[
+                    self.sync_loc(
+                        es.VariableDeclarator(
+                            id=self.sync_loc(
+                                es.ObjectPattern(properties=props), jac_node=nd
+                            ),
+                            init=bind_call
+                        ),
+                        jac_node=nd
+                    )
+                ]
+            ),
+            jac_node=nd
+        )
+    );
 }
 
 impl EsastGenPass._sv_import_item_is_type(
@@ -5668,6 +5791,7 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     body.extend(self.imports);
 
     body.extend(self.sv_import_stubs);
+    body.extend(self.na_import_stubs);
 
     body.extend(self._emit_boundary_type_stubs(nd));
     scope = self.scope_map.get(nd);
@@ -6204,7 +6328,8 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         and nd.code_context != CodeContext.CLIENT
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
-        is_sv_import = isinstance(nd, uni.Import) and nd.is_sv_marked;
+        is_sv_import = isinstance(nd, uni.Import)
+        and (nd.is_sv_marked or nd.is_na_marked);
 
         is_shared_arch = (
             isinstance(nd, uni.Archetype)
@@ -6238,7 +6363,8 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
         and nd.code_context != CodeContext.CLIENT
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
-        is_sv_import = isinstance(nd, uni.Import) and nd.is_sv_marked;
+        is_sv_import = isinstance(nd, uni.Import)
+        and (nd.is_sv_marked or nd.is_na_marked);
 
         is_shared_arch = (
             isinstance(nd, uni.Archetype)

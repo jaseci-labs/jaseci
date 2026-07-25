@@ -70,7 +70,7 @@ def _ref_top_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
 }
 
 def _is_sv_import(elem: uni.UniNode) -> bool {
-    return isinstance(elem, uni.Import) and elem.is_sv_marked;
+    return isinstance(elem, uni.Import) and (elem.is_sv_marked or elem.is_na_marked);
 }
 
 def _named_top_element(target: uni.Module, name: str) -> (uni.UniNode | None) {
