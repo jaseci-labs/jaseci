@@ -284,3 +284,83 @@ test "the built floor defines every abi64 adapter" {
     }
     assert not missing , f"floor at {libc_dir} defines no adapter for {missing}; rebuild it with `zig build vendor-wasm-libc`";
 }
+
+# ─── source-manifest verification ────────────────────────────────────────────
+# The adapter and import checks are symbol-presence checks: a floor whose
+# jac_alloc.c changed behaviour but kept its symbols links cleanly and ships
+# the old code. SOURCES.sha256 is what closes that, and it is the same file
+# the payload tool uses as its incremental-rebuild key.
+test "a floor built from different wasm_rt sources is refused" {
+    _require_libc();
+    import from jaclang.compiler.passes.native.wasm_build { FLOOR_MANIFEST }
+    src = _wasm_libc_dir();
+    if not os.path.isfile(os.path.join(src, FLOOR_MANIFEST)) {
+        pytest.skip("floor predates SOURCES.sha256");
+    }
+    d = tempfile.mkdtemp();
+    floor = os.path.join(d, "libc");
+    shutil.copytree(src, floor);
+    # Rewrite one entry's digest rather than editing the real tree: the check
+    # compares recorded bytes against what is on disk, so a wrong record is
+    # indistinguishable from a source that moved underneath the floor.
+    man = os.path.join(floor, FLOOR_MANIFEST);
+    rows = Path(man).read_text().splitlines();
+    patched = [];
+    hit = "";
+    for row in rows {
+        if row.endswith(" jac_alloc.c") and not hit {
+            hit = "jac_alloc.c";
+            patched.append(("0" * 64) + " jac_alloc.c");
+        } else {
+            patched.append(row);
+        }
+    }
+    assert hit , "manifest has no jac_alloc.c entry";
+    Path(man).write_text("\n".join(patched) + "\n");
+
+    prev = os.environ.get("JAC_NATIVE_WASM_LIBC_DIR", None);
+    os.environ["JAC_NATIVE_WASM_LIBC_DIR"] = floor;
+    try {
+        with pytest.raises(RuntimeError) as ei {
+            emit_wasm_from_ir(fixture_ir(), [], app_imports=set());
+        }
+        msg = str(ei.value);
+        assert "different wasm_rt sources" in msg , msg;
+        assert "jac_alloc.c" in msg , msg;
+    } finally {
+        if prev is None {
+            del os.environ["JAC_NATIVE_WASM_LIBC_DIR"];
+        } else {
+            os.environ["JAC_NATIVE_WASM_LIBC_DIR"] = prev;
+        }
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
+"""A floor with no manifest is unverifiable, not wrong: older artifacts and
+hand-built floors must keep working rather than hard-fail on a missing file."""
+test "a floor without a manifest still links" {
+    _require_libc();
+    import from jaclang.compiler.passes.native.wasm_build { FLOOR_MANIFEST }
+    src = _wasm_libc_dir();
+    d = tempfile.mkdtemp();
+    floor = os.path.join(d, "libc");
+    shutil.copytree(src, floor);
+    man = os.path.join(floor, FLOOR_MANIFEST);
+    if os.path.exists(man) {
+        os.remove(man);
+    }
+    prev = os.environ.get("JAC_NATIVE_WASM_LIBC_DIR", None);
+    os.environ["JAC_NATIVE_WASM_LIBC_DIR"] = floor;
+    try {
+        mod = emit_wasm_from_ir(fixture_ir(), [], app_imports=set());
+        assert mod and len(mod) > 0;
+    } finally {
+        if prev is None {
+            del os.environ["JAC_NATIVE_WASM_LIBC_DIR"];
+        } else {
+            os.environ["JAC_NATIVE_WASM_LIBC_DIR"] = prev;
+        }
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
