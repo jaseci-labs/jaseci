@@ -198,7 +198,7 @@ if useParams()["category"] { has_filter = True; }    #   written from render bod
 has_filter: bool = bool(useParams()["category"]);    # CORRECT - plain local
 ```
 
-- **Server RPC import uses `sv import from ..lib.X { fn, Types }`** (prefix required). Dot count = how many folders up from THIS file to reach `lib/` - for a `components/X.jac` it's 2 dots, for `components/pages/X.jac` it's 3 dots (see `jac-core-cheatsheet` for dot semantics). Plain `import from` to a `.sv.jac` breaks the Vite build. Include obj/node types too - they're needed to type your `has` state (next rule). See `jac-fullstack-patterns`.
+- **Server RPC import uses `sv import`** (prefix required). When the server module is a sibling in the same feature folder it is one dot - `sv import from .store { Post, list_posts }` - which is how a feature-organized app should read (see `jac-cl-organization`). Reaching another package needs the dot count from THIS file (see `jac-core-cheatsheet` for dot semantics). Plain `import from` to a `.sv.jac` breaks the Vite build. Include obj/node types too - they're needed to type your `has` state (next rule). See `jac-fullstack-patterns`.
 - **Always `await` `sv import` calls.** Stubs are `async` functions -- `todos = list_todos()` assigns a `Promise`, not the data → `TypeError: todos is not iterable` at runtime. Two valid async contexts:
 
 ```
@@ -221,7 +221,7 @@ Plain `def handle(e: MouseEvent)` is sync -- `await` inside it emits invalid JS.
 - **Type `has` state with the imported `sv` types - `list[any]` loses the element type.** Store data from `sv import` calls in fields typed with the actual node/obj. Without it, attribute access in loops fails `E1032: Type is Unknown`.
 
 ```
-sv import from ..lib.linkedin { Post };   # 2 dots: this file is at components/X.jac; `..` walks up to project root, then into lib/
+sv import from .store { Post };   # 1 dot: the server half of this feature, same folder
 
 # FRAGILE
 has posts: list[any] = [];           # E1032 on p.title in any loop
