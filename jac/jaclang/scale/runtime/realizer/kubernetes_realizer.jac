@@ -19,6 +19,10 @@ obj KubernetesRealizer {
         dry_run: bool = False,
         show_yaml: bool = False
     ) -> int {
+        import from jaclang.scale.injector.binary { reset_deploy_version_cache }
+        # Fresh pin resolution per deploy; within this deploy the binary, console,
+        # and base image then share one resolved release (lockstep).
+        reset_deploy_version_cache();
         enabled = self.ms_config.get("enabled", None);
 
         ms_configured = get_scale_config().microservices_declared();

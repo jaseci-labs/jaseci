@@ -279,6 +279,15 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
 }
 
 
+def reset_deploy_version_cache -> None {
+    # Scope pin resolution to one deploy: realize() clears it at the start, so a
+    # long-running process re-resolves each deploy (picking up newly published
+    # releases) while within a deploy the binary, console, and base image share
+    # one resolution.
+    _deploy_version_memo.clear();
+}
+
+
 def download_release_binary(channel: str, arch: str, version: str = "") -> bytes {
     repo = GH_REPO;
     suffix = f"-linux-{arch}";

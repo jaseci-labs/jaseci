@@ -178,6 +178,27 @@ test "the pin is discovered from an ancestor jac.toml (nested entry)" {
 }
 
 
+test "a deploy boundary re-resolves a range after a new release publishes" {
+    d = _project(
+        '[project]\nname = "x"\nversion = "0.1.0"\njac-version = ">=0.34,<0.36"\n'
+    );
+    with unittest.mock.patch.object(
+        binary_mod, "_list_release_versions", return_value=["0.34.2"]
+    ) {
+        assert binary_mod.resolve_deploy_version(d, "stable") == "0.34.2";
+    }
+    # A newer matching release publishes. The memo holds the old result within
+    # the deploy, but the next deploy's reset picks up the new one.
+    with unittest.mock.patch.object(
+        binary_mod, "_list_release_versions", return_value=["0.34.2", "0.35.9"]
+    ) {
+        assert binary_mod.resolve_deploy_version(d, "stable") == "0.34.2";
+        binary_mod.reset_deploy_version_cache();
+        assert binary_mod.resolve_deploy_version(d, "stable") == "0.35.9";
+    }
+}
+
+
 test "the base image uses the same resolver as the pinned binary" {
     d = _project(
         '[project]\nname = "x"\nversion = "0.1.0"\njac-version = ">=0.34,<0.35"\n'
