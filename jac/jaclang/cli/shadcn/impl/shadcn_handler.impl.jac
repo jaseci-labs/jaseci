@@ -169,11 +169,16 @@ impl _is_ui_dir(path: Path) -> bool {
     return False;
 }
 
-impl _contained_path(project_root: Path, raw: str, key: str) -> Path | None {
-    candidate = (project_root / raw).resolve();
+impl _within_project(project_root: Path, candidate: Path) -> bool {
+    resolved = candidate.resolve();
     root_dir = project_root.resolve();
-    if candidate == root_dir or root_dir in candidate.parents {
-        return candidate;
+    return resolved == root_dir or root_dir in resolved.parents;
+}
+
+impl _contained_path(project_root: Path, raw: str, key: str) -> Path | None {
+    candidate = project_root / raw;
+    if _within_project(project_root, candidate) {
+        return candidate.resolve();
     }
     console.error(
         f"[jac-shadcn] {key} = '{raw}' resolves outside the project",
@@ -182,12 +187,11 @@ impl _contained_path(project_root: Path, raw: str, key: str) -> Path | None {
     return None;
 }
 
-impl _resolve_ui_dir(project_root: Path, shadcn_config: any) -> Path {
+impl _resolve_ui_dir(project_root: Path, shadcn_config: any) -> Path | None {
     override = str(shadcn_config.get("components_dir", "")) if shadcn_config else "";
     default_dir = project_root / "components" / "ui";
     if override {
-        pinned = _contained_path(project_root, override, "components_dir");
-        return pinned if pinned is not None else default_dir;
+        return _contained_path(project_root, override, "components_dir");
     }
     if default_dir.exists() {
         return default_dir;
@@ -197,7 +201,7 @@ impl _resolve_ui_dir(project_root: Path, shadcn_config: any) -> Path {
         if set(cand.relative_to(project_root).parts) & skipped {
             continue;
         }
-        if _is_ui_dir(cand) {
+        if _is_ui_dir(cand) and _within_project(project_root, cand) {
             return cand;
         }
     }
@@ -216,13 +220,16 @@ impl _module_of(project_root: Path, path: Path) -> str {
     return ".".join(list(rel.parts[:-1]) + [name]);
 }
 
-impl _resolve_utils(project_root: Path, ui_dir: Path, shadcn_config: any) -> tuple {
+impl _resolve_utils(
+    project_root: Path, ui_dir: Path, shadcn_config: any
+) -> tuple | None {
     override = str(shadcn_config.get("utils_path", "")) if shadcn_config else "";
     if override {
         p = _contained_path(project_root, override, "utils_path");
-        if p is not None {
-            return (p, _module_of(project_root, p));
+        if p is None {
+            return None;
         }
+        return (p, _module_of(project_root, p));
     }
     skipped = set([".jac", "node_modules", ".git", "__pycache__", "dist", "build"]);
     for cand in sorted(project_root.rglob("utils*.jac")) {
@@ -272,7 +279,14 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
     }
 
     ui_dir = _resolve_ui_dir(project_root, shadcn_config);
-    (utils_path, utils_mod) = _resolve_utils(project_root, ui_dir, shadcn_config);
+    if ui_dir is None {
+        return False;
+    }
+    resolved_utils = _resolve_utils(project_root, ui_dir, shadcn_config);
+    if resolved_utils is None {
+        return False;
+    }
+    (utils_path, utils_mod) = resolved_utils;
     if ui_dir != project_root / "components" / "ui" {
         where = str(ui_dir.relative_to(project_root));
         console.print(f"  Using {where} (cn() from {utils_mod})", style="muted");
@@ -373,7 +387,9 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
 impl remove_shadcn_components(config: any, component_names: list) -> bool {
     project_root = Path(str(config.project_root));
     ui_dir = _resolve_ui_dir(project_root, _read_shadcn_config(config));
-
+    if ui_dir is None {
+        return False;
+    }
     if not ui_dir.exists() {
         console.error(
             "No shadcn ui directory found.",

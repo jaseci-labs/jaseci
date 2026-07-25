@@ -16,13 +16,17 @@ def _resolve_peer_deps(requested: list, registry_data: dict, existing: set) -> l
 
 def _is_ui_dir(path: Path) -> bool;
 
+def _within_project(project_root: Path, candidate: Path) -> bool;
+
 def _contained_path(project_root: Path, raw: str, key: str) -> Path | None;
 
-def _resolve_ui_dir(project_root: Path, shadcn_config: any) -> Path;
+def _resolve_ui_dir(project_root: Path, shadcn_config: any) -> Path | None;
 
 def _module_of(project_root: Path, path: Path) -> str;
 
-def _resolve_utils(project_root: Path, ui_dir: Path, shadcn_config: any) -> tuple;
+def _resolve_utils(
+    project_root: Path, ui_dir: Path, shadcn_config: any
+) -> tuple | None;
 
 def _retarget_utils_import(
     content: str, ui_dir: Path, project_root: Path, utils_mod: str
