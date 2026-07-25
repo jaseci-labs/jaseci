@@ -1,5 +1,9 @@
 import os;
 
+def _wasm_rt_src_dir -> str {
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "wasm_rt");
+}
+
 def _wasm_libc_dir -> (str | None) {
     env = os.environ.get("JAC_NATIVE_WASM_LIBC_DIR", "");
     if env {
@@ -18,6 +22,53 @@ def _wasm_libc_dir -> (str | None) {
         return shipped;
     }
     return None;
+}
+
+def _is_dev_libc_dir(libc_dir: str) -> bool {
+    return os.path.basename(os.path.dirname(os.path.dirname(libc_dir))) == ".pbs-build";
+}
+
+def _newest_mtime(paths: list[str]) -> float {
+    newest = 0.0;
+    for p in paths {
+        try {
+            m = os.path.getmtime(p);
+        } except OSError {
+            continue;
+        }
+        if m > newest {
+            newest = m;
+        }
+    }
+    return newest;
+}
+
+def _wasm_rt_sources -> list[str] {
+    src_root = _wasm_rt_src_dir();
+    out: list[str] = [];
+    for (dirpath, _dirnames, filenames) in os.walk(src_root) {
+        for fn in filenames {
+            if fn.endswith(".c") or fn.endswith(".h") {
+                out.append(os.path.join(dirpath, fn));
+            }
+        }
+    }
+    return out;
+}
+
+def _stale_dev_libc(libc_dir: str) -> bool {
+    if not _is_dev_libc_dir(libc_dir) or not os.path.isdir(_wasm_rt_src_dir()) {
+        return False;
+    }
+    artifacts = [
+        os.path.join(libc_dir, f)
+        for f in os.listdir(libc_dir)
+        if f.endswith(".bc") and f != "_merged.bc"
+    ];
+    if not artifacts {
+        return False;
+    }
+    return _newest_mtime(_wasm_rt_sources()) > _newest_mtime(artifacts);
 }
 
 def _load_libc_module(llvm: object, libc_dir: str, triple: str) -> object {
@@ -108,6 +159,36 @@ glob _LATE_BOUND: set = {
 
      };
 
+def _rebuild_hint(libc_dir: str) -> str {
+    if _is_dev_libc_dir(libc_dir) {
+        return "run `zig build vendor-wasm-libc` to rebuild it";
+    }
+    return "reinstall jac, or point JAC_NATIVE_WASM_LIBC_DIR at a floor built " + "from this source tree";
+}
+
+def _assert_abi64_adapters(needed: list[str], provided: set, libc_dir: str) -> None {
+    missing = sorted(
+        set(
+            [
+                nm
+                for nm in needed
+                if ("__jac64_" + nm) not in provided
+            ]
+        )
+    );
+    if not missing {
+        return;
+    }
+    adapters = ', '.join(['__jac64_' + nm for nm in missing]);
+    raise RuntimeError(
+        f"vendored wasm libc at {libc_dir} is stale: the native floor " + f"rewrites {', '.join(
+            missing
+        )} to {adapters}, which the linked " + "bitcode does not define (see _ABI64_ADAPTED and " + "wasm_rt/jac_abi64.c). The adapters exist in source; the compiled " + f"bitcode predates them -- {_rebuild_hint(
+            libc_dir
+        )}."
+    );
+}
+
 def _link_wasm_libc(mod: object, llvm: object) -> bool {
     libc_dir = _wasm_libc_dir();
     if libc_dir is None {
@@ -116,6 +197,15 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
             "vendored wasm libc not found (run `zig build vendor-wasm-libc`); " + "libc symbols stay as raw env imports and the jac_host1 import " + "contract is NOT enforced"
         );
         return False;
+    }
+    if _stale_dev_libc(libc_dir) {
+        import from jaclang.cli.console { console }
+
+        console.warning(
+            f"vendored wasm libc at {libc_dir} is older than wasm_rt/: the " + "bitcode predates the current C sources, so the linked floor may " + f"not match this tree -- {_rebuild_hint(
+                libc_dir
+            )}."
+        );
     }
     libc = _load_libc_module(llvm, libc_dir, mod.triple);
     if libc is None {
@@ -158,6 +248,7 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
             }
         }
     }
+    _assert_abi64_adapters([fn.name for fn in renames], provided, libc_dir);
     for fn in renames {
         fn.name = "__jac64_" + fn.name;
     }
