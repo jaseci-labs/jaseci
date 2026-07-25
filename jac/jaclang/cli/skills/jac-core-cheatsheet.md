@@ -118,10 +118,10 @@ import from "@jac/runtime" { Router, Routes, Route }  # npm (quoted)
 
 | Dots | Meaning | Use when |
 |---|---|---|
-| `services.X`   | project-root absolute  | **default** - resolves from any depth in the project (server/native) |
-| `.services.X`  | same folder            | `services` is a sibling file in this same folder |
-| `..services.X` | one folder up          | importing file is one level deep (`components/X.jac`) |
-| `...services.X`| two folders up         | importing file is two levels deep (`components/pages/X.jac`) |
+| `lib.X`        | project-root absolute  | **default** - resolves from any depth in the project (server/native) |
+| `.lib.X`       | same folder            | `lib` is a sibling file in this same folder |
+| `..lib.X`      | one folder up          | importing file is one level deep (`components/X.jac`) |
+| `...lib.X`     | two folders up         | importing file is two levels deep (`components/pages/X.jac`) |
 
 A no-dot import is depth-independent: moving a file between directories never changes it. Dot-counted forms (`..`, `...`) DO break when a file moves to a different depth - wrong dot count = silent resolution failure = imported names become `<Unknown>` → cascading type errors. Prefer no-dot imports to avoid this.
 
