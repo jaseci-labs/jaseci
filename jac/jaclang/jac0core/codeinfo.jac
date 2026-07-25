@@ -25,6 +25,7 @@ obj ClientManifest {
         endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
         tests: list[dict[(str, str)]] = field(default_factory=`list),
         server_imports: list[str] = field(default_factory=`list),
+        na_modules: list[str] = field(default_factory=`list),
         page_export: (str | None) = None,
         layout_export: (str | None) = None;
 }

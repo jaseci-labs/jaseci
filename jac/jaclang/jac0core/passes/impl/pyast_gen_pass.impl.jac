@@ -1126,6 +1126,10 @@ impl PyastGenPass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
 }
 
 impl PyastGenPass.exit_import(nd: uni.Import) -> None {
+    if nd.is_na_marked {
+        nd.gen.py_ast = [];
+        return;
+    }
     if (nd.from_loc and nd.from_loc.path) {
         module_parts = [
             p.value

@@ -459,6 +459,7 @@ def is_client_boundary_import(nd: uni.Import) -> bool {
     return (
         nd.code_context == CodeContext.CLIENT
         and not nd.is_sv_marked
+        and not nd.is_na_marked
         and not nd.is_typed
         and not nd.is_virtual_jac
         and nd.from_loc is not None
