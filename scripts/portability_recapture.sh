@@ -26,6 +26,12 @@ LABEL="${1:?usage: portability_recapture.sh <machine-label> (e.g. arm64-m2)}"
 OUT="results/portability/${LABEL}"
 mkdir -p "$OUT"
 
+# Optional fast dry-run overrides (defaults match the canonical protocol):
+#   REPS=2 PAYLOAD_SIZES=p1,p100 XRUN_INV=3 scripts/portability_recapture.sh smoke
+REPS="${REPS:-20}"
+PAYLOAD_SIZES="${PAYLOAD_SIZES:-}"      # empty => full 16-point sweep
+XRUN_INV="${XRUN_INV:-20}"
+
 # --- guardrail: refuse unless governor is pinned (matches sweep_controlled) ---
 GOV="$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo unknown)"
 if [[ "$GOV" != "performance" && "$GOV" != "unknown" ]]; then
@@ -38,20 +44,23 @@ TURBO="$(cat /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null || echo N
   echo "WARNING: turbo not disabled (no_turbo=$TURBO); absolutes will drift." >&2
 
 echo "== 1/4 environment provenance =="
-python3 scripts/capture_env.py -o "$OUT/env.json"
+# capture_env exits non-zero on a dirty tree; that is a provenance note, not a
+# reason to abort a re-capture. The manifest is still written.
+python3 scripts/capture_env.py -o "$OUT/env.json" >/dev/null || \
+  echo "  note: env manifest flags a dirty/non-frozen tree (recorded in env.json)"
 
-echo "== 2/4 family-1 work sweep (iop_call/iop_cb/iop_symmetric), reps=20 =="
-python3 scripts/sweep_controlled.py --reps 20 --out "$OUT/sweep.json"
+echo "== 2/4 family-1 work sweep (iop_call/iop_cb/iop_symmetric), reps=$REPS =="
+python3 scripts/sweep_controlled.py --reps "$REPS" --out "$OUT/sweep.json"
 
-echo "== 3/4 payload sweep (xop_feed_payload N=1..100k), n=20 =="
-python3 scripts/payload_sweep_controlled.py --invocations 20 --reps 1 \
-  --out "$OUT/payload.json"
+echo "== 3/4 payload sweep (xop_feed_payload N=1..100k), n=$XRUN_INV =="
+python3 scripts/payload_sweep_controlled.py --invocations "$XRUN_INV" --reps 1 \
+  ${PAYLOAD_SIZES:+--sizes "$PAYLOAD_SIZES"} --out "$OUT/payload.json"
 
-echo "== 4/4 cross-runtime small (svc_split/feed/wasm), n=20 =="
+echo "== 4/4 cross-runtime small (svc_split/feed/wasm), n=$XRUN_INV =="
 ( cd jac/examples/interopbench && \
   jac run harness/xbench.jac --experimental \
     --kernels xop_svc_split,xop_feed,xop_wasm_call --sizes small \
-    --invocations 20 --out "$(pwd)/../../../$OUT/xruntime.json" )
+    --invocations "$XRUN_INV" --out "$(pwd)/../../../$OUT/xruntime.json" )
 
 echo
 echo "== portability summary for '$LABEL' (compare RATIOS to canonical above) =="
@@ -78,9 +87,12 @@ def pfit(key):
     n=len(pts); sx=sum(x for x,_ in pts); sy=sum(y for _,y in pts)
     sxx=sum(x*x for x,_ in pts); sxy=sum(x*y for x,y in pts)
     return (n*sxy-sx*sy)/(n*sxx-sx*sx)
-ds, rs = pfit("direct"), pfit("rpc")
-print(f"  payload serialization rpc/direct = {rs/ds:4.2f}x   (canonical ~2.6x)")
-print(f"    direct {ds:.0f} ns/el,  rpc {rs:.0f} ns/el  (absolutes are machine-specific)")
+if len(ps) < 8:
+    print(f"  payload fit skipped ({len(ps)} points; needs the full 16-size sweep)")
+else:
+    ds, rs = pfit("direct"), pfit("rpc")
+    print(f"  payload serialization rpc/direct = {rs/ds:4.2f}x   (canonical ~2.6x)")
+    print(f"    direct {ds:.0f} ns/el,  rpc {rs:.0f} ns/el  (absolutes are machine-specific)")
 
 xr = json.load(open(f"{out}/xruntime.json"))["cells"]
 for cell in ("xop_svc_split","xop_feed","xop_wasm_call"):

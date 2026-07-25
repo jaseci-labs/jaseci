@@ -631,8 +631,8 @@ codespace; Jac's mixed-JIT path emits a \code{ctypes.CFUNCTYPE} thunk
 \code{sqrt}, over the \emph{same} deterministic loop, called from Python's
 standard FFI mechanisms---\code{ctypes} and \code{cffi}---and, to answer the
 sharper objection that these conflate mechanism with interpreter cost, from a
-matched \code{pybind11} module and a hand-written \code{METH\_O} C extension,
-plus each side's no-FFI arithmetic floor.
+matched \code{pybind11} module, a \code{PyO3} (Rust) module, and a hand-written
+\code{METH\_O} C extension, plus each side's no-FFI arithmetic floor.
 
 Table~\ref{tab:xtool} reports two measurements per toolchain. The \emph{matched}
 column is per-foreign-call cost under the kernel's exact loop
@@ -646,19 +646,20 @@ figures are dominated by \emph{CPython interpreter dispatch, not the binding
 mechanism}: a \emph{noop} C function costs the same as \code{sqrt} in both
 pybind11 and the C extension ($\Delta<0.5$\,ns), and a pure-Python identity
 lambda in the same loop costs $139$\,ns. Isolating the call itself tells the
-honest story: the Python$\rightarrow$C boundary is $\approx$$54$\,ns for
-pybind11 and $\approx$$25$\,ns for a raw C extension, against $\approx$$3$\,ns
-per whole iteration (loop, call, and arithmetic together) for Jac-native FFI---so
-Jac's advantage over pybind11-class tooling on \emph{mechanism} cost is roughly
-an order of magnitude, not the $100\times$-class ratios \code{ctypes}
-($\approx$$367$\,ns isolated) exhibits. Part of even the $25$\,ns raw-extension
-floor is \code{PyFloat} boxing and refcounting that any CPython extension must
-pay---runtime tax, not binding-generator overhead. Every variant reconstructs the
-byte-identical digest \code{sqrt:402000}, so the differential-identity oracle now
-spans \emph{toolchains}: pybind11, the C extension, \code{ctypes}, \code{cffi},
-and Jac-native are provably computing one value from the same foreign calls. The
-one comparand we did not build is PyO3 (no Rust toolchain), which pybind11 and
-the raw extension bracket.
+honest story: the Python$\rightarrow$C boundary is $\approx$$25$\,ns for a raw
+\code{METH\_O} C extension, $\approx$$40$\,ns for PyO3, and $\approx$$54$\,ns for
+pybind11---a narrow $25$--$54$\,ns band across hand-written and generated binding
+layers---against $\approx$$3$\,ns per whole iteration (loop, call, and arithmetic
+together) for Jac-native FFI, and an order of magnitude above them all,
+\code{ctypes} at $\approx$$367$\,ns. So Jac's advantage over the best CPython-native
+bindings on \emph{mechanism} cost is roughly an order of magnitude, not the
+$100\times$-class ratio \code{ctypes} exhibits. Part of even the $25$\,ns
+raw-extension floor is \code{PyFloat} boxing and refcounting that any CPython
+extension must pay---runtime tax, not binding-generator overhead. Every variant
+reconstructs the byte-identical digest \code{sqrt:402000}, so the
+differential-identity oracle now spans \emph{toolchains}: PyO3, pybind11, the C
+extension, \code{ctypes}, \code{cffi}, and Jac-native are provably computing one
+value from the same foreign calls.
 
 \begin{table}[t]
 \caption{Cross-tool FFI: same \code{libm} \code{sqrt}, same loop, same digest
@@ -676,6 +677,7 @@ Toolchain & Path & matched & isolated \\
 Jac \code{na}        & FFI (\code{sqrt})  & $3.1$ & --- \\
 Jac \code{na}        & ref (no FFI)       & $2.5$ & --- \\
 raw C-ext (\code{METH\_O}) & FFI (\code{sqrt}) & $136$ & $25$ \\
+PyO3 (Rust)          & FFI (\code{sqrt})  & $145$ & $40$ \\
 pybind11             & FFI (\code{sqrt})  & $163$ & $54$ \\
 Python \code{cffi}   & FFI (\code{sqrt})  & $314$ & --- \\
 Python \code{ctypes} & FFI (\code{sqrt})  & $475$ & $367$ \\
@@ -1165,11 +1167,11 @@ OpenAPI clients for \code{cl}$\rightarrow$\code{sv}. A differential comparison
 against these---same computation, same data representation, Jac-generated
 crossing vs.\ hand-written glue---is the axis that would turn our
 \emph{characterization} into a \emph{verdict} on compiler-generated interop.
-Section~\ref{sec:xtool} takes one step onto that axis, adding a matched pybind11
-and raw C-extension point to the \code{sqrt} kernel and explicitly separating
-mechanism cost from CPython dispatch; the \emph{full} matrix (PyO3, FastAPI and
-generated OpenAPI clients, more kernels, per-system warm-up controls) remains the
-follow-on paper. We are careful there not to attribute host-interpreter dispatch
+Section~\ref{sec:xtool} takes one step onto that axis, adding matched pybind11,
+PyO3, and raw C-extension points to the \code{sqrt} kernel and explicitly
+separating mechanism cost from CPython dispatch; the \emph{full} matrix (FastAPI
+and generated OpenAPI clients for the RPC axis, more kernels, per-system warm-up
+controls) remains the follow-on paper. We are careful there not to attribute host-interpreter dispatch
 to the binding mechanism---the confound that a single matched number would
 smuggle in. Within Jac, \code{ownbench}
 covers the free single-runtime boundary and the memory-management dial; this suite
