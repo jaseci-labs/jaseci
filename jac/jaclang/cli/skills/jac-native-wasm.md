@@ -40,7 +40,13 @@ receives `.exports`/`.mem` at instantiation for direct raw-export access:
 
 ```jac
 import from "@jac/wasm_host" { set_na_env }
-set_na_env("kernel", shim, {"env": {...}});   # stem, host shim, import object
+
+na import from .arena { init }
+
+async def launch(shim: any, env_fns: dict) {
+    set_na_env("arena", shim, {"env": env_fns});   # stem, host shim, import object
+    game = await init();                           # instantiates, then calls the export
+}
 ```
 
 A pure-computation module needs no `set_na_env` at all. Everything below is

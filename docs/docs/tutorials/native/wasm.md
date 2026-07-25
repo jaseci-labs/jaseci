@@ -84,8 +84,12 @@ page must supply their JavaScript implementations before the first call:
 ```jac
 import from "@jac/wasm_host" { set_na_env }
 
-set_na_env("arena", shim, {"env": build_webgl_env(shim)});
-game = await init();
+na import from .arena { init }
+
+async def launch(shim: any, env_fns: dict) {
+    set_na_env("arena", shim, {"env": env_fns});
+    game = await init();
+}
 ```
 
 A pure-computation module like `sum` needs no `set_na_env` at all.
