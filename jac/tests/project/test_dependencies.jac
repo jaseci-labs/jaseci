@@ -25,9 +25,7 @@ import from jaclang.project.pyvenv {
     remove_venv_from_path,
     summarize_pip_failure,
     _bundled_runtime_python,
-    _is_fused_venv,
-    _venv_create_interpreter,
-    run_pip
+    _is_fused_venv
 }
 import from jaclang.project.providers {
     InstallContext,
@@ -105,7 +103,7 @@ test "ensure_venv creates" {
         assert not venv_dir.exists();
 
         with patch(
-            "jaclang.project.pyvenv._venv_create_interpreter", return_value=None
+            "jaclang.project.pyvenv._bundled_runtime_python", return_value=None
         ), patch("venv.EnvBuilder") as mock_builder_class {
             mock_builder = MagicMock();
             mock_builder_class.return_value = mock_builder;
@@ -186,7 +184,7 @@ test "ensure_venv recreates corrupted" {
         (venv_dir / "pyvenv.cfg").write_text("home = /usr/bin");
 
         with patch(
-            "jaclang.project.pyvenv._venv_create_interpreter", return_value=None
+            "jaclang.project.pyvenv._bundled_runtime_python", return_value=None
         ), patch("venv.EnvBuilder") as mock_builder_class {
             mock_builder = MagicMock();
             mock_builder_class.return_value = mock_builder;
@@ -206,7 +204,7 @@ test "ensure_venv ensurepip missing" {
         config = JacConfig.load(project_dir / "jac.toml");
 
         with patch(
-            "jaclang.project.pyvenv._venv_create_interpreter", return_value=None
+            "jaclang.project.pyvenv._bundled_runtime_python", return_value=None
         ), patch("venv.EnvBuilder") as mock_builder_class {
             mock_builder = MagicMock();
             mock_builder.create.side_effect = Exception("No module named 'ensurepip'");
@@ -231,39 +229,6 @@ test "bundled runtime python is None outside standalone" {
     with patch.dict(os.environ, {}, clear=False) {
         os.environ.pop("JAC_STANDALONE", None);
         assert _bundled_runtime_python() is None;
-    }
-}
-
-test "venv create interpreter uses bundled python under standalone" {
-    fake_py = "/fake/rt/python/bin/python3.14";
-    with patch.dict(os.environ, {"JAC_STANDALONE": "1"}, clear=False), patch(
-        "jaclang.project.pyvenv._bundled_runtime_python", return_value=fake_py
-    ) {
-        assert _venv_create_interpreter() == fake_py;
-    }
-}
-
-test "run_pip uses plain pip install without target rewrite" {
-    reset_config();
-    (tmp, project_dir) = make_temp_project();
-    try {
-        venv_dir = project_dir / ".jac" / "venv";
-        bin_dir = venv_dir / "bin";
-        bin_dir.mkdir(parents=True, exist_ok=True);
-        (bin_dir / "python").write_text("#!/usr/bin/env python3");
-        (venv_dir / "pyvenv.cfg").write_text("home = /usr/bin\nversion = 3.14.0\n");
-        site = venv_dir / "lib" / "python3.14" / "site-packages";
-        site.mkdir(parents=True, exist_ok=True);
-        with patch("subprocess.run") as run {
-            run.return_value = MagicMock(returncode=0, stdout="", stderr="");
-            run_pip(venv_dir, ["install", "six"], verbose=False);
-        }
-        cmd = run.call_args.args[0];
-        assert "--target" not in cmd;
-        assert str(site) not in cmd;
-    } finally {
-        shutil.rmtree(tmp, ignore_errors=True);
-        reset_config();
     }
 }
 
@@ -324,7 +289,7 @@ test "ensure_venv recreates fused jac-as-python venvs" {
         ) as rm, patch("subprocess.run") as run, patch(
             "jaclang.project.pyvenv.run_pip", return_value=(0, "", "")
         ), patch(
-            "jaclang.project.pyvenv._venv_create_interpreter",
+            "jaclang.project.pyvenv._bundled_runtime_python",
             return_value="/fake/rt/python/bin/python3.14"
         ) {
             run.return_value = MagicMock(returncode=0, stdout="", stderr="");

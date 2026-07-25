@@ -217,7 +217,6 @@ class JacDesktopPluginConfig {
 def _load_desktop_template -> dict[str, object] | None {
     import from jaclang.project.template_loader { load_template_from_directory }
     import from jaclang.cli.console { console }
-    import from jaclang.runtimelib.client.plugin_config { _post_create_client }
 
     module_dir = Path(str(__file__)).parent;
     template_dir = module_dir / "templates" / "desktop";
@@ -225,12 +224,8 @@ def _load_desktop_template -> dict[str, object] | None {
         return None;
     }
     try {
-        template = load_template_from_directory(
-            template_dir, post_create_hook=_post_create_client
-        );
-        info = template.to_dict();
-        info["post_create"] = _post_create_client;
-        return info;
+        template = load_template_from_directory(template_dir, post_create_hook=None);
+        return template.to_dict();
     } except Exception as e {
         console.warning(f"Could not load desktop template: {e}");
         return None;

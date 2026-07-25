@@ -1,4 +1,3 @@
-import os;
 import from pathlib { Path }
 
 
@@ -129,32 +128,10 @@ def _load_template(template_name: str) -> dict[str, any] | None {
     }
 
     try {
-        template = load_template_from_directory(
-            template_dir, post_create_hook=_post_create_client
-        );
-
-        data = template.to_dict();
-        data["post_create"] = _post_create_client;
-        return data;
+        template = load_template_from_directory(template_dir, post_create_hook=None);
+        return template.to_dict();
     } except Exception as e {
         console.error(f"Warning: Could not load {template_name} template: {e}");
         return None;
     }
-}
-
-def _post_create_client(project_path: Path, project_name: str) {
-    import from jaclang.cli.console { console }
-
-    if os.environ.get("JAC_CLIENT_SKIP_NPM_INSTALL") {
-        console.print();
-        console.print(
-            "\n  ⏭ Skipping dependency installation (JAC_CLIENT_SKIP_NPM_INSTALL is set)",
-            style="muted"
-        );
-        console.print(
-            "  Run 'jac install' when ready to install Python and npm packages.\n",
-            style="muted"
-        );
-    }
-    _ = (project_path, project_name);
 }

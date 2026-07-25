@@ -130,11 +130,6 @@ def _bundled_runtime_python -> str | None {
 }
 
 
-def _venv_create_interpreter -> str | None {
-    return _bundled_runtime_python();
-}
-
-
 def _is_fused_venv(venv_dir: Path) -> bool {
     import sys;
     py = Path(venv_python(venv_dir));
@@ -169,7 +164,7 @@ def ensure_venv(venv_dir: Path, verbose: bool = False) {
     import sys;
     import shutil;
     def _create_venv(target: Path) {
-        interpreter = _venv_create_interpreter();
+        interpreter = _bundled_runtime_python();
         if interpreter is not None {
             _create_venv_with_interpreter(interpreter, target);
         } else {
