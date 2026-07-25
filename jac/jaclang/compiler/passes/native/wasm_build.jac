@@ -375,17 +375,69 @@ def app_declared_imports(ir_module: object) -> set {
     return names;
 }
 
+def _project_gc_settings -> tuple[str, list[str], list[str]] {
+    gc_mode = "cycles";
+    enf_mods: list[str] = [];
+    enf_grand: list[str] = [];
+    try {
+        import from jaclang.project { get_config }
+        cfg = get_config();
+        if cfg {
+            gc_mode = cfg.gc.default;
+            enf_mods = list(cfg.gc.enforce.modules);
+            enf_grand = list(cfg.gc.enforce.grandfathered);
+        }
+    } except Exception {
+        return ("cycles", [], []);
+    }
+    return (gc_mode, enf_mods, enf_grand);
+}
+
+def _assert_ir_rc_free(llvm_ir_str: str, file_path: str) {
+    import re;
+    syms: set[str] = set();
+    for m in re.finditer(r"__rc_[A-Za-z0-9_]*", llvm_ir_str) {
+        syms.add(m.group(0));
+    }
+    probes: list[str] = [];
+    for probe in ("JAC_NO_GC", "JAC_GC_CYCLES") {
+        if probe in llvm_ir_str {
+            probes.append(probe);
+        }
+    }
+    if syms or probes {
+        raise RuntimeError(
+            f"'{os.path.basename(file_path)}' compiled under [gc] default =" + " \"none\" but its IR still carries RC machinery (" + ", ".join(
+                sorted(syms) + probes
+            ) + "); add the module to [gc.enforce] modules so the ownership" + " checker reports what re-enters the reference-counted world"
+        );
+    }
+}
+
 def compile_to_wasm(file_path: str, export_funcs: list = []) -> (bytes | None) {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
+    (gc_mode, enf_mods, enf_grand) = _project_gc_settings();
     prev = os.environ.get("JAC_NATIVE_TARGET", None);
     os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
     try {
         prog = JacProgram();
         ir = prog.compile(
             file_path=os.path.abspath(file_path),
-            options=CompileOptions(aot_mode=True, type_check=False)
+            options=CompileOptions(
+                aot_mode=True,
+                type_check=False,
+                na_gc_mode=gc_mode,
+                nogc_enforce_modules=enf_mods,
+                nogc_grandfathered=enf_grand
+            )
         );
+        if prog.errors_had {
+            first = prog.errors_had[0].pretty_print();
+            more = len(prog.errors_had) - 1;
+            suffix = f" (+{more} more)" if more > 0 else "";
+            raise RuntimeError(f"{first}{suffix}");
+        }
         if (ir is None) or (ir.gen.llvm_ir is None) {
             return None;
         }
@@ -397,6 +449,9 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> (bytes | None) {
         } else {
             os.environ["JAC_NATIVE_TARGET"] = prev;
         }
+    }
+    if gc_mode == "none" {
+        _assert_ir_rc_free(llvm_ir_str, file_path);
     }
     return emit_wasm_from_ir(llvm_ir_str, export_funcs, app_imports=app_imports);
 }

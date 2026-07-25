@@ -399,22 +399,46 @@ Native code reaches the *client* by compiling to wasm.
 `jac nacompile --target wasm32` (and the client bundler's `_emit_na_wasm`,
 which serves `/static/<stem>.wasm`) both route through
 `wasm_build.compile_to_wasm`: it sets the `wasm32-unknown-unknown` triple,
-compiles AOT, runs `opt2` **without** `internalize` (so defined functions
-stay exported), and links with the pure-Jac `WasmLinker` (no
-wasm-ld/emscripten).
+compiles AOT, honors the project's `[gc]` settings (`default = "none"`
+builds headerless and audits the IR for `__rc_*` machinery), runs `opt2`
+**without** `internalize` (so defined functions stay exported), and links
+with the pure-Jac `WasmLinker` (no wasm-ld/emscripten).
 
-The interop model is the standard wasm import/export contract:
+The language-level spelling of the crossing is a marked import in client
+code:
+
+```jac
+na import from .arena { init, frame }
+```
+
+`na import` is the cl → na twin of `sv import`. It is the discovery signal
+(the client build compiles the target module to `/static/<stem>.wasm`; the
+module never has to be imported anywhere else), and it binds each name to a
+generated stub: `exit_import` in `EsastGenPass` emits
+`const { init, frame } = __na_bind("arena", ["init", "frame"])`, where
+`__na_bind` (in `@jac/wasm_host`) lazily instantiates the module on first
+call and dispatches to its exports. Calls to the bound names type-check as
+async in client code (the same coroutine-wrapping `sv import` calls get),
+so `await init()` is the natural call shape. On the Python side the import
+compiles to **nothing** -- an `na import` never executes the native module
+under CPython, which is what distinguishes it from a plain import of a
+native module (row 7's ctypes crossing). A module that declares app FFI
+registers its host implementations before the first call with
+`set_na_env("<stem>", shim, {"env": {...}})`; an FFI-free module needs no
+setup at all.
+
+Underneath, the interop model is the standard wasm import/export contract:
 
 - **`cl → na`** (exports) -- `WasmLinker` exports `memory`, the
   `__stack_pointer`/`__heap_base` globals, and **every defined function**
   (or an explicit `export_funcs` list). JS calls these directly after
   `WebAssembly.instantiate`.
-- **`na → cl`** (imports) -- undefined externs (raylib, `malloc`/`free`/
-  `memcpy`, compiler-rt helpers like `__multi3`) remain wasm **imports** from
-  module `"env"`. The JS host satisfies them by providing an
-  `importObject.env` at instantiate time; the client shim supplies the
-  externs. So native code calls back into JS through these imported `env`
-  functions.
+- **`na → cl`** (imports) -- the vendored libc floor is linked *into* the
+  module, so what remains as wasm **imports** is the versioned `jac_host1`
+  host surface (syscall-ish: `write`, `clock_gettime`, ...) plus the app's
+  own extern decls (e.g. raylib) under module `"env"`. The JS host satisfies
+  them at instantiate time; native code calls back into JS through these
+  imported functions.
 
 ---
 

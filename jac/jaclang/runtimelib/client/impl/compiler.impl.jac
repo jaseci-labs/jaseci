@@ -38,13 +38,33 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
             console.warning(
                 f"'{module_path.name}' not found in the compile hub; cannot " + "check for inferred-native code, so no wasm will be emitted " + "for it (explicit .na.jac modules are unaffected)."
             );
-            return;
+        } else {
+            has_na = compiled.declares_codespace(CodeContext.NATIVE);
         }
-        has_na = compiled.declares_codespace(CodeContext.NATIVE);
     }
-    if not has_na {
-        return;
+    if has_na {
+        self._emit_wasm_module(module_path);
     }
+
+    declared = sorted(
+        getattr(self.jac_client_compiler, 'na_wasm_modules', set()) or set()
+    );
+    for path_str in declared {
+        target = Path(path_str).resolve();
+        if target == module_path.resolve() {
+            continue;
+        }
+        if not target.exists() {
+            console.warning(
+                f"na import target '{path_str}' not found; no wasm emitted for it"
+            );
+            continue;
+        }
+        self._emit_wasm_module(target);
+    }
+}
+
+impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> None {
     import from jaclang.compiler.passes.native.wasm_build { compile_to_wasm }
     try {
         wasm = compile_to_wasm(str(module_path));
@@ -55,20 +75,24 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
     if wasm is None {
         return;
     }
+    stem = module_path.stem;
+    for marker in (".na", ".cl", ".sv") {
+        if stem.endswith(marker) {
+            stem = stem[:-len(marker)];
+        }
+    }
     dist = self.jac_client_compiler._get_client_dir() / 'dist';
     dist.mkdir(parents=True, exist_ok=True);
-    out_path = dist / f"{module_path.stem}.wasm";
+    out_path = dist / f"{stem}.wasm";
     out_path.write_bytes(wasm);
-    console.print(
-        f"  Native wasm module: /static/{module_path.stem}.wasm ({len(wasm)} bytes)"
-    );
+    console.print(f"  Native wasm module: /static/{stem}.wasm ({len(wasm)} bytes)");
 
     try {
         import json;
         import from jaclang.compiler.passes.native.wasm_build { wasm_import_map }
         import from jaclang.compiler.passes.native.wasm_host_abi { WASM_HOST_MODULE }
         imports = wasm_import_map(wasm);
-        manifest_path = dist / f"{module_path.stem}.wasm.imports.json";
+        manifest_path = dist / f"{stem}.wasm.imports.json";
         manifest_path.write_text(
             json.dumps({"abi": WASM_HOST_MODULE, "imports": imports}, indent=2),
             encoding='utf-8',
