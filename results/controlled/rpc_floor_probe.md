@@ -21,12 +21,18 @@ warm, and timed three paths against the same endpoint:
 
 | path | per-call | what it includes |
 |---|---|---|
-| sv-import client (measured) | ~12.5-15 ms | server dispatch + client sv-import marshalling |
-| raw HTTP, new connection | ~5.5-6.5 ms | server dispatch + TCP connect |
-| raw HTTP, keep-alive | ~5.5-6.5 ms | server dispatch only |
+| sv-import client (measured) | ~12.5-15 ms | app-server dispatch + client sv-import marshalling |
+| raw HTTP, new connection | ~5.5-6.5 ms | app-server dispatch + TCP connect |
+| raw HTTP, keep-alive | ~5.5-6.5 ms | app-server dispatch only |
+| raw HTTP, minimal one-route http.server | ~1.1-1.6 ms | HTTP + JSON + trivial routing (same feed_batch work) |
 
 Keep-alive vs new-connection: **~0 ms difference** -> loopback TCP connection
 setup is NOT the cost.
+
+Minimal-endpoint control: a bare `http.server` computing the identical
+`feed_batch` result is **~1.1 ms** server-side, vs ~6 ms for the `jac start` app
+server -> **~5 ms is application-framework dispatch** (routing/auth/context),
+directly measured, not asserted.
 
 ## Decomposition of the ~15 ms fixed floor
 
