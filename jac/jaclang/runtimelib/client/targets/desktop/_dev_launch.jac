@@ -33,9 +33,11 @@ def jac_desktop_webkit_shell_export -> str {
 }
 
 
-def jac_desktop_deps_shell_export -> str {
+def jac_desktop_deps_shell_export(venv_rel: str = "../../venv") -> str {
+    # `venv_rel` is relative to the launch script directory (see assemble). Default
+    # matches NativeDesktopTarget.output_dir = .jac/client/desktop -> .jac/venv.
     return (
-        "VENV_LIB=\"$(CDPATH= cd -- \"$(dirname \"$0\")/../../venv/lib\" 2>/dev/null && pwd)\"\n"
+        f"VENV_LIB=\"$(CDPATH= cd -- \"$(dirname \"$0\")/{venv_rel}/lib\" 2>/dev/null && pwd)\"\n"
         "if [ -n \"$VENV_LIB\" ] && [ -d \"$VENV_LIB\" ]; then\n"
         "  for sp in \"$VENV_LIB\"/python*/site-packages; do\n"
         "    if [ -d \"$sp\" ]; then\n"
