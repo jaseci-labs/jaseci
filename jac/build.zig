@@ -456,10 +456,19 @@ pub fn build(b: *std.Build) void {
         }
 
         // Wasm32 libc bitcode: compile the in-repo wasm_rt sources (payload
-        // tool's `build-wasm-libc`, mirrors the musl block above) and bundle
-        // them so a shipped binary links libc into na->wasm modules at build
-        // time (#7048). Target-independent, so every platform bundles it.
-        if (link_dir == null) {
+        // tool's `build-wasm-libc`, mirrors the musl block above) so na->wasm
+        // modules link libc into the module (#7048). Target-independent, so
+        // every platform builds it.
+        //
+        // This runs for EVERY build, dev included. It used to sit inside the
+        // `link_dir == null` guard alongside the bundling, which meant the one
+        // mode that reads .pbs-build/wasm32/libc directly (a -Ddev binary, via
+        // wasm_build.jac's _wasm_libc_dir) was the one mode that never wrote
+        // it: the floor stayed at whatever the last non-dev `zig build` left,
+        // and an adapter added to jac_abi64.c never reached a dev checkout.
+        // Only the bundling stays conditional -- a linked binary has no
+        // payload to carry the floor in.
+        {
             const wasm_libc = b.pathFromRoot(".pbs-build/wasm32/libc");
             const vendor_wasm = b.addRunArtifact(tool);
             vendor_wasm.addArgs(&.{
@@ -468,9 +477,19 @@ pub fn build(b: *std.Build) void {
                 wasm_libc,
                 b.graph.zig_exe,
             });
+            // Declare the sources so Zig can see the step is out of date.
+            // addFileInput content-hashes each one; a bare directory arg
+            // hashes only the path (see the mkpayload note below).
+            // has_side_effects stays set because the output lives outside the
+            // cache, so the step must run even when the inputs are unchanged
+            // -- a deleted .pbs-build has to repopulate. The tool itself skips
+            // per-file work that is already up to date.
             vendor_wasm.has_side_effects = true;
+            addTreeInputs(b, vendor_wasm, "jaclang/compiler/passes/native/wasm_rt");
             mk.step.dependOn(&vendor_wasm.step);
-            mk.addArg(b.fmt("--wasm-libc={s}", .{wasm_libc}));
+            if (link_dir == null) {
+                mk.addArg(b.fmt("--wasm-libc={s}", .{wasm_libc}));
+            }
         }
 
         // Track the payload's real inputs so it repacks when any source changes.

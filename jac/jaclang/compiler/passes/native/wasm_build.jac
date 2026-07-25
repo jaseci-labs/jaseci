@@ -1,5 +1,9 @@
 import os;
 
+def _wasm_rt_src_dir -> str {
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "wasm_rt");
+}
+
 def _wasm_libc_dir -> (str | None) {
     env = os.environ.get("JAC_NATIVE_WASM_LIBC_DIR", "");
     if env {
@@ -18,6 +22,49 @@ def _wasm_libc_dir -> (str | None) {
         return shipped;
     }
     return None;
+}
+
+def _is_dev_libc_dir(libc_dir: str) -> bool {
+    return os.path.basename(os.path.dirname(os.path.dirname(libc_dir))) == ".pbs-build";
+}
+
+glob FLOOR_MANIFEST: str = "SOURCES.sha256";
+
+def _floor_source_drift(libc_dir: str) -> list[str] | None {
+    import hashlib;
+    manifest = os.path.join(libc_dir, FLOOR_MANIFEST);
+    if not os.path.isfile(manifest) {
+        return None;
+    }
+    src_root = _wasm_rt_src_dir();
+    drifted: list[str] = [];
+    try {
+        with open(manifest, "r", encoding="utf-8") as fh {
+            rows = fh.read().splitlines();
+        }
+    } except OSError {
+        return None;
+    }
+    for row in rows {
+        line = row.strip();
+        if not line or " " not in line {
+            continue;
+        }
+        (want, rel) = line.split(" ", 1);
+        path = os.path.join(src_root, rel.strip());
+        try {
+            with open(path, "rb") as src {
+                got = hashlib.sha256(src.read()).hexdigest();
+            }
+        } except OSError {
+            drifted.append(rel.strip());
+            continue;
+        }
+        if got != want {
+            drifted.append(rel.strip());
+        }
+    }
+    return drifted;
 }
 
 def _load_libc_module(llvm: object, libc_dir: str, triple: str) -> object {
@@ -108,6 +155,36 @@ glob _LATE_BOUND: set = {
 
      };
 
+def _rebuild_hint(libc_dir: str) -> str {
+    if _is_dev_libc_dir(libc_dir) {
+        return "run `zig build vendor-wasm-libc` to rebuild it";
+    }
+    return "reinstall jac, or point JAC_NATIVE_WASM_LIBC_DIR at a floor built " + "from this source tree";
+}
+
+def _assert_abi64_adapters(needed: list[str], provided: set, libc_dir: str) -> None {
+    missing = sorted(
+        set(
+            [
+                nm
+                for nm in needed
+                if ("__jac64_" + nm) not in provided
+            ]
+        )
+    );
+    if not missing {
+        return;
+    }
+    adapters = ', '.join(['__jac64_' + nm for nm in missing]);
+    raise RuntimeError(
+        f"vendored wasm libc at {libc_dir} is stale: the native floor " + f"rewrites {', '.join(
+            missing
+        )} to {adapters}, which the linked " + "bitcode does not define (see _ABI64_ADAPTED and " + "wasm_rt/jac_abi64.c). The adapters exist in source; the compiled " + f"bitcode predates them -- {_rebuild_hint(
+            libc_dir
+        )}."
+    );
+}
+
 def _link_wasm_libc(mod: object, llvm: object) -> bool {
     libc_dir = _wasm_libc_dir();
     if libc_dir is None {
@@ -116,6 +193,26 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
             "vendored wasm libc not found (run `zig build vendor-wasm-libc`); " + "libc symbols stay as raw env imports and the jac_host1 import " + "contract is NOT enforced"
         );
         return False;
+    }
+    drift = _floor_source_drift(libc_dir);
+    if drift is None {
+        if _is_dev_libc_dir(libc_dir) {
+            import from jaclang.cli.console { console }
+            console.warning(
+                f"vendored wasm libc at {libc_dir} carries no {FLOOR_MANIFEST}, " + "so it cannot be checked against wasm_rt/; it predates the " + f"manifest -- {_rebuild_hint(
+                    libc_dir
+                )}."
+            );
+        }
+    } elif drift {
+        shown = ', '.join(drift[0:4]) + (
+            f" (+{len(drift) - 4} more)" if len(drift) > 4 else ""
+        );
+        raise RuntimeError(
+            f"vendored wasm libc at {libc_dir} was built from different " + f"wasm_rt sources than this tree: {shown}. Linking it would fold " + "the old floor into the module and ship behaviour that no longer " + f"matches the source -- {_rebuild_hint(
+                libc_dir
+            )}."
+        );
     }
     libc = _load_libc_module(llvm, libc_dir, mod.triple);
     if libc is None {
@@ -158,6 +255,7 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
             }
         }
     }
+    _assert_abi64_adapters([fn.name for fn in renames], provided, libc_dir);
     for fn in renames {
         fn.name = "__jac64_" + fn.name;
     }
