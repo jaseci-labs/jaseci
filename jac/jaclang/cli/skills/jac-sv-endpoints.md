@@ -1,9 +1,11 @@
 ---
 name: jac-sv-endpoints
-description: Server endpoints - REST API endpoints (/walker/<name>, /function/<name>), walker:pub, the response envelope, @restspec custom routes/methods, file uploads, typed responses. For any REST consumer, not just the jac client. Pair with `jac-sv-persistence` (graph queries), `jac-sv-auth` (auth semantics), `jac-sv-streaming` (SSE).
+description: Server endpoints - REST API endpoints (/walker/<name>, /function/<name>), walker:pub, choosing walker vs function shape (no visit = def:pub), the response envelope, @restspec custom routes/methods, file uploads, typed responses. For any REST consumer, not just the jac client. Pair with `jac-sv-persistence` (graph queries), `jac-sv-auth` (auth semantics), `jac-sv-streaming` (SSE).
 ---
 
 A Jac server exposes two endpoint shapes. **Functions** (`def:pub` / `def:priv` / plain `def`) are the natural fit for full-stack RPC - the jac client calls them like local functions and the return type is the wire format. **Walkers** (`walker:pub`) are the docs' primary pattern for pure API services consumed over raw REST: `has` fields are the request body, `report` values are the response. Both live in `main.jac`, a plain `.jac` server module, or a `.sv.jac` module (server is the default context). Streaming endpoints (`-> Generator`, SSE): `jac-sv-streaming`.
+
+**Choose the shape by whether the endpoint walks: no `visit`, no walker.** A `walker:pub` whose only ability is one `can run with Root entry { ... report X; }` is a function in walker costume, and every caller pays the costume tax: `result.reports[0]` unwrapping instead of a typed return value, request params disguised as `has` fields, `report` bypassing return-type checking. Write it as a `def:pub` with a typed return instead - `root` binds identically (both shapes run in the caller's request context, so `root` / `root.shared` graph code moves over unchanged; verified against the serve runtime). Status probes, single-node CRUD, list queries, kick-off-a-job calls are all functions. Reserve `walker:pub` for endpoints that actually traverse: spawn, `visit` along edges, accumulate, report once.
 
 Auth/visibility is per-declaration (canonical semantics in `jac-sv-auth`):
 
@@ -64,6 +66,8 @@ jac start api.jac --no-client       # API only, no frontend bundling (NOT --no_c
 curl -X POST http://localhost:8000/walker/add_task \
   -H "Content-Type: application/json" -d '{"title": "Write docs"}'
 ```
+
+(The example is kept minimal to show the wire shape - by the shape rule above, an endpoint this simple belongs in a `def:pub`; a walker pays off once the body traverses.)
 
 For typed report accumulation (`has reports: list[T] = [];`, exit-collector pattern), load `jac-walker-patterns` - it owns that pattern.
 
