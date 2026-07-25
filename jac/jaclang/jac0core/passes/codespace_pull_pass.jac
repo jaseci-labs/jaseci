@@ -97,8 +97,12 @@ def _references_browser_global(elem: uni.UniNode) -> bool {
 
 def _seed_browser_global_tops(module: uni.Module) {
     import from jaclang.jac0core.ext_registry { codespace_of }
-    import from jaclang.jac0core.compiler { _stamp_context_element }
-    if codespace_of(module.loc.mod_path or '') is not None {
+    import from jaclang.jac0core.compiler {
+        _stamp_context_element,
+        is_server_anchored_module
+    }
+    if codespace_of(module.loc.mod_path or '') is not None
+    or is_server_anchored_module(module) {
         return;
     }
     for stmt in module.body {
