@@ -1326,7 +1326,23 @@ impl TypeEvaluator._resolve_client_npm_module(node_: uni.ModulePath) -> (str | N
         return None;
     }
     import from jaclang.jac0core.modresolver { resolve_client_npm_package }
-    return resolve_client_npm_package(spv, mod_path);
+    if found := resolve_client_npm_package(spv, mod_path) {
+        return found;
+    }
+
+    entry_path = self._client_entry_mod_path();
+    if entry_path and entry_path != mod_path {
+        return resolve_client_npm_package(spv, entry_path);
+    }
+    return None;
+}
+
+impl TypeEvaluator._client_entry_mod_path -> (str | None) {
+    main_mod = self.program.mod.main;
+    if main_mod and main_mod.loc {
+        return main_mod.loc.mod_path or None;
+    }
+    return None;
 }
 
 impl TypeEvaluator._is_fstring_all_literal(fstring: uni.FString) -> bool {
