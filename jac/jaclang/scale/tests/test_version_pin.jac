@@ -1,3 +1,4 @@
+import json;
 import tempfile;
 import unittest.mock;
 import jaclang.scale.injector.binary as binary_mod;
@@ -12,6 +13,14 @@ def _project(toml: str) -> str {
     d = tempfile.mkdtemp();
     (Path(d) / "jac.toml").write_text(toml, encoding="utf-8");
     return d;
+}
+
+
+def _release_meta(names: list[str]) -> bytes {
+    assets = [
+        {"name": n, "browser_download_url": f"https://dl.test/{n}"} for n in names
+    ];
+    return json.dumps({"assets": assets}).encode("utf-8");
 }
 
 
@@ -90,9 +99,47 @@ test "a declared pin matching no release aborts the deploy" {
 
 
 test "the admin console uses the same release tag as the pinned binary" {
-    (dist, sha) = binary_mod._admin_dist_urls("stable", "0.34.2");
-    assert "releases/download/v0.34.2/jac-0.34.2-admin-dist.tar.gz" in dist;
-    assert sha == dist + ".sha256";
+    meta = _release_meta(
+        ["jac-0.34.2-admin-dist.tar.gz", "jac-0.34.2-admin-dist.tar.gz.sha256"]
+    );
+    with unittest.mock.patch.object(
+        binary_mod, "_http_get_bytes", return_value=meta
+    ) as fetch {
+        (dist, sha) = binary_mod._admin_dist_urls("stable", "0.34.2");
+        assert "releases/tags/v0.34.2" in fetch.call_args[0][0];
+        assert dist.endswith("jac-0.34.2-admin-dist.tar.gz");
+        assert sha == dist + ".sha256";
+    }
+}
+
+
+test "a pinned console without a published checksum aborts" {
+    meta = _release_meta(["jac-0.34.2-admin-dist.tar.gz"]);
+    with unittest.mock.patch.object(binary_mod, "_http_get_bytes", return_value=meta) {
+        raised = False;
+        try {
+            binary_mod._admin_dist_urls("stable", "0.34.2");
+        } except RuntimeError {
+            raised = True;
+        }
+        assert raised;
+    }
+}
+
+
+test "resolve_deploy_version lists releases once per deploy" {
+    d = _project(
+        '[project]\nname = "x"\nversion = "0.1.0"\njac-version = ">=0.34,<0.35"\n'
+    );
+    with unittest.mock.patch.object(
+        binary_mod, "_list_release_versions", return_value=["0.34.2"]
+    ) as listing {
+        assert binary_mod.resolve_deploy_version(d, "stable") == "0.34.2";
+        # Every later consumer (console, base image) reuses the memo, so a
+        # release publishing mid-deploy cannot split them across release sets.
+        assert binary_mod.resolve_deploy_version(d, "stable") == "0.34.2";
+        assert listing.call_count == 1;
+    }
 }
 
 
@@ -143,12 +190,8 @@ test "a pinned console failure aborts; unpinned stays soft" {
 
 
 test "a pinned release with no console asset is skipped, not fatal" {
-    import from urllib.error { HTTPError }
-    with unittest.mock.patch.object(
-        binary_mod,
-        "_fetch_verified_asset",
-        side_effect=HTTPError("url", 404, "Not Found", None, None)
-    ) {
+    meta = _release_meta(["jac-0.30.0-linux-x86_64", "jac-0.30.0-linux-x86_64.sha256"]);
+    with unittest.mock.patch.object(binary_mod, "_http_get_bytes", return_value=meta) {
         assert binary_mod.download_admin_dist("stable", "0.30.0") is None;
     }
 }
@@ -162,23 +205,23 @@ test "a pinned no-console release clears a previously staged console" {
     (stale / "index.html").write_text("stale", encoding="utf-8");
     with unittest.mock.patch.object(
         binary_mod,
-        "_fetch_verified_asset",
+        "_http_get_bytes",
+        return_value=_release_meta(["jac-0.30.0-linux-x86_64"])
+    ) {
+        # Pinned: the stale console from an earlier deploy must not ship.
+        assert binary_mod.stage_admin_dist(d, "stable", "0.30.0") == False;
+        assert not stale.exists();
+    }
+    with unittest.mock.patch.object(
+        binary_mod,
+        "_http_get_bytes",
         side_effect=HTTPError("url", 404, "Not Found", None, None)
     ) {
-        with unittest.mock.patch.object(
-            binary_mod,
-            "_http_get_bytes",
-            side_effect=HTTPError("url", 404, "Not Found", None, None)
-        ) {
-            # Pinned: the stale console from an earlier deploy must not ship.
-            assert binary_mod.stage_admin_dist(d, "stable", "0.30.0") == False;
-            assert not stale.exists();
-            # Unpinned keeps whatever was staged before.
-            (stale).mkdir(parents=True);
-            (stale / "index.html").write_text("stale", encoding="utf-8");
-            assert binary_mod.stage_admin_dist(d, "stable") == False;
-            assert stale.exists();
-        }
+        # Unpinned keeps whatever was staged before.
+        (stale).mkdir(parents=True);
+        (stale / "index.html").write_text("stale", encoding="utf-8");
+        assert binary_mod.stage_admin_dist(d, "stable") == False;
+        assert stale.exists();
     }
 }
 

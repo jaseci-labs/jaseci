@@ -233,13 +233,21 @@ def _pick_stable_assets(meta: any, suffix: str) -> tuple[str, str] {
 }
 
 
+glob _deploy_version_memo: dict = {};
+
+
 def resolve_deploy_version(project_dir: str, channel: str) -> str {
     import from jaclang.scale.config.dev_config { resolve_pinned_spec, Channel }
     if channel != Channel.STABLE.value {
         return "";
     }
+    key = (os.path.abspath(project_dir), channel);
+    if key in _deploy_version_memo {
+        return _deploy_version_memo[key];
+    }
     spec = resolve_pinned_spec(project_dir);
     if not spec {
+        _deploy_version_memo[key] = "";
         return "";
     }
     target = _resolve_target_version(GH_REPO, spec);
@@ -249,6 +257,7 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
             f"[project] jac-version, or remove it to deploy on the latest release."
         );
     }
+    _deploy_version_memo[key] = target;
     return target;
 }
 
@@ -506,11 +515,10 @@ def _admin_dist_urls(channel: str, version: str = "") -> tuple[str, str] {
     if channel == "local" {
         return ("", "");
     }
-    if version {
-        url = f"https://github.com/{repo}/releases/download/v{version}/jac-{version}{suffix}";
-        return (url, url + ".sha256");
-    }
-    api = f"https://api.github.com/repos/{repo}/releases/latest";
+
+    api = f"https://api.github.com/repos/{repo}/releases/tags/v{version}"
+        if version
+        else f"https://api.github.com/repos/{repo}/releases/latest";
     meta = json.loads(_http_get_bytes(api).decode("utf-8"));
     dist_url = "";
     checksum_url = "";
@@ -526,6 +534,12 @@ def _admin_dist_urls(channel: str, version: str = "") -> tuple[str, str] {
             dist_url = url;
         }
     }
+    if version and dist_url and not checksum_url {
+        raise RuntimeError(
+            f"Pinned jac {version} publishes an admin console without a "
+            f"checksum; refusing to stage it unverified."
+        );
+    }
     return (dist_url, checksum_url);
 }
 
@@ -534,6 +548,12 @@ def download_admin_dist(channel: str, version: str = "") -> bytes | None {
     try {
         (dist_url, checksum_url) = _admin_dist_urls(channel, version);
         if not dist_url {
+            if version {
+                logger.warning(
+                    f"Pinned jac {version} publishes no admin console asset; "
+                    f"the gateway builds it on boot."
+                );
+            }
             return None;
         }
 
@@ -550,19 +570,6 @@ def download_admin_dist(channel: str, version: str = "") -> bytes | None {
             _admin_dist_cache_path(channel),
             f"{channel} admin console"
         );
-    } except HTTPError as e {
-        if version and e.code == 404 {
-            logger.warning(
-                f"Pinned jac {version} publishes no admin console asset; "
-                f"the gateway builds it on boot."
-            );
-            return None;
-        }
-        if version {
-            raise;
-        }
-        logger.warning(f"Could not download the admin console asset ({e}).");
-        return None;
     } except Exception as e {
         if version {
             raise;
