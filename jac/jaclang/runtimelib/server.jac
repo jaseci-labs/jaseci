@@ -214,7 +214,9 @@ obj JacAPIServer {
         has method: str = "",
             path: str = "",
             protocol: APIProtocol = APIProtocol.HTTP,
-            broadcast: bool = False;
+            broadcast: bool = False,
+            produces: str = "",
+            envelope: bool = True;
     }
 
     def postinit -> None;
