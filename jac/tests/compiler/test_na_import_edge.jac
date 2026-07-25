@@ -103,3 +103,39 @@ test "colliding na import basenames are a build error" {
         f" /static/kernel.wasm; got: {msgs}"
     );
 }
+
+test "plain import of a native module from client code takes the na edge" {
+    tmp = tempfile.mkdtemp(prefix="jac_na_edge_");
+    with open(os.path.join(tmp, "kernel.na.jac"), "w") as f {
+        f.write(KERNEL_SRC);
+    }
+    host_path = os.path.join(tmp, "host.jac");
+    with open(host_path, "w") as f {
+        f.write(
+            "import from .kernel { fib }\n"
+            "\n"
+            "cl {\n"
+            "    async def:pub show -> int {\n"
+            "        return await fib(10);\n"
+            "    }\n"
+            "}\n"
+        );
+    }
+    prog = JacProgram();
+    mod = prog.compile(host_path);
+    assert not prog.errors_had , (
+        f"the cl->na edge is inferred for native targets: "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+    js = mod.gen.js;
+    assert '__na_bind' in js , "plain native import must bind the wasm stub";
+    assert '"kernel"' in js , "expected the module stem in the bind call";
+    targets = list(mod.gen.client_manifest.na_modules);
+    assert len(targets) == 1 and targets[0].endswith("kernel.na.jac") , (
+        f"plain native import must drive wasm emission; got: {targets}"
+    );
+    assert "kernel" not in mod.gen.py , (
+        "the inferred na edge must be inert under CPython, exactly like the"
+        " marked form"
+    );
+}

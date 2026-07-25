@@ -1,11 +1,12 @@
-"""Server provider consumed via a plain (unmarked) import from client code.
+"""Server-anchored provider consumed via a plain import from client code.
 
-`fetch_msg` is a `def:pub` endpoint, so a client consumer reaches it over
-auto-RPC; `local_helper` has no client-side presence at all.
+The datetime import anchors the module server-side, so `fetch_msg` is a
+`def:pub` endpoint and a client consumer reaches it over auto-RPC.
 """
+import datetime;
 
 def:pub fetch_msg(who: str) -> str {
-    return "hello " + who;
+    return "hello " + who + " @" + str(datetime.datetime.now().year);
 }
 
 def local_helper(n: int) -> str {

@@ -5,9 +5,12 @@ wire — the compiler must say so (W6005) instead of letting the call fail
 silently at runtime.
 """
 
+import os;
+
 glob _subs: list = [];
 
 def:pub subscribe(cb: Callable[([str], None)]) -> int {
+    _ = os.getpid();
     _subs.append(cb);
     return len(_subs);
 }

@@ -468,6 +468,23 @@ def is_client_boundary_import(nd: uni.Import) -> bool {
     );
 }
 
+def symbol_linked_source_module(nd: uni.Import) -> (uni.Module | None) {
+    for item in nd.items {
+        if not (isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name)) {
+            continue;
+        }
+        sym = item.name.sym;
+        if sym is None or sym.decl is None {
+            continue;
+        }
+        linked = sym.decl.find_parent_of_type(uni.Module);
+        if linked is not None {
+            return linked;
+        }
+    }
+    return None;
+}
+
 def resolve_import_source_module(prog: any, nd: uni.Import) -> (uni.Module | None) {
     if not nd.from_loc {
         return None;

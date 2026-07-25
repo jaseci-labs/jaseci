@@ -3272,8 +3272,13 @@ impl TypeEvaluator._is_sv_async_call(expr: uni.FuncCall) -> bool {
     syms = self._sv_async_syms_cache.get(mod_key);
     if syms is None {
         syms = set();
+        import from jaclang.jac0core.compiler { is_client_native_edge_import }
         for imp in mod.get_all_sub_nodes(uni.Import) {
-            if not (imp.is_sv_marked or imp.is_na_marked) {
+            if not (
+                imp.is_sv_marked
+                or imp.is_na_marked
+                or is_client_native_edge_import(imp, self.program)
+            ) {
                 continue;
             }
 
