@@ -667,6 +667,14 @@ jobs:
         jac test jac/tests/compiler/passes/native/test_shared_lib.jac
         jac test jac/tests/compiler/passes/native/test_exec_link.jac
 
+    # na->wasm had no CI lane at all: test_wasm_build.jac ran nowhere and
+    # `vendor-wasm-libc` was never invoked, so a floor compiled from an older
+    # wasm_rt/ (the #7149 __jac64_realloc gap) could only be found by a user.
+    # setup-jac builds the binary, which builds the floor, so this also proves
+    # the shipped floor and the source tree agree.
+    - name: Run na->wasm floor + import-contract tests
+      run: jac test jac/tests/compiler/passes/native/test_wasm_build.jac
+
     - name: Run bundled-stdlib equivalence pins (darwin, #7626 C3)
       env:
         JAC_TEST_JOBS: "0"

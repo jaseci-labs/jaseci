@@ -257,3 +257,30 @@ test "every adapted libc name has a floor adapter" {
     );
     assert not missing , f"_ABI64_ADAPTED names with no adapter in jac_abi64.c: {missing}";
 }
+
+"""The built floor, not just its C source, defines every adapted symbol.
+
+This is the check that was missing when #7149 added __jac64_realloc: the
+source test above passed, the fixtures linked (none of them reached realloc),
+and the gap only showed up in a user's project. Scanning the bitcode catches a
+floor compiled from an older tree no matter what any fixture happens to call.
+"""
+test "the built floor defines every abi64 adapter" {
+    _require_libc();
+    import from jaclang.compiler.passes.native.wasm_build { _ABI64_ADAPTED }
+    libc_dir = _wasm_libc_dir();
+    blobs = [
+        Path(os.path.join(libc_dir, f)).read_bytes()
+        for f in os.listdir(libc_dir)
+        if f.endswith(".bc")
+    ];
+    assert blobs , f"no bitcode in {libc_dir}";
+    missing = [];
+    for nm in sorted(_ABI64_ADAPTED) {
+        needle = ("__jac64_" + nm).encode();
+        if not any([needle in b for b in blobs]) {
+            missing.append(nm);
+        }
+    }
+    assert not missing , f"floor at {libc_dir} defines no adapter for {missing}; rebuild it with `zig build vendor-wasm-libc`";
+}
