@@ -38,6 +38,9 @@ cb agree); **disabling turbo** fixed the *absolutes* (no thermal droop over the
 | `sweep_noturbo_n20.json` | sweep, governor pinned + **turbo OFF** (canonical) | all crossing slopes converge to **212-217 ns/work**; intercepts positive |
 | `xruntime_perf_small_n20.json` | svc_split/feed, turbo ON, single run (superseded) | 376x / 270x, but n=1 (no reproducibility shown) |
 | `xruntime_noturbo_small_n20_rep{1,2,3}.json` | svc_split/feed, turbo OFF, 3 reps (canonical) | svc_split **369x** (CV 3.7%), feed **243x** (CV 3.0%) |
+| `bridges_noturbo_small_n20_rep{1,2,3}.json` | family-1 single-size + FFI + floor, turbo OFF, 3 reps (canonical) | iop_cb crossing **1.13x** (CV 1.2%); iop_call native 8.7x; base_call floor 40144 ns |
+| `wasm_noturbo_small_n20_rep{1,2,3}.json` | xop_wasm_call, turbo OFF, 3 reps (canonical) | wasm **6.8x** native (was 10x turbo); native CV <0.1% |
+| `payload_noturbo_n20.json` | xop_feed_payload N=1..100k, turbo OFF, single sweep n=20 (canonical) | direct **342 ns/el**; rpc **17ms + 911 ns/el** (2.7x), break-even N~19k |
 
 ## Headlines (canonical)
 
@@ -97,3 +100,22 @@ real system noise, characterized (CV ~3%), not a defect.
 3. ~~xruntime is a single run~~ -> **fixed** (3 reps; CV ~3%).
 4. ~~Dirty tree (paper/notes/probe)~~ -> committed in `8495b2ad5`; only result
    artifacts are uncommitted at capture time.
+
+## Coverage (2026-07-25 update)
+
+The whole suite is now captured under the pinned governor + turbo-off, folded
+into `paper.tex`:
+
+- **family-1 single-size** (`bridges_*`): iop_call/iop_cb/iop_symmetric + FFI
+  scalar/struct/vtable, 3 reps n=20. iop_cb crossing 1.13x (was 1.17x turbo);
+  iop_call native 8.7x; iop_symmetric na 32x; struct-ABI 6.9x; base_call floor
+  40144 ns.
+- **family-2 cross-runtime** (`xruntime_*`, `wasm_*`): svc_split 374x, feed
+  241x, wasm **6.8x** (was 10x turbo). All 3 cells 3 reps n=20.
+- **payload sweep** (`payload_noturbo_n20`): direct 342 ns/el (R2=.99998); rpc
+  17ms fixed + 911 ns/el (pairs-bootstrap CI 889-1002, R2=.997); post-crossing
+  N>=30k slope 823 ns/el (CI 808-846); break-even N~19k; ratio 2.7x.
+
+Only remaining refinement: payload sweep is a **single** pinned run (no
+run-to-run CV yet; the fit CIs are pairs-bootstrap over the 16 sweep points).
+Driver: `scripts/payload_sweep_controlled.py`.
