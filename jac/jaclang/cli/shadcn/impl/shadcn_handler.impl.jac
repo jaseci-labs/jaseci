@@ -157,6 +157,83 @@ impl _update_npm_deps(config: any, npm_deps: dict) -> None {
     }
 }
 
+impl _is_ui_dir(path: Path) -> bool {
+    if not path.is_dir() {
+        return False;
+    }
+    for f in path.iterdir() {
+        if f.name.endswith(".jac") {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl _resolve_ui_dir(project_root: Path, shadcn_config: any) -> Path {
+    override = str(shadcn_config.get("components_dir", "")) if shadcn_config else "";
+    if override {
+        return project_root / override;
+    }
+    default_dir = project_root / "components" / "ui";
+    if _is_ui_dir(default_dir) {
+        return default_dir;
+    }
+    skipped = set([".jac", "node_modules", ".git", "__pycache__", "dist", "build"]);
+    for cand in sorted(project_root.rglob("ui")) {
+        if set(cand.relative_to(project_root).parts) & skipped {
+            continue;
+        }
+        if _is_ui_dir(cand) {
+            return cand;
+        }
+    }
+    return default_dir;
+}
+
+impl _module_of(project_root: Path, path: Path) -> str {
+    rel = path.relative_to(project_root);
+    name = rel.name;
+    for suf in [".cl.jac", ".sv.jac", ".na.jac", ".jac"] {
+        if name.endswith(suf) {
+            name = name[:-len(suf)];
+            break;
+        }
+    }
+    return ".".join(list(rel.parts[:-1]) + [name]);
+}
+
+impl _resolve_utils(project_root: Path, ui_dir: Path, shadcn_config: any) -> tuple {
+    override = str(shadcn_config.get("utils_path", "")) if shadcn_config else "";
+    if override {
+        p = project_root / override;
+        return (p, _module_of(project_root, p));
+    }
+    skipped = set([".jac", "node_modules", ".git", "__pycache__", "dist", "build"]);
+    for cand in sorted(project_root.rglob("utils*.jac")) {
+        if set(cand.relative_to(project_root).parts) & skipped {
+            continue;
+        }
+        try {
+            text = cand.read_text(encoding="utf-8");
+        } except Exception {
+            continue;
+        }
+        if "def:pub cn(" in text {
+            return (cand, _module_of(project_root, cand));
+        }
+    }
+    return (project_root / "lib" / "utils.jac", "lib.utils");
+}
+
+impl _retarget_utils_import(
+    content: str, ui_dir: Path, project_root: Path, utils_mod: str
+) -> str {
+    depth = len(ui_dir.relative_to(project_root).parts);
+    return re.sub(
+        r"from \.+lib\.utils\b", "from " + ("." * (depth + 1)) + utils_mod, content
+    );
+}
+
 impl add_shadcn_components(config: any, component_names: list) -> bool {
     shadcn_config = _read_shadcn_config(config);
     if not shadcn_config {
@@ -178,7 +255,12 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
         return False;
     }
 
-    ui_dir = project_root / "components" / "ui";
+    ui_dir = _resolve_ui_dir(project_root, shadcn_config);
+    (utils_path, utils_mod) = _resolve_utils(project_root, ui_dir, shadcn_config);
+    if ui_dir != project_root / "components" / "ui" {
+        where = str(ui_dir.relative_to(project_root));
+        console.print(f"  Using {where} (cn() from {utils_mod})", style="muted");
+    }
     existing: set = set();
     if ui_dir.exists() {
         for f in ui_dir.iterdir() {
@@ -227,7 +309,9 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
         }
 
         filename = str(comp_data.get("file", name + ".jac")).replace("-", "_");
-        content = str(comp_data.get("content", ""));
+        content = _retarget_utils_import(
+            str(comp_data.get("content", "")), ui_dir, project_root, utils_mod
+        );
         out_path = ui_dir / filename;
         with open(out_path, "w") as f {
             f.write(content);
@@ -248,7 +332,6 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
         console.print("\n  Updated jac.toml [dependencies.npm]", style="muted");
     }
 
-    utils_path = ui_dir.parent.parent / "lib" / "utils.jac";
     if not utils_path.exists() {
         utils_path.parent.mkdir(parents=True, exist_ok=True);
         with open(utils_path, "w") as f {
@@ -256,7 +339,8 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
                 'import from "clsx" { clsx }\nimport from "tailwind-merge" { twMerge }\n\ndef:pub cn(*inputs: any) -> str {\n    return twMerge(clsx(inputs));\n}\n'
             );
         }
-        console.print("  + Created lib/utils.jac", style="green");
+        made = str(utils_path.relative_to(project_root));
+        console.print(f"  + Created {made}", style="green");
     }
 
     if added {
@@ -272,10 +356,13 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
 
 impl remove_shadcn_components(config: any, component_names: list) -> bool {
     project_root = Path(str(config.project_root));
-    ui_dir = project_root / "components" / "ui";
+    ui_dir = _resolve_ui_dir(project_root, _read_shadcn_config(config));
 
     if not ui_dir.exists() {
-        console.error("No components/ui directory found.");
+        console.error(
+            "No shadcn ui directory found.",
+            hint="Looked for components/ui and any */ui holding .jac files; set [jac-shadcn] components_dir in jac.toml to point at yours."
+        );
         return False;
     }
 
