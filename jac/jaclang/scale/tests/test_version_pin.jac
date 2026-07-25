@@ -166,6 +166,18 @@ test "an edited pin re-resolves instead of serving a stale memo" {
 }
 
 
+test "the pin is discovered from an ancestor jac.toml (nested entry)" {
+    proj = _project(
+        '[project]\nname = "x"\nversion = "0.1.0"\njac-version = "==0.34.2"\n'
+    );
+    sub = Path(proj) / "apps" / "web";
+    sub.mkdir(parents=True);
+    # A deploy whose code_folder is the nested entry dir still finds the project
+    # pin instead of silently deploying latest.
+    assert binary_mod.resolve_deploy_version(str(sub), "stable") == "0.34.2";
+}
+
+
 test "the base image uses the same resolver as the pinned binary" {
     d = _project(
         '[project]\nname = "x"\nversion = "0.1.0"\njac-version = ">=0.34,<0.35"\n'
