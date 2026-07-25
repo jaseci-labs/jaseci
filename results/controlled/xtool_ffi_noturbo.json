@@ -1,0 +1,152 @@
+{
+ "schema_version": 1,
+ "kind": "cross_tool_ffi",
+ "captured_utc": "2026-07-25T23:27:06.416642+00:00",
+ "matched_n": 2000,
+ "isolated_n": 500000,
+ "reps": 5,
+ "python": "3.14.6",
+ "machine_control": {
+  "governor": "performance",
+  "turbo_disabled": "1"
+ },
+ "oracle_all_toolchains_agree": true,
+ "skipped_toolchains": {},
+ "jac_na_sqrt": {
+  "per_ffi_call_ns": 3,
+  "samples": [
+   5,
+   3,
+   3,
+   3,
+   3
+  ],
+  "digest": "sqrt:1956282704"
+ },
+ "note": "matched = per foreign call under the kernel loop (warmed, digest-verified); isolated = tight call loop minus empty loop (boundary+conversion only). overhead_above_ref = matched minus the pure-Python no-FFI floor. Digest identity across all toolchains is the cross-tool oracle.",
+ "cells": {
+  "sqrt": {
+   "reference_digest": "sqrt:2001000",
+   "python_ref_per_call_ns": 150.6,
+   "toolchains": {
+    "ctypes": {
+     "matched_per_call_ns": 494.77,
+     "isolated_per_call_ns": 361.4,
+     "overhead_above_ref_ns": 344.17,
+     "digest": "sqrt:2001000",
+     "digest_ok": true
+    },
+    "cffi": {
+     "matched_per_call_ns": 321.61,
+     "isolated_per_call_ns": 183.86,
+     "overhead_above_ref_ns": 171.01,
+     "digest": "sqrt:2001000",
+     "digest_ok": true
+    },
+    "cext": {
+     "matched_per_call_ns": 134.78,
+     "isolated_per_call_ns": 23.41,
+     "overhead_above_ref_ns": -15.83,
+     "digest": "sqrt:2001000",
+     "digest_ok": true
+    },
+    "pybind11": {
+     "matched_per_call_ns": 181.03,
+     "isolated_per_call_ns": 48.17,
+     "overhead_above_ref_ns": 30.43,
+     "digest": "sqrt:2001000",
+     "digest_ok": true
+    },
+    "pyo3": {
+     "matched_per_call_ns": 166.96,
+     "isolated_per_call_ns": 61.42,
+     "overhead_above_ref_ns": 16.36,
+     "digest": "sqrt:2001000",
+     "digest_ok": true
+    }
+   }
+  },
+  "struct": {
+   "reference_digest": "struct:8006001000",
+   "python_ref_per_call_ns": 170.05,
+   "toolchains": {
+    "ctypes": {
+     "matched_per_call_ns": 1217.43,
+     "isolated_per_call_ns": 1131.0,
+     "overhead_above_ref_ns": 1047.37,
+     "digest": "struct:8006001000",
+     "digest_ok": true
+    },
+    "cffi": {
+     "matched_per_call_ns": 1209.38,
+     "isolated_per_call_ns": 1103.39,
+     "overhead_above_ref_ns": 1039.32,
+     "digest": "struct:8006001000",
+     "digest_ok": true
+    },
+    "cext": {
+     "matched_per_call_ns": 150.31,
+     "isolated_per_call_ns": 87.12,
+     "overhead_above_ref_ns": -19.74,
+     "digest": "struct:8006001000",
+     "digest_ok": true
+    },
+    "pybind11": {
+     "matched_per_call_ns": 186.38,
+     "isolated_per_call_ns": 116.06,
+     "overhead_above_ref_ns": 16.33,
+     "digest": "struct:8006001000",
+     "digest_ok": true
+    },
+    "pyo3": {
+     "matched_per_call_ns": 192.74,
+     "isolated_per_call_ns": 134.16,
+     "overhead_above_ref_ns": 22.68,
+     "digest": "struct:8006001000",
+     "digest_ok": true
+    }
+   }
+  },
+  "bytes": {
+   "reference_digest": "bytes:10590496350863620352",
+   "python_ref_per_call_ns": 2382.59,
+   "toolchains": {
+    "ctypes": {
+     "matched_per_call_ns": 897.78,
+     "isolated_per_call_ns": 590.31,
+     "overhead_above_ref_ns": -1484.81,
+     "digest": "bytes:10590496350863620352",
+     "digest_ok": true
+    },
+    "cffi": {
+     "matched_per_call_ns": 640.86,
+     "isolated_per_call_ns": 374.4,
+     "overhead_above_ref_ns": -1741.73,
+     "digest": "bytes:10590496350863620352",
+     "digest_ok": true
+    },
+    "cext": {
+     "matched_per_call_ns": 289.99,
+     "isolated_per_call_ns": 65.45,
+     "overhead_above_ref_ns": -2092.6,
+     "digest": "bytes:10590496350863620352",
+     "digest_ok": true
+    },
+    "pybind11": {
+     "matched_per_call_ns": 384.14,
+     "isolated_per_call_ns": 144.93,
+     "overhead_above_ref_ns": -1998.46,
+     "digest": "bytes:10590496350863620352",
+     "digest_ok": true
+    },
+    "pyo3": {
+     "matched_per_call_ns": 329.0,
+     "isolated_per_call_ns": 100.53,
+     "overhead_above_ref_ns": -2053.59,
+     "digest": "bytes:10590496350863620352",
+     "digest_ok": true
+    }
+   }
+  }
+ }
+}

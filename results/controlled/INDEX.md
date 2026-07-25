@@ -41,6 +41,8 @@ cb agree); **disabling turbo** fixed the *absolutes* (no thermal droop over the
 | `bridges_noturbo_small_n20_rep{1,2,3}.json` | family-1 single-size + FFI + floor, turbo OFF, 3 reps (canonical) | iop_cb crossing **1.13x** (CV 1.2%); iop_call native 8.7x; base_call floor 40144 ns |
 | `wasm_noturbo_small_n20_rep{1,2,3}.json` | xop_wasm_call, turbo OFF, 3 reps (canonical) | wasm **6.8x** native (was 10x turbo); native CV <0.1% |
 | `payload_noturbo_n20.json` + `_rep{1,2,3}.json` | xop_feed_payload N=1..100k, turbo OFF, **3 sweeps** n=20 (canonical) | direct **342 ns/el** (CV 0.1%); rpc **15ms + 890 ns/el** (2.6x, slope CV 1.8%), break-even N~17k |
+| `xtool_ffi_noturbo.json` | cross-tool FFI, 3 kernels (sqrt/struct/bytes) x 5 toolchains (ctypes/cffi/cext/pybind11/pyo3), matched+isolated, digest oracle | struct-by-value tax: ctypes/cffi **~1.1us** vs cext/pybind **~90-135ns**; scalar band 23-61ns; jac na 3ns. Driver `scripts/xtool_ffi.py`. See `xtool_verdict.md` |
+| `xtool_rpc_noturbo.json` | cross-tool RPC verdict: jac_sv (shipped) vs FastAPI+httpx/generated-client vs minimal_http, matched+isolated+RTT, digest oracle | jac_sv boundary **9.7x** hand FastAPI, **25.5x** minimal endpoint; loopback RTT ~30us (floor is framework+marshalling, not wire). Driver `scripts/xtool_rpc.py`. See `xtool_verdict.md` |
 
 ## Headlines (canonical)
 
@@ -117,6 +119,18 @@ into `paper.tex`:
   plus 890 ns/el (bootstrap CI 848-983, R2=.994, slope run-to-run CV 1.8%);
   break-even N~17k; ratio 2.6x (CV 1.8%). Fixed-cost floor is the noisy term
   (CV 7.2%, 14.6-17.0ms). Driver: `scripts/payload_sweep_controlled.py`.
+- **cross-tool FFI verdict** (`xtool_ffi_noturbo`): 3 kernels x 5 toolchains,
+  committed producer (closes STEPS #39). Struct-by-value marshalling tax now
+  visible (ctypes/cffi ~1.1us vs compiled ~90-135ns) -- the "more kernels"
+  expansion. Driver: `scripts/xtool_ffi.py`.
+- **cross-tool RPC verdict + RTT** (`xtool_rpc_noturbo`): the FastAPI/RPC verdict
+  matrix. Jac's shipped generated RPC is 9.7x hand FastAPI / 25.5x a minimal
+  endpoint on the boundary term; loopback RTT ~30us proves the floor is
+  framework+marshalling. `--provider-host` gives real-network RTT. Driver:
+  `scripts/xtool_rpc.py`. Write-up: `xtool_verdict.md`.
 
 Dataset is complete: whole suite pinned no-turbo, all cells 3 reps (payload 3
-full sweeps). No open re-capture items remain.
+full sweeps). The cross-tool verdict matrix (FFI + RPC) and RTT capability are
+now committed producers; the only remaining scope expansion is the
+**cross-machine** RTT campaign (run `xtool_rpc.py --provider-host` on a second
+box), not a gap in the local instrument.

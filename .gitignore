@@ -116,3 +116,6 @@ jactastic/**
 # Zig 0.16 project-local package cache (fetched, hash-pinned deps)
 zig-pkg/
 paper.pdf
+
+# cross-tool comparand venv (scripts/xtool_*.py); reproducible via python -m venv --system-site-packages
+scripts/.xtool-venv/

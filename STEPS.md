@@ -820,7 +820,16 @@ Sweep callback count to derive steady-state trampoline cost.
 
 ---
 
-### 39. **[P1] Make cross-tool FFI comparisons truly matched**
+### 39. **[P1] Make cross-tool FFI comparisons truly matched** -- DONE (2026-07-25)
+
+Delivered by `scripts/xtool_ffi.py` (dataset `results/controlled/xtool_ffi_noturbo.json`,
+write-up `results/controlled/xtool_verdict.md`): one compiled C fixture bound five
+ways (ctypes / cffi / METH_O C-ext / pybind11 / PyO3), same inputs/calls, one
+byte-identical digest per kernel enforced across all toolchains, matched +
+isolated columns and overhead-above-no-FFI-ref reported. Extended past `sqrt` to
+struct-by-value and bytes kernels ("more kernels"). The RPC half of the verdict
+matrix (FastAPI + generated-client-equivalent vs Jac's shipped path) is
+`scripts/xtool_rpc.py`. Original spec kept below for reference.
 
 Use the same compiled C fixture, inputs, number of calls and digest for:
 

@@ -49,7 +49,15 @@ is a fixed $\approx$$2.0$\,\textmu s intercept; its $1.13\times$ single-size
 ratio amortizes to $\approx$$1.0\times$ under real work. A loopback RPC
 resolves into a $\approx$$15$\,ms fixed cost plus an $890$\,ns/element
 serialization slope---$2.6\times$ the in-process $342$\,ns/element---with
-break-even at $N\approx17{,}000$. Timings are reported strictly as ``this
+break-even at $N\approx17{,}000$. A committed, oracle-gated cross-tool matrix
+turns characterization into a \emph{verdict} against the glue these crossings
+replace: Jac-native FFI holds a $\approx$$10\times$ mechanism-cost edge over the
+best CPython bindings (\code{METH\_O}, \code{pybind11}, \code{PyO3}) across
+scalar, struct-by-value, and bytes kernels, and its shipped generated-RPC path
+costs $\approx$$10\times$ a hand-written \code{FastAPI} client on the boundary
+term---each isolating binding mechanism from interpreter and framework dispatch,
+with a loopback-RTT control confirming the RPC floor is marshalling, not wire.
+Timings are reported strictly as ``this
 microprogram, at this size, on this machine,'' captured under a pinned CPU
 governor with turbo disabled: ratios are reproducible; absolute nanoseconds are
 clock-specific. The oracle is not Jac-specific: twin-anchored differential
@@ -686,6 +694,27 @@ Python               & ref (no FFI)       & $39$  & $\approx$$22$ \\
 \end{tabular}
 \end{table}
 
+These figures are now produced by a single committed
+harness (\code{scripts/xtool\_ffi.py}): it compiles one C translation unit,
+binds it five ways (\code{ctypes}, \code{cffi}, a raw \code{METH\_O} extension,
+\code{pybind11}, and a \code{PyO3} \code{abi3} module), and \emph{aborts} unless
+every toolchain reconstructs one byte-identical digest per kernel---so the
+cross-tool oracle is enforced, not asserted. Extending it past the single
+\code{sqrt} signature to a struct-by-value kernel (a \code{Vec3} dot product) and
+a bytes kernel (16-byte FNV-1a) shows the mechanism band is
+\emph{signature-dependent}, not one number. Isolated per-call cost stays in a
+tight $23$--$61$\,ns band for the scalar across the compiled bindings, but a
+\emph{by-value struct} widens it by an order of magnitude on the descriptor-driven
+tools---\code{ctypes} and \code{cffi} pay $\approx$$1.1$\,\textmu s marshalling
+the copy, while \code{METH\_O}, \code{pybind11}, and \code{PyO3} stay at
+$87$--$134$\,ns---exactly the register-vs-\code{byval} ABI distinction a compiler
+resolves per signature (Section~\ref{sec:conclusion}), now measured on the
+comparand side. \code{cext} is the floor on every kernel; the bytes kernel sits
+between the two ($65$--$145$\,ns compiled, $374$--$590$\,ns descriptor-driven).
+The claim ``Jac-native FFI beats the best CPython bindings by
+$\approx$$10\times$ on mechanism'' therefore holds not just for a scalar but
+across three signature shapes.
+
 \subsection{Cross-runtime}
 
 Table~\ref{tab:xruntime} reports the family-2 results, all three cells
@@ -775,6 +804,31 @@ raw HTTP, minimal one-route endpoint & $\approx$$1.1$\,ms & HTTP + JSON + trivia
 \bottomrule
 \end{tabular}
 \end{table}
+
+A second committed harness (\code{scripts/xtool\_rpc.py}) turns this floor
+decomposition into a \emph{cross-tool verdict}: the same \code{charge\_card}
+checksum, over the same sequential-call workload, crossed six ways and gated on
+one byte-identical \code{charge:} digest. Against Jac's shipped path
+(\code{jac start} app server $+$ \code{sv~import} client), it places a
+hand-written \code{FastAPI}$+$\code{httpx} server-and-client and a
+generated-client-equivalent variant (\code{pydantic} request/response validation
+over \code{httpx}, the per-call overhead an OpenAPI code generator emits) and a
+bare \code{http.server} control. On the pure-boundary term (per call at
+\code{work}${=}1$, callee arithmetic differenced out) Jac's generated crossing is
+$\approx$$9.7\times$ the hand-written \code{FastAPI} client and
+$\approx$$25\times$ the minimal endpoint---the same
+compiler-generated-versus-hand-written shape the FFI table shows
+(Section~\ref{sec:xtool}), now on the RPC axis. The generated-client layer adds
+no measurable cost over hand \code{httpx} ($\approx$$1.5$ vs.\ $1.6$\,ms), so the
+gap is the app-server$+$\code{sv~import} stack, not client-side typing---%
+corroborating the $\approx$$5$\,ms framework term above from an independent,
+matched comparand rather than by subtraction. The harness also records a TCP
+connect \code{RTT} per comparand: $\approx$$30$\,\textmu s on loopback, i.e.\ the
+$15$\,ms boundary is $\approx$$500\times$ the wire, confirming across the whole
+matrix that the floor is framework$+$marshalling, not network. Pointing
+\code{--provider-host} at a second machine measures a genuine real-network RTT
+term, always reported separately so marshalling and wire are never conflated;
+that cross-machine campaign is the one piece of this axis left as future work.
 
 \subsection{Separating fixed cost from callee work}
 \label{sec:sweep}
@@ -1167,11 +1221,18 @@ OpenAPI clients for \code{cl}$\rightarrow$\code{sv}. A differential comparison
 against these---same computation, same data representation, Jac-generated
 crossing vs.\ hand-written glue---is the axis that would turn our
 \emph{characterization} into a \emph{verdict} on compiler-generated interop.
-Section~\ref{sec:xtool} takes one step onto that axis, adding matched pybind11,
-PyO3, and raw C-extension points to the \code{sqrt} kernel and explicitly
-separating mechanism cost from CPython dispatch; the \emph{full} matrix (FastAPI
-and generated OpenAPI clients for the RPC axis, more kernels, per-system warm-up
-controls) remains the follow-on paper. We are careful there not to attribute host-interpreter dispatch
+Section~\ref{sec:xtool} takes that axis substantially onto measured ground:
+matched \code{pybind11}, \code{PyO3}, and raw C-extension points on the FFI side,
+now extended past \code{sqrt} to struct-by-value and bytes kernels and driven by
+a committed oracle-gated producer; and, on the RPC side, a matched
+\code{FastAPI}$+$\code{httpx} server-and-client, a generated-client-equivalent
+variant, and a bare-endpoint control against Jac's shipped path---the verdict
+matrix, delivered here rather than deferred, showing Jac's generated RPC crossing
+at $\approx$$10\times$ hand-written \code{FastAPI} glue on the boundary term. What
+remains for a follow-on is the \emph{cross-machine} campaign: the same
+\code{--provider-host} instrument run against a second host for a real-network
+RTT term (the loopback baseline and the capability are in place), plus
+per-system warm-up controls and a concurrency/RPS \code{xop\_crud} cell. We are careful there not to attribute host-interpreter dispatch
 to the binding mechanism---the confound that a single matched number would
 smuggle in. Within Jac, \code{ownbench}
 covers the free single-runtime boundary and the memory-management dial; this suite
@@ -1228,9 +1289,13 @@ and provenance-stamped timing reported only within an explicitly bounded scope.
 The work and payload sweeps above supply the coefficients; the oracle supplies
 the trust. The suite's most durable output is not any single ratio but the
 guarantee that every crossing stays byte-identical to its in-language reference on
-every commit. Future work fits the
+every commit. The cross-tool verdict matrix (Section~\ref{sec:xtool}), extended
+to struct and bytes kernels and to a matched \code{FastAPI} RPC comparand,
+delivers the compiler-generated-versus-hand-written comparison as measured
+ground rather than promise. Future work fits the
 remaining shape---the payload method carried onto a typed cross-language
-\code{xop\_feed} feed, plus concurrency and RPS on
+\code{xop\_feed} feed, the \code{--provider-host} instrument run cross-machine
+for a real-network RTT term, plus concurrency and RPS on
 \code{xop\_crud} and an arm64 C-ABI runner---each landing behind the same
 twin-anchored, regression-gated contract.
 

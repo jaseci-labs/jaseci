@@ -249,6 +249,43 @@ Outputs land in `results/` (gitignored): `bridges_results.json`,
 medians, digest per kernel × variant), and - after phase 2 - `interop_audit.json`
 (named manifest/wrapper/IR facts for enabled cells).
 
+## Cross-tool verdict (external comparands)
+
+A per-crossing cost is only a *verdict* against the hand-written/generated glue
+it replaces. Two committed producers supply that comparand axis; both enforce a
+byte-identical digest across every toolchain (they **abort** on disagreement) and
+write schema'd JSON under `results/controlled/`. Run under the comparand venv
+(`scripts/.xtool-venv`, gitignored; reproduce from `scripts/xtool-requirements.txt`).
+Write-up: [`results/controlled/xtool_verdict.md`](results/controlled/xtool_verdict.md).
+
+    # FFI: one C fixture bound 5 ways × 3 kernels, matched + isolated columns
+    scripts/.xtool-venv/bin/python scripts/xtool_ffi.py --reps 5 --jac-na \
+        --out results/controlled/xtool_ffi_noturbo.json
+
+    # RPC: same charge_card checksum crossed 6 ways, matched + isolated + RTT
+    scripts/.xtool-venv/bin/python scripts/xtool_rpc.py --work 5000 --calls 200 \
+        --reps 3 --out results/controlled/xtool_rpc_noturbo.json
+
+- **`xtool_ffi.py`** (closes STEPS #39; "more kernels"). Compiles one C
+  translation unit, binds it via `ctypes`, `cffi`, a raw `METH_O` C-extension,
+  `pybind11`, and a `PyO3` `abi3` module, across three kernels: `sqrt` (scalar),
+  `struct` (`Vec3` dot, **by value**), and `bytes` (16-byte FNV-1a). Reports
+  *matched* (kernel loop) and *isolated* (call loop minus empty loop) per cell,
+  plus overhead above each side's no-FFI floor. Result: the mechanism band is
+  signature-dependent - the struct-by-value copy costs `ctypes`/`cffi` ~1.1µs vs
+  ~90-135ns for the compiled bindings, an order of magnitude the single `sqrt`
+  kernel could not show. Jac-native FFI anchors at 3ns (`--jac-na`).
+- **`xtool_rpc.py`** (the FastAPI/RPC verdict matrix + real-network RTT). Same
+  `charge_card` checksum crossed six ways: `jac_sv` (shipped `jac start` app
+  server + `sv import` client), `fastapi_httpx` (hand-written glue),
+  `fastapi_openapi` (generated-client-equivalent: pydantic model validation over
+  httpx), `minimal_http` (bare-endpoint control), and in-process baselines. On
+  the pure-boundary term Jac's generated crossing is ~9.7× hand FastAPI and ~25×
+  a minimal endpoint. Each comparand also records a TCP-connect **RTT**
+  (~30µs loopback → the 15ms floor is framework+marshalling, not wire);
+  `--provider-host <second-machine>` measures a real-network RTT term, reported
+  separately so marshalling and wire are never conflated.
+
 ## Harness
 
 ```
@@ -358,8 +395,11 @@ their existing owning suites.
 - **Concurrency**  -  all kernels single-caller. A concurrent-RPS sweep on
   `xop_crud` (N in-flight readers + a writer vs the endpoint cache) is the
   natural follow-on; defer until serial numbers are stable.
-- **Network egress**  -  `xop_*` stay on loopback so the number is the bridge,
-  not the NIC.
+- **Network egress**  -  the `xop_*` kernels stay on loopback so the number is
+  the bridge, not the NIC. The cross-tool RPC producer (`scripts/xtool_rpc.py`)
+  *does* carry a real-network RTT instrument (`--provider-host`, wire term
+  reported separately); the loopback baseline is captured, but the cross-machine
+  campaign against a second host is the one piece left as future work.
 
 ## Real-world workload selection
 
