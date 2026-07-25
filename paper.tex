@@ -28,46 +28,31 @@ Multi-Target Compiler with a Differential-Identity Oracle}
 \maketitle
 
 \begin{abstract}
-Modern applications are polyglot by construction: logic in Python,
-presentation in JavaScript, and hot paths in native or WebAssembly code, stitched
-together across process, language, and serialization boundaries that no single
-compiler can see through. Jac is a \emph{synechic} language that compiles one
-Python-like syntax to Python bytecode, JavaScript, and native machine code, and
-therefore owns both sides of every cross-tier call. Owning both sides makes the
-cost of a boundary a first-class, measurable property of the language rather than
-an emergent property of hand-written glue. We present \textbf{JacInteropBench}, a
-microbenchmark suite that characterizes the \emph{marshalled} boundaries of this
-compiler---where a call becomes an RPC, an FFI thunk, or a WebAssembly
-import/export and every crossing value is serialized. The suite organizes ten
-measured kernels across two harness families (in-process native bridges and
-cross-runtime hosts), anchored by two named free floors, and pairs every
-marshalled cell with an exact reference twin that runs the same deterministic
-operation without the crossing. Its load-bearing contribution is not a headline
-speedup but a \emph{differential-identity oracle}: byte-identical digests across
-each twin group are a correctness and compiler-regression witness, gated in
-continuous integration, while timing is reported strictly as ``this microprogram,
-at this size, on this machine.'' On a 16-core x86\_64 host, an
-eight-point work sweep separates the two coefficients that a single size
-conflates: execution placement is a $\approx$$42\times$ per-iteration
-\emph{slope} ($5$ vs.\ $212$\,ns/iter, \code{na} vs.\ \code{sv}), while the
-\code{native$\rightarrow$server} callback crossing is a fixed
-$\approx$$2.0$\,\textmu s per-call \emph{intercept}---so its headline
-$1.13\times$ ratio is a small fixed cost seen at one small size that amortizes to
-$\approx$$1.0\times$ once the callee does real work. Family-1 timings are captured
-under a pinned CPU governor with turbo disabled; the ratios are reproducible
-while the absolute nanosecond figures are clock-specific. A complementary payload sweep over the same loopback RPC, from $1$ to $100{,}000$
-returned elements, resolves the crossing into a $\approx$$15$\,ms fixed cost plus
-an $890$\,ns/element serialization slope (95\% bootstrap CI $848$--$983$)---$2.6\times$ the in-process list's
-$342$\,ns/element---with byte-identical digests at every size, and directly
-observes that slope overtake the fixed cost at $N\approx17{,}000$. We further report
-low-nanosecond \code{C}-ABI foreign-call costs and, for the two loopback RPC
-cells re-captured under the pinned governor (median of three runs at $n{=}20$,
-run-to-run CV $\le$$4\%$), cross-runtime floors of $241\times$ (\code{xop\_feed})
-and $374\times$ (\code{xop\_svc\_split}) over the direct dispatch they replace. The
-oracle is not Jac-specific: twin-anchored differential identity is
-adoptable by any toolchain that generates both sides of a boundary---gRPC
-codegen, the WebAssembly component model, or a polyglot VM---and here receives a
-complete instantiation.
+Polyglot applications cross process, language, and serialization boundaries
+that no single compiler can see through. Jac compiles one Python-like syntax to
+Python bytecode, JavaScript, and native code, and therefore owns both sides of
+every crossing---making boundary cost a measurable property of the language. We
+present \textbf{JacInteropBench}, a microbenchmark suite that holds the
+\emph{language} fixed and varies the \emph{boundary}: the inverse of a
+cross-language benchmark game. Its load-bearing contribution is a
+\emph{differential-identity oracle}: every marshalled kernel names an exact
+reference twin, and byte-identical canonical digests, gated in continuous
+integration, witness semantic preservation and compiler regressions.
+Methodologically, sweeps over callee work and payload cardinality decompose
+per-call time into a fixed crossing \emph{intercept} and an execution or
+serialization \emph{slope}. Two decompositions headline. Execution placement is
+a $\approx$$42\times$ per-iteration slope ($5$ vs.\ $212$\,ns/iter, \code{na}
+vs.\ \code{sv}), while the \code{native$\rightarrow$server} callback crossing
+is a fixed $\approx$$2.0$\,\textmu s intercept whose $1.13\times$ headline
+ratio amortizes to $\approx$$1.0\times$ under real work. A loopback RPC
+resolves into a $\approx$$15$\,ms fixed cost plus an $890$\,ns/element
+serialization slope---$2.6\times$ the in-process $342$\,ns/element---with
+break-even at $N\approx17{,}000$. Timings are reported strictly as ``this
+microprogram, at this size, on this machine,'' captured under a pinned CPU
+governor with turbo disabled: ratios are reproducible; absolute nanoseconds are
+clock-specific. The oracle is not Jac-specific: twin-anchored differential
+identity is adoptable by any toolchain that generates both sides of a
+boundary---gRPC codegen, the WebAssembly component model, or a polyglot VM.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -393,7 +378,9 @@ CPU frequency \emph{pinned}: the governor is fixed to \code{performance} on all
 cores and Intel Turbo Boost is disabled (\code{intel\_pstate/no\_turbo=1}). This
 is load-bearing. An earlier uncontrolled capture (default \code{powersave}
 governor, turbo on) produced two artifacts we now attribute entirely to
-frequency non-determinism, not to the toolchain. First, the same \code{sv}-resident
+frequency non-determinism, not to the toolchain---a concrete instance of
+measurement context producing wrong data without anything obviously
+wrong~\cite{mytkowicz}. First, the same \code{sv}-resident
 loop fit to two different slopes on different runs ($\approx$$88$ vs.\
 $\approx$$185$\,ns/iter)---base clock vs.\ boost clock on the same code. Second,
 because a boosted clock \emph{droops} thermally over an eight-minute sweep (early
@@ -475,9 +462,13 @@ same LCG leaf measures $40{,}144$\,ns/call at this size and emits the same
 $41{,}531$\,ns \code{free} reference is essentially the bare \code{sv}-call floor
 plus noise---the \code{sv$\rightarrow$na} comparisons below are against a real
 floor, not inflated server code. (The companion \code{sv$\leftrightarrow$py}
-floor \code{base\_pyimport} is defined but requires NumPy in the \code{jac}
-runtime environment, which this host does not provision; we report it as
-env-gated rather than fabricate a number.) Three findings stand out.
+floor \code{base\_pyimport}---a \code{sv}$\rightarrow$Python call into an imported
+NumPy \code{arange}+\code{sum} leaf, NumPy~2.5.1 provisioned into the \code{jac}
+runtime---measures $3{,}413$\,ns/call at the same $200/20$ size, median of $15$
+under the pinned clock, digest \code{pyimport:398210}. It is not comparable to
+\code{base\_call} as a multiple, since NumPy's vectorized C leaf and the
+interpreted-\code{sv} LCG leaf do different work; it stands as the imported-C-extension
+boundary floor in its own right.) Three findings stand out.
 
 \emph{Native execution is fast, but that is placement, not boundary cost.}
 \code{iop\_call} runs the LCG $8.7\times$ faster inside \code{na\{\}}
@@ -494,10 +485,8 @@ across the three pinned runs ($1.12$/$1.15$/$1.12\times$, CV $1.2\%$) and the tw
 medians are cleanly separated, though at $n{=}20$ the distribution tails do touch
 (pooled reference \code{max} $896{,}323$ vs.\ bridge \code{min} $872{,}995$\,ns),
 so we read this as a $\approx$$13\%$ effect, not a hairline one. This is the
-suite's cleanest statement of pure boundary overhead---and it is smaller than the
-$1.17\times$ reported from the earlier uncontrolled capture, consistent with the
-callback fixed cost shrinking to $\approx$$2$\,\textmu s under pinned clock
-(Section~\ref{sec:sweep}).
+suite's cleanest statement of pure boundary overhead; Section~\ref{sec:sweep}
+resolves it into a fixed $\approx$$2.0$\,\textmu s per-call intercept.
 
 \emph{The C ABI is close to free for scalars and callbacks---but not zero.} The
 integer per-call metric (\code{m:per\_ffi\_call\_ns}) floors both FFI scalar and
@@ -577,34 +566,52 @@ no-FFI arithmetic floor. Every variant reconstructs the byte-identical digest
 not just codespaces, so ctypes, cffi, and Jac-native are provably computing one
 value from the same foreign calls.
 
-Table~\ref{tab:xtool} reports median per-foreign-call cost (medians over five
-samples; per-call cost is essentially flat in $n$ because each \code{sqrt} is
-$O(1)$). Jac's native FFI ($3.1$\,ns) is $\mathbf{102\times}$ cheaper than
-\code{cffi} ($314$\,ns) and $\mathbf{153\times}$ cheaper than \code{ctypes}
-($475$\,ns) for the identical foreign call---and, strikingly, $12\times$ cheaper
-than \emph{pure Python arithmetic with no FFI at all} ($39$\,ns). This is the
-paper's one cross-tool result, and it is deliberately scoped: it compares
-Jac-native FFI against the Python-side FFI mechanisms Jac's own bridge emits, on
-one libm scalar. It is \emph{not} a comparison against pybind11, PyO3, or a
-hand-written C extension---those need matched kernels and per-system warm-up and
-are the subject of the deferred verdict paper (Section~\ref{sec:related}).
+Table~\ref{tab:xtool} reports two measurements per toolchain. The \emph{matched}
+column is per-foreign-call cost under the kernel's exact loop
+(\code{int(sqrt(float(i*i)))}, warmed, digest-verified); the \emph{isolated}
+column strips the loop by differencing a tight call loop against an empty one,
+leaving the boundary alone. The gap between them is the whole story. In the
+matched column Jac-native FFI ($3.1$\,ns) is $\approx$$50\times$ cheaper than a
+pybind11 wrapper ($163$\,ns) or a raw \code{METH\_O} C extension ($136$\,ns) and
+$\approx$$150\times$ cheaper than \code{ctypes} ($475$\,ns)---but those matched
+figures are dominated by \emph{CPython interpreter dispatch, not the binding
+mechanism}: a \emph{noop} C function costs the same as \code{sqrt} in both
+pybind11 and the C extension ($\Delta<0.5$\,ns), and a pure-Python identity
+lambda in the same loop costs $139$\,ns. Isolating the call itself tells the
+honest story: the Python$\rightarrow$C boundary is $\approx$$54$\,ns for
+pybind11 and $\approx$$25$\,ns for a raw C extension, against $\approx$$3$\,ns
+per whole iteration (loop, call, and arithmetic together) for Jac-native FFI---so
+Jac's advantage over pybind11-class tooling on \emph{mechanism} cost is roughly
+an order of magnitude, not the $100\times$-class ratios \code{ctypes}
+($\approx$$367$\,ns isolated) exhibits. Part of even the $25$\,ns raw-extension
+floor is \code{PyFloat} boxing and refcounting that any CPython extension must
+pay---runtime tax, not binding-generator overhead. Every variant reconstructs the
+byte-identical digest \code{sqrt:402000}, so the differential-identity oracle now
+spans \emph{toolchains}: pybind11, the C extension, \code{ctypes}, \code{cffi},
+and Jac-native are provably computing one value from the same foreign calls. The
+one comparand we did not build is PyO3 (no Rust toolchain), which pybind11 and
+the raw extension bracket.
 
 \begin{table}[t]
 \caption{Cross-tool FFI: same \code{libm} \code{sqrt}, same loop, same digest
-\code{sqrt:402000}, median per foreign call (ns), $n{=}200$. Jac-native vs.\ the
-Python FFI mechanisms its own bridge emits.}
+\code{sqrt:402000}. \emph{matched} = per foreign call under the kernel's loop
+($n{=}200$, median of five); \emph{isolated} = per-call boundary only (tight call
+loop minus empty loop). The matched$\to$isolated drop exposes how much is
+CPython dispatch rather than binding mechanism.}
 \label{tab:xtool}
 \centering
 \small
-\begin{tabular}{@{}llr@{}}
+\begin{tabular}{@{}llrr@{}}
 \toprule
-Toolchain & Path & ns/call \\
+Toolchain & Path & matched & isolated \\
 \midrule
-Jac \code{na} & FFI (\code{sqrt})      & $3.1$ \\
-Jac \code{na} & ref (no FFI)           & $2.5$ \\
-Python \code{cffi}   & FFI (\code{sqrt}) & $314$ \\
-Python \code{ctypes} & FFI (\code{sqrt}) & $475$ \\
-Python & ref (no FFI)                  & $39$ \\
+Jac \code{na}        & FFI (\code{sqrt})  & $3.1$ & --- \\
+Jac \code{na}        & ref (no FFI)       & $2.5$ & --- \\
+raw C-ext (\code{METH\_O}) & FFI (\code{sqrt}) & $136$ & $25$ \\
+pybind11             & FFI (\code{sqrt})  & $163$ & $54$ \\
+Python \code{cffi}   & FFI (\code{sqrt})  & $314$ & --- \\
+Python \code{ctypes} & FFI (\code{sqrt})  & $475$ & $367$ \\
+Python               & ref (no FFI)       & $39$  & $\approx$$22$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -612,19 +619,37 @@ Python & ref (no FFI)                  & $39$ \\
 \subsection{Cross-runtime}
 
 Table~\ref{tab:xruntime} reports the family-2 results, all three cells
-re-captured under the pinned governor and disabled turbo of
-Section~\ref{sec:controls} as medians of three runs at $n{=}20$ interleaved
-invocations. For the two loopback RPC cells (\code{xop\_svc\_split},
+captured under the pinned clock (Section~\ref{sec:controls}) as medians of three
+runs at $n{=}20$ interleaved invocations. For the two loopback RPC cells (\code{xop\_svc\_split},
 \code{xop\_feed}) the run-to-run ratio CV is $\le$$4\%$ (the \code{direct}
 baseline is stable to $0.3\%$, so what jitter remains lives entirely in the RPC
 numerator); the \code{wasm32} cell is tighter still (crossing median CV
-$<$$4\%$, native CV $<$$0.1\%$). The marshalled crossings are up to two-plus
-orders of magnitude more expensive than the direct dispatch they replace, as
-physics demands: a loopback HTTP+JSON RPC (\code{xop\_svc\_split}) costs
-$374\times$ its in-process twin and a generated-client feed (\code{xop\_feed})
-$241\times$ its direct provider call, while a \code{wasm32} export
-(\code{xop\_wasm\_call}) is $6.8\times$ a native bridge under an asymmetric host
-loop. The RPC crossing-side spread is wide (the RPC medians vary $189$--$309$\,M\,ns
+$<$$4\%$, native CV $<$$0.1\%$). The marshalled crossings are one to two-plus
+orders of magnitude more expensive than the direct dispatch they replace: a
+loopback HTTP+JSON RPC (\code{xop\_svc\_split}) costs $374\times$ its in-process
+twin and a generated-client feed (\code{xop\_feed}) $241\times$ its direct
+provider call, while a \code{wasm32} export (\code{xop\_wasm\_call}) is
+$6.8\times$ a native bridge under an asymmetric host loop.
+
+These RPC ratios are floors \emph{for the shipped deployment path}, not a lower
+bound on RPC-boundary cost, and we are explicit about why. We decomposed the
+$\approx$$15$\,ms per-call RPC floor by timing the same warm provider three ways
+(Table~\ref{tab:rpcfloor}): the \code{sv~import} client path ($\approx$$13$\,ms),
+raw HTTP with a new connection per call ($\approx$$6$\,ms), and raw HTTP over a
+persistent connection ($\approx$$6$\,ms). Keep-alive versus per-call connect
+makes no measurable difference, so loopback TCP setup is \emph{not} the cost.
+The floor is instead $\approx$$6$\,ms of \emph{server-side dispatch}---the
+provider is a full \code{jac start} application server whose route table spans
+\code{/admin/*}, \code{/sso/*}, telemetry and \code{/user/*}, so every
+\code{feed\_batch} call pays routing, auth-middleware, request-context and
+JSON-serialization overhead---plus $\approx$$7$\,ms of client-side
+\code{sv~import} marshalling. A minimal RPC endpoint with a tuned client would be
+far cheaper; the $374\times$/$241\times$ figures measure Jac's current hosted
+path, not the intrinsic price of an RPC boundary. What the sweep \emph{does}
+isolate cleanly is the per-element serialization slope
+(Section~\ref{sec:payload}), which is unaffected by this fixed framework floor.
+
+The RPC crossing-side spread is also wide (the RPC medians vary $189$--$309$\,M\,ns
 run to run), so we read those as \emph{floors}, not precise ratios---and they
 remain the least apples-to-apples comparisons in the suite, since the two sides
 do not share a clock (each carries its own \code{timing\_source}). Every
@@ -645,6 +670,26 @@ Cell & Direct med.\ (ns) & Crossing med.\ (ns) & Ratio \\
 \code{xop\_svc\_split} & 805{,}553 & 300{,}949{,}052 & $374\times$ \\
 \code{xop\_feed}      & 805{,}204 & 193{,}703{,}449 & $241\times$ \\
 \code{xop\_wasm\_call} & 19{,}429  & 132{,}647       & $6.8\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\caption{Decomposing the $\approx$$15$\,ms per-call RPC floor. Same warm
+\code{xop\_feed\_payload} provider, three client paths, small $N$, pinned clock.
+Keep-alive vs.\ new-connection is within noise, so TCP setup is not the cost; the
+floor is server-side application-framework dispatch plus \code{sv~import} client
+marshalling, neither intrinsic to an RPC boundary.}
+\label{tab:rpcfloor}
+\centering
+\small
+\begin{tabular}{@{}lrl@{}}
+\toprule
+Path & per-call & isolates \\
+\midrule
+\code{sv~import} client (measured) & $\approx$$13$\,ms & server + client marshalling \\
+raw HTTP, new connection/call     & $\approx$$6$\,ms  & server + TCP connect \\
+raw HTTP, persistent connection   & $\approx$$6$\,ms  & server dispatch only \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -675,16 +720,14 @@ its absolute ns values are clock-specific (Section~\ref{sec:controls}). Second,
 identical ($211.95$ vs.\ $212.89$\,ns/iter, within $0.4\%$): the two variants do
 the same work, so their fitted lines are parallel and separated by a fixed
 intercept gap of $\approx$$2.0$\,\textmu s---the pure per-call callback cost.
-(An earlier uncontrolled-clock capture reported this gap as $\approx$$5.4$\,\textmu s;
-the twin-gap \emph{method} is unchanged but the magnitude was inflated by
-CPU-frequency drift, and $\approx$$2.0$\,\textmu s is the pinned-clock value; see
-Section~\ref{sec:controls}.) That fixed cost is why the \code{iop\_cb} crossing
+That fixed cost is why the \code{iop\_cb} crossing
 amortizes: once the callee does real work ($w\gtrsim800$) the per-call time is
 dominated by the shared $\approx$$212$\,ns/iter slope and the bridge/reference
 ratio settles to $\approx$$1.0$ (Figure~\ref{fig:decay}); at small $w$ the ratio
-is dominated by timer noise rather than the boundary. The much-quoted
-``$1.17\times$'' is not a property of the boundary; it is a small fixed cost seen
-at one small size that vanishes once the callee does real work. \code{iop\_symmetric}
+is dominated by timer noise rather than the boundary. The
+$1.13\times$ single-size headline is not a property of the boundary; it is a
+small fixed cost seen at one small size that vanishes once the callee does real
+work. \code{iop\_symmetric}
 makes the decomposition visible in one cell: \code{sv\_to\_na} runs at the
 \emph{native} slope ($5.10$) yet carries a $\approx$$3.7$\,\textmu s crossing
 intercept, so entering \code{na} pays a one-time per-call toll and then executes
@@ -753,10 +796,8 @@ Cell & Variant & $t_0$ (ns) & $s$ (ns/it) & $R^2$ \\
 once callee work grows ($w\gtrsim800$), because the callback crossing is a
 \emph{fixed} $\approx$$2.0$\,\textmu s per-call cost (Table~\ref{tab:fits}), not
 a proportional overhead. Under pinned-clock timing the small-$w$ ratios are
-noise-dominated (they scatter $0.83$--$1.24$ rather than tracing a clean decay);
-the fixed cost is established by the twin-gap fit, not by these raw ratios. An
-earlier uncontrolled-clock capture showed an apparent smooth decay from
-$1.73\times$; that monotonicity did not survive frequency pinning.}
+noise-dominated (they scatter $0.83$--$1.24$); the fixed cost is established by
+the twin-gap fit, not by these raw ratios.}
 \label{fig:decay}
 \end{figure}
 
@@ -817,9 +858,8 @@ construction, with no fixed floor to speak of. The \code{rpc} path is the mirror
 image---a $\approx$$15$\,ms fixed per-call cost dominates at small $N$, and the
 per-element serialization slope is buried beneath it until the payload grows
 large. Over the full range the \code{rpc} fit is $s=890$\,ns/element (95\% CI
-$848$--$983$) on a $\approx$$15$\,ms floor ($R^2=0.994$); the earlier sweep, which
-stopped at $N{=}20{,}000$---essentially at break-even (below)---could only
-extrapolate this slope, but the extended range now measures it directly. That is
+$848$--$983$) on a $\approx$$15$\,ms floor ($R^2=0.994$), measured directly
+across the range rather than extrapolated from below break-even. That is
 the result: \emph{crossing the RPC boundary costs $\approx$$2.6\times$ per element
 what the in-process list costs} ($890$ vs.\ $342$\,ns/element)---the
 JSON-encode/HTTP/decode marshalling tax laid bare as a slope, exactly the quantity
@@ -835,19 +875,18 @@ the sweep was run three times end to end under the pinned clock, and the fit
 coefficients are stable run to run---the \code{direct} slope at CV $0.1\%$, the
 \code{rpc} serialization slope at CV $1.8\%$ ($871$--$911$\,ns/element), the
 \code{rpc}/\code{direct} ratio at CV $1.8\%$. The one noisy term is the fixed-cost
-floor (CV $7.2\%$, $14.6$--$17.0$\,ms), which is exactly the loopback/HTTP setup
-cost and does not touch the slope. Coefficients are also reported with a within-run
+floor (CV $7.2\%$, $14.6$--$17.0$\,ms), which the decomposition of
+Table~\ref{tab:rpcfloor} attributes to application-server dispatch plus
+\code{sv~import} client marshalling---a property of the hosted deployment path,
+not the serialization boundary---and which does not touch the slope. Coefficients are also reported with a within-run
 bootstrap CI (percentile pairs bootstrap over the sixteen sweep points, $B{=}10^4$).
 The break-even payload at which the serialization term equals the fixed cost is
-$N\approx17{,}000$ elements---almost exactly where the earlier sweep stopped, which
-is why it could not see past the floor---and the extended sweep measures $N$ nearly
-six times beyond it: at $N{=}100{,}000$ the slope term ($\approx$$89$\,ms) is
-$\approx$$5.9\times$ the $\approx$$15$\,ms fixed cost, so the crossing is firmly
-\emph{slope-dominated}. This inverts the earlier reading---bounded at $20{,}000$,
-the crossing looked fixed-cost-dominated throughout and the slope was a
-second-order extrapolation---and replaces it: the loopback RPC is a fixed-cost
-floor at small payloads that hands off to a serialization curve at large ones,
-with the handoff directly witnessed. The per-point crossing medians stay wide at
+$N\approx17{,}000$ elements, and the sweep measures $N$ nearly six times beyond
+it: at $N{=}100{,}000$ the slope term ($\approx$$89$\,ms) is $\approx$$5.9\times$
+the $\approx$$15$\,ms fixed cost, so the crossing is firmly
+\emph{slope-dominated}. The loopback RPC is a fixed-cost floor at small payloads
+that hands off to a serialization curve at large ones, with the handoff directly
+witnessed. The per-point crossing medians stay wide at
 small $N$, where the fixed-cost floor's noise dominates: the \code{rpc} medians are
 non-monotone for $N\le100$ and become strictly monotone from $N{=}250$ onward---%
 exactly where the slope begins to emerge.
@@ -959,7 +998,7 @@ and wasm under equal host loops.
 \emph{One machine; both axes now swept, payload gated by CIs.} The family-1 mixed-JIT
 cells are swept across eight callee-work sizes and fit to a fixed-cost intercept
 plus an execution slope (Section~\ref{sec:sweep}); the complementary
-\emph{payload-bytes} axis, once future work, is now measured by
+\emph{payload-bytes} axis is measured by
 \code{xop\_feed\_payload} across sixteen cardinalities to $100{,}000$ elements
 (Section~\ref{sec:payload}), separating the loopback RPC's $\approx$$15$\,ms fixed
 cost from its $890$\,ns/element serialization slope, reproducible across three
@@ -1044,13 +1083,14 @@ PyO3~\cite{pyo3} for Python$\leftrightarrow$native, FastAPI and generated
 OpenAPI clients for \code{cl}$\rightarrow$\code{sv}. A differential comparison
 against these---same computation, same data representation, Jac-generated
 crossing vs.\ hand-written glue---is the axis that would turn our
-\emph{characterization} into a \emph{verdict} on compiler-generated interop. We
-deliberately do not run it here: the honest contribution of this paper is the
-twin-anchored oracle and the intra-Jac cost profiles, and a cross-system
-comparison demands its own controls (identical kernels, matched marshalling,
-per-system warm-up) to avoid attributing implementation differences to the
-mechanism. It is the headline of the follow-on paper, not a claim we smuggle
-into this one. Within Jac, \code{ownbench}
+\emph{characterization} into a \emph{verdict} on compiler-generated interop.
+Section~\ref{sec:xtool} takes one step onto that axis, adding a matched pybind11
+and raw C-extension point to the \code{sqrt} kernel and explicitly separating
+mechanism cost from CPython dispatch; the \emph{full} matrix (PyO3, FastAPI and
+generated OpenAPI clients, more kernels, per-system warm-up controls) remains the
+follow-on paper. We are careful there not to attribute host-interpreter dispatch
+to the binding mechanism---the confound that a single matched number would
+smuggle in. Within Jac, \code{ownbench}
 covers the free single-runtime boundary and the memory-management dial; this suite
 is its marshalled-boundary complement, sharing its output contract, oracle
 discipline, and compiler-regression role. The GraalVM/Truffle line~\cite{graal} is the closest prior ``one runtime, many
@@ -1100,7 +1140,7 @@ remaining shape---the payload method carried onto a typed cross-language
 \code{xop\_crud} and an arm64 C-ABI runner---each landing behind the same
 twin-anchored, regression-gated contract.
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{99}
 \bibitem{jac} Jaseci Labs, ``The Jac Programming Language,''
 \url{https://github.com/jaseci-labs/jaseci}, 2026.
 \bibitem{clbg} I.\ Gouy, ``The Computer Language Benchmarks Game,''
@@ -1128,6 +1168,9 @@ Multi-language Runtime,'' in \emph{DLS}, 2015.
 ``Statistically Rigorous Java Performance Evaluation,'' in \emph{OOPSLA}, 2007.
 \bibitem{renaissance} A.\ Prokopec et al., ``Renaissance: Benchmarking Suite
 for Parallel Applications on the JVM,'' in \emph{PLDI}, 2019.
+\bibitem{mytkowicz} T.\ Mytkowicz, A.\ Diwan, M.\ Hauswirth, and
+P.\ F.\ Sweeney, ``Producing Wrong Data Without Doing Anything Obviously
+Wrong!'' in \emph{ASPLOS}, 2009.
 \end{thebibliography}
 
 \end{document}
