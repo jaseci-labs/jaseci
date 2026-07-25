@@ -109,6 +109,7 @@ def _bundled_runtime_python -> str | None {
         for name in [
             f"python{sys.version_info.major}{sys.version_info.minor}.exe",
             "python.exe",
+
         ] {
             cand = prefix_dir / name;
             if cand.is_file() {

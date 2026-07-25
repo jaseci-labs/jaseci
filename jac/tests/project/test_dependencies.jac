@@ -299,6 +299,7 @@ test "ensure_venv recreates fused jac-as-python venvs" {
                 "-m",
                 "venv",
                 str(venv_dir),
+
             ];
             assert "--with-pip" not in run.call_args_list[0].args[0];
             ensurepip_cmd = run.call_args_list[1].args[0];

@@ -1392,8 +1392,9 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
 
 /// Stage the relocatable pbs `python3.x` launcher under `python/bin/`. Project
 /// venvs created by the fused `jac` binary use this as their base interpreter.
-/// Only the versioned binary is copied (then stripped); aliases are unnecessary
-/// because `_bundled_runtime_python` prefers `python{major}.{minor}`.
+/// Only the versioned binary is copied; aliases are unnecessary because
+/// `_bundled_runtime_python` prefers `python{major}.{minor}`. Do not strip: plain
+/// `strip` corrupts the PBS launcher (versioned-symbol lookup fails at runtime).
 fn stagePythonBin(io: Io, a: Allocator, pbs_py_dir: []const u8, stage: []const u8) !void {
     const py = try resolvePython(io, a, pbs_py_dir);
     const bare = std.fs.path.basename(py);
@@ -1401,8 +1402,6 @@ fn stagePythonBin(io: Io, a: Allocator, pbs_py_dir: []const u8, stage: []const u
     try Dir.cwd().createDirPath(io, bin_dst);
     const dst = try std.fmt.allocPrint(a, "{s}/{s}", .{ bin_dst, bare });
     try Dir.cwd().copyFile(py, Dir.cwd(), dst, io, .{ .permissions = .fromMode(0o755) });
-    // PBS ships the launcher unstripped (~100+ MiB); strip like libpython.
-    stripBestEffort(io, dst);
     log("==> staged project venv interpreter -> python/bin/{s}", .{bare});
 }
 
