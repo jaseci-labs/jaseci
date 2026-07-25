@@ -1077,6 +1077,14 @@ walker:pub get_item {
     }
 }
 
+# envelope=False returns a function's value as the body verbatim
+# (functions only) -- for callers that cannot read the JSON envelope
+@restspec(method=HTTPMethod.GET, path="/robots.txt",
+          produces="text/plain", envelope=False)
+def:pub robots() -> str {
+    return "User-agent: *\nAllow: /\n";
+}
+
 
 # ============================================================
 # Async Walkers
