@@ -82,14 +82,22 @@ my-app/
 └── shared/                     # PROMOTION destination - see the rule below
     ├── ui/                     # jac-shadcn primitives, if present
     ├── Button.jac
-    └── utils.jac
+    └── utils.cl.jac            # cn()
 ```
 
 **`shared/` is a promotion destination, not a default one.** A module lives with the feature that owns it until a *second feature* needs it; only then does it move. That is the whole difference from a catch-all, and it keeps `shared/` small: a `Reveal` wrapper with nine consumers stays put if all nine are sections of the same feature.
 
 **Features may depend on features.** A landing page embedding a source browser imports it directly. Only leaf utilities with no natural home get promoted.
 
-`pages/` and `ui/` are fixed points: file-based routing requires the first, and the jac-shadcn registry manages the second.
+`pages/` is fixed by the router - file-based routing scans that exact directory.
+
+**jac-shadcn primitives follow your layout, not the other way round.** `jac install --shadcn` writes to `components/ui/` by default, but if you keep the primitives somewhere else (`shared/ui/`, a feature folder) it finds them, installs alongside, and rewrites each primitive's `cn` import to wherever your `utils` module actually lives. Pin it explicitly if you prefer:
+
+```toml
+[jac-shadcn]
+components_dir = "shared/ui"      # where primitives live
+utils_path = "shared/utils.cl.jac" # where cn() lives
+```
 
 ### Import forms - two rules, neither stylistic
 
@@ -163,13 +171,13 @@ Wire it in the entry: `def:pub app() -> JsxElement { return <AppProvider><AppShe
 
 ## jac-shadcn project layout
 
-When the project has a `ui/` folder (jac-shadcn primitives are pre-installed, at `ui/` in a flat app or `shared/ui/` in a multi-feature one): it holds the managed primitives (`button.jac`, `card.jac`, ...) - **import only, never edit**; your composite components and shells sit with the feature that uses them, exactly as in the layout above. Load `jac-shadcn-components` for import patterns and the component selection table, `jac-shadcn-blocks` for multi-component composition patterns.
+When the project has a `ui/` folder (jac-shadcn primitives are pre-installed - `components/ui/` by default, or wherever you put it): it holds the managed primitives (`button.jac`, `card.jac`, ...) - **import only, never edit**; your composite components and shells sit with the feature that uses them, exactly as in the layout above. Load `jac-shadcn-components` for import patterns and the component selection table, `jac-shadcn-blocks` for multi-component composition patterns.
 
 ## Rules
 
 - **Default to the shell.** Page state and handlers live in ONE stateful component per page; sections receive props + callbacks. Don't pre-extract hooks/contexts for state only one page uses.
 - **One file per page/section, basename matches the main export** (`Button.jac` → `Button`). File-local `def:pub` helpers are fine - a section file exporting both `MicroservicesSection` and its small `ProcBox` building block is good practice; move a helper to `shared/` only when a second *feature* needs it.
-- **In jac-shadcn projects, scan `ui/` (`shared/ui/` in a multi-feature app) before building any UI element.** If a primitive exists (Button, Card, Input, Badge, Dialog, Table, ...), import it - do not re-implement it. Never edit files in `ui/` (registry-managed); compose with them in your own files.
+- **In jac-shadcn projects, scan the `ui/` folder before building any UI element.** If a primitive exists (Button, Card, Input, Badge, Dialog, Table, ...), import it - do not re-implement it. Never edit files in it (registry-managed); compose with them in your own files.
 - **Reuse before creating.** Scan the feature folder and `shared/` before writing a new file. Duplicate UI = default mistake.
 - **Promote, don't default.** A module moves to `shared/` when a *second feature* imports it, never because it "looks like a utility".
 - **Scoped styles share the basename.** `Button.style.css` beside the component file (`Button.jac`) auto-scopes, no import. See `jac-cl-styling`.
