@@ -52,7 +52,7 @@ conflates: execution placement is a $\approx$$42\times$ per-iteration
 \emph{slope} ($5$ vs.\ $212$\,ns/iter, \code{na} vs.\ \code{sv}), while the
 \code{native$\rightarrow$server} callback crossing is a fixed
 $\approx$$2.0$\,\textmu s per-call \emph{intercept}---so its headline
-$1.17\times$ ratio is a small fixed cost seen at one small size that amortizes to
+$1.13\times$ ratio is a small fixed cost seen at one small size that amortizes to
 $\approx$$1.0\times$ once the callee does real work. Family-1 timings are captured
 under a pinned CPU governor with turbo disabled; the ratios are reproducible
 while the absolute nanosecond figures are clock-specific. A complementary payload sweep over the same loopback RPC, from $1$ to $100{,}000$
@@ -1062,9 +1062,11 @@ caveat is precisely the confound Jangda et al.~\cite{jangda} isolate at scale
 (wasm vs.\ native under matched host loops), which is why we report ours as an
 asymmetric floor rather than a codegen verdict. On statistics, we follow the
 spirit of rigorous performance evaluation~\cite{georges,renaissance} by
-reporting full spread per cell, while deliberately declining confidence
-intervals at $n{=}5$/$n{=}7$ rather than computing ones the sample cannot
-support---and gating regressions on semantics, not time. To our knowledge no
+reporting full spread per cell, run-to-run coefficients of variation across three
+pinned-clock repetitions, and bootstrap confidence intervals for the payload-sweep
+fit coefficients---while declining to manufacture intervals for the single-size
+cells that a median of three $n{=}20$ runs does not support---and gating
+regressions on semantics, not time. To our knowledge no
 established suite targets ``Python $\leftrightarrow$ WebAssembly
 $\leftrightarrow$ native in one language,'' because until synechic compilation
 there was no single language spanning those runtimes to measure.
@@ -1081,7 +1083,7 @@ and provenance-stamped timing reported only within an explicitly bounded scope.
 On commodity x86\_64 hardware an eight-point work sweep resolves per-call time
 into a fixed crossing intercept ($\approx$$2.0$\,\textmu s for the callback
 boundary, $\approx$$3.7$\,\textmu s to enter \code{na}) and a placement slope
-($\approx$$42\times$, \code{na} vs.\ \code{sv})---so the $1.17\times$ callback
+($\approx$$42\times$, \code{na} vs.\ \code{sv})---so the $1.13\times$ callback
 headline is a small fixed cost that amortizes to $\approx$$1.0\times$ as the callee does real work---%
 and a sixteen-point payload sweep to $N{=}100{,}000$ resolves the loopback RPC into a
 $\approx$$15$\,ms fixed cost plus an $890$\,ns/element serialization slope
