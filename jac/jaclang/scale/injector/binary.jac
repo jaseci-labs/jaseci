@@ -237,15 +237,27 @@ glob _deploy_version_memo: dict = {};
 
 
 def resolve_deploy_version(project_dir: str, channel: str) -> str {
-    import from jaclang.scale.config.dev_config { resolve_pinned_spec, Channel }
+    import from jaclang.scale.config.dev_config { Channel }
+    import from jaclang.project.config { JacConfig }
     if channel != Channel.STABLE.value {
         return "";
     }
-    key = (os.path.abspath(project_dir), channel);
+    toml = Path(project_dir) / "jac.toml";
+    prefix = f"{os.path.abspath(project_dir)}|{channel}|";
+    # Content-key the memo and read the pin fresh (not the process-cached config)
+    # so a long-running redeploy after an edit re-resolves instead of serving a
+    # stale version; drop this project's prior entry so the memo stays bounded.
+    stamp = hashlib.sha256(toml.read_bytes()).hexdigest() if toml.exists() else "none";
+    key = prefix + stamp;
     if key in _deploy_version_memo {
         return _deploy_version_memo[key];
     }
-    spec = resolve_pinned_spec(project_dir);
+    for k in list(_deploy_version_memo.keys()) {
+        if str(k).startswith(prefix) {
+            del _deploy_version_memo[k];
+        }
+    }
+    spec = JacConfig.load(toml).project.jac_version if toml.exists() else "";
     if not spec {
         _deploy_version_memo[key] = "";
         return "";

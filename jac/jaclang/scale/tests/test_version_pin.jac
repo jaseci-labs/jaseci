@@ -143,6 +143,29 @@ test "resolve_deploy_version lists releases once per deploy" {
 }
 
 
+test "an edited pin re-resolves instead of serving a stale memo" {
+    d = _project(
+        '[project]\nname = "x"\nversion = "0.1.0"\njac-version = ">=0.34,<0.35"\n'
+    );
+    with unittest.mock.patch.object(
+        binary_mod, "_list_release_versions", return_value=["0.34.2"]
+    ) {
+        assert binary_mod.resolve_deploy_version(d, "stable") == "0.34.2";
+    }
+    # Editing the pin changes the jac.toml content, so a redeploy in the same
+    # process must not serve the stale 0.34.2 from the memo.
+    (Path(d) / "jac.toml").write_text(
+        '[project]\nname = "x"\nversion = "0.1.0"\njac-version = ">=0.35,<0.36"\n',
+        encoding="utf-8"
+    );
+    with unittest.mock.patch.object(
+        binary_mod, "_list_release_versions", return_value=["0.35.1"]
+    ) {
+        assert binary_mod.resolve_deploy_version(d, "stable") == "0.35.1";
+    }
+}
+
+
 test "the base image uses the same resolver as the pinned binary" {
     d = _project(
         '[project]\nname = "x"\nversion = "0.1.0"\njac-version = ">=0.34,<0.35"\n'
