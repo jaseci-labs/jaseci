@@ -536,6 +536,29 @@ test "empty parens removed" {
     assert "x: int" in formatted;
 }
 
+test "paren-less zero-arg def emits no W3005" {
+    src = "def already_clean {\n    return;\n}\n\n"
+    "def clean_with_return -> int {\n    return 1;\n}\n";
+    (fd, path) = tempfile.mkstemp(suffix=".jac");
+    os.close(fd);
+    with open(path, "w") as f {
+        f.write(src);
+    }
+    try {
+        prog = JacProgram.jac_file_formatter(path, auto_lint=True);
+        formatted = prog.mod.main.gen.jac;
+        assert "def already_clean {" in formatted;
+        assert "def clean_with_return -> int {" in formatted;
+        for w in (prog.warnings_had or []) {
+            assert "remove-empty-parens" not in str(w) , (
+                f"false W3005 on paren-less def: {w}"
+            );
+        }
+    } finally {
+        os.remove(path);
+    }
+}
+
 test "empty parens method preserved when has self" {
     input_path = auto_lint_fixture_path("empty_parens.jac");
 

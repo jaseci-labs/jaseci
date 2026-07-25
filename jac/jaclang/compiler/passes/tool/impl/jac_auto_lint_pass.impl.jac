@@ -1530,6 +1530,13 @@ impl JacAutoLintPass._remove_empty_parens_from_sig(
     if has_params {
         return;
     }
+    has_parens = any(
+        isinstance(kid, uni.Token) and kid.name in (Tok.LPAREN, Tok.RPAREN)
+        for kid in sig.kid
+    );
+    if not has_parens {
+        return;
+    }
     if sig.return_type is None {
         if not self.emit(W3005, node_override=target_node) {
             return;
@@ -1547,13 +1554,6 @@ impl JacAutoLintPass._remove_empty_parens_from_sig(
         target_node.kid = new_kid;
         target_node._invalidate_sub_node_tab();
     } else {
-        has_parens = any(
-            isinstance(kid, uni.Token) and kid.name in (Tok.LPAREN, Tok.RPAREN)
-            for kid in sig.kid
-        );
-        if not has_parens {
-            return;
-        }
         if not self.emit(W3005, node_override=target_node) {
             return;
         }
