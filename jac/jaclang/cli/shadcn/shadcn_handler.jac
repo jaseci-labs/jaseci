@@ -1,5 +1,14 @@
 import from pathlib { Path }
 
+glob SKIP_DIRS: set = {
+         ".jac",
+         "node_modules",
+         ".git",
+         "__pycache__",
+         "dist",
+         "build"
+     };
+
 def _read_shadcn_config(config: any) -> any;
 
 def _registry_dir -> any;
@@ -14,19 +23,34 @@ def resolve_single_component(component_name: str, style: str) -> dict;
 
 def _resolve_peer_deps(requested: list, registry_data: dict, existing: set) -> list;
 
-def _is_ui_dir(path: Path) -> bool;
+obj ShadcnPaths {
+    has ui_dir: Path,
+        utils_file: Path,
+        utils_module: str;
+}
 
-def _within_project(project_root: Path, candidate: Path) -> bool;
+def _has_jac(path: Path) -> bool;
 
-def _contained_path(project_root: Path, raw: str, key: str) -> Path | None;
+def _defines_cn(path: Path) -> bool;
 
-def _resolve_ui_dir(project_root: Path, shadcn_config: any) -> Path | None;
+def _inside(project_root: Path, candidate: Path) -> Path | None;
+
+def _discover(
+    project_root: Path, pattern: str, accept: Callable[[Path], bool]
+) -> Path | None;
+
+def _resolve_one(
+    project_root: Path,
+    shadcn_config: any,
+    key: str,
+    pattern: str,
+    accept: Callable[[Path], bool],
+    fallback: Path
+) -> Path | None;
 
 def _module_of(project_root: Path, path: Path) -> str;
 
-def _resolve_utils(
-    project_root: Path, ui_dir: Path, shadcn_config: any
-) -> tuple | None;
+def resolve_shadcn_paths(project_root: Path, shadcn_config: any) -> ShadcnPaths | None;
 
 def _retarget_utils_import(
     content: str, ui_dir: Path, project_root: Path, utils_mod: str
