@@ -169,13 +169,27 @@ impl _is_ui_dir(path: Path) -> bool {
     return False;
 }
 
+impl _contained_path(project_root: Path, raw: str, key: str) -> Path | None {
+    candidate = (project_root / raw).resolve();
+    root_dir = project_root.resolve();
+    if candidate == root_dir or root_dir in candidate.parents {
+        return candidate;
+    }
+    console.error(
+        f"[jac-shadcn] {key} = '{raw}' resolves outside the project",
+        hint="Use a path relative to the project root, e.g. shared/ui"
+    );
+    return None;
+}
+
 impl _resolve_ui_dir(project_root: Path, shadcn_config: any) -> Path {
     override = str(shadcn_config.get("components_dir", "")) if shadcn_config else "";
-    if override {
-        return project_root / override;
-    }
     default_dir = project_root / "components" / "ui";
-    if _is_ui_dir(default_dir) {
+    if override {
+        pinned = _contained_path(project_root, override, "components_dir");
+        return pinned if pinned is not None else default_dir;
+    }
+    if default_dir.exists() {
         return default_dir;
     }
     skipped = set([".jac", "node_modules", ".git", "__pycache__", "dist", "build"]);
@@ -205,8 +219,10 @@ impl _module_of(project_root: Path, path: Path) -> str {
 impl _resolve_utils(project_root: Path, ui_dir: Path, shadcn_config: any) -> tuple {
     override = str(shadcn_config.get("utils_path", "")) if shadcn_config else "";
     if override {
-        p = project_root / override;
-        return (p, _module_of(project_root, p));
+        p = _contained_path(project_root, override, "utils_path");
+        if p is not None {
+            return (p, _module_of(project_root, p));
+        }
     }
     skipped = set([".jac", "node_modules", ".git", "__pycache__", "dist", "build"]);
     for cand in sorted(project_root.rglob("utils*.jac")) {
