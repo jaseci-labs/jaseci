@@ -71,7 +71,7 @@ For a served app, `jac browse` drives a headless Chrome from the CLI (`jac brows
 Renamed or retyped a `def:pub` param, a walker `has` field, or a report shape? Run `jac check` project-wide and read the hits in client `.jac` files as **drift pointers to the stale callers**:
 
 ```
-⚠ warning[W1101]: Cannot import name 'greet' from module '..lib.api'
+⚠ warning[W1101]: Cannot import name 'greet' from module '.store'
   --> components/App.jac:1:33
 ```
 

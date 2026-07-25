@@ -86,7 +86,7 @@ sv def summarize(text: str) -> str {     # stays server even though app() calls 
 
 ## `sv import` - a boundary fact, not placement
 
-`sv import from lib.X { fn, Types }` does not place the *importing* code anywhere - it states that the target module stays on the server and cross-boundary calls become RPC. The import itself lives with its consumers:
+`sv import from .store { fn, Types }` does not place the *importing* code anywhere - it states that the target module stays on the server and cross-boundary calls become RPC. The import itself lives with its consumers:
 
 - **From client code**: generates the async JS RPC stub (always `await` the calls). See `jac-fullstack-patterns`.
 - **From server code**: declares a server-to-server **microservice boundary** - the provider runs as its own service and calls become HTTP RPCs. See `jac-sv-microservices`.

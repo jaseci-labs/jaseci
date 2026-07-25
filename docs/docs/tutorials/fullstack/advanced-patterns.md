@@ -487,23 +487,28 @@ Browser DevTools source maps should point back to your original `.jac` files whe
 
 ### Service Layer Pattern
 
-Organize API calls and WebSocket logic into service modules separate from UI components. Every non-component module lives in one flat `lib/` package - what separates a transport module from a helper is its filename, not its folder:
+Organize API calls and WebSocket logic into modules separate from UI components - and keep each feature's client and server halves in the same folder. Sorting top-level folders by codespace (`components/` vs `services/`) encodes a boundary Jac infers per-declaration:
 
 ```
 myapp/
+├── auth/
+│   ├── session.cl.jac         # login/logout transport
+│   └── LoginForm.cl.jac
+├── feed/
+│   ├── posts.jac              # server endpoints + types
+│   ├── wsService.cl.jac       # WebSocket management for this feature
+│   └── FeedShell.cl.jac
 ├── hooks/
-│   ├── useAuth.cl.jac         # Auth state hook
-│   └── useData.cl.jac         # Data fetching hook
-├── components/
-│   └── ui/                    # Reusable UI components
-├── pages/                     # Route pages
-└── lib/
-    ├── apiService.cl.jac      # REST API calls
-    ├── wsService.cl.jac       # WebSocket management
-    └── utils.cl.jac           # cn() and other utilities
+│   └── useData.cl.jac         # only for REUSED fetch+state units
+├── pages/                     # route pages
+└── shared/                    # promoted here once a SECOND feature needs it
+    ├── ui/
+    └── utils.cl.jac
 ```
 
-Keeping them in one package also keeps intra-package imports `.`-relative. Reaching across two sibling top-level folders works under `jac start` but fails under `jac test <file>`, which roots the package at the target file's own directory.
+Within a feature the cross-codespace import is a sibling: `sv import from .posts { list_posts }`. Across packages, server modules should use the no-dot absolute form (`import from shared.utils { cn }`) - a `..` that climbs out of a feature folder works under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`.
+
+For a small app none of this applies: keep the files flat and skip the folders entirely.
 
 ### Custom Hook Pattern
 
