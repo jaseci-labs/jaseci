@@ -166,7 +166,15 @@ with entry {
 }
 ```
 
-The same edge-reference bracket syntax does a lot: filter by edge type (`[src ->:Knows:->]`), filter results by node type (`[?:Person]`), filter by attribute (`[?age >= 18]`), and chain hops for friends-of-friends (`[alice ->:Knows:-> ->:Knows:->]`). For the complete query grammar, see the [Object Spatial Queries reference](../../reference/language/osp.md#object-spatial-queries).
+The same edge-reference bracket syntax does a lot: filter by edge type (`[src ->:Knows:->]`), filter results by node type (`[?:Person]`), filter by attribute (`[?age >= 18]`), and chain hops for friends-of-friends (`[alice ->:Knows:-> ->:Knows:->]`). Edges that carry fields can be filtered *during* the crossing (`[alice ->:Knows:since > 2020:->]`), and every element composes in one expression -- this reads "the friends of the adult friends Alice made after 2020":
+
+```jac
+with entry {
+    circle = [alice ->:Knows:since > 2020:-> [?:Person, age >= 18] ->:Knows:->];
+}
+```
+
+What a relational design would express as two joins, two predicates, and a hydration loop is one bracketed path, and it works the same whether you assign it to a variable (a query) or hand it to `visit` (an itinerary). For the complete query grammar, see the [Object Spatial Queries reference](../../reference/language/osp.md#object-spatial-queries).
 
 ---
 
@@ -449,6 +457,8 @@ walker trending {
 ```
 
 The `deliver` ability fires exactly once, after every queued `Tweet` has been visited -- so the walker reports one sorted result instead of a stream of fragments. This is precisely how [littleX](https://github.com/jaseci-labs/jaseci/tree/main/jac/examples/littleX)'s feed works: two `visit` statements define *what* the feed is (my tweets, plus tweets of everyone I follow), entry abilities gather it, and a `with Root exit` ability sorts and delivers it.
+
+The idiom generalizes beyond delivering at the spawn point. Exits unwind in last-in, first-out order, so over a tree every parent's exit runs *after* all of its children's -- a post-order fold. Give each node type its own exit ability that combines what its children computed, and the walker synthesizes a result bottom-up (serialize a tree, evaluate an expression graph, total a hierarchy) with no recursive function anywhere.
 
 ---
 
