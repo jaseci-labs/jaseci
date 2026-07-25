@@ -49,18 +49,21 @@ continuous integration, while timing is reported strictly as ``this microprogram
 at this size, on this machine.'' On a 16-core x86\_64 host, an
 eight-point work sweep separates the two coefficients that a single size
 conflates: execution placement is a $\approx$$42\times$ per-iteration
-\emph{slope} ($4.4$ vs.\ $184$\,ns/iter, \code{na} vs.\ \code{sv}), while the
+\emph{slope} ($5$ vs.\ $212$\,ns/iter, \code{na} vs.\ \code{sv}), while the
 \code{native$\rightarrow$server} callback crossing is a fixed
-$\approx$$5.4$\,\textmu s per-call \emph{intercept}---so its headline
-$1.17\times$ ratio is a constant seen at one small size and decays to
-$1.01\times$ once the callee does real work. A complementary payload sweep over the same loopback RPC, from $1$ to $100{,}000$
+$\approx$$2.0$\,\textmu s per-call \emph{intercept}---so its headline
+$1.17\times$ ratio is a small fixed cost seen at one small size that amortizes to
+$\approx$$1.0\times$ once the callee does real work. Family-1 timings are captured
+under a pinned CPU governor with turbo disabled; the ratios are reproducible
+while the absolute nanosecond figures are clock-specific. A complementary payload sweep over the same loopback RPC, from $1$ to $100{,}000$
 returned elements, resolves the crossing into a $\approx$$19$\,ms fixed cost plus
 a $934$\,ns/element serialization slope (95\% bootstrap CI $912$--$999$)---$3.1\times$ the in-process list's
 $298$\,ns/element---with byte-identical digests at every size, and directly
 observes that slope overtake the fixed cost at $N\approx21{,}000$. We further report
-low-nanosecond \code{C}-ABI foreign-call costs and, at median-of-seven with
-reported spread, cross-runtime floors of $10$--$213\times$ the direct dispatch
-they replace. The
+low-nanosecond \code{C}-ABI foreign-call costs and, for the two loopback RPC
+cells re-captured under the pinned governor (median of three runs at $n{=}20$,
+run-to-run CV $\le$$4\%$), cross-runtime floors of $241\times$ (\code{xop\_feed})
+and $374\times$ (\code{xop\_svc\_split}) over the direct dispatch they replace. The
 oracle is not Jac-specific: twin-anchored differential identity is
 adoptable by any toolchain that generates both sides of a boundary---gRPC
 codegen, the WebAssembly component model, or a polyglot VM---and here receives a
@@ -382,6 +385,38 @@ reported, not gated. Results also label \code{command\_adapter},
 share a clock label \code{timing\_source} \emph{per variant} rather than stamping
 one label over a mixed pair.
 
+\subsection{Measurement controls}
+\label{sec:controls}
+
+Family-1 timings and the two loopback RPC cells of family~2 are captured with the
+CPU frequency \emph{pinned}: the governor is fixed to \code{performance} on all
+cores and Intel Turbo Boost is disabled (\code{intel\_pstate/no\_turbo=1}). This
+is load-bearing. An earlier uncontrolled capture (default \code{powersave}
+governor, turbo on) produced two artifacts we now attribute entirely to
+frequency non-determinism, not to the toolchain. First, the same \code{sv}-resident
+loop fit to two different slopes on different runs ($\approx$$88$ vs.\
+$\approx$$185$\,ns/iter)---base clock vs.\ boost clock on the same code. Second,
+because a boosted clock \emph{droops} thermally over an eight-minute sweep (early
+points fast, late points slow), the linear fits tilted and extrapolated to
+negative intercepts, inflating the callback twin-gap to $\approx$$5.4$\,\textmu s.
+Under the pinned clock every \code{sv}-resident slope converges to
+$212$--$217$\,ns/iter, all intercepts are positive, and the callback gap settles
+at $\approx$$2.0$\,\textmu s.
+
+The consequence for how results should be read: \emph{ratios} (placement
+$42\times$, the cross-runtime floors) are reproducible and portable, whereas the
+\emph{absolute} nanosecond figures are specific to this CPU
+(Intel Core Ultra~7~255H) at its pinned base clock---disabling turbo halves the
+clock, so the \code{direct} baseline moves from $\approx$$385$ to
+$\approx$$805$\,\textmu s, a clean $2.09\times$. We therefore quote absolutes only
+as ``this microprogram, at this size, on this machine,'' and rest every
+comparative claim on a ratio. Run-to-run stability is characterized rather than
+assumed: three repeats of the RPC cells give a ratio coefficient of variation of
+$3.0$--$3.7\%$, with the \code{direct} baseline stable to $0.3\%$, locating all
+residual jitter in the RPC numerator (loopback and V8 scheduling), which no
+governor setting removes. Full provenance, the pinned-governor dataset, and the
+superseded uncontrolled captures are released together.
+
 \section{Kernels}
 \label{sec:kernels}
 
@@ -421,10 +456,16 @@ measurements; \code{xop\_feed\_payload} adds the one payload-scaling curve.
 All numbers below were captured on host \code{zaitop}: Linux~6.18 x86\_64,
 16~cores, CPython~3.14.6. Single-size tables use the small work size
 (\code{args = 200, 20}); Section~\ref{sec:sweep} sweeps eight callee-work sizes
-and Section~\ref{sec:payload} sixteen payload cardinalities. Family-1 reports the
-median of five interleaved invocations, family-2 the median of seven (five to nine for
-the payload sweep). Every cell's variants produced byte-identical canonical
-digests---the oracle passed for all ten measured kernels at every size.
+and Section~\ref{sec:payload} sixteen payload cardinalities. The eight-point work
+sweep (Section~\ref{sec:sweep}) and the two loopback RPC cells
+(Section~\ref{sec:controls}) are captured under the pinned governor with turbo
+disabled at $n{=}20$; the single-size bridge table below, the \code{iop\_ffi\_*}
+and \code{xop\_wasm\_call} cells, and the payload sweep are the earlier capture
+(median of five interleaved invocations for family~1, seven for family~2, five to
+nine for the payload sweep) and are annotated where their absolutes are
+clock-sensitive---re-capture under the same controls is in progress. Every cell's
+variants produced byte-identical canonical digests---the oracle passed for all
+ten measured kernels at every size, independent of clock.
 
 \subsection{Native bridges}
 
@@ -568,27 +609,31 @@ Python & ref (no FFI)                  & $39$ \\
 
 \subsection{Cross-runtime}
 
-Table~\ref{tab:xruntime} reports the family-2 results, now medians of
-\emph{seven} interleaved invocations per variant with reported spread---enough to
-replace the earlier single-warm-up floors with ranged estimates, though still
-short of stable V8 tiering. The marshalled crossings are two-plus orders of
-magnitude more expensive than the direct dispatch they replace, as physics
-demands: a loopback HTTP+JSON RPC (\code{xop\_svc\_split}) costs $135\times$ its
-in-process twin and a generated-client feed (\code{xop\_feed}) $213\times$ its
-direct provider call, while a \code{wasm32} export (\code{xop\_wasm\_call}) is
-$10\times$ a native bridge under an asymmetric host loop. The crossing-side IQRs
-are wide ($11$--$14\%$; e.g.\ \code{xop\_feed} client $\pm18.7$\,M\,ns on a
-$148$\,M\,ns median), so we still read these as order-of-magnitude \emph{floors},
-not precise ratios---and they remain the least apples-to-apples comparisons in
-the suite, since the two sides do not share a clock (each carries its own
-\code{timing\_source}). Every cross-runtime cell's digests were byte-identical
-across all seven samples.
+Table~\ref{tab:xruntime} reports the family-2 results. The two loopback RPC
+cells (\code{xop\_svc\_split}, \code{xop\_feed}) are re-captured under the pinned
+governor and disabled turbo of Section~\ref{sec:controls}, as medians of three
+runs at $n{=}20$ interleaved invocations; their run-to-run ratio CV is
+$\le$$4\%$ (the \code{direct} baseline is stable to $0.3\%$, so what jitter
+remains lives entirely in the RPC numerator). The \code{wasm32} cell is the
+earlier median-of-seven capture and awaits re-capture under the same controls.
+The marshalled crossings are two-plus orders of magnitude more expensive than
+the direct dispatch they replace, as physics demands: a loopback HTTP+JSON RPC
+(\code{xop\_svc\_split}) costs $374\times$ its in-process twin and a
+generated-client feed (\code{xop\_feed}) $241\times$ its direct provider call,
+while a \code{wasm32} export (\code{xop\_wasm\_call}) is $10\times$ a native
+bridge under an asymmetric host loop. The crossing-side spread remains wide
+(the RPC medians vary $189$--$309$\,M\,ns run to run), so we read these as
+\emph{floors}, not precise ratios---and they remain the least apples-to-apples
+comparisons in the suite, since the two sides do not share a clock (each carries
+its own \code{timing\_source}). Every cross-runtime cell's digests were
+byte-identical across all samples.
 
 \begin{table}[t]
-\caption{Family~2 cross-runtime. Direct twin vs.\ marshalled crossing, median
-of \emph{seven} interleaved invocations; \code{[min, max]} in brackets. Timing
-sources differ per variant (see text); crossing-side spread is wide, so ratios
-are order-of-magnitude floors.}
+\caption{Family~2 cross-runtime. Direct twin vs.\ marshalled crossing. The two
+RPC cells are medians of three pinned-governor runs at $n{=}20$; the
+\code{wasm32} cell is the earlier median-of-seven capture (re-capture pending).
+Timing sources differ per variant (see text); crossing-side spread is wide, so
+ratios are floors.}
 \label{tab:xruntime}
 \centering
 \small
@@ -596,8 +641,8 @@ are order-of-magnitude floors.}
 \toprule
 Cell & Direct med.\ (ns) & Crossing med.\ (ns) & Ratio \\
 \midrule
-\code{xop\_feed}      & 696{,}877 & 148{,}257{,}648 & $213\times$ \\
-\code{xop\_svc\_split} & 689{,}606 & 93{,}013{,}026  & $135\times$ \\
+\code{xop\_svc\_split} & 805{,}553 & 300{,}949{,}052 & $374\times$ \\
+\code{xop\_feed}      & 805{,}204 & 193{,}703{,}449 & $241\times$ \\
 \code{xop\_wasm\_call} & 16{,}910  & 170{,}557       & $10\times$ \\
 \bottomrule
 \end{tabular}
@@ -609,47 +654,56 @@ Cell & Direct med.\ (ns) & Crossing med.\ (ns) & Ratio \\
 A single work size cannot tell a fixed per-call crossing cost apart from
 per-iteration execution cost. To separate them we sweep the callee work
 parameter across eight sizes ($w\in\{25,\dots,3200\}$ LCG iterations/call at
-$40$ calls, five timed samples per point through the same \code{jac run} adapter)
-and fit each variant's per-call time to
+$40$ calls, median of $20$ timed samples per point through the same \code{jac run}
+adapter, under the pinned governor and disabled turbo of
+Section~\ref{sec:controls}) and fit each variant's per-call time to
 $t(w)\approx t_0 + s\cdot w$. The intercept $t_0$ is the per-call
 boundary/dispatch cost independent of callee work; the slope $s$ is the
 per-iteration execution cost. All fits are near-perfect lines
 ($R^2\ge0.999$ for every \code{sv}-resident series; Table~\ref{tab:fits}).
 
 Two facts fall straight out. First, \emph{slope is bimodal by placement}:
-\code{na}-resident execution runs at $\approx$$4.4$\,ns/iter
+\code{na}-resident execution runs at $\approx$$5$\,ns/iter
 (\code{iop\_call} bridge, \code{na\_local}, \code{sv\_to\_na}) while
-\code{sv}-resident execution runs at $\approx$$184$\,ns/iter---a
-$\approx$$42\times$ gap that is a property of \emph{where the work runs}, not of
-the crossing. Second, and more decisively, \emph{the callback boundary is a
-constant, not a percentage}. In \code{iop\_cb} the \code{free} and \code{bridge}
-slopes are statistically identical ($182.2$ vs.\ $183.5$\,ns/iter, within
-$0.7\%$): the two variants do the same work, so their fitted lines are parallel
-and separated by a fixed intercept gap of $\approx$$5.37$\,\textmu s---the pure
-per-call callback cost. That constant is exactly why the headline
-\code{iop\_cb} ratio decays as work grows (Figure~\ref{fig:decay}): from
-$1.73\times$ at $w{=}25$ through $1.12\times$ at $w{=}200$ down to $1.01\times$
-at $w{=}3200$. The much-quoted ``$1.17\times$'' is not a property of the
-boundary; it is a fixed $5.4$\,\textmu s cost measured at one small size, and it
-vanishes into the noise once the callee does real work. \code{iop\_symmetric}
+\code{sv}-resident execution runs at $\approx$$212$\,ns/iter---a
+$\approx$$42\times$ gap ($211.95/5.04$) that is a property of \emph{where the
+work runs}, not of the crossing. This ratio is the robust, reproducible headline;
+its absolute ns values are clock-specific (Section~\ref{sec:controls}). Second,
+\emph{the callback boundary is a fixed per-call cost, not a percentage}. In
+\code{iop\_cb} the \code{free} and \code{bridge} slopes are statistically
+identical ($211.95$ vs.\ $212.89$\,ns/iter, within $0.4\%$): the two variants do
+the same work, so their fitted lines are parallel and separated by a fixed
+intercept gap of $\approx$$2.0$\,\textmu s---the pure per-call callback cost.
+(An earlier uncontrolled-clock capture reported this gap as $\approx$$5.4$\,\textmu s;
+the twin-gap \emph{method} is unchanged but the magnitude was inflated by
+CPU-frequency drift, and $\approx$$2.0$\,\textmu s is the pinned-clock value; see
+Section~\ref{sec:controls}.) That fixed cost is why the \code{iop\_cb} crossing
+amortizes: once the callee does real work ($w\gtrsim800$) the per-call time is
+dominated by the shared $\approx$$212$\,ns/iter slope and the bridge/reference
+ratio settles to $\approx$$1.0$ (Figure~\ref{fig:decay}); at small $w$ the ratio
+is dominated by timer noise rather than the boundary. The much-quoted
+``$1.17\times$'' is not a property of the boundary; it is a small fixed cost seen
+at one small size that vanishes once the callee does real work. \code{iop\_symmetric}
 makes the decomposition visible in one cell: \code{sv\_to\_na} runs at the
-\emph{native} slope ($4.42$) yet carries a $\approx$$3.2$\,\textmu s crossing
+\emph{native} slope ($5.10$) yet carries a $\approx$$3.7$\,\textmu s crossing
 intercept, so entering \code{na} pays a one-time per-call toll and then executes
 $42\times$ faster per iteration---precisely the trade a placement decision must
 weigh.
 
 \begin{table}[t]
 \caption{Linear fits $t(w)=t_0+s\cdot w$ of per-call time (ns) vs.\ callee work,
-eight sizes. $t_0$ is the per-call boundary/dispatch intercept, $s$ the
-per-iteration execution slope. Absolute $t_0$ is an extrapolation (small
-negative values are low-work loop curvature); the load-bearing quantity is the
-intercept \emph{gap} between twinned variants (see text). For \code{iop\_call} and \code{iop\_cb},
-\code{free} executes in \code{sv} and \code{bridge} in \code{na}; the
-$\approx$$4.4$ vs.\ $\approx$$184$\,ns/it slopes read off the executing
-codespace. The lone low $R^2$ ($.912$, \code{iop\_call} bridge) is the
-native path measured near the timer noise floor: at $\approx$$4.6$\,ns/it the
+eight sizes, median of $20$ timed samples per point under a pinned CPU governor
+and disabled turbo (Section~\ref{sec:controls}). $t_0$ is the per-call
+boundary/dispatch intercept, $s$ the per-iteration execution slope. Absolute
+$t_0$ is an extrapolation (the small $\approx$$-100$\,ns values are low-work
+loop curvature, not negative cost); the load-bearing quantity is the intercept
+\emph{gap} between twinned variants (see text). For \code{iop\_call} and
+\code{iop\_cb}, \code{free} executes in \code{sv} and \code{bridge} in
+\code{na}; the $\approx$$5$ vs.\ $\approx$$212$\,ns/it slopes read off the
+executing codespace. The low $R^2$ ($.974$, \code{iop\_call} bridge) is the
+native path measured near the timer noise floor: at $\approx$$7.9$\,ns/it the
 slope is real but low-SNR, and it is corroborated by three independent
-\code{na}-resident series ($4.63/4.42/4.44$), so no single fit is load-bearing.}
+\code{na}-resident series ($7.92/5.10/5.04$), so no single fit is load-bearing.}
 \label{tab:fits}
 \centering
 \footnotesize
@@ -658,16 +712,16 @@ slope is real but low-SNR, and it is corroborated by three independent
 \toprule
 Cell & Variant & $t_0$ (ns) & $s$ (ns/it) & $R^2$ \\
 \midrule
-\code{iop\_call} & free    & $-312$ & $86.69$  & $.9997$ \\
-                 & bridge  & $461$  & $4.63$   & $.912$  \\
+\code{iop\_call} & free    & $4987$ & $216.59$ & $.996$  \\
+                 & bridge  & $4936$ & $7.92$   & $.974$  \\
 \midrule
-\code{iop\_cb}   & free    & $-901$ & $182.18$ & $1.000$ \\
-                 & bridge  & $4471$ & $183.53$ & $.9998$ \\
+\code{iop\_cb}   & free    & $1910$ & $211.95$ & $1.000$ \\
+                 & bridge  & $3918$ & $212.89$ & $1.000$ \\
 \midrule
-\code{iop\_symmetric} & sv\_local  & $-387$  & $183.82$ & $1.000$ \\
-                      & sv\_to\_na & $3184$  & $4.42$   & $.9998$ \\
-                      & na\_local  & $123$   & $4.44$   & $1.000$ \\
-                      & na\_to\_sv & $-1408$ & $188.49$ & $.9999$ \\
+\code{iop\_symmetric} & sv\_local  & $-126$  & $211.81$ & $1.000$ \\
+                      & sv\_to\_na & $3686$  & $5.10$   & $1.000$ \\
+                      & na\_local  & $137$   & $5.04$   & $1.000$ \\
+                      & na\_to\_sv & $-112$  & $213.90$ & $1.000$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -681,23 +735,27 @@ Cell & Variant & $t_0$ (ns) & $s$ (ns/it) & $R^2$ \\
   xlabel={callee work $w$ (LCG iterations/call)},
   ylabel={\code{iop\_cb} ratio},
   xtick={25,100,400,1600}, xticklabels={25,100,400,1600},
-  ymin=0.95, ymax=1.8,
-  ytick={1.0,1.2,1.4,1.6},
+  ymin=0.75, ymax=1.3,
+  ytick={0.8,1.0,1.2},
   grid=both, grid style={gray!20},
   tick label style={font=\scriptsize}, label style={font=\footnotesize},
   every axis plot/.append style={thick},
 ]
 \addplot[mark=*,mark size=1.3pt,blue!70!black] coordinates {
-  (25,1.732)(50,1.396)(100,1.286)(200,1.121)(400,1.102)(800,1.052)(1600,1.050)(3200,1.010)
+  (25,1.082)(50,1.239)(100,0.828)(200,1.139)(400,1.069)(800,1.012)(1600,1.022)(3200,1.004)
 };
 \addplot[dashed,gray] coordinates {(25,1.0)(3200,1.0)};
 \node[anchor=north east,font=\scriptsize] at (axis cs:3200,1.0) {no-cost (1.0)};
 \end{semilogxaxis}
 \end{tikzpicture}
-\caption{The \code{iop\_cb} bridge/reference ratio decays toward $1.0$ as callee
-work grows, because the callback crossing is a \emph{fixed} $\approx$$5.4$\,\textmu s
-per-call cost (Table~\ref{tab:fits}), not a proportional overhead. The
-$1.17\times$ headline is this constant seen at one small size.}
+\caption{The \code{iop\_cb} bridge/reference ratio converges to $\approx$$1.0$
+once callee work grows ($w\gtrsim800$), because the callback crossing is a
+\emph{fixed} $\approx$$2.0$\,\textmu s per-call cost (Table~\ref{tab:fits}), not
+a proportional overhead. Under pinned-clock timing the small-$w$ ratios are
+noise-dominated (they scatter $0.83$--$1.24$ rather than tracing a clean decay);
+the fixed cost is established by the twin-gap fit, not by these raw ratios. An
+earlier uncontrolled-clock capture showed an apparent smooth decay from
+$1.73\times$; that monotonicity did not survive frequency pinning.}
 \label{fig:decay}
 \end{figure}
 
@@ -716,21 +774,21 @@ $1.17\times$ headline is this constant seen at one small size.}
   every axis plot/.append style={thick, mark size=1.1pt},
 ]
 \addplot[mark=*,red!70!black] coordinates {
-  (25,4714)(50,9123)(100,17638)(200,35522)(400,71527)(800,148424)(1600,294560)(3200,587219)};
+  (25,5606)(50,10461)(100,20642)(200,40894)(400,83898)(800,170423)(1600,340780)(3200,676554)};
 \addplot[mark=triangle*,orange!85!black] coordinates {
-  (25,5206)(50,9632)(100,18564)(200,35180)(400,74398)(800,147026)(1600,295930)(3200,604403)};
+  (25,5781)(50,10752)(100,21526)(200,41460)(400,84280)(800,171498)(1600,343812)(3200,683614)};
 \addplot[mark=square*,blue!70!black] coordinates {
-  (25,3405)(50,3426)(100,3519)(200,4034)(400,5007)(800,6666)(1600,10273)(3200,17348)};
+  (25,3841)(50,3944)(100,4231)(200,4668)(400,5713)(800,7770)(1600,11820)(3200,20032)};
 \addplot[mark=diamond*,teal!70!black] coordinates {
-  (25,223)(50,347)(100,594)(200,1014)(400,1931)(800,3633)(1600,7175)(3200,14344)};
+  (25,254)(50,390)(100,644)(200,1144)(400,2155)(800,4168)(1600,8194)(3200,16257)};
 \legend{sv\_local,na\_to\_sv,sv\_to\_na,na\_local}
 \end{loglogaxis}
 \end{tikzpicture}
 \caption{\code{iop\_symmetric}'s four placements. The two \code{sv}-executing
-variants (\code{sv\_local}, \code{na\_to\_sv}) share the steep $\approx$$184$\,ns/it
+variants (\code{sv\_local}, \code{na\_to\_sv}) share the steep $\approx$$212$\,ns/it
 slope; the two \code{na}-executing variants (\code{sv\_to\_na}, \code{na\_local})
-share the shallow $\approx$$4.4$\,ns/it slope. \code{sv\_to\_na} sits a constant
-$\approx$$3.2$\,\textmu s \emph{above} \code{na\_local}---that vertical offset is
+share the shallow $\approx$$5$\,ns/it slope. \code{sv\_to\_na} sits a constant
+$\approx$$3.7$\,\textmu s \emph{above} \code{na\_local}---that vertical offset is
 the crossing intercept. Slope is placement; the offset is the boundary.}
 \label{fig:placement}
 \end{figure}
@@ -936,13 +994,13 @@ Three implications follow. The first two the sweep now quantifies; the third
 remains a hypothesis. \emph{(i)~Placement is a slope; the crossing is an
 intercept.} The sweep (Section~\ref{sec:sweep}) shows the two are literally
 separable coefficients of one line: execution placement is a
-$\approx$$42\times$ \emph{slope} difference ($4.4$ vs.\ $184$\,ns/iter) while the
-crossing is a fixed \emph{intercept} ($\approx$$5.4$\,\textmu s for the
-\code{iop\_cb} callback, $\approx$$3.2$\,\textmu s to enter \code{na}). A
+$\approx$$42\times$ \emph{slope} difference ($5$ vs.\ $212$\,ns/iter) while the
+crossing is a fixed \emph{intercept} ($\approx$$2.0$\,\textmu s for the
+\code{iop\_cb} callback, $\approx$$3.7$\,\textmu s to enter \code{na}). A
 compiler can therefore choose placement on callee slope alone once the intercept
 is known small---and it can compute the exact break-even, which our fits make
-concrete: entering \code{na} costs the $\approx$$3.2$\,\textmu s intercept and
-saves $\approx$$179$\,ns/iter ($184$ minus $4.4$), so \emph{crossing into native
+concrete: entering \code{na} costs the $\approx$$3.7$\,\textmu s intercept and
+saves $\approx$$207$\,ns/iter ($212$ minus $5$), so \emph{crossing into native
 pays for itself above $\approx$$18$ iterations of callee work per call}. Below
 that, stay in \code{sv}; above it, cross---a threshold computable at compile time
 from the call's static work estimate. \emph{(ii)~The $\mu$s-vs-ns gap
@@ -1020,17 +1078,18 @@ families plus two named floors, each marshalled cell anchored to an exact
 reference twin, a differential-identity oracle and structural audits gated in CI,
 and provenance-stamped timing reported only within an explicitly bounded scope.
 On commodity x86\_64 hardware an eight-point work sweep resolves per-call time
-into a fixed crossing intercept ($\approx$$5.4$\,\textmu s for the callback
-boundary, $\approx$$3.2$\,\textmu s to enter \code{na}) and a placement slope
+into a fixed crossing intercept ($\approx$$2.0$\,\textmu s for the callback
+boundary, $\approx$$3.7$\,\textmu s to enter \code{na}) and a placement slope
 ($\approx$$42\times$, \code{na} vs.\ \code{sv})---so the $1.17\times$ callback
-headline is a constant that decays to $1.01\times$ as the callee does real work---%
+headline is a small fixed cost that amortizes to $\approx$$1.0\times$ as the callee does real work---%
 and a sixteen-point payload sweep to $N{=}100{,}000$ resolves the loopback RPC into a
 $\approx$$19$\,ms fixed cost plus a $934$\,ns/element serialization slope
 (95\% bootstrap CI $912$--$999$),
 $3.1\times$ its in-process twin and directly observed to overtake the fixed cost
 at $N\approx21{,}000$. We add low-nanosecond \code{C}-ABI foreign-call
 costs, placement-dependent run-to-run variance spanning $1.5$ orders of magnitude,
-and median-of-seven cross-runtime floors of $10$--$213\times$. The suite's most
+and pinned-governor cross-runtime floors of $241\times$ and $374\times$ for the
+two loopback RPC cells (plus a $10\times$ WebAssembly floor awaiting re-capture). The suite's most
 durable output is not any single ratio but the guarantee that every crossing stays
 byte-identical to its in-language reference on every commit. Future work fits the
 remaining shape---the payload method carried onto a typed cross-language
