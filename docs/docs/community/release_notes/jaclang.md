@@ -2,7 +2,23 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.5 (Latest Release)
+## jaclang 0.34.6 (Latest Release)
+
+### New Features
+
+- **Scale: `jac start --scale` honors the `[project].jac-version` pin**: a deploy now runs the toolchain release the app declares instead of always adopting `latest`. `jac create` stamps `jac-version = "==<current>"` (widen it to `>=`, `<=`, `~=`, or a range), and the pin resolves to one release tag that the pod binary, the admin console, and the base image all share, so the deployed pod stays coherent. A declared pin that cannot be honored (matches no published release, unpublished tag, or a missing arch asset) aborts the deploy with a clear error instead of silently shipping `latest`, which would ship exactly the release the pin was meant to avoid; only an unset pin uses latest. Specifier matching (`==`, `!=`, `>=`, `<=`, `>`, `<`, `~=`, and comma ranges) is a small stdlib-only comparator, so the deploy path gains no new dependency.
+
+### Bug Fixes
+
+- **Fix: client builds and mobile tooling no longer require node**: `bun x <tool>` resolves to the `node_modules/.bin` shim, which carries a `#!/usr/bin/env node` shebang, so bun handed the process off to node. Every client build and dev server (`vite`), and every Expo, EAS and Capacitor invocation (`expo`, `eas`, `cap`), therefore failed on a machine without node installed. Since jac provisions bun and never provisions node, this broke an otherwise valid setup. Each tool's local JS entry is now resolved and invoked as `bun <entry>`, which runs under bun regardless of the shebang. When a tool is not installed locally this raises instead of falling back to `bun x`, which would silently reintroduce the node dependency.
+- **Fix: strip-comments no longer deletes `jac:ignore` directives**: The W3050 `strip-comments` auto-lint rule treated every comment as slop, including `# jac:ignore[...]` lines that the parser reads into inline suppressions. Stripping one silently re-armed the diagnostic it was suppressing. Comments on suppression lines are now preserved.
+
+### Documentation
+
+- **Agent Skills: one flat `lib/` package replaces the `services/` + `lib/` split**: The bundled guides told projects to keep server endpoint modules in `services/` and pure helpers in `lib/`. They now describe a single flat `lib/` holding server endpoint modules, client transport modules, and helpers alike, distinguished by filename rather than directory. Besides being flatter, this keeps intra-package imports `.`-relative: reaching across two sibling top-level folders resolves under `jac start` but fails under `jac test <file>` with `attempted relative import beyond top-level package`, since the test runner roots the package at the target file's own directory. Updated in `jac-cl-organization`, `jac-fullstack-patterns`, `jac-cl-components`, `jac-core-cheatsheet`, `jac-codespaces` and `jac-debugging`, plus the matching layout tree in the fullstack advanced-patterns tutorial.
+- **Agent Skills: organize by feature, not by codespace**: `components/` + `services/` sorts files by which machine runs them, which Jac infers per-declaration. The guides now teach two layouts with the trigger between them: flat with no bucket under ~3 features (what `jac create` scaffolds), one folder per feature holding both codespaces side by side beyond that. `shared/` replaces the `lib/` catch-all and changes its admission rule from exclusion to promotion: a module lives with the feature that owns it until a second feature needs it. Within a feature the cross-codespace import becomes a sibling (`sv import from .store { ... }`); across packages server modules must use the no-dot absolute form, since a `..` that climbs out of a feature folder resolves under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`. Also records that a file move is a schema migration: archetype identity includes the module path, so moving a module that declares `node`/`edge` types orphans every persisted instance with no error or warning.
+
+## jaclang 0.34.5
 
 ### Bug Fixes
 
