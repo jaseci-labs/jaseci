@@ -414,24 +414,33 @@ def _assert_ir_rc_free(llvm_ir_str: str, file_path: str) {
     }
 }
 
-def compile_to_wasm(file_path: str, export_funcs: list = []) -> (bytes | None) {
+def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.ext_registry { is_native_module }
+    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
     (gc_mode, enf_mods, enf_grand) = _project_gc_settings();
     prev = os.environ.get("JAC_NATIVE_TARGET", None);
     os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
+    auto_promote = not is_native_module(file_path);
     try {
         prog = JacProgram();
-        ir = prog.compile(
-            file_path=os.path.abspath(file_path),
-            options=CompileOptions(
-                aot_mode=True,
-                type_check=False,
-                na_gc_mode=gc_mode,
-                nogc_enforce_modules=enf_mods,
-                nogc_grandfathered=enf_grand
-            )
-        );
+        na_census_begin();
+        try {
+            ir = prog.compile(
+                file_path=os.path.abspath(file_path),
+                options=CompileOptions(
+                    aot_mode=True,
+                    type_check=False,
+                    default_codespace=('native' if auto_promote else ''),
+                    na_gc_mode=gc_mode,
+                    nogc_enforce_modules=enf_mods,
+                    nogc_grandfathered=enf_grand
+                )
+            );
+        } finally {
+            census = na_census_end();
+        }
         if prog.errors_had {
             first = prog.errors_had[0].pretty_print();
             more = len(prog.errors_had) - 1;
@@ -439,7 +448,16 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> (bytes | None) {
             raise RuntimeError(f"{first}{suffix}");
         }
         if (ir is None) or (ir.gen.llvm_ir is None) {
-            return None;
+            rec = census.get(os.path.realpath(os.path.abspath(file_path)));
+            reason = "the module did not lower to native IR" + " (no demotion recorded; it likely compiled as a" + " non-native codespace)";
+            if rec {
+                code = f" [{rec['code']}]" if rec['code'] else '';
+                detail = f": {rec['detail']}" if rec['detail'] else '';
+                reason = f"{rec['outcome']}{code}{detail}";
+            }
+            raise RuntimeError(
+                f"native lowering produced no IR for '{file_path}': {reason}"
+            );
         }
         llvm_ir_str = str(ir.gen.llvm_ir);
         app_imports = app_declared_imports(ir);

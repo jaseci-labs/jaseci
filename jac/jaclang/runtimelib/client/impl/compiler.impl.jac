@@ -69,10 +69,7 @@ impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> No
     try {
         wasm = compile_to_wasm(str(module_path));
     } except Exception as e {
-        console.warning(f"Skipped na->wasm for '{module_path.name}': {e}");
-        return;
-    }
-    if wasm is None {
+        console.error(f"na->wasm failed for '{module_path.name}': {e}");
         return;
     }
     stem = module_path.stem;
