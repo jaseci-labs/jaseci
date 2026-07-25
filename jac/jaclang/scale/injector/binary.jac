@@ -248,10 +248,7 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
     }
     toml = found[1];
     prefix = f"{toml}|{channel}|";
-    # Content-key the memo and read the pin fresh (not the process-cached config)
-    # so a redeploy after an edit re-resolves instead of serving a stale version;
-    # drop this project's prior entry so the memo stays bounded. find_project_root
-    # walks ancestors, so a nested entry still finds the project's pin.
+
     stamp = hashlib.sha256(toml.read_bytes()).hexdigest();
     key = prefix + stamp;
     if key in _deploy_version_memo {
@@ -279,11 +276,7 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
 }
 
 
-def reset_deploy_version_cache -> None {
-    # Scope pin resolution to one deploy: realize() clears it at the start, so a
-    # long-running process re-resolves each deploy (picking up newly published
-    # releases) while within a deploy the binary, console, and base image share
-    # one resolution.
+def reset_deploy_version_cache {
     _deploy_version_memo.clear();
 }
 
