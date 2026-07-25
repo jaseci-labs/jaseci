@@ -197,7 +197,7 @@ edge Weighted {
 
 ### 2 Edge Entry/Exit
 
-Walkers can trigger abilities on edges during traversal:
+Edges are locations too: an edge may declare abilities of its own, which fire when the walker's itinerary includes the edge itself.
 
 ```jac
 edge Road {
@@ -207,10 +207,19 @@ edge Road {
         visitor.total_distance += self.distance;
     }
 }
+
+walker Traveler {
+    has total_distance: float = 0.0;
+
+    can go with City entry {
+        visit [edge -->];   # visit the EDGES: Road abilities fire,
+                            # then the walker continues to each far city
+    }
+}
 ```
 
-!!! warning "Known Limitation"
-    Edge entry/exit abilities are not currently triggered during walker traversal. This feature is planned but not yet implemented. For now, perform edge-related logic in the walker's node abilities instead.
+!!! warning "Edge abilities fire only on edge visits"
+    A plain node visit (`visit [-->]`) crosses edges **without waking them** -- `on_traverse` never fires. Edge abilities run only when the itinerary includes the edge itself: `visit [edge -->]`, or spawning the walker directly on an edge object. After an edge's abilities run, the walker automatically continues to the edge's target node.
 
 ### 3 Directed vs Undirected
 
@@ -761,8 +770,14 @@ with entry {
     bob = Person(name="Bob");
     alice +>: Friend :+> bob;
 
-    # Delete specific edge
+    # Delete specific edge (untyped disconnect)
     alice del --> bob;
+
+    # Delete a specific TYPED edge: pin it by both endpoints with an
+    # [edge ...] reference, then del the edge objects
+    for e in [edge alice ->:Friend:-> bob] {
+        del e;
+    }
 
     # Delete node
     del bob;
@@ -1041,6 +1056,47 @@ walker Querier {
 
         # Combined with filters
         target = [->:Friend:since < 2020:->][?:Person, age > 30];
+
+        # Every hop can carry its own edge predicate AND node filter
+        rising = [here ->:Friend:since > 2020:->
+                      [?:Person, age >= 18] ->:Friend:->];
+
+        # Directions can reverse mid-chain: who follows me, and who
+        # do THEY work with?
+        reach = [here <-:Friend:<- ->:Colleague:->];
+
+        # Multiple predicates on one hop AND together
+        window = [->:Friend:since >= 2019, since <= 2022:->];
+
+        # The anchor can be a list of nodes
+        friends = [here ->:Friend:->];
+        fofs = [friends ->:Friend:->];
+    }
+}
+```
+
+The general form is: an optional anchor, then one or more hops, each hop an edge operator (optionally typed, optionally predicated) followed by an optional node filter. Every element composes with every other, so a query like "adult friends I made after 2020, and their friends" is a single expression rather than a join pipeline.
+
+### 4 Query Semantics
+
+Three guarantees and one constraint govern every edge reference:
+
+- **Deduplicated per reference.** One reference returns each destination once, however many parallel edges or diamond paths reach it. Separate `visit` statements can still each enqueue the same node -- guard with a `seen` flag when walking graphs with multiple in-paths.
+- **Connection order.** Results come back in the order the edges were created, which is what makes traversal order deterministic run to run.
+- **Eager evaluation.** A reference is evaluated where it appears: `visit [-->]` snapshots the neighborhood at that line, so nodes you attach later in the same ability are not part of that visit.
+- **The edge-type slot takes a bare name.** To choose the edge type at runtime, assign it to a variable first -- edge types are values:
+
+```jac
+node State { has name: str = ""; }
+edge Coin {}
+edge Push {}
+
+walker Fire {
+    has table: dict = {};
+
+    can step with State entry {
+        t = self.table["coin"];   # e.g. {"coin": Coin, "push": Push}
+        visit [->:t:->];          # expression forms like [->:table["coin"]:->] do not parse
     }
 }
 ```
