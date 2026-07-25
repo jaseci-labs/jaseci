@@ -1197,27 +1197,38 @@ there was no single language spanning those runtimes to measure.
 \section{Conclusion}
 \label{sec:conclusion}
 
+Taken together, the results say one thing about \emph{where} interop cost lives,
+and one thing about \emph{how} to measure it. On magnitude: execution
+\emph{placement} (a $\approx$$42\times$ slope) dwarfs the boundary crossing itself
+(a fixed few $\mu$s), and for cross-runtime cells the \emph{deployment} path---the
+application server and client stack---dwarfs the marshalling it wraps. The
+actionable ordering is therefore placement first, deployment path second, boundary
+mechanism last. On method: several of the suite's most striking-looking numbers
+are, on inspection, deflations, and that is the contribution. The
+``$5.4$\,\textmu s callback constant'' and the smooth $1.73\times$ decay were
+CPU-frequency artifacts ($\approx$$2.0$\,\textmu s and noise once pinned); the
+``$100\times$-class'' FFI win over pybind11-family bindings is $\approx$$10\times$
+once interpreter dispatch is isolated from mechanism (a $25$--$54$\,ns boundary
+band, only \code{ctypes} truly $100\times$-class); and the $374\times$/$241\times$
+RPC floors are properties of Jac's hosted deployment path, not of an RPC boundary
+in general. What survives every deflation is a small set of reproducible
+\emph{ratios}---placement $42\times$, serialization $2.6\times$, the fixed-versus-%
+slope decompositions---whose absolute nanoseconds are clock- and machine-specific
+but whose shape is not. The differential-identity oracle, evaluated against $21$
+seeded faults ($14/14$ result-corrupting crossings caught at CI sizes, three
+escapes that delimit its scope), and frequency pinning as its timing-side
+analogue, are what make those ratios trustworthy enough to quote.
+
 Synechic compilation turns interop cost from an emergent property of hand-written
 glue into a measurable property of one compiler. JacInteropBench is the
 instrument for that measurement: ten measured kernels across two harness
 families plus two named floors, each marshalled cell anchored to an exact
 reference twin, a differential-identity oracle and structural audits gated in CI,
 and provenance-stamped timing reported only within an explicitly bounded scope.
-On commodity x86\_64 hardware an eight-point work sweep resolves per-call time
-into a fixed crossing intercept ($\approx$$2.0$\,\textmu s for the callback
-boundary, $\approx$$3.7$\,\textmu s to enter \code{na}) and a placement slope
-($\approx$$42\times$, \code{na} vs.\ \code{sv})---so the $1.13\times$ callback
-headline is a small fixed cost that amortizes to $\approx$$1.0\times$ as the callee does real work---%
-and a sixteen-point payload sweep to $N{=}100{,}000$ resolves the loopback RPC into a
-$\approx$$15$\,ms fixed cost plus an $890$\,ns/element serialization slope
-(95\% bootstrap CI $848$--$983$, run-to-run CV $1.8\%$),
-$2.6\times$ its in-process twin and directly observed to overtake the fixed cost
-at $N\approx17{,}000$. We add low-nanosecond \code{C}-ABI foreign-call
-costs, placement-dependent run-to-run variance spanning $1.5$ orders of magnitude,
-and deployment-path cross-runtime floors of $241\times$ and $374\times$ for the
-two loopback RPC cells and a $6.8\times$ WebAssembly floor. The suite's most
-durable output is not any single ratio but the guarantee that every crossing stays
-byte-identical to its in-language reference on every commit. Future work fits the
+The work and payload sweeps above supply the coefficients; the oracle supplies
+the trust. The suite's most durable output is not any single ratio but the
+guarantee that every crossing stays byte-identical to its in-language reference on
+every commit. Future work fits the
 remaining shape---the payload method carried onto a typed cross-language
 \code{xop\_feed} feed, plus concurrency and RPS on
 \code{xop\_crud} and an arm64 C-ABI runner---each landing behind the same
