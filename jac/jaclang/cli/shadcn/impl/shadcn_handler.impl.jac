@@ -181,7 +181,7 @@ impl _inside(project_root: Path, candidate: Path) -> Path | None {
     resolved = candidate.resolve();
     root_dir = project_root.resolve();
     if resolved == root_dir or root_dir in resolved.parents {
-        return candidate;
+        return resolved;
     }
     return None;
 }
@@ -292,7 +292,7 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
     }
 
     style = shadcn_config.get("style", "nova");
-    project_root = Path(str(config.project_root));
+    project_root = Path(str(config.project_root)).resolve();
 
     console.print("\n Adding components (style: " + style + ")\n", style="bold cyan");
 
@@ -407,7 +407,7 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
 }
 
 impl remove_shadcn_components(config: any, component_names: list) -> bool {
-    project_root = Path(str(config.project_root));
+    project_root = Path(str(config.project_root)).resolve();
     paths = resolve_shadcn_paths(project_root, _read_shadcn_config(config));
     if paths is None {
         return False;
