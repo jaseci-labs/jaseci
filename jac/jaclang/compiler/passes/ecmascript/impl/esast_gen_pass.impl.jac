@@ -1,3 +1,4 @@
+import from jaclang.jac0core.compiler { is_client_native_edge_import }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField,
     RefField,
@@ -959,6 +960,7 @@ impl EsastGenPass._pull_plain_jac_import_client(
 ) -> None {
     import from jaclang.jac0core.ext_registry { codespace_of }
     import from jaclang.jac0core.passes.codespace_pull_pass { pull_import_items_client }
+    import from jaclang.compiler.symbol_utils { symbol_linked_source_module }
 
     if (
         nd.is_sv_marked
@@ -969,11 +971,22 @@ impl EsastGenPass._pull_plain_jac_import_client(
     ) {
         return;
     }
-    source_mod = self._resolve_source_module(nd);
-    if source_mod is None or source_mod is self.ir_in {
-        return;
+    targets: list[uni.Module] = [];
+    for candidate in (
+        self._resolve_source_module(nd),
+        symbol_linked_source_module(nd)
+    ) {
+        if (
+            candidate is not None
+            and candidate is not self.ir_in
+            and not any(candidate is t for t in targets)
+        ) {
+            targets.append(candidate);
+        }
     }
-    pull_import_items_client(list(nd.items), source_mod, self.prog);
+    for target in targets {
+        pull_import_items_client(list(nd.items), target, self.prog);
+    }
 }
 
 impl EsastGenPass._record_sv_backend(nd: uni.Import) -> None {
@@ -1639,6 +1652,7 @@ impl EsastGenPass._try_lower_server_rpc_call(
     }
     is_server_func = (
         ability_node.code_context != CodeContext.CLIENT
+        and ability_node.code_context != CodeContext.NATIVE
         and not ability_node.in_client_context()
         and ability_node.access is not None
         and ability_node.access.tag.name == Tok.KW_PUB
@@ -4711,7 +4725,7 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         return;
     }
 
-    if nd.is_na_marked {
+    if nd.is_na_marked or is_client_native_edge_import(nd, self.prog) {
         if (nd.from_loc and nd.items) {
             self._generate_na_import_binding(nd);
         }
@@ -6331,6 +6345,8 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         is_sv_import = isinstance(nd, uni.Import)
         and (nd.is_sv_marked or nd.is_na_marked);
 
+        is_native_edge = isinstance(nd, uni.Import)
+        and is_client_native_edge_import(nd, self.prog);
         is_shared_arch = (
             isinstance(nd, uni.Archetype)
             and (nd.name is not None)
@@ -6338,6 +6354,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         );
         if (
             not is_sv_import
+            and not is_native_edge
             and not isinstance(nd, uni.ServerBlock)
             and not is_shared_arch
         ) {
@@ -6371,8 +6388,11 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
             and (nd.name is not None)
             and (nd.name.value in self.shared_arch_names)
         );
+        is_native_edge = isinstance(nd, uni.Import)
+        and is_client_native_edge_import(nd, self.prog);
         if (
             not is_sv_import
+            and not is_native_edge
             and not isinstance(nd, uni.ServerBlock)
             and not is_shared_arch
         ) {
