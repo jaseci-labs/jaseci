@@ -587,6 +587,10 @@ jobs:
       run: echo "TEST_ENV=true" >> $GITHUB_ENV
 
     - name: Run all client tests
+      # Serial: xdist workers intermittently disagree on collection of
+      # test_react_native_target.jac ("Different tests were collected").
+      env:
+        JAC_TEST_JOBS: "0"
       run: jac test jac/tests/runtimelib/client --ignore jac/tests/runtimelib/client/test_inprocess_dispatch.jac
 
     - name: Re-run in-process sv dispatch against the built-in scale backend
