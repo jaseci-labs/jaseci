@@ -5,12 +5,12 @@ import from pathlib { Path }
 import from jaclang.project.config { get_config }
 import from jaclang.project.pyvenv { get_venv_site_packages }
 
-# Shared by desktop_app_runtime_env and the generated *-launch.sh script.
 glob DESKTOP_WEBKIT_ENV: list[tuple[str, str]] = [
-    ("GDK_BACKEND", "x11"),
-    ("WEBKIT_DISABLE_DMABUF_RENDERER", "1"),
-    ("WEBKIT_DISABLE_COMPOSITING_MODE", "1"),
-];
+         ("GDK_BACKEND", "x11"),
+         ("WEBKIT_DISABLE_DMABUF_RENDERER", "1"),
+         ("WEBKIT_DISABLE_COMPOSITING_MODE", "1"),
+
+     ];
 
 
 def _project_venv_site_packages -> str {

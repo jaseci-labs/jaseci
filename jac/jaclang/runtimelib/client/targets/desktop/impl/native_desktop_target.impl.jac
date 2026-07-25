@@ -132,10 +132,7 @@ def _assemble_native_host(
     launcher = output_dir / f"{app_name}-launch.sh";
 
     launcher.write_text(
-        (
-            "#!/bin/sh\n"
-            "cd \"$(dirname \"$0\")\" || exit 1\n"
-        ) + jac_desktop_webkit_shell_export() + jac_desktop_deps_shell_export() + f"exec ./{app_name} \"$@\"\n"
+        ("#!/bin/sh\n" "cd \"$(dirname \"$0\")\" || exit 1\n") + jac_desktop_webkit_shell_export() + jac_desktop_deps_shell_export() + f"exec ./{app_name} \"$@\"\n"
     );
     os.chmod(launcher, 0o755);
     return binary;
