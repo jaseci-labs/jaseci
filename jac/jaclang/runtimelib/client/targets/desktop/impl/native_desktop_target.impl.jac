@@ -137,9 +137,7 @@ def _assemble_native_host(
             "export GDK_BACKEND=\"${GDK_BACKEND:-x11}\"\n"
             "export WEBKIT_DISABLE_DMABUF_RENDERER=\"${WEBKIT_DISABLE_DMABUF_RENDERER:-1}\"\n"
             "export WEBKIT_DISABLE_COMPOSITING_MODE=\"${WEBKIT_DISABLE_COMPOSITING_MODE:-1}\"\n"
-        )
-        + jac_desktop_deps_shell_export()
-        + f"exec ./{app_name} \"$@\"\n"
+        ) + jac_desktop_deps_shell_export() + f"exec ./{app_name} \"$@\"\n"
     );
     os.chmod(launcher, 0o755);
     return binary;

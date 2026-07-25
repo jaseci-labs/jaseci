@@ -287,7 +287,9 @@ test "ensure_venv keeps symlinked python venv outside standalone" {
         assert _is_fused_venv(venv_dir);
         with patch.dict(os.environ, {}, clear=False) {
             os.environ.pop("JAC_STANDALONE", None);
-            with patch("shutil.rmtree") as rm, patch("venv.EnvBuilder") as mock_builder_class {
+            with patch("shutil.rmtree") as rm, patch(
+                "venv.EnvBuilder"
+            ) as mock_builder_class {
                 mock_builder = MagicMock();
                 mock_builder_class.return_value = mock_builder;
                 ensure_venv(venv_dir, verbose=False);

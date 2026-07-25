@@ -109,6 +109,7 @@ def _bundled_runtime_python -> str | None {
         for name in [
             f"python{sys.version_info.major}{sys.version_info.minor}.exe",
             "python.exe",
+
         ] {
             cand = prefix_dir / name;
             if cand.is_file() {
@@ -155,8 +156,7 @@ def _venv_needs_recreate(venv_dir: Path) -> bool {
     if not pyvenv_cfg.exists() or not python_path.exists() {
         return True;
     }
-    # Fused venvs (jac-as-python) only exist in standalone binaries; in
-    # pip-install mode venv/bin/python is a symlink to sys.executable by design.
+
     if not os.environ.get("JAC_STANDALONE") {
         return False;
     }
