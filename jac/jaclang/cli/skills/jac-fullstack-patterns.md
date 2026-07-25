@@ -23,15 +23,17 @@ That no-argument `app()` is the single-page / manual-routing shape. With file-ba
 
 ## Two call styles: function RPC vs walker spawn
 
-The client reaches the server two ways, with OPPOSITE argument rules:
+The client reaches the server two ways:
 
 | | `def:pub` function RPC | walker spawn |
 |---|---|---|
-| call form | `await save_profile(name, email)` | `result = root spawn add_task(title=t);` |
-| argument rule | **POSITIONAL only** - kwargs send an empty body → 422 | **KWARGS only** - they map to the walker's `has` fields |
+| call form | `await save_profile(name, email)` or `await doc_tree(version=v)` | `result = root spawn add_task(title=t);` |
+| argument rule | positional AND kwargs both work - resolved against the server signature | **KWARGS only** - they map to the walker's `has` fields |
 | return value | the function's return value (typed, hydrated) | a result object: read `result.reports` |
 
-**Function RPC:** `save_profile(a, b)` works; `save_profile(name=a, email=b)` → `422 Field required`. The caller's *variable names* become the JSON keys, so they must exactly match the server parameter names: if the server is `def:pub get_moves(game_id: str, row: int, col: int)`, calling `get_moves(game_id, r, c)` 422s - rename the caller's locals to `row`/`col`.
+**Function RPC:** the compiled stub resolves arguments against the *server's* declared parameter names - positional args map by position, kwargs by name, and the JSON body is keyed by the server's names regardless of the caller's local variable names (verified in the emitted JS: `get_moves(game_id, r, c)` wires `r`/`c` onto `row`/`col` by position). Passing the same parameter both ways is a compile error (E5080).
+
+**Pick the shape by whether the endpoint walks: no `visit`, no walker.** A single-`Root entry` walker that just `report`s is better written as a `def:pub` function - typed return instead of `reports[0]`, real parameters instead of `has` fields, identical `root` binding. The full rule lives in `jac-sv-endpoints`.
 
 **Walker spawn** (the docs' primary backend pattern): kwargs fill the walker's `has` fields; everything the walker `report`s lands in `result.reports` (a list - first report is `result.reports[0]`). Both styles are async on the client - inside an async context the spawn awaits implicitly:
 
