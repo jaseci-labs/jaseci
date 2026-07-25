@@ -4972,17 +4972,34 @@ impl EsastGenPass._generate_sv_import_stubs(
     }
 }
 
-impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
+def _na_wasm_stem(path: str) -> str {
     import os;
-    resolved_path = nd.from_loc.resolve_relative_path();
-    stem = os.path.splitext(os.path.basename(resolved_path))[0];
+    stem = os.path.splitext(os.path.basename(path))[0];
     for marker in ('.na', '.cl', '.sv') {
         if stem.endswith(marker) {
             stem = stem[0:-len(marker)];
         }
     }
+    return stem;
+}
+
+impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
+    resolved_path = nd.from_loc.resolve_relative_path();
+    stem = _na_wasm_stem(resolved_path);
 
     if self.client_manifest {
+        for existing in self.client_manifest.na_modules {
+            if existing != resolved_path and _na_wasm_stem(existing) == stem {
+                import from jaclang.jac0core.diagnostics { E5083 }
+                self.emit(
+                    E5083,
+                    node_override=nd,
+                    stem=stem,
+                    path=resolved_path,
+                    other=existing
+                );
+            }
+        }
         if resolved_path not in self.client_manifest.na_modules {
             self.client_manifest.na_modules.append(resolved_path);
         }

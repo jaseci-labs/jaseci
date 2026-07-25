@@ -125,7 +125,12 @@ async def _na_instance(module_stem: str) -> any {
     extra: any = cfg[1] if cfg else None;
     p = instantiate_na_wasm(f"/static/{module_stem}.wasm", sh, extra);
     _na_pending[module_stem] = p;
-    return await p;
+    try {
+        return await p;
+    } except Exception as err {
+        _na_pending.pop(module_stem, None);
+        raise err;
+    }
 }
 
 def _na_caller(module_stem: str, fn_name: str) -> any {

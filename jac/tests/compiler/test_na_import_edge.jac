@@ -73,3 +73,33 @@ test "na import compiles to nothing on the python side" {
         " native module means the ctypes crossing"
     );
 }
+
+test "colliding na import basenames are a build error" {
+    tmp = tempfile.mkdtemp(prefix="jac_na_edge_");
+    for sub in ("a", "b") {
+        os.makedirs(os.path.join(tmp, sub));
+        with open(os.path.join(tmp, sub, "kernel.na.jac"), "w") as f {
+            f.write(KERNEL_SRC);
+        }
+    }
+    host_path = os.path.join(tmp, "host.jac");
+    with open(host_path, "w") as f {
+        f.write(
+            "na import from .a.kernel { fib }\n"
+            "na import from .b.kernel { fib as fib_b }\n"
+            "\n"
+            "cl {\n"
+            "    async def:pub show -> int {\n"
+            "        return await fib(4) + await fib_b(5);\n"
+            "    }\n"
+            "}\n"
+        );
+    }
+    prog = JacProgram();
+    prog.compile(host_path);
+    msgs = [e.pretty_print() for e in prog.errors_had];
+    assert any(["E5083" in m for m in msgs]) , (
+        f"two na targets sharing a basename must not both claim"
+        f" /static/kernel.wasm; got: {msgs}"
+    );
+}
