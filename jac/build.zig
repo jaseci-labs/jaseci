@@ -770,6 +770,12 @@ fn macosShim(
     shim_flags: []const []const u8,
 ) std.Build.LazyPath {
     const io = b.graph.io;
+    // Upstream slice (repackaged official release) vs from-source llvm-slice
+    // build: decides the ThinLTO/libLTO plumbing and the external -l deps
+    // below. A custom -Dllvm-dir on an unpinned platform gets the upstream
+    // treatment (official releases are the only other supported layout).
+    const rel = llvm_release.llvmRelease(target.result.os.tag, target.result.cpu.arch);
+    const upstream = if (rel) |r| r.upstream else true;
     const cc = b.addSystemCommand(&.{"c++"});
     cc.addArg("-dynamiclib");
     // Target the resolved arch explicitly rather than the host c++'s default, so a
@@ -779,6 +785,12 @@ fn macosShim(
         .x86_64 => "x86_64",
         else => @panic("jacllvm: unsupported macOS arch for the c++ shim link"),
     } });
+    // Pin the shim's minos to the resolved target's floor, exactly like the
+    // zig-built launcher: with -Dtarget=x86_64-macos.12.0 the whole shipped
+    // binary floors at 12.0 instead of the build runner's macOS. Host-native
+    // builds resolve to the host version, matching clang's own default.
+    const macos_min = target.result.os.version_range.semver.min;
+    cc.addArg(b.fmt("-mmacosx-version-min={d}.{d}", .{ macos_min.major, macos_min.minor }));
     // Respect -Doptimize the way the Linux (Zig addLibrary) path does.
     cc.addArg(switch (optimize) {
         .Debug => "-O0",
@@ -801,29 +813,36 @@ fn macosShim(
             cc.addFileArg(.{ .cwd_relative = b.fmt("{s}/{s}", .{ libdir, entry.name }) });
         }
     }
-    // The LLVM release archives are ThinLTO bitcode, so ld64 must lower them to
-    // native code at link time via libLTO. Apple's bundled libLTO tracks Xcode and
-    // is too old on the CI runners ("Invalid summary version 12, should be in
-    // [1-10]" -> segfault), so point ld64 at the release's OWN libLTO.dylib (kept
-    // by payload.zig fetchLlvmSlice) -- it matches the bitcode it produced.
-    // This is link-time only; the output dylib gains no libLTO runtime dep.
+    // Upstream slices only: the official release archives are ThinLTO bitcode,
+    // so ld64 must lower them to native code at link time via libLTO. Apple's
+    // bundled libLTO tracks Xcode and is too old on the CI runners ("Invalid
+    // summary version 12, should be in [1-10]" -> segfault), so point ld64 at
+    // the release's OWN libLTO.dylib (kept by payload.zig fetchLlvmSlice) -- it
+    // matches the bitcode it produced. This is link-time only; the output dylib
+    // gains no libLTO runtime dep.
     //
     // The path MUST be absolute: ld64 silently falls back to its default libLTO
     // when -lto_library can't be resolved, and a relative path is not reliably
     // resolved from ld's cwd. Set LIBLTO_PATH too -- the env override ld honors
     // most reliably across ld64 / ld-prime.
-    const lto_dylib = b.fmt("{s}/lib/libLTO.dylib", .{llvm_dir});
-    const lto_abs = if (std.fs.path.isAbsolute(lto_dylib)) lto_dylib else b.pathFromRoot(lto_dylib);
-    cc.setEnvironmentVariable("LIBLTO_PATH", lto_abs);
-    cc.addPrefixedFileArg("-Wl,-lto_library,", .{ .cwd_relative = lto_abs });
-    // LLVM's system deps. zstd comes from Homebrew (not on the default search
-    // path); z/xml2 are in the macOS SDK, and clang++ links libc++ itself.
-    cc.addArgs(&.{ "-lz", "-lxml2" });
-    // Homebrew's prefix is /opt/homebrew on Apple Silicon, /usr/local on Intel;
-    // HOMEBREW_PREFIX overrides both for a custom install.
-    const brew = b.graph.environ_map.get("HOMEBREW_PREFIX") orelse
-        (if (target.result.cpu.arch == .aarch64) "/opt/homebrew" else "/usr/local");
-    cc.addArgs(&.{ b.fmt("-I{s}/opt/zstd/include", .{brew}), b.fmt("-L{s}/opt/zstd/lib", .{brew}), "-lzstd" });
+    //
+    // A from-source slice (macos-x86_64) is plain native Mach-O built with
+    // zlib/zstd/libxml2 OFF: no libLTO to point at, and no external -l deps
+    // either -- which keeps the shipped dylib free of Homebrew load commands.
+    if (upstream) {
+        const lto_dylib = b.fmt("{s}/lib/libLTO.dylib", .{llvm_dir});
+        const lto_abs = if (std.fs.path.isAbsolute(lto_dylib)) lto_dylib else b.pathFromRoot(lto_dylib);
+        cc.setEnvironmentVariable("LIBLTO_PATH", lto_abs);
+        cc.addPrefixedFileArg("-Wl,-lto_library,", .{ .cwd_relative = lto_abs });
+        // LLVM's system deps. zstd comes from Homebrew (not on the default search
+        // path); z/xml2 are in the macOS SDK, and clang++ links libc++ itself.
+        cc.addArgs(&.{ "-lz", "-lxml2" });
+        // Homebrew's prefix is /opt/homebrew on Apple Silicon, /usr/local on Intel;
+        // HOMEBREW_PREFIX overrides both for a custom install.
+        const brew = b.graph.environ_map.get("HOMEBREW_PREFIX") orelse
+            (if (target.result.cpu.arch == .aarch64) "/opt/homebrew" else "/usr/local");
+        cc.addArgs(&.{ b.fmt("-I{s}/opt/zstd/include", .{brew}), b.fmt("-L{s}/opt/zstd/lib", .{brew}), "-lzstd" });
+    }
     cc.addArgs(&.{ "-Wl,-exported_symbol,_LLVMPY_*", "-Wl,-install_name,@rpath/libjacllvm.dylib" });
     cc.addArg("-o");
     return cc.addOutputFileArg("libjacllvm.dylib");
