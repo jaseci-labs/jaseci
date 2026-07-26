@@ -75,9 +75,6 @@ def _generate_host_source(
         plugin_configs
     );
 
-    # Plugin SDK uses fetch('/__jac/invoke') — same as CEF — so @jac/desktop
-    # does not depend on wv.bind resolving (bind stays for walker/function IPC
-    # under __JAC_NATIVE__). window.__jac_invoke from bind is left alone.
     bootstrap_js = (
         "(function(){try{"
         "var _l={};"

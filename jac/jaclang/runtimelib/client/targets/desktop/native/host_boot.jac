@@ -123,8 +123,7 @@ def _start_loopback(
 ) {
     dist = os.path.join(app_dir, "dist");
     store = SessionStore(os.path.join(data_dir, ".jac", "desktop", "session.json"));
-    # Both CEF and native webview need /__jac/invoke — @jac/desktop plugins call
-    # it over fetch. CEF also wires SSE events + the in-process sv bridge.
+
     server_cls: any = socketserver.ThreadingTCPServer;
     server_cls.daemon_threads = True;
     if mode == "cef" {

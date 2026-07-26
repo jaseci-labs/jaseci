@@ -93,8 +93,6 @@ obj ClipboardPlugin(DesktopPlugin) {
         platform = self._detect_platform();
         try {
             if platform == "linux" {
-                # DEVNULL for stdout/stderr: xclip forks a clipboard owner and
-                # capture_output pipes can deadlock the parent until timeout.
                 try {
                     subprocess.run(
                         ["xclip", "-selection", "clipboard", "-in"],

@@ -46,8 +46,6 @@ obj NotificationPlugin(OsPlugin) {
         platform = self._detect_platform();
         try {
             if platform == "linux" {
-                # DEVNULL (not capture_output): notify-send/dbus can hang if the
-                # pipe buffers fill while the process is still talking to the bus.
                 cmd = ["notify-send", title];
                 if body {
                     cmd.append(body);

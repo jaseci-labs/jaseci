@@ -1,6 +1,4 @@
 async def _invoke(plugin: str, command: str, args: dict) -> any {
-    # Prefer the loopback broker (CEF + native webview). Falls back to the
-    # window.__jac SDK when the broker flag is absent.
     broker = globalThis.__JAC_BROKER__;
     if broker {
         resp = await fetch(
@@ -19,8 +17,7 @@ async def _invoke(plugin: str, command: str, args: dict) -> any {
         msg = "desktop invoke failed";
         try {
             msg = parsed["error"]["message"];
-        } except Exception {
-        }
+        } except Exception { }
         raise Exception(msg);
     }
     if globalThis.__jac and globalThis.__jac.invoke {
