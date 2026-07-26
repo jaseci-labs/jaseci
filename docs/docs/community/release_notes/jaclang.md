@@ -2,7 +2,14 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.6 (Latest Release)
+## jaclang 0.34.7 (Latest Release)
+
+### Bug Fixes
+
+- **Fix: Desktop create/install bootstrap**: `jac create` now runs a full `jac install` (Python + npm) unless `--skip`, project venvs under `JAC_STANDALONE` are created from the staged `python/bin/python3.x` interpreter (not the fused `jac` binary), and the desktop launch path exports `JAC_DESKTOP_DEPS` so the embedded host can import serve dependencies installed at create time.
+- **Fix: Spurious W1100/W1051 warnings on `@jac/runtime` re-exports**: the type checker resolved client npm packages only against the project root of the file containing the import, so packages imported inside library modules (like the shipped client runtime's `react-router-dom`) never resolved against the app's `.jac/client/node_modules`, cascading Module-not-found and Unknown-type warnings into user code (e.g. on `<Outlet/>`). Resolution now picks one base per package, the importing file's own installation when present, otherwise the compiled program's entry root, and uses that same installation for both the module and its `.d.ts` declarations, so types can never come from a different installation than the code. Packages that ship type definitions now produce real types through re-exports instead of foreign `any`, and a genuinely missing package still warns W1100.
+
+## jaclang 0.34.6
 
 ### New Features
 
