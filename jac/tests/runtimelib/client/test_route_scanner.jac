@@ -301,6 +301,25 @@ test "non-legacy zero-route tree gets the headline only" {
 }
 
 
+"""Both describers share one body, so the zero-route path gets the same
+filename-based layout hint: layout.jac under a free export name is pointed at
+JsxLayout, not JsxPage."""
+test "zero-route layout.jac with a free export name is pointed at JsxLayout" {
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        _write(
+            proj,
+            "pages/layout.jac",
+            "def:pub Shell() -> JsxElement { return <Outlet />; }",
+        );
+        lines = describe_pages_without_routes(proj / "pages");
+        joined = "\n".join(lines);
+        assert "layout.jac" in joined , "the layout file must be named";
+        assert "JsxLayout" in joined , "layout.jac must point at JsxLayout by filename, not export name";
+    }
+}
+
+
 """When some routes resolve, a JsxElement page that failed to migrate is still
 called out per file - a partial miss is not silent just because siblings route."""
 test "unmigrated JsxElement pages are named when other routes exist" {
