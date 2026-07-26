@@ -2,7 +2,13 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.6 (Latest Release)
+## jaclang 0.34.7 (Latest Release)
+
+### Bug Fixes
+
+- **Fix: shadcn `sonner` component self-import crash**: the registry file `sonner.jac` imported the npm `"sonner"` package from a file with the same name; the client resolver picked the local file over the installed package, so the compiled `Toaster` imported itself and rendered recursively until the browser tab crashed with an out-of-memory error. The component file is now `sonner_toast.jac` (installed as `.components.ui.sonner_toast`; the `jac install --shadcn sonner` name is unchanged). Apps that installed the old `sonner.jac` should delete it and reinstall the component.
+
+## jaclang 0.34.6
 
 ### New Features
 
