@@ -103,7 +103,7 @@ Most file names are the underscored registry name (`jac install --shadcn alert-d
 | Loading spinner | `Spinner` |
 | Empty state | `Empty` + `EmptyHeader` + `EmptyMedia` + `EmptyTitle` + `EmptyDescription` + `EmptyContent` |
 | Alert / banner | `Alert` + `AlertTitle` + `AlertDescription` |
-| Toast / notification | `Toaster` (mount once at app root); call `toast(...)` from `"sonner"` |
+| Toast / notification | `Toaster` (mount once at app root); call `toast(...)` from `"sonner"` (add `sonner`, file `sonner_toast`) |
 | Progress bar | `Progress` |
 | Date picker | `Calendar` |
 | Slider | `Slider` |
