@@ -1326,13 +1326,25 @@ impl TypeEvaluator._resolve_client_npm_module(node_: uni.ModulePath) -> (str | N
         return None;
     }
     import from jaclang.jac0core.modresolver { resolve_client_npm_package }
-    if found := resolve_client_npm_package(spv, mod_path) {
-        return found;
+    base = self._client_npm_base(spv, mod_path);
+    if base is None {
+        return None;
     }
+    return resolve_client_npm_package(spv, base);
+}
 
+impl TypeEvaluator._client_npm_base(spec: str, mod_path: str) -> (str | None) {
+    import from jaclang.jac0core.modresolver { has_client_npm_package }
+    if has_client_npm_package(spec, mod_path) {
+        return mod_path;
+    }
     entry_path = self._client_entry_mod_path();
-    if entry_path and entry_path != mod_path {
-        return resolve_client_npm_package(spv, entry_path);
+    if (
+        entry_path
+        and entry_path != mod_path
+        and has_client_npm_package(spec, entry_path)
+    ) {
+        return entry_path;
     }
     return None;
 }

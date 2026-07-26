@@ -8,11 +8,13 @@ app project whose `.jac/client/node_modules` actually holds the package. Any
 app symbol demanded through such a re-export (e.g. `<Outlet/>`) then cascaded
 W1100 -> W1051 into user code.
 
-The fix keeps the importing file's project root as the primary base and falls
-back to the compiled program's entry root, mirroring how the bundler resolves
-npm specifiers. A library module in one project tree importing an npm package
-installed only in the app's tree must therefore type-check clean, while a
-genuinely missing package must still warn.
+The fix picks one resolution base per package: the importing file's own
+installation when present, otherwise the compiled program's entry root, and
+uses that same installation for both the module and its .d.ts declarations.
+A library module importing an npm package installed only in the app's tree
+must type-check clean; a library with its own untyped installation must not
+borrow the entry project's declarations; a genuinely missing package must
+still warn.
 """
 
 import os;
@@ -36,8 +38,34 @@ glob _LIB_SRC: str = (
      );
 
 
+"""Install a fake-widgets package under `proj`'s client node_modules."""
+def _install_pkg(proj: str, typed: bool) {
+    pkg = os.path.join(proj, ".jac", "client", "node_modules", "fake-widgets");
+    os.makedirs(pkg, exist_ok=True);
+    pkg_json = '{"name": "fake-widgets", "main": "index.js"}\n';
+    if typed {
+        pkg_json = (
+            '{"name": "fake-widgets", "main": "index.js",' ' "types": "index.d.ts"}\n'
+        );
+    }
+    with open(os.path.join(pkg, "package.json"), "w") as f {
+        f.write(pkg_json);
+    }
+    with open(os.path.join(pkg, "index.js"), "w") as f {
+        f.write("export function makeWidget() { return {}; }\n");
+    }
+    if typed {
+        with open(os.path.join(pkg, "index.d.ts"), "w") as f {
+            f.write("export declare function makeWidget(): string;\n");
+        }
+    }
+}
+
+
 """Write an app project and a separate library project; return (entry_file, lib_dir)."""
-def _write_projects(base_dir: str, with_pkg: bool) -> tuple[str, str] {
+def _write_projects(
+    base_dir: str, with_pkg: bool, lib_pkg: bool = False
+) -> tuple[str, str] {
     app = os.path.join(base_dir, "app");
     lib = os.path.join(base_dir, "lib");
     os.makedirs(app, exist_ok=True);
@@ -48,14 +76,10 @@ def _write_projects(base_dir: str, with_pkg: bool) -> tuple[str, str] {
         }
     }
     if with_pkg {
-        pkg = os.path.join(app, ".jac", "client", "node_modules", "fake-widgets");
-        os.makedirs(pkg, exist_ok=True);
-        with open(os.path.join(pkg, "package.json"), "w") as f {
-            f.write('{"name": "fake-widgets", "main": "index.js"}\n');
-        }
-        with open(os.path.join(pkg, "index.js"), "w") as f {
-            f.write("export function makeWidget() { return {}; }\n");
-        }
+        _install_pkg(app, typed=lib_pkg);
+    }
+    if lib_pkg {
+        _install_pkg(lib, typed=False);
     }
     entry_file = os.path.join(app, "main.cl.jac");
     with open(entry_file, "w") as f {
@@ -92,6 +116,28 @@ test "npm import in a library module resolves from the app entry root" {
             if w.code and w.code.code == "W1100"
         ];
         assert w1100 == [] , w1100;
+    } finally {
+        shutil.rmtree(base_dir, ignore_errors=True);
+    }
+}
+
+
+test "library-local installation never borrows entry declarations" {
+    base_dir = tempfile.mkdtemp(prefix="jac_npm_root_");
+    try {
+        (entry_file, lib_dir) = _write_projects(base_dir, with_pkg=True, lib_pkg=True);
+        prog = _check(entry_file, lib_dir);
+        codes = [
+            w.code.code
+            for w in prog.warnings_had
+            if w.code
+        ];
+        assert "W1100" not in codes , codes;
+        assert "W1102" in codes , (
+            "library's own untyped installation must stay foreign any; typing" + " it means the entry project's declarations leaked across" + " installations: " + str(
+                codes
+            )
+        );
     } finally {
         shutil.rmtree(base_dir, ignore_errors=True);
     }

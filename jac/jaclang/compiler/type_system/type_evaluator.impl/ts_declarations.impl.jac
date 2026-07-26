@@ -32,12 +32,9 @@ impl TypeEvaluator._get_ts_declared_item_type(
                     dts_path = sibling_declaration_file(js_path);
                 }
             } else {
-                dts_path = resolve_client_npm_declarations(spec, mod_path);
-                if dts_path is None {
-                    entry_path = self._client_entry_mod_path();
-                    if entry_path and entry_path != mod_path {
-                        dts_path = resolve_client_npm_declarations(spec, entry_path);
-                    }
+                base = self._client_npm_base(spec, mod_path);
+                if base is not None {
+                    dts_path = resolve_client_npm_declarations(spec, base);
                 }
             }
         } except Exception {
