@@ -19,7 +19,8 @@ import from jaclang.byllm.exceptions {
     OutputConversionError,
     ConfigurationError,
     FinishToolError,
-    McpError
+    McpError,
+    ContentFilteredError
 }
 import from jaclang.byllm.mcp { McpClient, McpTool }
 import from jaclang.byllm.types { Tool, Message, MessageRole }
@@ -919,6 +920,51 @@ test "unregistered tool call is recovered not fatal" {
     assert "Tool error" in str(err_result.content) , (
         f"Recovered result should be a tool error, got: {err_result.content}"
     );
+}
+
+# A model can return finish_reason=content_filter with no content and no tool
+# calls (a refusal). Left unchecked this reads as a normal empty completion
+# instead of a blocked turn, the silent-failure shape from jacBuilder#896.
+test "content-filtered response raises ContentFilteredError, not a blank output" {
+    model = Model(model_name="claude-fable-5");
+    messages_list = [
+        Message(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
+        Message(role=MessageRole.USER, content="Who is Jason Mars?"),
+
+    ];
+    mt_run = MTRuntime(
+        messages=messages_list,
+        resp_type=None,
+        stream=False,
+        tools=[],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+
+    fake_response = {
+        "choices": [
+            {
+                "message": {"content": None, "tool_calls": []},
+                "finish_reason": "content_filter"
+            }
+        ],
+        "usage": {}
+    };
+
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", return_value=fake_response
+    ) {
+        raised = False;
+        try {
+            model.dispatch_no_streaming(mt_run);
+        } except ContentFilteredError as e {
+            raised = True;
+            assert "content_filter" in str(e) , (
+                f"Error should name the reason, got: {e}"
+            );
+        }
+        assert raised , "content_filter with no output must not be silently blank";
+    }
 }
 
 # FinishToolError is raised inside the finish_tool closure when the final output
