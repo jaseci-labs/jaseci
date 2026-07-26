@@ -1,5 +1,34 @@
 async def _invoke(plugin: str, command: str, args: dict) -> any {
-    return await globalThis.__jac.invoke(plugin, command, args);
+    # Prefer the loopback broker (CEF + native webview). Falls back to the
+    # window.__jac SDK when the broker flag is absent.
+    broker = globalThis.__JAC_BROKER__;
+    if broker {
+        resp = await fetch(
+            f"{broker}/invoke",
+            {
+                "method": "POST",
+                "headers": {"Content-Type": "application/json"},
+                "body": JSON.stringify([plugin, command, args])
+            }
+        );
+        raw = await resp.text();
+        parsed = JSON.parse(raw);
+        if parsed["ok"] {
+            return parsed["data"];
+        }
+        msg = "desktop invoke failed";
+        try {
+            msg = parsed["error"]["message"];
+        } except Exception {
+        }
+        raise Exception(msg);
+    }
+    if globalThis.__jac and globalThis.__jac.invoke {
+        return await globalThis.__jac.invoke(plugin, command, args);
+    }
+    raise Exception(
+        "@jac/desktop: no broker (/__jac) and window.__jac.invoke is missing"
+    );
 }
 
 

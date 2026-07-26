@@ -75,9 +75,36 @@ def _generate_host_source(
         plugin_configs
     );
 
+    # Plugin SDK uses fetch('/__jac/invoke') — same as CEF — so @jac/desktop
+    # does not depend on wv.bind resolving (bind stays for walker/function IPC
+    # under __JAC_NATIVE__). window.__jac_invoke from bind is left alone.
     bootstrap_js = (
         "(function(){try{"
-        "window.__JAC_DESKTOP__=true;window.__JAC_BROKER__='/__jac';"
+        "var _l={};"
+        "window.__jac={"
+        "invoke:function(p,c,a){"
+        "return fetch('/__jac/invoke',{method:'POST',"
+        "headers:{'Content-Type':'application/json'},"
+        "body:JSON.stringify([p,c,a||{}])})"
+        ".then(function(r){return r.text();})"
+        ".then(function(r){"
+        "if(typeof r==='string')r=JSON.parse(r);"
+        "if(r.ok)return r.data;"
+        "var e=new Error(r.error.message);"
+        "e.code=r.error.code;throw e;"
+        "});"
+        "},"
+        "on:function(ev,cb){"
+        "(_l[ev]=_l[ev]||[]).push(cb);"
+        "return function(){var a=_l[ev]||[];var i=a.indexOf(cb);"
+        "if(i!==-1)a.splice(i,1);};"
+        "},"
+        "__emit__:function(ev,p){"
+        "(_l[ev]||[]).forEach(function(h){try{h(p);}catch(_){}});"
+        "}"
+        "};"
+        "window.__JAC_DESKTOP__=true;"
+        "window.__JAC_BROKER__='/__jac';"
         "window.__JAC_NATIVE__=true;"
         "}catch(e){}})();"
     );

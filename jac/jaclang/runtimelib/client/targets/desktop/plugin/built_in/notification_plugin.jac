@@ -46,11 +46,20 @@ obj NotificationPlugin(OsPlugin) {
         platform = self._detect_platform();
         try {
             if platform == "linux" {
+                # DEVNULL (not capture_output): notify-send/dbus can hang if the
+                # pipe buffers fill while the process is still talking to the bus.
                 cmd = ["notify-send", title];
                 if body {
                     cmd.append(body);
                 }
-                subprocess.run(cmd, check=True, capture_output=True, timeout=5);
+                subprocess.run(
+                    cmd,
+                    check=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
+                );
             } elif platform == "darwin" {
                 escaped_body = self._escape_applescript(body);
                 escaped_title = self._escape_applescript(title);

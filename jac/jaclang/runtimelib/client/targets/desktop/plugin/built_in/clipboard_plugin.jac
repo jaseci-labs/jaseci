@@ -93,12 +93,15 @@ obj ClipboardPlugin(DesktopPlugin) {
         platform = self._detect_platform();
         try {
             if platform == "linux" {
+                # DEVNULL for stdout/stderr: xclip forks a clipboard owner and
+                # capture_output pipes can deadlock the parent until timeout.
                 try {
                     subprocess.run(
-                        ["xclip", "-selection", "clipboard"],
+                        ["xclip", "-selection", "clipboard", "-in"],
                         input=text.encode("utf-8"),
                         check=True,
-                        capture_output=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                         timeout=5
                     );
                 } except FileNotFoundError {
@@ -106,7 +109,8 @@ obj ClipboardPlugin(DesktopPlugin) {
                         ["xsel", "--clipboard", "--input"],
                         input=text.encode("utf-8"),
                         check=True,
-                        capture_output=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                         timeout=5
                     );
                 }
