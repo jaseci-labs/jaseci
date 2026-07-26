@@ -363,6 +363,7 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
 }
 
 impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
+    import from jaclang.jac0core.compiler { is_client_native_edge_import }
     import from jaclang.compiler.symbol_utils {
         ClientImportVerdict,
         classify_client_import_item,
@@ -371,6 +372,9 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
         resolve_import_source_module
     }
     for nd in mod.get_all_sub_nodes(typ=uni.Import) {
+        if is_client_native_edge_import(nd, self.prog) {
+            continue;
+        }
         if not is_client_boundary_import(nd) {
             continue;
         }

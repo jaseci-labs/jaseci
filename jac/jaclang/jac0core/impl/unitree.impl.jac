@@ -1187,6 +1187,11 @@ impl Import.is_cl_marked.getter -> bool {
     return (tok is not None and tok.name == Tok.KW_CLIENT);
 }
 
+impl Import.is_na_marked.getter -> bool {
+    tok = self._source_context_token();
+    return (tok is not None and tok.name == Tok.KW_NATIVE);
+}
+
 impl Import.is_virtual_jac.getter -> bool {
     if self.from_loc is not None {
         return self.from_loc.dot_path_str.startswith('@jac/');

@@ -42,7 +42,7 @@ glob FORBIDDEN: dict[str, str] = {
      # at sites where the declaration IS the fact.
      SANCTIONED: dict[tuple, tuple] = {
          ("ecmascript/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
-             5,
+             6,
              "collect_field_names/symbol_owner_archetype - symbol-FACT "
              "readers over an already-resolved walker symbol; and "
              "ability_of_symbol, the shared central helper (deduped from a "
@@ -56,7 +56,12 @@ glob FORBIDDEN: dict[str, str] = {
              "StaticAnalysisPass) and the classify/report helpers in "
              "_partition_client_import_items - both consume the SOURCE "
              "module's stamped code_context and declaration surface, "
-             "facts that exist on no local-tree node"
+             "facts that exist on no local-tree node. Plus "
+             "symbol_linked_source_module (#7740): the seeded client pull "
+             "must stamp the same module instance call-site transforms "
+             "resolve through symbols, and that instance is reachable only "
+             "from the import items' .sym links - a declaration-surface "
+             "read, not re-analysis"
          ),
          ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
              2,

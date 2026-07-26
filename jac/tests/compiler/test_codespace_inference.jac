@@ -545,8 +545,9 @@ test "client import pulls a pure markerless module cross-module" {
     assert '__jacCallFunction("tag_count"' not in js , (
         "accessless helper from a pure module must not bridge over RPC"
     );
-    assert '__jacCallFunction("server_ping"' in js , (
-        "def:pub stays a server endpoint and bridges over RPC"
+    assert '__jacCallFunction("server_ping"' not in js , (
+        "def:pub in an unanchored module is an export, not an endpoint --"
+        " it pulls into the importing codespace instead of bridging"
     );
     util = hub_module(prog, "infer_xmod_util.jac");
     assert util is not None , "imported module missing from hub";
@@ -557,8 +558,8 @@ test "client import pulls a pure markerless module cross-module" {
     assert stamp_of(util, "_tags") == 'client' , (
         "glob used by pulled defs follows them client"
     );
-    assert stamp_of(util, "server_ping") == 'server' , (
-        "def:pub is an endpoint, never relocated by client callers"
+    assert stamp_of(util, "server_ping") == 'client' , (
+        "def:pub in a pure module follows its client caller (export semantics)"
     );
 }
 
@@ -596,6 +597,53 @@ test "cross-module pulled elements dual-emit for the server side" {
         "pulled element must still exist in the python module (dual emit)"
     );
     assert '_tags' in py_src , "pulled glob must still exist in the python module";
+}
+
+test "unpullable closure bridges as a wire type instead of pulling" {
+    prog = JacProgram();
+    mod = prog.compile(
+        os.path.join(FIXTURE_DIR, "infer_xmod_poison_app.jac"), no_cgen=False
+    );
+    assert not prog.errors_had , (
+        f"declined pull must bridge, not E5082: {[str(e) for e in prog.errors_had]}"
+    );
+    js = mod.gen.js;
+    assert 'infer_xmod_poison_service' not in js , (
+        "unpullable module must not be ES-imported by the client bundle"
+    );
+    service = hub_module(prog, "infer_xmod_poison_service.jac");
+    assert service is not None , "imported module missing from hub";
+    assert stamp_of(service, "Ticket") == 'server' , (
+        "obj whose closure needs the Python stdlib must stay server (bridged)"
+    );
+    assert stamp_of(service, "_now_label") == 'server' , (
+        "stdlib-dependent helper must never be stamped client"
+    );
+}
+
+test "codespace stamps invalidate stale module codegen" {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+    import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
+    prog = JacProgram();
+    prog.compile(
+        os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"),
+        options=CompileOptions(no_cgen=True, type_check=True)
+    );
+    util = hub_module(prog, "infer_xmod_util.jac");
+    assert util is not None , "imported module missing from hub";
+    EsastGenPass(ir_in=util, prog=prog);
+    app = hub_module(prog, "infer_xmod_app.jac");
+    assert app is not None;
+    EsastGenPass(ir_in=app, prog=prog);
+    _ensure_js_generated(util, prog);
+    assert 'register' in util.gen.client_manifest.exports , (
+        "pull stamps must invalidate the pre-pull ES cache so the pulled def "
+        "regenerates with its export"
+    );
+    assert 'register' in (util.gen.js or '') , (
+        "regenerated module JS must contain the pulled def"
+    );
 }
 
 test "client call to endpoint with function-typed param warns W6005" {

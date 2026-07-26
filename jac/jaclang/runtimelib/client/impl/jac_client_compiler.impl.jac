@@ -57,6 +57,7 @@ impl JacClientCompiler.compile(
     target_name: str = "web"
 ) -> tuple[list[str], list[str]] {
     (module_js, mod, module_manifest) = self.jac_compiler.compile_module(module_path);
+    self._collect_na_modules(module_manifest);
     collected_exports: set[str] = set(
         self.jac_compiler.extract_exports(module_manifest)
     );
@@ -211,6 +212,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         source_root = module_path.parent.resolve();
     }
     (module_js, mod, manifest) = self.jac_compiler.compile_module(module_path);
+    self._collect_na_modules(manifest);
     exports_list = self.jac_compiler.extract_exports(manifest);
     collected_exports.update(exports_list);
     non_root_globals: dict[(str, Any)] = {};
@@ -695,4 +697,13 @@ impl JacClientCompiler.init(
     self.asset_processor = AssetProcessor();
     self._has_pages = False;
     self._route_scanner = None;
+    self.na_wasm_modules = set();
+}
+
+impl JacClientCompiler._collect_na_modules(
+    self: JacClientCompiler, manifest: any
+) -> None {
+    for p in (getattr(manifest, 'na_modules', []) or []) {
+        self.na_wasm_modules.add(str(p));
+    }
 }

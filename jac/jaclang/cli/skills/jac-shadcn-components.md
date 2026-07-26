@@ -3,7 +3,7 @@ name: jac-shadcn-components
 description: Building with jac-shadcn primitives (built into jaclang core) - getting components with `jac install --shadcn`, import paths, component selection, composition, styling, icons, and theming with `jac retheme`. Pair with `jac-shadcn-blocks` for design constants and composition patterns. Load when generating components for a project that has components/ui/ or a [jac-shadcn] section in jac.toml.
 ---
 
-shadcn primitives in Jac are built into **jaclang core**. A jac-shadcn project (`jac create --use jac-shadcn`, or any project with a `[jac-shadcn]` section in `jac.toml`) keeps the primitives in `components/ui/`.
+shadcn primitives in Jac are built into **jaclang core**. A jac-shadcn project (`jac create --use jac-shadcn`, or any project with a `[jac-shadcn]` section in `jac.toml`) keeps the primitives in `components/ui/` by default. You may keep them elsewhere (`shared/ui/`, a feature folder): `jac install --shadcn` finds an existing `ui/` directory, installs alongside it, and rewrites each primitive's `cn` import to wherever your `utils` module lives. Pin it with `[jac-shadcn] components_dir` / `utils_path` to be explicit.
 
 **Never hand-write a primitive** (Button, Card, Input, Dialog, Table, Badge, etc.). If it already lives in `components/ui/`, import and compose it. If it does **not** exist yet, install it with `jac install --shadcn <name>` - do not re-implement it. Your job is to build **high-level page/feature components** in `components/` that compose these primitives.
 

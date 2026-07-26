@@ -459,12 +459,30 @@ def is_client_boundary_import(nd: uni.Import) -> bool {
     return (
         nd.code_context == CodeContext.CLIENT
         and not nd.is_sv_marked
+        and not nd.is_na_marked
         and not nd.is_typed
         and not nd.is_virtual_jac
         and nd.from_loc is not None
         and bool(nd.items)
         and nd.from_loc.resolve_relative_path().endswith('.jac')
     );
+}
+
+def symbol_linked_source_module(nd: uni.Import) -> (uni.Module | None) {
+    for item in nd.items {
+        if not (isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name)) {
+            continue;
+        }
+        sym = item.name.sym;
+        if sym is None or sym.decl is None {
+            continue;
+        }
+        linked = sym.decl.find_parent_of_type(uni.Module);
+        if linked is not None {
+            return linked;
+        }
+    }
+    return None;
 }
 
 def resolve_import_source_module(prog: any, nd: uni.Import) -> (uni.Module | None) {

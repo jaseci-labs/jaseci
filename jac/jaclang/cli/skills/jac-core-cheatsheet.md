@@ -118,12 +118,14 @@ import from "@jac/runtime" { Router, Routes, Route }  # npm (quoted)
 
 | Dots | Meaning | Use when |
 |---|---|---|
-| `services.X`   | project-root absolute  | **default** - resolves from any depth in the project (server/native) |
-| `.services.X`  | same folder            | `services` is a sibling file in this same folder |
-| `..services.X` | one folder up          | importing file is one level deep (`components/X.jac`) |
-| `...services.X`| two folders up         | importing file is two levels deep (`components/pages/X.jac`) |
+| `shared.X`     | project-root absolute  | **default** - resolves from any depth in the project (server/native) |
+| `.store`       | same folder            | `store` is a sibling module in this same folder |
+| `..shared.X`   | one folder up          | importing file is one level deep (`recipes/X.jac`) |
+| `...shared.X`  | two folders up         | importing file is two levels deep (`recipes/parts/X.jac`) |
 
-A no-dot import is depth-independent: moving a file between directories never changes it. Dot-counted forms (`..`, `...`) DO break when a file moves to a different depth - wrong dot count = silent resolution failure = imported names become `<Unknown>` → cascading type errors. Prefer no-dot imports to avoid this.
+A no-dot import is depth-independent: moving a file between directories never changes it. Dot-counted forms (`..`, `...`) DO break when a file moves to a different depth - wrong dot count = silent resolution failure = imported names become `<Unknown>` → cascading type errors.
+
+**Server modules should prefer the no-dot form, and a `..` that climbs out of a package is a bug waiting to happen.** `import from ..shared.github { fetch }` resolves fine under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`, because the test runner roots the package at the target file's own directory. `import from shared.github { fetch }` works in both. Client modules keep the dotted form - that is what the bundler resolves.
 
 ## Also available (Python semantics, brace bodies)
 

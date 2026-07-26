@@ -536,6 +536,29 @@ test "empty parens removed" {
     assert "x: int" in formatted;
 }
 
+test "paren-less zero-arg def emits no W3005" {
+    src = "def already_clean {\n    return;\n}\n\n"
+    "def clean_with_return -> int {\n    return 1;\n}\n";
+    (fd, path) = tempfile.mkstemp(suffix=".jac");
+    os.close(fd);
+    with open(path, "w") as f {
+        f.write(src);
+    }
+    try {
+        prog = JacProgram.jac_file_formatter(path, auto_lint=True);
+        formatted = prog.mod.main.gen.jac;
+        assert "def already_clean {" in formatted;
+        assert "def clean_with_return -> int {" in formatted;
+        for w in (prog.warnings_had or []) {
+            assert "remove-empty-parens" not in str(w) , (
+                f"false W3005 on paren-less def: {w}"
+            );
+        }
+    } finally {
+        os.remove(path);
+    }
+}
+
 test "empty parens method preserved when has self" {
     input_path = auto_lint_fixture_path("empty_parens.jac");
 
@@ -1385,6 +1408,24 @@ test "W3050 strip-comments removes all comments when selected" {
     # Docstrings are a separate rule and must be preserved here.
     assert "Module docstring to deslop" in formatted;
     assert "Archetype docstring to deslop" in formatted;
+}
+
+test "W3050 strip-comments keeps jac:ignore directives" {
+    input_path = auto_lint_fixture_path("deslop.jac");
+    config = JacConfig();
+    config.check = CheckConfig(lint=LintConfig(select=["default", "strip-comments"]));
+    set_config(config);
+    try {
+        prog = JacProgram.jac_file_formatter(input_path, auto_lint=True);
+        formatted = prog.mod.main.gen.jac;
+    } finally {
+        set_config(None);
+    }
+    # The parser reads `# jac:ignore[...]` into inline_suppressions, so deleting
+    # one silently re-arms the diagnostic it was suppressing: it is a directive,
+    # not slop.
+    assert "# jac:ignore[E1053]" in formatted;
+    assert "# field comment" not in formatted;
 }
 
 test "W3051 strip-docstrings removes all docstrings when selected" {

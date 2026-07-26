@@ -587,6 +587,10 @@ jobs:
       run: echo "TEST_ENV=true" >> $GITHUB_ENV
 
     - name: Run all client tests
+      # Serial: xdist workers intermittently disagree on collection of
+      # test_react_native_target.jac ("Different tests were collected").
+      env:
+        JAC_TEST_JOBS: "0"
       run: jac test jac/tests/runtimelib/client --ignore jac/tests/runtimelib/client/test_inprocess_dispatch.jac
 
     - name: Re-run in-process sv dispatch against the built-in scale backend
@@ -666,6 +670,14 @@ jobs:
       run: |
         jac test jac/tests/compiler/passes/native/test_shared_lib.jac
         jac test jac/tests/compiler/passes/native/test_exec_link.jac
+
+    # na->wasm had no CI lane at all: test_wasm_build.jac ran nowhere and
+    # `vendor-wasm-libc` was never invoked, so a floor compiled from an older
+    # wasm_rt/ (the #7149 __jac64_realloc gap) could only be found by a user.
+    # setup-jac builds the binary, which builds the floor, so this also proves
+    # the shipped floor and the source tree agree.
+    - name: Run na->wasm floor + import-contract tests
+      run: jac test jac/tests/compiler/passes/native/test_wasm_build.jac
 
     - name: Run bundled-stdlib equivalence pins (darwin, #7626 C3)
       env:
@@ -806,7 +818,7 @@ jobs:
           "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2.0.0" \
           "apscheduler>=3.11.2,<4.0.0" "kubernetes>=34.1.0,<35.0.0" \
           "docker>=7.1.0,<8.0.0" "boto3>=1.40.0,<2.0.0" \
-          requests "testcontainers[mongodb,redis]" "moto[s3]>=5.0.0" \
+          requests "testcontainers[mongodb,redis]>=4.15,<5" "moto[s3]>=5.0.0" \
           --global
 
     - name: Run ${{ matrix.group }} tests

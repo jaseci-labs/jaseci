@@ -1,6 +1,23 @@
 import from jaclang.jac0core.diagnostics { E1401, E1402, E1403, E1404, E1405, E1406 }
 
-glob _NOGC_SCALARS: tuple = ("int", "float", "bool", "None", "NoneType", "type");
+glob _NOGC_SCALARS: tuple = (
+         "int",
+         "float",
+         "bool",
+         "None",
+         "NoneType",
+         "type",
+         "i8",
+         "i16",
+         "i32",
+         "i64",
+         "u8",
+         "u16",
+         "u32",
+         "u64",
+         "f32",
+         "f64"
+     );
 
 def _nogc_name_candidates(mod_name: str) -> list[str] {
     _cands = [mod_name];
@@ -495,6 +512,9 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
     for param in self.idx_params {
         _nm = param.name;
         if not (isinstance(_nm, uni.Name) and _nm.sym) {
+            continue;
+        }
+        if param.find_parent_of_type(uni.Import) is not None {
             continue;
         }
         if _nm.sym_name in ("self", "here", "visitor", "props") {

@@ -236,7 +236,7 @@ impl BoundaryAnalysisPass.enter_import(
                     else InteropContext.SERVER;
                 self._register_sv_import(nd, sv_module_name, caller_ctx);
             }
-            if (native_path and nd.items) {
+            if (native_path and nd.items and not nd.is_na_marked) {
                 manifest = self.ir_in.gen.interop_manifest;
                 for item in nd.items {
                     if isinstance(item, uni.ModuleItem) {
