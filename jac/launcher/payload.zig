@@ -272,10 +272,12 @@ fn fetchPbs(io: Io, gpa: Allocator, a: Allocator, osarch: []const u8, dest: []co
 fn fetchLlvm(io: Io, gpa: Allocator, a: Allocator, dest: []const u8) !void {
     const rel = llvmRelease() orelse
         die("fetch-llvm: no pinned LLVM release for this host ({s}-{s}); add a row to llvmRelease().", .{ @tagName(builtin.cpu.arch), @tagName(builtin.os.tag) });
-    // Presence marker / success check. On macOS the shim link needs the release's
-    // own libLTO.dylib (ThinLTO bitcode archives; see build.zig macosShim, #6938),
-    // so require it there. A missing marker re-fetches (self-heals a stale cache).
-    const marker_lib = if (builtin.os.tag == .macos) "libLTO.dylib" else "libLLVMCore.a";
+    // Presence marker / success check. On macOS an UPSTREAM slice's shim link
+    // needs the release's own libLTO.dylib (ThinLTO bitcode archives; see
+    // build.zig macosShim, #6938), so require it there; a from-source slice
+    // (e.g. macos-x86_64) ships plain archives and no libLTO. A missing marker
+    // re-fetches (self-heals a stale cache).
+    const marker_lib = if (builtin.os.tag == .macos and rel.upstream) "libLTO.dylib" else "libLLVMCore.a";
     const marker = try std.fmt.allocPrint(a, "{s}/{s}/lib/{s}", .{ dest, rel.dirname, marker_lib });
     if (fileExists(io, marker)) {
         log("fetch-llvm: already present at {s}/{s}", .{ dest, rel.dirname });
