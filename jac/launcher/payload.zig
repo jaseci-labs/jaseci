@@ -1390,6 +1390,21 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
 }
 
 
+/// Stage the relocatable pbs `python3.x` launcher under `python/bin/`. Project
+/// venvs created by the fused `jac` binary use this as their base interpreter.
+/// Only the versioned binary is copied; aliases are unnecessary because
+/// `_bundled_runtime_python` prefers `python{major}.{minor}`. Do not strip: plain
+/// `strip` corrupts the PBS launcher (versioned-symbol lookup fails at runtime).
+fn stagePythonBin(io: Io, a: Allocator, pbs_py_dir: []const u8, stage: []const u8) !void {
+    const py = try resolvePython(io, a, pbs_py_dir);
+    const bare = std.fs.path.basename(py);
+    const bin_dst = try std.fmt.allocPrint(a, "{s}/python/bin", .{stage});
+    try Dir.cwd().createDirPath(io, bin_dst);
+    const dst = try std.fmt.allocPrint(a, "{s}/{s}", .{ bin_dst, bare });
+    try Dir.cwd().copyFile(py, Dir.cwd(), dst, io, .{ .permissions = .fromMode(0o755) });
+    log("==> staged project venv interpreter -> python/bin/{s}", .{bare});
+}
+
 /// Stage the runtime tree: shared libpython + stdlib + the assembled site.
 fn stageTree(io: Io, gpa: Allocator, a: Allocator, pbs_py_dir: []const u8, site: []const u8, stage: []const u8, musl_dir: ?[]const u8, wasm_libc_dir: ?[]const u8) !void {
     log("==> staging runtime tree (shared libpython + stdlib + site)", .{});
@@ -1446,6 +1461,11 @@ fn stageTree(io: Io, gpa: Allocator, a: Allocator, pbs_py_dir: []const u8, site:
     }
     // The LLVMPY_* shim statically links LLVM (~130 MiB); strip it (best-effort).
     stripBestEffort(io, try std.fmt.allocPrint(a, "{s}/site/jaclang/compiler/passes/native/llvm/{s}", .{ stage, shimFileName() }));
+
+    // Relocatable pbs python launcher for project venv creation. The fused `jac`
+    // binary is not a pip/venv base interpreter; project `.jac/venv` must use
+    // real CPython so normal `pip install` works.
+    try stagePythonBin(io, a, pbs_py_dir, stage);
 
     // Static C-floor archives + CA bundle so an installed binary can static-link
     // a bundled C floor at `nacompile` time, not just dev builds (#6978 0.2).
