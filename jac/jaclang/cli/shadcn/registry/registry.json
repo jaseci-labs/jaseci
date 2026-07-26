@@ -423,7 +423,7 @@
       "peerComponents": ["button", "input", "separator", "sheet", "skeleton", "tooltip"]
     },
     "sonner": {
-      "file": "sonner.jac",
+      "file": "sonner_toast.jac",
       "npmDeps": [
         "sonner"
       ],
