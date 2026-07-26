@@ -162,7 +162,7 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
 
     sys_msg = Message(
         role=MessageRole.SYSTEM,
-        content=system_content + (INSTRUCTION_TOOL if tools else ""),
+        content=system_content + ("\n\n" + INSTRUCTION_TOOL if tools else ""),
     );
     user_msg = Message(
         role=MessageRole.USER,
