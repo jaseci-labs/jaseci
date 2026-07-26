@@ -1335,7 +1335,6 @@ impl BaseLLM.dispatch_streaming_with_tools(
                     yield str(delta_content);
                 }
             }
-            break;
         } except NotImplementedError {
             no_stream = True;
             break;
@@ -1347,29 +1346,46 @@ impl BaseLLM.dispatch_streaming_with_tools(
             }
             raise;
         }
+
+        message = None;
+        usage_data = {};
+        try {
+            rebuilt = litellm.stream_chunk_builder(chunks);
+            if rebuilt {
+                message = rebuilt.get("choices", [])[0].get("message");
+                usage_data = rebuilt.get("usage", {}) or {};
+                finish_reason = str(
+                    rebuilt.get("choices", [])[0].get("finish_reason") or ""
+                );
+            }
+        } except Exception as e {
+            logger.debug(f"stream_chunk_builder failed, using accumulated text: {e}");
+            message = None;
+        }
+        if message is None {
+            message = {"role": "assistant", "content": content_buf};
+        }
+
+        # content_filter can be probabilistic (verified against
+        # claude-fable-5), so retry it like a transient failure. A partial
+        # stream that already yielded tokens is not a blocked turn.
+        if finish_reason == "content_filter"
+        and not (message or {}).get("content")
+        and not (message or {}).get("tool_calls")
+        and attempt < self._resolve_stream_retries(mt_run) {
+            attempt += 1;
+            self.log_info(
+                f"Response suppressed by content filter; "
+                f"retry {attempt} on {self.model_name}"
+            );
+            _retry_sleep(attempt);
+            continue;
+        }
+        break;
     }
     if no_stream {
         out.append(self.dispatch_no_streaming(mt_run));
         return;
-    }
-
-    message: object = None;
-    usage_data: dict = {};
-    try {
-        rebuilt = litellm.stream_chunk_builder(chunks);
-        if rebuilt {
-            message = rebuilt.get("choices", [])[0].get("message");
-            usage_data = rebuilt.get("usage", {}) or {};
-            finish_reason = str(
-                rebuilt.get("choices", [])[0].get("finish_reason") or ""
-            );
-        }
-    } except Exception as e {
-        logger.debug(f"stream_chunk_builder failed, using accumulated text: {e}");
-        message = None;
-    }
-    if message is None {
-        message = {"role": "assistant", "content": content_buf};
     }
 
     has_native_tool_calls = bool((message or {}).get("tool_calls"));

@@ -1848,7 +1848,8 @@ ByLLMError (base)
 ├── OutputConversionError        - LLM response cannot be parsed / converted to the declared return type
 ├── FinishToolError              - finish_tool output failed validation against the declared return type
 ├── ConfigurationError           - Invalid byLLM usage (e.g. streaming with a non-str return type)
-└── CompactionNotEffectiveError  - Compaction triggered twice consecutively with no reduction in context size
+├── CompactionNotEffectiveError  - Compaction triggered twice consecutively with no reduction in context size
+└── ContentFilteredError         - Provider's content filter blocked the turn with no output and no tool calls
 ```
 
 All exceptions are importable from `byllm.lib`.
@@ -1864,6 +1865,7 @@ All exceptions are importable from `byllm.lib`.
 | `FinishToolError` | The `finish_tool` output failed validation against the function's declared return type |
 | `ConfigurationError` | `by llm()` was used in an unsupported way, such as `stream=True` with a non-`str` return type |
 | `CompactionNotEffectiveError` | Auto-compaction triggered on two back-to-back iterations without reducing context size. Provide a custom `on_compaction` hook, increase `ctx_window`, or switch to a model with a larger context window |
+| `ContentFilteredError` | The provider's content filter blocked the turn: `finish_reason` came back `content_filter` with no output and no tool calls. byLLM retries this internally (up to `stream_num_retries`, since the block can be probabilistic); the error surfaces only once retries are exhausted |
 
 ### Importing Exceptions
 
@@ -1876,7 +1878,8 @@ All exceptions are importable from `byllm.lib`.
         ModelNotFoundError,
         OutputConversionError,
         ConfigurationError,
-        CompactionNotEffectiveError
+        CompactionNotEffectiveError,
+        ContentFilteredError
     }
     ```
 
@@ -1890,6 +1893,7 @@ All exceptions are importable from `byllm.lib`.
         OutputConversionError,
         ConfigurationError,
         CompactionNotEffectiveError,
+        ContentFilteredError,
     )
     ```
 
@@ -1975,6 +1979,25 @@ with entry {
         # 2. Increase ctx_window if the model supports it
         # 3. Switch to a model with a larger context window
         # 4. Reduce keep_recent_iterations to discard more history
+    }
+}
+```
+
+### `ContentFilteredError`
+
+Raised when the provider's content filter blocks a turn outright: the response comes back with `finish_reason="content_filter"` and no content and no tool calls. Because this can be probabilistic (the same prompt may pass on a retry), byLLM retries internally before raising:
+
+```jac
+import from jaclang.byllm.lib { ContentFilteredError }
+
+with entry {
+    try {
+        result = my_llm_function(input);
+    } except ContentFilteredError as e {
+        print(f"Blocked by the provider's content filter: {e}");
+        # Recovery options:
+        # 1. Rephrase the prompt or the semstr-annotated inputs
+        # 2. Switch to a model with a less aggressive filter
     }
 }
 ```

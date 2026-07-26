@@ -923,9 +923,9 @@ test "unregistered tool call is recovered not fatal" {
 }
 
 # A model can return finish_reason=content_filter with no content and no tool
-# calls (a refusal). Left unchecked this reads as a normal empty completion
-# instead of a blocked turn, the silent-failure shape from jacBuilder#896.
-test "content-filtered response raises ContentFilteredError, not a blank output" {
+# calls (a refusal) — retried like a transient failure, then raised if it
+# doesn't clear. call_count asserts the retry actually ran.
+test "content-filtered response retries then raises ContentFilteredError, not a blank output" {
     model = Model(model_name="claude-fable-5");
     messages_list = [
         Message(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
@@ -937,7 +937,7 @@ test "content-filtered response raises ContentFilteredError, not a blank output"
         resp_type=None,
         stream=False,
         tools=[],
-        call_params={},
+        call_params={"stream_num_retries": 1},
         mtir=None  # type: ignore[arg-type]
     );
 
@@ -953,7 +953,7 @@ test "content-filtered response raises ContentFilteredError, not a blank output"
 
     with unittest.mock.patch.object(
         model, "model_call_no_stream", return_value=fake_response
-    ) {
+    ) as mock_call {
         raised = False;
         try {
             model.dispatch_no_streaming(mt_run);
@@ -964,6 +964,69 @@ test "content-filtered response raises ContentFilteredError, not a blank output"
             );
         }
         assert raised , "content_filter with no output must not be silently blank";
+        assert mock_call.call_count == 2 , (
+            f"expected 1 initial call + 1 retry (stream_num_retries=1), "
+            f"got {mock_call.call_count} — retry loop may not be running"
+        );
+    }
+}
+
+# dispatch_streaming_with_tools (the react/agentic loop's streaming path) must
+# retry a probabilistic content_filter block the same way dispatch_no_streaming
+# does, not hard-fail the turn on the first blocked attempt.
+test "content-filtered stream-with-tools retries then succeeds" {
+    model = Model(model_name="claude-fable-5");
+    messages_list = [
+        Message(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
+        Message(role=MessageRole.USER, content="Who is Jason Mars?")
+    ];
+    mt_run = MTRuntime(
+        messages=messages_list,
+        resp_type=None,
+        stream=True,
+        tools=[],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+
+    def empty_stream(params: dict) -> object {
+        yield types.SimpleNamespace(
+            choices=[types.SimpleNamespace(delta=types.SimpleNamespace(content=""))],
+            usage=None
+        );
+    }
+
+    filtered_rebuild = {
+        "choices": [
+            {
+                "message": {"content": None, "tool_calls": []},
+                "finish_reason": "content_filter"
+            }
+        ],
+        "usage": {}
+    };
+    ok_rebuild = {
+        "choices": [
+            {"message": {"content": "Hello", "tool_calls": []}, "finish_reason": "stop"}
+        ],
+        "usage": {}
+    };
+
+    with unittest.mock.patch.object(
+        model, "model_call_with_stream", side_effect=empty_stream
+    ) {
+        with unittest.mock.patch(
+            "litellm.stream_chunk_builder", side_effect=[filtered_rebuild, ok_rebuild]
+        ) as mock_builder {
+            out: list = [];
+            list(model.dispatch_streaming_with_tools(mt_run, out));
+            assert mock_builder.call_count == 2 , (
+                "content_filter should be retried once, not raised immediately"
+            );
+            assert len(out) == 1 and out[0].output == "Hello" , (
+                f"Expected the retried response to win, got: {out}"
+            );
+        }
     }
 }
 
