@@ -715,16 +715,14 @@ impl JacCompiler.parse_str(
             and _default_codespace_for(target_program) == 'native'
         );
         if _native_eligible {
-            (_na_ok, _na_why) = _native_default_closure_verdict(mod);
+            import from jaclang.jac0core.placement_solver { native_default_verdict }
+            (_na_ok, _na_why) = native_default_verdict(mod);
             if _na_ok {
                 _coerce_native_module(mod);
                 na_census_record(mod.loc.mod_path, 'native');
             } else {
-                _seed_module_codespace(mod);
                 na_census_record(mod.loc.mod_path, 'server', '', _na_why);
             }
-        } else {
-            _seed_module_codespace(mod);
         }
     }
     return mod;
@@ -896,6 +894,15 @@ impl JacCompiler._compile_once(
         actual_program, cur_mod_path
     );
     had_blocking_errors = blocking_errs_post_ir > blocking_errs_pre_ir;
+
+    if not options.symtab_ir_only and not had_blocking_errors {
+        import from jaclang.jac0core.placement_solver { solve_program_placement }
+        try {
+            solve_program_placement(mod_targ, actual_program);
+        } except Exception {
+            ;
+        }
+    }
 
     import from jaclang.jac0core.constant { CodeContext as _CodeCtx }
     is_explicit_native = mod_targ is not None
