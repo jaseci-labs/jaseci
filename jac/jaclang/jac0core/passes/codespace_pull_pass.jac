@@ -18,6 +18,29 @@ def _is_client_top(elem: uni.UniNode) -> bool {
     and elem.code_context == CodeContext.CLIENT;
 }
 
+def _py_import_client_portable(elem: uni.Import) -> bool {
+    import from jaclang.jac0core.portability { client_supports_py_module }
+    targets: list[str] = [];
+    if elem.from_loc is not None {
+        targets.append(elem.from_loc.dot_path_str);
+    } else {
+        for item in elem.items {
+            if isinstance(item, uni.ModulePath) {
+                targets.append(item.dot_path_str);
+            }
+        }
+    }
+    if not targets {
+        return False;
+    }
+    for tgt in targets {
+        if not client_supports_py_module(tgt) {
+            return False;
+        }
+    }
+    return True;
+}
+
 def _pullable_by_client_reference(
     elem: uni.UniNode, module: uni.Module, body_refs: dict[int, set[int]]
 ) -> bool {
@@ -30,10 +53,13 @@ def _pullable_by_client_reference(
             return True;
         }
         if elem.from_loc is None {
-            return False;
+            return _py_import_client_portable(elem);
         }
         resolved = elem.from_loc.resolve_relative_path();
-        return isinstance(resolved, str) and resolved.endswith('.jac');
+        if isinstance(resolved, str) and resolved.endswith('.jac') {
+            return True;
+        }
+        return _py_import_client_portable(elem);
     }
     if isinstance(elem, (uni.Archetype, uni.TypeAlias)) {
         for top in module.body {
