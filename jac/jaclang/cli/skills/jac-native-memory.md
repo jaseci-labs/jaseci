@@ -38,7 +38,7 @@ with entry {
 
 `&mut x` takes the exclusive mutable borrow: any number of live `&`, or exactly one live `&mut`, never both (violations are E1302).
 
-- `own` is **affine**: dropping without consuming is fine, not an error. Passing an owned local to a call, `return`, or field store consumes it.
+- `own` is **affine**: dropping without consuming is fine, not an error. Passing an owned local to a jac-defined call, `return`, or field store consumes it; read-only builtin methods and native stdlib calls borrow instead (see the idioms section below).
 - Storing an owned value into a field/subscript/graph object seals it into managed storage (**the membrane**): the source binding dies, and reading it back yields a plain managed value. `node`/`edge`/`walker` stay fully managed - no `own`/`&` of graph state.
 - Borrows are second-class: returning or storing one is E1306 (single passthrough of a borrow *parameter* is allowed); a borrow outliving its owner is E1304.
 - Sendability (E1308): only `imm`, moved `own` (including an `own Region` handle), or scalars cross `flow`/`thread_run` boundaries; live borrows never do.

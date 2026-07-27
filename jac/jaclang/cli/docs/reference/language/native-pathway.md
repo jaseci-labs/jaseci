@@ -629,16 +629,20 @@ the real filesystem.
 | `os.mkdir(path)` / `os.rmdir(path)` | Create / remove a directory |
 | `os.remove(path)` / `os.unlink(path)` | Remove a file |
 | `os.rename(src, dst)` | Rename |
-| `os.system(cmd)` | Run a shell command, return its exit code |
+| `os.system(cmd)` | Run a shell command, return the raw POSIX wait status (exit code x 256), as CPython does |
 
 | `os.path` | Notes |
 |-----------|-------|
 | `os.path.join(*parts)` | Join with `/`; an absolute part or trailing slash is handled |
 | `os.path.basename(p)` / `os.path.dirname(p)` | Final component / parent |
+| `os.path.realpath(p)` | Resolved absolute path (falls back to the input on failure) |
 | `os.path.exists(p)` | `access(F_OK)` |
 | `os.path.isfile(p)` / `os.path.isdir(p)` | `stat`-based |
+| `os.path.getsize(p)` | `stat`-based size in bytes; `-1` if the path cannot be stat'ed |
 
-`split` / `splitext` / `abspath` / `normpath` are not yet lowered.
+Any other `os.path` member (`split`, `splitext`, `abspath`, `normpath`,
+`getmtime`, ...) is a compile error (`E5090`) naming the member -- unsupported
+stdlib never compiles silently.
 
 #### `random` -- Pseudo-Random Numbers
 
