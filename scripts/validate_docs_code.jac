@@ -6,7 +6,7 @@ to verify they have valid syntax. This catches syntax errors without requiring
 imports or types to be resolvable.
 
 Usage:
-    jac run docs/scripts/validate_docs_code.jac [-- --docs-dir PATH] [-- --verbose]
+    jac run scripts/validate_docs_code.jac [-- --docs-dir PATH] [-- --verbose]
 
 Exit codes:
     0 - All code blocks pass validation
@@ -148,6 +148,7 @@ def validate_code_blocks(code_blocks: list[CodeBlock]) -> list[ValidationResult]
 }
 
 glob SKIP_FILES = ["breaking-changes.md", ],
+     SKIP_DIRS = ["release_notes", ],
      parser = argparse.ArgumentParser(
          description="Validate Jac code blocks in documentation (syntax only)",
      );
@@ -156,8 +157,10 @@ with entry {
     parser.add_argument(
         "--docs-dir",
         type=Path,
-        default=Path(__file__).parent.parent / "docs",
-        help="Path to the docs directory (default: docs/docs)",
+        default=(
+            Path(__file__).parent.parent / "jac" / "jaclang" / "cli" / "docs"
+        ),
+        help="Path to the docs corpus (default: jac/jaclang/cli/docs)",
     );
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Show verbose output"
@@ -186,10 +189,13 @@ with entry {
             f
             for f in all_files
             if f.name not in SKIP_FILES
+                and not any(d in f.parts for d in SKIP_DIRS)
         ];
         skipped = len(all_files) - len(markdown_files);
         if skipped > 0 {
-            print(f"Skipping {skipped} file(s) in exclusion list: {SKIP_FILES}");
+            print(
+                f"Skipping {skipped} file(s): {SKIP_FILES} and dirs {SKIP_DIRS}"
+            );
         }
     }
 

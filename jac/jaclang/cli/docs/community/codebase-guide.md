@@ -41,7 +41,7 @@ Here's a quick map from contribution type to the right part of the codebase:
 | Improve IDE support | `jac/jaclang/lsp/` + `langserve/` |
 | Work on the scale subsystem | `jac/jaclang/scale/` (built-in deployment provider) |
 | Work on a built-in subsystem | `jac/jaclang/byllm/`, `jac/jaclang/cli/mcp/`, `jac/jaclang/scale/`, etc. |
-| Write or fix docs | `docs/docs/reference/` (most features go here) |
+| Write or fix docs | `jac/jaclang/cli/docs/reference/` (most features go here) |
 | Add a test | `jac/tests/` (mirror the directory of the code you're testing) |
 
 ---
@@ -55,7 +55,7 @@ jaseci/
 ├── jac/                  # Core language + built-in subsystems: compiler, runtime, CLI, LSP,
 │                         #   MCP server (jaclang/cli/mcp/), byLLM (jaclang/byllm/),
 │                         #   full-stack client/desktop framework, scale subsystem (jaclang/scale/)
-├── docs/                 # MkDocs documentation site
+├── release_notes/        # Unreleased release-note fragments (one file per PR)
 └── scripts/              # Release, CI, and utility scripts
 ```
 
@@ -223,17 +223,20 @@ Many language tests use **fixture files** -- small `.jac` programs in `fixtures/
 
 ## Documentation
 
-The docs use [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) and live in `docs/`:
+The entire documentation set lives inside the jaclang package at
+`jac/jaclang/cli/docs/` and ships with the `jac` binary -- `jac guide`
+serves it offline, the MCP server exposes it as `jac://docs/*` resources,
+and the website renders the same corpus:
 
 ```
-docs/
-├── mkdocs.yml              # Site configuration and navigation
-├── docs/
-│   ├── quick-guide/        # Getting-started content
-│   ├── reference/          # Comprehensive language & API reference
-│   ├── tutorials/          # Step-by-step learning content
-│   └── community/          # Contributor resources, release notes
-└── scripts/                # Doc generation and build scripts
+jac/jaclang/cli/docs/
+├── nav.json                # Section hierarchy, titles, and page order
+├── quick-guide/            # Getting-started content
+├── build/                  # "I like to build..." task-oriented entry points
+├── reference/              # Comprehensive language & API reference
+├── tutorials/              # Step-by-step learning content
+├── internals/              # Compiler architecture, contributor deep dives
+└── community/              # Contributor resources, release notes
 ```
 
 There are three documentation tiers with different contributor expectations:
@@ -242,12 +245,15 @@ There are three documentation tiers with different contributor expectations:
 2. **Full Reference** -- Must cover everything. **Every feature or change should update the reference docs.**
 3. **Tutorials** -- Hands-on learning guides for specific workflows.
 
-**Building docs locally:**
+**Validating docs locally:**
 
 ```bash
-pip install -e docs
-python docs/scripts/mkdocs_serve.py
+jac run scripts/validate_docs_code.jac        # syntax-check every code block
+cd jac && jac test tests/cli/test_docs_content.jac   # links, anchors, staleness
 ```
+
+Adding or removing a page means updating `nav.json` in the same PR -- a test
+pins the manifest to the files on disk.
 
 ---
 
@@ -262,7 +268,6 @@ GitHub Actions workflows in `.github/workflows/`:
 | `build-binaries.yml` | Builds the per-platform native `jac` binaries and attaches them to a release |
 | `release-dev.yml` | Rolling `dev` prerelease binaries on every push to main |
 | `nightly.yml` | Cron canaries: notes-app CEF smoke and the live-release installer check |
-| `deploy-docs.yml` | Deploy docs site to production |
 
 Local git hooks come from `jac precommit --install`: a pre-commit hook that formats and lints staged `.jac` files, and a commit-msg hook that blocks AI co-author attribution. Markdown lint and the em-dash ban run on every PR via pre-commit.ci (`.pre-commit-config.yaml`).
 

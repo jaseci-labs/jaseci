@@ -4,10 +4,10 @@ Every PR that changes package code must include a release note fragment file.
 
 ## How to add a release note
 
-1. Create a file at `docs/docs/community/release_notes/unreleased/<package>/<PR#>.<category>.md`
+1. Create a file at `release_notes/unreleased/<package>/<PR#>.<category>.md`
    - **Packages**: `jaclang`, `byllm`, `jac-scale`, `jac-mcp` (the former `jac-client` / `jac-desktop` plugins are now part of `jaclang` core -- file their fragments under `jaclang`)
    - **Categories**: `feature`, `bugfix`, `breaking`, `refactor`, or `docs`
-   - **Example**: `docs/docs/community/release_notes/unreleased/jaclang/1234.bugfix.md`
+   - **Example**: `release_notes/unreleased/jaclang/1234.bugfix.md`
 
 2. Add one or more bullet points in the file.
 
@@ -17,33 +17,39 @@ Every PR that changes package code must include a release note fragment file.
 - **Fix: Brief title**: Description of what changed.
 ```
 
+At release time the fragments are assembled into the release-notes page in
+the docs corpus (`jac/jaclang/cli/docs/community/release_notes/<package>.md`).
+If a fragment links to another doc, write the link relative to that page --
+for example `(../breaking-changes.md)`. The corpus link test validates the
+assembled page.
+
 ## Examples
 
-**Feature** (`docs/docs/community/release_notes/unreleased/jaclang/1234.feature.md`):
+**Feature** (`release_notes/unreleased/jaclang/1234.feature.md`):
 
 ```markdown
 - **Type Checker: Improved narrowing for AND/OR expressions**: Type narrowing now works correctly in nested ternary expressions and AND/OR chains.
 ```
 
-**Bug fix** (`docs/docs/community/release_notes/unreleased/jaclang/1234.bugfix.md`):
+**Bug fix** (`release_notes/unreleased/jaclang/1234.bugfix.md`):
 
 ```markdown
 - **Fix: `postinit` symbol resolution**: Fields declared with the `postinit` marker no longer show a false W2001 warning.
 ```
 
-**Breaking change** (`docs/docs/community/release_notes/unreleased/jaclang/1234.breaking.md`):
+**Breaking change** (`release_notes/unreleased/jaclang/1234.breaking.md`):
 
 ```markdown
 - **Breaking: Brief title**: What changed and what users need to do.
 ```
 
-**Refactor** (`docs/docs/community/release_notes/unreleased/jaclang/1234.refactor.md`):
+**Refactor** (`release_notes/unreleased/jaclang/1234.refactor.md`):
 
 ```markdown
 - **Refactor: Brief title**: Description of the internal change.
 ```
 
-**Documentation** (`docs/docs/community/release_notes/unreleased/jaclang/1234.docs.md`):
+**Documentation** (`release_notes/unreleased/jaclang/1234.docs.md`):
 
 ```markdown
 - **Docs: Brief title**: Description of the documentation update.

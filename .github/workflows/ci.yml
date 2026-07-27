@@ -47,7 +47,9 @@ jobs:
             byllm:
               - 'jac/jaclang/byllm/**'
             docs:
-              - 'docs/**'
+              - 'jac/jaclang/cli/docs/**'
+              - 'jac/jaclang/cli/skills/**'
+              - 'release_notes/**'
             desktop:
               - 'jac/jaclang/runtimelib/client/targets/desktop/**'
             installer:
@@ -491,37 +493,11 @@ jobs:
             exit 1
           fi
 
-      - name: Set up Python 3.12 (for the mkdocs docs build)
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-
       - name: Set up jac (build the binary)
         uses: ./.github/actions/setup-jac
 
-      - name: Install docs project (jaclang is host-provided by the binary)
-        run: jac install -e docs
-
-      - name: Validate Jac code block syntax
-        run: jac run docs/scripts/validate_docs_code.jac
-
-      - name: Build documentation and check links
-        working-directory: docs
-        run: jac -m mkdocs build --strict 2>&1 | tee build.log || true
-
-      - name: Report link warnings
-        working-directory: docs
-        run: |
-          if grep -i "warning" build.log | grep -i "link"; then
-            echo "## ⚠️ Documentation Link Warnings" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            grep -i "warning" build.log | grep -i "link" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## ✅ All Checks Passed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- Jac code block syntax: ✓" >> $GITHUB_STEP_SUMMARY
-            echo "- Internal links: ✓" >> $GITHUB_STEP_SUMMARY
-          fi
+      - name: Validate Jac code blocks in the docs corpus
+        run: jac run scripts/validate_docs_code.jac
 
       - name: Check Release Notes Updated
         if: |
@@ -631,27 +607,8 @@ jobs:
     - name: Run package tests
       run: jac test jac/jaclang/byllm/tests
 
-    - name: Install docs dependencies
-      run: jac install -e docs --global
-
-    - name: Build documentation
-      working-directory: docs
-      run: jac -m mkdocs build --strict
-
-    - name: Run documentation validation tests
-      working-directory: docs
-      run: jac test tests/test_docs.jac
-
-    - name: Install Playwright
-      working-directory: docs
-      run: |
-        jac install playwright
-        jac -m playwright install chromium --with-deps
-
-    - name: Run E2E code block tests
-      working-directory: docs
-      # Browser rendering is timing-flaky on CI; retry once (#6528, #6756).
-      run: jac test tests/e2e/test_code_blocks.jac -x || jac test tests/e2e/test_code_blocks.jac -x
+    - name: Run docs corpus tests
+      run: jac test jac/tests/cli/test_docs_content.jac jac/tests/cli/test_guide_docs.jac
 
   test-native-macos:
     needs: changes

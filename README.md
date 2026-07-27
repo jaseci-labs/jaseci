@@ -1,5 +1,5 @@
 <div align="center">
-  <img alt="Jac logo" src="docs/docs/assets/logo.png" width="80px">
+  <img alt="Jac logo" src=".github/assets/logo.png" width="80px">
 
   <h1>The Jac Programming Language</h1>
   <h3>One language, one compiler, the whole stack. No glue.</h3>
@@ -38,9 +38,9 @@
   </p>
 
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/demo-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/demo-light.svg">
-    <img alt="Install jac, create a web app, and serve it in three commands" src="docs/docs/assets/readme/demo-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/demo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/demo-light.svg">
+    <img alt="Install jac, create a web app, and serve it in three commands" src=".github/assets/readme/demo-light.svg" width="880">
   </picture>
 </div>
 
@@ -128,9 +128,9 @@ None of this is required by computation. The pattern traces to two silent assump
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/synechic-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/synechic-light.svg">
-    <img alt="A conventional stack is three separate programs (TypeScript frontend, Python backend, C native) joined by hand across unchecked JSON and FFI boundaries, so renaming a field ships a stale copy that fails in production; Jac is one continuous checked medium spanning cl, sv, and na tiers, importing npm, PyPI, and the C world directly, with one compiler seeing both sides of every call, so the same rename is a compile error" src="docs/docs/assets/readme/synechic-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/synechic-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/synechic-light.svg">
+    <img alt="A conventional stack is three separate programs (TypeScript frontend, Python backend, C native) joined by hand across unchecked JSON and FFI boundaries, so renaming a field ships a stale copy that fails in production; Jac is one continuous checked medium spanning cl, sv, and na tiers, importing npm, PyPI, and the C world directly, with one compiler seeing both sides of every call, so the same rename is a compile error" src=".github/assets/readme/synechic-light.svg" width="880">
   </picture>
 </div>
 
@@ -140,9 +140,9 @@ Hand-written glue (serializers, route tables, ORM models, API clients) is most o
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/gradual-borrow-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/gradual-borrow-light.svg">
-    <img alt="In a conventional stack, outgrowing the garbage collector means rewriting the hot path in Rust or C++ across an FFI boundary; Jac's gradual borrow checking is one continuum in one language, from fully managed code through own and borrow annotations to enforced zero-RC native artifacts, with a checked membrane mediating every value that crosses between the regimes" src="docs/docs/assets/readme/gradual-borrow-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/gradual-borrow-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/gradual-borrow-light.svg">
+    <img alt="In a conventional stack, outgrowing the garbage collector means rewriting the hot path in Rust or C++ across an FFI boundary; Jac's gradual borrow checking is one continuum in one language, from fully managed code through own and borrow annotations to enforced zero-RC native artifacts, with a checked membrane mediating every value that crosses between the regimes" src=".github/assets/readme/gradual-borrow-light.svg" width="880">
   </picture>
 </div>
 
@@ -173,9 +173,9 @@ The checker tracks only what you tag, so `node`, `edge`, and `walker` stay fully
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/topokinetic-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/topokinetic-light.svg">
-    <img alt="A conventional stack keeps the program stationary while data commutes to it over query and write-back round trips, and persistence is a commit call you must remember to fire; in Jac data lives as a persistent topology of nodes and edges, a walker carries computation through the graph dispatched by arrival, everything reachable from root persists while unreachable nodes do not, and the database dissolves into the language" src="docs/docs/assets/readme/topokinetic-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/topokinetic-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/topokinetic-light.svg">
+    <img alt="A conventional stack keeps the program stationary while data commutes to it over query and write-back round trips, and persistence is a commit call you must remember to fire; in Jac data lives as a persistent topology of nodes and edges, a walker carries computation through the graph dispatched by arrival, everything reachable from root persists while unreachable nodes do not, and the database dissolves into the language" src=".github/assets/readme/topokinetic-light.svg" width="880">
   </picture>
 </div>
 
@@ -241,9 +241,9 @@ One download replaces the interpreter, the JS runtime, the compilers and linker,
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/one-binary-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/one-binary-light.svg">
-    <img alt="The jac binary links in CPython, Bun, LLVM and a Zig linker, a package manager, a REST server, and a Kubernetes deployer, and builds every kind of artifact" src="docs/docs/assets/readme/one-binary-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/one-binary-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/one-binary-light.svg">
+    <img alt="The jac binary links in CPython, Bun, LLVM and a Zig linker, a package manager, a REST server, and a Kubernetes deployer, and builds every kind of artifact" src=".github/assets/readme/one-binary-light.svg" width="880">
   </picture>
 </div>
 
@@ -256,9 +256,9 @@ Here is the actual anatomy. The `jac` you download is a small native **launcher 
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/binary-anatomy-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/binary-anatomy-light.svg">
-    <img alt="Anatomy of the jac binary: a native launcher stub plus a runtime payload carrying a private CPython, the precompiled Jac compiler and runtime, a statically linked LLVM, the Bun executable, vendored typeshed stubs, and static libc archives" src="docs/docs/assets/readme/binary-anatomy-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/binary-anatomy-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/binary-anatomy-light.svg">
+    <img alt="Anatomy of the jac binary: a native launcher stub plus a runtime payload carrying a private CPython, the precompiled Jac compiler and runtime, a statically linked LLVM, the Bun executable, vendored typeshed stubs, and static libc archives" src=".github/assets/readme/binary-anatomy-light.svg" width="880">
   </picture>
 </div>
 
@@ -283,9 +283,9 @@ The anatomy records a design position. The components written in Jac (the compil
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/self-hosting-frontier-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/self-hosting-frontier-light.svg">
-    <img alt="The self-hosting frontier through the jac binary's payload: above the line, written in Jac, sit the compiler and runtime sealed as JIR, the type checker and dev tooling, and the linkers; below the line, carried in binary form for feature completeness, sit CPython, Bun, LLVM, and the C runtime archives; the frontier moves in one direction only, toward the operating system, the floor the artifact concedes" src="docs/docs/assets/readme/self-hosting-frontier-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/self-hosting-frontier-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/self-hosting-frontier-light.svg">
+    <img alt="The self-hosting frontier through the jac binary's payload: above the line, written in Jac, sit the compiler and runtime sealed as JIR, the type checker and dev tooling, and the linkers; below the line, carried in binary form for feature completeness, sit CPython, Bun, LLVM, and the C runtime archives; the frontier moves in one direction only, toward the operating system, the floor the artifact concedes" src=".github/assets/readme/self-hosting-frontier-light.svg" width="880">
   </picture>
 </div>
 

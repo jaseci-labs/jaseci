@@ -2290,7 +2290,7 @@ def write_routed_pages(dest: Path) {
 }
 
 """The fallback answers 200 only for paths a scanned client route can serve;
-everything else is an honest 404. A stale long-poll client (e.g. an mkdocs
+everything else is an honest 404. A stale long-poll client (e.g. a docs-site
 livereload tab) previously got 200 in ~3ms and busy-looped at ~300 req/s -
 non-200 is what flips such clients into their backoff path."""
 test "spa fallback status is route aware when pages exist" {

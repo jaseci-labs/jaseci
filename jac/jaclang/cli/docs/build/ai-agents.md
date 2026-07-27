@@ -32,7 +32,10 @@ That's the whole setup. With no key and no model configured, `by llm()` runs the
 export ANTHROPIC_API_KEY="your-key-here"   # or OPENAI_API_KEY, GEMINI_API_KEY, ...
 ```
 
---8<-- "snippets/model-config.md"
+```toml
+[byllm.model]
+default_model = "anthropic/claude-sonnet-4-6"   # any LiteLLM model id works -- ollama/gemma3:4b or local:gemma-4-e4b for free local inference
+```
 
 For **agentic** workflows, give the LLM tools and let it decide which to call:
 
