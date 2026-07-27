@@ -14,6 +14,7 @@ import from jaclang.jac0core.jir {
     SEC_INTEROP,
     SEC_NATIVE_OBJ,
     SEC_MODKEY,
+    SEC_PLACEMENT,
     FLAG_PRECOMPILED,
     get_module_cache_path,
     is_module_cache_valid,

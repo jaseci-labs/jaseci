@@ -285,6 +285,17 @@ impl JacCompiler.get_bytecode(
                 if interop_dict {
                     sections[SEC_INTEROP] = json.dumps(interop_dict).encode('utf-8');
                 }
+                try {
+                    import from jaclang.jac0core.placement {
+                        get_module_summary,
+                        summary_to_bytes
+                    }
+                    sections[SEC_PLACEMENT] = summary_to_bytes(
+                        get_module_summary(result, actual_program)
+                    );
+                } except Exception {
+                    ;
+                }
                 writer = JirWriter();
                 jir_bytes = writer.write_module(result, sections=sections);
                 cache_path.parent.mkdir(parents=True, exist_ok=True);
@@ -453,6 +464,19 @@ impl JacCompiler._restore_sections(
         try {
             mtir_map = pickle.loads(mtir_bytes);
             actual_program.mtir_map.update(mtir_map);
+        } except Exception {
+            ;
+        }
+    }
+
+    placement_bytes = secs.get(SEC_PLACEMENT);
+    if placement_bytes is not None {
+        try {
+            import from jaclang.jac0core.placement { summary_from_bytes, summary_store }
+            restored = summary_from_bytes(placement_bytes);
+            if restored is not None {
+                summary_store(actual_program)[os.path.abspath(full_target)] = restored;
+            }
         } except Exception {
             ;
         }

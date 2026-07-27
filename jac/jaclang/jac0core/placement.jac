@@ -1,0 +1,614 @@
+import os;
+import json;
+import jaclang.jac0core.unitree as uni;
+import from dataclasses { field }
+import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
+
+glob PLACEMENT_SCHEMA: int = 1,
+     PLACEMENT_SV_SIGNAL_NODES: tuple = (
+         uni.TypedCtxBlock,
+         uni.PyInlineCode,
+         uni.ClientBlock,
+         uni.ServerBlock,
+         uni.JsxElement
+     );
+
+obj ElementSummary {
+    has index: int = -1,
+        kind: str = '',
+        name: str = '',
+        pinned: str = '',
+        is_pub: bool = False,
+        sv_import: bool = False,
+        import_eco: str = '',
+        import_jac_target: str = '',
+        import_items: list[str] = field(default_factory=`list),
+        import_py_targets: list[str] = field(default_factory=`list),
+        reqs: list = field(default_factory=`list),
+        refs: list[int] = field(default_factory=`list),
+        escapes: list = field(default_factory=`list),
+        glob_writes: list[int] = field(default_factory=`list);
+
+    def to_dict -> dict {
+        return {
+            'index': self.index,
+            'kind': self.kind,
+            'name': self.name,
+            'pinned': self.pinned,
+            'is_pub': self.is_pub,
+            'sv_import': self.sv_import,
+            'import_eco': self.import_eco,
+            'import_jac_target': self.import_jac_target,
+            'import_items': list(self.import_items),
+            'import_py_targets': list(self.import_py_targets),
+            'reqs': [list(r) for r in self.reqs],
+            'refs': list(self.refs),
+            'escapes': [list(e) for e in self.escapes],
+            'glob_writes': list(self.glob_writes)
+        };
+    }
+
+    static def from_dict(d: dict) -> ElementSummary {
+        es = ElementSummary();
+        es.index = int(d.get('index', -1));
+        es.kind = str(d.get('kind', ''));
+        es.name = str(d.get('name', ''));
+        es.pinned = str(d.get('pinned', ''));
+        es.is_pub = bool(d.get('is_pub', False));
+        es.sv_import = bool(d.get('sv_import', False));
+        es.import_eco = str(d.get('import_eco', ''));
+        es.import_jac_target = str(d.get('import_jac_target', ''));
+        es.import_items = [str(x) for x in d.get('import_items', [])];
+        es.import_py_targets = [str(x) for x in d.get('import_py_targets', [])];
+        es.reqs = [list(r) for r in d.get('reqs', [])];
+        es.refs = [int(x) for x in d.get('refs', [])];
+        es.escapes = [list(e) for e in d.get('escapes', [])];
+        es.glob_writes = [int(x) for x in d.get('glob_writes', [])];
+        return es;
+    }
+}
+
+obj PlacementSummary {
+    has schema: int = 1,
+        mod_path: str = '',
+        decided: str = '',
+        anchors: list[str] = field(default_factory=`list),
+        native_blocker: str = '',
+        jac_deps: list[str] = field(default_factory=`list),
+        has_refs: bool = False,
+        elements: list[ElementSummary] = field(default_factory=`list);
+
+    def to_dict -> dict {
+        return {
+            'schema': self.schema,
+            'mod_path': self.mod_path,
+            'decided': self.decided,
+            'anchors': list(self.anchors),
+            'native_blocker': self.native_blocker,
+            'jac_deps': list(self.jac_deps),
+            'has_refs': self.has_refs,
+            'elements': [e.to_dict() for e in self.elements]
+        };
+    }
+
+    static def from_dict(d: dict) -> (PlacementSummary | None) {
+        if not isinstance(d, dict) or d.get('schema') != PLACEMENT_SCHEMA {
+            return None;
+        }
+        ps = PlacementSummary();
+        ps.mod_path = str(d.get('mod_path', ''));
+        ps.decided = str(d.get('decided', ''));
+        ps.anchors = [str(x) for x in d.get('anchors', [])];
+        ps.native_blocker = str(d.get('native_blocker', ''));
+        ps.jac_deps = [str(x) for x in d.get('jac_deps', [])];
+        ps.has_refs = bool(d.get('has_refs', False));
+        ps.elements = [ElementSummary.from_dict(e) for e in d.get('elements', [])];
+        return ps;
+    }
+}
+
+def summary_to_bytes(ps: PlacementSummary) -> bytes {
+    return json.dumps(ps.to_dict()).encode('utf-8');
+}
+
+def summary_from_bytes(data: bytes) -> (PlacementSummary | None) {
+    try {
+        return PlacementSummary.from_dict(json.loads(data.decode('utf-8')));
+    } except Exception {
+        return None;
+    }
+}
+
+def element_display_name(stmt: uni.UniNode) -> str {
+    if isinstance(stmt, uni.Ability) and isinstance(stmt.name_ref, uni.Name) {
+        return stmt.name_ref.value;
+    }
+    if isinstance(stmt, (uni.Archetype, uni.Enum, uni.TypeAlias)) {
+        return stmt.name.value;
+    }
+    if isinstance(stmt, uni.GlobalVars) {
+        names: list[str] = [];
+        for assign in stmt.assignments {
+            for tgt in assign.target {
+                if isinstance(tgt, uni.Name) {
+                    names.append(tgt.value);
+                }
+            }
+        }
+        return ",".join(names) if names else "<glob>";
+    }
+    if isinstance(stmt, uni.Import) {
+        if stmt.from_loc is not None {
+            return f"from:{stmt.from_loc.dot_path_str}";
+        }
+        parts: list[str] = [];
+        for item in stmt.items {
+            if isinstance(item, uni.ModulePath) {
+                parts.append(item.dot_path_str);
+            }
+        }
+        return "import:" + ",".join(parts) if parts else "<import>";
+    }
+    if isinstance(stmt, uni.ModuleCode) {
+        return "<entry>";
+    }
+    return f"<{type(stmt).__name__}>";
+}
+
+def _pinned_of(stmt: uni.UniNode) -> str {
+    if not isinstance(stmt, uni.ContextAwareNode) {
+        return '';
+    }
+    tok = stmt._source_context_token();
+    if tok is None {
+        return '';
+    }
+    if tok.name == Tok.KW_CLIENT {
+        return 'client';
+    }
+    if tok.name == Tok.KW_SERVER {
+        return 'server';
+    }
+    if tok.name == Tok.KW_NATIVE {
+        return 'native';
+    }
+    return '';
+}
+
+def _is_pub_element(stmt: uni.UniNode) -> bool {
+    return (
+        isinstance(stmt, (uni.Ability, uni.GlobalVars, uni.Archetype, uni.Enum))
+        and stmt.access is not None
+        and stmt.access.tag.name == Tok.KW_PUB
+    );
+}
+
+def _resolve_import_path(nd: (uni.ModulePath | uni.ModuleItem)) -> (str | None) {
+    try {
+        path = nd.resolve_relative_path();
+    } except Exception {
+        return None;
+    }
+    if path and os.path.exists(path) {
+        return path;
+    }
+    return None;
+}
+
+def _fill_import_facts(es: ElementSummary, imp: uni.Import) {
+    es.import_eco = imp.ecosystem;
+    es.sv_import = imp.is_sv_marked or imp.is_na_marked;
+    if imp.from_loc is not None {
+        for item in imp.items {
+            if isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name) {
+                es.import_items.append(item.name.value);
+            }
+        }
+        resolved = _resolve_import_path(imp.from_loc);
+        if resolved is not None and resolved.endswith('.jac') {
+            es.import_jac_target = os.path.abspath(resolved);
+        } elif es.import_eco == 'py' {
+            es.import_py_targets.append(imp.from_loc.dot_path_str);
+        }
+    } else {
+        for item in imp.items {
+            if isinstance(item, uni.ModulePath) {
+                resolved = _resolve_import_path(item);
+                if resolved is not None and resolved.endswith('.jac') {
+                    es.import_jac_target = os.path.abspath(resolved);
+                } elif es.import_eco == 'py' {
+                    es.import_py_targets.append(item.dot_path_str);
+                }
+            }
+        }
+    }
+}
+
+def _element_reqs(stmt: uni.UniNode) -> list {
+    reqs: list = [];
+    if isinstance(stmt, uni.Import) {
+        eco = stmt.ecosystem;
+        if stmt.has_clib_decls {
+            reqs.append(['FFI', 'clib extern import']);
+        } elif eco == 'string' {
+            reqs.append(['NPM', 'string-path import']);
+        } elif eco == 'virtual' {
+            reqs.append(['NPM', 'virtual @jac import']);
+        } elif eco == 'py' {
+            reqs.append(['PY', 'python import']);
+        }
+        return reqs;
+    }
+    if isinstance(stmt, uni.PyInlineCode) {
+        reqs.append(['PY', 'inline ::py:: block']);
+        return reqs;
+    }
+    if stmt.get_all_sub_nodes(uni.JsxElement) {
+        reqs.append(['DOM', 'jsx construction']);
+    }
+    for svr in stmt.get_all_sub_nodes(uni.SpecialVarRef) {
+        if svr.orig.name == Tok.KW_ROOT {
+            reqs.append(['PERSIST', 'root access']);
+            break;
+        }
+    }
+    if isinstance(stmt, uni.Archetype) and stmt.arch_kind is not None {
+        reqs.append(['PERSIST', f"{stmt.arch_kind} archetype"]);
+    }
+    for ab in stmt.get_all_sub_nodes(uni.Ability) {
+        if ab.is_async {
+            reqs.append(['SERVER', 'async ability']);
+            break;
+        }
+    }
+    if isinstance(stmt, uni.Ability)
+    and isinstance(stmt.signature, uni.EventSignature) {
+        reqs.append(['SERVER', 'event ability outside an archetype']);
+    }
+    if _is_pub_element(stmt) {
+        reqs.append(['ENDPOINT', 'pub access']);
+    }
+    return reqs;
+}
+
+def _summary_top_element(module: uni.Module, nd: uni.UniNode) -> (uni.UniNode | None) {
+    cur: (uni.UniNode | None) = nd;
+    while (cur is not None and cur.parent is not module) {
+        cur = cur.parent;
+    }
+    return cur;
+}
+
+def _element_ref_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
+    refs: set[int] = set();
+    for nm in elem.get_all_sub_nodes(uni.Name) {
+        par = nm.parent;
+        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+            continue;
+        }
+        tab = nm?.sym_tab;
+        if tab is None {
+            continue;
+        }
+        sym = tab.lookup(name=nm.value, deep=True);
+        if sym is None {
+            continue;
+        }
+        decl = sym.decl;
+        if decl is None {
+            continue;
+        }
+        top = _summary_top_element(module, decl);
+        if (top is None or top is elem) {
+            continue;
+        }
+        refs.add(id(top));
+    }
+    return refs;
+}
+
+def _element_glob_write_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
+    writes: set[int] = set();
+    for assign in elem.get_all_sub_nodes(uni.Assignment) {
+        for tgt in assign.target {
+            if not isinstance(tgt, uni.Name) {
+                continue;
+            }
+            tab = tgt?.sym_tab;
+            if tab is None {
+                continue;
+            }
+            sym = tab.lookup(name=tgt.value, deep=True);
+            if sym is None or sym.decl is None {
+                continue;
+            }
+            top = _summary_top_element(module, sym.decl);
+            if (
+                top is not None and top is not elem and isinstance(top, uni.GlobalVars)
+            ) {
+                writes.add(id(top));
+            }
+        }
+    }
+    return writes;
+}
+
+def _references_browser_seed_global(elem: uni.UniNode) -> str {
+    import from jaclang.jac0core.constant { BROWSER_SEED_GLOBALS }
+    for nm in elem.get_all_sub_nodes(uni.Name) {
+        if nm.value not in BROWSER_SEED_GLOBALS {
+            continue;
+        }
+        par = nm.parent;
+        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+            continue;
+        }
+        tab = nm?.sym_tab;
+        if tab is None {
+            continue;
+        }
+        if tab.lookup(name=nm.value, deep=True) is None {
+            return nm.value;
+        }
+    }
+    return '';
+}
+
+def module_anchor_reasons(module: uni.Module) -> list[str] {
+    reasons: list[str] = [];
+    for arch in module.get_all_sub_nodes(uni.Archetype) {
+        if arch.arch_kind is not None {
+            reasons.append(f"graph archetype '{arch.name.value}'");
+            break;
+        }
+    }
+    if module.get_all_sub_nodes(uni.PyInlineCode) {
+        reasons.append('inline ::py:: block');
+    }
+    for stmt in module.body {
+        if isinstance(stmt, uni.ServerBlock) {
+            reasons.append('sv block');
+            break;
+        }
+        if isinstance(stmt, uni.TypedCtxBlock) {
+            reasons.append('typed context block');
+            break;
+        }
+    }
+    for imp in module.get_all_sub_nodes(uni.Import) {
+        if imp.has_clib_decls or imp.is_virtual_jac or imp.has_string_path {
+            continue;
+        }
+        if imp.from_loc is None {
+            reasons.append('plain python import');
+            break;
+        }
+        resolved = None;
+        try {
+            resolved = imp.from_loc.resolve_relative_path();
+        } except Exception {
+            resolved = None;
+        }
+        if not isinstance(resolved, str) or not resolved.endswith('.jac') {
+            reasons.append('plain python import');
+            break;
+        }
+    }
+    return reasons;
+}
+
+def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[str]] {
+    import from jaclang.jac0core.codeinfo {
+        NATIVE_SUPPORTED_STDLIB,
+        is_bundled_native_module,
+        resolve_native_module
+    }
+    deps: list[str] = [];
+    for typ in PLACEMENT_SV_SIGNAL_NODES {
+        if module.get_all_sub_nodes(typ) {
+            return (f"contains {typ.__name__}", deps);
+        }
+    }
+    for svr in module.get_all_sub_nodes(uni.SpecialVarRef) {
+        if svr.orig.name == Tok.KW_ROOT {
+            return ("root access (persistent graph)", deps);
+        }
+    }
+    for ab in module.get_all_sub_nodes(uni.Ability) {
+        if ab.is_async {
+            return ("async ability", deps);
+        }
+        if isinstance(ab.signature, uni.EventSignature) {
+            if ab.find_parent_of_type(uni.Archetype) is None {
+                return ("event ability outside an archetype", deps);
+            }
+            _ti = ab.signature.arch_tag_info;
+            _ti_names = [_ti]
+                if isinstance(_ti, uni.Name)
+                else (_ti.get_all_sub_nodes(uni.Name) if _ti is not None else []);
+            for _tn in _ti_names {
+                if _tn.value in ("Root", "root") {
+                    return ("root access (persistent graph)", deps);
+                }
+            }
+        }
+    }
+    for stmt in module.body {
+        if isinstance(stmt, uni.ContextAwareNode) {
+            tok = stmt._source_context_token();
+            if tok is not None and tok.name in (Tok.KW_SERVER, Tok.KW_CLIENT) {
+                return ("explicit sv/cl marker", deps);
+            }
+        }
+        if _is_pub_element(stmt) {
+            return ("pub access", deps);
+        }
+    }
+    for imp in module.get_all_sub_nodes(uni.Import) {
+        if imp.has_clib_decls {
+            continue;
+        }
+        if imp.is_virtual_jac or imp.has_string_path {
+            return ("virtual/string-path import", deps);
+        }
+        targets: list[tuple[str, (str | None), bool, bool]] = [];
+        if imp.from_loc is not None {
+            targets.append(
+                (
+                    imp.from_loc.dot_path_str,
+                    _resolve_import_path(imp.from_loc),
+                    False,
+                    False
+                )
+            );
+            for item in imp.items {
+                if isinstance(item, uni.ModuleItem) {
+                    item_path = _resolve_import_path(item);
+                    if item_path is not None {
+                        targets.append(("", item_path, False, False));
+                    }
+                }
+            }
+        } else {
+            for item in imp.items {
+                if isinstance(item, uni.ModulePath) {
+                    targets.append(
+                        (
+                            item.dot_path_str,
+                            _resolve_import_path(item),
+                            not imp.is_absorb,
+                            not imp.is_absorb
+                            and item.alias is None
+                            and len(item.path) == 1
+                        )
+                    );
+                }
+            }
+        }
+        for (name, path, is_bare, is_plain_bare) in targets {
+            clean = name.lstrip('.') if name else '';
+            if is_bare {
+                if clean and clean in NATIVE_SUPPORTED_STDLIB {
+                    continue;
+                }
+                if clean and is_bundled_native_module(clean) {
+                    continue;
+                }
+                if not (is_plain_bare and path is not None and path.endswith('.jac')) {
+                    return (f"non-native import '{clean}'", deps);
+                }
+            }
+            if path is not None and path.endswith('.na.jac') {
+                continue;
+            }
+            if path is not None
+            and (path.endswith('.cl.jac') or path.endswith('.sv.jac')) {
+                return ("cl/sv module import", deps);
+            }
+            if path is not None and path.endswith('.jac') {
+                deps.append(os.path.abspath(path));
+                continue;
+            }
+            if clean and clean in NATIVE_SUPPORTED_STDLIB {
+                continue;
+            }
+            if clean and is_bundled_native_module(clean) {
+                continue;
+            }
+            if clean
+            and resolve_native_module(clean, base_dir, allow_inferred=False)[
+                1
+            ] is not None {
+                continue;
+            }
+            return (f"unresolved import '{clean}'", deps);
+        }
+    }
+    return ('', deps);
+}
+
+def summarize_module(module: uni.Module, with_refs: bool = True) -> PlacementSummary {
+    ps = PlacementSummary();
+    ps.schema = PLACEMENT_SCHEMA;
+    ps.mod_path = module.loc.mod_path or '';
+    ps.decided = module.decided_codespace or '';
+    ps.anchors = module_anchor_reasons(module);
+    base_dir = os.path.dirname(os.path.abspath(ps.mod_path)) if ps.mod_path else '';
+    (blocker, deps) = scan_native_blockers(module, base_dir);
+    ps.native_blocker = blocker;
+    ps.jac_deps = deps;
+    ps.has_refs = with_refs;
+    index_by_id: dict[int, int] = {};
+    for (idx, stmt) in enumerate(module.body) {
+        index_by_id[id(stmt)] = idx;
+    }
+    server_anchored = bool(ps.anchors);
+    for (idx, stmt) in enumerate(module.body) {
+        if not isinstance(stmt, uni.UniNode) {
+            continue;
+        }
+        es = ElementSummary();
+        es.index = idx;
+        es.kind = type(stmt).__name__;
+        es.name = element_display_name(stmt);
+        es.pinned = _pinned_of(stmt);
+        es.is_pub = _is_pub_element(stmt);
+        es.reqs = _element_reqs(stmt);
+        if isinstance(stmt, uni.Import) {
+            _fill_import_facts(es, stmt);
+        }
+        if with_refs {
+            if (
+                not server_anchored
+                and not isinstance(stmt, uni.Import)
+                and not es.pinned
+            ) {
+                seed_global = _references_browser_seed_global(stmt);
+                if seed_global {
+                    es.reqs.append(['DOM', f"browser global '{seed_global}'"]);
+                }
+            }
+            for rid in _element_ref_ids(module, stmt) {
+                ridx = index_by_id.get(rid);
+                if ridx is not None {
+                    es.refs.append(ridx);
+                }
+            }
+            es.refs.sort();
+            for wid in _element_glob_write_ids(module, stmt) {
+                widx = index_by_id.get(wid);
+                if widx is not None {
+                    es.glob_writes.append(widx);
+                }
+            }
+            es.glob_writes.sort();
+        }
+        ps.elements.append(es);
+    }
+    return ps;
+}
+
+def summary_store(prog: object) -> dict {
+    store = prog?._placement_summaries;
+    if store is None {
+        store = {};
+        prog._placement_summaries = store;
+    }
+    return store;
+}
+
+def get_module_summary(
+    module: uni.Module, prog: object, with_refs: bool = True
+) -> PlacementSummary {
+    store = summary_store(prog);
+    key = os.path.abspath(module.loc.mod_path) if module.loc.mod_path else '';
+    cached = store.get(key);
+    if (isinstance(cached, PlacementSummary) and (cached.has_refs or not with_refs)) {
+        return cached;
+    }
+    ps = summarize_module(module, with_refs=with_refs);
+    if key {
+        store[key] = ps;
+    }
+    return ps;
+}
