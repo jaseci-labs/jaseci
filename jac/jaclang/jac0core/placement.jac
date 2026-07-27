@@ -747,12 +747,129 @@ def collect_placement_rows(prog: object) -> dict {
                 }
             );
         }
+        crossings = 0;
+        for stmt in mod.body {
+            if not (
+                isinstance(stmt, uni.Import) and stmt.code_context == CodeContext.CLIENT
+            ) {
+                continue;
+            }
+            try {
+                import from jaclang.compiler.symbol_utils {
+                    ClientImportVerdict,
+                    classify_client_import_item,
+                    is_client_boundary_import,
+                    resolve_import_source_module
+                }
+                if is_client_boundary_import(stmt) {
+                    src = resolve_import_source_module(prog, stmt);
+                    if src is not None {
+                        for item in stmt.items {
+                            verdict = classify_client_import_item(src, item);
+                            if verdict == ClientImportVerdict.BRIDGED {
+                                crossings += 1;
+                            }
+                        }
+                    }
+                }
+            } except Exception {
+                ;
+            }
+        }
         rows_by_module[os.path.abspath(str(mod_path))] = {
             'decided': mod.decided_codespace or '',
-            'rows': mod_rows
+            'rows': mod_rows,
+            'crossings': crossings
         };
     }
     return rows_by_module;
+}
+
+glob PLACEMENT_LOCK_NAME: str = 'jac.placements.lock';
+
+def placement_lock_file_for(mod_path: str) -> str {
+    d = os.path.dirname(os.path.abspath(mod_path));
+    cur = d;
+    while True {
+        if os.path.exists(os.path.join(cur, 'jac.toml')) {
+            return os.path.join(cur, PLACEMENT_LOCK_NAME);
+        }
+        parent = os.path.dirname(cur);
+        if parent == cur {
+            break;
+        }
+        cur = parent;
+    }
+    return os.path.join(d, PLACEMENT_LOCK_NAME);
+}
+
+def load_placement_lock(lock_path: str) -> (dict | None) {
+    if not os.path.exists(lock_path) {
+        return None;
+    }
+    try {
+        with open(lock_path, 'r') as f {
+            data = json.load(f);
+        }
+        if isinstance(data, dict) and data.get('schema') == 1 {
+            return data.get('modules', {});
+        }
+    } except Exception {
+        ;
+    }
+    return None;
+}
+
+def lock_entries_from_rows(rows_by_module: dict, lock_dir: str) -> dict {
+    modules: dict = {};
+    for (path, entry) in rows_by_module.items() {
+        try {
+            rel = os.path.relpath(path, lock_dir);
+        } except ValueError {
+            rel = path;
+        }
+        spaces: dict = {};
+        for row in entry['rows'] {
+            space = 'dual' if row['dual'] else row['space'];
+            rkind = row['kind'];
+            rname = row['name'];
+            spaces[f"{rkind}:{rname}"] = space;
+        }
+        modules[rel] = spaces;
+    }
+    return modules;
+}
+
+def write_placement_lock(lock_path: str, rows_by_module: dict) {
+    lock_dir = os.path.dirname(os.path.abspath(lock_path));
+    payload = {
+        'schema': 1,
+        'modules': lock_entries_from_rows(rows_by_module, lock_dir)
+    };
+    with open(lock_path, 'w') as f {
+        json.dump(payload, f, indent=1, sort_keys=True);
+        f.write('\n');
+    }
+}
+
+def diff_rows_vs_lock(
+    rows_by_module: dict, locked_modules: dict, lock_dir: str
+) -> list[str] {
+    flips: list[str] = [];
+    current = lock_entries_from_rows(rows_by_module, lock_dir);
+    for (rel, spaces) in current.items() {
+        locked = locked_modules.get(rel);
+        if locked is None {
+            continue;
+        }
+        for (key, space) in spaces.items() {
+            was = locked.get(key);
+            if was is not None and was != space {
+                flips.append(f"{rel} :: {key}: {was} -> {space}");
+            }
+        }
+    }
+    return flips;
 }
 
 def get_module_summary(
