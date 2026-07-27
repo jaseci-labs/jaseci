@@ -520,6 +520,19 @@ obj KubernetesTarget(DeploymentTarget) {
                 core_v1.read_namespaced_service(
                     name=redis_service_name, namespace=namespace
                 );
+
+                core_v1.patch_namespaced_service(
+                    name=redis_service_name,
+                    namespace=namespace,
+                    body={
+                        'metadata': {
+                            'labels': {
+                                ** redis_result['service']['metadata']['labels'],
+                                'managed-by': None
+                            }
+                        }
+                    }
+                );
             } except ApiException as e {
                 if (e.status == 404) {
                     core_v1.create_namespaced_service(
