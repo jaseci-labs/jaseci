@@ -64,7 +64,7 @@ The full Scale reference is organized into three pages:
 |------|--------|
 | **[HTTP API & Walkers](jac-scale-http.md)** | Starting a server, automatic API endpoint generation, the `@restspec` decorator, middleware walkers, authentication (identity model, registration/login, JWT, SSO, password reset, roles), the admin portal, permissions & access control, webhooks, WebSockets, microservice interop (sv-to-sv), the emailer, CLI commands, API documentation, and graph visualization. |
 | **[Data & Storage](jac-scale-persistence.md)** | Object storage (`store()`, local & S3/GCS-compatible backends), the graph traversal API, async walkers, direct database access (kvstore), MongoDB / Firestore / Redis operations, distributed locks, event streaming, database & dashboards (auto-provisioning, memory hierarchy), and graph builtins. |
-| **[Kubernetes & Operations](jac-scale-kubernetes.md)** | Kubernetes deployment (modes, ingress, TLS, autoscaling, storage, images, package pinning, monitoring stack), health checks, Prometheus metrics, Kubernetes secrets, remote image registry, pre-bound ServiceAccount, cross-service shared volumes, microservice mode in Kubernetes, cluster setup, troubleshooting, and sandbox environments. |
+| **[Kubernetes & Operations](jac-scale-kubernetes.md)** | Kubernetes deployment (modes, ingress, TLS, autoscaling, storage, images, version pinning, monitoring stack), health checks, Prometheus metrics, Kubernetes secrets, pre-bound ServiceAccount, cross-service shared volumes, microservice mode in Kubernetes, cluster setup, and troubleshooting. |
 
 For end-to-end walkthroughs rather than reference material, see the Deploy tutorials:
 
