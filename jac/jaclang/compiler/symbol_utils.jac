@@ -2,7 +2,7 @@ import from collections.abc { Sequence }
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok, SymbolType }
-import from jaclang.jac0core.diagnostics { E5082 }
+import from jaclang.jac0core.diagnostics { E5082, W6006, W6007 }
 
 enum CallKind {
     METHOD = "method",
@@ -572,4 +572,69 @@ def report_dead_client_import(
         }
     }
     reporter.emit(E5082, node_override=item, name=name, module=module_name);
+}
+
+def _already_warned(reporter: any, diag: any, nd: uni.UniNode) -> bool {
+    for w in reporter.prog.warnings_had {
+        if (
+            w.code is diag
+            and w.loc.mod_path == nd.loc.mod_path
+            and w.loc.first_line == nd.loc.first_line
+            and w.loc.col_start == nd.loc.col_start
+        ) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def report_placement_warnings(reporter: any, mod: uni.Module) {
+    import from jaclang.jac0core.placement { get_module_summary }
+    import from jaclang.jac0core.constant { CodeContext }
+    ps = get_module_summary(mod, reporter.prog);
+    written_glob_idxs: set[int] = set();
+    for es in ps.elements {
+        for widx in es.glob_writes {
+            written_glob_idxs.add(widx);
+        }
+    }
+    for (idx, stmt) in enumerate(mod.body) {
+        if not isinstance(stmt, uni.ContextAwareNode) {
+            continue;
+        }
+        if (
+            isinstance(stmt, uni.GlobalVars)
+            and stmt.codespace_dual
+            and idx in written_glob_idxs
+        ) {
+            es = ps.elements[idx] if idx < len(ps.elements) else None;
+            gname = es.name if es is not None else 'glob';
+            if not _already_warned(reporter, W6006, stmt) {
+                reporter.emit(W6006, node_override=stmt, name=gname);
+            }
+        }
+        is_clientish = stmt.code_context == CodeContext.CLIENT or stmt.codespace_dual;
+        if not is_clientish or idx >= len(ps.elements) {
+            continue;
+        }
+        for esc in ps.elements[idx].escapes {
+            tidx = esc[0];
+            if tidx >= len(mod.body) {
+                continue;
+            }
+            target = mod.body[tidx];
+            if (
+                isinstance(target, uni.ContextAwareNode)
+                and isinstance(target, uni.Ability)
+                and target.code_context == CodeContext.SERVER
+                and not target.codespace_dual
+            ) {
+                tes = ps.elements[tidx] if tidx < len(ps.elements) else None;
+                tname = tes.name if tes is not None else 'function';
+                if not _already_warned(reporter, W6007, stmt) {
+                    reporter.emit(W6007, node_override=stmt, name=tname);
+                }
+            }
+        }
+    }
 }

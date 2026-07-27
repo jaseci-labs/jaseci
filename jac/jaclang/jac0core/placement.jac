@@ -307,6 +307,73 @@ def _element_ref_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
     return refs;
 }
 
+def _escape_kind(nm: uni.Name, elem: uni.UniNode) -> str {
+    prev: uni.UniNode = nm;
+    cur = nm.parent;
+    while cur is not None and cur is not elem {
+        if isinstance(cur, uni.FuncCall) {
+            if cur.target is prev {
+                return '';
+            }
+            return 'call-arg';
+        }
+        if isinstance(cur, uni.ReturnStmt) {
+            return 'returned';
+        }
+        if isinstance(cur, (uni.ListVal, uni.TupleVal, uni.SetVal, uni.DictVal)) {
+            return 'container';
+        }
+        if isinstance(cur, uni.Assignment) {
+            if any(t is prev for t in cur.target) {
+                return '';
+            }
+            return 'assigned';
+        }
+        prev = cur;
+        cur = cur.parent;
+    }
+    return '';
+}
+
+def _element_escape_edges(module: uni.Module, elem: uni.UniNode) -> list {
+    edges: list = [];
+    seen: set[tuple] = set();
+    for nm in elem.get_all_sub_nodes(uni.Name) {
+        par = nm.parent;
+        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+            continue;
+        }
+        tab = nm?.sym_tab;
+        if tab is None {
+            continue;
+        }
+        sym = tab.lookup(name=nm.value, deep=True);
+        if sym is None or sym.decl is None {
+            continue;
+        }
+        top = _summary_top_element(module, sym.decl);
+        if (
+            top is None
+            or top is elem
+            or not isinstance(top, uni.Ability)
+            or top.is_method
+        ) {
+            continue;
+        }
+        kind = _escape_kind(nm, elem);
+        if not kind {
+            continue;
+        }
+        key = (id(top), kind);
+        if key in seen {
+            continue;
+        }
+        seen.add(key);
+        edges.append([id(top), kind]);
+    }
+    return edges;
+}
+
 def _element_glob_write_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
     writes: set[int] = set();
     for assign in elem.get_all_sub_nodes(uni.Assignment) {
@@ -582,6 +649,12 @@ def summarize_module(module: uni.Module, with_refs: bool = True) -> PlacementSum
                 }
             }
             es.glob_writes.sort();
+            for esc in _element_escape_edges(module, stmt) {
+                eidx = index_by_id.get(esc[0]);
+                if eidx is not None {
+                    es.escapes.append([eidx, esc[1]]);
+                }
+            }
         }
         ps.elements.append(es);
     }

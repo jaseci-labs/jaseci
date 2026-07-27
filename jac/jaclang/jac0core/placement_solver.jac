@@ -618,6 +618,58 @@ def solve_module_placement(
     return stamp_count[0];
 }
 
+def _emit_solver_warning(prog: object, diag: object, nd: uni.UniNode, **kwargs: any) {
+    import from jaclang.jac0core.passes.transform { Alert }
+    for w in prog.warnings_had {
+        if (
+            w.code is diag
+            and w.loc.mod_path == nd.loc.mod_path
+            and w.loc.first_line == nd.loc.first_line
+            and w.loc.col_start == nd.loc.col_start
+        ) {
+            return;
+        }
+    }
+    try {
+        prog.warnings_had.append(
+            Alert(
+                msg=diag.format_message(**kwargs),
+                loc=nd.loc.snapshot(),
+                from_pass=PlacementApplyPass,
+                code=diag,
+                help_text=diag.format_help(**kwargs)
+            )
+        );
+    } except Exception {
+        ;
+    }
+}
+
+def _warn_state_forks(target: uni.Module, prog: object) {
+    import from jaclang.jac0core.diagnostics { W6006 }
+    ps = get_module_summary(target, prog);
+    written: set[int] = set();
+    for es in ps.elements {
+        for widx in es.glob_writes {
+            written.add(widx);
+        }
+    }
+    for (idx, stmt) in enumerate(target.body) {
+        if (
+            isinstance(stmt, uni.GlobalVars) and stmt.codespace_dual and idx in written
+        ) {
+            gname = ps.elements[idx].name if idx < len(ps.elements) else 'glob';
+            _emit_solver_warning(prog, W6006, stmt, name=gname);
+            record_placement_evidence(
+                prog,
+                target.loc.mod_path or '',
+                idx,
+                "state fork: mutable glob duplicated across spaces (W6006)"
+            );
+        }
+    }
+}
+
 def _pull_into_target(
     imp: uni.Import, target: uni.Module, module: uni.Module, prog: object
 ) -> int {
@@ -638,6 +690,7 @@ def _pull_into_target(
         target, prog, seed_ref_ids=seed_ids, dual=True, pull_dependents=False
     );
     if new_stamps {
+        _warn_state_forks(target, prog);
         importer = os.path.basename(module.loc.mod_path or '');
         tidx_by_id: dict[int, int] = {};
         for (tidx, tstmt) in enumerate(target.body) {
