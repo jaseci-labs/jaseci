@@ -18,15 +18,16 @@ jac start
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--port` `-p` | Server port (auto-fallback if in use) | 8000 |
-| `--main` `-m` | Treat as `__main__` | false |
+| `--main` `-m` | Treat as `__main__` | true |
 | `--faux` `-f` | Print generated API docs only (no server) | false |
 | `--dev` `-d` | Enable HMR (Hot Module Replacement) mode | false |
 | `--api_port` `-a` | Separate API port for HMR mode (0=same as port) | 0 |
 | `--no-client` `-n` | Skip client bundling/serving (API only) | false |
 | `--profile` | Configuration profile to load (e.g. prod, staging) | - |
-| `--client` | Client build target for dev server (web, desktop, pwa) | - |
+| `--client` | Client build target for dev server (web, pwa, mobile, desktop) | web |
+| `--host` | Mobile dev (`--client mobile --dev`): host/IP override for Capacitor live-reload (auto-selected when omitted) | - |
+| `--platform` | Mobile start/dev: `android` or `ios` (`auto` uses `[client.mobile]` default_platform, or android) | auto |
 | `--scale` | Deploy to a target platform instead of running locally | false |
-| `--experimental` `-e` | Use experimental mode (install from repo instead of PyPI) | false |
 | `--target` | Deployment target (kubernetes, aws, gcp) | kubernetes |
 | `--enable-tls` | Enable HTTPS via Let's Encrypt (run after pointing your domain CNAME to the NLB) | false |
 | `--dry-run` | Print the manifests that would be applied; change nothing | false |

@@ -287,7 +287,7 @@ storage_class = "efs-sc"
 
 Each entry is an array-of-tables (note the double brackets), so you can declare multiple shared volumes in the same project. The microservice target creates one PersistentVolumeClaim per entry and adds the corresponding `volumeMount` to every service named in `services`. PVCs and mounts come up in the right order during `apply_manifests`, so pods do not crash-loop with "PVC not found".
 
-> **Note on EFS access points.** EFS CSI access points enforce a POSIX UID on every file. The shipped image marks `*` as a [git safe.directory](https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory) so in-pod `git` commands inside the shared volume do not trip CVE-2022-24765 ownership checks when the EFS UID differs from the pod's running UID. If you bake your own image, add `RUN git config --system --add safe.directory '*'`.
+> **Note on EFS access points.** EFS CSI access points enforce a POSIX UID on every file. When the EFS UID differs from the pod's running UID, in-pod `git` commands inside the shared volume trip CVE-2022-24765 ownership checks. Work around it by marking `*` as a [git safe.directory](https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory) in your pod -- e.g. bake `RUN git config --system --add safe.directory '*'` into a custom `python_image`.
 
 ---
 
