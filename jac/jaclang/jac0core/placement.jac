@@ -597,6 +597,91 @@ def summary_store(prog: object) -> dict {
     return store;
 }
 
+def placement_state(prog: object) -> dict {
+    state = prog?._placement_state;
+    if state is None {
+        state = {};
+        prog._placement_state = state;
+    }
+    return state;
+}
+
+def record_placement_evidence(prog: object, mod_path: str, index: int, note: str) {
+    state = placement_state(prog);
+    evidence = state.get('evidence');
+    if evidence is None {
+        evidence = {};
+        state['evidence'] = evidence;
+    }
+    key = f"{os.path.abspath(mod_path)}::{index}";
+    notes = evidence.get(key);
+    if notes is None {
+        notes = [];
+        evidence[key] = notes;
+    }
+    if note not in notes {
+        notes.append(note);
+    }
+}
+
+def collect_placement_rows(prog: object) -> dict {
+    rows_by_module: dict = {};
+    hub = prog?.mod?.hub;
+    if not hub {
+        return rows_by_module;
+    }
+    state = placement_state(prog);
+    evidence = state.get('evidence', {});
+    for (path, mod) in hub.items() {
+        if not isinstance(mod, uni.Module) {
+            continue;
+        }
+        mod_path = mod.loc.mod_path or path;
+        if not str(mod_path).endswith('.jac') {
+            continue;
+        }
+        ps = get_module_summary(mod, prog);
+        mod_rows: list = [];
+        for (idx, stmt) in enumerate(mod.body) {
+            if not isinstance(stmt, uni.ContextAwareNode) {
+                continue;
+            }
+            es = ps.elements[idx] if idx < len(ps.elements) else None;
+            notes: list[str] = [];
+            if es is not None {
+                if es.pinned {
+                    notes.append(f"explicit '{es.pinned}' marker");
+                }
+                for req in es.reqs {
+                    if len(req) >= 2 {
+                        notes.append(f"{req[0]}: {req[1]}");
+                    }
+                }
+            }
+            key = f"{os.path.abspath(str(mod_path))}::{idx}";
+            for extra in evidence.get(key, []) {
+                if extra not in notes {
+                    notes.append(extra);
+                }
+            }
+            mod_rows.append(
+                {
+                    'name': (es.name if es is not None else element_display_name(stmt)),
+                    'kind': type(stmt).__name__,
+                    'space': stmt.code_context.value,
+                    'dual': stmt.codespace_dual,
+                    'evidence': notes
+                }
+            );
+        }
+        rows_by_module[os.path.abspath(str(mod_path))] = {
+            'decided': mod.decided_codespace or '',
+            'rows': mod_rows
+        };
+    }
+    return rows_by_module;
+}
+
 def get_module_summary(
     module: uni.Module, prog: object, with_refs: bool = True
 ) -> PlacementSummary {

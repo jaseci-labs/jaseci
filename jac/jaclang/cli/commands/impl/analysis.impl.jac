@@ -6,7 +6,8 @@ import from jaclang.cli.check_report {
     print_failures,
     print_failed_summary,
     print_final_summary,
-    print_native_census
+    print_native_census,
+    print_placement_report
 }
 
 def _maybe_malloc_trim {
@@ -25,7 +26,8 @@ impl check(
     nowarn: bool = False,
     lint_only: bool = False,
     fix: bool = False,
-    native_census: bool = False
+    native_census: bool = False,
+    placements: bool = False
 ) -> int {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
@@ -76,6 +78,7 @@ impl check(
     }
 
     failed_results: list[dict] = [];
+    placement_report: dict = {};
     def check_single_file(
         prog: JacProgram, file_path: str
     ) -> tuple[bool, int, int, list, list] {
@@ -107,6 +110,10 @@ impl check(
                 )
             );
 
+            if placements {
+                import from jaclang.jac0core.placement { collect_placement_rows }
+                placement_report.update(collect_placement_rows(prog));
+            }
             for m in prog.mod.hub.values() {
                 m.terminals = [];
                 m.src_terminals = [];
@@ -168,6 +175,9 @@ impl check(
     if native_census {
         import from jaclang.jac0core.compiler { na_census_end }
         print_native_census(na_census_end());
+    }
+    if placements {
+        print_placement_report(placement_report);
     }
     if print_errs and len(failed_results) > 0 {
         print_failures(failed_results, nowarn);
