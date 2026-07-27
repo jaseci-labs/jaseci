@@ -36,6 +36,15 @@ glob _NOGC_ALIASING_BUILTINS: dict[str, str] = {
      };
 
 impl OwnershipCheckPass._nogc_resolve_provenance -> (str | None) {
+    _mp = str(self.ir_in.loc.mod_path or "") if self.ir_in?.loc else "";
+    if _mp {
+        import os as _os;
+        import jaclang as _jl;
+        _pkg = _os.path.dirname(_os.path.abspath(_jl.__file__));
+        if _os.path.abspath(_mp).startswith(_pkg + _os.sep) {
+            return None;
+        }
+    }
     opts = self.prog?._compile_options;
     if opts is not None and getattr(opts, "nogc_enforce_all", False) {
         return "enforced by --enforce-nogc";
