@@ -95,6 +95,28 @@ jac nacompile service.jac --gc none --enforce-nogc --assert-no-rc
 
 Under `--gc none` an enforced module compiles **headerless**: owned payloads are bare `malloc` allocations (no RC header) and each free is a direct statically-placed `__drop_<T>` call, which also runs the user `def drop` hook. Note: an unhandled `raise` in an enforced module prints a line and calls `abort()` instead of unwinding.
 
+## Enforced-module idioms (what real programs look like)
+
+- Locals infer ownership from any fresh right-hand side: calls, literals,
+  f-strings, comprehensions, and str-typed subscripts/slices (`p = src[0:n]`
+  is an owned copy and does not consume `src`). Only contract positions
+  (params, returns, `has` fields) need explicit `own`/`&`/`&mut`/`imm`.
+- Read-only builtin methods (`find`, `startswith`, `split`, `join`,
+  `replace`, `get`, `write`, ...) and the native stdlib surface
+  (`os`/`sys`/`time`/`math`/`random`/`struct` calls) borrow their owned
+  receivers and arguments - `i = hay.find(pat)` leaves both live, and
+  `os.system(cmd)` does not seal `cmd`. Passing an owned value to a
+  jac-defined function with an `own` param still moves it.
+- Growable collections of heap values: build them with a comprehension
+  (`[f(x) for x in xs]`); `xs.append(heap_value)` is E1406 until container
+  move-in lands.
+- Typed-base int enum members are scalar constants; string globs are not
+  expressible under the contract - use a `def` returning `own str` for
+  string constants.
+- The compiler's own modules are never enforced: a project-wide
+  `[gc.enforce] modules = ["*"]` applies to your code only, so a release
+  binary can drive a `[dev] jaclang_source` checkout under full enforcement.
+
 ## Measuring and debugging
 
 - `JAC_RC_STATS=1 jac nacompile mod.jac` prints per-module RC coverage to stderr: `rc-stats [mod.jac] gc=cycles retains=1 releases=10 elided=3 coverage=21.4%` - a fully covered module shows `retains=0 releases=0 ... rc-free`. Move elision is proven automatically (core `RcFactsPass` backward-liveness), annotated or not.
