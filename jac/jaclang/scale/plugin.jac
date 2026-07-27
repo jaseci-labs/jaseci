@@ -679,10 +679,3 @@ class JacScalePlugin {
         return http_transport().call_walker(module_name, walker_name, args, stub_cls);
     }
 }
-
-with entry {
-    try {
-        import from jaclang.serverless.plugin { bootstrap_serverless }
-        bootstrap_serverless();
-    } except ImportError { }
-}

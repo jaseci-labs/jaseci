@@ -26,10 +26,7 @@ impl JacScaleUserManager.postinit -> None {
     db_config = get_scale_config().get_database_config();
     mongodb_uri = db_config.get('mongodb_uri');
 
-    hooked = get_hooked_identity_storage({'base_path': self.base_path});
-    if hooked is not None {
-        self._identity_storage = hooked;
-    } elif mongodb_uri is not None {
+    if mongodb_uri is not None {
         import from jaclang.scale.persistence.db { get_mongo_client }
         client = get_mongo_client();
         db = client['jac_db'];

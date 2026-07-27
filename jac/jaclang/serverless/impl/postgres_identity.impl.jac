@@ -33,6 +33,13 @@ impl PostgresIdentityStorage.postinit -> None {
 }
 
 
+impl PostgresIdentityStorage._update_fields(
+    user_id: str, fields: dict[str, any]
+) -> bool {
+    return super._update_fields(user_id, coerce_identity_row(fields));
+}
+
+
 impl PostgresIdentityStorage._store_user(user_doc: dict[str, any]) -> None {
     user_id = user_doc['user_id'];
     id_rows: list[dict[str, str]] = [];
@@ -53,7 +60,7 @@ impl PostgresIdentityStorage._store_user(user_doc: dict[str, any]) -> None {
         }
     }
     with self._engine.begin() as conn {
-        conn.execute(self._table.insert().values(**user_doc));
+        conn.execute(self._table.insert().values(**coerce_identity_row(user_doc)));
         if id_rows {
             conn.execute(
                 pg_insert(self._identity_lookups).on_conflict_do_nothing(), id_rows

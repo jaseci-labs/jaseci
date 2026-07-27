@@ -92,6 +92,10 @@ def _scale_provider -> any {
         result = JacScalePlugin;
     } except ImportError { }
     _scale_provider_cache.append(result);
+    try {
+        import from jaclang.serverless.plugin { bootstrap_serverless }
+        bootstrap_serverless();
+    } except ImportError { }
     return result;
 }
 
