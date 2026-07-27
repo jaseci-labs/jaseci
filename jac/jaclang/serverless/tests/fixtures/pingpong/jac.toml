@@ -1,0 +1,4 @@
+[project]
+name = "pingpong"
+version = "0.1.0"
+entry-point = "main.jac"
