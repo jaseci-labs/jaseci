@@ -720,8 +720,11 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SEMANTIC,
          "'{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance})",
          help="This builtin or construct retains or aliases its heap arguments, which"
-         " the zero-RC contract cannot express yet. Use an owned-compatible"
-         " alternative, or move this code outside the enforced module.",
+         " the zero-RC contract cannot express yet. For growable collections of"
+         " heap values, build the collection in one shot with a comprehension"
+         " ([f(x) for x in xs] is owned-compatible where xs.append(f(x)) is not)."
+         " Otherwise use an owned-compatible alternative, or move this code"
+         " outside the enforced module.",
          blocks_codegen=True
      ),
      W1050 = _warn("W1050", Category.TYPE, "Unknown intrinsic JSX element '<{tag}>'"),

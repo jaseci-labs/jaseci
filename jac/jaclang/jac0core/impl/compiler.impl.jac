@@ -537,8 +537,12 @@ impl JacCompiler._get_precompiled_jir_bytecode(
     full_target: str, allow_unsealed: bool = True
 ) -> (bytes | None) {
     import from pathlib { Path as _Path }
-    import from jaclang.jac0core.jir { PRECOMPILE_SENTINEL }
+    import from jaclang.jac0core.jir { PRECOMPILE_SENTINEL, cache_mode }
     import from jaclang.jac0core { sealed as _sealed }
+    (rebuild_flag, no_precompile) = cache_mode();
+    if rebuild_flag or no_precompile {
+        return None;
+    }
     norm_file = os.path.normpath(os.path.abspath(full_target));
     d = os.path.dirname(norm_file);
     pyver = f"cpython-{sys.version_info.major}{sys.version_info.minor}";

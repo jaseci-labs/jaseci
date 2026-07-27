@@ -41,6 +41,18 @@ glob NATIVE_OS_FUNCS: set[str] = {
 
      };
 
+glob NATIVE_OSPATH_FUNCS: set[str] = {
+         "join",
+         "basename",
+         "dirname",
+         "realpath",
+         "exists",
+         "isfile",
+         "isdir",
+         "getsize",
+
+     };
+
 glob NATIVE_RANDOM_FUNCS: set[str] = {
          "seed",
          "random",
