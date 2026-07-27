@@ -40,3 +40,5 @@ Jac compiles one language to three runtimes - Python bytecode (server `sv`), Jav
 1. Scaffold (`jac-scaffold`), then validate every edit with `jac check .`
 2. Test with `jac test` - load `jac-testing` before writing tests
 3. When anything misbehaves, load `jac-debugging` (diagnostic anatomy, stale-cache triage)
+
+Deep dives bundled with the CLI: `jac guide tutorials/production/local` (serve + auth over HTTP, worked end to end), `jac guide reference/cli` (every command and flag).

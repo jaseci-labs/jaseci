@@ -85,10 +85,11 @@ test "jac guide <topic> --json includes the guide body" {
     assert parsed["body"] , "the single-guide JSON should carry a body";
 }
 
-test "jac guide --search filters the listing" {
+test "jac guide --search greps guides and docs with line hits" {
     (stdout, _, code) = run_guide(search="walker");
     assert code == 0;
-    assert "matching 'walker'" in stdout;
+    assert " matches." in stdout , "search should report a match count";
+    assert re.search(r"[\w\-/.]+:\d+: ", stdout) , "expected name:line: hits";
     (empty_out, _, empty_code) = run_guide(search="zzznosuchtokenzzz");
     assert empty_code == 0;
     assert "jac-types" not in empty_out , "a non-match must not list any guide";
@@ -219,9 +220,10 @@ test "guide store strips frontmatter from the guide body" {
 
 test "guide store maps diagnostic codes to guides" {
     # Type-category diagnostics route to the jac-types guide via the
-    # category fallback; codes with no mapping return None.
+    # category fallback; unmapped codes fall through to the bundled
+    # diagnostics reference now that the full docs ship with the CLI.
     assert guide_for_diagnostic("E1001", "type") == "jac-types";
-    assert guide_for_diagnostic("E0001", "syntax") is None;
+    assert guide_for_diagnostic("E0001", "syntax") == "reference/diagnostics";
 }
 
 test "every mapped diagnostic code resolves to a bundled guide" {

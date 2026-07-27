@@ -92,12 +92,21 @@ test_jobs = "auto"   # "auto" = one worker per core; "0" = serial; or a fixed co
 See Rules below.
 Formatting and linting are enforced by `jac precommit` (configured via `[check.lint]` in [`jac.toml`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac.toml)); markdown lint and the em-dash ban run on every PR via pre-commit.ci ([`.pre-commit-config.yaml`](https://github.com/Jaseci-Labs/jaseci/blob/main/.pre-commit-config.yaml)).
 
-**This is how we run the docs.**
+**This is how the docs work.**
+
+The entire documentation set lives in the jaclang package at
+`jac/jaclang/cli/docs/` (with `nav.json` defining the section hierarchy) and
+ships inside the `jac` binary. `jac guide` serves it offline, the MCP server
+exposes it as `jac://docs/*` resources, and the website renders the same
+corpus -- there is no separate docs build. Edit the markdown in place, then:
 
 ```bash
-pip install -e docs # <-- Not a real package more of a script
-python docs/scripts/mkdocs_serve.py
+jac run scripts/validate_docs_code.jac        # syntax-check the code blocks
+cd jac && JAC_TEST_JOBS=auto jac test tests/cli/test_docs_content.jac tests/cli/test_guide_docs.jac
 ```
+
+Adding or removing a page means updating `jac/jaclang/cli/docs/nav.json` in
+the same PR (a test pins the manifest to the files on disk).
 
 **Pushing Your First PR**
 
@@ -136,11 +145,11 @@ python docs/scripts/mkdocs_serve.py
 
 Every PR that changes package code must include a release note fragment file:
 
-1. Create a file at `docs/docs/community/release_notes/unreleased/<package>/<PR#>.<category>.md`
+1. Create a file at `release_notes/unreleased/<package>/<PR#>.<category>.md`
    - **Packages**: `jaclang`, `byllm`
    - **Note**: The Jac client and desktop runtimes, the `scale` deployment subsystem, and the MCP server are now part of `jaclang` core (under `jac/jaclang/runtimelib/client/`, `jac/jaclang/scale/`, and `jac/jaclang/cli/mcp/`); changes to them use the `jaclang` package fragment.
    - **Categories**: `feature`, `bugfix`, `breaking`, `refactor`, or `docs`
-   - **Example**: `docs/docs/community/release_notes/unreleased/jaclang/1234.bugfix.md`
+   - **Example**: `release_notes/unreleased/jaclang/1234.bugfix.md`
 
 2. Add one or more bullet points:
 
