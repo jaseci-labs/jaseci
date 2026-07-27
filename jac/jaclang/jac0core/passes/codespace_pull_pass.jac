@@ -25,6 +25,16 @@ def _pullable_by_client_reference(
     if isinstance(elem, uni.Archetype) and elem.arch_kind is not None {
         return False;
     }
+    if isinstance(elem, uni.Import) {
+        if elem.has_string_path {
+            return True;
+        }
+        if elem.from_loc is None {
+            return False;
+        }
+        resolved = elem.from_loc.resolve_relative_path();
+        return isinstance(resolved, str) and resolved.endswith('.jac');
+    }
     if isinstance(elem, (uni.Archetype, uni.TypeAlias)) {
         for top in module.body {
             if top is elem {
