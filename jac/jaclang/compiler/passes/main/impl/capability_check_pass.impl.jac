@@ -584,16 +584,34 @@ impl PortabilityWarnPass._check_js_methods(mod: uni.Module) -> None {
 
         parent = trailer.parent;
         is_method_call = isinstance(parent, uni.FuncCall) and parent.target is trailer;
-
-        if is_method_call {
-            self.emit(
-                W6002,
-                node_override=trailer.right,
-                method=method_name,
-                alternative=JS_METHODS[method_name]
-            );
+        if not is_method_call {
+            continue;
         }
+        if method_name == "find" and not self._find_call_is_js_style(parent) {
+            continue;
+        }
+        self.emit(
+            W6002,
+            node_override=trailer.right,
+            method=method_name,
+            alternative=JS_METHODS[method_name]
+        );
     }
+}
+
+impl PortabilityWarnPass._find_call_is_js_style(call: uni.FuncCall) -> bool {
+    params = call.params;
+    if params is None or len(params) != 1 {
+        return False;
+    }
+    arg = params[0];
+    if isinstance(arg, uni.LambdaExpr) {
+        return True;
+    }
+    if isinstance(arg, uni.Name) and arg.sym is not None {
+        return arg.sym.sym_type in (SymbolType.ABILITY, SymbolType.METHOD);
+    }
+    return False;
 }
 
 impl PortabilityWarnPass._check_js_keywords(mod: uni.Module) -> None {
