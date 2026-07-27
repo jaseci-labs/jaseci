@@ -29,5 +29,19 @@ def _nacompile_run(fixture: str) -> str {
 
 test "os path isfile and isdir report real file kinds natively" {
     out = _nacompile_run("os_path_probe.na.jac").strip().split("\n");
-    assert out == ["1", "0", "1", "0", "1", "0"] , f"os.path probe mismatch: {out}";
+    assert out == ["1", "0", "1", "0", "1", "0", "5", "-1"] , f"os.path probe mismatch: {out}";
+}
+
+test "unsupported os path members fail the native compile loudly" {
+    src = os.path.join(FIXTURES, "os_path_unsupported.na.jac");
+    out_bin = os.path.join(tempfile.mkdtemp(), "nope.bin");
+    comp = subprocess.run(
+        [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
+        capture_output=True,
+        text=True,
+        timeout=300
+    );
+    combined = (comp.stdout or "") + (comp.stderr or "");
+    assert comp.returncode != 0 , f"unsupported os.path member compiled silently: {combined[-400:]}";
+    assert "getmtime" in combined , f"diagnostic does not name the member: {combined[-400:]}";
 }

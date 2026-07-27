@@ -448,5 +448,36 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
         return self.builder.and_(ok, kind, name=f"ospath.{name}");
     }
 
+    if name == "getsize" and params {
+        p = self._codegen_expr(params[0]);
+        if p is None {
+            return None;
+        }
+        triple = str(self.llvm_module.triple or "").lower();
+        stat_sym = "stat";
+        size_off = 48;
+        if ("darwin" in triple) or ("apple" in triple) or ("macos" in triple) {
+            size_off = 96;
+            if "x86_64" in triple {
+                stat_sym = "stat$INODE64";
+            }
+        }
+        buf = self.builder.alloca(ir.ArrayType(i8, 144), name="gsz.buf");
+        bufp = self.builder.gep(
+            buf, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="gsz.bufp"
+        );
+        fn = self._get_or_declare_extern(stat_sym, i32, [i8p, i8p]);
+        rc = self.builder.call(fn, [p, bufp], name="ospath.gsz.stat");
+        ok = self.builder.icmp_signed("==", rc, ir.Constant(i32, 0), name="gsz.ok");
+        size_p8 = self.builder.gep(
+            bufp, [ir.Constant(i64, size_off)], name="gsz.sizep8"
+        );
+        size_p = self.builder.bitcast(size_p8, i64.as_pointer(), name="gsz.sizep");
+        size = self.builder.load(size_p, name="gsz.size");
+        return self.builder.select(
+            ok, size, ir.Constant(i64, -1), name="ospath.getsize"
+        );
+    }
+
     return None;
 }

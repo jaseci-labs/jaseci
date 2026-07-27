@@ -1593,6 +1593,10 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         and self?._native_stdlib_modules
         and "os" in self._native_stdlib_modules
     ) {
+        if method_name not in NATIVE_OSPATH_FUNCS {
+            self.emit(E5090, node_override=nd, kind="os.path member", name=method_name);
+            return None;
+        }
         return self._emit_ospath_call(method_name, nd);
     }
 

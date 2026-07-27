@@ -11,4 +11,6 @@ with entry {
     print(os.path.isdir("/tmp/jac_ospath_probe.txt"));
     print(os.path.exists("/tmp/jac_ospath_probe.txt"));
     print(os.path.isfile("/tmp/jac_ospath_missing_zz"));
+    print(os.path.getsize("/tmp/jac_ospath_probe.txt"));
+    print(os.path.getsize("/tmp/jac_ospath_missing_zz"));
 }
