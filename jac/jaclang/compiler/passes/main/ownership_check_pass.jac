@@ -26,6 +26,8 @@ enum AccessKind {
     READ = "read"
 }
 
+def _stdlib_attr_call_root(call: uni.FuncCall) -> (str | None);
+
 obj BorrowMeta {
     has name: str,
         owner: (SymId | None) = None,

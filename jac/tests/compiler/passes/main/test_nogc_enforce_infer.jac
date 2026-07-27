@@ -57,3 +57,11 @@ test "slice of a borrowed param infers an owned local" {
 test "typed-base enum members are scalar constants under enforcement" {
     assert enforced_codes("int_enum_members.na.jac") == [];
 }
+
+test "read-only method calls borrow their owned receiver and args" {
+    assert enforced_codes("readonly_borrows.na.jac") == [];
+}
+
+test "native stdlib sinks borrow named owned arguments" {
+    assert enforced_codes("stdlib_sink_borrows.na.jac") == [];
+}

@@ -330,6 +330,15 @@ impl OwnershipCheckPass._nogc_module_enforced(mod_name: str) -> bool {
 }
 
 impl OwnershipCheckPass._nogc_check_call(call: uni.FuncCall, prov: str) -> None {
+    _stdlib_root = _stdlib_attr_call_root(call);
+    if _stdlib_root is not None and _stdlib_root in _NONRETAINING_STDLIB_MODULES {
+        return;
+    }
+    if isinstance(call.target, uni.AtomTrailer)
+    and isinstance(call.target.right, uni.Name)
+    and call.target.right.value in _NONRETAINING_METHOD_CALLS {
+        return;
+    }
     _callee_root: (uni.Name | None) = None;
     if isinstance(call.target, uni.Name) {
         _callee_root = call.target;
