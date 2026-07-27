@@ -840,6 +840,13 @@ test "fstring escape sequences" {
     assert lines[3] == "'world\\tworld\\tworld'";
 }
 
+test "fstring literal segments keep quote characters" {
+    output = run_jac(os.path.join(FIXTURES, "fstring_quote_segments.jac"));
+    lines = output.strip().split("\n");
+    expected = ["'AA' 'BB'", "-o 'AA' 'BB' end", "AAr'q'BB", '"AA" "BB"', "x 'AA' y"];
+    assert lines[-5:] == expected , f"quote characters mangled in f-string segments: {lines}";
+}
+
 test "type aliases and modern generics" {
     output = run_jac(os.path.join(FIXTURES, "type_alias_generics.jac"));
     assert output == "True\n42\nok\n";
