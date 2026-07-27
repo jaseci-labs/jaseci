@@ -222,5 +222,6 @@ impl register_feature_commands -> None {
     import jaclang.runtimelib.client.cli;
     import jaclang.cli.shadcn.cli;
     import jaclang.scale.plugin;
+    import jaclang.serverless.cli;
     import jaclang.byllm.cli;
 }
