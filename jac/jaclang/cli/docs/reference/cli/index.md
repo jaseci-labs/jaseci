@@ -107,7 +107,7 @@ Displays the Jac version and platform, plus documentation and community links:
  _/ |\__,_|\___|
 |__/                Platform: Linux x86_64
 
-📚 Documentation: https://docs.jaseci.org
+📚 Documentation: https://www.jaclang.org/docs
 💬 Community:     https://discord.gg/6j3QNdtcN6
 🐛 Issues:        https://github.com/Jaseci-Labs/jaseci/issues
 ```

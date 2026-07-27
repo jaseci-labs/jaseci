@@ -14,7 +14,7 @@ dependencies = []
 [project.urls]
 Repository = "https://github.com/jaseci-labs/jaseci"
 Homepage = "https://jaseci.org"
-Documentation = "https://docs.jaseci.org"
+Documentation = "https://www.jaclang.org/docs"
 
 # Editable dev loop: reroute `import jaclang` to this in-repo source so the `jac`
 # binary runs your latest edits with no rebuild. Config resolves to the nearest
