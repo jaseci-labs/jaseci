@@ -23,6 +23,7 @@ lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 [dependencies]
 numpy = ">=1.24.0"
 scikit-learn = ">=1.3.0"
+psycopg2-binary = ">=2.9"
 
 [dependencies.npm]
 "@fontsource-variable/figtree" = "*"
@@ -55,6 +56,23 @@ watchdog = ">=3.0.0"
 
 [serve]
 base_route_app = "app"
+
+# Serverless mode: persist the graph and users in a managed Postgres database
+# (e.g. Supabase) instead of local files, so the app itself stays stateless.
+# Set SUPABASE_DB_URL (or DATABASE_URL) to your connection string, or put it
+# in database_url below, then run `jac start main.jac` as usual.
+[serverless]
+provider = "supabase"
+# database_url = "postgresql://postgres:PASSWORD@db.PROJECT.supabase.co:5432/postgres"
+
+# On `jac start --scale` deploys, skip the in-cluster databases and hand every
+# pod the same external connection string instead.
+[scale.kubernetes]
+mongodb_enabled = false
+redis_enabled = false
+
+[scale.secrets]
+DATABASE_URL = "${SUPABASE_DB_URL}"
 
 [client.app_meta_data]
 title = "Little-X"

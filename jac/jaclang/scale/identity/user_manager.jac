@@ -16,7 +16,8 @@ import from jaclang.scale.sso.provider { SSOProvider, SSOUserInfo }
 import from jaclang.scale.identity.identity_storage {
     IdentityStorage,
     MongoIdentityStorage,
-    SqliteIdentityStorage
+    SqliteIdentityStorage,
+    get_hooked_identity_storage
 }
 import from jaclang.jac0core.constant { Constants as Con }
 

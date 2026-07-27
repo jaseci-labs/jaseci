@@ -91,6 +91,25 @@ obj MongoIdentityStorage(IdentityStorage) {
     def get_user_by_sso(platform: str, external_id: str) -> dict[str, any] | None;
 }
 
+glob _identity_storage_provider: list = [None];
+
+
+# provider: callable(config) returning an IdentityStorage or None; a None
+# result falls through to the built-in mongo/sqlite selection
+def set_identity_storage_provider(provider: any) -> None {
+    _identity_storage_provider[0] = provider;
+}
+
+
+def get_hooked_identity_storage(config: dict[str, any]) -> (IdentityStorage | None) {
+    provider = _identity_storage_provider[0];
+    if provider is None {
+        return None;
+    }
+    return provider(config);
+}
+
+
 obj SqliteIdentityStorage(IdentityStorage) {
     has db_path: str,
         _engine: Engine postinit,
