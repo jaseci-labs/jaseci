@@ -25,11 +25,14 @@ Pods run a prebuilt `jac` binary that carries the jaclang runtime (including the
 
 | Channel | Selected by | Binary shipped |
 |---------|-------------|----------------|
-| **stable** | no `[dev]` stanza in `jac.toml` (default) | Latest published release |
+| **stable** | no `[dev]` or `[experimental]` stanza in `jac.toml` (default) | Latest published release, or the release matching a `[project] jac-version` pin |
+| **experimental** | an `[experimental]` stanza (`pr = <N>`) in `jac.toml` | The `experimental-<PR#>` build; pods run the `jaseci/jaclang:experimental-<PR#>` image |
 | **dev** | a `[dev]` stanza in `jac.toml` | Rolling `dev` prerelease (main HEAD) |
 | **local** | `JAC_SCALE_BINARY_PATH` set | The exact binary at that path |
 
-Both `stable` and `dev` download the binary from [GitHub Releases](https://github.com/jaseci-labs/jaseci/releases) and run it as-is - there is no source overlay.
+Channel precedence is local, then experimental, then dev, then stable -- an `[experimental]` stanza wins over `[dev]`, and `JAC_SCALE_BINARY_PATH` wins over both.
+
+`stable` and `dev` download the binary from [GitHub Releases](https://github.com/jaseci-labs/jac/releases) and run it as-is - there is no source overlay. On the stable channel, a `[project] jac-version` version spec is resolved against the published releases and that exact version is shipped; the deploy errors if the spec matches no release.
 
 **Local binary (`JAC_SCALE_BINARY_PATH`).** Point this environment variable at a `jac` binary you built (or an air-gapped mirror) and the deploy ships that exact file to pods instead of downloading a release. It takes precedence over the `[dev]` stanza:
 
@@ -38,7 +41,7 @@ export JAC_SCALE_BINARY_PATH=/path/to/jac
 jac start app.jac --scale
 ```
 
-Use this for air-gapped clusters, to pin an exact build, or to deploy a binary you compiled locally. The driver checksum-caches downloaded release binaries per channel, so an unchanged `stable`/`dev` deploy does not re-download on every run.
+Use this for air-gapped clusters, to pin an exact build, or to deploy a binary you compiled locally. The driver checksum-caches downloaded release binaries per channel and architecture, so an unchanged `stable`/`dev` deploy does not re-download on every run.
 
 ---
 
@@ -94,7 +97,7 @@ To use a pre-existing shared controller instead, see [Shared Ingress](#shared-in
 |------|-------------|
 | `http://localhost:30080/` | Jaseci application |
 | `http://localhost:30080/grafana` | Grafana dashboard (if monitoring enabled) |
-| `http://localhost:30080/cache-dashboard/` | Redis Insight (if `redis_dashboard = true`) |
+| `http://localhost:30080/cache-dashboard/` | Redis Insight (if `redis_dashboard = true`); protected by HTTP basic auth using `redis_insight_username` / `redis_insight_password` |
 | `http://localhost:30080/db-dashboard` | Mongo Express (if `mongodb_dashboard = true`) |
 
 **To change in `jac.toml`:**
@@ -118,7 +121,7 @@ By default each app deploys its own NGINX controller (one Deployment, one NodePo
 
 **Requirements:**
 
-- A running NGINX ingress controller must already exist in the cluster
+- An `IngressClass` named `shared_ingress_class` must already exist in the cluster (jac-scale validates the class at deploy time; it does not check that the controller behind it is running, and the controller does not have to be NGINX -- see below)
 - `domain` **must** be set. The shared controller sees Ingress resources from all namespaces, so host-based routing is the only way to differentiate two apps. jac-scale raises an error at deploy time if `domain` is empty when `shared_ingress = true`
 
 **Configuration:**
@@ -128,7 +131,8 @@ By default each app deploys its own NGINX controller (one Deployment, one NodePo
 | `shared_ingress` | `false` | Use a pre-existing shared controller instead of deploying a dedicated one |
 | `shared_ingress_class` | `"nginx"` | IngressClass name of the shared controller |
 | `shared_ingress_annotations` | `{}` | Extra annotations merged onto the Ingress. Required to drive non-nginx controllers (AWS ALB, Traefik, GKE). Caller-supplied values take precedence |
-| `shared_ingress_tls` | `false` | Set when the controller terminates TLS out-of-band (e.g. ALB via an ACM cert) so the reported URL uses `https`. nginx+cert-manager (`spec.tls`) is detected automatically |
+| `shared_ingress_tls` | `false` | Set when the controller terminates TLS out-of-band (e.g. ALB via an ACM cert) so the reported URL uses `https`. nginx+cert-manager (`spec.tls`) is detected automatically. When cert-manager issuer annotations and `domain` are present, this also emits a `spec.tls` block on the shared Ingress |
+| `shared_ingress_skip_reachability` | `false` | Skip the post-deploy reachability check against `domain` in shared mode. By default the deploy health-checks `http://{domain}` and prints DNS guidance on failure |
 
 ```toml
 [scale.kubernetes]
@@ -163,8 +167,8 @@ domain = "linkedin.jaseci.app"
 |-----------|---------------------|--------|
 | Controller deployed | Yes (one per app) | No (uses existing controller) |
 | IngressClass | `{namespace}-{app_name}-nginx` | Value of `shared_ingress_class` |
-| Routing rules | Wildcard (host set by `--enable-tls`) | Host set immediately to `domain` |
-| On destroy | Removes controller, RBAC, IngressClass, and Ingress rules | Removes Ingress rules only; controller is untouched |
+| Routing rules | Wildcard, plus a host rule for `domain` when it is set | Host set immediately to `domain` |
+| On destroy | Removes controller, RBAC, IngressClass, Ingress rules, and TLS material (TLS secret, cert-manager Certificate and Issuer) | Removes Ingress rules and TLS material only; controller is untouched |
 | TLS (`--enable-tls`) | Works (cert-manager Issuer uses app-specific class) | Works (cert-manager Issuer uses shared class) |
 
 !!! note
@@ -205,9 +209,9 @@ ingress_limit_connections = 30      # more concurrent connections
 
 ### Sticky Sessions (Cookie-Based Affinity)
 
-When your pods hold per-user state (e.g. running user processes), you need requests from the same user to always reach the same pod. jac-scale supports opt-in cookie-based session affinity via NGINX.
+When your pods hold per-user state (e.g. running user processes), you need requests from the same user to always reach the same pod. jac-scale provides cookie-based session affinity via NGINX.
 
-**Enabled by default.** Disable it in `jac.toml` if not needed:
+**Enabled by default** (`ingress_session_affinity = true`). Disable it in `jac.toml` if not needed:
 
 ```toml
 [scale.kubernetes]
@@ -227,7 +231,7 @@ On the first response, NGINX sets a `route` cookie in the browser. Every subsequ
 
 **When to use:**
 
-- Your pods run stateful per-user processes (e.g. sandbox environments, background workers per user)
+- Your pods run stateful per-user processes (e.g. background workers per user)
 - You need a user to consistently land on the pod that owns their session
 
 **Limitations:**
@@ -254,20 +258,22 @@ cert_manager_email = "you@example.com"
 jac start app.jac --scale
 ```
 
-After deploy, the NLB hostname is printed:
+After deploy, the external endpoint is printed along with the DNS record to create. The record type is detected automatically: an IP endpoint (e.g. a bare-metal or local cluster) prompts an `A` record, a hostname endpoint (e.g. an AWS NLB) prompts a `CNAME`:
 
 ```
 Deployment complete! Service available at: http://k8s-default-...elb.amazonaws.com
-Point your domain CNAME to: k8s-default-...elb.amazonaws.com
+
+  ACTION REQUIRED - add a CNAME record in your DNS provider:
+    Type:  CNAME
+    Name:  app.example.com
+    Value: k8s-default-...elb.amazonaws.com
+
+  Then run: jac start app.jac --scale --enable-tls
 ```
 
-#### Step 2 - Add CNAME record
+#### Step 2 - Add DNS record
 
-In your DNS registrar (Namecheap, Route 53, Cloudflare, etc.) add:
-
-| Type | Host | Value |
-|------|------|-------|
-| CNAME | `app` (or `@`) | `k8s-default-...elb.amazonaws.com` |
+In your DNS registrar (Namecheap, Route 53, Cloudflare, etc.) add the record exactly as printed (`A` for IP endpoints, `CNAME` for hostname endpoints).
 
 Wait for DNS propagation (usually 1–15 minutes). Verify with `dig app.example.com`.
 
@@ -289,7 +295,7 @@ TLS enabled. App is now live at:
   RedisInsight:   https://app.example.com/cache-dashboard
 ```
 
-> **Note:** `--enable-tls` requires `domain` to be set in `jac.toml`. It will error if no domain is configured.
+> **Note:** `--enable-tls` requires a domain and `cert_manager_email`. Both are read from the annotations a prior deploy recorded on the live Ingress (`jac-scale/domain`, `jac-scale/cert-email`), falling back to `jac.toml`; it errors if neither source provides them. Because the annotation wins, changing `domain` in `jac.toml` and re-running `--enable-tls` has no effect while a prior deploy's annotation exists -- re-deploy to update it.
 
 **Configuration options:**
 
@@ -297,6 +303,7 @@ TLS enabled. App is now live at:
 |----------|---------|-------------|
 | `domain` | `""` | Custom domain name (e.g. `app.example.com`). Leave empty for NLB-only access. |
 | `cert_manager_email` | `""` | Email for Let's Encrypt certificate registration and expiry notices. |
+| `aws_nlb_wait` | `60` | Seconds to wait for the AWS NLB to provision before reading its endpoint. |
 
 **Certificate renewal** is automatic - cert-manager renews ~30 days before expiry.
 
@@ -315,7 +322,7 @@ Controls CPU and memory requests/limits for the application container. Kubernete
 | `memory_request`  | None | Memory reserved for scheduling (e.g. `"256Mi"`) |
 | `memory_limit` | None | Memory ceiling - container is OOM-killed if exceeded |
 
-Accepted suffixes: `Ki`, `Mi`, `Gi` (binary) or `K`, `M`, `G` (decimal).
+Values are passed through to Kubernetes as-is; use standard [resource quantities](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-units-in-kubernetes): `Ki`, `Mi`, `Gi` (binary) or `k`, `M`, `G` (decimal).
 
 **To change in `jac.toml`:**
 
@@ -348,7 +355,7 @@ Kubernetes uses readiness and liveness probes to decide when a pod is ready to s
 
 ```toml
 [scale.kubernetes]
-health_check_path = "/health"
+health_check_path = "/healthz/ready"
 readiness_initial_delay = 15
 readiness_period = 10
 liveness_initial_delay = 30
@@ -356,7 +363,7 @@ liveness_period = 30
 liveness_failure_threshold = 5
 ```
 
-> **Tip:** Set `health_check_path = "/health"` to use the built-in liveness and readiness endpoints - see [Health Checks](#health-checks).
+> **Tip:** The scale server ships built-in probe endpoints at `/healthz/live` and `/healthz/ready` - see [Health Checks](#health-checks). Microservice deployments use them automatically; for single-app deployments, point `health_check_path` at one of them to probe something cheaper than the default `/docs` page.
 
 ---
 
@@ -371,9 +378,12 @@ jac-scale supports two autoscaler engines selected via `autoscaler_engine`. Both
 | `autoscaler_engine` | `"hpa"` | Autoscaler engine: `"hpa"` (CPU/memory, default) or `"keda"` (event-driven, scale-to-zero) |
 | `min_replicas` | `1` | Minimum number of pods |
 | `max_replicas` | `3` | Maximum number of pods |
-| `cpu_utilization_target` | `50` | Average CPU % that triggers scale-out. Seeds the CPU trigger for both engines unless explicitly overridden. |
+| `cpu_utilization_target` | `50` | Average CPU % that triggers scale-out. Seeds the CPU trigger for both engines unless `extra_triggers` is set. |
+| `memory_utilization_target` | `80` | Average memory % that triggers scale-out. A memory trigger is seeded automatically for both engines when `memory_request` is set. |
+| `autoscaler_scale_up_stabilization` | `60` | Scale-up stabilization window in seconds (HPA `behavior.scaleUp`), applied under both engines. |
+| `autoscaler_scale_up_max_pods` | `2` | Maximum pods added per scale-up step, applied under both engines. |
 
-> **Note:** CPU-based scaling requires `cpu_request` to be set. Without a CPU request, Kubernetes cannot compute a utilization percentage.
+> **Note:** CPU-based scaling requires `cpu_request` to be set. Without a CPU request, Kubernetes cannot compute a utilization percentage. Likewise, memory triggers require `memory_request`; in single-app deployments a memory trigger configured without it is skipped with a warning (the microservice path currently applies no such guard).
 
 #### HPA Engine (Default)
 
@@ -388,22 +398,24 @@ max_replicas = 10
 cpu_utilization_target = 70   # Scale out when average CPU exceeds 70%
 ```
 
+> **Note:** The HPA engine only supports CPU and memory metrics. Configuring any other trigger type in `extra_triggers` under the HPA engine fails the deploy with an error telling you to set `autoscaler_engine = "keda"`.
+
 #### KEDA Engine (Event-Driven Autoscaling)
 
 The `"keda"` engine creates a `ScaledObject` custom resource instead of an HPA. It supports the full [KEDA trigger catalogue](https://keda.sh/docs/latest/scalers/) (Prometheus, Redis, RabbitMQ, Kafka, HTTP, and more) and enables scale-to-zero.
 
 !!! note
-    KEDA must be installed on the cluster before using this engine. If KEDA CRDs are absent at deploy time, jac-scale emits an install warning with a link to the [KEDA installation docs](https://keda.sh/docs/latest/deploy/) and falls back to static replicas rather than failing the deploy.
+    KEDA must be installed on the cluster before using this engine. If KEDA CRDs are absent at deploy time, jac-scale emits an install warning with a link to the [KEDA installation docs](https://keda.sh/docs/latest/deploy/) and the deploy continues with the Deployment's static replica count -- 1 for single-app deploys, the configured per-service `replicas` for microservices (no autoscaler is created).
 
 **Switching between engines is safe.** Each engine removes the other engine's resource (`ScaledObject` or `HPA`) on apply, so two autoscalers never compete for `spec.replicas` on the same Deployment.
 
-!!! warning "CPU/memory triggers: scale-down always takes ~5 minutes"
-    When using CPU or memory triggers, KEDA implements scaling through an internal Kubernetes `HorizontalPodAutoscaler`. Kubernetes applies a built-in 5-minute scale-down stabilization window (`stabilizationWindowSeconds = 300`) to every HPA regardless of the `autoscaler_cooldown` value set in `jac.toml`. Replicas will not decrease until CPU/memory has stayed below the target for a full 5 minutes. The `autoscaler_cooldown` setting is effective only for **event-driven triggers** (e.g. Prometheus, Redis, RabbitMQ) where KEDA directly controls the replica count without going through the HPA stabilization window.
+!!! note "Scale-down pacing"
+    `autoscaler_cooldown` governs scale-down for **all** trigger types under both engines: it is applied as the HPA scale-down stabilization window (`behavior.scaleDown.stabilizationWindowSeconds`, clamped to 0-3600), overriding the Kubernetes default of 5 minutes. It is also written (unclamped) as the ScaledObject's `cooldownPeriod`, which KEDA applies to event-driven triggers before dropping to `idle_replicas` (inert for CPU/memory triggers). Scale-up pacing is controlled by `autoscaler_scale_up_stabilization` and `autoscaler_scale_up_max_pods`.
 
-!!! tip "Startup CPU spikes causing unwanted scale-up?"
-    Pod initialization (Python imports, FastAPI startup, Jac runtime boot) can briefly spike CPU above the target, causing KEDA to scale up immediately after a fresh deploy before the app has finished starting. Set `autoscaler_initial_cooldown` to delay KEDA's first evaluation and give pods time to settle:
+!!! tip "Scaling to zero right after a fresh deploy?"
+    On a fresh deploy, triggers may read as inactive before the app has served its first request, making KEDA drop straight to `idle_replicas`. Set `autoscaler_initial_cooldown` (KEDA's `initialCooldownPeriod`) to delay scale-down/idle eligibility after the ScaledObject is created and give pods time to settle:
     ```toml
-    autoscaler_initial_cooldown = 120  # wait 2 minutes after deploy before scaling
+    autoscaler_initial_cooldown = 120  # no scale-down for 2 minutes after deploy
     ```
 
 **KEDA-specific configuration (`[scale.kubernetes]`):**
@@ -414,14 +426,14 @@ The `"keda"` engine creates a `ScaledObject` custom resource instead of an HPA. 
 | `autoscaler_polling_interval` | `30` | Seconds between trigger evaluations. |
 | `autoscaler_cooldown` | `300` | Seconds of continuous inactivity before scaling down to `idle_replicas`. |
 | `autoscaler_initial_cooldown` | `0` | Seconds after a fresh deploy before scale-to-zero becomes eligible. Prevents cold-start thrash on slow-booting apps. |
-| `extra_triggers` | `[]` | Array of additional KEDA trigger tables applied to every service. See trigger entry keys below. |
+| `extra_triggers` | `[]` | Array of KEDA trigger tables. **Setting this replaces the automatic CPU/memory triggers** -- include a `cpu` trigger explicitly if you still want CPU scaling. In microservice deployments these triggers apply to the gateway only; use per-service `triggers` for individual services. Under the KEDA engine, duplicate trigger names fail the deploy. See trigger entry keys below. |
 
 **Trigger entry keys (`[[scale.kubernetes.extra_triggers]]`):**
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `type` | (required) | KEDA trigger type (e.g. `"prometheus"`, `"redis"`, `"rabbitmq"`, `"kafka"`, `"http"`). See the [KEDA trigger catalogue](https://keda.sh/docs/latest/scalers/). |
-| `metadata` | `{}` | Dict of trigger-specific key/value pairs. All values are coerced to strings before being sent to KEDA. |
+| `metadata` | `{}` | Dict of trigger-specific key/value pairs. All values are coerced to strings before being sent to KEDA. For `cpu`/`memory` triggers only `averageUtilization` is read -- any other key is silently ignored and the default target applies (50 for `cpu`, 80 for `memory`). |
 | `name` | `null` | Optional label for this trigger in KEDA. When using `auth.secret_refs`, set a unique `name` per trigger; it is included in the hash that generates the `TriggerAuthentication` resource name (e.g. `order-service-daa02e20-ta`), making each resource identifiable in the cluster. Without it, trigger position in the spec is used instead, which shifts if triggers are reordered. |
 | `auth.secret_refs` | `{}` | KEDA `TriggerAuthentication` bindings. Each key is a KEDA parameter name; the value is a table with `name` (Kubernetes Secret name) and `key` (key within that Secret). |
 
@@ -432,13 +444,17 @@ The `"keda"` engine creates a `ScaledObject` custom resource instead of an HPA. 
 autoscaler_engine = "keda"
 min_replicas = 1
 max_replicas = 10
-cpu_utilization_target = 50       # Seeds the automatic CPU trigger
 idle_replicas = 0                 # Scale to zero when all triggers are inactive
 autoscaler_polling_interval = 15
 autoscaler_cooldown = 120
 autoscaler_initial_cooldown = 30  # Wait 30s after deploy before allowing scale-to-zero
 
-# Add a Prometheus trigger alongside the automatic CPU trigger
+# extra_triggers REPLACES the automatic CPU/memory triggers, so the CPU
+# trigger is declared explicitly here to keep CPU scaling alongside Prometheus
+[[scale.kubernetes.extra_triggers]]
+type = "cpu"
+metadata = { averageUtilization = "50" }
+
 [[scale.kubernetes.extra_triggers]]
 type = "prometheus"
 name = "queue-depth"
@@ -458,20 +474,20 @@ host = { name = "rabbitmq-secret", key = "host" }
 
 ### Persistent Storage
 
-Controls the PersistentVolumeClaim (PVC) sizes for the application code volume, MongoDB, and Redis StatefulSets.
+Persistent storage covers two volumes: the **application bundle PVC** (holds the `.jab` source bundle, shared by all pods) and the **MongoDB data PVC**. Redis has no persistent volume -- it runs on `emptyDir` and its contents reset on pod restart.
 
 **Defaults:**
 
 | TOML Key | Default | Description |
 |----------|---------|-------------|
-| `pvc_size` | `5Gi` | Storage size for the application code PVC |
+| `bundle_storage_class` | `""` | StorageClass for the application bundle PVC. The PVC needs `ReadWriteMany`; set this to an RWX-capable class (e.g. EFS, NFS). When empty, the single-app deploy silently omits `storageClassName` and uses the cluster default; the microservice bundle path errors instead, since most cloud default classes are RWO-only |
 | `mongodb_storage_size` | `1Gi` | Storage size for the MongoDB data PVC |
 
 **To change in `jac.toml`:**
 
 ```toml
 [scale.kubernetes]
-pvc_size = "20Gi"
+bundle_storage_class = "efs-sc"
 mongodb_storage_size = "10Gi"
 ```
 
@@ -482,7 +498,7 @@ mongodb_storage_size = "10Gi"
 - **No change**: If the value matches the current size, no action is taken.
 
 > **Note:** MongoDB PVC resize requires the cluster's StorageClass to have `allowVolumeExpansion: true`. Most cloud providers (AWS EBS, GCE PD, Azure Disk) and MicroK8s enable this by default. Verify with `kubectl get storageclass`.
-> **Note:** `pvc_size` (application code PVC) cannot be changed after creation - it is created once and never resized.
+> **Note:** The application bundle PVC has a fixed size (1Gi) and is created once, never resized. Bundle contents are content-addressed, so an unchanged app is not re-uploaded on redeploy.
 
 ---
 
@@ -494,15 +510,15 @@ Controls the base images used for the application pod and init containers. Overr
 
 | TOML Key  | Default | Description |
 |----------|---------|-------------|
-| `python_image` | `python:3.12-slim` | Base image for the application pod |
-| `busybox_image` | `busybox:1.36` | Init container image used for dependency health checks |
+| `python_image` | `""` (auto) | Base image for the application pod. When empty, the deploy resolves the official image matching the runtime channel -- `jaseci/jaclang:latest` (stable), `:dev`, `:experimental-<PR#>`, or `:<x.y.z>` for a `jac-version` pin -- and pins it to an immutable `@sha256:` digest when Docker Hub is reachable (experimental builds are deliberately not digest-pinned). Falls back to `python:3.12-slim` when the registry is unreachable and always on the local-binary channel |
+| `wait_image` | `busybox` | Init container image used for dependency wait checks (Redis/MongoDB readiness) |
 
 **To change in `jac.toml`:**
 
 ```toml
 [scale.kubernetes]
-python_image = "python:3.12-slim"
-busybox_image = "busybox:1.36"
+python_image = "my-registry/my-base:1.2.3"
+wait_image = "busybox:1.36"
 ```
 
 ---
@@ -521,13 +537,13 @@ git = "*"
 ffmpeg = "*"
 ```
 
-Debian only: every jac-scale base image is Debian-based (`python:*-slim`). For fast-starting pods, prefer a base image that already carries these packages (`python_image`).
+Debian only: the default base images (`jaseci/jaclang:<tag>`, fallback `python:3.12-slim`) are Debian-based. For fast-starting pods, prefer a base image that already carries these packages (`python_image`).
 
 ---
 
 ### Additional Packages
 
-Extra apt packages installed into the **bootstrap init container** (the layer that clones/unpacks the runtime). These are *not* present in the running app; for runtime binaries, use [`[dependencies.system]`](#system-dependencies) instead.
+Extra apt packages installed into the **bootstrap init container** (the layer that unpacks and installs the runtime). These are *not* present in the running app; for runtime binaries, use [`[dependencies.system]`](#system-dependencies) instead.
 
 **Default:** `[]` (none)
 
@@ -540,72 +556,45 @@ additional_packages = ["xz-utils", "zstd"]
 
 ---
 
-### Jaseci Source Pinning (Experimental)
+### Version Pinning
 
-When using `--experimental` mode, the Jaseci plugin packages (byllm and friends) are installed from the GitHub repository instead of PyPI. Pin a specific branch or commit for reproducible builds. (The jaclang runtime itself -- which includes the `scale` subsystem -- always comes from the pod's `jac` binary base image, so it is never installed from PyPI in either mode.)
+The runtime version in the pod is pinned through the same channels as everywhere else -- there is no separate cluster-side pinning config:
 
-**Defaults:**
+- **Runtime**: pin `[project] jac-version` in `jac.toml` (stable channel), use the `[dev]` / `[experimental]` stanzas, or ship an exact binary via `JAC_SCALE_BINARY_PATH`. See [Runtime Binary](#runtime-binary).
+- **Project dependencies** (PyPI/npm): pinned in `jac.toml` as usual; the bootstrap init container runs `jac install` against the shipped, sanitized `jac.toml`, so the pod resolves exactly what you pinned.
 
-| TOML Key  | Default | Description |
-|-----------|---------|-------------|
-| `jaseci_repo_url` | `https://github.com/jaseci-labs/jaseci.git` | GitHub repository to install Jaseci packages from |
-| `jaseci_branch` | `main` | Repository branch to install from |
-| `jaseci_commit` | None | Specific commit SHA - leave empty for latest of the branch |
-
-**To change in `jac.toml`:**
-
-```toml
-[scale.kubernetes]
-jaseci_branch = "develop"
-jaseci_commit = "a1b2c3d4"
-```
-
----
-
-### Package Version Pinning
-
-Pin specific PyPI versions for genuine third-party Jaseci plugin packages installed inside the pod. Use `"none"` to skip a package entirely.
-
-> The pod's base image provides the `jac` binary, which is the jaclang runtime -- so jaclang (and the built-in subsystems that ship inside core: `scale`, the client/frontend framework, byLLM, and the MCP server) is host-provided and is never pinned or `pip install`ed here. Only genuine third-party plugins below are installed into the pod.
->
-> **Note:** `jaclang` is no longer on PyPI, so the pod image must install the `jac` binary (e.g. via the install script). The cluster deploy code is being migrated to this model; until then, deploys that expect a PyPI `jaclang` will not resolve.
-
-**Defaults:** all packages default to `"latest"` from PyPI.
-
-**To configure in `jac.toml`:**
-
-```toml
-[scale.kubernetes.plugin_versions]
-# Pin a genuine third-party plugin to an explicit version, or "none" to skip it:
-my_third_party_plugin = "1.2.3"   # Pin an exact PyPI version
-another_plugin        = "none"    # Skip installation entirely
-```
-
-> Scale, the frontend/client framework, byLLM, and the MCP server are all part of `jaclang` core and arrive with the `jac` binary in the pod image, so there is no `jac_scale`, `jac_byllm`, or `jac_mcp` package to pin here -- those subsystems are built into the binary. Use `plugin_versions` only for genuine third-party plugins that are still distributed as separate PyPI packages.
+Scale, the frontend/client framework, byLLM, and the MCP server are part of `jaclang` core and arrive with the `jac` binary, so there is no plugin package to pin: `jaclang` is not on PyPI, and nothing is pip-installed from GitHub during a deploy.
 
 ---
 
 ### Monitoring Stack
 
-Scale can deploy a full observability stack (Prometheus + Grafana + kube-state-metrics + node-exporter, and optionally Loki + Grafana Alloy for log aggregation) into the same namespace as your application.
+Scale can deploy a full observability stack (Prometheus + Grafana + kube-state-metrics + node-exporter, and optionally Loki + Grafana Alloy for log aggregation and Tempo for tracing) into the same namespace as your application.
 
 | Component | Purpose |
 |-----------|---------|
-| **Prometheus** | Collects and stores metrics (ClusterIP - internal only, scraped by Grafana) |
+| **Prometheus** | Collects and stores metrics (ClusterIP - internal only; Grafana queries it as a datasource) |
 | **Grafana** | Dashboard UI - served via NGINX Ingress at `/grafana` (NodePort locally, NLB on AWS) |
 | **kube-state-metrics** | K8s object state: pod counts, replica health, restart counts |
 | **node-exporter** | Host-level metrics: CPU, memory, disk, network per node |
 | **Loki** *(optional)* | Log store - receives logs from Alloy (ClusterIP, ephemeral storage) |
-| **Grafana Alloy** *(optional)* | DaemonSet that tails `/var/log/pods` on every node and ships to Loki (replaces Promtail, which went EOL on 2026-03-02) |
+| **Tempo** *(optional)* | Trace store - receives OTLP traces from Alloy, added to Grafana as a datasource |
+| **Grafana Alloy** *(optional)* | DaemonSet that tails `/var/log/pods` on every node and ships to Loki, with an OTLP lane to Tempo when tracing is on (replaces Promtail, which went EOL on 2026-03-02). Deployed when `loki_enabled` or `tracing_enabled` is set |
 
-**Defaults:**
+**Defaults (`[scale.monitoring]`):**
 
 | TOML Key | Default | Description |
 |----------|---------|-------------|
 | `enabled` | `false` | Deploy the monitoring stack and expose the app's `/metrics` endpoint |
 | `k8s_metrics_enabled` | `true` | Include kube-state-metrics and node-exporter exporters |
-| `loki_enabled` | `false` | Deploy Loki + Grafana Alloy and add a Pod Logs dashboard to Grafana |
 | `prometheus_admin_password` | `Adminpassword123` | Grafana `admin` login password |
+
+**Defaults (`[scale.kubernetes]`):**
+
+| TOML Key | Default | Description |
+|----------|---------|-------------|
+| `loki_enabled` | `false` | Deploy Loki + Grafana Alloy and add a Pod Logs dashboard to Grafana. Only read from `[scale.kubernetes]` (setting it under `[scale.monitoring]` has no effect). For microservice deployments use `[scale.microservices.logs] enabled` instead |
+| `tracing_enabled` | `false` | Deploy Tempo and wire Alloy's OTLP receiver into it |
 
 **To enable in `jac.toml`:**
 
@@ -616,11 +605,12 @@ k8s_metrics_enabled = true
 prometheus_admin_password = "StrongPassword123!"
 ```
 
-**To also enable log aggregation:**
+**To also enable log aggregation and tracing:**
 
 ```toml
 [scale.kubernetes]
 loki_enabled = true
+tracing_enabled = true
 ```
 
 After deployment, access:
@@ -631,9 +621,10 @@ On AWS clusters, the NGINX Ingress controller is exposed via a Network Load Bala
 
 **Prometheus scrape targets:**
 
-- Jaseci application `/metrics` endpoint
+- Jaseci application `/metrics` endpoint (authenticated with HTTP basic auth: `[scale.admin] username` + `prometheus_admin_password`, mounted from a Secret)
 - kube-state-metrics (pod, deployment, replica, restart state)
 - node-exporter (CPU, memory, disk, network per node)
+- kubernetes-cadvisor via the API-server proxy (node-level container metrics, when `k8s_metrics_enabled = true`)
 
 **Loki log pipeline (`loki_enabled = true`):**
 
@@ -658,7 +649,7 @@ jac scale status app.jac
 
 Displays a table with:
 
-- **Component health** - Jaseci App, Redis, MongoDB, Prometheus, Grafana
+- **Component health** - Jaseci App, Redis, MongoDB, Prometheus, Grafana, RedisInsight, Mongo Express, NGINX Ingress (companion components appear when deployed)
 - **Pod readiness** - `ready/total` replica count per component
 - **Service URLs** - application endpoint and Grafana URL
 
@@ -668,23 +659,25 @@ Status values:
 |-------|---------|
 | `Running` | All pods ready |
 | `Degraded` | Some pods ready, others not |
-| `Pending` | Pods are starting up |
+| `Pending` | Pods are starting up (no pods ready yet) |
 | `Restarting` | One or more pods are crash-looping |
-| `Failed` | No pods are running |
 | `Not Deployed` | Component was never provisioned |
+| `Unknown` | Component state could not be determined |
 
 ---
 
 ### Resource Tagging
 
-All Kubernetes resources created by jac-scale are labeled `managed: jac-scale` for easy auditing:
+Kubernetes resources created by jac-scale are labeled `managed: jac-scale` for easy auditing:
 
 ```bash
-# List all jac-scale managed resources across all namespaces
+# List jac-scale managed resources across all namespaces
 kubectl get all -l managed=jac-scale -A
 ```
 
-Tagged resource types: Deployments, StatefulSets, Services, ConfigMaps, Secrets, PersistentVolumeClaims, HorizontalPodAutoscalers, ScaledObjects (KEDA engine), TriggerAuthentications (KEDA engine).
+Tagged resource types: Deployments, StatefulSets, DaemonSets, Services, ServiceAccounts, ConfigMaps, Secrets, PersistentVolumeClaims, ClusterRoles/Bindings, HorizontalPodAutoscalers, ScaledObjects (KEDA engine), TriggerAuthentications (KEDA engine).
+
+> **Note:** Pod-template labeling is inconsistent: some pods carry `managed: jac-scale` (Redis, kube-state-metrics, node-exporter, Alloy, and all microservice pods), while others carry only `app` (the single-app main pod, MongoDB, Prometheus, Grafana, Tempo, Loki, NGINX). `kubectl get pods -l managed=jac-scale` therefore returns a partial, misleading subset -- list pods via their owning Deployment/StatefulSet instead.
 
 ---
 
@@ -700,18 +693,27 @@ jac scale destroy app.jac
 Removes:
 
 - Application Deployment and pods
-- Redis and MongoDB StatefulSets
+- Redis Deployment and MongoDB StatefulSet
 - PersistentVolumeClaims (data is lost)
-- Services, ConfigMaps, Secrets, and HPA
+- Services, ConfigMaps, Secrets, and autoscaler resources
+
+For partial teardown, pass `--component` with one of `application`, `database`, `cache`, `monitoring`, or `dashboard` to remove just that component while leaving the rest of the deployment running:
+
+```bash
+jac scale destroy app.jac --component monitoring
+```
 
 ---
 
 ## Health Checks
 
-Built-in endpoints are available for Kubernetes probes:
+The scale server registers built-in endpoints for Kubernetes probes:
 
-- `/health` -- Liveness probe
-- `/ready` -- Readiness probe
+- `/healthz/live` -- Liveness: returns `200` while the server process is up
+- `/healthz/ready` -- Readiness: returns `200` when serving, `503` while the server is draining during shutdown
+- `/healthz` -- Legacy combined health endpoint
+
+Microservice deployments wire their probes to `/healthz/live` and `/healthz/ready` automatically. Single-app deployments probe `health_check_path` (default `/docs`); point it at `/healthz/ready` to use the built-in endpoint -- see [Health Probes](#health-probes).
 
 You can also create custom health walkers:
 
@@ -773,11 +775,9 @@ histogram_buckets = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0,
 |--------|------|---------|-------------|
 | `enabled` | bool | `false` | Enable Prometheus metrics collection and `/metrics` endpoint |
 | `endpoint` | string | `"/metrics"` | Path for the Prometheus scrape endpoint |
-| `namespace` | string | `"jac_scale"` | Metrics namespace prefix |
+| `namespace` | string | `"jaclang_scale"` | Metrics namespace prefix |
 | `walker_metrics` | bool | `false` | Enable walker execution timing metrics |
 | `histogram_buckets` | list | `[0.005, ..., 10.0]` | Histogram bucket boundaries in seconds |
-
-> **Note:** If `namespace` is not set, it is derived from the Kubernetes namespace config (sanitized) or defaults to `"jac_scale"`.
 
 ### Exposed Metrics
 
@@ -787,17 +787,22 @@ histogram_buckets = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0,
 | `{namespace}_http_request_duration_seconds` | Histogram | `method`, `path` | HTTP request latency in seconds |
 | `{namespace}_http_requests_in_progress` | Gauge | -- | Concurrent HTTP requests |
 | `{namespace}_walker_duration_seconds` | Histogram | `walker_name`, `success` | Walker execution duration (only when `walker_metrics=true`) |
+| `{namespace}_ws_connections_active` | Gauge | -- | Active WebSocket connections |
+| `{namespace}_ws_broadcasts_total` | Counter | -- | WebSocket broadcasts sent |
+
+The standard `prometheus_client` process, platform, and GC collector metrics are exposed alongside these.
 
 ### Authentication
 
-The `/metrics` endpoint requires admin authentication. Include the admin token in the `Authorization` header:
+The `/metrics` endpoint requires authentication; unauthenticated requests receive `403 Forbidden`. Two schemes are accepted:
 
-```bash
-# Scrape metrics (admin token required)
-curl -H "Authorization: Bearer <admin_token>" http://localhost:8000/metrics
-```
+- **Bearer token** -- an admin JWT in the `Authorization` header:
 
-Unauthenticated requests receive a 403 Forbidden response. This protects sensitive server performance data from unauthorized access.
+    ```bash
+    curl -H "Authorization: Bearer <admin_token>" http://localhost:8000/metrics
+    ```
+
+- **HTTP basic auth** -- `[scale.admin] username` (default `admin`) + `prometheus_admin_password`. This is how the deployed Prometheus scrapes the endpoint: its scrape config uses `basic_auth` with the password mounted from a Kubernetes Secret.
 
 ### Admin Metrics Dashboard
 
@@ -809,29 +814,34 @@ Additionally, the `/admin/metrics` endpoint returns parsed metrics as structured
 curl -H "Authorization: Bearer <admin_token>" http://localhost:8000/admin/metrics
 ```
 
-Response format:
+Response format (standard transport envelope):
 
 ```json
 {
-  "status": "success",
+  "type": "response",
+  "ok": true,
   "data": {
+    "enabled": true,
+    "summary": {
+      "total_requests": 156,
+      "active_requests": 2,
+      "error_count": 1,
+      "avg_latency_ms": 45.2
+    },
     "metrics": [
       {
-        "name": "jac_scale_http_requests_total",
+        "name": "jaclang_scale_http_requests_total",
         "type": "counter",
-        "help": "Total HTTP requests processed",
+        "description": "Total HTTP requests processed",
         "values": [
-          {"labels": {"method": "GET", "path": "/", "status_code": "200"}, "value": 42}
+          {"labels": {"method": "GET", "path": "/", "status_code": "200"}, "value": 42, "suffix": ""}
         ]
       }
     ],
-    "summary": {
-      "total_requests": 156,
-      "avg_latency_ms": 45.2,
-      "error_rate_percent": 0.5,
-      "active_requests": 2
-    }
-  }
+    "raw_available": true
+  },
+  "error": null,
+  "meta": {"extra": {"http_status": 200}}
 }
 ```
 
@@ -859,7 +869,7 @@ DATABASE_PASSWORD = "${DB_PASS}"
 STATIC_VALUE = "hardcoded-value"
 ```
 
-Values using `${ENV_VAR}` syntax are resolved from the local environment at deploy time. The resolved key-value pairs are created as a proper Kubernetes Secret (`{app_name}-secrets`) and injected into pods via `envFrom.secretRef`.
+Values using `${ENV_VAR}` syntax are resolved from the local environment at deploy time; an unset variable fails the config load. Shell-style fallback operators are supported: `${VAR:-default}` substitutes a default when the variable is unset, and `${VAR:?message}` fails with your own error message. The resolved key-value pairs are created as a proper Kubernetes Secret (`{app_name}-secrets`) and injected into pods via `envFrom.secretRef`.
 
 ### How It Works
 
@@ -905,9 +915,11 @@ Instead, a deploy:
    the cluster on a PVC.
 2. Runs a bootstrap initContainer that unpacks the bundle and installs the
    pinned `jac` runtime into a shared volume.
-3. Starts every pod on a stock base image -- `jaseci/jaclang:latest` (or
-   `:dev` on the dev channel), falling back to `python:3.12-slim` when that tag
-   is unreachable.
+3. Starts every pod on a stock base image -- `jaseci/jaclang:latest` (or the
+   tag matching the channel/version pin: `:dev`, `:experimental-<PR#>`,
+   `:<x.y.z>`), pinned to an immutable `@sha256:` digest when Docker Hub is
+   reachable (experimental builds excepted) and falling back to
+   `python:3.12-slim` when it is not.
 
 Override the base image with `python_image` if you need your own:
 
@@ -960,17 +972,18 @@ Each entry is an [array of tables](https://toml.io/en/v1.0.0#array-of-tables) (n
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `name` | yes | PVC name. Must be DNS-1123 (lowercase alphanumeric and `-`). |
+| `name` | yes | PVC name. Normalized to DNS-1123 automatically (lowercased, `_` becomes `-`). |
 | `mount_path` | yes | Where the volume mounts inside each pod. |
 | `services` | yes | Module names from `[scale.microservices.routes]` that get this mount. The gateway can also be listed (use `__gateway__`) but rarely needs to. |
-| `size` | yes (PVC mode) | Requested storage, e.g. `10Gi`. |
-| `access_mode` | yes (PVC mode) | One of `ReadWriteMany` (most common for cross-pod), `ReadWriteOnce`, `ReadOnlyMany`. ReadWriteMany requires an RWX-capable storage class. |
-| `storage_class` | yes (PVC mode) | The StorageClass to bind to. Cloud providers' RWX classes: AWS `efs-sc`, GCP Filestore CSI, Azure Files. |
+| `sub_path` | no | Mount only this subdirectory of the volume (`volumeMounts.subPath`). |
+| `size` | no (PVC mode) | Requested storage, e.g. `10Gi`. Default `1Gi`. |
+| `access_mode` | no (PVC mode) | One of `ReadWriteMany` (most common for cross-pod), `ReadWriteOnce` (default), `ReadOnlyMany`. ReadWriteMany requires an RWX-capable storage class. |
+| `storage_class` | no (PVC mode) | The StorageClass to bind to. Empty uses the cluster default. Cloud providers' RWX classes: AWS `efs-sc`, GCP Filestore CSI, Azure Files. |
 | `host_path` | yes (hostPath mode) | Local-cluster-only alternative; binds the volume to a directory on the host node. Use only on MicroK8s / k3d / kind / Minikube; will not survive a pod move on multi-node clusters. |
 
 PVC mode and hostPath mode are mutually exclusive per entry. K-track applies PVCs before Deployments so pods do not crash-loop on "PVC not found".
 
-> **EFS gotcha.** AWS EFS CSI access points enforce a POSIX UID on every file. The shipped microservice image sets `git config --system --add safe.directory '*'` so in-pod `git` commands against the shared volume do not trip CVE-2022-24765 dubious-ownership checks when the EFS UID differs from the pod's running UID. If you bake your own image, add the same line, or set a matching `securityContext` on the pod (`runAsUser` / `fsGroup` -- not yet exposed in `[scale.kubernetes]`, on the roadmap).
+> **EFS gotcha.** AWS EFS CSI access points enforce a POSIX UID on every file. When the EFS UID differs from the pod's running UID, in-pod `git` commands against the shared volume trip CVE-2022-24765 dubious-ownership checks. Work around it with `git config --system --add safe.directory '*'` in your pod (e.g. via a custom `python_image`), or set a matching `securityContext` on the pod (`runAsUser` / `fsGroup` -- not yet exposed in `[scale.kubernetes]`, on the roadmap).
 
 ---
 
@@ -988,9 +1001,11 @@ JAC_SV_<PEER_MODULE>_URL=http://<peer>-service.<namespace>.svc.cluster.local:<co
 
 The env-var key uses the raw module name (the value to the right of `sv import from`) upper-cased and joined with `JAC_SV_..._URL`. The URL host uses the Kubernetes Service name with DNS-1123 normalization (so `jac_coder_sv` becomes `jac-coder-sv-service`). Self is skipped (no service points env at itself).
 
+Alongside the peer URLs, every pod also receives `JAC_SV_ROUTES` (the full routes map as JSON), `K8S_APP_NAME`, and `K8S_NAMESPACE`. Every pod's entrypoint (gateway included) also exports `JAC_SV_SIBLING=1` -- a shell export in the container command, not a PodSpec `env:` entry. (Sibling-only scoping of that variable exists only in local multi-process mode.)
+
 You do not write these env vars by hand in `--scale` K8s mode; K-track derives them from `[scale.microservices.routes]` and the configured namespace.
 
-Per-service env overrides under `[scale.microservices.services.<name>.env]` cannot shadow these keys. A stale override would silently route sv-to-sv calls to a wrong backend, and the right way to point a peer at a non-cluster URL (e.g. a vendor SaaS) is to edit the Deployment env spec directly after deploy.
+Per-service env overrides under `[scale.microservices.services.<name>.env]` cannot shadow these keys. A stale override would silently route sv-to-sv calls to a wrong backend. To point a peer at a non-cluster URL (e.g. a vendor SaaS), use a per-service `deployment_overlay` (which merges raw manifest fields, including env) or edit the Deployment env spec after deploy.
 
 ### Per-Service Configuration
 
@@ -1000,11 +1015,16 @@ Each microservice entry takes optional per-service overrides under `[scale.micro
 |-------|------|-------------|
 | `replicas` | int | Initial replica count (default 1; HPA can scale higher). |
 | `rpc_timeout` | float (seconds) | Per-service sv-to-sv RPC timeout. Default 10s, fine for CRUD; bump to 120-300s for LLM workers. |
-| `image_tag` | str | Override the image tag for just this service (rare; most apps use the same image and select via `JAC_SV_NAME`). |
+| `http_forward_timeout` | float (seconds) | Gateway-to-service HTTP forward timeout. |
 | `env` | dict | Extra env vars merged into the pod spec. `JAC_SV_NAME` and `JAC_SV_*_URL` are protected (cannot be overridden). |
+| `cpu_request` / `cpu_limit` | str | Per-service CPU request/limit (e.g. `"250m"`). |
+| `memory_request` / `memory_limit` | str | Per-service memory request/limit (e.g. `"256Mi"`). |
 | `hpa.enabled` | bool | Set to `false` to fix replicas at the configured `replicas` count. Applies to both `"hpa"` and `"keda"` engines. |
 | `hpa.min` / `hpa.max` | int | Autoscaler replica bounds. Applies to both engines. |
-| `hpa.cpu_target` | int (percent) | Target CPU utilization percentage. Default 70%. Applies to both engines. |
+| `hpa.cpu_target` | int (percent) | Target CPU utilization percentage. Default 50%. Applies to both engines. |
+| `hpa.memory_target` | int (percent) | Target memory utilization percentage (default 80). A memory trigger is added alongside CPU unconditionally -- set `memory_request` or the utilization percentage cannot be computed. |
+| `pdb.enabled` / `pdb.max_unavailable` | bool / int | PodDisruptionBudget controls for this service. |
+| `deployment_overlay` | table | Raw manifest fragment deep-merged onto the generated Deployment (escape hatch for fields not exposed above). |
 | `[[services.NAME.triggers]]` | list | Per-service KEDA event-driven triggers. Each entry: `type` (str), `metadata` (dict), optional `name` (str), optional `auth.secret_refs` (dict). Requires `autoscaler_engine = "keda"` in `[scale.kubernetes]`. |
 
 ```toml
@@ -1027,7 +1047,7 @@ metadata = { serverAddress = "http://prometheus:9090", metricName = "pending_ord
 #### Gateway High Availability
 
 !!! warning "Gateway defaults to a single replica"
-    The gateway service (`__gateway__`) is configured like any other service under `[scale.microservices.services]` -- its HPA defaults to `min = 1`. Because the gateway is the single entry point for all external traffic, a pod restart (crash, rolling deploy, node drain) leaves no pod to serve requests until the replacement passes its readiness probe. With the default `readiness_initial_delay = 300`, that is a ~5 minute window of 503s for every user, regardless of which backend service they are calling.
+    The gateway service (`__gateway__`) is configured like any other service under `[scale.microservices.services]` -- its HPA defaults to `min = 1`. Because the gateway is the single entry point for all external traffic, a pod restart (crash, rolling deploy, node drain) leaves no pod to serve requests until the replacement boots and passes its readiness probe (`readiness_initial_delay` of 10s plus app boot time) -- a window of 503s for every user, regardless of which backend service they are calling.
 
     Backend services don't have this exposure -- if one of several replicas restarts, the others keep serving. Give the gateway the same redundancy, either as a fixed count or as an autoscaler floor:
 
@@ -1057,7 +1077,7 @@ When enabled, `jac start --scale` deploys:
 
 - **Loki** -- single-process log store (port 3100, ClusterIP). Uses filesystem/TSDB storage backed by `emptyDir` (logs are ephemeral and reset on pod restart; suitable for dev and staging).
 - **Grafana Alloy** -- DaemonSet on every node (tolerates `NoSchedule`). Tails `/var/log/pods`, labels each stream with `namespace`, `pod`, and `container`, and pushes to Loki via Kubernetes service discovery. River-syntax config; supersedes Promtail (EOL 2026-03-02).
-- **Prometheus + Grafana** -- the full monitoring stack comes along because the Pod Logs dashboard view lives inside Grafana. Equivalent to setting `[scale.kubernetes].monitoring_enabled = true` and `loki_enabled = true` on the monolith target.
+- **Prometheus + Grafana** -- the full monitoring stack comes along because the Pod Logs dashboard view lives inside Grafana. Equivalent to setting `[scale.monitoring] enabled = true` plus `[scale.kubernetes] loki_enabled = true` on the monolith target.
 
 A **Pod Logs** dashboard is added to Grafana automatically, with two panels: log volume (lines/min by namespace/pod) and a live log viewer.
 
@@ -1065,7 +1085,7 @@ A **Pod Logs** dashboard is added to Grafana automatically, with two panels: log
 |-----------|----------|-------|
 | Loki | Deployment + ClusterIP Service `<app>-loki-service:3100` | Cluster-internal only |
 | Alloy | DaemonSet | Per node; reads host `/var/log/pods` (read-only) |
-| Grafana | Deployment + Service, NodePort/NLB via Ingress | `/grafana` on the app's external endpoint |
+| Grafana | Deployment + ClusterIP Service | Cluster-internal in microservice mode (the `/grafana` ingress path is wired by the monolith target only); reach it with `kubectl port-forward svc/<app>-grafana-service 3000:3000` |
 
 > **Storage caveat.** Loki uses `emptyDir` in v0. A Loki pod restart drops in-flight chunks. Persistent storage modes (PVC, S3-compatible object storage) are planned.
 
@@ -1149,15 +1169,16 @@ kubectl get svc
 ### Database Connection Issues
 
 ```bash
-# Check StatefulSets
-kubectl get statefulsets
+# Check MongoDB (StatefulSet) and Redis (Deployment)
+kubectl get statefulsets   # MongoDB only -- Redis runs as a Deployment
+kubectl get deployments
 
-# Check persistent volumes
+# Check persistent volumes (MongoDB and the bundle PVC; Redis has none)
 kubectl get pvc
 
-# View database logs
-kubectl logs -l app=mongodb
-kubectl logs -l app=redis
+# View database logs (labels are prefixed with your app name)
+kubectl logs -l app=<app_name>-mongodb
+kubectl logs -l app=<app_name>-redis
 ```
 
 ### Pods Stuck in Init
@@ -1195,572 +1216,3 @@ kubectl get all
 # Check events
 kubectl get events --sort-by='.lastTimestamp'
 ```
-
----
-
-## Sandbox Environments
-
-jac-scale includes a **sandbox system** for creating isolated, ephemeral preview environments. Each sandbox runs a user's Jac application in its own container or pod with resource limits, network isolation, and automatic cleanup -- ideal for live preview, collaborative editing, or CI/CD preview deployments.
-
-### Overview
-
-The sandbox system follows jac-scale's factory pattern: an abstract `SandboxEnvironment` interface with three provider implementations. You choose the provider via configuration, and the factory handles instantiation.
-
-| Provider | Isolation | Use Case |
-|----------|-----------|----------|
-| `local` | Subprocess | Local development, no container runtime needed |
-| `docker` | Container | Staging, basic isolation with Docker |
-| `kubernetes` | Pod | Production, full isolation with resource limits and RBAC |
-
-### Configuration
-
-Enable and configure sandboxes in `jac.toml`:
-
-```toml
-[scale.sandbox]
-enabled = true
-type = "kubernetes"              # "kubernetes", "docker", or "local"
-namespace = "jac-sandboxes"      # K8s namespace for sandbox pods
-max_per_user = 3                 # Maximum concurrent sandboxes per user
-ttl_seconds = 3600               # Auto-cleanup after this many seconds (1 hour)
-cpu_limit = "500m"               # CPU limit per sandbox
-memory_limit = "512Mi"           # Memory limit per sandbox
-base_image = "python:3.12-slim"  # Base Docker/K8s image
-storage_limit = "256Mi"          # Scratch storage (/tmp) limit
-domain_template = "{sandbox_id}.preview.example.com"  # URL template
-security_context = true          # Run as non-root, no privilege escalation
-network_isolation = true         # Isolate sandboxes from each other
-ingress_class = "nginx"          # K8s Ingress class (nginx, alb, traefik)
-tls_enabled = false              # Enable TLS via cert-manager
-tls_issuer = "letsencrypt-prod"  # cert-manager ClusterIssuer name
-proxy_mode = false               # Use shared proxy instead of per-sandbox Ingress
-warm_pool_size = 0               # Pre-initialized pods for instant startup (K8s only)
-```
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `enabled` | bool | `false` | Enable the sandbox system |
-| `type` | string | `"local"` | Provider: `"kubernetes"`, `"docker"`, or `"local"` |
-| `namespace` | string | `"jac-sandboxes"` | Kubernetes namespace for sandbox resources |
-| `max_per_user` | int | `3` | Maximum concurrent sandboxes per user |
-| `ttl_seconds` | int | `3600` | Time-to-live before automatic cleanup (seconds) |
-| `cpu_limit` | string | `"500m"` | CPU limit per sandbox (K8s format) |
-| `memory_limit` | string | `"512Mi"` | Memory limit per sandbox (K8s format) |
-| `base_image` | string | `"python:3.12-slim"` | Base container image for sandboxes |
-| `storage_limit` | string | `"256Mi"` | Ephemeral storage limit for `/tmp` |
-| `domain_template` | string | `"{sandbox_id}.preview.example.com"` | URL template (`{sandbox_id}` is replaced) |
-| `security_context` | bool | `true` | Enable security context (non-root, no privilege escalation) |
-| `network_isolation` | bool | `true` | Isolate sandboxes from each other |
-| `ingress_class` | string | `"nginx"` | Kubernetes Ingress class name |
-| `tls_enabled` | bool | `false` | Enable TLS via cert-manager |
-| `tls_issuer` | string | `"letsencrypt-prod"` | cert-manager ClusterIssuer name |
-| `proxy_mode` | bool | `false` | Use shared routing proxy (see [Proxy Mode](#proxy-mode)) |
-| `warm_pool_size` | int | `0` | Number of pre-initialized warm pods (see [Warm Pool](#warm-pool)) |
-
-**Environment Variables (override jac.toml):**
-
-| Variable | Description |
-|----------|-------------|
-| `JAC_SANDBOX_TYPE` | Provider type (`"kubernetes"`, `"docker"`, `"local"`) |
-| `JAC_SANDBOX_NAMESPACE` | Kubernetes namespace |
-| `JAC_SANDBOX_DOMAIN` | Domain template |
-
-Configuration priority: environment variables > `jac.toml` > defaults.
-
----
-
-### Programmatic Usage
-
-Use `SandboxFactory` to create and manage sandboxes in your Jac code:
-
-```jac
-import from jaclang.scale.factories.sandbox_factory { SandboxFactory }
-
-# Create sandbox using jac.toml config
-glob sandbox = SandboxFactory.get_default();
-
-# Or create with explicit type and config
-glob sandbox = SandboxFactory.create("kubernetes", {
-    "namespace": "jac-sandboxes",
-    "base_image": "python:3.12-slim",
-    "memory_limit": "1Gi",
-    "ttl_seconds": 1800,
-    "domain_template": "{sandbox_id}.preview.example.com"
-});
-```
-
-#### Creating a Sandbox
-
-```jac
-with entry {
-    result = sandbox.create(
-        user_id="user-123",
-        project_id="my-project",
-        code_path="/path/to/project/files"
-    );
-
-    if result.success {
-        print(f"Sandbox ready at: {result.url}");
-        print(f"Sandbox ID: {result.sandbox_id}");
-    }
-}
-```
-
-#### Sandbox Lifecycle
-
-```jac
-with entry {
-    # Check status
-    status = sandbox.status("jac-sbx-abc123");
-    print(f"State: {status.state}");  # pending, starting, running, stopped, error
-
-    # List user's sandboxes
-    sandboxes = sandbox.list_sandboxes("user-123");
-    for s in sandboxes {
-        print(f"{s.sandbox_id}: {s.state} - {s.url}");
-    }
-
-    # Stop a sandbox
-    sandbox.stop("jac-sbx-abc123");
-
-    # Destroy and clean up all resources
-    sandbox.destroy("jac-sbx-abc123");
-
-    # Clean up expired sandboxes (beyond TTL)
-    cleaned = sandbox.cleanup_expired();
-    print(f"Cleaned {cleaned} expired sandboxes");
-}
-```
-
-#### File Operations
-
-Read, write, and manage files inside a running sandbox:
-
-```jac
-with entry {
-    # Write a file
-    sandbox.write_file("jac-sbx-abc123", "main.jac", "with entry { print('hello'); }");
-
-    # Read a file
-    result = sandbox.read_file("jac-sbx-abc123", "main.jac");
-    print(result["content"]);
-
-    # Read binary files (images) -- returned as base64
-    result = sandbox.read_file("jac-sbx-abc123", "assets/logo.png");
-    # result = {"success": True, "content": "<base64>", "is_binary": True, "mime_type": "image/png"}
-
-    # Delete a file
-    sandbox.delete_file("jac-sbx-abc123", "old_file.jac");
-
-    # List files
-    result = sandbox.list_files("jac-sbx-abc123");
-    for f in result["files"] {
-        print(f);
-    }
-}
-```
-
-**Path Security:** All file paths are validated against directory traversal, absolute paths, and shell metacharacters. Paths like `../`, `/etc/passwd`, or strings containing `;`, `|`, `&`, `` ` `` are rejected.
-
-**Excluded Directories:** File listing automatically skips `.jac/`, `node_modules/`, `__pycache__/`, `dist/`, and `.git/`.
-
-#### Command Execution
-
-```jac
-with entry {
-    result = sandbox.exec_command("jac-sbx-abc123", "ls -la /app", timeout=30);
-    print(result["stdout"]);
-}
-```
-
-#### Log Retrieval
-
-```jac
-with entry {
-    result = sandbox.logs("jac-sbx-abc123", offset=0);
-    print(result["content"]);
-    # result["offset"] contains the byte offset for the next read (streaming)
-}
-```
-
----
-
-### Sandbox States
-
-| State | Description |
-|-------|-------------|
-| `pending` | Pod/container created, waiting to start |
-| `starting` | Container starting, installing dependencies |
-| `running` | Application fully ready and serving traffic |
-| `stopping` | Shutdown in progress |
-| `stopped` | Container stopped |
-| `error` | Error or crash state |
-
----
-
-### Local Sandbox Provider
-
-The `local` provider runs each sandbox as a subprocess on the host machine. No container runtime required.
-
-```toml
-[scale.sandbox]
-enabled = true
-type = "local"
-```
-
-**How it works:**
-
-- Allocates a port pair from a pool (base ports 5180-5200, stride of 2)
-- Runs `jac start --dev -p {port}` as a child process
-- Checks for readiness by scanning process output for `"Server ready"`
-- Returns `http://localhost:{port}` as the preview URL
-
-**Environment sourcing:**
-
-- Global: `~/.jac-ide/global.env` (if it exists)
-- Project: `.env` in the project directory (if it exists)
-
-**Limitations:**
-
-- No isolation between sandboxes
-- No resource limits
-- Port pool limits concurrent sandboxes (10 by default)
-- Development and testing only
-
----
-
-### Docker Sandbox Provider
-
-The `docker` provider runs each sandbox in an isolated Docker container with resource limits.
-
-```toml
-[scale.sandbox]
-enabled = true
-type = "docker"
-base_image = "python:3.12-slim"
-memory_limit = "512Mi"
-cpu_limit = "500m"
-network_isolation = true
-```
-
-**How it works:**
-
-- Creates a Docker container from `base_image`
-- Copies project files into `/app` via tarball injection
-- Runs `jac install && jac start --dev -p 8000`
-- Applies resource limits (memory, CPU, storage)
-- Optionally creates an isolated Docker bridge network per sandbox
-- Polls container health via HTTP until ready (120s timeout)
-
-**Container labels:**
-
-| Label | Value |
-|-------|-------|
-| `jac-sandbox` | `true` |
-| `jac-sandbox-id` | `{sandbox_id}` |
-| `jac-sandbox-user` | `{user_id}` |
-| `jac-sandbox-project` | `{project_id}` |
-
-**Requirements:** Docker daemon must be running on the host.
-
----
-
-### Kubernetes Sandbox Provider
-
-The `kubernetes` provider creates isolated pods in a dedicated namespace with RBAC, resource limits, and automatic cleanup. This is the recommended provider for production.
-
-```toml
-[scale.sandbox]
-enabled = true
-type = "kubernetes"
-namespace = "jac-sandboxes"
-base_image = "python:3.12-slim"
-memory_limit = "2Gi"
-cpu_limit = "500m"
-ttl_seconds = 3600
-max_per_user = 3
-security_context = true
-```
-
-**How it works:**
-
-1. Ensures namespace exists with label `jac-sandbox: namespace`
-2. Provisions RBAC (ServiceAccount, Role, RoleBinding) for pod management
-3. Packages project files into a ConfigMap (text files in `data`, binary files in `binaryData` as base64)
-4. Creates a pod with an init container that unpacks the ConfigMap into `/app`
-5. Main container runs `jac install && jac start --dev -p 8000`
-6. Creates a Service and Ingress (unless `proxy_mode = true`)
-7. Polls pod readiness (container ready + "Server ready" in logs, 120s timeout)
-8. Returns the preview URL
-
-**Pod naming:** `jac-sbx-{user}-{project}-{uuid}` (lowercase, max 63 chars per K8s requirements)
-
-**Pod labels:**
-
-| Label | Value |
-|-------|-------|
-| `jac-sandbox` | `true` |
-| `jac-sandbox-id` | `{sandbox_id}` |
-| `jac-sandbox-user` | `{user_id}` |
-| `jac-sandbox-project` | `{project_id}` |
-
-**Environment variables injected into sandbox pods:**
-
-| Variable | Value | Purpose |
-|----------|-------|---------|
-| `JAC_SANDBOX_ID` | `{sandbox_id}` | Sandbox identifier |
-| `JAC_SANDBOX_USER` | `{user_id}` | Owner user ID |
-| `JAC_SANDBOX_PROJECT` | `{project_id}` | Project ID |
-| `CHOKIDAR_USEPOLLING` | `1` | Force file watcher to use polling (for HMR) |
-| `WATCHPACK_POLLING` | `true` | Webpack polling fallback (for HMR) |
-
-**Resource configuration:**
-
-- Limits: `cpu_limit`, `memory_limit` from config
-- Requests: 100m CPU, 64Mi memory (fixed)
-- Scratch storage: `storage_limit` as tmpfs on `/tmp`
-- Active deadline: `ttl_seconds` (K8s kills the pod after this)
-- Graceful shutdown: 10 seconds
-
-**Security context (when enabled):**
-
-- `runAsNonRoot: true`
-- `runAsUser: 1000`
-- `allowPrivilegeEscalation: false`
-
-**ConfigMap limits:** Project files are packed into a single ConfigMap with a 1MB size limit. Binary files (images, fonts, etc.) are stored in the `binaryData` field using base64 encoding. Files in `.jac/`, `node_modules/`, `__pycache__/`, `dist/`, and `.git/` directories are excluded.
-
-**RBAC auto-provisioning:** On first use, the provider creates a Role (`jac-sandbox-manager`) and RoleBinding in the sandbox namespace with permissions for pods, services, configmaps, and ingresses. If running inside a K8s cluster, it binds the role to the pod's ServiceAccount (via `POD_SERVICE_ACCOUNT` and `POD_NAMESPACE` environment variables).
-
-**Automatic cleanup:** A background thread runs every 60 seconds and:
-
-1. Lists all sandbox pods in the namespace
-2. Deletes pods older than `ttl_seconds`
-3. Deletes pods in terminal states (Failed, Succeeded)
-4. Purges stale registry entries for pods that no longer exist
-
----
-
-### Ingress Routing
-
-When using `type = "kubernetes"`, sandboxes need to be accessible from the browser. There are two routing modes:
-
-#### Per-Sandbox Ingress (default)
-
-Each sandbox gets its own Kubernetes Ingress resource:
-
-```toml
-[scale.sandbox]
-proxy_mode = false              # default
-ingress_class = "nginx"         # or "alb", "traefik"
-domain_template = "{sandbox_id}.preview.example.com"
-tls_enabled = true
-tls_issuer = "letsencrypt-prod"
-```
-
-**Traffic flow:**
-
-```
-Browser → Load Balancer → Ingress ({sandbox_id}.preview.example.com) → Service → Pod
-```
-
-Each sandbox creates:
-
-- A `ClusterIP` Service: `{sandbox_id}-svc`
-- An Ingress resource: `{sandbox_id}-ingress` with the configured hostname
-
-**Custom Ingress annotations:**
-
-```toml
-[scale.sandbox.ingress_annotations]
-"nginx.ingress.kubernetes.io/proxy-read-timeout" = "3600"
-"nginx.ingress.kubernetes.io/proxy-send-timeout" = "3600"
-```
-
-**TLS:** When `tls_enabled = true`, cert-manager is used to automatically provision TLS certificates. Requires a `ClusterIssuer` named `tls_issuer` to be deployed in the cluster.
-
-**Drawback:** Creating per-sandbox Ingress resources is slow on some cloud providers (e.g., AWS ALB target group registration takes 30-60 seconds).
-
-#### Proxy Mode
-
-A single shared proxy service routes traffic to all sandboxes by pod IP. No per-sandbox Ingress or Service is created.
-
-```toml
-[scale.sandbox]
-proxy_mode = true
-domain_template = "{sandbox_id}.preview.example.com"
-```
-
-**Traffic flow:**
-
-```
-Browser → Load Balancer → Wildcard Ingress (*.preview.example.com) → Proxy Service → Pod IP
-```
-
-**How it works:**
-
-1. A single proxy deployment runs in the sandbox namespace (2 replicas recommended)
-2. The proxy watches all pods labeled `jac-sandbox=true` via the Kubernetes Watch API
-3. It maintains an in-memory routing table: `sandbox_id → {ip, phase, ready}`
-4. Incoming requests have their `Host` header parsed to extract the `sandbox_id` (e.g., `jac-sbx-abc.preview.example.com → jac-sbx-abc`)
-5. HTTP requests are forwarded to `http://{pod_ip}:8000{path}`
-6. WebSocket connections are bidirectionally relayed (supports Vite HMR with `vite-hmr` sub-protocol)
-
-**Loading page:** When a sandbox pod isn't ready yet, the proxy returns an auto-refreshing HTML page with a loading spinner. The page refreshes every 2 seconds until the pod is ready, then serves the actual application. This only applies to browser navigation requests (`Accept: text/html`); API calls receive proper 502/503 status codes.
-
-**Advantages over per-sandbox Ingress:**
-
-- Instant routing (no Ingress provisioning delay)
-- No per-sandbox K8s resources (Service, Ingress)
-- Scales to hundreds of concurrent sandboxes
-- Native WebSocket support for HMR
-
-**Proxy environment variables:**
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SANDBOX_NAMESPACE` | `jac-sandboxes` | Namespace to watch for sandbox pods |
-| `SANDBOX_LABEL` | `jac-sandbox=true` | Label selector for sandbox pods |
-| `INTERNAL_PORT` | `8000` | Port on sandbox pods |
-| `PROXY_PORT` | `8080` | Port the proxy listens on |
-
-**Deploying the proxy:** K8s manifest templates are included in `jac-scale/targets/kubernetes/templates/sandbox-proxy/`:
-
-- `rbac.yaml` -- ServiceAccount + Role (get/list/watch pods) + RoleBinding
-- `deployment.yaml` -- 2-replica Deployment (replace `REPLACE_WITH_IMAGE` with your built proxy image)
-- `service.yaml` -- ClusterIP Service on port 8080
-- `ingress.yaml` -- Wildcard Ingress (replace `*.example.com` with your domain)
-
-The proxy itself is a Jac application. Build it with a Dockerfile that installs the self-contained `jac` binary (which provides the jaclang runtime, including the built-in `scale` subsystem), then layers in the extra deps it needs:
-
-```dockerfile
-FROM python:3.12-slim
-# Install the `jac` binary -- no PyPI jaclang; the binary provides the runtime
-# (and scale, which is built into core).
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install.sh | bash
-ENV PATH="/root/.local/bin:${PATH}"
-RUN jac install aiohttp kubernetes_asyncio docker
-COPY sandbox_proxy.jac /app/sandbox_proxy.jac
-WORKDIR /app
-EXPOSE 8080
-CMD ["jac", "run", "sandbox_proxy.jac"]
-```
-
-**Health check endpoint:** `GET /_proxy/health` returns `ok (N routes)` where N is the number of tracked sandbox pods.
-
----
-
-### Warm Pool
-
-The warm pool pre-creates idle pods that are ready to accept code instantly, eliminating pod scheduling and image pull delays.
-
-```toml
-[scale.sandbox]
-type = "kubernetes"
-warm_pool_size = 3    # Keep 3 idle pods ready
-```
-
-**How it works:**
-
-1. On startup, the provider creates `warm_pool_size` pods using `base_image`
-2. Warm pods run a wait loop: `while [ ! -f /app/.jac-start ]; do sleep 0.5; done`
-3. When a sandbox is requested, a warm pod is claimed and relabeled with the user's sandbox ID
-4. Project code is injected via `kubectl exec` (tar stream piped into the pod)
-5. A signal file (`/app/.jac-start`) is touched, triggering `jac install && jac start`
-6. The pool automatically replenishes in the background
-
-**Warm pod labels:**
-
-| Label | Value |
-|-------|-------|
-| `jac-sandbox` | `true` |
-| `jac-sandbox-pool` | `warm` (idle) or `active` (claimed) |
-
-**Benefits:**
-
-- Eliminates ~10 seconds of pod scheduling + image pull time
-- No ConfigMap creation needed (code is injected directly)
-- Pool replenishes automatically after each claim
-
-**Fallback:** If no warm pod is available (pool exhausted), the provider falls back to the standard cold-start path (ConfigMap + new pod creation).
-
----
-
-### HMR (Hot Module Replacement) Support
-
-When using `proxy_mode = true`, Vite HMR works through the proxy:
-
-```
-Browser (Vite client) ←→ Proxy (WebSocket relay) ←→ Pod (Vite dev server)
-```
-
-The proxy:
-
-- Detects WebSocket upgrade requests via the `Upgrade: websocket` header
-- Forwards the `Sec-WebSocket-Protocol` header (e.g., `vite-hmr`) to the backend
-- Uses a separate session with no timeout for long-lived WebSocket connections
-- Bidirectionally relays `TEXT` and `BINARY` messages
-- Properly propagates close events between both sides
-
-**File watcher polling:** Sandbox pods have `CHOKIDAR_USEPOLLING=1` and `WATCHPACK_POLLING=true` environment variables set. This forces Vite's file watcher to use polling instead of `inotify`, which is necessary because files written via `kubectl exec` don't trigger filesystem notification events.
-
----
-
-### Troubleshooting
-
-#### Sandbox pod stuck in Pending
-
-```bash
-kubectl describe pod <pod-name> -n jac-sandboxes
-```
-
-Check events for scheduling failures, insufficient resources, or image pull errors.
-
-#### Preview shows loading page indefinitely
-
-```bash
-# Check if pod is running
-kubectl get pods -n jac-sandboxes -l jac-sandbox-id=<sandbox-id>
-
-# Check pod logs
-kubectl logs <pod-name> -n jac-sandboxes -c sandbox
-```
-
-Common causes: `jac install` failing (missing dependencies), port conflict, application crash.
-
-#### ConfigMap too large
-
-If your project exceeds the 1MB ConfigMap limit, consider:
-
-- Using `warm_pool_size > 0` (warm pools inject code via tar, no size limit)
-- Adding large files to the base image instead
-- Excluding unnecessary files from the project directory
-
-#### HMR not updating the preview
-
-Verify the proxy is forwarding WebSocket traffic:
-
-```bash
-# Check proxy logs
-kubectl logs -l app=sandbox-proxy -n jac-sandboxes
-
-# Verify proxy health
-curl http://<proxy-service>:8080/_proxy/health
-```
-
-#### Cleaning up stuck sandboxes
-
-```bash
-# List all sandbox pods
-kubectl get pods -n jac-sandboxes -l jac-sandbox=true
-
-# Delete a specific sandbox
-kubectl delete pod <pod-name> -n jac-sandboxes
-
-# Delete all sandboxes
-kubectl delete pods -n jac-sandboxes -l jac-sandbox=true
-```
-
----

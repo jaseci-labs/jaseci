@@ -343,7 +343,7 @@ walker:pub health {
 
 ```bash
 # Built-in health endpoint (provided by the scale subsystem)
-curl http://localhost:8000/health
+curl http://localhost:8000/healthz
 
 # Custom health walker endpoint (POST to /walker/<name>)
 curl -X POST http://localhost:8000/walker/health
