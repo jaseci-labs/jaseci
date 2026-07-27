@@ -22,7 +22,17 @@ impl _ensure_js_generated(mod: Module, program: any) -> None {
             }
         }
         import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+        _err_mark = len(program.errors_had);
+        _warn_mark = len(program.warnings_had);
         EsastGenPass(ir_in=mod, prog=program);
+        if len(program.errors_had) > _err_mark {
+            import from jaclang.jac0core.placement_solver {
+                demote_client_pulled_elements
+            }
+            if demote_client_pulled_elements(mod, program, _err_mark, _warn_mark) {
+                EsastGenPass(ir_in=mod, prog=program);
+            }
+        }
     }
 }
 

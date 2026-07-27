@@ -798,6 +798,89 @@ def solve_program_placement(entry_mod: uni.Module, prog: object) -> None {
     }
 }
 
+def demote_client_pulled_elements(
+    module: uni.Module, prog: object, err_mark: int, warn_mark: int
+) -> bool {
+    import from jaclang.jac0core.ext_registry { codespace_of }
+    mod_path = module.loc.mod_path or '';
+    if codespace_of(mod_path) is not None {
+        return False;
+    }
+    demoted: list[str] = [];
+    for (idx, stmt) in enumerate(module.body) {
+        if (
+            isinstance(stmt, uni.ContextAwareNode)
+            and stmt.codespace_dual
+            and stmt.code_context == CodeContext.CLIENT
+            and stmt._source_context_token() is None
+        ) {
+            stmt.code_context = CodeContext.SERVER;
+            stmt.codespace_dual = False;
+            ps = get_module_summary(module, prog);
+            dname = ps.elements[idx].name if idx < len(ps.elements) else 'element';
+            demoted.append(dname);
+            record_placement_evidence(
+                prog,
+                mod_path,
+                idx,
+                "demoted server: pulled client but failed ES lowering"
+            );
+        }
+    }
+    if not demoted {
+        return False;
+    }
+    first_err = '';
+    if err_mark < len(prog.errors_had) {
+        try {
+            first_err = prog.errors_had[err_mark].pretty_print().splitlines()[0];
+        } except Exception {
+            first_err = '';
+        }
+    }
+    del prog.errors_had[err_mark:];
+    del prog.warnings_had[warn_mark:];
+    module.gen.js = '';
+    module.gen.es_ast = None;
+    key = os.path.abspath(mod_path);
+    hub = prog?.mod?.hub;
+    if hub {
+        for m in list(hub.values()) {
+            if not isinstance(m, uni.Module) or m is module {
+                continue;
+            }
+            for stmt in m.body {
+                if (
+                    isinstance(stmt, uni.Import)
+                    and stmt.code_context == CodeContext.CLIENT
+                    and stmt.from_loc is not None
+                ) {
+                    resolved = stmt.from_loc.resolve_relative_path();
+                    if (
+                        isinstance(resolved, str) and os.path.abspath(resolved) == key
+                    ) {
+                        m.gen.js = '';
+                        m.gen.es_ast = None;
+                    }
+                }
+            }
+        }
+    }
+    try {
+        import sys;
+        import from jaclang.cli.console { console }
+        console.print(
+            f"note: {mod_path} was pulled into the client but did not lower; "
+            f"demoted {', '.join(demoted)} back to the server ({first_err})",
+            style="dim",
+            file=sys.stderr
+        );
+    } except Exception {
+        ;
+    }
+    return True;
+}
+
 obj PlacementApplyPass(Transform[uni.Module, uni.Module]) {
     has ir_in: uni.Module,
         prog: any,
