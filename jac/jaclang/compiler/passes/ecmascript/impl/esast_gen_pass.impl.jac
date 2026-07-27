@@ -1,4 +1,3 @@
-import from jaclang.jac0core.compiler { is_client_native_edge_import }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField,
     RefField,
@@ -4725,7 +4724,7 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         return;
     }
 
-    if nd.is_na_marked or is_client_native_edge_import(nd, self.prog) {
+    if nd.is_na_marked or self._is_client_native_import(nd) {
         if (nd.from_loc and nd.items) {
             self._generate_na_import_binding(nd);
         }
@@ -4986,37 +4985,17 @@ impl EsastGenPass._generate_sv_import_stubs(
     }
 }
 
-def _na_wasm_stem(path: str) -> str {
-    import os;
-    stem = os.path.splitext(os.path.basename(path))[0];
-    for marker in ('.na', '.cl', '.sv') {
-        if stem.endswith(marker) {
-            stem = stem[0:-len(marker)];
-        }
-    }
-    return stem;
+impl EsastGenPass._is_client_native_import(nd: uni.Import) -> bool {
+    import from jaclang.jac0core.compiler { import_binds_client_native }
+    return import_binds_client_native(nd, self.ir_in.gen.interop_manifest);
 }
 
 impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
+    import from jaclang.jac0core.codeinfo { native_wasm_stem }
     resolved_path = nd.from_loc.resolve_relative_path();
-    stem = _na_wasm_stem(resolved_path);
+    stem = native_wasm_stem(resolved_path);
 
     if self.client_manifest {
-        for existing in self.client_manifest.na_modules {
-            if existing != resolved_path and _na_wasm_stem(existing) == stem {
-                import from jaclang.jac0core.diagnostics { E5083 }
-                self.emit(
-                    E5083,
-                    node_override=nd,
-                    stem=stem,
-                    path=resolved_path,
-                    other=existing
-                );
-            }
-        }
-        if resolved_path not in self.client_manifest.na_modules {
-            self.client_manifest.na_modules.append(resolved_path);
-        }
         self.client_manifest.has_client = True;
     }
 
@@ -6346,7 +6325,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         and (nd.is_sv_marked or nd.is_na_marked);
 
         is_native_edge = isinstance(nd, uni.Import)
-        and is_client_native_edge_import(nd, self.prog);
+        and self._is_client_native_import(nd);
         is_shared_arch = (
             isinstance(nd, uni.Archetype)
             and (nd.name is not None)
@@ -6389,7 +6368,7 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
             and (nd.name.value in self.shared_arch_names)
         );
         is_native_edge = isinstance(nd, uni.Import)
-        and is_client_native_edge_import(nd, self.prog);
+        and self._is_client_native_import(nd);
         if (
             not is_sv_import
             and not is_native_edge

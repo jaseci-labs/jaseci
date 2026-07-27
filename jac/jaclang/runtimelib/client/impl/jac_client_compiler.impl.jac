@@ -57,7 +57,7 @@ impl JacClientCompiler.compile(
     target_name: str = "web"
 ) -> tuple[list[str], list[str]] {
     (module_js, mod, module_manifest) = self.jac_compiler.compile_module(module_path);
-    self._collect_na_modules(module_manifest);
+    self._collect_na_modules(mod);
     collected_exports: set[str] = set(
         self.jac_compiler.extract_exports(module_manifest)
     );
@@ -212,7 +212,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         source_root = module_path.parent.resolve();
     }
     (module_js, mod, manifest) = self.jac_compiler.compile_module(module_path);
-    self._collect_na_modules(manifest);
+    self._collect_na_modules(mod);
     exports_list = self.jac_compiler.extract_exports(manifest);
     collected_exports.update(exports_list);
     non_root_globals: dict[(str, Any)] = {};
@@ -700,10 +700,15 @@ impl JacClientCompiler.init(
     self.na_wasm_modules = set();
 }
 
-impl JacClientCompiler._collect_na_modules(
-    self: JacClientCompiler, manifest: any
-) -> None {
-    for p in (getattr(manifest, 'na_modules', []) or []) {
-        self.na_wasm_modules.add(str(p));
+impl JacClientCompiler._collect_na_modules(self: JacClientCompiler, mod: any) -> None {
+    import from jaclang.jac0core.codeinfo { InteropManifest }
+    manifest = mod?.gen?.interop_manifest;
+    if not isinstance(manifest, InteropManifest) {
+        return;
+    }
+    for binding in manifest.client_native_imports {
+        if binding.source_module {
+            self.na_wasm_modules.add(str(binding.source_module));
+        }
     }
 }

@@ -41,6 +41,7 @@ class BoundaryAnalysisPass(UniPass) {
         caller_ctx: InteropContext
     ) -> None;
 
+    def _register_na_client_import(self: BoundaryAnalysisPass, nd: uni.Import) -> None;
     def _collect_abilities(
         self: BoundaryAnalysisPass, nd: any, out: dict[str, any]
     ) -> None;
