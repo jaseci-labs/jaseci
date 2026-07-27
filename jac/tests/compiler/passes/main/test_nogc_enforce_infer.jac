@@ -49,3 +49,11 @@ test "scalar call-result local reused in a for-range header is clean" {
 test "heap call-result local is still move-tracked (E1301 on reuse)" {
     assert enforced_codes("heap_call_still_tracked.na.jac") == ["E1301"];
 }
+
+test "slice of a borrowed param infers an owned local" {
+    assert enforced_codes("slice_of_borrow.na.jac") == [];
+}
+
+test "typed-base enum members are scalar constants under enforcement" {
+    assert enforced_codes("int_enum_members.na.jac") == [];
+}

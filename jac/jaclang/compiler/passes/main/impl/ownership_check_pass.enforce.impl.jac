@@ -168,6 +168,11 @@ impl OwnershipCheckPass._nogc_infer_locals -> None {
             self.owned_decl[_sid] = _tgt;
             continue;
         }
+        if self._nogc_str_slice_value(nd.value) {
+            _tgt.sym.ownership = OwnershipKind.OWN;
+            self.owned_decl[_sid] = _tgt;
+            continue;
+        }
         if isinstance(nd.value, uni.Name)
         and nd.value.sym is not None
         and nd.value.sym.ownership == OwnershipKind.OWN {
@@ -175,6 +180,22 @@ impl OwnershipCheckPass._nogc_infer_locals -> None {
             self.owned_decl[_sid] = _tgt;
         }
     }
+}
+
+impl OwnershipCheckPass._nogc_str_slice_value(expr: uni.Expr | None) -> bool {
+    if not isinstance(expr, uni.AtomTrailer) {
+        return False;
+    }
+    if not isinstance(expr.right, uni.IndexSlice) {
+        return False;
+    }
+    _m = "";
+    try {
+        _m = expr.type.mangle() if expr.type is not None else "";
+    } except Exception {
+        return False;
+    }
+    return _m == "str";
 }
 
 impl OwnershipCheckPass._nogc_local_shape_expr_heap(expr: uni.Expr | None) -> bool {
@@ -546,7 +567,8 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
         and _tgt.sym is not None
         and _tgt.sym.ownership == OwnershipKind.NONE
         and _tgt.sym.storage != SymbolStorage.MODULE_GLOBAL
-        and _tgt.find_parent_of_type(uni.GlobalVars) is None {
+        and _tgt.find_parent_of_type(uni.GlobalVars) is None
+        and _tgt.find_parent_of_type(uni.Enum) is None {
             _shape = self._nogc_local_shape(_tgt);
             if _shape == "heap" {
                 self.emit(
