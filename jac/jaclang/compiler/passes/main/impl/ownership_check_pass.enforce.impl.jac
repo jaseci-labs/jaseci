@@ -40,8 +40,8 @@ impl OwnershipCheckPass._nogc_resolve_provenance -> (str | None) {
     if _mp {
         import os as _os;
         import jaclang as _jl;
-        _pkg = _os.path.dirname(_os.path.abspath(_jl.__file__));
-        if _os.path.abspath(_mp).startswith(_pkg + _os.sep) {
+        _pkg = str(_os.path.dirname(_os.path.abspath(str(_jl.__file__))));
+        if str(_os.path.abspath(_mp)).startswith(_pkg + _os.sep) {
             return None;
         }
     }
