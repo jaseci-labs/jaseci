@@ -103,6 +103,28 @@ def write_handler_shim(staging: str, entry_rel: str) {
 }
 
 
+def ensure_client_dist(entry_abs: str) -> (str | None) {
+    app_dir = os.path.dirname(entry_abs);
+    dist_dir = os.path.join(app_dir, ".jac", "client", "dist");
+    if os.path.isdir(dist_dir) and os.listdir(dist_dir) {
+        return dist_dir;
+    }
+    try {
+        import from jaclang.serverless.functions { get_function }
+        fn = get_function(entry_abs);
+        client = fn._ensure_client();
+        client._ensure_initialized();
+        client._server.introspector.ensure_bundle();
+    } except Exception as e {
+        logger.warning(f"jac-serverless: client build skipped: {e}");
+    }
+    if os.path.isdir(dist_dir) and os.listdir(dist_dir) {
+        return dist_dir;
+    }
+    return None;
+}
+
+
 def build_package(entry_file: str, out_zip: str = "") -> str {
     entry_abs = os.path.abspath(entry_file);
     app_dir = os.path.dirname(entry_abs);
@@ -116,6 +138,14 @@ def build_package(entry_file: str, out_zip: str = "") -> str {
     shutil.copytree(
         app_dir, os.path.join(staging, "app"), ignore=_ignore_names(APP_EXCLUDES)
     );
+
+    client_dist = ensure_client_dist(entry_abs);
+    if client_dist {
+        shutil.copytree(
+            client_dist, os.path.join(staging, "app", ".jac", "client", "dist")
+        );
+        logger.info("jac-serverless: prebuilt client bundled into the package");
+    }
 
     import jaclang;
     jaclang_src = os.path.dirname(os.path.abspath(jaclang.__file__));
