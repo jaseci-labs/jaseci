@@ -627,7 +627,6 @@ impl JacCompiler._build_interop_dict(result: uni.Module) -> dict {
             'param_types': binding.param_types,
             'param_names': binding.param_names,
             'source_module': binding.source_module,
-            'route': [c.value for c in binding.route],
             'kind': binding.kind
         };
     }
@@ -656,7 +655,6 @@ impl JacCompiler._deserialize_interop_table(
             param_types=data.get('param_types', []),
             param_names=data.get('param_names', []),
             source_module=data.get('source_module'),
-            route=[InteropContext(c) for c in data.get('route', [])],
             kind=data.get('kind', 'function')
         );
         manifest.bindings[name] = binding;

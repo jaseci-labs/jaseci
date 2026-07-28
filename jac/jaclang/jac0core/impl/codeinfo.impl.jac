@@ -1,11 +1,3 @@
-impl InteropBinding.is_direct.getter -> bool {
-    return (len(self.route) == 2);
-}
-
-impl InteropBinding.is_composed.getter -> bool {
-    return (len(self.route) > 2);
-}
-
 impl InteropBinding.is_cross_module.getter -> bool {
     return (self.source_module is not None);
 }

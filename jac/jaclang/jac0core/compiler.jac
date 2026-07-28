@@ -33,6 +33,7 @@ import from jaclang.jac0core.passes {
     ASTValidationPass,
     BoundaryAnalysisPass,
     DeclImplMatchPass,
+    EndpointEffectPass,
     JacAnnexPass,
     PlacementApplyPass,
     PyastGenPass,
@@ -73,7 +74,7 @@ def expand_with_requirements(
 }
 
 def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
-    return [BoundaryAnalysisPass];
+    return [BoundaryAnalysisPass, EndpointEffectPass];
 }
 
 def get_bootstrap_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
@@ -544,6 +545,120 @@ def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
         return False;
     }
     return module_has_client_top(nd.find_parent_of_type(uni.Module));
+}
+
+def _ability_of_defn(defn_node: uni.UniNode) -> (uni.Ability | None) {
+    if isinstance(defn_node, uni.Ability) {
+        return defn_node;
+    }
+    if isinstance(defn_node.parent, uni.Ability) {
+        return defn_node.parent;
+    }
+    return None;
+}
+
+def ability_of_symbol(sym: (uni.Symbol | None)) -> (uni.Ability | None) {
+    if sym is None or not sym.defn {
+        return None;
+    }
+    decl = _ability_of_defn(sym.defn[0]);
+
+    if decl is not None and str(decl.loc.mod_path).endswith(".pyi") {
+        for alt in sym.defn {
+            alt_decl = _ability_of_defn(alt);
+            if alt_decl is not None
+            and not str(alt_decl.loc.mod_path).endswith(".pyi") {
+                return alt_decl;
+            }
+        }
+    }
+    return decl;
+}
+
+enum ClientImportVerdict {
+    CLIENT = "client",
+    BRIDGED = "bridged",
+    DEAD = "dead",
+    UNKNOWN = "unknown"
+}
+
+def is_client_boundary_import(nd: uni.Import) -> bool {
+    return (
+        nd.code_context == CodeContext.CLIENT
+        and not nd.is_sv_marked
+        and not nd.is_na_marked
+        and not nd.is_typed
+        and not nd.is_virtual_jac
+        and nd.from_loc is not None
+        and bool(nd.items)
+        and nd.from_loc.resolve_relative_path().endswith('.jac')
+    );
+}
+
+def symbol_linked_source_module(nd: uni.Import) -> (uni.Module | None) {
+    for item in nd.items {
+        if not (isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name)) {
+            continue;
+        }
+        sym = item.name.sym;
+        if sym is None or sym.decl is None {
+            continue;
+        }
+        linked = sym.decl.find_parent_of_type(uni.Module);
+        if linked is not None {
+            return linked;
+        }
+    }
+    return None;
+}
+
+def _import_item_owner_decl(
+    source_mod: uni.Module, item: uni.ModuleItem
+) -> (uni.ContextAwareNode | None) {
+    if not isinstance(item.name, uni.Name) {
+        return None;
+    }
+    sym = source_mod.lookup(item.name.sym_name);
+    if sym is None or sym.decl is None {
+        return None;
+    }
+    cur: (uni.UniNode | None) = sym.decl;
+    while cur is not None and not isinstance(cur, uni.Module) {
+        if isinstance(cur, uni.ContextAwareNode) {
+            return cur;
+        }
+        cur = cur.parent;
+    }
+    return None;
+}
+
+def classify_client_import_item(
+    source_mod: uni.Module, item: object
+) -> ClientImportVerdict {
+    if not isinstance(item, uni.ModuleItem) {
+        return ClientImportVerdict.UNKNOWN;
+    }
+    owner = _import_item_owner_decl(source_mod, item);
+    if owner is None or isinstance(owner, uni.Import) {
+        return ClientImportVerdict.UNKNOWN;
+    }
+    if owner.code_context == CodeContext.CLIENT {
+        return ClientImportVerdict.CLIENT;
+    }
+    if isinstance(owner, uni.Ability) {
+        if (
+            not owner.is_method
+            and owner.access is not None
+            and owner.access.tag.name == Tok.KW_PUB
+        ) {
+            return ClientImportVerdict.BRIDGED;
+        }
+        return ClientImportVerdict.DEAD;
+    }
+    if isinstance(owner, (uni.Archetype, uni.Enum, uni.TypeAlias)) {
+        return ClientImportVerdict.BRIDGED;
+    }
+    return ClientImportVerdict.DEAD;
 }
 
 def import_binds_client_native(nd: uni.Import, manifest: object) -> bool {
