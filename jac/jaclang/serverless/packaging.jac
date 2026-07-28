@@ -114,7 +114,10 @@ def ensure_client_dist(entry_abs: str) -> (str | None) {
         fn = get_function(entry_abs);
         client = fn._ensure_client();
         client._ensure_initialized();
-        client._server.introspector.ensure_bundle();
+        server = client._server;
+        if server is not None {
+            server.introspector.ensure_bundle();
+        }
     } except Exception as e {
         logger.warning(f"jac-serverless: client build skipped: {e}");
     }

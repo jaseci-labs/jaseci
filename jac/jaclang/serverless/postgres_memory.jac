@@ -5,11 +5,11 @@ import from jaclang.jac0core.archetype { Anchor }
 import from jaclang.runtimelib.storage.sqlalchemy_memory { SqlAlchemyMemory }
 
 glob logger = logging.getLogger(__name__),
-     _engine_cache: dict[str, object] = {},
+     _engine_cache: dict[str, any] = {},
      _engine_lock = threading.Lock();
 
 
-def shared_postgres_engine(url: str) -> object {
+def shared_postgres_engine(url: str) -> any {
     import from sqlalchemy { create_engine }
     with _engine_lock {
         engine = _engine_cache.get(url);

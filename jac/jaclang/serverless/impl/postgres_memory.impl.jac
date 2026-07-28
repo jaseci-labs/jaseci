@@ -49,11 +49,12 @@ impl PostgresMemory.postinit -> None {
 
 
 impl PostgresMemory.is_available -> bool {
-    if self._engine is None {
+    engine: any = self._engine;
+    if engine is None {
         return False;
     }
     try {
-        with self._engine.connect() as conn {
+        with engine.connect() as conn {
             conn.execute(text("SELECT 1"));
         }
         return True;
@@ -82,8 +83,9 @@ impl PostgresMemory.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
     if not missing {
         return result;
     }
-    tbl = self._anchors;
-    with self._engine.connect() as conn {
+    tbl: any = self._anchors;
+    engine: any = self._engine;
+    with engine.connect() as conn {
         rows = conn.execute(
             select(tbl.c.id, tbl.c.data).where(tbl.c.id.in_(missing))
         ).fetchall();

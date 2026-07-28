@@ -31,7 +31,7 @@ def _invoke_local(file: str, method: str, path: str, data: str, token: str) -> i
     } except Exception {
         pretty = response.text;
     }
-    print(pretty);
+    console.print(pretty);
     return 0 if response.status_code < 500 else 1;
 }
 

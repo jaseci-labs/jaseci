@@ -40,6 +40,9 @@ impl ServerlessFunction.list_functions -> list {
     client = self._ensure_client();
     client._ensure_initialized();
     server = client._server;
+    if server is None {
+        return [];
+    }
     server.introspector.load();
     rows: list = [];
     for wname in sorted(server.get_walkers().keys()) {
