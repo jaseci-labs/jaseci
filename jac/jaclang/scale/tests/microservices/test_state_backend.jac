@@ -67,6 +67,32 @@ test "acquire_lock is exclusive until released (redis + in-process)" {
 }
 
 
+test "a lock lease expires by ttl so a second client can acquire it (redis handover)" {
+    # Overlap prevention in a distributed setup can't rely on the holder
+    # calling release_lock (it may crash). This proves the SET NX PX lease:
+    # after the ttl lapses Redis drops the key on its own and a rival wins.
+    if _redis_client is None {
+        raise unittest.SkipTest("Redis container unavailable");
+    }
+    _redis_client.flushdb();
+
+    holder = RedisStateBackend(client=_redis_client);
+    rival = RedisStateBackend(client=_redis_client);
+
+    # Holder takes a 1s lease; before it lapses the rival is locked out.
+    assert holder.acquire_lock("lease", 1);
+    assert not rival.acquire_lock("lease", 1);
+
+    # Wait past the ttl - the holder never releases, the lease just dies.
+    time.sleep(1.3);
+
+    # Handover: the rival now wins the lease the dead holder left behind.
+    assert rival.acquire_lock("lease", 1);
+
+    rival.release_lock("lease");
+}
+
+
 test "increment accumulates atomically and returns the new total (redis + in-process)" {
     for backend in _both_backends() {
         assert backend.increment("counter", 1.0) == 1.0;
