@@ -263,7 +263,7 @@ def _named_top_element(target: uni.Module, name: str) -> (uni.UniNode | None) {
     return _top_element(target, decl);
 }
 
-def _materialize_module(path: str, prog: object) -> (uni.Module | None) {
+def _materialize_module(path: str, prog: any) -> (uni.Module | None) {
     import from jaclang.jac0core.compiler { hub_module_for_path }
     found = hub_module_for_path(path, prog);
     if found is not None {
@@ -276,7 +276,12 @@ def _materialize_module(path: str, prog: object) -> (uni.Module | None) {
         import from jaclang.jac0core.compile_options { CompileOptions }
         prog.compile(
             file_path=path,
-            options=CompileOptions(symtab_ir_only=True, force_target_program=True)
+            options=CompileOptions(
+                symtab_ir_only=True,
+                no_cgen=True,
+                type_check=False,
+                force_target_program=True
+            )
         );
     } except Exception {
         return None;
@@ -284,7 +289,7 @@ def _materialize_module(path: str, prog: object) -> (uni.Module | None) {
     return hub_module_for_path(path, prog);
 }
 
-def _import_source_module(elem: uni.Import, prog: object) -> (uni.Module | None) {
+def _import_source_module(elem: uni.Import, prog: any) -> (uni.Module | None) {
     if elem.from_loc is None {
         return None;
     }
@@ -296,7 +301,7 @@ def _import_source_module(elem: uni.Import, prog: object) -> (uni.Module | None)
 }
 
 def _closure_pullable(
-    top: uni.UniNode, module: uni.Module, prog: object, seen: set[int]
+    top: uni.UniNode, module: uni.Module, prog: any, seen: set[int]
 ) -> bool {
     if id(top) in seen {
         return True;
@@ -352,7 +357,7 @@ def _closure_pullable(
     return True;
 }
 
-def _seed_from_summary(module: uni.Module, prog: object) -> int {
+def _seed_from_summary(module: uni.Module, prog: any) -> int {
     import from jaclang.jac0core.ext_registry { codespace_of }
     import from jaclang.jac0core.compiler { _stamp_context_element }
     mod_path = module.loc.mod_path or '';
@@ -377,6 +382,7 @@ def _seed_from_summary(module: uni.Module, prog: object) -> int {
         }
         target_ctx: (CodeContext | None) = None;
         why = '';
+        ctx_label = '';
         for req in es.reqs {
             if len(req) < 2 {
                 continue;
@@ -384,16 +390,19 @@ def _seed_from_summary(module: uni.Module, prog: object) -> int {
             (cap, reason) = (req[0], req[1]);
             if cap == 'FFI' {
                 target_ctx = CodeContext.NATIVE;
+                ctx_label = 'native';
                 why = reason;
                 break;
             }
             if cap == 'DOM' {
                 target_ctx = CodeContext.CLIENT;
+                ctx_label = 'client';
                 why = reason;
                 break;
             }
             if cap == 'NPM' and reason == 'string-path import' {
                 target_ctx = CodeContext.CLIENT;
+                ctx_label = 'client';
                 why = reason;
                 break;
             }
@@ -403,7 +412,7 @@ def _seed_from_summary(module: uni.Module, prog: object) -> int {
         }
         _stamp_context_element(stmt, target_ctx);
         record_placement_evidence(
-            prog, mod_path, es.index, f"seeded {target_ctx.value}: {why}"
+            prog, mod_path, es.index, f"seeded {ctx_label}: {why}"
         );
         seeded += 1;
     }
@@ -412,7 +421,7 @@ def _seed_from_summary(module: uni.Module, prog: object) -> int {
 
 def solve_module_placement(
     module: uni.Module,
-    prog: object,
+    prog: any,
     seed_ref_ids: (set[int] | None) = None,
     dual: bool = False,
     pull_dependents: bool = True
@@ -618,7 +627,7 @@ def solve_module_placement(
     return stamp_count[0];
 }
 
-def _emit_solver_warning(prog: object, diag: object, nd: uni.UniNode, **kwargs: any) {
+def _emit_solver_warning(prog: any, diag: any, nd: uni.UniNode, **kwargs: any) {
     import from jaclang.jac0core.passes.transform { Alert }
     for w in prog.warnings_had {
         if (
@@ -645,7 +654,7 @@ def _emit_solver_warning(prog: object, diag: object, nd: uni.UniNode, **kwargs: 
     }
 }
 
-def _warn_state_forks(target: uni.Module, prog: object) {
+def _warn_state_forks(target: uni.Module, prog: any) {
     import from jaclang.jac0core.diagnostics { W6006 }
     ps = get_module_summary(target, prog);
     written: set[int] = set();
@@ -671,7 +680,7 @@ def _warn_state_forks(target: uni.Module, prog: object) {
 }
 
 def _pull_into_target(
-    imp: uni.Import, target: uni.Module, module: uni.Module, prog: object
+    imp: uni.Import, target: uni.Module, module: uni.Module, prog: any
 ) -> int {
     seed_ids: set[int] = set();
     for item in imp.items {
@@ -711,7 +720,7 @@ def _pull_into_target(
     return new_stamps;
 }
 
-def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: object) -> int {
+def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int {
     import from jaclang.jac0core.ext_registry { codespace_of }
     if (
         imp.is_sv_marked
@@ -756,7 +765,7 @@ def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: object) -> 
     return new_stamps;
 }
 
-def _check_lock_stability(entry_mod: uni.Module, prog: object) {
+def _check_lock_stability(entry_mod: uni.Module, prog: any) {
     import from jaclang.jac0core.placement {
         collect_placement_rows,
         diff_rows_vs_lock,
@@ -799,7 +808,7 @@ def _check_lock_stability(entry_mod: uni.Module, prog: object) {
     }
 }
 
-def solve_program_placement(entry_mod: uni.Module, prog: object) -> None {
+def solve_program_placement(entry_mod: uni.Module, prog: any) -> None {
     state = placement_state(prog);
     if state.get('solving') {
         return;
@@ -813,7 +822,7 @@ def solve_program_placement(entry_mod: uni.Module, prog: object) -> None {
             rounds += 1;
             mods: list[uni.Module] = [entry_mod];
             hub = prog?.mod?.hub;
-            if hub {
+            if isinstance(hub, dict) {
                 for m in list(hub.values()) {
                     if isinstance(m, uni.Module) and m is not entry_mod {
                         mods.append(m);
@@ -847,7 +856,7 @@ def solve_program_placement(entry_mod: uni.Module, prog: object) -> None {
 }
 
 def demote_client_pulled_elements(
-    module: uni.Module, prog: object, err_mark: int, warn_mark: int
+    module: uni.Module, prog: any, err_mark: int, warn_mark: int
 ) -> bool {
     import from jaclang.jac0core.ext_registry { codespace_of }
     mod_path = module.loc.mod_path or '';
@@ -892,7 +901,7 @@ def demote_client_pulled_elements(
     module.gen.es_ast = None;
     key = os.path.abspath(mod_path);
     hub = prog?.mod?.hub;
-    if hub {
+    if isinstance(hub, dict) {
         for m in list(hub.values()) {
             if not isinstance(m, uni.Module) or m is module {
                 continue;

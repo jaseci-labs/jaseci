@@ -102,7 +102,11 @@ obj PlacementSummary {
         ps.native_blocker = str(d.get('native_blocker', ''));
         ps.jac_deps = [str(x) for x in d.get('jac_deps', [])];
         ps.has_refs = bool(d.get('has_refs', False));
-        ps.elements = [ElementSummary.from_dict(e) for e in d.get('elements', [])];
+        ps.elements = [
+            ElementSummary.from_dict(e)
+            for e in d.get('elements', [])
+            if isinstance(e, dict)
+        ];
         return ps;
     }
 }
@@ -113,7 +117,11 @@ def summary_to_bytes(ps: PlacementSummary) -> bytes {
 
 def summary_from_bytes(data: bytes) -> (PlacementSummary | None) {
     try {
-        return PlacementSummary.from_dict(json.loads(data.decode('utf-8')));
+        parsed = json.loads(data.decode('utf-8'));
+        if not isinstance(parsed, dict) {
+            return None;
+        }
+        return PlacementSummary.from_dict(parsed);
     } except Exception {
         return None;
     }
@@ -184,8 +192,12 @@ def _is_pub_element(stmt: uni.UniNode) -> bool {
 }
 
 def _resolve_import_path(nd: (uni.ModulePath | uni.ModuleItem)) -> (str | None) {
+    path: (str | None) = None;
     try {
-        path = nd.resolve_relative_path();
+        resolved = nd.resolve_relative_path();
+        if isinstance(resolved, str) {
+            path = resolved;
+        }
     } except Exception {
         return None;
     }
@@ -335,8 +347,10 @@ def _escape_kind(nm: uni.Name, elem: uni.UniNode) -> str {
     return '';
 }
 
-def _element_escape_edges(module: uni.Module, elem: uni.UniNode) -> list {
-    edges: list = [];
+def _element_escape_edges(
+    module: uni.Module, elem: uni.UniNode
+) -> list[tuple[int, str]] {
+    edges: list[tuple[int, str]] = [];
     seen: set[tuple] = set();
     for nm in elem.get_all_sub_nodes(uni.Name) {
         par = nm.parent;
@@ -369,7 +383,7 @@ def _element_escape_edges(module: uni.Module, elem: uni.UniNode) -> list {
             continue;
         }
         seen.add(key);
-        edges.append([id(top), kind]);
+        edges.append((id(top), kind));
     }
     return edges;
 }
@@ -546,6 +560,7 @@ def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[s
                             not imp.is_absorb,
                             not imp.is_absorb
                             and item.alias is None
+                            and item.path is not None
                             and len(item.path) == 1
                         )
                     );
@@ -661,7 +676,7 @@ def summarize_module(module: uni.Module, with_refs: bool = True) -> PlacementSum
     return ps;
 }
 
-def summary_store(prog: object) -> dict {
+def summary_store(prog: any) -> dict {
     store = prog?._placement_summaries;
     if store is None {
         store = {};
@@ -670,7 +685,7 @@ def summary_store(prog: object) -> dict {
     return store;
 }
 
-def placement_state(prog: object) -> dict {
+def placement_state(prog: any) -> dict {
     state = prog?._placement_state;
     if state is None {
         state = {};
@@ -679,17 +694,21 @@ def placement_state(prog: object) -> dict {
     return state;
 }
 
-def record_placement_evidence(prog: object, mod_path: str, index: int, note: str) {
+def record_placement_evidence(prog: any, mod_path: str, index: int, note: str) {
     state = placement_state(prog);
-    evidence = state.get('evidence');
-    if evidence is None {
-        evidence = {};
+    evidence: dict = {};
+    cur = state.get('evidence');
+    if isinstance(cur, dict) {
+        evidence = cur;
+    } else {
         state['evidence'] = evidence;
     }
     key = f"{os.path.abspath(mod_path)}::{index}";
-    notes = evidence.get(key);
-    if notes is None {
-        notes = [];
+    notes: list[str] = [];
+    cur_notes = evidence.get(key);
+    if isinstance(cur_notes, list) {
+        notes = cur_notes;
+    } else {
         evidence[key] = notes;
     }
     if note not in notes {
@@ -697,14 +716,18 @@ def record_placement_evidence(prog: object, mod_path: str, index: int, note: str
     }
 }
 
-def collect_placement_rows(prog: object) -> dict {
+def collect_placement_rows(prog: any) -> dict {
     rows_by_module: dict = {};
     hub = prog?.mod?.hub;
-    if not hub {
+    if not isinstance(hub, dict) or not hub {
         return rows_by_module;
     }
     state = placement_state(prog);
-    evidence = state.get('evidence', {});
+    evidence: dict = {};
+    cur_ev = state.get('evidence');
+    if isinstance(cur_ev, dict) {
+        evidence = cur_ev;
+    }
     for (path, mod) in hub.items() {
         if not isinstance(mod, uni.Module) {
             continue;
@@ -732,14 +755,21 @@ def collect_placement_rows(prog: object) -> dict {
                 }
             }
             key = f"{os.path.abspath(str(mod_path))}::{idx}";
-            for extra in evidence.get(key, []) {
-                if extra not in notes {
-                    notes.append(extra);
+            raw_extras = evidence.get(key);
+            if isinstance(raw_extras, list) {
+                for extra in raw_extras {
+                    if isinstance(extra, str) and extra not in notes {
+                        notes.append(extra);
+                    }
                 }
+            }
+            rname = element_display_name(stmt);
+            if idx < len(ps.elements) {
+                rname = ps.elements[idx].name;
             }
             mod_rows.append(
                 {
-                    'name': (es.name if es is not None else element_display_name(stmt)),
+                    'name': rname,
                     'kind': type(stmt).__name__,
                     'space': stmt.code_context.value,
                     'dual': stmt.codespace_dual,
@@ -873,7 +903,7 @@ def diff_rows_vs_lock(
 }
 
 def get_module_summary(
-    module: uni.Module, prog: object, with_refs: bool = True
+    module: uni.Module, prog: any, with_refs: bool = True
 ) -> PlacementSummary {
     store = summary_store(prog);
     key = os.path.abspath(module.loc.mod_path) if module.loc.mod_path else '';
