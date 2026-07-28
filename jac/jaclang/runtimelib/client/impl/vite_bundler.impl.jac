@@ -209,7 +209,6 @@ impl ViteBundler.install_packages(
     capture_output: bool = False,
     clean_stale: bool = False
 ) -> None {
-    import os;
     import time;
     import shutil;
     import subprocess;
@@ -223,16 +222,6 @@ impl ViteBundler.install_packages(
     configs_npmrc = build_dir / 'configs' / '.npmrc';
     fingerprint = _package_fingerprint(configs_package_json, configs_npmrc);
     stamp_file = node_modules / '.jac-package-hash';
-
-    if os.environ.get('JAC_CLIENT_SKIP_NPM_INSTALL') {
-        if node_modules.exists() and _read_stamp(stamp_file) != fingerprint {
-            console.warning(
-                "npm install skipped (JAC_CLIENT_SKIP_NPM_INSTALL is set); "
-                "node_modules may be stale relative to the generated package.json"
-            );
-        }
-        return;
-    }
 
     if not force {
         if clean_stale {

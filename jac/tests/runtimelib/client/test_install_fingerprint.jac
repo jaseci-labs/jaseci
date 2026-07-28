@@ -72,27 +72,6 @@ test "install packages fingerprint gates reinstalls" {
     }
 }
 
-test "skip npm install env var bypasses bun install" {
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
-
-    with tempfile.TemporaryDirectory() as temp_dir {
-        build_dir = _make_build_dir(temp_dir, {"react": "^18.2.0"});
-        _fake_node_modules(build_dir);
-        bundler = ViteBundler(Path(temp_dir));
-        with unittest.mock.patch.dict(
-            os.environ, {"JAC_CLIENT_SKIP_NPM_INSTALL": "1"}
-        ) {
-            with unittest.mock.patch("subprocess.run") as mock_run {
-                bundler.install_packages(install_dir=build_dir, clean_stale=True);
-                bundler.install_packages(install_dir=build_dir, force=True);
-                assert mock_run.call_count == 0 , (
-                    "JAC_CLIENT_SKIP_NPM_INSTALL must bypass bun install"
-                );
-            }
-        }
-    }
-}
-
 test "preflight names missing runtime import packages" {
     import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
     import from jaclang.runtimelib.client_bundle { ClientBundleError }
