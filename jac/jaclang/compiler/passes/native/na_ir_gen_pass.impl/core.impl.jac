@@ -611,9 +611,6 @@ impl NaIRGenPass._register_imported_struct_types -> None {
 }
 
 impl NaIRGenPass._ensure_imported_module_inferred(imported_mod: uni.Module) -> None {
-    if imported_mod.decided_codespace == 'native' {
-        return;
-    }
     if id(imported_mod) in self.prog._inferred_mods {
         return;
     }
