@@ -11,7 +11,17 @@ impl StaticAnalysisPass.transform(ir_in: uni.Module) -> uni.Module {
     self._check_semantic_patterns(self.ir_in);
     self._check_redundant_imports(self.ir_in);
     self._check_client_imports(self.ir_in);
+    self._check_placement_warnings(self.ir_in);
     return ir_in;
+}
+
+impl StaticAnalysisPass._check_placement_warnings(mod: uni.Module) -> None {
+    import from jaclang.compiler.symbol_utils { report_placement_warnings }
+    try {
+        report_placement_warnings(self, mod);
+    } except Exception {
+        ;
+    }
 }
 
 impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {

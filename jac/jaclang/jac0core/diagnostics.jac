@@ -1359,6 +1359,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Native lowering failed for {kind} '{name}'",
          help="The construct is within the native capability set, but this specific shape (its types, values, or runtime bindings) could not be lowered by NaIRGenPass. Adjust the shape, add type annotations, or move the code to a non-native context. Statically-known unsupported constructs are reported as E5090 by the capability check instead."
      ),
+     E5093 = _err(
+         "E5093",
+         Category.CODEGEN,
+         "Type '{type}' on {what} of '{name}' cannot cross the native->Python call boundary",
+         help="Native code calling a Python-context function marshals through a fixed ctypes callback table: int (c_int64), float (c_double), bool (c_bool), str (c_char_p), sized ints, plus None returns. Any other type would be reinterpreted as a raw c_int64 and produce garbage values at runtime. Use a supported primitive at the boundary, or move the callee into the native context. (Python calling INTO native code is unaffected: that direction goes through the native marshal bridge, which handles lists, structs, and enums.)"
+     ),
      E5080 = _err(
          "E5080",
          Category.CODEGEN,
@@ -1406,6 +1412,18 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client call to server endpoint '{func}' passes function-typed parameter '{param}' — functions cannot cross the RPC boundary",
          help="A def:pub function in a server-placed module is an HTTP endpoint whose arguments serialize over the wire. Shared client-side logic should drop ':pub' so it is placed in the browser with its callers."
+     ),
+     W6006 = _warn(
+         "W6006",
+         Category.CODEGEN,
+         "Mutable glob '{name}' is emitted into both the server and the client — each side gets an independent copy (state fork)",
+         help="Dual emission duplicates state, not just code: server writes and client writes land in different copies. Home the glob with its writers by marking it (or its module) 'sv' or 'cl', or bridge reads through a def:pub accessor."
+     ),
+     W6007 = _warn(
+         "W6007",
+         Category.CODEGEN,
+         "Client code uses server-placed function '{name}' as a value — function values cannot cross the placement boundary",
+         help="A function reference that flows into client-side data (stored, returned, or passed along) needs client presence; only calls to def:pub endpoints bridge over RPC. Drop ':pub' so the function is pulled client-side, or restructure so the client stores data instead of the function."
      ),
      E9001 = _err("E9001", Category.ICE, "ICE: Pass {pass_name} -- {details}"),
      E9002 = _err(

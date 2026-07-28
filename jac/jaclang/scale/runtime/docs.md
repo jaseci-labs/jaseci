@@ -318,10 +318,9 @@ code changes from local mode.
 | `cpu_request`/`cpu_limit` | unset | `"100m"`, `"2000m"` |
 | `memory_request`/`memory_limit` | unset | `"128Mi"`, `"4Gi"` |
 | `env` | `{}` | extra env vars |
-| `image_tag` | unset | per-service override (canary) |
 | `rpc_timeout` | `10.0` | `sv import` httpx timeout (s) |
 | `http_forward_timeout` | `30.0` | gateway-to-service forward (s) |
-| `hpa.enabled` / `min` / `max` / `cpu_target` | `true` / `1` / `3` / `70` | autoscaler bounds (applies to both `"hpa"` and `"keda"` engines) |
+| `hpa.enabled` / `min` / `max` / `cpu_target` | `true` / `1` / `3` / `50` | autoscaler bounds (applies to both `"hpa"` and `"keda"` engines) |
 | `[[triggers]]` | `[]` | Per-service KEDA triggers (requires `autoscaler_engine = "keda"`). Each entry: `type` (required), `metadata` (default `{}`), `name` (default `null`), `auth.secret_refs` (default `{}`). Same shape as `[[scale.kubernetes.extra_triggers]]`. |
 | `pdb.enabled` / `max_unavailable` | `true` / `1` | PodDisruptionBudget |
 

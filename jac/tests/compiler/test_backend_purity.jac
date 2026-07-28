@@ -42,12 +42,9 @@ glob FORBIDDEN: dict[str, str] = {
      # at sites where the declaration IS the fact.
      SANCTIONED: dict[tuple, tuple] = {
          ("ecmascript/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
-             6,
+             4,
              "collect_field_names/symbol_owner_archetype - symbol-FACT "
-             "readers over an already-resolved walker symbol; and "
-             "ability_of_symbol, the shared central helper (deduped from a "
-             "former local _ability_from_symbol) used to resolve a SOURCE "
-             "module's exported ability at sv-import client-stub generation. "
+             "readers over an already-resolved walker symbol. "
              "The former classify_call fallback is deleted (#7418): "
              "call_kind is stamped authoritatively by the required "
              "inference schedule. Plus two client-boundary reads (#7632): "
@@ -56,21 +53,23 @@ glob FORBIDDEN: dict[str, str] = {
              "StaticAnalysisPass) and the classify/report helpers in "
              "_partition_client_import_items - both consume the SOURCE "
              "module's stamped code_context and declaration surface, "
-             "facts that exist on no local-tree node. Plus "
-             "symbol_linked_source_module (#7740): the seeded client pull "
-             "must stamp the same module instance call-site transforms "
-             "resolve through symbols, and that instance is reachable only "
-             "from the import items' .sym links - a declaration-surface "
-             "read, not re-analysis"
+             "facts that exist on no local-tree node. The "
+             "symbol_linked_source_module read (#7740) left with the "
+             "esast-time pull hook (#7679): cross-module pulls now happen "
+             "in the placement solver before codegen, so ES generation "
+             "only consumes stamped facts, never the producer. The former "
+             "ability_of_symbol read at sv-import stub generation is "
+             "deleted (#7760): stubs now consume the InteropBinding "
+             "recorded by BoundaryAnalysisPass"
          ),
          ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
-             2,
-             "declaration-surface reads: (1) sv-import client stub "
-             "generation resolves the SOURCE module's exported ability - "
-             "no fact on the local tree exists; (2) component PascalCase "
-             "rename collision guard checks whether the capitalized name "
-             "is already declared in the module - the declared NAME is "
-             "the consumed fact, not a resolved type"
+             1,
+             "declaration-surface read: component PascalCase rename "
+             "collision guard checks whether the capitalized name is "
+             "already declared in the module - the declared NAME is the "
+             "consumed fact, not a resolved type. The former sv-import "
+             "stub lookup is deleted (#7760): signatures come from the "
+             "recorded InteropBinding"
          ),
          ("ecmascript/impl/esast_gen_pass.impl.jac", "type_tag.tag"): (
              9,

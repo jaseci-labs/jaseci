@@ -836,10 +836,18 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
                 continue;
             }
             for binding in man.server_exports_to_client {
-                if binding.kind == 'walker' {
-                    walker_bindings[binding.name] = binding;
-                } else {
-                    fn_bindings[binding.name] = binding;
+                table = walker_bindings if binding.kind == 'walker' else fn_bindings;
+                prior = table.get(binding.name);
+                if prior is None {
+                    table[binding.name] = binding;
+                } elif prior.ast_node is not binding.ast_node {
+                    import logging;
+                    logging.getLogger("jaclang.serve").warning(
+                        "conflicting cross-boundary %s binding '%s'; keeping the "
+                        "first registration",
+                        binding.kind,
+                        binding.name
+                    );
                 }
             }
             for (acc_name, auth) in man.func_access.items() {

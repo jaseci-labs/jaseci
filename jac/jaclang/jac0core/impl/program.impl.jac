@@ -20,6 +20,10 @@ impl JacProgram.init(
     self._inferred_mods: set = set();
 
     self._analyses_run: dict = {};
+
+    self._placement_summaries: dict = {};
+
+    self._placement_state: dict = {};
 }
 
 impl JacProgram.hub_cache_stamp(self: JacProgram, resolved_path: str) -> None {
@@ -135,6 +139,10 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
 
     if resolved_path in self._native_cache {
         del (self._native_cache[resolved_path], );
+    }
+
+    if resolved_path in self._placement_summaries {
+        del (self._placement_summaries[resolved_path], );
     }
 
     te = self.type_evaluator;

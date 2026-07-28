@@ -38,4 +38,5 @@ obj StaticAnalysisPass(Transform[uni.Module, uni.Module]) {
     def _check_semantic_patterns(mod: uni.Module) -> None;
     def _check_redundant_imports(mod: uni.Module) -> None;
     def _check_client_imports(mod: uni.Module) -> None;
+    def _check_placement_warnings(mod: uni.Module) -> None;
 }

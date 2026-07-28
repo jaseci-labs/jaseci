@@ -1275,7 +1275,9 @@ obj MonitoringDeployer {
 
         if self.logger {
             self.logger.info(
-                f"Grafana deployed for '{app_name}' (ClusterIP, accessible via ingress at /grafana)"
+                f"Grafana deployed for '{app_name}' (ClusterIP service "
+                f"{grafana_name}-service:3000; served at /grafana when the app "
+                "ingress is deployed, otherwise reach it via kubectl port-forward)"
             );
         }
     }
