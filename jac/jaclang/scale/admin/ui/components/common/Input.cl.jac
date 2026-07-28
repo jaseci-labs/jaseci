@@ -1,6 +1,5 @@
 """Reusable input component with label."""
 
-
 variant client;
 def:pub Input(
     value: str,

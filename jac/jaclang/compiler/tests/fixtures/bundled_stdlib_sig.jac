@@ -13,14 +13,12 @@ always worked, so this pins the keyword form against the positional baseline.
 `json.dumps("hi")` produces the 4-character text `"hi"` (with the JSON quotes).
 """
 
-na {
-    import json;
+import json;
 
-    def dumps_pos_len() -> int {
-        return len(json.dumps("hi"));
-    }
+def dumps_pos_len() -> int {
+    return len(json.dumps("hi"));
+}
 
-    def dumps_kw_len() -> int {
-        return len(json.dumps(value="hi"));
-    }
+def dumps_kw_len() -> int {
+    return len(json.dumps(value="hi"));
 }

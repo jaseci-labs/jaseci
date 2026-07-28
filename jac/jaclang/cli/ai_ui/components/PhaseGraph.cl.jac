@@ -8,7 +8,6 @@ agent move through its own object-spatial graph in real time as `active`/`path`
 update from the poll loop.
 """
 
-
 variant client;
 import from react { useRef, useEffect }
 import from "cytoscape" { default as cytoscape }

@@ -1,6 +1,5 @@
 """Global alert/toast notification context."""
 
-
 variant client;
 import from react { createContext, useContext }
 

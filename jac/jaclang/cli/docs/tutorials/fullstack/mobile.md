@@ -277,32 +277,30 @@ client_kind = "mobui"
 ### Authoring UI with `@jac/mobui`
 
 ```jac
-cl {
-    import from "@jac/mobui" {
-        View, Text, Pressable, TextInput, ScrollView, StyleSheet
-    }
+import from "@jac/mobui" {
+    View, Text, Pressable, TextInput, ScrollView, StyleSheet
+}
 
-    glob styles = StyleSheet.create({
-        screen: {flex: 1, backgroundColor: "#10131c", padding: 24, gap: 16},
-        title: {fontSize: 22, fontWeight: "bold", color: "#f4f5fb"},
-        button: {padding: 12, borderRadius: 10, backgroundColor: "#6c5ce7", alignItems: "center"},
-    });
+glob styles = StyleSheet.create({
+    screen: {flex: 1, backgroundColor: "#10131c", padding: 24, gap: 16},
+    title: {fontSize: 22, fontWeight: "bold", color: "#f4f5fb"},
+    button: {padding: 12, borderRadius: 10, backgroundColor: "#6c5ce7", alignItems: "center"},
+});
 
-    def:pub app -> JsxElement {
-        has name: str = "";
-        return
-            <ScrollView style={styles.screen}>
-                <Text style={styles.title}>Hello, {name or "stranger"}</Text>
-                <TextInput
-                    value={name}
-                    placeholder="Type your name"
-                    onChangeText={lambda (t: str) { name = t; }}
-                />
-                <Pressable style={styles.button} onPress={lambda { name = "Jac"; }}>
-                    <Text>Reset</Text>
-                </Pressable>
-            </ScrollView>;
-    }
+def:pub app -> JsxElement {
+    has name: str = "";
+    return
+        <ScrollView style={styles.screen}>
+            <Text style={styles.title}>Hello, {name or "stranger"}</Text>
+            <TextInput
+                value={name}
+                placeholder="Type your name"
+                onChangeText={lambda (t: str) { name = t; }}
+            />
+            <Pressable style={styles.button} onPress={lambda { name = "Jac"; }}>
+                <Text>Reset</Text>
+            </Pressable>
+        </ScrollView>;
 }
 ```
 

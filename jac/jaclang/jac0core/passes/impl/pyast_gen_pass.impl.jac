@@ -187,11 +187,6 @@ impl PyastGenPass._gen_native_interop_stubs(nd: uni.UniNode) -> None {
                 f"def {binding.name}({params}):\n" + f"    import ctypes\n" + f"    _addr = __jac_native_engine__" + f".get_function_address('{binding.name}')\n" + f"    _fn = ctypes.CFUNCTYPE({ret_ct}, {arg_cts})(_addr)\n" + f"    return _fn({params})"
             );
         }
-        for binding in manifest.native_imports {
-            parts.append(
-                f"__jac_interop_py_funcs__['{binding.name}'] = {binding.name}"
-            );
-        }
     }
     out: list = [];
     if parts {
@@ -757,6 +752,27 @@ impl PyastGenPass.exit_sub_tag(nd: uni.SubTag[uni.T]) -> None {
     nd.gen.py_ast = nd.tag.gen.py_ast;
 }
 
+impl PyastGenPass._native_import_registration_stmts -> list {
+    manifest = self.ir_in.gen.interop_manifest;
+    if not (manifest and manifest.bindings and manifest.native_imports) {
+        return [];
+    }
+    parts: list[str] = [];
+    for binding in manifest.native_imports {
+        parts.append(
+            f"if '__jac_interop_py_funcs__' in globals() " + f"and '{binding.name}' in globals():\n" + f"    __jac_interop_py_funcs__['{binding.name}'] = {binding.name}"
+        );
+    }
+    if not parts {
+        return [];
+    }
+    parsed = ast3.parse('\n'.join(parts));
+    for stub_node in ast3.walk(parsed) {
+        stub_node.jac_link = [];
+    }
+    return list(parsed.body);
+}
+
 impl PyastGenPass.exit_module(nd: uni.Module) -> None {
     for child_pass in self.child_passes {
         self.jaclib_imports.update(child_pass.jaclib_imports);
@@ -824,6 +840,7 @@ impl PyastGenPass.exit_module(nd: uni.Module) -> None {
     }
     body_items.extend(self.preamble);
     body_items.extend(item.gen.py_ast for item in merged_body);
+    body_items.extend(self._native_import_registration_stmts());
     new_body = self._flatten_ast_list(body_items);
     nd.gen.py_ast = [
         self.sync(
@@ -1106,9 +1123,9 @@ impl PyastGenPass.exit_import(nd: uni.Import) -> None {
     native_target = plain_native_import_target(nd, self.prog);
     if native_target is not None {
         import os as _os;
-        drop_native_target = (
-            _os.sep + "jaclang" + _os.sep
-        ) not in _os.path.abspath(native_target);
+        drop_native_target = (_os.sep + "jaclang" + _os.sep) not in _os.path.abspath(
+            native_target
+        );
     }
     if (
         import_binds_client_native(nd, self.ir_in.gen.interop_manifest)

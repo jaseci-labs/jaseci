@@ -143,7 +143,7 @@ test "proc_file strips compound codespace suffixes to bare module stem" {
     cases = [
         ("proj/main.jac", "main"),
         ("proj/main.na.jac", "main"),
-        ("proj/main.sv.jac", "main"),
+        ("proj/main.jac", "main"),
         ("proj/main.cl.jac", "main"),
         ("proj/server.py", "server"),
 

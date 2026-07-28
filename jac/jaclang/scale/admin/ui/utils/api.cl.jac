@@ -1,6 +1,5 @@
 """API utility functions."""
 
-
 variant client;
 # Extract error message from API response or return fallback.
 def:pub getErrorMessage(result: dict, fallback: str = "An error occurred") -> str {

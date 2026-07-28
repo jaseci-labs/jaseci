@@ -8,7 +8,6 @@ the whole conversation with the carried-over messages dimmed. Prev/Next step
 through the calls of the same phase.
 """
 
-
 variant client;
 import from ..server { CallDetail, CallMessage, CallTool }
 

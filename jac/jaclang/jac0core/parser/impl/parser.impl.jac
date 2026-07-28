@@ -3286,10 +3286,7 @@ impl Parser.parse_element_stmt{
         )
     ) {
         self.error(
-            f"'{self.current().value}' placement markers were removed: "
-            + "placement is inferred (override via [placement.pins] in "
-            + "jac.toml; declare services in [scale.microservices.routes]). "
-            + "Run 'jac fix placement' to migrate this file."
+            f"'{self.current().value}' placement markers were removed: " + "placement is inferred (override via [placement.pins] in " + "jac.toml; declare services in [scale.microservices.routes]). " + "Run 'jac fix placement' to migrate this file."
         );
         self.advance();
         return self.parse_element_stmt();

@@ -4,7 +4,6 @@ Wraps the /admin/ops/* endpoints; returns the standard {ok, data, error}
 envelope from api.get/post (which guard the HTML-not-JSON SPA-catchall case).
 """
 
-
 variant client;
 import from .api { get }
 

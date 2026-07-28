@@ -264,9 +264,8 @@ impl BoundaryAnalysisPass.enter_import(
                 if nd.in_client_context() and nd.from_loc {
                     try {
                         resolved_target = nd.from_loc.resolve_relative_path();
-                        if isinstance(
-                            resolved_target, str
-                        ) and resolved_target.endswith('.jac') {
+                        if isinstance(resolved_target, str)
+                        and resolved_target.endswith('.jac') {
                             import from jaclang.jac0core.placement_pins {
                                 config_module_pin
                             }

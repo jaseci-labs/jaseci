@@ -1,6 +1,5 @@
 """Workloads service: thin wrappers over /admin/workloads/* endpoints."""
 
-
 variant client;
 import from .api { get }
 

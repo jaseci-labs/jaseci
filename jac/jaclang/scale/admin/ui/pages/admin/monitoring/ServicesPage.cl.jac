@@ -11,7 +11,6 @@ the dashboard uses elsewhere. Cluster-wide traffic still shows in the summary
 cards; per-service traffic is deferred (see ServiceDetail).
 """
 
-
 variant client;
 import from "lucide-react" { Server, RefreshCw, Activity, ChevronRight }
 

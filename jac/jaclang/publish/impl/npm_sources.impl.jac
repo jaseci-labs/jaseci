@@ -187,7 +187,7 @@ impl collect_npm_sources(
                 raise NpmBoundaryError(
                     f"'{rel}' crosses a server boundary and cannot be published as a "
                     "standalone npm package. npm packages must be pure client code "
-                    "(no `sv` imports/calls)."
+                    "(no server-bound imports/calls)."
                 );
             }
             blocks = jsdoc_for_module(mod);

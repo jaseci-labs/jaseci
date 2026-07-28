@@ -225,7 +225,17 @@ def _element_reqs(stmt: uni.UniNode) -> list {
         } elif eco == 'virtual' {
             reqs.append(['NPM', 'virtual @jac import']);
         } elif eco == 'py' {
-            reqs.append(['PY', 'python import']);
+            npm_dep = False;
+            if isinstance(stmt, uni.Import) and stmt.from_loc is not None {
+                import from jaclang.jac0core.placement_pins { npm_dependency_names }
+                mod_path = stmt.loc.mod_path or '';
+                npm_dep = stmt.from_loc.dot_path_str in npm_dependency_names(mod_path);
+            }
+            if npm_dep {
+                reqs.append(['NPM', 'npm dependency']);
+            } else {
+                reqs.append(['PY', 'python import']);
+            }
         }
         return reqs;
     }
@@ -446,6 +456,8 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
             break;
         }
     }
+    import from jaclang.jac0core.placement_pins { npm_dependency_names }
+    npm_names = npm_dependency_names(mod_path);
     for imp in module.get_all_sub_nodes(uni.Import) {
         if imp.has_clib_decls or imp.is_virtual_jac or imp.has_string_path {
             continue;
@@ -453,6 +465,9 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
         if imp.from_loc is None {
             reasons.append('plain python import');
             break;
+        }
+        if imp.from_loc.dot_path_str in npm_names {
+            continue;
         }
         resolved = None;
         try {
@@ -575,8 +590,7 @@ def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[s
             if path is not None and path.endswith('.na.jac') {
                 continue;
             }
-            if path is not None
-            and path.endswith('.cl.jac') {
+            if path is not None and path.endswith('.cl.jac') {
                 return ("cl/sv module import", deps);
             }
             if path is not None and path.endswith('.jac') {

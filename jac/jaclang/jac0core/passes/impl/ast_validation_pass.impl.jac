@@ -241,7 +241,7 @@ impl ASTValidationPass.enter_ctrl_stmt(
 impl ASTValidationPass.enter_global_vars(
     self: ASTValidationPass, nd: uni.GlobalVars
 ) -> None {
-    valid_parents = (uni.Module,);
+    valid_parents = (uni.Module, );
     if not isinstance(nd.parent, valid_parents) {
         self.emit(E0063, node_override=nd);
     }

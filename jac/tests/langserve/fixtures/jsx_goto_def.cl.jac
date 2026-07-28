@@ -2,6 +2,7 @@
 
 
 variant client;
+
 def MyButton(label: str, disabled: bool = False) -> JsxElement {
     return <button disabled={disabled}>
         {label}

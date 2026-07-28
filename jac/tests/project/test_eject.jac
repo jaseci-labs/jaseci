@@ -35,13 +35,13 @@ def _write_project(src: Path, name: str = "test_app") {
         f'[project]\nname = "{name}"\nversion = "0.1.0"\nentry-point = "main.jac"\n' + '[dependencies.npm]\nreact = "^18.2.0"\nreact-dom = "^18.2.0"\n'
     );
     (src / "main.jac").write_text(
-        'import from server { Greet }\n\n' + 'cl {\n' + '    import from .frontend { app as ClientApp }\n' + '    def:pub app -> JsxElement {\n' + '        return <ClientApp/>;\n' + '    }\n' + '}\n'
+        'import from server { Greet }\n\n' + 'import from .frontend { app as ClientApp }\n\n' + 'def:pub app -> JsxElement {\n' + '    return <ClientApp/>;\n' + '}\n'
     );
-    (src / "server.sv.jac").write_text(
+    (src / "server.jac").write_text(
         'walker:pub Greet {\n' + '    has name: str,\n' + '        reports: list[str] = [];\n' + '    can g with Root entry {\n' + '        report f"Hello, {self.name}!";\n' + '    }\n' + '}\n\n' + 'walker Secret {\n' + '    has reports: list[str] = [];\n' + '    can g with Root entry {\n' + '        report "secret";\n' + '    }\n' + '}\n'
     );
     (src / "frontend.cl.jac").write_text(
-        '"""Client UI."""\n' + 'sv import from server { Greet }\n\n' + 'def:pub app -> JsxElement {\n' + '    has msg: str = "hi";\n' + '    return <div>{msg}</div>;\n' + '}\n'
+        '"""Client UI."""\n' + 'import from server { Greet }\n\n' + 'def:pub app -> JsxElement {\n' + '    has msg: str = "hi";\n' + '    return <div>{msg}</div>;\n' + '}\n'
     );
 }
 
@@ -673,7 +673,7 @@ test "entry module with server-side entry code is imported by main.py" {
         src = Path(td) / "bootapp";
         _write_project(src, "bootapp");
         (src / "main.jac").write_text(
-            'import from server { Greet }\n\n' + 'with entry {\n' + '    print("boot");\n' + '}\n\n' + 'cl {\n' + '    import from .frontend { app as ClientApp }\n' + '    def:pub app -> JsxElement {\n' + '        return <ClientApp/>;\n' + '    }\n' + '}\n'
+            'import from server { Greet }\n\n' + 'with entry {\n' + '    print("boot");\n' + '}\n\n' + 'import from .frontend { app as ClientApp }\n\n' + 'def:pub app -> JsxElement {\n' + '    return <ClientApp/>;\n' + '}\n'
         );
         rc = _silent_eject(str(src));
         assert rc == 0;

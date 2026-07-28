@@ -1,6 +1,5 @@
 """Button component for the Jac client application."""
 
-
 variant client;
 def:pub Button(
     label: str,

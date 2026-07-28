@@ -1,6 +1,5 @@
 """Edit user modal component."""
 
-
 variant client;
 import from ....components.common.Modal { Modal, ModalFooter }
 import from ....components.common.Button { Button }

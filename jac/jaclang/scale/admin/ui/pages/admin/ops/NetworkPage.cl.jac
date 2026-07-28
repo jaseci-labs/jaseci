@@ -9,7 +9,6 @@ Reads GET /admin/ops/network and renders three sections, kubeconfig-free:
     and which pods currently mount each claim.
 """
 
-
 variant client;
 import from "lucide-react" { Network }
 

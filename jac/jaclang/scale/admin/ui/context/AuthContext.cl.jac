@@ -1,6 +1,5 @@
 """Authentication context provider."""
 
-
 variant client;
 import from react { createContext, useContext, useEffect }
 import from ..hooks.useStorage { getStorage, setStorage, removeStorage }

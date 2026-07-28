@@ -1,6 +1,5 @@
 """A single guestbook message."""
 
-
 variant client;
 def:pub MessageCard(author: str, text: str) -> JsxElement {
     return

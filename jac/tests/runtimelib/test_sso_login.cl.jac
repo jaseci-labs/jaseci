@@ -9,7 +9,6 @@ backend is needed. They lock in the two branches:
   * plain web -> navigates the document to the server's `/sso/<p>/<op>` endpoint.
 """
 
-
 variant client;
 import from "@jac/runtime" {
     jacSsoLogin,

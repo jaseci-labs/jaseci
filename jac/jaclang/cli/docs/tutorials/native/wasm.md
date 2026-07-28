@@ -62,12 +62,10 @@ Client code imports a native module the same way it imports a server one --
 with a marked import:
 
 ```jac
-na import from .sum { add }
+import from .sum { add }
 
-cl {
-    async def show_sum {
-        print(await add(2, 3));
-    }
+async def show_sum {
+    print(await add(2, 3));
 }
 ```
 
@@ -84,7 +82,7 @@ page must supply their JavaScript implementations before the first call:
 ```jac
 import from "@jac/wasm_host" { set_na_env }
 
-na import from .arena { init }
+import from .arena { init }
 
 async def launch(shim: any, env_fns: dict) {
     set_na_env("arena", shim, {"env": env_fns});

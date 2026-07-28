@@ -322,15 +322,13 @@ This resolves the chosen style's `.cl.jac` components into `components/ui/`, ins
 Components install as `components/ui/<name>.cl.jac` with the name **underscored** -- `jac install --shadcn dropdown-menu` writes `dropdown_menu.cl.jac`, because a hyphen is the minus operator and cannot appear in a Jac module name. Import the underscored name (no quoting needed, since `_` is a valid identifier character) and make the leading dots relative to the importing file's folder: `.components.ui.<name>` from a root file like `main.jac`, `.ui.<name>` from a file in `components/`. Never write the hyphen: unquoted it is a parse error, and quoted it compiles to `./ui/dropdown-menu.js`, which no installed file matches.
 
 ```jac
-cl {
-    import from .components.ui.button { Button }
-    import from .components.ui.dropdown_menu { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent }
+import from .components.ui.button { Button }
+import from .components.ui.dropdown_menu { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent }
 
-    def:pub MyPage() -> JsxElement {
-        return <div>
-            <Button variant="outline">Click me</Button>
-        </div>;
-    }
+def:pub MyPage() -> JsxElement {
+    return <div>
+        <Button variant="outline">Click me</Button>
+    </div>;
 }
 ```
 
@@ -340,8 +338,8 @@ cl {
 
 ```jac
 # lib/utils.cl.jac
-cl import from "clsx" { clsx }
-cl import from "tailwind-merge" { twMerge }
+import from "clsx" { clsx }
+import from "tailwind-merge" { twMerge }
 
 def:pub cn(*inputs: any) -> str {
     return twMerge(clsx(inputs));

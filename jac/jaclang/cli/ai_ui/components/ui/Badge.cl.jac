@@ -1,6 +1,5 @@
 """Badge primitive -- a small status pill, optionally with a live pulse dot."""
 
-
 variant client;
 def:pub Badge(label: str, variant: str = "", pulse: bool = False) -> JsxElement {
     cls = "badge" if not variant else ("badge " + variant);

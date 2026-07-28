@@ -157,8 +157,8 @@ node User {
 }
 
 # Single-statement form (no header, no braces)
-sv import from .database { connect_db }
-sv node SecretData { has value: str; }
+import from .database { connect_db }
+node SecretData { has value: str; }
 ```
 
 > **Note on `sv import` between two server modules.** When both the importer and the importee are server-context modules running as separate microservices, `sv import` generates HTTP client stubs instead of pulling the provider into the consumer's process. The same source also works as a monolith. See [Microservice Interop (sv-to-sv)](jac-scale-http.md#microservice-interop-sv-to-sv) in the Scale reference for details.
@@ -208,7 +208,7 @@ def:pub create_task(title: str) -> Task {
 }
 
 # Client: receives hydrated Task instances
-sv import from .main { get_tasks, create_task }
+import from .main { get_tasks, create_task }
 
 def:pub app -> JsxElement {
     has tasks: list = [];
@@ -297,13 +297,13 @@ For one-off client-side declarations, use the single-statement `cl` prefix:
 
 ```jac
 import from react { useState }
-cl glob THEME: str = "dark";
+glob THEME: str = "dark";
 ```
 
 This also works for component definitions -- a handy shorthand for a single tagged declaration inside a mostly-server file:
 
 ```jac
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has count: int = 0;
     return <div>Count: {count}</div>;
 }
@@ -565,7 +565,7 @@ Use native Jac `spawn` syntax to call walkers from client code. First, import yo
 
 ```jac
 # Import walkers from backend
-sv import from ...main { get_tasks, create_task }
+import from ...main { get_tasks, create_task }
 
 def:pub TaskList() -> JsxElement {
     has tasks: list = [];
@@ -615,7 +615,7 @@ The spawn call returns a result object with:
 ### Mutations (Create, Update, Delete)
 
 ```jac
-sv import from ...main { add_task, toggle_task, delete_task }
+import from ...main { add_task, toggle_task, delete_task }
 
 def:pub TaskManager() -> JsxElement {
     has tasks: list = [];

@@ -1,6 +1,5 @@
 """LLM Metrics page - Aggregate LLM usage statistics dashboard."""
 
-
 variant client;
 import from react { useEffect }
 import from ....components.common.Button { Button }

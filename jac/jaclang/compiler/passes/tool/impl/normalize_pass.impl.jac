@@ -382,10 +382,7 @@ impl NormalizePass.enter_ability(nd: uni.Ability) -> None {
     if nd.doc {
         new_kid.append(nd.doc);
 
-        if not isinstance(
-            nd.parent,
-            (uni.Module, uni.Archetype, uni.Enum)
-        ) {
+        if not isinstance(nd.parent, (uni.Module, uni.Archetype, uni.Enum)) {
             new_kid.append(nd.gen_token(Tok.SEMI));
         }
     }

@@ -1,6 +1,5 @@
 """Users management page."""
 
-
 variant client;
 import from react { useEffect }
 import from ....components.common.Button { Button }

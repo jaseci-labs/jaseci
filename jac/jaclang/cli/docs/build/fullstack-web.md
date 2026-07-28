@@ -18,7 +18,7 @@ def:pub add_todo(title: str) -> Todo {
 
 def:pub get_todos -> list[Todo] { return [root-->][?:Todo]; }
 
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has todos: list[Todo] = [], text: str = "";
     async can with entry { todos = await get_todos(); }
     async def add {
@@ -74,42 +74,38 @@ Set `kind = "web-static"` for an app with **no backend** -- a pure `cl` page tha
 
 ```jac
 # main.jac
-na {
-    """Count primes below n -- a tight integer loop, compiled to WebAssembly."""
-    def count_primes(n: int) -> int {
-        count = 0;
-        i = 2;
-        while i < n {
-            is_prime = True;
-            j = 2;
-            while j < i {
-                if i % j == 0 { is_prime = False; break; }
-                j += 1;
-            }
-            if is_prime { count += 1; }
-            i += 1;
+"""Count primes below n -- a tight integer loop, compiled to WebAssembly."""
+def count_primes(n: int) -> int {
+    count = 0;
+    i = 2;
+    while i < n {
+        is_prime = True;
+        j = 2;
+        while j < i {
+            if i % j == 0 { is_prime = False; break; }
+            j += 1;
         }
-        return count;
+        if is_prime { count += 1; }
+        i += 1;
     }
+    return count;
 }
 
-cl {
-    def:pub app -> JsxElement {
-        has answer: str = "computing...";
-        async can with entry {
-            res: any = await WebAssembly.instantiateStreaming(
-                fetch("/static/main.wasm"), {"env": {"puts": lambda { return 0; }}}
-            );
-            wasm: any = res.instance.exports;
-            wasm.__jac_glob_init();
-            # an i64 crosses the JS boundary as a BigInt; format it straight to text
-            answer = f"{wasm.count_primes(BigInt(20000))}";
-        }
-        return <div>
-            <h1>Native compute in the browser</h1>
-            <p>{"primes below 20000 (computed in wasm): "}<b>{answer}</b></p>
-        </div>;
+def:pub app -> JsxElement {
+    has answer: str = "computing...";
+    async can with entry {
+        res: any = await WebAssembly.instantiateStreaming(
+            fetch("/static/main.wasm"), {"env": {"puts": lambda { return 0; }}}
+        );
+        wasm: any = res.instance.exports;
+        wasm.__jac_glob_init();
+        # an i64 crosses the JS boundary as a BigInt; format it straight to text
+        answer = f"{wasm.count_primes(BigInt(20000))}";
     }
+    return <div>
+        <h1>Native compute in the browser</h1>
+        <p>{"primes below 20000 (computed in wasm): "}<b>{answer}</b></p>
+    </div>;
 }
 ```
 

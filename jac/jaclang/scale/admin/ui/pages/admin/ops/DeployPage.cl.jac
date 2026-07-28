@@ -11,7 +11,6 @@ Off-cluster (or before the Ops Console RBAC is applied) it shows a single
 "unavailable" banner with the reason, never an error.
 """
 
-
 variant client;
 import from "lucide-react" { Boxes }
 

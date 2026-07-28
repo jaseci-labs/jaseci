@@ -62,14 +62,12 @@ walker:pub get_todos {
 }
 
 # Frontend code (client section)
-cl {
-    def:pub app() -> JsxElement {
-        has message: str = "Hello from Jac!";
+def:pub app() -> JsxElement {
+    has message: str = "Hello from Jac!";
 
-        return <div>
-            <h1>{message}</h1>
-        </div>;
-    }
+    return <div>
+        <h1>{message}</h1>
+    </div>;
 }
 ```
 
@@ -144,10 +142,8 @@ walker api_endpoint {
 }
 
 # This is frontend code (runs in browser)
-cl {
-    def:pub MyComponent() -> JsxElement {
-        return <div>I run in the browser</div>;
-    }
+def:pub MyComponent() -> JsxElement {
+    return <div>I run in the browser</div>;
 }
 ```
 
@@ -173,10 +169,8 @@ walker get_user {
 }
 
 # Frontend
-cl {
-    def:pub app() -> JsxElement {
-        return <div>App</div>;
-    }
+def:pub app() -> JsxElement {
+    return <div>App</div>;
 }
 ```
 
@@ -216,15 +210,13 @@ walker get_user {
 
 ```jac
 # main.jac
-cl {
-    import from "./components/Header.cl.jac" { Header }
+import from "./components/Header.cl.jac" { Header }
 
-    def:pub app() -> JsxElement {
-        return <div>
-            <Header />
-            <main>Content</main>
-        </div>;
-    }
+def:pub app() -> JsxElement {
+    return <div>
+        <Header />
+        <main>Content</main>
+    </div>;
 }
 ```
 
@@ -257,13 +249,11 @@ Then use in frontend:
     `jac check` reads installed npm `.d.ts` files for client imports when available; packages or constructs without declarations still type as foreign `any`. The code below runs as written under `jac start`.
 
 ```jac
-cl {
-    import lodash;
+import lodash;
 
-    def:pub app() -> JsxElement {
-        items = lodash.sortBy(["c", "a", "b"]);
-        return <ul>{[<li>{i}</li> for i in items]}</ul>;
-    }
+def:pub app() -> JsxElement {
+    items = lodash.sortBy(["c", "a", "b"]);
+    return <ul>{[<li>{i}</li> for i in items]}</ul>;
 }
 ```
 
@@ -302,18 +292,16 @@ watchdog = ">=3.0.0"
 Create this minimal `main.jac`:
 
 ```jac
-cl {
-    def:pub app() -> JsxElement {
-        has count: int = 0;
+def:pub app() -> JsxElement {
+    has count: int = 0;
 
-        return <div style={{"textAlign": "center", "marginTop": "50px"}}>
-            <h1>Jac Full-Stack</h1>
-            <p>Count: {count}</p>
-            <button onClick={lambda -> None { count = count + 1; }}>
-                Increment
-            </button>
-        </div>;
-    }
+    return <div style={{"textAlign": "center", "marginTop": "50px"}}>
+        <h1>Jac Full-Stack</h1>
+        <p>Count: {count}</p>
+        <button onClick={lambda -> None { count = count + 1; }}>
+            Increment
+        </button>
+    </div>;
 }
 ```
 

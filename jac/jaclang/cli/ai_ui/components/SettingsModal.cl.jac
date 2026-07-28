@@ -7,7 +7,6 @@ running session -- nothing is written to disk. Auto-opened by the app when the
 active model needs an API key it does not have.
 """
 
-
 variant client;
 def:pub SettingsModal(
     model: str,

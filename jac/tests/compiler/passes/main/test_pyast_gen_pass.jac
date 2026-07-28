@@ -358,9 +358,7 @@ test "string literal import infers cl but rejects a server pin" {
         assert any(
             "String literal imports" in msg and "client (cl) imports" in msg
             for msg in error_messages
-        ) , (
-            f"Expected error for server-pinned string import, got: {error_messages}"
-        );
+        ) , (f"Expected error for server-pinned string import, got: {error_messages}");
     }
 }
 

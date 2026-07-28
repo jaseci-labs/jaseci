@@ -9,7 +9,6 @@ accumulated). The static definition comes from the same traced `nodes` the graph
 draws; the context is fetched per click (`agent_phase_context`) and passed in.
 """
 
-
 variant client;
 import from ..server { GraphNode, PhaseContext }
 

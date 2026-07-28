@@ -43,4 +43,6 @@ glob registry = get_registry();
     ],
     group="analysis"
 )
-def fix(target: str, paths: list, dry_run: bool = False, strip_only: bool = False) -> int;
+def fix(
+    target: str, paths: list, dry_run: bool = False, strip_only: bool = False
+) -> int;

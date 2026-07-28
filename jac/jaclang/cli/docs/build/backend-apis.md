@@ -57,7 +57,7 @@ def:pub multiply(a: int, b: int) -> int {
 
 ```jac
 # calculator_service.jac  (the consumer)
-sv import from math_service { add, multiply }
+import from math_service { add, multiply }
 
 def:pub dot_product(a: list[int], b: list[int]) -> int {
     result = 0;

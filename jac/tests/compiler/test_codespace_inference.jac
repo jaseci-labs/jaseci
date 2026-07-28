@@ -159,7 +159,9 @@ test "mixed plain import keeps client symbols and bridges endpoints" {
 
 test "plain client import of a server-only helper is a codegen error" {
     prog = JacProgram();
-    mod = prog.compile(os.path.join(FIXTURE_DIR, "pinned_dead", "infer_import_dead_client.jac"));
+    mod = prog.compile(
+        os.path.join(FIXTURE_DIR, "pinned_dead", "infer_import_dead_client.jac")
+    );
     dead_errs = [
         e
         for e in prog.errors_had

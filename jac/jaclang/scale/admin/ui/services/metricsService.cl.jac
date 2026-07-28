@@ -1,6 +1,5 @@
 """Metrics service functions for admin dashboard."""
 
-
 variant client;
 import from .api { get }
 

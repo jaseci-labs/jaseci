@@ -253,9 +253,12 @@ test "NpmBuilder rejects modules that cross a server boundary" {
     try {
         pkg = Path(tmpdir) / "svlib";
         pkg.mkdir(parents=True, exist_ok=True);
-        (pkg / "api.sv.jac").write_text('def:pub fetch_count() -> int { return 7; }\n');
+        (pkg / "api.jac").write_text('def:pub fetch_count() -> int { return 7; }\n');
+        (Path(tmpdir) / "jac.toml").write_text(
+            '[placement.pins]\n"svlib.api" = "server"\n'
+        );
         (pkg / "index.cl.jac").write_text(
-            'sv import from api { fetch_count }\n\n'
+            'import from api { fetch_count }\n\n'
             'def:pub show() -> int { return fetch_count(); }\n'
         );
         cfg = JacConfig.from_toml_str(

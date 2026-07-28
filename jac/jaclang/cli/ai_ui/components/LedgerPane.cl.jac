@@ -8,7 +8,6 @@ the typed first-paint snapshot or as a raw stream dict; both expose
 `.changes` ([{phase, summary}]) and `.notes` ([str]).
 """
 
-
 variant client;
 import from react { useRef, useEffect }
 

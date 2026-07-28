@@ -1,6 +1,5 @@
 """Base API service with authentication."""
 
-
 variant client;
 glob:pub baseUrl = window.location.origin;
 

@@ -15,7 +15,6 @@ UX choices that distinguish this from raw Grafana:
 - Service dropdown auto-populated from microservices.routes config
 """
 
-
 variant client;
 import from "lucide-react" { ScrollText, RefreshCw, AlertTriangle, X }
 

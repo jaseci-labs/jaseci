@@ -222,6 +222,7 @@ def _strip_markers(src: str, file_path: str) -> StripResult {
                     (tokens[close_idx].loc.pos_start, tokens[close_idx].loc.pos_end, '')
                 );
                 _collect_block_claims(tokens, i + 2, close_idx, space, res);
+                depth += 1;
                 i += 2;
                 continue;
             }

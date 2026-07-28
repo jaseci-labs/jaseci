@@ -462,9 +462,7 @@ test "jacjsx import added in real compilation" {
         compiled_dir.mkdir(parents=True, exist_ok=True);
         app_file = unique_dir / "app.jac";
         app_file.write_text(
-            "    def app() {\n"
-            "        return <div>Hello</div>;\n"
-            "    }\n"
+            "    def app() {\n" "        return <div>Hello</div>;\n" "    }\n"
         );
         watcher = JacFileWatcher(watch_paths=[str(unique_dir)], _debounce_ms=50);
         reloader = HotReloader(
@@ -496,9 +494,7 @@ test "jacjsx import added in real compilation" {
         assert reloader.build_status()["status"] == "error";
         # --- fix the error: recovery clears the mirrored error ---
         bad_file.write_text(
-            "    def app() {\n"
-            "        return <div>Fixed</div>;\n"
-            "    }\n"
+            "    def app() {\n" "        return <div>Fixed</div>;\n" "    }\n"
         );
         reloader._recompile_client_code(str(bad_file));
         reloader.record_ok();  # _process_change settles to ok after a clean rebuild
@@ -783,9 +779,7 @@ test "dependency compiled when imported file recompiled" {
         # Button component in components/
         btn_file = unique_dir / "Button.cl.jac";
         btn_file.write_text(
-            "    def Button() {\n"
-            "        return <button>Click</button>;\n"
-            "    }\n"
+            "    def Button() {\n" "        return <button>Click</button>;\n" "    }\n"
         );
         # App imports Button
         app_file = unique_dir / "app.cl.jac";
@@ -839,9 +833,7 @@ test "routing activates when pages are created after startup" {
         unique_dir.mkdir(parents=True, exist_ok=True);
         (reloader, compiler, compiled_dir) = _make_unified_reloader(unique_dir);
         main_file = unique_dir / "main.jac";
-        main_file.write_text(
-            "def app() {\n    return <div>App</div>;\n}\n"
-        );
+        main_file.write_text("def app() {\n    return <div>App</div>;\n}\n");
         # No pages/ yet: a refresh must not fabricate routing artifacts
         reloader._refresh_routing(str(main_file));
         assert not (compiled_dir / "_routes.js").exists();

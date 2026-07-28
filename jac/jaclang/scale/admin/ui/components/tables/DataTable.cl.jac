@@ -1,6 +1,5 @@
 """Reusable data table component."""
 
-
 variant client;
 def:pub DataTable(columns: list, children: any) -> JsxElement {
     return

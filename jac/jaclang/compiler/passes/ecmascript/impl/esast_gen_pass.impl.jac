@@ -4814,7 +4814,7 @@ def _decl_has_access(source_mod: uni.Module, item: uni.ModuleItem) -> bool {
     if isinstance(decl, uni.NameAtom) and decl.parent {
         decl = decl.parent;
     }
-    return getattr(decl, 'access', None) is not None;
+    return decl?.access is not None;
 }
 
 impl EsastGenPass._partition_client_import_items(
@@ -4853,7 +4853,8 @@ impl EsastGenPass._partition_client_import_items(
             bridged.append(item);
             continue;
         }
-        if pinned_server and verdict == ClientImportVerdict.DEAD
+        if pinned_server
+        and verdict == ClientImportVerdict.DEAD
         and _decl_has_access(source_mod, item) {
             bridged.append(item);
             continue;
@@ -6318,8 +6319,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         and nd.code_context != CodeContext.CLIENT
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
-        is_sv_import = isinstance(nd, uni.Import)
-        and nd.is_service_import;
+        is_sv_import = isinstance(nd, uni.Import) and nd.is_service_import;
 
         is_native_edge = isinstance(nd, uni.Import)
         and self._is_client_native_import(nd);
@@ -6347,8 +6347,7 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
         and nd.code_context != CodeContext.CLIENT
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
-        is_sv_import = isinstance(nd, uni.Import)
-        and nd.is_service_import;
+        is_sv_import = isinstance(nd, uni.Import) and nd.is_service_import;
 
         is_shared_arch = (
             isinstance(nd, uni.Archetype)

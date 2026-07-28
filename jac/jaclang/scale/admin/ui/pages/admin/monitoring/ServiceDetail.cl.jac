@@ -11,7 +11,6 @@ yet available from Prometheus, so the Traffic card renders placeholders until
 that lands.
 """
 
-
 variant client;
 import from "lucide-react" { ChevronLeft, Boxes, Activity, Gauge }
 

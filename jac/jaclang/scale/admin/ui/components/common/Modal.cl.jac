@@ -1,6 +1,5 @@
 """Modal dialog component."""
 
-
 variant client;
 def:pub Modal(isOpen: bool, onClose: any, title: str, children: any) -> JsxElement {
     if not isOpen {

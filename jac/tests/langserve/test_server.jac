@@ -298,12 +298,12 @@ test "test_go_to_definition_jsx_component" {
         lsp = create_server();
         jsx_file = uris.from_fs_path(fixture_path("jsx_goto_def.cl.jac"));
         lsp.type_check_file(jsx_file);
-        # Cursor inside the <MyButton ...> tag name on line 11 (0-indexed 10).
+        # Cursor inside the <MyButton ...> tag name on line 14 (0-indexed 13).
         # `        <MyButton ...` -- 'M' is at column 9, so col 12 lands on 'u'.
-        result = str(lsp.get_definition(jsx_file, lspt.Position(10, 12)));
-        # Expect to land on the MyButton function declaration on line 3
-        # (0-indexed 2): `def MyButton(...` -- 'MyButton' spans cols 4-12.
-        assert "jsx_goto_def.cl.jac:2:4-2:12" in result , f"Unexpected go-to-def result for JSX tag: {result}";
+        result = str(lsp.get_definition(jsx_file, lspt.Position(13, 12)));
+        # Expect to land on the MyButton function declaration on line 6
+        # (0-indexed 5): `def MyButton(...` -- 'MyButton' spans cols 4-12.
+        assert "jsx_goto_def.cl.jac:5:4-5:12" in result , f"Unexpected go-to-def result for JSX tag: {result}";
     } finally {
         teardown_test();
     }

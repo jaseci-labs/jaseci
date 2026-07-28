@@ -191,11 +191,6 @@ test "infer cli-native from .na.jac entry" {
     assert p.kind == "cli-native";
 }
 
-test "infer service from .sv.jac entry" {
-    p = _plan("entry-point = \"main.sv.jac\"\n", "main.sv.jac");
-    assert p.kind == "service";
-}
-
 test "infer web-app from .cl.jac entry" {
     p = _plan("entry-point = \"main.cl.jac\"\n", "main.cl.jac");
     assert p.kind == "web-app";

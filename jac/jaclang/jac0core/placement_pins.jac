@@ -105,3 +105,54 @@ def pins_digest(source_path: str) -> str {
     }
     return json.dumps(pins, sort_keys=True);
 }
+
+glob _npm_deps_cache: dict = {};
+
+
+def npm_dependency_names(source_path: str) -> set[str] {
+    if not source_path {
+        return set();
+    }
+    root_dir = find_jac_project_root(source_path);
+    if not root_dir {
+        return set();
+    }
+    toml_path = os.path.join(root_dir, "jac.toml");
+    try {
+        mtime = os.path.getmtime(toml_path);
+    } except OSError {
+        return set();
+    }
+    cached = _npm_deps_cache.get(root_dir);
+    if cached is not None and cached[0] == mtime {
+        return cached[1];
+    }
+    import tomllib;
+    try {
+        with open(toml_path, "rb") as f {
+            doc = tomllib.load(f);
+        }
+    } except Exception {
+        return set();
+    }
+    deps = doc.get("dependencies", {});
+    npm = deps.get("npm", {}) if isinstance(deps, dict) else {};
+    names: set[str] = set();
+    if isinstance(npm, dict) {
+        for k in npm {
+            key = str(k);
+            if key == "dev" {
+                continue;
+            }
+            names.add(key);
+        }
+        dev = npm.get("dev", {});
+        if isinstance(dev, dict) {
+            for k in dev {
+                names.add(str(k));
+            }
+        }
+    }
+    _npm_deps_cache[root_dir] = (mtime, names);
+    return names;
+}

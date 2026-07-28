@@ -3275,8 +3275,7 @@ impl TypeEvaluator._is_sv_async_call(expr: uni.FuncCall) -> bool {
         import from jaclang.jac0core.compiler { is_client_native_edge_import }
         for imp in mod.get_all_sub_nodes(uni.Import) {
             if not (
-                imp.is_service_import
-                or is_client_native_edge_import(imp, self.program)
+                imp.is_service_import or is_client_native_edge_import(imp, self.program)
             ) {
                 continue;
             }

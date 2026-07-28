@@ -1,6 +1,5 @@
 """Loading spinner component."""
 
-
 variant client;
 def:pub Spinner(size: str = "md") -> JsxElement {
     sizeClass = size == "sm"

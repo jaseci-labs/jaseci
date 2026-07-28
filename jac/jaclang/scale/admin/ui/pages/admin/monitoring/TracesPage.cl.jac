@@ -14,7 +14,6 @@ The trace_id here is the same id the logs page surfaces (the K-12
 UUID's 128 bits), so the two views cross-link directly.
 """
 
-
 variant client;
 import from "lucide-react" { Workflow, AlertTriangle, X }
 

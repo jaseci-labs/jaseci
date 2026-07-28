@@ -1,6 +1,5 @@
 """{{name}} - Client-Side UI."""
 
-
 variant client;
 import from .components.MessageCard { MessageCard }
 

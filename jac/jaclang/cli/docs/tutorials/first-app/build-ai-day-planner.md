@@ -581,7 +581,7 @@ So far, you've been working entirely on the server side. Now you'll learn how Ja
 Jac uses the `cl` (client) prefix to distinguish between server-side and browser-side code. Any code marked with `cl` is compiled to JavaScript and runs in the **browser**, not on the server:
 
 ```jac
-cl import "./styles.css";
+import "./styles.css";
 ```
 
 This loads a CSS file client-side. Add this line at the top of your `main.jac`.
@@ -591,7 +591,7 @@ This loads a CSS file client-side. Add this line at the top of your `main.jac`.
 A `cl def:pub` function returning `JsxElement` is a UI component:
 
 ```jac
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has tasks: list = [],
         task_text: str = "";
 
@@ -605,9 +605,9 @@ Notice the `has` keyword appearing again -- you first saw it in `obj` and `node`
     Since Jac's client-side code compiles to JavaScript that runs in a React context, you can import and use `useState` from React directly if you prefer:
 
     ```jac
-    cl import from react { useState }
+    import from react { useState }
 
-    cl def:pub app -> JsxElement {
+    def:pub app -> JsxElement {
         (tasks, set_tasks) = useState([]);
         (task_text, set_task_text) = useState("");
 
@@ -633,9 +633,9 @@ This fetches all tasks from the server when the page loads.
     If you prefer React's hooks, you can import and use `useEffect` directly:
 
     ```jac
-    cl import from react { useEffect }
+    import from react { useEffect }
 
-    cl def:pub app -> JsxElement {
+    def:pub app -> JsxElement {
         # ...
 
         useEffect(lambda {
@@ -710,7 +710,7 @@ This is one of the most important concepts to understand in Jac's full-stack mod
 Now that you understand the individual pieces -- reactive state, lifecycle hooks, lambdas, transparent server calls, and JSX rendering -- it's time to assemble them into a working component. Add `cl import "./styles.css";` after your existing import. Start with the input, add button, and a basic task list:
 
 ```jac
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has tasks: list = [],
         task_text: str = "";
 
@@ -757,7 +757,7 @@ This is already functional -- you can type a task, press Enter, and see it appea
 Now add checkboxes, delete buttons, and a task counter. Insert these methods after `add_new_task`, and update the task list rendering:
 
 ```jac
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has tasks: list = [],
         task_text: str = "";
 
@@ -852,7 +852,7 @@ h1 { text-align: center; margin-bottom: 24px; color: #333; }
 ??? note "Complete `main.jac` for Parts 1–4"
 
     ```jac
-    cl import "./styles.css";
+    import "./styles.css";
 
     node Task {
         has title: str,
@@ -892,7 +892,7 @@ h1 { text-align: center; margin-bottom: 24px; color: #333; }
         return {};
     }
 
-    cl def:pub app -> JsxElement {
+    def:pub app -> JsxElement {
         has tasks: list[Task] = [],
             task_text: str = "";
 
@@ -1211,7 +1211,7 @@ graph LR
 The frontend needs a two-column layout: tasks on the left, shopping list on the right. Update the component with new state, methods, and the shopping panel:
 
 ```jac
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has tasks: list = [],
         task_text: str = "",
         meal_text: str = "",
@@ -1372,7 +1372,7 @@ A component that takes props but owns no state is called *presentational* -- it 
 
 ```jac
 """Single task row -- presentational; toggle and delete are passed in."""
-cl def:pub TaskItem(
+def:pub TaskItem(
     task: Task, onToggle: Callable[[], None], onDelete: Callable[[], None]
 ) -> JsxElement {
     return
@@ -1397,7 +1397,7 @@ Two things to notice. First, `task: Task` is a real typed `node` -- the same typ
 
 ```jac
 """Tasks column -- owns task list state, fetches on mount."""
-cl def:pub TasksColumn -> JsxElement {
+def:pub TasksColumn -> JsxElement {
     has tasks: list[Task] = [],
         task_text: str = "";
 
@@ -1465,7 +1465,7 @@ The rendering is much easier to read now: a header, an input row, a list of `<Ta
 
 ```jac
 """Single ingredient row -- presentational."""
-cl def:pub IngredientItem(ing: ShoppingItem) -> JsxElement {
+def:pub IngredientItem(ing: ShoppingItem) -> JsxElement {
     return
         <div class="ingredient-item">
             <div class="ing-info">
@@ -1480,7 +1480,7 @@ cl def:pub IngredientItem(ing: ShoppingItem) -> JsxElement {
 }
 
 """Shopping list column -- owns ingredient state, fetches on mount."""
-cl def:pub ShoppingColumn -> JsxElement {
+def:pub ShoppingColumn -> JsxElement {
     has ingredients: list[ShoppingItem] = [],
         meal_text: str = "",
         generating: bool = False;
@@ -1548,7 +1548,7 @@ cl def:pub ShoppingColumn -> JsxElement {
 With the column components doing all the heavy lifting, `app` is now small enough to read in a breath:
 
 ```jac
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     return
         <div class="container">
             <h1>AI Day Planner</h1>
@@ -1604,7 +1604,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
 ??? note "Complete `main.jac` for Parts 1–5"
 
     ```jac
-    cl import "./styles.css";
+    import "./styles.css";
 
     # --- Enums ---
 
@@ -1717,7 +1717,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
     # --- Frontend Components ---
 
     """Single task row -- presentational; toggle and delete are passed in."""
-    cl def:pub TaskItem(
+    def:pub TaskItem(
         task: Task, onToggle: Callable[[], None], onDelete: Callable[[], None]
     ) -> JsxElement {
         return
@@ -1734,7 +1734,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
     }
 
     """Tasks column -- owns task list state, fetches on mount."""
-    cl def:pub TasksColumn -> JsxElement {
+    def:pub TasksColumn -> JsxElement {
         has tasks: list[Task] = [],
             task_text: str = "";
 
@@ -1794,7 +1794,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
     }
 
     """Single ingredient row -- presentational."""
-    cl def:pub IngredientItem(ing: ShoppingItem) -> JsxElement {
+    def:pub IngredientItem(ing: ShoppingItem) -> JsxElement {
         return
             <div class="ingredient-item">
                 <div class="ing-info">
@@ -1809,7 +1809,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
     }
 
     """Shopping list column -- owns ingredient state, fetches on mount."""
-    cl def:pub ShoppingColumn -> JsxElement {
+    def:pub ShoppingColumn -> JsxElement {
         has ingredients: list[ShoppingItem] = [],
             meal_text: str = "",
             generating: bool = False;
@@ -1869,7 +1869,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
             </div>;
     }
 
-    cl def:pub app -> JsxElement {
+    def:pub app -> JsxElement {
         return
             <div class="container">
                 <h1>AI Day Planner</h1>
@@ -1998,7 +1998,7 @@ day-planner-auth/
 When a `.cl.jac` file calls server functions, it needs `sv import` so the compiler generates HTTP stubs instead of raw function calls:
 
 ```jac
-sv import from ..main { Task, get_tasks, add_task, toggle_task, delete_task }
+import from ..main { Task, get_tasks, add_task, toggle_task, delete_task }
 ```
 
 The `sv` prefix means "server import." You also use it to bring server `node` types into client code, so `TaskItem(task: Task)` can be typed end-to-end. The `..main` is a relative import: `..` means "parent directory," because components live one folder below `main.jac` -- the same convention Python uses.
@@ -2008,18 +2008,14 @@ The `sv` prefix means "server import." You also use it to bring server `node` ty
 Sometimes you want both server and client code in the same file -- typically the entry point, where one client-side `app` component just renders the imported client app while the server code lives alongside it. Braced blocks do that:
 
 ```jac
-cl {
-    import from frontend { app as ClientApp }
+import from frontend { app as ClientApp }
 
-    def:pub app -> JsxElement {
-        return
-            <ClientApp/>;
-    }
+def:pub app -> JsxElement {
+    return
+        <ClientApp/>;
 }
 
-sv {
-    # Server-side: nodes, AI delegations, endpoints live here.
-}
+# Server-side: nodes, AI delegations, endpoints live here.
 ```
 
 Everything inside the `cl { ... }` block runs in the browser; everything inside `sv { ... }` runs on the server. Braced blocks and the `cl`/`sv` prefixes you saw in Part 4 are two ways to do the same thing -- prefixes are good for the occasional client thing in a server file, blocks are good when a whole region of the file goes one way.
@@ -2087,123 +2083,119 @@ All the complete files are in the collapsible sections below. Create each file, 
     ```jac
     """AI Day Planner -- authenticated, multi-file version."""
 
-    cl {
-        import from frontend { app as ClientApp }
+    import from frontend { app as ClientApp }
 
-        def:pub app -> JsxElement {
-            return
-                <ClientApp />;
-        }
+    def:pub app -> JsxElement {
+        return
+            <ClientApp />;
     }
 
-    sv {
-        # --- Enums ---
+    # --- Enums ---
 
-        enum Category { WORK, PERSONAL, SHOPPING, HEALTH, FITNESS, OTHER }
+    enum Category { WORK, PERSONAL, SHOPPING, HEALTH, FITNESS, OTHER }
 
-        enum Unit { PIECE, LB, OZ, CUP, TBSP, TSP, BUNCH }
+    enum Unit { PIECE, LB, OZ, CUP, TBSP, TSP, BUNCH }
 
-        # --- AI Types ---
+    # --- AI Types ---
 
-        obj Ingredient {
-            has name: str,
-                quantity: float,
-                unit: Unit,
-                cost: float,
-                carby: bool;
-        }
+    obj Ingredient {
+        has name: str,
+            quantity: float,
+            unit: Unit,
+            cost: float,
+            carby: bool;
+    }
 
-        sem Ingredient.cost = "Estimated cost in USD";
-        sem Ingredient.carby = "True if this ingredient is high in carbohydrates";
+    sem Ingredient.cost = "Estimated cost in USD";
+    sem Ingredient.carby = "True if this ingredient is high in carbohydrates";
 
-        def categorize(title: str) -> Category by llm();
-        sem categorize = "Categorize a task based on its title";
+    def categorize(title: str) -> Category by llm();
+    sem categorize = "Categorize a task based on its title";
 
-        def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
-        sem generate_shopping_list = "Generate a shopping list of ingredients needed for a described meal";
+    def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
+    sem generate_shopping_list = "Generate a shopping list of ingredients needed for a described meal";
 
-        # --- Data Nodes ---
+    # --- Data Nodes ---
 
-        node Task {
-            has title: str,
-                done: bool = False,
-                category: str = "other";
-        }
+    node Task {
+        has title: str,
+            done: bool = False,
+            category: str = "other";
+    }
 
-        node ShoppingItem {
-            has name: str,
-                quantity: float,
-                unit: str,
-                cost: float,
-                carby: bool;
-        }
+    node ShoppingItem {
+        has name: str,
+            quantity: float,
+            unit: str,
+            cost: float,
+            carby: bool;
+    }
 
-        # --- Task Endpoints ---
+    # --- Task Endpoints ---
 
-        """Add a task with AI categorization."""
-        def:priv add_task(title: str) -> Task {
-            category = str(categorize(title)).split(".")[-1].lower();
-            task = root ++> Task(title=title, category=category);
-            return task;
-        }
+    """Add a task with AI categorization."""
+    def:priv add_task(title: str) -> Task {
+        category = str(categorize(title)).split(".")[-1].lower();
+        task = root ++> Task(title=title, category=category);
+        return task;
+    }
 
-        """Get all tasks."""
-        def:priv get_tasks -> list[Task] {
-            return [root-->][?:Task];
-        }
+    """Get all tasks."""
+    def:priv get_tasks -> list[Task] {
+        return [root-->][?:Task];
+    }
 
-        """Toggle a task's done status."""
-        def:priv toggle_task(id: str) -> Task | None {
-            for task in [root-->][?:Task] {
-                if jid(task) == id {
-                    task.done = not task.done;
-                    return task;
-                }
+    """Toggle a task's done status."""
+    def:priv toggle_task(id: str) -> Task | None {
+        for task in [root-->][?:Task] {
+            if jid(task) == id {
+                task.done = not task.done;
+                return task;
             }
-            return None;
         }
+        return None;
+    }
 
-        """Delete a task."""
-        def:priv delete_task(id: str) -> dict[str, str] {
-            for task in [root-->][?:Task] {
-                if jid(task) == id {
-                    del task;
-                    return {"deleted": id};
-                }
+    """Delete a task."""
+    def:priv delete_task(id: str) -> dict[str, str] {
+        for task in [root-->][?:Task] {
+            if jid(task) == id {
+                del task;
+                return {"deleted": id};
             }
-            return {};
         }
+        return {};
+    }
 
-        # --- Shopping List Endpoints ---
+    # --- Shopping List Endpoints ---
 
-        """Generate a shopping list from a meal description."""
-        def:priv generate_list(meal: str) -> list[ShoppingItem] {
-            for item in [root-->][?:ShoppingItem] {
-                del item;
-            }
-            ingredients = generate_shopping_list(meal);
-            for ing in ingredients {
-                root ++> ShoppingItem(
-                    name=ing.name, quantity=ing.quantity,
-                    unit=str(ing.unit).split(".")[-1].lower(),
-                    cost=ing.cost, carby=ing.carby
-                );
-            }
-            return [root-->][?:ShoppingItem];
+    """Generate a shopping list from a meal description."""
+    def:priv generate_list(meal: str) -> list[ShoppingItem] {
+        for item in [root-->][?:ShoppingItem] {
+            del item;
         }
-
-        """Get the current shopping list."""
-        def:priv get_shopping_list -> list[ShoppingItem] {
-            return [root-->][?:ShoppingItem];
+        ingredients = generate_shopping_list(meal);
+        for ing in ingredients {
+            root ++> ShoppingItem(
+                name=ing.name, quantity=ing.quantity,
+                unit=str(ing.unit).split(".")[-1].lower(),
+                cost=ing.cost, carby=ing.carby
+            );
         }
+        return [root-->][?:ShoppingItem];
+    }
 
-        """Clear the shopping list."""
-        def:priv clear_shopping_list -> dict[str, bool] {
-            for item in [root-->][?:ShoppingItem] {
-                del item;
-            }
-            return {"cleared": True};
+    """Get the current shopping list."""
+    def:priv get_shopping_list -> list[ShoppingItem] {
+        return [root-->][?:ShoppingItem];
+    }
+
+    """Clear the shopping list."""
+    def:priv clear_shopping_list -> dict[str, bool] {
+        for item in [root-->][?:ShoppingItem] {
+            del item;
         }
+        return {"cleared": True};
     }
     ```
 
@@ -2414,7 +2406,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     ```jac
     """Tasks column -- owns task list state, fetches on mount."""
 
-    sv import from ..main { Task, get_tasks, add_task, toggle_task, delete_task }
+    import from ..main { Task, get_tasks, add_task, toggle_task, delete_task }
 
     import from .TaskItem { TaskItem }
 
@@ -2502,7 +2494,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     ```jac
     """Single task row -- presentational; toggle and delete are passed in."""
 
-    sv import from ..main { Task }
+    import from ..main { Task }
 
     def:pub TaskItem(
         task: Task, onToggle: Callable[[], None], onDelete: Callable[[], None]
@@ -2526,7 +2518,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     ```jac
     """Shopping list column -- owns ingredient state, fetches on mount."""
 
-    sv import from ..main {
+    import from ..main {
         ShoppingItem,
         generate_list,
         get_shopping_list,
@@ -2629,7 +2621,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     ```jac
     """Single ingredient row -- presentational."""
 
-    sv import from ..main { ShoppingItem }
+    import from ..main { ShoppingItem }
 
     def:pub IngredientItem(ing: ShoppingItem) -> JsxElement {
         return
@@ -3032,7 +3024,7 @@ In the `def:priv` version, the frontend called server functions directly with `a
 **`sv import`** brings server walkers into client code:
 
 ```jac
-sv import from main {
+import from main {
     AddTask, ListTasks, ToggleTask, DeleteTask,
     GenerateShoppingList, GetShoppingList, ClearShoppingList
 }
@@ -3116,162 +3108,158 @@ The three files that change are in the collapsible sections below. Copy the unch
     ```jac
     """AI Day Planner -- walker-based version with OSP."""
 
-    cl {
-        import from frontend { app as ClientApp }
+    import from frontend { app as ClientApp }
 
-        def:pub app -> JsxElement {
-            return
-                <ClientApp />;
+    def:pub app -> JsxElement {
+        return
+            <ClientApp />;
+    }
+
+    # --- Enums ---
+
+    enum Category { WORK, PERSONAL, SHOPPING, HEALTH, FITNESS, OTHER }
+
+    enum Unit { PIECE, LB, OZ, CUP, TBSP, TSP, BUNCH }
+
+    # --- AI Types ---
+
+    obj Ingredient {
+        has name: str,
+            quantity: float,
+            unit: Unit,
+            cost: float,
+            carby: bool;
+    }
+
+    sem Ingredient.cost = "Estimated cost in USD";
+    sem Ingredient.carby = "True if this ingredient is high in carbohydrates";
+
+    def categorize(title: str) -> Category by llm();
+    sem categorize = "Categorize a task based on its title";
+
+    def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
+    sem generate_shopping_list = "Generate a shopping list of ingredients needed for a described meal";
+
+    # --- Data Nodes ---
+
+    node Task {
+        has title: str,
+            done: bool = False,
+            category: str = "other";
+    }
+
+    node ShoppingItem {
+        has name: str,
+            quantity: float,
+            unit: str,
+            cost: float,
+            carby: bool;
+    }
+
+    # --- Task Walkers ---
+
+    walker:priv AddTask {
+        has title: str,
+            reports: list[Task] = [];
+
+        can create with Root entry {
+            category = str(categorize(self.title)).split(".")[-1].lower();
+            new_task = here ++> Task(title=self.title, category=category);
+            report new_task;
         }
     }
 
-    sv {
-        # --- Enums ---
+    walker:priv ListTasks {
+        has results: list[Task] = [],
+            reports: list[list[Task]] = [];
 
-        enum Category { WORK, PERSONAL, SHOPPING, HEALTH, FITNESS, OTHER }
-
-        enum Unit { PIECE, LB, OZ, CUP, TBSP, TSP, BUNCH }
-
-        # --- AI Types ---
-
-        obj Ingredient {
-            has name: str,
-                quantity: float,
-                unit: Unit,
-                cost: float,
-                carby: bool;
+        can start with Root entry {
+            visit [-->];
         }
 
-        sem Ingredient.cost = "Estimated cost in USD";
-        sem Ingredient.carby = "True if this ingredient is high in carbohydrates";
-
-        def categorize(title: str) -> Category by llm();
-        sem categorize = "Categorize a task based on its title";
-
-        def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
-        sem generate_shopping_list = "Generate a shopping list of ingredients needed for a described meal";
-
-        # --- Data Nodes ---
-
-        node Task {
-            has title: str,
-                done: bool = False,
-                category: str = "other";
+        can collect with Task entry {
+            self.results.append(here);
         }
 
-        node ShoppingItem {
-            has name: str,
-                quantity: float,
-                unit: str,
-                cost: float,
-                carby: bool;
+        can done with Root exit {
+            report self.results;
         }
+    }
 
-        # --- Task Walkers ---
+    walker:priv ToggleTask {
+        has task_id: str,
+            reports: list[Task] = [];
 
-        walker:priv AddTask {
-            has title: str,
-                reports: list[Task] = [];
+        can search with Root entry { visit [-->]; }
 
-            can create with Root entry {
-                category = str(categorize(self.title)).split(".")[-1].lower();
-                new_task = here ++> Task(title=self.title, category=category);
-                report new_task;
+        can toggle with Task entry {
+            if jid(here) == self.task_id {
+                here.done = not here.done;
+                report here;
+                disengage;
             }
         }
+    }
 
-        walker:priv ListTasks {
-            has results: list[Task] = [],
-                reports: list[list[Task]] = [];
+    walker:priv DeleteTask {
+        has task_id: str;
 
-            can start with Root entry {
-                visit [-->];
-            }
+        can search with Root entry { visit [-->]; }
 
-            can collect with Task entry {
-                self.results.append(here);
-            }
-
-            can done with Root exit {
-                report self.results;
-            }
-        }
-
-        walker:priv ToggleTask {
-            has task_id: str,
-                reports: list[Task] = [];
-
-            can search with Root entry { visit [-->]; }
-
-            can toggle with Task entry {
-                if jid(here) == self.task_id {
-                    here.done = not here.done;
-                    report here;
-                    disengage;
-                }
-            }
-        }
-
-        walker:priv DeleteTask {
-            has task_id: str;
-
-            can search with Root entry { visit [-->]; }
-
-            can remove with Task entry {
-                if jid(here) == self.task_id {
-                    del here;
-                    report {"deleted": self.task_id};
-                    disengage;
-                }
-            }
-        }
-
-        # --- Shopping List Walkers ---
-
-        walker:priv GenerateShoppingList {
-            has meal_description: str,
-                reports: list[list[ShoppingItem]] = [];
-
-            can generate with Root entry {
-                visit [-->];
-                ingredients = generate_shopping_list(self.meal_description);
-                for ing in ingredients {
-                    here ++> ShoppingItem(
-                        name=ing.name,
-                        quantity=ing.quantity,
-                        unit=str(ing.unit).split(".")[-1].lower(),
-                        cost=ing.cost,
-                        carby=ing.carby
-                    );
-                }
-                report [here-->][?:ShoppingItem];
-            }
-
-            can clear_old with ShoppingItem entry {
+        can remove with Task entry {
+            if jid(here) == self.task_id {
                 del here;
+                report {"deleted": self.task_id};
+                disengage;
             }
         }
+    }
 
-        walker:priv GetShoppingList {
-            has items: list[ShoppingItem] = [],
-                reports: list[list[ShoppingItem]] = [];
+    # --- Shopping List Walkers ---
 
-            can collect with Root entry { visit [-->]; }
+    walker:priv GenerateShoppingList {
+        has meal_description: str,
+            reports: list[list[ShoppingItem]] = [];
 
-            can gather with ShoppingItem entry {
-                self.items.append(here);
+        can generate with Root entry {
+            visit [-->];
+            ingredients = generate_shopping_list(self.meal_description);
+            for ing in ingredients {
+                here ++> ShoppingItem(
+                    name=ing.name,
+                    quantity=ing.quantity,
+                    unit=str(ing.unit).split(".")[-1].lower(),
+                    cost=ing.cost,
+                    carby=ing.carby
+                );
             }
-
-            can done with Root exit { report self.items; }
+            report [here-->][?:ShoppingItem];
         }
 
-        walker:priv ClearShoppingList {
-            can collect with Root entry { visit [-->]; }
+        can clear_old with ShoppingItem entry {
+            del here;
+        }
+    }
 
-            can clear with ShoppingItem entry {
-                del here;
-                report {"cleared": True};
-            }
+    walker:priv GetShoppingList {
+        has items: list[ShoppingItem] = [],
+            reports: list[list[ShoppingItem]] = [];
+
+        can collect with Root entry { visit [-->]; }
+
+        can gather with ShoppingItem entry {
+            self.items.append(here);
+        }
+
+        can done with Root exit { report self.items; }
+    }
+
+    walker:priv ClearShoppingList {
+        can collect with Root entry { visit [-->]; }
+
+        can clear with ShoppingItem entry {
+            del here;
+            report {"cleared": True};
         }
     }
     ```
@@ -3281,7 +3269,7 @@ The three files that change are in the collapsible sections below. Copy the unch
     ```jac
     """Tasks column -- owns task list state, spawns walkers for CRUD."""
 
-    sv import from ..main { Task, AddTask, ListTasks, ToggleTask, DeleteTask }
+    import from ..main { Task, AddTask, ListTasks, ToggleTask, DeleteTask }
 
     import from .TaskItem { TaskItem }
 
@@ -3369,7 +3357,7 @@ The three files that change are in the collapsible sections below. Copy the unch
     ```jac
     """Shopping list column -- owns ingredient state, spawns walkers."""
 
-    sv import from ..main {
+    import from ..main {
         ShoppingItem,
         GenerateShoppingList,
         GetShoppingList,

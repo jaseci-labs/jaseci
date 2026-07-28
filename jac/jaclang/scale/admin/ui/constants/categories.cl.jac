@@ -6,7 +6,6 @@ reflects what actually works. Add an entry here (and a matching route
 in DashboardLayout's PAGE_ROUTES) when a page goes live.
 """
 
-
 variant client;
 glob:pub navGroups = [
          {

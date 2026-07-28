@@ -1,6 +1,5 @@
 """Password reset page component."""
 
-
 variant client;
 import from ...components.common.Button { Button }
 import from ...components.common.Input { Input }

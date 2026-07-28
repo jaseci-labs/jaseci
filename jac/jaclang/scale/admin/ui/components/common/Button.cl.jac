@@ -1,6 +1,5 @@
 """Reusable button component with variants."""
 
-
 variant client;
 def:pub Button(
     children: any,

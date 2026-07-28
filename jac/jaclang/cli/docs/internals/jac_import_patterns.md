@@ -54,17 +54,17 @@ This document provides a comprehensive reference of all JavaScript/ECMAScript im
 
 ```jac
 #  Correct Usage
-cl import from react { useState }                    # Category 1: Named
-cl import from react { default as React }            # Category 2: Default
-cl import from react { * as React }                  # Category 4: Namespace
-cl import from react { default as React, useState }  # Category 3: Mixed
+import from react { useState }                    # Category 1: Named
+import from react { default as React }            # Category 2: Default
+import from react { * as React }                  # Category 4: Namespace
+import from react { default as React, useState }  # Category 3: Mixed
 ```
 
 ```
 #  Incorrect Usage (these would fail parsing or generate invalid JS)
 import from react { default as React }   # Error: default requires cl
 import from lodash { * as _ }            # Error: namespace requires cl
-cl import from lodash { * as _, map }    # Generates invalid JS
+import from lodash { * as _, map }    # Generates invalid JS
 ```
 
 ### 3. String Literal Imports for Special Characters
@@ -73,15 +73,15 @@ For package names containing special characters (hyphens, @-scopes, etc.), use s
 
 ```jac
 #  Correct Usage - String literals for hyphenated packages
-cl import from "react-dom" { render }
-cl import from "styled-components" { default as styled }
-cl import from "react-router-dom" { BrowserRouter, Route }
-cl import from "date-fns" { format, parse }
+import from "react-dom" { render }
+import from "styled-components" { default as styled }
+import from "react-router-dom" { BrowserRouter, Route }
+import from "date-fns" { format, parse }
 ```
 
 ```
 #  Incorrect Usage - Without quotes (would fail parsing)
-cl import from react-dom { render }  # Error: hyphen not allowed in identifier
+import from react-dom { render }  # Error: hyphen not allowed in identifier
 ```
 
 **When to use string literals:**
@@ -106,11 +106,9 @@ Path aliases let you define short prefixes (like `@components`) that map to proj
 Then use them in imports:
 
 ```jac
-cl {
-    import from "@components/Button" { Button }
-    import from "@utils/format" { formatDate }
-    import from "@shared" { constants }
-}
+import from "@components/Button" { Button }
+import from "@utils/format" { formatDate }
+import from "@shared" { constants }
 ```
 
 Aliases are resolved by:
@@ -172,41 +170,39 @@ All patterns tested and verified in:
 ### Full Feature Demo
 
 ```jac
-cl {
-    # Named imports
-    import from react { useEffect, useRef }
-    import from lodash { map as mapArray, filter }
+# Named imports
+import from react { useEffect, useRef }
+import from lodash { map as mapArray, filter }
 
-    # Default imports
-    import from react { default as React }
-    import from axios { default as axios }
+# Default imports
+import from react { default as React }
+import from axios { default as axios }
 
-    # Namespace imports
-    import from "date-fns" { * as DateFns }
-    import from .utils { * as Utils }
+# Namespace imports
+import from "date-fns" { * as DateFns }
+import from .utils { * as Utils }
 
-    # String literal imports (for hyphenated packages)
-    import from "react-dom" { render, hydrate }
-    import from "styled-components" { default as styled }
-    import from "react-router-dom" { BrowserRouter, Route }
+# String literal imports (for hyphenated packages)
+import from "react-dom" { render, hydrate }
+import from "styled-components" { default as styled }
+import from "react-router-dom" { BrowserRouter, Route }
 
-    # Mixed imports
-    import from react { default as React, useEffect }
+# Mixed imports
+import from react { default as React, useEffect }
 
-    # Relative paths
-    import from .components.Button { default as Button }
-    import from ..lib.helpers { formatDate }
-    import from ...config.constants { API_URL }
+# Relative paths
+import from .components.Button { default as Button }
+import from ..lib.helpers { formatDate }
+import from ...config.constants { API_URL }
 
-    def MyComponent() {
-        # Reactive state - auto-generates useState
-        has count: int = 0;
+def MyComponent() {
+    # Reactive state - auto-generates useState
+    has count: int = 0;
 
-        now = DateFns.format(Date.now());
-        axios.get(API_URL);
+    now = DateFns.format(Date.now());
+    axios.get(API_URL);
 
-        return count;
-    }
+    return count;
 }
 ```
 
