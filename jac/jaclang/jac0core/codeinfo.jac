@@ -187,7 +187,7 @@ def is_bundled_native_module(module_name: str) -> bool {
         return False;
     }
     path_name = module_name.lstrip('.').replace('.', os.sep);
-    return os.path.exists(os.path.join(root, f"{path_name}.na.jac"));
+    return _native_variant_path(os.path.join(root, path_name)) is not None;
 }
 
 def native_target_os -> str {
@@ -215,15 +215,23 @@ def native_target_os -> str {
 
 def _native_variant_path(base_no_ext: str) -> (str | None) {
     import os;
-    _osv = os.path.join(f"{base_no_ext}.{native_target_os()}.na.jac");
+    _osv = os.path.join(f"{base_no_ext}.{native_target_os()}.jac");
     if os.path.exists(_osv) {
         return _osv;
     }
-    _plain = f"{base_no_ext}.na.jac";
+    _plain = f"{base_no_ext}.jac";
     if os.path.exists(_plain) {
         return _plain;
     }
     return None;
+}
+
+def _inferred_native_path(candidate: (str | None)) -> (str | None) {
+    if candidate is None {
+        return None;
+    }
+    import from jaclang.jac0core.placement_solver { native_default_path_ok }
+    return candidate if native_default_path_ok(candidate) else None;
 }
 
 def resolve_native_module(
@@ -231,53 +239,24 @@ def resolve_native_module(
 ) -> tuple[(str | None, str | None)] {
     import os;
     clean = module_name.lstrip('.');
-
-    na_jac = _native_variant_path(os.path.join(base_dir, clean));
-    if na_jac is not None {
-        return (f"{clean}.na", na_jac);
-    }
-
     path_name = clean.replace('.', os.sep);
-    if path_name != clean {
-        search = os.path.abspath(base_dir);
-        while True {
-            cand = _native_variant_path(os.path.join(search, path_name));
-            if cand is not None {
-                rel = os.path.relpath(
-                    os.path.join(search, f"{path_name}.na"), os.path.abspath(base_dir)
-                );
-                return (rel, cand);
-            }
-            parent = os.path.dirname(search);
-            if parent == search {
-                break;
-            }
-            search = parent;
-        }
-    }
 
-    bundled_root = native_stdlib_root();
-    if bundled_root is not None {
-        bundled = _native_variant_path(os.path.join(bundled_root, path_name));
-        if bundled is not None {
-            return (f"{path_name}.na", bundled);
-        }
-    }
     if allow_inferred and effective_default_codespace() == "native" {
-        cand_plain: (str | None) = None;
-        rel_name: (str | None) = None;
-        plain_local = os.path.join(base_dir, f"{clean}.jac");
-        if os.path.exists(plain_local) {
-            cand_plain = plain_local;
-            rel_name = f"{clean}.jac";
-        } elif path_name != clean {
+        local = _inferred_native_path(
+            _native_variant_path(os.path.join(base_dir, clean))
+        );
+        if local is not None {
+            return (f"{clean}.jac", local);
+        }
+        if path_name != clean {
             search = os.path.abspath(base_dir);
             while True {
-                cand = os.path.join(search, f"{path_name}.jac");
-                if os.path.exists(cand) {
-                    cand_plain = cand;
-                    rel_name = os.path.relpath(cand, os.path.abspath(base_dir));
-                    break;
+                cand = _inferred_native_path(
+                    _native_variant_path(os.path.join(search, path_name))
+                );
+                if cand is not None {
+                    rel = os.path.relpath(cand, os.path.abspath(base_dir));
+                    return (rel, cand);
                 }
                 parent = os.path.dirname(search);
                 if parent == search {
@@ -286,11 +265,13 @@ def resolve_native_module(
                 search = parent;
             }
         }
-        if cand_plain is not None and rel_name is not None {
-            import from jaclang.jac0core.placement_solver { native_default_path_ok }
-            if native_default_path_ok(cand_plain) {
-                return (rel_name, cand_plain);
-            }
+    }
+
+    bundled_root = native_stdlib_root();
+    if bundled_root is not None {
+        bundled = _native_variant_path(os.path.join(bundled_root, path_name));
+        if bundled is not None {
+            return (path_name, bundled);
         }
     }
     return (None, None);
@@ -299,7 +280,7 @@ def resolve_native_module(
 def native_wasm_stem(path: str) -> str {
     import os;
     stem = os.path.splitext(os.path.basename(path))[0];
-    for marker in ('.na', '.cl', '.sv') {
+    for marker in ('.cl', '.sv') {
         if stem.endswith(marker) {
             stem = stem[0:-len(marker)];
         }

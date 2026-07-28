@@ -70,7 +70,7 @@ def fmt_errors(prog: JacProgram) -> str {
 }
 
 test "na codegen errors withhold the native artifact" {
-    src = write_module("gate_bad.na.jac", BAD_NA_SOURCE);
+    src = write_module("gate_bad.jac", BAD_NA_SOURCE);
     prog = JacProgram();
     mod = prog.compile(file_path=src);
     assert has_error_code(prog, "E5092") , (
@@ -85,7 +85,7 @@ test "na codegen errors withhold the native artifact" {
 }
 
 test "na codegen errors produce no bytecode and no jir cache" {
-    src = write_module("gate_bad.na.jac", BAD_NA_SOURCE);
+    src = write_module("gate_bad.jac", BAD_NA_SOURCE);
     cache_path = get_module_cache_path(src);
     bc = JacProgram().get_bytecode(src);
     assert bc is None , (
@@ -103,7 +103,7 @@ test "na codegen errors produce no bytecode and no jir cache" {
 }
 
 test "import of an erroring na module raises with the diagnostics" {
-    src = write_module("gate_bad_import.na.jac", BAD_NA_SOURCE);
+    src = write_module("gate_bad_import.jac", BAD_NA_SOURCE);
     caught = "";
     try {
         JacRuntime.jac_import(target="gate_bad_import", base_path=os.path.dirname(src));
@@ -116,7 +116,7 @@ test "import of an erroring na module raises with the diagnostics" {
 }
 
 test "check-path compile surfaces native codegen errors (check/run parity)" {
-    src = write_module("gate_bad_check.na.jac", BAD_NA_SOURCE);
+    src = write_module("gate_bad_check.jac", BAD_NA_SOURCE);
     prog = JacProgram();
     prog.compile(file_path=src, type_check=True, no_cgen=True);
     assert has_error_code(prog, "E5092") , (
@@ -137,7 +137,7 @@ test "check-path compile surfaces native codegen errors (check/run parity)" {
 }
 
 test "clean na module still publishes artifacts and caches" {
-    src = write_module("gate_good.na.jac", GOOD_NA_SOURCE);
+    src = write_module("gate_good.jac", GOOD_NA_SOURCE);
     prog = JacProgram();
     mod = prog.compile(file_path=src);
     assert not prog.errors_had , f"unexpected errors: {fmt_errors(prog)}";

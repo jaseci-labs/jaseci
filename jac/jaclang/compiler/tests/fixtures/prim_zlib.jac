@@ -1,7 +1,7 @@
 """Bundled native `zlib` cross-backend equivalence fixture (#6940 Phase 2).
 
 The SAME `import from zlib { ... }` binds CPython's `zlib` on the sv (Python)
-backend and the bundled `na_stdlib/zlib.na.jac` Mechanism-F module — a thin
+backend and the bundled `na_stdlib/zlib.jac` Mechanism-F module — a thin
 pure-Jac surface over the system `libz` (the FFI floor) — on the na (native
 LLVM) backend. This fixture pins the two implementations congruent on the
 one-shot DEFLATE surface: `compress` produces byte-identical output (asserted
@@ -12,7 +12,7 @@ CPython exactly. ES/JS opts out.
 
 import from zlib { compress, decompress, crc32, adler32 }
 
-def zlib_py() -> dict {
+def zlib_py -> dict {
     data = b"hello world, hello world, hello zlib zlib zlib!";
     comp = compress(data, 6);
     back = decompress(comp);
@@ -29,15 +29,16 @@ def zlib_py() -> dict {
         "roundtrip_len": len(back),
         "decomp_crc": crc32(back),
         "empty_ok": 1 if empty_rt == b"" else 0,
+
     };
 }
 
-cl def zlib_cl() -> dict {
+cl def zlib_cl -> dict {
     return {};
 }
 
 na {
-    def zlib_na() -> dict[str, any] {
+    def zlib_na -> dict[str, any] {
         data = b"hello world, hello world, hello zlib zlib zlib!";
         comp = compress(data, 6);
         back = decompress(comp);
@@ -54,6 +55,7 @@ na {
             "roundtrip_len": len(back),
             "decomp_crc": crc32(back),
             "empty_ok": 1 if empty_rt == b"" else 0,
+
         };
     }
 }

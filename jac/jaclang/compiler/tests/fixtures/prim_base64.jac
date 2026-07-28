@@ -1,7 +1,7 @@
 """Bundled native ``base64`` cross-backend equivalence fixture.
 
 The SAME ``import from base64 { ... }`` binds CPython's ``base64`` on the sv
-(Python) backend and the bundled ``na_stdlib/base64.na.jac`` Mechanism-B module
+(Python) backend and the bundled ``na_stdlib/base64.jac`` Mechanism-B module
 on the na (native LLVM) backend. This fixture pins the two congruent.
 
 Outputs are compared via a custom FNV-1a digest (``_digest``) rather than as
@@ -74,7 +74,7 @@ def _lower(data: bytes) -> bytes {
 }
 
 
-def base64_py() -> dict {
+def base64_py -> dict {
     data = b"the quick brown fox jumps over the lazy dog. " * 3;
     s1 = b"f";
     s2 = b"fo";
@@ -295,7 +295,7 @@ def base64_py() -> dict {
 }
 
 
-cl def base64_cl() -> dict {
+cl def base64_cl -> dict {
     return {};
 }
 
@@ -586,7 +586,7 @@ na {
         }
     }
 
-    def base64_na() -> dict[str, any] {
+    def base64_na -> dict[str, any] {
         r: dict[str, any] = {};
         _enc_core_na(r);
         _full_range_na(r);

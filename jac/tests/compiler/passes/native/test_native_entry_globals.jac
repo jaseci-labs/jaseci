@@ -19,7 +19,7 @@ glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
 
-"""Compile a .na.jac fixture and return the JIT engine."""
+"""Compile a .jac fixture and return the JIT engine."""
 def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
@@ -39,7 +39,7 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
 }
 
 test "entry globals: lambda reads an entry-assigned name late-bound" {
-    (eng, _) = compile_native("entry_globals.na.jac");
+    (eng, _) = compile_native("entry_globals.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     n = get_func(eng, "acc_len", ctypes.c_int64);
@@ -50,7 +50,7 @@ test "entry globals: lambda reads an entry-assigned name late-bound" {
 }
 
 test "entry globals: a free def reads entry-assigned module state" {
-    (eng, _) = compile_native("entry_globals.na.jac");
+    (eng, _) = compile_native("entry_globals.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "read_k", ctypes.c_int64);

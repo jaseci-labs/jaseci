@@ -18,7 +18,7 @@ glob FIXTURES = os.path.join(
 
 test "optional enum return lowers to i64 with an enum-marshalling hint" {
     prog = JacProgram();
-    ir = prog.compile(file_path=os.path.join(FIXTURES, "optional_enum_return.na.jac"));
+    ir = prog.compile(file_path=os.path.join(FIXTURES, "optional_enum_return.jac"));
     # Previously the `Color | None` return collapsed to `void`, so a caller
     # binding `c = pick(flag)` raised an E5090 void-binding diagnostic.
     assert not prog.errors_had , (

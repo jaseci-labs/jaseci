@@ -1,7 +1,7 @@
 """Bundled native ``bz2`` cross-backend equivalence fixture (#6978 Phase 2).
 
 The SAME ``import from bz2 { compress, decompress }`` binds CPython's ``bz2`` on
-the sv (Python) backend and the bundled ``na_stdlib/bz2.na.jac`` Mechanism-F
+the sv (Python) backend and the bundled ``na_stdlib/bz2.jac`` Mechanism-F
 module -- a thin pure-Jac surface over ``libbz2`` (the FFI floor) -- on the na
 (native LLVM) backend. Under this in-process JIT harness the floor dlopens the
 system ``libbz2``; the bundled ``libbz2.a`` archive (staged by the generic
@@ -35,7 +35,7 @@ def _digest(data: bytes) -> int {
 }
 
 
-def bz2_py() -> dict {
+def bz2_py -> dict {
     data = b"the quick brown fox jumps over the lazy dog. " * 40;
     comp = compress(data);
     comp6 = compress(data, 6);
@@ -86,7 +86,7 @@ def bz2_py() -> dict {
 }
 
 
-cl def bz2_cl() -> dict {
+cl def bz2_cl -> dict {
     return {};
 }
 
@@ -103,7 +103,7 @@ na {
         return acc;
     }
 
-    def bz2_na() -> dict[str, any] {
+    def bz2_na -> dict[str, any] {
         data = b"the quick brown fox jumps over the lazy dog. " * 40;
         comp = compress(data);
         comp6 = compress(data, 6);

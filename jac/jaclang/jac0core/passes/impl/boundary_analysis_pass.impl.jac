@@ -108,19 +108,10 @@ impl BoundaryAnalysisPass._resolve_native_module(
 }
 
 impl BoundaryAnalysisPass._in_native_module(self: BoundaryAnalysisPass) -> bool {
-    import os;
-    import from jaclang.jac0core.ext_registry { is_native_module }
     if not (self.ir_in and self.ir_in.loc) {
         return False;
     }
-    if self.ir_in.decided_codespace == 'native' {
-        return True;
-    }
-    mod_path = self.ir_in.loc.mod_path;
-    if mod_path and is_native_module(mod_path) {
-        return True;
-    }
-    return False;
+    return self.ir_in.decided_codespace == 'native';
 }
 
 impl BoundaryAnalysisPass._native_source_module_of(
@@ -143,9 +134,6 @@ impl BoundaryAnalysisPass._native_source_module_of(
     }
     if rel.startswith('..') {
         return None;
-    }
-    if rel.endswith('.na.jac') {
-        return rel[:-4];
     }
     if rel.endswith('.jac') {
         return rel;

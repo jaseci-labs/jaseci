@@ -19,7 +19,7 @@ glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
 
-"""Compile a .na.jac fixture and return the JIT engine."""
+"""Compile a .jac fixture and return the JIT engine."""
 def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
@@ -40,7 +40,7 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
 
 # --- Slice semantics: negative bounds, clamping, steps ---
 test "str slices: negative bounds, clamping, and steps match CPython" {
-    (eng, _) = compile_native("py_slices.na.jac");
+    (eng, _) = compile_native("py_slices.jac");
     get_func(eng, "jac_entry", None)();
     fn = get_func(eng, "str_slices", ctypes.c_int64);
     result = fn();
@@ -48,7 +48,7 @@ test "str slices: negative bounds, clamping, and steps match CPython" {
 }
 
 test "list slices: negative bounds, clamping, and steps match CPython" {
-    (eng, _) = compile_native("py_slices.na.jac");
+    (eng, _) = compile_native("py_slices.jac");
     get_func(eng, "jac_entry", None)();
     fn = get_func(eng, "list_slices", ctypes.c_int64);
     result = fn();
@@ -56,7 +56,7 @@ test "list slices: negative bounds, clamping, and steps match CPython" {
 }
 
 test "slice with zero step raises instead of looping" {
-    (eng, _) = compile_native("py_slices.na.jac");
+    (eng, _) = compile_native("py_slices.jac");
     get_func(eng, "jac_entry", None)();
     fn = get_func(eng, "slice_zero_step_raises", ctypes.c_int64);
     result = fn();
@@ -65,7 +65,7 @@ test "slice with zero step raises instead of looping" {
 
 # --- String edge cases: negative repeat, empty-needle count ---
 test "str repeat with a negative count yields empty, not heap corruption" {
-    (eng, _) = compile_native("py_str_edge.na.jac");
+    (eng, _) = compile_native("py_str_edge.jac");
     get_func(eng, "jac_entry", None)();
     fn = get_func(eng, "repeat_negative", ctypes.c_int64);
     result = fn();
@@ -73,7 +73,7 @@ test "str repeat with a negative count yields empty, not heap corruption" {
 }
 
 test "str count with an empty needle returns len+1, not a hang" {
-    (eng, _) = compile_native("py_str_edge.na.jac");
+    (eng, _) = compile_native("py_str_edge.jac");
     get_func(eng, "jac_entry", None)();
     fn = get_func(eng, "count_empty_needle", ctypes.c_int64);
     result = fn();
@@ -83,7 +83,7 @@ test "str count with an empty needle returns len+1, not a hang" {
 
 # --- Custom exception subclasses carry their fields ---
 test "exception subclass fields survive raise and catch" {
-    (eng, _) = compile_native("py_exc_subclass.na.jac");
+    (eng, _) = compile_native("py_exc_subclass.jac");
     get_func(eng, "jac_entry", None)();
     fn = get_func(eng, "subclass_field_roundtrip", ctypes.c_int64);
     result = fn();
@@ -92,7 +92,7 @@ test "exception subclass fields survive raise and catch" {
 }
 
 test "base except handler still sees a readable message for struct raises" {
-    (eng, _) = compile_native("py_exc_subclass.na.jac");
+    (eng, _) = compile_native("py_exc_subclass.jac");
     get_func(eng, "jac_entry", None)();
     fn = get_func(eng, "base_handler_message", ctypes.c_int64);
     result = fn();

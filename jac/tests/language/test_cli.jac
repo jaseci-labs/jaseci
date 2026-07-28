@@ -142,7 +142,7 @@ test "proc_file strips compound codespace suffixes to bare module stem" {
     # collapse to the bare stem so the meta-importer can resolve it.
     cases = [
         ("proj/main.jac", "main"),
-        ("proj/main.na.jac", "main"),
+        ("proj/main.jac", "main"),
         ("proj/main.sv.jac", "main"),
         ("proj/main.cl.jac", "main"),
         ("proj/server.py", "server"),
@@ -528,7 +528,7 @@ test "run test" {
 }
 
 test "run test native codespace file" {
-    # A compound-codespace test file (`foo.na.jac`) must collect and run its
+    # A compound-codespace test file (`foo.jac`) must collect and run its
     # `test` blocks. Regression for issue #7150: the pytest collector derived
     # the module name with `Path(...).stem`, leaving the `.na` suffix so the
     # import resolved as a package path, failed, and was silently swallowed --
@@ -537,13 +537,13 @@ test "run test native codespace file" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.test(fixture_path("native_run_test.na.jac"), maxfail=2);
+        analysis.test(fixture_path("native_run_test.jac"), maxfail=2);
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
     }
 
-    assert "native_run_test.na.jac" in out;
+    assert "native_run_test.jac" in out;
     # One block passes and one fails -- proving both were actually collected
     # and executed (not silently skipped as "no tests ran").
     assert "1 failed" in out;
@@ -562,7 +562,7 @@ test "run test native broken import surfaces error" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        rc = analysis.test(fixture_path("native_broken_import_test.na.jac"));
+        rc = analysis.test(fixture_path("native_broken_import_test.jac"));
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;

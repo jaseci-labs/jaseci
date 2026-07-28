@@ -141,9 +141,9 @@ def _assert_reclaims(fixture: str, leak_floor: int = 2 * 1024 * 1024) {
 
 
 test "cycle collector reclaims two-node struct cycles (JIT, in-use heap)" {
-    _assert_reclaims("cycle_collect_storm.na.jac");
+    _assert_reclaims("cycle_collect_storm.jac");
 }
 
 test "cycle collector reclaims cycles routed through a container (JIT, in-use heap)" {
-    _assert_reclaims("cycle_collect_container.na.jac");
+    _assert_reclaims("cycle_collect_container.jac");
 }

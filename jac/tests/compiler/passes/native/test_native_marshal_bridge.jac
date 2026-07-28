@@ -30,7 +30,7 @@ def bridge_fns -> tuple[dict, ExecutionEngine | None] {
         wrap_native_function,
         init_native_globals
     }
-    (eng, ir) = compile_fixture("marshal_bridge.na.jac");
+    (eng, ir) = compile_fixture("marshal_bridge.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
     init_native_globals(eng, ir.gen.interop_manifest);

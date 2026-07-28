@@ -1,7 +1,7 @@
 """Test cross-boundary calls with multi-module native imports.
 
 This extends na_py_interop.jac to also test:
-1. Import inside na {} block of .na.jac files
+1. Import inside na {} block of .jac files
 2. NATIVE→NATIVE function calls across module boundaries
 
 Call chain:
@@ -28,7 +28,7 @@ def py_double(x: int) -> int {
 }
 
 na {
-    # Import native functions from .na.jac modules
+    # Import native functions from .jac modules
     import from na_math_utils { triple }
     import from na_transformers { add_ten }
 

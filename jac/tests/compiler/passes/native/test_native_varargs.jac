@@ -23,7 +23,7 @@ glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
 
-"""Compile a .na.jac fixture and return the JIT engine."""
+"""Compile a .jac fixture and return the JIT engine."""
 def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
@@ -44,7 +44,7 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
 
 """Compile a snippet through the native pipeline and return the program."""
 def compile_na_inline(label: str, code: str) -> JacProgram {
-    path = os.path.join(FIXTURES, f"_varargs_{label}.na.jac");
+    path = os.path.join(FIXTURES, f"_varargs_{label}.jac");
     prog = JacProgram();
     prog.compile(file_path=path, use_str=code);
     return prog;
@@ -61,25 +61,25 @@ def has_error_code(prog: JacProgram, code: str) -> bool {
 }
 
 test "varargs: *args sums positional extras" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     f = get_func(eng, "test_sum_all", ctypes.c_int64);
     assert f() == 6 , f"Expected 6, got {f()}";
 }
 
 test "varargs: empty *args materializes an empty list" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     f = get_func(eng, "test_sum_empty", ctypes.c_int64);
     assert f() == 0 , f"Expected 0, got {f()}";
 }
 
 test "varargs: fixed params bind before the pack" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     f = get_func(eng, "test_mixed", ctypes.c_int64);
     assert f() == 7003 , f"Expected 7003, got {f()}";
 }
 
 test "varargs: defaults compose with *args" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     packed = get_func(eng, "test_default_packed", ctypes.c_int64);
     empty = get_func(eng, "test_default_empty", ctypes.c_int64);
     assert packed() == 36 , f"Expected 36, got {packed()}";
@@ -87,25 +87,25 @@ test "varargs: defaults compose with *args" {
 }
 
 test "varargs: indexing and len over the pack" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     f = get_func(eng, "test_idx_ends", ctypes.c_int64);
     assert f() == 47 , f"Expected 47, got {f()}";
 }
 
 test "varargs: str pack (RC pointer elements)" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     f = get_func(eng, "test_join_lens", ctypes.c_int64);
     assert f() == 5 , f"Expected 5, got {f()}";
 }
 
 test "varargs: *args: any boxes heterogeneous values" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     f = get_func(eng, "test_any_pack", ctypes.c_int64);
     assert f() == 3 , f"Expected 3, got {f()}";
 }
 
 test "kwargs: **kwargs get and contains" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     hit = get_func(eng, "test_kw_hit", ctypes.c_int64);
     miss = get_func(eng, "test_kw_miss", ctypes.c_int64);
     assert hit() == 4 , f"Expected 4, got {hit()}";
@@ -113,7 +113,7 @@ test "kwargs: **kwargs get and contains" {
 }
 
 test "kwargs: **kwargs iteration sums values" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     f = get_func(eng, "test_kw_sum", ctypes.c_int64);
     e = get_func(eng, "test_kw_sum_empty", ctypes.c_int64);
     assert f() == 6 , f"Expected 6, got {f()}";
@@ -121,7 +121,7 @@ test "kwargs: **kwargs iteration sums values" {
 }
 
 test "varargs+kwonly+kwargs combined binding" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     mn = get_func(eng, "test_combo_min", ctypes.c_int64);
     rest = get_func(eng, "test_combo_rest", ctypes.c_int64);
     kwonly = get_func(eng, "test_combo_kwonly", ctypes.c_int64);
@@ -133,13 +133,13 @@ test "varargs+kwonly+kwargs combined binding" {
 }
 
 test "varargs: method receives the pack after self" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     f = get_func(eng, "test_method_pack", ctypes.c_int64);
     assert f() == 106 , f"Expected 106, got {f()}";
 }
 
 test "varargs: cross-module callee receives the pack" {
-    (eng, _) = compile_native("varargs.na.jac");
+    (eng, _) = compile_native("varargs.jac");
     f = get_func(eng, "test_xmod_pack", ctypes.c_int64);
     assert f() == 15 , f"Expected 15, got {f()}";
 }
@@ -163,7 +163,7 @@ test "callsite star-unpack of a LIST into a fixed-arity callee is a loud error" 
 test "callsite star-unpack: tuple spread splits into declared params" {
     # #7626 A6: a tuple spread's arity is static, so add3(*xs) lowers by
     # splitting the tuple into the three declared params.
-    (eng, _) = compile_native("call_unpack.na.jac");
+    (eng, _) = compile_native("call_unpack.jac");
     f = get_func(eng, "spread_tuple", ctypes.c_int64);
     assert f() == 30201 , "add3(1, 2, 3)";
     g = get_func(eng, "spread_mixed", ctypes.c_int64);
@@ -171,7 +171,7 @@ test "callsite star-unpack: tuple spread splits into declared params" {
 }
 
 test "callsite star-unpack: list spread routes through a variadic callee" {
-    (eng, _) = compile_native("call_unpack.na.jac");
+    (eng, _) = compile_native("call_unpack.jac");
     f = get_func(eng, "spread_variadic", ctypes.c_int64);
     assert f() == 15 , "vsum(*[4, 5, 6])";
 }

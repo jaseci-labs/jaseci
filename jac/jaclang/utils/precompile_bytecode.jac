@@ -108,6 +108,17 @@ def find_jac_files(package_dir: str) -> list[str] {
     return result;
 }
 
+glob NATIVE_ONLY_DIRS: tuple = (
+         os.path.join("runtimelib", "na_stdlib"),
+         os.path.join("runtimelib", "client", "targets", "desktop", "native"),
+
+     );
+
+def _is_native_only_source(package_dir: str, p: str) -> bool {
+    rel = os.path.relpath(p, package_dir);
+    return any(rel.startswith(d + os.sep) for d in NATIVE_ONLY_DIRS);
+}
+
 def sealable_sources(package_dir: str) -> list[str] {
     boot_prefix = str(Path(package_dir) / "jac0core") + os.sep;
     nested = _nested_project_dirs(package_dir);
@@ -115,7 +126,7 @@ def sealable_sources(package_dir: str) -> list[str] {
         p
         for p in find_jac_files(package_dir)
         if not p.startswith(boot_prefix)
-        and not ext_registry.is_native_module(p)
+        and not _is_native_only_source(package_dir, p)
         and not ext_registry.is_client_module(p)
         and not any(p.startswith(n) for n in nested)
     ];
@@ -251,7 +262,7 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
     or any(ext_registry.is_client_module(p) for p in find_jac_files(str(pkg_path))) {
         caps.append("has-client");
     }
-    if any(ext_registry.is_native_module(p) for p in find_jac_files(str(pkg_path))) {
+    if (pkg_path / NATIVE_DIR_REL).is_dir() {
         caps.append("has-native");
     }
     if kind in ["py-package", "js-package"] or not entry {

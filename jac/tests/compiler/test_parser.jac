@@ -647,7 +647,7 @@ import from raylib {
 }
 """;
     prog = JacProgram();
-    mod = prog.parse_str(source, "test_logical_clib.na.jac");
+    mod = prog.parse_str(source, "test_logical_clib.jac");
     assert not prog.errors_had , f"Parser errors: {prog.errors_had}";
     imports = [
         stmt
@@ -676,7 +676,7 @@ import from libs.raylib {
 }
 """;
     prog = JacProgram();
-    mod = prog.parse_str(source, "test_dotted_clib.na.jac");
+    mod = prog.parse_str(source, "test_dotted_clib.jac");
     assert not prog.errors_had , f"Parser errors: {prog.errors_had}";
     imports = [
         stmt

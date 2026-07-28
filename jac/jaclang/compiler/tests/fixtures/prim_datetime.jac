@@ -1,7 +1,7 @@
 """Bundled native `datetime` cross-backend equivalence fixture (#6940 / #6951).
 
 The SAME `import from datetime { datetime, timezone }` binds CPython's `datetime`
-on the sv (Python) backend and the bundled `na_stdlib/datetime.na.jac` Mechanism-B
+on the sv (Python) backend and the bundled `na_stdlib/datetime.jac` Mechanism-B
 module on the na (native LLVM) backend. This is the consumer that exercises the
 static-method (`datetime.fromtimestamp` / `datetime.now`) + class-attribute
 (`timezone.utc`) capability from #6951.
@@ -14,7 +14,7 @@ weekday, isoformat). `now()` is non-deterministic, so only structural invariants
 import from datetime { datetime, timezone }
 
 
-def datetime_py() -> dict {
+def datetime_py -> dict {
     dt = datetime.fromtimestamp(1700000000.0, timezone.utc);
     # A pre-1970 (negative) POSIX timestamp pins the floor-division/modulo path:
     # 1969-12-30T23:59:59 UTC, a Tuesday (weekday 1).
@@ -49,13 +49,13 @@ def datetime_py() -> dict {
 }
 
 
-cl def datetime_cl() -> dict {
+cl def datetime_cl -> dict {
     return {};
 }
 
 
 na {
-    def datetime_na() -> dict[str, any] {
+    def datetime_na -> dict[str, any] {
         dt: datetime = datetime.fromtimestamp(1700000000.0, timezone.utc);
         dt_neg: datetime = datetime.fromtimestamp(-86401.0, timezone.utc);
         now: datetime = datetime.now(timezone.utc);

@@ -48,10 +48,10 @@ def _compile_ir(entry_path: str, gc_mode: str, enforce: list) -> str {
 }
 
 def _staged_entry(tmp: str) -> str {
-    for name in ("xmod_gc_entry.na.jac", "xmod_gc_lib.na.jac") {
+    for name in ("xmod_gc_entry.jac", "xmod_gc_lib.jac") {
         shutil.copy(os.path.join(FIXTURES, name), os.path.join(tmp, name));
     }
-    return os.path.join(tmp, "xmod_gc_entry.na.jac");
+    return os.path.join(tmp, "xmod_gc_entry.jac");
 }
 
 test "imported na modules inherit gc none: no RC in multi-module IR" {

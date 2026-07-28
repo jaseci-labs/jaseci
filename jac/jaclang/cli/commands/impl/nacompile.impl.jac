@@ -154,7 +154,11 @@ impl nacompile(
     assert_no_rc: bool = False,
     enforce_nogc: bool = False
 ) -> int {
-    import from jaclang.jac0core.ext_registry { is_jac, is_native_module, base_stem }
+    import from jaclang.jac0core.ext_registry {
+        is_jac,
+        is_retired_native_marker,
+        base_stem
+    }
     import from jaclang.project { get_config }
 
     _gc_cfg = None;
@@ -170,7 +174,7 @@ impl nacompile(
         return 1;
     }
     if not is_jac(filename) {
-        console.error("Input must be a .jac or .na.jac file.");
+        console.error("Input must be a .jac file.");
         return 1;
     }
 
@@ -225,7 +229,14 @@ impl nacompile(
         }
     }
 
-    auto_promote = is_jac(filename) and not is_native_module(filename);
+    if is_retired_native_marker(filename) {
+        console.error(
+            f"{filename}: the .na.jac marker was retired in 0.35 -- rename the "
+            "file to .jac; 'jac nacompile' compiles plain .jac natively."
+        );
+        return 1;
+    }
+    auto_promote = is_jac(filename);
 
     is_macos = ((sys.platform == "darwin") and not is_windows and not is_linux_target)
     or is_macos_target;
@@ -253,6 +264,7 @@ impl nacompile(
             aot_mode=True,
             type_check=False,
             default_codespace=('native' if auto_promote else ''),
+            force_target_program=True,
             na_gc_mode=gc,
             nogc_cli_target=(base_stem(filename) if enforce_nogc else ""),
             nogc_enforce_modules=(_gc_cfg.enforce.modules if _gc_cfg else []),
@@ -288,7 +300,7 @@ impl nacompile(
                 "This .jac file is not compatible with native compilation.\n"
                 "  It may use walkers, nodes, edges, async, lambdas, or other\n"
                 "  constructs not supported by the native backend.\n"
-                "  Use a .na.jac file or remove incompatible constructs."
+                "  Remove the incompatible constructs it names."
             );
         } else {
             console.error("Native compilation produced no LLVM IR.");
@@ -368,8 +380,7 @@ impl nacompile(
 
     if not shared and "jac_entry" not in llvm_ir_str {
         console.error(
-            "No entry point found. "
-            "The .na.jac file must have a 'with entry { }' block."
+            "No entry point found. " "The file must have a 'with entry { }' block."
         );
         return 1;
     }

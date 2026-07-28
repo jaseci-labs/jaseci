@@ -687,15 +687,24 @@ impl JacCompiler.parse_str(
         mod = py_ast_ret.ir_out;
     } else {
         import from jaclang.jac0core.parser { parse as rd_parse }
-        import from jaclang.jac0core.ext_registry { codespace_of }
+        import from jaclang.jac0core.ext_registry {
+            codespace_of,
+            is_retired_native_marker
+        }
+        if is_retired_native_marker(file_path) {
+            raise ValueError(
+                f"{file_path}: the .na.jac marker was retired in 0.35 -- rename "
+                "the file to .jac; native placement is inferred (or forced by "
+                "'jac nacompile' / 'jac build --as native'). See 'jac guide "
+                "reference/language/native-pathway'."
+            );
+        }
         (mod, had_error) = rd_parse(source_str, file_path, prog=target_program);
         codespace = codespace_of(file_path);
         if (codespace == 'client') {
             _coerce_client_module(mod);
         } elif (codespace == 'server') {
             _coerce_server_module(mod);
-        } elif (codespace == 'native') {
-            _coerce_native_module(mod);
         } else {
             run_codespace_infer = True;
         }
@@ -715,12 +724,14 @@ impl JacCompiler.parse_str(
     if run_codespace_infer {
         _opts = target_program._compile_options;
         _analysis_only = _opts is not None and _opts.no_cgen;
-        _native_eligible = (
-            not _analysis_only
-            and target_program is not self._internal_program
+        _wants_native = (
+            target_program is not self._internal_program
             and _default_codespace_for(target_program) == 'native'
         );
-        if _native_eligible {
+        if _wants_native and _opts is not None and _opts.aot_mode {
+            _coerce_native_module(mod);
+            na_census_record(mod.loc.mod_path, 'native');
+        } elif _wants_native and not _analysis_only {
             import from jaclang.jac0core.placement_solver { native_default_verdict }
             (_na_ok, _na_why) = native_default_verdict(mod);
             if _na_ok {
@@ -938,15 +949,13 @@ impl JacCompiler._compile_once(
         );
         actual_program._inferred_mods.add(id(mod_targ));
 
-        import from jaclang.jac0core.ext_registry { is_native_module as _is_na }
         import from dataclasses { replace as _replace_opts }
         for dep_mod in list(actual_program.mod.hub.values()) {
             if (dep_mod is mod_targ)
             or (id(dep_mod) in actual_program._inferred_mods) {
                 continue;
             }
-            dep_path = dep_mod.loc.mod_path if dep_mod?.loc else '';
-            if _is_na(dep_path) {
+            if dep_mod.decided_codespace == 'native' {
                 _saved_opts = actual_program._compile_options;
                 actual_program._compile_options = _replace_opts(
                     options, emit_diagnostics=False
@@ -1119,11 +1128,7 @@ impl JacCompiler._compile_once(
             passes=get_py_code_gen(native=needs_native),
             cancel_token=options.cancel_token
         );
-        import from jaclang.jac0core.ext_registry { is_native_module as _is_na_sfx }
-        _mp_scrub = mod_targ.loc.mod_path
-            if (mod_targ?.loc and mod_targ.loc)
-            else file_path;
-        if bool(_mp_scrub) and _is_na_sfx(_mp_scrub) {
+        if mod_targ.decided_codespace == 'native' {
             JacCompiler._scrub_native_artifacts_on_error(actual_program, mod_targ);
         }
     }

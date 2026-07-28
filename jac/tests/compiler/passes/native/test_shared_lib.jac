@@ -33,7 +33,7 @@ import jaclang.compiler.passes.native.llvm.binding as llvm;
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      ),
-     FIXTURE = "shared_export.na.jac";
+     FIXTURE = "shared_export.jac";
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ test "ELF shared object initializes a global clib struct on dlopen" {
     # Built as a plain executable the same code is fine (the JIT path resolves
     # the init via get_function_address); only --shared's AOT text scan broke.
     (relobj, exports) = emit_shared_object(
-        "shared_glob_struct.na.jac", "x86_64-unknown-linux-gnu"
+        "shared_glob_struct.jac", "x86_64-unknown-linux-gnu"
     );
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d {
         out = os.path.join(d, "libshared_glob_struct.so");
@@ -307,7 +307,7 @@ test "Mach-O dylib has MH_DYLIB filetype, export trie, and init section" {
 parsed Mach-O info. Kept separate from the object-handle FIXTURE so these
 load-command assertions don't depend on object attribute-access support."""
 def _build_scalar_dylib(triple: str, name: str) -> dict {
-    (relobj, exports) = emit_shared_object("shared_export_scalar.na.jac", triple);
+    (relobj, exports) = emit_shared_object("shared_export_scalar.jac", triple);
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d {
         out = os.path.join(d, name);
         ok = MachOLinker.link(
@@ -363,7 +363,7 @@ test "Mach-O dylib dlopen/dlsym round-trip resolves :pub exports (macOS host onl
     if not (sys.platform == "darwin" and "apple" in triple) {
         return;
     }
-    (relobj, exports) = emit_shared_object("shared_export_scalar.na.jac", triple);
+    (relobj, exports) = emit_shared_object("shared_export_scalar.jac", triple);
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d {
         out = os.path.join(d, "libdlopen_roundtrip.dylib");
         ok = MachOLinker.link(
@@ -412,7 +412,7 @@ test "Mach-O dylib export trie uses bare (non-underscored) :pub names (macOS hos
     if not (sys.platform == "darwin" and "apple" in triple) {
         return;
     }
-    (relobj, exports) = emit_shared_object("shared_export_scalar.na.jac", triple);
+    (relobj, exports) = emit_shared_object("shared_export_scalar.jac", triple);
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d {
         out = os.path.join(d, "libtrie_probe.dylib");
         ok = MachOLinker.link(
@@ -504,7 +504,7 @@ test "jac nacompile --shared initialises runtime globals via __jac_shared_init" 
     jac = shutil.which("jac") or "jac";
     d = tempfile.mkdtemp();
     try {
-        lib_src = os.path.join(d, "lib.na.jac");
+        lib_src = os.path.join(d, "lib.jac");
         with open(lib_src, "w") as f {
             f.write(_CLI_SHARED_FIXTURE);
         }

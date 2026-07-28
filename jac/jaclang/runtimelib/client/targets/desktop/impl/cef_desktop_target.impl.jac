@@ -63,8 +63,8 @@ def _is_stale(output: Path, inputs: list[Path]) -> bool {
 
 def _ensure_libcef_dispatch(cef_dir: Path) -> Path {
     lib = cef_dir / "libcef_dispatch.so";
-    src = cef_dir / "cef_dispatch.na.jac";
-    stale = _is_stale(lib, [src, cef_dir / "cef_platform.na.jac"]);
+    src = cef_dir / "cef_dispatch.jac";
+    stale = _is_stale(lib, [src, cef_dir / "cef_platform.jac"]);
     if not stale {
         return lib;
     }
@@ -76,8 +76,8 @@ def _ensure_libcef_dispatch(cef_dir: Path) -> Path {
 
 def _ensure_cef_subprocess(cef_dir: Path) -> Path {
     helper = cef_dir / "cef-subprocess";
-    src = cef_dir / "cef_subprocess.na.jac";
-    stale = _is_stale(helper, [src, cef_dir / "cef_platform.na.jac"]);
+    src = cef_dir / "cef_subprocess.jac";
+    stale = _is_stale(helper, [src, cef_dir / "cef_platform.jac"]);
     if not stale {
         return helper;
     }
@@ -241,7 +241,7 @@ impl CefDesktopTarget.build(
     shutil.copy2(libcef_dispatch, out_dir / "libcef_dispatch.so");
     shutil.copy2(cef_subprocess, out_dir / "cef-subprocess");
     (out_dir / "cef-subprocess").chmod(0o755);
-    shutil.copy2(cef_dir / "cef.na.jac", out_dir / "cef.na.jac");
+    shutil.copy2(cef_dir / "cef.jac", out_dir / "cef.jac");
     _stage_cef_runtime(cef_dist, out_dir);
 
     sv_root = entry_file.parent;
@@ -265,11 +265,11 @@ impl CefDesktopTarget.build(
         dispatch.max_queue,
         dispatch.debug,
     );
-    (out_dir / "host.na.jac").write_text(host_src);
+    (out_dir / "host.jac").write_text(host_src);
 
     console.print("  Compiling CEF native host (jac nacompile)...", style="muted");
     res = subprocess.run(
-        [_jac_bin(), "nacompile", "host.na.jac", "-o", app_name],
+        [_jac_bin(), "nacompile", "host.jac", "-o", app_name],
         cwd=str(out_dir),
         env=_jac_subprocess_env(),
     );

@@ -1,7 +1,7 @@
 """Bundled native `json` cross-backend equivalence fixture (issues #6404 / #6940).
 
 The SAME `import from json { loads, dumps }` binds CPython's `json` on the sv
-(Python) backend and the bundled `na_stdlib/json.na.jac` Mechanism-B module on
+(Python) backend and the bundled `na_stdlib/json.jac` Mechanism-B module on
 the na (native LLVM) backend. This fixture pins the two congruent on:
 
   * loads -- values are extracted to SCALARS (int/float/str/bool/None) because the
@@ -19,7 +19,7 @@ ES/JS opts out.
 import from json { loads, dumps }
 
 
-def json_py() -> dict {
+def json_py -> dict {
     scalars: any = loads(
         "{\"a\": 1, \"b\": \"hi\", \"c\": true, \"d\": false, \"e\": null, \"f\": 3.5, \"g\": -7}"
     );
@@ -59,13 +59,13 @@ def json_py() -> dict {
 }
 
 
-cl def json_cl() -> dict {
+cl def json_cl -> dict {
     return {};
 }
 
 
 na {
-    def json_na() -> dict[str, any] {
+    def json_na -> dict[str, any] {
         scalars: any = loads(
             "{\"a\": 1, \"b\": \"hi\", \"c\": true, \"d\": false, \"e\": null, \"f\": 3.5, \"g\": -7}"
         );

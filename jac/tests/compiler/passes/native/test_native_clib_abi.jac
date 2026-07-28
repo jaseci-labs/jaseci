@@ -22,7 +22,7 @@ glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
 
-"""Compile a .na.jac fixture and return the JIT engine."""
+"""Compile a .jac fixture and return the JIT engine."""
 def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
@@ -42,7 +42,7 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
 }
 
 test "clib sext: negative C int return stays negative through int and any" {
-    (eng, _) = compile_native("clib_sext.na.jac");
+    (eng, _) = compile_native("clib_sext.jac");
     f = get_func(eng, "neg_direct", ctypes.c_int64);
     assert f() < 0 , f"strcmp('a','b') must stay negative widened to i64, got {f()}";
     g = get_func(eng, "neg_thru_any", ctypes.c_int64);
@@ -97,7 +97,7 @@ test "clib SysV: by-value float structs pass and return in SSE registers" {
             f"    return ptd_sum(p);\n"
             f"}}\n"
         );
-        path = os.path.join(FIXTURES, "_clib_sysv_float.na.jac");
+        path = os.path.join(FIXTURES, "_clib_sysv_float.jac");
         prog = JacProgram();
         ir = prog.compile(file_path=path, use_str=code);
         errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
@@ -121,7 +121,7 @@ test "clib rpath: emitted dynamic executables carry DT_RUNPATH $ORIGIN" {
         import pytest;
         pytest.skip("readelf not available");
     }
-    fixture = str(os.path.join(FIXTURES, "clib_import.na.jac"));
+    fixture = str(os.path.join(FIXTURES, "clib_import.jac"));
     if not os.path.exists("/usr/lib/libm.so.6") {
         import pytest;
         pytest.skip("/usr/lib/libm.so.6 not present");

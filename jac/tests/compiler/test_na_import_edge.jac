@@ -34,7 +34,7 @@ glob KERNEL_SRC: str = (
 
 def compile_host -> uni.Module {
     tmp = tempfile.mkdtemp(prefix="jac_na_edge_");
-    kernel_path = os.path.join(tmp, "kernel.na.jac");
+    kernel_path = os.path.join(tmp, "kernel.jac");
     host_path = os.path.join(tmp, "host.jac");
     with open(kernel_path, "w") as f {
         f.write(KERNEL_SRC);
@@ -62,7 +62,7 @@ test "na import records typed cl->na bindings in the interop manifest" {
     bindings = manifest.client_native_imports;
     targets = sorted({str(b.source_module) for b in bindings});
     assert len(targets) == 1;
-    assert targets[0].endswith("kernel.na.jac");
+    assert targets[0].endswith("kernel.jac");
     by_local = {
         local: b
         for (local, b) in manifest.bindings.items()
@@ -96,7 +96,7 @@ test "colliding na import basenames are a build error" {
     tmp = tempfile.mkdtemp(prefix="jac_na_edge_");
     for sub in ("a", "b") {
         os.makedirs(os.path.join(tmp, sub));
-        with open(os.path.join(tmp, sub, "kernel.na.jac"), "w") as f {
+        with open(os.path.join(tmp, sub, "kernel.jac"), "w") as f {
             f.write(KERNEL_SRC);
         }
     }
@@ -124,7 +124,7 @@ test "colliding na import basenames are a build error" {
 
 test "plain import of a native module from client code takes the na edge" {
     tmp = tempfile.mkdtemp(prefix="jac_na_edge_");
-    with open(os.path.join(tmp, "kernel.na.jac"), "w") as f {
+    with open(os.path.join(tmp, "kernel.jac"), "w") as f {
         f.write(KERNEL_SRC);
     }
     host_path = os.path.join(tmp, "host.jac");
@@ -151,7 +151,7 @@ test "plain import of a native module from client code takes the na edge" {
     targets = sorted(
         {str(b.source_module) for b in mod.gen.interop_manifest.client_native_imports}
     );
-    assert len(targets) == 1 and targets[0].endswith("kernel.na.jac") , (
+    assert len(targets) == 1 and targets[0].endswith("kernel.jac") , (
         f"plain native import must drive wasm emission; got: {targets}"
     );
     assert "kernel" not in mod.gen.py , (

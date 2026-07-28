@@ -1,7 +1,7 @@
 """Bundled native `textwrap` cross-backend equivalence fixture (#6978 Phase 3).
 
 The SAME `import from textwrap { wrap, fill, dedent, indent }` binds CPython's
-`textwrap` on the sv (Python) backend and the bundled `na_stdlib/textwrap.na.jac`
+`textwrap` on the sv (Python) backend and the bundled `na_stdlib/textwrap.jac`
 Mechanism-B module on the na (native LLVM) backend. Inputs are whitespace-
 separated (no hyphenated words) and tab-free so the two are congruent under this
 module's documented `break_on_hyphens=False` / "\n"-only-splitlines scope.

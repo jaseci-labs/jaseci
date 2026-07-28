@@ -1,7 +1,7 @@
 """Bundled native ``gzip`` cross-backend equivalence fixture (#6978 Phase 2).
 
 The SAME ``import from gzip { compress, decompress }`` binds CPython's ``gzip``
-on the sv (Python) backend and the bundled ``na_stdlib/gzip.na.jac`` Mechanism-B
+on the sv (Python) backend and the bundled ``na_stdlib/gzip.jac`` Mechanism-B
 module -- a pure-Jac surface that frames the raw DEFLATE body of the existing
 ``zlib`` floor with the RFC 1952 gzip header/CRC-32/ISIZE wrapper (no new FFI) --
 on the na (native LLVM) backend.
@@ -39,7 +39,7 @@ def _digest(data: bytes) -> int {
 }
 
 
-def gzip_py() -> dict {
+def gzip_py -> dict {
     data = b"the quick brown fox jumps over the lazy dog. " * 40;
     comp = compress(data, mtime=0);
     comp0 = compress(data, 0, mtime=0);
@@ -148,7 +148,7 @@ def gzip_py() -> dict {
 }
 
 
-cl def gzip_cl() -> dict {
+cl def gzip_cl -> dict {
     return {};
 }
 
@@ -165,7 +165,7 @@ na {
         return acc;
     }
 
-    def gzip_na() -> dict[str, any] {
+    def gzip_na -> dict[str, any] {
         data = b"the quick brown fox jumps over the lazy dog. " * 40;
         comp = compress(data, mtime=0);
         comp0 = compress(data, 0, mtime=0);

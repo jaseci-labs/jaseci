@@ -580,9 +580,6 @@ def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[s
                     return (f"non-native import '{clean}'", deps);
                 }
             }
-            if path is not None and path.endswith('.na.jac') {
-                continue;
-            }
             if path is not None
             and (path.endswith('.cl.jac') or path.endswith('.sv.jac')) {
                 return ("cl/sv module import", deps);
