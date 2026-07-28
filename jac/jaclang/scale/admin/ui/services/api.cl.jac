@@ -1,5 +1,7 @@
 """Base API service with authentication."""
 
+
+variant client;
 glob:pub baseUrl = window.location.origin;
 
 async def:pub fetchApi(endpoint: str, options: dict = {}, token: str = "") -> dict {

@@ -2,6 +2,8 @@
 world (statically immortal), so graph ops must not violate rc-free — their
 retain/release sites are statically skipped, not dynamically no-op'd."""
 
+
+variant native;
 node Hub {
     has tag: int = 0;
 }

@@ -1,5 +1,7 @@
 """LocalStorage helper functions."""
 
+
+variant client;
 def:pub getStorage(key: str) -> str {
     storage = globalThis.localStorage;
     if storage {

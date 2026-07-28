@@ -8,6 +8,8 @@ the whole conversation with the carried-over messages dimmed. Prev/Next step
 through the calls of the same phase.
 """
 
+
+variant client;
 import from ..server { CallDetail, CallMessage, CallTool }
 
 """Compact a token count: 14000 -> "14.0k", 219 -> "219"."""

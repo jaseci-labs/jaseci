@@ -1,5 +1,7 @@
 """LLM Traces page - Detailed trace view for LLM calls."""
 
+
+variant client;
 import from react { useEffect }
 import from ....components.common.Button { Button }
 import from ....context.AuthContext { useAuth }

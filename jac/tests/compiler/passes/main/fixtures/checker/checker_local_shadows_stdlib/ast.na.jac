@@ -5,6 +5,8 @@ The type checker's modresolver must prefer this local file over
 from `entry.na.jac` in the same directory.
 """
 
+
+variant native;
 obj:pub Node {
     has kind: int = 0;
 }

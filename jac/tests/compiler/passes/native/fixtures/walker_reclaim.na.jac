@@ -2,6 +2,8 @@
 RC_SENTINEL-immortal, so spawn-heavy workloads reclaim them. The walker's
 drop hook observes reclamation."""
 
+
+variant native;
 glob dropped: int = 0;
 
 node Hub {

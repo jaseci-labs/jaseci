@@ -147,6 +147,7 @@ obj DocIRGenPass(UniPass) {
     def exit_expr_as_item(nd: uni.ExprAsItem) -> None;
     def exit_filter_compr(nd: uni.FilterCompr) -> None;
     def exit_assign_compr(nd: uni.AssignCompr) -> None;
+    def exit_variant_decl(nd: uni.VariantDecl) -> None;
     def exit_py_inline_code(nd: uni.PyInlineCode) -> None;
     def exit_test(nd: uni.Test) -> None;
     def exit_match_stmt(nd: uni.MatchStmt) -> None;

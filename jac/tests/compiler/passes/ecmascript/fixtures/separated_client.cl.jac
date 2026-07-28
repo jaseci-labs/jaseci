@@ -1,3 +1,5 @@
+variant client;
+
 import from react { useState }
 
 # Import walker from server module

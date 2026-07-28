@@ -7,6 +7,8 @@ the normal closure-call path. Unannotated escapes stay a loud error
 (see the guardrail in test_native_generics.jac).
 """
 
+
+variant native;
 def pick2[T](x: T, y: T) -> T {
     return x;
 }

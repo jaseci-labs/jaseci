@@ -1,3 +1,5 @@
+variant native;
+
 # Workstream A4 (#6930): a native caller of a method demoted to Python-only.
 #
 # `Box.evaluate` (uses `eval`) is demoted to Python-only, but here a *native*

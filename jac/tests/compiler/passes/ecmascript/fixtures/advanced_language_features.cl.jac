@@ -1,5 +1,7 @@
 """Advanced Jac constructs combined fixture for ECMAScript generator tests."""
 
+
+variant client;
 # Lambdas and higher-order helpers
 def lambda_examples() -> dict {
     adder = lambda (a: int, b: int) { a + b; };

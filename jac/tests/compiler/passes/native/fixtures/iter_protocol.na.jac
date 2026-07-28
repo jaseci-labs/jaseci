@@ -1,3 +1,5 @@
+variant native;
+
 # Native fixture: first-class iterator values via iter() / next() and
 # for-loop driving of a stored iterator (#6403 phase 2 + M1).
 

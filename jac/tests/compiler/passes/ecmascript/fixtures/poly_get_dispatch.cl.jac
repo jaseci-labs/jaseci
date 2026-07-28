@@ -5,6 +5,8 @@ dict. The ECMAScript backend must fall back to the runtime-polymorphic
 `_jac.poly.get` helper instead of emitting the Python method name verbatim.
 """
 
+
+variant client;
 def opaque(x: any) -> any {
     return x;
 }

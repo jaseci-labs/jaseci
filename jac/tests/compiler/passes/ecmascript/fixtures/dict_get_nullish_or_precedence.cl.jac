@@ -6,6 +6,8 @@ into Jac `or` / `and`, the parenthesized ?? subexpression must stay grouped
 — unparenthesized ?? mixed with ||/&& is a SyntaxError.
 """
 
+
+variant client;
 def getattr_two_arg_or_empty(o: object) -> str {
     return getattr(o, "k", "") or "";
 }

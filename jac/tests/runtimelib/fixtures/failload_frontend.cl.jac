@@ -1,5 +1,7 @@
 """Client that calls a server endpoint whose module fails to import (#6507)."""
 
+
+variant client;
 import from .failload_server { do_thing }
 
 def:pub Panel() -> JsxElement {

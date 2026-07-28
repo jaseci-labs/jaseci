@@ -1,5 +1,7 @@
 """E1402 must name the sealed value ('shared'), not the storage root."""
 
+
+variant native;
 obj Node {
     has val: int = 0,
         left: Node | None = None;

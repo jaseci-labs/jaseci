@@ -14,6 +14,8 @@ empty entry block for a printing one, and runs the exact same source through
 the sv pathway, asserting both pathways agree.
 """
 
+
+variant native;
 glob counter: int = 0;
 
 """Typed declaration — a function-local shadow; the global is untouched."""

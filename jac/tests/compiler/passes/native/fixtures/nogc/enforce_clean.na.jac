@@ -1,5 +1,7 @@
 """Must-pass under --enforce-nogc: fully annotated ownership coverage."""
 
+
+variant native;
 obj Point {
     has x: float = 0.0,
         y: float = 0.0;

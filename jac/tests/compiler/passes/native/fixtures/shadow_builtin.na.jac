@@ -1,3 +1,5 @@
+variant native;
+
 # Regression: a user function named like a builtin must shadow the builtin.
 # Before call-kind classification was centralized, the native backend matched
 # `len` by name string and always emitted the builtin, ignoring this definition.

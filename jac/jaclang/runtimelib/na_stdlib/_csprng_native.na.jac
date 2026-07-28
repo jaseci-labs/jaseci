@@ -1,3 +1,5 @@
+variant native;
+
 import from crypto { def RAND_bytes(buf: bytes, num: i32) -> i32;  }
 
 

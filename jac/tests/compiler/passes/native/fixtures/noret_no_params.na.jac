@@ -7,6 +7,8 @@ because the parser collapsed the empty FuncSignature to None for the no-parens /
 no-return form. `tick` here would vanish, so `run_ticks(n)` returned 0.
 """
 
+
+variant native;
 glob hits: int = 0;
 
 # No parameter list and no return type -> must behave like `def tick() -> None`.

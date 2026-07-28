@@ -6,6 +6,8 @@ vtable, not frozen to the declaring class. A standalone class with no hierarchy
 (`Lone`) has no vtable and lowers to a constant name load.
 """
 
+
+variant native;
 obj Widget {
     def kind -> str {
         return self.__class__.__name__;

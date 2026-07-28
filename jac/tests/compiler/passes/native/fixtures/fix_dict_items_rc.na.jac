@@ -17,6 +17,8 @@ block, and reads the value back. With the bug the readback is corrupted; with th
 fix it still equals the original. Returns 1 when intact, 0 when corrupted, so the
 test asserts a stable result regardless of what bytes the reused block held."""
 
+
+variant native;
 def drain_items(d: dict[str, str]) -> int {
     # `d` is a borrowed param; iterating its items must not steal a reference
     # from the dict's own key/val storage.

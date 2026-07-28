@@ -9,6 +9,8 @@ A raw JavaScript `in` is wrong for the dynamic case: it throws a TypeError on
 string operands and tests array *indices* rather than element values.
 """
 
+
+variant client;
 def opaque(x: any) -> any {
     return x;
 }

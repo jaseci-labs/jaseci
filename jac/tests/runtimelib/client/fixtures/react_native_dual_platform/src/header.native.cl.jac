@@ -1,5 +1,7 @@
 """Native variant of the platform header (inline styles only)."""
 
+
+variant client;
 def:pub PlatformHeader(props: dict) -> JsxElement {
     return
         <div style={{"padding": 16, "backgroundColor": "#f3f4f6"}}>

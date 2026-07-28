@@ -4,6 +4,8 @@ Mirrors the real lexer.na.jac / parser pattern where the declaration
 lives in a .na.jac file and implementation in impl/counter.impl.jac.
 """
 
+
+variant native;
 obj Counter {
     has value: int = 0,
         step: int = 1;

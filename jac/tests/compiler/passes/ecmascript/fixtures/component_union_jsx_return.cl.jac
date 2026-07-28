@@ -5,6 +5,8 @@ None or JSX. Direct call sites must still wrap positional args into a props
 object when the annotated return type includes JsxElement.
 """
 
+
+variant client;
 def:pub ErrorBanner(error: any) -> JsxElement | None {
     if not error {
         return None;

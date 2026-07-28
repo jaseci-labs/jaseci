@@ -4,6 +4,8 @@ This module is imported INSIDE an na {} block to test scoped native imports.
 All functions here compile to native LLVM IR.
 """
 
+
+variant native;
 # Add ten to a value - used inside native_add_one_to_doubled
 def:pub add_ten(x: int) -> int {
     return x + 10;

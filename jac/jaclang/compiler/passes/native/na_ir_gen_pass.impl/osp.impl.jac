@@ -11,7 +11,7 @@ def _write_native_osp_source(core_dir: str, dest: str) {
         _gtext = _gf.read();
     }
     with open(dest, "w") as _out {
-        _out.write(_ktext + "\n\n" + _gtext);
+        _out.write("variant native;\n\n" + _ktext + "\n\n" + _gtext);
     }
 }
 

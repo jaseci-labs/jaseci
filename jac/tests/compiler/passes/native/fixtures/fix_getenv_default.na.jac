@@ -12,6 +12,8 @@ misread as a per-frame render-loop use-after-free.
 NULL and the default must be substituted. Returns the default's length (8 for
 "fallback", 0 for ""); before the fix these calls segfaulted on `strlen(NULL)`."""
 
+
+variant native;
 import os;
 
 def getenv_unset_string_default() -> int {

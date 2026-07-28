@@ -5,6 +5,8 @@ immediately.  Measures raw __rc_alloc throughput.
 Timing and RSS are measured externally by run_perf.sh via /usr/bin/time.
 """
 
+
+variant native;
 obj Node {
     has val: int = 0;
 }

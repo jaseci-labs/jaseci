@@ -7,6 +7,8 @@ accessed from this importing module.
 Expected: table_len() returns 0 before any push, 1 and 2 after each push.
 """
 
+
+variant native;
 import from cross_module_glob_init_lib { table_len, table_push, table_get }
 
 def:pub run_glob_init_test() -> int {

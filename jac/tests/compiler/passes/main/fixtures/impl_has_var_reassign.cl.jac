@@ -9,6 +9,8 @@ Expected: no type errors — `tasks` should resolve to the HasVar from the
 enclosing def-component, matching the inline behavior.
 """
 
+
+variant client;
 def:pub taskManager -> None {
     has tasks: list[dict] = [];
     async def addTask(task: dict) -> None;

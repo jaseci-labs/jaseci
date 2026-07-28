@@ -7,6 +7,8 @@ shape. It must lower to `const Button = forwardRef(function Button(props, ref)
 `ref` is the 2nd positional arg threaded in by React — never a destructured prop.
 """
 
+
+variant client;
 def:pub Button(props: dict[str, any], ref: Ref[HTMLButtonElement]) -> JsxElement {
     return <button ref={ref}>{props["children"]}</button>;
 }

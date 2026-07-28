@@ -5,6 +5,8 @@ generation throughput, and project health -- each as a labeled chip. Mirrors
 the CLI's one-line turn summary so the two surfaces show identical numbers.
 """
 
+
+variant client;
 import from ..server { TurnStatsView }
 
 """Compact a token count: 12400 -> '12.4k', 840 -> '840'."""

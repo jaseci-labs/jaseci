@@ -5,6 +5,8 @@ which proxy Loki's HTTP API. Returns the standard `{ok, data, error}`
 envelope from `api.get`.
 """
 
+
+variant client;
 import from .api { get }
 
 async def:pub getLogServices(token: str) -> dict {

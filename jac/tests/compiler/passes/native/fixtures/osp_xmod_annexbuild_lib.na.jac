@@ -2,6 +2,8 @@
 the graph archetypes and the walker. Imported by both the builder module (which
 wires the graph from an IMPL ANNEX) and the entry module (which spawns)."""
 
+
+variant native;
 node Hub {}
 node Area { has tag: int = 0; }
 

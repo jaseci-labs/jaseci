@@ -7,6 +7,8 @@ collide, and the element type resolves through the same TypeVar
 interception the body already uses.
 """
 
+
+variant native;
 def pairs[T](xs: list[T]) -> Iterator[T] {
     for x in xs {
         yield x;

@@ -6,6 +6,8 @@ stamps a specialization with `self` prepended to the specialized
 signature and dispatches it directly.
 """
 
+
+variant native;
 obj Box {
     has val: int = 0;
 

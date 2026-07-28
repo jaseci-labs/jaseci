@@ -5,6 +5,8 @@ preamble. Direct call sites must therefore repackage positional / keyword args
 into that props object, while single-`props` components must *not* be rewrapped.
 """
 
+
+variant client;
 def:pub Greeting(name: str, title: str = "!") -> JsxElement {
     return <div>{name}{title}{props.children}</div>;
 }

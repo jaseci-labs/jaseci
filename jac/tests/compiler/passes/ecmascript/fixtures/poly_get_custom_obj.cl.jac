@@ -6,6 +6,8 @@ instead of falling through to plain-object bracket notation (which would miss
 keys stored in the internal `data` dict).
 """
 
+
+variant client;
 obj Cache {
     has data: dict = {"x": 42};
 

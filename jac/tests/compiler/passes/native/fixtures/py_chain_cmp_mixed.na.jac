@@ -5,6 +5,8 @@ evaluated once; `t is u is w` as `(t is u) and (u is w)`. Before the fix
 na statically rejected any chain containing in/not in/is/is not.
 """
 
+
+variant native;
 glob _BUMPS: int = 0;
 
 def bump(v: int) -> int {

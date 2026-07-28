@@ -1,3 +1,5 @@
+variant native;
+
 glob _B16: bytes = b"0123456789ABCDEF",
      _B32: bytes = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567",
      _B64: bytes = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",

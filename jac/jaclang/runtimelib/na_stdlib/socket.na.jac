@@ -1,3 +1,5 @@
+variant native;
+
 import from _socket_native {
     resolve_all,
     gai_str,

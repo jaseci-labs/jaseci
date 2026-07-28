@@ -7,6 +7,8 @@ declarator, no semantic change — purely a shorter spelling for the
 common "pass a same-named local binding through" pattern.
 """
 
+
+variant client;
 def:pub Box(title: str, count: int, onClick: any) -> JsxElement {
     return
         <button class="box" onClick={onClick}>

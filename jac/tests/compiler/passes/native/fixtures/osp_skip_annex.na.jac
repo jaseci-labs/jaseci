@@ -11,6 +11,8 @@ dropped the module's LLVM IR (E5090), so a module importing it failed to link
 (E5024) and `jac test` reported "native engine unavailable" for every test.
 """
 
+
+variant native;
 node Item {
     has val: int;
 }

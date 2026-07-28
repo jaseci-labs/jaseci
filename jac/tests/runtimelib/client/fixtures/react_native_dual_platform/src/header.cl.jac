@@ -1,5 +1,7 @@
 """Web variant of the platform header (uses className + CSS)."""
 
+
+variant client;
 def:pub PlatformHeader(props: dict) -> JsxElement {
     return
         <div className="platform-header">

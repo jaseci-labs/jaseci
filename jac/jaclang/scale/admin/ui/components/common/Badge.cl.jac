@@ -1,5 +1,7 @@
 """Badge component for roles and statuses."""
 
+
+variant client;
 def:pub Badge(text: str, variant: str = "default") -> JsxElement {
     variantClasses = {
         "admin": "bg-accent-weak text-accent border border-accent-line",

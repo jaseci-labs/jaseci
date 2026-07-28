@@ -1,3 +1,5 @@
+variant native;
+
 import from socket { create_connection }
 import from ssl { create_default_context }
 

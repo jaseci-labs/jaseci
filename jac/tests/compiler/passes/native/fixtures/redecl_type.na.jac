@@ -8,6 +8,8 @@ Before the fix, e.g. declaring x: int first and then x: bool would store an
 i1 into an i64 alloca, causing IR type mismatches or wrong values at runtime.
 """
 
+
+variant native;
 """Re-declares an int variable as bool; returns 1 if True else 0."""
 def:pub redecl_int_to_bool_true() -> int {
     x: int = 0;

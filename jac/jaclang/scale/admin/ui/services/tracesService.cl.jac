@@ -6,6 +6,8 @@ envelope from `api.get`. Counterpart to `logsService` (Loki) and the
 LLM-trace service; this one surfaces the generic span waterfall.
 """
 
+
+variant client;
 import from .api { get }
 
 async def:pub getTraceServices(token: str) -> dict {

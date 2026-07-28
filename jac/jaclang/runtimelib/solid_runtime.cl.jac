@@ -1,3 +1,5 @@
+variant client;
+
 import from 'solid-js' {
     createSignal as solidCreateSignal,
     createMemo,

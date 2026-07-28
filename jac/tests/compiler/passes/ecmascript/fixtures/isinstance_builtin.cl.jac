@@ -12,6 +12,8 @@ a tuple of types, plus issubclass over builtin-type tags, so codegen must lower
 each form to a correct runtime check.
 """
 
+
+variant client;
 obj Widget {
     has name: str;
 }

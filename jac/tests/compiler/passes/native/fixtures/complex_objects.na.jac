@@ -1,3 +1,5 @@
+variant native;
+
 obj Inner {
     has val: int = 0;
 

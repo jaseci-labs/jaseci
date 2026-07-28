@@ -1,5 +1,7 @@
 """Consumer importing names that na_star_reexport_mid re-exports via include."""
 
+
+variant native;
 import from na_star_reexport_mid { star_helper, StarPoint, star_make }
 
 def:pub use_star(x: int) -> int {

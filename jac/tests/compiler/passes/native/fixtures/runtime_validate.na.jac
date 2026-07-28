@@ -1,3 +1,5 @@
+variant native;
+
 # Runtime validation tests — exercises patterns needed for chess game
 
 # Test 1: For-over-list with literal

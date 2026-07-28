@@ -1,4 +1,6 @@
 """Must fence (E1406): appending a freshly-built (owned heap) string."""
+
+variant native;
 def run -> int {
     xs = [];
     i = 0;

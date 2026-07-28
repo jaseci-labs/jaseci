@@ -7,7 +7,7 @@ def _write_native_fmt_source(core_dir: str, dest: str) {
         _ktext = _kf.read();
     }
     with open(dest, "w") as _out {
-        _out.write(_ktext);
+        _out.write("variant native;\n\n" + _ktext);
     }
 }
 

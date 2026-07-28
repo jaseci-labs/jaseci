@@ -6,6 +6,8 @@ fix_transitive_glob_deep is a transitive dep that must still have its
 __jac_glob_init called.
 """
 
+
+variant native;
 import from fix_transitive_glob_deep { table_len, table_push }
 
 def:pub mid_len() -> int {

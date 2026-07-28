@@ -5,6 +5,8 @@ must propagate fix_clib_transitive_lib's _clib_paths to this module and
 re-load libm before JIT-linking so sqrt resolves correctly.
 """
 
+
+variant native;
 import from fix_clib_transitive_lib { wrapped_sqrt }
 
 def:pub test_transitive_clib_sqrt() -> f64 {

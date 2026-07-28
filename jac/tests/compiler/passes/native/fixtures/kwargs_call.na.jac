@@ -15,6 +15,8 @@ observable as a wrong number (the all-defaults bug returns `len("x")*100 + 1 ==
 101`).
 """
 
+
+variant native;
 import from kwargs_lib { lib_greet }
 
 def greet(name: str = "x", n: int = 1) -> int {

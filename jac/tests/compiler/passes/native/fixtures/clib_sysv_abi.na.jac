@@ -6,6 +6,8 @@ platform psABI form clang/gcc produce: SSE eightbytes as float/double/
 <2 x float>, INTEGER eightbytes as iN, MEMORY aggregates via byval/sret.
 """
 
+
+variant native;
 import from "/usr/lib/libm.so.6" {
     obj V2 { has x: f32, y: f32; }                 # 8B  -> <2 x float>
     obj V3 { has x: f32, y: f32, z: f32; }         # 12B -> <2 x float>, float

@@ -10,6 +10,8 @@ Two cycle shapes are exercised:
     the RSS assertions in the harness catch the retained backing arrays.
 """
 
+
+variant native;
 obj Node {
     has next: Node | None = None;
     has kids: list[Node] = [];

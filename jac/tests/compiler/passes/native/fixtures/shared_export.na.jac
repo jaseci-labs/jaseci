@@ -6,6 +6,8 @@ free functions (scalar in/out), a `:pub` global, and opaque object handles
 that Jac object pointers cross the C ABI as opaque handles.
 """
 
+
+variant native;
 glob:pub counter: int = 7;
 
 def:pub jadd(a: int, b: int) -> int {

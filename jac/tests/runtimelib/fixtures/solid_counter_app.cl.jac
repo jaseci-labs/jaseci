@@ -9,6 +9,8 @@ what the jsdom harness in `test_solid_jsdom.jac` mounts and asserts. As a
 client-side (no `cl { }` wrapper needed).
 """
 
+
+variant client;
 def:pub app() -> JsxElement {
     has count: int = 0;
 

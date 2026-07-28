@@ -3,6 +3,8 @@ objects + lists (malloc/memcpy imports, indirect-call table + elem, every
 relocation kind), and a mutable global (data segment + memory-addr relocs +
 cross-call persistence). The point under test is the linker, not the math."""
 
+
+variant native;
 obj Pt { has x: float, y: float, alive: bool; }
 
 glob calls: int = 0;

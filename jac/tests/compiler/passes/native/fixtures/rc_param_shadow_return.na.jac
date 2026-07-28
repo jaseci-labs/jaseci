@@ -6,6 +6,8 @@ functions, the return path treats `v` as a borrowed param and emits a
 retain-on-return, so every returned Vec leaves the factory at rc=2 and the
 caller's single release can never free it."""
 
+
+variant native;
 obj Stack {
     has vals: list[int] = [];
 }

@@ -10,6 +10,8 @@ does not resume the finally, so no CPython-style "generator ignored
 GeneratorExit" noise).
 """
 
+
+variant native;
 def yf(n: int) -> Iterator[int] {
     try {
         yield n;

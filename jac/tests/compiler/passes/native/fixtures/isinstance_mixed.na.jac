@@ -9,6 +9,8 @@ has no hierarchy at all, so naming it in an isinstance tuple is what forces
 its vtable to materialize.
 """
 
+
+variant native;
 obj Foo {
     has v: int = 0;
 }

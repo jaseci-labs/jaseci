@@ -790,6 +790,7 @@ test "dependency compiled when imported file recompiled" {
         # App imports Button
         app_file = unique_dir / "app.cl.jac";
         app_file.write_text(
+            "variant client;\n"
             "import from .Button { Button }\n"
             "def App() {\n"
             "    return <div><Button /></div>;\n"

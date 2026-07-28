@@ -1,3 +1,5 @@
+variant native;
+
 def list_len_test() -> int {
     items: list[int] = [10, 20, 30];
     return len(items);

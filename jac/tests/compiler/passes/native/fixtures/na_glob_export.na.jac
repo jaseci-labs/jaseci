@@ -6,6 +6,8 @@ The fix changed global linkage from `internal` to `""` (default/public) in
 globals.impl.jac so that importing modules can resolve the symbol at link time.
 """
 
+
+variant native;
 glob MAGIC: int = 42;
 glob BASE:  int = 100;
 

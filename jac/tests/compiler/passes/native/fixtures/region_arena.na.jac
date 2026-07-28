@@ -1,3 +1,5 @@
+variant native;
+
 obj Box {
     has v: int = 0;
 }

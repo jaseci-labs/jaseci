@@ -6,6 +6,8 @@ struct module and binary file I/O. Every function returns a scalar so the
 ctypes harness can assert behavior directly.
 """
 
+
+variant native;
 def lit_len() -> int {
     b = b"AB\x00CD";
     return len(b);

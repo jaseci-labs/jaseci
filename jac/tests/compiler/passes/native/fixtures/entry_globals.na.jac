@@ -8,6 +8,8 @@ through the same path as `glob`, initialized in jac_entry after
 semantics instead of the old frame-local E5092 divergence.
 """
 
+
+variant native;
 glob acc: list[int] = [];
 
 with entry {

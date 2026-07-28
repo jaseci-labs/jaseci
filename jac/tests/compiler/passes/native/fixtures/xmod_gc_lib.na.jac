@@ -1,3 +1,5 @@
+variant native;
+
 obj Pool {
     has vals: list[float] = [],
         count: int = 0;

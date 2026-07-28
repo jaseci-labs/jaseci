@@ -4980,7 +4980,7 @@ test "cross-pathway: glob scoping is identical in the na and sv pathways" {
 # ─── Finding 2 guard: native pointer-bitcast escape hatch stays native-only ──
 # The type checker permits a handful of pointer-shaped cross-type assignments
 # (int/str/obj) because in native code they are all 64-bit pointers. That
-# escape hatch is gated to `.na.jac` modules via `_in_native_context()`. This
+# escape hatch is gated to native-variant modules via `_in_native_context()`. This
 # test locks that gating in: the sv pathway must still reject the assignment,
 # so the escape hatch can never silently weaken sv type-checking.
 test "finding 2 guard: int-to-obj escape hatch does not leak into the sv pathway" {
@@ -4991,11 +4991,11 @@ test "finding 2 guard: int-to-obj escape hatch does not leak into the sv pathway
     # remain a type error. The snippet is otherwise valid, so any error here
     # is the assignability error.
     sv_prog = JacProgram();
-    sv_path = os.path.join(FIXTURES, "_finding2_guard.sv.jac");
+    sv_path = os.path.join(FIXTURES, "_finding2_guard.jac");
     sv_prog.compile(file_path=sv_path, use_str=code, type_check=True);
     assert sv_prog.errors_had , (
         "sv pathway must reject `w: Wrapper = raw` (int → obj). The native "
-        "pointer-bitcast escape hatch must not apply outside .na.jac modules."
+        "pointer-bitcast escape hatch must not apply outside native modules."
     );
 }
 
@@ -5308,7 +5308,7 @@ test "native test blocks compile to pass/fail functions" {
     assert "assertion failed" in text;
     # The failing assert sits on line 23 of the fixture; the message must
     # carry the source location so the host report can point at it.
-    assert "test_blocks.na.jac:23" in text , f"no source location in: {text}";
+    assert "test_blocks.na.jac:25" in text , f"no source location in: {text}";
 }
 
 test "a failing native test must not abort the host process" {
@@ -5344,7 +5344,7 @@ test "jac test runs .na.jac test blocks end to end" {
     assert "FAILED (failures=1)" in output , (
         f"expected exactly the deliberate failure.\noutput tail: {output[-800:]}"
     );
-    assert "test_blocks.na.jac:23" in output , (
+    assert "test_blocks.na.jac:25" in output , (
         f"failure report must point at the failing assert.\noutput tail: {output[-800:]}"
     );
     assert result.returncode != 0 , "jac test must exit non-zero on failure";

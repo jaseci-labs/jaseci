@@ -5,6 +5,8 @@ Before the fix every f-string rendered into a fixed 1024-byte buffer
 :04d were dropped on the floor.
 """
 
+
+variant native;
 def:pub fstring_long -> int {
     big = "x" * 600;
     msg = f"[{big}][{big}]";

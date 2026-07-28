@@ -1,4 +1,6 @@
 """Must stay clean: scalar list/dict/set with append/add/index/overwrite."""
+
+variant native;
 def run -> int {
     xs = [1, 2, 3];
     xs.append(4);

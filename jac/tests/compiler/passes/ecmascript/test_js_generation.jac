@@ -32,11 +32,27 @@ glob FIXTURES = os.path.join(
      _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_js_");
 
 """Write code to a temp .jac file in a dedicated directory (avoids /tmp scan)."""
+def _with_client_directive(code: str) -> str {
+    if "variant client;" in code {
+        return code;
+    }
+    stripped = code.lstrip();
+    if stripped.startswith('\"\"\"') {
+        end = stripped.find('\"\"\"', 3);
+        if end != -1 {
+            head_len = len(code) - len(stripped) + end + 3;
+            return code[:head_len] + "\n\nvariant client;\n" + code[head_len:];
+        }
+    }
+    return "variant client;\n\n" + code;
+}
+
+
 def write_temp_jac(code: str) -> str {
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".cl.jac", delete=False, dir=_test_tmp_dir
     ) as tmp {
-        tmp.write(code);
+        tmp.write(_with_client_directive(code));
         return tmp.name;
     }
 }

@@ -13,6 +13,8 @@ built-in `ref` prop, which is how a `useRef` handle is wired to a DOM
 node.
 """
 
+
+variant client;
 def:pub FocusableButton(label: str) -> JsxElement {
     has buttonRef: Ref[HTMLButtonElement] = Ref();
 

@@ -3,6 +3,8 @@
 Tests that typed obj returns work across separate .cl.jac / .jac files.
 """
 
+
+variant client;
 import from .typed_return_obj { create_todo, get_todos }
 
 def:pub app -> JsxElement {

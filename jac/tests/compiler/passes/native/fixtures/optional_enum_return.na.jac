@@ -7,6 +7,8 @@ marshaller maps the ordinal back to a `Color` member -- exactly like a plain
 `void` (which made any caller binding `c = pick(...)` fail to lower).
 """
 
+
+variant native;
 enum Color { RED, GREEN, BLUE }
 
 def pick(flag: int) -> Color | None {

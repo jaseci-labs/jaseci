@@ -6,6 +6,8 @@ iterators; the per-site element type comes from the checker. These pin
 the shapes #6403 deferred.
 """
 
+
+variant native;
 def gen_nums(n: int) -> Iterator[int] {
     i = 0;
     while i < n {

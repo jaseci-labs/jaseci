@@ -6,6 +6,8 @@ must match CPython: negative indices wrap, bounds clamp, steps walk in
 either direction.
 """
 
+
+variant native;
 def:pub str_slices -> int {
     s = "hello" + "!";
     a = 1 if s[1:-1] == "ello" else 0;

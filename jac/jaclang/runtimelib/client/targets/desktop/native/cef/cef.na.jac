@@ -1,3 +1,5 @@
+variant native;
+
 import from "libcef.so" {
     def cef_shutdown -> None;  def cef_run_message_loop -> None;  def cef_quit_message_loop -> None;
 }

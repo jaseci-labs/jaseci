@@ -11,6 +11,8 @@ Both union members carry `val` at the same offset, so `x.val` / `here.val`
 is resolvable via either member's layout.
 """
 
+
+variant native;
 obj A { has val: int; }
 obj B { has val: int; }
 

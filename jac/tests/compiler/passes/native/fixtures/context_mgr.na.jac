@@ -1,3 +1,5 @@
+variant native;
+
 # Context manager tests for native LLVM IR codegen.
 
 # Custom context manager object for testing

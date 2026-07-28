@@ -1,3 +1,5 @@
+variant native;
+
 def _gcd(a: int, b: int) -> int {
     x: int = a;
     if x < 0 {

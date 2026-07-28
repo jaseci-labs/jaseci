@@ -6,6 +6,8 @@ These must behave identically in the native and Python backends:
   - enc[a:c].decode()          -> byte-range -> str (needs native bytes.decode)
 """
 
+
+variant native;
 def byte_len(s: str) -> int {
     return len(s.encode("utf-8"));
 }

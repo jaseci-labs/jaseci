@@ -1,3 +1,5 @@
+variant client;
+
 import from 'react' { * as React }
 import from 'react-hook-form' { useForm }
 import from '@hookform/resolvers/zod' { zodResolver }

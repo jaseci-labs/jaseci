@@ -1,3 +1,5 @@
+variant native;
+
 # Workstream A4 (#6930): an un-lowerable *virtual* method is NOT demoted.
 #
 # `render` is virtual (Base defines it, Derived overrides it -> vtable slot).

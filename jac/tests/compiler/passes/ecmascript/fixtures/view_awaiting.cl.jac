@@ -12,6 +12,8 @@ output references `JacAwaiting` (auto-imported from the runtime), and
 both branch bodies survive as inline IIFE fragments.
 """
 
+
+variant client;
 obj UserCard {
     has name: str,
         bio: str;

@@ -11,6 +11,8 @@ After the fix, globals use default (public) linkage and the symbol resolves
 correctly at JIT link time.
 """
 
+
+variant native;
 import from na_glob_export { MAGIC, BASE, get_magic, add_base }
 
 """Read MAGIC directly — exercises the cross-module global access path."""

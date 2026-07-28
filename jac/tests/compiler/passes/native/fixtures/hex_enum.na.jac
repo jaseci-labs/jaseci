@@ -1,3 +1,5 @@
+variant native;
+
 # Regression: integer enum members declared with hex/oct/bin literals must fold
 # through the AST .lit_value getter (base-0), not base-10 int(value) parsing
 # (which would raise on 0xFF / 0o17 / 0b1010).

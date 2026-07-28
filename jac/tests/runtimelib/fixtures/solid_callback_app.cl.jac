@@ -7,6 +7,8 @@ reactive accessor — the handler must fire exactly once per click, not
 spuriously on prop access or mount.
 """
 
+
+variant client;
 def:pub Clicker(label: str, handler: any) -> JsxElement {
     return <button data-testid="child-btn" onClick={handler}>{label}</button>;
 }

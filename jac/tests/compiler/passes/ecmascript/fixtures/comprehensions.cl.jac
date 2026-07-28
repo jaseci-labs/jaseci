@@ -4,6 +4,8 @@ Covers list, set, dict, and generator comprehensions,
 including filters, nested loops, and expression variants.
 """
 
+
+variant client;
 # --- List Comprehensions ---
 
 def list_compr_map(items: list) -> list {

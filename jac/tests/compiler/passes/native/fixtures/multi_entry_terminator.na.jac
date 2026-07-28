@@ -15,6 +15,8 @@ appear — only the *absence* of the second block's output is asserted, which is
 the invariant this fixture pins.
 """
 
+
+variant native;
 with entry {
     print("BEFORE_RAISE");
     raise Exception("boom");

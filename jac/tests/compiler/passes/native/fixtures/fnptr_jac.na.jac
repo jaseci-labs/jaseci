@@ -10,6 +10,8 @@ Tests that:
      is not callable with raw C function addresses from ctypes.
 """
 
+
+variant native;
 def add(a: int, b: int) -> int {
     return a + b;
 }

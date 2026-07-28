@@ -10,6 +10,8 @@ frame's slot, so writes land in the enclosing frame. Escaping shapes
 closures_escape.na.jac.
 """
 
+
+variant native;
 def scaled(y: int, v: int) -> int {
     def inner(x: int) -> int {
         return x * y;

@@ -7,6 +7,8 @@ a null C function pointer — both in clib vtable structs and plain native
 objects used as dispatch tables.
 """
 
+
+variant native;
 import from "/usr/lib/libm.so.6" {
     obj handler_vt {
         has size: int = 0,

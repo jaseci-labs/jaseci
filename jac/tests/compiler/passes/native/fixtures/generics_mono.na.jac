@@ -10,6 +10,8 @@ instantiation (`x + x` is integer addition at int and string concatenation
 at str).
 """
 
+
+variant native;
 def identity[T](val: T) -> T {
     return val;
 }

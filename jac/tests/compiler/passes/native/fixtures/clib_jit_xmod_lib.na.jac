@@ -7,6 +7,8 @@ module imports `compute`, not the library directly), it is loaded through the
 imported-dependency clib path, which did not strip the token -- so the library
 was never loaded into the JIT and `jac6687_triple` resolved to NULL, SIGSEGV."""
 
+
+variant native;
 import from libs.clibjit6687 {
     def jac6687_triple(x: i64) -> i64;
 }

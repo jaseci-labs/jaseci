@@ -5,6 +5,8 @@ B carries a transitive get_foo definition plus unique get_bar — the linker
 must demote the duplicate and still link bar.
 """
 
+
+variant native;
 import from fix_mixed_dup_lib_a { get_foo }
 import from fix_mixed_dup_lib_b { get_bar, call_foo }
 

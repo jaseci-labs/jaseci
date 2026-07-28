@@ -1,5 +1,7 @@
 """Global alert/toast notification context."""
 
+
+variant client;
 import from react { createContext, useContext }
 
 glob ALERT_DISMISS_MS = 3000;

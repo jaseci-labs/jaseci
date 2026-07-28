@@ -4,6 +4,8 @@ Uses obj inheritance with strict typing and no dynamic features.
 Designed as the target spec for na {} codegen buildout.
 """
 
+
+variant native;
 # ===================== Enums =====================
 enum Color { WHITE = 0, BLACK = 1 }
 

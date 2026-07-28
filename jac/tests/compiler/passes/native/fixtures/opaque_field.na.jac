@@ -5,6 +5,8 @@ The capability gate must accept the declaration, lower the slot to a nullable
 opaque pointer (null at native construction), and reject only native code that
 actually dereferences it. The native path here touches only native fields.
 """
+
+variant native;
 import ast as ast3;
 
 obj AstCarrier {

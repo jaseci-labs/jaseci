@@ -11,5 +11,7 @@ blaming the reference expression instead of the unresolved global. The
 byte-identical program with the glob in this head file always compiled.
 """
 
+
+variant native;
 def get_sz() -> int;
 def double_sz() -> int;

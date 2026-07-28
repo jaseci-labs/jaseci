@@ -6,6 +6,8 @@ fix, the compiler emitted i64 instead of %"DataA"* for the argument at
 the cross-module call site.
 """
 
+
+variant native;
 obj:pub DataA {
     has value: int;
     has tag: int;

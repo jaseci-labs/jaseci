@@ -1,3 +1,5 @@
+variant native;
+
 def abs_val(x: int) -> int {
     if x < 0 {
         return 0 - x;

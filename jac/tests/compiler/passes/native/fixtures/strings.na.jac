@@ -1,3 +1,5 @@
+variant native;
+
 def greet() -> str {
     return "hello";
 }

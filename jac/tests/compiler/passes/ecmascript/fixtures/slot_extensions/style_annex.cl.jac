@@ -14,6 +14,8 @@ expected to:
 The annex file lives alongside this one as `style_annex.style.css`.
 """
 
+
+variant client;
 def:pub Card(title: str, body: str) -> JsxElement {
     return
         <article className="card">

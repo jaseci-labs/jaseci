@@ -5,6 +5,8 @@ properly initialized (not left as a null pointer) thanks to the
 __jac_glob_init cross-module linking introduced in the compiler fix.
 """
 
+
+variant native;
 glob _TABLE: list[int] = [];
 
 def:pub table_len() -> int {

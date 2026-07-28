@@ -4,6 +4,8 @@ This module is imported by na_py_interop_multi.jac to test NATIVE→NATIVE linki
 All functions here compile to native LLVM IR.
 """
 
+
+variant native;
 # Triple a value - used as a module-level native import
 def:pub triple(x: int) -> int {
     return x * 3;

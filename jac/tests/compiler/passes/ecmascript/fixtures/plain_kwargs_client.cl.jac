@@ -1,5 +1,7 @@
 """Plain client-side kwargs calls should lower by known function signature."""
 
+
+variant client;
 def add(a: int, b: int) -> int {
     return a + b;
 }

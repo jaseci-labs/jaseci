@@ -1,5 +1,7 @@
 """Test fixture for class with separate impl file."""
 
+
+variant client;
 obj Calculator {
     has value: float;
 

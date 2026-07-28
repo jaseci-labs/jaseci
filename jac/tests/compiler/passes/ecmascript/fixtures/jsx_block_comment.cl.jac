@@ -1,5 +1,7 @@
 """Test that `{#* ... *#}` works as a Jac-native JSX comment (no rendered output)."""
 
+
+variant client;
 def:pub App() -> any {
     return
         <div>

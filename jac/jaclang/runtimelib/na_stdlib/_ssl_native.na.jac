@@ -1,3 +1,5 @@
+variant native;
+
 import from ssl { def TLS_client_method -> int;  }
 import from ssl { def SSL_CTX_new(method: int) -> int;  }
 import from ssl { def SSL_CTX_set_verify(ctx: int, mode: i32, cb: int) -> None;  }

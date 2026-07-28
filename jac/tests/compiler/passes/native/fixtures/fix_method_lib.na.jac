@@ -5,6 +5,8 @@ the current module.  Methods on imported archetypes were never registered,
 so calls like `c.increment()` were silently dropped from the IR.
 """
 
+
+variant native;
 obj:pub Counter {
     has value: int;
 

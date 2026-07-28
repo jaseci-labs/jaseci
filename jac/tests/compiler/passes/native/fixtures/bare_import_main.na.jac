@@ -5,6 +5,8 @@ Module-qualified calls (bare_import_helper.fn()) and glob attribute reads
 symbols of the dep - no runtime module object exists.
 """
 
+
+variant native;
 import bare_import_helper;
 
 def:pub use_fn -> int {

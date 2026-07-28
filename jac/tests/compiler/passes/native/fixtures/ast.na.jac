@@ -11,6 +11,8 @@ After the fix _resolve_nm checks for a local .na.jac file directly via
 os.path.join(base_dir, ...) — stdlib stubs can no longer shadow it.
 """
 
+
+variant native;
 obj:pub Node {
     has kind: int;
     has value: int;

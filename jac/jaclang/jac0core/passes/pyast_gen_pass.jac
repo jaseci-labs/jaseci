@@ -165,6 +165,7 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
     def exit_global_vars(nd: uni.GlobalVars) -> None;
     def exit_test(nd: uni.Test) -> None;
     def exit_module_code(nd: uni.ModuleCode) -> None;
+    def exit_variant_decl(nd: uni.VariantDecl) -> None;
     def exit_py_inline_code(nd: uni.PyInlineCode) -> None;
     def exit_import(nd: uni.Import) -> None;
     def exit_module_path(nd: uni.ModulePath) -> None;

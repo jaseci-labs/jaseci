@@ -1,21 +1,21 @@
 ---
 name: jac-codespaces
-description: Inferred client/server/native code placement - how the compiler decides what runs where (JSX/npm imports mark code client, extern C declarations mark code native, references pull helpers along), what never moves (def:pub endpoints, walkers, shared objs), and the explicit cl/sv/na overrides. Load when deciding where code runs, pinning a declaration server-side with `sv`, or debugging why something landed in the wrong bundle.
+description: Inferred client/server/native code placement - how the whole-program solver decides what runs where (JSX/npm imports mark code client, python imports and graph archetypes anchor code server, extern C declarations mark code native), what never moves (def:pub endpoints, walkers, shared objs), the [placement.pins] override table, and the --placements/lock review tooling. Load when deciding where code runs, pinning a declaration server-side, migrating marker-era code with `jac fix placement`, or debugging why something landed in the wrong bundle.
 ---
 
-**Codespaces are inferred - you do not have to mark client code.** Jac compiles one language to three codespaces: server (Python - the default), client (JavaScript/JSX), and native (LLVM). The compiler decides placement from the code itself; the `cl`/`sv`/`na` markers still exist but are optional overrides, and markerless code compiles **byte-identical** to its marker-annotated equivalent.
+**Placement is inferred - there is no syntax for it.** Jac compiles one language to three codespaces: server (Python - the default), client (JavaScript/JSX), and native (LLVM). A whole-program placement solver reads the evidence in your code and places every top-level element. The old `sv`/`cl`/`na` markers (blocks, statement prefixes, the `.sv.jac` suffix) were removed and are now syntax errors - run `jac fix placement` to migrate old code (see Migration below). Overrides live in `jac.toml` under `[placement.pins]`, not in the source.
 
-## The inference rules
+## The evidence rules
 
-1. **Client is structural.** JSX and string-path npm imports (`import from "react" { ... }`) are client-only syntax; a declaration carrying either is placed client automatically.
-2. **Placement propagates through references, within a module.** Helpers, `glob`s, and imports that client code uses join the client bundle. Propagation is scope-aware: a local that shadows a module-level name does NOT pull the module-level one in. **It does not cross module boundaries:** a client module importing a helper from a plain (server-default) module fails with **E5082** ("has no client-side presence"). Pin such a module `.cl.jac` - pure modules with no JSX and no npm import have no structural signal of their own, so inference leaves them on the server. A `.cl.jac`-pinned pure module is still reachable by `jac test`.
-3. **Server is the default** for unmarked code that no client code references.
-4. **Native is seeded by extern C declarations** - an import whose braces declare C-ABI functions infers native placement for itself and its users; see below.
+1. **Client is structural.** JSX, browser globals, and string-path or `@jac` npm imports (`import from "react" { ... }`) are client evidence; a declaration carrying any of them is seeded client.
+2. **Server is anchored by server-only facts.** Python imports (`import os;`, `import from datetime { datetime }`), graph archetypes (`node`/`edge`/`walker`), `::py::` blocks, and typed context blocks anchor their module server. Unreferenced pure code defaults to server too.
+3. **Native is seeded by extern C declarations** - an import whose braces declare C-ABI functions is an FFI surface only the native backend can satisfy; it and its users go native. Importing a native module is also native evidence for the importer's crossing, not a relocation (see below).
+4. **Placement propagates through references, across modules.** Helpers, `glob`s, and imports that client code uses join the client bundle when their whole closure can move - including helpers imported from other modules (cross-module pulls happen before codegen, so `jac check` sees what `jac build` sees). Requirement-free code reached from both sides is **dual-emitted** into each. A reference whose closure cannot move **bridges** instead: `def:pub` calls over RPC, archetypes as wire types, native calls over the interop edge.
 
 A complete markerless full-stack module - every placement is inferred:
 
 ```jac
-import from datetime { datetime }               # used only by server code -> server
+import from datetime { datetime }               # python import -> server anchor
 import from "canvas-confetti" { confetti }      # string-path npm import -> client-only
 
 obj Note {                                      # referenced by BOTH sides -> auto-shared
@@ -23,7 +23,7 @@ obj Note {                                      # referenced by BOTH sides -> au
     has stamp: str = "";
 }
 
-def:pub save_note(text: str) -> Note {          # def:pub -> stays a server endpoint
+def:pub save_note(text: str) -> Note {          # def:pub in a server-anchored module -> endpoint
     return Note(text=text, stamp=str(datetime.now()));
 }
 
@@ -56,40 +56,47 @@ def:pub app() -> JsxElement {                   # JSX -> client
 
 Reference propagation pulls helpers - it does NOT turn server API surface into client code:
 
-- **`def:pub` functions and walkers stay server endpoints.** A client reference never inlines them into the bundle; the call compiles to the auto-RPC bridge (`await save_note(...)`, `result = root spawn add_task(title=t);` - see `jac-fullstack-patterns`). (A `def:pub` whose own body carries JSX is client by the structural rule - that is how markerless `def:pub app` and components work.) Access tags on `def`s declare endpoint surface, so tagged defs never relocate - but that is a `def`-only rule: a tagged `glob` is visibility, not placement, and pulls like any other.
-- **`node`/`edge`/`walker` archetypes never relocate** - they are the persistence/OSP surface. Referenced from client code they are auto-shared: the bundle gets a wire-codec class (`__from_wire`/`__to_wire`, `_jac_id`) while the archetype itself stays server. ⚠ **Receiving and reading such a value works; constructing one client-side does not.** `has progress: JobProgress = JobProgress();` in a client component compiles clean and throws `JobProgress is not defined` at mount. Hold shared types as `T | None = None` on the client and let the server construct them.
+- **`def:pub` functions and walkers in a server-anchored module stay server endpoints.** A client reference never inlines them into the bundle; the call compiles to the auto-RPC bridge (`await save_note(...)`, `result = root spawn add_task(title=t);` - see `jac-fullstack-patterns`). `def:pub` / `walker:pub` is the cross-space contract. (A `def:pub` whose own body carries JSX is client by the structural rule - that is how markerless `def:pub app` and components work. And in a module with NO server anchor at all, a pure `def:pub` can be pulled client wholesale - there is no server side to bridge to.)
+- **`node`/`edge`/`walker` archetypes never relocate** - they are the persistence/OSP surface and a server anchor for their module. Referenced from client code they are auto-shared: the bundle gets a wire-codec class (`__from_wire`/`__to_wire`, `_jac_id`) while the archetype itself stays server. ⚠ **Receiving and reading such a value works; constructing one client-side does not.** `has progress: JobProgress = JobProgress();` in a client component compiles clean and throws `JobProgress is not defined` at mount. Hold shared types as `T | None = None` on the client and let the server construct them.
 - **Plain `obj` archetypes referenced from both sides are auto-shared** the same way - typed instances cross the wire hydrated, no duplicate declaration needed. An `obj` referenced *only* by client code relocates wholesale into the bundle instead (real class, methods and all).
 
-## Explicit overrides - they always win
+## `[placement.pins]` - the override that always wins
 
-| Form | Syntax | Scope |
-|---|---|---|
-| Block | `cl { ... }` / `sv { ... }` / `na { ... }` | a region of a mixed file |
-| Statement prefix | `cl def ...` / `sv glob ...` / `na def ...` | one declaration |
-| File extension | `.cl.jac` / `.sv.jac` / `.na.jac` | the whole file |
+When inference is wrong for reasons dataflow cannot see - the helper wraps a secret, the computation must not run in the browser - pin the element in `jac.toml`. Keys are fnmatch patterns over `module` or `module.element` dotted paths; values are `"server"`, `"client"`, or `"native"`:
 
-All existing marker-annotated code remains valid - markers are the explicit style, not a deprecated one. Write them when you want the boundary visible in the source, and always when overriding inference.
+```toml
+[placement.pins]
+"app.API_KEY"   = "server"    # one glob stays out of the JS bundle
+"app.summarize" = "server"    # client calls bridge over RPC instead
+"kernels.*"     = "server"    # every element of the kernels module
+helpers         = "client"    # module-level pin: the whole module is client
+```
 
-## `sv` pinning - the override you will actually need
-
-Inference pulls what client code references. When that is wrong - the helper wraps a server-only dependency, the `glob` holds a secret - pin the declaration with `sv` (an access tag does NOT pin; `sv` does):
+The corresponding source is plain Jac - nothing in it says where it runs:
 
 ```jac
 import os;
 
-sv glob API_KEY: str = os.getenv("API_KEY") or "";    # never ships in the JS bundle
+glob API_KEY: str = os.getenv("API_KEY") or "";   # pinned server in jac.toml
 
-sv def summarize(text: str) -> str {     # stays server even though app() calls it;
-    return text[:80];                    #   the client call bridges over RPC instead
+def summarize(text: str) -> str {   # pinned server; client callers bridge over RPC
+    return text[:80];
 }
 ```
 
-## `sv import` - a boundary fact, not placement
+Pins feed the solver exactly like the old markers did: a pinned element is immovable, and everything else re-solves around it. A **module-level `"server"` pin** additionally makes client imports of that module full service-boundary imports (non-pub items callable with auth, boundary types collected) - the trust-boundary form. Pins are part of the program: changing them invalidates the compilation cache and shows up in `--placements` evidence as `pinned 'server' ([placement.pins])`.
 
-`sv import from .store { fn, Types }` does not place the *importing* code anywhere - it states that the target module stays on the server and cross-boundary calls become RPC. The import itself lives with its consumers:
+## Service topology is a config fact, not an import form
 
-- **From client code**: generates the async JS RPC stub (always `await` the calls). See `jac-fullstack-patterns`.
-- **From server code**: declares a server-to-server **microservice boundary** - the provider runs as its own service and calls become HTTP RPCs. See `jac-sv-microservices`.
+Declaring that a module runs as its own service happens ONLY in `jac.toml`:
+
+```toml
+[scale.microservices.routes]
+math_service = ""          # "" derives the route prefix (/math_service)
+orders_app   = "/api/orders"
+```
+
+Modules in the routes table (the **service cut**) are server-anchored by definition; plain imports of them lower to RPC service stubs automatically - synchronous Python stubs server-to-server, async JS stubs client-to-service. `jac scale split <module>` writes an entry for you. There is no auto-discovery from source. See `jac-sv-microservices`.
 
 ## Native inference - extern C declarations are the seed
 
@@ -103,24 +110,35 @@ def open_window() -> None {        # uses InitWindow -> native
 }
 ```
 
-- **Consuming a native module is NOT a signal.** `import from mymod { fast_fn }` where `mymod` is native code stays a server-side import - that is the server-to-native ctypes interop crossing, not a reason to relocate the importer. The client-side crossing is spelled explicitly: `na import from .mymod { fast_fn }` in a client module compiles the target to `/static/<stem>.wasm`, binds the names to lazy async wasm stubs, and compiles to nothing on the server (see `jac-native-wasm`).
-- **`test` blocks are never pulled native.** `jac test` runs them on the server, where they reach the native code through the generated interop stubs - same as tests inside `na {}` blocks and `.na.jac` files.
-- **Referenced by both sides -> stays server.** Client and native inference run independently in one markerless file; a declaration referenced by BOTH sides is placed server, where each side can bridge to it (auto-RPC for the client, py-interop for native).
-- **Native-compatible pure code still defaults to server.** Compatibility is not intent: with no FFI seed, going native remains an explicit build choice - an `na { ... }` block, a `.na.jac` file, or `jac nacompile` / `jac run --autonative` auto-promotion. See `jac-native`.
-- **Explicit markers never act as propagation sources.** An `na { }` block or `.na.jac` file pins its own contents; it does not pull referenced code native the way an extern seed does.
+- **Consuming a native module is NOT a signal.** `import from mymod { fast_fn }` where `mymod` is native code stays a server-side import - that is the server-to-native ctypes interop crossing, not a reason to relocate the importer. From client code the same import compiles the target to `/static/<stem>.wasm` and binds lazy async wasm stubs (see `jac-native-wasm`).
+- **`test` blocks are never pulled native.** `jac test` runs them on the server, where they reach the native code through the generated interop stubs.
+- **Referenced by both sides -> stays server.** Client and native inference run independently in one file; a declaration referenced by BOTH sides is placed server, where each side can bridge to it (auto-RPC for the client, py-interop for native).
+- **Native-compatible pure code still defaults to server.** Compatibility is not intent: with no FFI seed, going native remains an explicit choice - a `[placement.pins]` entry mapping to `"native"`, a `.na.jac` implementation variant, or `jac nacompile` / `jac run --autonative` auto-promotion. See `jac-native`.
+
+## Reviewing placements - the tooling
+
+- **`jac check <entry> --placements`** prints every element's space with the evidence chain behind it (`seeded client: jsx construction`, `pulled client (dual): closure of client elements`, `pinned 'server' ([placement.pins])`, `ENDPOINT: pub access`), plus an estimated boundary-crossing count. First stop when something landed in the wrong bundle.
+- **`jac check --update-placements-lock`** writes `jac.placements.lock` next to `jac.toml`. Commit it: placement flips become reviewable diffs like dependency bumps.
+- **`jac check --verify-placements-lock`** fails (exit 1) if any computed placement differs from the committed lock - the parity gate for refactors and CI. An edit that silently turns three call sites into network round trips is loud instead of invisible.
+- Editor hover shows `placement: <space> (inferred)` (plus `dual` when emitted into both spaces) for any symbol.
+
+## Migration from marker-era code
+
+`sv`/`cl`/`na` blocks, statement prefixes (`sv def`, `cl import`, `sv import from x { .. }`), and the `.sv.jac` suffix no longer parse - the error message points here. **`jac fix placement`** migrates a file or tree automatically: strips markers, renames `.sv.jac` files, preserves service topology as `[scale.microservices.routes]` entries, and records a `[placement.pins]` entry for any element whose inferred placement differs from its old marker. `--dry-run` previews; run `jac check --placements` after to review what inference decided.
 
 ## Rules
 
-- **Markerless first.** Write plain `.jac` and let JSX/npm imports, extern C declarations, plus references decide. Reach for markers to pin, not to enable.
-- **Client code must carry the structural signal.** A component infers client because it contains JSX or an npm import (directly or through what it references); a pure helper with neither stays server until client code references it.
-- **`def:pub` + JSX body = client component; `def:pub` without client-only syntax = server endpoint**, RPC-bridged when the client calls it.
-- **Pin with `sv`** when client code references something that must stay server-side (secrets, server-only deps).
-- **Markers that agree with inference change nothing** - markerless code compiles byte-identical to its marker-annotated equivalent.
+- **Markerless always.** Write plain `.jac` and let JSX/npm imports, python imports/archetypes, and extern C declarations decide. There is no placement syntax to reach for.
+- **Client code must carry the structural signal.** A component infers client because it contains JSX or an npm import (directly or through what it references); a pure helper with neither stays server until client code references it, then it is pulled (or dual-emitted) into the bundle - across module boundaries too.
+- **`def:pub` + JSX body = client component; `def:pub` in a server-anchored module = server endpoint**, RPC-bridged when the client calls it.
+- **Pin in `jac.toml`** when client code references something that must stay server-side (secrets, server-only deps, trust boundaries): `[placement.pins] "mod.name" = "server"`.
+- **`.cl.jac` / `.na.jac` are implementation-variant suffixes, not placement tools.** Use them for per-space implementations of one interface (e.g. a native stdlib variant); use inference and pins to place ordinary code.
+- **Review, then lock.** `--placements` to see the evidence, `--update-placements-lock` + commit to make future flips reviewable.
 
 ## See also
 
 - `jac-fullstack-patterns` - entry wiring, RPC call styles, endpoint registration
 - `jac-cl-organization` - file layout for multi-component client apps
-- `jac-sv-microservices` - `sv import` between services
+- `jac-sv-microservices` - the routes-table service cut between server modules
 - `jac-native` - the native codespace
 - `jac-project-kinds` - which codespaces each project kind combines

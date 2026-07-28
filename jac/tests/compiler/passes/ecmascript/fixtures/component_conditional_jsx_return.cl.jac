@@ -6,6 +6,8 @@ be classified as props_destructure, not direct, so that call sites wrap argument
 into a single props object.
 """
 
+
+variant client;
 def:pub ConditionalGreeting(cond: bool, title: str) -> JsxElement {
     if cond {
         return <div>{title}</div>;

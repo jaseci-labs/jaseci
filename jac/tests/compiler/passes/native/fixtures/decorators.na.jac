@@ -8,6 +8,8 @@ glob-init-time side effect; a decorator that returns a different function
 actually redirects calls (the slot is real, not a direct raw call).
 """
 
+
+variant native;
 glob marks: int = 0;
 
 def mark(fn: any) -> any {

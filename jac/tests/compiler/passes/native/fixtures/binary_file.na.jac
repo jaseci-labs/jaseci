@@ -5,6 +5,8 @@ typed as `bytes`, so a binary parser can slice it and feed it to `struct`.
 The text-mode `open(path, "r").read()` still returns `str` (sv-congruent).
 """
 
+
+variant native;
 import struct;
 
 def read_len(path: str) -> int {

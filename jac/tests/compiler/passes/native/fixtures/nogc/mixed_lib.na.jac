@@ -1,5 +1,7 @@
 """Managed half of the mixed-binary fixture: ordinary RC/managed code."""
 
+
+variant native;
 def crunch(n: int) -> int {
     acc = [];
     for i in range(n) {

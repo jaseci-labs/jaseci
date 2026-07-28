@@ -1,3 +1,5 @@
+variant native;
+
 import os;
 
 glob sep: str = "/",

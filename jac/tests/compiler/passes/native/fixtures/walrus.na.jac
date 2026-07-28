@@ -5,6 +5,8 @@ binding, verifying that the assignment side-effect and the produced
 value are both correct.
 """
 
+
+variant native;
 def walrus_in_if(x: int) -> int {
     # The binding `n` must outlive the condition and equal x * 2.
     if (n := x * 2) > 5 {

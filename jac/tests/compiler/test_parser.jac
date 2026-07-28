@@ -250,9 +250,9 @@ test "jsx comprehensive fixture" {
     tree_repr = module.pp();
 
     expected_snippets = {
-        "self_closing": "<div />",
+        "self_closing": "<div/>",
         "attribute_binding": "id={name}",
-        "namespaced_component": "<Form.Input.Text />",
+        "namespaced_component": "<Form.Input.Text/>",
         "fragment": "<>",
         "spread_attribute": "{...props}",
         "expression_child": '{"Hello " + name + "!"}',

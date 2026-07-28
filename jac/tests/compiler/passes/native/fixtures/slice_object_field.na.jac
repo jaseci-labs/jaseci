@@ -7,6 +7,8 @@ These fixtures exercise the object-field slice path against the equivalent
 plain-local path, which has always worked.
 """
 
+
+variant native;
 obj Box { has items: list; }
 
 obj IntBox { has items: list[int]; }

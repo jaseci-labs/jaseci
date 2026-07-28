@@ -1,3 +1,5 @@
+variant client;
+
 import from 'react-native' {
     View as RNView,
     Text as RNText,

@@ -1076,6 +1076,10 @@ impl PyastGenPass.exit_open_stmt(nd: uni.OpenStmt) -> None {
     nd.gen.py_ast = [assign_stmt, open_stmt, try_stmt];
 }
 
+impl PyastGenPass.exit_variant_decl(nd: uni.VariantDecl) -> None {
+    nd.gen.py_ast = [];
+}
+
 impl PyastGenPass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
     if nd.doc {
         doc = self.sync(
@@ -1098,9 +1102,17 @@ impl PyastGenPass.exit_import(nd: uni.Import) -> None {
         import_binds_client_native,
         plain_native_import_target
     }
+    drop_native_target = False;
+    native_target = plain_native_import_target(nd, self.prog);
+    if native_target is not None {
+        import os as _os;
+        drop_native_target = (
+            _os.sep + "jaclang" + _os.sep
+        ) not in _os.path.abspath(native_target);
+    }
     if (
         import_binds_client_native(nd, self.ir_in.gen.interop_manifest)
-        or plain_native_import_target(nd, self.prog) is not None
+        or drop_native_target
     ) {
         nd.gen.py_ast = [];
         return;

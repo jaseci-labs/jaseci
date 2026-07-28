@@ -5,6 +5,8 @@ The def version runs on the Python backend; the cl def version compiles to JS
 and exercises the _jac.* runtime calls.
 """
 
+
+variant client;
 # =============================================================================
 # int namespace: mod, bit_length, bit_count
 # (to_bytes/from_bytes skipped — bytes are not JSON-serializable)

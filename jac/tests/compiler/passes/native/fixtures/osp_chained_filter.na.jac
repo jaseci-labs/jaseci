@@ -11,6 +11,8 @@ the concrete node layout). Origins are local nodes: `root` is the
 persistent graph and stays a server signal by design.
 """
 
+
+variant native;
 node Bucket {
     has label: str = "";
 }

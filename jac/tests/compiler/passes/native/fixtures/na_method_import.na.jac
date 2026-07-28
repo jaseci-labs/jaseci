@@ -15,6 +15,8 @@ Expected outputs (used by test_native_gen_pass.jac):
   test_imported_chained_methods()   -> 12
 """
 
+
+variant native;
 import from na_method_import_lib { Counter, make_counter }
 
 # Returns 1  (start=0, increment once)

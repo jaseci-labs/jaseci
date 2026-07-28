@@ -1,4 +1,6 @@
 """Must fence (E1406): set literal with an owned heap element."""
+
+variant native;
 obj Box {
     has tag: int = 0;
 }

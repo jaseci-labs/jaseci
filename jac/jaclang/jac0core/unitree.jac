@@ -429,6 +429,15 @@ obj ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt) {
     def postinit -> None;
 }
 
+obj VariantDecl(ElementStmt) {
+    def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
+
+    has space: str;
+
+    def postinit -> None;
+}
+
 obj PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;

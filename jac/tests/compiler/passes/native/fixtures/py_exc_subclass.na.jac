@@ -5,6 +5,8 @@ garbage before the fix (the caught binding did not carry the raised
 object's fields).
 """
 
+
+variant native;
 obj ParseError(Exception) {
     has line_no: int = 0,
         hint: str = "";

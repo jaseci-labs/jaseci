@@ -7,6 +7,8 @@ container varargs convention). A list spread into a fixed-arity callee
 stays a loud error -- its arity is not statically known.
 """
 
+
+variant native;
 def add3(a: int, b: int, c: int) -> int {
     return a + 100 * b + 10000 * c;
 }

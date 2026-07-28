@@ -1,3 +1,5 @@
+variant native;
+
 import from _bz2_native { bz2_compress, bz2_decompress }
 
 glob BZ_OK: int = 0,

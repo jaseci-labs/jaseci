@@ -1,5 +1,7 @@
 """Test Immediately Invoked Function Expressions (IIFE) for client-side (JavaScript) execution."""
 
+
+variant client;
 with entry {
     # Test 1: Basic IIFE with no parameters
     result1 = (

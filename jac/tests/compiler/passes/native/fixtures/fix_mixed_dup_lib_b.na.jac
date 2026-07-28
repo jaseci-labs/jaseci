@@ -5,6 +5,8 @@ Its cached IR carries get_foo as a definition; link_in must not drop bar
 when A was already linked into the entry module.
 """
 
+
+variant native;
 import from fix_mixed_dup_lib_a { get_foo }
 
 def:pub get_bar() -> int {

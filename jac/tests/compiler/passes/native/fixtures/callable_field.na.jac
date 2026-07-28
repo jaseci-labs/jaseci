@@ -2,6 +2,8 @@
 called indirectly through the field — including a list of such structs iterated
 and dispatched (the shape the OSP kernel's dispatch slots rely on)."""
 
+
+variant native;
 obj Op {
     has tag: int,
         fn: Callable[([int], int)];

@@ -6,6 +6,8 @@ fix_third_b.  When calling read_value(d), DataA is a "third-module" type
 compiler emitted i64(0) instead of the correct struct pointer.
 """
 
+
+variant native;
 import from fix_third_a { DataA, make_data_a }
 import from fix_third_b { read_value, read_sum }
 

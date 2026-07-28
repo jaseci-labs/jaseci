@@ -4,6 +4,8 @@ Used by na_method_import.na.jac to test that _register_imported_archetype
 forwards-declares imported archetype methods in method_funcs.
 """
 
+
+variant native;
 obj:pub Counter {
     has value: int;
 

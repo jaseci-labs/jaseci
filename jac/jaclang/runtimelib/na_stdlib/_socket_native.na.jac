@@ -1,3 +1,5 @@
+variant native;
+
 import from c { def socket(domain: i32, socktype: i32, protocol: i32) -> i32;  }
 import from c { def connect(fd: i32, addr: bytes, addrlen: i32) -> i32;  }
 import from c { def send(fd: i32, buf: bytes, n: u64, flags: i32) -> i64;  }

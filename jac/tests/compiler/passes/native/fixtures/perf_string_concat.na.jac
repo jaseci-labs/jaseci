@@ -6,6 +6,8 @@ bookkeeping throughput.
 Timing and RSS are measured externally by run_perf.sh via /usr/bin/time.
 """
 
+
+variant native;
 with entry {
     s: str = "";
     chunk: str = "0123456789";   # 10 chars

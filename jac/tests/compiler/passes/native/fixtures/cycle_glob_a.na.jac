@@ -5,6 +5,8 @@ compiling and running must not crash, and each module's initializer runs
 exactly once, leaving own-module globs with their initialized values.
 """
 
+
+variant native;
 import from cycle_glob_b { get_bv }
 
 def:pub mk_av() -> int {

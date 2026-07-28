@@ -3,6 +3,8 @@
 Used by na_struct_import.na.jac to test cross-module struct types.
 """
 
+
+variant native;
 obj Point {
     has x: int;
     has y: int;

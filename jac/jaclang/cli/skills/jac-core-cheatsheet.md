@@ -108,13 +108,13 @@ import from .button { Button }                        # relative (dots)
 import from "@jac/runtime" { Router, Routes, Route }  # npm (quoted)
 ```
 
-**Codespaces are inferred - markers are optional overrides.** JSX and string-path npm imports mark a declaration client, and the helpers/`glob`s/imports client code references join the client bundle (scope-aware propagation); unmarked code defaults to server; `def:pub` endpoints and walkers always stay server (client calls become auto-RPC); extern C-decl imports (`import from lib { def f(x: f64) -> f64; }`) mark a declaration native and its users follow (consuming a native module is not a signal; pure code stays server). Explicit `cl`/`sv`/`na` blocks, statement prefixes, and file-extension variants like `.sv.jac` always win over inference - the useful one is `sv` to pin a declaration server-side. See `jac-codespaces`.
+**Codespaces are inferred - there is no placement syntax.** JSX and string-path npm imports mark a declaration client, and the helpers/`glob`s/imports client code references join the client bundle (scope-aware propagation, across modules); python imports and graph archetypes anchor code server, which is also the default; `def:pub` endpoints and walkers in server-anchored modules stay server (client calls become auto-RPC); extern C-decl imports (`import from lib { def f(x: f64) -> f64; }`) mark a declaration native and its users follow (consuming a native module is not a signal; pure code stays server). Overrides live in `jac.toml`: `[placement.pins] "mod.name" = "server"` pins a declaration server-side (or `"client"`/`"native"`). See `jac-codespaces`.
 
-**`main.jac` mixes contexts.** Server imports go at the top (server is the default context - no block needed). The client section - CSS import, top-level component, `def:pub app` (no-arg for manual routing; `app(children)` that renders `children` for file-based routing - see `jac-cl-routing`) - is inferred client from its JSX and string-path imports; a `cl` block around it is the optional explicit wrapper.
+**`main.jac` mixes both sides.** Server imports go at the top (server is the default placement). The client section - CSS import, top-level component, `def:pub app` (no-arg for manual routing; `app(children)` that renders `children` for file-based routing - see `jac-cl-routing`) - is inferred client from its JSX and string-path imports; no wrapper syntax exists or is needed.
 
-**No-dot imports are project-root absolute.** In server/native code (`.jac`, `.sv.jac`), `import from engine.math.vec3 { Vec3 }` resolves against the **project root** (the nearest `jac.toml` dir) from *anywhere* in the project - the importing file may sit at the root, under `tests/`, or any depth, and the import is identical. This is the idiomatic form; prefer it over dot-counting. A test in `tests/` imports the modules it exercises with the same no-dot path it would use at the root.
+**No-dot imports are project-root absolute.** In server/native code, `import from engine.math.vec3 { Vec3 }` resolves against the **project root** (the nearest `jac.toml` dir) from *anywhere* in the project - the importing file may sit at the root, under `tests/`, or any depth, and the import is identical. This is the idiomatic form; prefer it over dot-counting. A test in `tests/` imports the modules it exercises with the same no-dot path it would use at the root.
 
-**Relative (dotted) imports** walk up from the importing file's own directory - each leading `.` is one folder. They are mainly needed in **client** code (inferred client from JSX or npm imports), where the bundler resolves them. `sv import` carries the same dot semantics.
+**Relative (dotted) imports** walk up from the importing file's own directory - each leading `.` is one folder. They are mainly needed in **client** code (inferred client from JSX or npm imports), where the bundler resolves them. Imports of server modules from client code carry the same dot semantics.
 
 | Dots | Meaning | Use when |
 |---|---|---|
@@ -146,7 +146,7 @@ Generators (`yield` / `yield from`), decorators (`@deco` above `def`), walrus `(
 - Ternary is **Python-style**: `A if cond else B`. NOT `cond ? A : B` - parse error.
 - Boolean operators are **`and`/`or`/`not`** - C-style `&&`/`||` do not exist (parse error).
 - **Python stdlib needs explicit import - Jac auto-imports nothing.** `datetime.now()` without `import from datetime { datetime }` = runtime `NameError`.
-- **`sv import` calls are `async` - always `await` them.** `items = fetch_items()` assigns a `Promise`, not the data.
+- **Client calls to server functions are `async` - always `await` them.** `items = fetch_items()` assigns a `Promise`, not the data.
 - **`import:py` does not exist** - LLMs hallucinate it; use `import json;` / `import from datetime { datetime }`.
 - **Enums use Jac form, NOT Python `class X(Enum)`.** Write `enum Color { RED, GREEN }`. When members must BE `int`/`str` instances (JSON, wire formats), use typed-base `enum HttpStatus: int { OK = 200 }` (desugars to `IntEnum`) or `enum Tag: str { OPEN = "open" }` (`StrEnum`) - then **do NOT add `.value`**, members already are the base type.
 - Concatenating a string with an Exception fails - wrap with `str(e)`.

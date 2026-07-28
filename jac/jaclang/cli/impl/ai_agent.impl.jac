@@ -646,7 +646,7 @@ impl ProcessTools.serve(entry_file: str) -> str {
         return (
             f"ERROR: no such entry file '{entry_path}' (looked in "
             f"{self.ws.cwd or os.getcwd()}). Use list_dir to find the app's "
-            "main .jac file (the one with the `cl`/`sv` mount), then pass its path."
+            "main .jac file (the one that mounts `def:pub app`), then pass its path."
         );
     }
     if not confirm(f"start the dev server with `jac start {entry_path}`") {

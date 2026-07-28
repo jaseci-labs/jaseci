@@ -1,4 +1,6 @@
 """Must fence (E1406): index-assigning an owned heap object as a dict value."""
+
+variant native;
 obj Box {
     has tag: int = 0;
 }

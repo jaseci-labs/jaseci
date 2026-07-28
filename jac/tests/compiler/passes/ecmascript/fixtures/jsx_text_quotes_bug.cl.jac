@@ -5,6 +5,8 @@ The transpiler outputs JSX text containing quote characters as ""text""
 and Rollup reject with "Expected ',', got 'ident'".
 """
 
+
+variant client;
 def:pub app() -> any {
     return (
         <div>

@@ -8,6 +8,8 @@ The compiler should:
   - Auto-coerce pointer->value (Jac->C) and value->pointer (C->Jac)
 """
 
+
+variant native;
 import from "/usr/lib/libm.so.6" {
     # Large struct (128-bit, float fields) -- passed as struct by value
     obj Vec2 {

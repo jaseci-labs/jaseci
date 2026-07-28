@@ -1,3 +1,5 @@
+variant native;
+
 # Runtime error tests for native LLVM IR codegen.
 # These tests verify that proper exceptions are raised for
 # invalid operations instead of crashing with hardware faults.

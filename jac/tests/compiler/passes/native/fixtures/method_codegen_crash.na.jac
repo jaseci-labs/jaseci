@@ -9,6 +9,8 @@ call result into `+`, but the required analyses now reject that at check time
 before codegen ever runs, so it no longer exercises the emit-time seam.)
 """
 
+
+variant native;
 obj C {
     def good(x: int) -> int {
         return x + 1;

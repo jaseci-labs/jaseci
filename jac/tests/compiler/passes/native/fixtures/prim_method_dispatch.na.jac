@@ -1,3 +1,5 @@
+variant native;
+
 # Native primitive method dispatch resolved via the emitter contract
 # (the per-type method sets are derived from the emitter, not hardcoded tuples).
 

@@ -5,6 +5,8 @@ while <cond> holds, running <step> after each iteration. `break` and
 `continue` must respect the step block (continue advances the counter).
 """
 
+
+variant native;
 def sum_n(n: int) -> int {
     total: int = 0;
     for i = 0 while i < n with i += 1 {

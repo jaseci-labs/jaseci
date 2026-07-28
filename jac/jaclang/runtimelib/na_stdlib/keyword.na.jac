@@ -1,3 +1,5 @@
+variant native;
+
 glob kwlist: list[str] = [
          "False",
          "None",

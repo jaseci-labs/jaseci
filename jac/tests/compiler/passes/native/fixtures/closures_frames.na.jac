@@ -6,6 +6,8 @@ initializer promotes its captures to RC heap cells exactly as in plain
 ability frames; the frames differ only in who owns the scan call.
 """
 
+
+variant native;
 node Thing {
     has val: int;
 }

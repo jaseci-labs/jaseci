@@ -1,6 +1,8 @@
 """Regression fixtures: sub-64-bit integer arithmetic (issue #7466-era
 i32 width mismatch) and Python-congruent true division (int / int -> float)."""
 
+
+variant native;
 def add32(a: i32, b: i32) -> i32 {
     return a + b;
 }

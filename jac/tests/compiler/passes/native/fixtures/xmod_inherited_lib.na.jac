@@ -5,6 +5,8 @@ imports the subtype and WRITES one of the inherited fields (`p.yaw = ...`,
 MRO the same way a read does -- a write that cannot find the inherited field
 slot wrongly raised E5090."""
 
+
+variant native;
 node Entity { has yaw: float = 0.0, pitch: float = 0.0; }
 
 node Player(Entity) {}

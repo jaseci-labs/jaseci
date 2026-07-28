@@ -1,3 +1,5 @@
+variant native;
+
 obj Widget {
     has size: int;
 

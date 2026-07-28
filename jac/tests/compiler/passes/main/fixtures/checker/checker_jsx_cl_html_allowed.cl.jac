@@ -5,6 +5,8 @@ jac.toml ``client_kind = "mobui"`` stamped project_kind on the shared program, s
 JsxIntrinsicGuardPass fired E1105 on framework .cl.jac files (e.g.
 client_runtime.cl.jac) compiled into the same program during jac build."""
 
+
+variant client;
 def Widget -> JsxElement {
     return
         <div>

@@ -5,6 +5,8 @@ When the entry imports both A and B, B's IR carries get_foo transitively
 but must still link get_bar after A is linked first.
 """
 
+
+variant native;
 def:pub get_foo() -> int {
     return 10;
 }

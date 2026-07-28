@@ -1,3 +1,5 @@
+variant native;
+
 import from _hashlib_native {
     evp_md_for,
     digest_size_for,

@@ -5,6 +5,8 @@ worked; the writes raised `E5090: field assignment` because the inherited field
 slot was not resolved through the imported MRO. The same program on the @sv
 pathway returns {"yaw": 2.0, "pitch": 0.5}."""
 
+
+variant native;
 import from xmod_inherited_lib { Entity, Player }
 
 def inherited_na() -> dict[str, any] {

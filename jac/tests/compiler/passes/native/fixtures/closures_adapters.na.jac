@@ -8,6 +8,8 @@ the env loaded from the adapter state. The state retains the env for the
 adapter's lifetime and the struct release fn drops it with the upstream.
 """
 
+
+variant native;
 def scale_all(k: int) -> int {
     t = 0;
     for v in map(lambda (x: int) -> int { x * k; }, [1, 2, 3]) {

@@ -164,13 +164,56 @@ def language_of(path: str) -> str:
 # ---------------------------------------------------------------------------
 # Codespace classification
 # ---------------------------------------------------------------------------
-def codespace_of(path: str) -> str | None:
-    """Return ``'server'`` / ``'client'`` / ``'native'`` for an *explicit*
-    codespace variant file, else None (plain ``.jac``, annexes, non-Jac).
+_variant_decl_cache: dict[str, tuple[float, str | None]] = {}
 
-    This is the classifier the compiler's coercion dispatch keys on: plain
-    ``.jac`` yields None so no coercion runs.
+_VARIANT_DECL_SPACES = {"client": CLIENT, "native": NATIVE}
+
+
+def declared_variant_of(path: str) -> str | None:
+    """Return the space a module *declares* via its ``variant <space>;``
+    directive, else None.
+
+    The directive is the authority for variant semantics (#7772 phase 3);
+    the ``.cl.jac`` / ``.na.jac`` filename is only a naming convention and
+    the resolution index. The head of the file is scanned (first 4KB) so a
+    leading module docstring may precede the directive.
     """
+    if not path.endswith(JAC_SUFFIX):
+        return None
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    cached = _variant_decl_cache.get(path)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+    space: str | None = None
+    try:
+        with open(path, encoding="utf-8", errors="ignore") as f:
+            head = f.read(4096)
+    except OSError:
+        head = ""
+    import re
+
+    m = re.search(r"^\s*variant\s+(client|native)\s*;", head, re.M)
+    if m:
+        space = _VARIANT_DECL_SPACES[m.group(1)]
+    _variant_decl_cache[path] = (mtime, space)
+    return space
+
+
+def codespace_of(path: str) -> str | None:
+    """Return ``'client'`` / ``'native'`` for a variant module, else None.
+
+    Declaration-first (#7772): a ``variant <space>;`` directive is the
+    authority. The ``.cl.jac`` / ``.na.jac`` suffix still classifies files
+    that carry no directive -- the compatibility half of the two-step
+    migration; suffix-only classification is removed once the shipped
+    payload carries directive-aware resolution everywhere.
+    """
+    declared = declared_variant_of(path)
+    if declared is not None:
+        return declared
     for suf in VARIANT_SUFFIXES:
         if path.endswith(suf):
             return _VARIANT_CODESPACE[suf]
@@ -178,13 +221,13 @@ def codespace_of(path: str) -> str | None:
 
 
 def is_native_module(path: str) -> bool:
-    """True for a ``.na.jac`` native-codespace module file."""
-    return path.endswith(NATIVE_SUFFIX)
+    """True for a native-variant module (declaration-first)."""
+    return codespace_of(path) == NATIVE
 
 
 def is_client_module(path: str) -> bool:
-    """True for a ``.cl.jac`` client-codespace module file."""
-    return path.endswith(CLIENT_SUFFIX)
+    """True for a client-variant module (declaration-first)."""
+    return codespace_of(path) == CLIENT
 
 
 def is_server_module(path: str) -> bool:

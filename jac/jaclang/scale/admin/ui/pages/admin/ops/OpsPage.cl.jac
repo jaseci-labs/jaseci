@@ -12,6 +12,8 @@ probe done server-side, so operators never need kubectl to know why
 observability/health is broken.
 """
 
+
+variant client;
 import from "lucide-react" { Stethoscope, RefreshCw, Check, X, Minus, AlertTriangle }
 
 import from react { useEffect }

@@ -1,5 +1,7 @@
 """Alert/toast notification component."""
 
+
+variant client;
 def:pub Alert(message: str, type: str = "success") -> JsxElement {
     if not message {
         return <></>;

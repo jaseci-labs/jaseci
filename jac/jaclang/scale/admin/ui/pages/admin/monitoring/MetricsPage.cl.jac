@@ -1,5 +1,7 @@
 """Metrics monitoring page - process + HTTP observability."""
 
+
+variant client;
 import from "lucide-react" {
     Activity,
     RefreshCw,

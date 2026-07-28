@@ -1,5 +1,7 @@
 """Must-fail under --enforce-nogc: owned value sealed into managed storage (E1402)."""
 
+
+variant native;
 glob cache: list[list[int]] = [];
 
 def stash -> int {

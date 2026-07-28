@@ -1,3 +1,5 @@
+variant native;
+
 def scan(hay: own str, pat: own str) -> int {
     i = hay.find(pat);
     j = hay.find(pat, i + 1);

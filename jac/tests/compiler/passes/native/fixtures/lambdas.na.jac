@@ -1,3 +1,5 @@
+variant native;
+
 # Lambda expressions in native codespace.
 # Phase 1: Simple lambdas (no captures) — function pointers.
 

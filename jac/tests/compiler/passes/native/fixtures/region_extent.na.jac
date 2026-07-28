@@ -2,6 +2,8 @@
 through a Region-typed parameter in another, and dropped by the caller at
 scope exit. drop_log encodes hook order: log = log * 10 + id."""
 
+
+variant native;
 glob drop_log: int = 0;
 
 obj Res {

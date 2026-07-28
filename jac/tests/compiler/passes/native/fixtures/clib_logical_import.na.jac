@@ -6,6 +6,8 @@ from the target triple. Mirrors clib_import.na.jac but with the dotted/
 extensionless surface instead of an explicit string path.
 """
 
+
+variant native;
 import from raylib {
     def InitWindow(width: i32, height: i32, title: str) -> None;
     def CloseWindow -> None;

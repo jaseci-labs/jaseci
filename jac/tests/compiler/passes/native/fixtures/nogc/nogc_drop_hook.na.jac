@@ -1,6 +1,8 @@
 """drop hook determinism: def drop fires exactly once per value, in a
 defined order, on every exit kind (fall-through, early return)."""
 
+
+variant native;
 obj Res {
     has tag: int = 0;
 

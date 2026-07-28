@@ -11,6 +11,8 @@ Exported functions return integer codes so they can be asserted via ctypes:
   - test_del_last_element    → after del list[0] on a single-item list, len is 0 (expect 0)
 """
 
+
+variant native;
 obj Container {
     has items: list[int];
 }

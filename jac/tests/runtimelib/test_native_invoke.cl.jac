@@ -11,6 +11,8 @@ error}` envelope -- so the runtime can replay the HTTP status logic (401 ->
 re-login) and still unwrap `body` like the HTTP path.
 """
 
+
+variant client;
 import from "@jac/runtime" { __jacCallFunction, __setLocalStorage, __getLocalStorage }
 
 # Note: `__jacSpawn` is auto-imported by the cl test harness prelude, so it is

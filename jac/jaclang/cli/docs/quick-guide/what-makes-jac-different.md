@@ -21,21 +21,18 @@ Similar to namespaces, the Jac language introduces the concept of **codespaces**
 
 ```mermaid
 graph LR
-    JAC["main.jac"] --> SV["Server (PyPI Ecosystem)
-    sv"]
-    JAC --> CL["Client (NPM Ecosystem)
-    cl"]
-    JAC --> NA["Native (C ABI)
-    na"]
+    JAC["main.jac"] --> SV["Server (PyPI Ecosystem)"]
+    JAC --> CL["Client (NPM Ecosystem)"]
+    JAC --> NA["Native (C ABI)"]
 ```
 
 How inference decides:
 
 - **JSX and npm imports are client signals.** A declaration containing JSX or a string-path npm import (`import from "react-dom" { ... }`) is client-only by construction, so the compiler places it in the client codespace automatically. Placement then propagates through references: helpers, `glob`s, and imports that client code uses join the client bundle too.
 - **Extern C declarations are native signals.** An import whose braces declare C-ABI functions (`import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) is an FFI surface only the native backend can satisfy, so the compiler places it -- and the declarations that use it -- in the native codespace automatically. Merely importing *from* a native module is not a native signal: that stays a server-side import, bridged by interop.
-- **Everything else defaults to the server codespace** -- unmarked code compiles to Python, exactly as before.
+- **Everything else defaults to the server codespace** -- python imports, graph archetypes, and similar constructs anchor a module server, and unreferenced pure code compiles to Python, exactly as before.
 
-Here's a file that spans two codespaces -- with no markers anywhere:
+Here's a file that spans two codespaces -- with nothing marking the split:
 
 ```jac
 # Inferred server: plain data and logic, no client signals
@@ -67,33 +64,24 @@ def:pub app -> JsxElement {
 
 The compiler places `app` in the client codespace because its body contains JSX; `Todo` and `add_todo` stay on the server. The server definitions are visible to the client component -- and `def:pub` functions and walkers are never relocated by inference: they remain server endpoints, so when the client calls `add_todo(...)`, the compiler generates the HTTP call, serialization, and routing between codespaces. Likewise, a top-level `obj` referenced from both sides is shared across the boundary automatically. You write one language; the compiler produces the interop layer.
 
-#### Explicit codespace markers
+#### Overriding inference: `[placement.pins]`
 
-Inference can always be overridden. To pin code to a codespace -- or simply to make the split visible in the source -- you denote the codespace with a **braced block** (or **statement prefix**) inside a file, or with a **file extension**:
+There is no placement syntax in the source -- `prog.jac` is always placement-inferred. When a decision must be forced (a helper that must never ship in the JS bundle, a hot function that must compile natively), the override lives in `jac.toml`:
 
-**Braced blocks** -- bracket a region of a file for one codespace:
+```toml
+[placement.pins]
+"main.API_KEY"  = "server"    # keep a secret out of the client bundle
+"main.hot_loop" = "native"    # performance mandate
+```
 
-- `sv { ... }` -- code inside the braces runs on the server (compiles to Python)
-- `cl { ... }` -- code inside the braces runs in the browser (compiles to JavaScript)
-- `na { ... }` -- code inside the braces compiles natively for the host machine (compiles to a native binary)
-- Code outside any block is placed by inference (server unless it carries client signals). Blocks also work inside a function or class body.
+Keys are fnmatch patterns over `module` or `module.element` dotted paths; values are `"server"`, `"client"`, or `"native"`. A pinned element is immovable; the solver re-solves everything else around it. Review any module's placements -- with the evidence behind each decision -- via `jac check <entry> --placements`, and commit `jac.placements.lock` (written by `--update-placements-lock`) to make placement changes reviewable diffs.
 
-**Single-statement prefixes** -- a prefix like `cl def foo() ...` tags one declaration for a codespace, handy for the occasional cross-codespace item in a file.
+Two rules to keep in mind:
 
-**File extensions** -- set the default top-level codespace for a file, e.g., for a module `prog`:
+- **Pins always win.** Inference never moves a pinned element -- the most useful pin is `"server"` on a declaration you want kept server-side even though client code references it (the client call bridges over RPC instead).
+- **Native compatibility is not intent.** Extern C declarations infer native placement, but pure code that merely *could* compile natively stays on the server -- without an FFI seed, taking it native is your call, made via a `"native"` pin, a `.na.jac` implementation-variant module, or `jac nacompile`.
 
-- `prog.sv.jac` -- top-level code defaults to server
-- `prog.cl.jac` -- top-level code defaults to client
-- `prog.na.jac` -- top-level code defaults to native
-- `prog.jac` -- placement is inferred (server unless client or native signals say otherwise)
-
-Any `.jac` file can still use all codespace forms regardless of its extension. The extension only changes what the default is for untagged code.
-
-Three rules make the two styles interchangeable:
-
-- **Markers always win.** Inference never moves anything tagged with a block, prefix, or extension -- the most useful pin is `sv` on a declaration you want kept server-side even though client code references it.
-- **Native compatibility is not intent.** Extern C declarations infer native placement, but pure code that merely *could* compile natively stays on the server -- without an FFI seed, taking it native is your call, made via `na { }`, `.na.jac`, or `jac nacompile`.
-- **The two styles compile identically.** A markerless file produces byte-identical output to its marker-annotated equivalent; the example above wrapped in an explicit `cl { ... }` block is the same program.
+(`.cl.jac` / `.na.jac` suffixes still exist as **implementation variants** -- per-space implementations of one logical module -- not as the way ordinary code is placed.)
 
 Codespaces are similar to namespaces, but instead of organizing names, they organize where code executes. Interop between them -- function calls, spawn calls, type sharing -- is handled by the compiler and runtime.
 
@@ -286,9 +274,9 @@ In practice they compose: walkers traverse a persistent graph on the server, del
 
 | Syntax | Meaning |
 |--------|---------|
-| `sv { }` | Server codespace block |
-| `cl { }` | Client codespace block |
-| `na { }` | Native codespace block |
+| JSX / `import from "pkg" { }` | Client placement evidence (inferred) |
+| `import os;` / `node` / `walker` | Server anchor (inferred; server is the default) |
+| `[placement.pins]` in jac.toml | Placement override (`"server"`/`"client"`/`"native"`) |
 | `node X { has ...; }` | Declare a graph data type |
 | `root` | Built-in starting node (persistence anchor) |
 | `a ++> b` | Connect node `a` to node `b` |

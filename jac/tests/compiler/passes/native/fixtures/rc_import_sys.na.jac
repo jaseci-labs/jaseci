@@ -2,6 +2,8 @@
 bug 3: sys.argv materializes a heap-element (str) list whose release helper
 tripped the duplicate __rc_debug emission under --gc rc / plain --gc none."""
 
+
+variant native;
 import sys;
 
 def argc_minus_one -> int {

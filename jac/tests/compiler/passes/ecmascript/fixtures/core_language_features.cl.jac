@@ -1,5 +1,7 @@
 """Combined core Jac constructs for ECMAScript generator tests."""
 
+
+variant client;
 glob global_counter: int = 0;
 
 # Basic functions and control flow

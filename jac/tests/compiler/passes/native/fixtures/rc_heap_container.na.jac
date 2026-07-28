@@ -4,6 +4,8 @@ _emit_rc_helpers under --gc rc / plain --gc none because the re-entry guard
 checked a cycles-only global, so the RC debug globals were defined twice
 (DuplicatedNameError: __rc_debug)."""
 
+
+variant native;
 def count_strs -> int {
     xs: list[str] = [];
     xs.append("alpha");

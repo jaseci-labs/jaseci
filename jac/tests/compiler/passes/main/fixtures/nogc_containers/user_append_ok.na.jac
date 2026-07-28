@@ -2,6 +2,8 @@
 so the heap-element container fence must not fire (guards against a false
 positive from the method-name match). The param is `own` so the unrelated
 E1401 parameter rule stays silent and this fixture isolates the fence."""
+
+variant native;
 obj Box {
     has tag: int = 0;
 }

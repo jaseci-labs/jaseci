@@ -8,6 +8,8 @@ user-defined-object method forwarding, the Python `dict.get` null-vs-default
 semantics, and the AttributeError fallback for an unsupported operation.
 """
 
+
+variant client;
 obj Box {
     has data: list = [10, 20, 30];
 

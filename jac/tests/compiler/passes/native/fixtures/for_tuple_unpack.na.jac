@@ -5,6 +5,8 @@ per-position element type, so heterogeneous payloads (str + bytes) type and
 lower correctly, the same idiom that already works on the @sv pathway.
 """
 
+
+variant native;
 def sum_products(pairs: list[tuple[int, int]]) -> int {
     total = 0;
     for (a, b) in pairs {

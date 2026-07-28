@@ -1,3 +1,5 @@
+variant native;
+
 enum TokenKind {
     INT = "INT",
     HEX = "HEX",

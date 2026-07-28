@@ -7,6 +7,8 @@ resume. These shapes pin that: a lambda escaping into a list value inside
 a generator body, and a capturing lambda passed to the lazy map adapter.
 """
 
+
+variant native;
 def gen_scaled(k: int) -> Iterator[int] {
     f = lambda (x: int) -> int { x * k; };
     fns: list[Callable[[int], int]] = [f];

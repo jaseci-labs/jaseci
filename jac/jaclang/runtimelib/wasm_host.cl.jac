@@ -1,3 +1,5 @@
+variant client;
+
 obj _HostState {
     has sh: any = None,
         out1: str = "",

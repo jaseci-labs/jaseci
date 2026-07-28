@@ -3,6 +3,8 @@ object, not only under enforced headerless `--gc none` (issue #7466 bug 4).
 The hook mutates module globals so the JIT tests can observe firing count
 and order without capturing stdout."""
 
+
+variant native;
 glob dropped = 0,
      last_tag = 0;
 

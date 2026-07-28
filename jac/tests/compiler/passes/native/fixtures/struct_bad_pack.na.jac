@@ -4,6 +4,8 @@ packing it would leave uninitialized tail bytes. CPython raises struct.error
 at runtime; the native backend fails fast at compile time instead.
 """
 
+
+variant native;
 import struct;
 
 def bad_pack() -> int {

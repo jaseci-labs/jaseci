@@ -1,5 +1,7 @@
 """Test that HTML entities in JSX text and attributes are decoded per JSX spec."""
 
+
+variant client;
 def:pub App() -> any {
     return
         <div title="A &amp; B">

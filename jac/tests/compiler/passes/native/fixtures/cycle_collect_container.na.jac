@@ -13,6 +13,8 @@ Driven on a fixed cadence via `__rc_collect_cycles()` so collection fires
 deterministically. Run with `JAC_GC_CYCLES=1` for the reclaiming path.
 """
 
+
+variant native;
 obj Box {
     has items: list[Box] = [];
 }

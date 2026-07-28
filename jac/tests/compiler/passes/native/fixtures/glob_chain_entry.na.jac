@@ -4,6 +4,8 @@ Dependencies must run their glob initializers before dependents:
 leaf first, then mid, then this module.
 """
 
+
+variant native;
 import from glob_chain_mid { get_b }
 
 def:pub read_chain() -> int {

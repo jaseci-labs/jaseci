@@ -6,6 +6,8 @@ wired — the cost of scope-cleanup retain/release at each return.
 Timing and RSS are measured externally by run_perf.sh via /usr/bin/time.
 """
 
+
+variant native;
 obj Frame {
     has depth: int = 0;
     has acc: int = 0;

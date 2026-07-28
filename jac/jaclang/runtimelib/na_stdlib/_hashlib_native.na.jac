@@ -1,3 +1,5 @@
+variant native;
+
 import from crypto { def EVP_MD_CTX_new -> int;  }
 import from crypto { def EVP_MD_CTX_free(ctx: int) -> None;  }
 import from crypto { def EVP_DigestInit_ex(ctx: int, md: int, engine: int) -> i32;  }

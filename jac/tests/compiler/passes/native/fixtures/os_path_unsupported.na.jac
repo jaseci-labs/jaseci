@@ -1,3 +1,5 @@
+variant native;
+
 import os;
 
 with entry {

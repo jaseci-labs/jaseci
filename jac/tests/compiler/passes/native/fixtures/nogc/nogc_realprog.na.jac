@@ -4,6 +4,8 @@ Must compile clean with --enforce-nogc and produce identical output to a
 managed build; under --gc none it must pass --assert-no-rc and run leak-free.
 """
 
+
+variant native;
 obj Stack {
     has vals: list[int] = [];
 }

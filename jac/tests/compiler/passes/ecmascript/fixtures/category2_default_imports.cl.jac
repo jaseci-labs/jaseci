@@ -11,6 +11,8 @@ Based on the table in jac_import_patterns_proposal.md:
 | import Vue from 'vue'         | cl import from vue { default as Vue }     |
 """
 
+
+variant client;
 # Default import examples
 import from react { default as React }
 import from axios { default as axios }

@@ -6,6 +6,8 @@ not resolve), so returning it from an int-typed def fails E1001. The
 comparison still pins the native byte-count value.
 """
 
+
+variant native;
 import sys;
 
 def write_out() -> int {

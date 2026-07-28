@@ -7,6 +7,8 @@ a1(tag=1) -Portal-> a2(tag=2) -Portal-> a3(tag=4). Counter spawned at a1 walks
 the portal chain: seen = 1+2+4 = 7, ports = one per non-sink area = 2. The same
 program on the @sv pathway returns {"seen": 7, "ports": 2}."""
 
+
+variant native;
 import from osp_xmod_lib { Area, Portal, In, Counter }
 
 def xmod_na() -> dict[str, any] {

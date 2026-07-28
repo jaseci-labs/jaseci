@@ -1,3 +1,5 @@
+variant native;
+
 # Gate fixture for static C-archive linking (#6978 Phase 0.1a): call lzma_crc32
 # (a 0-undefined leaf member of liblzma.a) and print its result. The CRC-32/ISO
 # check value of "123456789" is 0xCBF43926 == 3421780262. The `& 0xFFFFFFFF`

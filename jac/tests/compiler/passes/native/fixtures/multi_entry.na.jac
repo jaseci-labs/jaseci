@@ -11,6 +11,8 @@ exactly "FIRST SECOND" (print emits no trailing newline). The block ordering is
 what the ELF test asserts — "FIRST" must appear before "SECOND".
 """
 
+
+variant native;
 with entry {
     print("FIRST ");
 }

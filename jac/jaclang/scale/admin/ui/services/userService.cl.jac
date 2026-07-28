@@ -1,5 +1,7 @@
 """User management service functions."""
 
+
+variant client;
 import from .api { get, post, put, del }
 async def:pub getUsers(token: str) -> dict {
     return await get("/admin/users", token);

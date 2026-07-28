@@ -6,6 +6,8 @@ A well-formed `.na.jac` test file must collect and run its `test` blocks rather
 than silently collecting 0 items and passing.
 """
 
+
+variant native;
 glob a = 5,
      b = 2;
 

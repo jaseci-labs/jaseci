@@ -5,6 +5,8 @@ in their names using string literals, which is necessary since hyphens
 cannot be used in unquoted identifiers.
 """
 
+
+variant client;
 # Test 1: react-dom - named imports
 import from "react-dom" { render, hydrate }
 

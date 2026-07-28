@@ -8,6 +8,8 @@ Before the fix, var_type_node was never populated for imported globals,
 so _resolve_ptr_elem_cast_type fell back to i8* and the field read was 0.
 """
 
+
+variant native;
 import from fix_subscript_outer { Outer, ITEMS, push_item, items_len }
 
 """Push one item and access value field inline; expect 42."""

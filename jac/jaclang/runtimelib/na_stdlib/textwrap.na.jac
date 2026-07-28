@@ -1,3 +1,5 @@
+variant native;
+
 def _is_space_ch(c: int) -> bool {
     return c == 9 or c == 10 or c == 11 or c == 12 or c == 13 or c == 32;
 }

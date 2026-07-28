@@ -1,3 +1,5 @@
+variant client;
+
 import from 'react' { useState as reactUseState, useEffect as reactUseEffect }
 
 def:pub getPlatform -> str;

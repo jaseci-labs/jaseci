@@ -6,6 +6,8 @@ and one release.  Measures the overhead of those two RC operations.
 Timing and RSS are measured externally by run_perf.sh via /usr/bin/time.
 """
 
+
+variant native;
 obj Token {
     has id: int = 0;
 }

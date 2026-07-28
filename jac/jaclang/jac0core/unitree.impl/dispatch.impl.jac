@@ -324,6 +324,9 @@ impl TypedCtxBlock.accept_enter(v: UniPass) -> None {
 impl UnaryExpr.accept_enter(v: UniPass) -> None {
     v.enter_unary_expr(self);
 }
+impl VariantDecl.accept_enter(v: UniPass) -> None {
+    v.enter_variant_decl(self);
+}
 impl VisitStmt.accept_enter(v: UniPass) -> None {
     v.enter_visit_stmt(self);
 }
@@ -677,6 +680,9 @@ impl TypedCtxBlock.accept_exit(v: UniPass) -> None {
 }
 impl UnaryExpr.accept_exit(v: UniPass) -> None {
     v.exit_unary_expr(self);
+}
+impl VariantDecl.accept_exit(v: UniPass) -> None {
+    v.exit_variant_decl(self);
 }
 impl VisitStmt.accept_exit(v: UniPass) -> None {
     v.exit_visit_stmt(self);

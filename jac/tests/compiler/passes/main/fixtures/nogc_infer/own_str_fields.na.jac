@@ -1,3 +1,5 @@
+variant native;
+
 obj Entry {
     has path: own str,
         size: int,

@@ -1,3 +1,5 @@
+variant native;
+
 def:pub fmean[T](data: list[T]) -> float {
     n = len(data);
     if n == 0 {

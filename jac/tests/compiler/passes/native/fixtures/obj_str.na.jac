@@ -3,6 +3,8 @@ user object's __str__, fall back to a `<TypeName object at 0x...>` default when
 none is defined, and resolve the runtime subclass through the vtable.
 """
 
+
+variant native;
 obj P {
     has v: str;
 

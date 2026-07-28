@@ -6,6 +6,8 @@ return seams; `is None` reads the tag. Pointer-typed optionals keep the
 existing null-riding lowering.
 """
 
+
+variant native;
 def pick(n: int) -> int | None {
     if n > 0 {
         return n * 2;

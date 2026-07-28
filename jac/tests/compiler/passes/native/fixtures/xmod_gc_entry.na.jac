@@ -1,3 +1,5 @@
+variant native;
+
 import from xmod_gc_lib { Pool, pool_new, pool_set, pool_sum }
 
 def run -> float {

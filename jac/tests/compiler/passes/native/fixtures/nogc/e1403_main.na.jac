@@ -3,6 +3,8 @@
 The `managed(...)` wrapped call is the sanctioned form and must NOT error.
 """
 
+
+variant native;
 import from e1403_lib { render }
 
 glob data = [1, 2, 3];

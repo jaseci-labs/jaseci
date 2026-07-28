@@ -6,6 +6,8 @@ the expression to an i1 truth bit, so int operands came back 0/1 and a
 returned `s or "fallback"` was a garbage pointer (segfault).
 """
 
+
+variant native;
 glob _CALLS: int = 0;
 
 def bump -> int {

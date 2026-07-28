@@ -1,3 +1,5 @@
+variant native;
+
 def:pub loads(s: str) -> any {
     p: _JsonParser = _JsonParser(src=s);
     return p._parse_value();

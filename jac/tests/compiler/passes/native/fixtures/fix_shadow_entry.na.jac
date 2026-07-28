@@ -7,6 +7,8 @@ TypeError crash when collect_kinds (list[Node] param) was compiled.
 Expected: run_shadow_test() returns 3  (node kinds 1 + 2).
 """
 
+
+variant native;
 import from ast { Node, make_node, collect_kinds }
 
 def:pub run_shadow_test() -> int {

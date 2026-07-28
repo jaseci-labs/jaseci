@@ -1,3 +1,5 @@
+variant native;
+
 import from _csprng_native { csprng_bytes, to_hex }
 
 

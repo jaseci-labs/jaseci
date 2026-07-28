@@ -5,6 +5,8 @@ as a parameter.  The entry module imports from both A and B, so DataA is
 a "third module" type from B's perspective when seen from the entry.
 """
 
+
+variant native;
 import from fix_third_a { DataA }
 
 """Return the value field of a DataA struct."""

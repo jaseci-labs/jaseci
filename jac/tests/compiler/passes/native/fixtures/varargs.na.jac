@@ -13,6 +13,8 @@ retired guardrail fixture py_varargs_err.na.jac (#7320), minus its def:pub
 caller (pub variadics stay a loud E5090).
 """
 
+
+variant native;
 import from varargs_lib { lib_sum }
 
 def sum_all(*nums: int) -> int {

@@ -8,6 +8,8 @@ frame dies. Note one identity divergence from Python: each evaluation of the
 closure's name produces a distinct closure object (`f is g` may differ).
 """
 
+
+variant native;
 def make_counter -> Callable[[], int] {
     count = 0;
     def bump -> int {

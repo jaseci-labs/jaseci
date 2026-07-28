@@ -4,6 +4,8 @@ cval is runtime-initialized; its initializer must run before any dependent
 module's glob initializer reads it through get_c().
 """
 
+
+variant native;
 def:pub mk7() -> int {
     return 3 + 4;
 }

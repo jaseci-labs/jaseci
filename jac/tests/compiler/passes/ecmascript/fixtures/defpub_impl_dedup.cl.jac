@@ -4,6 +4,8 @@ Tests that __jacCallFunction import is not duplicated when both the main
 module (via sv import) and the impl module (via sv import) trigger injection.
 """
 
+
+variant client;
 import from defpub_impl_dedup_server { create_item, list_items }
 
 def:pub app -> JsxElement {

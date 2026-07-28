@@ -9,6 +9,8 @@ Every form below must resolve to the same callable the direct call emits, and
 the type must keep working as isinstance/issubclass classinfo.
 """
 
+
+variant client;
 def parse_all(parts: list) -> list {
     # `int` as a map callback.  JS `.map` hands its callback
     # (value, index, array), so a two-arity coercion like `int(x, base)` would

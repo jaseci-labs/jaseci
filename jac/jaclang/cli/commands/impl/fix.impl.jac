@@ -502,6 +502,19 @@ impl fix(
             skipped.append(f"{path} ({res.note})");
             continue;
         }
+        base_name = os.path.basename(path);
+        if not base_name.endswith(('.impl.jac', '.test.jac')) {
+            directive = '';
+            if base_name.endswith('.cl.jac') {
+                directive = 'client';
+            } elif base_name.endswith('.na.jac') {
+                directive = 'native';
+            }
+            if directive and 'variant ' + directive + ';' not in res.text[:4096] {
+                res.text = f"variant {directive};\n\n" + res.text;
+                res.changed = True;
+            }
+        }
         final_path = path;
         if path.endswith('.sv.jac') {
             candidate = path[:-len('.sv.jac')] + '.jac';

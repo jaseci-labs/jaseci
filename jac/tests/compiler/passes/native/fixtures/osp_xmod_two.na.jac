@@ -3,6 +3,8 @@
 -> total 7; Gadget (from libb) is constructed -> power 9. Globally stable hash
 tags make every module agree on each archetype's tag without coordination."""
 
+
+variant native;
 import from osp_xmod_liba { Room, Door, Scan }
 import from osp_xmod_libb { Gadget }
 

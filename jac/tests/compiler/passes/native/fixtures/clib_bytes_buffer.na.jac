@@ -10,6 +10,8 @@ explicit length parameter. This is the FFI floor under the bundled na_stdlib
 zlib/zipfile tier.
 """
 
+
+variant native;
 import from z {
     def crc32_z(crc: u64, buf: bytes, len: u64) -> u64;
 }

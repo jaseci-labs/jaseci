@@ -5,6 +5,8 @@ open, and managed values crossing an open safely.
 `drop_log` encodes hook firing order in base 10: log = log * 10 + id.
 """
 
+
+variant native;
 glob drop_log: int = 0;
 
 obj Res {

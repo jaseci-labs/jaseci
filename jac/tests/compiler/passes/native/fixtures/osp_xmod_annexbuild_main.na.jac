@@ -4,6 +4,8 @@
 built, walker sums area tags 1+2). Before the fix the builder module failed to
 compile (E5090 on the annexed `++>`) / mis-codegen."""
 
+
+variant native;
 import from osp_xmod_annexbuild_lib { Hub, Area, Pass }
 import from osp_xmod_annexbuild_builder { build }
 

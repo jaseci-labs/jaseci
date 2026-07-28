@@ -4,6 +4,8 @@ declared `$ORIGIN`-relative C shared library. Before the fix the JIT never
 loaded that library, so the FFI call jumped to NULL and the process SIGSEGV'd;
 the byte-identical program built with `jac nacompile` ran fine. Prints `21`."""
 
+
+variant native;
 import from clib_jit_xmod_lib { compute }
 
 with entry {

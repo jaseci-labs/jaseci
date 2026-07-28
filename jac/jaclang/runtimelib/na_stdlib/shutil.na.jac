@@ -1,3 +1,5 @@
+variant native;
+
 import os;
 import from c { def access(path: str, mode: i32) -> i32;  }
 import from c { def unlink(path: str) -> i32;  }

@@ -6,6 +6,8 @@ emitted `new handler(payload)` for any callee whose type was a
 `ClassType`, which broke async callbacks typed as `Any`.
 """
 
+
+variant client;
 async def invoke_any_async(handler: any, payload: dict) {
     await handler(payload);
 }

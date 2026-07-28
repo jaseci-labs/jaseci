@@ -11,6 +11,8 @@ of those releases.
 Timing and RSS are measured externally by the gc test via /usr/bin/time.
 """
 
+
+variant native;
 def gen(n: int) -> list[int] {
     out: list[int] = [];
     i = 0;

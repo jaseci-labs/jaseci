@@ -7,6 +7,8 @@ detect the LLVM-level collision before calling link_in() and emit E5026
 instead of silently producing a binary that crashes with SIGSEGV at runtime.
 """
 
+
+variant native;
 """Unique entry point for lib_b."""
 def:pub fn_b() -> int {
     return 2;

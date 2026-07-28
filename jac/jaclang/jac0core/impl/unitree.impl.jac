@@ -1063,6 +1063,11 @@ impl ModuleCode.postinit -> None {
 }
 
 
+impl VariantDecl.postinit -> None {
+    UniNode.postinit(self);
+}
+
+
 impl PyInlineCode.postinit -> None {
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);

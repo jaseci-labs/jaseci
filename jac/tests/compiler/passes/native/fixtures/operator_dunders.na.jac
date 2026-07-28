@@ -6,6 +6,8 @@ left operand's magic method first, then the right operand's reflected
 form. Inherited dunders resolve through the parent chain.
 """
 
+
+variant native;
 obj Tag {
     has t: int = 1;
 }

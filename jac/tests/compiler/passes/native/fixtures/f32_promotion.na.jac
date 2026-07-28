@@ -1,6 +1,8 @@
 """Regression fixtures (#7593 item 1): f32 operands promote to double in
 arithmetic/comparisons; results narrow back at typed sinks."""
 
+
+variant native;
 def mixed_add(a: f32, b: f64) -> f64 {
     return a + b;
 }

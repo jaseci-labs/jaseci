@@ -5,6 +5,8 @@ acyclic obj), which historically bypassed the `none` gate that
 `_emit_rc_retain` / `_emit_rc_release_simple` already had.
 """
 
+
+variant native;
 obj Point {
     has x: float = 1.0,
         y: float = 2.0;

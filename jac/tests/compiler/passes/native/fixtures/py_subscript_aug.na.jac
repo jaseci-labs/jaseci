@@ -8,6 +8,8 @@ RHS-store fallback on the field path, and float floor-div through any aug
 path skipped the floor() of the plain `//` operator.
 """
 
+
+variant native;
 glob _EVALS: int = 0;
 
 obj Holder {

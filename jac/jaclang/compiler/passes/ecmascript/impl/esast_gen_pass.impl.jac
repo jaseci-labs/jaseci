@@ -128,6 +128,10 @@ impl EsastGenPass.exit_test(nd: uni.Test) -> None {
     );
 }
 
+impl EsastGenPass.exit_variant_decl(nd: uni.VariantDecl) -> None {
+    nd.gen.es_ast = None;
+}
+
 impl EsastGenPass.exit_module_code(nd: uni.ModuleCode) -> None {
     nd.gen.es_ast = self._collect_body_stmts(nd.body);
 }

@@ -1,5 +1,7 @@
 """Test fixture for tuple and struct marshalling."""
 
+
+variant native;
 obj Point {
     has x: int,
         y: int;

@@ -1,5 +1,7 @@
 """Card components for stats and content."""
 
+
+variant client;
 def:pub Card(children: any, className: str = "") -> JsxElement {
     return
         <div

@@ -5,6 +5,8 @@ arrives at link time; the back-edge import must resolve against the entry
 module's own definition instead of recompiling the entry as a dependency.
 """
 
+
+variant native;
 import from cycle_ping { ping }
 
 def:pub pong(n: int) -> int {

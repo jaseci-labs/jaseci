@@ -3,6 +3,7 @@ name = "native-fixtures"
 
 # Markerless equivalents of the former per-element na markers (#7772).
 [placement.pins]
+"_finding2_guard" = "server"
 "mixed_contexts.native_add" = "native"
 "mixed_contexts.server_hello" = "server"
 "na_py_interop.native_add_one_to_doubled" = "native"

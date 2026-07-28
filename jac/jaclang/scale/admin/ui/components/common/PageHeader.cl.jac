@@ -7,6 +7,8 @@ strip the ops pages show when the cluster view is degraded; only the
 label/remediation wording differs per page.
 """
 
+
+variant client;
 import from "lucide-react" { RefreshCw, AlertTriangle }
 
 def:pub PageHeader(

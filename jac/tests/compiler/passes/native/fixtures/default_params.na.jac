@@ -5,6 +5,8 @@ parameters previously crashed the compiler with `list index out of range`
 in builder.call.  These functions verify correct codegen.
 """
 
+
+variant native;
 obj Adder {
     has base: int;
 

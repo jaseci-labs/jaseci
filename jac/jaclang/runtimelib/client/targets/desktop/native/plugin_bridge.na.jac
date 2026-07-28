@@ -7,6 +7,8 @@ BRIDGE END markers. This file is the single authoritative copy.
 
 The free function pattern (not a bound method) is confirmed by test_binding.jac.
 """
+
+variant native;
 import from webview { Webview, respond }
 
 import from "<libpy>" {

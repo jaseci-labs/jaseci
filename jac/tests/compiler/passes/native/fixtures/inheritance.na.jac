@@ -1,3 +1,5 @@
+variant native;
+
 obj Animal {
     has legs: int = 4;
 

@@ -1,3 +1,5 @@
+variant native;
+
 # ===================== Dictionary Tests =====================
 
 def dict_new_empty() -> int {

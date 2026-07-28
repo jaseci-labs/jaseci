@@ -1,3 +1,5 @@
+variant native;
+
 import from cef { new_cef_browser, cef_cleanup }
 
 glob browser = new_cef_browser("about:blank", "cef-smoke", 640, 480);

@@ -6,6 +6,8 @@ module global. (Capture of enclosing-function locals is intentionally
 not supported yet and is rejected at compile time.)
 """
 
+
+variant native;
 glob BASE: int = 100;
 
 def use_helper(n: int) -> int {

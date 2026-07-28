@@ -1,3 +1,5 @@
+variant native;
+
 # List methods on object-field / complex targets (not just simple locals).
 # Regression for `self.field.pop()` being a no-op natively (only append was
 # dispatched on complex targets) — the bug that left the lexer's mode_stack

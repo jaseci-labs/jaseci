@@ -1,5 +1,7 @@
 """Must-fail under --enforce-nogc: any-typed parameter could be heap (E1404)."""
 
+
+variant native;
 def show(v: any) {
     print(v);
 }

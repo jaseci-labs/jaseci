@@ -1,3 +1,5 @@
+variant native;
+
 import from z {
     def compress2(dst: bytes, dlen: bytes, src: bytes, slen: u64, lvl: i32) -> i32;
 }

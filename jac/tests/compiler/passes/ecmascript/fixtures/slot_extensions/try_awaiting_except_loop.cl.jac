@@ -7,6 +7,8 @@ that builds the error-boundary fallback must NOT re-run `_check_body`,
 or the keyless-for W2021 would be emitted twice for the same span.
 """
 
+
+variant client;
 obj User {
     has name: str;
 }

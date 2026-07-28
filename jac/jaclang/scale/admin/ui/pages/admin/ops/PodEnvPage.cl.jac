@@ -8,6 +8,8 @@ display secret material. A pod selector switches between this pod and the
 listed pods.
 """
 
+
+variant client;
 import from "lucide-react" { KeyRound, Lock }
 
 import from react { useEffect }

@@ -5,6 +5,8 @@ once. Before the fix na lowered only the first link, so `2 < 3 < 1` was
 silently True.
 """
 
+
+variant native;
 glob _BUMPS: int = 0;
 
 def bump(v: int) -> int {

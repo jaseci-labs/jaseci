@@ -5,6 +5,8 @@ library stem; a leading `.` (here, level 0 with a sub-dir) pins the lookup to th
 binary's directory via the loader token ($ORIGIN / @loader_path).
 """
 
+
+variant native;
 import from libs.raylib {
     def CloseWindow -> None;
 }

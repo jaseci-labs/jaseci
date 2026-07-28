@@ -12,6 +12,8 @@ Linux x86_64 host; the Mach-O binary is checked structurally since it cannot run
 on Linux.
 """
 
+
+variant native;
 def add2(a: int, b: int) -> int {
     return a + b;
 }

@@ -1,4 +1,6 @@
 """Must stay clean: list of string literals (static, not owned heap)."""
+
+variant native;
 def run -> int {
     xs = ["alpha", "beta"];
     xs.append("gamma");

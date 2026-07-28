@@ -1,3 +1,5 @@
+variant client;
+
 def:pub navigate(path: str) -> None;
 
 def:pub __createJacSchema(zodLib: any) -> any;

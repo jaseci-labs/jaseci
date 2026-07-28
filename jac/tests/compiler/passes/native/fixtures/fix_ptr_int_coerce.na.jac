@@ -10,6 +10,8 @@ Also declares 'calloc' with return type 'int' and assigns the result to a
 'str' local to test the IntType→PointerType (inttoptr) coercion direction.
 """
 
+
+variant native;
 import from "/usr/lib/x86_64-linux-gnu/libc.so.6" {
     def strlen(s: int) -> int;      # int param forces ptrtoint(str → i64)
     def calloc(n: int, sz: int) -> int;  # int return forces inttoptr when stored as str

@@ -1,3 +1,5 @@
+variant native;
+
 # Test 1: Basic two-parent inheritance
 obj Flyable {
     has altitude: int = 0;

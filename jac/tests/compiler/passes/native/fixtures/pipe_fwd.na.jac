@@ -4,6 +4,8 @@
 arguments: `(a, b) |> f` -> `f(a, b)`.
 """
 
+
+variant native;
 def inc(x: int) -> int {
     return x + 1;
 }

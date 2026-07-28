@@ -9,6 +9,8 @@ so _resolve_ptr_elem_cast_type had no AST node for the list element type
 and emitted an unconditional i8* null, producing 0 or garbage at runtime.
 """
 
+
+variant native;
 obj:pub Outer {
     has value: int;
     has extra: int;

@@ -1,3 +1,5 @@
+variant native;
+
 import from bz2 {
     def BZ2_bzBuffToBuffCompress(
         dst: bytes,

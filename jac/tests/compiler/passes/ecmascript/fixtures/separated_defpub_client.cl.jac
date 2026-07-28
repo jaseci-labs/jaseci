@@ -6,6 +6,8 @@ The sv import triggers stub generation so the browser can call server
 functions over HTTP.
 """
 
+
+variant client;
 import from "@jac/runtime" { jacIsLoggedIn }
 
 # Server function imports - tells compiler these are def:pub endpoints

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import enum
 import os
+import re
 from dataclasses import dataclass, field
 from types import ModuleType
 
@@ -2523,6 +2524,10 @@ def compile_jac(
     impl_sources: list[tuple[str, str]] | None = None,
 ) -> str:
     """Compile Jac source to Python source."""
+    # The `variant <space>;` module directive (#7772) is metadata for the
+    # full compiler's variant resolution; the jac0 bootstrap target is
+    # always Python, so strip it before lexing.
+    source = re.sub(r"(?m)^\s*variant\s+(client|native)\s*;\s*$", "", source)
     lexer = Lexer(source, filename)
     parser = Parser(lexer.tokens, source, filename)
     module = parser.parse()

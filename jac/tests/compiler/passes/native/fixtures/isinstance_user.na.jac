@@ -9,6 +9,8 @@ Exercises native lowering of `isinstance(x, UserClass)`:
 All driver functions return `int` so they are callable via ctypes.
 """
 
+
+variant native;
 obj Shape {
     has sides: int = 0;
 

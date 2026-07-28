@@ -9,6 +9,8 @@ We also import 'memcpy', 'calloc', and 'free' — all pre-declared by
 _emit_rc_helpers — to exercise the full dedup path.
 """
 
+
+variant native;
 import from "/usr/lib/x86_64-linux-gnu/libc.so.6" {
     def strlen(s: str) -> int;
     def memcpy(dst: str, src: str, n: int) -> str;

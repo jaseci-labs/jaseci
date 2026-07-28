@@ -4,6 +4,8 @@ The `sv import` + `await <fn>()` is the cross-boundary signal Path B keys on.
 `CrossView` is imported as a boundary type; `cross_orphan` is intentionally not
 referenced here.
 """
+
+variant client;
 import from .crossbound_server { cross_pub, cross_priv, CrossView }
 
 def:pub Panel() -> JsxElement {

@@ -14,6 +14,8 @@ broken or never triggered, the GC-enabled run would leak every pair just like
 `JAC_NO_GC=1` and the delta would collapse.
 """
 
+
+variant native;
 obj Node {
     has next: Node | None = None;
 }

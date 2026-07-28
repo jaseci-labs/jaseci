@@ -7,6 +7,8 @@ first (now-returned) IIFE and throws `ReferenceError: __jac_view_kids is
 not defined` under ES-module strict mode.
 """
 
+
+variant client;
 def:pub app() -> JsxElement {
     a = True;
     b = True;

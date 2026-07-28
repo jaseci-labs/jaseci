@@ -6,6 +6,8 @@ This fixture tests the following patterns from the proposal:
 3. Named import with alias: import { foo as bar } from 'lib'
 """
 
+
+variant client;
 # Single named import
 import from react { useState }
 

@@ -7,6 +7,8 @@ the loop is in-for (not counted), and no child carries an explicit
 asking the author to annotate one child with `key=`.
 """
 
+
+variant client;
 def:pub Boxes(items: list[str]) -> JsxElement {
     return
         <section class="boxes">

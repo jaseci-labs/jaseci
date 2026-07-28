@@ -6,6 +6,8 @@ Exercises the import surface the PeLinker must wire up: a string print
 MSVC `_fltused` marker the entry injection must define locally).
 """
 
+
+variant native;
 def total(xs: list[int]) -> int {
     s = 0;
     for v in xs {

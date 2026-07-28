@@ -1,3 +1,5 @@
+variant native;
+
 # Native fixture: lazy iterator adapters (map / filter / enumerate / zip)
 # driven through the iterator protocol in for-loops. Returns ints so tests
 # can assert via ctypes.

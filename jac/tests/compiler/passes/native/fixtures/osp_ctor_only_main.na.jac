@@ -14,6 +14,8 @@ module always ran clean (that module uses OSP, so the tag was assigned).
 
 Expected: prints `7`."""
 
+
+variant native;
 import from osp_ctor_only_lib { Hub, run_probe }
 
 with entry {

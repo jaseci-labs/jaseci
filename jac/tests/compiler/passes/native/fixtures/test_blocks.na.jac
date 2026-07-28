@@ -1,5 +1,7 @@
 """Fixture: test blocks in a pure .na.jac module (one passing, one failing)."""
 
+
+variant native;
 def add(a: int, b: int) -> int {
     return a + b;
 }

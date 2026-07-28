@@ -4,6 +4,8 @@ Tests allocation, lifecycle, reassignment, container growth,
 and ownership transfer to verify the RC memory management.
 """
 
+
+variant native;
 # Test 1: Basic allocation and scope exit
 def test_alloc_basic() -> int {
     x: int = 42;

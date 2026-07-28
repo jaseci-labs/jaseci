@@ -1,6 +1,8 @@
 """Enforced half of the mixed-binary fixture: zero-RC module calling a
 managed module across the membrane with scalars only."""
 
+
+variant native;
 import from mixed_lib { crunch }
 
 obj Acc {

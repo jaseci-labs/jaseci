@@ -6,6 +6,8 @@ construction site writes the globally-stable tag unconditionally.
 
 Expected: `run_probe(Hub(tag=7))` -> 7."""
 
+
+variant native;
 node Hub {
     has tag: int = 0;
 }

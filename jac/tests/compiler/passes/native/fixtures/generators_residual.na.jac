@@ -18,6 +18,8 @@ abandonment. Yielding loop bodies over lists/dicts/strings keep the
 collection and its length in frame slots so the loop can resume mid-flight.
 """
 
+
+variant native;
 def counter(n: int) -> Iterator[int] {
     i = 0;
     while i < n {

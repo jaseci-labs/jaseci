@@ -1,3 +1,5 @@
+variant native;
+
 import os;
 
 def run_twice(cmd: own str) -> int {

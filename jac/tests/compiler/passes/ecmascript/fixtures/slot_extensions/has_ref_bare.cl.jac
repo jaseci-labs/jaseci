@@ -4,6 +4,8 @@
 hold; it is rejected by E2025 directing the author to `= Ref()`.
 """
 
+
+variant client;
 def:pub Bad() -> JsxElement {
     has r: Ref[HTMLInputElement];
     return <input ref={r} />;

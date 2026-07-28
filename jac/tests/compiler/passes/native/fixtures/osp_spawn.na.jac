@@ -1,6 +1,8 @@
 """Native OSP fixture: walker spawns on nodes, a typed entry ability reads
 `here` and mutates walker `self` state, and `spawn` returns the walker."""
 
+
+variant native;
 node Item {
     has val: int;
 }

@@ -5,6 +5,8 @@ first `__osp_ensure_init` is what used to re-run the shared kernel glob-init and
 wipe the adjacency. Prints `before after seen`; the bug printed `2 0 0`, the
 fix prints `2 2 3` (graph survives, walker sums area tags 1+2)."""
 
+
+variant native;
 import from osp_xmod_buildsplit_lib { Hub, Area, Pass, build }
 
 with entry {

@@ -6,6 +6,8 @@ walked every index, find searched from 0, and pow returned the full
 power instead of the modular result.
 """
 
+
+variant native;
 def:pub range_step_sum -> int {
     acc = 0;
     for i in range(0, 10, 3) {

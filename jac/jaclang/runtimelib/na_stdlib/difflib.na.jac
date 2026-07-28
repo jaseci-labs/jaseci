@@ -1,3 +1,5 @@
+variant native;
+
 def _zeros(n: int) -> list[int] {
     out: list[int] = [];
     i: int = 0;

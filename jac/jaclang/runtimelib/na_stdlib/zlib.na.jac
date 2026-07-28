@@ -1,3 +1,5 @@
+variant native;
+
 import from _zlib_native {
     z_compress2,
     z_uncompress,

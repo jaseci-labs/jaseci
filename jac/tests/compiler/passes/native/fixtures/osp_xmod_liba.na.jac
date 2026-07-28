@@ -3,6 +3,8 @@ ability navigates edges. Imported alongside osp_xmod_libb by osp_xmod_two to
 exercise cross-module OSP spanning TWO independent libraries -- a configuration
 globally-stable hash tags handle but position-based numbering could not."""
 
+
+variant native;
 node Room { has tag: int = 0; }
 edge Door { has w: int = 0; }
 

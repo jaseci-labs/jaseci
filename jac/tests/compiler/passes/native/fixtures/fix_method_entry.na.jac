@@ -5,6 +5,8 @@ fix, method_funcs for imported archetypes was never populated, so all
 method calls were silently dropped and results were undefined.
 """
 
+
+variant native;
 import from fix_method_lib { Counter, make_counter, make_counter_at }
 
 """Increment once; expect 1."""

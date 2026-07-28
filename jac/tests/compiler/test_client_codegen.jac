@@ -13,6 +13,22 @@ glob FIXTURE_DIR = os.path.join(
      ),
      _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_codegen_");
 
+def _with_client_directive(code: str) -> str {
+    if "variant client;" in code {
+        return code;
+    }
+    stripped = code.lstrip();
+    if stripped.startswith('\"\"\"') {
+        end = stripped.find('\"\"\"', 3);
+        if end != -1 {
+            head_len = len(code) - len(stripped) + end + 3;
+            return code[:head_len] + "\n\nvariant client;\n" + code[head_len:];
+        }
+    }
+    return "variant client;\n\n" + code;
+}
+
+
 """Write inline Jac code to a temp file and compile it, return the module."""
 def compile_inline(
     code: str, prog: JacProgram | None = None, client: bool = False
@@ -23,6 +39,9 @@ def compile_inline(
         delete=False,
         dir=_test_tmp_dir
     ) as f {
+        if client {
+            code = _with_client_directive(code);
+        }
         f.write(code);
         f.flush();
         if prog is None {

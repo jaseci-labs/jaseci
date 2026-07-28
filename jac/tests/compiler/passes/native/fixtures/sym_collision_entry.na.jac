@@ -7,6 +7,8 @@ detect that `collision_fn` is already defined (from lib_a) and emit E5026
 rather than calling link_in() and producing a silent SIGSEGV binary.
 """
 
+
+variant native;
 import from sym_collision_lib_a { fn_a, collision_fn }
 import from sym_collision_lib_b { fn_b }
 

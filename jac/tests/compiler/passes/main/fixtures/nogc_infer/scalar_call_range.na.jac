@@ -3,6 +3,8 @@ under --enforce-nogc (issue #7466 bug 5): scalars are copied by value, so
 passing `iters` to range() in a for-header (whose CFG node sits on the loop
 back edge) must not report use-after-move."""
 
+
+variant native;
 def pow2(n: int) -> int {
     r = 1;
     for i in range(n) {

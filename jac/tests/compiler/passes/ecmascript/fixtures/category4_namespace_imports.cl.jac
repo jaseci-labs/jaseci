@@ -11,6 +11,8 @@ Based on the table in jac_import_patterns_proposal.md:
 | import * as utils from './utils'   | cl import from .utils { * as utils }  |
 """
 
+
+variant client;
 # Namespace import examples
 import from react { * as React }
 import from lodash { * as _ }

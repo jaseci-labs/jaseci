@@ -5,7 +5,7 @@ description: Structuring a multi-component client app - the stateful-shell archi
 
 **First-choice architecture for small/medium apps: the stateful shell.** One page-level component owns ALL of that page's reactive `has` fields and async handlers, and prop-drills data + `Callable` callbacks into stateless section components. Handler bodies live in the paired `.impl.jac` annex (see `jac-impl-files`). Real Jac apps with a dozen sections run entirely on this - zero hooks, zero contexts. Escalate only when it stops fitting: a **hook** when the same fetch+state unit must be reused by several components, a **context** when distant components must see the same live values.
 
-Components need no marker: a `def:pub` returning JSX in a plain `.jac` file is placed client by inference, and the helpers/`glob`s it references follow it into the bundle (see `jac-codespaces`). The `cl`/`sv`/`na` markers remain available as optional overrides - good for making a boundary visible in a large tree - not a requirement.
+Components need no annotation: a `def:pub` returning JSX in a plain `.jac` file is placed client by inference, and the helpers/`glob`s it references follow it into the bundle (see `jac-codespaces`). When inference must be overridden, pin the element in `jac.toml` via `[placement.pins]` - placement never appears in the source.
 
 ## The stateful shell
 
@@ -101,7 +101,7 @@ utils_path = "shared/utils.cl.jac" # where cn() lives
 
 ### Import forms - two rules, neither stylistic
 
-- **Within a feature, use the sibling form.** A client shell reaches its own server module with `sv import from .store { Recipe, list_recipes }`. The entire cross-codespace call is one dot, because both halves live together. This is the layout's main payoff.
+- **Within a feature, use the sibling form.** A client shell reaches its own server module with `import from .store { Recipe, list_recipes }` - a plain import; the compiler sees the target is server-placed and generates the RPC stub (`jac-codespaces`). The entire cross-codespace call is one dot, because both halves live together. This is the layout's main payoff.
 - **Across packages, server modules use the no-dot absolute form:** `import from shared.github { fetch }`, never `..shared.github`. A `..` that climbs out of a feature folder resolves under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`, because the test runner roots the package at the target file's own directory. Client modules keep the dotted form (`..shared.utils`) - that is what the bundler resolves.
 
 ⚠ **A file move is a schema migration.** Archetype identity includes the module path, so moving a module that declares `node`/`edge` types orphans every persisted instance: the nodes stay in the store under the old path and graph queries in the moved module quietly match nothing. No error, no warning. Reorganize before a graph has data in it, or plan a re-ingest.
@@ -135,7 +135,7 @@ def:pub useItems() -> dict {
 }
 ```
 
-In a real hook, replace the local `Item` declaration with `sv import from ..todos.store { Item, get_items, add_item }` (2 dots = up one folder from `hooks/`, then into the feature) and call those in `async can with entry` / handlers. Consume as `data = useItems(); items = data["items"] or [];` - `[key]` access, not `.get()`. See `jac-fullstack-patterns`.
+In a real hook, replace the local `Item` declaration with `import from ..todos.store { Item, get_items, add_item }` (2 dots = up one folder from `hooks/`, then into the feature) and call those in `async can with entry` / handlers. Consume as `data = useItems(); items = data["items"] or [];` - `[key]` access, not `.get()`. See `jac-fullstack-patterns`.
 
 ## Global state: createContext / useContext
 
@@ -191,5 +191,5 @@ When the project has a `ui/` folder (jac-shadcn primitives are pre-installed - `
 
 - `jac-impl-files` - the `.impl.jac` handler annex the shell pattern relies on
 - `jac-cl-components` - single-component shape, props/`Callable` typing, state, events
-- `jac-fullstack-patterns` - cl→sv import rules inside shells and hooks
+- `jac-fullstack-patterns` - client-to-server import rules inside shells and hooks
 - `jac-shadcn-blocks` - composition patterns for auth cards, app shells, data tables, and more

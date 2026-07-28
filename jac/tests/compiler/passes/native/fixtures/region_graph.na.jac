@@ -2,6 +2,8 @@
 open live in the arena; a walker traverses them while the handle is live,
 and the handle's drop reclaims the whole subgraph (node drop hooks fire)."""
 
+
+variant native;
 glob drop_log: int = 0;
 
 node Spot {

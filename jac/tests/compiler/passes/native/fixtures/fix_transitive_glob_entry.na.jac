@@ -8,6 +8,8 @@ glob list is properly initialised before any call through mid.
 Expected: mid_len() returns 0 initially; after mid_push(42) returns 1.
 """
 
+
+variant native;
 import from fix_transitive_glob_mid { mid_len, mid_push }
 
 def:pub run_transitive_glob_len() -> int {

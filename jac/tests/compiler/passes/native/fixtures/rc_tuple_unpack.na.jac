@@ -10,6 +10,8 @@ Heap strings are built with str(i) concats so the refcounts are real (the
 bug is invisible on static literals, whose release is a no-op).
 """
 
+
+variant native;
 def make_pairs -> list[tuple[str, str]] {
     out: list[tuple[str, str]] = [];
     for i in range(3) {

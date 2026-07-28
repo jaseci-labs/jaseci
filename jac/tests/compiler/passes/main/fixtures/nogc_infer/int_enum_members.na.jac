@@ -1,3 +1,5 @@
+variant native;
+
 enum Kind: int { END = 0, FILE = 1 }
 
 def pick(flag: bool) -> int {

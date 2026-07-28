@@ -2,6 +2,8 @@
 be auto-own-stamped under --enforce-nogc, so a real use-after-move on it is
 still reported."""
 
+
+variant native;
 obj Box {
     has n: int = 0;
 }

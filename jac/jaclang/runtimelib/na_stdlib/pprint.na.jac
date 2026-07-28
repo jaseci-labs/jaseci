@@ -1,3 +1,5 @@
+variant native;
+
 def _hex2(c: int) -> str {
     digits: str = "0123456789abcdef";
     return digits[c // 16] + digits[c % 16];

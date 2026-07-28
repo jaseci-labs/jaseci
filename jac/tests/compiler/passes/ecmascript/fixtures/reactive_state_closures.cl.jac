@@ -6,6 +6,8 @@ an immediately-invoked nested lambda. Regression guard: these must all become
 `setX(...)`, not bare `x = ...`.
 """
 
+
+variant client;
 def:pub closures_app() -> JsxElement {
     has seen: bool = False;
     has armed: bool = False;

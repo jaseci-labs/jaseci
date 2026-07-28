@@ -9,6 +9,8 @@ the `any` seam yielded 0/garbage. This is exactly the portable OSP kernel's work
 stack shape (`stack.append((child, 0))` with `child` a raw handle).
 """
 
+
+variant native;
 def unwrap_i(x: any) -> int { return x as int; }
 
 def unwrap_f(x: any) -> float { return x as float; }

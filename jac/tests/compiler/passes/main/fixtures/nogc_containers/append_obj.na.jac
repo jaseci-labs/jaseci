@@ -1,4 +1,6 @@
 """Must fence (E1406): appending an owned heap object into a list."""
+
+variant native;
 obj Box {
     has tag: int = 0;
 }

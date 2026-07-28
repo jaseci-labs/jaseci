@@ -1,5 +1,7 @@
 """Native library whose public names are re-exported through an include chain."""
 
+
+variant native;
 obj StarPoint {
     has x: int;
     has y: int;

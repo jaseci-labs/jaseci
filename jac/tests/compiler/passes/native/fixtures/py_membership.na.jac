@@ -5,6 +5,8 @@ pointer identity. Heap strings (concats) are used so equal values never
 share a pointer; before the fix these tests were always False.
 """
 
+
+variant native;
 def:pub str_list_membership -> int {
     labels = ["alpha", "be" + "ta", "gamma"];
     needle = "bet" + "a";

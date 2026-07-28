@@ -1,3 +1,5 @@
+variant native;
+
 import from socket { socket as Socket }
 import from _ssl_native {
     ctx_new_verifying,

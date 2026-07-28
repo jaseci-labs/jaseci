@@ -13,6 +13,8 @@ As a `.cl.jac` the whole module is client codespace, so the bare `def:pub` runs
 client-side (mirrors `solid_counter_app.cl.jac`).
 """
 
+
+variant client;
 def:pub app() -> JsxElement {
     has show: bool = True;
     labels = ["alpha", "beta", "gamma"];

@@ -1,6 +1,8 @@
 """Owned-container matrix under headerless codegen: list/dict/set of scalars
 x create/append/index/iterate/overwrite/drop."""
 
+
+variant native;
 def run_lists -> int {
     xs = [1, 2, 3];
     xs.append(4);

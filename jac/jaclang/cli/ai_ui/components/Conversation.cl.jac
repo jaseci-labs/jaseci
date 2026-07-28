@@ -7,6 +7,8 @@ event per phase), with a live cursor on the in-progress reply. The composer
 sends on Enter (Shift+Enter for a newline); while a turn runs it offers Stop.
 """
 
+
+variant client;
 import from .ui.Button { Button }
 import from .ui.Badge { Badge }
 import from ..server { UiEvent }

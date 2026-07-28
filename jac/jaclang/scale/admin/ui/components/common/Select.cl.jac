@@ -1,5 +1,7 @@
 """Reusable select dropdown component."""
 
+
+variant client;
 def:pub Select(
     value: str, onChange: any, options: list, label: str = "", className: str = ""
 ) -> JsxElement {

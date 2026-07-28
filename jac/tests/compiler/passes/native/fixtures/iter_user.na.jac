@@ -1,3 +1,5 @@
+variant native;
+
 # Native fixture: user-defined iterator protocol (#6403 M2).
 #
 # A user `obj` that implements `__iter__`/`__next__` is bridged into the same

@@ -1,3 +1,5 @@
+variant native;
+
 # Test cross-module enum import: imports from na_enum_export.na.jac
 
 import from na_enum_export { TokenKind, Token, KEYWORDS, lookup_keyword, make_token, token_kind_value }

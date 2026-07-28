@@ -7,6 +7,8 @@ type IDs, so the `longjmp` here could not reach the importer's handler — the
 process SIGABRTed instead of unwinding.
 """
 
+
+variant native;
 def:pub do_raise(x: int) -> int {
     if x < 0 {
         raise OSError("neg");

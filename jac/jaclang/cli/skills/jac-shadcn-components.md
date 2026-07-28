@@ -60,7 +60,7 @@ import from "@hugeicons/core-free-icons" { Search01Icon, Add01Icon, Cancel01Icon
 
 **A `pages/` file is not inside `components/`.** From within `components/`, `ui/` is a subfolder, so the prefix is `.ui.X`. From a sibling directory like `pages/`, you go up to the project root and back down into `components/`, so the prefix is `..components.ui.X` - and one MORE dot for each `pages/` subfolder (a route group like `(auth)/` counts as a folder). Undercounting (e.g. `.components.ui.card` from `pages/login.jac`) silently fails the client bundle with `Could not resolve`, not `jac check`.
 
-Client placement is inferred - a module with an npm import or JSX compiles client, so a plain `import` needs no `cl` marker, whether in a component file or a top-level entry file like `main.jac`.
+Client placement is inferred - a module with an npm import or JSX compiles client, so a plain `import` needs no annotation, whether in a component file or a top-level entry file like `main.jac`.
 
 Do **not** check a `components/ui/*.jac` primitive with `jac check` directly - they use a `...lib.utils` relative import that only resolves as part of the build. Validate your work by checking your composite or the entry file instead.
 
@@ -361,11 +361,11 @@ import from "@hugeicons/react" { HugeiconsIcon }
 import from "@hugeicons/core-free-icons" { Add01Icon }
 
 def:pub EventListPage() -> JsxElement {
-    has events: list[dict] = [];   # type the element (use the sv import-ed view type); a bare `list` loses element typing -> E1032 on field access
+    has events: list[dict] = [];   # type the element (use the imported server view type); a bare `list` loses element typing -> E1032 on field access
     has loading: bool = True;
 
     async can with entry {
-        # sv import RPC call goes here
+        # server RPC call goes here
         loading = False;
     }
 

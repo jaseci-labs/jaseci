@@ -5,6 +5,8 @@ same way it does when the code is the entry module. Native-only (a .na.jac
 library is not @sv-importable); the @sv result
 {"present": "hit", "size": 5, "absent": "void"} is pinned in xmod_narrow_lib."""
 
+
+variant native;
 import from xmod_narrow_lib { use_it }
 
 def narrow_na() -> dict[str, any] {

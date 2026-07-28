@@ -116,6 +116,14 @@ impl NormalizePass.enter_module_code(nd: uni.ModuleCode) -> None {
     nd.set_kids(nodes=new_kid);
 }
 
+impl NormalizePass.enter_variant_decl(nd: uni.VariantDecl) -> None {
+    new_kid: list[uni.UniNode] = [];
+    new_kid.append(nd.gen_token(Tok.NAME, value="variant"));
+    new_kid.append(nd.gen_token(Tok.NAME, value=nd.space));
+    new_kid.append(nd.gen_token(Tok.SEMI));
+    nd.set_kids(nodes=new_kid);
+}
+
 impl NormalizePass.enter_py_inline_code(nd: uni.PyInlineCode) -> None {
     new_kid: list[uni.UniNode] = [];
     if nd.doc {

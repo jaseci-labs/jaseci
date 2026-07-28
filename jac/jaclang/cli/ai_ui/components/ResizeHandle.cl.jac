@@ -18,6 +18,8 @@ Listeners are attached to `window` on mousedown and removed on mouseup, so a dra
 keeps tracking even when the pointer moves faster than the 6px gutter.
 """
 
+
+variant client;
 def:pub ResizeHandle(vertical: bool, onResize: any) -> JsxElement {
     def onDown(e: any) {
         e.preventDefault();

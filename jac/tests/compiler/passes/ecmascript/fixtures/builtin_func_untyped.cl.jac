@@ -1,5 +1,7 @@
 """Builtin functions used inside an untyped client function."""
 
+
+variant client;
 def summarize(xs: list) -> dict {
     return {
         "sorted": sorted(xs),

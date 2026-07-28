@@ -14,6 +14,8 @@ gives up and emits the Python method name verbatim, producing JavaScript
 that crashes at runtime.
 """
 
+
+variant client;
 def:pub case1_in_chain() -> JsxElement {
     has found: bool = False;
     can with entry {

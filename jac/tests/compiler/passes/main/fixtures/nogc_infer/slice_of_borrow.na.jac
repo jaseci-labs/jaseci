@@ -1,3 +1,5 @@
+variant native;
+
 def head(src: &str, n: int) -> own str {
     piece = src[0:n];
     return piece;

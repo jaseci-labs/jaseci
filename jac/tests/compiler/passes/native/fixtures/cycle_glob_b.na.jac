@@ -4,6 +4,8 @@ Has its own runtime-initialized glob and imports a getter back from
 cycle_glob_a, completing the cycle.
 """
 
+
+variant native;
 import from cycle_glob_a { get_av }
 
 def:pub mk_bv() -> int {

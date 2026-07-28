@@ -9,6 +9,8 @@ lucide-react (declared in jac.toml [dependencies.npm]). Colors are
 semantic tokens from styles/main.css so the shell adapts to both themes.
 """
 
+
+variant client;
 import from "lucide-react" {
     Users,
     ShieldCheck,

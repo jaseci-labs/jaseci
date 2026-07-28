@@ -8,6 +8,8 @@ NaN is produced via Inf - Inf (since 0.0/0.0 causes SIGABRT in the current
 runtime and math.nan resolves to 0.0 due to a separate Jac issue).
 """
 
+
+variant native;
 def:pub nan_neq_self() -> int {
     # IEEE 754: NaN != NaN must be true (1)
     inf: f64 = 1e308 * 2.0;    # overflow to +Inf

@@ -13,6 +13,8 @@ This fixture is the first `--shared` consumer with a *global clib struct*
 it and calling `read_struct_field` is the end-to-end check.
 """
 
+
+variant native;
 import from "libc.so.6" {
     obj my_struct {
         has a: int = 0,

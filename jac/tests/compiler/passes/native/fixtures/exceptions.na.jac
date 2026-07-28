@@ -1,3 +1,5 @@
+variant native;
+
 # Exception handling tests for native LLVM IR codegen.
 
 # Test 1: Basic try/except — catch exception, return from handler

@@ -1,5 +1,7 @@
 """Entry module that includes a native library and calls an absorbed name."""
 
+
+variant native;
 include na_star_reexport_lib;
 
 def:pub inc_use(x: int) -> int {

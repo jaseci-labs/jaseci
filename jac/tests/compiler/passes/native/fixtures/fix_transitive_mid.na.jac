@@ -6,6 +6,8 @@ follow the transitive dependency to fix_transitive_leaf to satisfy
 get_leaf at link time.
 """
 
+
+variant native;
 import from fix_transitive_leaf { get_leaf }
 
 def:pub get_mid() -> int {

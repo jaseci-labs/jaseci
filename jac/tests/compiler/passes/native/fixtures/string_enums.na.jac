@@ -1,3 +1,5 @@
+variant native;
+
 # Test fixture for string-valued enum support
 
 enum Color {

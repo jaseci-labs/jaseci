@@ -7,6 +7,8 @@ JIT-link time.  Before the fix the .so was never re-loaded when the entry
 module was compiled, causing an unresolved-symbol segfault.
 """
 
+
+variant native;
 import from "/usr/lib/x86_64-linux-gnu/libm.so.6" {
     def sqrt(x: f64) -> f64;
 }

@@ -1,3 +1,5 @@
+variant native;
+
 import from "libcef.so" {
     def cef_execute_process(args: int, app: int, sandbox: int) -> i32;  def cef_initialize(
         args: int, settings: int, app: int, sandbox: int

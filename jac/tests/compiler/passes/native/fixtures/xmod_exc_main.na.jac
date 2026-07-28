@@ -9,6 +9,8 @@ Prints `XMOD_CAUGHT` from the handler and `DONE_OK` after the block, then exits
 cleanly. Pre-fix the process aborts before either marker is printed.
 """
 
+
+variant native;
 import from xmod_exc_raiser { do_raise }
 
 with entry {

@@ -5,6 +5,8 @@ when it widens to Jac's 64-bit int or boxes into `any`. Before the sext
 seam, the zero-extending coercion turned -1 into 4294967295.
 """
 
+
+variant native;
 import from c { def strcmp(a: str, b: str) -> i32;  }
 
 def neg_direct -> int {

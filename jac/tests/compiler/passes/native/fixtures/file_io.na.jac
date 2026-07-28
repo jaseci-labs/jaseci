@@ -1,3 +1,5 @@
+variant native;
+
 # File I/O tests for native LLVM IR codegen.
 
 # Test 1: open() returns a non-null File for writable files

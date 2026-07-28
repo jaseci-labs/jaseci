@@ -6,6 +6,8 @@ Native has no threading runtime, so concurrency runs sequentially:
 run for independent tasks; there is no actual parallelism.
 """
 
+
+variant native;
 def task(x: int) -> int {
     return x * 2;
 }

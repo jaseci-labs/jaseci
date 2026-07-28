@@ -5,6 +5,8 @@ without triggering one. `Ref(initial)` seeds `.current`; the seed is
 lifted into `useRef(initial)`.
 """
 
+
+variant client;
 def:pub Counter() -> JsxElement {
     has renderCount: Ref[int] = Ref(0);
 

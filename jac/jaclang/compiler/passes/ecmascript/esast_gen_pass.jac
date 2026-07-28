@@ -514,6 +514,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _in_type_slot(nd: uni.UniNode) -> bool;
     def _is_call_target(nd: uni.UniNode) -> bool;
     def exit_global_vars(nd: uni.GlobalVars) -> None;
+    def exit_variant_decl(nd: uni.VariantDecl) -> None;
     def exit_module_code(nd: uni.ModuleCode) -> None;
     def exit_test(nd: uni.Test) -> None;
     def exit_token(nd: uni.Token) -> None;

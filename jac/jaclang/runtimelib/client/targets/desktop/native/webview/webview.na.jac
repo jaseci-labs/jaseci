@@ -1,3 +1,5 @@
+variant native;
+
 import from webview {
     def webview_create(debug: i32, window: int) -> int;  def webview_destroy(
         w: int

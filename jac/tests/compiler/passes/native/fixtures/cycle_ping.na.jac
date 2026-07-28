@@ -5,6 +5,8 @@ Mutual recursion across the cycle: ping(n) counts n down to 0, so
 ping(n) == n for any non-negative n.
 """
 
+
+variant native;
 import from cycle_pong { pong }
 
 def:pub ping(n: int) -> int {

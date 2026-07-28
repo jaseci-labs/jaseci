@@ -1,3 +1,5 @@
+variant native;
+
 import sys;
 
 import from "libcef.so" {

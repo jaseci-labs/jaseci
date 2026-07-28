@@ -13,6 +13,8 @@ Contrast na_struct_import.na.jac, which writes `pt: Point = make_point(...)`:
 the explicit annotation stamps the local's type and sidesteps the gap.
 """
 
+
+variant native;
 import from na_struct_export { Point, make_point }
 
 def:pub compute(a: int) -> int {

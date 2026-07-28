@@ -1598,6 +1598,14 @@ glob NODE_SPECS: tuple = (
          ),
          NodeSpec(
              type_idx=140,
+             class_name="VariantDecl",
+             is_scope=False,
+             is_cfg=False,
+             is_name_atom=False,
+             fields=(FieldDesc(name="doc", kind=6), FieldDesc(name="space", kind=0))
+         ),
+         NodeSpec(
+             type_idx=141,
              class_name="VisitStmt",
              is_scope=False,
              is_cfg=True,
@@ -1609,7 +1617,7 @@ glob NODE_SPECS: tuple = (
              )
          ),
          NodeSpec(
-             type_idx=141,
+             type_idx=142,
              class_name="WalkerStmtOnlyNode",
              is_scope=False,
              is_cfg=False,
@@ -1617,7 +1625,7 @@ glob NODE_SPECS: tuple = (
              fields=()
          ),
          NodeSpec(
-             type_idx=142,
+             type_idx=143,
              class_name="WhileStmt",
              is_scope=True,
              is_cfg=True,
@@ -1629,7 +1637,7 @@ glob NODE_SPECS: tuple = (
              )
          ),
          NodeSpec(
-             type_idx=143,
+             type_idx=144,
              class_name="WithStmt",
              is_scope=True,
              is_cfg=True,
@@ -1641,7 +1649,7 @@ glob NODE_SPECS: tuple = (
              )
          ),
          NodeSpec(
-             type_idx=144,
+             type_idx=145,
              class_name="YieldExpr",
              is_scope=False,
              is_cfg=False,
@@ -1794,11 +1802,12 @@ glob NODE_SPECS: tuple = (
          "UnaryExpr": 137,
          "UniCFGNode": 138,
          "UniScopeNode": 139,
-         "VisitStmt": 140,
-         "WalkerStmtOnlyNode": 141,
-         "WhileStmt": 142,
-         "WithStmt": 143,
-         "YieldExpr": 144,
+         "VariantDecl": 140,
+         "VisitStmt": 141,
+         "WalkerStmtOnlyNode": 142,
+         "WhileStmt": 143,
+         "WithStmt": 144,
+         "YieldExpr": 145,
 
      },
      IDX_TO_SPEC: dict[int, NodeSpec] = {spec.type_idx: spec for spec in NODE_SPECS};

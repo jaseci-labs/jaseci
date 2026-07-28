@@ -7,6 +7,8 @@ allocator), strlen via len(), and console output through the jac_host1
 write(fd, ptr, len) contract.
 """
 
+
+variant native;
 def compute(n: int) -> int {
     s = "x";
     i = 0;

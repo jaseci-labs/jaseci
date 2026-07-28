@@ -6,6 +6,8 @@ adjacency singletons (`_e_src` = []) and wiping the graph this module had
 populated -- so the edge ref collapsed to empty after a single spawn. The
 kernel glob-init must run exactly ONCE program-wide. Expected: 2 2 3."""
 
+
+variant native;
 node Hub {}
 node Area { has tag: int = 0; }
 

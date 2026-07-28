@@ -1,5 +1,7 @@
 """Shared formatting helpers for the admin UI (bytes, CPU cores, age)."""
 
+
+variant client;
 # Human-readable bytes (GB / MB / KB / B), two-decimal precision.
 def:pub formatBytes(b: float) -> str {
     if b >= 1073741824 {

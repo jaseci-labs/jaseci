@@ -1,3 +1,5 @@
+variant native;
+
 import sys;
 import from cef {
     cef_execute_subprocess,

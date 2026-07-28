@@ -2,6 +2,8 @@
 `v = xs.pop()` copies an int out, and `len(xs)` in a loop header is not a
 move (shared exempt list with _call_move_gen)."""
 
+
+variant native;
 def drain -> int {
     xs: list[int] = [1, 2, 3];
     total = 0;

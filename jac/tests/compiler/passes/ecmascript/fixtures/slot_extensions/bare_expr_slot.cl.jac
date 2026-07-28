@@ -13,6 +13,8 @@ statement -- string, f-string, identifier, number -- becomes a child, in
 both the `if`/`else` and `for` slot bodies.
 """
 
+
+variant client;
 def:pub Repro(show: bool) -> JsxElement {
     return
         <div>

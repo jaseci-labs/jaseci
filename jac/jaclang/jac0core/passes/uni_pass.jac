@@ -379,6 +379,7 @@ obj UniPass(ModuleCodegenPass) {
     def enter_type_param(nd: uni.TypeParam) -> None;
     def enter_typed_ctx_block(nd: uni.TypedCtxBlock) -> None;
     def enter_unary_expr(nd: uni.UnaryExpr) -> None;
+    def enter_variant_decl(nd: uni.VariantDecl) -> None;
     def enter_visit_stmt(nd: uni.VisitStmt) -> None;
     def enter_while_stmt(nd: uni.WhileStmt) -> None;
     def enter_with_stmt(nd: uni.WithStmt) -> None;
@@ -497,6 +498,7 @@ obj UniPass(ModuleCodegenPass) {
     def exit_type_param(nd: uni.TypeParam) -> None;
     def exit_typed_ctx_block(nd: uni.TypedCtxBlock) -> None;
     def exit_unary_expr(nd: uni.UnaryExpr) -> None;
+    def exit_variant_decl(nd: uni.VariantDecl) -> None;
     def exit_visit_stmt(nd: uni.VisitStmt) -> None;
     def exit_while_stmt(nd: uni.WhileStmt) -> None;
     def exit_with_stmt(nd: uni.WithStmt) -> None;

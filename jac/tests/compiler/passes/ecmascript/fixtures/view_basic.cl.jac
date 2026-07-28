@@ -8,6 +8,8 @@ and a `skip;` guard for slot early-exit. Components are plain
 the slots.
 """
 
+
+variant client;
 obj Item {
     has label: str,
         done: bool = False;

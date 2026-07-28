@@ -1,5 +1,7 @@
 """Must fence (E1406): an owned heap object used as a dict key. The key is
 stored in the container just like a value, so it must be fenced too."""
+
+variant native;
 obj Box {
     has tag: int = 0;
 }

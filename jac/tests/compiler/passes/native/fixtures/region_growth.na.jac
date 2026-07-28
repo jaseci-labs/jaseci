@@ -2,6 +2,8 @@
 nodes/edges in region_of(here) with no &Region field on the walker; the
 grown subgraph is reclaimed wholesale at the handle's drop."""
 
+
+variant native;
 glob drop_log: int = 0;
 
 node Spot {

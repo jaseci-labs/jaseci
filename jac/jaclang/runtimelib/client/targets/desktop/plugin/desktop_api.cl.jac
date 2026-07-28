@@ -1,3 +1,5 @@
+variant client;
+
 async def _invoke(plugin: str, command: str, args: dict) -> any {
     broker = globalThis.__JAC_BROKER__;
     if broker {

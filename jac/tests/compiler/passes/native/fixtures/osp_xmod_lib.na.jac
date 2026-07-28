@@ -5,6 +5,8 @@ so its body -- compiled here with this module's tags -- must agree at runtime
 with the consumer's connects (which use the consumer's tags). Deterministic
 sorted tag numbering makes the two agree without recompiling this body."""
 
+
+variant native;
 node Area { has tag: int = 0; }
 edge Portal { has w: int = 0; }
 edge In {}

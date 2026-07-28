@@ -1,4 +1,6 @@
 """Must fence (E1406): dict literal with an owned heap value."""
+
+variant native;
 obj Box {
     has tag: int = 0;
 }

@@ -6,6 +6,8 @@ shape that the positional form produces — not drop the kwargs and emit
 an empty object.
 """
 
+
+variant client;
 # Server function imports — these become __jacCallFunction RPC stubs.
 import from sv_import_kwargs { greet, add_pair }
 

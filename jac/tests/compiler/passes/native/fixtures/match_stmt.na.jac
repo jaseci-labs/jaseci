@@ -6,6 +6,8 @@ Structural patterns (sequence/mapping/class) are out of scope and
 rejected at compile time.
 """
 
+
+variant native;
 def classify(x: int) -> int {
     match x {
         case 0: return 100;

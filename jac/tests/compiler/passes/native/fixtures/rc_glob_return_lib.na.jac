@@ -5,6 +5,8 @@ returning either from a def hands the caller a reference it will release,
 so the callee must retain on return or the glob's only reference dies.
 """
 
+
+variant native;
 glob APP_NAME: str = "jac" + "tui",
      _CMDS: list[str] = ["help", "quit", "model"];
 

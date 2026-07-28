@@ -10,6 +10,8 @@ Each def:pub below encodes first-use and second-use results into one i64
 so the ctypes harness can assert both in a single call.
 """
 
+
+variant native;
 import from rc_glob_return_lib { app_name, cmd_defs }
 
 def:pub scan_total -> int {

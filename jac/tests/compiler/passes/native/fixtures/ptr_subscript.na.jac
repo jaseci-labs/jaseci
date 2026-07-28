@@ -8,6 +8,8 @@ and JIT paths work across Linux/macOS/Windows triples. No libm functions are
 called; the import only declares struct layouts for the subscript tests.
 """
 
+
+variant native;
 import from m {
     obj Color { has r: u8, g: u8, b: u8, a: u8; }
     obj Vec2  { has x: f64, y: f64; }

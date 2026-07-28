@@ -1,3 +1,5 @@
+variant native;
+
 import from .tokens {
     Token,
     TokenKind,

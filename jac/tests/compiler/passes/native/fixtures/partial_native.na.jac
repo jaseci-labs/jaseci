@@ -1,3 +1,5 @@
+variant native;
+
 # Workstream A4 (#6930): partial-native classes / per-method native opt-out.
 #
 # `Literal` mixes a native-eligible method (`length`) with one the native

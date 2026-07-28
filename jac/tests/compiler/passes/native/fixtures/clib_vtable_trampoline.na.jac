@@ -6,6 +6,8 @@ signature (here i32-based) while the Jac function uses native i64
 parameters. `= 0` slots stay NULL C function pointers.
 """
 
+
+variant native;
 import from "/usr/lib/libm.so.6" {
     obj event_handler_vt {
         has size: int = 0,

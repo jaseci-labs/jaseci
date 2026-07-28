@@ -1,3 +1,5 @@
+variant client;
+
 # .cl.jac file - client is default context
 # Tests that sv blocks in .cl.jac files generate Python correctly
 

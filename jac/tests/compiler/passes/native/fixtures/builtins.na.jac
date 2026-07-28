@@ -1,3 +1,5 @@
+variant native;
+
 # String character access: s[i] returns single-char string
 def test_char_at() -> int {
     s: str = "hello";

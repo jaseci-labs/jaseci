@@ -7,6 +7,8 @@ link the kernel; otherwise the binary builds cleanly but fails at load with
 
 Expected: `run_it()` -> 7 (walker accumulates `here.tag` over one spawn)."""
 
+
+variant native;
 node N {
     has tag: int = 0;
 }

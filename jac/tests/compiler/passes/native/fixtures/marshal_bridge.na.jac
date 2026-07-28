@@ -1,5 +1,7 @@
 """Test fixture for marshal bridge identity, cycle, and container coverage."""
 
+
+variant native;
 obj Child {
     has val: int;
 }

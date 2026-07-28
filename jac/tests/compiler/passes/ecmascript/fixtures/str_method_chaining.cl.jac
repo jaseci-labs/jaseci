@@ -1,5 +1,7 @@
 """Test string method transpilation on local variables and chained calls."""
 
+
+variant client;
 def:pub str_chain_demo() -> JsxElement {
     has text: str = "hi";
 

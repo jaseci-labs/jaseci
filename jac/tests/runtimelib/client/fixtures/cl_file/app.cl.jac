@@ -1,3 +1,5 @@
+variant client;
+
 import from react { useState }
 
 def app()  -> JsxElement {

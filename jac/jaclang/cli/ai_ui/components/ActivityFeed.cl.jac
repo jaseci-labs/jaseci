@@ -7,6 +7,8 @@ fold into one dropdown that is open by default and streams in live. Everything
 else renders as a terminal-style row. Auto-scrolls to the newest entry.
 """
 
+
+variant client;
 import from react { useRef, useEffect }
 import from ..server { UiEvent }
 

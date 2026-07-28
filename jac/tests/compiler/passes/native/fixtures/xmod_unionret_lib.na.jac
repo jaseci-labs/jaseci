@@ -7,6 +7,8 @@ target. All three were the app-level cascade the issue describes (E1053 / E1115
 / E1099 / runtime crash), rooted in the imported node layout not being sound
 across the boundary."""
 
+
+variant native;
 node Area { has tag: int = 0; }
 
 walker Probe {

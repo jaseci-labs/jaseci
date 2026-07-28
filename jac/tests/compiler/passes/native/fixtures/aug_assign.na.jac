@@ -1,5 +1,7 @@
 """Test augmented assignment operators: +=, -=, *=, //=, %=."""
 
+
+variant native;
 def test_add_assign() -> int {
     x: int = 10;
     x += 5;

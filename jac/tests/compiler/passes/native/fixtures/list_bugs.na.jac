@@ -1,3 +1,5 @@
+variant native;
+
 # Test fixture for list bug reproductions
 
 # Bug 1: list.pop() on locals — works

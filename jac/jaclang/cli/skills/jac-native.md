@@ -1,6 +1,6 @@
 ---
 name: jac-native
-description: Compiling Jac to native machine code via LLVM - native sections in regular .jac files (inferred from extern C seeds; the `na` marker pins pure compute), `jac run --autonative`, and standalone zero-dependency binaries via `jac nacompile`; the supported subset, Python-congruent stdlib, C FFI, and gotchas. Load when speeding up a hot loop, building a native binary or CLI tool, or working with native code. For C-ABI shared libraries see `jac-native-shared`; for in-browser wasm see `jac-native-wasm`.
+description: Compiling Jac to native machine code via LLVM - native sections in regular .jac files (inferred from extern C seeds; [placement.pins] pins pure compute), `jac run --autonative`, and standalone zero-dependency binaries via `jac nacompile`; the supported subset, Python-congruent stdlib, C FFI, and gotchas. Load when speeding up a hot loop, building a native binary or CLI tool, or working with native code. For C-ABI shared libraries see `jac-native-shared`; for in-browser wasm see `jac-native-wasm`.
 ---
 
 The native codespace compiles Jac through LLVM to machine code - no Python runtime, no external compiler or linker (Jac bundles the whole toolchain). Three verbs:
@@ -98,7 +98,7 @@ with entry {
 }
 ```
 
-These pure-compute functions carry no FFI seed, so they default to Python; pin the hot section native with an `na` block, or an `na` prefix on one declaration (see `jac-codespaces` for the marker syntax), then run with plain `jac run`. Interop stubs are generated automatically in both directions; primitives, collections, and `obj` instances cross the boundary. Each codespace only sees its own definitions at compile time (context isolation) - a native function referencing a Python function defined *after* the native section fails E5090 and returns 0.
+These pure-compute functions carry no FFI seed, so they default to Python; pin the hot functions native in `jac.toml` (`[placement.pins] "main.sum_squares" = "native"` - see `jac-codespaces`), or keep them in a `.na.jac` variant module, then run with plain `jac run`. Interop stubs are generated automatically in both directions; primitives, collections, and `obj` instances cross the boundary. Each codespace only sees its own definitions at compile time (context isolation) - a native function referencing a Python function defined *after* the native section fails E5090 and returns 0.
 
 ## Native-to-native imports + decl/impl separation
 

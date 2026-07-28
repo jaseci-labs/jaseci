@@ -4,6 +4,8 @@ bval reads the leaf's runtime-initialized glob at init time, so the leaf's
 glob initializer must run before this module's initializer.
 """
 
+
+variant native;
 import from glob_chain_leaf { get_c }
 
 glob bval: int = get_c();

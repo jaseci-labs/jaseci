@@ -6,6 +6,8 @@ reinterpret bytes as ints/floats and back (#6404).
 returns a scalar for the ctypes harness.
 """
 
+
+variant native;
 import struct;
 
 def u_u32_le() -> int {

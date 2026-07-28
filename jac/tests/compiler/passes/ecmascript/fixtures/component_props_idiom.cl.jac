@@ -8,6 +8,8 @@ signature. The Jac-idiomatic forms (multi-param, or a single non-`props`
 named bundle) preserve per-prop validation and must not warn.
 """
 
+
+variant client;
 # JS-idiomatic shape: single param literally named `props`. SHOULD warn —
 # this is the only definition shape that bypasses per-prop validation.
 def:pub JsPropsStyle(props: dict) -> JsxElement {

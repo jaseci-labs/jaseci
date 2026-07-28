@@ -1,3 +1,5 @@
+variant client;
+
 import from 'react' { * as React }
 import from 'react' { useState as reactUseState, useEffect as reactUseEffect }
 import from 'react-native' {

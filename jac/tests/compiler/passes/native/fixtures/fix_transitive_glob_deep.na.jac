@@ -6,6 +6,8 @@ the entry file), __jac_glob_init_<safe_name> was never called from
 jac_entry, leaving _TABLE null and causing SIGSEGV on first access.
 """
 
+
+variant native;
 glob _TABLE: list[int] = [];
 
 def:pub table_len() -> int {

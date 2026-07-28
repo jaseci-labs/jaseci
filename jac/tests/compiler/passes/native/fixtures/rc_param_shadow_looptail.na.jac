@@ -5,6 +5,8 @@ per-iteration locals. If per-function param state leaks across functions,
 the loop-exit (iter_end) and scope-exit cleanups skip `a`/`b` as
 "borrowed params", so the final iteration's two Boxes are never freed."""
 
+
+variant native;
 obj Box {
     has n: int = 0;
 }

@@ -1,3 +1,5 @@
+variant native;
+
 import from _zlib_native { z_compress2, z_compress_bound, z_uncompress2, z_crc32 }
 
 glob Z_OK: int = 0,

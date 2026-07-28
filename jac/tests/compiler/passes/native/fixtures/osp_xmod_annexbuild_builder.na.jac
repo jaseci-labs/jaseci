@@ -5,6 +5,8 @@ place this module touches an OSP construct (`++>`) — lives in the impl annex
 the OSP construct is contributed by the annex (spliced into the head's tree
 with its own provenance), never written in the head file itself."""
 
+
+variant native;
 import from osp_xmod_annexbuild_lib { Hub, Area }
 
 def build(hub: Hub);

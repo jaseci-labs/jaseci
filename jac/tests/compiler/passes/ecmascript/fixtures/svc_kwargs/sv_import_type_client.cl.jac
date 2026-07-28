@@ -5,6 +5,8 @@ Importing the type (`Todo`) alongside the function must NOT emit an
 `class Todo`, and a second `Todo` declaration collides at bundle time.
 """
 
+
+variant client;
 import from .sv_import_type_provider { Todo, list_todos }
 
 def:pub app -> JsxElement {

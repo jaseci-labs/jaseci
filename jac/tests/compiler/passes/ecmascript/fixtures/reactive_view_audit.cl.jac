@@ -11,6 +11,8 @@ and the `type` literal MUST NOT. Under React/Preact the seam is a no-op, so this
 is also a plain dynamic-JSX fixture.
 """
 
+
+variant client;
 def:pub view_app() -> JsxElement {
     has count: int = 0;
 

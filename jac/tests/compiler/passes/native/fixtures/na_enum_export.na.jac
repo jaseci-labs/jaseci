@@ -1,3 +1,5 @@
+variant native;
+
 # Exported string enum and related types/functions for cross-module import testing
 
 enum TokenKind {

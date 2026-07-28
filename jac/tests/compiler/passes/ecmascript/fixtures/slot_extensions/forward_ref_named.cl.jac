@@ -5,6 +5,8 @@ The named props (`title`, `body`) destructure from `props` as usual; the trailin
 the `forwardRef` render fn.
 """
 
+
+variant client;
 def:pub Card(title: str, body: str, ref: Ref[HTMLElement]) -> JsxElement {
     return <div ref={ref}><h1>{title}</h1><p>{body}</p></div>;
 }

@@ -9,6 +9,8 @@ lazy adapters) speak the existing JacIter ABI, so nothing changes on the
 consumption side.
 """
 
+
+variant native;
 def counter(n: int) -> Iterator[int] {
     i = 0;
     while i < n {

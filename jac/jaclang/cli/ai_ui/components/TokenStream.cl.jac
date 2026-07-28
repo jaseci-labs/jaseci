@@ -6,6 +6,8 @@ context-size spikes and cache (re)use visible as the agent works. Clicking a row
 opens its detail (full input, the diff vs the prior call, and the output).
 """
 
+
+variant client;
 import from react { useRef, useEffect }
 import from ..server { UiEvent }
 

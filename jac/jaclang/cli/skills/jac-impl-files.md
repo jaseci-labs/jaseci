@@ -86,7 +86,7 @@ def:pub app -> JsxElement {
 # frontend.impl.jac - bodies; `has` state is bare (no self.), writes re-render
 impl app.loadItems -> None {
     loading = True;
-    items = ["first", "second"];            # real code: await a sv import call here
+    items = ["first", "second"];            # real code: await a server RPC call here
     loading = False;
 }
 
@@ -97,7 +97,7 @@ impl app.addItem -> None {
 }
 ```
 
-(Shown as one file - it also compiles merged - but in practice the `impl` blocks go in `frontend.impl.jac`, paired by basename as usual.) The annex sees the head file's imports, including `sv import` stubs. Architecture-level guidance (stateful shell, prop-drilled sections) is in `jac-cl-organization`.
+(Shown as one file - it also compiles merged - but in practice the `impl` blocks go in `frontend.impl.jac`, paired by basename as usual.) The annex sees the head file's imports, including server RPC stubs. Architecture-level guidance (stateful shell, prop-drilled sections) is in `jac-cl-organization`.
 
 ## Rules
 
@@ -112,7 +112,7 @@ impl app.addItem -> None {
 ## Other annexes and module variants
 
 - **`.test.jac`**: `mod.test.jac` is the test annex - `test name { assert ...; }` blocks that see `mod`'s symbols without imports; run with `jac test` (see `jac-testing`).
-- **Variant modules**: placement is inferred, so a plain `.jac` module is the default; the `.sv`/`.cl`/`.na` suffixes are the explicit form for splitting one logical module across codespaces (see `jac-codespaces`). `mod.sv.jac` (server), `mod.cl.jac` (client), `mod.na.jac` (native) are auto-discovered and merged into one logical module `mod`. Head-module precedence: `.jac` > `.sv.jac` > `.cl.jac` > `.na.jac` - the highest-precedence existing file is the head; the rest attach as variant annexes. Variant impls pair by full name (`mod.sv.impl.jac` implements `mod.sv.jac` decls); a head `mod.impl.jac` may implement declarations from *any* variant.
+- **Variant modules**: placement is inferred, so a plain `.jac` module is the default; the `.cl`/`.na` suffixes are per-space implementation variants of one logical module (see `jac-codespaces`). `mod.cl.jac` (client) and `mod.na.jac` (native) are auto-discovered and merged into one logical module `mod`. Head-module precedence: `.jac` > `.cl.jac` > `.na.jac` - the highest-precedence existing file is the head; the rest attach as variant annexes. Variant impls pair by full name (`mod.cl.impl.jac` implements `mod.cl.jac` decls); a head `mod.impl.jac` may implement declarations from *any* variant.
 - **Packages need no `__init__.jac`.** Any directory with `.jac` files is importable (`import from utils.math_utils { add }`). Add `__init__.jac` only as a re-export barrel (`import from .operations { add }` so consumers write `import from mathlib { add }`) or for package-init code.
 
 ## See also

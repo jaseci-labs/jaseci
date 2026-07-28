@@ -5,6 +5,8 @@ corruption); counting an empty needle never advanced its scan (infinite
 hang). CPython: n <= 0 repeats give "", count("") gives len + 1.
 """
 
+
+variant native;
 def rep(n: int) -> str {
     return "x" * n;
 }

@@ -11,6 +11,8 @@ Match captures type as Unknown in the checker, so captures are cast
 runtime via append loops so lengths are not compile-time constants.
 """
 
+
+variant native;
 obj Point {
     has x: int,
         y: int;

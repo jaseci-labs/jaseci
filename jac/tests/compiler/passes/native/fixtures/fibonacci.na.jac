@@ -1,3 +1,5 @@
+variant native;
+
 def fib(n: int) -> int {
     if n <= 1 {
         return n;

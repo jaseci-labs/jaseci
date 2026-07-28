@@ -4,6 +4,8 @@ Tests that functions can be passed as arguments (function pointers)
 in the native pathway.
 """
 
+
+variant native;
 def add(a: int, b: int) -> int {
     return a + b;
 }

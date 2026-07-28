@@ -1,6 +1,8 @@
 """In-frame try/except stays fully legal in an enforced module: the raise is
 inside the try body of its own frame, so normal handling applies."""
 
+
+variant native;
 def safe(n: int) -> int {
     try {
         if n > 2 {

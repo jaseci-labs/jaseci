@@ -12,6 +12,8 @@ NOT wrapped in a view thunk (the compiler guard in test_acceptance_matrix
 pins the string; this pins the runtime behaviour).
 """
 
+
+variant client;
 def:pub app() -> JsxElement {
     has btnRef: Ref[HTMLButtonElement] = Ref();
     has refStatus: str = "unset";

@@ -17,6 +17,8 @@ ever moved to strict source order, the first block would touch an
 uninitialized glob and this would crash instead.
 """
 
+
+variant native;
 with entry {
     shared.append("a");
     print("A_RAN");

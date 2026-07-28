@@ -1,3 +1,5 @@
+variant client;
+
 def:pub SkipTest() -> JsxElement {
     has value: str = "";
 

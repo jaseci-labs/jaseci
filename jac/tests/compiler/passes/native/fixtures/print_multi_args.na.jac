@@ -1,5 +1,7 @@
 """Test print with multiple arguments in native mode."""
 
+
+variant native;
 def test_multiple_args -> int {
     # Test with multiple integers and strings
     print("Test 1:", 10, 20, 30);

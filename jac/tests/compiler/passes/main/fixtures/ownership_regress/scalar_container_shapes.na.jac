@@ -2,6 +2,8 @@
 a `list[float]` return annotation is a type expression (not a container
 literal), and a subscript read of a borrowed list is a scalar."""
 
+
+variant native;
 obj VM {
     has regs: list[int] = [];
 }

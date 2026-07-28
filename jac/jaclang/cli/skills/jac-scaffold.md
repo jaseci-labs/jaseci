@@ -40,11 +40,11 @@ Without a project name, `jac create` initializes the **current directory** and n
 | `cli-native` | core | native-compile + run (JIT) | `main.jac` |
 | `native-binary` | core | build a binary into `dist/` | `main.jac` |
 | `native-lib` | core | build a `.so`/`.dylib`/`.dll` | `main.jac` |
-| `service` | core | serve headless API (no client) | `main.sv.jac` |
-| `service-mesh` | core | serve microservice | `main.sv.jac` |
+| `service` | core | serve headless API (no client) | `main.jac` |
+| `service-mesh` | core | serve microservice | `main.jac` |
 | `py-package` | core | build a wheel into `dist/` | `lib.jac` |
 | `js-package` | core | build an npm tarball into `dist/` | `lib.jac` |
-| `web-app` | core | serve app (dev mode) | `main.jac` + `.sv` |
+| `web-app` | core | serve app (dev mode) | `main.jac` + `endpoints.jac` |
 | `web-static` | core | serve client-only page | `main.jac` |
 | `mobile` | core | build the mobile app | `main.jac` |
 | `desktop` | core | run the OS-webview app | `main.jac` |

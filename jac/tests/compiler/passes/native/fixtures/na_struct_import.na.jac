@@ -5,6 +5,8 @@ the imported struct type as a function parameter and for field access.
 Expected output: x = 3
 """
 
+
+variant native;
 import from na_struct_export { Point, make_point, get_x }
 
 def use_imported_point(x: int, y: int) -> int {

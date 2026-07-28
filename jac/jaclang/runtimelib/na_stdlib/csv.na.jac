@@ -1,3 +1,5 @@
+variant native;
+
 def _parse_line(line: str) -> list[str] {
     fields: list[str] = [];
     n: int = len(line);

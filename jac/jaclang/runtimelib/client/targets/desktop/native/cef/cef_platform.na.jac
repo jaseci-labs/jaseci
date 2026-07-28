@@ -1,3 +1,5 @@
+variant native;
+
 glob g_cmdline_buf: int = 0,
      g_argv_arr: int = 0;
 

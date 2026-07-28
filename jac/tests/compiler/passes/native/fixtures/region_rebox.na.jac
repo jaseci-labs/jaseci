@@ -1,6 +1,8 @@
 """The `own` rebox (#7491 R4): a string copied out of a region owns its
 bytes past the region's bulk free."""
 
+
+variant native;
 glob drop_log: int = 0;
 
 obj Named {

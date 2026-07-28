@@ -10,6 +10,8 @@ materializes and runs correctly.
 Same graph as osp_xmod_main: a1(1) -Portal-> a2(2) -Portal-> a3(4); Counter
 spawned at a1 -> seen = 7, ports = 2. `Bot` is just a tag-order perturbation."""
 
+
+variant native;
 import from osp_xmod_lib { Area, Portal, In, Counter }
 
 node Bot { has hp: int = 0; }

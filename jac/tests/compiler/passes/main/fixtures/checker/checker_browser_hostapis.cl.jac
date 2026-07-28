@@ -12,6 +12,8 @@ bottom (`resp.nope()`), which pins that `Response` is a real strict type,
 not a permissive escape hatch.
 """
 
+
+variant client;
 async def read_stream(url: str) -> str {
     resp = await fetch(url);
     ok: bool = resp.ok;

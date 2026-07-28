@@ -6,6 +6,8 @@ object attribute-access support. Enough to drive the shared-object linkers far
 enough to assert on the emitted Mach-O load commands and code signature.
 """
 
+
+variant native;
 glob:pub counter: int = 7;
 
 def:pub jadd(a: int, b: int) -> int {

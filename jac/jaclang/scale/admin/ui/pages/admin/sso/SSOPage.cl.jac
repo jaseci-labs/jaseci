@@ -1,5 +1,7 @@
 """SSO providers page."""
 
+
+variant client;
 import from react { useEffect }
 import from ....components.common.Card { Card, CardHeader }
 import from ....components.tables.DataTable { DataTable, TableRow, TableCell }

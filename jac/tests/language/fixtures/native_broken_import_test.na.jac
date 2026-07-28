@@ -8,6 +8,8 @@ rather than swallowing it into an empty (silently passing) result (issue
 #7150).
 """
 
+
+variant native;
 import from jaclang.this_module_does_not_exist_7150 { nope }
 
 test "unreachable" {

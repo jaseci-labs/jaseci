@@ -6,6 +6,8 @@ expression may be an identifier (`<@as_>`), a dotted access, or a
 brace-wrapped expression (`<@{expr}>`).
 """
 
+
+variant client;
 """A box whose host element is chosen by the caller."""
 def:pub Box(as_: str, children: any = None) -> JsxElement {
     return

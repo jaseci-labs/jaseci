@@ -5,6 +5,8 @@ bubble-sorted ascending by raw element regardless, so ranking code that
 compiled clean returned wrong orderings.
 """
 
+
+variant native;
 def:pub sort_reverse -> int {
     a = [3, 1, 2];
     a.sort(reverse=True);

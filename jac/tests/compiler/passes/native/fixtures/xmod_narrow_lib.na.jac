@@ -12,6 +12,8 @@ type inference, so the narrowing silently failed and `b.name` was typed
 `Box | None` -> E1099 / E1115 / E1053. The narrowing must apply identically
 regardless of whether the module is the entry or an imported dependency."""
 
+
+variant native;
 obj Box {
     has name: str = "hit";
     has size: int = 5;

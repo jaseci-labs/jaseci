@@ -4,6 +4,8 @@ Allocates heavily to verify no memory corruption or OOM
 under pressure with the RC memory management scheme.
 """
 
+
+variant native;
 # Stress test 1: Many objects in a loop
 def test_many_objects(n: int) -> int {
     count: int = 0;
