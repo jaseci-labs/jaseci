@@ -13,8 +13,26 @@ impl _lookup_module_in_hub(path_key: str, hub: dict) -> (Module | None) {
 
 impl _ensure_js_generated(mod: Module, program: any) -> None {
     if mod and not mod.gen.js {
+        if id(mod) not in program._inferred_mods {
+            import from jaclang.jac0core.compiler { get_inference_sched }
+            _sched = get_inference_sched();
+            if _sched {
+                program.run_schedule(mod, _sched);
+                program._inferred_mods.add(id(mod));
+            }
+        }
         import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+        _err_mark = len(program.errors_had);
+        _warn_mark = len(program.warnings_had);
         EsastGenPass(ir_in=mod, prog=program);
+        if len(program.errors_had) > _err_mark {
+            import from jaclang.jac0core.placement_solver {
+                demote_client_pulled_elements
+            }
+            if demote_client_pulled_elements(mod, program, _err_mark, _warn_mark) {
+                EsastGenPass(ir_in=mod, prog=program);
+            }
+        }
     }
 }
 

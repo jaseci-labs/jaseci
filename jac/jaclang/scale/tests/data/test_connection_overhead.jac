@@ -16,7 +16,7 @@ import from pathlib { Path }
 import from typing { cast }
 
 import from pymongo { MongoClient }
-import from testcontainers.mongodb { MongoDbContainer }
+import from testcontainers.community.mongodb { MongoDbContainer }
 import from jaclang.scale.tests.server_support {
     call_walker,
     extract,

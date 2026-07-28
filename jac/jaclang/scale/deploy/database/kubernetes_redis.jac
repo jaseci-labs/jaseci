@@ -13,7 +13,7 @@ glob logger = logging.getLogger(__name__),
 obj KubernetesRedisProvider(DatabaseProvider) {
     has target: (DeploymentTarget | None) = None,
         config: dict[str, any] = {},
-        app_name: str by postinit,
+        app_name: str postinit,
         connection_string: str = '';
 
     def postinit {
@@ -462,7 +462,7 @@ obj KubernetesRedisProvider(DatabaseProvider) {
                 'labels': {
                     'app': redis_name,
                     'component': 'cache',
-                    'managed-by': 'jac-scale'
+                    'managed': 'jac-scale'
                 }
             },
             'spec': {
