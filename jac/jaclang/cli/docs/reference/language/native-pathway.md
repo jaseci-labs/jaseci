@@ -42,7 +42,7 @@ Native placement is **inferred, never spelled in the filename**. Under
 solver decides each module's codespace: `scan_native_blockers` plus an
 import-closure fixpoint determine whether the module can lower natively.
 A module that can, goes native; one that prefers native but cannot lower
-(walkers, PyPI imports, ...) demotes to the server codespace with a note.
+(Python imports, `pub` endpoints, `root`/persistence access, ...) demotes to the server codespace with a note.
 An import whose braces declare C-ABI functions, e.g. `import from raylib {
 def InitWindow(w: i32, h: i32, title: str) -> None; }`, is an FFI surface
 only the native backend can satisfy, so it -- and the declarations that
@@ -262,7 +262,7 @@ jac nacompile mathlib.jac --shared --target windows   # -> ./libmathlib.dll
 
 ### Choosing what to export
 
-A shared library has no `with entry {}` -- its surface is whatever you mark **`:pub`**. Only explicitly `:pub` functions and globals are placed in the library's export table; everything else stays internal (callable *within* the library, invisible to a host). This makes `:pub` a curated C-ABI surface rather than a dump of every symbol. (In a standalone module `pub` would anchor placement to the server -- endpoint semantics -- but a module compiled as a native library or pulled in as a native dependency uses `pub` freely as its export marker.) (In a standalone module `pub` would anchor placement to the server -- endpoint semantics -- but a module compiled as a native library or pulled in as a native dependency uses `pub` freely as its export marker.)
+A shared library has no `with entry {}` -- its surface is whatever you mark **`:pub`**. Only explicitly `:pub` functions and globals are placed in the library's export table; everything else stays internal (callable *within* the library, invisible to a host). This makes `:pub` a curated C-ABI surface rather than a dump of every symbol. (In a standalone module `pub` would anchor placement to the server -- endpoint semantics -- but a module compiled as a native library or pulled in as a native dependency uses `pub` freely as its export marker.)
 
 ```jac
 # mathlib.jac

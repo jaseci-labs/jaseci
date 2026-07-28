@@ -7,7 +7,7 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ---
 
-### The `.na.jac` filename marker retired (jaclang 0.35)
+### The `.na.jac` filename marker retired ([#7770](https://github.com/jaseci-labs/jac/pull/7770), jaclang 0.35)
 
 Native placement is no longer spelled in the filename. A plain `.jac` module becomes native by **inference**: under `[build] default_codespace = "native"` (the default), the placement solver's verdict (`scan_native_blockers` plus an import-closure fixpoint) decides, and a module that prefers native but cannot lower demotes to the server codespace with a note. Native is **forced** per-invocation rather than per-file: `jac nacompile file.jac` and `jac build --as native` coerce the module native outright -- lowering problems stay loud errors instead of demoting -- and `CompileOptions(force_codespace='native')` is the marker's programmatic successor.
 

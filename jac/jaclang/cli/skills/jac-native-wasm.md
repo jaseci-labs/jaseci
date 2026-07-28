@@ -32,7 +32,10 @@ What the one import does:
   the *stub-crossed scalars still apply* (an int return arrives as BigInt).
 - **Server side**: the import compiles to nothing under Python. A *plain*
   import of a native module is the sv -> na ctypes crossing and executes the
-  module server-side; `na import` never does.
+  module server-side; `na import` never does. (From *client* code, a plain
+  import takes the cl -> na edge on its own only when the target carries a
+  real native anchor - ownership annotations, clib decls, native imports;
+  `na import` forces it regardless.)
 
 If the native module declares app FFI (raylib-style extern decls), register
 the JS implementations before the first stub call; the shim object you pass
