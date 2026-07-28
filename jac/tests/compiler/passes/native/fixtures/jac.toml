@@ -1,0 +1,10 @@
+[project]
+name = "native-fixtures"
+
+# Markerless equivalents of the former per-element na markers (#7772).
+[placement.pins]
+"mixed_contexts.native_add" = "native"
+"mixed_contexts.server_hello" = "server"
+"na_py_interop.native_add_one_to_doubled" = "native"
+"na_py_interop_multi.native_compute" = "native"
+"na_py_interop_multi.native_entry" = "native"

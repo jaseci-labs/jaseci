@@ -1094,8 +1094,14 @@ impl PyastGenPass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
 }
 
 impl PyastGenPass.exit_import(nd: uni.Import) -> None {
-    import from jaclang.jac0core.compiler { import_binds_client_native }
-    if import_binds_client_native(nd, self.ir_in.gen.interop_manifest) {
+    import from jaclang.jac0core.compiler {
+        import_binds_client_native,
+        plain_native_import_target
+    }
+    if (
+        import_binds_client_native(nd, self.ir_in.gen.interop_manifest)
+        or plain_native_import_target(nd, self.prog) is not None
+    ) {
         nd.gen.py_ast = [];
         return;
     }

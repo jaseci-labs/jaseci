@@ -260,7 +260,29 @@ impl BoundaryAnalysisPass.enter_import(
             }
             if nd.items and not nd.is_service_import {
                 import from jaclang.jac0core.compiler { is_client_native_edge_import }
-                if is_client_native_edge_import(nd, self.prog) {
+                pinned_server_target = False;
+                if nd.in_client_context() and nd.from_loc {
+                    try {
+                        resolved_target = nd.from_loc.resolve_relative_path();
+                        if isinstance(
+                            resolved_target, str
+                        ) and resolved_target.endswith('.jac') {
+                            import from jaclang.jac0core.placement_pins {
+                                config_module_pin
+                            }
+                            pinned_server_target = config_module_pin(
+                                resolved_target
+                            ) == 'server';
+                        }
+                    } except Exception {
+                        pinned_server_target = False;
+                    }
+                }
+                if pinned_server_target {
+                    self._register_sv_import(
+                        nd, nd.from_loc.base_module_name, InteropContext.CLIENT
+                    );
+                } elif is_client_native_edge_import(nd, self.prog) {
                     self._register_na_client_import(nd);
                 } else {
                     self._register_client_bridged_import(nd);

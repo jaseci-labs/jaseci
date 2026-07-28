@@ -4808,6 +4808,19 @@ impl EsastGenPass._partition_client_import_items(
     if not is_client_boundary_import(nd) {
         return None;
     }
+    if nd.from_loc {
+        try {
+            pinned_target = nd.from_loc.resolve_relative_path();
+            if isinstance(pinned_target, str) and pinned_target.endswith('.jac') {
+                import from jaclang.jac0core.placement_pins { config_module_pin }
+                if config_module_pin(pinned_target) == 'server' {
+                    return ([], list(nd.items));
+                }
+            }
+        } except Exception {
+            ;
+        }
+    }
     source_mod = self._resolve_source_module(nd);
     if source_mod is None {
         return None;

@@ -108,6 +108,12 @@ def make_crossboundary_client(tmp_path: str) -> JacTestClient {
     dest.mkdir(parents=True, exist_ok=True);
     shutil.copy(fixtures_src / "crossbound_app.jac", dest / f"{module_name}.jac");
     shutil.copy(fixtures_src / "crossbound_server.jac", dest / "crossbound_server.jac");
+    with open(str(dest / "jac.toml"), "w") as tf {
+        tf.write(
+            "[project]\nname = \"crossbound\"\n\n[placement.pins]\n"
+            "\"crossbound_server\" = \"server\"\n"
+        );
+    }
     shutil.copy(
         fixtures_src / "crossbound_frontend.cl.jac", dest / "crossbound_frontend.cl.jac"
     );
@@ -132,6 +138,15 @@ def make_dualrole_client(tmp_path: str) -> JacTestClient {
     dest = Path(tmp_path) / module_name;
     dest.mkdir(parents=True, exist_ok=True);
     shutil.copy(fixtures_src / "dualrole_app.jac", dest / f"{module_name}.jac");
+    with open(str(dest / "jac.toml"), "w") as tf {
+        tf.write(
+            "[project]\nname = \"dualrole\"\n\n[placement.pins]\n"
+            "\"dualrole_guestbook\" = \"server\"\n"
+            "\"dualrole_analytics\" = \"server\"\n"
+            "\n[scale.microservices.routes]\n"
+            "\"dualrole_analytics\" = \"/analytics\"\n"
+        );
+    }
     for name in [
         "dualrole_frontend.cl.jac",
         "dualrole_guestbook.jac",
@@ -157,6 +172,12 @@ def make_failload_client(tmp_path: str) -> JacTestClient {
     dest = Path(tmp_path) / module_name;
     dest.mkdir(parents=True, exist_ok=True);
     shutil.copy(fixtures_src / "failload_app.jac", dest / f"{module_name}.jac");
+    with open(str(dest / "jac.toml"), "w") as tf {
+        tf.write(
+            "[project]\nname = \"failload\"\n\n[placement.pins]\n"
+            "\"failload_server\" = \"server\"\n"
+        );
+    }
     for name in ["failload_frontend.cl.jac", "failload_server.jac"] {
         shutil.copy(fixtures_src / name, dest / name);
     }
@@ -185,6 +206,12 @@ def make_bundled_crossboundary_client -> tuple {
     dest.mkdir(parents=True, exist_ok=True);
     shutil.copy(fixtures_src / "crossbound_app.jac", dest / f"{module_name}.jac");
     shutil.copy(fixtures_src / "crossbound_server.jac", dest / "crossbound_server.jac");
+    with open(str(dest / "jac.toml"), "w") as tf {
+        tf.write(
+            "[project]\nname = \"crossbound-bundled\"\n\n[placement.pins]\n"
+            "\"crossbound_server\" = \"server\"\n"
+        );
+    }
     shutil.copy(
         fixtures_src / "crossbound_frontend.cl.jac", dest / "crossbound_frontend.cl.jac"
     );
