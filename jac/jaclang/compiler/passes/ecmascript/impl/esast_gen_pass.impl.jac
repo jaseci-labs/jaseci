@@ -4796,6 +4796,23 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
     nd.gen.es_ast = None;
 }
 
+
+def _decl_has_access(source_mod: uni.Module, item: uni.ModuleItem) -> bool {
+    nm = item.name.value if isinstance(item.name, uni.Name) else '';
+    if not nm or source_mod.sym_tab is None {
+        return False;
+    }
+    sym = source_mod.sym_tab.lookup(nm, deep=True);
+    if not (sym and sym.defn) {
+        return False;
+    }
+    decl = sym.defn[0];
+    if isinstance(decl, uni.NameAtom) and decl.parent {
+        decl = decl.parent;
+    }
+    return getattr(decl, 'access', None) is not None;
+}
+
 impl EsastGenPass._partition_client_import_items(
     nd: uni.Import
 ) -> (tuple[list, list] | None) {
@@ -4808,27 +4825,35 @@ impl EsastGenPass._partition_client_import_items(
     if not is_client_boundary_import(nd) {
         return None;
     }
+    pinned_server = False;
     if nd.from_loc {
         try {
             pinned_target = nd.from_loc.resolve_relative_path();
             if isinstance(pinned_target, str) and pinned_target.endswith('.jac') {
                 import from jaclang.jac0core.placement_pins { config_module_pin }
-                if config_module_pin(pinned_target) == 'server' {
-                    return ([], list(nd.items));
-                }
+                pinned_server = config_module_pin(pinned_target) == 'server';
             }
         } except Exception {
-            ;
+            pinned_server = False;
         }
     }
     source_mod = self._resolve_source_module(nd);
     if source_mod is None {
-        return None;
+        return ([], list(nd.items)) if pinned_server else None;
     }
     kept: list = [];
     bridged: list = [];
     for item in nd.items {
         verdict = classify_client_import_item(source_mod, item);
+        if pinned_server and verdict != ClientImportVerdict.DEAD {
+            bridged.append(item);
+            continue;
+        }
+        if pinned_server and verdict == ClientImportVerdict.DEAD
+        and _decl_has_access(source_mod, item) {
+            bridged.append(item);
+            continue;
+        }
         if verdict == ClientImportVerdict.BRIDGED {
             bridged.append(item);
         } elif verdict == ClientImportVerdict.DEAD {
