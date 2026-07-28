@@ -108,15 +108,24 @@ def find_jac_files(package_dir: str) -> list[str] {
     return result;
 }
 
-glob NATIVE_ONLY_DIRS: tuple = (
-         os.path.join("runtimelib", "na_stdlib"),
-         os.path.join("runtimelib", "client", "targets", "desktop", "native"),
-
+glob NATIVE_ONLY_DIR: str = os.path.join("runtimelib", "na_stdlib"),
+     MIXED_NATIVE_DIR: str = os.path.join(
+         "runtimelib", "client", "targets", "desktop", "native"
      );
 
 def _is_native_only_source(package_dir: str, p: str) -> bool {
     rel = os.path.relpath(p, package_dir);
-    return any(rel.startswith(d + os.sep) for d in NATIVE_ONLY_DIRS);
+    if rel.startswith(NATIVE_ONLY_DIR + os.sep) {
+        return True;
+    }
+    # The desktop native dir mixes clib shims (native-only, must not be
+    # sv-precompiled) with plain sv modules (must stay sealable); decide
+    # per file by native eligibility.
+    if rel.startswith(MIXED_NATIVE_DIR + os.sep) {
+        import from jaclang.jac0core.placement_solver { native_default_path_ok }
+        return native_default_path_ok(p);
+    }
+    return False;
 }
 
 def sealable_sources(package_dir: str) -> list[str] {

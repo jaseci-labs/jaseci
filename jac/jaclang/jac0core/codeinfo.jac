@@ -182,8 +182,10 @@ def native_stdlib_root -> (str | None) {
 
 def is_native_by_location(file_path: str) -> bool {
     """True for sources that are native by definition of where they live:
-    the bundled native stdlib and the desktop native shims. The retired
-    .na.jac marker used to coerce these on parse; location now does."""
+    the bundled native stdlib. The retired .na.jac marker used to coerce
+    these on parse; location now does. (The desktop native shim dir is
+    deliberately NOT here -- it mixes native shims with sv modules; the
+    shims are clib-anchored and classify through the normal rules.)"""
     import os;
     import jaclang;
     if not file_path or not jaclang?.__file__ {
@@ -191,11 +193,8 @@ def is_native_by_location(file_path: str) -> bool {
     }
     ap = os.path.abspath(file_path);
     pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
-    rl = os.path.join(pkg, "runtimelib");
     return ap.startswith(
-        os.path.join(rl, "na_stdlib") + os.sep
-    ) or ap.startswith(
-        os.path.join(rl, "client", "targets", "desktop", "native") + os.sep
+        os.path.join(pkg, "runtimelib", "na_stdlib") + os.sep
     );
 }
 
