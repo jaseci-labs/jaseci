@@ -11,7 +11,7 @@ impl BoundaryAnalysisPass._resolved_native_decl(
     if name_node is None or not isinstance(name_node, uni.AstSymbolNode) {
         return None;
     }
-    import from jaclang.compiler.symbol_utils { ability_of_symbol }
+    import from jaclang.jac0core.compiler { ability_of_symbol }
     decl = ability_of_symbol(name_node.sym);
     if decl is not None and isinstance(decl.signature, uni.FuncSignature) {
         return decl;
@@ -464,7 +464,7 @@ impl BoundaryAnalysisPass._register_na_client_import(
 impl BoundaryAnalysisPass._register_client_bridged_import(
     self: BoundaryAnalysisPass, nd: uni.Import
 ) -> None {
-    import from jaclang.compiler.symbol_utils {
+    import from jaclang.jac0core.compiler {
         ClientImportVerdict,
         classify_client_import_item,
         is_client_boundary_import,
