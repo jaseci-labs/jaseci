@@ -28,7 +28,8 @@ impl check(
     fix: bool = False,
     native_census: bool = False,
     placements: bool = False,
-    update_placements_lock: bool = False
+    update_placements_lock: bool = False,
+    verify_placements_lock: bool = False
 ) -> int {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
@@ -111,7 +112,7 @@ impl check(
                 )
             );
 
-            if placements or update_placements_lock {
+            if placements or update_placements_lock or verify_placements_lock {
                 import from jaclang.jac0core.placement { collect_placement_rows }
                 placement_report.update(collect_placement_rows(prog));
             }
@@ -191,6 +192,37 @@ impl check(
             console.print(f"wrote {lock_target}");
         }
     }
+    lock_drift = False;
+    if verify_placements_lock {
+        import os;
+        import from jaclang.jac0core.placement {
+            diff_rows_vs_lock,
+            load_placement_lock,
+            placement_lock_file_for
+        }
+        lock_target = placement_lock_file_for(all_files[0]) if all_files else '';
+        locked = load_placement_lock(lock_target) if lock_target else None;
+        if locked is None {
+            console.error(
+                f"no placement lock at {lock_target or '<no files>'}; run "
+                f"'jac check --update-placements-lock' to create the baseline"
+            );
+            lock_drift = True;
+        } else {
+            flips = diff_rows_vs_lock(
+                placement_report, locked, os.path.dirname(os.path.abspath(lock_target))
+            );
+            if flips {
+                console.error(f"{len(flips)} placement(s) moved vs {lock_target}:");
+                for flip in flips {
+                    console.print(f"  {flip}", style="error");
+                }
+                lock_drift = True;
+            } else {
+                console.print(f"placements match {lock_target}");
+            }
+        }
+    }
     if print_errs and len(failed_results) > 0 {
         print_failures(failed_results, nowarn);
     }
@@ -200,7 +232,7 @@ impl check(
 
     elapsed = time() - start_time;
     print_final_summary(total_files - failed_files, failed_files, elapsed);
-    return 1 if (total_errors > 0 or had_path_errors) else 0;
+    return 1 if (total_errors > 0 or had_path_errors or lock_drift) else 0;
 }
 
 impl lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int {

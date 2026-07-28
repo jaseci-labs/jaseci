@@ -79,12 +79,23 @@ glob registry = get_registry();
             short="",
             help="Write jac.placements.lock (next to jac.toml) from the computed placements; committed, it makes placement flips reviewable like dependency bumps"
         ),
+        Arg.create(
+            "verify-placements-lock",
+            typ=bool,
+            default=False,
+            short="",
+            help="Fail (exit 1) if any computed placement differs from the committed jac.placements.lock; the parity gate for placement-preserving refactors and CI"
+        ),
 
     ],
     examples=[
         ("jac check myprogram.jac", "Check a single file"),
         ("jac check . --native-census", "Rank modules by native compile outcome"),
         ("jac check . --placements", "Show element placements with evidence"),
+        (
+            "jac check app.jac --verify-placements-lock",
+            "Fail if placements drifted from jac.placements.lock"
+        ),
         ("jac check . --lint", "Report lint violations only"),
         ("jac check . --lint --fix", "Auto-fix lint violations"),
         ("jac check file1.jac file2.jac", "Check multiple files"),
@@ -114,7 +125,8 @@ def check(
     fix: bool = False,
     native_census: bool = False,
     placements: bool = False,
-    update_placements_lock: bool = False
+    update_placements_lock: bool = False,
+    verify_placements_lock: bool = False
 ) -> int;
 
 def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;
