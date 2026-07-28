@@ -15,9 +15,6 @@ glob _LOCALSTACK: dict = {};
 
 
 def _require_localstack -> str {
-    # Start a real localstack S3 container once for the whole module and return
-    # its endpoint URL. Skips loudly if Docker / localstack cannot run so the
-    # tests exercise the real boto3 wire path instead of an in-process mock.
     if "endpoint" in _LOCALSTACK {
         return _LOCALSTACK["endpoint"];
     }
@@ -56,8 +53,7 @@ def _require_localstack -> str {
 
 
 def _admin_client(endpoint: str) -> any {
-    # A plain boto3 S3 client pointed straight at localstack, used by the tests
-    # to provision buckets independently of the S3Storage under test.
+    # Provisions buckets independently of the S3Storage under test.
     return boto3.client(
         "s3",
         endpoint_url=endpoint,
@@ -69,9 +65,7 @@ def _admin_client(endpoint: str) -> any {
 
 
 def _ensure_bucket(bucket: str) -> any {
-    # Create the bucket in localstack, retrying so the first call also acts as a
-    # readiness wait for the freshly started container, then empty it so each
-    # test starts from a clean slate. Returns the admin client.
+    # Retry so the first call doubles as a readiness wait for the fresh container.
     endpoint = _require_localstack();
     admin = _admin_client(endpoint);
     last = None;
@@ -107,7 +101,6 @@ def _ensure_bucket(bucket: str) -> any {
 def get_mock_s3_storage(
     bucket: str = "test-bucket", public: bool = False
 ) -> S3Storage {
-    # Construct the REAL S3Storage whose boto3 clients talk to localstack.
     endpoint = _require_localstack();
     storage = S3Storage(
         bucket=bucket, region="us-east-1", endpoint_url=endpoint, public_read=public
@@ -221,9 +214,7 @@ test "s3 get_metadata" {
 }
 
 test "s3 get_url with custom endpoint" {
-    # Pure URL generation against the real S3Storage code path; the UNSIGNED
-    # public client builds a path-style URL for the custom endpoint without any
-    # network call, so this stays independent of localstack.
+    # Pure URL generation with no network call, so this needs no localstack bucket.
     storage = S3Storage(
         bucket="minio-bucket",
         endpoint_url="https://minio.example.com",

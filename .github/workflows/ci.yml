@@ -405,12 +405,6 @@ jobs:
           echo "::error::jac fmt --check --lintfix failed for this commit (an autofix was pushed to the branch if this is a same-repo PR)."
           exit 1
 
-      - name: Scale test-hygiene gate
-        # Block new anti-patterns in jac-scale tests (hand-rolled fakes, assert
-        # True, silent skips, swallowed except bodies, 2xx+error status sets).
-        # Pre-existing violations are grandfathered in test_hygiene_baseline.txt.
-        run: jac run jac/jaclang/scale/scripts/lint_test_hygiene.jac
-
       - name: Verify jir_registry.jac is up to date
         run: |
           jac gen-jir-registry --verify

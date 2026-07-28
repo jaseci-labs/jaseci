@@ -385,14 +385,11 @@ test "a refresh carrying another user's real token is rejected as an identity mi
         user_b = um.create_user("ws_user_b", "Secret123!");
         a_id = user_a["user_id"];
         b_id = user_b["user_id"];
-        # A real, currently-valid JWT minted for user A. The real
-        # validate_jwt_token_detail resolves it to A, not a canned foreign id.
         token_a = um.create_jwt_token(a_id);
         assert a_id != b_id;
         assert um.validate_jwt_token_detail(token_a)["user_id"] == a_id;
         async def body -> str {
             ws = _FakeWebSocket();
-            # The connection belongs to user B; a token for user A must be rejected.
             ctx = _ctx('X', user=b_id);
             ctx.rate_tokens = 5.0;
             verdict = await ws_handle_control(

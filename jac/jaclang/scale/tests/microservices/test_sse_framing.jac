@@ -44,7 +44,6 @@ def _sync_producer -> Iterator {
 test "sse_frame_stream frames each async item as a data: line and ends with event: end" {
     frames = _run(_collect(sse_frame_stream(_async_producer())));
 
-    # three data frames + one terminator
     assert len(frames) == 4;
     assert frames[0] == "data: {\"n\": 0}\n\n";
     assert frames[1] == "data: {\"n\": 1}\n\n";
@@ -72,14 +71,12 @@ test "sse_frame_stream drives a real sync generator through run_in_executor" {
 test "sse_frame_stream emits event: error and no end frame when the producer raises" {
     frames = _run(_collect(sse_frame_stream(_raising_producer())));
 
-    # the item yielded before the raise still framed, then an error frame
     assert len(frames) == 2;
     assert frames[0] == "data: {\"ok\": 1}\n\n";
 
     err = frames[1];
     assert err.startswith("event: error\ndata: ");
     assert err.endswith("\n\n");
-    # the real exception type and message are carried on the error payload
     assert "\"error_type\": \"ValueError\"" in err;
     assert "\"message\": \"boom\"" in err;
 

@@ -365,12 +365,6 @@ done
 
 _t "routing OK"
 echo "=== journey: gateway identity + an order that survives an orders-app pod restart ==="
-# Register + login on the gateway for a token (the service functions are auth-gated),
-# add a cart item, create an order (persists an Order under the user root in Mongo),
-# then kill the orders-app pod. A fresh pod must serve the same order back from Mongo.
-# Proves two things at once: the gateway-issued token is accepted by a downstream
-# service, and application state is durable across a pod restart (not held in a
-# single pod's memory).
 GW_URL="http://localhost:${GATEWAY_LOCAL_PORT}"
 E2E_EMAIL="persist-e2e@example.com"
 REG_BODY="{\"identities\":[{\"type\":\"email\",\"value\":\"${E2E_EMAIL}\"}],\"credential\":{\"type\":\"password\",\"password\":\"pw12345678\"}}"

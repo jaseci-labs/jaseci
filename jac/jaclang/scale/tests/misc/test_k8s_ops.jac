@@ -47,18 +47,15 @@ test "api_error_detail falls back to str(e) when status is absent" {
 
 
 test "unavailable_detail reflects capability, cluster, and config states" {
-    # client absent -> capability message (image lacks deploy.k8s)
     with patch.object(k8s_ops, "HAS_KUBERNETES", False) {
         assert k8s_ops.unavailable_detail() == "kubernetes client not installed (image lacks the 'deploy.k8s' capability).";
     }
 
-    # client present but no service host -> not in a cluster
     with patch.object(k8s_ops, "HAS_KUBERNETES", True) {
         with patch.dict(os.environ) {
             os.environ.pop("KUBERNETES_SERVICE_HOST", None);
             assert k8s_ops.unavailable_detail() == "not running inside a Kubernetes cluster.";
         }
-        # client present and in a cluster -> config could not load
         with patch.dict(os.environ) {
             os.environ["KUBERNETES_SERVICE_HOST"] = "10.0.0.1";
             assert k8s_ops.unavailable_detail() == "in-cluster Kubernetes config could not be loaded.";
@@ -82,13 +79,11 @@ test "ops_namespace resolves POD_NAMESPACE env and falls back to default" {
 
 
 test "k8s_available gates on client presence and service host env" {
-    # client present + host set (non-blank) -> available
     with patch.object(k8s_ops, "HAS_KUBERNETES", True) {
         with patch.dict(os.environ) {
             os.environ["KUBERNETES_SERVICE_HOST"] = "10.0.0.1";
             assert k8s_ops.k8s_available() == True;
         }
-        # host unset -> unavailable
         with patch.dict(os.environ) {
             os.environ.pop("KUBERNETES_SERVICE_HOST", None);
             assert k8s_ops.k8s_available() == False;

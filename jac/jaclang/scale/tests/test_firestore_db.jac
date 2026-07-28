@@ -13,7 +13,6 @@ glob _EMULATOR_IMAGE: str = 'gcr.io/google.com/cloudsdktool/google-cloud-cli',
 
 
 def _ensure_emulator -> dict {
-    # Start a real Firestore emulator once, or raise SkipTest if unavailable.
     if _EMULATOR_STATE.get('started') {
         if _EMULATOR_STATE.get('error') is not None {
             raise unittest.SkipTest(_EMULATOR_STATE['error']);
@@ -65,7 +64,6 @@ def _ensure_emulator -> dict {
 
 
 def _make_client -> any {
-    # Build a real google.cloud.firestore client bound to the emulator.
     state = _ensure_emulator();
     os.environ['FIRESTORE_EMULATOR_HOST'] = state['host_port'];
     os.environ['GOOGLE_CLOUD_PROJECT'] = 'test';
@@ -75,7 +73,7 @@ def _make_client -> any {
 
 
 def _make_db(db_name: str) -> FirestoreDb {
-    # Fresh FirestoreDb over the real emulator; unique db_name isolates data.
+    # Unique db_name isolates each test's data.
     return FirestoreDb(client=_make_client(), db_name=db_name);
 }
 
@@ -105,7 +103,7 @@ test "firestore kvstore operations" {
     assert bob.inserted_id is not None;
     assert len(batch.inserted_ids) == 2;
 
-    # Real backend must hold the documents under the db-prefixed collection name.
+    # Documents are stored under the db-prefixed collection name.
     collection_ids = [ref.id for ref in db.client.collections()];
     assert 'appcrud__users' in collection_ids;
     assert len(list(db.client.collection('appcrud__users').stream())) == 4;

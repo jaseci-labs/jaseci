@@ -75,15 +75,11 @@ test "increment accumulates atomically and returns the new total (redis + in-pro
 }
 
 
-# --- get_state_backend() selection logic ------------------------------------
-# These exercise the factory itself, which the parity tests above bypass by
-# constructing the concrete backends directly. get_state_backend caches its
-# choice in a module-level holder, so every test clears it first to observe a
-# real fresh selection.
+# get_state_backend caches its choice in a module-level holder, so every test
+# clears it first to observe a fresh selection.
 
 def _seed_no_redis_config -> str {
-    # A real jac.toml with no redis_url, pointed at get_scale_config(), so the
-    # factory's Redis branch resolves against genuine config and finds nothing.
+    # jac.toml with no redis_url, so the factory's Redis branch finds nothing.
     project_dir = tempfile.mkdtemp(prefix="jac-state-factory-test-");
     (Path(project_dir) / "jac.toml").write_text(
         "[project]\nname = \"state-factory-test\"\nentry-point = \"main.jac\"\n"

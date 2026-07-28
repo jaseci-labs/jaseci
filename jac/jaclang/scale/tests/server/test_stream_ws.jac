@@ -420,11 +420,9 @@ test "websocket_forward round-trips text and binary through a real upstream ws" 
         if t == "bytes"
     ];
 
-    # every frame the client sent came back through the upstream echo
     assert "hello" in texts;
     assert "bye" in texts;
     assert b"\x00\x01\x02" in byte_msgs;
-    # the proxy closed the client side on clean teardown
     assert result["closed"] == True;
 }
 

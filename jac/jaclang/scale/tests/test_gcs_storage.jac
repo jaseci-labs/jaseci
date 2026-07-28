@@ -14,8 +14,6 @@ glob _EMULATOR: dict = {};
 
 
 def _require_emulator -> str {
-    # Start a real fake-gcs-server container once for the whole module and
-    # return its http endpoint. Skips loudly if Docker / the emulator cannot run.
     if "endpoint" in _EMULATOR {
         return _EMULATOR["endpoint"];
     }
@@ -50,7 +48,6 @@ def _require_emulator -> str {
 
 
 def _client_factory(endpoint: str, project_id: (str | None)) -> any {
-    # Build a REAL google.cloud.storage client pointed at the emulator.
     import from google.auth.credentials { AnonymousCredentials }
     import from google.cloud { storage }
 
@@ -69,8 +66,7 @@ def _client_factory(endpoint: str, project_id: (str | None)) -> any {
 
 
 def _ensure_bucket(client: any, bucket: str) -> None {
-    # Create the bucket in the emulator, retrying so the first call also acts
-    # as a readiness wait for the freshly started server.
+    # Retry so the first call doubles as a readiness wait for the fresh server.
     last = None;
     for _ in range(30) {
         try {
@@ -95,8 +91,6 @@ def make_gcs_storage(
     public: bool = False,
     project_id: str = "test-project"
 ) -> GcsStorage {
-    # Construct the REAL GcsStorage backed by a REAL google client that talks
-    # to the fake-gcs-server emulator, with an existing bucket created for it.
     endpoint = _require_emulator();
     os.environ["STORAGE_EMULATOR_HOST"] = endpoint;
     if bucket is None {
@@ -137,7 +131,6 @@ test "gcs storage init wires client and bucket" {
     assert storage.prefix == "uploads";
     assert storage.public_read == True;
     assert storage.project_id == "proj-1";
-    # The real google client and its real bucket handle are wired through.
     assert isinstance(storage._client, RealClient);
     assert storage._bucket is not None;
     assert storage._bucket.name == "firebase-bucket";
@@ -150,12 +143,10 @@ test "gcs upload download and exists" {
     key = storage.upload(io.BytesIO(b"hello"), "dir/file.txt", {"kind": "demo"});
     assert key == "dir/file.txt";
 
-    # Round-trip through the real emulator store.
     assert storage.download("dir/file.txt") == b"hello";
     assert storage.exists("dir/file.txt") == True;
     assert storage.exists("dir/missing.txt") == False;
 
-    # Custom metadata survives the real upload/reload round-trip.
     metadata = storage.get_metadata("dir/file.txt");
     assert metadata["metadata"] == {"kind": "demo"};
     assert metadata["size"] == 5;
@@ -165,10 +156,8 @@ test "gcs upload download and exists" {
 test "gcs delete returns false for missing blob" {
     storage = make_gcs_storage();
 
-    # Real emulator returns 404 -> NotFound -> False.
     assert storage.delete("missing/file.txt") == False;
 
-    # And returns True once the object really exists then is deleted.
     storage.upload(io.BytesIO(b"bye"), "gone/file.txt");
     assert storage.delete("gone/file.txt") == True;
     assert storage.exists("gone/file.txt") == False;
@@ -204,7 +193,6 @@ test "gcs get_metadata raises FileNotFoundError for missing blob" {
 test "gcs copy returns false when source vanishes after exists check" {
     storage = make_gcs_storage();
 
-    # Source never existed in the real store, so the exists() guard returns False.
     assert storage.copy("dir/a.txt", "dir/c.txt") == False;
 }
 
@@ -226,7 +214,6 @@ test "gcs list metadata copy move and url" {
     assert metadata["metadata"] == {"foo": "bar"};
     assert metadata["name"] == "a.txt";
 
-    # Real server-side copy then move against the emulator.
     assert storage.copy("dir/a.txt", "dir/c.txt") == True;
     assert storage.exists("dir/c.txt") == True;
 
@@ -234,7 +221,6 @@ test "gcs list metadata copy move and url" {
     assert storage.exists("dir/d.txt") == True;
     assert storage.exists("dir/a.txt") == False;
 
-    # Public read: get_url returns the object's real public URL.
     public_storage = make_gcs_storage(prefix="app/", public=True);
     url = public_storage.get_url("dir/c.txt", 60);
     assert "dir/c.txt" in url;

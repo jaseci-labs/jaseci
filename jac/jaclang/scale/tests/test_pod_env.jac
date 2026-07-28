@@ -23,10 +23,6 @@ glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e",
 # Routes the real discovery derives from the k8s_e2e fixture's `sv` graph.
 # No [scale.microservices.routes] table exists; these come from `sv import`.
 test "generate_service_pod_specs auto-discovers services when no routes declared" {
-    # The #7137 companion: a microservice app with no
-    # [scale.microservices.routes] section still deploys - services are
-    # discovered from `sv import` under the project root. Drives the real
-    # `_ms_cfg`, route discovery and `_build_*_pod_spec` against the fixture.
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = MicroserviceManifestBuilder(
         k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE)
@@ -35,13 +31,11 @@ test "generate_service_pod_specs auto-discovers services when no routes declared
 
     specs = builder.generate_service_pod_specs(app_cfg, "img");
 
-    # discovered from the fixture's sv graph, no toml routes needed
     assert "products_app" in specs;
     assert "orders_app" in specs;
     assert "cart_app" in specs;
     assert GATEWAY_NAME in specs;
 
-    # the real pod spec must carry the env the runtime relies on
     orders_env = specs["orders_app"]["containers"][0]["env"];
     pairs = {e["name"]: e["value"] for e in orders_env};
     assert json.loads(pairs["JAC_SV_ROUTES"]) == _DISCOVERED_ROUTES;
@@ -120,7 +114,7 @@ test "build_env keeps per-service overrides but never shadows the K8S_* vars" {
 
 
 test "gateway pod client-build fallback uses --client web, not the typecheck-gated full build" {
-    # #7667: a bare `jac build` gates on the whole-project type-check, so a
+    # A bare `jac build` gates on the whole-project type-check, so a
     # type-error app silently shipped without its client and / served a 404.
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = MicroserviceManifestBuilder(k8s_config=cfg);
