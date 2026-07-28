@@ -8,7 +8,7 @@ import from pathlib { Path }
 import from jaclang.scale.state.state_backend { InProcessStateBackend }
 import from jaclang.scale.state.redis_state_backend { RedisStateBackend }
 import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
-import from testcontainers.redis { RedisContainer }
+import from testcontainers.community.redis { RedisContainer }
 
 # A real Redis, not a hand-rolled fake: the fake could only ever assert the
 # semantics its author already assumed (ttl<=0, SET NX PX, incrbyfloat). Every

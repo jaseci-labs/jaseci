@@ -65,7 +65,7 @@ def _real_user_manager -> tuple[str, JacScaleUserManager] {
 }
 
 
-def _cleanup_user_manager(test_dir: str) -> None {
+def _cleanup_user_manager(test_dir: str) {
     if os.path.exists(test_dir) {
         shutil.rmtree(test_dir);
     }
