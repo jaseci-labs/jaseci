@@ -33,7 +33,7 @@ obj DylibEngine {
     }
 }
 
-def _tuple_layout(d: (dict | None)) -> any {
+def _tuple_layout(d: any) -> any {
     if d is None {
         return None;
     }
@@ -44,7 +44,7 @@ def _tuple_layout(d: (dict | None)) -> any {
     );
 }
 
-def _func_layout(d: dict) -> any {
+def _func_layout(d: any) -> any {
     return SimpleNamespace(
         name=d["name"],
         param_types=list(d.get("param_types", [])),
@@ -57,7 +57,7 @@ def _func_layout(d: dict) -> any {
     );
 }
 
-def _field_info(f: dict) -> any {
+def _field_info(f: any) -> any {
     return SimpleNamespace(
         name=f["name"],
         llvm_type=f["llvm_type"],
@@ -69,7 +69,7 @@ def _field_info(f: dict) -> any {
     );
 }
 
-def layout_from_dict(data: dict) -> any {
+def layout_from_dict(data: any) -> any {
     stamped = data.get("abi_version");
     if stamped != NATIVE_ABI_VERSION {
         raise ValueError(
@@ -78,33 +78,41 @@ def layout_from_dict(data: dict) -> any {
         );
     }
     structs: dict = {};
-    for (name, s) in data.get("structs", {}).items() {
+    structs_raw: any = data.get("structs") or {};
+    for (name, s) in structs_raw.items() {
+        sd: any = s;
         structs[name] = SimpleNamespace(
-            name=s["name"],
-            has_vtable=s.get("has_vtable", False),
-            fields=[_field_info(f) for f in s.get("fields", [])]
+            name=sd["name"],
+            has_vtable=sd.get("has_vtable", False),
+            fields=[_field_info(f) for f in (sd.get("fields") or [])]
         );
     }
     enums: dict = {};
-    for (name, e) in data.get("enums", {}).items() {
+    enums_raw: any = data.get("enums") or {};
+    for (name, e) in enums_raw.items() {
+        ed: any = e;
         enums[name] = SimpleNamespace(
-            name=e["name"],
-            is_string_valued=e.get("is_string_valued", False),
+            name=ed["name"],
+            is_string_valued=ed.get("is_string_valued", False),
             members=[
-                tuple(m) if isinstance(m, list) else m for m in e.get("members", [])
+                tuple(m) if isinstance(m, list) else m
+                for m in (ed.get("members") or [])
             ]
         );
     }
     functions: dict = {};
-    for (n, f) in data.get("functions", {}).items() {
+    functions_raw: any = data.get("functions") or {};
+    for (n, f) in functions_raw.items() {
         functions[n] = _func_layout(f);
     }
     methods: dict = {};
-    for (n, f) in data.get("methods", {}).items() {
+    methods_raw: any = data.get("methods") or {};
+    for (n, f) in methods_raw.items() {
         methods[n] = _func_layout(f);
     }
     tuples: dict = {};
-    for (k, t) in data.get("tuples", {}).items() {
+    tuples_raw: any = data.get("tuples") or {};
+    for (k, t) in tuples_raw.items() {
         tuples[k] = _tuple_layout(t);
     }
     return SimpleNamespace(
@@ -113,7 +121,7 @@ def layout_from_dict(data: dict) -> any {
         enums=enums,
         functions=functions,
         methods=methods,
-        list_elem_types=dict(data.get("list_elem_types", {})),
+        list_elem_types=dict(data.get("list_elem_types") or {}),
         tuples=tuples,
         tests=[]
     );

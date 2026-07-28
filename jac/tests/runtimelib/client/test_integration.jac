@@ -1533,14 +1533,15 @@ test "_coerce_config normalizes config values" {
     );
 }
 
-"""Plugin bridge extraction between markers works."""
+"""The plugin bridge module carries its dispatch surface. (The old BRIDGE
+START/END comment markers were vestigial -- nothing extracts between them
+anymore, and the formatter strips free-standing comments -- so the pin is
+the load-bearing code symbols.)"""
 test "bridge marker extraction from plugin_bridge.jac" {
     import from pathlib { Path }
 
     bridge_path = _native_dir() / "plugin_bridge.jac";
     src = bridge_path.read_text();
-    assert "# --- BRIDGE START ---" in src;
-    assert "# --- BRIDGE END ---" in src;
     assert "_PH_DISPATCH" in src;
     assert "_jac_invoke_handler" in src;
     assert "_stash_wv_in_python" in src;
