@@ -34,11 +34,9 @@ def:pub toggle_task(id: str) -> Task | None {
 }
 
 # Client entry point imports from the standalone client module
-cl {
-    import from separated_defpub_client { app as ClientApp }
 
-    def:pub app -> JsxElement {
-        return
-            <ClientApp/>;
-    }
+import from separated_defpub_client { app as ClientApp }
+
+def:pub app -> JsxElement {
+    return <ClientApp/>;
 }

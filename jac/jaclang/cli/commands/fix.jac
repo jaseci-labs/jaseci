@@ -26,6 +26,13 @@ glob registry = get_registry();
             short="",
             help="Report what would change without writing anything"
         ),
+        Arg.create(
+            "strip-only",
+            typ=bool,
+            default=False,
+            short="",
+            help="Only strip markers and rename files; skip placement verification and jac.toml pin/route recording (for fixture trees)"
+        ),
 
     ],
     examples=[
@@ -36,4 +43,4 @@ glob registry = get_registry();
     ],
     group="analysis"
 )
-def fix(target: str, paths: list, dry_run: bool = False) -> int;
+def fix(target: str, paths: list, dry_run: bool = False, strip_only: bool = False) -> int;

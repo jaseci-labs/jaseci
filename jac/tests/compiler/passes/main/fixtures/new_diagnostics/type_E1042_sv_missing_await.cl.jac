@@ -6,17 +6,14 @@ lowers to an async RPC stub returning a coroutine. Calling it without
 runtime (`tasks is not iterable`). The type checker must raise E1042 here.
 """
 
-sv import from type_E1042_sv_missing_await_server { Task, get_tasks }
+import from type_E1042_sv_missing_await_server { Task, get_tasks }
 
 def:pub app -> JsxElement {
     has tasks: list[Task] = [];
 
     async can with entry {
-        tasks = get_tasks();   # E1042: should be `await get_tasks()`
+        tasks = get_tasks();  # E1042: should be `await get_tasks()`
     }
 
-    return
-        <ul>
-            {[<li key={t.id}>{t.title}</li> for t in tasks]}
-        </ul>;
+    return <ul>{[<li key={t.id}>{t.title}</li> for t in tasks]}</ul>;
 }

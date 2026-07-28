@@ -1,15 +1,14 @@
 # .sv.jac file - server is default context
 # Tests that cl blocks in .sv.jac files generate JavaScript correctly
 
-cl {
-    import from "lodash" { debounce }
+import from "lodash" { debounce }
 
-    glob client_var = "shared";
+glob client_var = "shared";
 
-    def client_func() -> str {
-        return "from client";
-    }
+def client_func() -> str {
+    return "from client";
 }
+
 
 import from os { path }
 

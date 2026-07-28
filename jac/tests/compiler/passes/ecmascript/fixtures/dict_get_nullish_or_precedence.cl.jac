@@ -6,47 +6,47 @@ into Jac `or` / `and`, the parenthesized ?? subexpression must stay grouped
 — unparenthesized ?? mixed with ||/&& is a SyntaxError.
 """
 
-cl def getattr_two_arg_or_empty(o: object) -> str {
+def getattr_two_arg_or_empty(o: object) -> str {
     return getattr(o, "k", "") or "";
 }
 
-cl def getattr_numeric_or_zero(o: object) -> int {
+def getattr_numeric_or_zero(o: object) -> int {
     return getattr(o, "n", 0) or 0;
 }
 
-cl def getattr_or_fallback(o: object) -> str {
+def getattr_or_fallback(o: object) -> str {
     return getattr(o, "k", "") or "fallback";
 }
 
-cl def getattr_or_empty_dict(o: object) -> dict {
+def getattr_or_empty_dict(o: object) -> dict {
     return getattr(o, "paths", None) or {};
 }
 
-cl def getattr_chain_or(o: object) -> str {
+def getattr_chain_or(o: object) -> str {
     return getattr(o, "a", "") or getattr(o, "b", "") or "c";
 }
 
-cl def literal_or_getattr(o: object) -> str {
+def literal_or_getattr(o: object) -> str {
     return "x" or getattr(o, "k", "");
 }
 
-cl def getattr_and_true(o: object) -> bool {
+def getattr_and_true(o: object) -> bool {
     return getattr(o, "flag", 0) and True;
 }
 
-cl def getattr_alone(o: object) -> str {
+def getattr_alone(o: object) -> str {
     return getattr(o, "k", "default");
 }
 
-cl def dict_get_or_empty(d: dict) -> str {
+def dict_get_or_empty(d: dict) -> str {
     return d.get("k", "") or "";
 }
 
-cl def dict_get_one_arg_or_empty(d: dict) -> str {
+def dict_get_one_arg_or_empty(d: dict) -> str {
     return d.get("k") or "";
 }
 
-cl def test_nullish_logical_precedence_cases() -> dict {
+def test_nullish_logical_precedence_cases() -> dict {
     return {
         "getattr_two_arg_hit": getattr_two_arg_or_empty({"k": "hi"}),
         "getattr_two_arg_miss": getattr_two_arg_or_empty({}),
@@ -71,5 +71,6 @@ cl def test_nullish_logical_precedence_cases() -> dict {
         "dict_get_one_arg_hit": dict_get_one_arg_or_empty({"k": "hi"}),
         "dict_get_one_arg_miss": dict_get_one_arg_or_empty({}),
         "dict_get_one_arg_falsy": dict_get_one_arg_or_empty({"k": ""}),
+
     };
 }

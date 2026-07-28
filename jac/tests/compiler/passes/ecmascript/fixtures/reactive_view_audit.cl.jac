@@ -11,12 +11,10 @@ and the `type` literal MUST NOT. Under React/Preact the seam is a no-op, so this
 is also a plain dynamic-JSX fixture.
 """
 
-cl {
-    def:pub view_app() -> JsxElement {
-        has count: int = 0;
+def:pub view_app() -> JsxElement {
+    has count: int = 0;
 
-        # dynamic attribute value -> wraps; event handler -> never wraps;
-        # static literal -> bypasses the seam; dynamic child -> wraps.
-        return <input type="text" value={count} onClick={lambda { count; }}>{count}</input>;
-    }
+    # dynamic attribute value -> wraps; event handler -> never wraps;
+    # static literal -> bypasses the seam; dynamic child -> wraps.
+    return <input type="text" value={count} onClick={lambda { count; }}>{count}</input>;
 }

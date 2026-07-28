@@ -5,7 +5,7 @@ Importing the type (`Todo`) alongside the function must NOT emit an
 `class Todo`, and a second `Todo` declaration collides at bundle time.
 """
 
-sv import from .sv_import_type_provider { Todo, list_todos }
+import from .sv_import_type_provider { Todo, list_todos }
 
 def:pub app -> JsxElement {
     has todos: list[Todo] = [];
@@ -14,7 +14,5 @@ def:pub app -> JsxElement {
         todos = await list_todos();
     }
 
-    return <div>
-        {[<span key={t.title}>{t.title}</span> for t in todos]}
-    </div>;
+    return <div>{[<span key={t.title}>{t.title}</span> for t in todos]}</div>;
 }

@@ -14,31 +14,29 @@ gives up and emits the Python method name verbatim, producing JavaScript
 that crashes at runtime.
 """
 
-cl {
-    def:pub case1_in_chain() -> JsxElement {
-        has found: bool = False;
-        can with entry {
-            name = "alice";
-            found = "a" in name.lower();
-        }
-        return <div>{str(found)}</div>;
+def:pub case1_in_chain() -> JsxElement {
+    has found: bool = False;
+    can with entry {
+        name = "alice";
+        found = "a" in name.lower();
     }
+    return <div>{str(found)}</div>;
+}
 
-    def:pub case2_props_upper(props: dict) -> JsxElement {
-        name = props["name"] or "";
-        initial = name[:1].upper();
-        return <div>{initial}</div>;
-    }
+def:pub case2_props_upper(props: dict) -> JsxElement {
+    name = props["name"] or "";
+    initial = name[:1].upper();
+    return <div>{initial}</div>;
+}
 
-    def:pub case2_props_strip(props: dict) -> JsxElement {
-        raw = props["title"] or "";
-        clean = raw.strip();
-        return <div>{clean}</div>;
-    }
+def:pub case2_props_strip(props: dict) -> JsxElement {
+    raw = props["title"] or "";
+    clean = raw.strip();
+    return <div>{clean}</div>;
+}
 
-    def:pub case2_props_lower(props: dict) -> JsxElement {
-        raw = props["label"] or "";
-        lower = raw.lower();
-        return <div>{lower}</div>;
-    }
+def:pub case2_props_lower(props: dict) -> JsxElement {
+    raw = props["label"] or "";
+    lower = raw.lower();
+    return <div>{lower}</div>;
 }

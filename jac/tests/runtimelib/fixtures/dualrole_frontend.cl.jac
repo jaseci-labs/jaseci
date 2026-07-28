@@ -4,9 +4,9 @@ The `sv import from .dualrole_guestbook` is the cl->sv edge that makes the
 guestbook module load server-side as an endpoint provider for the browser.
 """
 
-sv import from .dualrole_guestbook { sign_guestbook, get_guestbook }
+import from .dualrole_guestbook { sign_guestbook, get_guestbook }
 
-cl def:pub Panel() -> JsxElement {
+def:pub Panel() -> JsxElement {
     has names: str = "";
 
     async can with entry {
@@ -14,6 +14,5 @@ cl def:pub Panel() -> JsxElement {
         names = str(gb);
     }
 
-    return
-        <div id="panel">{names}</div>;
+    return <div id="panel">{names}</div>;
 }

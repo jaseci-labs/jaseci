@@ -9,7 +9,7 @@ functions over HTTP.
 import from "@jac/runtime" { jacIsLoggedIn }
 
 # Server function imports - tells compiler these are def:pub endpoints
-sv import from separated_defpub { add_task, get_tasks, toggle_task }
+import from separated_defpub { add_task, get_tasks, toggle_task }
 
 def:pub app -> JsxElement {
     has tasks: list = [],
@@ -33,9 +33,7 @@ def:pub app -> JsxElement {
         updated = await toggle_task(id);
         if updated {
             tasks = tasks.map(
-                lambda (t: any) -> any {
-                    return updated if t.id == id else t;
-                }
+                lambda (t: any) -> any { return updated if t.id == id else t; }
             );
         }
     }
@@ -51,7 +49,9 @@ def:pub app -> JsxElement {
             {[
                 <div key={t.id}>
                     <span>{t.title}</span>
-                    <button onClick={lambda -> None { toggleTask(t.id); }}>Toggle</button>
+                    <button onClick={lambda -> None { toggleTask(t.id); }}>
+                        Toggle
+                    </button>
                 </div> for t in tasks
             ]}
         </div>;

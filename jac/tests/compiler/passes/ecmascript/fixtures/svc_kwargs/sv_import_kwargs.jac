@@ -17,11 +17,9 @@ def:pub add_pair(a: int, b: int) -> int {
 }
 
 # Client entry point imports from the standalone client module
-cl {
-    import from sv_import_kwargs_client { app as ClientApp }
 
-    def:pub app -> JsxElement {
-        return
-            <ClientApp/>;
-    }
+import from sv_import_kwargs_client { app as ClientApp }
+
+def:pub app -> JsxElement {
+    return <ClientApp/>;
 }

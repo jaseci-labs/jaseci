@@ -257,15 +257,16 @@ def _strip_markers(src: str, file_path: str) -> StripResult {
         return res;
     }
     edits.sort();
-    out: list[str] = [];
+    src_bytes = src.encode('utf-8');
+    out: list[bytes] = [];
     cursor = 0;
     for (start, end, repl) in edits {
-        out.append(src[cursor:start]);
-        out.append(repl);
+        out.append(src_bytes[cursor:start]);
+        out.append(repl.encode('utf-8'));
         cursor = end;
     }
-    out.append(src[cursor:]);
-    res.text = ''.join(out);
+    out.append(src_bytes[cursor:]);
+    res.text = (b''.join(out)).decode('utf-8');
     res.changed = True;
     return res;
 }
@@ -382,6 +383,17 @@ def _project_entry_stem(toml_path: str) -> str {
 }
 
 
+def _parses_clean(src: str, file_path: str) -> bool {
+    import from jaclang.jac0core.parser { parse as rd_parse }
+    try {
+        (_mod, had_error) = rd_parse(src, file_path);
+        return not had_error;
+    } except Exception {
+        return False;
+    }
+}
+
+
 def _format_source(src: str, file_path: str) -> (str | None) {
     import from jaclang.jac0core.program { JacProgram }
     try {
@@ -456,7 +468,9 @@ def _verify_claims(
 }
 
 
-impl fix(target: str, paths: list, dry_run: bool = False) -> int {
+impl fix(
+    target: str, paths: list, dry_run: bool = False, strip_only: bool = False
+) -> int {
     if target != 'placement' {
         console.error(f"Unknown fix target '{target}'. Available: placement");
         return 1;
@@ -504,13 +518,16 @@ impl fix(target: str, paths: list, dry_run: bool = False) -> int {
         out_text = res.text;
         if res.changed {
             formatted = _format_source(out_text, final_path);
-            if formatted is None {
+            if formatted is not None {
+                out_text = formatted;
+            } elif _parses_clean(out_text, final_path) {
+                skipped.append(f"{path} (stripped but not reformatted)");
+            } else {
                 skipped.append(
                     f"{path} (stripped source does not parse; migrate manually)"
                 );
                 continue;
             }
-            out_text = formatted;
         }
         if not dry_run {
             if final_path != path {
@@ -534,6 +551,10 @@ impl fix(target: str, paths: list, dry_run: bool = False) -> int {
     import from jaclang.jac0core.modresolver { find_jac_project_root }
     pins_by_root: dict[str, dict[str, str]] = {};
     unverified: list[str] = [];
+    if strip_only {
+        claims_by_file = {};
+        sv_imports_by_file = {};
+    }
     if not dry_run {
         for (path, claims) in claims_by_file.items() {
             claim_root = find_jac_project_root(path);

@@ -7,22 +7,20 @@ string literal, member property) MUST NOT. Under React/Preact the read seam is a
 no-op, so this fixture is also a plain bare-identifier fixture.
 """
 
-cl {
-    def:pub audit_app(items: list) -> JsxElement {
-        has count: int = 0;
+def:pub audit_app(items: list) -> JsxElement {
+    has count: int = 0;
 
-        # value positions — must wrap under signals
-        doubled = count + count;
-        info = {"count": count};
-        nested = [count, count + 1];
+    # value positions — must wrap under signals
+    doubled = count + count;
+    info = {"count": count};
+    nested = [count, count + 1];
 
-        # write target — must lower to setter, never `count() = ...`
-        count = count + 1;
+    # write target — must lower to setter, never `count() = ...`
+    count = count + 1;
 
-        # member property named like the reactive var — property key untouched
-        first = items[0].count;
+    # member property named like the reactive var — property key untouched
+    first = items[0].count;
 
-        # JSX child read; attribute string literal untouched
-        return <div data-count="count">{count}</div>;
-    }
+    # JSX child read; attribute string literal untouched
+    return <div data-count="count">{count}</div>;
 }

@@ -1,6 +1,6 @@
 """Example Jac program for REST API server."""
 
-cl import from "@jac/runtime" { renderJsxTree, }
+import from "@jac/runtime" { renderJsxTree, }
 
 # Define some nodes
 node Task {
@@ -23,7 +23,7 @@ walker CreateTask {
         task = here ++> Task(title=self.title, priority=self.priority);
         if task {
             print("Created task: " + task.title);
-            report task ;
+            report task;
         }
         root spawn CompleteTask(title=self.title);
     }
@@ -51,6 +51,7 @@ walker ListCompletedTasks {
     can collect with Root entry {
         visit [-->];
     }
+
     can gather with Task entry {
         if here.completed {
             self.completed_tasks += [here];
@@ -91,15 +92,12 @@ def greet(name: str = "World") -> str {
     return "Hello, " + name + "!";
 }
 
-cl glob WELCOME_TITLE: str = "Runtime Test";
+glob WELCOME_TITLE: str = "Runtime Test";
 
-cl def:pub client_page() -> JsxElement {
-    return <section class="welcome">
-        <h1>
-            {WELCOME_TITLE}
-        </h1>
-        <p>
-            {greet()}
-        </p>
-    </section>;
+def:pub client_page() -> JsxElement {
+    return
+        <section class="welcome">
+            <h1>{WELCOME_TITLE}</h1>
+            <p>{greet()}</p>
+        </section>;
 }

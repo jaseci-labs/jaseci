@@ -19,11 +19,11 @@ obj Box {
     }
 }
 
-cl def opaque(x: any) -> any {
+def opaque(x: any) -> any {
     return x;
 }
 
-cl def test_poly_complete() -> dict {
+def test_poly_complete() -> dict {
     # --- dict methods (receiver statically `any`) ---
     d = opaque({"a": 1, "b": 2});
     keys = d.keys();
@@ -75,7 +75,7 @@ cl def test_poly_complete() -> dict {
     };
 }
 
-cl def test_poly_attribute_error() -> bool {
+def test_poly_attribute_error() -> bool {
     # An eligible (primitive) method name on an incompatible runtime type must
     # raise a catchable AttributeError, not silently return a wrong value.
     raised = False;

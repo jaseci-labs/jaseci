@@ -375,6 +375,17 @@ def is_server_anchored_module(module: (uni.Module | None)) -> bool {
     if module is None {
         return True;
     }
+    anchor_path = module.loc.mod_path or '';
+    if anchor_path {
+        import from jaclang.jac0core.service_cut { is_service_module_stem }
+        anchor_stem = os.path.basename(anchor_path);
+        if anchor_stem.endswith('.jac') {
+            anchor_stem = anchor_stem[:-4];
+        }
+        if is_service_module_stem(anchor_path, anchor_stem) {
+            return True;
+        }
+    }
     for arch in module.get_all_sub_nodes(uni.Archetype) {
         if arch.arch_kind is not None {
             return True;

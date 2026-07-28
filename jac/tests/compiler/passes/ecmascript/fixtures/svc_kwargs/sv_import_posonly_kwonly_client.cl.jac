@@ -7,9 +7,12 @@ The generated JS wrapper for ``query`` must include both ``filter``
 two params silently disappeared from the wrapper.
 """
 
-sv import from sv_import_posonly_kwonly_server { query, SearchFilter, SearchScope }
+import from sv_import_posonly_kwonly_server { query, SearchFilter, SearchScope }
 
 def:pub app -> JsxElement {
     has total: int = 0;
-    return <div><p>{total}</p></div>;
+    return
+        <div>
+            <p>{total}</p>
+        </div>;
 }

@@ -416,8 +416,20 @@ def _references_browser_seed_global(elem: uni.UniNode) -> str {
 def module_anchor_reasons(module: uni.Module) -> list[str] {
     import from jaclang.jac0core.placement_pins { config_module_pin }
     reasons: list[str] = [];
-    if config_module_pin(module.loc.mod_path or '') == 'server' {
+    mod_path = module.loc.mod_path or '';
+    if config_module_pin(mod_path) == 'server' {
         reasons.append('config pin');
+    }
+    if mod_path {
+        import os;
+        import from jaclang.jac0core.service_cut { is_service_module_stem }
+        stem = os.path.basename(mod_path);
+        if stem.endswith('.jac') {
+            stem = stem[:-4];
+        }
+        if is_service_module_stem(mod_path, stem) {
+            reasons.append('declared service');
+        }
     }
     for arch in module.get_all_sub_nodes(uni.Archetype) {
         if arch.arch_kind is not None {

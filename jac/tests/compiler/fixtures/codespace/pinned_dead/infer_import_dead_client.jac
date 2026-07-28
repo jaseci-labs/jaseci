@@ -1,6 +1,6 @@
-"""Client consumer plainly importing pinned-server helpers (#7632).
+"""Client consumer plainly importing pinned-server helpers (#7632, #7772).
 
-The provider is explicitly server-marked (`.sv.jac`), so neither helper is
+The provider is pinned server via [placement.pins], so neither helper is
 client-placed, cross-module pullable, or a `def:pub` endpoint: no
 client-side artifact can satisfy this import. Each item must be its own
 compile error (both share a source line, so the dedup must be

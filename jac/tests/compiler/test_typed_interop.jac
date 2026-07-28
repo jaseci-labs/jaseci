@@ -92,7 +92,7 @@ test "existing fixtures still compile" {
     assert "__jacCallFunction" in mod.gen.js;
     mod = compile_fixture("mixed_cl_default.cl.jac");
     assert mod.gen.js.strip();
-    mod = compile_fixture("mixed_sv_default.sv.jac");
+    mod = compile_fixture("mixed_sv_default.jac");
     assert mod.gen.js.strip();
 }
 
@@ -159,7 +159,7 @@ test "sv-to-sv: typed archetype return is rehydrated, not a raw dict (#6710)" {
 # bundle time with `The symbol "<Type>" has already been declared` (#6795 -- the
 # cl->sv analog of the Python-path #6710 fix). Only the function gets a stub.
 test "cl->sv: sv-imported type does not become a callable stub (#6795)" {
-    js = compile_fixture("sv_import_type_client.cl.jac").gen.js;
+    js = compile_fixture("svc_kwargs/sv_import_type_client.cl.jac").gen.js;
     assert "async function Todo(" not in js , (
         "an sv-imported type must not degrade into a callable RPC function stub"
     );
@@ -171,7 +171,7 @@ test "cl->sv: sv-imported type does not become a callable stub (#6795)" {
 
 # Inline cl block with def:pub produces __jacCallFunction
 test "inline cl block with defpub generates stubs" {
-    code = '"""Test."""\n\ndef:pub get_data(name: str) -> dict {\n    return {"message": "Hello " + name};\n}\n\ncl {\n    def:pub app() -> Any {\n        data = await get_data("World");\n        return <div>{data}</div>;\n    }\n}\n';
+    code = '"""Test."""\n\nimport os;\n\ndef:pub get_data(name: str) -> dict {\n    return {"message": "Hello " + name + os.sep};\n}\n\ndef:pub app() -> Any {\n    data = await get_data("World");\n    return <div>{data}</div>;\n}\n';
     mod = compile_inline(code);
     js = mod.gen.js;
     assert "__jacCallFunction" in js;
@@ -180,7 +180,7 @@ test "inline cl block with defpub generates stubs" {
 
 # Endpoint effects correctly classify readers and writers
 test "endpoint effects classify readers and writers" {
-    code = '"""Test."""\n\nnode Item { has name: str; }\n\nwalker read_items {\n    can visit_root with Root entry { report [-->]; }\n}\n\nwalker add_item {\n    has name: str;\n    can do_add with Root entry { here ++> Item(name=self.name); }\n}\n\ndef:pub get_count() -> int { return 0; }\n\ndef:pub delete_all() -> None { items = []; del items; }\n\ncl {\n    def:pub app() {\n        root spawn read_items();\n        root spawn add_item(name="x");\n        c = await get_count();\n        await delete_all();\n    }\n}\n';
+    code = '"""Test."""\n\nnode Item { has name: str; }\n\nwalker read_items {\n    can visit_root with Root entry { report [-->]; }\n}\n\nwalker add_item {\n    has name: str;\n    can do_add with Root entry { here ++> Item(name=self.name); }\n}\n\ndef:pub get_count() -> int { return 0; }\n\ndef:pub delete_all() -> None { items = []; del items; }\n\ndef:pub app() -> Any {\n    root spawn read_items();\n    root spawn add_item(name="x");\n    c = await get_count();\n    await delete_all();\n    return <div>{c}</div>;\n}\n';
     mod = compile_inline(code);
     effects = mod.gen.client_manifest.endpoint_effects;
     assert "walker:read_items" in effects;

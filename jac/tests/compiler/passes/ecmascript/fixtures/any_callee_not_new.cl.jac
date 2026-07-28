@@ -6,13 +6,10 @@ emitted `new handler(payload)` for any callee whose type was a
 `ClassType`, which broke async callbacks typed as `Any`.
 """
 
+async def invoke_any_async(handler: any, payload: dict) {
+    await handler(payload);
+}
 
-cl {
-    async def invoke_any_async(handler: any, payload: dict) {
-        await handler(payload);
-    }
-
-    def invoke_any_sync(handler: any, payload: dict) {
-        handler(payload);
-    }
+def invoke_any_sync(handler: any, payload: dict) {
+    handler(payload);
 }

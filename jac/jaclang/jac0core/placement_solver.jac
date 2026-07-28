@@ -359,6 +359,16 @@ def _closure_pullable(
     return True;
 }
 
+
+def _module_externally_pinned(mod_path: str) -> bool {
+    import from jaclang.jac0core.ext_registry { codespace_of }
+    if codespace_of(mod_path) is not None {
+        return True;
+    }
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+    return config_module_pin(mod_path) != '';
+}
+
 def _seed_from_summary(module: uni.Module, prog: any) -> int {
     import from jaclang.jac0core.ext_registry { codespace_of }
     import from jaclang.jac0core.compiler { _stamp_context_element }
@@ -746,7 +756,7 @@ def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int
     if not isinstance(resolved, str) or not resolved.endswith('.jac') {
         return 0;
     }
-    if codespace_of(resolved) is not None {
+    if _module_externally_pinned(resolved) {
         return 0;
     }
     targets: list[uni.Module] = [];

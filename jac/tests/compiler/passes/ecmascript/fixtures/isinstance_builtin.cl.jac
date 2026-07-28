@@ -16,7 +16,7 @@ obj Widget {
     has name: str;
 }
 
-cl def classify(value: any) -> str {
+def classify(value: any) -> str {
     # `bool` must be checked before `int` because Python treats bool as a
     # subclass of int (isinstance(True, int) is True).
     if isinstance(value, str) {
@@ -40,12 +40,12 @@ cl def classify(value: any) -> str {
     return "other";
 }
 
-cl def is_scalar(value: any) -> bool {
+def is_scalar(value: any) -> bool {
     # Tuple-of-types form: isinstance(x, (A, B, ...)).
     return isinstance(value, (int, float, str, bool));
 }
 
-cl def subclass_probe() -> list[bool] {
+def subclass_probe() -> list[bool] {
     # issubclass over builtin-type tags: bool is a subclass of int (Python
     # semantics), identity holds, and unrelated builtins are not subclasses.
     return [

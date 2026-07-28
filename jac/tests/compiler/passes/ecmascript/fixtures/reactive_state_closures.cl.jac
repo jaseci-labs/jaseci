@@ -6,20 +6,21 @@ an immediately-invoked nested lambda. Regression guard: these must all become
 `setX(...)`, not bare `x = ...`.
 """
 
-cl {
-    def:pub closures_app() -> JsxElement {
-        has seen: bool = False;
-        has armed: bool = False;
-        has fired: bool = False;
+def:pub closures_app() -> JsxElement {
+    has seen: bool = False;
+    has armed: bool = False;
+    has fired: bool = False;
 
-        return <div>
+    return
+        <div>
             <button onClick={lambda (e: any) { seen = True; }}>direct</button>
-            <button onClick={lambda (e: any) { setTimeout(lambda { armed = True; }, 0); }}>
+            <button
+                onClick={lambda (e: any) { setTimeout(lambda { armed = True; }, 0); }}
+            >
                 deferred
             </button>
             <button onClick={lambda (e: any) { (lambda { fired = True; })(); }}>
                 nested
             </button>
         </div>;
-    }
 }

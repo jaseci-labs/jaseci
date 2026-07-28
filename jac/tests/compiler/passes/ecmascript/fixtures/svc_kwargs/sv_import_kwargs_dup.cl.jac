@@ -5,7 +5,7 @@ The compiler should emit ``E5080`` rather than silently produce an
 ObjectExpression with a duplicated key.
 """
 
-sv import from sv_import_kwargs_dup_server { greet }
+import from sv_import_kwargs_dup_server { greet }
 
 def:pub app -> JsxElement {
     has input_text: str = "World",

@@ -10,15 +10,16 @@ bundle time) so JSX prop validation accepts React Router's prop names
 Tracking: GitHub issue #5847.
 """
 
-cl import from "@jac/runtime" { Route, Link }
+import from "@jac/runtime" { Route, Link }
 
 def DashboardPage -> JsxElement {
     return <div>Dashboard</div>;
 }
 
 def App -> JsxElement {
-    return <div>
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Link to="/login">Log in</Link>
-    </div>;
+    return
+        <div>
+            <Route path="/dashboard" element={<DashboardPage/>}/>
+            <Link to="/login">Log in</Link>
+        </div>;
 }

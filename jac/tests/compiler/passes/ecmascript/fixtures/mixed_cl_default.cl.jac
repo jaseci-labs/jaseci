@@ -9,18 +9,17 @@ def client_func() -> str {
     return "from client";
 }
 
-sv {
-    import from os { path }
 
-    glob server_var = "shared";
+import from os { path }
 
-    def server_func() -> str {
-        return "from server";
-    }
+glob server_var = "shared";
 
-    walker MyWalker {
-        can process with Root entry {
-            report "done";
-        }
+def server_func() -> str {
+    return "from server";
+}
+
+walker MyWalker {
+    can process with Root entry {
+        report "done";
     }
 }

@@ -329,7 +329,7 @@ test "iife fixture executes" {
     }
 }
 
-test "string literal import infers cl but rejects sv pin" {
+test "string literal import infers cl but rejects a server pin" {
     code = """import from "react-dom" { render }""";
     prog = JacProgram();
     prog.compile(file_path="test.jac", use_str=code);
@@ -339,26 +339,29 @@ test "string literal import infers cl but rejects sv pin" {
         ]}"
     );
 
-    pinned = """sv { import from "react-dom" { render } }""";
-    prog2 = JacProgram();
-    prog2.compile(file_path="test_pinned.jac", use_str=pinned);
-    assert prog2.errors_had;
-    error_messages = [str(e) for e in prog2.errors_had];
-    assert any(
-        "String literal imports" in msg and "client (cl) imports" in msg
-        for msg in error_messages
-    ) , (f"Expected error for server-pinned string import, got: {error_messages}");
-}
-
-test "string literal import works with cl" {
-    code = """cl {
-    import from "react-dom" { render }
-}""";
-    prog = JacProgram();
-    prog.compile(file_path="test.jac", use_str=code);
-    assert not prog.errors_had , (
-        f"Unexpected errors: {[str(e) for e in prog.errors_had]}"
-    );
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmpdir {
+        with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
+            f.write(
+                "[project]\nname = \"pin\"\n\n"
+                "[placement.pins]\ntest_pinned = \"server\"\n"
+            );
+        }
+        pin_path = os.path.join(tmpdir, "test_pinned.jac");
+        with open(pin_path, "w") as f {
+            f.write("""import from "react-dom" { render }""");
+        }
+        prog2 = JacProgram();
+        prog2.compile(pin_path);
+        assert prog2.errors_had;
+        error_messages = [str(e) for e in prog2.errors_had];
+        assert any(
+            "String literal imports" in msg and "client (cl) imports" in msg
+            for msg in error_messages
+        ) , (
+            f"Expected error for server-pinned string import, got: {error_messages}"
+        );
+    }
 }
 
 test "match case empty wildcard body compiles" {

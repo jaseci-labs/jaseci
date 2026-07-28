@@ -5,7 +5,7 @@ compiles to JS string concatenation `M + [J]` instead of `[...M, J]`
 (or `[...M, ...J]`).
 """
 
-sv import from list_concat_impl_server { add_item }
+import from list_concat_impl_server { add_item }
 
 def:pub app -> JsxElement {
     has items: list = [];

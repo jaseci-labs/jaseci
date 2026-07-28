@@ -1,0 +1,20 @@
+[project]
+name = "es-fixtures"
+
+# Service cut for the sv-to-sv / typed-interop fixture pairs (#7772):
+# consumers import these stems across the service boundary.
+[scale.microservices.routes]
+sv_relative_provider = "/sv-relative"
+typed_return_obj = "/t-obj"
+typed_return_nested = "/t-nested"
+typed_return_enum = "/t-enum"
+typed_optional_union = "/t-union"
+typed_collection_return = "/t-coll"
+typed_args_obj = "/t-args"
+typed_bidirectional = "/t-bidi"
+typed_dict_return = "/t-dict"
+typed_walker_spawn = "/t-wspawn"
+typed_walker_fields = "/t-wfields"
+typed_graph_return = "/t-graph"
+separated = "/separated"
+separated_defpub = "/separated-defpub"

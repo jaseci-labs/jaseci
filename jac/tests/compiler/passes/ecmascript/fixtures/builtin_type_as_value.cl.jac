@@ -9,7 +9,7 @@ Every form below must resolve to the same callable the direct call emits, and
 the type must keep working as isinstance/issubclass classinfo.
 """
 
-cl def parse_all(parts: list) -> list {
+def parse_all(parts: list) -> list {
     # `int` as a map callback.  JS `.map` hands its callback
     # (value, index, array), so a two-arity coercion like `int(x, base)` would
     # read the index as a radix and yield NaN unless map keeps Python's
@@ -17,33 +17,33 @@ cl def parse_all(parts: list) -> list {
     return list(map(int, parts));
 }
 
-cl def keep_truthy(items: list) -> list {
+def keep_truthy(items: list) -> list {
     return list(filter(bool, items));
 }
 
-cl def sort_numerically(items: list) -> list {
+def sort_numerically(items: list) -> list {
     # A builtin type as a `key=` function.
     return sorted(items, key=int);
 }
 
-cl def alias_call(x: str) -> int {
+def alias_call(x: str) -> int {
     # Aliasing a builtin type, then calling through the alias.
     f = int;
     return f(x);
 }
 
-cl def coerce_all(x: any) -> list {
+def coerce_all(x: any) -> list {
     # Builtin types stored in a collection, then called out of it.
     coercions = [str, int, bool];
     return [c(x) for c in coercions];
 }
 
-cl def direct_call(x: str) -> int {
+def direct_call(x: str) -> int {
     # Direct calls were never broken -- guard that they stay coerced.
     return int(x);
 }
 
-cl def classify(value: any) -> str {
+def classify(value: any) -> str {
     # A builtin type in classinfo position must still be a working type.  The
     # returned names are prefixed so the test can assert that no *bare* type
     # tag (`"int"`) survives in callable position.
@@ -59,6 +59,6 @@ cl def classify(value: any) -> str {
     return "kind:other";
 }
 
-cl def subclass_probe -> list[bool] {
+def subclass_probe -> list[bool] {
     return [issubclass(bool, int), issubclass(str, int)];
 }

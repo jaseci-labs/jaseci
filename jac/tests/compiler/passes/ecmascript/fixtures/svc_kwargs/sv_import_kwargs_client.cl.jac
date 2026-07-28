@@ -7,7 +7,7 @@ an empty object.
 """
 
 # Server function imports — these become __jacCallFunction RPC stubs.
-sv import from sv_import_kwargs { greet, add_pair }
+import from sv_import_kwargs { greet, add_pair }
 
 def:pub app -> JsxElement {
     has input_text: str = "World",

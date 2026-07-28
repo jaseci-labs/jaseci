@@ -14,19 +14,14 @@ on a new line) is structural and must still be dropped, matching Babel's
 JSX text normalization rules.
 """
 
-cl {
-    def:pub app() -> any {
-        count: int = 5;
-        amount: float = 1.5;
-        unit: str = "lb";
-        return
-            <div>
-                <span>{count} {("task" if count == 1 else "tasks")} remaining</span>
-                <span>{amount} {unit}</span>
-                <p>
-                    {count}
-                    {unit}
-                </p>
-            </div>;
-    }
+def:pub app() -> any {
+    count: int = 5;
+    amount: float = 1.5;
+    unit: str = "lb";
+    return
+        <div>
+            <span>{count} {("task" if count == 1 else "tasks")} remaining</span>
+            <span>{amount} {unit}</span>
+            <p>{count}{unit}</p>
+        </div>;
 }

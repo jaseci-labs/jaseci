@@ -12,7 +12,7 @@ SAME provider and MUST still raise E1042, proving the check is sensitive to
 the importing module's context, not just the `sv import` keyword.
 """
 
-sv import from type_E1042_sv_missing_await_server { Task, get_tasks }
+import from type_E1042_sv_missing_await_server { Task, get_tasks }
 
 def:pub gather -> list[Task] {
     # sv->sv: synchronous call, no `await`. Must type-check cleanly.

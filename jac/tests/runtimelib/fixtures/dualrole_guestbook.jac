@@ -12,7 +12,7 @@ invoking them never triggers a provider subprocess spawn — the analytics
 binding only has to compile to a lazy HTTP stub for the module to load cleanly.
 """
 
-sv import from .dualrole_analytics { Analyze, AnalyticsReport }
+import from .dualrole_analytics { Analyze, AnalyticsReport }
 
 glob _signatures: list[str] = [];
 

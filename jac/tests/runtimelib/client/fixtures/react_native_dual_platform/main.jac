@@ -9,35 +9,34 @@ walker:pub get_greeting {
     }
 }
 
-cl {
-    import from '@jac/runtime' { Router, Routes, Route }
-    import from .src.header { PlatformHeader }
 
-    import "./src/styles.css";
+import from '@jac/runtime' { Router, Routes, Route }
+import from .src.header { PlatformHeader }
 
-    def:pub HomePage -> JsxElement {
-        has greeting: str = "";
+import "./src/styles.css";
 
-        async can with entry {
-            result = root spawn get_greeting();
-            if result.reports and len(result.reports) > 0 {
-                greeting = str(result.reports[0]);
-            }
+def:pub HomePage -> JsxElement {
+    has greeting: str = "";
+
+    async can with entry {
+        result = root spawn get_greeting();
+        if result.reports and len(result.reports) > 0 {
+            greeting = str(result.reports[0]);
         }
-
-        return
-            <div>
-                <PlatformHeader title="Home"/>
-                <p data-testid="greeting">{greeting}</p>
-            </div>;
     }
 
-    def:pub app -> JsxElement {
-        return
-            <Router>
-                <Routes>
-                    <Route path="/" element={<HomePage/>}/>
-                </Routes>
-            </Router>;
-    }
+    return
+        <div>
+            <PlatformHeader title="Home"/>
+            <p data-testid="greeting">{greeting}</p>
+        </div>;
+}
+
+def:pub app -> JsxElement {
+    return
+        <Router>
+            <Routes>
+                <Route path="/" element={<HomePage/>}/>
+            </Routes>
+        </Router>;
 }

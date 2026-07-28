@@ -8,16 +8,17 @@ keys stored in the internal `data` dict).
 
 obj Cache {
     has data: dict = {"x": 42};
+
     def get(key: str, default_: any = None) -> any {
         return self.data[key] if key in self.data else default_;
     }
 }
 
-cl def opaque(x: any) -> any {
+def opaque(x: any) -> any {
     return x;
 }
 
-cl def test_poly_get_custom() -> dict {
+def test_poly_get_custom() -> dict {
     c = opaque(Cache());
     val_hit = c.get("x", -1);
     val_miss = c.get("z", -1);

@@ -110,7 +110,7 @@ def fixture_path(filename: str) -> str {
 }
 
 test "core fixture ast shape" {
-    core_fixture = "core_language_features.jac";
+    core_fixture = "core_language_features.cl.jac";
     es_ast = compile_to_esast(fixture_path(core_fixture));
 
     func_decls = [
@@ -152,7 +152,7 @@ test "core fixture ast shape" {
 }
 
 test "advanced fixture contains async and spread nodes" {
-    advanced_fixture = "advanced_language_features.jac";
+    advanced_fixture = "advanced_language_features.cl.jac";
     es_ast = compile_to_esast(fixture_path(advanced_fixture));
 
     func_names = {
@@ -188,7 +188,7 @@ test "client fixture generates client bundle" {
 # within a Jac execution context (dual class loading issue).
 # test "es ast serializes to json" { ... }
 test "class separate impl file" {
-    es_ast = compile_to_esast(fixture_path("class_separate_impl.jac"));
+    es_ast = compile_to_esast(fixture_path("class_separate_impl.cl.jac"));
     js_code = es_to_js(es_ast);
 
     # Check that the Calculator class exists
@@ -234,7 +234,7 @@ test "class separate impl file" {
 }
 
 test "fstring generates template literal" {
-    advanced_fixture = "advanced_language_features.jac";
+    advanced_fixture = "advanced_language_features.cl.jac";
     es_ast = compile_to_esast(fixture_path(advanced_fixture));
     js_code = es_to_js(es_ast);
 
@@ -267,7 +267,7 @@ test "fstring generates template literal" {
 }
 
 test "export semantics for pub declarations" {
-    es_ast = compile_to_esast(fixture_path("export_semantics.jac"));
+    es_ast = compile_to_esast(fixture_path("export_semantics.cl.jac"));
     js_code = es_to_js(es_ast);
 
     # Single comprehensive export statement at the end

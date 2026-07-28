@@ -1171,17 +1171,26 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
 
     for binding in manifest.server_exports_to_client {
         if binding.ast_node and isinstance(binding.ast_node, uni.Ability) {
+            cl_src_mod: (uni.Module | None) = None;
+            walk_node: (uni.UniNode | None) = binding.ast_node;
+            while walk_node {
+                if isinstance(walk_node, uni.Module) {
+                    cl_src_mod = walk_node;
+                    break;
+                }
+                walk_node = walk_node.parent;
+            }
             sig = binding.ast_node.signature;
             if isinstance(sig, uni.FuncSignature) {
                 if sig.return_type {
                     for tn in self._extract_all_type_names(sig.return_type) {
-                        self._collect_boundary_type(tn, None);
+                        self._collect_boundary_type(tn, cl_src_mod);
                     }
                 }
                 for p in sig.params {
                     if p.type_tag {
                         for tn in self._extract_all_type_names(p.type_tag.tag) {
-                            self._collect_boundary_type(tn, None);
+                            self._collect_boundary_type(tn, cl_src_mod);
                         }
                     }
                 }

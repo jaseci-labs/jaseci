@@ -3,7 +3,7 @@
 Tests that typed obj returns work across separate .cl.jac / .jac files.
 """
 
-sv import from .typed_return_obj { create_todo, get_todos }
+import from .typed_return_obj { create_todo, get_todos }
 
 def:pub app -> JsxElement {
     has todos: list = [],
@@ -19,10 +19,13 @@ def:pub app -> JsxElement {
         todos = todos + [todo];
     }
 
-    return <div>
-        {[<div key={t.title}>
-            <span>{t.title}</span>
-            <span>{t.done}</span>
-          </div> for t in todos]}
-    </div>;
+    return
+        <div>
+            {[
+                <div key={t.title}>
+                    <span>{t.title}</span>
+                    <span>{t.done}</span>
+                </div> for t in todos
+            ]}
+        </div>;
 }
