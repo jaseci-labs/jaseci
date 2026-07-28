@@ -702,6 +702,17 @@ impl JacCompiler.parse_str(
         (mod, had_error) = rd_parse(source_str, file_path, prog=target_program);
         codespace = codespace_of(file_path);
         if not codespace {
+            # Native-by-location (bundled native stdlib, desktop shims) is
+            # unconditional -- these coerce for every program, the internal
+            # one included, exactly as their retired filename markers did.
+            import from jaclang.jac0core.codeinfo {
+                is_native_by_location as _nbl
+            }
+            if _nbl(file_path) {
+                codespace = 'native';
+            }
+        }
+        if not codespace {
             # A forced placement (force_codespace, or an AOT build defaulting
             # native) coerces exactly where the retired filename marker used
             # to: right after parse, before the annex merge.
