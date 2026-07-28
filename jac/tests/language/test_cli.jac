@@ -568,11 +568,12 @@ test "run test native broken import surfaces error" {
         sys.stdout = old_stdout;
     }
 
-    # Non-zero exit and a visible error -- never a silent green pass.
+    # Non-zero exit and a visible error -- never a silent green pass. With
+    # the .na.jac marker retired the module demotes to the server codespace,
+    # so the broken import surfaces as the loud python import error instead
+    # of a native E5090; the never-silently-green guarantee is unchanged.
     assert rc != 0;
-    assert "native_broken_import_test" in out;
-    assert "E5090" in out;
-    assert "nope" in out;
+    assert "this_module_does_not_exist_7150" in out;
     assert "passed" not in out;
 }
 
@@ -645,7 +646,7 @@ test "run test with filter maxfail" {
     env = dict(os.environ);
     env["JAC_TEST_NATIVE"] = "1";
     process = subprocess.Popen(
-        ["jac", "test", "-f", "*run_test.jac", "-m", "3"],
+        ["jac", "test", "-f", "*run_test.jac", "-m", "4"],
         cwd=fixture_path(""),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -655,8 +656,12 @@ test "run test with filter maxfail" {
     );
     (stdout, stderr) = process.communicate();
     combined = stdout + stderr;
+    # Three files match since the .na.jac marker retired: native_run_test
+    # (.F) now joins maxfail_run_test (F.F) and run_test (...F); -m 4 lets
+    # all of them run before the failure cap trips.
     assert "...F" in combined;
     assert "F.F" in combined;
+    assert ".F" in combined;
 }
 
 test "run specific test only" {

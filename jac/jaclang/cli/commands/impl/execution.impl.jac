@@ -324,11 +324,35 @@ impl run(
     try {
         if filename.endswith('.jac') {
             native_executed = False;
-            if (_default_codespace_is_native() and sys.stdout is sys.__stdout__) {
+            # An explicit `kind = "cli-native"` project is a native mandate
+            # (the retired .na.jac marker's project-level successor): force
+            # the placement and skip the redirected-stdout heuristic that
+            # only exists to keep *inferred* runs conservative.
+            _cfg_kind = get_config();
+            _kind_forced = (
+                _cfg_kind is not None
+                and (_cfg_kind.project.kind or '').strip() == 'cli-native'
+            );
+            if (
+                _kind_forced
+                or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+            ) {
                 import ctypes;
+                import from jaclang.jac0core.compile_options {
+                    CompileOptions as _RunOpts
+                }
                 full_path = os.path.abspath(filename);
                 program = Jac.get_program();
-                ir_mod = program.compile(file_path=full_path);
+                _run_options = (
+                    _RunOpts(
+                        type_check=False,
+                        force_codespace='native',
+                        force_target_program=True
+                    )
+                        if _kind_forced
+                        else None
+                );
+                ir_mod = program.compile(file_path=full_path, options=_run_options);
                 if program.errors_had {
                     for _err in program.errors_had {
                         console.error(_err.pretty_print());
@@ -351,6 +375,14 @@ impl run(
                             native_executed = True;
                         }
                     }
+                }
+                if _kind_forced and not native_executed {
+                    console.error(
+                        "cli-native project did not produce a runnable native "
+                        "entry (no engine or no jac_entry)."
+                    );
+                    mach.close();
+                    return 1;
                 }
             }
             if not native_executed {

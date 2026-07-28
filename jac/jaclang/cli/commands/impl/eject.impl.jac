@@ -186,9 +186,10 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         } else {
             bmod = ".".join(parent_parts + [stem]);
         }
+        # An inferred-native module keeps its python side (the dual), so it
+        # still serves endpoints; only explicit client modules are excluded.
         is_client = is_client_module(rel.name);
-        is_native = ir.decided_codespace == 'native';
-        server = _is_meaningful_python(py_code) and (not is_client) and (not is_native);
+        server = _is_meaningful_python(py_code) and (not is_client);
 
         if server {
             for item in ir.body {

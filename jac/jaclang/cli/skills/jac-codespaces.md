@@ -3,14 +3,15 @@ name: jac-codespaces
 description: Inferred client/server/native code placement - how the compiler decides what runs where (JSX/npm imports mark code client, extern C declarations mark code native, references pull helpers along), what never moves (def:pub endpoints, walkers, shared objs), and the explicit cl/sv/na overrides. Load when deciding where code runs, pinning a declaration server-side with `sv`, or debugging why something landed in the wrong bundle.
 ---
 
-**Codespaces are inferred - you do not have to mark client code.** Jac compiles one language to three codespaces: server (Python - the default), client (JavaScript/JSX), and native (LLVM). The compiler decides placement from the code itself; the `cl`/`sv`/`na` markers still exist but are optional overrides, and markerless code compiles **byte-identical** to its marker-annotated equivalent.
+**Codespaces are inferred - you do not have to mark client code.** Jac compiles one language to three codespaces: server (Python), client (JavaScript/JSX), and native (LLVM). The compiler decides placement from the code itself; the `cl`/`sv`/`na` markers still exist but are optional overrides, and markerless code compiles **byte-identical** to its marker-annotated equivalent.
 
 ## The inference rules
 
 1. **Client is structural.** JSX and string-path npm imports (`import from "react" { ... }`) are client-only syntax; a declaration carrying either is placed client automatically.
 2. **Placement propagates through references, within a module.** Helpers, `glob`s, and imports that client code uses join the client bundle. Propagation is scope-aware: a local that shadows a module-level name does NOT pull the module-level one in. **It does not cross module boundaries:** a client module importing a helper from a plain (server-default) module fails with **E5082** ("has no client-side presence"). Pin such a module `.cl.jac` - pure modules with no JSX and no npm import have no structural signal of their own, so inference leaves them on the server. A `.cl.jac`-pinned pure module is still reachable by `jac test`.
-3. **Server is the default** for unmarked code that no client code references.
+3. **Server is the default** for unmarked code that no client code references - within a module that has a server anchor (rule 5 lists the anchors).
 4. **Native is seeded by extern C declarations** - an import whose braces declare C-ABI functions infers native placement for itself and its users; see below.
+5. **Whole markerless modules prefer native.** Under `[build] default_codespace = "native"` (the default), the placement solver compiles a module whole-module native when its import closure has no native blockers (walkers, PyPI imports, `pub` endpoints, JSX, tests, ...); a module that prefers native but cannot lower demotes back to the server with a note. `pub` anchors a *standalone* module server (endpoint semantics), but a module pulled in as a native dependency may still use `pub` freely as its C-ABI export marker.
 
 A complete markerless full-stack module - every placement is inferred:
 
@@ -66,7 +67,7 @@ Reference propagation pulls helpers - it does NOT turn server API surface into c
 |---|---|---|
 | Block | `cl { ... }` / `sv { ... }` / `na { ... }` | a region of a mixed file |
 | Statement prefix | `cl def ...` / `sv glob ...` / `na def ...` | one declaration |
-| File extension | `.cl.jac` / `.sv.jac` / `.na.jac` | the whole file |
+| File extension | `.cl.jac` / `.sv.jac` (native placement has no filename marker) | the whole file |
 
 All existing marker-annotated code remains valid - markers are the explicit style, not a deprecated one. Write them when you want the boundary visible in the source, and always when overriding inference.
 
@@ -104,10 +105,10 @@ def open_window() -> None {        # uses InitWindow -> native
 ```
 
 - **Consuming a native module is NOT a signal.** `import from mymod { fast_fn }` where `mymod` is native code stays a server-side import - that is the server-to-native ctypes interop crossing, not a reason to relocate the importer. The client-side crossing is spelled explicitly: `na import from .mymod { fast_fn }` in a client module compiles the target to `/static/<stem>.wasm`, binds the names to lazy async wasm stubs, and compiles to nothing on the server (see `jac-native-wasm`).
-- **`test` blocks are never pulled native.** `jac test` runs them on the server, where they reach the native code through the generated interop stubs - same as tests inside `na {}` blocks and `.na.jac` files.
+- **`test` blocks are never pulled native.** `jac test` runs them on the server, where they reach the native code through the generated interop stubs - same as tests inside `na {}` blocks and native-placed modules.
 - **Referenced by both sides -> stays server.** Client and native inference run independently in one markerless file; a declaration referenced by BOTH sides is placed server, where each side can bridge to it (auto-RPC for the client, py-interop for native).
-- **Native-compatible pure code still defaults to server.** Compatibility is not intent: with no FFI seed, going native remains an explicit build choice - an `na { ... }` block, a `.na.jac` file, or `jac nacompile` / `jac run --autonative` auto-promotion. See `jac-native`.
-- **Explicit markers never act as propagation sources.** An `na { }` block or `.na.jac` file pins its own contents; it does not pull referenced code native the way an extern seed does.
+- **Pure code in a mixed module stays server without a pin.** Inside a module with server anchors, compatibility is not intent: with no FFI seed, an element goes native only via an `na { ... }` block or prefix. Whole markerless modules are different - they compile native by the rule-5 verdict, and `jac nacompile` / `jac build --as native` force the choice with loud errors. See `jac-native`.
+- **Explicit markers never act as propagation sources.** An `na { }` block (or prefix) pins its own contents; it does not pull referenced code native the way an extern seed does.
 
 ## Rules
 

@@ -74,7 +74,7 @@ The simplest project: anything you run straight from the terminal -- scripts, au
 
 ### Native binary
 
-A `.na.jac` file compiles, through LLVM, to a **standalone, zero-dependency executable** you can ship to machines that have neither Jac nor Python installed -- like a `curl`-style single-binary tool. Same command-line territory as a [CLI tool](#cli-tool), with the trade reversed: ship-anywhere portability in exchange for the restricted native subset. To ship a *full* app as one executable instead, see [Ship it](#ship-it-one-file-or-one-executable).
+`jac nacompile` compiles a `.jac` file, through LLVM, to a **standalone, zero-dependency executable** you can ship to machines that have neither Jac nor Python installed -- like a `curl`-style single-binary tool. Same command-line territory as a [CLI tool](#cli-tool), with the trade reversed: ship-anywhere portability in exchange for the restricted native subset. To ship a *full* app as one executable instead, see [Ship it](#ship-it-one-file-or-one-executable).
 
 :octicons-arrow-right-24: Recipe & guided path: [CLI tools & native binaries](../build/cli-and-native.md#native-binary) · Full tutorial: [Build a Chess Engine](../tutorials/native/chess.md)
 

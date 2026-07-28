@@ -8,7 +8,7 @@
 - [Quick Reference](#quick-reference) - At-a-glance summary of capabilities
 - [Native Sections in Jac Applications](#native-sections-in-jac-applications) - Mixing native sections into Python-backed Jac code
 - [Python-Native Interop](#python-native-interop) - How the two codespaces communicate
-- [Standalone Native Binaries](#standalone-native-binaries) - Compiling `.na.jac` files to executables
+- [Standalone Native Binaries](#standalone-native-binaries) - Compiling `.jac` modules to executables
 - [Type System](#type-system) - Native type mappings and fixed-width types
 - [Supported Language Features](#supported-language-features) - What works in native code
 - [C Library Interop](#c-library-interop) - Calling C functions from Jac
@@ -25,7 +25,7 @@
 Jac's native codespace compiles code to **machine-code via LLVM** -- the same Jac syntax, but running as native instructions instead of on the Python runtime. You can use it in two ways:
 
 1. **Inline native sections** -- drop native-compiled functions into any Jac application alongside Python-backed code using a `na { }` block (or `na` statement prefix). The compiler generates the interop layer automatically.
-2. **Standalone `.na.jac` files** -- compile an entire program to a self-contained binary with `jac nacompile`. No Python runtime, no external compiler, no external linker -- the entire toolchain from source to executable runs within Jac itself.
+2. **Standalone binaries** -- compile an entire program to a self-contained binary with `jac nacompile`, which forces the whole module native. No Python runtime, no external compiler, no external linker -- the entire toolchain from source to executable runs within Jac itself.
 
 Native compilation is ideal for:
 
@@ -37,21 +37,27 @@ Native compilation is ideal for:
 
 ## Quick Reference
 
-Native placement is **inferred from extern C declarations** -- an import
-whose braces declare C-ABI functions, e.g. `import from raylib {
+Native placement is **inferred, never spelled in the filename**. Under
+`[build] default_codespace = "native"` (the default), the placement
+solver decides each module's codespace: `scan_native_blockers` plus an
+import-closure fixpoint determine whether the module can lower natively.
+A module that can, goes native; one that prefers native but cannot lower
+(walkers, PyPI imports, ...) demotes to the server codespace with a note.
+An import whose braces declare C-ABI functions, e.g. `import from raylib {
 def InitWindow(w: i32, h: i32, title: str) -> None; }`, is an FFI surface
-only the native backend can satisfy, so the compiler routes it -- and the
-declarations that use it -- to the native codespace automatically, just as
-JSX and npm imports infer the client codespace. Merely importing *from* a
-native module is not such a signal, and native-compatible pure code still
-defaults to the server: without an FFI seed, whether code *should* be
-compiled natively is a build decision, made with one of the selectors
-below (all of which remain valid as explicit overrides):
+only the native backend can satisfy, so it -- and the declarations that
+use it -- always land native, just as JSX and npm imports infer the client
+codespace. `pub` elements anchor a *standalone* module to the server
+(endpoint semantics); a module pulled in as a native dependency may still
+use `pub` freely as its C-ABI export marker. To *force* native -- so
+lowering problems stay loud errors instead of demoting -- use `jac
+nacompile`, `jac build --as native`, or
+`CompileOptions(force_codespace='native')` programmatically:
 
 | Aspect | Details |
 |--------|---------|
 | **Inline section** | `na { }` block (or `na` prefix) in any `.jac` file |
-| **Dedicated file** | `.na.jac` extension |
+| **Whole module** | Inferred by the placement solver; forced with `jac nacompile` / `jac build --as native` |
 | **Entry point** | `with entry { }` (standalone binaries only) |
 | **CLI command** | `jac nacompile <file> [-o output] [--shared]` |
 | **Backend** | LLVM IR via llvmlite |
@@ -157,17 +163,17 @@ The compiler:
 
 ### Import Between Native Modules
 
-Native files can import from other native files:
+Native modules can import from other native modules:
 
 ```jac
-# math_utils.na.jac
+# math_utils.jac
 def square(x: int) -> int {
     return x * x;
 }
 ```
 
 ```jac
-# app.na.jac
+# app.jac
 import from math_utils { square }
 
 with entry {
@@ -181,14 +187,14 @@ The compiler links imported native modules at the IR level -- no dynamic library
 
 ## Standalone Native Binaries
 
-For programs that should run without Python entirely, use `.na.jac` files and compile them with `jac nacompile`.
+For programs that should run without Python entirely, compile a `.jac` file with `jac nacompile`, which forces the whole program into the native codespace.
 
 ### Writing a Standalone Program
 
-A `.na.jac` file is entirely native -- every function, object, and expression compiles to machine code. A `with entry {}` block serves as the program's entry point.
+A nacompiled module is entirely native -- every function, object, and expression compiles to machine code. A `with entry {}` block serves as the program's entry point.
 
 ```jac
-# hello.na.jac
+# hello.jac
 
 def greet(name: str) -> str {
     return f"Hello, {name}!";
@@ -207,11 +213,11 @@ jac nacompile <filename> [-o <output>]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `<filename>` | Input `.na.jac` or `.jac` file | (required) |
+| `<filename>` | Input `.jac` file | (required) |
 | `-o <output>` | Output binary name | Input filename without extension |
 
 ```bash
-$ jac nacompile hello.na.jac -o hello
+$ jac nacompile hello.jac -o hello
 
 === Compilation Stats ===
 Object size:   4,832 bytes
@@ -224,8 +230,8 @@ Hello, World!
 
 The output is a fully linked, self-contained executable. No external compiler (gcc, clang) or linker (ld, lld) is invoked -- Jac's built-in compilation pipeline handles everything from LLVM IR generation through to the final binary format for your platform.
 
-!!! info "Auto-promotion"
-    Regular `.jac` files can be auto-promoted to native compilation if they only use native-compatible features (no walkers, async, lambdas, etc.) and contain a `with entry {}` block.
+!!! info "Forcing vs. inference"
+    Under the default `[build] default_codespace = "native"`, `jac run` already infers native placement -- but a module that cannot lower quietly demotes to the server codespace with a note. `jac nacompile` (like `jac build --as native`) instead *coerces* the module native, so anything that cannot lower is a loud compile error rather than a demotion.
 
 ### Compilation Pipeline
 
@@ -246,20 +252,20 @@ graph LR
 
 ## Shared Libraries (C ABI)
 
-Where `import from "lib.so" { ... }` lets native Jac *call into* C libraries, `jac nacompile --shared` does the inverse: it packages a `.na.jac` module as a **C-ABI shared library** that any C/C++/Python/Rust host can load and call. The same self-contained pipeline emits an ELF `.so`, a Mach-O `.dylib`, or a PE `.dll` -- no system linker required.
+Where `import from "lib.so" { ... }` lets native Jac *call into* C libraries, `jac nacompile --shared` does the inverse: it packages a `.jac` module as a **C-ABI shared library** that any C/C++/Python/Rust host can load and call. The same self-contained pipeline emits an ELF `.so`, a Mach-O `.dylib`, or a PE `.dll` -- no system linker required.
 
 ```bash
-jac nacompile mathlib.na.jac --shared          # -> ./libmathlib.so   (host platform)
-jac nacompile mathlib.na.jac --shared --target macos     # -> ./libmathlib.dylib
-jac nacompile mathlib.na.jac --shared --target windows   # -> ./libmathlib.dll
+jac nacompile mathlib.jac --shared          # -> ./libmathlib.so   (host platform)
+jac nacompile mathlib.jac --shared --target macos     # -> ./libmathlib.dylib
+jac nacompile mathlib.jac --shared --target windows   # -> ./libmathlib.dll
 ```
 
 ### Choosing what to export
 
-A shared library has no `with entry {}` -- its surface is whatever you mark **`:pub`**. Only explicitly `:pub` functions and globals are placed in the library's export table; everything else stays internal (callable *within* the library, invisible to a host). This makes `:pub` a curated C-ABI surface rather than a dump of every symbol.
+A shared library has no `with entry {}` -- its surface is whatever you mark **`:pub`**. Only explicitly `:pub` functions and globals are placed in the library's export table; everything else stays internal (callable *within* the library, invisible to a host). This makes `:pub` a curated C-ABI surface rather than a dump of every symbol. (In a standalone module `pub` would anchor placement to the server -- endpoint semantics -- but a module compiled as a native library or pulled in as a native dependency uses `pub` freely as its export marker.) (In a standalone module `pub` would anchor placement to the server -- endpoint semantics -- but a module compiled as a native library or pulled in as a native dependency uses `pub` freely as its export marker.)
 
 ```jac
-# mathlib.na.jac
+# mathlib.jac
 glob:pub counter: int = 7;          # exported global (read via dlsym/GetProcAddress)
 
 def:pub jadd(a: int, b: int) -> int {   # exported function
@@ -283,7 +289,7 @@ def:pub point_sum(p: Point) -> int {
 }
 ```
 
-`:pub` symbols exported from imported native modules are re-exported too, so a library can be composed from several `.na.jac` files.
+`:pub` symbols exported from imported native modules are re-exported too, so a library can be composed from several `.jac` files.
 
 ### Calling it from C
 
@@ -685,7 +691,7 @@ with entry {
 ```
 
 ```bash
-$ jac nacompile cli_tool.na.jac -o cli_tool
+$ jac nacompile cli_tool.jac -o cli_tool
 $ ./cli_tool hello --verbose world
 argc: 4
 arg: hello
@@ -720,7 +726,7 @@ Fixed-width types (`f64`, `i32`, `c_void`, etc.) are only needed inside the `imp
 
 ### Platform-neutral library names
 
-A library can be named by its **logical name** -- a dotted, extensionless identifier instead of a literal filename. The compiler resolves the platform-correct filename from the target triple, so a single unchanged `.na.jac` targets Linux, macOS, and Windows. For example, using [raylib](https://www.raylib.com/) for graphics:
+A library can be named by its **logical name** -- a dotted, extensionless identifier instead of a literal filename. The compiler resolves the platform-correct filename from the target triple, so a single unchanged `.jac` module targets Linux, macOS, and Windows. For example, using [raylib](https://www.raylib.com/) for graphics:
 
 <!-- jac-skip -->
 ```jac
@@ -807,7 +813,7 @@ For a module written against the [ownership and borrow-checking surface](ownersh
 - **`--assert-no-rc`** proves the result: it scans the emitted IR and fails the build if any RC/collector machinery is present -- `__rc_*` helpers, trace functions, roots-buffer globals, or entry-point GC env probes. A build that passes is observably RC-free.
 
 ```bash
-jac nacompile service.na.jac --gc none --enforce-nogc --assert-no-rc
+jac nacompile service.jac --gc none --enforce-nogc --assert-no-rc
 ```
 
 Notes on the enforced world:
@@ -822,7 +828,7 @@ Notes on the enforced world:
 Compiling with `JAC_RC_STATS=1` prints a per-module line to stderr reporting the retain/release call sites emitted versus the reference-count operations elided by move-lowering:
 
 ```text
-rc-stats [mod.na.jac] gc=cycles retains=1 releases=10 elided=3 coverage=21.4%
+rc-stats [mod.jac] gc=cycles retains=1 releases=10 elided=3 coverage=21.4%
 ```
 
 A module with zero emitted retains and releases is tagged `rc-free` at the end of the line -- the same condition `--assert-no-rc` checks structurally in the IR.
@@ -853,10 +859,10 @@ The proof is scoped to the exact move site (`Assignment.na_move_lowerable`), not
 
 ## Testing
 
-`test` blocks in native context compile to native code and run through `jac test` -- the same harness used everywhere else in Jac. A test in a `.na.jac` module, or inside an inline `na { }` block, executes inside the module's JIT engine with full native semantics: the same integer, float, string, and object behavior as the code it exercises.
+`test` blocks in native context compile to native code and run through `jac test` -- the same harness used everywhere else in Jac. A test in a native-placed module, or inside an inline `na { }` block, executes inside the module's JIT engine with full native semantics: the same integer, float, string, and object behavior as the code it exercises.
 
 ```jac
-# vectors.na.jac
+# vectors.jac
 
 def dot(x1: float, y1: float, x2: float, y2: float) -> float {
     return x1 * x2 + y1 * y2;
@@ -869,7 +875,7 @@ test "dot product" {
 ```
 
 ```bash
-jac test vectors.na.jac
+jac test vectors.jac
 ```
 
 Each native test runs under an implicit exception handler: a failing `assert` -- or any uncaught runtime raise (`IndexError`, `ZeroDivisionError`, ...) -- fails that one test and reports through the standard pass/fail pipeline. The failure message carries the assert site as `file:line`. All `jac test` options (`-t` name filtering, directory discovery, `--maxfail`, `--xit`) behave identically for native tests, and a mixed module can hold Python and native tests side by side -- each runs in its own codespace.
@@ -888,7 +894,7 @@ Assert messages in native tests are limited to string literals: `assert cond, "m
 Set the `JAC_DUMP_IR` environment variable to write the generated LLVM IR to a file:
 
 ```bash
-JAC_DUMP_IR=/tmp/output.ll jac nacompile program.na.jac
+JAC_DUMP_IR=/tmp/output.ll jac nacompile program.jac
 ```
 
 This produces a human-readable `.ll` file that can be inspected with any text editor or processed with LLVM tools (`llc`, `opt`, `llvm-dis`).
@@ -930,7 +936,7 @@ The following Jac features are **not yet available** in the native codespace:
 ### Fibonacci (Recursion)
 
 ```jac
-# fibonacci.na.jac
+# fibonacci.jac
 
 def fib(n: int) -> int {
     if n <= 1 { return n; }
@@ -947,7 +953,7 @@ with entry {
 ### Lazy Iterators (map / filter / enumerate / zip)
 
 ```jac
-# pipeline.na.jac
+# pipeline.jac
 
 def double(x: int) -> int { return x * 2; }
 def is_even(x: int) -> bool { return x % 2 == 0; }
@@ -976,7 +982,7 @@ with entry {
 ### Objects and Inheritance
 
 ```jac
-# animals.na.jac
+# animals.jac
 
 obj Animal {
     has name: str;
@@ -1014,7 +1020,7 @@ with entry {
 ### Exception Handling
 
 ```jac
-# safe_div.na.jac
+# safe_div.jac
 
 def safe_divide(a: int, b: int) -> str {
     try {
@@ -1034,7 +1040,7 @@ with entry {
 ### Command-Line Tool with `sys.argv`
 
 ```jac
-# greeter.na.jac
+# greeter.jac
 import sys;
 
 with entry {
@@ -1055,7 +1061,7 @@ with entry {
 ```
 
 ```bash
-$ jac nacompile greeter.na.jac -o greeter
+$ jac nacompile greeter.jac -o greeter
 $ ./greeter World --shout
 HELLO, WORLD!
 ```

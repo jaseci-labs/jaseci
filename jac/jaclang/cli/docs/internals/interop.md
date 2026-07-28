@@ -284,7 +284,7 @@ a separate shared object loaded across a process boundary.
 
 ### Crossing whole Jac values
 
-For full `.na.jac` modules, `native_marshal.jac`'s `install_native_wrappers`
+For fully native-placed modules, `native_marshal.jac`'s `install_native_wrappers`
 replaces each exported name with a wrapper, and `marshal_value` crosses Jac
 `obj`/`list` values as **zero-copy views**: `NativeStructView` /
 `NativeListView` read fields directly from native memory via ctypes
@@ -300,6 +300,15 @@ to the Python path when it cannot lower). The
 *ahead-of-time* counterpart is the **`na → C host`** native-lib export
 path (below), where the native side is packaged as a real `.so` and a host (Python via `ctypes`, or C) loads
 it across the process boundary.
+
+The compiler itself ships this way: sealing a release AOT-compiles
+`jac0core/parser/lexer.jac` (plus its `tokens.jac` closure) into a
+per-platform shared library (`_precompiled/native/<triple>/libjac_lexer.*`)
+with a persisted `NativeModuleLayout` JSON, recorded in `MANIFEST.json`
+format 4 under `native_artifacts` (sha256-verified, fail-closed). The
+sealed runtime binds it with plain ctypes via `jac0core/native_dylib.py` --
+no LLVM on the boot path -- and `parse()` uses it when present; unsealed
+dev trees fall back to the bytecode lexer.
 
 ---
 
@@ -373,7 +382,7 @@ the C runtime owns their lifetime.
 
 ## `na → C host`: shared libraries (row 13)
 
-The inverse of FFI-in. `jac nacompile mathlib.na.jac --shared` packages a
+The inverse of FFI-in. `jac nacompile mathlib.jac --shared` packages a
 native module as a C-ABI `.so` / `.dylib` / `.dll` that any host (a C
 program, or Python via `ctypes`) can load across a process/module boundary.
 
@@ -623,7 +632,7 @@ core `build`/`start` commands delegate to the target.
 | Layer | Codespace / tech | Role |
 |-------|------------------|------|
 | UI | `cl` (Vite/React bundle) | `NativeDesktopTarget` subclasses `WebTarget`; reuses the standard `.jac/client/dist/` bundle |
-| Host binary | `na` (LLVM, pure-Jac linker) | A generated `host.na.jac`, compiled by `jac nacompile`; records `libwebview.so` as `DT_NEEDED` with an `$ORIGIN` runpath |
+| Host binary | `na` (LLVM, pure-Jac linker) | A generated `host.jac`, compiled by `jac nacompile`; records `libwebview.so` as `DT_NEEDED` with an `$ORIGIN` runpath |
 | Window | C FFI → `libwebview` | OS-native webview: WebKitGTK (Linux), WKWebView (macOS), WebView2 (Windows) |
 | Local runtime | C FFI → `libpython` | Embedded CPython runs `inprocess_dispatch` (walker/function invokes) **and** a stdlib loopback HTTP broker (bundle + SSO/session) |
 | Backend | `sv` in-process | Walker/function calls route through the embedded runtime via `__jac_invoke`; a remote `api_base` is optional for external backends |
@@ -687,7 +696,7 @@ RPC to the backend). It is the matrix in miniature.
 | Python interop | [`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py); `_jac_finder.py` (launcher `BOOT_SRC`); `passes/impl/pyast_gen_pass.impl.jac` (`exit_import`, `exit_py_inline_code`) |
 | Marshalling | `runtimelib/impl/{serializer,server,transport}.impl.jac` |
 | Capability boundary | `compiler/passes/main/capability_check_pass.jac`; [`diagnostics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/diagnostics.jac) (`E5090`) |
-| Desktop | `runtimelib/client/targets/desktop/native_desktop_target.jac` (+ impl); `runtimelib/client/targets/desktop/native/webview/webview.na.jac`; `runtimelib/client/targets/registry.jac` |
+| Desktop | `runtimelib/client/targets/desktop/native_desktop_target.jac` (+ impl); `runtimelib/client/targets/desktop/native/webview/webview.jac`; `runtimelib/client/targets/registry.jac` |
 
 ---
 

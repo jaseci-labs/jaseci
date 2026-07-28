@@ -13,7 +13,10 @@ searches **nearest-wins**:
 
 1. the importing project's own tree (a flat sibling, then the dotted hierarchy
    walked up to the filesystem root), then
-2. this bundled root (`native_stdlib_root()`).
+2. this bundled root (`native_stdlib_root()`), which is native **by
+   location** -- its modules are plain `.jac` files. At either step a per-OS
+   variant `<name>.<os>.jac` (e.g. `_dirent_native.darwin.jac`) is probed
+   before the plain `<name>.jac`.
 
 So `import from os.path { normpath }` binds CPython's `posixpath` on the sv
 (Python) pathway and `na_stdlib/os/path.jac` on the na (native) pathway (the
@@ -208,7 +211,9 @@ flat `import os`, not bundled here (see
 ## Adding a module
 
 1. Drop `<name>.jac` (or `<pkg>/<name>.jac` for a dotted import) here,
-   exporting its API with `def:pub`.
+   exporting its API with `def:pub`. If a module needs platform-specific
+   code, add a `<name>.<os>.jac` variant (e.g. `_dirent_native.darwin.jac`);
+   it wins over the plain file on that OS.
 2. Use only the native-supported subset; prefer typed containers
    (`list[str]`, `dict[str, any]`). A bare `list = []` defaults to `i64`
    elements. An empty `list[any] = []` then grown with `.append(x)` lowers and

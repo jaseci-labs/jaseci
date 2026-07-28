@@ -1356,11 +1356,13 @@ cl import from react { useState }
 # ============================================================
 # Extensions pin a file's default codespace explicitly -- an
 # override, not a requirement (a plain .jac file infers placement):
-# .jac           Default (server; client/native parts inferred from
-#                JSX/npm and C extern-decl imports)
+# .jac           Default (placement inferred: whole-module native when
+#                the module can lower, else server; client/native parts
+#                from JSX/npm and C extern-decl imports)
 # .sv.jac        Server-only variant (explicit)
 # .cl.jac        Client-only variant (explicit client codespace)
-# .na.jac        Native variant (explicit native codespace)
+# (native)       No native extension - whole-module native placement is
+#                inferred, or forced via jac nacompile / jac build --as native
 # .impl.jac      Implementation annex (method bodies)
 # .test.jac      Test annex
 # .style.css     Scoped CSS annex (auto-scopes classes for the matching .cl.jac)
