@@ -1137,10 +1137,6 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
         crosses_ctypes = (
             binding.source_context == InteropContext.SERVER
             and InteropContext.NATIVE in binding.callers
-        )
-        or (
-            binding.source_context == InteropContext.NATIVE
-            and InteropContext.SERVER in binding.callers
         );
         if not crosses_ctypes {
             continue;
