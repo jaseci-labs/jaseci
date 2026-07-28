@@ -533,7 +533,6 @@ jac/jaclang/scale/runtime/context/auth_ctx.jac
 jac/jaclang/scale/runtime/context/trace_ctx.jac
 jac/jaclang/scale/runtime/context/tracing.jac
 jac/jaclang/scale/runtime/context/util.jac
-jac/jaclang/scale/runtime/discovery/discovery.jac
 jac/jaclang/scale/runtime/gateway/microservice_gateway.impl.jac
 jac/jaclang/scale/runtime/gateway/microservice_gateway.jac
 jac/jaclang/scale/runtime/gateway/openapi_agg.jac

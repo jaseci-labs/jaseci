@@ -21,14 +21,11 @@ test "build_registry creates entries from routes map" {
     assert registry.entries["cart_app"].file == "cart_app.jac";
 }
 
-test "build_registry file for a discovered subdir service exists on disk" {
+test "build_registry file for a declared subdir service exists on disk" {
     import tempfile;
     import shutil;
     import from pathlib { Path }
-    import from jaclang.scale.runtime.discovery.discovery {
-        resolve_routes,
-        resolve_service_files
-    }
+    import from jaclang.scale.runtime.routing { resolve_routes, resolve_service_files }
 
     tmp = Path(tempfile.mkdtemp());
     (tmp / "jac.toml").write_text("[project]\nname = \"app\"\n");
@@ -36,12 +33,15 @@ test "build_registry file for a discovered subdir service exists on disk" {
     sub = tmp / "littlex";
     sub.mkdir();
     (sub / "social_graph.jac").write_text(
-        "sv {\ndef:pub setup_profile -> int { return 1; }\n}\n"
+        "def:pub setup_profile -> int { return 1; }\n"
     );
     try {
-        entry_file = str(tmp / "main.jac");
-        routes = resolve_routes(entry_file, {});
-        files = resolve_service_files(entry_file, routes);
+        ms_config = {
+            "routes": {"social_graph": ""},
+            "services": {"social_graph": {"file": "littlex/social_graph.jac"}}
+        };
+        routes = resolve_routes(ms_config);
+        files = resolve_service_files(ms_config, routes);
         registry = build_registry({"routes": routes, "service_files": files});
 
         svc = registry.entries["social_graph"];
