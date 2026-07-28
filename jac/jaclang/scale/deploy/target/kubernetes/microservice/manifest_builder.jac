@@ -547,18 +547,23 @@ obj MicroserviceManifestBuilder {
         return env;
     }
 
+    def _resolved_memory_request(svc_cfg: dict[str, any], is_gateway: bool) -> str {
+        val = svc_cfg.get("memory_request");
+        if val is None {
+            val = self.k8s_config.memory_request;
+        }
+        if val is None {
+            val = "2Gi" if is_gateway else "1Gi";
+        }
+        return str(val) if val else "";
+    }
+
     def _build_resources(
         svc_cfg: dict[str, any], is_gateway: bool = False
     ) -> dict[str, any] {
         cfg = self.k8s_config;
 
-        memory_request_val = svc_cfg.get("memory_request");
-        if memory_request_val is None {
-            memory_request_val = cfg.memory_request;
-        }
-        if memory_request_val is None {
-            memory_request_val = "2Gi" if is_gateway else "1Gi";
-        }
+        memory_request_val = self._resolved_memory_request(svc_cfg, is_gateway);
         memory_limit_val = svc_cfg.get("memory_limit");
         if memory_limit_val is None {
             memory_limit_val = cfg.memory_limit;
@@ -729,6 +734,9 @@ obj MicroserviceManifestBuilder {
             "cpu_target": int(hpa.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)),
             "memory_target": int(
                 hpa.get("memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET)
+            ),
+            "has_memory_request": bool(
+                self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)
             ),
             "triggers": raw_triggers
         };
