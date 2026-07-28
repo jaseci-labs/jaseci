@@ -8,7 +8,7 @@ the whole conversation with the carried-over messages dimmed. Prev/Next step
 through the calls of the same phase.
 """
 
-sv import from ..server { CallDetail, CallMessage, CallTool }
+import from ..server { CallDetail, CallMessage, CallTool }
 
 """Compact a token count: 14000 -> "14.0k", 219 -> "219"."""
 def _tk(n: int) -> str {

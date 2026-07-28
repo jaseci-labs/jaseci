@@ -18,7 +18,7 @@ import from .ui.dialog {
 }
 import from .TweetCard { TweetCard }
 import from .Composer { Composer }
-sv import from ..social_graph { ChannelBundle, Tweet }
+import from ..social_graph { ChannelBundle, Tweet }
 
 def:pub ChannelsTab(
     channels: list[ChannelBundle],

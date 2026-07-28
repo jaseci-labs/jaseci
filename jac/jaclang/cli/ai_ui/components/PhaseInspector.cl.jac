@@ -9,7 +9,7 @@ accumulated). The static definition comes from the same traced `nodes` the graph
 draws; the context is fetched per click (`agent_phase_context`) and passed in.
 """
 
-sv import from ..server { GraphNode, PhaseContext }
+import from ..server { GraphNode, PhaseContext }
 
 def:pub PhaseInspector(
     nodes: list[GraphNode], selected: str, context: any

@@ -1,0 +1,143 @@
+{
+ "modules": {
+  "components/AuthForm.jac": {
+   "Ability:AuthForm": "client",
+   "Import:from:.ui.button": "client",
+   "Import:from:.ui.card": "client",
+   "Import:from:.ui.field": "client",
+   "Import:from:.ui.input": "client",
+   "Import:from:lucide-react": "client"
+  },
+  "components/ChannelsTab.jac": {
+   "Ability:ChannelsTab": "client",
+   "Import:from:..social_graph": "client",
+   "Import:from:.Composer": "client",
+   "Import:from:.TweetCard": "client",
+   "Import:from:.ui.badge": "client",
+   "Import:from:.ui.button": "client",
+   "Import:from:.ui.dialog": "client",
+   "Import:from:.ui.empty": "client",
+   "Import:from:.ui.field": "client",
+   "Import:from:.ui.input": "client",
+   "Import:from:.ui.skeleton": "client",
+   "Import:from:.ui.textarea": "client",
+   "Import:from:lucide-react": "client"
+  },
+  "components/ExploreTab.jac": {
+   "Ability:ExploreTab": "client",
+   "Import:from:..social_graph": "client",
+   "Import:from:.ui.avatar": "client",
+   "Import:from:.ui.button": "client",
+   "Import:from:.ui.empty": "client",
+   "Import:from:.ui.skeleton": "client",
+   "Import:from:lucide-react": "client"
+  },
+  "components/FeedTab.jac": {
+   "Ability:FeedTab": "client",
+   "Import:from:..social_graph": "client",
+   "Import:from:.Composer": "client",
+   "Import:from:.TweetCard": "client",
+   "Import:from:.WelcomeBanner": "client",
+   "Import:from:.ui.empty": "client",
+   "Import:from:.ui.skeleton": "client",
+   "Import:from:lucide-react": "client"
+  },
+  "components/MobileNav.jac": {
+   "Ability:MobileNav": "client",
+   "Import:from:..lib.utils": "client",
+   "Import:from:lucide-react": "client"
+  },
+  "components/ProfileTab.jac": {
+   "Ability:ProfileTab": "client",
+   "Import:from:..social_graph": "client",
+   "Import:from:.TweetCard": "client",
+   "Import:from:.ui.avatar": "client",
+   "Import:from:.ui.button": "client",
+   "Import:from:.ui.textarea": "client"
+  },
+  "components/RightSidebar.jac": {
+   "Ability:RightSidebar": "client",
+   "Import:from:..social_graph": "client",
+   "Import:from:.ui.avatar": "client",
+   "Import:from:.ui.badge": "client",
+   "Import:from:.ui.button": "client",
+   "Import:from:.ui.card": "client",
+   "Import:from:.ui.hover_card": "client",
+   "Import:from:.ui.input": "client",
+   "Import:from:lucide-react": "client"
+  },
+  "components/Sidebar.jac": {
+   "Ability:Sidebar": "client",
+   "Import:from:..lib.utils": "client",
+   "Import:from:.ui.avatar": "client",
+   "Import:from:.ui.badge": "client",
+   "Import:from:.ui.button": "client",
+   "Import:from:.ui.dropdown_menu": "client",
+   "Import:from:lucide-react": "client"
+  },
+  "components/ui/button.jac": {
+   "Ability:Button": "client",
+   "Ability:buttonVariants": "client",
+   "GlobalVars:_buttonVariants,_buttonExcludeKeys": "client",
+   "Import:from:...lib.utils": "client",
+   "Import:from:class-variance-authority": "client",
+   "Import:from:radix-ui": "client"
+  },
+  "frontend.jac": {
+   "Ability:app": "client",
+   "ImplDef:<ImplDef>": "client",
+   "Import:from:.components.AuthForm": "client",
+   "Import:from:.components.ChannelsTab": "client",
+   "Import:from:.components.ExploreTab": "client",
+   "Import:from:.components.FeedTab": "client",
+   "Import:from:.components.MobileNav": "client",
+   "Import:from:.components.ProfileTab": "client",
+   "Import:from:.components.RightSidebar": "client",
+   "Import:from:.components.Sidebar": "client",
+   "Import:from:.components.ui.button": "client",
+   "Import:from:.social_graph": "client",
+   "Import:from:@jac/runtime": "client",
+   "Import:from:lucide-react": "client",
+   "Import:import:./global.css": "client"
+  },
+  "main.jac": {
+   "Ability:app": "client",
+   "Import:from:.frontend": "client"
+  },
+  "social_graph.jac": {
+   "Ability:_now": "server",
+   "Archetype:Channel": "server",
+   "Archetype:ChannelBundle": "server",
+   "Archetype:ChannelPost": "server",
+   "Archetype:Follow": "server",
+   "Archetype:Member": "server",
+   "Archetype:Post": "server",
+   "Archetype:Profile": "server",
+   "Archetype:ProfileBundle": "server",
+   "Archetype:TrendingTag": "server",
+   "Archetype:Tweet": "server",
+   "Archetype:add_comment": "server",
+   "Archetype:create_channel": "server",
+   "Archetype:create_channel_tweet": "server",
+   "Archetype:create_tweet": "server",
+   "Archetype:delete_tweet": "server",
+   "Archetype:find_channel": "server",
+   "Archetype:find_profile": "server",
+   "Archetype:find_tweet": "server",
+   "Archetype:follow_user": "server",
+   "Archetype:get_all_profiles": "server",
+   "Archetype:get_channel_detail": "server",
+   "Archetype:get_channels": "server",
+   "Archetype:get_profile": "server",
+   "Archetype:get_trending": "server",
+   "Archetype:join_channel": "server",
+   "Archetype:leave_channel": "server",
+   "Archetype:like_tweet": "server",
+   "Archetype:load_feed": "server",
+   "Archetype:setup_profile": "server",
+   "Archetype:unfollow_user": "server",
+   "Import:import:datetime": "server"
+  }
+ },
+ "schema": 1
+}

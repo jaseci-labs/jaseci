@@ -5,7 +5,7 @@ import from .ui.avatar { Avatar, AvatarImage, AvatarFallback }
 import from .ui.button { Button }
 import from .ui.skeleton { Skeleton }
 import from .ui.empty { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription }
-sv import from ..social_graph { Profile }
+import from ..social_graph { Profile }
 
 def:pub ExploreTab(
     allProfiles: list[Profile],

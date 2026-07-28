@@ -8,21 +8,15 @@ updates at token granularity rather than on a poll timer.
 """
 
 import from react { useEffect, useRef }
-sv import from .server {
-    agent_send,
-    agent_graph,
-    agent_reset,
-    agent_stop,
-    agent_stream
-}
-sv import from .server {
+import from .server { agent_send, agent_graph, agent_reset, agent_stop, agent_stream }
+import from .server {
     agent_settings,
     agent_apply_settings,
     agent_call_detail,
     agent_phase_context
 }
-sv import from .server { UiEvent, PollResult, GraphNode, GraphEdge, GraphData }
-sv import from .server { CallDetail, PhaseContext }
+import from .server { UiEvent, PollResult, GraphNode, GraphEdge, GraphData }
+import from .server { CallDetail, PhaseContext }
 import from .components.PhaseGraph { PhaseGraph }
 import from .components.Conversation { Conversation }
 import from .components.ActivityFeed { ActivityFeed }

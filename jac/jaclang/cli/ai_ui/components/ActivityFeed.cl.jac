@@ -8,7 +8,7 @@ else renders as a terminal-style row. Auto-scrolls to the newest entry.
 """
 
 import from react { useRef, useEffect }
-sv import from ..server { UiEvent }
+import from ..server { UiEvent }
 
 def:pub ActivityFeed(events: list[UiEvent], status: str) -> JsxElement {
     # Thinking blocks the user has collapsed (open by default). Tool outputs are

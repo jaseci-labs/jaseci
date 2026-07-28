@@ -365,6 +365,23 @@ def _append_toml_entries(
 }
 
 
+def _project_entry_stem(toml_path: str) -> str {
+    try {
+        import tomllib;
+        with open(toml_path, 'rb') as f {
+            proj_doc = tomllib.load(f);
+        }
+        entry_point = str(proj_doc.get('project', {}).get('entry-point', '') or '');
+        if entry_point.endswith('.jac') {
+            entry_point = entry_point[:-4];
+        }
+        return os.path.basename(entry_point);
+    } except Exception {
+        return '';
+    }
+}
+
+
 def _format_source(src: str, file_path: str) -> (str | None) {
     import from jaclang.jac0core.program { JacProgram }
     try {
@@ -455,7 +472,7 @@ impl fix(target: str, paths: list, dry_run: bool = False) -> int {
     changed_files: list[str] = [];
     renamed: list[tuple] = [];
     claims_by_file: dict[str, list[MarkerClaim]] = {};
-    all_sv_imports: list[str] = [];
+    sv_imports_by_file: dict[str, list[str]] = {};
     skipped: list[str] = [];
     for path in files {
         try {
@@ -509,45 +526,68 @@ impl fix(target: str, paths: list, dry_run: bool = False) -> int {
         if res.claims {
             claims_by_file[final_path] = res.claims;
         }
-        all_sv_imports.extend(res.sv_imports);
-    }
-
-    pins: dict[str, str] = {};
-    unverified: list[str] = [];
-    if not dry_run {
-        for (path, claims) in claims_by_file.items() {
-            _verify_claims(path, claims, pins, unverified);
+        if res.sv_imports {
+            sv_imports_by_file[final_path] = res.sv_imports;
         }
     }
 
     import from jaclang.jac0core.modresolver { find_jac_project_root }
-    anchor = files[0];
-    proj_root = find_jac_project_root(anchor);
-    toml_path = os.path.join(proj_root, 'jac.toml') if proj_root else '';
+    pins_by_root: dict[str, dict[str, str]] = {};
+    unverified: list[str] = [];
+    if not dry_run {
+        for (path, claims) in claims_by_file.items() {
+            claim_root = find_jac_project_root(path);
+            if not claim_root {
+                unverified.append(f"{path} (no jac.toml found)");
+                continue;
+            }
+            pins = pins_by_root.setdefault(claim_root, {});
+            _verify_claims(path, claims, pins, unverified);
+        }
+    }
+    routes_by_root: dict[str, dict[str, str]] = {};
+    orphaned: list[str] = [];
+    for (path, targets) in sv_imports_by_file.items() {
+        route_root = find_jac_project_root(path);
+        if not route_root {
+            orphaned.append(path);
+            continue;
+        }
+        entry_stem = _project_entry_stem(os.path.join(route_root, 'jac.toml'));
+        routes = routes_by_root.setdefault(route_root, {});
+        for tgt in targets {
+            stem = tgt.strip('.').rsplit('.', 1)[-1];
+            if stem and stem != entry_stem {
+                slug = stem[:-4] if stem.endswith('_app') else stem;
+                routes[stem] = f"/{slug}";
+            }
+        }
+    }
+
     pins_added: list[str] = [];
     routes_added: list[str] = [];
-    if toml_path {
+    for (pin_root, pins) in sorted(pins_by_root.items()) {
         if pins {
-            pins_added = _append_toml_entries(
-                toml_path, '[placement.pins]', pins, dry_run
+            added = _append_toml_entries(
+                os.path.join(pin_root, 'jac.toml'), '[placement.pins]', pins, dry_run
             );
+            pins_added.extend([f"{pin_root}: {a}" for a in added]);
         }
-        if all_sv_imports {
-            routes: dict[str, str] = {};
-            for tgt in all_sv_imports {
-                stem = tgt.strip('.').rsplit('.', 1)[-1];
-                if stem {
-                    slug = stem[:-4] if stem.endswith('_app') else stem;
-                    routes[stem] = f"/{slug}";
-                }
-            }
-            routes_added = _append_toml_entries(
-                toml_path, '[scale.microservices.routes]', routes, dry_run
+    }
+    for (route_root, routes) in sorted(routes_by_root.items()) {
+        if routes {
+            added = _append_toml_entries(
+                os.path.join(route_root, 'jac.toml'),
+                '[scale.microservices.routes]',
+                routes,
+                dry_run
             );
+            routes_added.extend([f"{route_root}: {a}" for a in added]);
         }
-    } elif pins or all_sv_imports {
+    }
+    if orphaned {
         console.warning(
-            "No jac.toml found; cannot record placement pins or service routes."
+            "No jac.toml found for service routes from: " + ", ".join(orphaned)
         );
     }
 

@@ -4,7 +4,7 @@ import from .ui.avatar { Avatar, AvatarImage, AvatarFallback }
 import from .ui.button { Button }
 import from .ui.textarea { Textarea }
 import from .TweetCard { TweetCard }
-sv import from ..social_graph { ProfileBundle }
+import from ..social_graph { ProfileBundle }
 
 def:pub ProfileTab(
     myProfile: ProfileBundle | None,

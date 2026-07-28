@@ -1,6 +1,6 @@
 """Tasks column -- owns task list state, fetches on mount."""
 
-sv import from ..main { Task, get_tasks, add_task, toggle_task, delete_task }
+import from ..main { Task, get_tasks, add_task, toggle_task, delete_task }
 
 import from .TaskItem { TaskItem }
 

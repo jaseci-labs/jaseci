@@ -1,6 +1,6 @@
 """Shopping list column -- owns ingredient state, spawns walkers."""
 
-sv import from ..main {
+import from ..main {
     ShoppingItem,
     GenerateShoppingList,
     GetShoppingList,

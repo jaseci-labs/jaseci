@@ -2,7 +2,7 @@
 
 import from .components.MessageCard { MessageCard }
 
-sv import from endpoints { Message, PostMessage, ListMessages }
+import from endpoints { Message, PostMessage, ListMessages }
 
 def:pub app -> JsxElement {
     has messages: list[Message] = [],

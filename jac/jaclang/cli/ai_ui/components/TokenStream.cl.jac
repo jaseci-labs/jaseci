@@ -7,7 +7,7 @@ opens its detail (full input, the diff vs the prior call, and the output).
 """
 
 import from react { useRef, useEffect }
-sv import from ..server { UiEvent }
+import from ..server { UiEvent }
 
 """Compact a token count: 66711 -> "66k", 940 -> "940"."""
 def _k(n: int) -> str {

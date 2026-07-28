@@ -1,8 +1,8 @@
 """Main entry point for {{name}} (Jac desktop app)."""
 
-cl import from .components.Button { Button }
+import from .components.Button { Button }
 
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has count: int = 0;
 
     return

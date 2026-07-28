@@ -9,7 +9,7 @@ sends on Enter (Shift+Enter for a newline); while a turn runs it offers Stop.
 
 import from .ui.Button { Button }
 import from .ui.Badge { Badge }
-sv import from ..server { UiEvent }
+import from ..server { UiEvent }
 
 def:pub Conversation(
     events: list[UiEvent],

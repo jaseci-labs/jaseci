@@ -7,7 +7,7 @@ import from .ui.card { Card, CardHeader, CardTitle, CardContent }
 import from .ui.avatar { Avatar, AvatarImage, AvatarFallback }
 import from .ui.badge { Badge }
 import from .ui.hover_card { HoverCard, HoverCardTrigger, HoverCardContent }
-sv import from ..social_graph { Profile, TrendingTag }
+import from ..social_graph { Profile, TrendingTag }
 
 def:pub RightSidebar(
     searchQuery: str,
