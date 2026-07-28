@@ -728,7 +728,7 @@ def collect_placement_rows(prog: any) -> dict {
     if isinstance(cur_ev, dict) {
         evidence = cur_ev;
     }
-    for (path, mod) in hub.items() {
+    for (path, mod) in list(hub.items()) {
         if not isinstance(mod, uni.Module) {
             continue;
         }
