@@ -103,7 +103,9 @@ impl PostgresMemory.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
     }
     for (rid, data) in rows {
         try {
-            anchor = Serializer.deserialize(json.loads(cast(str, data)));
+            anchor = cast(
+                (Anchor | None), Serializer.deserialize(json.loads(cast(str, data)))
+            );
         } except Exception as e {
             logger.warning(f"PostgresMemory: failed to deserialize anchor {rid}: {e}");
             continue;
