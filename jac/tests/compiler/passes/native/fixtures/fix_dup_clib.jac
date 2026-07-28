@@ -10,16 +10,19 @@ _emit_rc_helpers — to exercise the full dedup path.
 """
 
 import from "/usr/lib/x86_64-linux-gnu/libc.so.6" {
-    def strlen(s: str) -> int;  def memcpy(dst: str, src: str, n: int) -> str;  def calloc(
-        nmemb: int, size: int
-    ) -> str;  def free(ptr: str);
+    def strlen(s: str) -> int;
+    def memcpy(dst: str, src: str, n: int) -> str;
+    def calloc(nmemb: int, size: int) -> str;
+    def free(ptr: str);
 }
 
-def:pub test_strlen_hello -> int {
+def:pub test_strlen_hello() -> int {
     # strlen("hello") == 5 via the user-declared extern
     return strlen("hello");
 }
 
-def:pub test_strlen_empty -> int {
+def:pub test_strlen_empty() -> int {
     return strlen("");
 }
+
+with entry {}

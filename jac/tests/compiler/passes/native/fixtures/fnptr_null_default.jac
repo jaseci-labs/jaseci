@@ -11,7 +11,8 @@ import from "/usr/lib/libm.so.6" {
     obj handler_vt {
         has size: int = 0,
             on_event: Callable[[int, int], None] = 0;
-    }  def sqrt(x: f64) -> f64;
+    }
+    def sqrt(x: f64) -> f64;
 }
 
 obj Op {
@@ -19,7 +20,7 @@ obj Op {
         fn: Callable[[int], int] = 0;
 }
 
-def op_default_is_null -> int {
+def op_default_is_null() -> int {
     o = Op();
     return o.fn;
 }
@@ -30,7 +31,7 @@ def op_slot_reset_to_null(x: int) -> int {
     return o.fn;
 }
 
-def vt_default_is_null -> int {
+def vt_default_is_null() -> int {
     h = handler_vt(size=56);
     return h.on_event;
 }

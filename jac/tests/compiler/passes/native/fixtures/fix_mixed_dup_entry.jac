@@ -8,6 +8,8 @@ must demote the duplicate and still link bar.
 import from fix_mixed_dup_lib_a { get_foo }
 import from fix_mixed_dup_lib_b { get_bar, call_foo }
 
-def:pub run_mixed_dup_test -> int {
+def:pub run_mixed_dup_test() -> int {
     return get_foo() + get_bar() + call_foo();
 }
+
+with entry {}

@@ -6,6 +6,8 @@ leaf first, then mid, then this module.
 
 import from glob_chain_mid { get_b }
 
-def:pub read_chain -> int {
+def:pub read_chain() -> int {
     return get_b();
 }
+
+with entry {}

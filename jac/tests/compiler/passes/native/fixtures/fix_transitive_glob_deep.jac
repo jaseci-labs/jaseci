@@ -8,10 +8,10 @@ jac_entry, leaving _TABLE null and causing SIGSEGV on first access.
 
 glob _TABLE: list[int] = [];
 
-def:pub table_len -> int {
+def:pub table_len() -> int {
     return len(_TABLE);
 }
 
-def:pub table_push(v: int) {
+def:pub table_push(v: int) -> None {
     _TABLE.append(v);
 }

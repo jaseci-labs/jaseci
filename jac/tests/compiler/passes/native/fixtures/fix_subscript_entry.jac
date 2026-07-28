@@ -11,20 +11,22 @@ so _resolve_ptr_elem_cast_type fell back to i8* and the field read was 0.
 import from fix_subscript_outer { Outer, ITEMS, push_item, items_len }
 
 """Push one item and access value field inline; expect 42."""
-def:pub test_subscript_value -> int {
+def:pub test_subscript_value() -> int {
     push_item(42, 7);
     return ITEMS[0].value;
 }
 
 """Push one item and access extra field inline; expect 7."""
-def:pub test_subscript_extra -> int {
+def:pub test_subscript_extra() -> int {
     push_item(42, 7);
     return ITEMS[0].extra;
 }
 
 """Push two items; access second item's value inline; expect 99."""
-def:pub test_subscript_second_item -> int {
+def:pub test_subscript_second_item() -> int {
     push_item(42, 7);
     push_item(99, 3);
     return ITEMS[1].value;
 }
+
+with entry {}

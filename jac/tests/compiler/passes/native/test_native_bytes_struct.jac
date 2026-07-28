@@ -7,6 +7,7 @@ These exercise the sv↔na-congruent surface a binary parser needs:
   - `open(path, "rb").read()` returning that length-aware bytes buffer.
 """
 
+import from tests.support { native_force_opts }
 import ctypes;
 import os;
 import tempfile;
@@ -20,7 +21,7 @@ glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures");
 """Compile a .jac fixture and return the JIT engine."""
 def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts());
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     eng = ir.gen.native_engine;
@@ -263,7 +264,7 @@ test "struct unpack short buffer raises" {
 
 test "struct pack wrong arg count is a compile error" {
     prog = JacProgram();
-    prog.compile(file_path=str(os.path.join(FIXTURES, "struct_bad_pack.jac")));
+    prog.compile(file_path=str(os.path.join(FIXTURES, "struct_bad_pack.jac")), options=native_force_opts());
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert prog.errors_had , "expected a compile error for the bad struct.pack";
     assert any("struct.pack" in e for e in errors) , f"unexpected errors: {errors}";

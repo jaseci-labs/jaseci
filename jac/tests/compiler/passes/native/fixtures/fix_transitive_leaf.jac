@@ -5,6 +5,6 @@ fix_transitive_entry.  Before the fix the linker only walked direct imports
 and never linked this module into the JIT, causing unresolved symbols.
 """
 
-def:pub get_leaf -> int {
+def:pub get_leaf() -> int {
     return 99;
 }

@@ -6,7 +6,7 @@ awaited coroutine has, in this synchronous model, already run). This is
 correct for sequential async code; it does not provide concurrency.
 """
 
-async def get_val -> int {
+async def get_val() -> int {
     return 5;
 }
 

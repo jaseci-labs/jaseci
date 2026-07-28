@@ -1,38 +1,38 @@
 obj Animal {
     has legs: int = 4;
 
-    def speak -> int {
+    def speak() -> int {
         return 0;
     }
 
-    def get_legs -> int {
+    def get_legs() -> int {
         return self.legs;
     }
 }
 
 obj Dog(Animal) {
-    def speak -> int {
+    def speak() -> int {
         return 1;
     }
 }
 
 obj Cat(Animal) {
-    def speak -> int {
+    def speak() -> int {
         return 2;
     }
 }
 
-def test_dog_speak -> int {
+def test_dog_speak() -> int {
     d: Animal = Dog(legs=4);
     return d.speak();
 }
 
-def test_cat_speak -> int {
+def test_cat_speak() -> int {
     c: Animal = Cat(legs=4);
     return c.speak();
 }
 
-def test_inherited_method -> int {
+def test_inherited_method() -> int {
     d: Animal = Dog(legs=4);
     return d.get_legs();
 }

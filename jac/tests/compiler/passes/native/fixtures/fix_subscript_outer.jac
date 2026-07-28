@@ -10,19 +10,19 @@ and emitted an unconditional i8* null, producing 0 or garbage at runtime.
 """
 
 obj:pub Outer {
-    has value: int,
-        extra: int;
+    has value: int;
+    has extra: int;
 }
 
 glob:pub ITEMS: list[Outer] = [];
 
 """Append an Outer item to ITEMS."""
-def:pub push_item(v: int, e: int) {
+def:pub push_item(v: int, e: int) -> None {
     item: Outer = Outer(value=v, extra=e);
     ITEMS.append(item);
 }
 
 """Return the number of items in ITEMS."""
-def:pub items_len -> int {
+def:pub items_len() -> int {
     return len(ITEMS);
 }

@@ -9,7 +9,7 @@ layout unsound these returned garbage, crashed, or failed type checking
 
 import from xmod_unionret_lib { Area, Probe, area_or_none, take }
 
-def unionret_na -> dict[str, any] {
+def unionret_na() -> dict[str, any] {
     cur = area_or_none(True);
     present = cur.tag if cur is not None else -1;
     taken = -1;

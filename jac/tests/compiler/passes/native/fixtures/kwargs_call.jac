@@ -30,37 +30,37 @@ obj Greeter {
 }
 
 # all-positional baseline -> len("abc")*100 + 5 = 305
-def test_positional -> int {
+def test_positional() -> int {
     return greet("abc", 5);
 }
 
 # all keyword, in declared order -> len("abcd")*100 + 7 = 407
-def test_keyword -> int {
+def test_keyword() -> int {
     return greet(name="abcd", n=7);
 }
 
 # keyword for the leading param, trailing default kept -> len("ab")*100 + 1 = 201
-def test_keyword_partial -> int {
+def test_keyword_partial() -> int {
     return greet(name="ab");
 }
 
 # keyword args supplied out of declared order -> len("abcde")*100 + 9 = 509
-def test_keyword_reordered -> int {
+def test_keyword_reordered() -> int {
     return greet(n=9, name="abcde");
 }
 
 # positional first arg, keyword second -> len("xyz")*100 + 4 = 304
-def test_mixed_pos_kw -> int {
+def test_mixed_pos_kw() -> int {
     return greet("xyz", n=4);
 }
 
 # keyword call on a method -> 1000 + len("hi")*100 + 6 = 1206
-def test_method_keyword -> int {
+def test_method_keyword() -> int {
     g = Greeter(base=1000);
     return g.greet(name="hi", n=6);
 }
 
 # cross-module keyword call (reordered) -> len("hello")*100 + 8 = 508
-def test_xmod_keyword -> int {
+def test_xmod_keyword() -> int {
     return lib_greet(n=8, name="hello");
 }

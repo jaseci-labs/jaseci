@@ -13,8 +13,8 @@ type inference, so the narrowing silently failed and `b.name` was typed
 regardless of whether the module is the entry or an imported dependency."""
 
 obj Box {
-    has name: str = "hit",
-        size: int = 5;
+    has name: str = "hit";
+    has size: int = 5;
 }
 
 def pick(flag: bool) -> Box | None {
@@ -24,7 +24,7 @@ def pick(flag: bool) -> Box | None {
     return None;
 }
 
-def use_it -> dict[str, any] {
+def use_it() -> dict[str, any] {
     present = "void";
     sz = -1;
     b = pick(True);

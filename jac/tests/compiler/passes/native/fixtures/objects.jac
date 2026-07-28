@@ -1,16 +1,15 @@
 obj Point {
-    has x: int = 0,
-        y: int = 0;
+    has x: int = 0, y: int = 0;
 
-    def get_x -> int {
+    def get_x() -> int {
         return self.x;
     }
 
-    def get_y -> int {
+    def get_y() -> int {
         return self.y;
     }
 
-    def sum -> int {
+    def sum() -> int {
         return self.x + self.y;
     }
 }
@@ -18,11 +17,11 @@ obj Point {
 obj Counter {
     has count: int = 0;
 
-    def increment {
+    def increment() -> None {
         self.count = self.count + 1;
     }
 
-    def get_count -> int {
+    def get_count() -> int {
         return self.count;
     }
 }
@@ -36,7 +35,7 @@ def point_sum(x: int, y: int) -> int {
     return p.sum();
 }
 
-def test_counter -> int {
+def test_counter() -> int {
     c: Counter = Counter();
     c.increment();
     c.increment();
@@ -44,7 +43,7 @@ def test_counter -> int {
     return c.get_count();
 }
 
-def test_none -> int {
+def test_none() -> int {
     p: Point = Point(x=1, y=2);
     if p is not None {
         return 1;
@@ -53,43 +52,43 @@ def test_none -> int {
 }
 
 obj SimpleObj {
-    has value: int = 0,
-        name: str = "";
+    has value: int = 0;
+    has name: str = "";
 
     def init(v: int, n: str) {
         self.value = v;
         self.name = n;
     }
 
-    def get_value -> int {
+    def get_value() -> int {
         return self.value;
     }
 }
 
-def test_init_called -> int {
+def test_init_called() -> int {
     sobj = SimpleObj(42, "hello");
     return sobj.get_value();
 }
 
 obj InitCounter {
-    has init_count: int = 0,
-        final_value: int = 0;
+    has init_count: int = 0;
+    has final_value: int = 0;
 
     def init(val: int) {
         self.init_count = 1;
         self.final_value = val * 2;
     }
 
-    def get_init_count -> int {
+    def get_init_count() -> int {
         return self.init_count;
     }
 
-    def get_final_value -> int {
+    def get_final_value() -> int {
         return self.final_value;
     }
 }
 
-def test_init_executed -> int {
+def test_init_executed() -> int {
     iobj = InitCounter(10);
     if iobj.get_init_count() == 1 {
         return iobj.get_final_value();
@@ -104,41 +103,41 @@ obj AutoInit {
         self.ready = 99;
     }
 
-    def get_ready -> int {
+    def get_ready() -> int {
         return self.ready;
     }
 }
 
 """init with zero positional args — tests that init is called even with no arguments."""
-def test_init_no_args -> int {
+def test_init_no_args() -> int {
     a = AutoInit();
     return a.get_ready();
 }
 
 obj KWInit {
-    has x: int = 0,
-        y: int = 0;
+    has x: int = 0;
+    has y: int = 0;
 
     def init(a: int, b: int) {
         self.x = a + 1;
         self.y = b + 1;
     }
 
-    def sum -> int {
+    def sum() -> int {
         return self.x + self.y;
     }
 }
 
 """init with keyword args — tests that init runs when all args are positional."""
-def test_init_positional -> int {
+def test_init_positional() -> int {
     k = KWInit(10, 20);
     return k.sum();
 }
 
 obj InitWithSideEffect {
-    has val: int = 0,
-        doubled: int = 0,
-        flag: int = 0;
+    has val: int = 0;
+    has doubled: int = 0;
+    has flag: int = 0;
 
     def init(v: int) {
         self.val = v;
@@ -146,17 +145,17 @@ obj InitWithSideEffect {
         self.flag = 1;
     }
 
-    def get_doubled -> int {
+    def get_doubled() -> int {
         return self.doubled;
     }
 
-    def get_flag -> int {
+    def get_flag() -> int {
         return self.flag;
     }
 }
 
 """init that computes derived fields — verifies init body logic executes fully."""
-def test_init_side_effects -> int {
+def test_init_side_effects() -> int {
     o = InitWithSideEffect(15);
     if o.get_flag() == 1 and o.get_doubled() == 30 {
         return 1;
@@ -170,7 +169,7 @@ obj DictFieldHolder {
 }
 
 """empty dict {} in struct ctor — field must be a live dict, not a null pointer."""
-def test_empty_dict_ctor_field -> int {
+def test_empty_dict_ctor_field() -> int {
     # This used to segfault: entries was zero-initialised to null instead of
     # calling __dict_new_i64_i64().
     c: DictFieldHolder = DictFieldHolder(entries={});

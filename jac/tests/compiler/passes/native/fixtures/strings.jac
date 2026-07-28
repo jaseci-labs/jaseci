@@ -1,19 +1,19 @@
-def greet -> str {
+def greet() -> str {
     return "hello";
 }
 
 # Numeric/codepoint escapes (\xNN, \uXXXX, \U00XXXXXX) must decode identically
 # to the sv pathway (ast.literal_eval), per the na ⊆ sv guarantee. Regression
 # for #6442: native previously passed these through literally.
-def escapes_numeric -> str {
+def escapes_numeric() -> str {
     return "a\x41béc\U0001F600d";
 }
 
-def escapes_u -> str {
+def escapes_u() -> str {
     return "X\u2014Y";
 }
 
-def escapes_simple -> str {
+def escapes_simple() -> str {
     return "p\tq\nr";
 }
 

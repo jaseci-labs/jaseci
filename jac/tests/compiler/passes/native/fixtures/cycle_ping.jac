@@ -13,3 +13,5 @@ def:pub ping(n: int) -> int {
     }
     return pong(n - 1) + 1;
 }
+
+with entry {}

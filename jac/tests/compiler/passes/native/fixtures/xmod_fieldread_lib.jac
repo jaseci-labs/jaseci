@@ -5,10 +5,8 @@ lands at field index 2 here. A consumer that merely reads `a.tag` (no
 spawn/connect/visit) must lay the imported `Area` out IDENTICALLY or it reads
 the wrong slot (the vtable pointer) and gets garbage."""
 
-node Area {
-    has tag: int = 0;
-}
+node Area { has tag: int = 0; }
 
-def make_area -> Area {
+def make_area() -> Area {
     return Area(tag=7);
 }

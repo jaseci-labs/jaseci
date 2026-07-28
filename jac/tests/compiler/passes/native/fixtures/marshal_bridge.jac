@@ -69,4 +69,6 @@ def make_set -> set[int] {
     return {1, 2, 3};
 }
 
-glob x = 0;
+with entry {
+    x = 0;
+}

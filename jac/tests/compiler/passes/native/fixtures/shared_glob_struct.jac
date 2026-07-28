@@ -30,6 +30,6 @@ def:pub set_struct_field(v: int) -> int {
     return g.a;
 }
 
-def:pub read_struct_field -> int {
+def:pub read_struct_field() -> int {
     return g.a;
 }

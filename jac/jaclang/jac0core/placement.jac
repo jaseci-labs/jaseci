@@ -478,7 +478,9 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
     return reasons;
 }
 
-def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[str]] {
+def scan_native_blockers(
+    module: uni.Module, base_dir: str, allow_pub: bool = False
+) -> tuple[str, list[str]] {
     import from jaclang.jac0core.codeinfo {
         NATIVE_SUPPORTED_STDLIB,
         is_bundled_native_module,
@@ -521,7 +523,10 @@ def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[s
                 return ("explicit sv/cl marker", deps);
             }
         }
-        if _is_pub_element(stmt) {
+        # `pub` anchors a standalone module to the server (endpoint surface),
+        # but on a module pulled in as a *native dependency* it is just the
+        # C-ABI export marker -- the .na.jac-era native-library idiom.
+        if not allow_pub and _is_pub_element(stmt) {
             return ("pub access", deps);
         }
     }

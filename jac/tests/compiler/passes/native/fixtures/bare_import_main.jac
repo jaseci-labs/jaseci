@@ -18,5 +18,7 @@ def:pub use_twice(n: int) -> int {
 def:pub read_glob -> int {
     return bare_import_helper.COUNT;
 }
+
 # Empty entry block so jac_entry() is emitted; tests call it first to run
 # __jac_glob_init for this module and the imported dep.
+with entry {}

@@ -7,7 +7,7 @@ forwards-declares imported archetype methods in method_funcs.
 obj:pub Counter {
     has value: int;
 
-    def increment -> int {
+    def increment() -> int {
         self.value = self.value + 1;
         return self.value;
     }

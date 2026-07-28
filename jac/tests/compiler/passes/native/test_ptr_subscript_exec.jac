@@ -1,3 +1,4 @@
+import from tests.support { native_force_opts }
 import ctypes;
 import os;
 import from pathlib { Path }
@@ -8,7 +9,7 @@ glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures");
 """Compile a .jac fixture; return (prog, ir) without asserting on errors."""
 def _compile(fixture: str) -> tuple {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts());
     return (prog, ir);
 }
 

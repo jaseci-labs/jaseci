@@ -7,6 +7,6 @@ library is not @sv-importable); the @sv result
 
 import from xmod_narrow_lib { use_it }
 
-def narrow_na -> dict[str, any] {
+def narrow_na() -> dict[str, any] {
     return use_it();
 }

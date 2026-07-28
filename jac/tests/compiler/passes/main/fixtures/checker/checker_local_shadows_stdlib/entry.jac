@@ -7,7 +7,9 @@ into E1030 / E1001 cascade. Local-file priority keeps the types intact.
 
 import from ast { Node, make_node }
 
-def:pub use_local_ast -> int {
+def:pub use_local_ast() -> int {
     n: Node = make_node(7);
     return n.kind;
 }
+
+with entry {}

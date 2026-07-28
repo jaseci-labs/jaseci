@@ -1,11 +1,24 @@
 # Test fixture for string-valued enum support
 
-enum Color { RED = "red", GREEN = "green", BLUE = "blue" }
+enum Color {
+    RED = "red",
+    GREEN = "green",
+    BLUE = "blue"
+}
 
-enum Direction { NORTH = "N", SOUTH = "S", EAST = "E", WEST = "W" }
+enum Direction {
+    NORTH = "N",
+    SOUTH = "S",
+    EAST = "E",
+    WEST = "W"
+}
 
 # Integer enum still works
-enum Priority { LOW = 0, MEDIUM = 1, HIGH = 2 }
+enum Priority {
+    LOW = 0,
+    MEDIUM = 1,
+    HIGH = 2
+}
 
 def color_cmp(c: int) -> int {
     if c == Color.RED {
@@ -30,16 +43,18 @@ def direction_value(d: Direction) -> str {
     return d.value;
 }
 
-def int_enum_still_works -> int {
+def int_enum_still_works() -> int {
     return Priority.HIGH.value;
 }
 
-def priority_high_name -> str {
+def priority_high_name() -> str {
     return Priority.HIGH.name;
 }
 
-def priority_low_name -> str {
+def priority_low_name() -> str {
     return Priority.LOW.name;
 }
 
-glob _x: int = 1;
+with entry {
+    _x: int = 1;
+}

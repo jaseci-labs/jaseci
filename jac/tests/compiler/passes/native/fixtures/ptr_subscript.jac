@@ -9,15 +9,8 @@ called; the import only declares struct layouts for the subscript tests.
 """
 
 import from m {
-    obj Color {
-        has r: u8,
-            g: u8,
-            b: u8,
-            a: u8;
-    }  obj Vec2 {
-        has x: f64,
-            y: f64;
-    }
+    obj Color { has r: u8, g: u8, b: u8, a: u8; }
+    obj Vec2  { has x: f64, y: f64; }
 }
 
 # -- Reads (#6708) -----------------------------------------------------------
@@ -39,7 +32,9 @@ def:pub read_vec2_x(buf: Vec2, i: int) -> float {
 
 # -- Writes (#6707) ----------------------------------------------------------
 
-def:pub write_color(buf: Color, i: int, r: int, g: int, b: int, a: int) {
+def:pub write_color(buf: Color, i: int, r: int, g: int, b: int, a: int) -> None {
     c = Color(r=r, g=g, b=b, a=a);
     buf[i] = c;
 }
+
+with entry {}

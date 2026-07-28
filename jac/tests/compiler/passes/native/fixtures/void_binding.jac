@@ -5,7 +5,7 @@ storage. The native backend must surface this as an E5090 diagnostic, not crash
 in `_entry_alloca` -> `PointerType.as_pointer()` on a void pointee.
 """
 
-def sink(x: int) { }
+def sink(x: int) -> None { }
 
 def caller(x: int) -> int {
     y = sink(x);

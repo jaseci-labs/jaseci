@@ -40,4 +40,6 @@ def split_points(n: int) -> tuple[list[Point], list[int]] {
     return (points, sums);
 }
 
-glob x = 0;
+with entry {
+    x = 0;
+}

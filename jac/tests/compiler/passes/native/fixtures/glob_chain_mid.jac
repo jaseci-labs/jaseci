@@ -8,6 +8,6 @@ import from glob_chain_leaf { get_c }
 
 glob bval: int = get_c();
 
-def:pub get_b -> int {
+def:pub get_b() -> int {
     return bval;
 }

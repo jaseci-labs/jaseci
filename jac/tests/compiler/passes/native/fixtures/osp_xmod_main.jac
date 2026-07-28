@@ -9,12 +9,10 @@ program on the @sv pathway returns {"seen": 7, "ports": 2}."""
 
 import from osp_xmod_lib { Area, Portal, In, Counter }
 
-def xmod_na -> dict[str, any] {
-    a1 = Area(tag=1);
-    a2 = Area(tag=2);
-    a3 = Area(tag=4);
-    a1 +>:Portal(w=1):+> a2;
-    a2 +>:Portal(w=2):+> a3;
+def xmod_na() -> dict[str, any] {
+    a1 = Area(tag=1); a2 = Area(tag=2); a3 = Area(tag=4);
+    a1 +>: Portal(w=1) :+> a2;
+    a2 +>: Portal(w=2) :+> a3;
     c = Counter();
     c spawn a1;
     return {"seen": c.seen, "ports": c.ports};

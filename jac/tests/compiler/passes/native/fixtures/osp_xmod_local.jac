@@ -12,17 +12,13 @@ spawned at a1 -> seen = 7, ports = 2. `Bot` is just a tag-order perturbation."""
 
 import from osp_xmod_lib { Area, Portal, In, Counter }
 
-node Bot {
-    has hp: int = 0;
-}
+node Bot { has hp: int = 0; }
 
-def xmod_local_na -> dict[str, any] {
+def xmod_local_na() -> dict[str, any] {
     b = Bot(hp=3);
-    a1 = Area(tag=1);
-    a2 = Area(tag=2);
-    a3 = Area(tag=4);
-    a1 +>:Portal(w=1):+> a2;
-    a2 +>:Portal(w=2):+> a3;
+    a1 = Area(tag=1); a2 = Area(tag=2); a3 = Area(tag=4);
+    a1 +>: Portal(w=1) :+> a2;
+    a2 +>: Portal(w=2) :+> a3;
     c = Counter();
     c spawn a1;
     return {"seen": c.seen, "ports": c.ports, "bot": b.hp};

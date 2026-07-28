@@ -9,27 +9,23 @@ import ast as ast3;
 
 obj AstCarrier {
     has name: str,
-        py_ctx: ast3.AST | None = None;  # foreign type -> opaque/null native slot
+        py_ctx: ast3.AST | None = None;     # foreign type -> opaque/null native slot
 
-    def label -> str {
-        return self.name;
-    }  # native path touches only native fields
-    def name_len -> int {
-        return len(self.name);
-    }
+    def label -> str { return self.name; }  # native path touches only native fields
+    def name_len -> int { return len(self.name); }
 }
 
-def make_label -> str {
+def make_label() -> str {
     c = AstCarrier(name="store");
     return c.label();
 }
 
-def make_name_len -> int {
+def make_name_len() -> int {
     c = AstCarrier(name="store");
     return c.name_len();
 }
 
 with entry {
     c = AstCarrier(name="store");
-    print(c.label());  # expect: store  (py_ctx stays null)
+    print(c.label());                       # expect: store  (py_ctx stays null)
 }

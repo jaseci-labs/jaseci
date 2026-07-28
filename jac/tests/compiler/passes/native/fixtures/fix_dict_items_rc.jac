@@ -27,7 +27,7 @@ def drain_items(d: dict[str, str]) -> int {
     return n;
 }
 
-def verify_items_rc -> int {
+def verify_items_rc() -> int {
     d: dict[str, str] = {};
     # Runtime-built (heap) key + value, NOT static literals (statics are immortal
     # and immune to RC over-release).

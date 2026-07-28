@@ -224,9 +224,6 @@ def resolve_project_kind(config: JacConfig, entry_path: str) -> str {
         return explicit;
     }
     entry_codespace = codespace_of(entry_path);
-    if (entry_codespace == 'native') {
-        return "cli-native";
-    }
     if (entry_codespace == 'server') {
         return "service";
     }

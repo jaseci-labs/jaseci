@@ -6,7 +6,7 @@ composition, break/empty edge cases, and first-class iter()/next() values.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR }
+import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
 import jaclang.jac0core.unitree as uni;
@@ -19,7 +19,7 @@ glob FIXTURES = os.path.join(
 """Compile a .jac fixture and return the JIT engine."""
 def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts());
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     eng = ir.gen.native_engine;
@@ -173,7 +173,7 @@ test "iter assign iter of stored iterator" {
 # cannot lower — it should fail at the type level like CPython does.
 test "iter next keyword arg rejected" {
     prog = JacProgram();
-    prog.compile(file_path=str(os.path.join(FIXTURES, "iter_kwarg_rejected.jac")));
+    prog.compile(file_path=str(os.path.join(FIXTURES, "iter_kwarg_rejected.jac")), options=native_force_opts());
     errs = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert errs , "expected a type error for next(it=...)";
     assert any("does not match any parameter" in e for e in errs) , errs;

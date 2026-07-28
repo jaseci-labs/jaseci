@@ -14,9 +14,10 @@ class of bug this guardrail exists to prevent.
 """
 
 import os;
-import from tests.support { TESTS_DIR }
+import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compile_options { CompileOptions }
 
 glob FIXTURES_DIR = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
@@ -30,7 +31,7 @@ extension routes the compile through NaIRGenPass.
 def compile_na_inline(label: str, code: str) -> JacProgram {
     path = os.path.join(FIXTURES_DIR, f"_guardrail_{label}.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, use_str=code);
+    prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return prog;
 }
 
@@ -42,7 +43,16 @@ gaps stayed invisible at check time and only failed at `jac nacompile` (issue
 def check_na_inline(label: str, code: str) -> JacProgram {
     path = os.path.join(FIXTURES_DIR, f"_check_{label}.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, use_str=code, type_check=True, no_cgen=True);
+    prog.compile(
+        file_path=path,
+        use_str=code,
+        options=CompileOptions(
+            type_check=True,
+            no_cgen=True,
+            force_codespace="native",
+            force_target_program=True
+        )
+    );
     return prog;
 }
 
@@ -721,7 +731,7 @@ test "declared libc open(path, flags) extern resolves without the file-open buil
 def compile_sv_inline(label: str, code: str) -> JacProgram {
     path = os.path.join(FIXTURES_DIR, f"_guardrail_{label}.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, use_str=code);
+    prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return prog;
 }
 

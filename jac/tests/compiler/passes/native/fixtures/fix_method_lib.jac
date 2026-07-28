@@ -9,7 +9,7 @@ obj:pub Counter {
     has value: int;
 
     """Increment value by 1 and return the new value."""
-    def:pub increment -> int {
+    def:pub increment() -> int {
         self.value = self.value + 1;
         return self.value;
     }
@@ -21,7 +21,7 @@ obj:pub Counter {
     }
 }
 
-def:pub make_counter -> Counter {
+def:pub make_counter() -> Counter {
     return Counter(value=0);
 }
 

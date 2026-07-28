@@ -11,19 +11,21 @@ Also declares 'calloc' with return type 'int' and assigns the result to a
 """
 
 import from "/usr/lib/x86_64-linux-gnu/libc.so.6" {
-    def strlen(s: int) -> int;  def calloc(n: int, sz: int) -> int;  def free(p: str);  # int param forces ptrtoint(str → i64)  # int return forces inttoptr when stored as str
+    def strlen(s: int) -> int;      # int param forces ptrtoint(str → i64)
+    def calloc(n: int, sz: int) -> int;  # int return forces inttoptr when stored as str
+    def free(p: str);
 }
 
-def:pub test_ptrtoint_strlen -> int {
+def:pub test_ptrtoint_strlen() -> int {
     # "hello" is i8* but strlen param is i64 — compiler emits ptrtoint
     return strlen("hello");
 }
 
-def:pub test_ptrtoint_strlen_empty -> int {
+def:pub test_ptrtoint_strlen_empty() -> int {
     return strlen("");
 }
 
-def:pub test_inttoptr_calloc -> int {
+def:pub test_inttoptr_calloc() -> int {
     # calloc returns i64 (declared as int); we assign to str (i8*) — inttoptr
     buf: str = calloc(16, 1);
     # A non-null buffer can be used as a string (starts as all-zeros → empty)
@@ -31,3 +33,5 @@ def:pub test_inttoptr_calloc -> int {
     free(buf);
     return result;  # calloc zeroes memory, so strlen == 0
 }
+
+with entry {}

@@ -8,7 +8,7 @@ right operand's reflected form dispatches with swapped operands.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR }
+import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
@@ -21,7 +21,7 @@ glob FIXTURES = os.path.join(
 """Compile a .jac fixture and return the JIT engine."""
 def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts());
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     eng = ir.gen.native_engine;

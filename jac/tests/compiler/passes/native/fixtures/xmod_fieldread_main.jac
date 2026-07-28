@@ -7,7 +7,7 @@ the @sv pathway returns {"tag": 7}."""
 
 import from xmod_fieldread_lib { Area, make_area }
 
-def fieldread_na -> dict[str, any] {
+def fieldread_na() -> dict[str, any] {
     a = make_area();
     return {"tag": a.tag};
 }

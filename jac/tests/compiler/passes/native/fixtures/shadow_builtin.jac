@@ -6,6 +6,6 @@ def len(x: int) -> int {
     return x + 99;
 }
 
-def call_shadowed_len -> int {
+def call_shadowed_len() -> int {
     return len(1);
 }

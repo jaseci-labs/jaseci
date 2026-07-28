@@ -6,7 +6,7 @@ at runtime; the native backend fails fast at compile time instead.
 
 import struct;
 
-def bad_pack -> int {
+def bad_pack() -> int {
     p = struct.pack("<II", 1);
     return len(p);
 }

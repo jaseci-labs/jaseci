@@ -17,7 +17,7 @@ move-lowering fires identically with `type_check=True` and `type_check=False`
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR }
+import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
 import jaclang.jac0core.unitree as uni;
@@ -39,8 +39,7 @@ def compile_fixture(
 ) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
     ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), type_check=type_check
-    );
+        file_path=str(os.path.join(FIXTURES, fixture)), type_check=type_check, options=native_force_opts());
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     eng = ir.gen.native_engine;

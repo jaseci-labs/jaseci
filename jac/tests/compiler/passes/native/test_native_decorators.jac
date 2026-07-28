@@ -8,7 +8,7 @@ with a structured error — never dropped.
 """
 
 import os;
-import from tests.support { TESTS_DIR }
+import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
 
@@ -20,7 +20,7 @@ glob FIXTURES_DIR = os.path.join(
 def compile_na_inline(label: str, code: str) -> JacProgram {
     path = os.path.join(FIXTURES_DIR, f"_decorator_{label}.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, use_str=code);
+    prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return prog;
 }
 
@@ -45,7 +45,7 @@ def compile_fixture(fixture: str) -> object {
     import ctypes;
     import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES_DIR, fixture)));
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES_DIR, fixture)), options=native_force_opts());
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     eng = ir.gen.native_engine;

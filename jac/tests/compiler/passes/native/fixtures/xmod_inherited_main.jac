@@ -7,7 +7,7 @@ pathway returns {"yaw": 2.0, "pitch": 0.5}."""
 
 import from xmod_inherited_lib { Entity, Player }
 
-def inherited_na -> dict[str, any] {
+def inherited_na() -> dict[str, any] {
     p = Player();
     p.yaw = 2.0;
     p.pitch += 0.5;

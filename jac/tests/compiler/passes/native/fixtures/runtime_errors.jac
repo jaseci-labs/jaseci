@@ -7,7 +7,7 @@
 # ============================================================
 
 # Test 1: Integer division by zero
-def test_int_div_by_zero -> int {
+def test_int_div_by_zero() -> int {
     result: int = 0;
     try {
         x: int = 10 // 0;
@@ -19,7 +19,7 @@ def test_int_div_by_zero -> int {
 }
 
 # Test 2: Integer modulo by zero
-def test_int_mod_by_zero -> int {
+def test_int_mod_by_zero() -> int {
     result: int = 0;
     try {
         x: int = 10 % 0;
@@ -31,7 +31,7 @@ def test_int_mod_by_zero -> int {
 }
 
 # Test 3: Division by zero with variable divisor
-def test_div_by_zero_var -> int {
+def test_div_by_zero_var() -> int {
     result: int = 0;
     d: int = 0;
     try {
@@ -44,7 +44,7 @@ def test_div_by_zero_var -> int {
 }
 
 # Test 4: Float division by zero
-def test_float_div_by_zero -> int {
+def test_float_div_by_zero() -> int {
     result: int = 0;
     try {
         x: float = 10.0 / 0.0;
@@ -56,7 +56,7 @@ def test_float_div_by_zero -> int {
 }
 
 # Test 5: Division by non-zero should NOT raise
-def test_div_no_error -> int {
+def test_div_no_error() -> int {
     result: int = 0;
     try {
         x: int = 10 // 2;
@@ -72,7 +72,7 @@ def test_div_no_error -> int {
 # ============================================================
 
 # Test 6: List index beyond length
-def test_list_index_oob -> int {
+def test_list_index_oob() -> int {
     result: int = 0;
     nums: list[int] = [10, 20, 30];
     try {
@@ -87,7 +87,7 @@ def test_list_index_oob -> int {
 # Test 7: Negative index out of range (|idx| > len) raises. A plain `nums[-1]`
 # is NOT out of bounds — it is Python's last element (see
 # test_list_negative_valid) — so use a clearly out-of-range negative index.
-def test_list_negative_index -> int {
+def test_list_negative_index() -> int {
     result: int = 0;
     nums: list[int] = [10, 20, 30];
     try {
@@ -100,13 +100,13 @@ def test_list_negative_index -> int {
 }
 
 # Test 7b: Valid negative indexing (Python semantics: idx += len).
-def test_list_negative_valid -> int {
+def test_list_negative_valid() -> int {
     nums: list[int] = [10, 20, 30];
     return nums[-1];
 }
 
 # Test 8: List index at exact length (off-by-one)
-def test_list_index_at_len -> int {
+def test_list_index_at_len() -> int {
     result: int = 0;
     nums: list[int] = [10, 20, 30];
     try {
@@ -119,7 +119,7 @@ def test_list_index_at_len -> int {
 }
 
 # Test 9: List valid index should NOT raise
-def test_list_valid_index -> int {
+def test_list_valid_index() -> int {
     result: int = 0;
     nums: list[int] = [10, 20, 30];
     try {
@@ -131,7 +131,7 @@ def test_list_valid_index -> int {
 }
 
 # Test 10: List set out of bounds
-def test_list_set_oob -> int {
+def test_list_set_oob() -> int {
     result: int = 0;
     nums: list[int] = [10, 20, 30];
     try {
@@ -144,7 +144,7 @@ def test_list_set_oob -> int {
 }
 
 # Test 11: Empty list access
-def test_empty_list_access -> int {
+def test_empty_list_access() -> int {
     result: int = 0;
     nums: list[int] = [];
     try {
@@ -161,7 +161,7 @@ def test_empty_list_access -> int {
 # ============================================================
 
 # Test 12: Dict access with missing key
-def test_dict_missing_key -> int {
+def test_dict_missing_key() -> int {
     result: int = 0;
     d: dict[str, int] = {"a": 1, "b": 2};
     try {
@@ -174,7 +174,7 @@ def test_dict_missing_key -> int {
 }
 
 # Test 13: Dict access with existing key should NOT raise
-def test_dict_valid_key -> int {
+def test_dict_valid_key() -> int {
     result: int = 0;
     d: dict[str, int] = {"a": 1, "b": 2};
     try {
@@ -186,7 +186,7 @@ def test_dict_valid_key -> int {
 }
 
 # Test 14: Dict int key missing
-def test_dict_int_missing_key -> int {
+def test_dict_int_missing_key() -> int {
     result: int = 0;
     d: dict[int, int] = {1: 100, 2: 200};
     try {
@@ -203,7 +203,7 @@ def test_dict_int_missing_key -> int {
 # ============================================================
 
 # Test 15: i64 addition overflow (MAX + 1)
-def test_int_add_overflow -> int {
+def test_int_add_overflow() -> int {
     result: int = 0;
     try {
         x: int = 9223372036854775807;  # i64 max
@@ -216,7 +216,7 @@ def test_int_add_overflow -> int {
 }
 
 # Test 16: i64 subtraction underflow (MIN - 1)
-def test_int_sub_underflow -> int {
+def test_int_sub_underflow() -> int {
     result: int = 0;
     try {
         x: int = -9223372036854775807 - 1;  # i64 min
@@ -229,7 +229,7 @@ def test_int_sub_underflow -> int {
 }
 
 # Test 17: i64 multiplication overflow
-def test_int_mul_overflow -> int {
+def test_int_mul_overflow() -> int {
     result: int = 0;
     try {
         x: int = 9223372036854775807;
@@ -242,7 +242,7 @@ def test_int_mul_overflow -> int {
 }
 
 # Test 18: Non-overflowing arithmetic should NOT raise
-def test_int_no_overflow -> int {
+def test_int_no_overflow() -> int {
     result: int = 0;
     try {
         x: int = 1000000;
@@ -260,7 +260,7 @@ def test_int_no_overflow -> int {
 obj SimpleObj {
     has val: int = 42;
 
-    def get_val -> int {
+    def get_val() -> int {
         return self.val;
     }
 }
@@ -268,7 +268,7 @@ obj SimpleObj {
 # Test 19: Field access on None. The variable is honestly typed nullable
 # and the `as` cast asserts non-None so `.val` type-checks; at runtime the
 # value is None and the native deref traps as an AttributeError.
-def test_none_field_access -> int {
+def test_none_field_access() -> int {
     result: int = 0;
     s: SimpleObj | None = None;
     try {
@@ -281,7 +281,7 @@ def test_none_field_access -> int {
 }
 
 # Test 20: Method call on None -- same nullable-plus-cast pattern as Test 19.
-def test_none_method_call -> int {
+def test_none_method_call() -> int {
     result: int = 0;
     s: SimpleObj | None = None;
     try {
@@ -294,7 +294,7 @@ def test_none_method_call -> int {
 }
 
 # Test 21: Non-None access should NOT raise
-def test_valid_obj_access -> int {
+def test_valid_obj_access() -> int {
     result: int = 0;
     s: SimpleObj = SimpleObj();
     try {
@@ -310,7 +310,7 @@ def test_valid_obj_access -> int {
 # ============================================================
 
 # Test 22: int() with invalid string
-def test_int_parse_invalid -> int {
+def test_int_parse_invalid() -> int {
     result: int = 0;
     try {
         x: int = int("not_a_number");
@@ -322,7 +322,7 @@ def test_int_parse_invalid -> int {
 }
 
 # Test 23: int() with valid string should NOT raise
-def test_int_parse_valid -> int {
+def test_int_parse_valid() -> int {
     result: int = 0;
     try {
         x: int = int("123");
@@ -334,7 +334,7 @@ def test_int_parse_valid -> int {
 }
 
 # Test 24: int() with empty string
-def test_int_parse_empty -> int {
+def test_int_parse_empty() -> int {
     result: int = 0;
     try {
         x: int = int("");
@@ -350,7 +350,7 @@ def test_int_parse_empty -> int {
 # ============================================================
 
 # Test 25: Failed assertion
-def test_assert_false -> int {
+def test_assert_false() -> int {
     result: int = 0;
     try {
         assert 1 == 2;
@@ -362,7 +362,7 @@ def test_assert_false -> int {
 }
 
 # Test 26: Passing assertion should NOT raise
-def test_assert_true -> int {
+def test_assert_true() -> int {
     result: int = 0;
     try {
         assert 1 == 1;
@@ -378,7 +378,7 @@ def test_assert_true -> int {
 # ============================================================
 
 # Test 27: Normal allocation should NOT raise MemoryError
-def test_alloc_ok -> int {
+def test_alloc_ok() -> int {
     result: int = 0;
     try {
         s: SimpleObj = SimpleObj();
@@ -394,7 +394,7 @@ def test_alloc_ok -> int {
 # ============================================================
 
 # Test 28: Catch parent Exception type for ZeroDivisionError
-def test_catch_base_exception -> int {
+def test_catch_base_exception() -> int {
     result: int = 0;
     try {
         x: int = 10 // 0;
@@ -406,7 +406,7 @@ def test_catch_base_exception -> int {
 }
 
 # Test 29: Multiple runtime errors in sequence
-def test_sequential_errors -> int {
+def test_sequential_errors() -> int {
     r1: int = 0;
     r2: int = 0;
     try {
@@ -421,10 +421,11 @@ def test_sequential_errors -> int {
         r2 = 1;
     }
     return r1 * 10 + r2;  # Should be 11
+
 }
 
 # Test 30: Runtime error in loop
-def test_error_in_loop -> int {
+def test_error_in_loop() -> int {
     count: int = 0;
     i: int = 0;
     while i < 5 {
@@ -436,4 +437,5 @@ def test_error_in_loop -> int {
         i = i + 1;
     }
     return count;  # Should be 1 (only i==0 triggers it)
+
 }

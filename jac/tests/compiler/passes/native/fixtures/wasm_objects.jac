@@ -3,11 +3,7 @@ objects + lists (malloc/memcpy imports, indirect-call table + elem, every
 relocation kind), and a mutable global (data segment + memory-addr relocs +
 cross-call persistence). The point under test is the linker, not the math."""
 
-obj Pt {
-    has x: float,
-        y: float,
-        alive: bool;
-}
+obj Pt { has x: float, y: float, alive: bool; }
 
 glob calls: int = 0;
 
@@ -27,17 +23,11 @@ def sum_x(pts: list[Pt]) -> float {
     i = 0;
     while i < len(pts) {
         p = pts[i];
-        if p.alive {
-            total += p.x;
-        }
+        if p.alive { total += p.x; }
         i += 1;
     }
     return total;
 }
 
-def demo(n: int) -> float {
-    return sum_x(make(n));
-}
-def call_count -> int {
-    return calls;
-}
+def demo(n: int) -> float { return sum_x(make(n)); }
+def call_count() -> int { return calls; }

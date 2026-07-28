@@ -16,22 +16,24 @@ obj Container {
 }
 
 """Delete the last element; return new length (expect 2)."""
-def:pub test_del_shrinks_length -> int {
+def:pub test_del_shrinks_length() -> int {
     c: Container = Container(items=[10, 20, 30]);
     del c.items[2];
     return len(c.items);
 }
 
 """Delete the first element; return the new first value (expect 20)."""
-def:pub test_del_shifts_elements -> int {
+def:pub test_del_shifts_elements() -> int {
     c: Container = Container(items=[10, 20, 30]);
     del c.items[0];
     return c.items[0];
 }
 
 """Delete the only element; return new length (expect 0)."""
-def:pub test_del_last_element -> int {
+def:pub test_del_last_element() -> int {
     c: Container = Container(items=[42]);
     del c.items[0];
     return len(c.items);
 }
+
+with entry {}

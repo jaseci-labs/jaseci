@@ -16,7 +16,7 @@ def tick {
 
 # Same shape, but written with an explicit empty parameter list. Already worked;
 # kept here so the two forms can be asserted equivalent.
-def tick_parens {
+def tick_parens() {
     hits = hits + 1;
 }
 

@@ -28,7 +28,7 @@ carries the coverage.
 import ctypes;
 import os;
 import sys;
-import from tests.support { TESTS_DIR }
+import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
 
@@ -73,7 +73,7 @@ returning in-use-heap growth (bytes) across a build/drop loop with cycle
 collection `enable`d or not."""
 def _cycle_growth(fixture: str, enable: bool, inuse: object) -> int {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts());
     assert not prog.errors_had , (
         f"compile errors in {fixture}: {[str(e) for e in prog.errors_had]}"
     );

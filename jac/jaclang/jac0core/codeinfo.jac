@@ -237,11 +237,16 @@ def _inferred_native_path(candidate: (str | None)) -> (str | None) {
 def resolve_native_module(
     module_name: str, base_dir: str, allow_inferred: bool = True
 ) -> tuple[(str | None, str | None)] {
+    # Local/dotted probes are gated on native *eligibility* of the candidate
+    # (native_default_path_ok), not on the ambient default codespace: the
+    # caller's context (an na-scoped import, a native importer, an AOT build)
+    # is what mandates native here, and a server-default program must still
+    # resolve its na-imported siblings.
     import os;
     clean = module_name.lstrip('.');
     path_name = clean.replace('.', os.sep);
 
-    if allow_inferred and effective_default_codespace() == "native" {
+    if allow_inferred {
         local = _inferred_native_path(
             _native_variant_path(os.path.join(base_dir, clean))
         );
@@ -299,6 +304,85 @@ obj NativeModuleLayout {
         list_elem_types: dict[(str, str)] = field(default_factory=`dict),
         tuples: dict[(str, NativeTupleLayout)] = field(default_factory=`dict),
         tests: list[NativeTestLayout] = field(default_factory=`list);
+}
+
+def _tuple_layout_to_dict(t: (NativeTupleLayout | None)) -> (dict | None) {
+    if t is None {
+        return None;
+    }
+    return {
+        "key": t.key,
+        "element_types": list(t.element_types),
+        "element_struct_hints": list(t.element_struct_hints)
+    };
+}
+
+def _func_layout_to_dict(f: NativeFuncLayout) -> dict {
+    return {
+        "name": f.name,
+        "param_types": list(f.param_types),
+        "param_names": list(f.param_names),
+        "ret_type": f.ret_type,
+        "ret_struct_name": f.ret_struct_name,
+        "ret_tuple_layout": _tuple_layout_to_dict(f.ret_tuple_layout),
+        "ret_enum_type": f.ret_enum_type,
+        "ret_elem_keys": (
+            list(f.ret_elem_keys) if f.ret_elem_keys is not None else None
+        )
+    };
+}
+
+def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
+    """Serialize a NativeModuleLayout to plain JSON-able data.
+
+    The inverse lives in `jaclang/jac0core/native_dylib.py`
+    (`layout_from_dict`), which must stay attribute-compatible with what
+    `native_marshal` reads -- change both together.
+    """
+    return {
+        "abi_version": layout.abi_version,
+        "structs": {
+            name: {
+                "name": s.name,
+                "has_vtable": s.has_vtable,
+                "fields": [
+                    {
+                        "name": fld.name,
+                        "llvm_type": fld.llvm_type,
+                        "index": fld.index,
+                        "enum_type": fld.enum_type,
+                        "is_func_ptr": fld.is_func_ptr,
+                        "func_param_types": (
+                            list(fld.func_param_types)
+                                if fld.func_param_types is not None
+                                else None
+                        ),
+                        "func_ret_type": fld.func_ret_type
+                    }
+                    for fld in s.fields
+                ]
+            }
+            for (name, s) in layout.structs.items()
+        },
+        "enums": {
+            name: {
+                "name": e.name,
+                "is_string_valued": e.is_string_valued,
+                "members": list(e.members)
+            }
+            for (name, e) in layout.enums.items()
+        },
+        "functions": {
+            name: _func_layout_to_dict(f) for (name, f) in layout.functions.items()
+        },
+        "methods": {
+            name: _func_layout_to_dict(f) for (name, f) in layout.methods.items()
+        },
+        "list_elem_types": dict(layout.list_elem_types),
+        "tuples": {
+            key: _tuple_layout_to_dict(t) for (key, t) in layout.tuples.items()
+        }
+    };
 }
 
 obj BoundaryTypeInfo {

@@ -8,10 +8,10 @@ regression trigger. Both abilities reference it: `get_sz` as a bare `Name`,
 
 glob SZ: int = 21;
 
-impl get_sz -> int {
+impl get_sz() -> int {
     return SZ;
 }
 
-impl double_sz -> int {
+impl double_sz() -> int {
     return SZ * 2;
 }

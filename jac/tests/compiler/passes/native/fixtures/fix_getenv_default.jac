@@ -14,17 +14,17 @@ NULL and the default must be substituted. Returns the default's length (8 for
 
 import os;
 
-def getenv_unset_string_default -> int {
+def getenv_unset_string_default() -> int {
     v = os.getenv("GETENV_UNSET_6688", "fallback");
     return len(v);
 }
 
-def getenv_unset_empty_default -> int {
+def getenv_unset_empty_default() -> int {
     v = os.getenv("GETENV_UNSET_6688", "");
     return len(v);
 }
 
-def getenv_unset_concat -> int {
+def getenv_unset_concat() -> int {
     # Mirrors the quakepassion `"area: " + cur_name` style use of the result.
     v = os.getenv("GETENV_UNSET_6688", "abc");
     line = "x:" + v;

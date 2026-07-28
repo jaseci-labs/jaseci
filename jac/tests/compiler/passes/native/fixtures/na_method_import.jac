@@ -18,13 +18,13 @@ Expected outputs (used by test_native_gen_pass.jac):
 import from na_method_import_lib { Counter, make_counter }
 
 # Returns 1  (start=0, increment once)
-def test_imported_method_once -> int {
+def test_imported_method_once() -> int {
     c: Counter = make_counter(0);
     return c.increment();
 }
 
 # Returns 5  (start=0, increment five times)
-def test_imported_method_five -> int {
+def test_imported_method_five() -> int {
     c: Counter = make_counter(0);
     c.increment();
     c.increment();
@@ -34,13 +34,13 @@ def test_imported_method_five -> int {
 }
 
 # Returns 10  (start=3, add 7)
-def test_imported_method_with_arg -> int {
+def test_imported_method_with_arg() -> int {
     c: Counter = make_counter(3);
     return c.add(7);
 }
 
 # Returns 12  (start=0, increment to 2, then add 10)
-def test_imported_chained_methods -> int {
+def test_imported_chained_methods() -> int {
     c: Counter = make_counter(0);
     c.increment();
     c.increment();

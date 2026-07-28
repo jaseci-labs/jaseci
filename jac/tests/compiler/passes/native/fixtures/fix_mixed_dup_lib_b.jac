@@ -7,10 +7,10 @@ when A was already linked into the entry module.
 
 import from fix_mixed_dup_lib_a { get_foo }
 
-def:pub get_bar -> int {
+def:pub get_bar() -> int {
     return 42;
 }
 
-def:pub call_foo -> int {
+def:pub call_foo() -> int {
     return get_foo();
 }

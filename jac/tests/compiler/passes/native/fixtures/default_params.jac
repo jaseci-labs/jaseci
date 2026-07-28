@@ -18,12 +18,12 @@ def bias(x: int, b: int = 100) -> int {
 }
 
 # method call omitting the trailing default (offset = 10)
-def test_method_default_omitted -> int {
+def test_method_default_omitted() -> int {
     a: Adder = Adder(base=5);
-    return a.add(7);  # expected: 5 + 7 + 10 = 22
+    return a.add(7);   # expected: 5 + 7 + 10 = 22
 }
 
 # free-function call omitting the trailing default (b = 100)
-def test_free_fn_default_omitted -> int {
-    return bias(42);  # expected: 42 + 100 = 142
+def test_free_fn_default_omitted() -> int {
+    return bias(42);   # expected: 42 + 100 = 142
 }

@@ -1,40 +1,40 @@
 # ===================== Dictionary Tests =====================
 
-def dict_new_empty -> int {
+def dict_new_empty() -> int {
     d: dict[int, int] = {};
     return len(d);
 }
 
-def dict_literal_len -> int {
+def dict_literal_len() -> int {
     d: dict[int, int] = {1: 10, 2: 20, 3: 30};
     return len(d);
 }
 
-def dict_get_value -> int {
+def dict_get_value() -> int {
     d: dict[int, int] = {1: 100, 2: 200, 3: 300};
     return d[2];
 }
 
-def dict_set_value -> int {
+def dict_set_value() -> int {
     d: dict[int, int] = {1: 10};
     d[2] = 20;
     return d[2];
 }
 
-def dict_update_value -> int {
+def dict_update_value() -> int {
     d: dict[int, int] = {1: 10, 2: 20};
     d[1] = 99;
     return d[1];
 }
 
-def dict_len_after_set -> int {
+def dict_len_after_set() -> int {
     d: dict[int, int] = {1: 10};
     d[2] = 20;
     d[3] = 30;
     return len(d);
 }
 
-def dict_contains_true -> int {
+def dict_contains_true() -> int {
     d: dict[int, int] = {1: 10, 2: 20, 3: 30};
     if 2 in d {
         return 1;
@@ -42,7 +42,7 @@ def dict_contains_true -> int {
     return 0;
 }
 
-def dict_contains_false -> int {
+def dict_contains_false() -> int {
     d: dict[int, int] = {1: 10, 2: 20, 3: 30};
     if 99 in d {
         return 1;
@@ -50,17 +50,17 @@ def dict_contains_false -> int {
     return 0;
 }
 
-def dict_string_keys -> int {
+def dict_string_keys() -> int {
     d: dict[str, int] = {"a": 1, "b": 2, "c": 3};
     return d["b"];
 }
 
-def dict_string_values -> str {
+def dict_string_values() -> str {
     d: dict[int, str] = {1: "one", 2: "two", 3: "three"};
     return d[2];
 }
 
-def dict_sum_values -> int {
+def dict_sum_values() -> int {
     d: dict[int, int] = {1: 10, 2: 20, 3: 30, 4: 40};
     total: int = 0;
     total = total + d[1];
@@ -70,7 +70,7 @@ def dict_sum_values -> int {
     return total;
 }
 
-def dict_overwrite -> int {
+def dict_overwrite() -> int {
     d: dict[int, int] = {};
     d[1] = 10;
     d[1] = 20;
@@ -78,23 +78,23 @@ def dict_overwrite -> int {
     return d[1];
 }
 
-def dict_multiple_types -> int {
+def dict_multiple_types() -> int {
     d1: dict[int, int] = {1: 100};
     d2: dict[str, int] = {"key": 200};
     return d1[1] + d2["key"];
 }
 
-def dict_get_first -> int {
+def dict_get_first() -> int {
     d: dict[int, int] = {1: 100, 2: 200};
     return d[1];
 }
 
-def dict_get_third -> int {
+def dict_get_third() -> int {
     d: dict[int, int] = {1: 100, 2: 200, 3: 300};
     return d[3];
 }
 
-def dict_set_then_get -> int {
+def dict_set_then_get() -> int {
     d: dict[int, int] = {};
     d[5] = 500;
     d[10] = 1000;
@@ -103,29 +103,29 @@ def dict_set_then_get -> int {
 
 # ===================== Set Tests =====================
 
-def set_new_empty -> int {
+def set_new_empty() -> int {
     s: set[int] = set();
     return len(s);
 }
 
-def set_literal_len -> int {
+def set_literal_len() -> int {
     s: set[int] = {1, 2, 3, 4, 5};
     return len(s);
 }
 
-def set_add_element -> int {
+def set_add_element() -> int {
     s: set[int] = {1, 2, 3};
     s.add(4);
     return len(s);
 }
 
-def set_add_duplicate -> int {
+def set_add_duplicate() -> int {
     s: set[int] = {1, 2, 3};
     s.add(2);
     return len(s);
 }
 
-def set_contains_true -> int {
+def set_contains_true() -> int {
     s: set[int] = {10, 20, 30};
     if 20 in s {
         return 1;
@@ -133,7 +133,7 @@ def set_contains_true -> int {
     return 0;
 }
 
-def set_contains_false -> int {
+def set_contains_false() -> int {
     s: set[int] = {10, 20, 30};
     if 99 in s {
         return 1;
@@ -141,7 +141,7 @@ def set_contains_false -> int {
     return 0;
 }
 
-def set_string_elements -> int {
+def set_string_elements() -> int {
     s: set[str] = {"apple", "banana", "cherry"};
     if "banana" in s {
         return 1;
@@ -149,7 +149,7 @@ def set_string_elements -> int {
     return 0;
 }
 
-def set_multiple_adds -> int {
+def set_multiple_adds() -> int {
     s: set[int] = set();
     s.add(1);
     s.add(2);
@@ -163,11 +163,11 @@ def set_multiple_adds -> int {
 
 glob LOOKUP: dict[int, int] = {0: 100, 1: 200, 2: 300};
 
-def global_dict_get -> int {
+def global_dict_get() -> int {
     return LOOKUP[1];
 }
 
-def global_dict_len -> int {
+def global_dict_len() -> int {
     return len(LOOKUP);
 }
 
@@ -175,14 +175,14 @@ def global_dict_len -> int {
 
 glob VALID_IDS: set[int] = {1, 2, 3, 4, 5};
 
-def global_set_contains -> int {
+def global_set_contains() -> int {
     if 3 in VALID_IDS {
         return 1;
     }
     return 0;
 }
 
-def global_set_len -> int {
+def global_set_len() -> int {
     return len(VALID_IDS);
 }
 
@@ -191,12 +191,12 @@ def global_set_len -> int {
 # causing a segfault on the first dict operation.
 glob EMPTY_COUNTS: dict[str, int] = {};
 
-def empty_glob_dict_set_get -> int {
+def empty_glob_dict_set_get() -> int {
     EMPTY_COUNTS["a"] = 7;
     return EMPTY_COUNTS["a"];
 }
 
-def empty_glob_dict_len_after_insert -> int {
+def empty_glob_dict_len_after_insert() -> int {
     EMPTY_COUNTS["x"] = 1;
     EMPTY_COUNTS["y"] = 2;
     return len(EMPTY_COUNTS);
@@ -215,7 +215,7 @@ def dict_param_iter_sum(d: dict[int, int]) -> int {
 }
 
 # wrapper so the test can call without building a dict from Python
-def dict_param_iter_sum_fixture -> int {
+def dict_param_iter_sum_fixture() -> int {
     d: dict[int, int] = {};
     d[1] = 10;
     d[2] = 20;
@@ -229,7 +229,7 @@ obj DictContainer {
 }
 
 # for k in c.props: iterate dict stored in a struct field
-def dict_field_iter_sum_fixture -> int {
+def dict_field_iter_sum_fixture() -> int {
     c: DictContainer = DictContainer(props={0: 0});
     c.props[1] = 10;
     c.props[2] = 20;
@@ -242,7 +242,7 @@ def dict_field_iter_sum_fixture -> int {
 }
 
 # dict .items() iteration: sum all values
-def dict_items_iter_sum -> int {
+def dict_items_iter_sum() -> int {
     d: dict[int, int] = {};
     d[1] = 10;
     d[2] = 20;
@@ -255,7 +255,7 @@ def dict_items_iter_sum -> int {
 }
 
 # dict .pop(k, default): remove by method call, returns 1 if key absent after removal
-def dict_remove_method -> int {
+def dict_remove_method() -> int {
     d: dict[int, int] = {};
     d[1] = 10;
     d[2] = 20;
@@ -267,7 +267,7 @@ def dict_remove_method -> int {
 }
 
 # del d[k]: remove by delete keyword, returns 1 if key absent after deletion
-def dict_delete_keyword -> int {
+def dict_delete_keyword() -> int {
     d: dict[int, int] = {};
     d[1] = 10;
     d[2] = 20;
@@ -279,26 +279,26 @@ def dict_delete_keyword -> int {
 }
 
 # ===================== Dict .get() Method Tests =====================
-def dict_get_found -> int {
+def dict_get_found() -> int {
     d: dict[str, int] = {"a": 10, "b": 20};
     return d.get("a", -1);
 }
 
-def dict_get_notfound -> int {
+def dict_get_notfound() -> int {
     d: dict[str, int] = {"a": 10, "b": 20};
     return d.get("z", -99);
 }
 
-def dict_get_no_default -> int {
+def dict_get_no_default() -> int {
     d: dict[int, int] = {1: 100, 2: 200};
     return d.get(1, -1);
 }
 
-def global_dict_get_method -> int {
+def global_dict_get_method() -> int {
     return LOOKUP.get(1, -1);
 }
 
-def global_dict_get_notfound_method -> int {
+def global_dict_get_notfound_method() -> int {
     return LOOKUP.get(99, -42);
 }
 

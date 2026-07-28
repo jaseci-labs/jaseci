@@ -9,3 +9,5 @@ import from glob_dep { getg }
 def:pub use_dep_glob -> int {
     return getg();
 }
+
+with entry {}

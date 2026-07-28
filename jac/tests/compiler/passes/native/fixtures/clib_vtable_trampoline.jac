@@ -11,14 +11,15 @@ import from "/usr/lib/libm.so.6" {
         has size: int = 0,
             on_event: Callable[[i32, i32], i32] = 0,
             on_close: Callable[[int], None] = 0;
-    }  def sqrt(x: f64) -> f64;
+    }
+    def sqrt(x: f64) -> f64;
 }
 
 def _on_event(a: int, b: int) -> int {
     return a * 10 + b;
 }
 
-def make_handler -> int {
+def make_handler() -> int {
     h = event_handler_vt(size=24, on_event=_on_event);
     return h.size;
 }

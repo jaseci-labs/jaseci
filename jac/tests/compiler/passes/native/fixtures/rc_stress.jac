@@ -19,7 +19,7 @@ def test_many_objects(n: int) -> int {
 obj Box {
     has val: int = 0;
 
-    def get_val -> int {
+    def get_val() -> int {
         return self.val;
     }
 }

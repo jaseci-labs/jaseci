@@ -13,13 +13,17 @@ def sum_products(pairs: list[tuple[int, int]]) -> int {
     return total;
 }
 
-def run_products -> int {
+def run_products() -> int {
     pairs: list[tuple[int, int]] = [(1, 10), (2, 20), (3, 30)];
     return sum_products(pairs);
 }
 
-def run_str_bytes_lengths -> int {
-    files: list[tuple[str, bytes]] = [("a", b"hello"), ("bb", b"xy"), ("ccc", b""), ];
+def run_str_bytes_lengths() -> int {
+    files: list[tuple[str, bytes]] = [
+        ("a", b"hello"),
+        ("bb", b"xy"),
+        ("ccc", b""),
+    ];
     total = 0;
     for (name, payload) in files {
         total += len(name) + len(payload);
@@ -27,7 +31,7 @@ def run_str_bytes_lengths -> int {
     return total;
 }
 
-def run_reuse_across_loops -> int {
+def run_reuse_across_loops() -> int {
     pairs: list[tuple[int, int]] = [(1, 2), (3, 4)];
     total = 0;
     for (a, b) in pairs {

@@ -701,10 +701,32 @@ impl JacCompiler.parse_str(
         }
         (mod, had_error) = rd_parse(source_str, file_path, prog=target_program);
         codespace = codespace_of(file_path);
+        if not codespace {
+            # A forced placement (force_codespace, or an AOT build defaulting
+            # native) coerces exactly where the retired filename marker used
+            # to: right after parse, before the annex merge.
+            _p_opts = target_program._compile_options;
+            _forced_pre = _p_opts.force_codespace if _p_opts is not None else '';
+            if (
+                not _forced_pre
+                and _p_opts is not None
+                and _p_opts.aot_mode
+                and target_program is not self._internal_program
+                and _default_codespace_for(target_program) == 'native'
+            ) {
+                _forced_pre = 'native';
+            }
+            if _forced_pre and target_program is not self._internal_program {
+                codespace = _forced_pre;
+            }
+        }
         if (codespace == 'client') {
             _coerce_client_module(mod);
         } elif (codespace == 'server') {
             _coerce_server_module(mod);
+        } elif (codespace == 'native') {
+            _coerce_native_module(mod);
+            na_census_record(mod.loc.mod_path, 'native');
         } else {
             run_codespace_infer = True;
         }
@@ -724,14 +746,12 @@ impl JacCompiler.parse_str(
     if run_codespace_infer {
         _opts = target_program._compile_options;
         _analysis_only = _opts is not None and _opts.no_cgen;
-        _wants_native = (
-            target_program is not self._internal_program
+        _native_eligible = (
+            not _analysis_only
+            and target_program is not self._internal_program
             and _default_codespace_for(target_program) == 'native'
         );
-        if _wants_native and _opts is not None and _opts.aot_mode {
-            _coerce_native_module(mod);
-            na_census_record(mod.loc.mod_path, 'native');
-        } elif _wants_native and not _analysis_only {
+        if _native_eligible {
             import from jaclang.jac0core.placement_solver { native_default_verdict }
             (_na_ok, _na_why) = native_default_verdict(mod);
             if _na_ok {
@@ -783,6 +803,7 @@ impl JacCompiler.compile(
         _inferred_native = (
             _cs_of(file_path) is None
             and not options.aot_mode
+            and not options.force_codespace
             and _probe is not None
             and _probe.decided_codespace == 'native'
         );

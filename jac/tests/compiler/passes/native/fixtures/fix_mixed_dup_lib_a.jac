@@ -5,6 +5,6 @@ When the entry imports both A and B, B's IR carries get_foo transitively
 but must still link get_bar after A is linked first.
 """
 
-def:pub get_foo -> int {
+def:pub get_foo() -> int {
     return 10;
 }

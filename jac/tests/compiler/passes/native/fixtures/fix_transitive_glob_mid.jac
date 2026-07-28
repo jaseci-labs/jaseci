@@ -8,10 +8,10 @@ __jac_glob_init called.
 
 import from fix_transitive_glob_deep { table_len, table_push }
 
-def:pub mid_len -> int {
+def:pub mid_len() -> int {
     return table_len();
 }
 
-def:pub mid_push(v: int) {
+def:pub mid_push(v: int) -> None {
     table_push(v);
 }

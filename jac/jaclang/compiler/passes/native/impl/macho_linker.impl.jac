@@ -126,50 +126,113 @@ def _resolve_macho_name(
 }
 
 
+def _trie_common_prefix(a: str, b: str) -> int {
+    n = min(len(a), len(b));
+    i = 0;
+    while i < n and a[i] == b[i] {
+        i += 1;
+    }
+    return i;
+}
+
 def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
-    n = len(symbols);
-    if n == 0 {
+    # A real compressed radix trie. dyld's trieWalk follows the first edge
+    # whose label prefixes the lookup key and never backtracks, so a flat
+    # one-level trie cannot represent a symbol that is a strict prefix of
+    # another export (e.g. `tokenize` / `tokenize_full`): the walk consumes
+    # the short edge and dead-ends. Shared prefixes must be actual interior
+    # nodes, with terminal info and children coexisting on one node.
+    if len(symbols) == 0 {
         return bytes([0, 0]);
     }
 
-    term_nodes: list[bytes] = [];
+    trie_root: dict = {"term": None, "kids": {}};
     for (name, addr) in symbols {
-        info = _encode_uleb128(EXPORT_SYMBOL_FLAGS_KIND_REGULAR) + _encode_uleb128(
-            addr
-        );
-        tnode = _encode_uleb128(len(info)) + info + bytes([0]);
-        term_nodes.append(tnode);
+        cur = trie_root;
+        rest = name;
+        while True {
+            if rest == "" {
+                cur["term"] = addr;
+                break;
+            }
+            kids = cur["kids"];
+            matched = False;
+            for label in list(kids.keys()) {
+                c = _trie_common_prefix(label, rest);
+                if c == 0 {
+                    continue;
+                }
+                if c == len(label) {
+                    cur = kids[label];
+                } else {
+                    child = kids.pop(label);
+                    mid = {"term": None, "kids": {label[c:]: child}};
+                    kids[label[:c]] = mid;
+                    cur = mid;
+                }
+                rest = rest[c:];
+                matched = True;
+                break;
+            }
+            if not matched {
+                kids[rest] = {"term": addr, "kids": {}};
+                break;
+            }
+        }
     }
-    child_off: list[int] = [0] * n;
 
-    for _iter in range(8) {
-        rootbuf = bytearray();
-        rootbuf.extend(_encode_uleb128(0));
-        rootbuf.append(n);
-        for (i, pair) in enumerate(symbols) {
-            rootbuf.extend(pair[0].encode("utf-8") + b"\x00");
-            rootbuf.extend(_encode_uleb128(child_off[i]));
+    order: list = [];
+    stack: list = [trie_root];
+    while stack {
+        nd = stack.pop();
+        order.append(nd);
+        for label in sorted(nd["kids"].keys(), reverse=True) {
+            stack.append(nd["kids"][label]);
         }
-        pos = len(rootbuf);
-        new_off: list[int] = [];
-        for i in range(n) {
-            new_off.append(pos);
-            pos += len(term_nodes[i]);
+    }
+    node_index: dict = {};
+    for (i, nd) in enumerate(order) {
+        node_index[id(nd)] = i;
+    }
+
+    # Offsets feed back into uleb sizes; iterate to a fixpoint, then encode
+    # one final time against the stable offsets.
+    offsets: list[int] = [0] * len(order);
+    encs: list[bytes] = [];
+    for _iter in range(16) {
+        encs = [];
+        for nd in order {
+            if nd["term"] is not None {
+                info = _encode_uleb128(
+                    EXPORT_SYMBOL_FLAGS_KIND_REGULAR
+                ) + _encode_uleb128(nd["term"]);
+                e = _encode_uleb128(len(info)) + info;
+            } else {
+                e = _encode_uleb128(0);
+            }
+            e += bytes([len(nd["kids"])]);
+            for label in sorted(nd["kids"].keys()) {
+                child = nd["kids"][label];
+                e += label.encode("utf-8") + b"\x00" + _encode_uleb128(
+                    offsets[node_index[id(child)]]
+                );
+            }
+            encs.append(e);
         }
-        if new_off == child_off {
+        pos = 0;
+        new_offsets: list[int] = [];
+        for e in encs {
+            new_offsets.append(pos);
+            pos += len(e);
+        }
+        if new_offsets == offsets {
             break;
         }
-        child_off = new_off;
+        offsets = new_offsets;
     }
     blob = bytearray();
-    blob.extend(_encode_uleb128(0));
-    blob.append(n);
-    for (i, pair) in enumerate(symbols) {
-        blob.extend(pair[0].encode("utf-8") + b"\x00");
-        blob.extend(_encode_uleb128(child_off[i]));
-    }
-    for tn in term_nodes {
-        blob.extend(tn);
+    for e in encs {
+        blob.extend(e);
     }
     return bytes(blob);
 }

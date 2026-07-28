@@ -184,9 +184,12 @@ test "kind mobile -> build the mobile client shell (core)" {
 # ---------------------------------------------------------------------------
 # Kind inference (no explicit [project] kind)
 # ---------------------------------------------------------------------------
-test "infer cli-native from .jac entry" {
+test "plain .jac entry no longer infers cli-native (marker retired)" {
+    # Pre-0.35 a main.na.jac entry inferred cli-native from the filename.
+    # With the marker retired, native is a placement decision, not a kind
+    # signal: plain .jac infers "cli" and cli-native must be explicit.
     p = _plan("entry-point = \"main.jac\"\n", "main.jac");
-    assert p.kind == "cli-native";
+    assert p.kind == "cli";
 }
 
 test "infer service from .sv.jac entry" {
@@ -220,10 +223,10 @@ test "infer web-app from plain .jac when [client] is configured" {
 # Entry-point resolution
 # ---------------------------------------------------------------------------
 test "stale entry-point resolves by stem to the real codespace file" {
-    # entry-point says main.jac but only main.jac exists on disk.
-    p = _plan("entry-point = \"main.jac\"\n", "main.jac");
-    assert p.entry_path.endswith("main.jac");
-    assert p.kind == "cli-native";
+    # entry-point says main.jac but only main.sv.jac exists on disk.
+    p = _plan("entry-point = \"main.jac\"\n", "main.sv.jac");
+    assert p.entry_path.endswith("main.sv.jac");
+    assert p.kind == "service";
 }
 
 test "missing entry yields no plan for runnable kinds" {

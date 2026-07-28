@@ -609,3 +609,4 @@ obj TypeEvaluator {
         ast_node: object, scope: uni.UniScopeNode
     ) -> TypeBase | None;
 }
+

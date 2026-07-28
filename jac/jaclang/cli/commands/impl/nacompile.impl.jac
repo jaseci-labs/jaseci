@@ -96,51 +96,7 @@ def _inject_entry_pe(llvm_ir_str: str) -> str {
 }
 
 
-def _inject_shared_init(
-    llvm_ir_str: str, transitive_sources: list[str]
-) -> tuple[str, list[str]] {
-    init_calls: list[str] = [];
 
-    if ('@"__jac_glob_init"' in llvm_ir_str) or ("@__jac_glob_init(" in llvm_ir_str) {
-        init_calls.append("  call void @__jac_glob_init()");
-    }
-    import from jaclang.jac0core.codeinfo { native_safe_sym }
-    _seen: set = set();
-    for _src in transitive_sources {
-        if _src is None or _src in _seen {
-            continue;
-        }
-        _seen.add(_src);
-
-        _safe = native_safe_sym(_src);
-        _nm = f"__jac_glob_init_{_safe}";
-        if (f'@"{_nm}"' in llvm_ir_str) or (f"@{_nm}(" in llvm_ir_str) {
-            init_calls.append(f"  call void @{_nm}()");
-        }
-    }
-    parts: list[str] = ["\n; --- injected shared-library init + RC wrappers ---"];
-    _body = ("\n".join(init_calls) + "\n") if init_calls else "";
-    parts.append(
-        "define void @__jac_shared_init() {\nentry:\n" + _body + "  ret void\n}"
-    );
-    extra_exports: list[str] = [];
-
-    if "__rc_retain" in llvm_ir_str {
-        parts.append(
-            "define void @jac_retain(ptr %p) {\nentry:\n"
-            "  call void @__rc_retain(ptr %p)\n  ret void\n}"
-        );
-        extra_exports.append("jac_retain");
-    }
-    if "__rc_release_simple" in llvm_ir_str {
-        parts.append(
-            "define void @jac_release(ptr %p) {\nentry:\n"
-            "  call void @__rc_release_simple(ptr %p)\n  ret void\n}"
-        );
-        extra_exports.append("jac_release");
-    }
-    return (llvm_ir_str + "\n".join(parts) + "\n", extra_exports);
-}
 
 
 impl nacompile(
@@ -442,6 +398,9 @@ impl nacompile(
         _mf = ir_module.gen.interop_manifest;
         if _mf {
             _transitive = _mf.native_transitive_sources;
+        }
+        import from jaclang.compiler.passes.native.shared_emit {
+            inject_shared_init as _inject_shared_init
         }
         (llvm_ir_str, _extra_exports) = _inject_shared_init(llvm_ir_str, _transitive);
         init_funcs = ["__jac_shared_init"];

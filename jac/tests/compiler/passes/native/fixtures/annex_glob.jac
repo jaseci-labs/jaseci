@@ -11,5 +11,5 @@ blaming the reference expression instead of the unresolved global. The
 byte-identical program with the glob in this head file always compiled.
 """
 
-def get_sz -> int;
-def double_sz -> int;
+def get_sz() -> int;
+def double_sz() -> int;

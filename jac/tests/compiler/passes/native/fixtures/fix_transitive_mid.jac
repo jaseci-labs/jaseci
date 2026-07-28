@@ -8,6 +8,6 @@ get_leaf at link time.
 
 import from fix_transitive_leaf { get_leaf }
 
-def:pub get_mid -> int {
+def:pub get_mid() -> int {
     return get_leaf();
 }

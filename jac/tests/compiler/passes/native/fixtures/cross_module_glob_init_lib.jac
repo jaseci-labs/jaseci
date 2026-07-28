@@ -7,11 +7,11 @@ __jac_glob_init cross-module linking introduced in the compiler fix.
 
 glob _TABLE: list[int] = [];
 
-def:pub table_len -> int {
+def:pub table_len() -> int {
     return len(_TABLE);
 }
 
-def:pub table_push(v: int) {
+def:pub table_push(v: int) -> None {
     _TABLE.append(v);
 }
 

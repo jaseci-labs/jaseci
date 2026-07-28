@@ -6,11 +6,11 @@ The fix changed global linkage from `internal` to `""` (default/public) in
 globals.impl.jac so that importing modules can resolve the symbol at link time.
 """
 
-glob MAGIC: int = 42,
-     BASE: int = 100;
+glob MAGIC: int = 42;
+glob BASE:  int = 100;
 
 """Return the value of the MAGIC global."""
-def:pub get_magic -> int {
+def:pub get_magic() -> int {
     return MAGIC;
 }
 

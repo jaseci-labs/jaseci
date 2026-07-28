@@ -53,6 +53,7 @@ parser.impl.jac
 parser.jac
 plugin.jac
 precompile_bytecode.jac
+shared_emit.jac
 program.jac
 project.impl.jac
 project.jac

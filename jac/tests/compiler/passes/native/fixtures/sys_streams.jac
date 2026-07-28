@@ -8,13 +8,13 @@ comparison still pins the native byte-count value.
 
 import sys;
 
-def write_out -> int {
+def write_out() -> int {
     n = sys.stdout.write("out-bytes\n");
     sys.stdout.flush();
     return 10 if n == 10 else 0;
 }
 
-def write_err -> int {
+def write_err() -> int {
     n = sys.stderr.write("err-7\n");
     sys.stderr.flush();
     return 6 if n == 6 else 0;

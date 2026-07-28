@@ -14,17 +14,17 @@ correctly at JIT link time.
 import from na_glob_export { MAGIC, BASE, get_magic, add_base }
 
 """Read MAGIC directly — exercises the cross-module global access path."""
-def:pub read_magic -> int {
+def:pub read_magic() -> int {
     return MAGIC;
 }
 
 """Read MAGIC via a function call (sanity-check; not directly affected by the linkage bug)."""
-def:pub read_magic_via_func -> int {
+def:pub read_magic_via_func() -> int {
     return get_magic();
 }
 
 """Return MAGIC + BASE — reads both exported globals."""
-def:pub sum_globals -> int {
+def:pub sum_globals() -> int {
     return MAGIC + BASE;
 }
 

@@ -10,13 +10,15 @@ import from fix_third_a { DataA, make_data_a }
 import from fix_third_b { read_value, read_sum }
 
 """Create a DataA in A's constructor, pass it to B's read_value; expect 77."""
-def:pub test_third_struct_value -> int {
+def:pub test_third_struct_value() -> int {
     d: DataA = make_data_a(77, 3);
     return read_value(d);
 }
 
 """Verify both fields survive the cross-module round-trip; expect 77+3 = 80."""
-def:pub test_third_struct_sum -> int {
+def:pub test_third_struct_sum() -> int {
     d: DataA = make_data_a(77, 3);
     return read_sum(d);
 }
+
+with entry {}

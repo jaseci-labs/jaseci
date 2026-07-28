@@ -8,11 +8,11 @@ instead of silently producing a binary that crashes with SIGSEGV at runtime.
 """
 
 """Unique entry point for lib_a."""
-def:pub fn_a -> int {
+def:pub fn_a() -> int {
     return 1;
 }
 
 """This function collides with the same-named one in sym_collision_lib_b."""
-def:pub collision_fn -> int {
+def:pub collision_fn() -> int {
     return 111;
 }

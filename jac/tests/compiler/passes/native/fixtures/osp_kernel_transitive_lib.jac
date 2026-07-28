@@ -19,7 +19,7 @@ walker WA {
     }
 }
 
-def run_it -> int {
+def run_it() -> int {
     a = N(tag=7);
     r = a spawn WA();
     return r.n;

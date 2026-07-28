@@ -1,7 +1,7 @@
 # File I/O tests for native LLVM IR codegen.
 
 # Test 1: open() returns a non-null File for writable files
-def test_open_write -> int {
+def test_open_write() -> int {
     f: File = open("/tmp/jac_native_test.txt", "w");
     if f is not None {
         f.close();
@@ -11,7 +11,7 @@ def test_open_write -> int {
 }
 
 # Test 2: Write a string to a file and return bytes written
-def test_write_file -> int {
+def test_write_file() -> int {
     f: File = open("/tmp/jac_native_test_write.txt", "w");
     if f is None {
         return -1;
@@ -22,7 +22,7 @@ def test_write_file -> int {
 }
 
 # Test 3: Write then read back
-def test_write_read -> str {
+def test_write_read() -> str {
     # Write
     f: File = open("/tmp/jac_native_test_rw.txt", "w");
     if f is None {
@@ -42,7 +42,7 @@ def test_write_read -> str {
 }
 
 # Test 4: readline reads one line
-def test_readline -> str {
+def test_readline() -> str {
     # Write multi-line file
     f: File = open("/tmp/jac_native_test_readline.txt", "w");
     if f is None {
@@ -62,7 +62,7 @@ def test_readline -> str {
 }
 
 # Test 5: close is idempotent (calling twice doesn't crash)
-def test_close_idempotent -> int {
+def test_close_idempotent() -> int {
     f: File = open("/tmp/jac_native_test_close.txt", "w");
     if f is None {
         return -1;
@@ -75,7 +75,7 @@ def test_close_idempotent -> int {
 # Test 6: open non-existent file for reading returns None
 # open() of a missing path raises FileNotFoundError (CPython-congruent, #6404)
 # rather than returning None. Returns 1 iff the correct exception is raised.
-def test_open_nonexistent -> int {
+def test_open_nonexistent() -> int {
     try {
         f: File = open("/tmp/jac_nonexistent_98765.txt", "r");
         f.close();
@@ -86,7 +86,7 @@ def test_open_nonexistent -> int {
 }
 
 # Test 7: Verify File methods exist (compilation test)
-def test_file_methods_exist -> int {
+def test_file_methods_exist() -> int {
     f: File = open("/tmp/jac_native_test_methods.txt", "w");
     if f is None {
         return 0;
