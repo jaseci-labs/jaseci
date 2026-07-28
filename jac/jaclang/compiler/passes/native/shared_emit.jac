@@ -42,6 +42,13 @@ def inject_shared_init(
         );
         extra_exports.append("jac_release");
     }
+    if ("@__jac_str_new(" in llvm_ir_str) or ('@"__jac_str_new"(' in llvm_ir_str) {
+        parts.append(
+            "define ptr @jac_str_new(ptr %d, i64 %n) {\nentry:\n"
+            "  %r = call ptr @__jac_str_new(ptr %d, i64 %n)\n  ret ptr %r\n}"
+        );
+        extra_exports.append("jac_str_new");
+    }
     return (llvm_ir_str + "\n".join(parts) + "\n", extra_exports);
 }
 
