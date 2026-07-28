@@ -21,6 +21,13 @@ glob KERNEL_SRC: str = (
          "    }\n"
          "    return fib(n - 1) + fib(n - 2);\n"
          "}\n"
+         "\n"
+         "# Ownership annotations are the in-source native anchor the\n"
+         "# retired .na.jac marker used to provide (anchors decide the\n"
+         "# inferred cl->na edge; pub alone reads as a server endpoint).\n"
+         "def scratch(buf: own str) -> int {\n"
+         "    return len(buf);\n"
+         "}\n"
      ),
      HOST_SRC: str = (
          "na import from .kernel { fib, fib as fast_fib }\n"

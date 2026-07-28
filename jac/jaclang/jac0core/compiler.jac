@@ -523,19 +523,35 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
         return None;
     }
     target = hub_module_for_path(resolved, prog);
-    if target is not None and (
-        target.decided_codespace == 'native' or module_has_native_anchor(target, prog)
-    ) {
-        return resolved;
+    if target is not None {
+        if (
+            target.decided_codespace == 'native'
+            or module_has_native_anchor(target, prog)
+        ) {
+            return resolved;
+        }
+        return None;
     }
-    # The retired .na.jac marker used to vouch for the target here; the
-    # markerless anchor is the target's native eligibility (dep semantics,
-    # mtime-memoized in the placement solver).
-    import from jaclang.jac0core.placement_solver { native_default_path_ok }
-    if native_default_path_ok(resolved) {
-        return resolved;
+    # Anchors decide: with the filename marker retired, the inferred cl->na
+    # edge claims only targets that are hub-decided native or carry a real
+    # native anchor (ownership tags, clib decls, native imports). A plain
+    # pub module stays a server endpoint and bridges over RPC -- forcing the
+    # edge is what the marked `na import` form is for. A target not yet in
+    # the hub gets a one-off parse for the anchor scan (client-flavored
+    # imports only; the caller guards context first).
+    import from jaclang.jac0core.helpers { read_file_with_encoding }
+    import from jaclang.jac0core.parser { parse as _rd_parse }
+    import from jaclang.jac0core.program { JacProgram as _ScanProg }
+    try {
+        _src_txt = read_file_with_encoding(resolved);
+    } except Exception {
+        return None;
     }
-    return None;
+    (_scan_mod, _had_err) = _rd_parse(_src_txt, resolved, prog=_ScanProg());
+    if _had_err {
+        return None;
+    }
+    return resolved if module_has_native_anchor(_scan_mod, prog) else None;
 }
 
 def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
