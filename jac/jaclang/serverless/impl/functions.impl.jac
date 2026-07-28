@@ -9,10 +9,7 @@ impl ServerlessFunction._ensure_client -> JacTestClient {
 
 
 impl ServerlessFunction.invoke(
-    method: str,
-    path: str,
-    headers: (dict | None) = None,
-    body: (dict | None) = None
+    method: str, path: str, headers: (dict | None) = None, body: (dict | None) = None
 ) -> TestResponse {
     client = self._ensure_client();
     return client.request(method.upper(), path, json=body, headers=headers or {});

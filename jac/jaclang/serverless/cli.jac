@@ -1,4 +1,3 @@
-"""jac serverless CLI: dev, invoke, package, deploy."""
 import json;
 import os;
 import sys;
@@ -9,9 +8,7 @@ import from jaclang.cli.console { console }
 glob registry = get_registry();
 
 
-def _invoke_local(
-    file: str, method: str, path: str, data: str, token: str
-) -> int {
+def _invoke_local(file: str, method: str, path: str, data: str, token: str) -> int {
     import from jaclang.serverless.functions { get_function }
     fn = get_function(os.path.abspath(file));
     body = None;
@@ -63,9 +60,7 @@ def _dev(file: str) -> int {
         "jac-serverless dev: serving locally with the same runtime as jac start",
         style="cyan"
     );
-    os.execv(
-        sys.executable, [sys.executable, "-m", "jaclang", "start", file]
-    );
+    os.execv(sys.executable, [sys.executable, "-m", "jaclang", "start", file]);
     return 0;
 }
 
@@ -99,9 +94,8 @@ def _deploy(
     import from jaclang.serverless.packaging { build_package, deploy_package }
     import from jaclang.serverless.config { resolve_database_url }
     app_dir = os.path.dirname(os.path.abspath(file));
-    resolved_name = fn_name or (
-        "jac-" + os.path.basename(app_dir).lower().replace("_", "-")
-    );
+    resolved_name = fn_name
+    or ("jac-" + os.path.basename(app_dir).lower().replace("_", "-"));
     zip_path = build_package(os.path.abspath(file), out);
     env_vars: dict = {};
     db_url = resolve_database_url(app_dir);
@@ -137,8 +131,7 @@ def _deploy(
     import from jaclang.serverless.functions { get_function }
     rows = get_function(os.path.abspath(file)).list_functions();
     targets = [{"suffix": "auth", "only": "auth"}] + [
-        {"suffix": row["name"], "only": f"{row['kind']}:{row['name']}"}
-        for row in rows
+        {"suffix": row["name"], "only": f"{row['kind']}:{row['name']}"} for row in rows
     ];
     console.print(
         f"Deploying {len(targets)} functions (one per walker plus auth)...",
@@ -153,11 +146,11 @@ def _deploy(
             role_arn=role_arn,
             memory=memory,
             timeout=timeout,
-            env_vars=env_vars
-                | {"JAC_SERVERLESS_FUNCTION": target["only"]}
+            env_vars=env_vars | {"JAC_SERVERLESS_FUNCTION": target["only"]}
         );
         console.print(
-            f"  {target['suffix']:24s} -> {result.get('function_url') or result['function_name']}"
+            f"  {target['suffix']:24s} -> {result.get('function_url')
+            or result['function_name']}"
         );
     }
     console.success(f"Deployed {len(targets)} functions", emoji=False);
@@ -175,20 +168,34 @@ def _deploy(
             help="Action: dev, invoke, package, deploy"
         ),
         Arg.create("file", typ=str, default="main.jac", help="App entry .jac file"),
-        Arg.create("method", short="X", typ=str, default="POST", help="invoke: HTTP method"),
+        Arg.create(
+            "method", short="X", typ=str, default="POST", help="invoke: HTTP method"
+        ),
         Arg.create("path", typ=str, default="/healthz", help="invoke: request path"),
         Arg.create("data", typ=str, default="", help="invoke: JSON request body"),
         Arg.create("token", typ=str, default="", help="invoke: bearer token"),
         Arg.create("out", typ=str, default="", help="package/deploy: output zip path"),
         Arg.create(
-            "fn_name", short="n", typ=str, default="", help="deploy: Lambda function name"
+            "fn_name",
+            short="n",
+            typ=str,
+            default="",
+            help="deploy: Lambda function name"
         ),
         Arg.create("region", typ=str, default="", help="deploy: AWS region"),
         Arg.create(
-            "role_arn", short="A", typ=str, default="", help="deploy: Lambda execution role ARN"
+            "role_arn",
+            short="A",
+            typ=str,
+            default="",
+            help="deploy: Lambda execution role ARN"
         ),
-        Arg.create("memory", short="M", typ=int, default=1024, help="deploy: memory (MB)"),
-        Arg.create("timeout", short="T", typ=int, default=120, help="deploy: timeout (seconds)"),
+        Arg.create(
+            "memory", short="M", typ=int, default=1024, help="deploy: memory (MB)"
+        ),
+        Arg.create(
+            "timeout", short="T", typ=int, default=120, help="deploy: timeout (seconds)"
+        ),
         Arg.create(
             "per_walker",
             short="w",

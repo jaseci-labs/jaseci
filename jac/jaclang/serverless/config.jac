@@ -1,10 +1,3 @@
-"""Configuration for jac-serverless.
-
-Reads the [serverless] section of the project's jac.toml and environment
-overrides. Serverless mode turns on when a Postgres-compatible database URL
-(e.g. a Supabase connection string) is available and [serverless].enabled is
-not explicitly false. All lookups are cheap and cached per project root.
-"""
 import logging;
 import os;
 import tomllib;
@@ -54,7 +47,7 @@ def load_serverless_config(base_path: (str | None) = None) -> dict {
 }
 
 
-def clear_config_cache -> None {
+def clear_config_cache {
     _toml_cache.clear();
 }
 
@@ -81,8 +74,7 @@ def serverless_enabled(base_path: (str | None) = None) -> bool {
 }
 
 
-def force_serverless -> None {
-    # explicit CLI opt-in; inherited by sibling service processes
+def force_serverless {
     os.environ[FORCE_ENV] = "1";
 }
 

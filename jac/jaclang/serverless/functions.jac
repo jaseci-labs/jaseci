@@ -1,13 +1,3 @@
-"""jac-serverless functions runtime.
-
-Runs a Jac application as a serverless function: the app is booted once per
-container (cold start) through the core in-process gateway, and each incoming
-event (AWS Lambda function URL / API Gateway HTTP event, or a plain request
-dict) is dispatched straight to the walker/auth endpoints without any web
-server. Combined with the Postgres/Supabase persistence layer, the function is
-fully stateless: kill it, cold start it, the graph and users are all in the
-managed database.
-"""
 import json;
 import logging;
 import os;
@@ -58,15 +48,11 @@ def get_function(entry_file: (str | None) = None) -> ServerlessFunction {
 
 
 def parse_event(event: dict) -> dict {
-    # API Gateway v2 / Lambda function URL
     req_ctx = event.get("requestContext") or {};
     http_ctx = req_ctx.get("http") or {};
     method = http_ctx.get("method") or event.get("httpMethod") or "GET";
     path = event.get("rawPath") or event.get("path") or "/";
-    headers = {
-        str(k): str(v)
-        for (k, v) in (event.get("headers") or {}).items()
-    };
+    headers = {str(k): str(v) for (k, v) in (event.get("headers") or {}).items()};
     raw_body = event.get("body");
     if raw_body and event.get("isBase64Encoded") {
         import base64;

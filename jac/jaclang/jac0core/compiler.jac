@@ -1075,7 +1075,8 @@ obj JacCompiler {
         mod: uni.Module,
         target_program: JacProgram,
         passes: list[type[Transform[uni.Module, uni.Module]]],
-        cancel_token: (Event | None) = None
+        cancel_token: (Event | None) = None,
+        strict: bool = False
     ) -> None;
 
     static def _count_module_blocking_errors(

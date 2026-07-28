@@ -1,23 +1,11 @@
 import json;
 import threading;
 import from uuid { UUID }
-import from sqlalchemy {
-    Column,
-    Integer,
-    MetaData,
-    String,
-    Table,
-    Text,
-    select,
-    text
-}
+import from sqlalchemy { Column, Integer, MetaData, String, Table, Text, select, text }
 import from jaclang.jac0core.archetype { Anchor }
 import from jaclang.runtimelib.changeset { snapshot_field_hashes }
 import from jaclang.runtimelib.serializer { Serializer }
-import from jaclang.serverless.config {
-    missing_driver_hint,
-    normalize_postgres_url
-}
+import from jaclang.serverless.config { missing_driver_hint, normalize_postgres_url }
 
 glob _schema_ready: set[str] = set();
 
@@ -27,7 +15,7 @@ impl PostgresMemory.postinit -> None {
     self.__mem__ = {};
     self.__lock__ = threading.RLock();
     metadata = MetaData();
-    # column set must match SqlAlchemyMemory's "anchors" table
+
     self._anchors = Table(
         "anchors",
         metadata,
@@ -76,7 +64,6 @@ impl PostgresMemory.is_available -> bool {
 
 
 impl PostgresMemory.close -> None {
-    # the engine is process-shared; per-context close only drops local state
     self.__mem__.clear();
 }
 

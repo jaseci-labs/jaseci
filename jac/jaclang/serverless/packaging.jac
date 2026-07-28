@@ -1,11 +1,3 @@
-"""jac-serverless packaging and deploy.
-
-build_package() assembles a self-contained AWS Lambda zip for a Jac app:
-the app source, the jaclang runtime (minus build-only weight), the Python
-dependencies the function path needs, and a handler.py shim exposing
-`handler(event, context)`. deploy_package() ships it with boto3 and wires a
-public function URL.
-"""
 import json;
 import logging;
 import os;
@@ -84,7 +76,7 @@ def app_dependencies(app_dir: str) -> list {
 }
 
 
-def write_handler_shim(staging: str, entry_rel: str) -> None {
+def write_handler_shim(staging: str, entry_rel: str) {
     lines = [
         "import os",
         "import sys",
@@ -122,9 +114,7 @@ def build_package(entry_file: str, out_zip: str = "") -> str {
     os.makedirs(staging, exist_ok=True);
 
     shutil.copytree(
-        app_dir,
-        os.path.join(staging, "app"),
-        ignore=_ignore_names(APP_EXCLUDES)
+        app_dir, os.path.join(staging, "app"), ignore=_ignore_names(APP_EXCLUDES)
     );
 
     import jaclang;

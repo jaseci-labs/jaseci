@@ -23,6 +23,7 @@ glob _SEEDS: list[str] = [
          "jaclang.langserve",
          "jaclang.utils",
          "jaclang.scale",
+         "jaclang.serverless",
          "jaclang.cli",
          "jaclang.vendor",
          "jaclang.byllm.cli",

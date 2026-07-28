@@ -1,14 +1,9 @@
 import from sqlalchemy.dialects.postgresql { insert as pg_insert }
-import from jaclang.serverless.config {
-    missing_driver_hint,
-    normalize_postgres_url
-}
+import from jaclang.serverless.config { missing_driver_hint, normalize_postgres_url }
 import from jaclang.serverless.postgres_memory { shared_postgres_engine }
 
 
 impl PostgresIdentityStorage.postinit -> None {
-    # let the parent define the tables against a throwaway in-memory sqlite
-    # engine, then swap in the shared Postgres engine and create the schema
     self.db_path = ":memory:";
     super.postinit();
     throwaway = self._engine;

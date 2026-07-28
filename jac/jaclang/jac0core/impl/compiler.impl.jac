@@ -741,11 +741,15 @@ impl JacCompiler.compile(
         }
         _resolved = os.path.realpath(file_path);
         _probe = _mod if _mod is not None else _wrap_prog.mod.hub.get(_resolved);
+
+        _sched_crash = _crash is not None and 'scheduling error' in str(_crash);
         _inferred_native = (
             _cs_of(file_path) is None
             and not options.aot_mode
-            and _probe is not None
-            and _probe.decided_codespace == 'native'
+            and (
+                (_probe is not None and _probe.decided_codespace == 'native')
+                or (_sched_crash and (_probe is None or not _probe.decided_codespace))
+            )
         );
         _failed = _crash is not None or len(_wrap_prog.errors_had) > _pre_errs;
         if not (_inferred_native and _failed) {
@@ -880,8 +884,12 @@ impl JacCompiler._compile_once(
     and mod_targ.declares_codespace(_CodeCtx.CLIENT, path_hint=file_path);
     is_native_mod = is_explicit_native;
 
+    import from jaclang.jac0core.passes.module_codegen_pass {
+        ModuleCodegenPass as _NatProbePass
+    }
     run_inference = options.type_check
     or is_native_mod
+    or (mod_targ is not None and _NatProbePass.has_native_context_stmts(mod_targ))
     or (is_client_mod and not options.no_cgen and not options.symtab_ir_only);
     if run_inference {
         if options.symtab_ir_only {
@@ -1080,7 +1088,8 @@ impl JacCompiler._compile_once(
             mod=mod_targ,
             target_program=actual_program,
             passes=get_py_code_gen(native=needs_native),
-            cancel_token=options.cancel_token
+            cancel_token=options.cancel_token,
+            strict=options.aot_mode
         );
         import from jaclang.jac0core.ext_registry { is_native_module as _is_na_sfx }
         _mp_scrub = mod_targ.loc.mod_path
@@ -1110,7 +1119,8 @@ impl JacCompiler.run_schedule(
     mod: uni.Module,
     target_program: JacProgram,
     passes: list[type[Transform[uni.Module, uni.Module]]],
-    cancel_token: (Event | None) = None
+    cancel_token: (Event | None) = None,
+    strict: bool = False
 ) -> None {
     provided = target_program._analyses_run.get(id(mod));
     if provided is None {
@@ -1121,16 +1131,27 @@ impl JacCompiler.run_schedule(
         if (cancel_token and cancel_token.is_set()) {
             break;
         }
+        _missing: (str | None) = None;
         for _req in (getattr(current_pass, 'REQUIRES', ()) or ()) {
             if _req not in provided {
+                _missing = _req;
+                break;
+            }
+        }
+        if _missing is not None {
+            _msg = (
+                f"pass {current_pass.__name__} requires analysis '{_missing}' "
+                f"which has not run for module "
+                f"{mod.loc.mod_path if mod.loc else mod.name}"
+            );
+            if strict {
                 raise RuntimeError(
-                    f"scheduling error: pass {current_pass.__name__} requires "
-                    f"analysis '{_req}' which has not run for module "
-                    f"{mod.loc.mod_path if mod.loc else mod.name} -- the "
-                    f"schedule that reached this point is missing a declared "
-                    f"dependency."
+                    f"scheduling error: {_msg} -- the schedule that reached "
+                    f"this point is missing a declared dependency."
                 );
             }
+            sys.stderr.write(f"note: skipping {_msg}\n");
+            continue;
         }
         current_pass(ir_in=mod, prog=target_program, cancel_token=cancel_token);
         for _prov in (getattr(current_pass, 'PROVIDES', ()) or ()) {

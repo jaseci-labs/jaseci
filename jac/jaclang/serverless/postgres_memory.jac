@@ -1,10 +1,3 @@
-"""Postgres/Supabase graph persistence (L3) for jac-serverless.
-
-PostgresMemory extends the core SqlAlchemyMemory with a process-shared,
-pre-pinged connection pool so per-request memory instances do not open a new
-pool each time, plus batched reads. One engine per URL is shared by graph
-persistence and identity storage alike.
-"""
 import logging;
 import threading;
 import from uuid { UUID }
@@ -17,7 +10,6 @@ glob logger = logging.getLogger(__name__),
 
 
 def shared_postgres_engine(url: str) -> object {
-    # process-wide engine, one per URL
     import from sqlalchemy { create_engine }
     with _engine_lock {
         engine = _engine_cache.get(url);
@@ -32,7 +24,7 @@ def shared_postgres_engine(url: str) -> object {
 }
 
 
-def dispose_shared_engines -> None {
+def dispose_shared_engines {
     with _engine_lock {
         for engine in _engine_cache.values() {
             try {

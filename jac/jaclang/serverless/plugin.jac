@@ -1,13 +1,3 @@
-"""jac-serverless bootstrap.
-
-Self-contained activation for the serverless platform. When a Postgres
-compatible database URL (e.g. Supabase) is configured, graph persistence and
-identity storage move onto that database so the app itself is stateless.
-Nothing outside this package is modified: graph persistence uses the core
-set_persistent_memory_provider hook, and identity storage is swapped by
-wrapping the scale user manager's postinit from here at load time. With no
-serverless configuration every hook is a no-op.
-"""
 import logging;
 import from jaclang { JacRuntimeInterface as Jac }
 import from jaclang.serverless.config { resolve_database_url, serverless_enabled }
@@ -42,7 +32,7 @@ def _memory_provider(config: (dict | None)) -> any {
 
 def _patched_um_postinit(self: any) -> None {
     _orig_um_postinit[0](self);
-    base_path = getattr(self, 'base_path', None);
+    base_path = self?.base_path;
     if not serverless_enabled(base_path) {
         return;
     }

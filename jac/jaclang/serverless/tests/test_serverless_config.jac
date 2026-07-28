@@ -25,7 +25,7 @@ def _clear_env -> dict {
 }
 
 
-def _restore_env(saved: dict) -> None {
+def _restore_env(saved: dict) {
     for key in ENV_URL_KEYS + [FORCE_ENV] {
         os.environ.pop(key, None);
     }
@@ -74,8 +74,7 @@ test "an environment url activates serverless" {
     try {
         assert serverless_enabled("/nonexistent-dir-for-jac-serverless");
         assert (
-            resolve_database_url("/nonexistent-dir-for-jac-serverless")
-            == "postgres://u:p@h/db"
+            resolve_database_url("/nonexistent-dir-for-jac-serverless") == "postgres://u:p@h/db"
         );
     } finally {
         _restore_env(saved);
@@ -89,8 +88,7 @@ test "a [serverless] database_url in jac.toml activates serverless" {
         with tempfile.TemporaryDirectory() as tmp {
             with open(os.path.join(tmp, "jac.toml"), "w") as f {
                 f.write(
-                    "[serverless]\n"
-                    "database_url = \"postgres://toml:pw@h/db\"\n"
+                    "[serverless]\n" "database_url = \"postgres://toml:pw@h/db\"\n"
                 );
             }
             clear_config_cache();
@@ -141,7 +139,9 @@ test "the jac start --serverless force flag overrides enabled = false" {
 
 
 test "database urls are described without credentials" {
-    shown = describe_database_url("postgresql://user:secretpw@db.proj.supabase.co:5432/postgres");
+    shown = describe_database_url(
+        "postgresql://user:secretpw@db.proj.supabase.co:5432/postgres"
+    );
     assert "secretpw" not in shown;
     assert "db.proj.supabase.co" in shown;
     assert "5432" in shown;
