@@ -258,12 +258,12 @@ def deploy_package(
     url = "";
     try {
         url_cfg = client.get_function_url_config(FunctionName=fn_name);
-        url = url_cfg["FunctionUrl"];
+        url = str(url_cfg["FunctionUrl"]);
     } except Exception {
         url_cfg = client.create_function_url_config(
             FunctionName=fn_name, AuthType="NONE"
         );
-        url = url_cfg["FunctionUrl"];
+        url = str(url_cfg["FunctionUrl"]);
         try {
             client.add_permission(
                 FunctionName=fn_name,

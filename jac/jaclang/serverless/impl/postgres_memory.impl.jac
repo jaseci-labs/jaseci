@@ -1,7 +1,18 @@
 import json;
 import threading;
 import from uuid { UUID }
-import from sqlalchemy { Column, Integer, MetaData, String, Table, Text, select, text }
+import from typing { cast }
+import from sqlalchemy {
+    Engine,
+    Column,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    select,
+    text
+}
 import from jaclang.jac0core.archetype { Anchor }
 import from jaclang.runtimelib.changeset { snapshot_field_hashes }
 import from jaclang.runtimelib.serializer { Serializer }
@@ -35,7 +46,7 @@ impl PostgresMemory.postinit -> None {
     }
     if self.url not in _schema_ready {
         try {
-            metadata.create_all(self._engine, checkfirst=True);
+            metadata.create_all(cast(Engine, self._engine), checkfirst=True);
         } except Exception as e {
             raise RuntimeError(
                 "jac-serverless: cannot reach the configured Postgres database. "
@@ -49,10 +60,10 @@ impl PostgresMemory.postinit -> None {
 
 
 impl PostgresMemory.is_available -> bool {
-    engine: any = self._engine;
-    if engine is None {
+    if self._engine is None {
         return False;
     }
+    engine = cast(Engine, self._engine);
     try {
         with engine.connect() as conn {
             conn.execute(text("SELECT 1"));
@@ -84,7 +95,7 @@ impl PostgresMemory.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
         return result;
     }
     tbl: any = self._anchors;
-    engine: any = self._engine;
+    engine = cast(Engine, self._engine);
     with engine.connect() as conn {
         rows = conn.execute(
             select(tbl.c.id, tbl.c.data).where(tbl.c.id.in_(missing))
@@ -92,7 +103,7 @@ impl PostgresMemory.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
     }
     for (rid, data) in rows {
         try {
-            anchor = Serializer.deserialize(json.loads(data));
+            anchor = Serializer.deserialize(json.loads(cast(str, data)));
         } except Exception as e {
             logger.warning(f"PostgresMemory: failed to deserialize anchor {rid}: {e}");
             continue;
