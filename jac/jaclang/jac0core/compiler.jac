@@ -546,6 +546,42 @@ def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
     return module_has_client_top(nd.find_parent_of_type(uni.Module));
 }
 
+def import_binds_client_native(nd: uni.Import, manifest: object) -> bool {
+    import from jaclang.jac0core.codeinfo { InteropContext, InteropManifest }
+    if nd.from_loc is None or not nd.items {
+        return False;
+    }
+    if nd.is_sv_marked or nd.is_typed or nd.is_virtual_jac {
+        return False;
+    }
+    if not isinstance(manifest, InteropManifest) or not manifest.bindings {
+        return False;
+    }
+    try {
+        resolved_path = nd.from_loc.resolve_relative_path();
+    } except Exception {
+        return False;
+    }
+    for item in nd.items {
+        if not isinstance(item, uni.ModuleItem) {
+            continue;
+        }
+        local_name = item.alias.sym_name
+            if item.alias is not None
+            else getattr(item.name, 'value', str(item.name));
+        binding = manifest.bindings.get(local_name);
+        if (
+            binding is not None
+            and binding.source_context == InteropContext.NATIVE
+            and (InteropContext.CLIENT in binding.callers)
+            and binding.source_module == resolved_path
+        ) {
+            return True;
+        }
+    }
+    return False;
+}
+
 glob _na_demotion_memo: dict[str, tuple] = {},
      _na_census: dict[str, dict] = {},
      _na_census_state: dict[str, bool] = {"enabled": False},

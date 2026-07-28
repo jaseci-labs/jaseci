@@ -20,6 +20,34 @@ glob _MOVE_EXEMPT_CALLS: tuple = (
          "hex",
          "oct",
          "bin"
+     ),
+     _NONRETAINING_METHOD_CALLS: tuple = (
+         "find",
+         "rfind",
+         "index",
+         "count",
+         "startswith",
+         "endswith",
+         "upper",
+         "lower",
+         "strip",
+         "lstrip",
+         "rstrip",
+         "split",
+         "rsplit",
+         "splitlines",
+         "replace",
+         "join",
+         "get",
+         "write"
+     ),
+     _NONRETAINING_STDLIB_MODULES: tuple = (
+         "os",
+         "sys",
+         "time",
+         "math",
+         "random",
+         "struct"
      );
 
 impl OwnershipCheckPass.postinit -> None {
@@ -336,6 +364,20 @@ impl OwnershipCheckPass._cfg_owner(sub: uni.UniNode) -> (uni.UniCFGNode | None) 
     return sub.find_parent_of_type(uni.UniCFGNode);
 }
 
+impl _stdlib_attr_call_root(call: uni.FuncCall) -> (str | None) {
+    if not isinstance(call.target, uni.AtomTrailer) {
+        return None;
+    }
+    _t = call.target.target;
+    while isinstance(_t, uni.AtomTrailer) {
+        _t = _t.target;
+    }
+    if isinstance(_t, uni.Name) {
+        return _t.value;
+    }
+    return None;
+}
+
 impl OwnershipCheckPass._call_move_gen(nd: uni.UniCFGNode) -> set[SymId] {
     gen: set[SymId] = set();
     for call in nd.get_all_sub_nodes(uni.FuncCall) {
@@ -345,6 +387,17 @@ impl OwnershipCheckPass._call_move_gen(nd: uni.UniCFGNode) -> set[SymId] {
         if isinstance(call.target, uni.Name)
         and call.target.sym_name in _MOVE_EXEMPT_CALLS {
             continue;
+        }
+        if isinstance(call.target, uni.AtomTrailer) {
+            if isinstance(call.target.right, uni.Name)
+            and call.target.right.value in _NONRETAINING_METHOD_CALLS {
+                continue;
+            }
+            _stdlib_root = _stdlib_attr_call_root(call);
+            if _stdlib_root is not None
+            and _stdlib_root in _NONRETAINING_STDLIB_MODULES {
+                continue;
+            }
         }
         for param in self._call_params(call) {
             arg: uni.Expr | None = None;
@@ -630,6 +683,17 @@ impl OwnershipCheckPass._owned_sym_of(nd: uni.UniNode | None) -> (SymId | None) 
 }
 
 impl OwnershipCheckPass._owned_sym_of_expr(nd: uni.Expr | None) -> (SymId | None) {
+    if isinstance(nd, uni.AtomTrailer) and isinstance(nd.right, uni.IndexSlice) {
+        _m = "";
+        try {
+            _m = nd.type.mangle() if nd.type is not None else "";
+        } except Exception {
+            _m = "";
+        }
+        if _m == "str" {
+            return None;
+        }
+    }
     cur = nd;
     while isinstance(cur, uni.AtomTrailer) {
         cur = cur.target;

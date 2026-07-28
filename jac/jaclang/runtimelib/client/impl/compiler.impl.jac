@@ -66,18 +66,14 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
 
 impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> None {
     import from jaclang.compiler.passes.native.wasm_build { compile_to_wasm }
+    import from jaclang.jac0core.codeinfo { native_wasm_stem }
     try {
         wasm = compile_to_wasm(str(module_path));
     } except Exception as e {
         console.error(f"na->wasm failed for '{module_path.name}': {e}");
         return;
     }
-    stem = module_path.stem;
-    for marker in (".na", ".cl", ".sv") {
-        if stem.endswith(marker) {
-            stem = stem[:-len(marker)];
-        }
-    }
+    stem = native_wasm_stem(str(module_path));
     dist = self.jac_client_compiler._get_client_dir() / 'dist';
     dist.mkdir(parents=True, exist_ok=True);
     out_path = dist / f"{stem}.wasm";

@@ -561,8 +561,12 @@ impl JacCompiler._get_precompiled_jir_bytecode(
     full_target: str, allow_unsealed: bool = True
 ) -> (bytes | None) {
     import from pathlib { Path as _Path }
-    import from jaclang.jac0core.jir { PRECOMPILE_SENTINEL }
+    import from jaclang.jac0core.jir { PRECOMPILE_SENTINEL, cache_mode }
     import from jaclang.jac0core { sealed as _sealed }
+    (rebuild_flag, no_precompile) = cache_mode();
+    if rebuild_flag or no_precompile {
+        return None;
+    }
     norm_file = os.path.normpath(os.path.abspath(full_target));
     d = os.path.dirname(norm_file);
     pyver = f"cpython-{sys.version_info.major}{sys.version_info.minor}";
@@ -622,7 +626,9 @@ impl JacCompiler._build_interop_dict(result: uni.Module) -> dict {
             'ret_type': binding.ret_type,
             'param_types': binding.param_types,
             'param_names': binding.param_names,
-            'source_module': binding.source_module
+            'source_module': binding.source_module,
+            'route': [c.value for c in binding.route],
+            'kind': binding.kind
         };
     }
 
@@ -649,7 +655,9 @@ impl JacCompiler._deserialize_interop_table(
             ret_type=data.get('ret_type', 'int'),
             param_types=data.get('param_types', []),
             param_names=data.get('param_names', []),
-            source_module=data.get('source_module')
+            source_module=data.get('source_module'),
+            route=[InteropContext(c) for c in data.get('route', [])],
+            kind=data.get('kind', 'function')
         );
         manifest.bindings[name] = binding;
     }
