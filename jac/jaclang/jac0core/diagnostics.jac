@@ -720,8 +720,11 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SEMANTIC,
          "'{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance})",
          help="This builtin or construct retains or aliases its heap arguments, which"
-         " the zero-RC contract cannot express yet. Use an owned-compatible"
-         " alternative, or move this code outside the enforced module.",
+         " the zero-RC contract cannot express yet. For growable collections of"
+         " heap values, build the collection in one shot with a comprehension"
+         " ([f(x) for x in xs] is owned-compatible where xs.append(f(x)) is not)."
+         " Otherwise use an owned-compatible alternative, or move this code"
+         " outside the enforced module.",
          blocks_codegen=True
      ),
      W1050 = _warn("W1050", Category.TYPE, "Unknown intrinsic JSX element '<{tag}>'"),
@@ -1362,6 +1365,18 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Argument '{name}' for server function '{func}' is given both positionally and by keyword"
      ),
      E5081 = _err("E5081", Category.CODEGEN, "Unknown client framework '{framework}'"),
+     E5083 = _err(
+         "E5083",
+         Category.CODEGEN,
+         "na import targets collide on wasm artifact '{stem}.wasm': '{path}' vs '{other}'",
+         help="Every `na import` target emits /static/<stem>.wasm named by its file stem, and set_na_env / __na_bind address the module by that stem, so two different native modules with the same basename would overwrite each other's artifact and bind to the wrong exports. Rename one of the files."
+     ),
+     E5082 = _err(
+         "E5082",
+         Category.CODEGEN,
+         "Client code imports '{name}' from '{module}', but '{name}' has no client-side presence",
+         help="A plain import into client code can only reference client declarations; server `def:pub` endpoints bridge automatically over RPC. Make '{name}' a `def:pub` endpoint, mark it (or its module) client, or move it into client code."
+     ),
      W6001 = _warn(
          "W6001",
          Category.SEMANTIC,
@@ -1385,6 +1400,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SEMANTIC,
          "Use of JS-specific property '.{prop}' — use '{alternative}' for cross-codespace portability",
          help="Use Jac common builtins instead of JS-specific properties."
+     ),
+     W6005 = _warn(
+         "W6005",
+         Category.CODEGEN,
+         "Client call to server endpoint '{func}' passes function-typed parameter '{param}' — functions cannot cross the RPC boundary",
+         help="A def:pub function in a server-placed module is an HTTP endpoint whose arguments serialize over the wire. Shared client-side logic should drop ':pub' so it is placed in the browser with its callers."
      ),
      E9001 = _err("E9001", Category.ICE, "ICE: Pass {pass_name} -- {details}"),
      E9002 = _err(

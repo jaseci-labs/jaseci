@@ -8,7 +8,7 @@ description: Inferred client/server/native code placement - how the compiler dec
 ## The inference rules
 
 1. **Client is structural.** JSX and string-path npm imports (`import from "react" { ... }`) are client-only syntax; a declaration carrying either is placed client automatically.
-2. **Placement propagates through references.** Helpers, `glob`s, and imports that client code uses join the client bundle, transitively. Propagation is scope-aware: a local that shadows a module-level name does NOT pull the module-level one in.
+2. **Placement propagates through references, within a module.** Helpers, `glob`s, and imports that client code uses join the client bundle. Propagation is scope-aware: a local that shadows a module-level name does NOT pull the module-level one in. **It does not cross module boundaries:** a client module importing a helper from a plain (server-default) module fails with **E5082** ("has no client-side presence"). Pin such a module `.cl.jac` - pure modules with no JSX and no npm import have no structural signal of their own, so inference leaves them on the server. A `.cl.jac`-pinned pure module is still reachable by `jac test`.
 3. **Server is the default** for unmarked code that no client code references.
 4. **Native is seeded by extern C declarations** - an import whose braces declare C-ABI functions infers native placement for itself and its users; see below.
 
@@ -57,7 +57,7 @@ def:pub app() -> JsxElement {                   # JSX -> client
 Reference propagation pulls helpers - it does NOT turn server API surface into client code:
 
 - **`def:pub` functions and walkers stay server endpoints.** A client reference never inlines them into the bundle; the call compiles to the auto-RPC bridge (`await save_note(...)`, `result = root spawn add_task(title=t);` - see `jac-fullstack-patterns`). (A `def:pub` whose own body carries JSX is client by the structural rule - that is how markerless `def:pub app` and components work.) Access tags on `def`s declare endpoint surface, so tagged defs never relocate - but that is a `def`-only rule: a tagged `glob` is visibility, not placement, and pulls like any other.
-- **`node`/`edge`/`walker` archetypes never relocate** - they are the persistence/OSP surface. Referenced from client code they are auto-shared: the bundle gets a wire-codec class (constructor with the declared field defaults, `__from_wire`/`__to_wire`, `_jac_id`) while the archetype itself stays server.
+- **`node`/`edge`/`walker` archetypes never relocate** - they are the persistence/OSP surface. Referenced from client code they are auto-shared: the bundle gets a wire-codec class (`__from_wire`/`__to_wire`, `_jac_id`) while the archetype itself stays server. ⚠ **Receiving and reading such a value works; constructing one client-side does not.** `has progress: JobProgress = JobProgress();` in a client component compiles clean and throws `JobProgress is not defined` at mount. Hold shared types as `T | None = None` on the client and let the server construct them.
 - **Plain `obj` archetypes referenced from both sides are auto-shared** the same way - typed instances cross the wire hydrated, no duplicate declaration needed. An `obj` referenced *only* by client code relocates wholesale into the bundle instead (real class, methods and all).
 
 ## Explicit overrides - they always win
@@ -86,7 +86,7 @@ sv def summarize(text: str) -> str {     # stays server even though app() calls 
 
 ## `sv import` - a boundary fact, not placement
 
-`sv import from services.X { fn, Types }` does not place the *importing* code anywhere - it states that the target module stays on the server and cross-boundary calls become RPC. The import itself lives with its consumers:
+`sv import from .store { fn, Types }` does not place the *importing* code anywhere - it states that the target module stays on the server and cross-boundary calls become RPC. The import itself lives with its consumers:
 
 - **From client code**: generates the async JS RPC stub (always `await` the calls). See `jac-fullstack-patterns`.
 - **From server code**: declares a server-to-server **microservice boundary** - the provider runs as its own service and calls become HTTP RPCs. See `jac-sv-microservices`.
@@ -103,7 +103,7 @@ def open_window() -> None {        # uses InitWindow -> native
 }
 ```
 
-- **Consuming a native module is NOT a signal.** `import from mymod { fast_fn }` where `mymod` is native code stays a server-side import - that is the server-to-native ctypes interop crossing, not a reason to relocate the importer.
+- **Consuming a native module is NOT a signal.** `import from mymod { fast_fn }` where `mymod` is native code stays a server-side import - that is the server-to-native ctypes interop crossing, not a reason to relocate the importer. The client-side crossing is spelled explicitly: `na import from .mymod { fast_fn }` in a client module compiles the target to `/static/<stem>.wasm`, binds the names to lazy async wasm stubs, and compiles to nothing on the server (see `jac-native-wasm`).
 - **`test` blocks are never pulled native.** `jac test` runs them on the server, where they reach the native code through the generated interop stubs - same as tests inside `na {}` blocks and `.na.jac` files.
 - **Referenced by both sides -> stays server.** Client and native inference run independently in one markerless file; a declaration referenced by BOTH sides is placed server, where each side can bridge to it (auto-RPC for the client, py-interop for native).
 - **Native-compatible pure code still defaults to server.** Compatibility is not intent: with no FFI seed, going native remains an explicit build choice - an `na { ... }` block, a `.na.jac` file, or `jac nacompile` / `jac run --autonative` auto-promotion. See `jac-native`.

@@ -47,7 +47,9 @@ jobs:
             byllm:
               - 'jac/jaclang/byllm/**'
             docs:
-              - 'docs/**'
+              - 'jac/jaclang/cli/docs/**'
+              - 'jac/jaclang/cli/skills/**'
+              - 'release_notes/**'
             desktop:
               - 'jac/jaclang/runtimelib/client/targets/desktop/**'
             installer:
@@ -495,37 +497,11 @@ jobs:
             exit 1
           fi
 
-      - name: Set up Python 3.12 (for the mkdocs docs build)
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-
       - name: Set up jac (build the binary)
         uses: ./.github/actions/setup-jac
 
-      - name: Install docs project (jaclang is host-provided by the binary)
-        run: jac install -e docs
-
-      - name: Validate Jac code block syntax
-        run: jac run docs/scripts/validate_docs_code.jac
-
-      - name: Build documentation and check links
-        working-directory: docs
-        run: jac -m mkdocs build --strict 2>&1 | tee build.log || true
-
-      - name: Report link warnings
-        working-directory: docs
-        run: |
-          if grep -i "warning" build.log | grep -i "link"; then
-            echo "## ⚠️ Documentation Link Warnings" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            grep -i "warning" build.log | grep -i "link" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## ✅ All Checks Passed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- Jac code block syntax: ✓" >> $GITHUB_STEP_SUMMARY
-            echo "- Internal links: ✓" >> $GITHUB_STEP_SUMMARY
-          fi
+      - name: Validate Jac code blocks in the docs corpus
+        run: jac run scripts/validate_docs_code.jac
 
       - name: Check Release Notes Updated
         if: |
@@ -591,6 +567,10 @@ jobs:
       run: echo "TEST_ENV=true" >> $GITHUB_ENV
 
     - name: Run all client tests
+      # Serial: xdist workers intermittently disagree on collection of
+      # test_react_native_target.jac ("Different tests were collected").
+      env:
+        JAC_TEST_JOBS: "0"
       run: jac test jac/tests/runtimelib/client --ignore jac/tests/runtimelib/client/test_inprocess_dispatch.jac
 
     - name: Re-run in-process sv dispatch against the built-in scale backend
@@ -631,27 +611,8 @@ jobs:
     - name: Run package tests
       run: jac test jac/jaclang/byllm/tests
 
-    - name: Install docs dependencies
-      run: jac install -e docs --global
-
-    - name: Build documentation
-      working-directory: docs
-      run: jac -m mkdocs build --strict
-
-    - name: Run documentation validation tests
-      working-directory: docs
-      run: jac test tests/test_docs.jac
-
-    - name: Install Playwright
-      working-directory: docs
-      run: |
-        jac install playwright
-        jac -m playwright install chromium --with-deps
-
-    - name: Run E2E code block tests
-      working-directory: docs
-      # Browser rendering is timing-flaky on CI; retry once (#6528, #6756).
-      run: jac test tests/e2e/test_code_blocks.jac -x || jac test tests/e2e/test_code_blocks.jac -x
+    - name: Run docs corpus tests
+      run: jac test jac/tests/cli/test_docs_content.jac jac/tests/cli/test_guide_docs.jac
 
   test-native-macos:
     needs: changes
@@ -670,6 +631,58 @@ jobs:
       run: |
         jac test jac/tests/compiler/passes/native/test_shared_lib.jac
         jac test jac/tests/compiler/passes/native/test_exec_link.jac
+
+    # na->wasm had no CI lane at all: test_wasm_build.jac ran nowhere and
+    # `vendor-wasm-libc` was never invoked, so a floor compiled from an older
+    # wasm_rt/ (the #7149 __jac64_realloc gap) could only be found by a user.
+    # setup-jac builds the binary, which builds the floor, so this also proves
+    # the shipped floor and the source tree agree.
+    - name: Run na->wasm floor + import-contract tests
+      run: jac test jac/tests/compiler/passes/native/test_wasm_build.jac
+
+    - name: Run bundled-stdlib equivalence pins (darwin, #7626 C3)
+      env:
+        JAC_TEST_JOBS: "0"
+        # os.path + textwrap + keyword are pure-compute na modules that must
+        # agree on darwin; the shutil pin self-skips there until the stat
+        # seam gets a per-OS floor (see test_prim_equivalence.jac).
+        PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword"
+      run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+
+  # aarch64 cross lane (#7626 C1): cross-compile with the in-house ELF linker
+  # (MOVW_UABS relocation family) + arch-parameterized vendored musl, run the
+  # binaries under qemu-user. This was the native suite's last environmental
+  # skip: without qemu + cross libc the #6366 runtime tests never execute.
+  test-native-aarch64:
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v5
+      with:
+        submodules: true
+
+    - name: Install qemu-user and aarch64 cross libc
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends qemu-user-static libc6-arm64-cross
+
+    - name: Set up jac (build the binary)
+      uses: ./.github/actions/setup-jac
+
+    - name: Vendor cross musl (aarch64)
+      working-directory: jac
+      run: zig build -Dno-ninja vendor-musl-linux-aarch64 --summary all
+
+    - name: Run aarch64 cross tests under qemu
+      env:
+        JAC_TEST_JOBS: "0"
+        PYTEST_ADDOPTS: -k aarch64
+        # The sealed CI binary's pkg_root only bundles host-arch musl; point
+        # the static-link search at the repo-vendored cross runtime.
+        JAC_NATIVE_MUSL_DIR: ${{ github.workspace }}/jac/.pbs-build/linux-aarch64/musl/lib
+      run: jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
 
   # Launcher unit tests: trailer codec + `.jab`-overlay round-trip
   # (append / detect / materialize-steps-over-overlay / graft). runtime.zig is
@@ -766,7 +779,7 @@ jobs:
           "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2.0.0" \
           "apscheduler>=3.11.2,<4.0.0" "kubernetes>=34.1.0,<35.0.0" \
           "docker>=7.1.0,<8.0.0" "boto3>=1.40.0,<2.0.0" \
-          requests "testcontainers[mongodb,redis]" "moto[s3]>=5.0.0" \
+          requests "testcontainers[mongodb,redis]>=4.15,<5" "moto[s3]>=5.0.0" \
           --global
 
     - name: Run ${{ matrix.group }} tests
@@ -1263,6 +1276,8 @@ jobs:
             platform: linux-x86_64
           - os: macos-14
             platform: macos-aarch64
+          - os: macos-15-intel
+            platform: macos-x86_64
     steps:
       - uses: actions/checkout@v5
 

@@ -3297,7 +3297,7 @@ impl Parser.parse_element_stmt{
             stmt = self.parse_element_stmt();
             if stmt is not None {
                 stmt.add_kids_left([na_tok]);
-                if stmt?.code_context {
+                if stmt?.code_context and not isinstance(stmt, Import) {
                     stmt.code_context = CodeContext.NATIVE;
                 }
             }

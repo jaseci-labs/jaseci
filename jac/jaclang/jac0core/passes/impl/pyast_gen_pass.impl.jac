@@ -118,6 +118,7 @@ impl PyastGenPass.enter_node(nd: uni.UniNode) -> None {
         or (
             isinstance(nd, uni.ContextAwareNode)
             and (nd.code_context == CodeContext.CLIENT)
+            and not nd.codespace_dual
             and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
         )
     ) {
@@ -156,6 +157,7 @@ impl PyastGenPass.exit_node(nd: uni.UniNode) -> None {
     if (
         isinstance(nd, uni.ContextAwareNode)
         and (nd.code_context == CodeContext.CLIENT)
+        and not nd.codespace_dual
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
         return;
@@ -1124,6 +1126,14 @@ impl PyastGenPass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
 }
 
 impl PyastGenPass.exit_import(nd: uni.Import) -> None {
+    import from jaclang.jac0core.compiler { import_binds_client_native }
+    if (
+        nd.is_na_marked
+        or import_binds_client_native(nd, self.ir_in.gen.interop_manifest)
+    ) {
+        nd.gen.py_ast = [];
+        return;
+    }
     if (nd.from_loc and nd.from_loc.path) {
         module_parts = [
             p.value

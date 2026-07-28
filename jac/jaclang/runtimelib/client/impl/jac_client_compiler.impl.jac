@@ -57,17 +57,24 @@ impl JacClientCompiler.compile(
     target_name: str = "web"
 ) -> tuple[list[str], list[str]] {
     (module_js, mod, module_manifest) = self.jac_compiler.compile_module(module_path);
+    self._collect_na_modules(mod);
     collected_exports: set[str] = set(
         self.jac_compiler.extract_exports(module_manifest)
     );
     client_globals_map = self.jac_compiler.extract_globals(module_manifest, module);
     collected_globals: dict[(str, Any)] = dict(client_globals_map);
     visited: set[Path] = set();
+    project_root = self.project_dir.resolve();
+    entry_root = module_path.resolve().parent;
+    source_root = (
+        project_root if entry_root.is_relative_to(project_root) else entry_root
+    );
     self.compile_dependencies_recursively(
         module_path,
         visited=visited,
         collected_exports=collected_exports,
         collected_globals=collected_globals,
+        source_root=source_root,
         target_name=target_name
     );
     self._has_pages = self._scan_and_compile_pages(
@@ -205,6 +212,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         source_root = module_path.parent.resolve();
     }
     (module_js, mod, manifest) = self.jac_compiler.compile_module(module_path);
+    self._collect_na_modules(mod);
     exports_list = self.jac_compiler.extract_exports(manifest);
     collected_exports.update(exports_list);
     non_root_globals: dict[(str, Any)] = {};
@@ -540,12 +548,13 @@ impl JacClientCompiler._scan_and_compile_pages(
     collected_globals: (dict[(str, Any)] | None) = None,
     target_name: str = "web"
 ) -> bool {
-    scanner = RouteScanner(self.project_dir);
+    scanner = RouteScanner(self.project_dir, route_exports_of=resolve_route_exports);
     if not scanner.has_pages_dir() {
         return False;
     }
     routes = scanner.scan();
     if not routes and not scanner.get_layouts() {
+        self._warn_pages_without_routes(scanner);
         return False;
     }
     self._route_scanner = scanner;
@@ -564,13 +573,25 @@ impl JacClientCompiler._scan_and_compile_pages(
     return True;
 }
 
+impl JacClientCompiler._warn_pages_without_routes(
+    self: JacClientCompiler, scanner: RouteScanner
+) -> None {
+    import from jaclang.runtimelib.client.route_scanner {
+        describe_pages_without_routes
+    }
+    for line in describe_pages_without_routes(scanner.pages_dir) {
+        console.error(line);
+    }
+}
+
 impl JacClientCompiler.rescan_pages(self: JacClientCompiler) -> bool {
-    scanner = RouteScanner(self.project_dir);
+    scanner = RouteScanner(self.project_dir, route_exports_of=resolve_route_exports);
     if not scanner.has_pages_dir() {
         return False;
     }
     routes = scanner.scan();
     if not routes and not scanner.get_layouts() {
+        self._warn_pages_without_routes(scanner);
         return False;
     }
     self._route_scanner = scanner;
@@ -607,7 +628,8 @@ impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> Non
         }
         rel_str = self._jac_path_to_js(str(rel_path));
         lines.append(
-            f'import {{ page as {route.component_import} }} from "./{rel_str}";'
+            f'import {{ {route.source_export} as {route.component_import} }} '
+            f'from "./{rel_str}";'
         );
     }
     for (prefix, layout) in layouts.items() {
@@ -618,7 +640,8 @@ impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> Non
         }
         rel_str = self._jac_path_to_js(str(rel_path));
         lines.append(
-            f'import {{ layout as {layout.component_import} }} from "./{rel_str}";'
+            f'import {{ {layout.source_export} as {layout.component_import} }} '
+            f'from "./{rel_str}";'
         );
     }
     lines.append('');
@@ -674,4 +697,18 @@ impl JacClientCompiler.init(
     self.asset_processor = AssetProcessor();
     self._has_pages = False;
     self._route_scanner = None;
+    self.na_wasm_modules = set();
+}
+
+impl JacClientCompiler._collect_na_modules(self: JacClientCompiler, mod: any) -> None {
+    import from jaclang.jac0core.codeinfo { InteropManifest }
+    manifest = mod?.gen?.interop_manifest;
+    if not isinstance(manifest, InteropManifest) {
+        return;
+    }
+    for binding in manifest.client_native_imports {
+        if binding.source_module {
+            self.na_wasm_modules.add(str(binding.source_module));
+        }
+    }
 }

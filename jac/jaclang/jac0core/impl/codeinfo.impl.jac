@@ -44,6 +44,17 @@ impl InteropManifest.native_cross_module_imports.getter -> list[InteropBinding] 
     ];
 }
 
+impl InteropManifest.client_native_imports.getter -> list[InteropBinding] {
+    return [
+        b
+        for b in self.bindings.values()
+        if (
+            (b.source_context == InteropContext.NATIVE)
+            and (InteropContext.CLIENT in b.callers)
+        )
+    ];
+}
+
 impl InteropManifest.server_exports_to_client.getter -> list[InteropBinding] {
     return [
         b

@@ -116,6 +116,40 @@ enum EdgeDir { IN = 1, OUT = 2, ANY = 3 }
 
 enum OwnershipKind { NONE = 0, OWN = 1, BORROW = 2, MUT_BORROW = 3, IMM = 4 }
 
+glob BROWSER_SEED_GLOBALS: frozenset[str] = frozenset(
+         {
+             "window",
+             "document",
+             "navigator",
+             "localStorage",
+             "sessionStorage",
+             "requestAnimationFrame",
+             "cancelAnimationFrame",
+             "requestIdleCallback",
+             "setTimeout",
+             "setInterval",
+             "clearTimeout",
+             "clearInterval",
+             "Promise",
+             "Date",
+             "fetch",
+             "performance",
+             "IntersectionObserver",
+             "ResizeObserver",
+             "MutationObserver",
+             "AbortController",
+             "URLSearchParams",
+             "FormData",
+             "Blob",
+             "FileReader",
+             "WebSocket",
+             "CustomEvent",
+             "structuredClone",
+             "atob",
+             "btoa"
+         }
+     );
+
 def is_borrow_kind(k: OwnershipKind) -> bool {
     return k == OwnershipKind.BORROW or k == OwnershipKind.MUT_BORROW;
 }

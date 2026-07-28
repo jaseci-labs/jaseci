@@ -11,8 +11,8 @@ import from typing { cast }
 import redis;
 import requests;
 import from pymongo { MongoClient }
-import from testcontainers.mongodb { MongoDbContainer }
-import from testcontainers.redis { RedisContainer }
+import from testcontainers.community.mongodb { MongoDbContainer }
+import from testcontainers.community.redis { RedisContainer }
 import from jaclang.jac0core.archetype { Root }
 import from jaclang.scale.memory.context { JScaleExecutionContext }
 import from jaclang.scale.memory.memory_hierarchy { _process_cache, MongoBackend }

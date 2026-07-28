@@ -236,7 +236,13 @@ impl BoundaryAnalysisPass.enter_import(
                     else InteropContext.SERVER;
                 self._register_sv_import(nd, sv_module_name, caller_ctx);
             }
-            if (native_path and nd.items) {
+            if nd.items and not nd.is_sv_marked {
+                import from jaclang.jac0core.compiler { is_client_native_edge_import }
+                if nd.is_na_marked or is_client_native_edge_import(nd, self.prog) {
+                    self._register_na_client_import(nd);
+                }
+            }
+            if (native_path and nd.items and not nd.is_na_marked) {
                 manifest = self.ir_in.gen.interop_manifest;
                 for item in nd.items {
                     if isinstance(item, uni.ModuleItem) {
@@ -403,6 +409,71 @@ impl BoundaryAnalysisPass._register_sv_import(
     }
 }
 
+impl BoundaryAnalysisPass._register_na_client_import(
+    self: BoundaryAnalysisPass, nd: uni.Import
+) -> None {
+    import from jaclang.jac0core.codeinfo { native_wasm_stem }
+    import from jaclang.jac0core.diagnostics { E5083 }
+    if not nd.from_loc or not nd.items {
+        return;
+    }
+    try {
+        resolved_path = nd.from_loc.resolve_relative_path();
+    } except Exception {
+        return;
+    }
+    if not isinstance(resolved_path, str) or not resolved_path {
+        return;
+    }
+    manifest = self.ir_in.gen.interop_manifest;
+    stem = native_wasm_stem(resolved_path);
+    for existing in manifest.client_native_imports {
+        other = existing.source_module or '';
+        if other and other != resolved_path and native_wasm_stem(other) == stem {
+            self.emit(
+                E5083, node_override=nd, stem=stem, path=resolved_path, other=other
+            );
+            break;
+        }
+    }
+    for item in nd.items {
+        if not isinstance(item, uni.ModuleItem) {
+            continue;
+        }
+        sym_name = getattr(item.name, 'value', str(item.name));
+        local_name = item.alias.sym_name if item.alias else sym_name;
+        ret_type: str = 'int';
+        param_types: list = [];
+        param_names: list = [];
+        decl = self._resolved_native_decl(item.name);
+        if decl is not None and isinstance(decl.signature, uni.FuncSignature) {
+            sig = decl.signature;
+            for p in sig.params {
+                param_names.append(p.sym_name);
+                if p.type_tag {
+                    param_types.append(self._extract_type_name(p.type_tag.tag));
+                } else {
+                    param_types.append('int');
+                }
+            }
+            if sig.return_type {
+                ret_type = self._extract_type_name(sig.return_type);
+            }
+        }
+        manifest.bindings[local_name] = InteropBinding(
+            name=sym_name,
+            source_context=InteropContext.NATIVE,
+            callers={InteropContext.CLIENT},
+            ret_type=ret_type,
+            param_types=param_types,
+            param_names=param_names,
+            ast_node=decl,
+            route=[InteropContext.CLIENT, InteropContext.NATIVE],
+            source_module=resolved_path
+        );
+    }
+}
+
 impl BoundaryAnalysisPass._collect_abilities(
     self: BoundaryAnalysisPass, nd: any, out: dict[str, any]
 ) -> None {
@@ -522,7 +593,12 @@ impl BoundaryAnalysisPass._find_archetype(
 impl BoundaryAnalysisPass.enter_ability(
     self: BoundaryAnalysisPass, nd: uni.Ability
 ) -> None {
-    if (nd.sym_name and isinstance(nd.signature, uni.FuncSignature)) {
+    if (
+        nd.sym_name
+        and isinstance(nd.signature, uni.FuncSignature)
+        and nd.find_parent_of_type(uni.Ability) is None
+        and nd.find_parent_of_type(uni.LambdaExpr) is None
+    ) {
         nd_cc = nd.code_context;
         if nd_cc == uni.CodeContext.NATIVE {
             ctx = InteropContext.NATIVE;
@@ -550,6 +626,19 @@ impl BoundaryAnalysisPass.enter_ability(
 impl BoundaryAnalysisPass.enter_func_call(
     self: BoundaryAnalysisPass, nd: uni.FuncCall
 ) -> None {
+    if (
+        isinstance(nd.target, uni.Name)
+        and nd.target.sym is not None
+        and nd.target.sym.decl is not None
+    ) {
+        _decl_ab = nd.target.sym.decl.find_parent_of_type(uni.Ability);
+        if (
+            _decl_ab is not None
+            and _decl_ab.find_parent_of_type(uni.Ability) is not None
+        ) {
+            return;
+        }
+    }
     func_name = None;
     if isinstance(nd.target, uni.Name) {
         func_name = nd.target.value;
