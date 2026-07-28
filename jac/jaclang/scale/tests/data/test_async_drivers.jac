@@ -13,8 +13,8 @@ node CounterNode {
     has value: int = 0;
 }
 
-import from testcontainers.mongodb { MongoDbContainer }
-import from testcontainers.redis { RedisContainer }
+import from testcontainers.community.mongodb { MongoDbContainer }
+import from testcontainers.community.redis { RedisContainer }
 
 with entry {
     try {

@@ -149,6 +149,33 @@ test "functional methods (every, some, find) produce W6002 warnings" {
     assert any("find" in w and "findIndex" not in w for w in warning_msgs) , f"Expected W6002 warning for '.find()', got: {warning_msgs}";
 }
 
+test "str.find with string arguments produces no W6002 warning" {
+    file_path = os.path.join(FIXTURES, "py_str_find.jac");
+    prog = JacProgram();
+    prog.compile(file_path, type_check=True);
+    warnings = get_warnings_with_code(prog, "W6002");
+    warning_msgs = [str(w) for w in warnings];
+    assert not any("find" in w for w in warning_msgs) , f"str.find is Python-congruent and must not warn, got: {warning_msgs}";
+}
+
+test "find with a lambda callback produces W6002 warning" {
+    file_path = os.path.join(FIXTURES, "js_methods.jac");
+    prog = JacProgram();
+    prog.compile(file_path, type_check=True);
+    count = count_warning_code(prog, "W6002");
+    warnings = get_warnings_with_code(prog, "W6002");
+    warning_msgs = [str(w) for w in warnings];
+    find_hits = len(
+        [
+            w
+            for w in warning_msgs
+            if ".find(" in w
+        ]
+    );
+    assert find_hits >= 2 , f"Expected find warnings for both function-ref and lambda callbacks, got: {warning_msgs}";
+    assert count >= 16 , f"Expected the lambda find call to add a W6002, got count: {count}";
+}
+
 test "conversion methods (toFixed, toString) produce W6002 warnings" {
     file_path = os.path.join(FIXTURES, "js_methods.jac");
     prog = JacProgram();

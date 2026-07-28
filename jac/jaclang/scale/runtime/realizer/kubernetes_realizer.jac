@@ -19,6 +19,9 @@ obj KubernetesRealizer {
         dry_run: bool = False,
         show_yaml: bool = False
     ) -> int {
+        import from jaclang.scale.injector.binary { reset_deploy_version_cache }
+
+        reset_deploy_version_cache();
         enabled = self.ms_config.get("enabled", None);
 
         ms_configured = get_scale_config().microservices_declared();

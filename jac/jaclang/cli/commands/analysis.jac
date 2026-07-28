@@ -65,11 +65,26 @@ glob registry = get_registry();
             short="",
             help="Compile with codegen and report per-module native outcome (native / demoted / server) ranked by reason (needs the native toolchain)"
         ),
+        Arg.create(
+            "placements",
+            typ=bool,
+            default=False,
+            short="",
+            help="Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision"
+        ),
+        Arg.create(
+            "update-placements-lock",
+            typ=bool,
+            default=False,
+            short="",
+            help="Write jac.placements.lock (next to jac.toml) from the computed placements; committed, it makes placement flips reviewable like dependency bumps"
+        ),
 
     ],
     examples=[
         ("jac check myprogram.jac", "Check a single file"),
         ("jac check . --native-census", "Rank modules by native compile outcome"),
+        ("jac check . --placements", "Show element placements with evidence"),
         ("jac check . --lint", "Report lint violations only"),
         ("jac check . --lint --fix", "Auto-fix lint violations"),
         ("jac check file1.jac file2.jac", "Check multiple files"),
@@ -97,7 +112,9 @@ def check(
     nowarn: bool = False,
     lint_only: bool = False,
     fix: bool = False,
-    native_census: bool = False
+    native_census: bool = False,
+    placements: bool = False,
+    update_placements_lock: bool = False
 ) -> int;
 
 def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;
@@ -186,7 +203,7 @@ def format(
             "install",
             typ=bool,
             default=False,
-            help="Install a git pre-commit hook that runs this command"
+            help="Install git pre-commit + commit-msg hooks"
         ),
         Arg.create(
             "force",
@@ -199,10 +216,10 @@ def format(
     examples=[
         ("jac precommit", "Format (lintfix) and check the whole project"),
         ("jac precommit --staged", "Run on staged '.jac' files only"),
-        ("jac precommit --install", "Install a .git/hooks/pre-commit hook"),
+        ("jac precommit --install", "Install the pre-commit + commit-msg hooks"),
         (
             "jac precommit --install --force",
-            "Replace an existing hook (kept as pre-commit.bak)"
+            "Replace existing hooks (kept as .bak backups)"
         ),
 
     ],

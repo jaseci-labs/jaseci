@@ -29,9 +29,52 @@ impl create(
     if pack {
         return jacpack(action="pack", path=pack, output=pack_output);
     }
+    prev_skip_npm = os.environ.get("JAC_CLIENT_SKIP_NPM_INSTALL");
     if `skip {
         os.environ["JAC_CLIENT_SKIP_NPM_INSTALL"] = "1";
     }
+    try {
+        return _create_body(
+            name,
+            force,
+            kind,
+            use,
+            `list,
+            `skip or bool(os.environ.get("JAC_CLIENT_SKIP_NPM_INSTALL")),
+            style,
+            baseColor,
+            theme,
+            font,
+            radius,
+            menuAccent,
+            menuColor
+        );
+    } finally {
+        if `skip {
+            if prev_skip_npm is None {
+                os.environ.pop("JAC_CLIENT_SKIP_NPM_INSTALL", None);
+            } else {
+                os.environ["JAC_CLIENT_SKIP_NPM_INSTALL"] = prev_skip_npm;
+            }
+        }
+    }
+}
+
+def _create_body(
+    name: str,
+    force: bool,
+    kind: str,
+    use: str,
+    list_kinds: bool,
+    skip_deps: bool,
+    style: str | None,
+    baseColor: str | None,
+    theme: str | None,
+    font: str | None,
+    radius: str | None,
+    menuAccent: str | None,
+    menuColor: str | None
+) -> int {
     if use == "jac-shadcn" {
         import from jaclang.cli.shadcn.cli { stash_create_theme }
         theme_args = {
@@ -67,7 +110,7 @@ impl create(
         initialize_template_registry();
     }
 
-    if `list {
+    if list_kinds {
         kinds = registry.list_kinds();
         if kinds {
             console.print(
@@ -183,6 +226,7 @@ impl create(
     import copy;
     render_config = copy.deepcopy(tmpl.config);
     _stamp_kind(render_config, tmpl.kind);
+    _stamp_jac_version(render_config);
 
     toml_content = _render_config_to_toml(render_config, project_name);
     with open(toml_path, "w", encoding="utf-8") as f {
@@ -225,6 +269,11 @@ impl create(
         }
     }
 
+    deps_installed = False;
+    if not skip_deps {
+        deps_installed = _bootstrap_project_deps(project_path);
+    }
+
     elapsed_time = time.time() - start_time;
     console.print();
     if elapsed_time < 1 {
@@ -239,7 +288,9 @@ impl create(
     if create_subdir {
         steps.append(f"cd {name}");
     }
-    steps.append("jac install           Install dependencies");
+    if not deps_installed {
+        steps.append("jac install           Install dependencies");
+    }
     steps.append(f"jac run               {_run_blurb(tmpl.kind)}");
     console.print_next_steps(steps);
     console.print();
@@ -280,6 +331,18 @@ def _stamp_kind(config: dict, kind: str) -> None {
     }
     if not proj.get("kind") {
         proj["kind"] = kind;
+    }
+}
+
+def _stamp_jac_version(config: dict) {
+    proj = config.get("project");
+    if not isinstance(proj, dict) {
+        proj = {};
+        config["project"] = proj;
+    }
+    if not proj.get("jac-version") {
+        import from jaclang.cli.cli { jac_version }
+        proj["jac-version"] = f"=={jac_version()}";
     }
 }
 
@@ -508,13 +571,14 @@ impl install(
     }
     if shadcn or npm {
         channel = "--shadcn" if shadcn else "--npm";
+
+        flag_checks: list = [(no_save, "--no-save"), (dry_run, "--dry-run")];
+        if shadcn {
+            flag_checks.append((install_global, "--global"));
+        }
         ineffective: list[str] = [
             flag
-            for (enabled, flag) in [
-                (no_save, "--no-save"),
-                (dry_run, "--dry-run"),
-                (install_global, "--global")
-            ]
+            for (enabled, flag) in flag_checks
             if enabled
         ];
         if ineffective {
@@ -530,7 +594,7 @@ impl install(
     }
     if npm {
         import from jaclang.runtimelib.client.cli { run_npm_add }
-        return run_npm_add(packages, dev);
+        return run_npm_add(packages, dev, install_global);
     }
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
@@ -855,6 +919,27 @@ impl install(
     } else {
         console.error("Some dependencies failed to install");
         return 1;
+    }
+}
+
+def _bootstrap_project_deps(project_path: Path) -> bool {
+    import from jaclang.project.config { get_config, set_config }
+    prev = os.getcwd();
+    prev_cfg = get_config();
+    try {
+        os.chdir(str(project_path));
+
+        set_config(get_config(start_path=project_path, force_discover=True));
+        return install() == 0;
+    } except Exception as e {
+        console.warning(f"Could not install dependencies: {e}");
+        console.print(
+            "  Run 'jac install' in the project directory when ready.\n", style="muted"
+        );
+        return False;
+    } finally {
+        os.chdir(prev);
+        set_config(prev_cfg);
     }
 }
 

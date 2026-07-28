@@ -101,29 +101,31 @@ import type from billing { Invoice }    # annotation-only - breaks circular impo
 import ".styles/global.css";            # file - takes `;`
 ```
 
-**Client imports (in client code - a `.cl.jac` file, a `cl { }` block, or plain `.jac` code inferred client):**
+**Client imports (in code inferred client - it carries JSX or an npm import):**
 
 ```
 import from .button { Button }                        # relative (dots)
 import from "@jac/runtime" { Router, Routes, Route }  # npm (quoted)
 ```
 
-**Codespaces are inferred - markers are optional overrides.** JSX and string-path npm imports mark a declaration client, and the helpers/`glob`s/imports client code references join the client bundle (scope-aware propagation); unmarked code defaults to server; `def:pub` endpoints and walkers always stay server (client calls become auto-RPC); extern C-decl imports (`import from lib { def f(x: f64) -> f64; }`) mark a declaration native and its users follow (consuming a native module is not a signal; pure code stays server). Explicit `cl`/`sv`/`na` blocks, statement prefixes, and `.cl.jac`/`.sv.jac`/`.na.jac` extensions always win over inference - the useful one is `sv` to pin a declaration server-side. See `jac-codespaces`.
+**Codespaces are inferred - markers are optional overrides.** JSX and string-path npm imports mark a declaration client, and the helpers/`glob`s/imports client code references join the client bundle (scope-aware propagation); unmarked code defaults to server; `def:pub` endpoints and walkers always stay server (client calls become auto-RPC); extern C-decl imports (`import from lib { def f(x: f64) -> f64; }`) mark a declaration native and its users follow (consuming a native module is not a signal; pure code stays server). Explicit `cl`/`sv`/`na` blocks, statement prefixes, and file-extension variants like `.sv.jac` always win over inference - the useful one is `sv` to pin a declaration server-side. See `jac-codespaces`.
 
-**`main.jac` mixes contexts.** Server imports go at the top (server is the default context - no block needed). The client section - CSS import, top-level component, `def:pub app` (no-arg for manual routing; `app(children)` that renders `children` for file-based routing - see `jac-cl-routing`) - is inferred client from its JSX and string-path imports; a `cl { ... }` block around it is the optional explicit wrapper.
+**`main.jac` mixes contexts.** Server imports go at the top (server is the default context - no block needed). The client section - CSS import, top-level component, `def:pub app` (no-arg for manual routing; `app(children)` that renders `children` for file-based routing - see `jac-cl-routing`) - is inferred client from its JSX and string-path imports; a `cl` block around it is the optional explicit wrapper.
 
-**No-dot imports are project-root absolute.** In server/native code (`.jac`, `.na.jac`, `.sv.jac`), `import from engine.math.vec3 { Vec3 }` resolves against the **project root** (the nearest `jac.toml` dir) from *anywhere* in the project - the importing file may sit at the root, under `tests/`, or any depth, and the import is identical. This is the idiomatic form; prefer it over dot-counting. A test in `tests/` imports the modules it exercises with the same no-dot path it would use at the root.
+**No-dot imports are project-root absolute.** In server/native code (`.jac`, `.sv.jac`), `import from engine.math.vec3 { Vec3 }` resolves against the **project root** (the nearest `jac.toml` dir) from *anywhere* in the project - the importing file may sit at the root, under `tests/`, or any depth, and the import is identical. This is the idiomatic form; prefer it over dot-counting. A test in `tests/` imports the modules it exercises with the same no-dot path it would use at the root.
 
-**Relative (dotted) imports** walk up from the importing file's own directory - each leading `.` is one folder. They are mainly needed in **client** code (`.cl.jac` files, `cl { }` blocks, or inferred-client `.jac` code), where the bundler resolves them. `sv import` carries the same dot semantics.
+**Relative (dotted) imports** walk up from the importing file's own directory - each leading `.` is one folder. They are mainly needed in **client** code (inferred client from JSX or npm imports), where the bundler resolves them. `sv import` carries the same dot semantics.
 
 | Dots | Meaning | Use when |
 |---|---|---|
-| `services.X`   | project-root absolute  | **default** - resolves from any depth in the project (server/native) |
-| `.services.X`  | same folder            | `services` is a sibling file in this same folder |
-| `..services.X` | one folder up          | importing file is one level deep (`components/X.cl.jac`) |
-| `...services.X`| two folders up         | importing file is two levels deep (`components/pages/X.cl.jac`) |
+| `shared.X`     | project-root absolute  | **default** - resolves from any depth in the project (server/native) |
+| `.store`       | same folder            | `store` is a sibling module in this same folder |
+| `..shared.X`   | one folder up          | importing file is one level deep (`recipes/X.jac`) |
+| `...shared.X`  | two folders up         | importing file is two levels deep (`recipes/parts/X.jac`) |
 
-A no-dot import is depth-independent: moving a file between directories never changes it. Dot-counted forms (`..`, `...`) DO break when a file moves to a different depth - wrong dot count = silent resolution failure = imported names become `<Unknown>` → cascading type errors. Prefer no-dot imports to avoid this.
+A no-dot import is depth-independent: moving a file between directories never changes it. Dot-counted forms (`..`, `...`) DO break when a file moves to a different depth - wrong dot count = silent resolution failure = imported names become `<Unknown>` → cascading type errors.
+
+**Server modules should prefer the no-dot form, and a `..` that climbs out of a package is a bug waiting to happen.** `import from ..shared.github { fetch }` resolves fine under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`, because the test runner roots the package at the target file's own directory. `import from shared.github { fetch }` works in both. Client modules keep the dotted form - that is what the bundler resolves.
 
 ## Also available (Python semantics, brace bodies)
 
@@ -131,11 +133,12 @@ Generators (`yield` / `yield from`), decorators (`@deco` above `def`), walrus `(
 
 ## Pitfalls
 
-- **Reserved keywords cannot be used as variable or parameter names** - declaration words (`node`, `edge`, `walker`, `obj`, `def`, `impl`), OSP / control words (`visit`, `disengage`, `report`, `spawn`, `flow`, `wait`, `skip`, `del`), and `with`, `can`, `has`. (`entry` and `exit` are *not* reserved - fine as identifiers.) Escape with a single **leading** backtick: `` `visit `` (no closing backtick; `` `visit` `` is a lexer error).
+- **Reserved keywords cannot be used as variable or parameter names** - declaration words (`node`, `edge`, `walker`, `obj`, `def`, `impl`), OSP / control words (`visit`, `disengage`, `report`, `spawn`, `flow`, `wait`, `skip`, `del`), module words (`include`), and `with`, `can`, `has`. (`entry` and `exit` are *not* reserved - fine as identifiers.) Escape with a single **leading** backtick: `` `visit `` (no closing backtick; `` `visit` `` is a lexer error).
 - **Python reserved words can't name `has` fields or parameters - even backtick-escaped.** `` has `class: str; `` fails `jac check` with **E0067**: the generated Python uses the name as a real identifier, so escaping can't help. Pick a non-reserved name (`kind`, `cls`). Jac-only keywords that aren't Python keywords (`visit`, `node`, ...) escape fine everywhere.
 - **`` `any `` vs `any`:** bare `any` is the gradual *type*; backticked `` `any(...) `` calls the builtin truthiness *function*.
 - `import from X { Y };` fails with E0030. **Brace imports take NO trailing semicolon.** Plain module form `import X;` does.
 - **There is no `pass` statement** (`E0010`). For an intentionally empty block write empty braces: `{}`.
+- **Tuple unpacking in `for` needs parens.** `for (k, v) in d.items() { ... }` works; the Python spelling `for k, v in d.items()` is a parse error. Same in comprehensions.
 - **Unused names warn (`W2003`).** Prefix intentionally-unused names with `_`, or for unread exception bindings drop the clause: `except ValueError { ... }`, not `except ValueError as e`. A value bound only to *validate* still counts as unused - discard with `_ = int(s);`. This is the #1 reason otherwise-correct parsing/validation code fails `jac check`.
 - **Booleans are `True`/`False`, null is `None` - capitalized.** Lowercase `false` parses as an undefined name, so `return false;` fails with the *misleading* `E1002: Cannot return <Unknown>, expected bool`.
 - **Docstrings go immediately before a declaration, never inside its body** (`W0060`, often + `E0002`).
@@ -151,3 +154,5 @@ Generators (`yield` / `yield from`), decorators (`@deco` above `def`), walrus `(
 ## See also
 
 `jac-types` (type system, `as` casts, `any` boundaries) · `jac-has-fields` (fields) · `jac-impl-files` (file layout) · `jac-codespaces` (inferred client/server/native placement) · `jac-python-interop` (PyPI, `::py::`, calling Jac from Python) · `jac-concurrency` (`flow`/`wait`, async)
+
+Deep dives bundled with the CLI: `jac guide reference/language/syntax-cheatsheet` (complete syntax reference), `jac guide reference` (lists the full language/CLI/config reference set).

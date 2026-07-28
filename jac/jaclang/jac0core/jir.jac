@@ -6,7 +6,7 @@ import zlib;
 import from pathlib { Path }
 
 glob MAGIC = b"JIR\x00",
-     FORMAT_VERSION: int = 16,
+     FORMAT_VERSION: int = 17,
      HEADER_SIZE: int = 32,
      HEADER_FMT: str = "<4sHHIIIIII",
      EXTERNAL_REF: int = 0xFFFFFF,
@@ -19,6 +19,7 @@ glob MAGIC = b"JIR\x00",
      SEC_SYMINDEX: int = 0x07,
      SEC_MODKEY: int = 0x08,
      SEC_DEBUG_SRC: int = 0x09,
+     SEC_PLACEMENT: int = 0x0A,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
