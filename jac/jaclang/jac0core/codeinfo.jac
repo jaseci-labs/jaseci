@@ -25,7 +25,6 @@ obj ClientManifest {
         endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
         tests: list[dict[(str, str)]] = field(default_factory=`list),
         server_imports: list[str] = field(default_factory=`list),
-        na_modules: list[str] = field(default_factory=`list),
         page_export: (str | None) = None,
         layout_export: (str | None) = None;
 }
@@ -297,6 +296,17 @@ def resolve_native_module(
     return (None, None);
 }
 
+def native_wasm_stem(path: str) -> str {
+    import os;
+    stem = os.path.splitext(os.path.basename(path))[0];
+    for marker in ('.na', '.cl', '.sv') {
+        if stem.endswith(marker) {
+            stem = stem[0:-len(marker)];
+        }
+    }
+    return stem;
+}
+
 glob NATIVE_ABI_VERSION: int = 1;
 
 obj NativeModuleLayout {
@@ -358,6 +368,7 @@ obj InteropManifest {
     has native_imports: list[InteropBinding] { getter; }
     has native_exports: list[InteropBinding] { getter; }
     has native_cross_module_imports: list[InteropBinding] { getter; }
+    has client_native_imports: list[InteropBinding] { getter; }
     has server_exports_to_client: list[InteropBinding] { getter; }
     has server_exports_to_server: list[InteropBinding] { getter; }
 }
