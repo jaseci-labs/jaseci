@@ -436,7 +436,11 @@ def _references_browser_seed_global(elem: uni.UniNode) -> str {
 }
 
 def module_anchor_reasons(module: uni.Module) -> list[str] {
+    import from jaclang.jac0core.placement_pins { config_module_pin }
     reasons: list[str] = [];
+    if config_module_pin(module.loc.mod_path or '') == 'server' {
+        reasons.append('config pin');
+    }
     for arch in module.get_all_sub_nodes(uni.Archetype) {
         if arch.arch_kind is not None {
             reasons.append(f"graph archetype '{arch.name.value}'");
@@ -634,6 +638,10 @@ def summarize_module(module: uni.Module, with_refs: bool = True) -> PlacementSum
         es.kind = type(stmt).__name__;
         es.name = element_display_name(stmt);
         es.pinned = _pinned_of(stmt);
+        if not es.pinned and ps.mod_path {
+            import from jaclang.jac0core.placement_pins { config_pin_for }
+            es.pinned = config_pin_for(ps.mod_path, es.name);
+        }
         es.is_pub = _is_pub_element(stmt);
         es.reqs = _element_reqs(stmt);
         if isinstance(stmt, uni.Import) {
@@ -746,7 +754,7 @@ def collect_placement_rows(prog: any) -> dict {
             notes: list[str] = [];
             if es is not None {
                 if es.pinned {
-                    notes.append(f"explicit '{es.pinned}' marker");
+                    notes.append(f"pinned '{es.pinned}' ([placement.pins])");
                 }
                 for req in es.reqs {
                     if len(req) >= 2 {

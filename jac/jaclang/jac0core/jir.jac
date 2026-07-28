@@ -201,6 +201,8 @@ def compute_module_key(source_path: str) -> str {
     h.update(schema_digest().encode());
     h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
+    import from jaclang.jac0core.placement_pins { pins_digest }
+    h.update(pins_digest(source_path).encode());
     h.update(compute_content_sha256(source_path).encode());
     for (rel, digest) in _related_files(source_path) {
         h.update(rel.encode());

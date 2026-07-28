@@ -10,7 +10,12 @@ import from jaclang.jac0core.placement {
     summarize_module
 }
 
-glob _na_scan_memo: dict[str, tuple] = {};
+glob _na_scan_memo: dict[str, tuple] = {},
+     _SPACE_BY_NAME: dict[str, CodeContext] = {
+         'server': CodeContext.SERVER,
+         'client': CodeContext.CLIENT,
+         'native': CodeContext.NATIVE
+     };
 
 def native_scan_memo_clear {
     _na_scan_memo.clear();
@@ -374,10 +379,18 @@ def _seed_from_summary(module: uni.Module, prog: any) -> int {
         if not isinstance(stmt, uni.ContextAwareNode) {
             continue;
         }
-        if (
-            stmt._source_context_token() is not None
-            or stmt.code_context != CodeContext.SERVER
-        ) {
+        if es.pinned {
+            pin_ctx = _SPACE_BY_NAME.get(es.pinned);
+            if pin_ctx is not None and stmt.code_context != pin_ctx {
+                _stamp_context_element(stmt, pin_ctx);
+                record_placement_evidence(
+                    prog, mod_path, es.index, f"config pin: {es.pinned}"
+                );
+                seeded += 1;
+            }
+            continue;
+        }
+        if stmt.code_context != CodeContext.SERVER {
             continue;
         }
         target_ctx: (CodeContext | None) = None;
@@ -467,10 +480,16 @@ def solve_module_placement(
     }
 
     _seed_from_summary(module, prog);
+    pinned_idx: set[int] = set();
+    for pes in get_module_summary(module, prog).elements {
+        if pes.pinned {
+            pinned_idx.add(pes.index);
+        }
+    }
     client_tops: list[uni.UniNode] = [];
     native_tops: list[uni.UniNode] = [];
     inferable: list[uni.UniNode] = [];
-    for stmt in module.body {
+    for (sidx, stmt) in enumerate(module.body) {
         if isinstance(stmt, (uni.ClientBlock, uni.ServerBlock, uni.NativeBlock)) {
             continue;
         }
@@ -478,21 +497,18 @@ def solve_module_placement(
             continue;
         }
         if stmt.code_context == CodeContext.CLIENT {
-            if stmt._source_context_token() is None {
+            if sidx not in pinned_idx {
                 client_tops.append(stmt);
             }
             continue;
         }
         if stmt.code_context == CodeContext.NATIVE {
-            if stmt._source_context_token() is None {
+            if sidx not in pinned_idx {
                 native_tops.append(stmt);
             }
             continue;
         }
-        is_placement_pinned = (
-            stmt._source_context_token() is not None
-            and not isinstance(stmt, uni.Import)
-        );
+        is_placement_pinned = sidx in pinned_idx and not isinstance(stmt, uni.Import);
         if (stmt.code_context != CodeContext.SERVER or is_placement_pinned) {
             continue;
         }
@@ -864,12 +880,18 @@ def demote_client_pulled_elements(
         return False;
     }
     demoted: list[str] = [];
+    demote_pinned: set[int] = set();
+    for des in get_module_summary(module, prog).elements {
+        if des.pinned {
+            demote_pinned.add(des.index);
+        }
+    }
     for (idx, stmt) in enumerate(module.body) {
         if (
             isinstance(stmt, uni.ContextAwareNode)
             and stmt.codespace_dual
             and stmt.code_context == CodeContext.CLIENT
-            and stmt._source_context_token() is None
+            and idx not in demote_pinned
         ) {
             stmt.code_context = CodeContext.SERVER;
             stmt.codespace_dual = False;
