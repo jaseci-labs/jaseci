@@ -160,9 +160,6 @@ def _top_element(module: uni.Module, nd: uni.UniNode) -> (uni.UniNode | None) {
 }
 
 def _is_client_top(elem: uni.UniNode) -> bool {
-    if isinstance(elem, uni.ClientBlock) {
-        return True;
-    }
     return isinstance(elem, uni.ContextAwareNode)
     and elem.code_context == CodeContext.CLIENT;
 }
@@ -256,7 +253,7 @@ def _ref_top_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
 }
 
 def _is_sv_import(elem: uni.UniNode) -> bool {
-    return isinstance(elem, uni.Import) and (elem.is_sv_marked or elem.is_na_marked);
+    return isinstance(elem, uni.Import) and elem.is_service_import;
 }
 
 def _named_top_element(target: uni.Module, name: str) -> (uni.UniNode | None) {
@@ -317,7 +314,7 @@ def _closure_pullable(
         return True;
     }
     if isinstance(top, uni.Import) {
-        if top.is_sv_marked or top.is_na_marked {
+        if top.is_service_import {
             return True;
         }
         source_mod = _import_source_module(top, prog);
@@ -490,9 +487,6 @@ def solve_module_placement(
     native_tops: list[uni.UniNode] = [];
     inferable: list[uni.UniNode] = [];
     for (sidx, stmt) in enumerate(module.body) {
-        if isinstance(stmt, (uni.ClientBlock, uni.ServerBlock, uni.NativeBlock)) {
-            continue;
-        }
         if not isinstance(stmt, uni.ContextAwareNode) {
             continue;
         }
@@ -739,8 +733,7 @@ def _pull_into_target(
 def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int {
     import from jaclang.jac0core.ext_registry { codespace_of }
     if (
-        imp.is_sv_marked
-        or imp.is_na_marked
+        imp.is_service_import
         or imp.is_virtual_jac
         or imp.has_string_path
         or imp.from_loc is None

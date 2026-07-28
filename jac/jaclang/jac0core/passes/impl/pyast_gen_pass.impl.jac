@@ -81,11 +81,6 @@ impl PyastGenPass.postinit -> None {
 }
 
 impl PyastGenPass.enter_node(nd: uni.UniNode) -> None {
-    if isinstance(nd, uni.NativeBlock) {
-        self._gen_native_interop_stubs(nd);
-        self.prune();
-        return;
-    }
     if (
         isinstance(nd, uni.ContextAwareNode)
         and (nd.code_context == CodeContext.NATIVE)
@@ -114,13 +109,10 @@ impl PyastGenPass.enter_node(nd: uni.UniNode) -> None {
         return;
     }
     if (
-        isinstance(nd, uni.ClientBlock)
-        or (
-            isinstance(nd, uni.ContextAwareNode)
-            and (nd.code_context == CodeContext.CLIENT)
-            and not nd.codespace_dual
-            and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
-        )
+        isinstance(nd, uni.ContextAwareNode)
+        and (nd.code_context == CodeContext.CLIENT)
+        and not nd.codespace_dual
+        and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
         self.prune();
         return;
@@ -151,9 +143,6 @@ impl PyastGenPass._is_native_ext_module -> bool {
 }
 
 impl PyastGenPass.exit_node(nd: uni.UniNode) -> None {
-    if isinstance(nd, (uni.ClientBlock, uni.NativeBlock)) {
-        return;
-    }
     if (
         isinstance(nd, uni.ContextAwareNode)
         and (nd.code_context == CodeContext.CLIENT)
@@ -212,15 +201,6 @@ impl PyastGenPass._gen_native_interop_stubs(nd: uni.UniNode) -> None {
             stub_node.jac_link = [];
         }
         out.extend(parsed.body);
-    }
-
-    if isinstance(nd, uni.NativeBlock) {
-        for stmt in nd.body {
-            if isinstance(stmt, uni.Test) {
-                self.exit_test(stmt);
-                out.extend(stmt.gen.py_ast);
-            }
-        }
     }
     if out {
         nd.gen.py_ast = out;
@@ -1035,14 +1015,6 @@ impl PyastGenPass.exit_module_code(nd: uni.ModuleCode) -> None {
     }
 }
 
-impl PyastGenPass.exit_client_block(nd: uni.ClientBlock) -> None {
-    ;
-}
-
-impl PyastGenPass.exit_server_block(nd: uni.ServerBlock) -> None {
-    nd.gen.py_ast = self._flatten_ast_list([item.gen.py_ast for item in nd.body]);
-}
-
 impl PyastGenPass.exit_open_stmt(nd: uni.OpenStmt) -> None {
     self.builtin_imports.add("_jac_region_open");
     self.builtin_imports.add("_jac_region_close");
@@ -1104,10 +1076,6 @@ impl PyastGenPass.exit_open_stmt(nd: uni.OpenStmt) -> None {
     nd.gen.py_ast = [assign_stmt, open_stmt, try_stmt];
 }
 
-impl PyastGenPass.exit_native_block(nd: uni.NativeBlock) -> None {
-    ;
-}
-
 impl PyastGenPass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
     if nd.doc {
         doc = self.sync(
@@ -1127,10 +1095,7 @@ impl PyastGenPass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
 
 impl PyastGenPass.exit_import(nd: uni.Import) -> None {
     import from jaclang.jac0core.compiler { import_binds_client_native }
-    if (
-        nd.is_na_marked
-        or import_binds_client_native(nd, self.ir_in.gen.interop_manifest)
-    ) {
+    if import_binds_client_native(nd, self.ir_in.gen.interop_manifest) {
         nd.gen.py_ast = [];
         return;
     }
@@ -1149,7 +1114,7 @@ impl PyastGenPass.exit_import(nd: uni.Import) -> None {
     if (
         nd.from_loc
         and nd.items
-        and nd.is_sv_marked
+        and nd.is_service_import
         and nd.code_context != CodeContext.CLIENT
         and self._generate_sv_to_sv_stubs(nd)
     ) {

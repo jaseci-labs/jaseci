@@ -128,14 +128,6 @@ impl EsastGenPass.exit_test(nd: uni.Test) -> None {
     );
 }
 
-impl EsastGenPass.exit_client_block(nd: uni.ClientBlock) -> None {
-    nd.gen.es_ast = self._collect_body_stmts(nd.body);
-}
-
-impl EsastGenPass.exit_native_block(nd: uni.NativeBlock) -> None {
-    ;
-}
-
 impl EsastGenPass.exit_module_code(nd: uni.ModuleCode) -> None {
     nd.gen.es_ast = self._collect_body_stmts(nd.body);
 }
@@ -4682,7 +4674,7 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         return;
     }
 
-    if nd.is_sv_marked {
+    if nd.is_service_import {
         if (nd.from_loc and nd.items) {
             self._generate_sv_import_stubs(nd);
             self._record_sv_backend(nd);
@@ -4690,7 +4682,7 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         return;
     }
 
-    if nd.is_na_marked or self._is_client_native_import(nd) {
+    if self._is_client_native_import(nd) {
         if (nd.from_loc and nd.items) {
             self._generate_na_import_binding(nd);
         }
@@ -6285,7 +6277,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
         is_sv_import = isinstance(nd, uni.Import)
-        and (nd.is_sv_marked or nd.is_na_marked);
+        and nd.is_service_import;
 
         is_native_edge = isinstance(nd, uni.Import)
         and self._is_client_native_import(nd);
@@ -6294,12 +6286,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
             and (nd.name is not None)
             and (nd.name.value in self.shared_arch_names)
         );
-        if (
-            not is_sv_import
-            and not is_native_edge
-            and not isinstance(nd, uni.ServerBlock)
-            and not is_shared_arch
-        ) {
+        if (not is_sv_import and not is_native_edge and not is_shared_arch) {
             return;
         }
     }
@@ -6312,10 +6299,6 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
 }
 
 impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
-    if isinstance(nd, uni.NativeBlock) {
-        self.prune();
-        return;
-    }
     if (
         isinstance(nd, uni.ElementStmt)
         and isinstance(nd, uni.ContextAwareNode)
@@ -6323,7 +6306,7 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
         is_sv_import = isinstance(nd, uni.Import)
-        and (nd.is_sv_marked or nd.is_na_marked);
+        and nd.is_service_import;
 
         is_shared_arch = (
             isinstance(nd, uni.Archetype)
@@ -6332,12 +6315,7 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
         );
         is_native_edge = isinstance(nd, uni.Import)
         and self._is_client_native_import(nd);
-        if (
-            not is_sv_import
-            and not is_native_edge
-            and not isinstance(nd, uni.ServerBlock)
-            and not is_shared_arch
-        ) {
+        if (not is_sv_import and not is_native_edge and not is_shared_arch) {
             self.prune();
             return;
         }

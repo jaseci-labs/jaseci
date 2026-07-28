@@ -251,22 +251,22 @@ impl BoundaryAnalysisPass.enter_import(
             mod_path_str = self.ir_in.loc.mod_path
                 if (self.ir_in and self.ir_in.loc)
                 else '';
-            if (nd.is_sv_marked and not native_path and nd.items) {
+            if (nd.is_service_import and not native_path) {
                 sv_module_name = nd.from_loc.base_module_name;
                 caller_ctx = InteropContext.CLIENT
                     if nd.in_client_context()
                     else InteropContext.SERVER;
                 self._register_sv_import(nd, sv_module_name, caller_ctx);
             }
-            if nd.items and not nd.is_sv_marked {
+            if nd.items and not nd.is_service_import {
                 import from jaclang.jac0core.compiler { is_client_native_edge_import }
-                if nd.is_na_marked or is_client_native_edge_import(nd, self.prog) {
+                if is_client_native_edge_import(nd, self.prog) {
                     self._register_na_client_import(nd);
                 } else {
                     self._register_client_bridged_import(nd);
                 }
             }
-            if (native_path and nd.items and not nd.is_na_marked) {
+            if (native_path and nd.items) {
                 manifest = self.ir_in.gen.interop_manifest;
                 for item in nd.items {
                     if isinstance(item, uni.ModuleItem) {
@@ -1221,7 +1221,7 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
     has_client = False;
     if self.ir_in and self.ir_in.body {
         for item in self.ir_in.body {
-            if isinstance(item, uni.ClientBlock) or item.in_client_context() {
+            if item.in_client_context() {
                 has_client = True;
                 break;
             }

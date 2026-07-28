@@ -8,8 +8,6 @@ glob PLACEMENT_SCHEMA: int = 1,
      PLACEMENT_SV_SIGNAL_NODES: tuple = (
          uni.TypedCtxBlock,
          uni.PyInlineCode,
-         uni.ClientBlock,
-         uni.ServerBlock,
          uni.JsxElement
      );
 
@@ -163,26 +161,6 @@ def element_display_name(stmt: uni.UniNode) -> str {
     return f"<{type(stmt).__name__}>";
 }
 
-def _pinned_of(stmt: uni.UniNode) -> str {
-    if not isinstance(stmt, uni.ContextAwareNode) {
-        return '';
-    }
-    tok = stmt._source_context_token();
-    if tok is None {
-        return '';
-    }
-    if tok.name == Tok.KW_CLIENT {
-        return 'client';
-    }
-    if tok.name == Tok.KW_SERVER {
-        return 'server';
-    }
-    if tok.name == Tok.KW_NATIVE {
-        return 'native';
-    }
-    return '';
-}
-
 def _is_pub_element(stmt: uni.UniNode) -> bool {
     return (
         isinstance(stmt, (uni.Ability, uni.GlobalVars, uni.Archetype, uni.Enum))
@@ -209,7 +187,7 @@ def _resolve_import_path(nd: (uni.ModulePath | uni.ModuleItem)) -> (str | None) 
 
 def _fill_import_facts(es: ElementSummary, imp: uni.Import) {
     es.import_eco = imp.ecosystem;
-    es.sv_import = imp.is_sv_marked or imp.is_na_marked;
+    es.sv_import = imp.is_service_import;
     if imp.from_loc is not None {
         for item in imp.items {
             if isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name) {
@@ -451,10 +429,6 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
         reasons.append('inline ::py:: block');
     }
     for stmt in module.body {
-        if isinstance(stmt, uni.ServerBlock) {
-            reasons.append('sv block');
-            break;
-        }
         if isinstance(stmt, uni.TypedCtxBlock) {
             reasons.append('typed context block');
             break;
@@ -518,11 +492,13 @@ def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[s
             }
         }
     }
+    scan_mod_path = module.loc.mod_path or '';
     for stmt in module.body {
-        if isinstance(stmt, uni.ContextAwareNode) {
-            tok = stmt._source_context_token();
-            if tok is not None and tok.name in (Tok.KW_SERVER, Tok.KW_CLIENT) {
-                return ("explicit sv/cl marker", deps);
+        if isinstance(stmt, uni.ContextAwareNode) and scan_mod_path {
+            import from jaclang.jac0core.placement_pins { config_pin_for }
+            pin = config_pin_for(scan_mod_path, element_display_name(stmt));
+            if pin in ('server', 'client') {
+                return ("explicit sv/cl pin", deps);
             }
         }
         if _is_pub_element(stmt) {
@@ -637,8 +613,8 @@ def summarize_module(module: uni.Module, with_refs: bool = True) -> PlacementSum
         es.index = idx;
         es.kind = type(stmt).__name__;
         es.name = element_display_name(stmt);
-        es.pinned = _pinned_of(stmt);
-        if not es.pinned and ps.mod_path {
+        es.pinned = '';
+        if ps.mod_path {
             import from jaclang.jac0core.placement_pins { config_pin_for }
             es.pinned = config_pin_for(ps.mod_path, es.name);
         }

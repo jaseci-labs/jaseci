@@ -847,14 +847,6 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
         mod = self.ir_in;
         mp = mod.loc.mod_path if mod?.loc else '';
         is_native_mod = bool(mp) and is_native_module(mp);
-        if not is_native_mod and mod?.body {
-            for _stmt in mod.body {
-                if isinstance(_stmt, uni.NativeBlock) {
-                    is_native_mod = True;
-                    break;
-                }
-            }
-        }
         if not is_native_mod and mod?.decided_codespace == 'native' {
             is_native_mod = True;
         }

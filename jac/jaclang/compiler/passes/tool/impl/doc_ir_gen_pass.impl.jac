@@ -899,18 +899,6 @@ impl DocIRGenPass.exit_module_code(nd: uni.ModuleCode) -> None {
     nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
 }
 
-impl DocIRGenPass.exit_client_block(nd: uni.ClientBlock) -> None {
-    self._emit_keyword_block(nd, Tok.KW_CLIENT);
-}
-
-impl DocIRGenPass.exit_server_block(nd: uni.ServerBlock) -> None {
-    self._emit_keyword_block(nd, Tok.KW_SERVER);
-}
-
-impl DocIRGenPass.exit_native_block(nd: uni.NativeBlock) -> None {
-    self._emit_keyword_block(nd, Tok.KW_NATIVE);
-}
-
 impl DocIRGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
     prefix_parts: list[doc.DocType] = [];
     assignment_parts: list[doc.DocType] = [];
