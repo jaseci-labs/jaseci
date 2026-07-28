@@ -102,9 +102,11 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         }
         local_idx += 1;
     }
+
     # Construct the input information from the arguments.
     inputs_detail: list[str] = [];
     media_inputs: list = [];  # Can be list[Media] or list[tuple[Media, str]] depending on mode
+
     if has_mtir {
         # MTIR mode: use compile-time extracted param info with semantic strings
         params = [param for param in ir_info.params];
@@ -131,9 +133,6 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
                 continue;
             }
             inputs_detail.append(f"{pname} = {(value, psem)}");
-            # For enum/obj inputs, append the full type definition (type-level
-            # sem + per-member/field sems) so the model gets the same semantic
-            # detail the OUTPUT schema carries. Primitives yield "".
             desc = _describe_input_type(value);
             if desc {
                 inputs_detail.append(desc);

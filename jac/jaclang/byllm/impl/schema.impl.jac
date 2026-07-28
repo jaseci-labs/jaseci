@@ -292,7 +292,6 @@ impl _type_to_schema(
             "properties": params,
             "required": list(params.keys()),
             "additionalProperties": False,
-
         };
     }
     raise ConfigurationError(
