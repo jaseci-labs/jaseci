@@ -534,6 +534,17 @@ Emitted by `CapabilityCheckPass` when code uses JS-specific surface instead of J
 
 A `def:pub` function in a server-placed module is an HTTP endpoint whose arguments serialize over the wire, so a function-typed argument cannot cross it. Shared client-side logic should drop `:pub` so it is placed in the browser with its callers.
 
+### Placement Boundary
+
+| Code | Message |
+|------|---------|
+| `W6006` | Mutable glob '{name}' is emitted into both the server and the client -- each side gets an independent copy (state fork) |
+| `W6007` | Client code uses server-placed function '{name}' as a value -- function values cannot cross the placement boundary |
+
+`W6006`: dual emission duplicates *state*, not just code -- server writes and client writes land in different copies of the glob. Home the glob with its writers by marking it (or its module) `sv` or `cl`, or bridge reads through a `def:pub` accessor.
+
+`W6007`: the value-flow generalization of `W6005`. A function reference that flows into client-side data (stored in a container, returned, or passed along as an argument) needs client presence; only *calls* to `def:pub` endpoints bridge over RPC. Drop `:pub` so the function is pulled client-side, or restructure so the client stores data instead of the function. See [Placement](placement.md) for the full model.
+
 ---
 
 ## Internal Compiler Errors (E9xxx)

@@ -177,36 +177,52 @@ downstream passes use to dispatch to the correct backend.
 
 ### Codespace inference (markerless modules)
 
-Plain `.jac` files with no explicit markers get their client placement
-**inferred** in two stages:
+Plain `.jac` files with no explicit markers get their placement decided by
+the **whole-program placement solver**
+([`jac0core/placement_solver.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/placement_solver.jac)),
+which consumes **placement summaries**
+([`jac0core/placement.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/placement.jac)):
+per top-level element, its capability evidence (JSX, browser globals,
+string-path imports, clib externs, `root` access, `pub` access, python
+imports), its references to sibling elements, and its value-flow escapes.
+Summaries are serialized into the module's `.jir` as a `SEC_PLACEMENT`
+section and memoized on the program keyed by resolved path.
 
-1. **Seeding** (`compiler.jac:_seed_module_codespace`, invoked from
-   `parse_str` right where extension coercion runs): any top-level element
-   whose subtree contains structurally single-codespace syntax is stamped --
-   a `JsxElement` or string-path (npm/asset) import seeds
-   `CodeContext.CLIENT`; an extern-decl import (`Import.has_clib_decls`,
-   C-ABI function declarations in the braces) seeds `CodeContext.NATIVE`
-   and takes precedence over the string-path check. Seeds run at parse time
-   because the stamps gate schedule selection itself (`declares_codespace`
-   decides which pipelines a module gets).
-2. **Propagation** (`CodespacePullPass` in
-   [`jac0core/passes/codespace_pull_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/passes/codespace_pull_pass.jac),
-   scheduled in both `get_symtab_ir_sched` and `get_ir_gen_sched`): once
-   symbol tables exist, inferred placement flows across resolved symbol
-   references between top-level elements to a fixpoint, in two colors
-   (CLIENT and NATIVE). A hard phase runs first: an element that *uses*
-   names declared by a seed (npm items, extern decls) cannot run anywhere
-   else and takes that color unconditionally. The soft phase then pulls
-   referenced-by dependencies; an element claimed by both colors stays on
-   the server, where both sides can bridge to it. Resolution is
-   scope-aware, so locals shadowing module-level names produce no edge.
-   Only inferred placements propagate -- an explicit marker is an
-   author-drawn boundary, never a propagation source. Client-color pulls
-   skip element kinds the ES backend already bridges: top-level archetypes
-   (auto-shared into the bundle), access-tagged abilities and globals
-   (auto-RPC endpoints), and type aliases (erased in JS output). The
-   native color has no such bridges, so it pulls archetypes and tagged
-   declarations too.
+The solver owns every placement decision, in three cooperating stages:
+
+1. **Module-granular native verdict** (parse time, from `parse_str`): when
+   the effective default codespace is `native`, the summary's blocker scan
+   plus a memoized walk of the import closure decides whether the whole
+   module lowers native (`_coerce_native_module`) or stays server, feeding
+   the same census and demotion memo as before. This stage runs at parse
+   time because whole-module coercion rewrites the module body and must
+   precede symbol tables.
+2. **Per-module seeding and fixpoint** (`PlacementApplyPass`, scheduled in
+   both `get_symtab_ir_sched` and `get_ir_gen_sched`): seeds are read off
+   the summary (JSX and string-path imports stamp CLIENT, clib externs
+   stamp NATIVE, browser-global references stamp CLIENT in unanchored
+   modules), then placement flows across resolved symbol references to a
+   fixpoint in two colors. A hard phase pulls transitive dependents of
+   seeds unconditionally; the soft phase pulls dependencies gated by
+   pullability (archetypes, endpoint-tagged abilities in anchored modules,
+   and non-portable python imports stay server, where both sides bridge to
+   them). An element claimed by both colors stays on the server. Explicit
+   markers never propagate and are never overridden.
+3. **Program stage** (in `_compile_once`, after the ir schedule and before
+   type checking / codegen): client-context plain imports pull their
+   pullable target closures dual (`codespace_dual`) across module
+   boundaries to a program-wide fixpoint, materializing missing `.jac`
+   targets symtab-only and stamping every instance of a target the program
+   holds. Because this runs before codegen, `jac check` sees the same
+   cross-module placements as `jac build`; stale ES output is invalidated
+   when stamps change.
+
+Every stamp records an evidence note (`jac check --placements` prints the
+chains), and a `jac.placements.lock` snapshot, when present, is diffed on
+every solve so placement flips are reported. Lowering failures demote:
+inferred-native modules recompile server-side, and client-pulled (dual)
+elements that fail ES generation are un-stamped back to the server with a
+note, their call sites bridging instead.
 
 On the Python backend, inferred-native declarations in mixed/markerless
 modules are pruned from the server projection (mirroring the client
@@ -246,7 +262,7 @@ These passes run regardless of codespace and are collected by
 | `CFGBuildPass` | [`compiler/passes/main/cfg_build_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/cfg_build_pass.jac) | Builds control-flow graphs |
 | `MTIRGenPass` | [`compiler/passes/main/mtir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/mtir_gen_pass.jac) | Generates Meaning-Typed IR for `by llm` calls |
 | `CapabilityCheckPass` | [`compiler/passes/main/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/capability_check_pass.jac) | Stamps capability/portability facts (native auto-promotion eligibility) on module nodes |
-| `CodespacePullPass` | [`jac0core/passes/codespace_pull_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/passes/codespace_pull_pass.jac) | Propagates inferred CLIENT and NATIVE placement through scope-aware symbol references (see Stage 2) |
+| `PlacementApplyPass` | [`jac0core/placement_solver.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/placement_solver.jac) | Applies the placement solver's per-module stage: summary-driven seeding plus the CLIENT/NATIVE reference fixpoint (see Stage 2) |
 | `TypeCheckPass` | [`compiler/passes/main/type_checker_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/type_checker_pass.jac) | Static type checking against the type registry |
 | `PortabilityWarnPass` | [`compiler/passes/main/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/capability_check_pass.jac) | Emits portability warnings (W6001-W6004) for JS-idiom violations; diagnostic-only, runs in the check-extras schedule |
 

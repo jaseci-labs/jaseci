@@ -287,8 +287,8 @@ def resolve_native_module(
             }
         }
         if cand_plain is not None and rel_name is not None {
-            import from jaclang.jac0core.compiler { _native_default_path_ok }
-            if _native_default_path_ok(cand_plain) {
+            import from jaclang.jac0core.placement_solver { native_default_path_ok }
+            if native_default_path_ok(cand_plain) {
                 return (rel_name, cand_plain);
             }
         }

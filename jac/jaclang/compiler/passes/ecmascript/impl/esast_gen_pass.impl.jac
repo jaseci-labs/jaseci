@@ -954,40 +954,6 @@ impl EsastGenPass._resolve_source_module(nd: uni.Import) -> (uni.Module | None) 
     return resolve_import_source_module(self.prog, nd);
 }
 
-impl EsastGenPass._pull_plain_jac_import_client(
-    nd: uni.Import, resolved_path: str
-) -> None {
-    import from jaclang.jac0core.ext_registry { codespace_of }
-    import from jaclang.jac0core.passes.codespace_pull_pass { pull_import_items_client }
-    import from jaclang.compiler.symbol_utils { symbol_linked_source_module }
-
-    if (
-        nd.is_sv_marked
-        or nd.is_virtual_jac
-        or nd.code_context != CodeContext.CLIENT
-        or not resolved_path.endswith('.jac')
-        or codespace_of(resolved_path) is not None
-    ) {
-        return;
-    }
-    targets: list[uni.Module] = [];
-    for candidate in (
-        self._resolve_source_module(nd),
-        symbol_linked_source_module(nd)
-    ) {
-        if (
-            candidate is not None
-            and candidate is not self.ir_in
-            and not any(candidate is t for t in targets)
-        ) {
-            targets.append(candidate);
-        }
-    }
-    for target in targets {
-        pull_import_items_client(list(nd.items), target, self.prog);
-    }
-}
-
 impl EsastGenPass._record_sv_backend(nd: uni.Import) -> None {
     import from pathlib { Path }
     if not nd.from_loc {
@@ -4734,8 +4700,6 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
     emit_items: list = list(nd.items);
     if (nd.from_loc and nd.items) {
         resolved_path = nd.from_loc.resolve_relative_path();
-
-        self._pull_plain_jac_import_client(nd, resolved_path);
         partition = self._partition_client_import_items(nd);
         if partition is not None {
             (emit_items, bridged_items) = partition;
