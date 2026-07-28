@@ -1,6 +1,23 @@
 import from jaclang.jac0core.diagnostics { E1401, E1402, E1403, E1404, E1405, E1406 }
 
-glob _NOGC_SCALARS: tuple = ("int", "float", "bool", "None", "NoneType", "type");
+glob _NOGC_SCALARS: tuple = (
+         "int",
+         "float",
+         "bool",
+         "None",
+         "NoneType",
+         "type",
+         "i8",
+         "i16",
+         "i32",
+         "i64",
+         "u8",
+         "u16",
+         "u32",
+         "u64",
+         "f32",
+         "f64"
+     );
 
 def _nogc_name_candidates(mod_name: str) -> list[str] {
     _cands = [mod_name];
@@ -19,6 +36,15 @@ glob _NOGC_ALIASING_BUILTINS: dict[str, str] = {
      };
 
 impl OwnershipCheckPass._nogc_resolve_provenance -> (str | None) {
+    _mp = str(self.ir_in.loc.mod_path or "") if self.ir_in?.loc else "";
+    if _mp {
+        import os as _os;
+        import jaclang as _jl;
+        _pkg = str(_os.path.dirname(_os.path.abspath(str(_jl.__file__))));
+        if str(_os.path.abspath(_mp)).startswith(_pkg + _os.sep) {
+            return None;
+        }
+    }
     opts = self.prog?._compile_options;
     if opts is not None and getattr(opts, "nogc_enforce_all", False) {
         return "enforced by --enforce-nogc";
@@ -151,6 +177,11 @@ impl OwnershipCheckPass._nogc_infer_locals -> None {
             self.owned_decl[_sid] = _tgt;
             continue;
         }
+        if self._nogc_str_slice_value(nd.value) {
+            _tgt.sym.ownership = OwnershipKind.OWN;
+            self.owned_decl[_sid] = _tgt;
+            continue;
+        }
         if isinstance(nd.value, uni.Name)
         and nd.value.sym is not None
         and nd.value.sym.ownership == OwnershipKind.OWN {
@@ -158,6 +189,22 @@ impl OwnershipCheckPass._nogc_infer_locals -> None {
             self.owned_decl[_sid] = _tgt;
         }
     }
+}
+
+impl OwnershipCheckPass._nogc_str_slice_value(expr: uni.Expr | None) -> bool {
+    if not isinstance(expr, uni.AtomTrailer) {
+        return False;
+    }
+    if not isinstance(expr.right, uni.IndexSlice) {
+        return False;
+    }
+    _m = "";
+    try {
+        _m = expr.type.mangle() if expr.type is not None else "";
+    } except Exception {
+        return False;
+    }
+    return _m == "str";
 }
 
 impl OwnershipCheckPass._nogc_local_shape_expr_heap(expr: uni.Expr | None) -> bool {
@@ -292,6 +339,15 @@ impl OwnershipCheckPass._nogc_module_enforced(mod_name: str) -> bool {
 }
 
 impl OwnershipCheckPass._nogc_check_call(call: uni.FuncCall, prov: str) -> None {
+    _stdlib_root = _stdlib_attr_call_root(call);
+    if _stdlib_root is not None and _stdlib_root in _NONRETAINING_STDLIB_MODULES {
+        return;
+    }
+    if isinstance(call.target, uni.AtomTrailer)
+    and isinstance(call.target.right, uni.Name)
+    and call.target.right.value in _NONRETAINING_METHOD_CALLS {
+        return;
+    }
     _callee_root: (uni.Name | None) = None;
     if isinstance(call.target, uni.Name) {
         _callee_root = call.target;
@@ -497,6 +553,9 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
         if not (isinstance(_nm, uni.Name) and _nm.sym) {
             continue;
         }
+        if param.find_parent_of_type(uni.Import) is not None {
+            continue;
+        }
         if _nm.sym_name in ("self", "here", "visitor", "props") {
             continue;
         }
@@ -526,7 +585,8 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
         and _tgt.sym is not None
         and _tgt.sym.ownership == OwnershipKind.NONE
         and _tgt.sym.storage != SymbolStorage.MODULE_GLOBAL
-        and _tgt.find_parent_of_type(uni.GlobalVars) is None {
+        and _tgt.find_parent_of_type(uni.GlobalVars) is None
+        and _tgt.find_parent_of_type(uni.Enum) is None {
             _shape = self._nogc_local_shape(_tgt);
             if _shape == "heap" {
                 self.emit(

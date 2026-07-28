@@ -195,7 +195,8 @@ obj AstAccessNode(UniNode) {
 }
 
 obj ContextAwareNode(UniNode) {
-    has code_context: CodeContext postinit;
+    has code_context: CodeContext postinit,
+        codespace_dual: bool = False;
 
     def postinit -> None;
     def _source_context_token -> (Token | None);
@@ -484,6 +485,7 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     has has_clib_decls: bool { getter; }
     has is_sv_marked: bool { getter; }
     has is_cl_marked: bool { getter; }
+    has is_na_marked: bool { getter; }
     has is_virtual_jac: bool { getter; }
     has ecosystem: str { getter; }
 }

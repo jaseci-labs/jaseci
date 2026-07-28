@@ -160,3 +160,80 @@ impl print_native_census(census: dict) -> None {
         }
     }
 }
+
+impl print_placement_report(rows_by_module: dict) -> None {
+    import from jaclang.cli.console { console }
+    console.print("");
+    console.print(separator("placements"));
+    if not rows_by_module {
+        console.print("no modules compiled");
+        return;
+    }
+    counts: dict[str, int] = {};
+    for entry in rows_by_module.values() {
+        for row in entry['rows'] {
+            key = 'dual' if row['dual'] else row['space'];
+            counts[key] = counts.get(key, 0) + 1;
+        }
+    }
+    total_crossings = 0;
+    for entry in rows_by_module.values() {
+        total_crossings += entry.get('crossings', 0);
+    }
+    console.print(
+        ", ".join(
+            f"{counts.get(k, 0)} {k}" for k in ('server', 'client', 'native', 'dual')
+        )
+    );
+    console.print(
+        f"estimated boundary crossings: {total_crossings} "
+        f"(client import items bridged over RPC)"
+    );
+    for path in sorted(rows_by_module.keys()) {
+        entry = rows_by_module[path];
+        decided = entry['decided'];
+        rel = _census_relpath(path);
+        suffix = '';
+        if decided {
+            suffix = f"  [decided {decided}]";
+        }
+        console.print("");
+        console.print(rel + suffix);
+        for row in entry['rows'] {
+            row_space = row['space'];
+            if row['dual'] {
+                row_space = row_space + ' (dual)';
+            }
+            nm = row['name'];
+            knd = row['kind'];
+            label = f"{nm} ({knd})";
+            console.print("  " + label.ljust(44) + " " + row_space);
+            for note in row['evidence'] {
+                console.print("      - " + note);
+            }
+        }
+    }
+    import from jaclang.jac0core.placement {
+        diff_rows_vs_lock,
+        load_placement_lock,
+        placement_lock_file_for
+    }
+    import os;
+    first_path = sorted(rows_by_module.keys())[0];
+    lock_path = placement_lock_file_for(first_path);
+    locked = load_placement_lock(lock_path);
+    if locked is not None {
+        flips = diff_rows_vs_lock(
+            rows_by_module, locked, os.path.dirname(os.path.abspath(lock_path))
+        );
+        console.print("");
+        if flips {
+            console.print(f"placement flips vs {lock_path}:");
+            for flip in flips {
+                console.print("  " + flip);
+            }
+        } else {
+            console.print(f"placements stable vs {lock_path}");
+        }
+    }
+}

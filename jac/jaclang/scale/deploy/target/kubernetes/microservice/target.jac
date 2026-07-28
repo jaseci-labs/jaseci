@@ -562,7 +562,14 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             );
         }
         monitoring = MonitoringDeployer(obs_config, self.logger);
-        monitoring.deploy(app_name, obs_config.namespace, apps_v1, core_v1, provider);
+        monitoring.deploy(
+            app_name,
+            obs_config.namespace,
+            apps_v1,
+            core_v1,
+            provider,
+            scrape_target_service="gateway-service"
+        );
     }
 
     def _ensure_privileged_namespace(core_v1: any, namespace: str) -> None {
@@ -700,6 +707,63 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         }
     }
 
+    def _resolve_service_triggers(svc_name: str, cfg: dict[str, any]) -> list[Trigger] {
+        is_gateway = svc_name == GATEWAY_NAME;
+        has_memory_request = bool(cfg.get("has_memory_request", True));
+        effective_extra = self.k8s_config.extra_triggers if is_gateway else [];
+        triggers: list[Trigger] = [];
+        if not cfg.get("triggers", []) and not effective_extra {
+            triggers = [
+                Trigger(
+                    type="cpu",
+                    metadata={
+                        "averageUtilization": str(
+                            cfg.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)
+                        )
+                    }
+                )
+            ];
+            if has_memory_request {
+                triggers.append(
+                    Trigger(
+                        type="memory",
+                        metadata={
+                            "averageUtilization": str(
+                                cfg.get(
+                                    "memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET
+                                )
+                            )
+                        }
+                    )
+                );
+            }
+        }
+        for raw in cfg.get("triggers", []) + effective_extra {
+            t = Trigger(
+                type=str(raw.get("type", "")),
+                metadata=dict(raw.get("metadata", {})),
+                name=raw.get("name")
+            );
+            if t.type == "memory" and not has_memory_request {
+                if self.logger {
+                    self.logger.warn(
+                        f"Skipping 'memory' trigger for '{svc_name}': "
+                        "memory_request resolves empty (explicitly set to "
+                        "\"\"); HPA cannot compute memory utilization "
+                        "without a request baseline"
+                    );
+                }
+                continue;
+            }
+            raw_auth = raw.get("auth");
+            if raw_auth {
+                t.auth = TriggerAuth(secret_refs=dict(raw_auth.get("secret_refs", {})));
+            }
+            triggers.append(t);
+        }
+        return triggers;
+    }
+
     def apply_manifests(bundle: dict[str, any]) {
         self._load_kube_config();
         apps_v1 = client.AppsV1Api();
@@ -808,60 +872,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
                 self.k8s_config.to_dict(),
                 self.logger
             );
-            triggers = [];
-
-            is_gateway = svc_name == GATEWAY_NAME;
-            effective_extra = self.k8s_config.extra_triggers if is_gateway else [];
-            if not cfg.get("triggers", []) and not effective_extra {
-                triggers = [
-                    Trigger(
-                        type="cpu",
-                        metadata={
-                            "averageUtilization": str(
-                                cfg.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)
-                            )
-                        }
-                    ),
-                    Trigger(
-                        type="memory",
-                        metadata={
-                            "averageUtilization": str(
-                                cfg.get(
-                                    "memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET
-                                )
-                            )
-                        }
-                    )
-                ];
-            }
-            for raw in cfg.get("triggers", []) {
-                t = Trigger(
-                    type=str(raw.get("type", "")),
-                    metadata=dict(raw.get("metadata", {})),
-                    name=raw.get("name")
-                );
-                raw_auth = raw.get("auth");
-                if raw_auth {
-                    t.auth = TriggerAuth(
-                        secret_refs=dict(raw_auth.get("secret_refs", {}))
-                    );
-                }
-                triggers.append(t);
-            }
-            for raw in effective_extra {
-                t = Trigger(
-                    type=str(raw.get("type", "")),
-                    metadata=dict(raw.get("metadata", {})),
-                    name=raw.get("name")
-                );
-                raw_auth = raw.get("auth");
-                if raw_auth {
-                    t.auth = TriggerAuth(
-                        secret_refs=dict(raw_auth.get("secret_refs", {}))
-                    );
-                }
-                triggers.append(t);
-            }
+            triggers = self._resolve_service_triggers(svc_name, cfg);
             autoscaler_name = autoscaler.resource_name_for(k8s_name);
             autoscaler_applied = autoscaler.apply(
                 AutoscalerSpec(

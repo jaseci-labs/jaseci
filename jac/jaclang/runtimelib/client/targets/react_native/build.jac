@@ -8,11 +8,12 @@ import from jaclang.cli.console { console }
 import from jaclang.runtimelib.client.targets.build_common { artifact_mtime }
 import from jaclang.runtimelib.client.targets.react_native.common {
     SUBPROCESS_TIMEOUT_BUILD,
-    resolve_node_runner
+    resolve_node_tool
 }
 import from jaclang.runtimelib.client.targets.react_native.html_tag_map {
     supported_rn_html_tags
 }
+import from jaclang.runtimelib.client.jac_client_compiler { JacClientCompiler }
 
 glob _RUNTIME_JS_FILES = {"client_runtime.js", "pwa_runtime.js"},
      _WEB_ONLY_GLOBALS = ["window", "document", "localStorage"],
@@ -111,6 +112,30 @@ def write_native_entry(rn_dir: Path) {
     write_api_base_shim(rn_dir);
     console.print("  ✔ Wrote native entry (index.ts)", style="success");
 }
+
+def _strip_module_ext(name: str) -> str {
+    for ext in JacClientCompiler.COMPOUND_EXTENSIONS {
+        if name.endswith(ext) {
+            return name[:-len(ext)];
+        }
+    }
+    if name.endswith(".jac") {
+        return name[:-len(".jac")];
+    }
+    return name;
+}
+
+def entry_module_for(entry_file: Path, project_dir: Path) -> str {
+    try {
+        rel = str(entry_file.resolve().relative_to(project_dir.resolve())).replace(
+            os.sep, "/"
+        );
+        return _strip_module_ext(rel);
+    } except ValueError {
+        return _strip_module_ext(entry_file.name);
+    }
+}
+
 
 def stage_compiled_entry(compiled_dir: Path, rn_dir: Path, entry_module: str) -> Path {
     src = compiled_dir / f"{entry_module}.js";
@@ -285,7 +310,7 @@ def lint_unmapped_tags(
             "Replace with a React Native primitive (View/Text/Pressable/"
             "TextInput/Image/ScrollView) or a .native.cl.jac override. See the "
             "React Native target section of the jac-client reference "
-            "(docs/docs/reference/plugins/jac-client.md).",
+            "(jac/jaclang/cli/docs/reference/plugins/jac-client.md).",
             style="muted"
         );
     }
@@ -467,8 +492,7 @@ def run_expo_prebuild(rn_dir: Path, platform: str = "android") {
             f"Unsupported Expo prebuild platform '{platform}'. Use android or ios."
         );
     }
-    cmd = resolve_node_runner() + [
-        "expo",
+    cmd = resolve_node_tool(rn_dir, "expo") + [
         "prebuild",
         "--platform",
         plat,
@@ -661,8 +685,7 @@ def run_eas_local_build(
     out_dir = rn_dir / "dist";
     out_dir.mkdir(parents=True, exist_ok=True);
     out_file = out_dir / f"{plat}-{mode}-local{ext}";
-    cmd = resolve_node_runner() + [
-        "eas",
+    cmd = resolve_node_tool(rn_dir, "eas") + [
         "build",
         "--platform",
         plat,
@@ -699,8 +722,7 @@ def run_eas_local_build(
 }
 
 def run_eas_update_opt_in(rn_dir: Path, platform: str, branch: str, message: str = "") {
-    cmd = resolve_node_runner() + [
-        "eas",
+    cmd = resolve_node_tool(rn_dir, "eas") + [
         "update",
         "--branch",
         branch,

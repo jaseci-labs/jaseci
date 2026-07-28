@@ -285,7 +285,7 @@ jobs:
               continue
             fi
             missing=()
-            for p in linux-x86_64 linux-aarch64 macos-aarch64; do
+            for p in linux-x86_64 linux-aarch64 macos-aarch64 macos-x86_64; do
               printf '%s\n' "$assets" | grep -qx "jac-${VERSION}-${p}" || missing+=("jac-${VERSION}-${p}")
             done
             [ ${#missing[@]} -eq 0 ] && break
