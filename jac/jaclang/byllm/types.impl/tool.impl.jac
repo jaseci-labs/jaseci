@@ -8,11 +8,21 @@ impl Tool.postinit -> None {
     with suppress(Exception) {
         self.func.__annotations__ = annotations;
     }
-    self.description = Tool.get_func_description(self.func);
-    if self.func?._jac_semstr_inner {
-        self.params_desc = self.func._jac_semstr_inner;  # type: ignore
-    } else {
-        self.params_desc = {name: str(type) for (name, type) in annotations.items()};
+    # A description handed to the constructor is deliberate and more specific
+    # than anything derivable from the function -- only derive when it is
+    # absent. `make_finish_tool` passes both of these, and overwriting them put
+    # the bare name "finish_tool" and a `<class '...'>` repr into the prompt.
+    if not self.description {
+        self.description = Tool.get_func_description(self.func);
+    }
+    if self.params_desc is None {
+        if self.func?._jac_semstr_inner {
+            self.params_desc = self.func._jac_semstr_inner;  # type: ignore
+        } else {
+            self.params_desc = {
+                name: str(type) for (name, type) in annotations.items()
+            };
+        }
     }
     # Pick up serialize/timeout_sec from function attributes if set by the user.
     if self.func?._serialize is not None {
@@ -54,7 +64,7 @@ impl Tool.get_func_description(func: Callable) -> str {
 }
 
 """Create a finish tool that validates and returns the final output."""
-impl Tool.make_finish_tool(resp_type: type) -> Tool {
+impl Tool.make_finish_tool(resp_type: type, resp_info: Info = None) -> Tool {
     def finish_tool(final_output: object) -> object {
         try {
             return TypeAdapter(resp_type).validate_python(final_output);
@@ -66,10 +76,36 @@ impl Tool.make_finish_tool(resp_type: type) -> Tool {
     }
     finish_tool.__annotations__["return"] = resp_type;
     finish_tool.__annotations__["final_output"] = resp_type;
+    # With tools present there is no response_format, so this tool's parameter
+    # IS the output contract. Carrying the return type's MTIR info through as a
+    # FieldInfo -- the shape `_type_to_schema` already unwraps via
+    # `info.type_info.fields` -- keeps every field semstring the schema would
+    # have had without tools. Passing nothing dropped them all.
+    # tool_to_schema stamps params_desc over the parameter's own description,
+    # so fold the return type's semstring in rather than losing it.
+    out_desc = "The final output of the tool calls.";
+    if resp_info is not None and resp_info?.semstr {
+        out_desc += " " + resp_info.semstr;
+    }
+    info = None;
+    if resp_info is not None {
+        info = FunctionInfo(
+            name="finish_tool",
+            semstr="This tool is used to finish the tool calls and return the final output.",
+            params=[
+                FieldInfo(
+                    name="final_output",
+                    semstr="The final output of the tool calls.",
+                    type_info=resp_info
+                )
+            ]
+        );
+    }
     return Tool(
         func=finish_tool,
         description="This tool is used to finish the tool calls and return the final output.",
-        params_desc={"final_output": "The final output of the tool calls.",},
+        params_desc={"final_output": out_desc,},
+        info=info,
     );
 }
 

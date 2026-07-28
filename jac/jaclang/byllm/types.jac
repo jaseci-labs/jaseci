@@ -21,7 +21,7 @@ import from jaclang.byllm._optdeps.pydantic { TypeAdapter }
 import from .schema { tool_to_schema }
 import from jaclang.byllm.exceptions { ByLLMError, FinishToolError }
 
-import from jaclang.jac0core.mtp { Info }
+import from jaclang.jac0core.mtp { FieldInfo, FunctionInfo, Info }
 import from jaclang.byllm.mcp { McpTool }
 
 # The message can be a jaclang defined message or what ever the llm
@@ -72,7 +72,7 @@ obj Tool {
     def __call__(*args: list, **kwargs: dict) -> object;
     def get_name -> str;
     static def get_func_description(func: Callable) -> str;
-    static def make_finish_tool(resp_type: type) -> Tool;
+    static def make_finish_tool(resp_type: type, resp_info: Info = None) -> Tool;
     def is_finish_tool -> bool;
     def get_json_schema -> dict[str, object];
     def parse_arguments(args_json: dict) -> dict;

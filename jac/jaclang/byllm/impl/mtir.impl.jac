@@ -22,6 +22,28 @@ def _describe_input_type(value: object, _depth: int = 0) -> str {
     if _depth > 2 {
         return "";
     }
+    # A list/dict OF objs is still an obj input. Without this a `list[Step]`
+    # parameter reaches the model with no definition at all, while the very
+    # same type is fully described when it appears in the output schema.
+    # Containers are not a semantic level, so `_depth` does not advance.
+    if isinstance(value, (list, tuple, set)) {
+        for item in value {
+            inner = _describe_input_type(item, _depth);
+            if inner {
+                return inner;
+            }
+        }
+        return "";
+    }
+    if isinstance(value, dict) {
+        for item in value.values() {
+            inner = _describe_input_type(item, _depth);
+            if inner {
+                return inner;
+            }
+        }
+        return "";
+    }
     pad = "    " * (_depth + 1);
     if isinstance(value, Enum) {
         ty = type(value);
@@ -47,12 +69,11 @@ def _describe_input_type(value: object, _depth: int = 0) -> str {
             tyname = f.type?.__name__ or str(f.type);
             rows.append(f"{pad}  - {f.name} ({tyname})" + (f": {d}" if d else ""));
             fval = getattr(value, f.name, None);
-            if isinstance(fval, Enum)
-            or (is_dataclass(fval) and not isinstance(fval, type)) {
-                nested = _describe_input_type(fval, _depth + 2);
-                if nested {
-                    rows.append(nested);
-                }
+            # Let the callee decide what is describable -- it now sees through
+            # containers, so a `list[Step]` field expands like a bare one.
+            nested = _describe_input_type(fval, _depth + 2);
+            if nested {
+                rows.append(nested);
             }
         }
         return "\n".join(rows);
@@ -177,13 +198,21 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
     }
     if isinstance(caller, MethodType) {
         if has_mtir {
-            inputs_detail.insert(
-                0,
-                f"self = {(
-                    caller.__self__,
-                    ir_info.parent_class.semstr if ir_info.parent_class else ''
-                )}"
-            );
+            # `or ""` matters: parent_class.semstr is None when the archetype
+            # has neither a sem nor a docstring, and the tuple would then put a
+            # literal `None` in the prompt.
+            self_sem = (
+                ir_info.parent_class.semstr if ir_info.parent_class else ""
+            ) or "";
+            self_rows: list[str] = [f"self = {(caller.__self__, self_sem)}"];
+            # `self` is an input like any other. Skipping it here meant an
+            # archetype's field semstrings never reached the model, even though
+            # every other obj-valued argument gets described.
+            self_desc = _describe_input_type(caller.__self__);
+            if self_desc {
+                self_rows.append(self_desc);
+            }
+            inputs_detail = self_rows + inputs_detail;
         } else {
             inputs_detail.insert(0, f"self = {caller.__self__}");
         }
@@ -268,7 +297,13 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         );
     }
     if len(tools) > 0 {
-        finish_tool = Tool.make_finish_tool(return_type or str);
+        # With tools present get_output_schema() returns None, so finish_tool's
+        # parameter is the whole output contract -- it needs the return type's
+        # MTIR info or every field semstring is dropped from it.
+        finish_tool = Tool.make_finish_tool(
+            return_type or str,
+            ir_info.return_type if has_mtir else None
+        );
         tools.append(finish_tool);
     }
     mt_run = MTRuntime(

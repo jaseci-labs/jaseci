@@ -196,7 +196,8 @@ impl MTIRGenPass._extract_enum_info(symbol: uni.Symbol) -> EnumInfo {
     }
     return EnumInfo(
         name=enum_node.name.value,
-        semstr=symbol.semstr or enum_node.doc.lit_value if enum_node.doc else None,
+        semstr=symbol.semstr
+            or (enum_node.doc.lit_value if enum_node.doc else None),
         members=members
     );
 }
@@ -217,7 +218,8 @@ impl MTIRGenPass._extract_class_info(symbol: uni.Symbol) -> ClassInfo | None {
     class_name = arch_node.name.value;
     placeholder = ClassInfo(
         name=class_name,
-        semstr=symbol.semstr or arch_node.doc.lit_value if arch_node.doc else None,
+        semstr=symbol.semstr
+            or (arch_node.doc.lit_value if arch_node.doc else None),
         fields=[],
         base_classes=[],
         methods=[]
@@ -249,7 +251,12 @@ impl MTIRGenPass._extract_class_info(symbol: uni.Symbol) -> ClassInfo | None {
         type_annotation = var.type_tag.tag if var.type_tag else None;
         parsed_type = self._parse_type_expr(type_annotation, arch_node);
         type_symbol_obj = self._extract_type_symbol(parsed_type, arch_node);
-        semstr_val = type_symbol_obj.semstr if type_symbol_obj else var.sym.semstr;
+        # The field's own `sem Obj.field` wins. The type's sem is only a
+        # fallback -- otherwise annotating a type would silently overwrite
+        # every field declared with it, and the field-level description is
+        # the more specific of the two.
+        semstr_val = (var.sym.semstr if var?.sym else None)
+            or (type_symbol_obj.semstr if type_symbol_obj else None);
         field_info = FieldInfo(
             name=var.name.value, semstr=semstr_val, type_info=parsed_type
         );
@@ -274,11 +281,16 @@ impl MTIRGenPass._extract_function_info(nd: uni.Ability) -> FunctionInfo {
             type_annotation = param.type_tag.tag if param.type_tag else None;
             parsed_type = self._parse_type_expr(type_annotation, nd);
             type_symbol_obj = self._extract_type_symbol(type_annotation, nd);
+            # `sem f.arg` describes THIS argument; the type's sem describes the
+            # type and is already carried on the ClassInfo/EnumInfo, so it is
+            # only a fallback. Reversing these hid every parameter semstring
+            # whose type happened to be an annotated enum or obj.
             semstr_val = None;
-            if type_symbol_obj {
-                semstr_val = type_symbol_obj.semstr;
-            } elif param.name?.sym and param.name.sym {
+            if param.name?.sym and param.name.sym {
                 semstr_val = param.name.sym.semstr;
+            }
+            if not semstr_val and type_symbol_obj {
+                semstr_val = type_symbol_obj.semstr;
             }
 
             param_info = ParamInfo(
@@ -386,8 +398,15 @@ impl MTIRGenPass._extract_tools_from_expr(
         if isinstance(param, uni.KWPair)
         and param?.key
         and param.key.value == 'tools' {
-            if param.value?.values {
-                for tool in param.value.values {
+            # `tools=([a, b])` parses the list inside an AtomUnit, which has no
+            # `.values` -- reading through it blindly yielded no tools at all
+            # for a merely parenthesised list.
+            tools_expr = param.value;
+            while isinstance(tools_expr, uni.AtomUnit) {
+                tools_expr = tools_expr.value;
+            }
+            if tools_expr?.values {
+                for tool in tools_expr.values {
                     try {
                         tool_sym = None;
                         if isinstance(tool, uni.NameAtom) {
