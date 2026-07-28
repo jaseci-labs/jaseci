@@ -299,7 +299,7 @@ def resolve_native_module(
 def native_wasm_stem(path: str) -> str {
     import os;
     stem = os.path.splitext(os.path.basename(path))[0];
-    for marker in ('.na', '.cl', '.sv') {
+    for marker in ('.na', '.cl') {
         if stem.endswith(marker) {
             stem = stem[0:-len(marker)];
         }

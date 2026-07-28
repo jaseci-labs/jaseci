@@ -1,4 +1,4 @@
-"""Variant module tests — verifies that .sv.jac, .cl.jac, .na.jac files (and the
+"""Variant module tests — verifies that .cl.jac / .na.jac variant files (and the
 annexes that belong to them) are discovered and merged into the head module as a
 single unified tree, each statement keeping its own deployment context.
 
@@ -66,11 +66,9 @@ test "variant module complete scenario" {
     # --- 1. Discovery: head finds both variants ---
     variants = discover_variant_files(head_path);
     variant_names = [os.path.basename(v) for v in variants];
-    assert "mymod.sv.jac" in variant_names , f"Missing mymod.sv.jac in {variant_names}";
     assert "mymod.cl.jac" in variant_names , f"Missing mymod.cl.jac in {variant_names}";
 
     # Variant files return empty when higher-precedence head exists
-    assert discover_variant_files(os.path.join(VARIANT_DIR, "mymod.sv.jac")) == [];
     assert discover_variant_files(os.path.join(VARIANT_DIR, "mymod.cl.jac")) == [];
 
     # --- 2. Compile and verify no errors ---
@@ -87,13 +85,7 @@ test "variant module complete scenario" {
         )}"
     );
     origins = _origins(state);
-    for f in (
-        "mymod.sv.jac",
-        "mymod.cl.jac",
-        "mymod.impl.jac",
-        "mymod.sv.impl.jac",
-        "mymod.test.jac"
-    ) {
+    for f in ("mymod.cl.jac", "mymod.impl.jac", "mymod.test.jac") {
         assert f in origins , f"Expected {f} to be spliced into head, got {origins}";
     }
 
@@ -102,11 +94,11 @@ test "variant module complete scenario" {
     assert state.sym_tab.lookup("CircleService") is not None;
     assert state.sym_tab.lookup("Display") is not None;
 
-    # --- 5. Server variant declarations carry SERVER context ---
+    # --- 5. Head (server-default) declarations carry SERVER context ---
     circle_service = _arch(state, "CircleService");
     assert circle_service is not None;
     assert circle_service.code_context == CodeContext.SERVER , (
-        f"Server variant should be SERVER, got {circle_service.code_context}"
+        f"Head declaration should be SERVER, got {circle_service.code_context}"
     );
 
     # --- 6. Client variant declarations carry CLIENT context ---
@@ -138,39 +130,39 @@ test "variant module complete scenario" {
     assert describe is not None , (
         "impl.CircleService.describe should be found from shared impl/ folder"
     );
-    assert describe.loc.mod_path.endswith("mymod.sv.impl.jac");
+    assert describe.loc.mod_path.endswith(os.path.join("impl", "mymod.impl.jac"));
     assert describe.decl_link is not None , (
         "CircleService.describe impl should be connected to its declaration"
     );
 }
 
-test "variant precedence fallback — sv.jac as head when no plain .jac" {
-    sv_path = os.path.join(NO_HEAD_DIR, "svc.sv.jac");
+test "variant merge with a plain head and shared impl folder" {
+    head_path = os.path.join(NO_HEAD_DIR, "svc.jac");
     cl_path = os.path.join(NO_HEAD_DIR, "svc.cl.jac");
 
-    # --- 1. sv.jac discovers cl.jac as variant ---
-    variants = discover_variant_files(sv_path);
+    # --- 1. head discovers cl.jac as variant ---
+    variants = discover_variant_files(head_path);
     assert len(variants) == 1;
     assert variants[0].endswith("svc.cl.jac");
 
-    # cl.jac returns empty (higher-precedence sv.jac exists)
+    # cl.jac returns empty (higher-precedence plain head exists)
     assert discover_variant_files(cl_path) == [];
 
-    # --- 2. Compile sv.jac as head ---
+    # --- 2. Compile the head ---
     prog = JacProgram();
-    state = prog.compile(sv_path);
+    state = prog.compile(head_path);
     assert not prog.errors_had , f"Compilation errors: {[
         e.pretty_print() for e in prog.errors_had
     ]}";
 
     # --- 3. Merged into a single hub entry ---
-    assert list(prog.mod.hub.keys()) == [sv_path];
+    assert list(prog.mod.hub.keys()) == [head_path];
     origins = _origins(state);
-    for f in ("svc.cl.jac", "svc.sv.impl.jac", "svc.cl.impl.jac") {
+    for f in ("svc.cl.jac", "svc.impl.jac", "svc.cl.impl.jac") {
         assert f in origins , f"Expected {f} merged into head, got {origins}";
     }
 
-    # --- 4. Head (sv) decls are SERVER, client variant decls are CLIENT ---
+    # --- 4. Head decls are SERVER, client variant decls are CLIENT ---
     handler = _arch(state, "Handler");
     assert handler is not None and handler.code_context == CodeContext.SERVER;
     widget = _arch(state, "Widget");
@@ -181,7 +173,7 @@ test "variant precedence fallback — sv.jac as head when no plain .jac" {
     assert tag is not None and tag.decl_link is not None , (
         "impl.Handler.tag should match from shared impl/ folder"
     );
-    assert tag.loc.mod_path.endswith("svc.sv.impl.jac");
+    assert tag.loc.mod_path.endswith(os.path.join("impl", "svc.impl.jac"));
 
     render = _impl(state, "impl.Widget.render");
     assert render is not None and render.decl_link is not None , (

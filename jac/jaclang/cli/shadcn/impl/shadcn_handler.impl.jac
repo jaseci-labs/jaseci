@@ -236,7 +236,7 @@ impl _resolve_one(
 impl _module_of(project_root: Path, path: Path) -> str {
     rel = path.relative_to(project_root);
     name = rel.name;
-    for suf in [".cl.jac", ".sv.jac", ".na.jac", ".jac"] {
+    for suf in [".cl.jac", ".na.jac", ".jac"] {
         if name.endswith(suf) {
             name = name[:-len(suf)];
             break;

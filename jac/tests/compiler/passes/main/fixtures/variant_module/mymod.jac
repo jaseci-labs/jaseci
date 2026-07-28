@@ -9,3 +9,8 @@ with entry {
     c = Circle(radius=5.0);
     print(c.area());
 }
+
+obj CircleService {
+    has name: str;
+    def describe -> str;
+}

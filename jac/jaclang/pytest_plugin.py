@@ -367,7 +367,7 @@ class JacFile(pytest.File):
             base_dir = str(Path(filepath).parent)
             # Derive the importable module name via the extension registry's
             # canonical longest-suffix matcher: a compound codespace suffix
-            # (``foo.na.jac`` / ``foo.sv.jac``) imports as module ``foo``, so a
+            # (``foo.na.jac`` / ``foo.cl.jac``) imports as module ``foo``, so a
             # bare ``Path.stem`` would leave the ``.na`` component and the
             # importer would read it as a package path and fail to resolve the
             # file (issue #7150).

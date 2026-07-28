@@ -1,4 +1,4 @@
-"""Server variant acting as head (no plain .jac exists)."""
+"""Plain head module; svc.cl.jac provides the client variant."""
 
 obj Handler {
     has label: str;

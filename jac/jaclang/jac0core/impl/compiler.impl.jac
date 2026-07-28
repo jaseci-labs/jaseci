@@ -692,8 +692,6 @@ impl JacCompiler.parse_str(
         codespace = codespace_of(file_path);
         if (codespace == 'client') {
             _coerce_client_module(mod);
-        } elif (codespace == 'server') {
-            _coerce_server_module(mod);
         } elif (codespace == 'native') {
             _coerce_native_module(mod);
         } else {

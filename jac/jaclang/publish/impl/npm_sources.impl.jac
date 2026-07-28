@@ -169,7 +169,7 @@ impl collect_npm_sources(
                 continue;
             }
 
-            if codespace_of(src.name) in ('server', 'native') {
+            if codespace_of(src.name) == 'native' {
                 continue;
             }
             rel = str(src.relative_to(proj_root)).replace("\\", "/");

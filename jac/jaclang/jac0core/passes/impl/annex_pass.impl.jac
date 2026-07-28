@@ -38,7 +38,6 @@ impl JacAnnexPass._merge_annex(
     import from jaclang.jac0core.helpers { read_file_with_encoding }
     import from jaclang.jac0core.compiler {
         _coerce_client_module,
-        _coerce_server_module,
         _coerce_native_module
     }
     if path in seen {
@@ -53,8 +52,6 @@ impl JacAnnexPass._merge_annex(
     ctx_codespace = codespace_of(ctx_path);
     if (ctx_codespace == 'client') {
         _coerce_client_module(annex_mod);
-    } elif (ctx_codespace == 'server') {
-        _coerce_server_module(annex_mod);
     } elif (ctx_codespace == 'native') {
         _coerce_native_module(annex_mod);
     }

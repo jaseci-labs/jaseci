@@ -576,7 +576,7 @@ def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[s
                 continue;
             }
             if path is not None
-            and (path.endswith('.cl.jac') or path.endswith('.sv.jac')) {
+            and path.endswith('.cl.jac') {
                 return ("cl/sv module import", deps);
             }
             if path is not None and path.endswith('.jac') {

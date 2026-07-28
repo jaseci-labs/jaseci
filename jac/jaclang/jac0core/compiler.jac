@@ -313,10 +313,6 @@ def _coerce_client_module(module: uni.Module) {
     _coerce_module(module, context=CodeContext.CLIENT);
 }
 
-def _coerce_server_module(module: uni.Module) {
-    _coerce_module(module, context=CodeContext.SERVER);
-}
-
 def _coerce_native_module(module: uni.Module) {
     _coerce_module(module, context=CodeContext.NATIVE);
 }

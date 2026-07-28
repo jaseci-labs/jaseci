@@ -24,7 +24,6 @@ import os
 # Canonical suffix constants
 # ---------------------------------------------------------------------------
 JAC_SUFFIX = ".jac"
-SERVER_SUFFIX = ".sv.jac"
 CLIENT_SUFFIX = ".cl.jac"
 NATIVE_SUFFIX = ".na.jac"
 IMPL_SUFFIX = ".impl.jac"
@@ -37,24 +36,23 @@ NATIVE = "native"
 
 # Codespace variant suffixes, in canonical longest-precedence order. Mirrors
 # the former ``bccache._VARIANT_SUFFIXES``.
-VARIANT_SUFFIXES = (SERVER_SUFFIX, CLIENT_SUFFIX, NATIVE_SUFFIX)
-# Post-``.jac``-strip stem forms of the variants (".sv", ".cl", ".na").
-VARIANT_STEM_SUFFIXES = (".sv", ".cl", ".na")
+VARIANT_SUFFIXES = (CLIENT_SUFFIX, NATIVE_SUFFIX)
+# Post-``.jac``-strip stem forms of the variants (".cl", ".na").
+VARIANT_STEM_SUFFIXES = (".cl", ".na")
 # Annex suffixes and the per-module folder each annex groups under.
 ANNEX_SUFFIXES = (IMPL_SUFFIX, TEST_SUFFIX)
 ANNEX_FOLDER = {IMPL_SUFFIX: ".impl", TEST_SUFFIX: ".test"}
 # Folder-name suffixes that mark a module-scoped annex directory (``foo.impl/``).
 
 # Every Jac *module* file shape the importer / finder probe, precedence order.
-MODULE_SUFFIXES = (JAC_SUFFIX, SERVER_SUFFIX, CLIENT_SUFFIX, NATIVE_SUFFIX)
+MODULE_SUFFIXES = (JAC_SUFFIX, CLIENT_SUFFIX, NATIVE_SUFFIX)
 # Package ``__init__`` variants, precedence order.
-INIT_FILES = ("__init__.jac", "__init__.sv.jac", "__init__.cl.jac")
+INIT_FILES = ("__init__.jac", "__init__.cl.jac")
 
 # Variant suffix -> codespace name. Plain ``.jac`` is intentionally absent: it
 # has no *explicit* codespace, so ``codespace_of`` returns None for it and the
 # compiler applies no coercion (matching the historical elif-chain default).
 _VARIANT_CODESPACE = {
-    SERVER_SUFFIX: SERVER,
     CLIENT_SUFFIX: CLIENT,
     NATIVE_SUFFIX: NATIVE,
 }
@@ -62,7 +60,7 @@ _VARIANT_CODESPACE = {
 # Stem suffixes stripped when re-keying MTIR entries in the importer. Native
 # (".na") is intentionally excluded to preserve the historical key shape; see
 # ``meta_importer.exec_module``.
-STEM_REKEY_SUFFIXES = (".impl", ".cl", ".sv")
+STEM_REKEY_SUFFIXES = (".impl", ".cl")
 
 # Language base extensions, longest first, used by ``base_stem`` /
 # ``language_of``.
@@ -194,7 +192,7 @@ def is_server_module(path: str) -> bool:
 
     Server is the default codespace, so this is any ``.jac`` file that is not
     explicitly client (``.cl.jac``), native (``.na.jac``), or an impl annex
-    (``.impl.jac``). Plain ``.jac``, ``.sv.jac`` and ``.test.jac`` all qualify.
+    (``.impl.jac``). Plain ``.jac`` and ``.test.jac`` both qualify.
     """
     return (
         path.endswith(JAC_SUFFIX)
