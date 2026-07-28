@@ -449,21 +449,26 @@ def _meta_signature(cmd: CommandMeta) -> tuple {
 }
 
 def verify_drift -> list[str] {
-    import from jaclang.cli.manifest { _command_routes }
-
     specs = collect();
-    fresh: dict[str, tuple] = {cmd.name: _spec_signature(cmd) for cmd in specs};
+    errors = validate_specs(specs);
+    current = _read_current();
+    expected = _format_generated(generate());
+    if current == expected {
+        return errors;
+    }
 
+    fresh: dict[str, tuple] = {cmd.name: _spec_signature(cmd) for cmd in specs};
     committed: dict[str, tuple] = {};
     try {
+        import from jaclang.cli.manifest { _command_routes }
+
         for cmd in _command_routes() {
             committed[cmd.name] = _meta_signature(cmd);
         }
-    } except Exception as e {
-        return [f"manifest.impl.jac could not be loaded: {e}"];
+    } except Exception {
+        committed = {};
     }
 
-    errors = validate_specs(specs);
     for name in sorted(set(committed) | set(fresh)) {
         if name not in committed {
             errors.append(f"{name}: in registry but missing from manifest");
@@ -495,10 +500,8 @@ def verify_drift -> list[str] {
             );
         }
     }
-    if errors {
-        errors.append(
-            "manifest.impl.jac route table is out of date with the command registry"
-        );
-    }
+    errors.append(
+        "manifest.impl.jac route table is out of date with the command registry"
+    );
     return errors;
 }
