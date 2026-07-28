@@ -62,9 +62,7 @@ test "no client table project gets deps injected without jac toml mutation" {
             assert "@tanstack/react-form" in deps , (
                 "@tanstack/react-form should be present in the effective config"
             );
-            assert "zod" in deps , (
-                "zod should be present in the effective config"
-            );
+            assert "zod" in deps , ("zod should be present in the effective config");
             assert "vite" in dev_deps , (
                 "vite should be present in the effective dev deps"
             );
