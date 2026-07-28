@@ -522,6 +522,7 @@ impl start(
     client: str = "web",
     host: str = "",
     platform: str = "auto",
+    serverless: bool = False,
     scale: bool = False,
     target: str = "kubernetes",
     enable_tls: bool = False,
@@ -531,6 +532,30 @@ impl start(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from pathlib { Path }
     import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
+
+    if serverless {
+        import from jaclang.serverless.config {
+            describe_database_url,
+            force_serverless,
+            resolve_database_url
+        }
+        import from jaclang.cli.console { console as sv_console }
+        app_dir = os.path.dirname(os.path.abspath(filename));
+        db_url = resolve_database_url(app_dir);
+        if not db_url {
+            sv_console.error(
+                "--serverless needs a database URL: set SUPABASE_DB_URL or "
+                "DATABASE_URL, or add database_url under [serverless] in jac.toml",
+                emoji=False
+            );
+            return 1;
+        }
+        force_serverless();
+        sv_console.print(
+            f"Serverless mode: stateless app, state in {describe_database_url(db_url)}",
+            style="cyan"
+        );
+    }
 
     set_effective_default_codespace('server');
 

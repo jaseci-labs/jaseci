@@ -22,12 +22,14 @@ database.
 
 ```bash
 export SUPABASE_DB_URL="postgresql://postgres:PASSWORD@db.PROJECT.supabase.co:5432/postgres"
-jac start main.jac
+jac start main.jac --serverless
 ```
 
 That is all. Kill the process, cold start it anywhere else with the same URL,
 and every user, tweet, and follow is still there. The URL can also be set as
-`DATABASE_URL`, or committed as `[serverless] database_url` in `jac.toml`.
+`DATABASE_URL`, or committed as `[serverless] database_url` in `jac.toml`
+(with a URL configured, serverless mode also engages without the flag; the
+flag makes it explicit and fails fast when no database is configured).
 
 ### Walkers as serverless functions
 

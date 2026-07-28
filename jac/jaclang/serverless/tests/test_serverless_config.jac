@@ -5,7 +5,9 @@ import os;
 import tempfile;
 import from jaclang.serverless.config {
     ENV_URL_KEYS,
+    FORCE_ENV,
     clear_config_cache,
+    describe_database_url,
     normalize_postgres_url,
     resolve_database_url,
     serverless_enabled
@@ -15,7 +17,7 @@ import from jaclang.serverless.functions { parse_event }
 
 def _clear_env -> dict {
     saved: dict = {};
-    for key in ENV_URL_KEYS {
+    for key in ENV_URL_KEYS + [FORCE_ENV] {
         saved[key] = os.environ.pop(key, None);
     }
     clear_config_cache();
@@ -24,7 +26,7 @@ def _clear_env -> dict {
 
 
 def _restore_env(saved: dict) -> None {
-    for key in ENV_URL_KEYS {
+    for key in ENV_URL_KEYS + [FORCE_ENV] {
         os.environ.pop(key, None);
     }
     for (key, val) in saved.items() {
@@ -116,6 +118,33 @@ test "enabled = false wins over an environment url" {
     } finally {
         _restore_env(saved);
     }
+}
+
+
+test "the jac start --serverless force flag overrides enabled = false" {
+    saved = _clear_env();
+    os.environ["DATABASE_URL"] = "postgres://u:p@h/db";
+    os.environ[FORCE_ENV] = "1";
+    clear_config_cache();
+    try {
+        with tempfile.TemporaryDirectory() as tmp {
+            with open(os.path.join(tmp, "jac.toml"), "w") as f {
+                f.write("[serverless]\nenabled = false\n");
+            }
+            clear_config_cache();
+            assert serverless_enabled(tmp);
+        }
+    } finally {
+        _restore_env(saved);
+    }
+}
+
+
+test "database urls are described without credentials" {
+    shown = describe_database_url("postgresql://user:secretpw@db.proj.supabase.co:5432/postgres");
+    assert "secretpw" not in shown;
+    assert "db.proj.supabase.co" in shown;
+    assert "5432" in shown;
 }
 
 

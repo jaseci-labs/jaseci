@@ -223,6 +223,17 @@ def enter(
             short=""
         ),
         Arg.create(
+            "serverless",
+            typ=bool,
+            default=False,
+            help=(
+                "Run in serverless mode: stateless app with graph and users in a "
+                "managed Postgres (e.g. Supabase). Needs SUPABASE_DB_URL / "
+                "DATABASE_URL or [serverless] database_url in jac.toml"
+            ),
+            short=""
+        ),
+        Arg.create(
             "scale",
             typ=bool,
             default=False,
@@ -268,6 +279,10 @@ def enter(
         ("jac start --profile prod", "Start with production profile"),
         ("jac start --client mobile", "Run the mobile client dev server"),
         ("jac start --scale", "Deploy to a platform target instead of serving locally"),
+        (
+            "jac start --serverless",
+            "Serve statelessly with graph and users in Supabase/Postgres"
+        ),
 
     ],
     group="execution"
@@ -283,6 +298,7 @@ def start(
     client: str = "web",
     host: str = "",
     platform: str = "auto",
+    serverless: bool = False,
     scale: bool = False,
     target: str = "kubernetes",
     enable_tls: bool = False,

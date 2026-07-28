@@ -13,6 +13,7 @@ import from pathlib { Path }
 
 glob logger = logging.getLogger(__name__),
      ENV_URL_KEYS = ["SUPABASE_DB_URL", "DATABASE_URL", "SERVERLESS_DATABASE_URL"],
+     FORCE_ENV = "JAC_SERVERLESS",
      _toml_cache: dict[str, dict] = {};
 
 
@@ -70,10 +71,33 @@ def resolve_database_url(base_path: (str | None) = None) -> (str | None) {
 
 
 def serverless_enabled(base_path: (str | None) = None) -> bool {
+    if os.environ.get(FORCE_ENV) == "1" {
+        return resolve_database_url(base_path) is not None;
+    }
     if load_serverless_config(base_path).get("enabled") is False {
         return False;
     }
     return resolve_database_url(base_path) is not None;
+}
+
+
+def force_serverless -> None {
+    # explicit CLI opt-in; inherited by sibling service processes
+    os.environ[FORCE_ENV] = "1";
+}
+
+
+def describe_database_url(url: str) -> str {
+    import from urllib.parse { urlsplit }
+    try {
+        parts = urlsplit(url if "://" in url else f"postgresql://{url}");
+        host = parts.hostname or "?";
+        suffix = f":{parts.port}" if parts.port else "";
+        db_name = (parts.path or "").lstrip("/") or "postgres";
+        return f"{host}{suffix}/{db_name}";
+    } except Exception {
+        return "postgres";
+    }
 }
 
 
