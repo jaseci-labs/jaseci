@@ -337,12 +337,9 @@ obj InteropBinding {
         param_types: list[str] = [],
         param_names: list[str] = [],
         ast_node: any = None,
-        route: list[InteropContext] = [],
         source_module: (str | None) = None,
         kind: str = 'function';
 
-    has is_direct: bool { getter; }
-    has is_composed: bool { getter; }
     has is_cross_module: bool { getter; }
 }
 
@@ -355,15 +352,7 @@ obj InteropManifest {
         native_module_imports: dict[(str, NativeModuleInfo)] = field(
             default_factory=`dict
         ),
-        native_transitive_sources: list[str] = field(default_factory=`list),
-        JAC_TO_CTYPES: dict[(str, str)] = field(
-            default_factory=lambda { return {
-                'int': 'ctypes.c_int64',
-                'float': 'ctypes.c_double',
-                'bool': 'ctypes.c_bool',
-                'str': 'ctypes.c_char_p'
-            }; }
-        );
+        native_transitive_sources: list[str] = field(default_factory=`list);
 
     has native_imports: list[InteropBinding] { getter; }
     has native_exports: list[InteropBinding] { getter; }

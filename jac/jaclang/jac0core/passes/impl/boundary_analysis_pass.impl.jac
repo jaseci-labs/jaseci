@@ -3,10 +3,6 @@ impl BoundaryAnalysisPass.before_pass(self: BoundaryAnalysisPass) -> None {
     self._imported_native_funcs: dict[(str, tuple[(str, InteropContext)])] = {};
 
     self._imported_native_modules: dict[(str, tuple[(str, InteropContext)])] = {};
-
-    self._is_writer: bool = False;
-    self._touches: set[str] = set();
-    self._visited: set[int] = set();
 }
 
 impl BoundaryAnalysisPass._resolved_native_decl(
@@ -21,6 +17,31 @@ impl BoundaryAnalysisPass._resolved_native_decl(
         return decl;
     }
     return None;
+}
+
+impl BoundaryAnalysisPass._signature_of_decl(
+    self: BoundaryAnalysisPass, decl: (uni.Ability | None)
+) -> tuple[(str, list[str], list[str])] {
+    ret_type: str = 'int';
+    param_types: list[str] = [];
+    param_names: list[str] = [];
+    if decl is not None and isinstance(decl.signature, uni.FuncSignature) {
+        sig = decl.signature;
+        for plist in [sig.posonly_params, sig.params or [], sig.kwonlyargs] {
+            for p in plist {
+                param_names.append(p.sym_name);
+                if p.type_tag {
+                    param_types.append(self._extract_type_name(p.type_tag.tag));
+                } else {
+                    param_types.append('int');
+                }
+            }
+        }
+        if sig.return_type {
+            ret_type = self._extract_type_name(sig.return_type);
+        }
+    }
+    return (ret_type, param_types, param_names);
 }
 
 impl BoundaryAnalysisPass._get_context(
@@ -196,15 +217,16 @@ impl BoundaryAnalysisPass._register_native_absorb(
         or native_path;
         self._imported_native_funcs[name] = (src, import_context);
         if (is_native_ctx and name not in manifest.bindings) {
+            decl = self._resolved_native_decl(defn0);
+            (ret_type, param_types, param_names) = self._signature_of_decl(decl);
             manifest.bindings[name] = InteropBinding(
                 name=name,
                 source_context=InteropContext.NATIVE,
                 callers={InteropContext.NATIVE},
-                ret_type='int',
-                param_types=[],
-                param_names=[],
-                ast_node=self._resolved_native_decl(defn0),
-                route=[InteropContext.NATIVE, InteropContext.NATIVE],
+                ret_type=ret_type,
+                param_types=param_types,
+                param_names=param_names,
+                ast_node=decl,
                 source_module=src
             );
         }
@@ -240,6 +262,8 @@ impl BoundaryAnalysisPass.enter_import(
                 import from jaclang.jac0core.compiler { is_client_native_edge_import }
                 if nd.is_na_marked or is_client_native_edge_import(nd, self.prog) {
                     self._register_na_client_import(nd);
+                } else {
+                    self._register_client_bridged_import(nd);
                 }
             }
             if (native_path and nd.items and not nd.is_na_marked) {
@@ -264,15 +288,15 @@ impl BoundaryAnalysisPass.enter_import(
                         );
                         if (is_native_ctx and func_name not in manifest.bindings) {
                             _decl = self._resolved_native_decl(item.name);
+                            (_rt, _pts, _pns) = self._signature_of_decl(_decl);
                             binding = InteropBinding(
                                 name=func_name,
                                 source_context=InteropContext.NATIVE,
                                 callers={InteropContext.NATIVE},
-                                ret_type='int',
-                                param_types=[],
-                                param_names=[],
+                                ret_type=_rt,
+                                param_types=_pts,
+                                param_names=_pns,
                                 ast_node=_decl,
-                                route=[InteropContext.NATIVE, InteropContext.NATIVE],
                                 source_module=_src
                             );
                             manifest.bindings[func_name] = binding;
@@ -366,33 +390,14 @@ impl BoundaryAnalysisPass._register_sv_import(
                 param_types=param_types,
                 param_names=param_names,
                 ast_node=walker_node,
-                route=[caller_ctx, InteropContext.SERVER],
                 source_module=module_name,
                 kind='walker'
             );
             manifest.bindings[local_name] = binding;
             continue;
         }
-        param_names: list = [];
-        param_types: list = [];
-        ret_type: str = 'Any';
         ability_node: (uni.Ability | None) = source_abilities.get(sym_name);
-        if (ability_node and isinstance(ability_node.signature, uni.FuncSignature)) {
-            sig = ability_node.signature;
-            if sig.params {
-                for p in sig.params {
-                    param_names.append(p.sym_name);
-                    if p.type_tag {
-                        param_types.append(self._extract_type_name(p.type_tag.tag));
-                    } else {
-                        param_types.append('Any');
-                    }
-                }
-            }
-            if sig.return_type {
-                ret_type = self._extract_type_name(sig.return_type);
-            }
-        }
+        (ret_type, param_types, param_names) = self._signature_of_decl(ability_node);
         binding = InteropBinding(
             name=sym_name,
             source_context=InteropContext.SERVER,
@@ -401,7 +406,6 @@ impl BoundaryAnalysisPass._register_sv_import(
             param_types=param_types,
             param_names=param_names,
             ast_node=ability_node,
-            route=[caller_ctx, InteropContext.SERVER],
             source_module=module_name,
             kind='function'
         );
@@ -442,24 +446,8 @@ impl BoundaryAnalysisPass._register_na_client_import(
         }
         sym_name = getattr(item.name, 'value', str(item.name));
         local_name = item.alias.sym_name if item.alias else sym_name;
-        ret_type: str = 'int';
-        param_types: list = [];
-        param_names: list = [];
         decl = self._resolved_native_decl(item.name);
-        if decl is not None and isinstance(decl.signature, uni.FuncSignature) {
-            sig = decl.signature;
-            for p in sig.params {
-                param_names.append(p.sym_name);
-                if p.type_tag {
-                    param_types.append(self._extract_type_name(p.type_tag.tag));
-                } else {
-                    param_types.append('int');
-                }
-            }
-            if sig.return_type {
-                ret_type = self._extract_type_name(sig.return_type);
-            }
-        }
+        (ret_type, param_types, param_names) = self._signature_of_decl(decl);
         manifest.bindings[local_name] = InteropBinding(
             name=sym_name,
             source_context=InteropContext.NATIVE,
@@ -468,8 +456,55 @@ impl BoundaryAnalysisPass._register_na_client_import(
             param_types=param_types,
             param_names=param_names,
             ast_node=decl,
-            route=[InteropContext.CLIENT, InteropContext.NATIVE],
             source_module=resolved_path
+        );
+    }
+}
+
+impl BoundaryAnalysisPass._register_client_bridged_import(
+    self: BoundaryAnalysisPass, nd: uni.Import
+) -> None {
+    import from jaclang.compiler.symbol_utils {
+        ClientImportVerdict,
+        classify_client_import_item,
+        is_client_boundary_import,
+        symbol_linked_source_module,
+        ability_of_symbol
+    }
+    if not is_client_boundary_import(nd) {
+        return;
+    }
+    source_mod = symbol_linked_source_module(nd);
+    if source_mod is None {
+        return;
+    }
+    manifest = self.ir_in.gen.interop_manifest;
+    module_name = nd.from_loc.base_module_name if nd.from_loc else '';
+    for item in nd.items {
+        if not isinstance(item, uni.ModuleItem) {
+            continue;
+        }
+        verdict = classify_client_import_item(source_mod, item);
+        if verdict != ClientImportVerdict.BRIDGED {
+            continue;
+        }
+        sym_name = getattr(item.name, 'value', str(item.name));
+        local_name = item.alias.sym_name if item.alias else sym_name;
+        ability = ability_of_symbol(source_mod.lookup(sym_name));
+        if ability is None {
+            continue;
+        }
+        (ret_type, param_types, param_names) = self._signature_of_decl(ability);
+        manifest.bindings[local_name] = InteropBinding(
+            name=sym_name,
+            source_context=InteropContext.SERVER,
+            callers={InteropContext.CLIENT},
+            ret_type=ret_type,
+            param_types=param_types,
+            param_names=param_names,
+            ast_node=ability,
+            source_module=module_name,
+            kind='function'
         );
     }
 }
@@ -609,18 +644,6 @@ impl BoundaryAnalysisPass.enter_ability(
         }
         self._func_defs[nd.sym_name] = (ctx, nd);
     }
-
-    if (
-        not nd.is_method
-        and not nd.in_client_context()
-        and nd.access is not None
-        and nd.access.tag.name == Tok.KW_PUB
-        and isinstance(nd.name_ref, uni.Name)
-    ) {
-        self.ir_in.gen.interop_manifest.endpoint_effects[
-            f"func:{nd.name_ref.sym_name}"
-        ] = self._classify(self._resolved_body(nd));
-    }
 }
 
 impl BoundaryAnalysisPass.enter_func_call(
@@ -666,15 +689,16 @@ impl BoundaryAnalysisPass.enter_func_call(
                 (mod_path, _ctx) = self._imported_native_modules[base_name];
                 _mfst = self.ir_in.gen.interop_manifest;
                 if right_name not in _mfst.bindings {
+                    _decl = self._resolved_native_decl(nd.target.right);
+                    (_rt, _pts, _pns) = self._signature_of_decl(_decl);
                     _mfst.bindings[right_name] = InteropBinding(
                         name=right_name,
                         source_context=InteropContext.NATIVE,
                         callers={InteropContext.NATIVE},
-                        ret_type='int',
-                        param_types=[],
-                        param_names=[],
-                        ast_node=self._resolved_native_decl(nd.target.right),
-                        route=[InteropContext.NATIVE, InteropContext.NATIVE],
+                        ret_type=_rt,
+                        param_types=_pts,
+                        param_names=_pns,
+                        ast_node=_decl,
                         source_module=mod_path
                     );
                 } else {
@@ -694,15 +718,16 @@ impl BoundaryAnalysisPass.enter_func_call(
         (source_module, import_ctx) = self._imported_native_funcs[func_name];
         if (caller_ctx == InteropContext.NATIVE or self._in_native_module()) {
             if (func_name not in manifest.bindings) {
+                _decl = self._resolved_native_decl(nd.target);
+                (_rt, _pts, _pns) = self._signature_of_decl(_decl);
                 binding = InteropBinding(
                     name=func_name,
                     source_context=InteropContext.NATIVE,
                     callers={InteropContext.NATIVE},
-                    ret_type='int',
-                    param_types=[],
-                    param_names=[],
-                    ast_node=self._resolved_native_decl(nd.target),
-                    route=[InteropContext.NATIVE, InteropContext.NATIVE],
+                    ret_type=_rt,
+                    param_types=_pts,
+                    param_names=_pns,
+                    ast_node=_decl,
                     source_module=source_module
                 );
                 manifest.bindings[func_name] = binding;
@@ -722,19 +747,7 @@ impl BoundaryAnalysisPass.enter_func_call(
     if (func_name in manifest.bindings) {
         manifest.bindings[func_name].callers.add(caller_ctx);
     } else {
-        sig = callee_node.signature;
-        assert isinstance(sig, uni.FuncSignature);
-        ret_type = self._extract_type_name(sig.return_type);
-        param_types: list = [];
-        param_names: list = [];
-        for p in sig.params {
-            param_names.append(p.sym_name);
-            if p.type_tag {
-                param_types.append(self._extract_type_name(p.type_tag.tag));
-            } else {
-                param_types.append('int');
-            }
-        }
+        (ret_type, param_types, param_names) = self._signature_of_decl(callee_node);
         binding = InteropBinding(
             name=func_name,
             source_context=callee_ctx,
@@ -742,8 +755,7 @@ impl BoundaryAnalysisPass.enter_func_call(
             ret_type=ret_type,
             param_types=param_types,
             param_names=param_names,
-            ast_node=callee_node,
-            route=[caller_ctx, callee_ctx]
+            ast_node=callee_node
         );
         manifest.bindings[func_name] = binding;
     }
@@ -1104,7 +1116,62 @@ impl BoundaryAnalysisPass._literal_default(
 }
 
 impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
+    import from jaclang.jac0core.diagnostics { E5093 }
     manifest = self.ir_in.gen.interop_manifest;
+
+    ctypes_wire: set = {
+        'int',
+        'float',
+        'bool',
+        'str',
+        'i8',
+        'i16',
+        'i32',
+        'i64',
+        'u8',
+        'u16',
+        'u32',
+        'u64'
+    };
+    for binding in manifest.bindings.values() {
+        crosses_ctypes = (
+            binding.source_context == InteropContext.SERVER
+            and InteropContext.NATIVE in binding.callers
+        )
+        or (
+            binding.source_context == InteropContext.NATIVE
+            and InteropContext.SERVER in binding.callers
+        );
+        if not crosses_ctypes {
+            continue;
+        }
+        err_node = binding.ast_node
+            if isinstance(binding.ast_node, uni.UniNode)
+            else self.ir_in;
+        for (i, pt) in enumerate(binding.param_types) {
+            if pt not in ctypes_wire {
+                pname = binding.param_names[i]
+                    if i < len(binding.param_names)
+                    else str(i);
+                self.emit(
+                    E5093,
+                    node_override=err_node,
+                    type=pt,
+                    what=f"parameter '{pname}'",
+                    name=binding.name
+                );
+            }
+        }
+        if binding.ret_type not in ctypes_wire and binding.ret_type != 'None' {
+            self.emit(
+                E5093,
+                node_override=err_node,
+                type=binding.ret_type,
+                what="the return",
+                name=binding.name
+            );
+        }
+    }
 
     for binding in manifest.server_exports_to_client {
         if binding.ast_node and isinstance(binding.ast_node, uni.Ability) {
@@ -1196,173 +1263,4 @@ impl BoundaryAnalysisPass._record_access_levels(
             }
         }
     }
-}
-
-impl BoundaryAnalysisPass.enter_archetype(
-    self: BoundaryAnalysisPass, nd: uni.Archetype
-) -> None {
-    if nd.arch_kind != "walker" {
-        return;
-    }
-    if not isinstance(nd.name, uni.Name) {
-        return;
-    }
-    self.ir_in.gen.interop_manifest.endpoint_effects[f"walker:{nd.name.sym_name}"] = (
-        self._classify(self._resolved_body(nd))
-    );
-}
-
-impl BoundaryAnalysisPass._classify(
-    self: BoundaryAnalysisPass, body_nodes: list
-) -> dict {
-    self._is_writer = False;
-    self._touches = set();
-    self._visited = set();
-    for nd in body_nodes {
-        self._scan(nd);
-    }
-    touches_list = sorted(self._touches) if self._touches else ["*"];
-    return {"is_writer": self._is_writer, "touches": touches_list};
-}
-
-impl BoundaryAnalysisPass._scan(
-    self: BoundaryAnalysisPass, nd: (uni.UniNode | None)
-) -> None {
-    if nd is None {
-        return;
-    }
-
-    if isinstance(nd, uni.BinaryExpr) {
-        if isinstance(nd.op, uni.ConnectOp) {
-            self._is_writer = True;
-
-            if nd.op.conn_type and isinstance(nd.op.conn_type, uni.Name) {
-                self._touches.add(nd.op.conn_type.sym_name);
-            }
-        } elif isinstance(nd.op, uni.DisconnectOp) {
-            self._is_writer = True;
-        } elif isinstance(nd.op, uni.Token) and nd.op.name == Tok.KW_SPAWN {
-            self._is_writer = True;
-        }
-    }
-
-    if isinstance(nd, uni.DeleteStmt) {
-        self._is_writer = True;
-    }
-
-    if isinstance(nd, uni.Assignment) and nd.target {
-        for tgt in nd.target {
-            if isinstance(tgt, uni.AtomTrailer) and tgt.is_attr {
-                root_expr = tgt.target;
-                while isinstance(root_expr, uni.AtomTrailer) {
-                    root_expr = root_expr.target;
-                }
-                is_self = (
-                    isinstance(root_expr, uni.SpecialVarRef)
-                    and root_expr.sym_name == 'self'
-                );
-                if not is_self {
-                    self._is_writer = True;
-                }
-            }
-        }
-    }
-
-    if isinstance(nd, uni.FuncCall) {
-        arch_sym = self._call_target_symbol(nd);
-        if arch_sym
-        and arch_sym.sym_type in [SymbolType.NODE_ARCH, SymbolType.EDGE_ARCH] {
-            self._is_writer = True;
-            self._touches.add(arch_sym.sym_name);
-        }
-
-        if id(nd) not in self._visited {
-            self._visited.add(id(nd));
-            for stmt in self._callee_body(nd) {
-                self._scan(stmt);
-            }
-        }
-    }
-
-    if isinstance(nd, uni.EventSignature) and nd.arch_tag_info {
-        if isinstance(nd.arch_tag_info, uni.Name) {
-            self._touches.add(nd.arch_tag_info.sym_name);
-        } elif isinstance(nd.arch_tag_info, uni.BoolExpr) {
-            for val in nd.arch_tag_info.values {
-                if isinstance(val, uni.Name) {
-                    self._touches.add(val.sym_name);
-                }
-            }
-        }
-    }
-
-    for child in nd.kid {
-        if child {
-            self._scan(child);
-        }
-    }
-}
-
-impl BoundaryAnalysisPass._call_target_symbol(
-    self: BoundaryAnalysisPass, call: uni.FuncCall
-) -> (uni.Symbol | None) {
-    if isinstance(call.target, uni.Name) {
-        sym = call.target.sym;
-        if not sym and call.target.sym_tab {
-            sym = call.target.sym_tab.lookup(call.target.sym_name, deep=True);
-        }
-        return sym;
-    }
-
-    if isinstance(call.target, uni.AtomTrailer) {
-        attrs = call.target.as_attr_list;
-        if attrs {
-            last = attrs[-1];
-            if isinstance(last, uni.AstSymbolNode) and last.sym {
-                return last.sym;
-            }
-        }
-    }
-    return None;
-}
-
-impl BoundaryAnalysisPass._callee_body(
-    self: BoundaryAnalysisPass, call: uni.FuncCall
-) -> list {
-    sym = self._call_target_symbol(call);
-    if not sym or not sym.defn {
-        return [];
-    }
-    defn_node = sym.defn[0];
-    ability = None;
-    if isinstance(defn_node, uni.Ability) {
-        ability = defn_node;
-    } elif defn_node.parent and isinstance(defn_node.parent, uni.Ability) {
-        ability = defn_node.parent;
-    }
-    if ability {
-        return self._resolved_body(ability);
-    }
-    return [];
-}
-
-impl BoundaryAnalysisPass._resolved_body(
-    self: BoundaryAnalysisPass, owner: uni.UniNode
-) -> list {
-    if hasattr(owner, "_get_impl_resolved_body") {
-        try {
-            resolved = owner._get_impl_resolved_body();
-            if isinstance(resolved, list) {
-                return resolved;
-            }
-        } except Exception { }
-    }
-    body = owner?.body;
-    if isinstance(body, list) {
-        return body;
-    }
-    if isinstance(body, uni.ImplDef) and isinstance(body.body, Sequence) {
-        return [stmt for stmt in body.body];
-    }
-    return [];
 }

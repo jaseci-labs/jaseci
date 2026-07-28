@@ -4838,9 +4838,8 @@ impl EsastGenPass._partition_client_import_items(
 impl EsastGenPass._generate_sv_import_stubs(
     nd: uni.Import, items: (Sequence[uni.ModuleItem] | None) = None
 ) -> None {
-    import from jaclang.compiler.symbol_utils { ability_of_symbol }
-
-    source_mod: uni.Module | None = self._resolve_source_module(nd);
+    manifest = self.ir_in.gen.interop_manifest;
+    boundary_types = manifest.boundary_types;
     stubs: list[es.Statement] = [];
     for item in (items if items is not None else nd.items) {
         if not isinstance(item, uni.ModuleItem)
@@ -4854,20 +4853,26 @@ impl EsastGenPass._generate_sv_import_stubs(
         func_name = item.name.sym_name;
         local_name = item.alias.sym_name if item.alias else func_name;
 
+        binding = manifest.bindings.get(local_name);
+        if binding is not None and binding.kind != 'function' {
+            continue;
+        }
         param_names: list[str] = [];
         param_type_map: dict[str, str] = {};
         ret_type_name: str = '';
-        ability_node: uni.Ability | None = None;
-        if source_mod {
-            ability_node = ability_of_symbol(source_mod.lookup(func_name));
-            if ability_node {
-                param_names = self._param_names_from_ability(ability_node);
-                param_type_map = self._param_type_map_from_ability(ability_node);
-                ret_type_name = self._extract_return_type(
-                    ability_node, func_name, nd.gen.interop_manifest
-                );
-
-                src_effect = source_mod.gen.interop_manifest.endpoint_effects.get(
+        if binding is not None {
+            param_names = list(binding.param_names);
+            for i in range(len(param_names)) {
+                if i < len(binding.param_types) {
+                    param_type_map[param_names[i]] = binding.param_types[i];
+                }
+            }
+            ret_type_name = binding.ret_type;
+            _src_mod = binding.ast_node.find_parent_of_type(uni.Module)
+                if binding.ast_node is not None
+                else None;
+            if _src_mod is not None {
+                src_effect = _src_mod.gen.interop_manifest.endpoint_effects.get(
                     f"func:{func_name}"
                 );
                 if src_effect is not None {
@@ -4877,9 +4882,6 @@ impl EsastGenPass._generate_sv_import_stubs(
                 }
             }
         }
-        boundary_types = nd.gen.interop_manifest.boundary_types
-            if nd.gen.interop_manifest
-            else {};
 
         js_params: list[es.Pattern] = [];
         for pname in param_names {
@@ -5058,10 +5060,7 @@ impl EsastGenPass._sv_import_item_is_type(
     if sym and (sym.sym_type in type_kinds) {
         return True;
     }
-    boundary_types = nd.gen.interop_manifest.boundary_types
-        if nd.gen.interop_manifest
-        else {};
-    return item.name.sym_name in boundary_types;
+    return item.name.sym_name in self.ir_in.gen.interop_manifest.boundary_types;
 }
 
 impl EsastGenPass.exit_sub_tag(nd: uni.SubTag[uni.T]) -> None {

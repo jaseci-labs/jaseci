@@ -33,6 +33,7 @@ import from jaclang.jac0core.passes {
     ASTValidationPass,
     BoundaryAnalysisPass,
     DeclImplMatchPass,
+    EndpointEffectPass,
     JacAnnexPass,
     PlacementApplyPass,
     PyastGenPass,
@@ -73,7 +74,7 @@ def expand_with_requirements(
 }
 
 def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
-    return [BoundaryAnalysisPass];
+    return [BoundaryAnalysisPass, EndpointEffectPass];
 }
 
 def get_bootstrap_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
