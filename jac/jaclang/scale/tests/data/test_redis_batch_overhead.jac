@@ -12,8 +12,8 @@ import from typing { cast }
 
 import redis;
 import requests;
-import from testcontainers.mongodb { MongoDbContainer }
-import from testcontainers.redis { RedisContainer }
+import from testcontainers.community.mongodb { MongoDbContainer }
+import from testcontainers.community.redis { RedisContainer }
 
 glob FIXTURES_DIR = Path(__file__).parent.parent / "fixtures",
      JAC_FILE = FIXTURES_DIR / "race_app.jac";

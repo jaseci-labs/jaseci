@@ -1,11 +1,3 @@
-impl InteropBinding.is_direct.getter -> bool {
-    return (len(self.route) == 2);
-}
-
-impl InteropBinding.is_composed.getter -> bool {
-    return (len(self.route) > 2);
-}
-
 impl InteropBinding.is_cross_module.getter -> bool {
     return (self.source_module is not None);
 }
@@ -40,6 +32,17 @@ impl InteropManifest.native_cross_module_imports.getter -> list[InteropBinding] 
             (b.source_context == InteropContext.NATIVE)
             and (InteropContext.NATIVE in b.callers)
             and (b.source_module is not None)
+        )
+    ];
+}
+
+impl InteropManifest.client_native_imports.getter -> list[InteropBinding] {
+    return [
+        b
+        for b in self.bindings.values()
+        if (
+            (b.source_context == InteropContext.NATIVE)
+            and (InteropContext.CLIENT in b.callers)
         )
     ];
 }
@@ -109,6 +112,38 @@ impl CodeLocInfo.pos_start.getter -> int {
 
 impl CodeLocInfo.pos_end.getter -> int {
     return self.last_tok.pos_end;
+}
+
+impl CodeLocInfo.snapshot -> CodeLocInfo {
+    import from jaclang.jac0core.unitree { Token }
+
+    ft = self.first_tok;
+    lt = self.last_tok;
+    new_ft = Token(
+        ft.orig_src,
+        ft.name,
+        ft.value,
+        ft.line_no,
+        ft.end_line,
+        ft.c_start,
+        ft.c_end,
+        ft.pos_start,
+        ft.pos_end
+    );
+    new_lt = Token(
+        lt.orig_src,
+        lt.name,
+        lt.value,
+        lt.line_no,
+        lt.end_line,
+        lt.c_start,
+        lt.c_end,
+        lt.pos_start,
+        lt.pos_end
+    );
+    new_ft._is_synthetic = True;
+    new_lt._is_synthetic = True;
+    return CodeLocInfo(new_ft, new_lt);
 }
 
 impl CodeGenTarget.client_manifest.getter -> ClientManifest {
