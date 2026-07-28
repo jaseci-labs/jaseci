@@ -532,13 +532,7 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
         }
         return None;
     }
-    # Anchors decide: with the filename marker retired, the inferred cl->na
-    # edge claims only targets that are hub-decided native or carry a real
-    # native anchor (ownership tags, clib decls, native imports). A plain
-    # pub module stays a server endpoint and bridges over RPC -- forcing the
-    # edge is what the marked `na import` form is for. A target not yet in
-    # the hub gets a one-off parse for the anchor scan (client-flavored
-    # imports only; the caller guards context first).
+
     import from jaclang.jac0core.helpers { read_file_with_encoding }
     import from jaclang.jac0core.parser { parse as _rd_parse }
     import from jaclang.jac0core.program { JacProgram as _ScanProg }
@@ -555,14 +549,10 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
 }
 
 def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
-    # Cheap context guard first: the eligibility scan in
-    # plain_native_import_target parses the target, so only client-flavored
-    # imports pay for it.
     if nd.code_context == CodeContext.CLIENT {
         ;
-    } elif nd.code_context == CodeContext.SERVER and module_has_client_top(
-        nd.find_parent_of_type(uni.Module)
-    ) {
+    } elif nd.code_context == CodeContext.SERVER
+    and module_has_client_top(nd.find_parent_of_type(uni.Module)) {
         ;
     } else {
         return False;

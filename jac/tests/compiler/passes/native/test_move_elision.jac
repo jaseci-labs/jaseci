@@ -39,7 +39,10 @@ def compile_fixture(
 ) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
     ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), type_check=type_check, options=native_force_opts());
+        file_path=str(os.path.join(FIXTURES, fixture)),
+        type_check=type_check,
+        options=native_force_opts()
+    );
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     eng = ir.gen.native_engine;

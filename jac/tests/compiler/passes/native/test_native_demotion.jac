@@ -25,7 +25,10 @@ glob FIXTURES = os.path.join(
 test "void binding surfaces E5090 instead of crashing" {
     prog = JacProgram();
     # Previously raised AssertionError in PointerType.as_pointer (void pointee).
-    prog.compile(file_path=os.path.join(FIXTURES, "void_binding.jac"), options=native_force_opts());
+    prog.compile(
+        file_path=os.path.join(FIXTURES, "void_binding.jac"),
+        options=native_force_opts()
+    );
     assert prog.errors_had , "expected an E5090 diagnostic for the void binding";
     _msgs = [str(e) for e in prog.errors_had];
     assert any("void" in m for m in _msgs) , f"no void-binding diagnostic in {_msgs}";
@@ -35,7 +38,10 @@ test "void binding surfaces E5090 instead of crashing" {
 test "hard codegen error in one method demotes it, keeps siblings native" {
     prog = JacProgram();
     # Previously raised TypeError (i64 != void) and aborted the whole compile.
-    ir = prog.compile(file_path=os.path.join(FIXTURES, "method_codegen_crash.jac"), options=native_force_opts());
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "method_codegen_crash.jac"),
+        options=native_force_opts()
+    );
     layout = ir.gen.native_layout;
     assert layout is not None , "no native layout -- whole-module native compile aborted";
     assert "C.good" in layout.methods , (

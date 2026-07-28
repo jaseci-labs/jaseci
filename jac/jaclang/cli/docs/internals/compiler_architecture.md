@@ -478,7 +478,7 @@ own hot path: sealing a release AOT-compiles `jac0core/parser/lexer.jac`
 `NativeModuleLayout` JSON describing the marshal layout. Both are recorded
 in `MANIFEST.json` (format 4) under `native_artifacts` with sha256 digests
 that fail closed on mismatch. A sealed runtime binds the library with plain
-ctypes (`jac0core/native_dylib.py`) at startup -- no LLVM on the boot path
+ctypes (`jac0core/native_dylib.jac`) at startup -- no LLVM on the boot path
 -- and `parse()` uses it when present; dev trees without a seal
 transparently fall back to the bytecode lexer.
 

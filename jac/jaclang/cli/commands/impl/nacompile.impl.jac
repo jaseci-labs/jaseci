@@ -96,9 +96,6 @@ def _inject_entry_pe(llvm_ir_str: str) -> str {
 }
 
 
-
-
-
 impl nacompile(
     filename: str,
     output: str = "",

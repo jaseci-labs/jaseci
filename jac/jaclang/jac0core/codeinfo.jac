@@ -181,11 +181,6 @@ def native_stdlib_root -> (str | None) {
 }
 
 def is_native_by_location(file_path: str) -> bool {
-    """True for sources that are native by definition of where they live:
-    the bundled native stdlib. The retired .na.jac marker used to coerce
-    these on parse; location now does. (The desktop native shim dir is
-    deliberately NOT here -- it mixes native shims with sv modules; the
-    shims are clib-anchored and classify through the normal rules.)"""
     import os;
     import jaclang;
     if not file_path or not jaclang?.__file__ {
@@ -193,9 +188,7 @@ def is_native_by_location(file_path: str) -> bool {
     }
     ap = os.path.abspath(file_path);
     pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
-    return ap.startswith(
-        os.path.join(pkg, "runtimelib", "na_stdlib") + os.sep
-    );
+    return ap.startswith(os.path.join(pkg, "runtimelib", "na_stdlib") + os.sep);
 }
 
 def is_bundled_native_module(module_name: str) -> bool {
@@ -255,11 +248,6 @@ def _inferred_native_path(candidate: (str | None)) -> (str | None) {
 def resolve_native_module(
     module_name: str, base_dir: str, allow_inferred: bool = True
 ) -> tuple[(str | None, str | None)] {
-    # Local/dotted probes are gated on native *eligibility* of the candidate
-    # (native_default_path_ok), not on the ambient default codespace: the
-    # caller's context (an na-scoped import, a native importer, an AOT build)
-    # is what mandates native here, and a server-default program must still
-    # resolve its na-imported siblings.
     import os;
     clean = module_name.lstrip('.');
     path_name = clean.replace('.', os.sep);
@@ -351,12 +339,6 @@ def _func_layout_to_dict(f: NativeFuncLayout) -> dict {
 }
 
 def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
-    """Serialize a NativeModuleLayout to plain JSON-able data.
-
-    The inverse lives in `jaclang/jac0core/native_dylib.py`
-    (`layout_from_dict`), which must stay attribute-compatible with what
-    `native_marshal` reads -- change both together.
-    """
     return {
         "abi_version": layout.abi_version,
         "structs": {
@@ -376,19 +358,16 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
                                 else None
                         ),
                         "func_ret_type": fld.func_ret_type
-                    }
-                    for fld in s.fields
+                    } for fld in s.fields
                 ]
-            }
-            for (name, s) in layout.structs.items()
+            } for (name, s) in layout.structs.items()
         },
         "enums": {
             name: {
                 "name": e.name,
                 "is_string_valued": e.is_string_valued,
                 "members": list(e.members)
-            }
-            for (name, e) in layout.enums.items()
+            } for (name, e) in layout.enums.items()
         },
         "functions": {
             name: _func_layout_to_dict(f) for (name, f) in layout.functions.items()
@@ -397,9 +376,7 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
             name: _func_layout_to_dict(f) for (name, f) in layout.methods.items()
         },
         "list_elem_types": dict(layout.list_elem_types),
-        "tuples": {
-            key: _tuple_layout_to_dict(t) for (key, t) in layout.tuples.items()
-        }
+        "tuples": {key: _tuple_layout_to_dict(t) for (key, t) in layout.tuples.items()}
     };
 }
 

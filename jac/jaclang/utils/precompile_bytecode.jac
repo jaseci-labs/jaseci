@@ -118,9 +118,7 @@ def _is_native_only_source(package_dir: str, p: str) -> bool {
     if rel.startswith(NATIVE_ONLY_DIR + os.sep) {
         return True;
     }
-    # The desktop native dir mixes clib shims (native-only, must not be
-    # sv-precompiled) with plain sv modules (must stay sealable); decide
-    # per file by native eligibility.
+
     if rel.startswith(MIXED_NATIVE_DIR + os.sep) {
         import from jaclang.jac0core.placement_solver { native_default_path_ok }
         return native_default_path_ok(p);
@@ -221,11 +219,6 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     return failed;
 }
 
-# Compiler modules the seal AOT-compiles into per-platform shared libraries.
-# Each must be native-eligible with a pure-Jac import closure (no Python
-# deps); the artifact ships beside the JIRs and the runtime binds it through
-# jac0core/native_dylib.py. The bytecode tier still carries every module, so
-# a missing/failed artifact degrades to bytecode, never to a broken binary.
 glob NATIVE_SEAL_MODULES: tuple = ("jac0core/parser/lexer.jac", );
 
 def _native_lib_filename(stem: str) -> str {
@@ -238,12 +231,6 @@ def _native_lib_filename(stem: str) -> str {
     return f"libjac_{stem}.so";
 }
 
-"""AOT-compile NATIVE_SEAL_MODULES to shared libraries + marshal layouts.
-
-Returns the manifest ``native_artifacts`` map, or None on failure.
-Windows hosts and ``JAC_SEAL_NO_NATIVE=1`` skip the step (empty map):
-the bytecode tier fully covers the modules.
-"""
 def seal_native_artifacts(
     pkg_path: Path, precompiled_dir: Path
 ) -> (dict[str, dict] | None) {
@@ -332,9 +319,7 @@ def seal_native_artifacts(
             "layout": layout_path.relative_to(precompiled_dir).as_posix(),
             "triple": triple,
             "lib_sha256": hashlib.sha256(lib_path.read_bytes()).hexdigest(),
-            "layout_sha256": hashlib.sha256(
-                layout_path.read_bytes()
-            ).hexdigest()
+            "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest()
         };
         console.print(
             f"  Native artifact: {fullname} -> {lib_path.name} "

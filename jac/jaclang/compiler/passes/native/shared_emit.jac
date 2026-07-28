@@ -1,13 +1,3 @@
-"""Reusable shared-library emission for natively compiled Jac modules.
-
-One home for the pieces `jac nacompile --shared` and the seal's native-artifact
-step both need: the `__jac_shared_init` injection (glob-init calls + RC entry
-points) and the IR -> object -> platform dylib pipeline over the in-house
-linkers. The seal path is deliberately narrow: no floor archives, no clib
-inputs, host-triple only -- the artifact links against the platform libc the
-process already has.
-"""
-
 def inject_shared_init(
     llvm_ir_str: str, transitive_sources: list[str]
 ) -> tuple[str, list[str]] {
@@ -55,14 +45,6 @@ def inject_shared_init(
     return (llvm_ir_str + "\n".join(parts) + "\n", extra_exports);
 }
 
-"""Emit `llvm_ir_str` as a host-platform shared library at `output_path`.
-
-`export_symbols` is the exact C-ABI surface to expose (plus the injected
-`__jac_shared_init` and, when RC machinery is present, jac_retain /
-jac_release). With `auto_init` False the library does NOT self-initialize
-on dlopen -- the host must call `__jac_shared_init` exactly once before
-any other export. Returns (ok, error_message).
-"""
 def emit_shared_library(
     llvm_ir_str: str,
     transitive_sources: list[str],

@@ -523,9 +523,7 @@ def scan_native_blockers(
                 return ("explicit sv/cl marker", deps);
             }
         }
-        # `pub` anchors a standalone module to the server (endpoint surface),
-        # but on a module pulled in as a *native dependency* it is just the
-        # C-ABI export marker -- the .na.jac-era native-library idiom.
+
         if not allow_pub and _is_pub_element(stmt) {
             return ("pub access", deps);
         }

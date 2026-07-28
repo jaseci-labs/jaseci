@@ -186,9 +186,7 @@ impl BoundaryAnalysisPass._register_native_absorb(
     }
     _ctx = self._get_context(nd);
     _na_intent = (
-        _ctx == InteropContext.NATIVE
-        or self._in_native_module()
-        or nd.is_na_marked
+        _ctx == InteropContext.NATIVE or self._in_native_module() or nd.is_na_marked
     );
     native_path = self._resolve_native_module(module_name, inferred_ok=_na_intent);
     if not native_path {

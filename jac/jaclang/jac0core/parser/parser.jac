@@ -578,15 +578,6 @@ obj Parser {
 
 glob _NATIVE_SCAN_MEMO: list = [];
 
-"""Bind the sealed AOT native lexer, once per process.
-
-Returns the ctypes-wrapped `tokenize_full`, or None when no sealed artifact
-exists (dev trees, unsealed installs) -- callers then use the bytecode
-`tokenize_full`, which is semantically identical. The binding is scoped to
-this compile driver rather than rebinding the lexer module's globals: scan
-results are native-owned and freed only at process exit, which is fine for a
-per-invocation compiler but not yet for long-lived hosts like the LSP.
-"""
 def _native_scan -> any {
     if _NATIVE_SCAN_MEMO {
         return _NATIVE_SCAN_MEMO[0];
@@ -596,10 +587,7 @@ def _native_scan -> any {
         import from jaclang.jac0core.sealed { native_artifact_for }
         found = native_artifact_for("jaclang.jac0core.parser.lexer");
         if found is not None {
-            import from jaclang.jac0core.native_dylib {
-                DylibEngine,
-                layout_from_dict
-            }
+            import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
             import from jaclang.jac0core.native_marshal {
                 build_ctypes_classes,
                 build_enum_maps,

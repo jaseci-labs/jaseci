@@ -324,10 +324,7 @@ impl run(
     try {
         if filename.endswith('.jac') {
             native_executed = False;
-            # An explicit `kind = "cli-native"` project is a native mandate
-            # (the retired .na.jac marker's project-level successor): force
-            # the placement and skip the redirected-stdout heuristic that
-            # only exists to keep *inferred* runs conservative.
+
             _cfg_kind = get_config();
             _kind_forced = (
                 _cfg_kind is not None

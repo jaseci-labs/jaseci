@@ -2,7 +2,7 @@
 
 Exercises the exact pipeline the seal runs (utils/precompile_bytecode.jac
 `seal_native_artifacts`) and the exact pipeline the sealed runtime runs
-(parser.jac `_native_scan` via jac0core/native_dylib.py): AOT-compile the
+(parser.jac `_native_scan` via jac0core/native_dylib.jac): AOT-compile the
 compiler's own lexer, emit a shared library + layout JSON with the in-house
 linkers, dlopen it with plain ctypes (no LLVM engine), and assert
 token-for-token parity against the bytecode lexer.
@@ -28,9 +28,8 @@ import jaclang.jac0core.parser.lexer as bytecode_lexer;
 
 glob LEXER_PATH = str(
          Path(jaclang.__file__).parent / "jac0core" / "parser" / "lexer.jac"
-     );
-
-glob _ARTIFACT_MEMO: list = [];
+     ),
+     _ARTIFACT_MEMO: list = [];
 
 """Compile + link the lexer dylib once for this worker; returns
 (lib_path, layout_dict, tmp_dir_keepalive)."""
@@ -65,9 +64,7 @@ def _build_artifact -> tuple {
     exports = sorted(layout.functions.keys());
     assert "tokenize_full" in exports , f"exports missing tokenize_full: {exports}";
     transitive = list(manifest.native_transitive_sources) if manifest else [];
-    (ok, err) = emit_shared_library(
-        str(ir.gen.llvm_ir), transitive, exports, lib_path
-    );
+    (ok, err) = emit_shared_library(str(ir.gen.llvm_ir), transitive, exports, lib_path);
     assert ok , f"emit_shared_library failed: {err}";
 
     layout_dict = json.loads(json.dumps(native_layout_to_dict(layout)));
@@ -173,12 +170,8 @@ test "sealed manifest round trip resolves the artifact" {
                 "lib": staged_lib.relative_to(pre).as_posix(),
                 "layout": staged_layout.relative_to(pre).as_posix(),
                 "triple": "test-triple",
-                "lib_sha256": hashlib.sha256(
-                    staged_lib.read_bytes()
-                ).hexdigest(),
-                "layout_sha256": hashlib.sha256(
-                    staged_layout.read_bytes()
-                ).hexdigest()
+                "lib_sha256": hashlib.sha256(staged_lib.read_bytes()).hexdigest(),
+                "layout_sha256": hashlib.sha256(staged_layout.read_bytes()).hexdigest()
             }
         }
     };
@@ -235,12 +228,8 @@ test "parse() binds the sealed native lexer through the registered image" {
                 "lib": staged_lib.relative_to(pre).as_posix(),
                 "layout": staged_layout.relative_to(pre).as_posix(),
                 "triple": "test-triple",
-                "lib_sha256": hashlib.sha256(
-                    staged_lib.read_bytes()
-                ).hexdigest(),
-                "layout_sha256": hashlib.sha256(
-                    staged_layout.read_bytes()
-                ).hexdigest()
+                "lib_sha256": hashlib.sha256(staged_lib.read_bytes()).hexdigest(),
+                "layout_sha256": hashlib.sha256(staged_layout.read_bytes()).hexdigest()
             }
         }
     };

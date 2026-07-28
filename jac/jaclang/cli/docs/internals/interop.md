@@ -306,7 +306,7 @@ The compiler itself ships this way: sealing a release AOT-compiles
 per-platform shared library (`_precompiled/native/<triple>/libjac_lexer.*`)
 with a persisted `NativeModuleLayout` JSON, recorded in `MANIFEST.json`
 format 4 under `native_artifacts` (sha256-verified, fail-closed). The
-sealed runtime binds it with plain ctypes via `jac0core/native_dylib.py` --
+sealed runtime binds it with plain ctypes via `jac0core/native_dylib.jac` --
 no LLVM on the boot path -- and `parse()` uses it when present; unsealed
 dev trees fall back to the bytecode lexer.
 
