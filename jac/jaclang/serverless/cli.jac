@@ -39,6 +39,25 @@ def _invoke_local(
 }
 
 
+def _functions_list(file: str) -> int {
+    import from jaclang.serverless.functions { get_function }
+    fn = get_function(os.path.abspath(file));
+    rows = fn.list_functions();
+    console.print("Serverless functions (one endpoint each):", style="cyan");
+    console.print(f"  {'NAME':24s} {'KIND':10s} {'ROUTE':32s} AUTH");
+    for row in rows {
+        auth_label = "yes" if row["auth"] else "public";
+        console.print(
+            f"  {row['name']:24s} {row['kind']:10s} {row['route']:32s} {auth_label}"
+        );
+    }
+    console.print(
+        f"  {'auth':24s} {'builtin':10s} {'/user/register, /user/login':32s} public"
+    );
+    return 0;
+}
+
+
 def _dev(file: str) -> int {
     console.print(
         "jac-serverless dev: serving locally with the same runtime as jac start",
@@ -74,7 +93,8 @@ def _deploy(
     region: str,
     role_arn: str,
     memory: int,
-    timeout: int
+    timeout: int,
+    per_walker: bool
 ) -> int {
     import from jaclang.serverless.packaging { build_package, deploy_package }
     import from jaclang.serverless.config { resolve_database_url }
@@ -94,21 +114,53 @@ def _deploy(
             style="yellow"
         );
     }
-    result = deploy_package(
-        zip_path,
-        resolved_name,
-        region=region,
-        role_arn=role_arn,
-        memory=memory,
-        timeout=timeout,
-        env_vars=env_vars
-    );
-    console.success(
-        f"Deployed {result['function_name']} ({result['region']})", emoji=False
-    );
-    if result.get("function_url") {
-        console.print(f"Function URL: {result['function_url']}", style="bold");
+
+    if not per_walker {
+        result = deploy_package(
+            zip_path,
+            resolved_name,
+            region=region,
+            role_arn=role_arn,
+            memory=memory,
+            timeout=timeout,
+            env_vars=env_vars
+        );
+        console.success(
+            f"Deployed {result['function_name']} ({result['region']})", emoji=False
+        );
+        if result.get("function_url") {
+            console.print(f"Function URL: {result['function_url']}", style="bold");
+        }
+        return 0;
     }
+
+    import from jaclang.serverless.functions { get_function }
+    rows = get_function(os.path.abspath(file)).list_functions();
+    targets = [{"suffix": "auth", "only": "auth"}] + [
+        {"suffix": row["name"], "only": f"{row['kind']}:{row['name']}"}
+        for row in rows
+    ];
+    console.print(
+        f"Deploying {len(targets)} functions (one per walker plus auth)...",
+        style="cyan"
+    );
+    for target in targets {
+        fn_full_name = f"{resolved_name}-{target['suffix']}".replace("_", "-");
+        result = deploy_package(
+            zip_path,
+            fn_full_name,
+            region=region,
+            role_arn=role_arn,
+            memory=memory,
+            timeout=timeout,
+            env_vars=env_vars
+                | {"JAC_SERVERLESS_FUNCTION": target["only"]}
+        );
+        console.print(
+            f"  {target['suffix']:24s} -> {result.get('function_url') or result['function_name']}"
+        );
+    }
+    console.success(f"Deployed {len(targets)} functions", emoji=False);
     return 0;
 }
 
@@ -136,10 +188,21 @@ def _deploy(
             "role_arn", short="A", typ=str, default="", help="deploy: Lambda execution role ARN"
         ),
         Arg.create("memory", short="M", typ=int, default=1024, help="deploy: memory (MB)"),
-        Arg.create("timeout", short="T", typ=int, default=120, help="deploy: timeout (seconds)")
+        Arg.create("timeout", short="T", typ=int, default=120, help="deploy: timeout (seconds)"),
+        Arg.create(
+            "per_walker",
+            short="w",
+            typ=bool,
+            default=False,
+            help="deploy: one function per walker (plus an auth function) instead of a single function"
+        )
     ],
     examples=[
         ("jac serverless dev", "Run the app locally (same runtime as jac start)"),
+        (
+            "jac serverless functions",
+            "List every walker/function and the route its serverless function serves"
+        ),
         (
             "jac serverless invoke --path /walker/load_feed --token T",
             "Invoke a walker as a function locally"
@@ -148,6 +211,10 @@ def _deploy(
         (
             "jac serverless deploy --role_arn arn:aws:iam::...:role/lambda",
             "Package and deploy to AWS Lambda with a public function URL"
+        ),
+        (
+            "jac serverless deploy --per_walker --role_arn arn:aws:iam::...:role/lambda",
+            "Deploy each walker as its own Lambda function"
         )
     ],
     group="serverless"
@@ -164,10 +231,14 @@ def serverless_cmd(
     region: str = "",
     role_arn: str = "",
     memory: int = 1024,
-    timeout: int = 120
+    timeout: int = 120,
+    per_walker: bool = False
 ) -> int {
     if action == "invoke" {
         return _invoke_local(file, method, path, data, token);
+    }
+    if action == "functions" {
+        return _functions_list(file);
     }
     if action == "dev" {
         return _dev(file);
@@ -176,10 +247,13 @@ def serverless_cmd(
         return _package(file, out);
     }
     if action == "deploy" {
-        return _deploy(file, out, fn_name, region, role_arn, memory, timeout);
+        return _deploy(
+            file, out, fn_name, region, role_arn, memory, timeout, per_walker
+        );
     }
     console.error(
-        f"Unknown action '{action}'. Use: dev, invoke, package, deploy", emoji=False
+        f"Unknown action '{action}'. Use: dev, functions, invoke, package, deploy",
+        emoji=False
     );
     return 1;
 }

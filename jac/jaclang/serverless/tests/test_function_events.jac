@@ -26,6 +26,44 @@ def _make_event(
 }
 
 
+test "a restricted function only exposes its own walker" {
+    with tempfile.TemporaryDirectory() as tmp {
+        app_dir = os.path.join(tmp, "pingpong");
+        shutil.copytree(FIXTURE, app_dir);
+        entry = os.path.join(app_dir, "main.jac");
+
+        ping_fn = ServerlessFunction(entry_file=entry, only="walker:ping");
+        allowed = ping_fn.handle_event(
+            _make_event("POST", "/walker/ping", {"msg": "restricted"})
+        );
+        assert allowed["statusCode"] == 200;
+        blocked = ping_fn.handle_event(_make_event("POST", "/user/register", {}));
+        assert blocked["statusCode"] == 403;
+        health = ping_fn.handle_event(_make_event("GET", "/healthz"));
+        assert health["statusCode"] == 200;
+
+        auth_fn = ServerlessFunction(entry_file=entry, only="auth");
+        assert auth_fn.exposes("/user/login");
+        assert not auth_fn.exposes("/walker/ping");
+    }
+}
+
+
+test "list_functions maps walkers to routes" {
+    with tempfile.TemporaryDirectory() as tmp {
+        app_dir = os.path.join(tmp, "pingpong");
+        shutil.copytree(FIXTURE, app_dir);
+        fn = ServerlessFunction(entry_file=os.path.join(app_dir, "main.jac"));
+        rows = fn.list_functions();
+        ping_rows = [r for r in rows if r["name"] == "ping"];
+        assert len(ping_rows) == 1;
+        assert ping_rows[0]["route"] == "/walker/ping";
+        assert ping_rows[0]["kind"] == "walker";
+        assert not ping_rows[0]["auth"];
+    }
+}
+
+
 test "a walker serves as a serverless function" {
     with tempfile.TemporaryDirectory() as tmp {
         app_dir = os.path.join(tmp, "pingpong");

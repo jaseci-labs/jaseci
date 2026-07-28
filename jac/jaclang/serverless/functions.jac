@@ -15,11 +15,13 @@ import from jaclang.runtimelib.testing { JacTestClient, TestResponse }
 
 glob logger = logging.getLogger(__name__),
      ENTRY_ENV = "JAC_SERVERLESS_ENTRY",
+     ONLY_ENV = "JAC_SERVERLESS_FUNCTION",
      _function_cache: dict[str, any] = {};
 
 
 obj ServerlessFunction {
     has entry_file: str,
+        only: str = "",
         _client: (JacTestClient | None) = None;
 
     def _ensure_client -> JacTestClient;
@@ -30,7 +32,9 @@ obj ServerlessFunction {
         body: (dict | None) = None
     ) -> TestResponse;
 
+    def exposes(path: str) -> bool;
     def handle_event(event: dict) -> dict;
+    def list_functions -> list;
 }
 
 
@@ -42,10 +46,12 @@ def resolve_entry(entry_file: (str | None) = None) -> str {
 
 def get_function(entry_file: (str | None) = None) -> ServerlessFunction {
     resolved = resolve_entry(entry_file);
-    fn = _function_cache.get(resolved);
+    restriction = os.environ.get(ONLY_ENV, "");
+    key = f"{resolved}#{restriction}";
+    fn = _function_cache.get(key);
     if fn is None {
-        fn = ServerlessFunction(entry_file=resolved);
-        _function_cache[resolved] = fn;
+        fn = ServerlessFunction(entry_file=resolved, only=restriction);
+        _function_cache[key] = fn;
     }
     return fn;
 }
