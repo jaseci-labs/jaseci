@@ -3,12 +3,6 @@ import from jaclang.cli.console { console }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 
 impl tool(tool: str, args: list = []) -> int {
-    # NOTE: transform/analysis are sibling command-registration modules.
-    # They must be loaded dynamically (importlib) rather than via a static
-    # `import from` edge: the meta-importer eagerly resolves static import
-    # edges while compiling this annex on a cold/partial cache, which leaks
-    # sibling modules into sys.modules at handler-load time and violates the
-    # selected-command isolation contract (test_command_isolation.jac).
     import importlib;
     import from jaclang.utils.lang_tools { AstTool }
     if tool in ("jac2py", "py2jac", "jac2js") {
@@ -21,6 +15,7 @@ impl tool(tool: str, args: list = []) -> int {
             "jac2py": _transform.jac2py,
             "py2jac": _transform.py2jac,
             "jac2js": _transform.jac2js,
+
         };
         return fwd[tool](args[0]);
     }
