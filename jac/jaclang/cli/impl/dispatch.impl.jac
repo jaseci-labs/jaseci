@@ -207,8 +207,6 @@ def _command_argv(command_name: str) -> list[str] {
 }
 
 impl run_selected_command(command_name: str) -> None {
-    import from jaclang.cli.command { CommandSpec }
-    import from jaclang.cli.loader { load_handler }
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
 
@@ -226,8 +224,10 @@ impl run_selected_command(command_name: str) -> None {
         return;
     }
 
+    import from jaclang.cli.command { CommandSpec }
     import from jaclang.cli.console { console }
     import from jaclang.cli.executor { get_executor }
+    import from jaclang.cli.loader { load_handler }
 
     _discover_project_config();
     if 'templates' in meta.needs {

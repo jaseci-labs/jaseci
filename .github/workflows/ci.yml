@@ -413,6 +413,16 @@ jobs:
         run: |
           jac gen-cli-manifest --verify
 
+      - name: Run CLI startup regression tests
+        env:
+          JAC_TEST_JOBS: "0"
+        run: |
+          jac test \
+            jac/tests/cli/test_command_isolation.jac \
+            jac/tests/cli/test_config_key_bridge.jac \
+            jac/tests/cli/test_manifest_parity.jac \
+            jac/tests/cli/test_startup_isolation.jac
+
       - name: Run jac check (using .jacignore)
         run: |
           set -euo pipefail

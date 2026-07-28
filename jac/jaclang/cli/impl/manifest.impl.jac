@@ -933,7 +933,7 @@ def _command_routes -> list[CommandMeta] {
                     kind='OPTION',
                     typ='bool',
                     default=False,
-                    help='Skip npm package installation (when creating client kinds: web-app/web-static/mobile)',
+                    help="Skip dependency installation (Python + npm); run 'jac install' later",
                     short='s',
                     choices=None,
                     required=False,
@@ -1585,7 +1585,7 @@ def _command_routes -> list[CommandMeta] {
         ),
         CommandMeta(
             name='guide',
-            help='Show curated Jac reference guides',
+            help='Show bundled Jac guides and documentation',
             group='general',
             tier='learn',
             hidden=False,
@@ -1594,10 +1594,15 @@ def _command_routes -> list[CommandMeta] {
             needs=[],
             description="",
             examples=[
-                ('jac guide', 'List every available guide'),
+                ('jac guide', 'List every bundled guide and doc set'),
                 ('jac guide jac-types', 'Print the jac-types guide'),
-                ('jac guide --search walker', "List guides mentioning 'walker'"),
-                ('jac guide --json', 'List guides as JSON for tooling'),
+                (
+                    'jac guide reference/diagnostics',
+                    'Print the bundled diagnostics reference'
+                ),
+                ('jac guide reference', 'List every doc in the reference set'),
+                ("jac guide --search 'breaking changes'", 'Grep all bundled content'),
+                ('jac guide --json', 'Full guide/doc index as JSON for tooling'),
                 ('jac guide --export ~/.claude/skills', 'Export guides as Agent Skills')
             ],
             args=[
@@ -1606,7 +1611,7 @@ def _command_routes -> list[CommandMeta] {
                     kind='POSITIONAL',
                     typ='str',
                     default='',
-                    help='Guide name to display (omit to list every guide)',
+                    help='Guide or doc to print, or a doc set (reference, quick-guide, build, tutorials, internals, community) to list; omit to show the full index',
                     short=None,
                     choices=None,
                     required=False,
@@ -1619,7 +1624,7 @@ def _command_routes -> list[CommandMeta] {
                     kind='OPTION',
                     typ='str',
                     default='',
-                    help='List only guides matching a keyword',
+                    help='Grep every bundled guide and doc (name:line: hits)',
                     short='s',
                     choices=None,
                     required=False,
@@ -2237,10 +2242,13 @@ def _command_routes -> list[CommandMeta] {
             examples=[
                 ('jac precommit', 'Format (lintfix) and check the whole project'),
                 ('jac precommit --staged', "Run on staged '.jac' files only"),
-                ('jac precommit --install', 'Install a .git/hooks/pre-commit hook'),
+                (
+                    'jac precommit --install',
+                    'Install the pre-commit + commit-msg hooks'
+                ),
                 (
                     'jac precommit --install --force',
-                    'Replace an existing hook (kept as pre-commit.bak)'
+                    'Replace existing hooks (kept as .bak backups)'
                 )
             ],
             args=[
@@ -2288,7 +2296,7 @@ def _command_routes -> list[CommandMeta] {
                     kind='OPTION',
                     typ='bool',
                     default=False,
-                    help='Install a git pre-commit hook that runs this command',
+                    help='Install git pre-commit + commit-msg hooks',
                     short='i',
                     choices=None,
                     required=False,
