@@ -1,31 +1,8 @@
-"""AOT native-artifact loader for sealed images.
-
-Binds a sealed, AOT-compiled Jac shared library (see the seal's
-native-artifact step in ``utils/precompile_bytecode.jac``) into the running
-process with nothing but ctypes -- no LLVM, no MCJIT, nothing on the boot
-path beyond one dlopen. ``DylibEngine`` satisfies the single engine API the
-marshal layer uses (``get_function_address``), and ``layout_from_dict``
-rebuilds the ``NativeModuleLayout`` shape ``native_marshal`` reads from the
-JSON the seal persisted (writer: ``codeinfo.native_layout_to_dict`` -- change
-both together).
-
-Bootstrap-tier module: jac0-compiled, importable by the other jac0core
-modules (the parser binds through it before the full compiler exists).
-"""
 import ctypes;
 import from types { SimpleNamespace }
 
-# Must match jaclang.jac0core.codeinfo.NATIVE_ABI_VERSION; asserted at bind
-# time so a stale artifact fails closed instead of marshalling garbage.
 glob NATIVE_ABI_VERSION: int = 1;
 
-"""Engine-shaped wrapper over a dlopen'd sealed native artifact.
-
-The artifact is linked with ``auto_init=False``: dlopen runs no Jac
-initializers, so ``initialize()`` must run (exactly once) before any other
-export is called -- it invokes ``__jac_shared_init``, which chains every
-``__jac_glob_init*`` in the module closure.
-"""
 obj DylibEngine {
     has lib_path: str,
         _cdll: any = None,
@@ -92,7 +69,6 @@ def _field_info(f: dict) -> any {
     );
 }
 
-"""Rebuild a NativeModuleLayout-shaped object from persisted JSON."""
 def layout_from_dict(data: dict) -> any {
     stamped = data.get("abi_version");
     if stamped != NATIVE_ABI_VERSION {
@@ -115,8 +91,7 @@ def layout_from_dict(data: dict) -> any {
             name=e["name"],
             is_string_valued=e.get("is_string_valued", False),
             members=[
-                tuple(m) if isinstance(m, list) else m
-                for m in e.get("members", [])
+                tuple(m) if isinstance(m, list) else m for m in e.get("members", [])
             ]
         );
     }
