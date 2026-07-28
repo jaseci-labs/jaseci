@@ -761,7 +761,18 @@ impl Parser._check_js_arrow_fault -> bool {
 impl Parser._recover_js_arrow_fault(left: Expr) -> Expr {
     eq_tok = self.advance();
     gt_tok = self.advance();
-    self.emit_diag(E0025, loc=eq_tok.loc.span_to(gt_tok.loc));
+    # Field-wise span: token locs may be marshalled native struct views,
+    # which expose fields but not SourceLoc methods like span_to.
+    _arrow_span = SourceLoc(
+        file_path=eq_tok.loc.file_path,
+        line=eq_tok.loc.line,
+        end_line=gt_tok.loc.end_line,
+        col_start=eq_tok.loc.col_start,
+        col_end=gt_tok.loc.col_end,
+        pos_start=eq_tok.loc.pos_start,
+        pos_end=gt_tok.loc.pos_end
+    );
+    self.emit_diag(E0025, loc=_arrow_span);
     if self.check(TokenKind.LBRACE) {
         self.advance();
         self.parse_code_block_stmts();
