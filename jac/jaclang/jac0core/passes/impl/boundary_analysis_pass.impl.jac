@@ -242,10 +242,14 @@ impl BoundaryAnalysisPass.enter_import(
             );
         }
         if module_name {
+            import from jaclang.jac0core.compiler {
+                is_client_native_edge_import as _is_cl_na_edge
+            }
             _na_intent = (
                 import_context == InteropContext.NATIVE
                 or self._in_native_module()
                 or nd.is_na_marked
+                or _is_cl_na_edge(nd, self.prog)
             );
             native_path = self._resolve_native_module(
                 module_name, inferred_ok=_na_intent

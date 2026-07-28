@@ -523,28 +523,35 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
         return None;
     }
     target = hub_module_for_path(resolved, prog);
-    if target is None {
-        return None;
-    }
-    if (
+    if target is not None and (
         target.decided_codespace == 'native' or module_has_native_anchor(target, prog)
     ) {
+        return resolved;
+    }
+    # The retired .na.jac marker used to vouch for the target here; the
+    # markerless anchor is the target's native eligibility (dep semantics,
+    # mtime-memoized in the placement solver).
+    import from jaclang.jac0core.placement_solver { native_default_path_ok }
+    if native_default_path_ok(resolved) {
         return resolved;
     }
     return None;
 }
 
 def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
-    if plain_native_import_target(nd, prog) is None {
-        return False;
-    }
+    # Cheap context guard first: the eligibility scan in
+    # plain_native_import_target parses the target, so only client-flavored
+    # imports pay for it.
     if nd.code_context == CodeContext.CLIENT {
-        return True;
-    }
-    if nd.code_context != CodeContext.SERVER {
+        ;
+    } elif nd.code_context == CodeContext.SERVER and module_has_client_top(
+        nd.find_parent_of_type(uni.Module)
+    ) {
+        ;
+    } else {
         return False;
     }
-    return module_has_client_top(nd.find_parent_of_type(uni.Module));
+    return plain_native_import_target(nd, prog) is not None;
 }
 
 def _ability_of_defn(defn_node: uni.UniNode) -> (uni.Ability | None) {
