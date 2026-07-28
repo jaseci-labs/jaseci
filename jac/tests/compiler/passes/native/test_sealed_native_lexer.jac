@@ -191,9 +191,31 @@ test "sealed manifest round trip resolves the artifact" {
     layout = layout_from_dict(found_layout);
     assert "tokenize_full" in layout.functions;
 
-    # Tampering must fail closed.
-    staged_lib.write_bytes(staged_lib.read_bytes() + b"x");
-    assert image.native_artifact("jaclang.jac0core.parser.lexer") is None , (
+    # Tampering must fail closed. Tamper a fresh staged copy, never the one
+    # dlopen'd above: truncating a mapped ELF in place drops even the COW'd
+    # pages holding glibc's relocated .dynamic entries, and the next dlopen
+    # in this process would segfault walking the stale soname (glibc
+    # _dl_map_object, dl-load.c).
+    nat2 = pre / "native" / "tamper-triple";
+    nat2.mkdir(parents=True, exist_ok=True);
+    tampered_lib = nat2 / os.path.basename(lib_path);
+    shutil.copyfile(lib_path, str(tampered_lib));
+    tampered_layout = nat2 / "lexer.layout.json";
+    shutil.copyfile(str(staged_layout), str(tampered_layout));
+    manifest["native_artifacts"]["jaclang.jac0core.parser.lexer"] = {
+        "lib": tampered_lib.relative_to(pre).as_posix(),
+        "layout": tampered_layout.relative_to(pre).as_posix(),
+        "triple": "tamper-triple",
+        "lib_sha256": hashlib.sha256(tampered_lib.read_bytes()).hexdigest(),
+        "layout_sha256": hashlib.sha256(tampered_layout.read_bytes()).hexdigest()
+    };
+    (pre / "MANIFEST.json").write_text(
+        json.dumps(manifest, indent=1), encoding="utf-8"
+    );
+    tampered_lib.write_bytes(tampered_lib.read_bytes() + b"x");
+    image2 = load_image(str(pre));
+    assert image2 is not None , "restaged manifest failed to load";
+    assert image2.native_artifact("jaclang.jac0core.parser.lexer") is None , (
         "tampered artifact must not resolve"
     );
 }
