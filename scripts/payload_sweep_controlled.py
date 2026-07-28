@@ -97,6 +97,13 @@ def run_size(size: str, invocations: int, timeout_s: int) -> dict | None:
             "min_ns": vc["min_ns"],
             "max_ns": vc["max_ns"],
             "digest": vc["digest"],
+            "canonical_digest": vc.get("canonical_digest"),
+            # RAW per-invocation samples so bootstrap CIs are reconstructible
+            # from the canonical artifact alone (interop-bench#7).
+            "samples_ns": vc.get("samples_ns"),
+            "metric_samples_per_call_ns": vc.get("metric_samples", {}).get(
+                "per_call_ns"
+            ),
         }
     res["identical"] = variants["direct"]["digest"] == variants["rpc"]["digest"]
     return res
@@ -106,7 +113,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sizes", default=",".join(SIZES))
     ap.add_argument("--invocations", type=int, default=20)
-    ap.add_argument("--reps", type=int, default=1)
+    ap.add_argument("--reps", type=int, default=3)
     ap.add_argument("--timeout", type=int, default=900)
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
@@ -141,18 +148,36 @@ def main() -> None:
                 file=sys.stderr,
             )
 
-    # collapse reps -> median of rep medians per variant
+    # collapse reps -> median of rep medians per variant, but RETAIN the full raw
+    # per-invocation sample pool (all reps x all invocations) + per-rep medians +
+    # the canonical digest, so the reported point and its CI are independently
+    # reconstructible from this file (interop-bench#5,#7).
     for slot in per_size.values():
         for v in ("direct", "rpc"):
+            reps = slot["reps"]
             pcs = [
-                rp[v]["per_call_ns"]
-                for rp in slot["reps"]
-                if rp[v]["per_call_ns"] is not None
+                rp[v]["per_call_ns"] for rp in reps if rp[v]["per_call_ns"] is not None
             ]
+            raw_pool: list[int] = []
+            for rp in reps:
+                ms = rp[v].get("metric_samples_per_call_ns")
+                if ms:
+                    raw_pool.extend(ms)
+            digs = {
+                rp[v].get("canonical_digest")
+                for rp in reps
+                if rp[v].get("canonical_digest")
+            }
             slot[v] = {
                 "per_call_ns": statistics.median(pcs) if pcs else None,
                 "reps_per_call_ns": pcs,
                 "n_reps": len(pcs),
+                "raw_per_call_ns": raw_pool,
+                "n_raw": len(raw_pool),
+                "canonical_digest": next(iter(digs))
+                if len(digs) == 1
+                else sorted(digs),
+                "raw_samples_ns": [rp[v].get("samples_ns") for rp in reps],
             }
         slot["identical"] = all(rp["identical"] for rp in slot["reps"])
         del slot["reps"]

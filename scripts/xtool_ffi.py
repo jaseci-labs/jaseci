@@ -2,13 +2,17 @@
 """Committed cross-tool FFI producer for JacInteropBench (Section sec:xtool).
 
 Answers STEPS.md #39 ("make cross-tool FFI comparisons truly matched") and the
-"more kernels" scope expansion in the Related Work / Conclusion. Prior to this
-script the tab:xtool numbers had no committed producer; here every Python-side
-binding is built and timed from one source of truth, with a differential-identity
-oracle spanning toolchains.
+"more kernels" scope expansion in the Related Work / Conclusion. Every binding
+is built from ONE C translation unit (ib_fixture.o) bound five ways -- ctypes /
+cffi dlopen a .so built from it; the C-extension and pybind11 LINK that object;
+PyO3 static-links its archive through `extern "C"`. All five therefore run the
+byte-identical foreign machine code of ib_sqrt / ib_dot / ib_fnv1a, and every
+kernel uses the SAME signature across toolchains -- the struct kernel passes two
+Vec3 BY VALUE in all five, not a scalar the callee re-expands (interop-bench#1).
+Only the boundary marshalling differs, which is exactly what tab:xtool measures.
 
 What it does, for each KERNEL (sqrt / struct-by-value / bytes-digest) x each
-TOOLCHAIN (ctypes, cffi ABI, raw METH_O C-extension, pybind11, PyO3/Rust):
+TOOLCHAIN (ctypes, cffi ABI, C-extension, pybind11, PyO3/Rust):
 
   * MATCHED  -- per-foreign-call cost under the kernel's exact loop, warmed and
                 digest-verified (the honest end-to-end number a user pays).
@@ -24,9 +28,10 @@ any toolchain disagrees -- the cross-toolchain oracle is load-bearing, not
 decorative. Missing toolchains (no compiler, no pybind11, no cargo) are recorded
 as skipped with a reason rather than silently dropped.
 
-The Jac-native FFI point is measured by a separate path (the existing
-iop_ffi_scalar kernel via `jac run`); it is pulled in with --jac-na so this
-script stays a pure Python-side cross-tool producer that also anchors to Jac.
+Jac's own native FFI kernels (iop_ffi_scalar sqrt, iop_ffi_struct struct-by-
+value) are measured via `jac run` and pulled in with --jac-na as ANCHORS beside
+the Python toolchains. They are a separate workload/digest, reported but NOT
+folded into the cross-toolchain digest oracle.
 
 Usage:
     python3 scripts/xtool_ffi.py --reps 5 --matched-n 2000 --isolated-n 2000000 \
@@ -60,18 +65,41 @@ BENCH = ROOT / "jac" / "examples" / "interopbench"
 # across every toolchain AND the ref.
 # ---------------------------------------------------------------------------
 
-# C source shared by ctypes / cffi / C-ext / pybind11. One translation unit.
-C_FIXTURE = r"""
-#include <math.h>
+# The C fixture is ONE translation unit compiled ONCE (to ib_fixture.o) and then
+# bound five ways: ctypes/cffi dlopen a .so built from that object; the raw
+# C-extension and pybind11 LINK that same object; PyO3 links a static archive of
+# it and calls it through `extern "C"`. Every toolchain therefore executes the
+# byte-identical machine code of ib_sqrt / ib_dot / ib_fnv1a -- the only thing
+# that differs per toolchain is the argument marshalling at the boundary, which
+# is exactly what tab:xtool measures. The public header (extern "C" so C++/pybind
+# links cleanly) is the single source of the Vec3 type and the three prototypes.
+C_HEADER = r"""
+#ifndef IB_FIXTURE_H
+#define IB_FIXTURE_H
 #include <stdint.h>
 #include <stddef.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct { double x, y, z; } Vec3;
+long ib_sqrt(double x);
+double ib_dot(Vec3 a, Vec3 b);
+uint64_t ib_fnv1a(const uint8_t *p, size_t n);
+#ifdef __cplusplus
+}
+#endif
+#endif
+"""
+
+C_FIXTURE = r"""
+#include "ib_fixture.h"
+#include <math.h>
 
 /* sqrt kernel: integer sqrt of a perfect square -> exact i. */
 long ib_sqrt(double x) { return (long)sqrt(x); }
 
 /* struct-by-value kernel: dot product of two 3-vectors passed BY VALUE.
    Exercises the register-vs-byval ABI distinction the paper calls out. */
-typedef struct { double x, y, z; } Vec3;
 double ib_dot(Vec3 a, Vec3 b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
 
 /* bytes kernel: FNV-1a over a small buffer passed by pointer+length.
@@ -145,18 +173,52 @@ def time_loop(fn: Callable[[], object], reps: int) -> float:
 # plus we build the matched loops in Python around them. Returns None + reason
 # if the toolchain can't be built here.
 # ---------------------------------------------------------------------------
-def _compile_shared(workdir: Path) -> Path | None:
-    """Compile C_FIXTURE to a shared lib for ctypes/cffi. gcc required."""
-    if not shutil.which("gcc"):
+_FIXTURE_CACHE: dict | None = None
+
+
+def _compile_fixture(workdir: Path) -> dict | None:
+    """Compile C_FIXTURE ONCE into shared artifacts reused by every toolchain.
+
+    Returns {"o": ib_fixture.o, "so": libibfixture.so, "a": libibfixture.a,
+    "inc": <dir with ib_fixture.h>} or None if gcc/ar are unavailable. The .o is
+    the single translation unit; the .so (ctypes/cffi), the .o directly
+    (C-ext/pybind11) and the .a (PyO3) all wrap that same object so the foreign
+    machine code is byte-identical across toolchains.
+    """
+    global _FIXTURE_CACHE
+    if _FIXTURE_CACHE is not None:
+        return _FIXTURE_CACHE
+    if not shutil.which("gcc") or not shutil.which("ar"):
         return None
+    (workdir / "ib_fixture.h").write_text(C_HEADER)
     src = workdir / "ib_fixture.c"
     src.write_text(C_FIXTURE)
-    so = workdir / "libibfixture.so"
+    obj = workdir / "ib_fixture.o"
+    # one compile -> one object file, the single TU every binding shares
     p = subprocess.run(
-        ["gcc", "-O2", "-fPIC", "-shared", str(src), "-o", str(so), "-lm"],
+        ["gcc", "-O2", "-fPIC", f"-I{workdir}", "-c", str(src), "-o", str(obj)],
         capture_output=True,
     )
-    return so if p.returncode == 0 else None
+    if p.returncode != 0:
+        return None
+    so = workdir / "libibfixture.so"
+    p = subprocess.run(
+        ["gcc", "-shared", str(obj), "-o", str(so), "-lm"], capture_output=True
+    )
+    if p.returncode != 0:
+        return None
+    ar = workdir / "libibfixture.a"
+    p = subprocess.run(["ar", "rcs", str(ar), str(obj)], capture_output=True)
+    if p.returncode != 0:
+        return None
+    _FIXTURE_CACHE = {"o": obj, "so": so, "a": ar, "inc": workdir}
+    return _FIXTURE_CACHE
+
+
+def _compile_shared(workdir: Path) -> Path | None:
+    """Back-compat shim: the shared lib built from the single shared TU."""
+    fx = _compile_fixture(workdir)
+    return fx["so"] if fx else None
 
 
 def build_ctypes(workdir: Path) -> tuple[dict | None, str | None]:
@@ -181,9 +243,9 @@ def build_ctypes(workdir: Path) -> tuple[dict | None, str | None]:
     lib.ib_fnv1a.restype = ctypes.c_uint64
     lib.ib_fnv1a.argtypes = [ctypes.c_char_p, ctypes.c_size_t]
 
-    def dot_call(i: int) -> float:
-        v = Vec3(float(i), float(i), float(i))
-        return lib.ib_dot(v, v)
+    def dot_call(a: tuple, b: tuple) -> float:
+        # genuine struct-by-value: two Vec3 marshalled and passed by value
+        return lib.ib_dot(Vec3(*a), Vec3(*b))
 
     return {
         "sqrt": lib.ib_sqrt,
@@ -209,9 +271,10 @@ def build_cffi(workdir: Path) -> tuple[dict | None, str | None]:
     )
     lib = ffi.dlopen(str(so))
 
-    def dot_call(i: int) -> float:
-        a = ffi.new("Vec3 *", [float(i), float(i), float(i)])[0]
-        return lib.ib_dot(a, a)
+    def dot_call(a: tuple, b: tuple) -> float:
+        va = ffi.new("Vec3 *", list(a))[0]
+        vb = ffi.new("Vec3 *", list(b))[0]
+        return lib.ib_dot(va, vb)
 
     def fnv(buf: bytes) -> int:
         return lib.ib_fnv1a(buf, len(buf))
@@ -221,34 +284,29 @@ def build_cffi(workdir: Path) -> tuple[dict | None, str | None]:
 
 C_EXT_SOURCE = r"""
 #include <Python.h>
-#include <math.h>
-#include <stdint.h>
+#include "ib_fixture.h"   /* real ib_sqrt / ib_dot / ib_fnv1a, linked from ib_fixture.o */
 
 static PyObject* m_sqrt(PyObject* self, PyObject* a) {
-    double x = PyFloat_AsDouble(a);
-    return PyLong_FromLong((long)sqrt(x));
+    return PyLong_FromLong(ib_sqrt(PyFloat_AsDouble(a)));
 }
-/* dot({i,i,i},{i,i,i}) taking the scalar i, to keep a single METH_O arg while
-   still crossing for a by-value-ish struct computation. */
-static PyObject* m_dot(PyObject* self, PyObject* a) {
-    double i = PyFloat_AsDouble(a);
-    typedef struct { double x, y, z; } Vec3;
-    Vec3 v = { i, i, i };
-    double r = v.x*v.x + v.y*v.y + v.z*v.z;
-    return PyFloat_FromDouble(r);
+/* struct-by-value: marshal two Python 3-sequences into two Vec3 and pass both
+   BY VALUE into the shared ib_dot. Same foreign function as ctypes/cffi. */
+static PyObject* m_dot(PyObject* self, PyObject* args) {
+    Vec3 a, b;
+    if (!PyArg_ParseTuple(args, "(ddd)(ddd)",
+                          &a.x, &a.y, &a.z, &b.x, &b.y, &b.z)) return NULL;
+    return PyFloat_FromDouble(ib_dot(a, b));
 }
 static PyObject* m_fnv(PyObject* self, PyObject* a) {
     Py_buffer view;
     if (PyObject_GetBuffer(a, &view, PyBUF_SIMPLE) != 0) return NULL;
-    uint64_t h = 1469598103934665603ULL;
-    const uint8_t* p = (const uint8_t*)view.buf;
-    for (Py_ssize_t i = 0; i < view.len; i++) { h ^= p[i]; h *= 1099511628211ULL; }
+    uint64_t h = ib_fnv1a((const uint8_t*)view.buf, (size_t)view.len);
     PyBuffer_Release(&view);
     return PyLong_FromUnsignedLongLong(h);
 }
 static PyObject* m_noop(PyObject* self, PyObject* a) { Py_RETURN_NONE; }
 static PyMethodDef Methods[] = {
-    {"sqrt", m_sqrt, METH_O, ""}, {"dot", m_dot, METH_O, ""},
+    {"sqrt", m_sqrt, METH_O, ""}, {"dot", m_dot, METH_VARARGS, ""},
     {"fnv", m_fnv, METH_O, ""}, {"noop", m_noop, METH_O, ""},
     {NULL, NULL, 0, NULL}
 };
@@ -258,9 +316,19 @@ PyMODINIT_FUNC PyInit_ib_cext(void) { return PyModule_Create(&mod); }
 
 
 def _build_ext_module(
-    workdir: Path, name: str, source: str, extra: list[str], lang_cpp: bool = False
+    workdir: Path,
+    name: str,
+    source: str,
+    extra: list[str],
+    lang_cpp: bool = False,
+    link: list[str] | None = None,
 ) -> tuple[object | None, str | None]:
-    """Compile a Python C/C++ extension module and import it. Returns module."""
+    """Compile a Python C/C++ extension module and import it. Returns module.
+
+    ``extra`` are pre-source flags (includes, std); ``link`` are post-source
+    inputs (the shared ib_fixture.o object and -lm) so the linker resolves the
+    fixture symbols the extension calls.
+    """
     cc = sysconfig.get_config_var("CC") or ("g++" if lang_cpp else "gcc")
     if lang_cpp:
         cc = shutil.which("g++") or "g++"
@@ -269,6 +337,7 @@ def _build_ext_module(
     src.write_text(source)
     so = workdir / f"{name}.so"
     cmd = [cc, "-O2", "-fPIC", "-shared", f"-I{inc}", *extra, str(src), "-o", str(so)]
+    cmd += list(link or [])
     p = subprocess.run(cmd, capture_output=True, text=True)
     if p.returncode != 0:
         return None, f"compile failed: {p.stderr.strip().splitlines()[-1:]}"
@@ -281,12 +350,17 @@ def _build_ext_module(
 def build_cext(workdir: Path) -> tuple[dict | None, str | None]:
     if not shutil.which("gcc"):
         return None, "gcc missing"
-    mod, err = _build_ext_module(workdir, "ib_cext", C_EXT_SOURCE, [])
+    fx = _compile_fixture(workdir)
+    if fx is None:
+        return None, "shared C fixture failed to compile"
+    mod, err = _build_ext_module(
+        workdir, "ib_cext", C_EXT_SOURCE, [f"-I{fx['inc']}"], link=[str(fx["o"]), "-lm"]
+    )
     if mod is None:
         return None, err
     return {
         "sqrt": mod.sqrt,
-        "dot": lambda i: mod.dot(float(i)),
+        "dot": mod.dot,
         "fnv": mod.fnv,
         "noop": mod.noop,
     }, None
@@ -294,21 +368,19 @@ def build_cext(workdir: Path) -> tuple[dict | None, str | None]:
 
 PYBIND_SOURCE = r"""
 #include <pybind11/pybind11.h>
-#include <math.h>
-#include <stdint.h>
-#include <string_view>
+#include <pybind11/stl.h>
+#include <array>
+#include "ib_fixture.h"   /* real ib_sqrt / ib_dot / ib_fnv1a (extern "C") */
 namespace py = pybind11;
-static long b_sqrt(double x) { return (long)sqrt(x); }
-static double b_dot(double i) {
-    struct Vec3 { double x, y, z; } v{ i, i, i };
-    return v.x*v.x + v.y*v.y + v.z*v.z;
+static long b_sqrt(double x) { return ib_sqrt(x); }
+/* struct-by-value: two Python 3-sequences -> two Vec3 -> shared ib_dot. */
+static double b_dot(std::array<double,3> a, std::array<double,3> b) {
+    Vec3 va{ a[0], a[1], a[2] }, vb{ b[0], b[1], b[2] };
+    return ib_dot(va, vb);
 }
 static uint64_t b_fnv(py::buffer b) {
     py::buffer_info info = b.request();
-    uint64_t h = 1469598103934665603ULL;
-    const uint8_t* p = (const uint8_t*)info.ptr;
-    for (ssize_t i = 0; i < info.size; i++) { h ^= p[i]; h *= 1099511628211ULL; }
-    return h;
+    return ib_fnv1a((const uint8_t*)info.ptr, (size_t)info.size);
 }
 PYBIND11_MODULE(ib_pybind, m) {
     m.def("sqrt", &b_sqrt); m.def("dot", &b_dot); m.def("fnv", &b_fnv);
@@ -323,33 +395,55 @@ def build_pybind(workdir: Path) -> tuple[dict | None, str | None]:
         return None, "pybind11 not importable"
     if not shutil.which("g++"):
         return None, "g++ missing"
-    extra = [f"-I{pybind11.get_include()}", "-std=c++14"]
+    fx = _compile_fixture(workdir)
+    if fx is None:
+        return None, "shared C fixture failed to compile"
+    extra = [f"-I{pybind11.get_include()}", f"-I{fx['inc']}", "-std=c++14"]
     mod, err = _build_ext_module(
-        workdir, "ib_pybind", PYBIND_SOURCE, extra, lang_cpp=True
+        workdir,
+        "ib_pybind",
+        PYBIND_SOURCE,
+        extra,
+        lang_cpp=True,
+        link=[str(fx["o"]), "-lm"],
     )
     if mod is None:
         return None, err
-    return {"sqrt": mod.sqrt, "dot": lambda i: mod.dot(float(i)), "fnv": mod.fnv}, None
+    return {"sqrt": mod.sqrt, "dot": mod.dot, "fnv": mod.fnv}, None
 
 
 PYO3_LIB_RS = r"""
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-#[pyfunction]
-fn sqrt(x: f64) -> i64 { (x.sqrt()) as i64 }
+// The single C translation unit, bound through extern "C". Same ib_sqrt/ib_dot/
+// ib_fnv1a machine code as ctypes/cffi/C-ext/pybind -- statically linked via
+// build.rs. Nothing here reimplements the kernels.
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct Vec3 { x: f64, y: f64, z: f64 }
+
+extern "C" {
+    fn ib_sqrt(x: f64) -> i64;
+    fn ib_dot(a: Vec3, b: Vec3) -> f64;
+    fn ib_fnv1a(p: *const u8, n: usize) -> u64;
+}
 
 #[pyfunction]
-fn dot(i: f64) -> f64 {
-    let (x, y, z) = (i, i, i);
-    x*x + y*y + z*z
+fn sqrt(x: f64) -> i64 { unsafe { ib_sqrt(x) } }
+
+// struct-by-value: two Python 3-tuples -> two repr(C) Vec3 -> shared ib_dot.
+#[pyfunction]
+fn dot(a: (f64, f64, f64), b: (f64, f64, f64)) -> f64 {
+    let va = Vec3 { x: a.0, y: a.1, z: a.2 };
+    let vb = Vec3 { x: b.0, y: b.1, z: b.2 };
+    unsafe { ib_dot(va, vb) }
 }
 
 #[pyfunction]
 fn fnv(b: &Bound<'_, PyBytes>) -> u64 {
-    let mut h: u64 = 1469598103934665603;
-    for &byte in b.as_bytes() { h ^= byte as u64; h = h.wrapping_mul(1099511628211); }
-    h
+    let s = b.as_bytes();
+    unsafe { ib_fnv1a(s.as_ptr(), s.len()) }
 }
 
 #[pymodule]
@@ -361,11 +455,24 @@ fn ib_pyo3(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 """
 
+# Links the shared libibfixture.a (built once from ib_fixture.o) statically into
+# the cdylib, plus libm for the sqrt symbol the fixture calls. IB_FIXTURE_DIR is
+# passed in the cargo env below.
+PYO3_BUILD_RS = r"""
+fn main() {
+    let dir = std::env::var("IB_FIXTURE_DIR").expect("IB_FIXTURE_DIR");
+    println!("cargo:rustc-link-search=native={dir}", dir = dir);
+    println!("cargo:rustc-link-lib=static=ibfixture");
+    println!("cargo:rustc-link-lib=dylib=m");
+}
+"""
+
 PYO3_CARGO_TOML = """
 [package]
 name = "ib_pyo3"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [lib]
 name = "ib_pyo3"
@@ -379,9 +486,13 @@ pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39"] }
 def build_pyo3(workdir: Path) -> tuple[dict | None, str | None]:
     if not shutil.which("cargo"):
         return None, "cargo missing"
+    fx = _compile_fixture(workdir)
+    if fx is None:
+        return None, "shared C fixture failed to compile"
     crate = workdir / "pyo3crate"
     (crate / "src").mkdir(parents=True, exist_ok=True)
     (crate / "Cargo.toml").write_text(PYO3_CARGO_TOML)
+    (crate / "build.rs").write_text(PYO3_BUILD_RS)
     (crate / "src" / "lib.rs").write_text(PYO3_LIB_RS)
     # PyO3 <=0.22 caps at CPython 3.13; on 3.14+ build against the stable ABI
     # (abi3) with the forward-compat escape hatch. PYO3_PYTHON pins the target
@@ -392,6 +503,7 @@ def build_pyo3(workdir: Path) -> tuple[dict | None, str | None]:
         **os.environ,
         "PYO3_PYTHON": sys.executable,
         "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": "1",
+        "IB_FIXTURE_DIR": str(fx["a"].parent),
     }
     p = subprocess.run(
         ["cargo", "build", "--release"],
@@ -410,7 +522,7 @@ def build_pyo3(workdir: Path) -> tuple[dict | None, str | None]:
     spec = importlib.util.spec_from_file_location("ib_pyo3", so)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return {"sqrt": mod.sqrt, "dot": lambda i: mod.dot(float(i)), "fnv": mod.fnv}, None
+    return {"sqrt": mod.sqrt, "dot": mod.dot, "fnv": mod.fnv}, None
 
 
 BUILDERS = {
@@ -436,7 +548,8 @@ def matched_digest(kernel: str, calls: dict, n: int) -> int:
         f = calls["dot"]
         acc = 0
         for i in range(1, n + 1):
-            acc += int(f(i))
+            v = (float(i), float(i), float(i))
+            acc += int(f(v, v))  # dot({i,i,i},{i,i,i}) = 3*i*i
         return acc
     if kernel == "bytes":
         f = calls["fnv"]
@@ -459,10 +572,11 @@ def isolated_per_call_ns(kernel: str, calls: dict, n: int, reps: int) -> float:
                 f(arg)
     elif kernel == "struct":
         f = calls["dot"]
+        v = (2.0, 2.0, 2.0)
 
         def full():
             for _ in range(n):
-                f(2)
+                f(v, v)
     else:  # bytes
         f = calls["fnv"]
         buf = b"\x07" * BUF_LEN
@@ -581,7 +695,7 @@ def main() -> None:
 
     jac_na = None
     if args.jac_na:
-        jac_na = _measure_jac_na_sqrt(args.reps)
+        jac_na = _measure_jac_na(args.reps)
 
     shutil.rmtree(workdir, ignore_errors=True)
 
@@ -595,13 +709,25 @@ def main() -> None:
         "python": sys.version.split()[0],
         "machine_control": gov,
         "oracle_all_toolchains_agree": oracle_ok,
+        "one_translation_unit": True,
+        "matched_signatures": {
+            "sqrt": "double -> long",
+            "struct": "ib_dot(Vec3, Vec3) -> double, both structs BY VALUE",
+            "bytes": "ib_fnv1a(const uint8_t*, size_t) -> uint64",
+        },
         "skipped_toolchains": skipped,
-        "jac_na_sqrt": jac_na,
-        "note": "matched = per foreign call under the kernel loop (warmed, "
-        "digest-verified); isolated = tight call loop minus empty loop "
-        "(boundary+conversion only). overhead_above_ref = matched minus "
-        "the pure-Python no-FFI floor. Digest identity across all "
-        "toolchains is the cross-tool oracle.",
+        "jac_na": jac_na,
+        "note": "One C translation unit (ib_fixture.o) is bound five ways: "
+        "ctypes/cffi dlopen a .so built from it; the C-extension and pybind11 "
+        'link that object; PyO3 static-links its archive via extern "C". Every '
+        "toolchain runs the identical foreign machine code and every kernel uses "
+        "the SAME signature across toolchains (struct = two Vec3 passed BY VALUE) "
+        "-- only the boundary marshalling differs. matched = per foreign call "
+        "under the kernel loop (warmed, digest-verified); isolated = tight call "
+        "loop minus empty loop (boundary+conversion only). overhead_above_ref = "
+        "matched minus the pure-Python no-FFI floor. Digest identity across all "
+        "toolchains is the cross-tool oracle. jac_na = Jac's own native FFI "
+        "kernels as anchors (separate workload/digest, not in the oracle).",
         "cells": cells,
     }
     out = Path(args.out)
@@ -624,18 +750,22 @@ def _governor() -> dict:
     return {"governor": gov, "turbo_disabled": tur}
 
 
-def _measure_jac_na_sqrt(reps: int) -> dict | None:
-    """Measure the existing Jac-native iop_ffi_scalar kernel via `jac run`."""
-    jac = shutil.which("jac")
-    if jac is None:
-        return {"skipped": "jac not on PATH"}
-    cmd = [jac, "run", "kernels/iop_ffi_scalar.na.jac"]
-    samples = []
-    digest_seen = None
+def _measure_jac_na_kernel(
+    jac: str, kernel_file: str, digest_prefix: str, reps: int
+) -> dict:
+    """Measure one Jac-native iop_ffi_* kernel via `jac run`. Anchor point only.
+
+    These are Jac's OWN native FFI kernels (scalar sqrt, struct-by-value). They
+    are a separate workload from the Python-side cross-tool oracle -- reported as
+    an anchor next to the Python toolchains, NOT folded into the digest identity.
+    """
     import re
 
     per_re = re.compile(rb"m:per_ffi_call_ns=(\d+)")
-    dig_re = re.compile(rb"(sqrt:\d+)")
+    dig_re = re.compile(rf"({digest_prefix}:\d+)".encode())
+    cmd = [jac, "run", kernel_file]
+    samples: list[int] = []
+    digest_seen = None
     for _ in range(reps):
         p = subprocess.run(cmd, cwd=str(BENCH), capture_output=True, timeout=120)
         m = per_re.search(p.stdout)
@@ -646,13 +776,32 @@ def _measure_jac_na_sqrt(reps: int) -> dict | None:
             digest_seen = d.group(1).decode()
     if not samples:
         return {
-            "skipped": "iop_ffi_scalar produced no m:per_ffi_call_ns "
+            "skipped": f"{kernel_file} produced no m:per_ffi_call_ns "
             "(kernel may need nacompile); run manually"
         }
     return {
         "per_ffi_call_ns": statistics.median(samples),
         "samples": samples,
         "digest": digest_seen,
+    }
+
+
+def _measure_jac_na(reps: int) -> dict | None:
+    """Measure Jac-native FFI anchors: scalar (sqrt) and struct-by-value."""
+    jac = shutil.which("jac")
+    if jac is None:
+        return {"skipped": "jac not on PATH"}
+    return {
+        "sqrt": _measure_jac_na_kernel(
+            jac, "kernels/iop_ffi_scalar.na.jac", "sqrt", reps
+        ),
+        "struct": _measure_jac_na_kernel(
+            jac, "kernels/iop_ffi_struct.na.jac", "struct", reps
+        ),
+        "bytes": {"skipped": "no Jac-native bytes/pointer FFI kernel yet"},
+        "note": "Jac's own native FFI kernels; separate workloads/digests from "
+        "the Python-side cross-tool oracle -- reported as anchors, not "
+        "folded into the toolchain digest-identity check.",
     }
 
 

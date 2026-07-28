@@ -40,6 +40,9 @@ VARIANTS = {
 DEFAULT_WORKS = [25, 50, 100, 200, 400, 800, 1600, 3200]
 DEFAULT_CALLS = 40
 METRIC_RE = re.compile(rb"m:(?:per_call_ns|invoke_ns)=(\d+)")
+# the kernel's correctness digest line, e.g. "call:199227369" / "sym:...".
+# excludes the "m:..." metric lines (letters then '=' , not ':<digits>').
+DIGEST_RE = re.compile(rb"(?m)^([a-z_]+):(\d+)$")
 
 
 def run_one(task: tuple) -> tuple:
@@ -48,10 +51,12 @@ def run_one(task: tuple) -> tuple:
     try:
         p = subprocess.run(cmd, cwd=str(BENCH), capture_output=True, timeout=60)
     except subprocess.TimeoutExpired:
-        return (task, None)
+        return (task, None, None)
     m = METRIC_RE.findall(p.stdout)
     per_call = int(m[-1]) if m else None
-    return (task, per_call)
+    dm = DIGEST_RE.search(p.stdout)
+    digest = dm.group(0).decode() if dm else None
+    return (task, per_call, digest)
 
 
 def governor() -> dict:
@@ -105,18 +110,26 @@ def main():
         sys.exit(2)
 
     results: dict = {}
+    digests: dict = {}
+    failures: list[str] = []
     done = 0
     with Pool(args.jobs) as pool:
-        for task, per_call in pool.imap_unordered(run_one, tasks):
+        for task, per_call, digest in pool.imap_unordered(run_one, tasks):
             k, v, w, _ = task
             done += 1
             if done % 50 == 0:
                 print(f"  ...{done}/{len(tasks)}", file=sys.stderr)
             if per_call is None:
+                # a failed/timed-out invocation is a hard error, not a silent skip
+                failures.append(f"{k}.{v}[{w}] invocation produced no metric")
                 continue
             results.setdefault(k, {}).setdefault(v, {}).setdefault(w, []).append(
                 per_call
             )
+            if digest is not None:
+                digests.setdefault(k, {}).setdefault(v, {}).setdefault(w, set()).add(
+                    digest
+                )
 
     cells = {}
     for k in kernels:
@@ -125,6 +138,18 @@ def main():
             pw = {}
             for w in works:
                 xs = results.get(k, {}).get(v, {}).get(w, [])
+                # HARD GATE: every cell must have exactly `reps` samples. A short
+                # cell means a subprocess failed -- refuse it rather than fitting
+                # a slope through a silently-decimated cell (interop-bench#4).
+                if len(xs) != args.reps:
+                    failures.append(
+                        f"{k}.{v}[{w}] n={len(xs)}, declared reps={args.reps}"
+                    )
+                dset = digests.get(k, {}).get(v, {}).get(w, set())
+                if len(dset) > 1:
+                    failures.append(
+                        f"{k}.{v}[{w}] digest disagreement across reps: {sorted(dset)}"
+                    )
                 if not xs:
                     continue
                 pw[str(w)] = {
@@ -134,9 +159,20 @@ def main():
                     "stdev": statistics.pstdev(xs) if len(xs) > 1 else 0.0,
                     "samples": xs,
                     "n": len(xs),
+                    "digest": next(iter(dset)) if dset else None,
                 }
             vcell[v] = {"per_work": pw}
         cells[k] = {"variants": vcell}
+
+    if failures:
+        print(
+            f"ABORT: {len(failures)} incomplete/inconsistent cell(s); refusing to "
+            f"write a decimated dataset:",
+            file=sys.stderr,
+        )
+        for f in failures:
+            print(f"  FAIL: {f}", file=sys.stderr)
+        sys.exit(1)
 
     doc = {
         "schema_version": 1,

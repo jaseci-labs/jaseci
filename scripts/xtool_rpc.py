@@ -29,13 +29,24 @@ Two measurements per comparand mirror tab:xtool:
                 client marshalling), the family-2 analog of the FFI isolated
                 column and the rpc_floor_probe decomposition.
 
-REAL-NETWORK RTT: every comparand also records a TCP-connect RTT to its
-provider (median of --rtt-samples connects). On loopback this is tens of
-microseconds -- confirming the ~15 ms floor is framework+marshalling, not wire,
-exactly as rpc_floor_probe found. Point --provider-host at a second machine and
-the SAME script measures a real-network RTT term (jac_sv / fastapi lanes accept
-an external host; see --provider-host). The wire term is reported separately so
-marshalling and network are never conflated.
+RTT: every comparand records a TCP-connect RTT to its provider (median of
+--rtt-samples connects). By default the providers are SELF-HOSTED on loopback
+(127.0.0.1, a free port), so this RTT is tens of microseconds -- confirming the
+~15 ms floor is framework+marshalling, not wire, exactly as rpc_floor_probe
+found. The default canonical numbers are therefore loopback numbers.
+
+REAL cross-machine RTT (two-box mode): start a provider on machine B with
+    scripts/.xtool-venv/bin/python scripts/xtool_rpc.py --serve fastapi --port 9000
+    scripts/.xtool-venv/bin/python scripts/xtool_rpc.py --serve minimal --port 9001
+    (jac_sv: `jac start billing.jac --port 9002` in kernels/xop_svc_split)
+then drive from machine A with
+    ... --provider-host B.B.B.B --provider-port 9000 --minimal-port 9001 \
+        --jac-sv-url http://B.B.B.B:9002 --comparands fastapi_httpx,minimal_http,jac_sv
+In two-box mode the client does NOT launch a local server; it connects to the
+remote and the RTT term is a real-network RTT. The wire term is always reported
+separately so marshalling and network are never conflated. (Previously
+--provider-host was inert: the server was still spawned locally on a random
+port, so a remote host pointed at nothing -- interop-bench#9.)
 
 Every comparand recomputes one byte-identical digest `charge:<checksum>`; the
 run ABORTS if any disagree.
@@ -68,6 +79,10 @@ BENCH = ROOT / "jac" / "examples" / "interopbench"
 SVC = BENCH / "kernels" / "xop_svc_split"
 
 WARMUP_CALLS = 5
+
+
+def is_loopback(host: str) -> bool:
+    return host in ("127.0.0.1", "localhost", "::1")
 
 
 # ---------------------------------------------------------------------------
@@ -452,17 +467,64 @@ def main() -> None:
     ap.add_argument(
         "--provider-host",
         default="127.0.0.1",
-        help="host of the FastAPI/minimal providers; set to a "
-        "second machine's address for real-network RTT (the "
-        "server scripts must be launched there)",
+        help="host of the FastAPI/minimal providers. Loopback (default) = "
+        "self-hosted; a non-loopback address = two-box client-only mode "
+        "(the provider must already be running there via --serve), giving a "
+        "real-network RTT term.",
     )
+    ap.add_argument(
+        "--provider-port",
+        type=int,
+        default=0,
+        help="fastapi provider port on a remote --provider-host (two-box mode)",
+    )
+    ap.add_argument(
+        "--minimal-port",
+        type=int,
+        default=0,
+        help="minimal_http provider port on a remote --provider-host",
+    )
+    ap.add_argument(
+        "--jac-sv-url",
+        default=None,
+        help="billing app-server base URL on a remote host (two-box jac_sv). "
+        "When set, jac_sv drives rpc_runner against this URL instead of "
+        "starting a local billing server.",
+    )
+    ap.add_argument(
+        "--serve",
+        choices=["fastapi", "minimal"],
+        default=None,
+        help="run ONE provider in the foreground (for two-box mode on the "
+        "remote machine) and block; requires --port.",
+    )
+    ap.add_argument("--port", type=int, default=0, help="port for --serve")
     ap.add_argument(
         "--comparands",
         default="direct_inproc,jac_direct,jac_sv,fastapi_httpx,"
         "fastapi_openapi,minimal_http",
     )
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out", required=True, nargs="?")
     args = ap.parse_args()
+
+    # two-box provider mode: launch one server here and block forever.
+    if args.serve:
+        if not args.port:
+            print("ERROR: --serve requires --port", file=sys.stderr)
+            sys.exit(2)
+        src = FASTAPI_SERVER if args.serve == "fastapi" else MINIMAL_SERVER
+        print(
+            f"serving {args.serve} on 0.0.0.0:{args.port} (Ctrl-C to stop)",
+            file=sys.stderr,
+        )
+        wd = Path(tempfile.mkdtemp(prefix="xtool_rpc_serve_"))
+        script = wd / f"ib_srv_{args.serve}.py"
+        script.write_text(src)
+        subprocess.run([sys.executable, str(script), str(args.port)])
+        return
+    if not args.out:
+        print("ERROR: --out is required (except with --serve)", file=sys.stderr)
+        sys.exit(2)
 
     want = [c.strip() for c in args.comparands.split(",") if c.strip()]
     gov = _governor()
@@ -569,7 +631,11 @@ def main() -> None:
         "isolated_work": args.isolated_work,
         "reps": args.reps,
         "provider_host": host,
-        "loopback": host in ("127.0.0.1", "localhost", "::1"),
+        "loopback": is_loopback(host),
+        "two_box_mode": not is_loopback(host),
+        "provider_port": args.provider_port or None,
+        "minimal_port": args.minimal_port or None,
+        "jac_sv_url": args.jac_sv_url,
         "reference_digest": ref_digest,
         "machine_control": gov,
         "oracle_all_comparands_agree": oracle_ok,
@@ -604,6 +670,22 @@ def _jac_sv(args: argparse.Namespace, workdir: Path) -> dict:
             "matched": {"skipped": "jac not on PATH"},
             "isolated": {"skipped": "jac not on PATH"},
             "rtt": None,
+        }
+    # two-box: bill against a remote billing server, don't launch locally.
+    if args.jac_sv_url:
+        from urllib.parse import urlparse
+
+        u = urlparse(args.jac_sv_url)
+        rtt = tcp_rtt_ns(u.hostname, u.port or 80, args.rtt_samples)
+        env = {"JAC_SV_BILLING_URL": args.jac_sv_url}
+        return {
+            "matched": run_jac_runner(
+                "rpc_runner.jac", args.work, args.calls, env, args.reps
+            ),
+            "isolated": run_jac_runner(
+                "rpc_runner.jac", args.isolated_work, args.calls, env, args.reps
+            ),
+            "rtt": rtt,
         }
     port = free_port()
     log = workdir / "jac_sv.log"
@@ -646,8 +728,16 @@ def _run_python_server(
     ref_digest_iso: str,
     lanes: list[str],
 ) -> None:
-    port = free_port()
-    with Server(source, port, workdir, name):
+    remote = not is_loopback(host)
+    if remote and not args.provider_port:
+        print(
+            "ERROR: --provider-host is remote but --provider-port not set; "
+            "skipping fastapi lanes.",
+            file=sys.stderr,
+        )
+        return
+
+    def _drive(port: int) -> None:
         rtt = tcp_rtt_ns(host, port, args.rtt_samples)
         path = "/function/charge_card"
 
@@ -677,6 +767,15 @@ def _run_python_server(
                 rtt,
             )
 
+    if remote:
+        # two-box: provider already running on the remote; connect, don't launch.
+        wait_ready(lambda: http_ok(host, args.provider_port, "/healthz"), 30)
+        _drive(args.provider_port)
+    else:
+        port = free_port()
+        with Server(source, port, workdir, name):
+            _drive(port)
+
 
 def _run_minimal(
     args: argparse.Namespace,
@@ -684,8 +783,7 @@ def _run_minimal(
     host: str,
     record: Callable[..., None],
 ) -> None:
-    port = free_port()
-    with Server(MINIMAL_SERVER, port, workdir, "minimal"):
+    def _drive(port: int) -> None:
         rtt = tcp_rtt_ns(host, port, args.rtt_samples)
         record(
             "minimal_http",
@@ -693,6 +791,21 @@ def _run_minimal(
             client_minimal(host, port, args.isolated_work, args.calls, args.reps),
             rtt,
         )
+
+    if not is_loopback(host):
+        if not args.minimal_port:
+            print(
+                "ERROR: remote --provider-host but --minimal-port not set; "
+                "skipping minimal_http.",
+                file=sys.stderr,
+            )
+            return
+        wait_ready(lambda: http_ok(host, args.minimal_port, "/healthz"), 30)
+        _drive(args.minimal_port)
+    else:
+        port = free_port()
+        with Server(MINIMAL_SERVER, port, workdir, "minimal"):
+            _drive(port)
 
 
 if __name__ == "__main__":
