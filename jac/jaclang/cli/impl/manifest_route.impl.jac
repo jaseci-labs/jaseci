@@ -14,8 +14,6 @@ def _read_version_from_toml(toml_path: Path) -> (str | None) {
     return None;
 }
 
-# Intentional duplicate of cli.impl.jac::jac_version — this route layer must
-# avoid JacConfig.load (project.config) to keep startup fast.
 def _resolve_cli_version -> str {
     dev_source = os.environ.get('JAC_DEV_SOURCE');
     if dev_source {

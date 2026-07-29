@@ -19,6 +19,7 @@ glob logger = logging.getLogger(__name__),
 
 class ViteBundler {
     has dev_server_port: int = 0;
+
     def init(
         self: ViteBundler,
         project_dir: Path,
