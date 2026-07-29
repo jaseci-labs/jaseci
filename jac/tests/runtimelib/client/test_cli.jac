@@ -43,11 +43,13 @@ test "create jac app" {
             # Verify project directory was created
             project_path = os.path.join(temp_dir, test_project_name);
             assert os.path.exists(project_path);
-            assert os.path.isdir(project_path);
+            assert os.path.isdir(project_path) , f"not a dir: {project_path}";
 
             # Verify main.jac file was created at project root
             app_jac_path = os.path.join(project_path, "main.jac");
-            assert os.path.exists(app_jac_path);
+            assert os.path.exists(app_jac_path) , (
+                f"no app.jac; project has: {os.listdir(project_path)}"
+            );
 
             with open(app_jac_path) as f {
                 app_jac_content = f.read();
@@ -74,11 +76,15 @@ test "create jac app" {
                 config_data = tomllib.load(f);
             }
 
-            assert config_data["project"]["name"] == test_project_name;
+            assert config_data["project"]["name"] == test_project_name , (
+                f"project table: {config_data.get('project')}"
+            );
 
             # Verify serve config includes base_route_app for CL apps
-            assert "serve" in config_data;
-            assert config_data["serve"]["base_route_app"] == "app";
+            assert "serve" in config_data , f"toml tables: {list(config_data.keys())}";
+            assert config_data["serve"]["base_route_app"] == "app" , (
+                f"serve table: {config_data['serve']}"
+            );
 
             # Verify .gitignore was created with correct content
             gitignore_path = os.path.join(project_path, ".gitignore");
@@ -92,7 +98,9 @@ test "create jac app" {
 
             # Verify components directory exists at project root
             components_dir = os.path.join(project_path, "components");
-            assert os.path.exists(components_dir);
+            assert os.path.exists(components_dir) , (
+                f"no components dir; project has: {os.listdir(project_path)}"
+            );
 
             # Verify default packages installation (package.json should be generated)
             package_json_path = os.path.join(
@@ -215,7 +223,7 @@ test "create jac app with button component" {
             # Verify project directory was created
             project_path = os.path.join(temp_dir, test_project_name);
             assert os.path.exists(project_path) , f"no project dir: {create_report}";
-            assert os.path.isdir(project_path);
+            assert os.path.isdir(project_path) , f"not a dir: {project_path}";
 
             # Verify jac.toml was created
             jac_toml_path = os.path.join(project_path, "jac.toml");
@@ -227,16 +235,22 @@ test "create jac app with button component" {
                 config_data = tomllib.load(f);
             }
 
-            assert config_data["project"]["name"] == test_project_name;
+            assert config_data["project"]["name"] == test_project_name , (
+                f"project table: {config_data.get('project')}"
+            );
 
             # Verify serve config includes base_route_app for CL apps
-            assert "serve" in config_data;
-            assert config_data["serve"]["base_route_app"] == "app";
+            assert "serve" in config_data , f"toml tables: {list(config_data.keys())}";
+            assert config_data["serve"]["base_route_app"] == "app" , (
+                f"serve table: {config_data['serve']}"
+            );
 
             # Verify components directory and Button.cl.jac were created at project root
             components_dir = os.path.join(project_path, "components");
-            assert os.path.exists(components_dir);
-            assert os.path.isdir(components_dir);
+            assert os.path.exists(components_dir) , (
+                f"no components dir; project has: {os.listdir(project_path)}"
+            );
+            assert os.path.isdir(components_dir) , f"not a dir: {components_dir}";
 
             button_jac_path = os.path.join(components_dir, "Button.cl.jac");
             assert os.path.exists(button_jac_path) , (
@@ -247,18 +261,26 @@ test "create jac app with button component" {
                 button_content = f.read();
             }
 
-            assert "def:pub Button" in button_content;
-            assert "base_styles" in button_content;
+            assert "def:pub Button" in button_content , (
+                f"Button.cl.jac head: {button_content[:400]}"
+            );
+            assert "base_styles" in button_content , (
+                f"Button.cl.jac head: {button_content[:400]}"
+            );
 
             # Verify main.jac includes Jac component import
             app_jac_path = os.path.join(project_path, "main.jac");
-            assert os.path.exists(app_jac_path);
+            assert os.path.exists(app_jac_path) , (
+                f"no app.jac; project has: {os.listdir(project_path)}"
+            );
 
             with open(app_jac_path) as f {
                 app_jac_content = f.read();
             }
 
-            assert "cl import from .components.Button { Button }" in app_jac_content;
+            assert "import from .components.Button { Button }" in app_jac_content , (
+                f"main.jac head: {app_jac_content[:400]}"
+            );
             assert "<Button" in app_jac_content;
 
             # Verify README.md includes component information
@@ -330,7 +352,7 @@ test "create jac app with skip flag" {
             # Verify project directory was created
             project_path = os.path.join(temp_dir, test_project_name);
             assert os.path.exists(project_path);
-            assert os.path.isdir(project_path);
+            assert os.path.isdir(project_path) , f"not a dir: {project_path}";
 
             # Verify that "Installing default packages" message is NOT in output
             assert "Installing default packages" not in stdout;
