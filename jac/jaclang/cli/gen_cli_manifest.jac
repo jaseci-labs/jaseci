@@ -351,15 +351,34 @@ def generate -> str {
     return routes + _handwritten_tail(_read_current());
 }
 
+def _dataclass_field_names(typ: type) -> list[str] {
+    import dataclasses;
+
+    return [
+        f.name
+        for f in dataclasses.fields(typ)
+        if f.init and not f.name.startswith("_")
+    ];
+}
+
+def _command_meta_field_names -> list[str] {
+    return _dataclass_field_names(CommandMeta);
+}
+
+def _arg_meta_field_names -> list[str] {
+    return _dataclass_field_names(ArgMeta);
+}
+
 def _format_generated(content: str) -> str {
     import tempfile;
+    import warnings;
     import from pathlib { Path }
     import jaclang.cli.commands.analysis;
 
-    try {
-        with tempfile.TemporaryDirectory() as fmt_dir {
-            impl_path = Path(fmt_dir) / "manifest.impl.jac";
-            impl_path.write_text(content, encoding="utf-8");
+    with tempfile.TemporaryDirectory() as fmt_dir {
+        impl_path = Path(fmt_dir) / "manifest.impl.jac";
+        impl_path.write_text(content, encoding="utf-8");
+        try {
             prev: str = "";
             for _ in range(4) {
                 jaclang.cli.commands.analysis.format(
@@ -371,10 +390,14 @@ def _format_generated(content: str) -> str {
                 }
                 prev = current;
             }
-            return impl_path.read_text(encoding="utf-8");
+        } except Exception as exc {
+            warnings.warn(
+                "jac fmt failed during manifest generation; using unformatted "
+                f"output: {exc}",
+                stacklevel=2
+            );
         }
-    } except Exception {
-        return content;
+        return impl_path.read_text(encoding="utf-8");
     }
 }
 
@@ -387,74 +410,54 @@ def write_routes -> str {
     return out;
 }
 
-def _arg_signature(arg: Arg) -> tuple {
-    return (
-        arg.name,
-        arg.kind.name,
-        _typ_name(arg.typ),
-        arg.default,
-        arg.help,
-        arg.short,
-        arg.choices,
-        arg.required,
-        arg.dest,
-        arg.metavar,
-        arg.config_key,
+def _arg_field_value(arg: Arg, field: str) -> any {
+    if field == "kind" {
+        return arg.kind.name;
+    }
+    if field == "typ" {
+        return _typ_name(arg.typ);
+    }
+    return getattr(arg, field);
+}
 
-    );
+def _arg_signature(arg: Arg) -> tuple {
+    return tuple(_arg_field_value(arg, field) for field in _arg_meta_field_names());
 }
 
 def _meta_arg_signature(arg: ArgMeta) -> tuple {
-    return (
-        arg.name,
-        arg.kind,
-        arg.typ,
-        arg.default,
-        arg.help,
-        arg.short,
-        arg.choices,
-        arg.required,
-        arg.dest,
-        arg.metavar,
-        arg.config_key,
+    return tuple(getattr(arg, field) for field in _arg_meta_field_names());
+}
 
-    );
+def _spec_field_value(cmd: CommandSpec, field: str) -> any {
+    if field == "handler_module" {
+        h = cmd.handler;
+        return h.__module__ if h is not None else "";
+    }
+    if field == "handler_name" {
+        h = cmd.handler;
+        return h.__name__ if h is not None else "";
+    }
+    if field == "args" {
+        return [_arg_signature(a) for a in cmd.args];
+    }
+    if field in ("needs", "examples") {
+        return list(getattr(cmd, field));
+    }
+    return getattr(cmd, field);
 }
 
 def _spec_signature(cmd: CommandSpec) -> tuple {
-    h = cmd.handler;
-    handler_module = h.__module__ if h is not None else "";
-    handler_name = h.__name__ if h is not None else "";
-    return (
-        cmd.name,
-        cmd.help,
-        cmd.group,
-        cmd.tier,
-        cmd.hidden,
-        handler_module,
-        handler_name,
-        list(cmd.needs),
-        cmd.description,
-        list(cmd.examples),
-        [_arg_signature(a) for a in cmd.args],
-
+    return tuple(
+        _spec_field_value(cmd, field) for field in _command_meta_field_names()
     );
 }
 
 def _meta_signature(cmd: CommandMeta) -> tuple {
-    return (
-        cmd.name,
-        cmd.help,
-        cmd.group,
-        cmd.tier,
-        cmd.hidden,
-        cmd.handler_module,
-        cmd.handler_name,
-        list(cmd.needs),
-        cmd.description,
-        list(cmd.examples),
-        [_meta_arg_signature(a) for a in cmd.args],
-
+    return tuple(
+        [_meta_arg_signature(a) for a in cmd.args]
+        if field == "args"
+        else getattr(cmd, field)
+        for field in _command_meta_field_names()
     );
 }
 
@@ -487,19 +490,7 @@ def verify_drift -> list[str] {
         } elif committed[name] != fresh[name] {
             c = committed[name];
             f = fresh[name];
-            field_names = [
-                "name",
-                "help",
-                "group",
-                "tier",
-                "hidden",
-                "handler_module",
-                "handler_name",
-                "needs",
-                "description",
-                "examples",
-                "args"
-            ];
+            field_names = _command_meta_field_names();
             differing = [
                 field_names[i]
                 for i in range(len(field_names))

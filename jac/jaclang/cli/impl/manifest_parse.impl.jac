@@ -34,7 +34,7 @@ def _kind_value(kind: str) -> ArgKind {
     return ArgKind.OPTION;
 }
 
-def _add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) {
+impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
     kind = _kind_value(arg.kind);
     typ = _resolve_typ(arg.typ);
     kwargs: dict = {"help": arg.help};
@@ -133,7 +133,7 @@ impl build_command_parser(meta: CommandMeta) -> argparse.ArgumentParser {
         add_help=True
     );
     for arg in meta.args {
-        _add_argument(parser, arg);
+        add_argument(parser, arg);
     }
     return parser;
 }

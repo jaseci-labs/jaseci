@@ -2202,9 +2202,11 @@ def _check_captured(
 }
 
 test "jac check disable_error_code maps to check arg" {
-    parser = get_registry().finalize();
+    import from jaclang.cli.manifest { get_command_meta }
+    import from jaclang.cli.manifest_parse { build_command_parser }
+    parser = build_command_parser(get_command_meta("check"));
     (args, _) = parser.parse_known_args(
-        ["check", fixture_path("warnings_only.jac"), "--disable-error-code", "E1030"]
+        [fixture_path("warnings_only.jac"), "--disable-error-code", "E1030"]
     );
     assert args.disable_error_code == ["E1030"] , (
         "kebab-case CLI flag should map to disable_error_code arg"
@@ -2252,9 +2254,11 @@ test "jac check disable_error_code warns on unknown diagnostics" {
 }
 
 test "jac check native-census flag maps to check arg" {
-    parser = get_registry().finalize();
+    import from jaclang.cli.manifest { get_command_meta }
+    import from jaclang.cli.manifest_parse { build_command_parser }
+    parser = build_command_parser(get_command_meta("check"));
     (args, _) = parser.parse_known_args(
-        ["check", fixture_path("warnings_only.jac"), "--native-census"]
+        [fixture_path("warnings_only.jac"), "--native-census"]
     );
     assert getattr(args, "native_census", False) == True , (
         "kebab flag should map to native_census dest"
