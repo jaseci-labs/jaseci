@@ -474,7 +474,7 @@ def decl_has_access(source_mod: uni.Module, item: uni.ModuleItem) -> bool {
     }
     decl = sym.defn[0];
     owner = decl.parent if (isinstance(decl, uni.NameAtom) and decl.parent) else decl;
-    return getattr(owner, 'access', None) is not None;
+    return owner?.access is not None;
 }
 
 def report_dead_client_import(
