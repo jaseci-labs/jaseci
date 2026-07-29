@@ -1,5 +1,5 @@
 import from pathlib { Path }
-import from jaclang.cli.command { Arg, ArgKind }
+import from jaclang.cli.command { Arg, ArgKind, CommandNeed }
 import from jaclang.cli.registry { get_registry }
 
 glob registry = get_registry();
@@ -121,7 +121,7 @@ def run(
     name="dev",
     help="Serve with hot reload and live compilation",
     tier="core",
-    needs=["providers"],
+    needs=[CommandNeed.PROVIDERS],
     args=[
         Arg.create(
             "filename",
@@ -168,7 +168,7 @@ def enter(
     name="start",
     help="Start server for a Jac program",
     tier="core",
-    needs=["providers", "client"],
+    needs=[CommandNeed.PROVIDERS, CommandNeed.CLIENT],
     args=[
         Arg.create(
             "filename",
@@ -333,7 +333,7 @@ def run_jab_image(
 @registry.command(
     name="x",
     help="Run an installed CLI tool (console-script) under the Jac runtime",
-    needs=["providers"],
+    needs=[CommandNeed.PROVIDERS],
     args=[
         Arg.create(
             "name",

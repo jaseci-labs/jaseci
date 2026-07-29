@@ -1,4 +1,4 @@
-import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
+import from jaclang.cli.command { Arg, ArgKind, CommandNeed, CommandSpec, arg_typ_name }
 import from jaclang.cli.manifest {
     ArgMeta,
     CommandMeta,
@@ -138,14 +138,14 @@ def _value_literal(v: any) -> str {
         inner = ", ".join(_value_literal(x) for x in v);
         return f"({inner})";
     }
-    return "None";
+    raise TypeError(f"unsupported manifest literal type: {type(v).__name__}");
 }
 
-def _needs_literal(needs: list[str]) -> str {
+def _needs_literal(needs: list[CommandNeed]) -> str {
     if not needs {
         return "[]";
     }
-    inner = ", ".join(_q(n) for n in needs);
+    inner = ", ".join(f"CommandNeed.{need.name}" for need in needs);
     return f"[{inner}]";
 }
 
@@ -168,33 +168,13 @@ def _choices_literal(choices: list[any] | None) -> str {
     return f"[{inner}]";
 }
 
-def _typ_name(typ: any) -> str {
-    if typ is str {
-        return "str";
-    }
-    if typ is int {
-        return "int";
-    }
-    if typ is bool {
-        return "bool";
-    }
-    if typ is float {
-        return "float";
-    }
-    name = typ?.__name__;
-    if isinstance(name, str) and name {
-        return name;
-    }
-    return "str";
-}
-
 def _arg_rows(args: list[Arg]) -> list[str] {
     rows: list[str] = [];
     for arg in args {
         rows.append("                ArgMeta(");
         rows.append(f"                    name={_q(arg.name)},");
         rows.append(f"                    kind=ArgKind.{arg.kind.name},");
-        rows.append(f"                    typ={_q(_typ_name(arg.typ))},");
+        rows.append(f"                    typ={_q(arg_typ_name(arg.typ))},");
         rows.append(f"                    default={_value_literal(arg.default)},");
         rows.append(f"                    help={_q(arg.help)},");
         if arg.short is None {
@@ -415,7 +395,7 @@ def _arg_field_value(arg: Arg, field: str) -> any {
         return arg.kind;
     }
     if field == "typ" {
-        return _typ_name(arg.typ);
+        return arg_typ_name(arg.typ);
     }
     return getattr(arg, field);
 }

@@ -1,4 +1,4 @@
-import from jaclang.cli.command { ArgKind }
+import from jaclang.cli.command { ArgKind, CommandNeed }
 
 glob VERB_BUDGET: int = 28,
      TOMBSTONED_VERBS: dict[str, str] = {
@@ -72,7 +72,7 @@ obj CommandMeta {
         hidden: bool,
         handler_module: str,
         handler_name: str,
-        needs: list[str] = [],
+        needs: list[CommandNeed] = [],
         description: str = "",
         examples: list[tuple[str, str]] = [],
         args: list[ArgMeta] = [];

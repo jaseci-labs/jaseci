@@ -139,5 +139,7 @@ def __getattr__(name: str) -> object {
         raise AttributeError(f"module 'jaclang.project' has no attribute {name!r}");
     }
     import importlib;
-    return getattr(importlib.import_module(mod_path), name);
+    value = getattr(importlib.import_module(mod_path), name);
+    globals()[name] = value;
+    return value;
 }

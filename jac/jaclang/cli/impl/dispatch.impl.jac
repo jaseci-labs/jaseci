@@ -1,6 +1,6 @@
 import os;
 import sys;
-import from jaclang.cli.command { ArgKind }
+import from jaclang.cli.command { ArgKind, CommandNeed }
 import from jaclang.cli.manifest { ArgMeta, CommandMeta }
 
 def _discover_project_config {
@@ -48,16 +48,17 @@ def _initialize_template_registry {
     }
 }
 
-def _extract_script_args(meta: CommandMeta) -> list[str] {
-    raw = sys.argv[1:];
+impl split_remainder_argv(
+    raw: list[str], meta: CommandMeta
+) -> tuple[list[str], list[str]] | None {
     if len(raw) < 2 {
-        return [];
+        return None;
     }
 
     all_args = meta.args;
     has_remainder = any(a.kind == ArgKind.REMAINDER for a in all_args);
     if not has_remainder {
-        return [];
+        return None;
     }
 
     n_positionals = sum(
@@ -88,12 +89,14 @@ def _extract_script_args(meta: CommandMeta) -> list[str] {
     while i < len(raw) {
         token = raw[i];
         if token == '--' {
-            script_args = raw[i + 1:];
-            sys.argv = [sys.argv[0]] + raw[:i];
-            return script_args;
+            return (raw[:i], raw[i + 1:]);
         }
         if token.startswith('-') {
-            i += 2 if token in value_flags else 1;
+            if '=' in token {
+                i += 1;
+            } else {
+                i += 2 if token in value_flags else 1;
+            }
             continue;
         }
         positionals_seen += 1;
@@ -102,12 +105,22 @@ def _extract_script_args(meta: CommandMeta) -> list[str] {
             if script_args and script_args[0] == '--' {
                 script_args = script_args[1:];
             }
-            sys.argv = [sys.argv[0]] + raw[:i + 1];
-            return script_args;
+            return (raw[:i + 1], script_args);
         }
         i += 1;
     }
-    return [];
+    return None;
+}
+
+def _extract_script_args(meta: CommandMeta) -> list[str] {
+    raw = sys.argv[1:];
+    split = split_remainder_argv(raw, meta);
+    if split is None {
+        return [];
+    }
+    (trimmed, script_args) = split;
+    sys.argv = [sys.argv[0]] + trimmed;
+    return script_args;
 }
 
 def _apply_profile(meta: CommandMeta, args_dict: dict) {
@@ -235,13 +248,13 @@ impl run_selected_command(command_name: str) -> None {
     import from jaclang.cli.loader { load_handler }
 
     _discover_project_config();
-    if 'templates' in meta.needs {
+    if CommandNeed.TEMPLATES in meta.needs {
         _initialize_template_registry();
     }
-    if 'providers' in meta.needs {
+    if CommandNeed.PROVIDERS in meta.needs {
         _initialize_provider_registry();
     }
-    if 'client' in meta.needs {
+    if CommandNeed.CLIENT in meta.needs {
         import jaclang.runtimelib.client.cli;
     }
 

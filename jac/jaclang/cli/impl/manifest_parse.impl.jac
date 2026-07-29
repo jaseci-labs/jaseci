@@ -1,23 +1,10 @@
 import argparse;
-import from jaclang.cli.command { ArgKind }
+import from jaclang.cli.command { ArgKind, resolve_arg_typ }
 import from jaclang.cli.manifest { ArgMeta, CommandMeta }
-
-def _resolve_typ(name: str) -> any {
-    if name == "int" {
-        return int;
-    }
-    if name == "bool" {
-        return bool;
-    }
-    if name == "float" {
-        return float;
-    }
-    return str;
-}
 
 impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
     kind = arg.kind;
-    typ = _resolve_typ(arg.typ);
+    typ = resolve_arg_typ(arg.typ);
     kwargs: dict = {"help": arg.help};
     if arg.choices {
         kwargs["choices"] = arg.choices;

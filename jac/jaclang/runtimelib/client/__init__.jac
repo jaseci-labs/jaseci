@@ -37,5 +37,7 @@ def __getattr__(name: str) -> object {
         );
     }
     import importlib;
-    return getattr(importlib.import_module(mod_path), name);
+    value = getattr(importlib.import_module(mod_path), name);
+    globals()[name] = value;
+    return value;
 }

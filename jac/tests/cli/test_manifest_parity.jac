@@ -9,7 +9,11 @@ and tier policy are enforced at generation time. CI enforces freshness via
 ``jac gen-cli-manifest --verify``.
 """
 
-import from jaclang.cli.gen_cli_manifest { verify_drift }
+import from jaclang.cli.gen_cli_manifest { verify_drift, _arg_meta_field_names }
+import from jaclang.cli.manifest_parse {
+    DISPATCH_ARG_META_FIELDS,
+    PARSER_ARG_META_FIELDS,
+}
 
 
 test "manifest route table is current" {
@@ -18,5 +22,18 @@ test "manifest route table is current" {
         "manifest.impl.jac route table is stale: the @registry.command decorators no "
         f"longer match the committed route table ({drift}). "
         "Run `jac gen-cli-manifest` to regenerate."
+    );
+}
+
+test "every ArgMeta field is consumed by parser or dispatch" {
+    covered = PARSER_ARG_META_FIELDS | DISPATCH_ARG_META_FIELDS;
+    declared = set(_arg_meta_field_names());
+    assert covered == declared , (
+        "ArgMeta field coverage drift: "
+        f"parser={sorted(PARSER_ARG_META_FIELDS)} "
+        f"dispatch={sorted(DISPATCH_ARG_META_FIELDS)} "
+        f"declared={sorted(declared)} "
+        f"missing={sorted(declared - covered)} "
+        f"unaccounted={sorted(covered - declared)}"
     );
 }

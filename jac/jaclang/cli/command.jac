@@ -1,5 +1,32 @@
 import from typing { Callable }
 
+enum CommandNeed { PROVIDERS, CLIENT, TEMPLATES, }
+
+glob ARG_TYPES: dict[str, type] = {
+         "str": str,
+         "int": int,
+         "bool": bool,
+         "float": float,
+
+     };
+
+def resolve_arg_typ(name: str) -> any {
+    return ARG_TYPES.get(name, str);
+}
+
+def arg_typ_name(typ: any) -> str {
+    for (name, registered) in ARG_TYPES.items() {
+        if typ is registered {
+            return name;
+        }
+    }
+    type_name = typ?.__name__;
+    if isinstance(type_name, str) and type_name {
+        return type_name;
+    }
+    return "str";
+}
+
 enum ArgKind {
     POSITIONAL = 1,
     OPTION = 2,
@@ -47,7 +74,7 @@ obj CommandSpec {
         group: str = "general",
         tier: str = "",
         hidden: bool = False,
-        needs: list[str] = [],
+        needs: list[CommandNeed] = [],
         handler: Callable | None = None;
 
     def get_all_args -> list[Arg];

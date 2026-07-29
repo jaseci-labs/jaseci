@@ -210,7 +210,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.cli.commands.build',
             handler_name='build',
-            needs=['providers', 'client'],
+            needs=[CommandNeed.PROVIDERS, CommandNeed.CLIENT],
             description="",
             examples=[
                 ('jac build', 'Gate + build a single .jab into dist/'),
@@ -532,7 +532,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.cli.commands.project',
             handler_name='clean',
-            needs=['providers'],
+            needs=[CommandNeed.PROVIDERS],
             description="",
             examples=[
                 ('jac clean', 'Clean data directory (default)'),
@@ -840,7 +840,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.cli.commands.project',
             handler_name='create',
-            needs=['providers', 'templates'],
+            needs=[CommandNeed.PROVIDERS, CommandNeed.TEMPLATES],
             description="",
             examples=[
                 (
@@ -1182,7 +1182,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.cli.commands.execution',
             handler_name='dev',
-            needs=['providers'],
+            needs=[CommandNeed.PROVIDERS],
             description="",
             examples=[
                 ('jac dev', 'Dev-serve the current project with hot reload'),
@@ -1696,7 +1696,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.cli.commands.project',
             handler_name='install',
-            needs=['providers'],
+            needs=[CommandNeed.PROVIDERS],
             description="",
             examples=[
                 ('jac install', 'Install all dependencies from jac.toml'),
@@ -2440,7 +2440,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.cli.commands.project',
             handler_name='remove',
-            needs=['providers'],
+            needs=[CommandNeed.PROVIDERS],
             description="",
             examples=[
                 ('jac remove requests', 'Remove a package'),
@@ -2905,7 +2905,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.runtimelib.client.cli',
             handler_name='setup',
-            needs=['providers', 'client'],
+            needs=[CommandNeed.PROVIDERS, CommandNeed.CLIENT],
             description="",
             examples=[
                 ('jac setup mobile', 'Setup mobile target (default platform)'),
@@ -2953,7 +2953,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.cli.commands.execution',
             handler_name='start',
-            needs=['providers', 'client'],
+            needs=[CommandNeed.PROVIDERS, CommandNeed.CLIENT],
             description="",
             examples=[
                 ('jac start', 'Start server with default main.jac'),
@@ -3385,7 +3385,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.cli.commands.project',
             handler_name='update',
-            needs=['providers'],
+            needs=[CommandNeed.PROVIDERS],
             description="",
             examples=[
                 ('jac update', 'Update all dependencies to latest compatible versions'),
@@ -3443,7 +3443,7 @@ def _command_routes -> list[CommandMeta] {
             hidden=False,
             handler_module='jaclang.cli.commands.execution',
             handler_name='x',
-            needs=['providers'],
+            needs=[CommandNeed.PROVIDERS],
             description="",
             examples=[
                 (

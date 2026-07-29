@@ -10,7 +10,7 @@ impl CommandRegistry.command(
     group: str = "general",
     tier: str = "",
     hidden: bool = False,
-    needs: list[str] = []
+    needs: list[CommandNeed] = []
 ) -> Callable[[Callable], Callable] {
     import from jaclang.cli.command { Arg, CommandSpec }
     def decorator(func: Callable) -> Callable {
