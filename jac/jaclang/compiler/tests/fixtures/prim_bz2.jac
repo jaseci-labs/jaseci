@@ -1,7 +1,7 @@
 """Bundled native ``bz2`` cross-backend equivalence fixture (#6978 Phase 2).
 
 The SAME ``import from bz2 { compress, decompress }`` binds CPython's ``bz2`` on
-the sv (Python) backend and the bundled ``na_stdlib/bz2.na.jac`` Mechanism-F
+the sv (Python) backend and the bundled ``na_stdlib/bz2.jac`` Mechanism-F
 module -- a thin pure-Jac surface over ``libbz2`` (the FFI floor) -- on the na
 (native LLVM) backend. Under this in-process JIT harness the floor dlopens the
 system ``libbz2``; the bundled ``libbz2.a`` archive (staged by the generic

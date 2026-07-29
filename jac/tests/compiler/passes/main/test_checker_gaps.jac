@@ -22,7 +22,7 @@ Gap index:
   #50 - postinit body not validated against by-postinit field declarations
   #51 - @property on union types returns FunctionType instead of return type
   #52 - Enum iteration variable resolves to Unknown (cascading E1032 / W1051)
-  #53 - discover_base_file misses .na.jac — self is Unknown in .impl.jac files
+  #53 - discover_base_file misses .jac — self is Unknown in .impl.jac files
 """
 
 import os;
@@ -574,21 +574,21 @@ test "gap 52 class enum iteration yields enum instance" {
 }
 
 # =========================================================================
-# Gap #53: discover_base_file misses .na.jac — self is Unknown in impl files
+# Gap #53: discover_base_file misses .jac — self is Unknown in impl files
 #
-# discover_base_file searched for .jac and .cl.jac but not .na.jac, so impl
-# files backed by a .na.jac declaration were compiled standalone. Without the
+# discover_base_file searched for .jac and .cl.jac but not .jac, so impl
+# files backed by a .jac declaration were compiled standalone. Without the
 # declaration, self resolved as Unknown → E1032 on every self.x access.
 #
-# Fix: added '.na.jac' to the extension list in bccache.jac.
+# Fix: added '.jac' to the extension list in bccache.jac.
 # Impact: 1,073 false E1032 in lexer.impl.jac, 211 in parser.impl.jac.
 # =========================================================================
-test "gap 53 discover_base_file finds .na.jac for impl file" {
+test "gap 53 discover_base_file finds .jac for impl file" {
     import from jaclang.jac0core.bccache { discover_base_file }
     impl_path = os.path.join(FIXTURES, "na_impl", "impl", "counter.impl.jac");
     base = discover_base_file(impl_path);
-    assert base is not None and base.endswith("counter.na.jac") , (
-        f"Gap #53: discover_base_file should find counter.na.jac, got {base}"
+    assert base is not None and base.endswith("counter.jac") , (
+        f"Gap #53: discover_base_file should find counter.jac, got {base}"
     );
 }
 

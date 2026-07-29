@@ -1,7 +1,7 @@
 """Bundled native `csv` cross-backend equivalence fixture (#6978 Phase 3).
 
 The SAME `import from csv { reader }` binds CPython's `csv.reader` on the sv
-(Python) backend and the bundled `na_stdlib/csv.na.jac` Mechanism-B module on the
+(Python) backend and the bundled `na_stdlib/csv.jac` Mechanism-B module on the
 na (native LLVM) backend. CPython's `reader` is a lazy iterator (materialized
 here with `list(...)`); the native `reader` is eager and returns the same
 `list[list[str]]`. Rows marshal as raw i64 across the harness, so every parsed

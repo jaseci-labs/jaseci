@@ -1,13 +1,13 @@
 ---
 name: jac-native-wasm
-description: Running native-compiled Jac in the browser as WebAssembly - the `na import` cl->na edge (client code imports a .na.jac module; the build emits /static/<stem>.wasm and binds lazy async stubs), `set_na_env` for modules with app FFI, plus the raw mechanics underneath - `__jac_glob_init()`, BigInt i64 marshalling, externs-as-wasm-imports, WebAssembly.Module.imports introspection, and standalone `jac nacompile --target wasm32`. Load when building in-browser native compute: a game loop, simulation, or client-side hot loop. Pair with `jac-cl-components` (the page side) and `jac-native` (the native subset).
+description: Running native-compiled Jac in the browser as WebAssembly - the `na import` cl->na edge (client code imports a native Jac module; the build emits /static/<stem>.wasm and binds lazy async stubs), `set_na_env` for modules with app FFI, plus the raw mechanics underneath - `__jac_glob_init()`, BigInt i64 marshalling, externs-as-wasm-imports, WebAssembly.Module.imports introspection, and standalone `jac nacompile --target wasm32`. Load when building in-browser native compute: a game loop, simulation, or client-side hot loop. Pair with `jac-cl-components` (the page side) and `jac-native` (the native subset).
 ---
 
 The native codespace's second target: instead of a host binary, your module's native code compiles to **WebAssembly** and runs in the browser, driven by a client page - native-speed compute with no server round-trip. Jac's own wasm linker produces the module; no emscripten, no `wasm-ld`. Native placement is inferred from extern-decl imports (`import from raylib { def ... ; }`) and the code that uses them, so no marker is needed; pure compute with no FFI surface (like `count_primes` below) has nothing to infer from, so you pin it native with an explicit `na` block (see `jac-codespaces`).
 
 ## The first-class path: `na import` (cl -> na edge)
 
-Keep the native code in its own `.na.jac` module and import it from client
+Keep the native code in its own `.jac` module and import it from client
 code with the `na` marker - the cl -> na twin of `sv import`:
 
 ```jac
@@ -21,7 +21,7 @@ async def show {
 
 What the one import does:
 
-- **Emission**: the client build compiles `kernel.na.jac` to
+- **Emission**: the client build compiles `kernel.jac` (a native dependency, so `pub` is its export marker) to
   `/static/kernel.wasm` (+ a `.wasm.imports.json` manifest). The module needs
   no other importer; `jac.toml [gc]` settings apply (e.g. `default = "none"`
   for a zero-RC artifact).
@@ -32,7 +32,10 @@ What the one import does:
   the *stub-crossed scalars still apply* (an int return arrives as BigInt).
 - **Server side**: the import compiles to nothing under Python. A *plain*
   import of a native module is the sv -> na ctypes crossing and executes the
-  module server-side; `na import` never does.
+  module server-side; `na import` never does. (From *client* code, a plain
+  import takes the cl -> na edge on its own only when the target carries a
+  real native anchor - ownership annotations, clib decls, native imports;
+  `na import` forces it regardless.)
 
 If the native module declares app FFI (raylib-style extern decls), register
 the JS implementations before the first stub call; the shim object you pass

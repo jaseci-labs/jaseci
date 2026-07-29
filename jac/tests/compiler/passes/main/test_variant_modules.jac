@@ -1,4 +1,4 @@
-"""Variant module tests — verifies that .sv.jac, .cl.jac, .na.jac files (and the
+"""Variant module tests — verifies that .sv.jac, .cl.jac, .jac files (and the
 annexes that belong to them) are discovered and merged into the head module as a
 single unified tree, each statement keeping its own deployment context.
 

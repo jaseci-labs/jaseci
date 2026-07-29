@@ -1,7 +1,7 @@
 """Bundled native `pprint` cross-backend equivalence fixture (#6978 Phase 3).
 
 The SAME `import from pprint { pformat }` binds CPython's `pprint` on the sv
-(Python) backend and the bundled `na_stdlib/pprint.na.jac` Mechanism-B module on
+(Python) backend and the bundled `na_stdlib/pprint.jac` Mechanism-B module on
 the na (native LLVM) backend. Test objects are built with `json.loads` so the
 two backends construct identical boxed structures (and so scalar `list[any]`
 elements box correctly). Every `pformat` result is compared as an exact string;

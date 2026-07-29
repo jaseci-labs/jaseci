@@ -2752,7 +2752,6 @@ impl TypeEvaluator._is_strict_site(nd: uni.UniNode) -> bool {
 }
 
 impl TypeEvaluator._in_native_context -> bool {
-    import from jaclang.jac0core.ext_registry { is_native_module }
     if self._pass is None {
         return False;
     }
@@ -2765,10 +2764,7 @@ impl TypeEvaluator._in_native_context -> bool {
         return True;
     }
     mod = cur.find_parent_of_type(uni.Module);
-    if mod is None or mod.loc is None {
-        return False;
-    }
-    return is_native_module(mod.loc.mod_path);
+    return mod is not None and mod.decided_codespace == 'native';
 }
 
 impl TypeEvaluator._is_typing_special_form(ty: TypeBase, name: str) -> bool {

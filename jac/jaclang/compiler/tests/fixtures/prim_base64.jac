@@ -1,7 +1,7 @@
 """Bundled native ``base64`` cross-backend equivalence fixture.
 
 The SAME ``import from base64 { ... }`` binds CPython's ``base64`` on the sv
-(Python) backend and the bundled ``na_stdlib/base64.na.jac`` Mechanism-B module
+(Python) backend and the bundled ``na_stdlib/base64.jac`` Mechanism-B module
 on the na (native LLVM) backend. This fixture pins the two congruent.
 
 Outputs are compared via a custom FNV-1a digest (``_digest``) rather than as

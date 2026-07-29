@@ -920,11 +920,11 @@ impl Calculator.multiply {
 
 ### 4 Variant Modules
 
-A single logical module can be split across *variant files* that target different execution contexts. Variant suffixes are `.sv.jac` (server), `.cl.jac` (client), and `.na.jac` (native). All files sharing the same base name are automatically discovered and compiled together.
+A single logical module can be split across *variant files* that target different execution contexts. Variant suffixes are `.sv.jac` (server) and `.cl.jac` (client). All files sharing the same base name are automatically discovered and compiled together.
 
-Variant files are an *explicit* placement mechanism, and for the client side they are optional: the compiler infers client placement from client-only syntax (JSX, npm imports) in plain `.jac` files, so splitting a module into `.cl.jac` variants is a style choice rather than a requirement. Native placement is likewise inferred when code uses an extern C surface: an import whose braces declare C-ABI functions (e.g. `import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) seeds native placement for itself and the declarations that use it. For pure native-compatible code with no such FFI seed, the `.na.jac` variant (or an `na {}` block) remains how native code is declared.
+Variant files are an *explicit* placement mechanism, and for the client side they are optional: the compiler infers client placement from client-only syntax (JSX, npm imports) in plain `.jac` files, so splitting a module into `.cl.jac` variants is a style choice rather than a requirement. Native placement has **no filename variant at all** -- it is always inferred. Under `[build] default_codespace = "native"` (the default), the placement solver decides whether a plain `.jac` module can lower natively; a module that prefers native but cannot lower demotes to the server codespace with a note. An import whose braces declare C-ABI functions (e.g. `import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) seeds native placement for itself and the declarations that use it, and an `na {}` block tags a section within a mixed file. To force a whole module native, use `jac nacompile`, `jac build --as native`, or `CompileOptions(force_codespace='native')`.
 
-**Head module precedence:** `.jac` > `.sv.jac` > `.cl.jac` > `.na.jac`. The highest-precedence file that exists on disk becomes the *head module*; all lower-precedence variants are attached as variant annexes. If no plain `.jac` file exists, the next available variant acts as head.
+**Head module precedence:** `.jac` > `.sv.jac` > `.cl.jac`. The highest-precedence file that exists on disk becomes the *head module*; all lower-precedence variants are attached as variant annexes. If no plain `.jac` file exists, the next available variant acts as head.
 
 ```
 mymod/
@@ -990,17 +990,17 @@ impl CircleService.describe -> str {
 }
 ```
 
-#### Native Variant Files (`.na.jac`)
+#### Native Modules
 
-Native variant files compile to LLVM IR and execute via JIT (MCJIT). Code in `.na.jac` files runs as native machine code, bypassing the Python runtime entirely. This is useful for performance-critical code and for calling C libraries directly. The same functionality is available in `na { }` blocks (or `na` statement prefixes) within regular `.jac` files.
+Native-placed modules compile to LLVM IR and execute via JIT (MCJIT). Native code runs as machine code, bypassing the Python runtime entirely. This is useful for performance-critical code and for calling C libraries directly. The same functionality is available in `na { }` blocks (or `na` statement prefixes) within mixed `.jac` files.
 
 **C Library Imports:**
 
-Native code can import C shared libraries using the `import from` syntax with extern function declarations, either at the top level of a `.na.jac` file or inside a `na { }` block in a regular `.jac` file. The library is named either by an explicit path string (used verbatim, for a pinned or versioned file) or by a logical name (dotted and extensionless, resolved to the platform's filename):
+Native code can import C shared libraries using the `import from` syntax with extern function declarations, either at the top level of a native module or inside a `na { }` block in a mixed `.jac` file. The library is named either by an explicit path string (used verbatim, for a pinned or versioned file) or by a logical name (dotted and extensionless, resolved to the platform's filename):
 
 <!-- jac-skip -->
 ```jac
-# math_native.na.jac
+# math_native.jac
 import from "/usr/lib/libm.so.6" {
     def sqrt(x: f64) -> f64;
     def pow(base: f64, exp: f64) -> f64;
@@ -1021,7 +1021,7 @@ Here the library is named by its logical name `raylib`, which the backend resolv
 
 <!-- jac-skip -->
 ```jac
-# game.na.jac
+# game.jac
 import from raylib {
     def InitWindow(width: i32, height: i32, title: str) -> None;
     def CloseWindow() -> None;
@@ -1052,7 +1052,7 @@ with entry {
 - **Plugin architectures**: Define interfaces that plugins implement
 - **Large codebases**: Separate concerns across files
 - **Variant modules**: Split server, client, and native code into separate files while keeping them as one logical module
-- **C interop**: Use `.na.jac` files to call C libraries directly from JIT-compiled native code
+- **C interop**: Declare an extern C surface with `import from` to call C libraries directly from JIT-compiled native code
 
 ---
 

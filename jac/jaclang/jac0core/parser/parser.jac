@@ -576,16 +576,57 @@ obj Parser {
     def parse_type_params -> tuple;
 }
 
+glob _NATIVE_SCAN_MEMO: list = [];
+
+def _native_scan -> any {
+    if _NATIVE_SCAN_MEMO {
+        return _NATIVE_SCAN_MEMO[0];
+    }
+    fn: any = None;
+    try {
+        import from jaclang.jac0core.sealed { native_artifact_for }
+        found = native_artifact_for("jaclang.jac0core.parser.lexer");
+        if found is not None {
+            import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
+            import from jaclang.jac0core.native_marshal {
+                build_ctypes_classes,
+                build_enum_maps,
+                wrap_native_function
+            }
+            (lib_path, layout_dict) = found;
+            eng = DylibEngine(lib_path);
+            eng.initialize();
+            layout = layout_from_dict(layout_dict);
+            ns = na_lexer.__dict__;
+            cc = build_ctypes_classes(layout);
+            em = build_enum_maps(layout, ns);
+            pc: dict = {};
+            for sn in layout.structs {
+                if ns.get(sn) is not None {
+                    pc[sn] = ns[sn];
+                }
+            }
+            fl = layout.functions.get("tokenize_full");
+            if fl is not None {
+                fn = wrap_native_function(eng, fl, cc, em, pc, layout=layout);
+                if fn is not None {
+                    fn.__jac_engine__ = eng;
+                }
+            }
+        }
+    } except Exception {
+        fn = None;
+    }
+    _NATIVE_SCAN_MEMO.append(fn);
+    return fn;
+}
+
 def parse(
     source: str, file_path: str = "<input>", prog: (JacProgram | None) = None
 ) -> tuple[Module, bool] {
-    import os;
-    if os.environ.get("JAC_NATIVE_LEXER") == "0" {
-        _lx = Lexer(source=source, file_path=file_path);
-        tokens = _lx.tokenize();
-        comments = _lx.comments;
-        diags = _lx.diags;
-        lex_error_count = _lx.error_count;
+    _scan = _native_scan();
+    if _scan is not None {
+        (tokens, comments, diags, lex_error_count) = _scan(source, file_path);
     } else {
         (tokens, comments, diags, lex_error_count) = na_lexer.tokenize_full(
             source, file_path

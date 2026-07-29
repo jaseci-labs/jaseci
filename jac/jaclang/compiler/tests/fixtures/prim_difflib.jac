@@ -2,7 +2,7 @@
 
 The SAME `import from difflib { Match, SequenceMatcher, get_close_matches }` binds
 CPython's `difflib` on the sv (Python) backend and the bundled
-`na_stdlib/difflib.na.jac` Mechanism-B module on the na (native LLVM) backend.
+`na_stdlib/difflib.jac` Mechanism-B module on the na (native LLVM) backend.
 
 `ratio()` is exercised through its exact integer ingredients (sum of matching-
 block sizes `M` and `len(a)+len(b)`) rather than the raw float, and matching

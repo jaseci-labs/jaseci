@@ -37,9 +37,9 @@ Most of the time the codespace is chosen *for* you. An import inherits the codes
 - A **quoted npm path** (`import from "react-dom" { render }`) is client-only by construction, so it lands in the client codespace automatically -- and the declarations that use it become client too.
 - A **bare-name npm import** (`import from react { useState }`) is placed through its consumers: when JSX components use the imported names, the import joins the client bundle with them.
 - **Python / PyPI imports** are server code -- the default for anything unmarked.
-- An **extern-decl C import** -- braces containing C-ABI function declarations (`import from "libm.so" { def sqrt(x: f64) -> f64; }`) -- can only be satisfied by the native backend, so it lands in the native codespace automatically, and the declarations that use it become native too. Merely importing *from* a native module is not a native signal, and pure native-compatible code stays on the server -- without an FFI seed, `na` takes an explicit marker.
+- An **extern-decl C import** -- braces containing C-ABI function declarations (`import from "libm.so" { def sqrt(x: f64) -> f64; }`) -- can only be satisfied by the native backend, so it lands in the native codespace automatically, and the declarations that use it become native too. Merely importing *from* a native module is not a native signal for the importer. (Whole markerless modules are a separate question: under the default native codespace, the placement solver compiles a module native whenever its import closure can lower -- see the codespace model.)
 
-Explicit markers override inference: a braced block (`cl { ... }`), a single-statement prefix (`cl import from react { useEffect }`), or a file extension (`.sv.jac` / `.cl.jac` / `.na.jac`). The full marker system, the inference rules, and their precedence are specified once in [Primitives & Codespace Semantics](language/primitives.md#codespace-model); this page assumes them and covers what is specific to imports.
+Explicit markers override inference: a braced block (`cl { ... }`), a single-statement prefix (`cl import from react { useEffect }`), or a file extension (`.sv.jac` / `.cl.jac`). The full marker system, the inference rules, and their precedence are specified once in [Primitives & Codespace Semantics](language/primitives.md#codespace-model); this page assumes them and covers what is specific to imports.
 
 ---
 
@@ -318,7 +318,7 @@ jac check --parse-only myfile.jac   # syntax only -- works for sv, cl, and na
 jac check myfile.jac                # full type-check (server / client code)
 ```
 
-`--parse-only` is the universally safe check for all three codespaces. For **native (`na`) code that calls C libraries**, the most reliable verification is to compile it -- `jac run myfile.na.jac` or `jac nacompile myfile.na.jac` -- since the native backend, not the general type checker, owns C-ABI coercion.
+`--parse-only` is the universally safe check for all three codespaces. For **native (`na`) code that calls C libraries**, the most reliable verification is to compile it -- `jac run myfile.jac` or `jac nacompile myfile.jac` -- since the native backend, not the general type checker, owns C-ABI coercion.
 
 If you have the [`jac mcp`](mcp.md) server connected, the `check_syntax` and `validate_jac` tools do the same thing from your AI assistant.
 

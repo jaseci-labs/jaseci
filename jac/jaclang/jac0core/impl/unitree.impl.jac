@@ -178,7 +178,7 @@ impl UniNode.parent_of_type(typ: type[T]) -> T {
 }
 
 impl UniNode.codespace -> CodeContext {
-    import from jaclang.jac0core.ext_registry { is_client_module, is_native_module }
+    import from jaclang.jac0core.ext_registry { is_client_module }
     if isinstance(self, ContextAwareNode) {
         if (self.code_context == CodeContext.CLIENT) {
             return CodeContext.CLIENT;
@@ -218,9 +218,6 @@ impl UniNode.codespace -> CodeContext {
                 return CodeContext.CLIENT;
             }
             mp = nd.loc.mod_path if nd.loc is not None else '';
-            if mp and is_native_module(mp) {
-                return CodeContext.NATIVE;
-            }
             if mp and is_client_module(mp) {
                 return CodeContext.CLIENT;
             }
@@ -240,16 +237,13 @@ impl UniNode.in_native_context -> bool {
 }
 
 impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
-    import from jaclang.jac0core.ext_registry { is_client_module, is_native_module }
+    import from jaclang.jac0core.ext_registry { is_client_module }
     if ctx != CodeContext.SERVER and self.decided_codespace == ctx.value {
         return True;
     }
     mp = self.loc.mod_path
         if (self.loc is not None and self.loc.mod_path)
         else path_hint;
-    if ctx == CodeContext.NATIVE and bool(mp) and is_native_module(mp) {
-        return True;
-    }
     if ctx == CodeContext.CLIENT and bool(mp) and is_client_module(mp) {
         return True;
     }
@@ -1281,9 +1275,7 @@ impl ModulePath.native_bundled_path -> (str | None) {
         resolve_native_module
     }
     mod_path = self.loc.mod_path if self.loc else None;
-    is_native = self.in_native_context()
-    or (mod_path is not None and mod_path.endswith('.na.jac'));
-    if not is_native {
+    if not self.in_native_context() {
         return None;
     }
     base = self.dot_path_str;

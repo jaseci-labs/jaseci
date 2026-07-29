@@ -5225,7 +5225,7 @@ test "enum_member_assignable_to_base_type" {
     # `enum Color { RED = 1 }` — `Color.RED` is the int value 1.
     # Returning / assigning it where the base type (int / str) is
     # expected must typecheck. Surfaced in native fixtures
-    # string_enums.na.jac, ast.na.jac, na_enum_import.na.jac.
+    # string_enums.jac, ast.jac, na_enum_import.jac.
     path = os.path.join(CHECKER_FIXTURES, "checker_enum_member_as_base.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
@@ -5242,15 +5242,13 @@ test "enum_member_assignable_to_base_type" {
 }
 
 test "local_module_shadows_stdlib_in_resolver" {
-    # `import from ast { ... }` from a file alongside a local `ast.na.jac`
+    # `import from ast { ... }` from a file alongside a local `ast.jac`
     # must resolve to the local file, not Python's stdlib ast.pyi. Without
     # this the imported symbols decay to Unknown and propagate cascade
     # errors (E1001 / E1030 / E1053). Symmetric with NaIRGenPass's
-    # struct-registration fix; covered by fix_shadow_entry.na.jac in the
+    # struct-registration fix; covered by fix_shadow_entry.jac in the
     # native fixture suite too.
-    path = os.path.join(
-        CHECKER_FIXTURES, "checker_local_shadows_stdlib", "entry.na.jac"
-    );
+    path = os.path.join(CHECKER_FIXTURES, "checker_local_shadows_stdlib", "entry.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
     TypeCheckPass(ir_in=mod, prog=program);
@@ -5260,7 +5258,7 @@ test "local_module_shadows_stdlib_in_resolver" {
         for e in program.errors_had
         if e.code and e.code.code in ("E1001", "E1002", "E1030", "E1053")
     ];
-    assert len(cascade) == 0 , f"Expected no cascade errors when local ast.na.jac shadows stdlib, got {len(
+    assert len(cascade) == 0 , f"Expected no cascade errors when local ast.jac shadows stdlib, got {len(
         cascade
     )}:\n" + "\n---\n".join(e.pretty_print() for e in cascade);
 }
