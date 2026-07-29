@@ -5,8 +5,11 @@ name: Portability re-capture (arm64)
 # the same runner the linux-aarch64 binary is built on in build-binaries.yml).
 #
 # SCOPE (read results/portability/README.md): the deliverable is the RATIOS
-# (placement sv/na slope, payload rpc/direct slope, wasm/native) and their CV,
-# NOT the absolute nanoseconds. A hosted runner is shared and virtualized -- its
+# (placement sv/na slope, payload rpc/direct slope, svc_split/feed floors) and
+# their CV, NOT the absolute nanoseconds. The wasm/native ratio is a fourth,
+# TARGET-DEPENDENT family: the hosted arm64 release binary omits the wasm32 LLVM
+# backend, so that one cell stays x86-only and is captured as absent here (the
+# script's wasm leg is non-fatal). A hosted runner is shared and virtualized -- its
 # CPU governor is unpinned and turbo is uncontrolled -- so the absolutes are
 # noise. That is exactly the point: if the ratios reproduce on a different uarch
 # (Neoverse) despite an uncontrolled clock, the "ratios port, absolutes don't"
@@ -76,9 +79,14 @@ jobs:
         # still absorbs the shared-clock jitter.
         run: REPS=40 XRUN_INV=20 JOBS=4 scripts/portability_recapture.sh ci-arm64-neoverse
 
+      # Always upload whatever captured. The placement (sweep) and payload legs
+      # run and write their JSON BEFORE the cross-runtime leg, so even a late
+      # failure must not discard them. The wasm leg is already non-fatal in the
+      # script; if:always() backstops any other unexpected late error.
       - name: Upload re-capture bundle
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: portability-ci-arm64-neoverse
           path: results/portability/ci-arm64-neoverse/
-          if-no-files-found: error
+          if-no-files-found: warn

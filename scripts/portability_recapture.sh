@@ -61,11 +61,36 @@ echo "== 3/4 payload sweep (xop_feed_payload N=1..100k), n=$XRUN_INV =="
 python3 scripts/payload_sweep_controlled.py --invocations "$XRUN_INV" --reps 1 \
   ${PAYLOAD_SIZES:+--sizes "$PAYLOAD_SIZES"} --out "$OUT/payload.json"
 
-echo "== 4/4 cross-runtime small (svc_split/feed/wasm), n=$XRUN_INV =="
+echo "== 4/4 cross-runtime small (svc_split/feed), n=$XRUN_INV =="
 ( cd jac/examples/interopbench && \
   jac run harness/xbench.jac --experimental \
-    --kernels xop_svc_split,xop_feed,xop_wasm_call --sizes small \
+    --kernels xop_svc_split,xop_feed --sizes small \
     --invocations "$XRUN_INV" --out "$(pwd)/../../../$OUT/xruntime.json" )
+
+# wasm/native is a separate, TARGET-DEPENDENT leg: it needs a jac built with the
+# wasm32 LLVM backend. On toolchains without that target (e.g. the hosted arm64
+# image, whose release binary omits wasm32) the compile fails with "No available
+# targets are compatible with triple wasm32-unknown-unknown". That is an expected
+# portability gap, not a capture failure -- record its absence and KEEP the
+# svc_split/feed floors and the placement/payload ratios we already captured.
+echo "== 4b/4 cross-runtime wasm (target-dependent, non-fatal) =="
+if ( cd jac/examples/interopbench && \
+     jac run harness/xbench.jac --experimental \
+       --kernels xop_wasm_call --sizes small \
+       --invocations "$XRUN_INV" --out "$(pwd)/../../../$OUT/xruntime_wasm.json" ); then
+  python3 - "$OUT" <<'PY'
+import json, sys
+out = sys.argv[1]
+main = json.load(open(f"{out}/xruntime.json"))
+main["cells"].update(json.load(open(f"{out}/xruntime_wasm.json"))["cells"])
+json.dump(main, open(f"{out}/xruntime.json", "w"), indent=2)
+PY
+  echo "  wasm/native captured and merged into xruntime.json"
+else
+  echo "  wasm/native SKIPPED: no wasm32 target in this jac toolchain (recorded as absent)"
+  printf '{"skipped": "no wasm32 target in this jac toolchain"}\n' \
+    > "$OUT/xruntime_wasm_skipped.json"
+fi
 
 echo
 echo "== portability summary for '$LABEL' (compare RATIOS to canonical above) =="
@@ -101,6 +126,9 @@ else:
 
 xr = json.load(open(f"{out}/xruntime.json"))["cells"]
 for cell in ("xop_svc_split","xop_feed","xop_wasm_call"):
+    if cell not in xr:
+        print(f"  {cell:16s} SKIPPED (no wasm32 target in this toolchain; x86-only cell)")
+        continue
     v=xr[cell]["variants"]; ref="direct" if "direct" in v else "native"
     oth=[k for k in v if k!=ref][0]
     print(f"  {cell:16s} {oth}/{ref} = {v[oth]['median_ns']/v[ref]['median_ns']:6.1f}x")
