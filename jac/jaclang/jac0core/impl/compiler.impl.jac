@@ -709,9 +709,15 @@ impl JacCompiler.parse_str(
         }
         (mod, had_error) = rd_parse(source_str, file_path, prog=target_program);
         codespace = '';
-        import from jaclang.jac0core.codeinfo { is_native_by_location as _nbl }
+        import from jaclang.jac0core.codeinfo {
+            is_client_by_location as _cbl,
+            is_native_by_location as _nbl
+        }
         if _nbl(file_path) {
             codespace = 'native';
+        }
+        if not codespace and _cbl(file_path) {
+            codespace = 'client';
         }
         if not codespace {
             import from jaclang.jac0core.placement_pins {

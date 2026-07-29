@@ -2736,15 +2736,18 @@ test "jir cache preserves code context for cl jac files" {
     import from jaclang.jac0core.unitree { ContextAwareNode }
 
     with tempfile.TemporaryDirectory() as tmpdir {
-        # Create a .jac module with a pub global and a pub function
+        # Create a client-pinned .jac module with a pub global and a pub
+        # function; the module pin coerces the whole module client at parse,
+        # the way the retired .cl.jac suffix used to.
         cl_jac_path = os.path.join(tmpdir, "api.jac");
         with open(cl_jac_path, "w") as f {
             f.write(
-                'cl {\n'
-                '    glob:pub baseUrl = "http://localhost";\n'
-                '    def:pub fetchData() -> str { return baseUrl; }\n'
-                '}\n'
+                'glob:pub baseUrl = "http://localhost";\n'
+                'def:pub fetchData() -> str { return baseUrl; }\n'
             );
+        }
+        with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
+            f.write('[placement.pins]\n"api" = "client"\n');
         }
         # Compile the .jac file
         program = JacProgram();

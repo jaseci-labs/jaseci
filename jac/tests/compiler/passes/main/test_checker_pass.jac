@@ -5519,30 +5519,6 @@ test "mobui_kind_does_not_leak_outside_project_root" {
     }
 }
 
-test "cl_jac_files_inside_project_root_also_exempt" {
-    # Even when a .jac file lives inside the project root (user's own
-    # web-client boundary file), E1105 must not fire — .jac always targets
-    # the browser and raw HTML is valid there.
-    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_cl_html_allowed.jac");
-    fixtures_dir = os.path.dirname(path);
-    program = JacProgram();
-    program.compile(
-        path,
-        options=CompileOptions(
-            type_check=False, project_kind="mobui", project_root=fixtures_dir
-        )
-    );
-    e1105 = [
-        e
-        for e in program.errors_had
-        if e.code and e.code.code == "E1105"
-    ];
-    assert len(e1105) == 0 , (
-        f"E1105 must not fire on .jac files even inside project_root, "
-        f"got {len(e1105)}:\n" + "\n---\n".join(e.pretty_print() for e in e1105)
-    );
-}
-
 test "jac_toml_kind_mobui_round_trip" {
     # Verify the jac.toml → per-path discovery → compile() code path for
     # `[project] client_kind = "mobui"`. All other mobui-project tests set

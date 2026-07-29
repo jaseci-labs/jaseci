@@ -121,9 +121,13 @@ def _crosses_server_boundary(mod: any) -> bool {
 }
 
 def _compile_module(program: any, path: Path) -> any {
+    import from jaclang.jac0core.compile_options { CompileOptions }
     source_key = str(path);
     prev = len(program.errors_had);
-    mod = program.compile(source_key);
+
+    mod = program.compile(
+        source_key, options=CompileOptions(force_codespace='client', type_check=False)
+    );
     new_errors = program.errors_had[prev:];
     if new_errors {
         formatted = "\n".join(str(err) for err in new_errors);

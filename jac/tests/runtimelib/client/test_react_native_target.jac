@@ -230,10 +230,9 @@ test "JacClientCompiler maps targets to platform runtimes" {
     assert 'client_runtime_native.jac' in src_content;
     assert "target_name" in src_content;
     assert "target_name" in impl_content;
-    assert ".native.jac" in src_content;
-    assert src_content.index(".native.jac") < src_content.index(".jac") , (
-        "COMPOUND_EXTENSIONS must put .native.jac before .jac so "
-        "Header.native.jac maps to Header.js (not Header.native.js)."
+    assert "COMPOUND_EXTENSIONS = ['.native.jac']" in src_content , (
+        "COMPOUND_EXTENSIONS must strip .native.jac ahead of the plain .jac "
+        "fallback so Header.native.jac maps to Header.js (not Header.native.js)."
     );
     assert "client_runtime_core.jac" in impl_content , (
         "compile_runtime_utils must bundle client_runtime_core (D9)"
