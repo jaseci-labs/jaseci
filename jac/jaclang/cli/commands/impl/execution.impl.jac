@@ -219,12 +219,8 @@ def _run_project(
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
     import from jaclang.project.kinds { plan_project_run, is_valid_kind, VALID_KINDS }
-    try {
-        import from jaclang.project.providers { initialize_provider_registry }
-        initialize_provider_registry();
-    } except Exception as exc {
-        console.warning(f"Failed to initialize provider registry: {exc}");
-    }
+    import from jaclang.project.providers { initialize_provider_registry }
+    initialize_provider_registry();
 
     existing_config = get_config();
     active_profile = existing_config.active_profile if existing_config else None;
@@ -540,10 +536,7 @@ impl start(
 
     set_effective_default_codespace('server');
 
-    import importlib;
-    run_client_start = importlib.import_module(
-        ".".join(["jaclang", "runtimelib", "client", "cli"])
-    ).run_client_start;
+    import from jaclang.runtimelib.client.cli { run_client_start }
     client_rc = run_client_start(
         filename, client, host, platform, port, api_port, dev, no_client
     );
@@ -551,9 +544,7 @@ impl start(
         return client_rc;
     }
 
-    scale_start = importlib.import_module(
-        ".".join(["jaclang", "scale", "plugin"])
-    ).scale_start;
+    import from jaclang.scale.plugin { scale_start }
     scale_rc = scale_start(filename, scale, target, enable_tls, dry_run, show_yaml);
     if scale_rc is not None {
         return scale_rc;
@@ -752,10 +743,7 @@ def _watchdog_importable -> bool {
 def _ensure_watchdog_installed -> bool {
     import from jaclang.project.config { get_config }
     import from jaclang.project.pyvenv { add_venv_to_path }
-    import importlib;
-    _prov = importlib.import_module(".".join(["jaclang", "project", "providers"]));
-    InstallContext = _prov.InstallContext;
-    get_python_provider = _prov.get_python_provider;
+    import from jaclang.project.providers { InstallContext, get_python_provider }
 
     if _watchdog_importable() {
         return True;
@@ -903,10 +891,7 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
     import from pathlib { Path }
 
     try {
-        import importlib;
-        ViteBundler = importlib.import_module(
-            ".".join(["jaclang", "runtimelib", "client", "vite_bundler"])
-        ).ViteBundler;
+        import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
 
         project_dir = Path(base_path);
         bundler = ViteBundler(project_dir);
@@ -1079,12 +1064,9 @@ def _run_entry_point(name: str, ep: object, site_dir: object, args: list) -> int
 
 def _run_node_tool(name: str, bin_path: object, args: list) -> int {
     import subprocess;
-    import importlib;
     import from jaclang.project.config { get_config }
+    import from jaclang.runtimelib.client.bun_installer { get_bun }
 
-    get_bun = importlib.import_module(
-        ".".join(["jaclang", "runtimelib", "client", "bun_installer"])
-    ).get_bun;
     bun = get_bun();
     if bun is None {
         console.error(

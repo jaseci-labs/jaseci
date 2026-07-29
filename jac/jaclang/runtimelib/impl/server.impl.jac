@@ -1826,8 +1826,7 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
 
         def _serve_graph_page(self: JacRequestHandler) {
             try {
-                import importlib;
-                scale_mod = importlib.import_module(".".join(["jaclang", "scale"]));
+                import jaclang.scale as scale_mod;
                 template = Path(scale_mod.__file__).parent / 'templates' / 'graph.html';
                 html = template.read_text(encoding='utf-8');
             } except (ImportError, OSError) as exc {

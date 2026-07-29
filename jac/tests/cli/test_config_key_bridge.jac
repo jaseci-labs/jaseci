@@ -5,7 +5,6 @@ must declare ``config_key="section.key"`` on its ``Arg.create`` call. Dispatch
 reads those keys at runtime instead of a hand-maintained bridge table.
 """
 
-import importlib;
 import from jaclang.cli.registry { get_registry }
 
 glob _EXPECTED_CONFIG_KEYS: list[tuple[str, str, str]] = [
@@ -20,8 +19,8 @@ glob _EXPECTED_CONFIG_KEYS: list[tuple[str, str, str]] = [
 
 
 def _load_specs {
-    importlib.import_module("jaclang.cli.commands.execution");
-    importlib.import_module("jaclang.cli.commands.analysis");
+    import jaclang.cli.commands.execution;
+    import jaclang.cli.commands.analysis;
 }
 
 

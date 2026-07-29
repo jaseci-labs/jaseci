@@ -3,24 +3,23 @@ import from jaclang.cli.console { console }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 
 impl tool(tool: str, args: list = []) -> int {
-    import importlib;
     import from jaclang.utils.lang_tools { AstTool }
     if tool in ("jac2py", "py2jac", "jac2js") {
-        _transform = importlib.import_module("jaclang.cli.commands.transform");
+        import from jaclang.cli.commands.transform { jac2py, py2jac, jac2js }
         if not args {
             console.error(f"Usage: jac tool {tool} <file>");
             return 1;
         }
         fwd = {
-            "jac2py": _transform.jac2py,
-            "py2jac": _transform.py2jac,
-            "jac2js": _transform.jac2js,
+            "jac2py": jac2py,
+            "py2jac": py2jac,
+            "jac2js": jac2js,
 
         };
         return fwd[tool](args[0]);
     }
     if tool == "grammar" {
-        _analysis = importlib.import_module("jaclang.cli.commands.analysis");
+        import from jaclang.cli.commands.analysis { grammar }
         output = "";
         strict = False;
         i = 0;
@@ -43,7 +42,7 @@ impl tool(tool: str, args: list = []) -> int {
             }
             i += 1;
         }
-        return _analysis.grammar(output=output, strict=strict);
+        return grammar(output=output, strict=strict);
     }
     if hasattr(AstTool, tool) {
         try {
