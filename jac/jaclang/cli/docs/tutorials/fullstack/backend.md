@@ -155,9 +155,9 @@ cl {
             return <p className="error">Error: {error}</p>;
         }
 
-        return <ul>
+        <ul>
             {[<li key={jid(task)}>{task.title}</li> for task in tasks]}
-        </ul>;
+        </ul>
     }
 }
 ```
@@ -224,7 +224,7 @@ cl {
             }
         }
 
-        return <div>
+        <div>
             <div className="add-task">
                 <input
                     value={new_title}
@@ -259,7 +259,7 @@ cl {
                     for task in tasks
                 ]}
             </ul>
-        </div>;
+        </div>
     }
 }
 ```
@@ -297,7 +297,7 @@ cl {
             submitting = False;
         }
 
-        return <div>
+        <div>
             {error_msg and <div className="error">{error_msg}</div>}
             <button
                 onClick={lambda -> None { handle_submit({"key": "value"}); }}
@@ -305,7 +305,7 @@ cl {
             >
                 {("Submitting..." if submitting else "Submit")}
             </button>
-        </div>;
+        </div>
     }
 }
 ```
@@ -352,9 +352,9 @@ cl {
             </div>;
         }
 
-        return <div className="data">
+        <div className="data">
             {JSON.stringify(data)}
-        </div>;
+        </div>
     }
 }
 ```
@@ -393,10 +393,10 @@ cl {
             return lambda { clearInterval(interval); };
         }, []);
 
-        return <div>
+        <div>
             {loading and <p>Loading...</p>}
             {data and <p>Last updated: {data["timestamp"]}</p>}
-        </div>;
+        </div>
     }
 }
 ```
@@ -479,7 +479,7 @@ cl {
             }
         }
 
-        return <div className="app">
+        <div className="app">
             <h1>My Tasks</h1>
 
             <div className="input-row">
@@ -510,7 +510,7 @@ cl {
                     ]}
                 </ul>
             )}
-        </div>;
+        </div>
     }
 }
 ```

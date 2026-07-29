@@ -66,9 +66,9 @@ cl {
     def:pub app() -> JsxElement {
         has message: str = "Hello from Jac!";
 
-        return <div>
+        <div>
             <h1>{message}</h1>
-        </div>;
+        </div>
     }
 }
 ```
@@ -146,7 +146,7 @@ walker api_endpoint {
 # This is frontend code (runs in browser)
 cl {
     def:pub MyComponent() -> JsxElement {
-        return <div>I run in the browser</div>;
+        <div>I run in the browser</div>
     }
 }
 ```
@@ -175,7 +175,7 @@ walker get_user {
 # Frontend
 cl {
     def:pub app() -> JsxElement {
-        return <div>App</div>;
+        <div>App</div>
     }
 }
 ```
@@ -220,10 +220,10 @@ cl {
     import from "./components/Header.cl.jac" { Header }
 
     def:pub app() -> JsxElement {
-        return <div>
+        <div>
             <Header />
             <main>Content</main>
-        </div>;
+        </div>
     }
 }
 ```
@@ -262,7 +262,7 @@ cl {
 
     def:pub app() -> JsxElement {
         items = lodash.sortBy(["c", "a", "b"]);
-        return <ul>{[<li>{i}</li> for i in items]}</ul>;
+        <ul>{[<li>{i}</li> for i in items]}</ul>
     }
 }
 ```
@@ -306,13 +306,13 @@ cl {
     def:pub app() -> JsxElement {
         has count: int = 0;
 
-        return <div style={{"textAlign": "center", "marginTop": "50px"}}>
+        <div style={{"textAlign": "center", "marginTop": "50px"}}>
             <h1>Jac Full-Stack</h1>
             <p>Count: {count}</p>
             <button onClick={lambda -> None { count = count + 1; }}>
                 Increment
             </button>
-        </div>;
+        </div>
     }
 }
 ```

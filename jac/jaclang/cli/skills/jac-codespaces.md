@@ -44,12 +44,12 @@ def:pub app() -> JsxElement {                   # JSX -> client
         confetti();
     }
 
-    return <main>
+    <main>
         <input value={text} onChange={lambda (e: ChangeEvent) { text = e.target.value; }} />
         <span>{remaining(text)} left</span>
         <button onClick={handle_save}>Save</button>
         {for n in notes { <p key={n.stamp}>{n.text}</p> }}
-    </main>;
+    </main>
 }
 ```
 

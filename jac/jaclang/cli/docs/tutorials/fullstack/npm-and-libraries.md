@@ -117,10 +117,10 @@ def:pub TextInput() -> JsxElement {
         }
     }
 
-    return <div>
+    <div>
         <input ref={inputRef} type="text" />
         <button onClick={lambda -> None { focusInput(); }}>Focus</button>
-    </div>;
+    </div>
 }
 ```
 
@@ -164,10 +164,10 @@ def:pub FileUploader() -> JsxElement {
         }
     }, []);
 
-    return <div>
+    <div>
         <input ref={fileInputRef} type="file" style={{"display": "none"}} />
         <button onClick={triggerPicker}>Upload File</button>
-    </div>;
+    </div>
 }
 ```
 
@@ -197,14 +197,14 @@ def:pub SearchBox() -> JsxElement {
         }
     }, []);
 
-    return <div>
+    <div>
         <input
             ref={inputRef}
             value={query}
             onChange={lambda (e: ChangeEvent) { query = e.target.value; }}
         />
         <ul>{[<li key={r.id}>{r.title}</li> for r in results]}</ul>
-    </div>;
+    </div>
 }
 ```
 
@@ -244,10 +244,10 @@ lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 import "./assets/main.css";
 
 def:pub app() -> JsxElement {
-    return <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-100 p-8">
         <h1 className="text-3xl font-bold text-gray-900">Hello from Jac</h1>
         <p className="mt-4 text-gray-600">Tailwind CSS is working.</p>
-    </div>;
+    </div>
 }
 ```
 
@@ -260,13 +260,13 @@ def:pub Tab(props: any) -> JsxElement {
     activeCls = "border-primary text-foreground";
     inactiveCls = "border-transparent text-muted-foreground hover:text-foreground";
 
-    return <button
+    <button
         className={"px-2.5 py-1.5 text-sm font-medium border-b-2 " +
             (activeCls if props.active else inactiveCls)}
         onClick={props.onClick}
     >
         {props.children}
-    </button>;
+    </button>
 }
 ```
 
@@ -327,9 +327,9 @@ cl {
     import from .components.ui.dropdown_menu { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent }
 
     def:pub MyPage() -> JsxElement {
-        return <div>
+        <div>
             <Button variant="outline">Click me</Button>
-        </div>;
+        </div>
     }
 }
 ```
@@ -399,9 +399,9 @@ def:pub Button(props: any, ref: Ref[HTMLButtonElement]) -> JsxElement {
         props.className
     );
 
-    return <button ref={ref} className={computedClass} {**props}>
+    <button ref={ref} className={computedClass} {**props}>
         {props.children}
-    </button>;
+    </button>
 }
 ```
 
@@ -425,19 +425,19 @@ import from ...lib.utils { cn }
 
 # Root is a context provider -- it renders no DOM node, so it takes no ref.
 def:pub Dialog(props: any) -> JsxElement {
-    return <DialogPrimitive.Root {**props}>
+    <DialogPrimitive.Root {**props}>
         {props.children}
-    </DialogPrimitive.Root>;
+    </DialogPrimitive.Root>
 }
 
 def:pub DialogTrigger(props: any, ref: Ref[HTMLButtonElement]) -> JsxElement {
-    return <DialogPrimitive.Trigger ref={ref} {**props}>
+    <DialogPrimitive.Trigger ref={ref} {**props}>
         {props.children}
-    </DialogPrimitive.Trigger>;
+    </DialogPrimitive.Trigger>
 }
 
 def:pub DialogContent(props: any, ref: Ref[HTMLElement]) -> JsxElement {
-    return <DialogPrimitive.Portal>
+    <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
             className={cn("fixed inset-0 z-50 bg-black/50", props.overlayClassName)}
         />
@@ -451,7 +451,7 @@ def:pub DialogContent(props: any, ref: Ref[HTMLElement]) -> JsxElement {
         >
             {props.children}
         </DialogPrimitive.Content>
-    </DialogPrimitive.Portal>;
+    </DialogPrimitive.Portal>
 }
 ```
 
@@ -495,10 +495,10 @@ import from "@hugeicons/core-free-icons" {
 }
 
 def:pub IconDemo() -> JsxElement {
-    return <div>
+    <div>
         <HugeiconsIcon icon={File02Icon} strokeWidth={2} />
         <HugeiconsIcon icon={Cancel01Icon} size={20} />
-    </div>;
+    </div>
 }
 ```
 
@@ -508,10 +508,10 @@ def:pub IconDemo() -> JsxElement {
 import from "lucide-react" { Search, X, Menu, ChevronDown }
 
 def:pub NavBar() -> JsxElement {
-    return <nav>
+    <nav>
         <button><Menu size={24} /></button>
         <button><Search size={20} /></button>
-    </nav>;
+    </nav>
 }
 ```
 
@@ -527,13 +527,13 @@ import from "@monaco-editor/react" { Editor }
 def:pub CodeEditor() -> JsxElement {
     has code: str = "print('hello')";
 
-    return <Editor
+    <Editor
         height="400px"
         language="python"
         theme="vs-dark"
         value={code}
         onChange={lambda (value: any) -> None { code = value; }}
-    />;
+    />
 }
 ```
 
@@ -552,10 +552,10 @@ def:pub app() -> JsxElement {
         sonnerToast.success("Changes saved!");
     }
 
-    return <div>
+    <div>
         <Toaster position="top-right" />
         <button onClick={lambda -> None { showToast(); }}>Save</button>
-    </div>;
+    </div>
 }
 ```
 
@@ -572,7 +572,7 @@ import from "react-resizable-panels" {
 }
 
 def:pub SplitView() -> JsxElement {
-    return <PanelGroup direction="horizontal">
+    <PanelGroup direction="horizontal">
         <Panel defaultSize={30} minSize={20}>
             <Sidebar />
         </Panel>
@@ -580,7 +580,7 @@ def:pub SplitView() -> JsxElement {
         <Panel>
             <MainContent />
         </Panel>
-    </PanelGroup>;
+    </PanelGroup>
 }
 ```
 

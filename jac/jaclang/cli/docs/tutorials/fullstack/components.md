@@ -13,17 +13,22 @@ The key difference from a standard React setup: there's no separate JavaScript p
 
 ## Basic Component
 
+A component body idiomatically ends with its JSX element as a bare
+**implicit return**: the final expression without a trailing `;` is the
+return value. Early guard returns (`if loading { return <Spinner />; }`)
+stay explicit.
+
 ```jac
 cl {
     def:pub Greeting(name: str) -> JsxElement {
-        return <h1>Hello, {name}!</h1>;
+        <h1>Hello, {name}!</h1>
     }
 
     def:pub app() -> JsxElement {
-        return <div>
+        <div>
             <Greeting name="Alice" />
             <Greeting name="Bob" />
-        </div>;
+        </div>
     }
 }
 ```
@@ -46,17 +51,17 @@ Declare **every prop as its own named, typed parameter**. The type-checker keys 
 ```jac
 cl {
     def:pub Card(title: str, description: str = "", children: any = None) -> JsxElement {
-        return <div className="card">
+        <div className="card">
             <h2>{title}</h2>
             <p>{description}</p>
             {children}
-        </div>;
+        </div>
     }
 
     def:pub app() -> JsxElement {
-        return <Card title="Welcome" description="Hello!">
+        <Card title="Welcome" description="Hello!">
             <p>This is the card content.</p>
-        </Card>;
+        </Card>
     }
 }
 ```
@@ -78,7 +83,7 @@ There is no `ReactNode`-style union type in Jac, and a children value can be an 
 cl {
     # jac:ignore[W5015]
     def:pub PassThrough(props: dict) -> JsxElement {
-        return <Inner {**props} />;
+        <Inner {**props} />
     }
 }
 ```
@@ -96,12 +101,12 @@ This shape is useful for higher-order components, wrappers, and forwarding helpe
 ```jac
 cl {
     def:pub MyComponent() -> JsxElement {
-        return <div className="container">
+        <div className="container">
             <h1>Title</h1>
             <p>Paragraph text</p>
             <a href="/about">Link</a>
             <img src="/logo.png" alt="Logo" />
-        </div>;
+        </div>
     }
 }
 ```
@@ -116,11 +121,11 @@ cl {
         name = "World";
         items = [1, 2, 3];
 
-        return <div>
+        <div>
             <p>Hello, {name}!</p>
             <p>Sum: {1 + 2 + 3}</p>
             <p>Items: {len(items)}</p>
-        </div>;
+        </div>
     }
 }
 ```
@@ -136,9 +141,9 @@ Use `{ }` to embed any Jac expression.
 ```jac
 cl {
     def:pub Status(active: bool) -> JsxElement {
-        return <span>
+        <span>
             {("Active" if active else "Inactive")}
-        </span>;
+        </span>
     }
 }
 ```
@@ -148,9 +153,9 @@ cl {
 ```jac
 cl {
     def:pub Notification(count: int) -> JsxElement {
-        return <div>
+        <div>
             {count > 0 and <span>You have {count} messages</span>}
-        </div>;
+        </div>
     }
 }
 ```
@@ -163,7 +168,7 @@ cl {
         if isLoggedIn {
             return <h1>Welcome back!</h1>;
         }
-        return <h1>Please sign in</h1>;
+        <h1>Please sign in</h1>
     }
 }
 ```
@@ -175,9 +180,9 @@ cl {
 ```jac
 cl {
     def:pub TodoList(items: list[dict[str, any]]) -> JsxElement {
-        return <ul>
+        <ul>
             {[<li key={item["id"]}>{item["text"]}</li> for item in items]}
-        </ul>;
+        </ul>
     }
 
     def:pub app() -> JsxElement {
@@ -187,7 +192,7 @@ cl {
             {"id": 3, "text": "Deploy"}
         ];
 
-        return <TodoList items={todos} />;
+        <TodoList items={todos} />
     }
 }
 ```
@@ -207,9 +212,9 @@ cl {
             print("Button clicked!");
         }
 
-        return <button onClick={lambda -> None { handle_click(); }}>
+        <button onClick={lambda -> None { handle_click(); }}>
             Click me
-        </button>;
+        </button>
     }
 }
 ```
@@ -221,12 +226,12 @@ cl {
     def:pub SearchBox() -> JsxElement {
         has query: str = "";
 
-        return <input
+        <input
             type="text"
             value={query}
             onChange={lambda (e: ChangeEvent) { query = e.target.value; }}
             placeholder="Search..."
-        />;
+        />
     }
 }
 ```
@@ -244,7 +249,7 @@ cl {
             print(f"Login: {username}");
         }
 
-        return <form onSubmit={lambda (e: FormEvent) { handle_submit(e); }}>
+        <form onSubmit={lambda (e: FormEvent) { handle_submit(e); }}>
             <input
                 value={username}
                 onChange={lambda (e: ChangeEvent) { username = e.target.value; }}
@@ -255,7 +260,7 @@ cl {
                 onChange={lambda (e: ChangeEvent) { password = e.target.value; }}
             />
             <button type="submit">Login</button>
-        </form>;
+        </form>
     }
 }
 ```
@@ -269,17 +274,17 @@ cl {
 ```jac
 cl {
     def:pub Card(title: str, children: any = None) -> JsxElement {
-        return <div className="card">
+        <div className="card">
             <div className="card-header">{title}</div>
             <div className="card-body">{children}</div>
-        </div>;
+        </div>
     }
 
     def:pub app() -> JsxElement {
-        return <Card title="Welcome">
+        <Card title="Welcome">
             <p>This is the card content.</p>
             <button>Action</button>
-        </Card>;
+        </Card>
     }
 }
 ```
@@ -289,29 +294,29 @@ cl {
 ```jac
 cl {
     def:pub Header() -> JsxElement {
-        return <header>
+        <header>
             <h1>My App</h1>
             <Nav />
-        </header>;
+        </header>
     }
 
     def:pub Nav() -> JsxElement {
-        return <nav>
+        <nav>
             <a href="/">Home</a>
             <a href="/about">About</a>
-        </nav>;
+        </nav>
     }
 
     def:pub Footer() -> JsxElement {
-        return <footer>© 2024</footer>;
+        <footer>© 2024</footer>
     }
 
     def:pub app() -> JsxElement {
-        return <div>
+        <div>
             <Header />
             <main>Content here</main>
             <Footer />
-        </div>;
+        </div>
     }
 }
 ```
@@ -320,7 +325,7 @@ cl {
 
 ## JSX Slots: Control Flow as Children
 
-A component is just `def:pub Name(...) -> JsxElement { return <jsx>; }`. The interesting work happens inside the JSX itself, where every `{...}` is a **slot** -- a place where Jac code computes a child. Slots come in two shapes:
+A component is just `def:pub Name(...) -> JsxElement { <jsx> }` -- the tail JSX element without a `;` is the implicit return value. The interesting work happens inside the JSX itself, where every `{...}` is a **slot** -- a place where Jac code computes a child. Slots come in two shapes:
 
 - **Expression slot** (the usual case): `{name}`, `{user.profile.email}`, `{<Badge />}` -- whatever's inside renders directly.
 - **Statement slot**: when a slot begins with a statement keyword (`if`, `for`, `while`, `match`, `switch`, `with`, `try`, `return`), it switches into template mode. Each JSX statement inside the slot is appended to the element's children; control flow yields the JSX in its branches.
@@ -330,14 +335,14 @@ The two forms share the same `{...}` syntax -- the compiler decides which shape 
 ```jac
 cl {
     def:pub Greeting(name: str) -> JsxElement {
-        return <div class="card">
+        <div class="card">
             {if name == "" {
                 <p>Hello, stranger</p>
             } else {
                 <h1>Hello, {name}</h1>
                 <p>Welcome back.</p>
             }}
-        </div>;
+        </div>
     }
 }
 ```
@@ -356,7 +361,7 @@ cl {
 ```jac
 cl {
     def:pub ItemList(items: list[str]) -> JsxElement {
-        return <>
+        <>
             {if len(items) == 0 {
                 <p class="empty">Nothing here.</p>
                 skip;
@@ -365,7 +370,7 @@ cl {
             {for (i, item) in enumerate(items) {
                 <li key={i}>{item}</li>
             }}
-        </>;
+        </>
     }
 }
 ```
@@ -385,7 +390,7 @@ cl {
             count = count + 1;
         }
 
-        return <button onClick={bump}>Count: {count}</button>;
+        <button onClick={bump}>Count: {count}</button>
     }
 }
 ```
@@ -412,14 +417,14 @@ Don't confuse this with the slot-guard form above: in a slot, `skip;` yields the
 ```jac
 cl {
     def:pub Box(as_: str, children: any = None) -> JsxElement {
-        return <@as_ className="box">{children}</@as_>;
+        <@as_ className="box">{children}</@as_>
     }
 
     def:pub Demo() -> JsxElement {
-        return <>
+        <>
             <Box as_="article">Inside an article element</Box>
             <Box as_="section">Inside a section element</Box>
-        </>;
+        </>
     }
 }
 ```
@@ -433,21 +438,21 @@ A `try` slot can take an `awaiting` clause that names what to render while the w
 ```jac
 cl {
     def:pub UserCardSkeleton() -> JsxElement {
-        return <div class="card skeleton"><p>Loading user…</p></div>;
+        <div class="card skeleton"><p>Loading user…</p></div>
     }
 
     def:pub UserCardView(user: User) -> JsxElement {
-        return <div class="card"><h2>{user.name}</h2><p>{user.bio}</p></div>;
+        <div class="card"><h2>{user.name}</h2><p>{user.bio}</p></div>
     }
 
     def:pub UserPanel(user: User) -> JsxElement {
-        return <section class="panel">
+        <section class="panel">
             {try {
                 <UserCardView user={user}/>
             } awaiting {
                 <UserCardSkeleton/>
             }}
-        </section>;
+        </section>
     }
 }
 ```
@@ -459,7 +464,7 @@ Add an `except` arm to name the error state alongside the loading state. The slo
 ```jac
 cl {
     def:pub UserPanel(user: User) -> JsxElement {
-        return <section class="panel">
+        <section class="panel">
             {try {
                 <UserCardView user={user}/>
             } awaiting {
@@ -467,7 +472,7 @@ cl {
             } except Exception {
                 <div class="card error">Couldn't load this user.</div>
             }}
-        </section>;
+        </section>
     }
 }
 ```
@@ -488,10 +493,10 @@ By default `{value}` is rendered as escaped text. The `unsafe_html(x)` ambient b
 ```jac
 cl {
     def:pub Comment(c: dict) -> JsxElement {
-        return <article>
+        <article>
             <h3>{c["author"]}</h3>
             <div class="body">{unsafe_html(c["trusted_html"])}</div>
-        </article>;
+        </article>
     }
 }
 ```
@@ -506,9 +511,9 @@ cl {
 # No `cl { }` block needed for .cl.jac files
 
 def:pub Header(title: str) -> JsxElement {
-    return <header>
+    <header>
         <h1>{title}</h1>
-    </header>;
+    </header>
 }
 ```
 
@@ -519,10 +524,10 @@ cl {
     import from "./Header.cl.jac" { Header }
 
     def:pub app() -> JsxElement {
-        return <div>
+        <div>
             <Header title="My App" />
             <main>Content</main>
-        </div>;
+        </div>
     }
 }
 ```
@@ -553,10 +558,10 @@ cl {
     import from "./Button.tsx" { Button }
 
     def:pub app() -> JsxElement {
-        return <Button
+        <Button
             label="Click me"
             onClick={lambda -> None { print("Clicked!"); }}
-        />;
+        />
     }
 }
 ```
@@ -570,14 +575,14 @@ cl {
 ```jac
 cl {
     def:pub StyledBox() -> JsxElement {
-        return <div style={{
+        <div style={{
             "backgroundColor": "#f0f0f0",
             "padding": "20px",
             "borderRadius": "8px",
             "boxShadow": "0 2px 4px rgba(0,0,0,0.1)"
         }}>
             Styled content
-        </div>;
+        </div>
     }
 }
 ```
@@ -589,9 +594,9 @@ cl {
     import "./styles.css";
 
     def:pub app() -> JsxElement {
-        return <div className="container">
+        <div className="container">
             <h1 className="title">Hello</h1>
-        </div>;
+        </div>
     }
 }
 ```
@@ -617,9 +622,9 @@ matching `className` references to agree.
 ```jac
 # Card.cl.jac
 def:pub Card(title: str) -> JsxElement {
-    return <div className="card">
+    <div className="card">
         <h2 className="card-title">{title}</h2>
-    </div>;
+    </div>
 }
 ```
 

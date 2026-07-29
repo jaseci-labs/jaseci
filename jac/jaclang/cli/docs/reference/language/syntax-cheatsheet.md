@@ -1343,9 +1343,9 @@ cl {
             items = await get_todos();
         }
 
-        return <div>
+        <div>
             {[<p key={i.title}>{i.title}</p> for i in items]}
-        </div>;
+        </div>
     }
 }
 
@@ -1383,25 +1383,25 @@ cl {
         # `has` in client components becomes React useState
         has count: int = 0;
 
-        return <div>
+        <div>
             <p>Count: {count}</p>
             <button onClick={lambda -> None { count = count + 1; }}>
                 Increment
             </button>
-        </div>;
+        </div>
     }
 
     # JSX `{...}` slots accept statement-form control flow as children.
     # Inside the slot, JSX statements push into the enclosing element's
     # children list; `skip;` ends the slot with whatever was emitted.
     def:pub Greeting(name: str) -> JsxElement {
-        return <div>
+        <div>
             {if name == "" {
                 <p>(no name given)</p>
                 skip;                     # skip; = slot early-exit guard
             }}
             <h1>Hello, {name}!</h1>
-        </div>;
+        </div>
     }
 
     # Raw HTML opt-in (the name is the security review hint):
@@ -1451,7 +1451,7 @@ cl {
         # can with exit { unsubscribe(); }
 
         if loading { return <p>Loading...</p>; }
-        return <div>{data}</div>;
+        <div>{data}</div>
     }
 }
 
@@ -1481,7 +1481,7 @@ cl {
             }
         }
 
-        return <div>...</div>;
+        <div>...</div>
     }
 }
 

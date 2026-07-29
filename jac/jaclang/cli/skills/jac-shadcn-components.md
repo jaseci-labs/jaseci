@@ -181,21 +181,21 @@ import from "@hugeicons/core-free-icons" { Add01Icon, Search01Icon, MoreVertical
 
 # Inline icon
 def:pub InlineIconExample() -> JsxElement {
-    return <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-4" />;
+    <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-4" />
 }
 
 # Icon-only button
 def:pub IconButtonExample() -> JsxElement {
-    return <Button size="icon">
+    <Button size="icon">
         <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-    </Button>;
+    </Button>
 }
 
 # Radix trigger styled directly with buttonVariants() - simplest icon-trigger form
 def:pub RadixTriggerExample() -> JsxElement {
-    return <DropdownMenuTrigger className={buttonVariants().call(None, {"variant": "ghost", "size": "icon"})}>
+    <DropdownMenuTrigger className={buttonVariants().call(None, {"variant": "ghost", "size": "icon"})}>
         <HugeiconsIcon icon={MoreVerticalIcon} strokeWidth={2} className="size-4" />
-    </DropdownMenuTrigger>;
+    </DropdownMenuTrigger>
 }
 ```
 
@@ -206,7 +206,7 @@ def:pub RadixTriggerExample() -> JsxElement {
 ```jac
 # Usable as an asChild trigger child - the trailing ref param forwards the anchor
 def:pub MyMenuButton(label: str, ref: Ref[HTMLButtonElement]) -> JsxElement {
-    return <button ref={ref} className="...">{label}</button>;
+    <button ref={ref} className="...">{label}</button>
 }
 ```
 
@@ -341,7 +341,7 @@ To add a custom color the generator doesn't emit, define it in `:root`/`.dark` a
 
 ```jac
 def:pub WarningAlert() -> JsxElement {
-    return <div className="bg-warning text-warning-foreground">Warning</div>;
+    <div className="bg-warning text-warning-foreground">Warning</div>
 }
 ```
 
@@ -373,7 +373,7 @@ def:pub EventListPage() -> JsxElement {
         return <div className="flex items-center justify-center p-8"><Spinner /></div>;
     }
 
-    return <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6">
         <div className="flex items-center justify-between">
             <h1 className="text-2xl font-semibold">Events</h1>
             <Dialog>
@@ -408,7 +408,7 @@ def:pub EventListPage() -> JsxElement {
                 </Table>
             </CardContent>
         </Card>
-    </div>;
+    </div>
 }
 ```
 

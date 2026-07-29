@@ -73,10 +73,10 @@ A page is any export that returns `JsxPage`; a layout returns `JsxLayout`. `JsxP
 ```jac
 # pages/about.jac
 def:pub About() -> JsxPage {
-    return <div>
+    <div>
         <h1>About Us</h1>
         <p>Learn more about our company.</p>
-    </div>;
+    </div>
 }
 ```
 
@@ -110,11 +110,11 @@ def:pub UserDetail() -> JsxPage {
         </div>;
     }
 
-    return <div>
+    <div>
         <Link to="/users">← Back</Link>
         <h1>User: {user["name"]}</h1>
         <p>Role: {user["role"]}</p>
-    </div>;
+    </div>
 }
 ```
 
@@ -128,11 +128,11 @@ def:pub PostDetail() -> JsxPage {
     params = useParams();
     slug = params["slug"];  # e.g., "getting-started-with-jac"
 
-    return <article>
+    <article>
         <Link to="/posts">← All Posts</Link>
         <h1>Blog Post</h1>
         <p>Slug: {slug}</p>
-    </article>;
+    </article>
 }
 ```
 
@@ -145,11 +145,11 @@ Use `[...param]` for catch-all routes (404 pages, docs, etc.):
 import from "@jac/runtime" { Link }
 
 def:pub NotFound() -> JsxPage {
-    return <div style={{"textAlign": "center", "padding": "2rem"}}>
+    <div style={{"textAlign": "center", "padding": "2rem"}}>
         <h1>404 - Page Not Found</h1>
         <p>The page you are looking for does not exist.</p>
         <Link to="/">Back to Home</Link>
-    </div>;
+    </div>
 }
 ```
 
@@ -184,13 +184,13 @@ import from "@jac/runtime" { Outlet }
 import from ..components.navigation { Navigation }
 
 def:pub RootShell() -> JsxLayout {
-    return <>
+    <>
         <Navigation />
         <main style={{"maxWidth": "960px", "margin": "0 auto"}}>
             <Outlet />  # Child routes render here
         </main>
         <footer>Footer content</footer>
-    </>;
+    </>
 }
 ```
 
@@ -214,13 +214,13 @@ For explicit route configuration, import from `@jac/runtime`:
 import from "@jac/runtime" { Router, Routes, Route, Link }
 
 def:pub app() -> JsxElement {
-    return <Router>
+    <Router>
         <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
         </Routes>
-    </Router>;
+    </Router>
 }
 ```
 
@@ -234,28 +234,28 @@ def:pub app() -> JsxElement {
 import from "@jac/runtime" { Router, Routes, Route, Link }
 
 def:pub Home() -> JsxElement {
-    return <div>
+    <div>
         <h1>Home Page</h1>
         <p>Welcome to our site!</p>
-    </div>;
+    </div>
 }
 
 def:pub About() -> JsxElement {
-    return <div>
+    <div>
         <h1>About Us</h1>
         <p>Learn more about our company.</p>
-    </div>;
+    </div>
 }
 
 def:pub Contact() -> JsxElement {
-    return <div>
+    <div>
         <h1>Contact</h1>
         <p>Get in touch with us.</p>
-    </div>;
+    </div>
 }
 
 def:pub app() -> JsxElement {
-    return <Router>
+    <Router>
         <nav>
             <Link to="/">Home</Link>
             <Link to="/about">About</Link>
@@ -269,7 +269,7 @@ def:pub app() -> JsxElement {
                 <Route path="/contact" element={<Contact />} />
             </Routes>
         </main>
-    </Router>;
+    </Router>
 }
 ```
 
@@ -278,10 +278,10 @@ def:pub app() -> JsxElement {
 ```jac
 # Use Link for internal navigation, anchor for external
 def:pub NavExample() -> JsxElement {
-    return <div>
+    <div>
         <Link to="/about">About</Link>
         <a href="https://example.com">External Site</a>
-    </div>;
+    </div>
 }
 ```
 
@@ -307,10 +307,10 @@ def:pub UserDetail() -> JsxPage {
     params = useParams();
     user_id = params["id"];
 
-    return <div>
+    <div>
         <h1>User Profile</h1>
         <p>Viewing user: {user_id}</p>
-    </div>;
+    </div>
 }
 ```
 
@@ -323,18 +323,18 @@ def:pub UserProfile() -> JsxElement {
     params = useParams();
     user_id = params["id"];
 
-    return <div>
+    <div>
         <h1>User Profile</h1>
         <p>Viewing user: {user_id}</p>
-    </div>;
+    </div>
 }
 
 def:pub app() -> JsxElement {
-    return <Router>
+    <Router>
         <Routes>
             <Route path="/user/:id" element={<UserProfile />} />
         </Routes>
-    </Router>;
+    </Router>
 }
 ```
 
@@ -346,10 +346,10 @@ import from "@jac/runtime" { useParams }
 def:pub BlogPost() -> JsxElement {
     params = useParams();
 
-    return <div>
+    <div>
         <p>Category: {params["category"]}</p>
         <p>Post ID: {params["postId"]}</p>
-    </div>;
+    </div>
 }
 
 # Route: /blog/:category/:postId
@@ -381,7 +381,7 @@ pages/
 import from "@jac/runtime" { Outlet, Link }
 
 def:pub DashboardShell() -> JsxLayout {
-    return <div className="dashboard">
+    <div className="dashboard">
         <aside>
             <Link to="/dashboard">Overview</Link>
             <Link to="/dashboard/settings">Settings</Link>
@@ -391,7 +391,7 @@ def:pub DashboardShell() -> JsxLayout {
         <main>
             <Outlet />
         </main>
-    </div>;
+    </div>
 }
 ```
 
@@ -401,7 +401,7 @@ def:pub DashboardShell() -> JsxLayout {
 import from "@jac/runtime" { Router, Routes, Route, Outlet, Link }
 
 def:pub DashboardLayout() -> JsxElement {
-    return <div className="dashboard">
+    <div className="dashboard">
         <aside>
             <Link to="/dashboard">Overview</Link>
             <Link to="/dashboard/settings">Settings</Link>
@@ -411,23 +411,23 @@ def:pub DashboardLayout() -> JsxElement {
         <main>
             <Outlet />
         </main>
-    </div>;
+    </div>
 }
 
 def:pub DashboardHome() -> JsxElement {
-    return <h2>Dashboard Overview</h2>;
+    <h2>Dashboard Overview</h2>
 }
 
 def:pub DashboardSettings() -> JsxElement {
-    return <h2>Settings</h2>;
+    <h2>Settings</h2>
 }
 
 def:pub DashboardProfile() -> JsxElement {
-    return <h2>Profile</h2>;
+    <h2>Profile</h2>
 }
 
 def:pub app() -> JsxElement {
-    return <Router>
+    <Router>
         <Routes>
             <Route path="/dashboard" element={<DashboardLayout />}>
                 <Route index element={<DashboardHome />} />
@@ -435,7 +435,7 @@ def:pub app() -> JsxElement {
                 <Route path="profile" element={<DashboardProfile />} />
             </Route>
         </Routes>
-    </Router>;
+    </Router>
 }
 ```
 
@@ -463,7 +463,7 @@ def:pub LoginForm() -> JsxElement {
         }
     }
 
-    return <form>
+    <form>
         <input
             value={email}
             onChange={lambda (e: ChangeEvent) { email = e.target.value; }}
@@ -471,7 +471,7 @@ def:pub LoginForm() -> JsxElement {
         <button onClick={lambda -> None { handle_login(); }}>
             Login
         </button>
-    </form>;
+    </form>
 }
 ```
 
@@ -483,7 +483,7 @@ import from "@jac/runtime" { useNavigate }
 def:pub NavExample() -> JsxElement {
     navigate = useNavigate();
 
-    return <div>
+    <div>
         <button onClick={lambda -> None { navigate("/home"); }}>
             Go Home
         </button>
@@ -499,7 +499,7 @@ def:pub NavExample() -> JsxElement {
         <button onClick={lambda -> None { navigate(1); }}>
             Forward
         </button>
-    </div>;
+    </div>
 }
 ```
 
@@ -516,9 +516,9 @@ For file-based routing, use the built-in `AuthGuard` component in a layout file:
 import from "@jac/runtime" { AuthGuard, Outlet }
 
 def:pub ProtectedShell() -> JsxLayout {
-    return <AuthGuard redirect="/login">
+    <AuthGuard redirect="/login">
         <Outlet />
-    </AuthGuard>;
+    </AuthGuard>
 }
 ```
 
@@ -543,7 +543,7 @@ def:pub ProtectedRoute(children: any = None) -> JsxElement {
         return <div>Redirecting...</div>;
     }
 
-    return <div>{children}</div>;
+    <div>{children}</div>
 }
 ```
 
@@ -571,7 +571,7 @@ def:pub SearchResults() -> JsxElement {
         navigate(f"/search?q={query}&page={newPage}");
     }
 
-    return <div>
+    <div>
         <h2>Results for: {query}</h2>
         <p>Page: {page}</p>
 
@@ -585,7 +585,7 @@ def:pub SearchResults() -> JsxElement {
         <button onClick={lambda -> None { updatePage(page + 1); }}>
             Next
         </button>
-    </div>;
+    </div>
 }
 
 # URL: /search?q=hello&page=2
@@ -599,21 +599,21 @@ def:pub SearchResults() -> JsxElement {
 import from "@jac/runtime" { Router, Routes, Route, Link }
 
 def:pub NotFound() -> JsxElement {
-    return <div className="error-page">
+    <div className="error-page">
         <h1>404</h1>
         <p>Page not found</p>
         <Link to="/">Go Home</Link>
-    </div>;
+    </div>
 }
 
 def:pub app() -> JsxElement {
-    return <Router>
+    <Router>
         <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
             <Route path="*" element={<NotFound />} />
         </Routes>
-    </Router>;
+    </Router>
 }
 ```
 
@@ -633,7 +633,7 @@ def:pub Navigation() -> JsxElement {
         return location.pathname == path;
     }
 
-    return <nav>
+    <nav>
         <Link
             to="/"
             className={"nav-link " + ("active" if isActive("/") else "")}
@@ -647,7 +647,7 @@ def:pub Navigation() -> JsxElement {
         >
             About
         </Link>
-    </nav>;
+    </nav>
 }
 ```
 
@@ -673,7 +673,7 @@ import from "@jac/runtime" { Router, Routes, Route, Link, Outlet, useParams, use
 
 # Layout
 def:pub Layout() -> JsxElement {
-    return <div className="app">
+    <div className="app">
         <header>
             <nav>
                 <Link to="/">Home</Link>
@@ -689,15 +689,15 @@ def:pub Layout() -> JsxElement {
         <footer>
             <p>© 2024 My App</p>
         </footer>
-    </div>;
+    </div>
 }
 
 # Pages
 def:pub Home() -> JsxElement {
-    return <div>
+    <div>
         <h1>Welcome!</h1>
         <Link to="/products">Browse Products</Link>
-    </div>;
+    </div>
 }
 
 def:pub Products() -> JsxElement {
@@ -707,7 +707,7 @@ def:pub Products() -> JsxElement {
         {"id": 3, "name": "Widget C"}
     ];
 
-    return <div>
+    <div>
         <h1>Products</h1>
         <ul>
             {[
@@ -719,7 +719,7 @@ def:pub Products() -> JsxElement {
                 for p in products
             ]}
         </ul>
-    </div>;
+    </div>
 }
 
 def:pub ProductDetail() -> JsxElement {
@@ -728,32 +728,32 @@ def:pub ProductDetail() -> JsxElement {
 
     product_id = params["id"];
 
-    return <div>
+    <div>
         <button onClick={lambda -> None { navigate(-1); }}>
             ← Back
         </button>
         <h1>Product {product_id}</h1>
         <p>Details about product {product_id}</p>
-    </div>;
+    </div>
 }
 
 def:pub About() -> JsxElement {
-    return <div>
+    <div>
         <h1>About Us</h1>
         <p>We make great products.</p>
-    </div>;
+    </div>
 }
 
 def:pub NotFound() -> JsxElement {
-    return <div>
+    <div>
         <h1>404 - Not Found</h1>
         <Link to="/">Go Home</Link>
-    </div>;
+    </div>
 }
 
 # App
 def:pub app() -> JsxElement {
-    return <Router>
+    <Router>
         <Routes>
             <Route path="/" element={<Layout />}>
                 <Route index element={<Home />} />
@@ -763,7 +763,7 @@ def:pub app() -> JsxElement {
                 <Route path="*" element={<NotFound />} />
             </Route>
         </Routes>
-    </Router>;
+    </Router>
 }
 ```
 
