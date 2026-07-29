@@ -98,10 +98,6 @@ glob C_UNSIGNED_TYPES: set[str] = {
      };
 
 def c_type_is_unsigned(names: list[str]) -> bool {
-    # True when the C scalar type is unambiguously unsigned: `unsigned` (with or
-    # without a base type), or a fixed-width / size unsigned typedef. Such
-    # operands are non-negative, so C `/` and `%` on them match Jac's floor
-    # semantics and need no fidelity diagnostic.
     if "unsigned" in names {
         return True;
     }

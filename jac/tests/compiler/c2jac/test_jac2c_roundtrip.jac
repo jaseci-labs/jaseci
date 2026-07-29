@@ -67,9 +67,7 @@ def _main_tu_src(units: list, stem: str = "vec2.jac") -> str {
 
 
 test "jac2c emits structurally faithful C for the minilib" {
-    units = _lift_emit_units(
-        os.path.join(MINILIB, "vec2.c"), [MINILIB], _MINILIB_RUN
-    );
+    units = _lift_emit_units(os.path.join(MINILIB, "vec2.c"), [MINILIB], _MINILIB_RUN);
     c_src = _main_tu_src(units);
     for needle in [
         "struct vec2__Vec2 {",

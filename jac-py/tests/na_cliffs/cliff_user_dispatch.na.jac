@@ -131,7 +131,7 @@ def dispatch(o: PyUserObj, name: str) -> int {
     if not isinstance(m, PyMethod) {
         return -2;
     }
-    method = m as PyMethod;          # narrow the union before the call
+    method = m as PyMethod;  # narrow the union before the call
     return expect_int(method.invoke(o));
 }
 
@@ -147,7 +147,7 @@ def make_inst(c: PyClass, v: int) -> PyUserObj {
     return PyUserObj(t="obj", cls=c, attrs=a);
 }
 
-def run() -> int {
+def run -> int {
     # Three-level MRO: Base <- Mid <- Leaf.
     no_bases: list[PyObj] = [];
     base_cls = make_class("Base", no_bases);
@@ -171,8 +171,8 @@ def run() -> int {
     # Heterogeneous instances: one Leaf, one Base -- same call site sees
     # different runtime types AND different resolved methods.
     insts: list[PyUserObj] = [];
-    leaf_inst = make_inst(leaf_cls, 5);   # act -> Mid.mul3 => 15 ; other -> Base.add1 => 6
-    base_inst = make_inst(base_cls, 7);   # act -> Base.add100 => 107 ; other -> Base.add1 => 8
+    leaf_inst = make_inst(leaf_cls, 5);  # act -> Mid.mul3 => 15 ; other -> Base.add1 => 6
+    base_inst = make_inst(base_cls, 7);  # act -> Base.add100 => 107 ; other -> Base.add1 => 8
     insts.append(leaf_inst);
     insts.append(base_inst);
 
@@ -184,7 +184,7 @@ def run() -> int {
         for nm in names {
             r = dispatch(inst, nm);
             if r < 0 {
-                return r;           # a dropped/failed call would surface here
+                return r;  # a dropped/failed call would surface here
             }
             total = total + r;
         }
@@ -204,7 +204,7 @@ def run() -> int {
         return -200;
     }
 
-    return total + again;   # 136 + 1005 = 1141
+    return total + again;  # 136 + 1005 = 1141
 }
 
 with entry {

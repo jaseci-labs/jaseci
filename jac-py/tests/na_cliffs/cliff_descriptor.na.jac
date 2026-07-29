@@ -56,7 +56,7 @@ obj PDDescriptor(PDObj) {
         has_set: bool;
 
     # A data descriptor (__set__ present) outranks the instance dict.
-    def is_data() -> bool {
+    def is_data -> bool {
         return self.has_set;
     }
 
@@ -98,7 +98,7 @@ obj PDUserObj(PDObj) {
 
     # The instance's own underlying value, boxed -- what a descriptor's __get__
     # reads (another runtime lookup, on the instance itself).
-    def raw_slot() -> PDObj {
+    def raw_slot -> PDObj {
         return PDInt(t="int", val=self.raw);
     }
 }
@@ -145,7 +145,7 @@ def resolve_attr(o: PDUserObj, name: str) -> PDObj {
 
     # (1) DATA descriptor in the type preempts the instance dict.
     if isinstance(classattr, PDDescriptor) {
-        d = classattr as PDDescriptor;      # narrow before the call
+        d = classattr as PDDescriptor;  # narrow before the call
         if d.is_data() {
             return d.dunder_get(o);
         }
@@ -159,7 +159,7 @@ def resolve_attr(o: PDUserObj, name: str) -> PDObj {
     # (3) non-data descriptor / plain class attr via the MRO walk.
     if not is_error(classattr) {
         if isinstance(classattr, PDDescriptor) {
-            nd = classattr as PDDescriptor;   # narrow before the call
+            nd = classattr as PDDescriptor;  # narrow before the call
             return nd.dunder_get(o);
         }
         return classattr;
@@ -168,7 +168,7 @@ def resolve_attr(o: PDUserObj, name: str) -> PDObj {
     # (4) total miss -> __getattr__ hook (only here, never otherwise).
     hook = pd_lookup(o.cls, "__getattr__");
     if isinstance(hook, PDGetAttr) {
-        g = hook as PDGetAttr;               # narrow before the call
+        g = hook as PDGetAttr;  # narrow before the call
         return g.fire(name);
     }
 
@@ -202,7 +202,7 @@ def make_inst(c: PDClass, v: int) -> PDUserObj {
 #   Base defines: data-descr "temp" (raw+100), non-data-descr "scaled" (raw*3),
 #   and a "__getattr__" hook (sentinel 1000). MRO: Base <- Mid <- Leaf, both Mid
 #   and Leaf empty, so every name walks two levels down.
-def run_pd() -> list[int] {
+def run_pd -> list[int] {
     no_bases: list[PDObj] = [];
     base_cls = make_class("Base", no_bases);
 
@@ -244,8 +244,8 @@ def run_pd() -> list[int] {
     # descriptor STILL wins. Same resolve site, opposite rulings.
     override: PDObj = PDInt(t="int", val=777);
     inst.attrs["scaled"] = override;
-    killer_scaled = resolve_int(inst, names[1]);   # 777 (instance beats non-data)
-    killer_temp = resolve_int(inst, names[0]);     # 105 (data descr beats dict)
+    killer_scaled = resolve_int(inst, names[1]);  # 777 (instance beats non-data)
+    killer_temp = resolve_int(inst, names[0]);  # 105 (data descr beats dict)
 
     result: list[int] = [phase_a, killer_scaled, killer_temp];
     return result;
@@ -253,7 +253,7 @@ def run_pd() -> list[int] {
 
 # Encode the three observed outcomes into one checkable total:
 #   1125 * 1000000 + 777 * 1000 + 105 = 1125777105
-def run() -> int {
+def run -> int {
     r = run_pd();
     if r[0] != 1125 {
         return -100;

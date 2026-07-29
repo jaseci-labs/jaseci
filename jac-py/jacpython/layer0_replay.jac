@@ -230,14 +230,15 @@ def _l1_compile_setup(setup_src):
 # passed/failed are real conformance; skipped is the honest scaffolding count
 # (asserts that need fixture state this layer can't carry).
 obj ReplayResult {
-    has passed: int = 0;
-    has failed: int = 0;
-    has skipped: int = 0;
-    has errored: int = 0;  # jacpython raised while replaying (marshal/ceval gap)
-    has failures: list[str] = [];
-    has errors: list[str] = [];
+    has passed: int = 0,
+        failed: int = 0,
+        skipped: int = 0,
+        errored: int = 0,
+        failures: list[str] = [],
+        errors: list[str] = [];
 }
 
+# jacpython raised while replaying (marshal/ceval gap)
 # Replay one self-contained expression through the jacpython object core + ceval
 # and diff against the host's own evaluation. Returns True on match. Guarded:
 # a marshal-reader desync or an unsupported opcode is a tool gap to be counted,

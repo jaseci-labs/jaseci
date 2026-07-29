@@ -11,9 +11,20 @@
 # This file drives that bottom-up: leaf modules first (proving the mechanism),
 # climbing toward the unittest closure, fixing each ceval/object gap it surfaces.
 import from pyc_first {
-    PyObj, PyModule, PyStr, PyInt,
-    import_native, set_layer3_active, clear_sys3_modules, py_attr, to_host,
-    is_error, py_invoke, exec_code, unmarshal, host_compile_marshal
+    PyObj,
+    PyModule,
+    PyStr,
+    PyInt,
+    import_native,
+    set_layer3_active,
+    clear_sys3_modules,
+    py_attr,
+    to_host,
+    is_error,
+    py_invoke,
+    exec_code,
+    unmarshal,
+    host_compile_marshal
 }
 import from objects { PyError }
 
@@ -23,7 +34,7 @@ def layer3_import(name: str) -> PyObj {
     return import_native(name);
 }
 
-def layer3_reset() -> None {
+def layer3_reset {
     clear_sys3_modules();
     set_layer3_active(True);
 }
@@ -104,7 +115,7 @@ test "layer3: single-arg exception str is the message; args is a 1-tuple" {
     assert not is_error(outcome);
     # KeyError.str quotes its key (CPython special-case); args is the raw tuple.
     assert to_host(g["s"]) == "'missing'";
-    assert to_host(g["a"]) == ("missing",);
+    assert to_host(g["a"]) == ("missing", );
     assert to_host(g["tn"]) == "KeyError";
 }
 
@@ -280,10 +291,11 @@ test "layer3: STORE_GLOBAL writes module globals from inside a function" {
 
 test "layer3: from-import-star binds a module's public names" {
     layer3_reset();
-    src = "from operator import *\n"
-    "s = add(3, 4)\n"
-    "p = mul(3, 4)\n";
-    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m"), "__package__": PyStr(t="str", val="")};
+    src = "from operator import *\n" "s = add(3, 4)\n" "p = mul(3, 4)\n";
+    g: dict[str, PyObj] = {
+        "__name__": PyStr(t="str", val="m"),
+        "__package__": PyStr(t="str", val="")
+    };
     outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
     assert not is_error(outcome);
     assert to_host(g["s"]) == 7;
@@ -414,7 +426,10 @@ test "layer3: functools.wraps copies name/doc and forwards through the wrapper" 
     "called = g(5)\n"
     "nm = g.__name__\n"
     "dc = g.__doc__\n";
-    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m"), "__package__": PyStr(t="str", val="")};
+    g: dict[str, PyObj] = {
+        "__name__": PyStr(t="str", val="m"),
+        "__package__": PyStr(t="str", val="")
+    };
     outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
     assert not is_error(outcome);
     assert to_host(g["called"]) == 6;
@@ -437,7 +452,10 @@ test "layer3: native objects expose __dict__ (functions, classes, instances, mod
     "od = o.__dict__['iv']\n"
     "import operator\n"
     "md = 'add' in operator.__dict__\n";
-    g: dict[str, PyObj] = {"__name__": PyStr(t="str", val="m"), "__package__": PyStr(t="str", val="")};
+    g: dict[str, PyObj] = {
+        "__name__": PyStr(t="str", val="m"),
+        "__package__": PyStr(t="str", val="")
+    };
     outcome = exec_code(unmarshal(host_compile_marshal(src)), [], g);
     assert not is_error(outcome);
     assert to_host(g["fd"]) == 7;

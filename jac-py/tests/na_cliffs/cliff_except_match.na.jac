@@ -111,7 +111,7 @@ def make_arm(c: PyClass, hid: int) -> PyExcArm {
 # The scenarios return a single encoded int the ref pins. Hierarchy:
 #   Base(1) <- Mid(2) <- Leaf(3) ; Sib(4) <- Base  (sibling of Mid under Base)
 # MRO(Leaf)=[Leaf,Mid,Base]  MRO(Sib)=[Sib,Base]
-def run() -> int {
+def run -> int {
     no_bases: list[PyObj] = [];
     base_cls = make_class("Base", 1, no_bases);
 
@@ -127,11 +127,11 @@ def run() -> int {
     # Classes live in a DATA list; the raised class is indexed out at runtime so
     # the match site never sees a literal class (defeats constant-folding).
     classes: list[PyClass] = [];
-    classes.append(base_cls);   # index 0
-    classes.append(mid_cls);    # index 1
-    classes.append(leaf_cls);   # index 2
-    classes.append(sib_cls);    # index 3
-    raise_idx: list[int] = [2, 2, 3, 2];   # Leaf, Leaf, Sib, Leaf
+    classes.append(base_cls);  # index 0
+    classes.append(mid_cls);  # index 1
+    classes.append(leaf_cls);  # index 2
+    classes.append(sib_cls);  # index 3
+    raise_idx: list[int] = [2, 2, 3, 2];  # Leaf, Leaf, Sib, Leaf
 
     # Scenario A -- BASE match (not exact): table [Mid->20, Base->10], raise Leaf.
     # Mid is a base of Leaf two levels up, and is the FIRST arm -> handler 20.
@@ -158,22 +158,30 @@ def run() -> int {
     tblD.append(make_arm(mid_cls, 20));
 
     # Raised instances built from the RUNTIME-indexed classes.
-    instA = make_inst(classes[raise_idx[0]]);   # Leaf
-    instB = make_inst(classes[raise_idx[1]]);   # Leaf
-    instC = make_inst(classes[raise_idx[2]]);   # Sib
-    instD = make_inst(classes[raise_idx[3]]);   # Leaf
+    instA = make_inst(classes[raise_idx[0]]);  # Leaf
+    instB = make_inst(classes[raise_idx[1]]);  # Leaf
+    instC = make_inst(classes[raise_idx[2]]);  # Sib
+    instD = make_inst(classes[raise_idx[3]]);  # Leaf
 
-    rA = dispatch_raise(instA, tblA);   # expect 20 (base match)
-    rB = dispatch_raise(instB, tblB);   # expect 10 (broad-before-specific wins)
-    rC = dispatch_raise(instC, tblC);   # expect -1 (no match -> propagate)
-    rD = dispatch_raise(instD, tblD);   # expect 30 (exact)
+    rA = dispatch_raise(instA, tblA);  # expect 20 (base match)
+    rB = dispatch_raise(instB, tblB);  # expect 10 (broad-before-specific wins)
+    rC = dispatch_raise(instC, tblC);  # expect -1 (no match -> propagate)
+    rD = dispatch_raise(instD, tblD);  # expect 30 (exact)
 
     # Guard each observed handler_id; a wrong match order / best-match miscompile
     # or a dropped no-match surfaces as a distinct negative sentinel.
-    if rA != 20 { return -10; }
-    if rB != 10 { return -20; }
-    if rC != -1 { return -30; }
-    if rD != 30 { return -40; }
+    if rA != 20 {
+        return -10;
+    }
+    if rB != 10 {
+        return -20;
+    }
+    if rC != -1 {
+        return -30;
+    }
+    if rD != 30 {
+        return -40;
+    }
 
     # Accumulate the observed handler_ids into one encoded total. no_match is
     # recorded as a flag (rC propagated) so it is individually visible.

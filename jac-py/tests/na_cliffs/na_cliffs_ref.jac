@@ -19,28 +19,34 @@ def r_byte(data: list[int], pos: int) -> int {
 }
 
 # --- cliff 2: dict[str,T] build + return + subscript. Core site: exec_module ---
-def exec_module_like() -> dict[str, int] {
+def exec_module_like -> dict[str, int] {
     g: dict[str, int] = {};
     g["y"] = 43;
     return g;
 }
 
 # --- cliff 3: method/field on a T|None receiver. Core site: deref_cell ---
-obj Cell { has val: int; }
+obj Cell {
+    has val: int;
+}
 
 def find_cell(hit: bool) -> Cell | None {
-    if hit { return Cell(val=7); }
+    if hit {
+        return Cell(val=7);
+    }
     return None;
 }
 
 def cell_value(hit: bool) -> int {
     c = find_cell(hit);
-    if c is None { return -1; }
+    if c is None {
+        return -1;
+    }
     return c.val;
 }
 
 # --- cliff 4: binary buffer via chr concat incl NUL. Core site: bytes_to_str ---
-def build_binary() -> str {
+def build_binary -> str {
     s = "";
     s = s + chr(0);
     s = s + chr(65);
@@ -55,23 +61,32 @@ def build_binary() -> str {
 # guarded (narrow before call), and the dict-literal-subclass-upcast ICE is
 # worked around by building attrs empty and subscript-storing through a
 # PyObj-typed local -- exactly as the sibling cliff_user_dispatch.na.jac does.
-obj DObj { has t: str; }
-obj DInt(DObj) { has val: int; }
+obj DObj {
+    has t: str;
+}
+
+obj DInt(DObj) {
+    has val: int;
+}
 
 obj DMethod(DObj) {
     def invoke(receiver: DUserObj) -> DObj {
         return DObj(t="error");
     }
 }
+
 obj DAddMethod(DMethod) {
     has delta: int;
+
     def invoke(receiver: DUserObj) -> DObj {
         base = d_expect_int(receiver.getattr("val"));
         return DInt(t="int", val=base + self.delta);
     }
 }
+
 obj DMulMethod(DMethod) {
     has factor: int;
+
     def invoke(receiver: DUserObj) -> DObj {
         base = d_expect_int(receiver.getattr("val"));
         return DInt(t="int", val=base * self.factor);
@@ -132,7 +147,7 @@ def d_dispatch(o: DUserObj, name: str) -> int {
     if not isinstance(m, DMethod) {
         return -2;
     }
-    method = m as DMethod;          # narrow the union before the call
+    method = m as DMethod;  # narrow the union before the call
     return d_expect_int(method.invoke(o));
 }
 
@@ -151,7 +166,7 @@ def d_make_inst(c: DClass, v: int) -> DUserObj {
 # Returns [accumulated total over the heterogeneous dispatch, post-mutation
 # redispatch result]. Base <- Mid <- Leaf; Mid shadows "act"; "other" only on
 # Base is reached two levels down.
-def d_run() -> list[int] {
+def d_run -> list[int] {
     no_bases: list[DObj] = [];
     base_cls = d_make_class("Base", no_bases);
     m_add: DObj = DAddMethod(t="add", delta=100);
@@ -232,9 +247,17 @@ test "cliff: MRO dict dispatch resolves + mutates (na devirt/drop canary)" {
 # through, guarded by `in_try` so a repeated close() is an idempotent no-op; the
 # T|None-shaped receiver-drop is avoided by making the delegated sub-frame a
 # required field (never T|None) -- exactly as sibling cliff_gen_frame.na.jac does.
-obj GObj { has t: str; }
-obj GInt(GObj) { has val: int; }
-obj GGenStop(GObj) { has val: int; }
+obj GObj {
+    has t: str;
+}
+
+obj GInt(GObj) {
+    has val: int;
+}
+
+obj GGenStop(GObj) {
+    has val: int;
+}
 
 def g_expect_int(o: GObj) -> int {
     if isinstance(o, GInt) {
@@ -313,7 +336,7 @@ obj GFrame(GObj) {
 
     # Finally lifted to an ip state, guarded to fire exactly once (idempotent
     # double-close). The workaround for na's lexically-structured exceptions.
-    def run_finally -> None {
+    def run_finally {
         if self.in_try {
             self.finally_runs = self.finally_runs + 1;
             self.in_try = False;
@@ -328,14 +351,14 @@ obj GFrame(GObj) {
     }
 }
 
-def g_make_frame() -> GFrame {
+def g_make_frame -> GFrame {
     sub = GSubFrame(t="subframe", seq=[100, 200]);
     return GFrame(t="frame", data=[1, 2, 3, 4], sub=sub, nrows=2, ncols=2);
 }
 
 # next -> send(5) -> close() EARLY (mid-try, ip parked at 2). Finally must run
 # once; a second close() must be a no-op.
-def g_drive_close() -> int {
+def g_drive_close -> int {
     g = g_make_frame();
     collected = 0;
     y0 = g.resume(GInt(t="int", val=0));
@@ -350,7 +373,7 @@ def g_drive_close() -> int {
 }
 
 # Drive to exhaustion: nested loop + yield-from flow-back; finally once on stop.
-def g_drive_full() -> int {
+def g_drive_full -> int {
     g = g_make_frame();
     collected = 0;
     steps = 0;
@@ -388,11 +411,19 @@ test "cliff: generator suspend/resume frame -- try/finally on close + yield-from
 # a 40-arm switch driven by a RUNTIME-computed method_id (dict-keyed, DATA operands)
 # so no arm folds; the accumulator weights each arm by (mid+1). na landmine:
 # op-switch scale + T|None-receiver-drop (operand union narrowed before its int).
-obj OpObj { has t: str; }
-obj OpInt(OpObj) { has val: int; }
-obj OpBool(OpObj) { has val: bool; }
+obj OpObj {
+    has t: str;
+}
 
-def op_error() -> OpObj {
+obj OpInt(OpObj) {
+    has val: int;
+}
+
+obj OpBool(OpObj) {
+    has val: bool;
+}
+
+def op_error -> OpObj {
     return OpObj(t="error");
 }
 
@@ -412,42 +443,114 @@ def op_expect_num(o: OpObj) -> int {
 def op_invoke(method_id: int, a: OpObj, b: OpObj) -> OpObj {
     x = op_expect_num(a);
     y = op_expect_num(b);
-    if method_id == 0 { return OpInt(t="int", val=x + y); }
-    if method_id == 1 { return OpInt(t="int", val=x - y); }
-    if method_id == 2 { return OpInt(t="int", val=x * y); }
-    if method_id == 3 { return OpInt(t="int", val=x // y); }
-    if method_id == 4 { return OpInt(t="int", val=x % y); }
-    if method_id == 5 { return OpInt(t="int", val=x & y); }
-    if method_id == 6 { return OpInt(t="int", val=x | y); }
-    if method_id == 7 { return OpInt(t="int", val=x ^ y); }
-    if method_id == 8 { return OpInt(t="int", val=x << (y % 8)); }
-    if method_id == 9 { return OpInt(t="int", val=x >> (y % 8)); }
-    if method_id == 10 { return OpBool(t="bool", val=x < y); }
-    if method_id == 11 { return OpBool(t="bool", val=x <= y); }
-    if method_id == 12 { return OpBool(t="bool", val=x == y); }
-    if method_id == 13 { return OpBool(t="bool", val=x != y); }
-    if method_id == 14 { return OpBool(t="bool", val=x > y); }
-    if method_id == 15 { return OpBool(t="bool", val=x >= y); }
-    if method_id == 16 { return OpInt(t="int", val=-x); }
-    if method_id == 17 { return OpInt(t="int", val=-y); }
-    if method_id == 18 { return OpInt(t="int", val=x + 2 * y); }
-    if method_id == 19 { return OpInt(t="int", val=2 * x + y); }
-    if method_id == 20 { return OpInt(t="int", val=x * x - y); }
-    if method_id == 21 { return OpInt(t="int", val=x + y * y); }
-    if method_id == 22 { return OpInt(t="int", val=(x + y) * (x - y)); }
-    if method_id == 23 { return OpInt(t="int", val=x * y + x + y); }
-    if method_id == 24 { return OpInt(t="int", val=x % (y + 1)); }
-    if method_id == 25 { return OpInt(t="int", val=(x + 1) * (y + 1)); }
-    if method_id == 26 { return OpInt(t="int", val=x - y - 1); }
-    if method_id == 27 { return OpInt(t="int", val=x * 3 - y * 2); }
-    if method_id == 28 { return OpInt(t="int", val=x ^ (y << 1)); }
-    if method_id == 29 { return OpInt(t="int", val=(x & y) + (x | y)); }
-    if method_id == 30 { return OpInt(t="int", val=x * x + y * y); }
-    if method_id == 31 { return OpInt(t="int", val=x + y + 17); }
-    if method_id == 32 { return OpInt(t="int", val=x * 7 % 100); }
-    if method_id == 33 { return OpInt(t="int", val=y * 7 % 100); }
-    if method_id == 34 { return OpInt(t="int", val=(x << 2) - y); }
-    if method_id == 35 { return OpInt(t="int", val=x * x * x - y); }
+    if method_id == 0 {
+        return OpInt(t="int", val=x + y);
+    }
+    if method_id == 1 {
+        return OpInt(t="int", val=x - y);
+    }
+    if method_id == 2 {
+        return OpInt(t="int", val=x * y);
+    }
+    if method_id == 3 {
+        return OpInt(t="int", val=x // y);
+    }
+    if method_id == 4 {
+        return OpInt(t="int", val=x % y);
+    }
+    if method_id == 5 {
+        return OpInt(t="int", val=x & y);
+    }
+    if method_id == 6 {
+        return OpInt(t="int", val=x | y);
+    }
+    if method_id == 7 {
+        return OpInt(t="int", val=x ^ y);
+    }
+    if method_id == 8 {
+        return OpInt(t="int", val=x << (y % 8));
+    }
+    if method_id == 9 {
+        return OpInt(t="int", val=x >> (y % 8));
+    }
+    if method_id == 10 {
+        return OpBool(t="bool", val=x < y);
+    }
+    if method_id == 11 {
+        return OpBool(t="bool", val=x <= y);
+    }
+    if method_id == 12 {
+        return OpBool(t="bool", val=x == y);
+    }
+    if method_id == 13 {
+        return OpBool(t="bool", val=x != y);
+    }
+    if method_id == 14 {
+        return OpBool(t="bool", val=x > y);
+    }
+    if method_id == 15 {
+        return OpBool(t="bool", val=x >= y);
+    }
+    if method_id == 16 {
+        return OpInt(t="int", val=-x);
+    }
+    if method_id == 17 {
+        return OpInt(t="int", val=-y);
+    }
+    if method_id == 18 {
+        return OpInt(t="int", val=x + 2 * y);
+    }
+    if method_id == 19 {
+        return OpInt(t="int", val=2 * x + y);
+    }
+    if method_id == 20 {
+        return OpInt(t="int", val=x * x - y);
+    }
+    if method_id == 21 {
+        return OpInt(t="int", val=x + y * y);
+    }
+    if method_id == 22 {
+        return OpInt(t="int", val=(x + y) * (x - y));
+    }
+    if method_id == 23 {
+        return OpInt(t="int", val=x * y + x + y);
+    }
+    if method_id == 24 {
+        return OpInt(t="int", val=x % (y + 1));
+    }
+    if method_id == 25 {
+        return OpInt(t="int", val=(x + 1) * (y + 1));
+    }
+    if method_id == 26 {
+        return OpInt(t="int", val=x - y - 1);
+    }
+    if method_id == 27 {
+        return OpInt(t="int", val=x * 3 - y * 2);
+    }
+    if method_id == 28 {
+        return OpInt(t="int", val=x ^ (y << 1));
+    }
+    if method_id == 29 {
+        return OpInt(t="int", val=(x & y) + (x | y));
+    }
+    if method_id == 30 {
+        return OpInt(t="int", val=x * x + y * y);
+    }
+    if method_id == 31 {
+        return OpInt(t="int", val=x + y + 17);
+    }
+    if method_id == 32 {
+        return OpInt(t="int", val=x * 7 % 100);
+    }
+    if method_id == 33 {
+        return OpInt(t="int", val=y * 7 % 100);
+    }
+    if method_id == 34 {
+        return OpInt(t="int", val=(x << 2) - y);
+    }
+    if method_id == 35 {
+        return OpInt(t="int", val=x * x * x - y);
+    }
     if method_id == 36 {
         d = x - y;
         if d < 0 {
@@ -467,7 +570,9 @@ def op_invoke(method_id: int, a: OpObj, b: OpObj) -> OpObj {
         }
         return OpInt(t="int", val=y);
     }
-    if method_id == 39 { return OpInt(t="int", val=x * y - (x + y)); }
+    if method_id == 39 {
+        return OpInt(t="int", val=x * y - (x + y));
+    }
     return op_error();
 }
 
@@ -481,24 +586,60 @@ def op_build_table(names: list[str]) -> dict[str, int] {
     return table;
 }
 
-def op_run() -> int {
+def op_run -> int {
     names: list[str] = [
-        "add", "sub", "mul", "floordiv", "mod",
-        "and", "or", "xor", "lshift", "rshift",
-        "lt", "le", "eq", "ne", "gt",
-        "ge", "neg", "rneg", "add2y", "twox",
-        "sqsub", "addsq", "diffsq", "poly", "modp1",
-        "incprod", "subm1", "affine", "xorshift", "andor",
-        "sumsq", "plus17", "x7", "y7", "shl2",
-        "cube", "absd", "maxxy", "minxy", "prodsub"
+        "add",
+        "sub",
+        "mul",
+        "floordiv",
+        "mod",
+        "and",
+        "or",
+        "xor",
+        "lshift",
+        "rshift",
+        "lt",
+        "le",
+        "eq",
+        "ne",
+        "gt",
+        "ge",
+        "neg",
+        "rneg",
+        "add2y",
+        "twox",
+        "sqsub",
+        "addsq",
+        "diffsq",
+        "poly",
+        "modp1",
+        "incprod",
+        "subm1",
+        "affine",
+        "xorshift",
+        "andor",
+        "sumsq",
+        "plus17",
+        "x7",
+        "y7",
+        "shl2",
+        "cube",
+        "absd",
+        "maxxy",
+        "minxy",
+        "prodsub"
     ];
     table = op_build_table(names);
 
     lefts: list[OpObj] = [
-        OpInt(t="int", val=7), OpInt(t="int", val=12), OpInt(t="int", val=9)
+        OpInt(t="int", val=7),
+        OpInt(t="int", val=12),
+        OpInt(t="int", val=9)
     ];
     rights: list[OpObj] = [
-        OpInt(t="int", val=3), OpInt(t="int", val=5), OpInt(t="int", val=4)
+        OpInt(t="int", val=3),
+        OpInt(t="int", val=5),
+        OpInt(t="int", val=4)
     ];
 
     total = 0;
@@ -530,15 +671,20 @@ test "cliff: 40-arm op-switch on runtime method_id (na op-switch-scale canary)" 
 # miss. __get__ is a method-id switch in a real na method body reached only after
 # isinstance/as narrowing the dict-lookup union. na landmine: descriptor/__getattr__
 # precedence + T|None-receiver-drop (narrow before call) + dict-subclass-upcast ICE.
-obj DescObj { has t: str; }
-obj DescInt(DescObj) { has val: int; }
+obj DescObj {
+    has t: str;
+}
+
+obj DescInt(DescObj) {
+    has val: int;
+}
 
 obj DescDescriptor(DescObj) {
     has kind: int,
         operand: int,
         has_set: bool;
 
-    def is_data() -> bool {
+    def is_data -> bool {
         return self.has_set;
     }
 
@@ -573,7 +719,7 @@ obj DescUserObj(DescObj) {
         attrs: dict[str, DescObj],
         raw: int;
 
-    def raw_slot() -> DescObj {
+    def raw_slot -> DescObj {
         return DescInt(t="int", val=self.raw);
     }
 }
@@ -662,7 +808,7 @@ def desc_make_inst(c: DescClass, v: int) -> DescUserObj {
     return DescUserObj(t="obj", cls=c, attrs=a, raw=v);
 }
 
-def desc_run_pd() -> list[int] {
+def desc_run_pd -> list[int] {
     no_bases: list[DescObj] = [];
     base_cls = desc_make_class("Base", no_bases);
 
@@ -699,7 +845,7 @@ def desc_run_pd() -> list[int] {
     return result;
 }
 
-def desc_run() -> int {
+def desc_run -> int {
     r = desc_run_pd();
     if r[0] != 1125 {
         return -100;
@@ -727,14 +873,19 @@ test "cliff: descriptor/__getattr__ precedence chain (na attr-protocol canary)" 
 # resolved virtual dispatch on the PyMethod base reached only after isinstance/as
 # narrowing. na landmine: reflected-binop NotImplemented fallback (a forward-only
 # machine gets cases 1/2 wrong) + T|None-receiver-drop.
-obj ReflObj { has t: str; }
-obj ReflInt(ReflObj) { has val: int; }
+obj ReflObj {
+    has t: str;
+}
 
-def refl_notimpl() -> ReflObj {
+obj ReflInt(ReflObj) {
+    has val: int;
+}
+
+def refl_notimpl -> ReflObj {
     return ReflObj(t="notimpl");
 }
 
-def refl_typeerror() -> ReflObj {
+def refl_typeerror -> ReflObj {
     return ReflObj(t="error");
 }
 
@@ -895,7 +1046,7 @@ def refl_make_inst(c: ReflClass, v: int) -> ReflUserObj {
     return ReflUserObj(t="obj", cls=c, attrs=a);
 }
 
-def refl_run() -> list[int] {
+def refl_run -> list[int] {
     no_bases: list[ReflObj] = [];
 
     punter_cls = refl_make_class("Punter", no_bases);
@@ -973,7 +1124,9 @@ test "cliff: reflected-binop NotImplemented fallback (na reflected-op canary)" {
 # lexically structured, so handler SELECTION is lifted to a DATA except-table whose
 # winning handler_id is returned as an int. na landmine: except-match first-match
 # over MRO (a best-match miscompile picks Mid over Base in scenario B).
-obj ExcObj { has t: str; }
+obj ExcObj {
+    has t: str;
+}
 
 obj ExcClass(ExcObj) {
     has name: str,
@@ -1032,7 +1185,7 @@ def exc_make_arm(c: ExcClass, hid: int) -> ExcArm {
     return ExcArm(t="arm", cls=c, handler_id=hid);
 }
 
-def exc_run() -> int {
+def exc_run -> int {
     no_bases: list[ExcObj] = [];
     base_cls = exc_make_class("Base", 1, no_bases);
 
@@ -1081,10 +1234,18 @@ def exc_run() -> int {
     rC = exc_dispatch_raise(instC, tblC);
     rD = exc_dispatch_raise(instD, tblD);
 
-    if rA != 20 { return -10; }
-    if rB != 10 { return -20; }
-    if rC != -1 { return -30; }
-    if rD != 30 { return -40; }
+    if rA != 20 {
+        return -10;
+    }
+    if rB != 10 {
+        return -20;
+    }
+    if rC != -1 {
+        return -30;
+    }
+    if rD != 30 {
+        return -40;
+    }
 
     no_match_flag = 0;
     if rC == -1 {

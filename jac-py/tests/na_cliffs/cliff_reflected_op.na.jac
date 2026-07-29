@@ -40,11 +40,11 @@ obj PyInt(PyObj) {
 }
 
 # ---- sentinels: NotImplemented and TypeError are DISTINCT tagged singletons ----
-def py_notimpl() -> PyObj {
+def py_notimpl -> PyObj {
     return PyObj(t="notimpl");
 }
 
-def py_typeerror() -> PyObj {
+def py_typeerror -> PyObj {
     return PyObj(t="error");
 }
 
@@ -188,10 +188,10 @@ def binop(op_id: int, a: PyObj, b: PyObj) -> PyObj {
         au = a as PyUserObj;
         fm = class_lookup_attr(au.cls, fname);
         if isinstance(fm, PyMethod) {
-            fmethod = fm as PyMethod;              # narrow union before call
+            fmethod = fm as PyMethod;  # narrow union before call
             res = fmethod.invoke(au, b);
             if not is_notimpl(res) {
-                return res;                        # value OR raised error: done
+                return res;  # value OR raised error: done
             }
         }
     }
@@ -201,7 +201,7 @@ def binop(op_id: int, a: PyObj, b: PyObj) -> PyObj {
         bu = b as PyUserObj;
         rm = class_lookup_attr(bu.cls, rname);
         if isinstance(rm, PyMethod) {
-            rmethod = rm as PyMethod;              # narrow union before call
+            rmethod = rm as PyMethod;  # narrow union before call
             res = rmethod.invoke(bu, a);
             if not is_notimpl(res) {
                 return res;
@@ -229,19 +229,19 @@ def make_class(nm: str, bases: list[PyObj]) -> PyClass {
 def make_inst(c: PyClass, v: int) -> PyUserObj {
     a: dict[str, PyObj] = {};
     boxed: PyObj = PyInt(t="int", val=v);
-    a["val"] = boxed;                              # subscript-store, base-typed
+    a["val"] = boxed;  # subscript-store, base-typed
     return PyUserObj(t="obj", cls=c, attrs=a);
 }
 
 # returns [observed case results..., accumulated total].
-def run() -> list[int] {
+def run -> list[int] {
     no_bases: list[PyObj] = [];
 
     # -- Punter: forward __add__ and __mul__ both DECLINE (NotImplemented). --
     punter_cls = make_class("Punter", no_bases);
     m_dec_add: PyObj = PyDeclineMethod(t="decline");
     m_dec_mul: PyObj = PyDeclineMethod(t="decline");
-    punter_cls.attrs["__add__"] = m_dec_add;       # base-typed subscript-store
+    punter_cls.attrs["__add__"] = m_dec_add;  # base-typed subscript-store
     punter_cls.attrs["__mul__"] = m_dec_mul;
 
     # -- Converter MRO: ConvBase <- ConvMid <- ConvLeaf. __radd__ lives on the
@@ -250,7 +250,7 @@ def run() -> list[int] {
     m_radd: PyObj = PyRAddMethod(t="radd");
     convbase_cls.attrs["__radd__"] = m_radd;
     convmid_bases: list[PyObj] = [convbase_cls];
-    convmid_cls = make_class("ConvMid", convmid_bases);   # defines nothing
+    convmid_cls = make_class("ConvMid", convmid_bases);  # defines nothing
     convleaf_bases: list[PyObj] = [convmid_cls];
     convleaf_cls = make_class("ConvLeaf", convleaf_bases);
 
@@ -278,7 +278,7 @@ def run() -> list[int] {
     p_punter3 = make_inst(punter_cls, 3);
     d_deaf = make_inst(deaf_cls, 4);
 
-    op_ids: list[int] = [0, 1, 0, 0];              # __add__, __mul__, __add__, __add__
+    op_ids: list[int] = [0, 1, 0, 0];  # __add__, __mul__, __add__, __add__
     lefts: list[PyUserObj] = [a_punter, p_punter2, f_adder, p_punter3];
     rights: list[PyUserObj] = [b_leaf, m_inst, b_leaf, d_deaf];
 
@@ -286,7 +286,7 @@ def run() -> list[int] {
     total = 0;
     i = 0;
     while i < len(op_ids) {
-        op = op_ids[i];                            # op_id read from data at runtime
+        op = op_ids[i];  # op_id read from data at runtime
         lhs: PyObj = lefts[i];
         rhs: PyObj = rights[i];
         r = result_int(binop(op, lhs, rhs));

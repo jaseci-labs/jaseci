@@ -33,6 +33,7 @@ obj TypeFacts {
     def infer_type(
         e: object, local_types: dict[str, str], scope: dict[str, str] = {}
     ) -> str;
+
     def is_ref(name: str) -> bool;
 }
 

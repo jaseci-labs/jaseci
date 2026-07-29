@@ -132,7 +132,7 @@ obj PyFrame(PyObj) {
     # exactly once. `in_try` is the guard that makes a repeated close() a no-op --
     # the workaround for na's lexically-structured exceptions, which forbid
     # jumping into the middle of the try to reach an in-body finally.
-    def run_finally -> None {
+    def run_finally {
         if self.in_try {
             self.finally_runs = self.finally_runs + 1;
             self.in_try = False;
@@ -148,7 +148,7 @@ obj PyFrame(PyObj) {
     }
 }
 
-def make_frame() -> PyFrame {
+def make_frame -> PyFrame {
     sub = SubFrame(t="subframe", seq=[100, 200]);
     return PyFrame(t="frame", data=[1, 2, 3, 4], sub=sub, nrows=2, ncols=2);
 }
@@ -157,17 +157,17 @@ def make_frame() -> PyFrame {
 # not exhausted). The finally must run exactly once; a SECOND close() must be a
 # no-op. Both are folded into the result so a skipped or doubled finally, or a
 # wrong-ip resume, changes the number.
-def drive_close() -> int {
+def drive_close -> int {
     g = make_frame();
     collected = 0;
-    y0 = g.resume(PyInt(t="int", val=0));   # next(): yields data[0]=1
+    y0 = g.resume(PyInt(t="int", val=0));  # next(): yields data[0]=1
     collected = collected + expect_int(y0);
-    y1 = g.resume(PyInt(t="int", val=5));   # send(5): swept += 10+5=15; yields 2
+    y1 = g.resume(PyInt(t="int", val=5));  # send(5): swept += 10+5=15; yields 2
     collected = collected + expect_int(y1);
-    g.close();                              # mid-try close -> finally runs (==1)
-    first_ct = g.finally_runs;              # expect 1
-    g.close();                              # second close -> no-op (still 1)
-    second_ct = g.finally_runs;             # expect 1
+    g.close();  # mid-try close -> finally runs (==1)
+    first_ct = g.finally_runs;  # expect 1
+    g.close();  # second close -> no-op (still 1)
+    second_ct = g.finally_runs;  # expect 1
     # collected=1+2=3; swept=15; first_ct=1; second_ct=1.
     # Encode: 3_15_1_1 -> 3*1000000 + 15*10000 + 1*100 + 1 = 3150101.
     return collected * 1000000 + g.swept * 10000 + first_ct * 100 + second_ct;
@@ -175,7 +175,7 @@ def drive_close() -> int {
 
 # Drive to exhaustion, exercising nested loop + yield-from value flow-back and the
 # finally running once on the NORMAL exit path.
-def drive_full() -> int {
+def drive_full -> int {
     g = make_frame();
     collected = 0;
     steps = 0;

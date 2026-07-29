@@ -121,16 +121,12 @@ def run_c(
         );
     }
     try {
-        proc = subprocess.run(
-            [binp], capture_output=True, text=True, timeout=timeout
-        );
+        proc = subprocess.run([binp], capture_output=True, text=True, timeout=timeout);
     } except subprocess.TimeoutExpired {
         return HANG;
     }
     if proc.returncode != 0 {
-        raise RuntimeError(
-            f"C binary failed (rc={proc.returncode}):\n{proc.stderr}"
-        );
+        raise RuntimeError(f"C binary failed (rc={proc.returncode}):\n{proc.stderr}");
     }
     line = int_tuple_line(proc.stdout, 1);
     if line is None {
@@ -142,18 +138,13 @@ def run_c(
 
 def lift_to_jac(c_path: str, include_dirs: list[str] | None = None) -> str {
     res = lift_c_file(c_path, include_dirs=include_dirs);
-    assert not any(
-        [d[0].startswith("E") for d in res.diags]
-    ) , f"lift errors: {res.diags}";
+    assert not any([d[0].startswith("E") for d in res.diags]) , f"lift errors: {res.diags}";
     return res.module.unparse(requires_format=True);
 }
 
 
 def run_lifted(
-    jac_src: str,
-    entry_src: str,
-    label: str = "",
-    timeout: float = DEFAULT_TIMEOUT
+    jac_src: str, entry_src: str, label: str = "", timeout: float = DEFAULT_TIMEOUT
 ) -> tuple[str, int, str, str] {
     # Returns (line_or_HANG_or_empty, returncode, stdout, stderr).
     # Hang → (HANG, -1, "", ""); success with int line → (line, 0, ...);
@@ -188,10 +179,7 @@ def run_lifted(
 
 
 def run_lifted_trap(
-    jac_src: str,
-    entry_src: str,
-    label: str = "",
-    timeout: float = DEFAULT_TIMEOUT
+    jac_src: str, entry_src: str, label: str = "", timeout: float = DEFAULT_TIMEOUT
 ) -> bool {
     # True iff the lifted entry traps with the quarantine message (not hang,
     # not a clean return).
@@ -266,9 +254,7 @@ def assert_lift_matches_c_or_traps(
     }
 
     if expect_trap {
-        (line, rc, out, err) = run_lifted(
-            jac_src, jac_entry, c_path, timeout=timeout
-        );
+        (line, rc, out, err) = run_lifted(jac_src, jac_entry, c_path, timeout=timeout);
         if line == HANG {
             return ("hang", f"expected TRAP for '{entry_fn}' but hung");
         }

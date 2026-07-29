@@ -209,28 +209,64 @@ def build_table(names: list[str]) -> dict[str, int] {
     return table;
 }
 
-def run() -> int {
+def run -> int {
     # 40 op names, position == its method_id -- the dict maps name -> id at
     # runtime, so the call-site never sees a literal id.
     names: list[str] = [
-        "add", "sub", "mul", "floordiv", "mod",
-        "and", "or", "xor", "lshift", "rshift",
-        "lt", "le", "eq", "ne", "gt",
-        "ge", "neg", "rneg", "add2y", "twox",
-        "sqsub", "addsq", "diffsq", "poly", "modp1",
-        "incprod", "subm1", "affine", "xorshift", "andor",
-        "sumsq", "plus17", "x7", "y7", "shl2",
-        "cube", "absd", "maxxy", "minxy", "prodsub"
+        "add",
+        "sub",
+        "mul",
+        "floordiv",
+        "mod",
+        "and",
+        "or",
+        "xor",
+        "lshift",
+        "rshift",
+        "lt",
+        "le",
+        "eq",
+        "ne",
+        "gt",
+        "ge",
+        "neg",
+        "rneg",
+        "add2y",
+        "twox",
+        "sqsub",
+        "addsq",
+        "diffsq",
+        "poly",
+        "modp1",
+        "incprod",
+        "subm1",
+        "affine",
+        "xorshift",
+        "andor",
+        "sumsq",
+        "plus17",
+        "x7",
+        "y7",
+        "shl2",
+        "cube",
+        "absd",
+        "maxxy",
+        "minxy",
+        "prodsub"
     ];
     table = build_table(names);
 
     # Operand pairs, boxed as PyObj and pulled from runtime DATA lists so no arm
     # folds to a constant. Every b > 0 to keep //, %, shifts well-defined.
     lefts: list[PyObj] = [
-        PyInt(t="int", val=7), PyInt(t="int", val=12), PyInt(t="int", val=9)
+        PyInt(t="int", val=7),
+        PyInt(t="int", val=12),
+        PyInt(t="int", val=9)
     ];
     rights: list[PyObj] = [
-        PyInt(t="int", val=3), PyInt(t="int", val=5), PyInt(t="int", val=4)
+        PyInt(t="int", val=3),
+        PyInt(t="int", val=5),
+        PyInt(t="int", val=4)
     ];
 
     total = 0;

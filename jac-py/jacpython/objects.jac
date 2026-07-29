@@ -150,8 +150,7 @@ obj PyInt(PyObj) {
             if b < 0 {
                 if a == 0 {
                     return py_error(
-                        "ZeroDivisionError",
-                        "0.0 cannot be raised to a negative power"
+                        "ZeroDivisionError", "0.0 cannot be raised to a negative power"
                     );
                 }
                 return PyFloat(t="float", val=float(a) ** float(b));
@@ -398,9 +397,7 @@ obj PyFloat(PyObj) {
         }
         if kind == 2 {
             if b == 0.0 {
-                return py_error(
-                    "ZeroDivisionError", "float floor division by zero"
-                );
+                return py_error("ZeroDivisionError", "float floor division by zero");
             }
             return PyFloat(t="float", val=a // b);
         }
@@ -752,8 +749,12 @@ obj PyDict(PyObj) {
             keys.append(hk);
         }
         return PyDictIter(
-            t="dictiter", d=self, keys=keys, index=0,
-            snap_version=self.version, mode=mode
+            t="dictiter",
+            d=self,
+            keys=keys,
+            index=0,
+            snap_version=self.version,
+            mode=mode
         );
     }
 
@@ -1118,7 +1119,8 @@ obj PyException(PyObj) {
             return py_none();
         }
         if name == "__context__"
-        or name == "__traceback__" or name == "__suppress_context__" {
+        or name == "__traceback__"
+        or name == "__suppress_context__" {
             return py_none();
         }
         return py_error("AttributeError", name);

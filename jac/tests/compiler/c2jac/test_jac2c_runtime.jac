@@ -147,10 +147,16 @@ test "jac2c uses OwnershipFacts callee conventions to move or copy across calls"
     assert "jac_rc_retain(" not in holder , f"owned store should move, not retain:\n{holder}";
     # Wrap consumes its parameter (stored once, used nowhere else): the callee
     # takes ownership, so no retain on store.
-    wrap = _fn_body(c_src, "struct obj_move__Wrap *obj_move__Wrap__new(struct obj_move__Counter * inner)");
+    wrap = _fn_body(
+        c_src,
+        "struct obj_move__Wrap *obj_move__Wrap__new(struct obj_move__Counter * inner)"
+    );
     assert "jac_rc_retain(" not in wrap , f"consumed param should move, not retain:\n{wrap}";
     # Keep also reads its parameter, so it only borrows: retain on store.
-    keep = _fn_body(c_src, "struct obj_move__Keep *obj_move__Keep__new(struct obj_move__Counter * inner)");
+    keep = _fn_body(
+        c_src,
+        "struct obj_move__Keep *obj_move__Keep__new(struct obj_move__Counter * inner)"
+    );
     assert "jac_rc_retain(" in keep , f"borrowed param should retain:\n{keep}";
     # Caller: the owned Counter(9) moves into the consuming Wrap (passed inline,
     # no temp), while the owned Counter(4) handed to the borrowing Keep is hoisted

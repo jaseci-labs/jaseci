@@ -4,6 +4,11 @@ def r_byte(data: list[int], pos: int) -> int {
     b = data[pos];
     return b & 0xFF;
 }
-def use() -> int { return r_byte([227, 2, 0], 0); }
 
-with entry { print(use()); }
+def use -> int {
+    return r_byte([227, 2, 0], 0);
+}
+
+with entry {
+    print(use());
+}

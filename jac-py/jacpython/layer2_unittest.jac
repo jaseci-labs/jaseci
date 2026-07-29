@@ -7,14 +7,37 @@
 # proxies. Run test files standalone -- never via regrtest.
 import from layer0_replay { ReplayResult }
 import from objects {
-    PyObj, PyBool, PyInt, PyStr, PyException, PyExceptionType, PyError, is_error,
-    py_none, py_error, py_exception_type
+    PyObj,
+    PyBool,
+    PyInt,
+    PyStr,
+    PyException,
+    PyExceptionType,
+    PyError,
+    is_error,
+    py_none,
+    py_error,
+    py_exception_type
 }
 import from pyc_first {
-    PyClass, PyFunction, PyModule, PyUserObj, PyBoundMethod,
-    register_shim_module, clear_shim_modules, shim_module_get,
-    host_compile_marshal, unmarshal, exec_code, py_issubclass, py_isinstance,
-    py_invoke, bind_attribute, to_host, class_lookup_attr, py_raise_value,
+    PyClass,
+    PyFunction,
+    PyModule,
+    PyUserObj,
+    PyBoundMethod,
+    register_shim_module,
+    clear_shim_modules,
+    shim_module_get,
+    host_compile_marshal,
+    unmarshal,
+    exec_code,
+    py_issubclass,
+    py_isinstance,
+    py_invoke,
+    bind_attribute,
+    to_host,
+    class_lookup_attr,
+    py_raise_value,
     py_truth
 }
 
@@ -27,6 +50,7 @@ def _l2_host_equal(a, b):
     except BaseException:
         return False
 ::py::
+
 
 
 glob layer2_module_globals: dict[str, PyObj] = {};
@@ -242,7 +266,9 @@ obj PyUnittestMain(PyObj) {
     }
 }
 
-def layer2_assert_equal(self: PyObj, first: PyObj, second: PyObj, msg: str = "") -> PyObj {
+def layer2_assert_equal(
+    self: PyObj, first: PyObj, second: PyObj, msg: str = ""
+) -> PyObj {
     if layer2_values_equal(first, second) {
         return py_none();
     }
@@ -253,7 +279,9 @@ def layer2_assert_equal(self: PyObj, first: PyObj, second: PyObj, msg: str = "")
     return layer2_fail("assertEqual" + detail);
 }
 
-def layer2_assert_not_equal(self: PyObj, first: PyObj, second: PyObj, msg: str = "") -> PyObj {
+def layer2_assert_not_equal(
+    self: PyObj, first: PyObj, second: PyObj, msg: str = ""
+) -> PyObj {
     if not layer2_values_equal(first, second) {
         return py_none();
     }
@@ -281,7 +309,9 @@ def layer2_assert_is(self: PyObj, first: PyObj, second: PyObj, msg: str = "") ->
     return layer2_fail("assertIs");
 }
 
-def layer2_assert_is_not(self: PyObj, first: PyObj, second: PyObj, msg: str = "") -> PyObj {
+def layer2_assert_is_not(
+    self: PyObj, first: PyObj, second: PyObj, msg: str = ""
+) -> PyObj {
     if first is not second {
         return py_none();
     }
@@ -344,8 +374,11 @@ def layer2_error_type_name(err: PyObj) -> str {
 }
 
 def layer2_assert_raises(
-    self: PyObj, expected: PyObj, callable_obj: PyObj = py_none(),
-    args: list[PyObj] = [], kwargs: dict[str, PyObj] = {}
+    self: PyObj,
+    expected: PyObj,
+    callable_obj: PyObj = py_none(),
+    args: list[PyObj] = [],
+    kwargs: dict[str, PyObj] = {}
 ) -> PyObj {
     want = layer2_exception_type_name(expected);
     # Callable form: assertRaises(E, fn, *args, **kwargs)
@@ -367,7 +400,7 @@ def layer2_assert_raises(
 
 # ---------------- unittest.TestCase (native PyClass) -------------------------
 
-def build_testcase_class() -> PyClass {
+def build_testcase_class -> PyClass {
     attrs: dict[str, PyObj] = {
         "assertEqual": PyShimMethod(t="function", kind="equal"),
         "assertNotEqual": PyShimMethod(t="function", kind="not_equal"),
@@ -383,29 +416,30 @@ def build_testcase_class() -> PyClass {
         "assertLessEqual": PyShimMethod(t="function", kind="le"),
         "assertRaises": PyShimMethod(t="function", kind="raises"),
         "fail": PyShimMethod(t="function", kind="fail"),
+
     };
     return PyClass(t="class", name="TestCase", attrs=attrs, bases=[], native_base="");
 }
 
 def testcase_call_setup(instance: PyUserObj) -> PyObj {
-  setup = class_lookup_attr(instance.cls, "setUp");
-  if is_error(setup) {
-    return py_none();
-  }
-  return bind_attribute(setup, instance).tp_call([], {});
+    setup = class_lookup_attr(instance.cls, "setUp");
+    if is_error(setup) {
+        return py_none();
+    }
+    return bind_attribute(setup, instance).tp_call([], {});
 }
 
 def testcase_call_teardown(instance: PyUserObj) -> PyObj {
-  td = class_lookup_attr(instance.cls, "tearDown");
-  if is_error(td) {
-    return py_none();
-  }
-  return bind_attribute(td, instance).tp_call([], {});
+    td = class_lookup_attr(instance.cls, "tearDown");
+    if is_error(td) {
+        return py_none();
+    }
+    return bind_attribute(td, instance).tp_call([], {});
 }
 
 # ---------------- test.support skip decorators -----------------------------
 
-def build_support_module() -> PyModule {
+def build_support_module -> PyModule {
     skip_fn = PySupportSkip(t="support_skip");
     attrs: dict[str, PyObj] = {
         "cpython_only": skip_fn,
@@ -437,16 +471,13 @@ def build_support_module() -> PyModule {
         "is_android": PyBool(t="bool", val=False),
         "verbose": PyBool(t="bool", val=False),
         "max_memuse": PyInt(t="int", val=0),
+
     };
     return PyModule(t="module", name="test.support", attrs=attrs);
 }
 
 def build_test_package(support_mod: PyModule) -> PyModule {
-    return PyModule(
-        t="module",
-        name="test",
-        attrs={"support": support_mod}
-    );
+    return PyModule(t="module", name="test", attrs={"support": support_mod});
 }
 
 def build_unittest_module(testcase: PyClass) -> PyModule {
@@ -456,11 +487,12 @@ def build_unittest_module(testcase: PyClass) -> PyModule {
         "SkipTest": skip_exc,
         "skip": PyUnittestSkip(t="unittest_skip"),
         "main": PyUnittestMain(t="unittest_main"),
+
     };
     return PyModule(t="module", name="unittest", attrs=attrs);
 }
 
-def install_layer2_shims() -> None {
+def install_layer2_shims {
     clear_shim_modules();
     testcase = build_testcase_class();
     support = build_support_module();
@@ -469,7 +501,7 @@ def install_layer2_shims() -> None {
     register_shim_module("test.support", support);
 }
 
-def layer2_testcase_base() -> PyObj {
+def layer2_testcase_base -> PyObj {
     mod = shim_module_get("unittest");
     if is_error(mod) {
         return mod;
@@ -493,7 +525,9 @@ def layer2_is_assertion(exc: PyObj) -> bool {
     return False;
 }
 
-def layer2_discover_tests(globals: dict[str, PyObj]) -> list[tuple[PyClass, str, PyObj]] {
+def layer2_discover_tests(
+    globals: dict[str, PyObj]
+) -> list[tuple[PyClass, str, PyObj]] {
     found: list[tuple[PyClass, str, PyObj]] = [];
     base_obj = layer2_testcase_base();
     if is_error(base_obj) or not isinstance(base_obj, PyClass) {
@@ -586,9 +620,7 @@ def layer2_run_discovered(tests: list[tuple[PyClass, str, PyObj]]) -> ReplayResu
 
 def layer2_exec_source(source: str) -> dict[str, PyObj] {
     install_layer2_shims();
-    layer2_module_globals = {
-        "__name__": PyStr(t="str", val="__main__"),
-    };
+    layer2_module_globals = {"__name__": PyStr(t="str", val="__main__"),};
     outcome = exec_code(
         unmarshal(host_compile_marshal(source) as list[int]), [], layer2_module_globals
     );

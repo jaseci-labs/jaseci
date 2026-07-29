@@ -229,14 +229,7 @@ impl CastBuildPass._collect_module_globals(ext: list) -> set[str] {
     return out;
 }
 
-impl CastBuildPass._global_stmt(
-    c_node: c_ast.Node, names: list[str]
-) -> uni.Semi {
-    # main removed the GlobalStmt/NonLocalStmt uni nodes (refactor: Python
-    # `global`/`nonlocal` now lower to a no-op uni.Semi, see PyastBuildPass.
-    # proc_global). c2jac follows the same convention: the collected global
-    # writes in `names` are already resolved by the symbol table, so the
-    # declaration lowers to a no-op semicolon statement.
+impl CastBuildPass._global_stmt(c_node: c_ast.Node, names: list[str]) -> uni.Semi {
     _ = names;
     return self._pass_semi(c_node);
 }
