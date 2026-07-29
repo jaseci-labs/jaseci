@@ -146,6 +146,16 @@ obj PyInt(PyObj) {
             return PyInt(t="int", val=a >> b);
         }
         if kind == 8 {
+            # int ** negative -> float (2 ** -1 == 0.5); 0 ** negative raises.
+            if b < 0 {
+                if a == 0 {
+                    return py_error(
+                        "ZeroDivisionError",
+                        "0.0 cannot be raised to a negative power"
+                    );
+                }
+                return PyFloat(t="float", val=float(a) ** float(b));
+            }
             return PyInt(t="int", val=a ** b);
         }
         return py_error("TypeError", "unsupported operand types");
@@ -766,12 +776,14 @@ obj PyDict(PyObj) {
         if hk in self.items {
             # Overwrite value, keep the FIRST key object + slot position (CPython
             # semantics). Rebuild the entry rather than writing a nested obj field
-            # in place (na external-field-write header hazard on the leaf).
+            # in place (na external-field-write header hazard on the leaf). A plain
+            # value overwrite leaves the key set unchanged, so it does NOT bump
+            # version -- `for k in d: d[k] = ...` is legal in CPython (size guard).
             self.items[hk] = DictEntry(key=self.items[hk].key, value=value);
         } else {
             self.items[hk] = DictEntry(key=index, value=value);
+            self.version = self.version + 1;
         }
-        self.version = self.version + 1;
         return py_none();
     }
 
@@ -1075,6 +1087,9 @@ obj PyException(PyObj) {
         # falls back to [message] when args is empty (see host_exception).
         args: list[PyObj] = [],
         raw: any = None,
+        # Explicit chaining: `raise X from Y` records Y here so e.__cause__ reads
+        # it back (None when raised without a `from`).
+        cause: any = None,
         # StopIteration payload: `return x` in a generator surfaces as
         # StopIteration(x); .send()/next() carry the value here.
         value: any = None;
@@ -1096,7 +1111,13 @@ obj PyException(PyObj) {
                 return r;
             }
         }
-        if name == "__cause__" or name == "__context__"
+        if name == "__cause__" {
+            if self.cause is not None {
+                return self.cause as PyObj;
+            }
+            return py_none();
+        }
+        if name == "__context__"
         or name == "__traceback__" or name == "__suppress_context__" {
             return py_none();
         }

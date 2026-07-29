@@ -199,6 +199,26 @@ def _jac_host_issubclass(host_cls, host_type):
     except BaseException:
         return False
 
+def _jac_host_class_name(value):
+    # The class's own __name__ (for an except-target that is an exception CLASS),
+    # falling back to type(value).__name__ for a non-class value.
+    return getattr(value, "__name__", None) or type(value).__name__
+
+def _jac_exc_name_subclass(target_name, exc_name):
+    # True iff a builtin exception named exc_name is target_name or a subclass of
+    # it -- e.g. FileNotFoundError is-a OSError, ValueError is-a Exception. Both
+    # names are resolved against builtins; user/native names not found there fall
+    # back to the exact-name compare done by the caller (returns False here).
+    try:
+        t = getattr(builtins, target_name, None)
+        e = getattr(builtins, exc_name, None)
+        if (isinstance(t, type) and isinstance(e, type)
+                and issubclass(t, BaseException)):
+            return issubclass(e, t)
+        return False
+    except BaseException:
+        return False
+
 def _jac_host_format(value, spec):
     try:
         return (True, format(value, spec))
@@ -3108,6 +3128,28 @@ def user_has_dunder(u: PyUserObj, name: str) -> bool {
     return not is_error(class_lookup_attr(u.cls, name));
 }
 
+# CPython operator subclass priority: when `type(rhs)` is a PROPER subclass of
+# `type(lhs)` and overrides the reflected slot (`rname`), the reflected call is
+# tried BEFORE the left operand's forward slot. True iff that reordering applies.
+def rhs_reflected_priority(lhs: PyObj, rhs: PyObj, rname: str) -> bool {
+    if rname == "" {
+        return False;
+    }
+    if not (isinstance(lhs, PyUserObj) and isinstance(rhs, PyUserObj)) {
+        return False;
+    }
+    lcls = (lhs as PyUserObj).cls;
+    rcls = (rhs as PyUserObj).cls;
+    if lcls is rcls {
+        return False;
+    }
+    # rhs's class must be a proper subclass of lhs's class (it already differs).
+    if not instance_of_class(rhs as PyUserObj, lcls) {
+        return False;
+    }
+    return user_has_dunder(rhs as PyUserObj, rname);
+}
+
 # Bind the MRO-resolved dunder to the receiver and call it with `args`. The
 # result -- a value, a raised exception (PyError), or NotImplemented -- is
 # returned verbatim for the protocol layer to interpret.
@@ -3122,6 +3164,15 @@ def call_user_dunder(u: PyUserObj, name: str, args: list[PyObj]) -> PyObj {
 # from a dunder propagates immediately (it is not NotImplemented).
 def user_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     name = binop_dunder(kind);
+    rname = binop_rdunder(kind);
+    # Subclass reflected priority: A() + B() where B(A) overrides __radd__ runs
+    # B.__radd__ first (CPython rule).
+    if rhs_reflected_priority(lhs, rhs, rname) {
+        res = call_user_dunder(rhs as PyUserObj, rname, [lhs]);
+        if not is_notimplemented(res) {
+            return res;
+        }
+    }
     if isinstance(lhs, PyUserObj) {
         lu = lhs as PyUserObj;
         if name != "" and user_has_dunder(lu, name) {
@@ -3131,7 +3182,6 @@ def user_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
             }
         }
     }
-    rname = binop_rdunder(kind);
     if isinstance(rhs, PyUserObj) {
         ru = rhs as PyUserObj;
         if rname != "" and user_has_dunder(ru, rname) {
@@ -3161,7 +3211,20 @@ def user_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
 # user_binop, plus the == / != identity fallback when neither side overrides.
 def user_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     name = compare_dunder(kind);
-    if isinstance(lhs, PyUserObj) and not (lhs as PyUserObj)._has_base() {
+    rname = compare_dunder(compare_swap(kind));
+    # Subclass reflected priority: rhs's reflected comparison runs first when
+    # type(rhs) is a proper subclass of type(lhs) and overrides it.
+    if rhs_reflected_priority(lhs, rhs, rname) {
+        res = call_user_dunder(rhs as PyUserObj, rname, [lhs]);
+        if not is_notimplemented(res) {
+            return res;
+        }
+    }
+    # A builtin subclass's OWN comparison dunder wins (class MyInt(int) that
+    # overrides __eq__), mirroring user_binop -- user_has_dunder only finds it
+    # when the user class actually defines it, so an unoverridden subclass still
+    # falls through to the boxed-value comparison below.
+    if isinstance(lhs, PyUserObj) {
         lu = lhs as PyUserObj;
         if name != "" and user_has_dunder(lu, name) {
             res = call_user_dunder(lu, name, [rhs]);
@@ -3170,8 +3233,7 @@ def user_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
             }
         }
     }
-    rname = compare_dunder(compare_swap(kind));
-    if isinstance(rhs, PyUserObj) and not (rhs as PyUserObj)._has_base() {
+    if isinstance(rhs, PyUserObj) {
         ru = rhs as PyUserObj;
         if rname != "" and user_has_dunder(ru, rname) {
             res = call_user_dunder(ru, rname, [lhs]);
@@ -3285,16 +3347,6 @@ def py_delete_subscript(container: PyObj, index: PyObj) -> PyObj {
 # the target dict. Native PyDict is returned directly; a host-backed mapping
 # (PyHostProxy) is converted via from_host, which lands as a PyDict when its
 # keys are strings. Non-mapping / non-str-key sources produce an empty view.
-def pydict_from_str_map(m: dict[str, PyObj]) -> PyDict {
-    # Wrap an inherently str-keyed implementation map (frame locals / class
-    # namespace) into a PyDict with PyStr keys under the hash-key protocol.
-    d = PyDict(t="dict", items={});
-    for name in m {
-        d.dict_set(PyStr(t="str", val=name), m[name]);
-    }
-    return d;
-}
-
 def dict_merge_pairs(source: PyObj) -> PyDict {
     if isinstance(source, PyDict) {
         return source as PyDict;
@@ -3487,6 +3539,9 @@ def py_iter(value: PyObj) -> PyObj {
 # update_wrapper, whose `__dict__.update(...)` source is normally empty), and for
 # introspection; a fully live mapping-proxy is a later refinement.
 def dict_from_str_map(m: dict[str, PyObj]) -> PyDict {
+    # Wrap an inherently str-keyed implementation map (frame locals / class
+    # namespace / __dict__) into a PyDict with PyStr keys under the hash-key
+    # protocol.
     d = PyDict(t="dict", items={});
     for k in m {
         d.dict_set(PyStr(t="str", val=k), m[k]);
@@ -3736,9 +3791,30 @@ def exception_matches(value: PyObj, target: PyObj) -> bool {
     if target.t == "exception_type" {
         target_name = (target as PyExceptionType).name;
     } elif target.t == "host" {
-        target_name = _jac_host_type_name((target as PyHostProxy).val) as str;
+        # The except-target is a host exception CLASS; read its own __name__, not
+        # type(cls).__name__ (which is "type" and never matches).
+        target_name = _jac_host_class_name((target as PyHostProxy).val) as str;
     }
-    if target_name == "BaseException" or target_name == "Exception" {
+    if target_name == "" {
+        return False;
+    }
+    # BaseException catches everything; Exception catches everything except the
+    # three BaseException-only control-flow exceptions (a bare `except Exception`
+    # must NOT swallow GeneratorExit/KeyboardInterrupt/SystemExit).
+    if target_name == "BaseException" {
+        return True;
+    }
+    if target_name == "Exception" {
+        en = exception.type_name;
+        if en == "GeneratorExit" or en == "KeyboardInterrupt"
+        or en == "SystemExit" {
+            return False;
+        }
+        return True;
+    }
+    # A builtin exception base matches its subclasses (except OSError catches
+    # FileNotFoundError); user/native names fall through to exact-name compare.
+    if bool(_jac_exc_name_subclass(target_name, exception.type_name)) {
         return True;
     }
     return target_name == exception.type_name;
@@ -3831,19 +3907,81 @@ def py_invoke(fn: PyObj, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
 
 # ---------------- Track B: builtin subclassing support -----------------------
 
-# Depth-first MRO over PyClass bases (dedup by identity). Single inheritance +
-# one builtin base -- the common case -- linearizes correctly; deeper diamonds
-# get a valid-but-not-strict-C3 order, sufficient for attribute lookup.
+# C3 linearization: L[C] = C + merge(L[B1], ..., L[Bn], [B1, ..., Bn]). This gives
+# the strict CPython MRO -- a diamond D(B, C) with B,C : A resolves [D, B, C, A],
+# so an attribute on both A and C picks C, not A. An inconsistent hierarchy (no
+# valid linearization) degrades to the partial order computed so far rather than
+# looping. Only PyClass bases participate; a native/host base is not a node here.
 def class_mro(cls: PyClass) -> list[PyClass] {
-    result: list[PyClass] = [cls];
+    seqs: list[list[PyClass]] = [];
+    direct: list[PyClass] = [];
     for base in cls.bases {
         if isinstance(base, PyClass) {
-            for ancestor in class_mro(base as PyClass) {
-                if not (ancestor in result) {
-                    result.append(ancestor);
-                }
+            seqs.append(class_mro(base as PyClass));
+            direct.append(base as PyClass);
+        }
+    }
+    if len(direct) > 0 {
+        seqs.append(direct);
+    }
+    result: list[PyClass] = [cls];
+    for klass in c3_merge(seqs) {
+        result.append(klass);
+    }
+    return result;
+}
+
+# Merge step of C3: repeatedly take the head of some sequence that appears in no
+# other sequence's tail, append it, and strip it from every head. Stops when all
+# sequences drain (success) or no valid head exists (inconsistent -> partial).
+def c3_merge(seqs: list[list[PyClass]]) -> list[PyClass] {
+    work: list[list[PyClass]] = [];
+    for s in seqs {
+        row: list[PyClass] = [];
+        for x in s {
+            row.append(x);
+        }
+        work.append(row);
+    }
+    result: list[PyClass] = [];
+    while True {
+        live: list[list[PyClass]] = [];
+        for s in work {
+            if len(s) > 0 {
+                live.append(s);
             }
         }
+        if len(live) == 0 {
+            return result;
+        }
+        chosen: PyClass | None = None;
+        for s in live {
+            head = s[0];
+            in_tail = False;
+            for other in live {
+                k = 1;
+                while k < len(other) {
+                    if other[k] is head {
+                        in_tail = True;
+                    }
+                    k = k + 1;
+                }
+            }
+            if not in_tail {
+                chosen = head;
+                break;
+            }
+        }
+        if chosen is None {
+            return result;
+        }
+        result.append(chosen);
+        for s in live {
+            if len(s) > 0 and s[0] is chosen {
+                s.pop(0);
+            }
+        }
+        work = live;
     }
     return result;
 }
@@ -4292,6 +4430,27 @@ def apply_set_name_hooks(cls: PyClass, ordered_names: list[str]) -> PyObj {
     return cls;
 }
 
+# PEP 487: after a subclass is built, its nearest base's __init_subclass__ is
+# called with the new class (implicit classmethod) plus the class keyword args --
+# `class Sub(Base, key=1)` runs Base.__init_subclass__(cls=Sub, key=1). Only a
+# user base that actually defines it fires (the object default is a no-op); a
+# base that stores it as a plain def takes the new class as its first argument.
+def apply_init_subclass(cls: PyClass, kwds: dict[str, PyObj]) -> PyObj {
+    for base in cls.bases {
+        if isinstance(base, PyClass) {
+            found = class_lookup_attr(base as PyClass, "__init_subclass__");
+            if not is_error(found) and isinstance(found, PyFunction) {
+                res = py_invoke(found, [cls], kwds);
+                if is_error(res) {
+                    return res;
+                }
+                return cls;
+            }
+        }
+    }
+    return cls;
+}
+
 # Read a PyDict whose keys are all strings (a class namespace) into a jac str map.
 def pydict_to_str_map(d: PyDict) -> dict[str, PyObj] {
     m: dict[str, PyObj] = {};
@@ -4397,7 +4556,11 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     for k in namespace {
         ordered.append(k);
     }
-    return apply_set_name_hooks(cls, ordered);
+    hooked = apply_set_name_hooks(cls, ordered);
+    if is_error(hooked) {
+        return hooked;
+    }
+    return apply_init_subclass(cls, class_kwds);
 }
 
 # The custom-metaclass class-creation protocol: metaclass.__prepare__ produces the
@@ -5169,10 +5332,18 @@ obj PyDictMethod(PyObj) {
             return py_error("KeyError", dict_key_repr(args[0]));
         }
         if n == "popitem" {
+            # LIFO: dict.popitem() returns the LAST inserted (key, value) pair,
+            # not the first. dict_keys() yields insertion order, so take the tail.
+            last_key: PyObj = py_none();
+            has_key = False;
             for keyobj in d.dict_keys() {
-                v = d.mp_subscript(keyobj);
-                d.mp_del_subscript(keyobj);
-                return PyTuple(t="tuple", items=[keyobj, v]);
+                last_key = keyobj;
+                has_key = True;
+            }
+            if has_key {
+                v = d.mp_subscript(last_key);
+                d.mp_del_subscript(last_key);
+                return PyTuple(t="tuple", items=[last_key, v]);
             }
             return py_error("KeyError", "popitem(): dictionary is empty");
         }
@@ -6258,7 +6429,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_LOAD_LOCALS {
-            stack.append(pydict_from_str_map(locals));
+            stack.append(dict_from_str_map(locals));
             continue;
         }
         if op == OP_STORE_NAME {
@@ -7004,6 +7175,11 @@ def run_frame(frame: PyFrame) -> PyObj {
             stored_value: PyObj = stack.pop();
             result = py_store_subscript(owner, stored_index, stored_value);
             if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
                 return result;
             }
             continue;
@@ -7186,11 +7362,11 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_RAISE_VARARGS {
             # arg: 0 = re-raise, 1 = raise exc, 2 = raise exc from cause. For the
-            # `from` form the cause is on top, the exception below it; the cause is
-            # popped and (for now) discarded -- what matters is raising `exc`.
+            # `from` form the cause is on top, the exception below it.
             raised = py_none();
+            raise_cause: PyObj = py_none();
             if arg == 2 {
-                stack.pop();
+                raise_cause = stack.pop();
                 raised = stack.pop();
             } elif arg == 1 {
                 raised = stack.pop();
@@ -7199,6 +7375,14 @@ def run_frame(frame: PyFrame) -> PyObj {
                 raised = exc_handling[len(exc_handling) - 1];
             }
             result = py_raise_value(raised);
+            # `raise X from Y`: record Y on the raised exception so e.__cause__
+            # reads it back (skip `from None`, which carries no cause object).
+            if arg == 2 and isinstance(result, PyError) and raise_cause.t != "none" {
+                cause_err = py_raise_value(raise_cause);
+                if isinstance(cause_err, PyError) {
+                    (result as PyError).exception.cause = (cause_err as PyError).exception;
+                }
+            }
             target = recover_exception(co, result, offset, stack);
             if target >= 0 {
                 ip = target;
@@ -8608,4 +8792,97 @@ test "pyc-first: native dict views -- set ops + element-eq compare (Track c)" {
         "    hit = 1\n"
     );
     assert expect_int(mut["hit"]) == 1;
+}
+
+test "pyc-first: STORE_SUBSCR errors reach the handler; popitem is LIFO" {
+    # An exception from item assignment (tuple is immutable) must be catchable by
+    # the surrounding try/except -- STORE_SUBSCR routes through recover_exception.
+    r = run_source(
+        "hit = 0\n"
+        "t = (1, 2)\n"
+        "try:\n"
+        "    t[0] = 5\n"
+        "except TypeError:\n"
+        "    hit = 1\n"
+        # dict.popitem() is LIFO: returns the LAST inserted pair.
+        "d = {'a': 1, 'b': 2}\n"
+        "pk = d.popitem()[0]\n"
+    );
+    assert expect_int(r["hit"]) == 1;
+    assert expect_str(r["pk"]) == "b";
+}
+
+test "pyc-first: int ** negative is float; raise-from records __cause__" {
+    r = run_source(
+        "p = 2 ** -1\n"
+        "z = 0\n"
+        "try:\n"
+        "    _ = 0 ** -1\n"
+        "except ZeroDivisionError:\n"
+        "    z = 1\n"
+        "hc = 0\n"
+        "try:\n"
+        "    raise ValueError('v') from KeyError('k')\n"
+        "except ValueError as e:\n"
+        "    hc = 1 if e.__cause__ is not None else 0\n"
+    );
+    assert expect_float(r["p"]) == 0.5;
+    assert expect_int(r["z"]) == 1;
+    assert expect_int(r["hc"]) == 1;
+}
+
+test "pyc-first: builtin-subclass __eq__ + reflected-operator subclass priority" {
+    r = run_source(
+        # A builtin subclass's own __eq__ override is honored (was skipped by the
+        # _has_base guard that user_binop never had).
+        "class MyInt(int):\n"
+        "    def __eq__(self, other): return 'custom'\n"
+        "eqr = MyInt(5) == 5\n"
+        # type(rhs) a proper subclass of type(lhs) overriding the reflected slot
+        # runs first: A() + B() -> B.__radd__.
+        "class A:\n"
+        "    def __add__(self, o): return 'A'\n"
+        "class B(A):\n"
+        "    def __radd__(self, o): return 'B'\n"
+        "rr = A() + B()\n"
+    );
+    assert expect_str(r["eqr"]) == "custom";
+    assert expect_str(r["rr"]) == "B";
+}
+
+test "pyc-first: PEP 487 __init_subclass__ fires on subclass creation" {
+    r = run_source(
+        "class Base:\n"
+        "    def __init_subclass__(cls, **kw): cls.registered = True\n"
+        "class Sub(Base): pass\n"
+        "isc = 1 if getattr(Sub, 'registered', False) else 0\n"
+    );
+    assert expect_int(r["isc"]) == 1;
+}
+
+test "pyc-first: C3 MRO resolves a diamond in strict order; value overwrite in a loop is legal" {
+    r = run_source(
+        # Diamond W(Y, Z), Y(X), Z(X); m on Z and X only. C3 MRO [W,Y,Z,X] picks Z,
+        # a DFS order [W,Y,X,Z] would wrongly pick X.
+        "class X:\n"
+        "    def m(self): return 'X'\n"
+        "class Y(X): pass\n"
+        "class Z(X):\n"
+        "    def m(self): return 'Z'\n"
+        "class W(Y, Z): pass\n"
+        "c3 = W().m()\n"
+        # A same-key value overwrite during iteration is NOT a size change, so it
+        # must not raise (previously the version bump tripped a false RuntimeError).
+        "d = {1: 10, 2: 20}\n"
+        "ok = 1\n"
+        "try:\n"
+        "    for k in d:\n"
+        "        d[k] = d[k] + 1\n"
+        "except RuntimeError:\n"
+        "    ok = 0\n"
+        "s1 = d[1]\n"
+    );
+    assert expect_str(r["c3"]) == "Z";
+    assert expect_int(r["ok"]) == 1;
+    assert expect_int(r["s1"]) == 11;
 }
