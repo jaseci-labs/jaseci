@@ -2,6 +2,10 @@
 
 glob:pub baseUrl = window.location.origin;
 
+async def _jsonBody(resp: any) -> dict {
+    return await resp.json();
+}
+
 async def:pub fetchApi(endpoint: str, options: dict = {}, token: str = "") -> dict {
     headers = options["headers"] or {};
     if token {
@@ -15,8 +19,7 @@ async def:pub fetchApi(endpoint: str, options: dict = {}, token: str = "") -> di
 
     try {
         resp = await fetch(baseUrl + endpoint, fetchOptions);
-        data = await resp.json();
-        return data;
+        return await _jsonBody(resp);
     } except Exception as e {
         console.error("API error:", e);
         return {"ok": False, "error": {"message": str(e)}};
