@@ -163,6 +163,13 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
     def proc_file_ast(nd: c_ast.Node) -> uni.Module;
     def proc_compound(nd: c_ast.Node) -> list[uni.CodeBlockStmt];
     def proc_func_def(nd: c_ast.Node) -> uni.Ability;
+    def _lift_goto_ladder(nd: c_ast.Node) -> list[uni.CodeBlockStmt] | None;
+    def _walk_c(nd: c_ast.Node, gotos: list, labels: list) -> None;
+    def _goto_raise(c_node: c_ast.Node) -> uni.RaiseStmt;
+    def _lift_prefix_stmt(
+        it: c_ast.Node, lbl_name: str
+    ) -> list[uni.CodeBlockStmt] | None;
+
     def proc_decl(nd: c_ast.Node) -> object;
     def proc_return(nd: c_ast.Node) -> uni.ReturnStmt;
     def proc_binary_op(nd: c_ast.Node) -> object;

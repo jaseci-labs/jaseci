@@ -41,9 +41,7 @@ glob _MINILIB_DRIVER: str = "#include <stdio.h>\n"
      "    printf(\"%d\\n\", run_arr_sum());\n"
      "    return 0;\n"
      "}\n",
-     _ARR_ENTRY: str = "with entry {\n"
-     "    print(run_arr_sum());\n"
-     "}\n";
+     _ARR_ENTRY: str = "with entry {\n" "    print(run_arr_sum());\n" "}\n";
 
 
 def _scalar_case(
@@ -58,19 +56,8 @@ def _scalar_case(
     fn: str = c_expr.split("(")[0];
     return (
         name,
-        "#include <stdio.h>\n"
-        + "int " + fn + "();\n"
-        + c_helpers
-        + "int main(void) {\n"
-        + c_prelude
-        + "    printf(\"%d\\n\", " + c_expr + ");\n"
-        + "    return 0;\n"
-        + "}\n",
-        jac_helpers
-        + "with entry {\n"
-        + jac_prelude
-        + "    print(" + jac_expr + ");\n"
-        + "}\n",
+        "#include <stdio.h>\n" + "int " + fn + "();\n" + c_helpers + "int main(void) {\n" + c_prelude + "    printf(\"%d\\n\", " + c_expr + ");\n" + "    return 0;\n" + "}\n",
+        jac_helpers + "with entry {\n" + jac_prelude + "    print(" + jac_expr + ");\n" + "}\n",
         fn
     );
 }
@@ -78,137 +65,136 @@ def _scalar_case(
 # Callable deterministic fixtures. No expected-band column — the lifter
 # supplies MATCH vs TRAP via quarantined_functions.
 glob _BREADTH_CASES: list[tuple[str, str, str, str]] = [
-    _scalar_case("arrays.c", "sum_array(5)", "sum_array(5)"),
-    _scalar_case("cfor.c", "sum_for(5)", "sum_for(5)"),
-    _scalar_case(
-        "control_flow.c",
-        "find_first(values, 4, 9)",
-        "find_first([1, 2, -1, 4], 4, 9)",
-        c_prelude="int values[] = {1, 2, -1, 4};\n"
-    ),
-    _scalar_case("do_while.c", "countdown(5)", "countdown(5)"),
-    _scalar_case("enum_collision.c", "test_b()", "test_b()"),
-    _scalar_case("enum_flags.c", "has_read(7)", "has_read(7)"),
-    _scalar_case(
-        "enum_simple.c",
-        "get_color()",
-        "1 if get_color() == Color.GREEN else 0"
-    ),
-    _scalar_case("expr_stmts.c", "f(3)", "f(3)"),
-    _scalar_case(
-        "for_array_body.c",
-        "sum_array(values, 3)",
-        "sum_array(values, 3)",
-        c_prelude="int values[] = {1, 2, 3};\n",
-        jac_prelude="values = [1, 2, 3];\n",
-        c_helpers="void note(const char *msg) {}\n"
-    ),
-    _scalar_case("for_block_spacing.c", "accumulate(4)", "accumulate(4)"),
-    _scalar_case("for_body_rich.c", "classify(6)", "classify(6)"),
-    _scalar_case(
-        "for_call_body.c",
-        "run(4)",
-        "run(4)",
-        c_helpers="int sink(int v) { return v; }\n",
-        jac_helpers="def sink(v: int) -> int { return v; }\n\n"
-    ),
-    _scalar_case("for_char_cond.c", "match_char('a')", "match_char(97)"),
-    _scalar_case("for_comma.c", "impure_comma(4)", "impure_comma(4)"),
-    _scalar_case("for_comma_init.c", "run(3)", "run(3)"),
-    _scalar_case(
-        "for_comma_init_rich.c",
-        "run(4)",
-        "run(4)",
-        c_helpers="int seed(void) { return 7; }\n",
-        jac_helpers="def seed() -> int { return 7; }\n\n"
-    ),
-    _scalar_case("for_comma_step.c", "run(3)", "run(3)"),
-    _scalar_case("for_continue.c", "sum_odd_descending(5)", "sum_odd_descending(5)"),
-    _scalar_case("for_empty_stmt.c", "run(4)", "run(4)"),
-    _scalar_case("for_funcall_step.c", "run(4)", "run(4)"),
-    _scalar_case("for_funcall_step_continue.c", "run(4)", "run(4)"),
-    _scalar_case("for_incdec_body.c", "run(4)", "run(4)"),
-    _scalar_case("for_infinite_continue.c", "sum_until(5)", "sum_until(5)"),
-    _scalar_case("for_initlist.c", "run(5)", "run(5)"),
-    _scalar_case("for_multidecl_init.c", "run(3)", "run(3)"),
-    _scalar_case("for_ternary.c", "clamp_sum(5, 2)", "clamp_sum(5, 2)"),
-    _scalar_case("for_unsupported.c", "spin()", "spin()"),
-    # `*(p+1)` on char* is now a faithful str-cursor deref (MATCH with
-    # length-1 `"a"` where the peeked byte is NUL).
-    _scalar_case(
-        "for_unmappable_cond.c", 'scan("a")', 'scan("a")'
-    ),
-    _scalar_case(
-        "for_nested_cond_clobber.c", 'scan("a")', 'scan("a")'
-    ),
-    _scalar_case("for_nested_dowhile.c", "clean(4)", "clean(4)"),
-    _scalar_case("for_nested_dowhile.c", "dirty(4)", "dirty(4)"),
-    _scalar_case("for_nested_switch.c", "clean(4)", "clean(4)"),
-    _scalar_case("for_nested_switch.c", "dirty(4)", "dirty(4)"),
-    _scalar_case(
-        "for_deref.c",
-        "sum_deref(&v, 3)",
-        "sum_deref(7, 3)",
-        c_prelude="int v = 7;\n"
-    ),
-    _scalar_case(
-        "for_deref.c",
-        "sum_computed_deref(a, 3)",
-        "sum_computed_deref([1, 2, 3], 3)",
-        c_prelude="int a[3] = {1, 2, 3};\n"
-    ),
-    _scalar_case("do_while_continue.c", "sum_odd(5)", "sum_odd(5)"),
-    _scalar_case("switch_fallthrough.c", "classify(1)", "classify(1)"),
-    _scalar_case("for_cast.c", "truncate_sum(5)", "truncate_sum(5)"),
-    _scalar_case("edge_cases.c", "goto_test(1)", "goto_test(1)"),
-    _scalar_case("edge_cases_2.c", "variadic_sum(0)", "variadic_sum(0)"),
-    _scalar_case("edge_cases_3.c", "pointer_array()", "pointer_array()"),
-    _scalar_case("nonascii_str.c", "use()", "use()"),
-    _scalar_case("hello.c", "add(2, 3)", "add(2, 3)"),
-    _scalar_case(
-        "cpython/pystrcmp.c",
-        'PyOS_mystricmp("Ab", "aB")',
-        'PyOS_mystricmp("Ab", "aB")'
-    ),
-    _scalar_case(
-        "cpython/pystrcmp.c",
-        'PyOS_mystrnicmp("Abc", "aBd", 2)',
-        'PyOS_mystrnicmp("Abc", "aBd", 2)'
-    ),
-    _scalar_case(
-        "pointers.c",
-        "get_x(make_point(7, 9))",
-        "get_x(make_point(7, 9))",
-        c_helpers="typedef struct { int x; int y; } Point;\n"
-        "Point *make_point();\n"
-    ),
-    _scalar_case(
-        "ptr_idioms.c",
-        "sum_via_ref(&point)",
-        "sum_via_ref(point)",
-        c_prelude="Point point = {3, 4};\n",
-        jac_prelude="point = Point(x=3, y=4);\n",
-        c_helpers="typedef struct { int x; int y; } Point;\n"
-        "void set_field(int *slot, int v) { *slot = v; }\n",
-        jac_helpers="def set_field(slot: int, v: int) -> None {}\n\n"
-    ),
-    _scalar_case("struct_array.c", "build()", "build()"),
-    _scalar_case("switch_basic.c", "classify(2)", "classify(2)"),
-    _scalar_case("ternary.c", "absval(-7)", "absval(-7)"),
-    # Former STYLE skips: defined writes / scalar entries make them differential.
-    _scalar_case("obj_array.c", "sum_first(5)", "sum_first(5)"),
-    _scalar_case("struct_shape.c", "point_sum()", "point_sum()"),
-    _scalar_case("struct_shape.c", "point_init_sum()", "point_init_sum()"),
-    _scalar_case("struct_shape.c", "point_desig_sum()", "point_desig_sum()"),
-    _scalar_case(
-        "cpython/rotatingtree.c",
-        "RotatingTree_RandomBits(3)",
-        "RotatingTree_RandomBits(3)"
-    )
-];
-
-# Every STYLE/none breadth fixture now has a callable oracle entry.
-glob _ORACLE_SKIP: set[str] = set();
+         _scalar_case("arrays.c", "sum_array(5)", "sum_array(5)"),
+         _scalar_case("cfor.c", "sum_for(5)", "sum_for(5)"),
+         _scalar_case(
+             "control_flow.c",
+             "find_first(values, 4, 9)",
+             "find_first([1, 2, -1, 4], 4, 9)",
+             c_prelude="int values[] = {1, 2, -1, 4};\n"
+         ),
+         _scalar_case("do_while.c", "countdown(5)", "countdown(5)"),
+         _scalar_case("enum_collision.c", "test_b()", "test_b()"),
+         _scalar_case("enum_flags.c", "has_read(7)", "has_read(7)"),
+         _scalar_case(
+             "enum_simple.c", "get_color()", "1 if get_color() == Color.GREEN else 0"
+         ),
+         _scalar_case("expr_stmts.c", "f(3)", "f(3)"),
+         _scalar_case(
+             "for_array_body.c",
+             "sum_array(values, 3)",
+             "sum_array(values, 3)",
+             c_prelude="int values[] = {1, 2, 3};\n",
+             jac_prelude="values = [1, 2, 3];\n",
+             c_helpers="void note(const char *msg) {}\n"
+         ),
+         _scalar_case("for_block_spacing.c", "accumulate(4)", "accumulate(4)"),
+         _scalar_case("for_body_rich.c", "classify(6)", "classify(6)"),
+         _scalar_case(
+             "for_call_body.c",
+             "run(4)",
+             "run(4)",
+             c_helpers="int sink(int v) { return v; }\n",
+             jac_helpers="def sink(v: int) -> int { return v; }\n\n"
+         ),
+         _scalar_case("for_char_cond.c", "match_char('a')", "match_char(97)"),
+         _scalar_case("for_comma.c", "impure_comma(4)", "impure_comma(4)"),
+         _scalar_case("for_comma_init.c", "run(3)", "run(3)"),
+         _scalar_case(
+             "for_comma_init_rich.c",
+             "run(4)",
+             "run(4)",
+             c_helpers="int seed(void) { return 7; }\n",
+             jac_helpers="def seed() -> int { return 7; }\n\n"
+         ),
+         _scalar_case("for_comma_step.c", "run(3)", "run(3)"),
+         _scalar_case(
+             "for_continue.c", "sum_odd_descending(5)", "sum_odd_descending(5)"
+         ),
+         _scalar_case("for_empty_stmt.c", "run(4)", "run(4)"),
+         _scalar_case("for_funcall_step.c", "run(4)", "run(4)"),
+         _scalar_case("for_funcall_step_continue.c", "run(4)", "run(4)"),
+         _scalar_case("for_incdec_body.c", "run(4)", "run(4)"),
+         _scalar_case("for_infinite_continue.c", "sum_until(5)", "sum_until(5)"),
+         _scalar_case("for_initlist.c", "run(5)", "run(5)"),
+         _scalar_case("for_multidecl_init.c", "run(3)", "run(3)"),
+         _scalar_case("for_ternary.c", "clamp_sum(5, 2)", "clamp_sum(5, 2)"),
+         _scalar_case("for_unsupported.c", "spin()", "spin()"),
+         # `*(p+1)` on char* is now a faithful str-cursor deref (MATCH with
+         # length-1 `"a"` where the peeked byte is NUL).
+         _scalar_case("for_unmappable_cond.c", 'scan("a")', 'scan("a")'),
+         _scalar_case("for_nested_cond_clobber.c", 'scan("a")', 'scan("a")'),
+         _scalar_case("for_nested_dowhile.c", "clean(4)", "clean(4)"),
+         _scalar_case("for_nested_dowhile.c", "dirty(4)", "dirty(4)"),
+         _scalar_case("for_nested_switch.c", "clean(4)", "clean(4)"),
+         _scalar_case("for_nested_switch.c", "dirty(4)", "dirty(4)"),
+         _scalar_case(
+             "for_deref.c",
+             "sum_deref(&v, 3)",
+             "sum_deref(7, 3)",
+             c_prelude="int v = 7;\n"
+         ),
+         _scalar_case(
+             "for_deref.c",
+             "sum_computed_deref(a, 3)",
+             "sum_computed_deref([1, 2, 3], 3)",
+             c_prelude="int a[3] = {1, 2, 3};\n"
+         ),
+         _scalar_case("do_while_continue.c", "sum_odd(5)", "sum_odd(5)"),
+         _scalar_case("switch_fallthrough.c", "classify(1)", "classify(1)"),
+         _scalar_case("for_cast.c", "truncate_sum(5)", "truncate_sum(5)"),
+         _scalar_case("edge_cases.c", "goto_test(1)", "goto_test(1)"),
+         _scalar_case("edge_cases_2.c", "variadic_sum(0)", "variadic_sum(0)"),
+         _scalar_case("edge_cases_3.c", "pointer_array()", "pointer_array()"),
+         _scalar_case("nonascii_str.c", "use()", "use()"),
+         _scalar_case("hello.c", "add(2, 3)", "add(2, 3)"),
+         _scalar_case(
+             "cpython/pystrcmp.c",
+             'PyOS_mystricmp("Ab", "aB")',
+             'PyOS_mystricmp("Ab", "aB")'
+         ),
+         _scalar_case(
+             "cpython/pystrcmp.c",
+             'PyOS_mystrnicmp("Abc", "aBd", 2)',
+             'PyOS_mystrnicmp("Abc", "aBd", 2)'
+         ),
+         _scalar_case(
+             "pointers.c",
+             "get_x(make_point(7, 9))",
+             "get_x(make_point(7, 9))",
+             c_helpers="typedef struct { int x; int y; } Point;\n"
+             "Point *make_point();\n"
+         ),
+         _scalar_case(
+             "ptr_idioms.c",
+             "sum_via_ref(&point)",
+             "sum_via_ref(point)",
+             c_prelude="Point point = {3, 4};\n",
+             jac_prelude="point = Point(x=3, y=4);\n",
+             c_helpers="typedef struct { int x; int y; } Point;\n"
+             "void set_field(int *slot, int v) { *slot = v; }\n",
+             jac_helpers="def set_field(slot: int, v: int) -> None {}\n\n"
+         ),
+         _scalar_case("struct_array.c", "build()", "build()"),
+         _scalar_case("switch_basic.c", "classify(2)", "classify(2)"),
+         _scalar_case("ternary.c", "absval(-7)", "absval(-7)"),
+         # Former STYLE skips: defined writes / scalar entries make them differential.
+         _scalar_case("obj_array.c", "sum_first(5)", "sum_first(5)"),
+         _scalar_case("struct_shape.c", "point_sum()", "point_sum()"),
+         _scalar_case("struct_shape.c", "point_init_sum()", "point_init_sum()"),
+         _scalar_case("struct_shape.c", "point_desig_sum()", "point_desig_sum()"),
+         _scalar_case(
+             "cpython/rotatingtree.c",
+             "RotatingTree_RandomBits(3)",
+             "RotatingTree_RandomBits(3)"
+         )
+     ],
+     # Every STYLE/none breadth fixture now has a callable oracle entry, except
+     # GOTO_LIFTER fixtures: the lift deliberately turns the C error path (`goto
+     # error; ... return -1;`) into a `raise`, so a scalar return-value differential
+     # against the original C is meaningless by construction. Their faithful output
+     # shape is locked in test_cast_breadth.jac instead.
+     _ORACLE_SKIP: set[str] = {"goto_error.c"};
 
 
 def _format_mismatches(mismatches: list) -> str {

@@ -335,7 +335,8 @@ impl CastBuildPass.proc_func_def(nd: c_ast.Node) -> uni.Ability {
     );
     self._func_depth += 1;
     self._func_global_writes = set();
-    body = self.proc_compound(nd.body);
+    lifted = self._lift_goto_ladder(nd.body);
+    body = lifted if lifted is not None else self.proc_compound(nd.body);
     self._func_depth -= 1;
     if self._func_contam {
         body = [self._quarantine_raise(nd, fname, list(self._func_contam))];
@@ -368,6 +369,158 @@ impl CastBuildPass.proc_func_def(nd: c_ast.Node) -> uni.Ability {
             )
         )
     );
+}
+
+impl CastBuildPass._walk_c(nd: c_ast.Node, gotos: list, labels: list) -> None {
+    if nd is None {
+        return;
+    }
+    if isinstance(nd, c_ast.Goto) {
+        gotos.append(nd);
+    }
+    if isinstance(nd, c_ast.Label) {
+        labels.append(nd);
+    }
+    for (_, child) in nd.children() {
+        self._walk_c(child, gotos, labels);
+    }
+}
+
+impl CastBuildPass._goto_raise(c_node: c_ast.Node) -> uni.RaiseStmt {
+    exc_name = self._name(c_node, "Exception");
+    exc_call = uni.FuncCall(
+        target=exc_name, params=[], genai_call=None, kid=[exc_name]
+    );
+    raise_tok = self._op_tok(c_node, Tok.KW_RAISE, "raise");
+    return uni.RaiseStmt(cause=exc_call, from_target=None, kid=[raise_tok, exc_call]);
+}
+
+impl CastBuildPass._lift_prefix_stmt(
+    it: c_ast.Node, lbl_name: str
+) -> list[uni.CodeBlockStmt] | None {
+    if isinstance(it, c_ast.If) and it.iffalse is None {
+        inner = it.iftrue;
+        if isinstance(inner, c_ast.Compound) {
+            items = inner.block_items or [];
+            inner = items[0] if len(items) == 1 else inner;
+        }
+        if isinstance(inner, c_ast.Goto) and inner.name == lbl_name {
+            test = self.conv_expr(it.cond);
+            if not isinstance(test, uni.Expr) {
+                return None;
+            }
+            raise_stmt = self._goto_raise(inner);
+            body: list[uni.CodeBlockStmt] = [raise_stmt];
+            kid: list[uni.UniNode] = [test, raise_stmt];
+            return [uni.IfStmt(condition=test, body=body, else_body=None, kid=kid)];
+        }
+    }
+    local_gotos: list = [];
+    local_labels: list = [];
+    self._walk_c(it, local_gotos, local_labels);
+    if local_gotos or local_labels {
+        return None;
+    }
+    return [
+        s
+        for s in self._stmts_from(it)
+        if isinstance(s, uni.CodeBlockStmt)
+    ];
+}
+
+impl CastBuildPass._lift_goto_ladder(nd: c_ast.Node) -> list[uni.CodeBlockStmt] | None {
+    if nd is None {
+        return None;
+    }
+    items = nd.block_items or [];
+    top_labels = [
+        (i, it)
+        for (i, it) in enumerate(items)
+        if isinstance(it, c_ast.Label)
+    ];
+    if len(top_labels) != 1 {
+        return None;
+    }
+    (lbl_idx, lbl_node) = top_labels[0];
+    lbl_name = lbl_node.name;
+    all_gotos: list = [];
+    all_labels: list = [];
+    for it in items {
+        self._walk_c(it, all_gotos, all_labels);
+    }
+    if len(all_labels) != 1 {
+        return None;
+    }
+    if not all_gotos {
+        return None;
+    }
+    for g in all_gotos {
+        if g.name != lbl_name {
+            return None;
+        }
+    }
+    cleanup_region = items[lbl_idx:];
+    clean_gotos: list = [];
+    clean_labels: list = [];
+    for it in cleanup_region {
+        self._walk_c(
+            it.stmt if isinstance(it, c_ast.Label) else it, clean_gotos, clean_labels
+        );
+    }
+    if clean_gotos {
+        return None;
+    }
+    try_body: list[uni.CodeBlockStmt] = [];
+    for it in items[:lbl_idx] {
+        chunk = self._lift_prefix_stmt(it, lbl_name);
+        if chunk is None {
+            return None;
+        }
+        try_body.extend(chunk);
+    }
+    cleanup_items: list = [];
+    if lbl_node.stmt is not None {
+        cleanup_items.append(lbl_node.stmt);
+    }
+    cleanup_items.extend(items[lbl_idx + 1:]);
+    tail: list[uni.CodeBlockStmt] = [];
+    if cleanup_items and isinstance(cleanup_items[-1], c_ast.Return) {
+        ret = cleanup_items.pop();
+        tail = [
+            s
+            for s in self._stmts_from(ret)
+            if isinstance(s, uni.CodeBlockStmt)
+        ];
+    }
+    finally_body: list[uni.CodeBlockStmt] = [];
+    for it in cleanup_items {
+        if it is None or isinstance(it, c_ast.EmptyStatement) {
+            continue;
+        }
+        finally_body.extend(
+            s
+            for s in self._stmts_from(it)
+            if isinstance(s, uni.CodeBlockStmt)
+        );
+    }
+    if not [
+        s
+        for s in finally_body
+        if not isinstance(s, uni.Semi)
+    ] {
+        return [*try_body, *tail];
+    }
+    fin = uni.FinallyStmt(body=finally_body, kid=finally_body);
+    try_kid: list[uni.UniNode] = [*try_body, fin];
+    try_stmt = uni.TryStmt(
+        body=try_body,
+        excepts=[],
+        else_body=None,
+        awaiting_body=None,
+        finally_body=fin,
+        kid=try_kid
+    );
+    return [cast(uni.CodeBlockStmt, try_stmt), *tail];
 }
 
 impl CastBuildPass.proc_decl(nd: c_ast.Node) -> object {
@@ -470,9 +623,7 @@ impl CastBuildPass.proc_binary_op(nd: c_ast.Node) -> object {
         self._expr_prim(nd.left) == JacPrim.INT
         and self._expr_prim(nd.right) == JacPrim.INT
     ) {
-        signed = not (
-            self._expr_unsigned(nd.left) and self._expr_unsigned(nd.right)
-        );
+        signed = not (self._expr_unsigned(nd.left) and self._expr_unsigned(nd.right));
         if nd.op == "/" {
             tok = Tok.FLOOR_DIV;
             text = "//";
@@ -1174,13 +1325,9 @@ impl CastBuildPass._record_scalar_type(name: str, type_node: c_ast.Node) -> None
 }
 
 impl CastBuildPass._expr_unsigned(c_node: c_ast.Node) -> bool {
-    # True only when the operand is provably non-negative: an unsigned-typed
-    # variable, a `(unsigned...)` cast, or an unsigned integer literal. Signed `/`
-    # and `%` diverge from Jac's floor semantics, but unsigned ones do not, so
-    # this gates the W4212/W4213 fidelity diagnostics.
     if isinstance(c_node, c_ast.Constant) {
         return "u" in (c_node.type or "").lower()
-            and classify_c_constant(c_node.type) == CLIT_INT;
+        and classify_c_constant(c_node.type) == CLIT_INT;
     }
     if isinstance(c_node, c_ast.ID) {
         return c_node.name in self._var_unsigned;

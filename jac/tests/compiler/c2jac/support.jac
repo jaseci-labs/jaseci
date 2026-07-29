@@ -13,12 +13,11 @@ import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES: str = os.path.join(
          JAC_ROOT, "tests", "compiler", "c2jac", "fixtures"
-     );
-
-# (fixture, sorted expected diagnostic codes). Every directive-free fixture the
-# breadth suite covers; `[]` == a fully faithful lift with no best-effort holes.
-# Shared by the static breadth test and the dynamic lift-oracle coverage ratchet.
-glob BREADTH: list[tuple[str, list[str]]] = [
+     ),
+     # (fixture, sorted expected diagnostic codes). Every directive-free fixture the
+     # breadth suite covers; `[]` == a fully faithful lift with no best-effort holes.
+     # Shared by the static breadth test and the dynamic lift-oracle coverage ratchet.
+     BREADTH: list[tuple[str, list[str]]] = [
          ("arrays.c", []),
          ("cfor.c", ["W4213"]),
          ("control_flow.c", []),
@@ -58,6 +57,7 @@ glob BREADTH: list[tuple[str, list[str]]] = [
          ("for_ternary.c", []),
          ("for_unmappable_cond.c", []),
          ("for_unsupported.c", []),
+         ("goto_error.c", []),
          ("hello.c", []),
          ("nonascii_str.c", []),
          ("obj_array.c", []),

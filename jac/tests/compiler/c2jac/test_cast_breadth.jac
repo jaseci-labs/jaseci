@@ -177,3 +177,26 @@ test "cpython/rotatingtree.c escapes reserved-keyword C identifiers" {
     assert "`node.left = NULL;" in out;
     assert res.diags == [] , res.diags;
 }
+
+test "goto_error.c lifts a forward error ladder to try/finally + raise (GOTO_LIFTER)" {
+    res = lift_c_str(_read("goto_error.c"), "goto_error.c");
+    out = res.module.unparse(requires_format=True);
+    # The `if (rc < 0) goto error;` guards become `raise`; the shared `error:`
+    # cleanup becomes a `finally`. Promotes the whole function from Tier-B
+    # (goto/label quarantine) to a faithful Tier-A lift -- no diags, no
+    # quarantine. See jac-py PLAN.md §6.1 GOTO_LIFTER.
+    assert "try {" in out , out;
+    assert "raise Exception();" in out , out;
+    assert "} finally {" in out , out;
+    assert "b.len = 0;" in out , out;
+    assert res.quarantined_functions == [] , res.quarantined_functions;
+    assert res.diags == [] , res.diags;
+}
+
+test "backward goto stays Tier-B (GOTO_LIFTER is forward-only)" {
+    src = "int h(int n) { int i = 0;\nloop: i++; if (i < n) goto loop; return i; }\n";
+    res = lift_c_str(src, "backward_goto.c");
+    # A backward `goto loop` is irreducible flow: recognition must bail and the
+    # function falls back to the existing whole-function quarantine.
+    assert res.quarantined_functions == ["h"] , res.quarantined_functions;
+}
