@@ -46,7 +46,7 @@ concurrency:
 jobs:
   recapture:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
@@ -69,10 +69,12 @@ jobs:
           nproc && node --version
 
       - name: Portability re-capture (ratios, elevated reps)
-        # JOBS=2 on the 4-core hosted runner: matching parallelism to cores keeps
-        # the tiny cells from being starved (an 8-way default oversubscribed the
-        # box and dropped samples). REPS=40 still absorbs the shared-clock jitter.
-        run: REPS=40 XRUN_INV=20 JOBS=2 scripts/portability_recapture.sh ci-arm64-neoverse
+        # JOBS=4 == the runner's cores: each measurement mostly owns a core, so
+        # the tiny, jitter-sensitive cells are not preempted mid-timing the way the
+        # 8-way default (oversubscribed on 4 cores) starved them. The bounded
+        # re-measure in sweep_controlled.py backstops any residual drop. REPS=40
+        # still absorbs the shared-clock jitter.
+        run: REPS=40 XRUN_INV=20 JOBS=4 scripts/portability_recapture.sh ci-arm64-neoverse
 
       - name: Upload re-capture bundle
         uses: actions/upload-artifact@v4
