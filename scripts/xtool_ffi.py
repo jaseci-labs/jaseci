@@ -29,9 +29,10 @@ decorative. Missing toolchains (no compiler, no pybind11, no cargo) are recorded
 as skipped with a reason rather than silently dropped.
 
 Jac's own native FFI kernels (iop_ffi_scalar sqrt, iop_ffi_struct struct-by-
-value) are measured via `jac run` and pulled in with --jac-na as ANCHORS beside
-the Python toolchains. They are a separate workload/digest, reported but NOT
-folded into the cross-toolchain digest oracle.
+value, iop_ffi_bytes FNV-1a over a byte buffer) are measured via `jac run` and
+pulled in with --jac-na as ANCHORS beside the Python toolchains, one per
+signature shape (scalar / struct-by-value / bytes-pointer). They are a separate
+workload/digest, reported but NOT folded into the cross-toolchain digest oracle.
 
 Usage:
     python3 scripts/xtool_ffi.py --reps 5 --matched-n 2000 --isolated-n 2000000 \
@@ -623,7 +624,8 @@ def main() -> None:
     ap.add_argument(
         "--jac-na",
         action="store_true",
-        help="also measure the Jac-native iop_ffi_scalar sqrt point",
+        help="also measure the Jac-native iop_ffi_* anchor points "
+        "(scalar sqrt, struct-by-value, bytes-pointer FNV-1a)",
     )
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
@@ -786,19 +788,54 @@ def _measure_jac_na_kernel(
     }
 
 
+def _ensure_bench_clib() -> str | None:
+    """Rebuild libinteropbench.so from source so the struct/bytes anchors bind a
+    .so that definitely exports the symbols they import (ib_dot-family + ib_fnv1a),
+    rather than trusting a possibly-stale local build. Returns a skip reason or
+    None on success."""
+    src = BENCH / "kernels" / "support" / "interopbench.c"
+    out = BENCH / "bin" / "libinteropbench.so"
+    if not src.exists():
+        return f"C fixture source missing: {src}"
+    cc = shutil.which("cc") or shutil.which("gcc")
+    if cc is None:
+        # No compiler: fall back to an existing build if present, else skip.
+        return None if out.exists() else "no C compiler (cc/gcc) and no prebuilt .so"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    b = subprocess.run(
+        [cc, "-shared", "-fPIC", "-O2", "-o", str(out), str(src)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    return None if b.returncode == 0 else f"cc failed to build {out}: {b.stderr}"
+
+
 def _measure_jac_na(reps: int) -> dict | None:
-    """Measure Jac-native FFI anchors: scalar (sqrt) and struct-by-value."""
+    """Measure Jac-native FFI anchors: scalar (sqrt), struct-by-value, bytes."""
     jac = shutil.which("jac")
     if jac is None:
         return {"skipped": "jac not on PATH"}
+    clib_err = _ensure_bench_clib()
+    # sqrt binds system libm; struct/bytes bind the freshly-built libinteropbench.
+    struct = (
+        {"skipped": clib_err}
+        if clib_err
+        else _measure_jac_na_kernel(
+            jac, "kernels/iop_ffi_struct.na.jac", "struct", reps
+        )
+    )
+    byts = (
+        {"skipped": clib_err}
+        if clib_err
+        else _measure_jac_na_kernel(jac, "kernels/iop_ffi_bytes.na.jac", "bytes", reps)
+    )
     return {
         "sqrt": _measure_jac_na_kernel(
             jac, "kernels/iop_ffi_scalar.na.jac", "sqrt", reps
         ),
-        "struct": _measure_jac_na_kernel(
-            jac, "kernels/iop_ffi_struct.na.jac", "struct", reps
-        ),
-        "bytes": {"skipped": "no Jac-native bytes/pointer FFI kernel yet"},
+        "struct": struct,
+        "bytes": byts,
         "note": "Jac's own native FFI kernels; separate workloads/digests from "
         "the Python-side cross-tool oracle -- reported as anchors, not "
         "folded into the toolchain digest-identity check.",

@@ -70,3 +70,40 @@ def test_struct_kernel_matched_across_toolchains():
             assert row["digest"] == ref and row["digest_ok"], (
                 f"{kernel}/{tc} digest {row['digest']} != ref {ref}"
             )
+
+
+@pytest.mark.skipif(
+    not (shutil.which("gcc") and shutil.which("jac")),
+    reason="gcc + jac required",
+)
+def test_jac_na_anchors_all_three_shapes():
+    """--jac-na must yield a measured (not skipped) Jac-native anchor for each
+    signature shape: scalar (sqrt), struct-by-value, and bytes-pointer. Guards
+    against the bytes anchor silently regressing back to a skip."""
+    out = Path(tempfile.mkdtemp()) / "ffi.json"
+    subprocess.run(
+        [
+            sys.executable,
+            str(HERE / "xtool_ffi.py"),
+            "--toolchains",
+            "ctypes,cext",
+            "--reps",
+            "1",
+            "--matched-n",
+            "100",
+            "--isolated-n",
+            "20000",
+            "--jac-na",
+            "--out",
+            str(out),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=300,
+    )
+    jac_na = json.loads(out.read_text())["jac_na"]
+    for shape in ("sqrt", "struct", "bytes"):
+        cell = jac_na[shape]
+        assert "skipped" not in cell, f"{shape} anchor skipped: {cell.get('skipped')}"
+        assert cell["per_ffi_call_ns"] >= 0
+        assert cell["digest"] and cell["digest"].startswith(f"{shape}:")

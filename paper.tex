@@ -45,16 +45,16 @@ per-call time into a fixed crossing \emph{intercept} and an execution or
 serialization \emph{slope}. Two decompositions headline. Execution placement is
 a $\approx$$42\times$ per-iteration slope ($5$ vs.\ $212$\,ns/iter, \code{na}
 vs.\ \code{sv}), while the \code{native$\rightarrow$server} callback crossing
-is a fixed $\approx$$2.0$\,\textmu s intercept; its $1.13\times$ single-size
+is a fixed $\approx$$3.6$\,\textmu s intercept; its $1.13\times$ single-size
 ratio amortizes to $\approx$$1.0\times$ under real work. A loopback RPC
-resolves into a $\approx$$15$\,ms fixed cost plus an $890$\,ns/element
-serialization slope---$2.6\times$ the in-process $342$\,ns/element---with
-break-even at $N\approx17{,}000$. A committed, oracle-gated cross-tool matrix
+resolves into a $\approx$$4.2$\,ms fixed cost plus a $1{,}105$\,ns/element
+serialization slope---$3.2\times$ the in-process $341$\,ns/element---with
+its fixed/variable crossover at $N\approx3{,}800$. A committed, oracle-gated cross-tool matrix
 turns characterization into a \emph{verdict} against the glue these crossings
 replace: Jac-native FFI holds a $\approx$$10\times$ mechanism-cost edge over the
 best CPython bindings (\code{METH\_O}, \code{pybind11}, \code{PyO3}) across
 scalar, struct-by-value, and bytes kernels, and its shipped generated-RPC path
-costs $\approx$$10\times$ a hand-written \code{FastAPI} client on the boundary
+costs $\approx$$3\times$ a hand-written \code{FastAPI} client on the boundary
 term---each isolating binding mechanism from interpreter and framework dispatch,
 with a loopback-RTT control confirming the RPC floor is marshalling, not wire.
 Timings are reported strictly as ``this
@@ -460,11 +460,14 @@ because a boosted clock \emph{droops} thermally over an eight-minute sweep (earl
 points fast, late points slow), the linear fits tilted and extrapolated to
 negative intercepts, inflating the callback twin-gap to $\approx$$5.4$\,\textmu s.
 Under the pinned clock every \code{sv}-resident slope converges to
-$212$--$217$\,ns/iter, all intercepts are positive, and the callback gap settles
-at $\approx$$2.0$\,\textmu s.
+$212$--$220$\,ns/iter, all intercepts are positive, and the callback twin-gap
+settles at $\approx$$3.6$\,\textmu s.
 
 The consequence for how results should be read: \emph{ratios} (placement
-$42\times$, the cross-runtime floors) are reproducible and portable, whereas the
+$42\times$, the cross-runtime floors) are reproducible on this machine and, we
+argue, portable in principle---though that portability is so far tested only by
+same-machine re-capture (\code{results/portability/}); the cross-machine
+campaign that would confirm it is left as future work (Section~\ref{sec:conclusion})---whereas the
 \emph{absolute} nanosecond figures are specific to this CPU
 (Intel Core Ultra~7~255H) at its pinned base clock---disabling turbo halves the
 clock, so the \code{direct} baseline moves from $\approx$$385$ to
@@ -558,7 +561,7 @@ across the three pinned runs ($1.12$/$1.15$/$1.12\times$, CV $1.2\%$) and the tw
 medians are cleanly separated, though at $n{=}20$ the distribution tails do touch
 (pooled reference \code{max} $896{,}323$ vs.\ bridge \code{min} $872{,}995$\,ns),
 so we read this as a $\approx$$13\%$ effect, not a hairline one. The $\approx$$5$\,\textmu s
-absolute gap this single size implies exceeds the fixed $\approx$$2.0$\,\textmu s
+absolute gap this single size implies exceeds the fixed $\approx$$3.6$\,\textmu s
 twin-gap intercept that the work sweep fits (Section~\ref{sec:sweep}); the excess
 is low-work curvature, which is exactly why the fitted intercept---not the raw
 single-size ratio---is the load-bearing measure of the crossing cost. This is the
@@ -647,34 +650,37 @@ column is per-foreign-call cost under the kernel's exact loop
 (\code{int(sqrt(float(i*i)))}, warmed, digest-verified); the \emph{isolated}
 column strips the loop by differencing a tight call loop against an empty one,
 leaving the boundary alone. The gap between them is the whole story. In the
-matched column Jac-native FFI ($3.1$\,ns) is $\approx$$50\times$ cheaper than a
-pybind11 wrapper ($163$\,ns) or a raw \code{METH\_O} C extension ($136$\,ns) and
-$\approx$$150\times$ cheaper than \code{ctypes} ($475$\,ns)---but those matched
-figures are dominated by \emph{CPython interpreter dispatch, not the binding
-mechanism}: a \emph{noop} C function costs the same as \code{sqrt} in both
-pybind11 and the C extension ($\Delta<0.5$\,ns), and a pure-Python identity
-lambda in the same loop costs $139$\,ns. Isolating the call itself tells the
-honest story: the Python$\rightarrow$C boundary is $\approx$$25$\,ns for a raw
-\code{METH\_O} C extension, $\approx$$40$\,ns for PyO3, and $\approx$$54$\,ns for
-pybind11---a narrow $25$--$54$\,ns band across hand-written and generated binding
+matched column Jac-native FFI ($3.0$\,ns) is $\approx$$50\times$ cheaper than a
+pybind11 wrapper ($154$\,ns) or a raw \code{METH\_O} C extension ($131$\,ns) and
+$\approx$$260\times$ cheaper than \code{ctypes} ($779$\,ns)---but those matched
+figures are dominated by \emph{CPython interpreter dispatch and per-call boxing,
+not the binding mechanism}: the pure-Python no-FFI reference over the same loop
+already costs $\approx$$196$\,ns, more than the C extension's matched
+$131$\,ns. Isolating the call itself tells the
+honest story: the Python$\rightarrow$C boundary is $\approx$$23$\,ns for a raw
+\code{METH\_O} C extension, $\approx$$47$\,ns for pybind11, and $\approx$$61$\,ns for
+PyO3---a $23$--$61$\,ns band across hand-written and generated binding
 layers---against $\approx$$3$\,ns per whole iteration (loop, call, and arithmetic
 together) for Jac-native FFI, and an order of magnitude above them all,
-\code{ctypes} at $\approx$$367$\,ns. So Jac's advantage over the best CPython-native
+\code{ctypes} at $\approx$$359$\,ns. So Jac's advantage over the best CPython-native
 bindings on \emph{mechanism} cost is roughly an order of magnitude, not the
-$100\times$-class ratio \code{ctypes} exhibits. Part of even the $25$\,ns
+$100\times$-class ratio \code{ctypes} exhibits. Part of even the $23$\,ns
 raw-extension floor is \code{PyFloat} boxing and refcounting that any CPython
 extension must pay---runtime tax, not binding-generator overhead. Every variant
-reconstructs the byte-identical digest \code{sqrt:402000}, so the
+reconstructs the byte-identical digest \code{sqrt:2001000}, so the
 differential-identity oracle now spans \emph{toolchains}: PyO3, pybind11, the C
 extension, \code{ctypes}, \code{cffi}, and Jac-native are provably computing one
 value from the same foreign calls.
 
 \begin{table}[t]
 \caption{Cross-tool FFI: same \code{libm} \code{sqrt}, same loop, same digest
-\code{sqrt:402000}. \emph{matched} = per foreign call under the kernel's loop
-($n{=}200$, median of five); \emph{isolated} = per-call boundary only (tight call
+\code{sqrt:2001000}. \emph{matched} = per foreign call under the kernel's loop
+($n{=}2000$, median of five); \emph{isolated} = per-call boundary only (tight call
 loop minus empty loop). The matched$\to$isolated drop exposes how much is
-CPython dispatch rather than binding mechanism.}
+CPython dispatch rather than binding mechanism. All rows are produced by the one
+committed harness \code{scripts/xtool\_ffi.py} and gated by the cross-tool
+digest oracle (Section~\ref{sec:audit}); numbers are from the canonical bundle
+\code{results/paper-canonical/aggregate/xtool\_ffi.json}.}
 \label{tab:xtool}
 \centering
 \small
@@ -682,14 +688,14 @@ CPython dispatch rather than binding mechanism.}
 \toprule
 Toolchain & Path & matched & isolated \\
 \midrule
-Jac \code{na}        & FFI (\code{sqrt})  & $3.1$ & --- \\
+Jac \code{na}        & FFI (\code{sqrt})  & $3.0$ & --- \\
 Jac \code{na}        & ref (no FFI)       & $2.5$ & --- \\
-raw C-ext (\code{METH\_O}) & FFI (\code{sqrt}) & $136$ & $25$ \\
-PyO3 (Rust)          & FFI (\code{sqrt})  & $145$ & $40$ \\
-pybind11             & FFI (\code{sqrt})  & $163$ & $54$ \\
-Python \code{cffi}   & FFI (\code{sqrt})  & $314$ & --- \\
-Python \code{ctypes} & FFI (\code{sqrt})  & $475$ & $367$ \\
-Python               & ref (no FFI)       & $39$  & $\approx$$22$ \\
+raw C-ext (\code{METH\_O}) & FFI (\code{sqrt}) & $131$ & $23$ \\
+pybind11             & FFI (\code{sqrt})  & $154$ & $47$ \\
+PyO3 (Rust)          & FFI (\code{sqrt})  & $165$ & $61$ \\
+Python \code{cffi}   & FFI (\code{sqrt})  & $289$ & $182$ \\
+Python \code{ctypes} & FFI (\code{sqrt})  & $779$ & $359$ \\
+Python               & ref (no FFI)       & $196$ & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -702,72 +708,94 @@ every toolchain reconstructs one byte-identical digest per kernel---so the
 cross-tool oracle is enforced, not asserted. Extending it past the single
 \code{sqrt} signature to a struct-by-value kernel (a \code{Vec3} dot product) and
 a bytes kernel (16-byte FNV-1a) shows the mechanism band is
-\emph{signature-dependent}, not one number. Isolated per-call cost stays in a
-tight $23$--$61$\,ns band for the scalar across the compiled bindings, but a
+\emph{signature-dependent}, not one number. Crucially, all five bindings pass the
+\emph{same} two \code{Vec3} \emph{by value} into the \emph{same} \code{ib\_dot}
+(the struct kernel's digest \code{struct:8006001000} agrees across every
+toolchain), so this is a matched by-value comparison, not three tools re-expanding
+a scalar. Isolated per-call cost stays in a
+$23$--$61$\,ns band for the scalar across the compiled bindings, but a
 \emph{by-value struct} widens it by an order of magnitude on the descriptor-driven
-tools---\code{ctypes} and \code{cffi} pay $\approx$$1.1$\,\textmu s marshalling
-the copy, while \code{METH\_O}, \code{pybind11}, and \code{PyO3} stay at
-$87$--$134$\,ns---exactly the register-vs-\code{byval} ABI distinction a compiler
+tools---\code{ctypes} and \code{cffi} pay $\approx$$1.3$ and $\approx$$1.6$\,\textmu s
+isolated marshalling the copy---while the compiled bindings stay far lower but no
+longer uniform: \code{METH\_O} and \code{PyO3} hold at $114$ and $135$\,ns whereas
+\code{pybind11}'s \code{std::array} conversion costs $\approx$$321$\,ns. This is
+exactly the register-vs-\code{byval} ABI distinction a compiler
 resolves per signature (Section~\ref{sec:conclusion}), now measured on the
 comparand side. \code{cext} is the floor on every kernel; the bytes kernel sits
-between the two ($65$--$145$\,ns compiled, $374$--$590$\,ns descriptor-driven).
-The claim ``Jac-native FFI beats the best CPython bindings by
-$\approx$$10\times$ on mechanism'' therefore holds not just for a scalar but
-across three signature shapes.
+between the two ($64$--$147$\,ns compiled, $359$--$583$\,ns descriptor-driven).
+The claim ``Jac-native FFI beats the best CPython bindings by an order of
+magnitude on mechanism'' therefore holds not just for a scalar but across all
+three signature shapes with a Jac-native anchor per shape: Jac's $3$\,ns scalar,
+$17$\,ns struct-by-value, and $12$\,ns bytes-pointer crossing (an
+\code{iop\_ffi\_bytes} kernel that marshals a pre-built 16-byte buffer through
+the same \code{libinteropbench} \code{ib\_fnv1a} the CPython toolchains call,
+digest stable to $0$\,ns across five reps) each sit $\approx$$5$--$8\times$ below
+the best compiled CPython boundary for that shape ($23$, $114$, and $63$\,ns
+isolated). The Jac bytes anchor carries no pure-Jac differential twin---native
+\code{int} is a checked \code{i64} that traps on the first FNV-1a
+\code{uint64} multiply overflow, so the reference for that kernel is the
+Python/C oracle side---but the foreign crossing it measures is the same
+pointer+length seam.
 
 \subsection{Cross-runtime}
 
 Table~\ref{tab:xruntime} reports the family-2 results, all three cells
 captured under the pinned clock (Section~\ref{sec:controls}) as medians of three
 runs at $n{=}20$ interleaved invocations. For the two loopback RPC cells (\code{xop\_svc\_split},
-\code{xop\_feed}) the run-to-run ratio CV is $\le$$4\%$ (the \code{direct}
-baseline is stable to $0.3\%$, so what jitter remains lives entirely in the RPC
-numerator); the \code{wasm32} cell is tighter still (crossing median CV
-$<$$4\%$, native CV $<$$0.1\%$). The marshalled crossings are one to two-plus
+\code{xop\_feed}) the run-to-run ratio CV is $\le$$1.4\%$ (the \code{direct}
+baseline is stable to $0.7\%$, and the crossing numerator is now stable too---the
+$\approx$$3\times$ RPC speedup on this machine relative to the earlier capture
+tightened the previously wide floor into a reproducible ratio); the \code{wasm32}
+cell is tighter still (crossing median CV $0.5\%$, native CV $<$$0.1\%$). The
+marshalled crossings are one to two-plus
 orders of magnitude more expensive than the direct dispatch they replace: a
-loopback HTTP+JSON RPC (\code{xop\_svc\_split}) costs $374\times$ its in-process
-twin and a generated-client feed (\code{xop\_feed}) $241\times$ its direct
+loopback HTTP+JSON RPC (\code{xop\_svc\_split}) costs $102\times$ its in-process
+twin and a generated-client feed (\code{xop\_feed}) $159\times$ its direct
 provider call, while a \code{wasm32} export (\code{xop\_wasm\_call}) is
-$6.8\times$ a native bridge under an asymmetric host loop.
+$6.9\times$ a native bridge under an asymmetric host loop.
 
 These RPC ratios are floors \emph{for the shipped deployment path}, and we are
-explicit about why. We decomposed the per-call RPC floor---$\approx$$13$\,ms
-measured directly on the client path against a warm provider, which the
-payload-sweep fit (Section~\ref{sec:payload}) extrapolates to a $\approx$$15$\,ms
-intercept, the $\approx$$2$\,ms difference being per-invocation warm-up folded
-into the fit---by timing the same provider four ways (Table~\ref{tab:rpcfloor}):
-the \code{sv~import} client path ($\approx$$13$\,ms), raw HTTP to the same server
-with a new connection per call ($\approx$$6$\,ms), raw HTTP over a persistent
-connection ($\approx$$6$\,ms), and---as a light-endpoint control---raw HTTP to a
-bare one-route \code{http.server} computing the identical result
-($\approx$$1.1$\,ms). Keep-alive versus per-call connect makes no measurable
-difference, so loopback TCP setup is \emph{not} the cost. Two terms remain.
-First, $\approx$$5$\,ms of \emph{application-framework dispatch}: the provider is
+explicit about why. The per-call RPC floor is $\approx$$3.7$\,ms on the shipped
+client path (the isolated \code{jac\_sv} boundary of the cross-tool matrix below,
+Section~\ref{sec:audit}), and the payload-sweep fit (Section~\ref{sec:payload})
+independently extrapolates to a $\approx$$4.2$\,ms intercept---two independent
+measurements agreeing at $\approx$$4$\,ms. We decompose it against matched
+comparands from that same committed harness (Table~\ref{tab:rpcfloor}), all
+computing one digest-identical result over the same call: the shipped
+\code{sv~import} client over a \code{jac start} app server ($\approx$$3.7$\,ms),
+a bare one-route \code{http.server} computing the identical result
+($\approx$$0.43$\,ms), and a hand-written \code{FastAPI}$+$\code{httpx} stack
+($\approx$$1.3$\,ms). The bare-endpoint control isolates $\approx$$3.3$\,ms of
+\emph{application-framework dispatch}: the provider is
 a full \code{jac start} server whose route table spans \code{/admin/*},
 \code{/sso/*}, telemetry and \code{/user/*}, so every \code{feed\_batch} call
 pays routing, auth-middleware and request-context overhead the bare endpoint does
-not---measured directly as the $\approx$$6$\,ms server path minus the
-$\approx$$1.1$\,ms minimal endpoint. Second, $\approx$$7$\,ms of client-path
-overhead in \code{sv~import} (obtained by subtraction, $13-6$; connection,
-validation and JSON marshalling). Both are real costs a Jac user on today's
+not---measured directly as the $\approx$$3.7$\,ms shipped path minus the
+$\approx$$0.43$\,ms minimal endpoint. A loopback TCP connect is only
+$\approx$$60$--$230$\,\textmu s (the \code{RTT} term the harness records), so the
+wire is \emph{not} the cost. These are real costs a Jac user on today's
 shipped path pays, but neither is intrinsic to a loopback RPC in general---a
-minimal endpoint and a tuned client, as the $\approx$$1.1$\,ms control shows, are
-far cheaper---so the $374\times$/$241\times$ figures measure Jac's current hosted
+minimal endpoint and a tuned client, as the $\approx$$0.43$\,ms control shows, are
+far cheaper---so the $102\times$/$159\times$ figures measure Jac's current hosted
 path, not the price of an RPC boundary as such. What the sweep \emph{does} isolate
 cleanly is the per-element serialization slope (Section~\ref{sec:payload}), which
 is unaffected by this fixed framework floor.
 
-The RPC crossing-side spread is also wide (the RPC medians vary $189$--$309$\,M\,ns
-run to run), so we read those as \emph{floors}, not precise ratios---and they
-remain the least apples-to-apples comparisons in the suite, since the two sides
+The RPC crossing-side spread, wide in the earlier uncontrolled capture, is now
+tight under the pinned clock (\code{xop\_svc\_split} $81.3$--$85.0$\,M\,ns,
+\code{xop\_feed} $126.4$--$128.5$\,M\,ns run to run, ratio CV $\le$$1.4\%$), so
+these are reproducible ratios, not mere floors---though they remain the least
+apples-to-apples comparisons in the suite, since the two sides
 do not share a clock (each carries its own \code{timing\_source}). Every
 cross-runtime cell's digests were byte-identical across all samples.
 
 \begin{table}[t]
 \caption{Family~2 cross-runtime. Direct twin vs.\ marshalled crossing, all cells
 medians of three pinned-governor runs at $n{=}20$ (Section~\ref{sec:controls}).
-Timing sources differ per variant (see text); the RPC crossing-side spread is
-wide, so those ratios are floors.}
+Timing sources differ per variant (see text); under the pinned clock the RPC
+crossing-side spread is now tight (ratio CV $\le$$1.4\%$), so these are
+reproducible ratios. Recaptured 2026-07-28 on this machine; the earlier capture
+read $374\times$/$241\times$ before a $\approx$$3\times$ RPC speedup.}
 \label{tab:xruntime}
 \centering
 \small
@@ -775,21 +803,22 @@ wide, so those ratios are floors.}
 \toprule
 Cell & Direct med.\ (ns) & Crossing med.\ (ns) & Ratio \\
 \midrule
-\code{xop\_svc\_split} & 805{,}553 & 300{,}949{,}052 & $374\times$ \\
-\code{xop\_feed}      & 805{,}204 & 193{,}703{,}449 & $241\times$ \\
-\code{xop\_wasm\_call} & 19{,}429  & 132{,}647       & $6.8\times$ \\
+\code{xop\_svc\_split} & 806{,}809 & 82{,}190{,}263 & $102\times$ \\
+\code{xop\_feed}      & 806{,}002 & 128{,}036{,}595 & $159\times$ \\
+\code{xop\_wasm\_call} & 19{,}438  & 135{,}049       & $6.9\times$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[t]
-\caption{Decomposing the per-call RPC floor ($\approx$$13$\,ms on the client
-path; the payload-sweep fit intercept is $\approx$$15$\,ms including per-invocation
-warm-up). Same result computed four ways, small $N$, pinned clock. Keep-alive
-vs.\ new-connection is within noise (TCP setup is not the cost); the
-minimal-endpoint control isolates $\approx$$5$\,ms of \code{jac start}
-application-framework dispatch, and the client path adds $\approx$$7$\,ms of
-\code{sv~import} overhead---neither intrinsic to a loopback RPC in general.}
+\caption{Decomposing the per-call RPC floor ($\approx$$3.7$\,ms on the shipped
+client path; the payload-sweep fit intercept is $\approx$$4.2$\,ms). Isolated
+boundary term (per call at \code{work}${=}1$) from the canonical cross-tool RPC
+matrix \code{results/paper-canonical/aggregate/xtool\_rpc.json}, every comparand
+computing one byte-identical \code{charge:} digest. The bare-endpoint control
+isolates $\approx$$3.3$\,ms of \code{jac start} application-framework dispatch;
+the loopback \code{RTT} ($\approx$$60$--$230$\,\textmu s) shows the wire is not
+the cost---neither is intrinsic to a loopback RPC in general.}
 \label{tab:rpcfloor}
 \centering
 \small
@@ -797,10 +826,10 @@ application-framework dispatch, and the client path adds $\approx$$7$\,ms of
 \toprule
 Path & per-call & isolates \\
 \midrule
-\code{sv~import} client (measured)   & $\approx$$13$\,ms  & app-server + client overhead \\
-raw HTTP, new connection/call        & $\approx$$6$\,ms   & app-server + TCP connect \\
-raw HTTP, persistent connection      & $\approx$$6$\,ms   & app-server dispatch only \\
-raw HTTP, minimal one-route endpoint & $\approx$$1.1$\,ms & HTTP + JSON + trivial routing \\
+\code{sv~import} client (shipped)    & $\approx$$3.7$\,ms  & app-server + \code{sv~import} client \\
+hand \code{FastAPI}$+$\code{httpx}   & $\approx$$1.3$\,ms  & tuned server + client, no framework \\
+bare one-route \code{http.server}    & $\approx$$0.43$\,ms & HTTP + JSON + trivial routing \\
+loopback TCP connect (\code{RTT})    & $\approx$$0.06$--$0.23$\,ms & the wire term only \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -814,17 +843,19 @@ hand-written \code{FastAPI}$+$\code{httpx} server-and-client and a
 generated-client-equivalent variant (\code{pydantic} request/response validation
 over \code{httpx}, the per-call overhead an OpenAPI code generator emits) and a
 bare \code{http.server} control. On the pure-boundary term (per call at
-\code{work}${=}1$, callee arithmetic differenced out) Jac's generated crossing is
-$\approx$$9.7\times$ the hand-written \code{FastAPI} client and
-$\approx$$25\times$ the minimal endpoint---the same
+\code{work}${=}1$, callee arithmetic differenced out) Jac's generated crossing
+($\approx$$3.7$\,ms) is $\approx$$2.9\times$ the hand-written \code{FastAPI} client
+($\approx$$1.3$\,ms) and $\approx$$8.6\times$ the minimal endpoint
+($\approx$$0.43$\,ms)---the same
 compiler-generated-versus-hand-written shape the FFI table shows
 (Section~\ref{sec:xtool}), now on the RPC axis. The generated-client layer adds
-no measurable cost over hand \code{httpx} ($\approx$$1.5$ vs.\ $1.6$\,ms), so the
+no measurable cost over hand \code{httpx} ($\approx$$1.34$ vs.\ $1.29$\,ms), so the
 gap is the app-server$+$\code{sv~import} stack, not client-side typing---%
-corroborating the $\approx$$5$\,ms framework term above from an independent,
+corroborating the $\approx$$3.3$\,ms framework term (\code{jac\_sv} minus the
+minimal endpoint, isolated) from an independent,
 matched comparand rather than by subtraction. The harness also records a TCP
-connect \code{RTT} per comparand: $\approx$$30$\,\textmu s on loopback, i.e.\ the
-$15$\,ms boundary is $\approx$$500\times$ the wire, confirming across the whole
+connect \code{RTT} per comparand: $\approx$$60$--$230$\,\textmu s on loopback, i.e.\ the
+$\approx$$3.7$\,ms boundary is $\approx$$16$--$60\times$ the wire, confirming across the whole
 matrix that the floor is framework$+$marshalling, not network. Pointing
 \code{--provider-host} at a second machine measures a genuine real-network RTT
 term, always reported separately so marshalling and wire are never conflated;
@@ -848,14 +879,14 @@ Two facts fall straight out. First, \emph{slope is bimodal by placement}:
 \code{na}-resident execution runs at $\approx$$5$\,ns/iter
 (\code{iop\_call} bridge, \code{na\_local}, \code{sv\_to\_na}) while
 \code{sv}-resident execution runs at $\approx$$212$\,ns/iter---a
-$\approx$$42\times$ gap ($211.95/5.04$) that is a property of \emph{where the
+$\approx$$42\times$ gap ($213.98/5.02$) that is a property of \emph{where the
 work runs}, not of the crossing. This ratio is the robust, reproducible headline;
 its absolute ns values are clock-specific (Section~\ref{sec:controls}). Second,
 \emph{the callback boundary is a fixed per-call cost, not a percentage}. In
 \code{iop\_cb} the \code{free} and \code{bridge} slopes are statistically
-identical ($211.95$ vs.\ $212.89$\,ns/iter, within $0.4\%$): the two variants do
+identical ($211.59$ vs.\ $215.76$\,ns/iter, within $2\%$): the two variants do
 the same work, so their fitted lines are parallel and separated by a fixed
-intercept gap of $\approx$$2.0$\,\textmu s---the pure per-call callback cost.
+intercept gap of $\approx$$3.6$\,\textmu s---the pure per-call callback cost.
 That fixed cost is why the \code{iop\_cb} crossing
 amortizes: once the callee does real work ($w\gtrsim800$) the per-call time is
 dominated by the shared $\approx$$212$\,ns/iter slope and the bridge/reference
@@ -875,15 +906,15 @@ weigh.
 eight sizes, median of $20$ timed samples per point under a pinned CPU governor
 and disabled turbo (Section~\ref{sec:controls}). $t_0$ is the per-call
 boundary/dispatch intercept, $s$ the per-iteration execution slope. Absolute
-$t_0$ is an extrapolation (the small $\approx$$-100$\,ns values are low-work
-loop curvature, not negative cost); the load-bearing quantity is the intercept
+$t_0$ is an extrapolation to $w{=}0$ (under the pinned clock all eight are
+positive, $197$--$4{,}663$\,ns); the load-bearing quantity is the intercept
 \emph{gap} between twinned variants (see text). For \code{iop\_call} and
 \code{iop\_cb}, \code{free} executes in \code{sv} and \code{bridge} in
-\code{na}; the $\approx$$5$ vs.\ $\approx$$212$\,ns/it slopes read off the
-executing codespace. The low $R^2$ ($.974$, \code{iop\_call} bridge) is the
-native path measured near the timer noise floor: at $\approx$$7.9$\,ns/it the
+\code{na}; the $\approx$$5$ vs.\ $\approx$$213$\,ns/it slopes read off the
+executing codespace. The low $R^2$ ($.932$, \code{iop\_call} bridge) is the
+native path measured near the timer noise floor: at $\approx$$5$\,ns/it the
 slope is real but low-SNR, and it is corroborated by three independent
-\code{na}-resident series ($7.92/5.10/5.04$), so no single fit is load-bearing.}
+\code{na}-resident series ($5.02/5.41/5.27$), so no single fit is load-bearing.}
 \label{tab:fits}
 \centering
 \footnotesize
@@ -892,16 +923,16 @@ slope is real but low-SNR, and it is corroborated by three independent
 \toprule
 Cell & Variant & $t_0$ (ns) & $s$ (ns/it) & $R^2$ \\
 \midrule
-\code{iop\_call} & free    & $4987$ & $216.59$ & $.996$  \\
-                 & bridge  & $4936$ & $7.92$   & $.974$  \\
+\code{iop\_call} & free    & $595$  & $213.98$ & $1.000$ \\
+                 & bridge  & $4663$ & $5.02$   & $.932$  \\
 \midrule
-\code{iop\_cb}   & free    & $1910$ & $211.95$ & $1.000$ \\
-                 & bridge  & $3918$ & $212.89$ & $1.000$ \\
+\code{iop\_cb}   & free    & $197$  & $211.59$ & $1.000$ \\
+                 & bridge  & $3803$ & $215.76$ & $1.000$ \\
 \midrule
-\code{iop\_symmetric} & sv\_local  & $-126$  & $211.81$ & $1.000$ \\
-                      & sv\_to\_na & $3686$  & $5.10$   & $1.000$ \\
-                      & na\_local  & $137$   & $5.04$   & $1.000$ \\
-                      & na\_to\_sv & $-112$  & $213.90$ & $1.000$ \\
+\code{iop\_symmetric} & sv\_local  & $742$   & $213.49$ & $1.000$ \\
+                      & sv\_to\_na & $3589$  & $5.41$   & $.999$  \\
+                      & na\_local  & $331$   & $5.27$   & $.980$  \\
+                      & na\_to\_sv & $236$   & $219.68$ & $1.000$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -930,7 +961,7 @@ Cell & Variant & $t_0$ (ns) & $s$ (ns/it) & $R^2$ \\
 \end{tikzpicture}
 \caption{The \code{iop\_cb} bridge/reference ratio converges to $\approx$$1.0$
 once callee work grows ($w\gtrsim800$), because the callback crossing is a
-\emph{fixed} $\approx$$2.0$\,\textmu s per-call cost (Table~\ref{tab:fits}), not
+\emph{fixed} $\approx$$3.6$\,\textmu s per-call cost (Table~\ref{tab:fits}), not
 a proportional overhead. Under pinned-clock timing the small-$w$ ratios are
 noise-dominated (they scatter $0.83$--$1.24$); the fixed cost is established by
 the twin-gap fit, not by these raw ratios.}
@@ -987,45 +1018,51 @@ witness across five orders of magnitude of payload and confirming the wire
 round-trip preserves the list exactly.
 
 Both paths fit $t(N)\approx t_0 + s\cdot N$ per call, but with opposite dominant
-terms. The \code{direct} path is a near-perfect line of slope $s=342$\,ns/element
-(95\% CI $339$--$343$, $R^2>0.9999$ over the whole range, run-to-run CV $0.1\%$):
+terms. The \code{direct} path is a near-perfect line of slope $s=341$\,ns/element
+(95\% CI $340$--$342$, $R^2>0.9999$ over the whole range, run-to-run CV $0.1\%$):
 building an $N$-element list in-process costs essentially just per-element
-construction, with a negligible fixed floor ($\approx$$0.4$\,\textmu s intercept).
-The \code{rpc} path is the mirror
-image---a $\approx$$15$\,ms fixed per-call cost dominates at small $N$, and the
+construction, with a negligible fixed floor ($\approx$$0$\,\textmu s intercept,
+$-6.7$\,ns fitted). The \code{rpc} path is the mirror
+image---a $\approx$$4.2$\,ms fixed per-call cost dominates at small $N$, and the
 per-element serialization slope is buried beneath it until the payload grows
-large. Over the full range the \code{rpc} fit is $s=890$\,ns/element (95\% CI
-$848$--$983$) on a $\approx$$15$\,ms floor ($R^2=0.994$), measured directly
-across the range rather than extrapolated from below break-even. That is
-the result: \emph{crossing the RPC boundary costs $\approx$$2.6\times$ per element
-what the in-process list costs} ($890$ vs.\ $342$\,ns/element)---the
+large. Over the full range the \code{rpc} fit is $s=1{,}105$\,ns/element (95\% CI
+$1{,}103$--$1{,}120$) on a $\approx$$4.2$\,ms floor ($R^2=0.9999$), measured directly
+across the range rather than extrapolated from below the crossover. That is
+the result: \emph{crossing the RPC boundary costs $\approx$$3.2\times$ per element
+what the in-process list costs} ($1{,}105$ vs.\ $341$\,ns/element)---the
 JSON-encode/HTTP/decode marshalling tax laid bare as a slope, exactly the quantity
 the family-1 method isolates, now measured on payload rather than work. The
 consequence is visible in the ratio column of Table~\ref{tab:payload}: it
-collapses from $\approx$$19{,}500\times$ at $N{=}1$ to $\approx$$3\times$ at
+collapses from $\approx$$5{,}450\times$ at $N{=}1$ toward its asymptote at
 $N{=}100{,}000$---the inverse of the \code{iop\_cb} decay. There a fixed boundary was amortized by
 growing \emph{work}; here a fixed RPC floor is amortized by growing \emph{payload},
-while the direct twin it is measured against grows linearly.
+while the direct twin it is measured against grows linearly. Note the ratio
+does not fall to $1$: because \code{rpc} dominates \code{direct} in \emph{both}
+intercept and slope, the two curves never cross at any positive $N$, and the
+ratio flattens toward the slope ratio $\approx$$3.2\times$ rather than converging
+(Section~\ref{sec:threats}).
 
-Crucially, the crossing is now \emph{observed}, not inferred, and it reproduces:
+Crucially, the crossover is now \emph{observed}, not inferred, and it reproduces:
 the sweep was run three times end to end under the pinned clock, and the fit
 coefficients are stable run to run---the \code{direct} slope at CV $0.1\%$, the
-\code{rpc} serialization slope at CV $1.8\%$ ($871$--$911$\,ns/element), the
-\code{rpc}/\code{direct} ratio at CV $1.8\%$. The one noisy term is the fixed-cost
-floor (CV $7.2\%$, $14.6$--$17.0$\,ms), which the decomposition of
+\code{rpc} serialization slope at CV $0.8\%$ ($1{,}091$--$1{,}111$\,ns/element), the
+\code{rpc}/\code{direct} ratio at CV $0.8\%$. The one noisy term is the fixed-cost
+floor (CV $5.6\%$, $4.0$--$4.6$\,ms), which the decomposition of
 Table~\ref{tab:rpcfloor} attributes to application-server dispatch plus
 \code{sv~import} client marshalling---a property of the hosted deployment path,
 not the serialization boundary---and which does not touch the slope. Coefficients are also reported with a within-run
 bootstrap CI (percentile pairs bootstrap over the sixteen sweep points, $B{=}10^4$).
-The break-even payload at which the serialization term equals the fixed cost is
-$N\approx17{,}000$ elements, and the sweep measures $N$ nearly six times beyond
-it: at $N{=}100{,}000$ the slope term ($\approx$$89$\,ms) is $\approx$$5.9\times$
-the $\approx$$15$\,ms fixed cost, so the crossing is firmly
-\emph{slope-dominated}. The loopback RPC is a fixed-cost floor at small payloads
-that hands off to a serialization curve at large ones, with the handoff directly
-witnessed. The per-point crossing medians stay wide at
+The \code{rpc} path's own fixed/variable crossover---the payload at which its
+serialization term equals its fixed cost, $N=t_0/s\approx3{,}800$ elements---is
+\emph{not} a break-even against \code{direct} (which \code{rpc} never reaches); it
+is the knee where the crossing changes from floor-dominated to slope-dominated.
+The sweep measures $N$ far beyond it: at $N{=}100{,}000$ the slope term
+($\approx$$110$\,ms) is $\approx$$26\times$ the $\approx$$4.2$\,ms fixed cost, so
+the crossing is firmly \emph{slope-dominated}. The loopback RPC is a fixed-cost
+floor at small payloads that hands off to a serialization curve at large ones,
+with the handoff directly witnessed. The per-point crossing medians stay wide at
 small $N$, where the fixed-cost floor's noise dominates: the \code{rpc} medians are
-non-monotone for $N\le100$ and become strictly monotone from $N{=}250$ onward---%
+non-monotone for $N\le250$ and become strictly monotone from $N{=}500$ onward---%
 exactly where the slope begins to emerge.
 
 \begin{table}[t]
@@ -1034,11 +1071,13 @@ over a loopback \code{sv$\rightarrow$sv} RPC vs.\ in-process, $N$ swept $1$ to
 $100{,}000$ at $20$ calls; per-cell values are the median of three pinned-governor
 sweeps at $n{=}20$ interleaved invocations per size (Section~\ref{sec:controls}).
 Every row's \code{direct} and \code{rpc} canonical digests were byte-identical
-($\checkmark$). \code{direct} fits $342$\,ns/element ($R^2{>}.9999$, run-to-run CV
-$0.1\%$); \code{rpc} fits a $\approx$$15$\,ms fixed cost plus an $890$\,ns/element
-serialization slope (95\% CI $848$--$983$, $R^2{=}.994$, run-to-run CV $1.8\%$),
-the slope directly observed to overtake the fixed cost at $N\approx17{,}000$.
-Per-run data are in \code{payload\_noturbo\_n20\_rep\{1,2,3\}.json}.}
+($\checkmark$). \code{direct} fits $341$\,ns/element ($R^2{>}.9999$, run-to-run CV
+$0.1\%$); \code{rpc} fits a $\approx$$4.2$\,ms fixed cost plus a $1{,}105$\,ns/element
+serialization slope (95\% CI $1{,}103$--$1{,}120$, $R^2{=}.9999$, run-to-run CV $0.8\%$),
+whose serialization term overtakes its own fixed cost at $N\approx3{,}800$ (the
+fixed/variable crossover, not a break-even against \code{direct}, which \code{rpc}
+never reaches). Per-run data are in the canonical \code{payload.json} (raw
+per-invocation samples embedded per size).}
 \label{tab:payload}
 \centering
 \small
@@ -1046,22 +1085,22 @@ Per-run data are in \code{payload\_noturbo\_n20\_rep\{1,2,3\}.json}.}
 \toprule
 $N$ & \code{direct} (\textmu s) & \code{rpc} (ms) & rpc/direct & dig. \\
 \midrule
-1      & $0.75$   & $14.6$ & $19{,}502\times$ & $\checkmark$ \\
-10     & $3.98$   & $13.5$ & $3{,}398\times$  & $\checkmark$ \\
-50     & $17.8$   & $15.0$ & $841\times$      & $\checkmark$ \\
-100    & $34.4$   & $14.1$ & $410\times$      & $\checkmark$ \\
-250    & $85.8$   & $14.9$ & $174\times$      & $\checkmark$ \\
-500    & $171$    & $15.8$ & $93\times$       & $\checkmark$ \\
-1000   & $347$    & $16.2$ & $47\times$       & $\checkmark$ \\
-2000   & $689$    & $17.0$ & $25\times$       & $\checkmark$ \\
-5000   & $1{,}711$ & $18.3$ & $11\times$      & $\checkmark$ \\
-10000  & $3{,}410$ & $21.9$ & $6\times$       & $\checkmark$ \\
-20000  & $6{,}795$ & $32.6$ & $5\times$       & $\checkmark$ \\
-30000  & $10{,}171$ & $42.3$ & $4\times$      & $\checkmark$ \\
-40000  & $13{,}584$ & $52.9$ & $4\times$      & $\checkmark$ \\
-50000  & $17{,}026$ & $64.4$ & $4\times$      & $\checkmark$ \\
-75000  & $25{,}539$ & $83.7$ & $3\times$      & $\checkmark$ \\
-100000 & $34{,}293$ & $99.1$ & $3\times$     & $\checkmark$ \\
+1      & $0.76$   & $4.13$ & $5{,}450\times$ & $\checkmark$ \\
+10     & $4.04$   & $3.93$ & $975\times$     & $\checkmark$ \\
+50     & $17.7$   & $4.09$ & $231\times$     & $\checkmark$ \\
+100    & $34.5$   & $4.00$ & $116\times$     & $\checkmark$ \\
+250    & $85.5$   & $4.28$ & $50\times$      & $\checkmark$ \\
+500    & $173$    & $4.57$ & $26\times$      & $\checkmark$ \\
+1000   & $347$    & $5.29$ & $15\times$      & $\checkmark$ \\
+2000   & $689$    & $6.37$ & $9\times$       & $\checkmark$ \\
+5000   & $1{,}707$ & $9.76$ & $6\times$      & $\checkmark$ \\
+10000  & $3{,}414$ & $15.6$ & $5\times$      & $\checkmark$ \\
+20000  & $6{,}816$ & $26.3$ & $4\times$      & $\checkmark$ \\
+30000  & $10{,}173$ & $38.4$ & $4\times$     & $\checkmark$ \\
+40000  & $13{,}594$ & $48.1$ & $4\times$     & $\checkmark$ \\
+50000  & $17{,}009$ & $59.7$ & $4\times$     & $\checkmark$ \\
+75000  & $25{,}585$ & $86.8$ & $3\times$     & $\checkmark$ \\
+100000 & $34{,}159$ & $114.6$ & $3\times$    & $\checkmark$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1080,20 +1119,21 @@ $N$ & \code{direct} (\textmu s) & \code{rpc} (ms) & rpc/direct & dig. \\
   every axis plot/.append style={thick, mark size=1.1pt},
 ]
 \addplot[mark=*,red!70!black] coordinates {
-  (1,14606736)(10,13511981)(50,14968466)(100,14122879)(250,14925034)(500,15819482)(1000,16229288)(2000,16963593)(5000,18311699)(10000,21855446)(20000,32645548)(30000,42324280)(40000,52900132)(50000,64394525)(75000,83659745)(100000,99055558)};
+  (1,4130847)(10,3932303)(50,4087098)(100,3998482)(250,4282692)(500,4566755)(1000,5293763)(2000,6371436)(5000,9758488)(10000,15646413)(20000,26309434)(30000,38400380)(40000,48131409)(50000,59656078)(75000,86833577)(100000,114554590)};
 \addplot[mark=square*,blue!70!black] coordinates {
-  (1,749)(10,3977)(50,17795)(100,34448)(250,85831)(500,170755)(1000,346525)(2000,688588)(5000,1711470)(10000,3409932)(20000,6795209)(30000,10170737)(40000,13584290)(50000,17026283)(75000,25538996)(100000,34292691)};
+  (1,758)(10,4035)(50,17658)(100,34505)(250,85509)(500,172673)(1000,346785)(2000,688564)(5000,1707439)(10000,3413564)(20000,6816433)(30000,10173440)(40000,13593618)(50000,17009161)(75000,25584969)(100000,34158741)};
 \legend{rpc (crossing),direct (in-process)}
 \end{loglogaxis}
 \end{tikzpicture}
 \caption{Payload-cardinality sweep, $N{=}1$ to $100{,}000$ (median of three pinned
-sweeps). \code{direct} is a clean slope-$1$ line ($342$\,ns/element); \code{rpc}
-is a flat $\approx$$15$\,ms floor that rises once the $890$\,ns/element
-serialization term climbs above it, directly crossing break-even at
-$N\approx17{,}000$. The two curves converge as $N$ grows---the crossing's fixed
-cost amortizes over a larger payload while the in-process twin grows
-linearly---and by $N{=}100{,}000$ the crossing is slope-dominated
-($\approx$$5.9\times$ the fixed cost).}
+sweeps). \code{direct} is a clean slope-$1$ line ($341$\,ns/element); \code{rpc}
+is a flat $\approx$$4.2$\,ms floor that rises once the $1{,}105$\,ns/element
+serialization term climbs above it, its own fixed/variable crossover falling at
+$N\approx3{,}800$. The gap between the curves narrows as $N$ grows---the crossing's
+fixed cost amortizes over a larger payload while the in-process twin grows
+linearly---but they never meet: \code{rpc} keeps a $\approx$$3.2\times$ slope
+premium, and by $N{=}100{,}000$ the crossing is slope-dominated
+($\approx$$26\times$ the fixed cost).}
 \label{fig:payload}
 \end{figure}
 
@@ -1137,11 +1177,11 @@ cells are swept across eight callee-work sizes and fit to a fixed-cost intercept
 plus an execution slope (Section~\ref{sec:sweep}); the complementary
 \emph{payload-bytes} axis is measured by
 \code{xop\_feed\_payload} across sixteen cardinalities to $100{,}000$ elements
-(Section~\ref{sec:payload}), separating the loopback RPC's $\approx$$15$\,ms fixed
-cost from its $890$\,ns/element serialization slope, reproducible across three
-pinned sweeps (slope run-to-run CV $1.8\%$). The slope's within-run bootstrap CI
-is $848$--$983$\,ns/element and the crossing is directly observed to cross
-break-even at $N\approx17{,}000$ and reach $\approx$$5.9\times$ slope-dominance by
+(Section~\ref{sec:payload}), separating the loopback RPC's $\approx$$4.2$\,ms fixed
+cost from its $1{,}105$\,ns/element serialization slope, reproducible across three
+pinned sweeps (slope run-to-run CV $0.8\%$). The slope's within-run bootstrap CI
+is $1{,}103$--$1{,}120$\,ns/element and the crossing's own fixed/variable
+crossover falls at $N\approx3{,}800$, reaching $\approx$$26\times$ slope-dominance by
 $N{=}100{,}000$. One caveat remains: the per-point crossing medians are wide at
 small $N$, noise that lives in the fixed-cost floor, not the slope. Family-2
 cross-runtime cells are now medians of three pinned runs at $n{=}20$ with
@@ -1172,13 +1212,13 @@ remains a hypothesis. \emph{(i)~Placement is a slope; the crossing is an
 intercept.} The sweep (Section~\ref{sec:sweep}) shows the two are literally
 separable coefficients of one line: execution placement is a
 $\approx$$42\times$ \emph{slope} difference ($5$ vs.\ $212$\,ns/iter) while the
-crossing is a fixed \emph{intercept} ($\approx$$2.0$\,\textmu s for the
-\code{iop\_cb} callback, $\approx$$3.7$\,\textmu s to enter \code{na}). A
+crossing is a fixed \emph{intercept} ($\approx$$3.6$\,\textmu s for the
+\code{iop\_cb} callback, $\approx$$3.6$\,\textmu s to enter \code{na}). A
 compiler can therefore choose placement on callee slope alone once the intercept
 is known small---and it can compute the exact break-even, which our fits make
-concrete: entering \code{na} costs the $\approx$$3.7$\,\textmu s intercept and
-saves $\approx$$207$\,ns/iter ($212$ minus $5$), so \emph{crossing into native
-pays for itself above $\approx$$18$ iterations of callee work per call}. Below
+concrete: entering \code{na} costs the $\approx$$3.6$\,\textmu s intercept and
+saves $\approx$$208$\,ns/iter ($213$ minus $5$), so \emph{crossing into native
+pays for itself above $\approx$$17$ iterations of callee work per call}. Below
 that, stay in \code{sv}; above it, cross---a threshold computable at compile time
 from the call's static work estimate. \emph{(ii)~The $\mu$s-vs-ns gap
 sets a batching threshold.} A loopback RPC costs $\sim$$10^{7}$\,ns per call
@@ -1186,13 +1226,13 @@ while an in-process dispatch costs $\sim$$10^{4}$--$10^{5}$; the break-even call
 count above which batching or computation-migration wins is the ratio Table~%
 \ref{tab:xruntime} brackets ($\sim$$10^2$, from its batch-of-$20$ medians). Applying the intercept/slope method
 to \emph{payload} rather than work makes the two terms concrete
-(Section~\ref{sec:payload}): the loopback RPC resolves into a $\approx$$15$\,ms
-fixed cost plus an $890$\,ns/element serialization slope---$2.6\times$ the
-in-process list's $342$\,ns/element---so a compiler that knows a call's static
+(Section~\ref{sec:payload}): the loopback RPC resolves into a $\approx$$4.2$\,ms
+fixed cost plus a $1{,}105$\,ns/element serialization slope---$3.2\times$ the
+in-process list's $341$\,ns/element---so a compiler that knows a call's static
 payload cardinality can compute both when the crossing amortizes (large $N$) and
 what each additional element on the wire will cost. \emph{(iii)~ABI class is a codegen choice,
 not a constant.} The
-$2$\,ns scalar vs.\ $17$\,ns struct-by-value gap is exactly the register-vs-%
+$3$\,ns scalar vs.\ $17$\,ns struct-by-value gap is exactly the register-vs-%
 \code{byval} distinction a compiler resolves per call signature. The decision
 tree these imply---direct FFI, copied FFI, batched FFI, RPC, or migrate the
 computation into the target codespace---is the natural next system contribution;
@@ -1210,8 +1250,8 @@ gRPC's benchmark methodology~\cite{grpc} separates fixed per-call cost from
 per-byte work---the intercept/slope decomposition we implement over callee work
 for the family-1 cells (Section~\ref{sec:sweep}) and over payload cardinality for
 \code{xop\_feed\_payload} (Section~\ref{sec:payload}), which resolves a loopback
-RPC into a $\approx$$15$\,ms fixed cost and an $890$\,ns/element serialization
-slope, observed to cross break-even at $N\approx17{,}000$. HyperProtoBench~\cite{hyperproto} characterizes serialization at scale;
+RPC into a $\approx$$4.2$\,ms fixed cost and a $1{,}105$\,ns/element serialization
+slope, whose fixed/variable crossover falls at $N\approx3{,}800$. HyperProtoBench~\cite{hyperproto} characterizes serialization at scale;
 our payload sweep is a minimal instance of that payload-growing axis, still on a
 loopback \code{sv$\rightarrow$sv} seam rather than realistic proto messages. TechEmpower~\cite{techempower} defines realistic web-endpoint
 workloads that a future \code{xop\_crud} would slice. The manually engineered interop these boundaries replace has its own
@@ -1267,13 +1307,13 @@ actionable ordering is therefore placement first, deployment path second, bounda
 mechanism last. On method: several of the suite's most striking-looking numbers
 are, on inspection, deflations, and that is the contribution. The
 ``$5.4$\,\textmu s callback constant'' and the smooth $1.73\times$ decay were
-CPU-frequency artifacts ($\approx$$2.0$\,\textmu s and noise once pinned); the
+CPU-frequency artifacts ($\approx$$3.6$\,\textmu s and noise once pinned); the
 ``$100\times$-class'' FFI win over pybind11-family bindings is $\approx$$10\times$
-once interpreter dispatch is isolated from mechanism (a $25$--$54$\,ns boundary
-band, only \code{ctypes} truly $100\times$-class); and the $374\times$/$241\times$
+once interpreter dispatch is isolated from mechanism (a $23$--$61$\,ns boundary
+band, only \code{ctypes} truly $100\times$-class); and the $102\times$/$159\times$
 RPC floors are properties of Jac's hosted deployment path, not of an RPC boundary
 in general. What survives every deflation is a small set of reproducible
-\emph{ratios}---placement $42\times$, serialization $2.6\times$, the fixed-versus-%
+\emph{ratios}---placement $42\times$, serialization $3.2\times$, the fixed-versus-%
 slope decompositions---whose absolute nanoseconds are clock- and machine-specific
 but whose shape is not. The differential-identity oracle, evaluated against $21$
 seeded faults ($14/14$ result-corrupting crossings caught at CI sizes, three

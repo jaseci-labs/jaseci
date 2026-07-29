@@ -7,7 +7,7 @@
  *
  * Built by harness/measure.jac with:
  *   cc -shared -fPIC -O2 -o bin/libinteropbench.so <this file>
- * and loaded via import-from in iop_ffi_struct / iop_ffi_vtable.
+ * and loaded via import-from in iop_ffi_struct / iop_ffi_vtable / iop_ffi_bytes.
  */
 
 #include <stdint.h>
@@ -87,4 +87,19 @@ int64_t ib_invoke_event(ib_handler_vt* h, int32_t a, int32_t b) {
         return (int64_t)h->on_event(a, b);
     }
     return -1;
+}
+
+/* ─── Bytes/pointer seam: 64-bit FNV-1a over a caller-owned buffer ────── */
+
+/* FNV-1a over `len` bytes at `buf`. Exercises the pointer+length marshalling
+ * seam (the string/bytes shape) rather than register-passed scalars/structs.
+ * Constants match the Python-side bytes kernel in scripts/xtool_ffi.py so a
+ * Jac reference reproduces the digest bit-for-bit. Pure, allocation-free. */
+uint64_t ib_fnv1a(const uint8_t* buf, int32_t len) {
+    uint64_t h = 1469598103934665603ULL;
+    for (int32_t i = 0; i < len; i++) {
+        h ^= (uint64_t)buf[i];
+        h *= 1099511628211ULL;
+    }
+    return h;
 }

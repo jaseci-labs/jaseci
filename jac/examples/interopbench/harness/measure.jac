@@ -39,6 +39,7 @@ glob BENCH = Path(str(__file__)).resolve().parent.parent,
          "ib_vec44_make",
          "ib_vec44_sum",
          "ib_invoke_event",
+         "ib_fnv1a",
 
      ],
      EXPERIMENTAL_KERNELS: set[str] = {
