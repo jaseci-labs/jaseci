@@ -13,7 +13,7 @@ import - the client -> native twin of the RPC bridge:
 
 ```
 # host.jac (any client module)
-import from .kernel { count_primes }     # kernel.na.jac -> wasm edge
+import from .kernel { count_primes }     # kernel.jac (native-placed) -> wasm edge
 
 async def show {
     print(await count_primes(20000));    # lazy: first call fetches + instantiates
@@ -47,7 +47,7 @@ receives `.exports`/`.mem` at instantiation for direct raw-export access:
 ```
 import from "@jac/wasm_host" { set_na_env }
 
-import from .arena { init }              # arena.na.jac
+import from .arena { init }              # arena.jac (native-placed)
 
 async def launch(shim: any, env_fns: dict) {
     set_na_env("arena", shim, {"env": env_fns});   # stem, host shim, import object

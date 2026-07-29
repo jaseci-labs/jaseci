@@ -954,85 +954,19 @@ impl Calculator.multiply {
 }
 ```
 
-### 4 Variant Modules
+### 4 One Module, Three Codespaces
 
-A single logical module can be split across *variant files* that target different execution contexts. Variant suffixes are `.sv.jac` (server) and `.jac` (client). All files sharing the same base name are automatically discovered and compiled together.
+A single `.jac` module can span all three codespaces -- server, client, and native. There is no per-file spelling for placement: the compiler infers each declaration's codespace from the code itself (JSX and npm imports seed client, extern C declarations seed native, everything else defaults to server), and `[placement.pins]` in `jac.toml` is the override when a decision must be forced. The only compound filename suffixes are the annexes: `.impl.jac` for implementations and `.test.jac` for tests. See [Codespace Model](primitives.md#codespace-model) for the inference rules and [Placement](../placement.md) for pins.
 
-Variant files are an *explicit* placement mechanism, and for the client side they are optional: the compiler infers client placement from client-only syntax (JSX, npm imports) in plain `.jac` files, so splitting a module into `.jac` variants is a style choice rather than a requirement. Native placement has **no filename variant at all** -- it is always inferred. Under `[build] default_codespace = "native"` (the default), the placement solver decides whether a plain `.jac` module can lower natively; a module that prefers native but cannot lower demotes to the server codespace with a note. An import whose braces declare C-ABI functions (e.g. `import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) seeds native placement for itself and the declarations that use it, and an `na {}` block tags a section within a mixed file. To force a whole module native, use `jac nacompile`, `jac build --as native`, or `CompileOptions(force_codespace='native')`.
-
-**Head module precedence:** `.jac` > `.sv.jac` > `.jac`. The highest-precedence file that exists on disk becomes the *head module*; all lower-precedence variants are attached as variant annexes. If no plain `.jac` file exists, the next available variant acts as head.
-
-```
-mymod/
-├── mymod.jac            # Head module (declarations + entry)
-├── mymod.sv.jac         # Server variant (extra server-only declarations)
-├── mymod.jac         # Client variant (extra client-only declarations)
-├── mymod.impl.jac       # Head implementations (can also impl variant decls)
-├── impl/
-│   └── mymod.sv.impl.jac   # Server variant impl (from shared folder)
-└── mymod.test.jac       # Tests
-```
-
-Each variant gets its own symbol table during parsing. The compiler then connects declarations and implementations across all variants:
-
-- Impl files match their variant automatically (e.g., `mymod.sv.impl.jac` provides bodies for declarations in `mymod.sv.jac`).
-- A head impl file (`mymod.impl.jac`) can provide implementations for declarations in *any* variant (cross-variant matching).
-- Impl files can live in the same directory or in an `impl/` subdirectory.
-
-**mymod.jac:**
-
-```jac
-obj Circle {
-    has radius: float;
-    def area -> float;
-}
-```
-
-**mymod.sv.jac:**
-
-```jac
-obj CircleService {
-    has name: str;
-    def describe -> str;
-}
-```
-
-**mymod.jac:**
-
-```jac
-obj Display {
-    has label: str;
-    def render -> str;
-}
-```
-
-**mymod.impl.jac** (cross-variant -- provides impls for both head and client variant):
-
-```jac
-impl Circle.area -> float {
-    return 3.14159 * self.radius * self.radius;
-}
-
-impl Display.render -> str {
-    return "Displaying: " + self.label;
-}
-```
-
-**impl/mymod.sv.impl.jac** (server variant impl from shared folder):
-
-```jac
-impl CircleService.describe -> str {
-    return "Service: " + self.name;
-}
-```
+Under `[build] default_codespace = "native"` (the default), the placement solver decides whether a whole anchor-free module can lower natively; a module that prefers native but cannot lower demotes to the server codespace with a note. To force a whole module native, use `jac nacompile`, `jac build --as native`, or `CompileOptions(force_codespace='native')`.
 
 #### Native Modules
 
-Native-placed modules compile to LLVM IR and execute via JIT (MCJIT). Native code runs as machine code, bypassing the Python runtime entirely. This is useful for performance-critical code and for calling C libraries directly. The same functionality is available in `na { }` blocks (or `na` statement prefixes) within mixed `.jac` files.
+Native-placed modules compile to LLVM IR and execute via JIT (MCJIT). Native code runs as machine code, bypassing the Python runtime entirely. This is useful for performance-critical code and for calling C libraries directly.
 
 **C Library Imports:**
 
-Native code can import C shared libraries using the `import from` syntax with extern function declarations, either at the top level of a native module or inside a `na { }` block in a mixed `.jac` file. The library is named either by an explicit path string (used verbatim, for a pinned or versioned file) or by a logical name (dotted and extensionless, resolved to the platform's filename):
+Native code can import C shared libraries using the `import from` syntax with extern function declarations. The extern declarations are themselves the native seed: the import and the declarations that use its names place native, even in an otherwise mixed module. The library is named either by an explicit path string (used verbatim, for a pinned or versioned file) or by a logical name (dotted and extensionless, resolved to the platform's filename):
 
 <!-- jac-skip -->
 ```jac
@@ -1087,7 +1021,6 @@ with entry {
 - **UI components**: Separate render tree from method logic (`.jac` + `.impl.jac`)
 - **Plugin architectures**: Define interfaces that plugins implement
 - **Large codebases**: Separate concerns across files
-- **Variant modules**: Split server, client, and native code into separate files while keeping them as one logical module
 - **C interop**: Declare an extern C surface with `import from` to call C libraries directly from JIT-compiled native code
 
 ---

@@ -576,15 +576,15 @@ You can also visit [http://localhost:8000/graph](http://localhost:8000/graph) to
 
 So far, you've been working entirely on the server side. Now you'll learn how Jac handles the frontend. Unlike most backend languages that require a separate JavaScript project for the UI, Jac can render full UIs in the browser using JSX syntax -- similar to React, but without requiring a separate JavaScript toolchain or build system.
 
-**The cl Prefix**
+**How code becomes client code**
 
-Jac uses the `cl` (client) prefix to distinguish between server-side and browser-side code. Any code marked with `cl` is compiled to JavaScript and runs in the **browser**, not on the server:
+You never label browser code in Jac -- the compiler *infers* it. Declarations whose syntax is client-only (JSX, npm imports, asset imports) are compiled to JavaScript and run in the **browser**, not on the server:
 
 ```jac
 import "./styles.css";
 ```
 
-This loads a CSS file client-side. Add this line at the top of your `main.jac`.
+A string-path import like this is a client signal -- CSS only means something in a browser -- so this line and the code that uses it join the client bundle automatically. Add it at the top of your `main.jac`.
 
 **Building the Component**
 
@@ -707,7 +707,7 @@ This is one of the most important concepts to understand in Jac's full-stack mod
 
 **Building the Frontend Step by Step**
 
-Now that you understand the individual pieces -- reactive state, lifecycle hooks, lambdas, transparent server calls, and JSX rendering -- it's time to assemble them into a working component. Add `cl import "./styles.css";` after your existing import. Start with the input, add button, and a basic task list:
+Now that you understand the individual pieces -- reactive state, lifecycle hooks, lambdas, transparent server calls, and JSX rendering -- it's time to assemble them into a working component. Add `import "./styles.css";` after your existing import. Start with the input, add button, and a basic task list:
 
 ```jac
 def:pub app -> JsxElement {
@@ -977,9 +977,9 @@ That last point deserves emphasis. You didn't write any code to save data or loa
 
 **What You Learned**
 
-- **`cl`** -- prefix for client-side (browser) code
-- **`cl import`** -- load CSS (or npm packages) in the browser
-- **`cl def:pub app -> JsxElement`** -- the main UI component
+- **Client placement is inferred** -- JSX, npm imports, and asset imports mark code for the browser; no annotation needed
+- **`import "./styles.css";`** -- load CSS (or npm packages) in the browser; the string-path import is itself a client signal
+- **`def:pub app -> JsxElement`** -- the main UI component (JSX places it client)
 - **`has`** (in components) -- reactive state that triggers re-renders on change
 - **`lambda`** -- anonymous functions: `lambda (params) -> type { body }`
 - **`can with entry`** -- lifecycle hook that runs on component mount
@@ -1881,9 +1881,6 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
     }
     ```
 
-!!! info "Style note: the reference example groups client code in a `cl { }` block"
-    The matching example at [`jac/examples/day_planner/basic/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/examples/day_planner/basic) groups all client-side declarations inside a single `cl { ... }` block instead of prefixing each with `cl`. The two styles are equivalent -- a `cl { ... }` block tags every declaration inside its braces for the client codespace. You'll learn more about blocks in Part 6.
-
 ```bash
 jac start main.jac  # or: jac start
 ```
@@ -1968,7 +1965,7 @@ Most code organization happens on axis (1). We'll cover (2) at the end of this s
 
 **Component files**
 
-A component file is just a `.jac` file that exports a `def:pub` function returning `JsxElement`. The `.jac` extension tells the compiler "this whole file is client-side" -- you don't write `cl` prefixes anymore, because *everything* in a `.jac` file is client by default. Other files import the component by name:
+A component file is just a `.jac` file that exports a `def:pub` function returning `JsxElement`. The JSX is what makes it client code -- the compiler sees it and places the component (and any helpers it uses) in the browser bundle, with nothing to annotate. Other files import the component by name:
 
 ```jac
 import from .components.TaskItem { TaskItem }
@@ -1993,19 +1990,19 @@ day-planner-auth/
 
 `TaskItem` and `IngredientItem` were already components in Part 5 -- the only difference now is that they live in their own files. Each panel still owns its own state and fetches on mount; you just rendered everything in one file before.
 
-**`sv import` -- bringing server code into client files**
+**Importing server code into client files**
 
-When a `.jac` file calls server functions, it needs `sv import` so the compiler generates HTTP stubs instead of raw function calls:
+When a component calls server functions, it just imports them -- the compiler knows the targets are server endpoints (`def:pub` on a server module never relocates) and generates authenticated HTTP stubs instead of raw function calls:
 
 ```jac
 import from ..main { Task, get_tasks, add_task, toggle_task, delete_task }
 ```
 
-The `sv` prefix means "server import." You also use it to bring server `node` types into client code, so `TaskItem(task: Task)` can be typed end-to-end. The `..main` is a relative import: `..` means "parent directory," because components live one folder below `main.jac` -- the same convention Python uses.
+The same import brings server `node` types into client code, so `TaskItem(task: Task)` can be typed end-to-end. The `..main` is a relative import: `..` means "parent directory," because components live one folder below `main.jac` -- the same convention Python uses.
 
-**`cl { }` and `sv { }` blocks**
+**Mixing server and client code in one file**
 
-Sometimes you want both server and client code in the same file -- typically the entry point, where one client-side `app` component just renders the imported client app while the server code lives alongside it. Braced blocks do that:
+Both sides can live in the same file -- typically the entry point, where one client-side `app` component just renders the imported client app while the server code lives alongside it. Nothing marks the boundary; the compiler places each declaration by its content:
 
 ```jac
 import from frontend { app as ClientApp }
@@ -2018,7 +2015,7 @@ def:pub app -> JsxElement {
 # Server-side: nodes, AI delegations, endpoints live here.
 ```
 
-Everything inside the `cl { ... }` block runs in the browser; everything inside `sv { ... }` runs on the server. Braced blocks and the `cl`/`sv` prefixes you saw in Part 4 are two ways to do the same thing -- prefixes are good for the occasional client thing in a server file, blocks are good when a whole region of the file goes one way.
+The JSX in `app` places it in the browser; the nodes, walkers, and AI delegations below it have server-anchoring syntax and stay on the server. When you ever need to overrule a decision -- say, a pure helper that must stay server even though client code calls it -- add a `[placement.pins]` entry in `jac.toml` rather than any annotation in the source.
 
 **Optional: splitting one big component into declaration + implementation**
 
@@ -2727,9 +2724,9 @@ Step back and consider what you've built: a **complete, fully functional applica
 - **`def:priv`** -- private endpoints with per-user data isolation (each user gets their own `root`)
 - **`jacSignup`**, **`jacLogin`**, **`jacLogout`**, **`jacIsLoggedIn`** -- built-in auth functions
 - **`import from "@jac/runtime"`** -- import Jac's built-in client-side utilities
-- **Component files** -- each component in its own `.jac` file; the whole file is client-side, no `cl` prefixes needed
-- **`sv import from ..main { ... }`** -- bring server functions and node types into client files; the `..` is a relative import to the parent directory
-- **`cl { }`** / **`sv { }`** -- braced blocks that tag a whole region of a file for the client or server codespace
+- **Component files** -- each component in its own `.jac` file; the JSX makes it client code, nothing to annotate
+- **`import from ..main { ... }`** -- bring server functions and node types into client files (the compiler bridges them over HTTP); the `..` is a relative import to the parent directory
+- **Placement is inferred** -- the compiler places every declaration by its content; `[placement.pins]` in `jac.toml` is the override when you need one
 - **`can with [deps] entry`** -- dependency-triggered abilities (re-run when state changes); useful when the component owning the dependency stays mounted
 - **Optional: declaration/implementation split** -- `.jac` for state + render tree, `.impl.jac` for `impl Component.method { ... }` bodies; reach for it only when a single component is too long to read top-to-bottom
 
@@ -3021,7 +3018,7 @@ walker ClearShoppingList {
 
 In the `def:priv` version, the frontend called server functions directly with `await add_task(title)`. With walkers, the frontend **spawns** them instead -- a different syntax but the same transparent client-server communication.
 
-**`sv import`** brings server walkers into client code:
+**Importing server walkers** works the same as importing server functions:
 
 ```jac
 import from main {
@@ -3030,7 +3027,7 @@ import from main {
 }
 ```
 
-The `sv` prefix means "server import" -- it lets client code reference server-side walkers so it can spawn them.
+Walkers are server-side archetypes, so a client import of one compiles to a spawn-over-HTTP bridge -- client code can reference and spawn them with no ceremony.
 
 Then in the frontend methods:
 
@@ -3490,7 +3487,7 @@ This part introduced Jac's Object-Spatial Programming paradigm:
 - **`root spawn Walker()`** -- create and start a walker at a node
 - **`result.reports[0] if result.reports else []`** -- safe access to the walker's reported data (handles empty traversals)
 - **`walker:priv`** -- per-user walker with data isolation
-- **`sv import`** -- import server walkers (and node types) into client code
+- **Importing server walkers** -- a plain import bridges walkers (and node types) into client code over HTTP
 
 **When to use each approach:**
 
@@ -3531,9 +3528,9 @@ The concepts you've learned are interconnected. Types constrain AI output. Graph
 
 **Walkers:** `walker`, `walker:priv`, `can with Type entry/exit`, `visit`, `here`, `self`, `visitor`, `report`, `disengage`, `spawn`
 
-**Frontend:** `cl`, `JsxElement`, reactive `has`, `can with entry`, `can with [deps] entry`, JSX expressions, `sv import`
+**Frontend:** inferred client placement, `JsxElement`, reactive `has`, `can with entry`, `can with [deps] entry`, JSX expressions
 
-**Structure:** `import from`, `cl import`, `sv import`, `impl`, declaration/implementation split
+**Structure:** `import from` (bridging server code into the client automatically), `impl`, declaration/implementation split
 
 **Auth:** `jacSignup`, `jacLogin`, `jacLogout`, `jacIsLoggedIn`
 

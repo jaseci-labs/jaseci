@@ -11,7 +11,7 @@ This tutorial shows how to call backend functions from the frontend, use walkers
 > - Time: ~30 minutes
 
 !!! note "Walker spawn results and `jac check`"
-    Snippets that read `result.reports` from `root spawn MyWalker()` runs work at runtime, but the static checker has no typed shape for the walker spawn-result yet. Many blocks below also call `sv import from ...main { ... }` for cross-module walkers; until those server-export stubs land, isolated `jac check` runs on these excerpts surface `E1032` warnings.
+    Snippets that read `result.reports` from `root spawn MyWalker()` runs work at runtime, but the static checker has no typed shape for the walker spawn-result yet. Many blocks below also import cross-module walkers from `...main`; until those server-export stubs land, isolated `jac check` runs on these excerpts surface `E1032` warnings.
 
 ---
 
@@ -20,7 +20,7 @@ This tutorial shows how to call backend functions from the frontend, use walkers
 In Jac full-stack apps, the compiler handles the client-server boundary for you. Here's the mental model:
 
 1. **Backend** = Functions or walkers that process data and return results
-2. **Frontend** = Components in `cl { }` blocks (or `.jac` files)
+2. **Frontend** = Components returning `JsxElement` (JSX places them client-side)
 3. **Connection** = Direct function calls (`await func()`) or walker spawning (`root spawn Walker()`)
 
 ```mermaid
@@ -509,7 +509,7 @@ def:pub app() -> JsxElement {
 
 | Concept | Usage |
 |---------|-------|
-| Import walkers | `sv import from ...main { walker_name }` |
+| Import walkers | `import from ...main { walker_name }` (bridged over HTTP) |
 | Call walker | `result = root spawn walker_name(args)` |
 | Get results | `result.reports[0]` |
 | Node spawn | `node_id spawn walker_name(args)` |

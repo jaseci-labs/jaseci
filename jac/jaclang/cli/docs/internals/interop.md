@@ -415,11 +415,12 @@ builds headerless and audits the IR for `__rc_*` machinery), runs `opt2`
 **without** `internalize` (so defined functions stay exported), and links
 with the pure-Jac `WasmLinker` (no wasm-ld/emscripten).
 
-The language-level spelling of the crossing is a plain import of a native
-module (e.g. an `.na.jac` variant) from client code:
+The language-level spelling of the crossing is a plain import of a
+native-placed module (inferred from its extern-decl surface, or pinned
+`"native"`) from client code:
 
 ```jac
-import from .arena { init, frame }    # arena.na.jac
+import from .arena { init, frame }    # arena.jac places native
 ```
 
 This is the cl → na twin of the client-to-server RPC bridge. The interop

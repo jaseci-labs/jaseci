@@ -506,7 +506,7 @@ myapp/
     └── utils.jac
 ```
 
-Within a feature the cross-codespace import is a sibling: `sv import from .posts { list_posts }`. Across packages, server modules should use the no-dot absolute form (`import from shared.utils { cn }`) - a `..` that climbs out of a feature folder works under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`.
+Within a feature the cross-codespace import is a sibling: `import from .posts { list_posts }`. Across packages, server modules should use the no-dot absolute form (`import from shared.utils { cn }`) - a `..` that climbs out of a feature folder works under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`.
 
 For a small app none of this applies: keep the files flat and skip the folders entirely.
 

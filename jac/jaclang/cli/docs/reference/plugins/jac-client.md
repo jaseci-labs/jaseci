@@ -1,6 +1,6 @@
 # jac-client Reference
 
-jac-client adds client-side compilation to Jac so you can write React-style UI components in ordinary `.jac` files. The compiler separates your code automatically: declarations with client-only syntax (JSX, npm imports) -- plus anything client code references -- compile to JavaScript with React as the rendering engine, while the rest compiles to Python on the server. You never have to mark the split, though explicit `cl { }` blocks and `.jac` files remain available when you want the boundary pinned in source.
+jac-client adds client-side compilation to Jac so you can write React-style UI components in ordinary `.jac` files. The compiler separates your code automatically: declarations with client-only syntax (JSX, npm imports) -- plus anything client code references -- compile to JavaScript with React as the rendering engine, while the rest compiles to Python on the server. You never mark the split in source; when a placement decision must be forced, pin it in `jac.toml` under `[placement.pins]`.
 
 You also get project scaffolding (`jac create --kind web-static`), npm dependency management, a Vite-powered dev server with HMR, and automatic HTTP bridge generation so your client components can call server walkers without manual API wiring. This reference covers installation, project structure, the module system, component authoring, and build configuration.
 
@@ -161,7 +161,7 @@ import from .database { connect_db }
 node SecretData { has value: str; }
 ```
 
-> **Note on `sv import` between two server modules.** When both the importer and the importee are server-context modules running as separate microservices, `sv import` generates HTTP client stubs instead of pulling the provider into the consumer's process. The same source also works as a monolith. See [Microservice Interop (sv-to-sv)](jac-scale-http.md#microservice-interop-sv-to-sv) in the Scale reference for details.
+> **Note on imports between two server modules.** When both the importer and the importee are server modules running as separate microservices (the importee is listed in `[scale.microservices.routes]`), the import generates HTTP client stubs instead of pulling the provider into the consumer's process. The same source also works as a monolith. See [Microservice Interop (sv-to-sv)](jac-scale-http.md#microservice-interop-sv-to-sv) in the Scale reference for details.
 
 ### REST API with jac start
 
@@ -263,7 +263,7 @@ with entry {
 
 ---
 
-## Client Sections
+## Client Placement
 
 Client placement is inferred, so mixing client and server code in one file needs no wrapper -- a component sits next to server logic and each lands on its own side:
 
@@ -279,7 +279,7 @@ def:pub get_greeting() -> str {         # unmarked -> server endpoint
 }
 ```
 
-When you want the boundary explicit, wrap client code in a `cl { ... }` block -- the braces bracket exactly the tagged region:
+The same inference covers whole components -- JSX alone decides:
 
 ```jac
 def:pub app() -> JsxElement {
@@ -289,18 +289,18 @@ def:pub app() -> JsxElement {
 }
 ```
 
-A `cl { ... }` block also works inside a function or class body to locally override the active codespace. In `.jac` files, the whole file is already client-side, so no wrapper is needed. Inference never overrides an explicit marker.
+Placement propagates from those seeds: helpers, globals, and imports that client code references join the bundle with it. Inference never overrides a `[placement.pins]` entry, so a pin is the way to hold something on the server (or force a signal-less module client).
 
-### Single-Statement Forms
+### Other Client Seeds
 
-For one-off client-side declarations, use the single-statement `cl` prefix:
+npm imports and reactive globals are client seeds in their own right:
 
 ```jac
 import from react { useState }
 glob THEME: str = "dark";
 ```
 
-This also works for component definitions -- a handy shorthand for a single tagged declaration inside a mostly-server file:
+A lone component inside a mostly-server file needs nothing extra either:
 
 ```jac
 def:pub app -> JsxElement {
@@ -373,7 +373,7 @@ def:pub app() -> JsxElement {
 
 ### The `has` Keyword
 
-Inside client-tagged code (a `cl { }` block or a `.jac` file), `has` creates reactive state:
+Inside client-placed code, `has` creates reactive state:
 
 ```jac
 def:pub Counter() -> JsxElement {
@@ -561,7 +561,7 @@ def:pub Settings() -> JsxElement {
 
 ### Calling Walkers from Client
 
-Use native Jac `spawn` syntax to call walkers from client code. First, import your walkers with `sv import`, then spawn them:
+Use native Jac `spawn` syntax to call walkers from client code. Import the walkers -- the compiler bridges them over HTTP -- then spawn them:
 
 ```jac
 # Import walkers from backend
@@ -1146,8 +1146,8 @@ def:pub StylingExamples() -> JsxElement {
 >
 > ```jac
 > # lib/utils.jac
-> cl import from "clsx" { clsx }
-> cl import from "tailwind-merge" { twMerge }
+> import from "clsx" { clsx }
+> import from "tailwind-merge" { twMerge }
 >
 > def:pub cn(*inputs: any) -> str {
 >     return twMerge(clsx(inputs));
@@ -1181,7 +1181,7 @@ Two brace forms appear in attribute position. `{**props}` is a **spread** -- it 
 
 ### Suspense Fallbacks: `try` with `awaiting`
 
-A `try` slot whose body needs to wait on async work can name its loading state with an `awaiting` clause. The cl lowering wraps the slot in `<JacAwaiting fallback={...}>{...}</JacAwaiting>` from `@jac/runtime` -- a `React.Suspense` shim -- so the `awaiting` body renders during the dispatched-but-not-joined window and the `try` body takes over once it settles. On `sv` and `na` targets the `awaiting` body is dropped with a `W2020` warning until the streaming-SSR and native-thread lowerings land.
+A `try` slot whose body needs to wait on async work can name its loading state with an `awaiting` clause. The client lowering wraps the slot in `<JacAwaiting fallback={...}>{...}</JacAwaiting>` from `@jac/runtime` -- a `React.Suspense` shim -- so the `awaiting` body renders during the dispatched-but-not-joined window and the `try` body takes over once it settles. On server and native targets the `awaiting` body is dropped with a `W2020` warning until the streaming-SSR and native-thread lowerings land.
 
 ```jac
 def:pub Profile(user_id: int) -> JsxElement {
@@ -1350,7 +1350,7 @@ The `[client.paths]` section lets you define custom import path aliases. Aliases
 "@shared" = "./shared/index"
 ```
 
-With the above config, you can use aliases in your `.jac` or `cl {}` code:
+With the above config, you can use aliases in your client code:
 
 ```jac
 import from "@components/Button" { Button }
@@ -1630,7 +1630,7 @@ jac build [filename] [--client TARGET] [-p PLATFORM]
 A project whose `jac.toml` declares `kind = "web-static"` is built with the
 `static` target automatically -- no `--client` flag needed (see [Client-only apps](#client-only-apps)).
 
-For desktop builds, see the [jac-desktop Reference](jac-desktop.md): the desktop target compiles your `cl` UI into a single native binary that embeds the OS webview. In all desktop builds the build environment sets `JAC_BUILD=1` so import-time server starts stay inert.
+For desktop builds, see the [jac-desktop Reference](jac-desktop.md): the desktop target compiles your client UI into a single native binary that embeds the OS webview. In all desktop builds the build environment sets `JAC_BUILD=1` so import-time server starts stay inert.
 
 **Examples:**
 
@@ -1660,7 +1660,7 @@ jac build --client mobile --platform ios
 ### Client-only apps
 
 A **client-only** app runs entirely in the browser with no backend -- all of
-its code lives in `cl { }` blocks (optionally with an `na { }` block compiled
+its code is client-placed (optionally with a native-placed section compiled
 to in-browser WebAssembly). Declare it once in `jac.toml`:
 
 ```toml
@@ -1703,12 +1703,12 @@ jac start -p 3000              # choose the port
 ```
 
 The static server also maps the conventional `/static/<name>.wasm` mount onto
-the dist, so an `na { }` block compiled to WebAssembly (fetched client-side at
+the dist, so a native-placed section compiled to WebAssembly (fetched client-side at
 runtime) is served correctly.
 
 !!! note "file:// vs. served"
-    A pure `cl` app opens straight from disk. An app that fetches a resource at
-    runtime -- e.g. an `na`->wasm module at `/static/main.wasm` -- must be
+    A pure client app opens straight from disk. An app that fetches a resource at
+    runtime -- e.g. a native->wasm module at `/static/main.wasm` -- must be
     *served* (`jac start` or any static host), because the browser cannot fetch
     that resource over `file://`. `jac build` warns when code-splitting leaves
     chunks that the inlined page would need to fetch.
@@ -1786,7 +1786,7 @@ jac start --dev              # Dev server with HMR
 
 ### Desktop Targets
 
-The desktop targets ship with `jaclang` core (documented in the **[jac-desktop Reference](jac-desktop.md)**). They reuse jac-client's Vite frontend pipeline and compile a native host (`jac nacompile`) that renders your `cl` UI - one self-contained binary, no Rust toolchain, no PyInstaller, no setup step.
+The desktop targets ship with `jaclang` core (documented in the **[jac-desktop Reference](jac-desktop.md)**). They reuse jac-client's Vite frontend pipeline and compile a native host (`jac nacompile`) that renders your client UI - one self-contained binary, no Rust toolchain, no PyInstaller, no setup step.
 
 ```bash
 jac build --client desktop
@@ -1872,7 +1872,7 @@ For a step-by-step tutorial, see [Building a Mobile App](../../tutorials/fullsta
 
 ### React Native Target (beta)
 
-Native mobile applications for Android and iOS using [React Native](https://reactnative.dev/). Unlike the [Capacitor mobile target](#mobile-target-capacitor) (which wraps a web bundle in a webview), the React Native target compiles your `cl` UI to **platform-native views** via Expo/Metro/Hermes, giving native gesture/scroll performance and access to the RN ecosystem.
+Native mobile applications for Android and iOS using [React Native](https://reactnative.dev/). Unlike the [Capacitor mobile target](#mobile-target-capacitor) (which wraps a web bundle in a webview), the React Native target compiles your client UI to **platform-native views** via Expo/Metro/Hermes, giving native gesture/scroll performance and access to the RN ecosystem.
 
 A React Native app is a **mobUI** project: one source tree that compiles to both web (via `react-native-web`) and native (Android/iOS). mobUI projects use Jac's `@jac/mobui` component vocabulary instead of HTML -- see [The `@jac/mobui` vocabulary](#the-jacmobui-vocabulary) below.
 
@@ -2532,7 +2532,7 @@ p = new(Promise, lambda(resolve: any, reject: any) {
 evt = new(CustomEvent, "my-event", {"detail": data});
 ```
 
-`new(Cls, ...args)` is portable: it works in any codespace. On the server it is a thin wrapper for `Cls(*args)`; in `cl` blocks the compiler rewrites the call into `Reflect.construct(Cls, [args])` so it can drive JS class constructors that require `new`.
+`new(Cls, ...args)` is portable: it works in any codespace. On the server it is a thin wrapper for `Cls(*args)`; in client code the compiler rewrites the call into `Reflect.construct(Cls, [args])` so it can drive JS class constructors that require `new`.
 
 ### Callback Invocations
 

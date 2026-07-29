@@ -1,6 +1,6 @@
 # React-Style Components
 
-Jac's client-side code uses JSX syntax (the same HTML-in-code approach popularized by React) to build UI components. Components are functions declared in client-side code -- a `.jac` file or a `cl { }` block -- that return `JsxElement` values. Each prop is a named parameter -- the type-checker validates every JSX call site per attribute -- and components compose just like in React, with conditional rendering, list mapping, and event handling.
+Jac's client-side code uses JSX syntax (the same HTML-in-code approach popularized by React) to build UI components. Components are functions that return `JsxElement` values -- the JSX itself places them in the client codespace. Each prop is a named parameter -- the type-checker validates every JSX call site per attribute -- and components compose just like in React, with conditional rendering, list mapping, and event handling.
 
 The key difference from a standard React setup: there's no separate JavaScript project, no webpack configuration, and no build toolchain to manage. You write components in Jac syntax, the compiler generates optimized JavaScript, and the dev server bundles and serves it automatically.
 
@@ -466,7 +466,7 @@ def:pub Comment(c: dict) -> JsxElement {
 ### Header.jac
 
 ```jac
-# No `cl { }` block needed for .jac files
+# JSX places this file's components client-side
 
 def:pub Header(title: str) -> JsxElement {
     <header>
