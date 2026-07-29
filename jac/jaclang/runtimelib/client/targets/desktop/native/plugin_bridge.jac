@@ -1,13 +1,3 @@
-"""Reference source for the native plugin IPC shim (not compiled directly).
-
-This file is **not** compiled by nacompile. The bridge is inlined into the
-generated host source by ``_generate_host_source()`` in
-``native_desktop_target.impl.jac``, extracted between the BRIDGE START /
-BRIDGE END markers. This file is the single authoritative copy.
-
-The free function pattern (not a bound method) is confirmed by test_binding.jac.
-"""
-
 import from webview { Webview, respond }
 
 import from "<libpy>" {
