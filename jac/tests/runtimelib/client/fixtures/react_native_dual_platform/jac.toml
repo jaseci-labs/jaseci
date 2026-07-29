@@ -25,6 +25,3 @@ watchdog = ">=3.0.0"
 base_route_app = "app"
 
 [client]
-[placement.pins]
-"src.header" = "client"
-"src.header.native" = "client"

@@ -1,6 +1,3 @@
 [placement.pins]
 "checker_browser_hostapis" = "client"
-"checker_jac_runtime_alias" = "client"
 "checker_js_globals_client" = "client"
-"checker_jsx_cl_html_allowed" = "client"
-"checker_react_router_props" = "client"

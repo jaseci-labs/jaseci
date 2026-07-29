@@ -8,7 +8,4 @@ sv_import_posonly_kwonly_server = "/posonly"
 sv_import_cl_block_server = "/clblock"
 sv_import_type_provider = "/typeprov"
 [placement.pins]
-"sv_import_kwargs_client" = "client"
-"sv_import_kwargs_dup" = "client"
 "sv_import_posonly_kwonly_client" = "client"
-"sv_import_type_client" = "client"
