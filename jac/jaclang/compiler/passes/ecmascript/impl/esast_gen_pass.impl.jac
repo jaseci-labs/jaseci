@@ -5,25 +5,27 @@ import from jaclang.compiler.passes.ecmascript.reactive_intent {
     Effect,
     AsyncBoundary
 }
+import from jaclang.compiler.passes.ecmascript.intent.collector { IntentCollector }
 
 impl EsastGenPass._ensure_backend -> None {
-    if self.backend is None {
-        import from jaclang.compiler.passes.ecmascript.backends.registry {
-            resolve_active_backend
+    if self.backend is not None {
+        return;
+    }
+    import from jaclang.project.config { get_config }
+    cfg = get_config();
+    fw = cfg.client.framework if (cfg and cfg.client) else "react";
+    import from jaclang.compiler.passes.ecmascript.backends.registry {
+        resolve_active_backend
+    }
+    try {
+        self.backend = resolve_active_backend();
+    } except ValueError {
+        import from jaclang.jac0core.diagnostics { E5081 }
+        import from jaclang.compiler.passes.ecmascript.backends.react {
+            ReactBackend
         }
-        try {
-            self.backend = resolve_active_backend();
-        } except ValueError {
-            import from jaclang.project.config { get_config }
-            import from jaclang.jac0core.diagnostics { E5081 }
-            import from jaclang.compiler.passes.ecmascript.backends.react {
-                ReactBackend
-            }
-            cfg = get_config();
-            fw = cfg.client.framework if (cfg and cfg.client) else "unknown";
-            self.emit(E5081, framework=fw);
-            self.backend = ReactBackend();
-        }
+        self.emit(E5081, framework=fw);
+        self.backend = ReactBackend();
     }
 }
 
@@ -183,9 +185,8 @@ impl EsastGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
 
 impl EsastGenPass.exit_name(nd: uni.Name) -> None {
     if nd.sym_name in self.reactive_vars {
-        self._ensure_backend();
         nd.gen.es_ast = self.sync_loc(
-            self.backend.lower_state_read(nd.sym_name), jac_node=nd
+            self.collector.lower_state_read(nd.sym_name), jac_node=nd
         );
         return;
     }
@@ -2055,9 +2056,8 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
             state_update = StateUpdate(
                 name=target_name, value=setter_arg, aug_op=aug_op
             );
-            self._ensure_backend();
             setter_call = self.sync_loc(
-                self.backend.lower_state_update(state_update), jac_node=nd
+                self.collector.record_state_update(nd, state_update), jac_node=nd
             );
             expr_stmt = self.sync_loc(
                 es.ExpressionStatement(expression=setter_call), jac_node=nd
@@ -3060,12 +3060,8 @@ impl EsastGenPass.exit_try_stmt(nd: uni.TryStmt) -> None {
         async_boundary = AsyncBoundary(
             try_expr=try_iife, awaiting_expr=awaiting_iife, except_exprs=except_iifes
         );
-        self._ensure_backend();
-        for sym in self.backend.async_boundary_symbols(async_boundary) {
-            self._inject_runtime_import(sym, nd);
-        }
         wrapper = self.sync_loc(
-            self.backend.lower_async_boundary(async_boundary), jac_node=nd
+            self.collector.record_async_boundary(nd, async_boundary), jac_node=nd
         );
         outer = self._cur_view_acc();
         if outer is not None {
@@ -3540,18 +3536,15 @@ impl EsastGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
 
     if nd.dynamic_tag is not None {
         self._ensure_backend();
-        if self.backend.import_source("Dynamic") != self.backend.runtime_module() {
+        if self.backend is not None and self.backend.import_source("Dynamic") != self.backend.runtime_module() {
             self._inject_runtime_import("Dynamic", nd);
         }
     }
     nd.gen.es_ast = self.jsx_processor.element(nd);
 
-    self._ensure_backend();
     view = self.jsx_processor._view_by_node.get(id(nd));
     if view is not None {
-        for sym in self.backend.view_runtime_symbols(view) {
-            self._inject_runtime_import(sym, nd);
-        }
+        self.collector.record_view_symbols(nd, view);
     }
 }
 
@@ -3662,11 +3655,7 @@ impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
     effect = Effect(
         body=body_stmts, deps=deps_elements, is_entry=is_entry, is_async=is_async
     );
-    self._ensure_backend();
-    for sym in self.backend.effect_symbols(effect) {
-        self._inject_runtime_import(sym, nd);
-    }
-    lowered = self.backend.lower_effect(effect);
+    lowered = self.collector.record_effect(nd, effect);
     if lowered {
         nd.gen.es_ast = self.sync_loc(lowered[0], jac_node=nd);
     }
@@ -3709,11 +3698,7 @@ impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
                 }
             }
             ref_field = RefField(name=var_name, init_expr=ref_init);
-            self._ensure_backend();
-            for sym in self.backend.ref_field_symbols(ref_field) {
-                self._inject_runtime_import(sym, nd);
-            }
-            for stmt in self.backend.lower_ref_field(ref_field) {
+            for stmt in self.collector.record_ref_field(nd, ref_field) {
                 statements.append(self.sync_loc(stmt, jac_node=has_var));
             }
             self._register_declaration(var_name);
@@ -3728,11 +3713,7 @@ impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
         }
 
         state_field = StateField(name=var_name, init_expr=init_value);
-        self._ensure_backend();
-        for sym in self.backend.state_field_symbols(state_field) {
-            self._inject_runtime_import(sym, nd);
-        }
-        for stmt in self.backend.lower_state_field(state_field) {
+        for stmt in self.collector.record_state_field(nd, state_field) {
             statements.append(self.sync_loc(stmt, jac_node=has_var));
         }
 
@@ -4463,6 +4444,24 @@ impl EsastGenPass.enter_ability(nd: uni.Ability) -> None {
     self._view_stack.append(None);
     self.reactive_vars_stack.append(self.reactive_vars);
     self.reactive_vars = set(self.reactive_vars);
+
+    if (
+        nd.code_context == CodeContext.CLIENT
+        and not nd.is_method
+        and isinstance(nd.signature, uni.FuncSignature)
+        and nd.signature.return_type is not None
+        and self._return_type_includes_jsx_element(nd.signature.return_type)
+    ) {
+        name = nd.name_ref.sym_name;
+        self.collector.enter_component(name);
+        # Path for JsxPage screens comes from RouteScanner; only app/App
+        # defaults to "/". Layouts are not screens.
+        if name in ("app", "App") {
+            self.collector.mark_screen(name, True, "/");
+        } elif self._return_type_route_role(nd.signature.return_type) == "page" {
+            self.collector.mark_screen(name, True, None);
+        }
+    }
 }
 
 impl EsastGenPass.exit_enum(nd: uni.Enum) -> None {
@@ -6414,6 +6413,7 @@ impl EsastGenPass.before_pass -> None {
         if a.name is not None
     };
     self.jsx_processor = EsJsxProcessor(self);
+    self.collector = IntentCollector(self);
 
     self.scoped_styles = load_style_annex(
         self.ir_in.annexable_by or self.ir_in.loc.mod_path

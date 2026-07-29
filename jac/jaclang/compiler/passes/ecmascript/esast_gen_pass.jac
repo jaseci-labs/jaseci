@@ -15,6 +15,7 @@ import from jaclang.compiler.passes.ecmascript.scoped_styles {
     load_style_annex
 }
 import from jaclang.compiler.passes.ecmascript.framework_backend { FrameworkBackend }
+import from jaclang.compiler.passes.ecmascript.intent.collector { IntentCollector }
 import from jaclang.jac0core.modresolver {
     convert_to_js_import_path,
     resolve_relative_path
@@ -166,6 +167,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         scope_stack: list[ScopeInfo] = [],
         scope_map: dict[(uni.UniScopeNode, ScopeInfo)] = {},
         backend: (FrameworkBackend | None) = None,
+        collector: (IntentCollector | None) = None,
         client_manifest: (ClientManifest | None) = None,
         jsx_processor: (EsJsxProcessor | None) = None,
         scoped_styles: (ScopedStyleSheet | None) = None,

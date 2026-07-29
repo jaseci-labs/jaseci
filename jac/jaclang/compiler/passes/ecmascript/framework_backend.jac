@@ -20,11 +20,12 @@ obj FrameworkBackend {
     def lower_state_read(name: str) -> es.Expression;
     def lower_view_expr(expr: es.Expression) -> es.Expression;
     def lower_view(view: ViewElement, sync_loc: any) -> es.Expression;
-    def state_field_symbols(s: StateField) -> list[str];
-    def ref_field_symbols(r: RefField) -> list[str];
-    def effect_symbols(e: Effect) -> list[str];
-    def async_boundary_symbols(a: AsyncBoundary) -> list[str];
-    def view_runtime_symbols(view: ViewElement) -> list[str];
+    # One symbol lookup for every reactive/view intent kind (P2.1 collapsed the
+    # former per-kind state_field_symbols / ref_field_symbols / effect_symbols /
+    # async_boundary_symbols / view_runtime_symbols). Backends dispatch by type.
+    def runtime_symbols(
+        intent: StateField | RefField | Effect | AsyncBoundary | ViewElement
+    ) -> list[str];
     def jsx_factory_name -> str;
     def import_source(symbol: str) -> str;
     def required_globals -> list[str];

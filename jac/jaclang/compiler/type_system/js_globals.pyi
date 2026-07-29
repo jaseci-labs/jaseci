@@ -706,3 +706,60 @@ def fetch(*args: object) -> Promise[Response]: ...
 def alert(message: object = ...) -> None: ...
 def confirm(message: object = ...) -> bool: ...
 def prompt(message: object = ..., default: object = ...) -> str | None: ...
+
+
+# ── Jetpack Compose typed surface (P0 #3) ───────────────────────────────────
+# Client-context value globals for the Android native Compose target. These
+# mirror jaclang/runtimelib/compose_runtime.cl.jac. The ComposeGenPass lowers
+# JSX near-identity to Kotlin and never calls these; they exist so a project
+# opting into `[client.android] type_check = true` catches typo'd modifier
+# names / non-existent Typography styles before Gradle. `Modifier` and
+# `Typography` are Kotlin singletons (values you chain from / read members of),
+# so they are exposed as typed globals, not classes. `Composable` (the @Composable
+# return type) lives in jac_builtins.pyi since it is used as a type annotation.
+
+class Dp:
+    value: float
+
+class ModifierChain:
+    def fillMaxSize(self, fraction: float = ...) -> ModifierChain: ...
+    def fillMaxWidth(self, fraction: float = ...) -> ModifierChain: ...
+    def fillMaxHeight(self, fraction: float = ...) -> ModifierChain: ...
+    def wrapContentSize(self, align: object = ...) -> ModifierChain: ...
+    def width(self, w: Dp) -> ModifierChain: ...
+    def height(self, h: Dp) -> ModifierChain: ...
+    def size(self, s: Dp) -> ModifierChain: ...
+    def padding(
+        self,
+        all: object = ...,
+        horizontal: object = ...,
+        vertical: object = ...,
+        start: object = ...,
+        top: object = ...,
+        end: object = ...,
+        bottom: object = ...,
+    ) -> ModifierChain: ...
+    def clip(self, shape: object = ...) -> ModifierChain: ...
+    def background(self, color: object = ...) -> ModifierChain: ...
+    def border(self, width: Dp, color: object = ...) -> ModifierChain: ...
+    def clickable(self, enabled: bool = ..., onClick: object = ...) -> ModifierChain: ...
+
+class TypographyStyles:
+    displayLarge: object
+    displayMedium: object
+    displaySmall: object
+    headlineLarge: object
+    headlineMedium: object
+    headlineSmall: object
+    titleLarge: object
+    titleMedium: object
+    titleSmall: object
+    bodyLarge: object
+    bodyMedium: object
+    bodySmall: object
+    labelLarge: object
+    labelMedium: object
+    labelSmall: object
+
+Modifier: ModifierChain
+Typography: TypographyStyles

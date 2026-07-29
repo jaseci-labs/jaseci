@@ -21,6 +21,12 @@ def register_targets {
 
     registry.register(CefDesktopTarget());
     registry.register(ReactNativeTarget());
+    try {
+        import from jaclang.runtimelib.client.targets.android_target { AndroidTarget }
+        registry.register(AndroidTarget());
+    } except Exception {
+        ;
+    }
 }
 
 def sync_client_target_choices -> None {

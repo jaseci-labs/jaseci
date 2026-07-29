@@ -130,6 +130,10 @@ class JsxElement(JsxPage, JsxLayout):
     props: dict[str, object]
     children: list[object]
 
+class Composable:
+    """Return type for Jetpack Compose client components (Android native surface)."""
+    ...
+
 class OPath: ...
 class DSFunc: ...
 

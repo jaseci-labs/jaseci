@@ -114,8 +114,7 @@ impl EsJsxProcessor.element(self: EsJsxProcessor, nd: uni.JsxElement) -> Express
     }
     view = ViewElement(tag=tag, attrs=attrs, children=children, jac_node=nd);
     self._view_by_node[id(nd)] = view;
-    self.pass_ref._ensure_backend();
-    return self.pass_ref.backend.lower_view(view, self.pass_ref.sync_loc);
+    return self.pass_ref.collector.record_view(view, self.pass_ref.sync_loc);
 }
 
 impl EsJsxProcessor._lift_control_flow(
