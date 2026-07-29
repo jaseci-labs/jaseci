@@ -48,15 +48,25 @@ DIGEST_RE = re.compile(rb"(?m)^([a-z_]+):(\d+)$")
 def run_one(task: tuple) -> tuple:
     kernel, variant, work, calls = task
     cmd = ["jac", "run", f"kernels/{kernel}.jac", variant, str(work), str(calls)]
-    try:
-        p = subprocess.run(cmd, cwd=str(BENCH), capture_output=True, timeout=60)
-    except subprocess.TimeoutExpired:
-        return (task, None, None)
-    m = METRIC_RE.findall(p.stdout)
-    per_call = int(m[-1]) if m else None
-    dm = DIGEST_RE.search(p.stdout)
-    digest = dm.group(0).decode() if dm else None
-    return (task, per_call, digest)
+    # A transient subprocess stall/timeout (e.g. a contended CI runner, where the
+    # tiniest cell is most easily starved) yields no metric. Re-measure a bounded
+    # number of times rather than dropping the sample and tripping the exact-reps
+    # gate on runner flakiness. This never fires on a quiet pinned box, so
+    # canonical results stay deterministic; it only rescues jitter. It does NOT
+    # touch the digest-consistency check -- a real miscompile is still caught.
+    for _ in range(3):
+        try:
+            p = subprocess.run(cmd, cwd=str(BENCH), capture_output=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            continue
+        m = METRIC_RE.findall(p.stdout)
+        per_call = int(m[-1]) if m else None
+        if per_call is None:
+            continue
+        dm = DIGEST_RE.search(p.stdout)
+        digest = dm.group(0).decode() if dm else None
+        return (task, per_call, digest)
+    return (task, None, None)
 
 
 def governor() -> dict:

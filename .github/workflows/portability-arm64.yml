@@ -69,7 +69,10 @@ jobs:
           nproc && node --version
 
       - name: Portability re-capture (ratios, elevated reps)
-        run: REPS=40 XRUN_INV=20 scripts/portability_recapture.sh ci-arm64-neoverse
+        # JOBS=2 on the 4-core hosted runner: matching parallelism to cores keeps
+        # the tiny cells from being starved (an 8-way default oversubscribed the
+        # box and dropped samples). REPS=40 still absorbs the shared-clock jitter.
+        run: REPS=40 XRUN_INV=20 JOBS=2 scripts/portability_recapture.sh ci-arm64-neoverse
 
       - name: Upload re-capture bundle
         uses: actions/upload-artifact@v4

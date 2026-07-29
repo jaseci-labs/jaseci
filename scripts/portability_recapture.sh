@@ -31,6 +31,11 @@ mkdir -p "$OUT"
 REPS="${REPS:-20}"
 PAYLOAD_SIZES="${PAYLOAD_SIZES:-}"      # empty => full 16-point sweep
 XRUN_INV="${XRUN_INV:-20}"
+# Sweep parallelism. Default matches sweep_controlled.py (8, fine on the pinned
+# many-core canonical box). On a small shared runner (e.g. a 4-core hosted CI
+# box) set JOBS<=cores: oversubscription starves the tiniest cells and drops
+# samples, which the exact-reps gate then (correctly) refuses.
+JOBS="${JOBS:-8}"
 
 # --- guardrail: refuse unless governor is pinned (matches sweep_controlled) ---
 GOV="$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo unknown)"
@@ -50,7 +55,7 @@ python3 scripts/capture_env.py -o "$OUT/env.json" >/dev/null || \
   echo "  note: env manifest flags a dirty/non-frozen tree (recorded in env.json)"
 
 echo "== 2/4 family-1 work sweep (iop_call/iop_cb/iop_symmetric), reps=$REPS =="
-python3 scripts/sweep_controlled.py --reps "$REPS" --out "$OUT/sweep.json"
+python3 scripts/sweep_controlled.py --reps "$REPS" --jobs "$JOBS" --out "$OUT/sweep.json"
 
 echo "== 3/4 payload sweep (xop_feed_payload N=1..100k), n=$XRUN_INV =="
 python3 scripts/payload_sweep_controlled.py --invocations "$XRUN_INV" --reps 1 \
