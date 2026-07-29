@@ -120,7 +120,7 @@ test "`f = new;` (first-class reference) does NOT emit E0012" {
 #  Client (cl) backend: `new(...)` → `Reflect.construct(...)`
 # ─────────────────────────────────────────────────────────────────────
 test "cl: new(Cls, args) lowers to Reflect.construct in JS output" {
-    code = "cl def make_date(s: str) -> Any {\n" + "    return new(Date, s);\n" + "}\n";
+    code = "variant client;\n\n" + "def make_date(s: str) -> Any {\n" + "    return new(Date, s);\n" + "}\n";
     mod = compile_inline(code);
     js = mod.gen.js;
     assert js.strip() , "Expected JavaScript output for cl code";
@@ -133,7 +133,7 @@ test "cl: new(Cls, args) lowers to Reflect.construct in JS output" {
 }
 
 test "cl: new(Cls) with no args lowers to Reflect.construct(Cls, [])" {
-    code = "cl def make_set() -> Any {\n" + "    return new(Set);\n" + "}\n";
+    code = "variant client;\n\n" + "def make_set() -> Any {\n" + "    return new(Set);\n" + "}\n";
     mod = compile_inline(code);
     js = mod.gen.js;
     assert "Reflect.construct(Set, [])" in js , (
@@ -142,7 +142,7 @@ test "cl: new(Cls) with no args lowers to Reflect.construct(Cls, [])" {
 }
 
 test "cl: new with multiple args produces a JS array of args" {
-    code = "cl def mk(a: int, b: int) -> Any {\n" + "    return new(Map, a, b);\n" + "}\n";
+    code = "variant client;\n\n" + "def mk(a: int, b: int) -> Any {\n" + "    return new(Map, a, b);\n" + "}\n";
     mod = compile_inline(code);
     js = mod.gen.js;
     assert "Reflect.construct(Map, [a, b])" in js , (

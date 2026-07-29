@@ -1,12 +1,14 @@
-"""The cl -> na edge: `na import from .mod { fn }` in client code.
+"""The cl -> na edge: a client import that resolves to a native module.
 
-One marked import does three things: binds each name to a generated
-`__na_bind` stub (lazy wasm instantiation via @jac/wasm_host), records a
-typed cl -> na InteropBinding in the interop manifest so the build emits
-/static/<stem>.wasm, and compiles to nothing on the Python side -- a plain
-import of a native module is the sv -> na ctypes crossing and executes the
-module under CPython, which is exactly what the na marker exists to avoid
-(jaclang.org DOGFOOD A2).
+A native-resolving import in client code does three things: binds each name
+to a generated `__na_bind` stub (lazy wasm instantiation via @jac/wasm_host),
+records a typed cl -> na InteropBinding in the interop manifest so the build
+emits /static/<stem>.wasm, and compiles to nothing on the Python side -- a
+plain import of a native module from server code is the sv -> na ctypes
+crossing and executes the module under CPython, which is exactly what the
+client edge exists to avoid (jaclang.org DOGFOOD A2). The client side of the
+edge is placement-inferred; these tests pin the host module client via
+[placement.pins] the way a migrated project would.
 """
 
 import os;
@@ -15,6 +17,8 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 
 glob KERNEL_SRC: str = (
+         "variant native;\n"
+         "\n"
          "def:pub fib(n: int) -> int {\n"
          "    if n < 2 {\n"
          "        return n;\n"
@@ -23,14 +27,13 @@ glob KERNEL_SRC: str = (
          "}\n"
      ),
      HOST_SRC: str = (
-         "na import from .kernel { fib, fib as fast_fib }\n"
+         "import from .kernel { fib, fib as fast_fib }\n"
          "\n"
-         "cl {\n"
-         "    async def:pub show -> int {\n"
-         "        return await fib(10);\n"
-         "    }\n"
+         "async def:pub show -> int {\n"
+         "    return await fib(10);\n"
          "}\n"
-     );
+     ),
+     PIN_HOST_CLIENT: str = "[placement.pins]\nhost = \"client\"\n";
 
 def compile_host -> uni.Module {
     tmp = tempfile.mkdtemp(prefix="jac_na_edge_");
@@ -42,11 +45,14 @@ def compile_host -> uni.Module {
     with open(host_path, "w") as f {
         f.write(HOST_SRC);
     }
+    with open(os.path.join(tmp, "jac.toml"), "w") as f {
+        f.write(PIN_HOST_CLIENT);
+    }
     prog = JacProgram();
     return prog.compile(host_path);
 }
 
-test "na import binds generated wasm stubs in the client js" {
+test "native import binds generated wasm stubs in the client js" {
     mod = compile_host();
     js = mod.gen.js;
     assert '__na_bind' in js , "expected the @jac/wasm_host stub factory import";
@@ -55,7 +61,7 @@ test "na import binds generated wasm stubs in the client js" {
     assert "fast_fib" in js , "expected the alias as the local binding";
 }
 
-test "na import records typed cl->na bindings in the interop manifest" {
+test "native import records typed cl->na bindings in the interop manifest" {
     mod = compile_host();
     manifest = mod.gen.interop_manifest;
     assert manifest is not None;
@@ -79,20 +85,20 @@ test "na import records typed cl->na bindings in the interop manifest" {
     client_manifest = mod.gen.client_manifest;
     assert client_manifest is not None;
     assert "kernel" not in dict(client_manifest.imports) , (
-        "an na import must not join manifest.imports -- the client build"
+        "a native import must not join manifest.imports -- the client build"
         " would try to JS-compile the native module"
     );
 }
 
-test "na import compiles to nothing on the python side" {
+test "native import compiles to nothing on the python side" {
     mod = compile_host();
     assert "kernel" not in mod.gen.py , (
-        "the na import must be inert under CPython; only a plain import of a"
-        " native module means the ctypes crossing"
+        "the client->native import must be inert under CPython; only a plain"
+        " server import of a native module means the ctypes crossing"
     );
 }
 
-test "colliding na import basenames are a build error" {
+test "colliding native import basenames are a build error" {
     tmp = tempfile.mkdtemp(prefix="jac_na_edge_");
     for sub in ("a", "b") {
         os.makedirs(os.path.join(tmp, sub));
@@ -103,15 +109,16 @@ test "colliding na import basenames are a build error" {
     host_path = os.path.join(tmp, "host.jac");
     with open(host_path, "w") as f {
         f.write(
-            "na import from .a.kernel { fib }\n"
-            "na import from .b.kernel { fib as fib_b }\n"
+            "import from .a.kernel { fib }\n"
+            "import from .b.kernel { fib as fib_b }\n"
             "\n"
-            "cl {\n"
-            "    async def:pub show -> int {\n"
-            "        return await fib(4) + await fib_b(5);\n"
-            "    }\n"
+            "async def:pub show -> int {\n"
+            "    return await fib(4) + await fib_b(5);\n"
             "}\n"
         );
+    }
+    with open(os.path.join(tmp, "jac.toml"), "w") as f {
+        f.write(PIN_HOST_CLIENT);
     }
     prog = JacProgram();
     prog.compile(host_path);
@@ -132,12 +139,13 @@ test "plain import of a native module from client code takes the na edge" {
         f.write(
             "import from .kernel { fib }\n"
             "\n"
-            "cl {\n"
-            "    async def:pub show -> int {\n"
-            "        return await fib(10);\n"
-            "    }\n"
+            "async def:pub show -> int {\n"
+            "    return await fib(10);\n"
             "}\n"
         );
+    }
+    with open(os.path.join(tmp, "jac.toml"), "w") as f {
+        f.write(PIN_HOST_CLIENT);
     }
     prog = JacProgram();
     mod = prog.compile(host_path);
@@ -156,6 +164,6 @@ test "plain import of a native module from client code takes the na edge" {
     );
     assert "kernel" not in mod.gen.py , (
         "the inferred na edge must be inert under CPython, exactly like the"
-        " marked form"
+        " server-pinned form"
     );
 }

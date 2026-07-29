@@ -27,7 +27,7 @@ test "static private and protected members are not exposed on the instance" {
         proj = make_modifiers_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "app.cl.jac";
         f.write_text(
-            'cl import from "modpkg" { getWidget }\n\n'
+            'import from "modpkg" { getWidget }\n\n'
             'def:pub use() -> None {\n'
             '    w = getWidget();\n'
             '    v: str = w.value;\n'
@@ -61,7 +61,7 @@ test "overloaded methods degrade to any instead of picking the wrong signature" 
         proj = make_modifiers_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "over.cl.jac";
         f.write_text(
-            'cl import from "modpkg" { getApi }\n\n'
+            'import from "modpkg" { getApi }\n\n'
             'def:pub use() -> None {\n'
             '    a = getApi();\n'
             '    s: str = a.get("x");\n'

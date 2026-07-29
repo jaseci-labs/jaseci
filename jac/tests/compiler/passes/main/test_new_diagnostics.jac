@@ -445,11 +445,12 @@ test "E0063: glob in statement position is always rejected" {
     }
 }
 
-test "E0063: glob inside a codespace block is valid" {
-    # glob is a declaration, so it is allowed directly under cl/sv/na blocks.
+test "removed placement-marker blocks raise the migration error" {
+    # cl/sv/na blocks were removed with #7772; the parser points authors at
+    # 'jac fix placement' instead of a bare syntax error.
     for src in ["cl { glob counter: int = 0; }", "sv { glob token = \"x\"; }"] {
         (has_err, _) = parse_and_validate(src);
-        assert not has_err , f"Unexpected error for: {src}";
+        assert has_err , f"Expected the marker-removal error for: {src}";
     }
 }
 

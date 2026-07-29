@@ -752,25 +752,51 @@ impl PyastGenPass.exit_sub_tag(nd: uni.SubTag[uni.T]) -> None {
     nd.gen.py_ast = nd.tag.gen.py_ast;
 }
 
-impl PyastGenPass._native_import_registration_stmts -> list {
+impl PyastGenPass._top_level_bound_names(py_ast: object) -> list[str] {
+    stmts = py_ast if isinstance(py_ast, list) else [py_ast];
+    names: list[str] = [];
+    for stmt in stmts {
+        if isinstance(stmt, list) {
+            names.extend(self._top_level_bound_names(stmt));
+        } elif isinstance(
+            stmt, (ast3.FunctionDef, ast3.AsyncFunctionDef, ast3.ClassDef)
+        ) {
+            names.append(stmt.name);
+        } elif isinstance(stmt, (ast3.Import, ast3.ImportFrom)) {
+            for alias in stmt.names {
+                names.append(alias.asname or alias.name);
+            }
+        } elif isinstance(stmt, ast3.Assign) {
+            for target in stmt.targets {
+                if isinstance(target, ast3.Name) {
+                    names.append(target.id);
+                }
+            }
+        }
+    }
+    return names;
+}
+
+
+impl PyastGenPass._native_import_registration_map -> dict {
     manifest = self.ir_in.gen.interop_manifest;
     if not (manifest and manifest.bindings and manifest.native_imports) {
-        return [];
+        return {};
     }
-    parts: list[str] = [];
+    reg_map: dict[str, list] = {};
     for binding in manifest.native_imports {
-        parts.append(
+        if binding.name in reg_map {
+            continue;
+        }
+        parsed = ast3.parse(
             f"if '__jac_interop_py_funcs__' in globals() " + f"and '{binding.name}' in globals():\n" + f"    __jac_interop_py_funcs__['{binding.name}'] = {binding.name}"
         );
+        for stub_node in ast3.walk(parsed) {
+            stub_node.jac_link = [];
+        }
+        reg_map[binding.name] = list(parsed.body);
     }
-    if not parts {
-        return [];
-    }
-    parsed = ast3.parse('\n'.join(parts));
-    for stub_node in ast3.walk(parsed) {
-        stub_node.jac_link = [];
-    }
-    return list(parsed.body);
+    return reg_map;
 }
 
 impl PyastGenPass.exit_module(nd: uni.Module) -> None {
@@ -839,8 +865,25 @@ impl PyastGenPass.exit_module(nd: uni.Module) -> None {
         body_items.append(doc_stmt);
     }
     body_items.extend(self.preamble);
-    body_items.extend(item.gen.py_ast for item in merged_body);
-    body_items.extend(self._native_import_registration_stmts());
+    reg_map = self._native_import_registration_map();
+    emitted: set[str] = set();
+    for item in merged_body {
+        body_items.extend(item.gen.py_ast);
+        if not reg_map {
+            continue;
+        }
+        for bound in self._top_level_bound_names(item.gen.py_ast) {
+            if bound in reg_map and bound not in emitted {
+                body_items.extend(reg_map[bound]);
+                emitted.add(bound);
+            }
+        }
+    }
+    for (reg_name, stmts) in reg_map.items() {
+        if reg_name not in emitted {
+            body_items.extend(stmts);
+        }
+    }
     new_body = self._flatten_ast_list(body_items);
     nd.gen.py_ast = [
         self.sync(
@@ -1117,10 +1160,10 @@ impl PyastGenPass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
 impl PyastGenPass.exit_import(nd: uni.Import) -> None {
     import from jaclang.jac0core.compiler {
         import_binds_client_native,
-        plain_native_import_target
+        native_only_import_target
     }
     drop_native_target = False;
-    native_target = plain_native_import_target(nd, self.prog);
+    native_target = native_only_import_target(nd, self.prog);
     if native_target is not None {
         import os as _os;
         drop_native_target = (_os.sep + "jaclang" + _os.sep) not in _os.path.abspath(

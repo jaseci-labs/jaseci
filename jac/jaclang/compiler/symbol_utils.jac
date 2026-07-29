@@ -438,9 +438,16 @@ def resolve_import_source_module(prog: any, nd: uni.Import) -> (uni.Module | Non
         return source_mod;
     }
     if Path(resolved_path).exists() {
-        source_mod = prog.compile(
-            resolved_path, no_cgen=True, type_check=False, symtab_ir_only=True
-        );
+        saved_opts = prog?._compile_options;
+        try {
+            source_mod = prog.compile(
+                resolved_path, no_cgen=True, type_check=False, symtab_ir_only=True
+            );
+        } finally {
+            if saved_opts is not None {
+                prog._compile_options = saved_opts;
+            }
+        }
         prog.mod.hub[abs_path] = source_mod;
         return source_mod;
     }

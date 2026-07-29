@@ -1,11 +1,13 @@
-"""Test fixture: comments inside na {} blocks must be preserved in place."""
+"""Test fixture: comments inside brace-delimited blocks must be preserved in place."""
 
-# Comment inside native block
-def add(a: int, b: int) -> int {
-    return a + b;
-}
+obj Ops {
+    # Comment inside native block
+    def add(a: int, b: int) -> int {
+        return a + b;
+    }
 
-# Another comment
-def mul(a: int, b: int) -> int {
-    return a * b;
+    # Another comment
+    def mul(a: int, b: int) -> int {
+        return a * b;
+    }
 }

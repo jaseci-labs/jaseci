@@ -25,7 +25,7 @@ test "interface field access resolves with correct types" {
         proj = make_iface_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "app.cl.jac";
         f.write_text(
-            'cl import from "cfgpkg" { getConfig, getDerived }\n\n'
+            'import from "cfgpkg" { getConfig, getDerived }\n\n'
             'def:pub use() -> str {\n'
             '    c = getConfig();\n'
             '    theme: str = c.theme;\n'
@@ -51,7 +51,7 @@ test "whole-object assignment of a synthetic interface to an unrelated type erro
         # old foreign-any suppressor). Member access and matching annotations
         # remain valid in the sibling tests.
         f.write_text(
-            'cl import from "cfgpkg" { getConfig }\n\n'
+            'import from "cfgpkg" { getConfig }\n\n'
             'def:pub use() -> str {\n'
             '    x: str = getConfig();\n'
             '    return x;\n'
@@ -72,7 +72,7 @@ test "assigning a concrete Jac value into a synthetic interface annotation error
         # Dest-side synthetic annotations must still reject incompatible Jac
         # values (str/int into Config). Leniency is only for external sources.
         f.write_text(
-            'cl import from "cfgpkg" { Config }\n\n'
+            'import from "cfgpkg" { Config }\n\n'
             'def:pub bad() -> None {\n'
             '    c: Config = "hello";\n'
             '}\n'
@@ -93,7 +93,7 @@ test "interface imported directly as a type annotation resolves fields" {
         # not just inferred from a return type. Field access on the annotated
         # local must resolve precisely.
         f.write_text(
-            'cl import from "cfgpkg" { getConfig, Config }\n\n'
+            'import from "cfgpkg" { getConfig, Config }\n\n'
             'def:pub use() -> str {\n'
             '    c: Config = getConfig();\n'
             '    theme: str = c.theme;\n'
@@ -115,7 +115,7 @@ test "an any-typed interface field flows gradually like untyped JS" {
         # local -- the same gradualness untyped external JS values get. Access
         # itself is precise (a bogus field still errors; see below).
         f.write_text(
-            'cl import from "cfgpkg" { getConfig }\n\n'
+            'import from "cfgpkg" { getConfig }\n\n'
             'def:pub use() -> str {\n'
             '    c = getConfig();\n'
             '    s: str = c.payload;\n'
@@ -133,7 +133,7 @@ test "accessing a nonexistent interface field errors" {
         proj = make_iface_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "bad.cl.jac";
         f.write_text(
-            'cl import from "cfgpkg" { getConfig }\n\n'
+            'import from "cfgpkg" { getConfig }\n\n'
             'def:pub bad() -> str {\n'
             '    c = getConfig();\n'
             '    return c.nonexistent_field;\n'
@@ -153,7 +153,7 @@ test "cross-interface field keeps the sibling interface's real type" {
         # fix this collapsed to foreign `any`; now `child.name` resolves to a
         # real `string`.
         f.write_text(
-            'cl import from "relpkg" { getParent }\n\n'
+            'import from "relpkg" { getParent }\n\n'
             'def:pub use() -> str {\n'
             '    p = getParent();\n'
             '    name: str = p.child.name;\n'
@@ -174,7 +174,7 @@ test "cross-interface bogus field through a sibling ref errors" {
         # produced no error at all. Now `child` is the real `Child` shell, so a
         # bogus attribute must raise E1030.
         f.write_text(
-            'cl import from "relpkg" { getParent }\n\n'
+            'import from "relpkg" { getParent }\n\n'
             'def:pub bad() -> str {\n'
             '    p = getParent();\n'
             '    return p.child.nope;\n'
@@ -193,7 +193,7 @@ test "recursive interface field resolves with its own type" {
         # `Node.next` is typed `Node` (self-reference). It must resolve to the
         # shell instance, so `next.value` is a real `number`.
         f.write_text(
-            'cl import from "relpkg" { getHead }\n\n'
+            'import from "relpkg" { getHead }\n\n'
             'def:pub use() -> float {\n'
             '    n = getHead();\n'
             '    v: float = n.next.value;\n'
@@ -211,7 +211,7 @@ test "recursive interface field bogus access errors" {
         proj = make_relational_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "rec_bad.cl.jac";
         f.write_text(
-            'cl import from "relpkg" { getHead }\n\n'
+            'import from "relpkg" { getHead }\n\n'
             'def:pub bad() -> str {\n'
             '    n = getHead();\n'
             '    return n.next.nope;\n'
@@ -231,7 +231,7 @@ test "array of interface refs resolves element field types" {
         # element type, so `children[0].name` is a `string`. Exercises the
         # array branch of _map_ts_type with threaded shells.
         f.write_text(
-            'cl import from "relpkg" { getParent }\n\n'
+            'import from "relpkg" { getParent }\n\n'
             'def:pub use() -> str {\n'
             '    p = getParent();\n'
             '    first = p.children[0];\n'
@@ -253,7 +253,7 @@ test "interface field typed via a typealias resolves" {
         # resolution path must also thread shells so `wrapped.name` resolves to
         # a `string`.
         f.write_text(
-            'cl import from "relpkg" { getHolder }\n\n'
+            'import from "relpkg" { getHolder }\n\n'
             'def:pub use() -> str {\n'
             '    h = getHolder();\n'
             '    name: str = h.wrapped.name;\n'
@@ -275,7 +275,7 @@ test "interface method call type-checks with correct argument types" {
         proj = make_iface_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "method_ok.cl.jac";
         f.write_text(
-            'cl import from "cfgpkg" { getConfig }\n\n'
+            'import from "cfgpkg" { getConfig }\n\n'
             'def:pub use() -> str {\n'
             '    c = getConfig();\n'
             '    c.onChange("ready");\n'
@@ -297,7 +297,7 @@ test "interface method call with a wrong argument type errors" {
         proj = make_iface_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "method_bad_arg.cl.jac";
         f.write_text(
-            'cl import from "cfgpkg" { getConfig }\n\n'
+            'import from "cfgpkg" { getConfig }\n\n'
             'def:pub bad() -> None {\n'
             '    c = getConfig();\n'
             '    c.onChange(5);\n'
@@ -317,7 +317,7 @@ test "interface method return type is checked, not any" {
         proj = make_iface_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "method_ret_bad.cl.jac";
         f.write_text(
-            'cl import from "cfgpkg" { getConfig }\n\n'
+            'import from "cfgpkg" { getConfig }\n\n'
             'def:pub bad() -> None {\n'
             '    c = getConfig();\n'
             '    n: float = c.greet("world");\n'
@@ -337,7 +337,7 @@ test "optional recursive interface field narrows to its real member type" {
         proj = make_relational_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "opt_ok.cl.jac";
         f.write_text(
-            'cl import from "relpkg" { getHead }\n\n'
+            'import from "relpkg" { getHead }\n\n'
             'def:pub use() -> float {\n'
             '    n = getHead();\n'
             '    p = n.parent;\n'
@@ -363,7 +363,7 @@ test "accessing through an optional interface field without narrowing errors" {
         proj = make_relational_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "opt_bad.cl.jac";
         f.write_text(
-            'cl import from "relpkg" { getHead }\n\n'
+            'import from "relpkg" { getHead }\n\n'
             'def:pub bad() -> str {\n'
             '    n = getHead();\n'
             '    return n.parent.nope;\n'
@@ -386,7 +386,7 @@ test "generic heritage degrades gracefully to gradual any" {
         proj = make_generic_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "gen_ok.cl.jac";
         f.write_text(
-            'cl import from "genpkg" { getDerived }\n\n'
+            'import from "genpkg" { getDerived }\n\n'
             'def:pub use() -> str {\n'
             '    d = getDerived();\n'
             '    extra_val: float = d.extra;\n'
@@ -408,7 +408,7 @@ test "generic-derived synthetic class still rejects unknown fields" {
         proj = make_generic_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "gen_bad.cl.jac";
         f.write_text(
-            'cl import from "genpkg" { getDerived }\n\n'
+            'import from "genpkg" { getDerived }\n\n'
             'def:pub bad() -> str {\n'
             '    d = getDerived();\n'
             '    return d.totallybogus;\n'
@@ -429,7 +429,7 @@ test "cyclic interface heritage degrades without crashing" {
         proj = make_cyclic_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "cyc_ok.cl.jac";
         f.write_text(
-            'cl import from "cycpkg" { getCycA }\n\n'
+            'import from "cycpkg" { getCycA }\n\n'
             'def:pub use() -> float {\n'
             '    x = getCycA();\n'
             '    n: float = x.a;\n'
@@ -450,7 +450,7 @@ test "callable interface is callable with a typed return and keeps its fields" {
         proj = make_callable_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "call_ok.cl.jac";
         f.write_text(
-            'cl import from "callpkg" { getHandler }\n\n'
+            'import from "callpkg" { getHandler }\n\n'
             'def:pub use() -> float {\n'
             '    h = getHandler();\n'
             '    n: float = h("x");\n'
@@ -474,7 +474,7 @@ test "index-signature interface synthesizes no fields, so keyed access errors" {
         proj = make_degrade_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "idx.cl.jac";
         f.write_text(
-            'cl import from "degpkg" { getDict }\n\n'
+            'import from "degpkg" { getDict }\n\n'
             'def:pub bad() -> None {\n'
             '    d = getDict();\n'
             '    x = d.anything;\n'
@@ -494,7 +494,7 @@ test "an implicit-any interface member flows gradually" {
         proj = make_degrade_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "loose.cl.jac";
         f.write_text(
-            'cl import from "degpkg" { getCfg }\n\n'
+            'import from "degpkg" { getCfg }\n\n'
             'def:pub use() -> str {\n'
             '    c = getCfg();\n'
             '    s: str = c.loose;\n'
@@ -515,7 +515,7 @@ test "an abstract class synthesizes like a normal structural class" {
         proj = make_degrade_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "abs.cl.jac";
         f.write_text(
-            'cl import from "degpkg" { getBase }\n\n'
+            'import from "degpkg" { getBase }\n\n'
             'def:pub use() -> str {\n'
             '    b = getBase();\n'
             '    n: str = b.name;\n'
@@ -538,7 +538,7 @@ test "merged interface declarations do not combine members" {
         proj = make_degrade_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "merge.cl.jac";
         f.write_text(
-            'cl import from "degpkg" { getMerged }\n\n'
+            'import from "degpkg" { getMerged }\n\n'
             'def:pub bad() -> None {\n'
             '    m = getMerged();\n'
             '    x = m.a;\n'
@@ -559,7 +559,7 @@ test "callable interface enforces its call-signature return type" {
         proj = make_callable_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "call_bad.cl.jac";
         f.write_text(
-            'cl import from "callpkg" { getHandler }\n\n'
+            'import from "callpkg" { getHandler }\n\n'
             'def:pub bad() -> str {\n'
             '    h = getHandler();\n'
             '    s: str = h("x");\n'

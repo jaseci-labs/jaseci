@@ -755,6 +755,14 @@ impl Parser._check_js_arrow_fault -> bool {
     return self.current().loc.pos_end == nxt.loc.pos_start;
 }
 
+impl Parser._recover_removed_marker{
+    self.error(
+        f"'{self.current().value}' placement markers were removed: " + "placement is inferred (override via [placement.pins] in " + "jac.toml; declare services in [scale.microservices.routes]). " + "Run 'jac fix placement' to migrate this file."
+    );
+    self.advance();
+    return self.parse_element_stmt();
+}
+
 impl Parser._recover_js_arrow_fault(left: Expr) -> Expr {
     eq_tok = self.advance();
     gt_tok = self.advance();
@@ -3285,11 +3293,7 @@ impl Parser.parse_element_stmt{
             )
         )
     ) {
-        self.error(
-            f"'{self.current().value}' placement markers were removed: " + "placement is inferred (override via [placement.pins] in " + "jac.toml; declare services in [scale.microservices.routes]). " + "Run 'jac fix placement' to migrate this file."
-        );
-        self.advance();
-        return self.parse_element_stmt();
+        return self._recover_removed_marker();
     }
     if self.check(TokenKind.TYP_TYPE) {
         save = self.pos;

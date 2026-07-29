@@ -34,8 +34,8 @@ test "generated cn() type-checks cleanly against declared npm types" {
         proj = make_npm_client_project(Path(td));
         util = proj / "lib" / "utils.cl.jac";
         util.write_text(
-            'cl import from "clsx" { clsx }\n'
-            'cl import from "tailwind-merge" { twMerge }\n\n'
+            'import from "clsx" { clsx }\n'
+            'import from "tailwind-merge" { twMerge }\n\n'
             'def:pub cn(*inputs: any) -> str {\n'
             '    return twMerge(clsx(inputs));\n'
             '}\n'
@@ -57,7 +57,7 @@ test "declared npm types are real: misuse is a genuine type error" {
         proj = make_npm_client_project(Path(td));
         bad = proj / "lib" / "misuse.cl.jac";
         bad.write_text(
-            'cl import from "clsx" { clsx }\n\n'
+            'import from "clsx" { clsx }\n\n'
             'def:pub bad() -> int {\n'
             '    return clsx("a");\n'
             '}\n'
@@ -75,7 +75,7 @@ test "undeclared npm imports stay gradual with W1102" {
         proj = make_npm_client_project(Path(td));
         f = proj / "lib" / "untyped.cl.jac";
         f.write_text(
-            'cl import from "untyped-pkg" { mystery }\n\n'
+            'import from "untyped-pkg" { mystery }\n\n'
             'def:pub use() -> str {\n'
             '    return mystery(1);\n'
             '}\n'
@@ -93,7 +93,7 @@ test "strict knob escalates untyped external imports to E1120" {
         proj = make_npm_client_project(Path(td), strict=True);
         f = proj / "lib" / "untyped.cl.jac";
         f.write_text(
-            'cl import from "untyped-pkg" { mystery }\n\n'
+            'import from "untyped-pkg" { mystery }\n\n'
             'def:pub use() -> str {\n'
             '    return mystery(1);\n'
             '}\n'
@@ -104,7 +104,7 @@ test "strict knob escalates untyped external imports to E1120" {
         # Declared imports are unaffected by strict mode.
         ok = proj / "lib" / "ok.cl.jac";
         ok.write_text(
-            'cl import from "clsx" { clsx }\n\n'
+            'import from "clsx" { clsx }\n\n'
             'def:pub c() -> str {\n'
             '    return clsx("a");\n'
             '}\n'
@@ -121,7 +121,7 @@ test "missing module warns W1100 without cascading E1002" {
         proj = make_npm_client_project(Path(td));
         f = proj / "lib" / "missing.cl.jac";
         f.write_text(
-            'cl import from "not-installed-pkg" { ghost }\n\n'
+            'import from "not-installed-pkg" { ghost }\n\n'
             'def:pub g() -> str {\n'
             '    return ghost();\n'
             '}\n'

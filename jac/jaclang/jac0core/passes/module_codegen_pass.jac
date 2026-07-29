@@ -38,6 +38,9 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
         result: list[uni.ElementStmt] = [];
         for (body, _strip) in ModuleCodegenPass.iter_woven_segments(module) {
             for stmt in body {
+                if isinstance(stmt, uni.VariantDecl) {
+                    continue;
+                }
                 if ctx is None {
                     result.append(stmt);
                 } elif (

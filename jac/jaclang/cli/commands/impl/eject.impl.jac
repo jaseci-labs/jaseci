@@ -196,7 +196,11 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         server = _is_meaningful_python(py_code) and (not is_client) and (not is_native);
 
         if server {
+            import from jaclang.jac0core.constant { CodeContext }
             for item in ir.body {
+                if item?.code_context in (CodeContext.CLIENT, CodeContext.NATIVE) {
+                    continue;
+                }
                 if isinstance(item, uni.Archetype)
                 and item.sym_category == SymbolType.WALKER_ARCH {
                     walkers.append(

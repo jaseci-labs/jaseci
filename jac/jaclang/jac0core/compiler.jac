@@ -489,6 +489,22 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
     return None;
 }
 
+def native_only_import_target(nd: uni.Import, prog: object) -> (str | None) {
+    import from jaclang.jac0core.ext_registry { NATIVE, codespace_of }
+    resolved = plain_native_import_target(nd, prog);
+    if resolved is None {
+        return None;
+    }
+    if codespace_of(resolved) == NATIVE {
+        return resolved;
+    }
+    target = hub_module_for_path(resolved, prog);
+    if target is not None and module_has_native_anchor(target, prog) {
+        return resolved;
+    }
+    return None;
+}
+
 def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
     if plain_native_import_target(nd, prog) is None {
         return False;

@@ -745,11 +745,19 @@ impl JacCompiler.compile(
         set_effective_default_codespace
     }
     _prev_cs = get_effective_default_codespace_override();
+    _depth_prev = getattr(self, '_reentrant_depth', 0);
+    self._reentrant_depth = _depth_prev + 1;
+    _outer_opts: (CompileOptions | None) = None;
+    _outer_prog: (JacProgram | None) = None;
     try {
         if options.force_target_program {
             _wrap_prog = target_program;
         } else {
             _wrap_prog = self._resolve_program(file_path, target_program);
+        }
+        if _depth_prev > 0 {
+            _outer_prog = _wrap_prog;
+            _outer_opts = _wrap_prog._compile_options;
         }
         _pre_errs = len(_wrap_prog.errors_had);
         _pre_warns = len(_wrap_prog.warnings_had);
@@ -819,6 +827,10 @@ impl JacCompiler.compile(
         );
     } finally {
         set_effective_default_codespace(_prev_cs);
+        self._reentrant_depth = _depth_prev;
+        if _outer_prog is not None and _outer_opts is not None {
+            _outer_prog._compile_options = _outer_opts;
+        }
     }
 }
 
