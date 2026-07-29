@@ -109,12 +109,16 @@ impl _type_to_schema(
             for (name, type) in get_type_hints(ty).items()
             if not name.startswith("_")
         };
-        if isinstance(info, FieldInfo) {
+        if isinstance(info, (FieldInfo, ParamInfo)){
             info_fields = info.type_info.fields if info else [];
-            ;
-        } else {
+        }else{
             info_fields = info.fields if info else [];
         }
+        # if isinstance(info, FieldInfo) {
+        #     info_fields = info.type_info.fields if info else [];
+        # } else {
+        #     info_fields = info.fields if info else [];
+        # }
         # Build a map of field info by name for quick lookup
         info_fields_map = {field.name: field for field in info_fields};
         # Build properties for ALL fields (including inherited), using MTIR info when available

@@ -153,7 +153,16 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
                 media_inputs.append((value, psem));
                 continue;
             }
-            inputs_detail.append(f"{pname} = {(value, psem)}");
+            # The semstring is a LABEL for the argument, not a second element of
+            # it. Interpolating the `(value, psem)` tuple rendered it as
+            # `spec = ('<the spec>', 'The problem to solve.')` -- indistinguishable
+            # from a real 2-tuple value, so the model had to guess which half was
+            # data. Emit the description on its own annotation line, ahead of the
+            # value so a large payload cannot bury it.
+            if psem {
+                inputs_detail.append(f"# {pname}: {psem}");
+            }
+            inputs_detail.append(f"{pname} = {value!r}");
             desc = _describe_input_type(value);
             if desc {
                 inputs_detail.append(desc);
@@ -188,23 +197,29 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
                 # Always use tuple format for consistency
                 media_inputs.append((value, ""));
             } else {
-                if has_mtir {
-                    inputs_detail.append(f"{key} = {(value, "")}");
-                } else {
-                    inputs_detail.append(f"{key} = {value}");
-                }
+                # No semstring exists for incl_info entries, so the old
+                # `(value, "")` tuple only ever added a dangling empty string.
+                inputs_detail.append(
+                    f"{key} = {value!r}" if has_mtir else f"{key} = {value}"
+                );
             }
         }
     }
     if isinstance(caller, MethodType) {
         if has_mtir {
             # `or ""` matters: parent_class.semstr is None when the archetype
-            # has neither a sem nor a docstring, and the tuple would then put a
+            # has neither a sem nor a docstring, and it would otherwise put a
             # literal `None` in the prompt.
             self_sem = (
                 ir_info.parent_class.semstr if ir_info.parent_class else ""
             ) or "";
-            self_rows: list[str] = [f"self = {(caller.__self__, self_sem)}"];
+            # Same annotation form as the other arguments -- see the comment on
+            # the `psem` line above for why the semstring is not tupled in.
+            self_rows: list[str] = [];
+            if self_sem {
+                self_rows.append(f"# self: {self_sem}");
+            }
+            self_rows.append(f"self = {caller.__self__!r}");
             # `self` is an input like any other. Skipping it here meant an
             # archetype's field semstrings never reached the model, even though
             # every other obj-valued argument gets described.

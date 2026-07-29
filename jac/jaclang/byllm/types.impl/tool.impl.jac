@@ -41,8 +41,7 @@ impl Tool.__call__(*args: list, **kwargs: dict) -> object {
         return self.func(*args, **kwargs);
     }
     try {
-        # TODO: Should I json serialize or this is fine?
-        return self.func(*args, **kwargs);
+        return self.func(*args, **_coerce_kwargs(self.func, kwargs));
     } except Exception as e {
         # For the LLM if the tool failed, it'll see the error message
         logger.exception("Tool execution failed");
@@ -55,12 +54,18 @@ impl Tool.get_name -> str {
     return self.func.__name__;
 }
 
-"""Get the description of the function from semstring or docstring."""
+"""Get the description of the function: its name, plus semstring or docstring.
+
+The semstring AUGMENTS the identifier rather than replacing it. Returning the
+sem alone made an annotated function strictly lossier than a bare one -- the
+model saw `generate_code` without a sem, but lost that name the moment one was
+attached, even though the identifier is often the most informative token in the
+prompt. Callers that want the name on its own use `get_name`.
+"""
 impl Tool.get_func_description(func: Callable) -> str {
-    if func?._jac_semstr {
-        return func._jac_semstr;  # type: ignore
-    }
-    return func.__doc__ or func.__name__;
+    name = func.__name__;
+    detail = ((func?._jac_semstr or func.__doc__) or "").strip();
+    return f"{name}: {detail}" if detail else name;
 }
 
 """Create a finish tool that validates and returns the final output."""
@@ -122,16 +127,102 @@ impl Tool.get_json_schema -> dict[str, object] {
 """Parse the arguments from JSON to the function's expected types."""
 impl Tool.parse_arguments(args_json: dict) -> dict {
     args = {};
+    # `get_type_hints` first, NOT `__annotations__`: the raw mapping holds
+    # unresolved strings ('Date'), and `postinit` cannot cache the resolved
+    # ones when `func` is a bound method -- assigning to a method's
+    # `__annotations__` raises and is suppressed. Feeding a forward-ref string
+    # to `TypeAdapter` fails with "not fully defined", which upstream reports
+    # as "invalid tool arguments".
     annotations: dict = {};
     try {
-        annotations = self.func.__annotations__;
-    } except AttributeError {
         annotations = get_type_hints(self.func);
+    } except Exception {
+        annotations = getattr(self.func, "__annotations__", None) or {};
     }
     for (arg_name, arg_json) in args_json.items() {
         if arg_type := annotations.get(arg_name) {
-            args[arg_name] = TypeAdapter(arg_type).validate_python(arg_json);
+            args[arg_name] = _coerce_arg(arg_json, arg_type);
         }
     }
     return args;
+}
+
+
+"""Coerce every keyword argument against the callable's annotations.
+
+Unlike `parse_arguments`, an unannotated argument is kept rather than dropped:
+this runs on the direct-call path, where the caller picked the arguments.
+"""
+def _coerce_kwargs(func: Callable, kwargs: dict) -> dict {
+    annotations: dict = {};
+    with suppress(Exception) {
+        annotations = get_type_hints(func);
+    }
+    if not annotations {
+        with suppress(Exception) {
+            annotations = getattr(func, "__annotations__", None) or {};
+        }
+    }
+    return {
+        key: _coerce_arg(value, annotations.get(key))
+        for (key, value) in kwargs.items()
+    };
+}
+
+
+"""Coerce one JSON-decoded value into its annotated type.
+
+Pydantic covers the ordinary cases, but `TypeAdapter` cannot always build an
+adapter for a Jac-compiled archetype -- it raises `PydanticUserError: ... is
+not fully defined`, which upstream turns into an "invalid tool arguments"
+error the model can only guess at. Fall back to constructing the dataclass
+directly in that case. A value that cannot be converted is passed through
+untouched, so the tool (or its own error) stays the decider.
+"""
+def _coerce_arg(value: object, ty: object) -> object {
+    if ty is None {
+        return value;
+    }
+    with suppress(Exception) {
+        return TypeAdapter(ty).validate_python(value);
+    }
+    return _coerce_structurally(value, ty);
+}
+
+
+"""Structural coercion used when pydantic cannot build an adapter for `ty`."""
+def _coerce_structurally(value: object, ty: object) -> object {
+    if get_origin(ty) is list and isinstance(value, list) {
+        members = get_args(ty);
+        return [_coerce_arg(item, members[0]) for item in value] if members else value;
+    }
+    if not isinstance(value, dict) {
+        return value;
+    }
+    # `obj` directly, or wrapped as `obj | None` / `Optional[obj]` -- get_args
+    # is empty for a plain class, so this covers both without naming UnionType.
+    for candidate in [ty] + list(get_args(ty)) {
+        if is_dataclass(candidate) {
+            with suppress(Exception) {
+                return _build_dataclass(value, candidate);
+            }
+        }
+    }
+    return value;
+}
+
+
+"""Build a dataclass from a JSON object, coercing each field the same way."""
+def _build_dataclass(value: dict, ty: type) -> object {
+    hints: dict = {};
+    with suppress(Exception) {
+        hints = get_type_hints(ty);
+    }
+    return ty(
+        **{
+            key: _coerce_arg(item, hints.get(key))
+            for (key, item) in value.items()
+            if not key.startswith("_")
+        }
+    );
 }
