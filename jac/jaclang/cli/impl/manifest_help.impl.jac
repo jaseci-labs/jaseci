@@ -15,7 +15,9 @@ glob _RESET: str = "\033[0m",
      _HEADER: str = "\033[1;34m",
      _CMD: str = "\033[32m",
      _PROG: str = "\033[1;35m",
-     _TITLE: str = "\033[1m";
+     _TITLE: str = "\033[1m",
+     _CYAN: str = "\033[36m",
+     _BOLD_CYAN: str = "\033[1;36m";
 
 impl _use_color -> bool {
     import from jaclang.cli.console { console }
@@ -26,31 +28,49 @@ impl _use_color -> bool {
     }
 }
 
-def _color(text: str, code: str) -> str {
-    if not _use_color() {
+def _color(text: str, code: str, use_color: bool | None = None) -> str {
+    if use_color is None {
+        use_color = _use_color();
+    }
+    if not use_color {
         return text;
     }
-    return f"{code}{text}\033[0m";
+    return f"{code}{text}{_RESET}";
 }
 
 def _by_name(cmd: CommandMeta) -> str {
     return cmd.name;
 }
 
+def _render_command_block(
+    cmds: list[CommandMeta], col: int, use_color: bool
+) -> list[str] {
+    cmds.sort(key=_by_name);
+    lines: list[str] = [];
+    for cmd in cmds {
+        pad = ' ' * (col - len(cmd.name));
+        lines.append(f"    {_color(cmd.name, _CMD, use_color)}{pad}{cmd.help}");
+    }
+    return lines;
+}
+
 impl format_verbose_help(prog: str = "jac") -> str {
+    use_color = _use_color();
     commands = iter_command_meta();
     commands.sort(key=_by_name);
     lines: list[str] = [];
-    lines.append(_color('The Jac programming language', _TITLE));
+    lines.append(_color('The Jac programming language', _TITLE, use_color));
     lines.append('');
     lines.append(
-        f"{_color('Usage:', _HEADER)} {_color(prog, _PROG)} [OPTIONS] COMMAND [ARGS]..."
+        f"{_color('Usage:', _HEADER, use_color)} {_color(
+            prog, _PROG, use_color
+        )} [OPTIONS] COMMAND [ARGS]..."
     );
     lines.append('');
-    lines.append(_color('Options:', _HEADER));
-    lines.append(f"  {_color('-V, --version', _CMD)}");
+    lines.append(_color('Options:', _HEADER, use_color));
+    lines.append(f"  {_color('-V, --version', _CMD, use_color)}");
     lines.append('          Print version info and exit');
-    lines.append(f"  {_color('-h, --help', _CMD)}");
+    lines.append(f"  {_color('-h, --help', _CMD, use_color)}");
     lines.append('          Print help');
     lines.append('');
 
@@ -72,12 +92,8 @@ impl format_verbose_help(prog: str = "jac") -> str {
             continue;
         }
         display = GROUP_DISPLAY.get(group, group.title());
-        lines.append(_color(f"{display}:", _HEADER));
-        cmds.sort(key=_by_name);
-        for cmd in cmds {
-            pad = ' ' * (col - len(cmd.name));
-            lines.append(f"    {_color(cmd.name, _CMD)}{pad}{cmd.help}");
-        }
+        lines.append(_color(f"{display}:", _HEADER, use_color));
+        lines.extend(_render_command_block(cmds, col, use_color));
         lines.append('');
     }
 
@@ -86,12 +102,8 @@ impl format_verbose_help(prog: str = "jac") -> str {
             continue;
         }
         display = GROUP_DISPLAY.get(group, group.title());
-        lines.append(_color(f"{display}:", _HEADER));
-        cmds.sort(key=_by_name);
-        for cmd in cmds {
-            pad = ' ' * (col - len(cmd.name));
-            lines.append(f"    {_color(cmd.name, _CMD)}{pad}{cmd.help}");
-        }
+        lines.append(_color(f"{display}:", _HEADER, use_color));
+        lines.extend(_render_command_block(cmds, col, use_color));
         lines.append('');
     }
 
@@ -102,12 +114,15 @@ impl format_verbose_help(prog: str = "jac") -> str {
 }
 
 impl format_curated_help(prog: str = "jac") -> str {
+    use_color = _use_color();
     commands = iter_command_meta();
     lines: list[str] = [];
-    lines.append(_color('The Jac programming language', _TITLE));
+    lines.append(_color('The Jac programming language', _TITLE, use_color));
     lines.append('');
     lines.append(
-        f"{_color('Usage:', _HEADER)} {_color(prog, _PROG)} [OPTIONS] COMMAND [ARGS]..."
+        f"{_color('Usage:', _HEADER, use_color)} {_color(
+            prog, _PROG, use_color
+        )} [OPTIONS] COMMAND [ARGS]..."
     );
     lines.append('');
 
@@ -130,12 +145,8 @@ impl format_curated_help(prog: str = "jac") -> str {
         if not cmds {
             continue;
         }
-        lines.append(_color(f"{TIER_SECTIONS.get(tier, tier)}:", _HEADER));
-        cmds.sort(key=_by_name);
-        for cmd in cmds {
-            pad = ' ' * (col - len(cmd.name));
-            lines.append(f"    {_color(cmd.name, _CMD)}{pad}{cmd.help}");
-        }
+        lines.append(_color(f"{TIER_SECTIONS.get(tier, tier)}:", _HEADER, use_color));
+        lines.extend(_render_command_block(cmds, col, use_color));
         lines.append('');
     }
 
@@ -168,17 +179,14 @@ impl format_logo(version: str) -> str {
     }
 
     use_color = _use_color();
-    cyan = '\033[36m' if use_color else '';
-    bold_cyan = '\033[1;36m' if use_color else '';
-    reset = _RESET if use_color else '';
 
     lines = [
-        f"{bold_cyan}{logo[0]}{reset}",
-        f"{bold_cyan}{logo[1]}     Jac Language{reset}",
-        f"{bold_cyan}{logo[2]}{reset}",
-        f"{cyan}{logo[3]}     Version:  {version}{reset}",
-        f"{cyan}{logo[4]}{reset}",
-        f"{cyan}{logo[5]}                Platform: {plat}{reset}"
+        _color(logo[0], _BOLD_CYAN, use_color),
+        f"{_color(logo[1], _BOLD_CYAN, use_color)}     Jac Language",
+        _color(logo[2], _BOLD_CYAN, use_color),
+        f"{_color(logo[3], _CYAN, use_color)}     Version:  {version}",
+        _color(logo[4], _CYAN, use_color),
+        f"{_color(logo[5], _CYAN, use_color)}                Platform: {plat}"
     ];
     return '\n'.join(lines);
 }

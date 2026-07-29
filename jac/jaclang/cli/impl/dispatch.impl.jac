@@ -1,5 +1,6 @@
 import os;
 import sys;
+import from jaclang.cli.command { ArgKind }
 import from jaclang.cli.manifest { ArgMeta, CommandMeta }
 
 def _discover_project_config {
@@ -54,7 +55,7 @@ def _extract_script_args(meta: CommandMeta) -> list[str] {
     }
 
     all_args = meta.args;
-    has_remainder = any(a.kind == "REMAINDER" for a in all_args);
+    has_remainder = any(a.kind == ArgKind.REMAINDER for a in all_args);
     if not has_remainder {
         return [];
     }
@@ -62,14 +63,18 @@ def _extract_script_args(meta: CommandMeta) -> list[str] {
     n_positionals = sum(
         1
         for a in all_args
-        if a.kind == "POSITIONAL"
+        if a.kind == ArgKind.POSITIONAL
     );
     value_flags: set = set();
     for arg in all_args {
-        if arg.kind in ("POSITIONAL", "MULTI", "REMAINDER") {
+        if arg.kind in (
+            ArgKind.POSITIONAL,
+            ArgKind.MULTI_POSITIONAL,
+            ArgKind.REMAINDER
+        ) {
             continue;
         }
-        if arg.kind == "FLAG" or arg.typ == "bool" {
+        if arg.kind == ArgKind.FLAG or arg.typ == "bool" {
             continue;
         }
         value_flags.add(f"--{arg.name}");
@@ -173,7 +178,7 @@ def _apply_config_defaults(config: any, meta: CommandMeta, args_dict: dict) {
             continue;
         }
         arg_default = arg.default;
-        if arg_default is None and (arg.kind == "FLAG" or arg.typ == "bool") {
+        if arg_default is None and (arg.kind == ArgKind.FLAG or arg.typ == "bool") {
             arg_default = False;
         }
         if args_dict[dict_key] != arg_default {

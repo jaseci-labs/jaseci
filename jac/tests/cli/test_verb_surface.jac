@@ -12,9 +12,7 @@ flags to existing verbs and contribute at most one top-level verb each
 `@registry.command` path as core.
 """
 
-import from jaclang.cli.manifest { TOMBSTONED_VERBS, iter_command_meta }
-
-glob VERB_BUDGET: int = 28;
+import from jaclang.cli.manifest { TOMBSTONED_VERBS, VERB_BUDGET, iter_command_meta }
 
 
 test "visible verbs stay within the budget" {

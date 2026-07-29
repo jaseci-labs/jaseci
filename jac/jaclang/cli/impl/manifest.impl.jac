@@ -38,7 +38,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='prompt',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Optional one-shot request; omit for an interactive session',
@@ -51,7 +51,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='model',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Model to use, e.g. local:gemma-4-e4b or openai/gpt-4o',
@@ -64,7 +64,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='n_ctx',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=0,
                     help='Context-window size for local models (tokens)',
@@ -77,7 +77,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='safe',
-                    kind='FLAG',
+                    kind=ArgKind.FLAG,
                     typ='bool',
                     default=False,
                     help='Confirm every file write and code execution (off by default)',
@@ -90,7 +90,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='quiet',
-                    kind='FLAG',
+                    kind=ArgKind.FLAG,
                     typ='bool',
                     default=False,
                     help='Compact output: hide live reasoning, timings, and step detail',
@@ -103,7 +103,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='ui',
-                    kind='FLAG',
+                    kind=ArgKind.FLAG,
                     typ='bool',
                     default=False,
                     help='Open the agent in a web UI with a live phase-graph visualizer',
@@ -149,7 +149,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='action',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default=None,
                     help='open|navigate|click|type|fill|press|get|eval|wait|scroll|console|snapshot|screenshot|state|sessions|close',
@@ -162,7 +162,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='args',
-                    kind='REMAINDER',
+                    kind=ArgKind.REMAINDER,
                     typ='str',
                     default=[],
                     help='Arguments for the action (selector, url, text, path, ...)',
@@ -175,7 +175,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='session',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='default',
                     help='Session name; each session is an isolated browser instance',
@@ -188,7 +188,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='viewport',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='1280x720',
                     help='Browser window size as WIDTHxHEIGHT (applied at open)',
@@ -224,7 +224,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='filename',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Entry .jac file (default: [project] entry-point from jac.toml)',
@@ -237,7 +237,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='as',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='jab',
                     help="What to emit: 'jab' (single-file sealed app bundle, default), 'sealed' (unpacked image dir), 'binary' (self-contained executable), 'wheel' (PyPI), 'npm' (tarball), 'source' (ejected FastAPI+JS tree), 'native' (AOT native binary)",
@@ -258,7 +258,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='output',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='dist',
                     help='Output directory for the built artifact',
@@ -271,7 +271,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='no_typecheck',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Skip the whole-program type-check gate (escape hatch)',
@@ -284,7 +284,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='fat',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Vendor the Python dependency closure as wheels into the bundle (jab/binary only) so it materializes offline, with no PyPI',
@@ -297,7 +297,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='check_only',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Run the gate and emit nothing',
@@ -310,7 +310,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='client',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Build a client shell instead of the artifact: web, pwa, mobile, desktop (desktop builds a native webview app).',
@@ -331,7 +331,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='platform',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='Platform for desktop/mobile shells (windows, macos, linux, all, android, ios)',
@@ -380,7 +380,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='paths',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_POSITIONAL,
                     typ='str',
                     default=None,
                     help='Paths to .jac files or directories',
@@ -393,7 +393,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='print_errs',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=True,
                     help='Print detailed error messages',
@@ -406,7 +406,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='ignore',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_OPTION,
                     typ='str',
                     default=[],
                     help='Directories or files to ignore (space separated)',
@@ -419,7 +419,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='disable-error-code',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_OPTION,
                     typ='str',
                     default=[],
                     help='Diagnostic codes or lint kebab aliases to suppress (same as [check].suppress in jac.toml; e.g. E1030 no-print)',
@@ -432,7 +432,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='parse_only',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Only check syntax (skip type checking)',
@@ -445,7 +445,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='nowarn',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Suppress warning output (warnings are still counted)',
@@ -458,7 +458,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='lint',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help="Report lint violations only (absorbs 'jac lint')",
@@ -471,7 +471,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='fix',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='With --lint: auto-fix violations',
@@ -484,7 +484,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='native-census',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Compile with codegen and report per-module native outcome (native / demoted / server) ranked by reason (needs the native toolchain)',
@@ -497,7 +497,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='placements',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision',
@@ -510,7 +510,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='update-placements-lock',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Write jac.placements.lock (next to jac.toml) from the computed placements; committed, it makes placement flips reviewable like dependency bumps',
@@ -543,7 +543,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='all',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Clean all .jac artifacts (data, cache, packages, client)',
@@ -556,7 +556,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='data',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Clean data directory (.jac/data)',
@@ -569,7 +569,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='cache',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Clean cache directory (.jac/cache)',
@@ -582,7 +582,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='packages',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Clean virtual environment (.jac/venv)',
@@ -595,7 +595,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='force',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Force clean without confirmation',
@@ -644,7 +644,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='action',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='symbol | uses | map | walkers | slice | diag',
@@ -657,7 +657,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='target',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Symbol name, node type, archetype-kind filter, or file path',
@@ -670,7 +670,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='text',
-                    kind='FLAG',
+                    kind=ArgKind.FLAG,
                     typ='bool',
                     default=False,
                     help='Human-readable text instead of the default JSON',
@@ -683,7 +683,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='depth',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=1,
                     help='Type-dependency depth for `slice` (default 1)',
@@ -718,7 +718,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='shell',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='bash',
                     help='Shell to generate completions for (bash, zsh, fish)',
@@ -731,7 +731,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='install',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Install completions to shell config file (~/.bashrc, ~/.zshrc, etc.)',
@@ -766,7 +766,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='action',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='show',
                     help='Action: show, get, set, reset, list',
@@ -779,7 +779,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='key',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Configuration key',
@@ -792,7 +792,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='value',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Value to set',
@@ -805,7 +805,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='group',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Config group filter',
@@ -818,7 +818,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='output',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='table',
                     help='Output format: table, json, toml',
@@ -866,7 +866,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='name',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Project name (omit to initialize the current directory)',
@@ -879,7 +879,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='force',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Overwrite existing jac.toml',
@@ -892,7 +892,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='kind',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Project kind to scaffold (cli, cli-native, service, web-app, ...)',
@@ -905,7 +905,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='use',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='default',
                     help='Custom template: file path or URL to a .jacpack (or a variant name)',
@@ -918,7 +918,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='list',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='List available project kinds and named variants',
@@ -931,7 +931,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='pack',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help="Bundle a template directory into a .jacpack instead of creating (absorbs 'jac jacpack pack')",
@@ -944,7 +944,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='pack_output',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='With --pack: output .jacpack file path',
@@ -957,7 +957,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='skip',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help="Skip dependency installation (Python + npm); run 'jac install' later",
@@ -970,7 +970,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='style',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='shadcn style preset (nova|vega|maia|lyra|mira)',
@@ -983,7 +983,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='baseColor',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='shadcn base palette (neutral|stone|zinc|gray)',
@@ -996,7 +996,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='theme',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='shadcn accent theme (e.g. rose, emerald)',
@@ -1009,7 +1009,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='font',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='shadcn font family (e.g. inter, outfit)',
@@ -1022,7 +1022,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='radius',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='shadcn border radius (none|small|medium|large)',
@@ -1035,7 +1035,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='menuAccent',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='shadcn menu accent (subtle|bold)',
@@ -1048,7 +1048,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='menuColor',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='shadcn menu color scheme',
@@ -1095,7 +1095,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='action',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='inspect',
                     help='Action: inspect, fsck, quarantine, alias, recover, recover-all, schema',
@@ -1108,7 +1108,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='sub',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Sub-action (for alias/quarantine) or row id (for recover)',
@@ -1121,7 +1121,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='arg1',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='First argument (alias old_name, row id, etc.)',
@@ -1134,7 +1134,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='arg2',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Second argument (alias new_name, etc.)',
@@ -1147,7 +1147,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='limit',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=50,
                     help='Row limit for list commands',
@@ -1160,7 +1160,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='app',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Path to the .jac app file to import before dispatching. If omitted, the single .jac file in the current directory is used. The app must be importable so user-defined archetypes (and any @archetype_alias decorators) register before the command touches the backend.',
@@ -1194,7 +1194,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='filename',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Entry .jac file (default: [project] entry-point from jac.toml)',
@@ -1207,7 +1207,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='port',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=8000,
                     help='Port to serve on',
@@ -1220,7 +1220,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='api_port',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=0,
                     help='Backend API port for client dev servers (0 = auto)',
@@ -1252,7 +1252,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='filename',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default=None,
                     help='Path to .jac file',
@@ -1265,7 +1265,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='session',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Session identifier',
@@ -1278,7 +1278,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='initial',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Initial node ID',
@@ -1291,7 +1291,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='depth',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=-1,
                     help='Max traversal depth',
@@ -1304,7 +1304,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='traverse',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Enable traversal mode',
@@ -1317,7 +1317,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='connection',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_OPTION,
                     typ='str',
                     default=[],
                     help='Connection filters',
@@ -1330,7 +1330,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='bfs',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Use breadth-first search',
@@ -1343,7 +1343,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='edge_limit',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=512,
                     help='Max edges',
@@ -1356,7 +1356,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='node_limit',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=512,
                     help='Max nodes',
@@ -1369,7 +1369,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='saveto',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Output file path',
@@ -1382,7 +1382,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='to_screen',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Print to stdout',
@@ -1395,7 +1395,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='format',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='dot',
                     help='Output format',
@@ -1429,7 +1429,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='paths',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_POSITIONAL,
                     typ='str',
                     default=None,
                     help='Paths to .jac files or directories',
@@ -1442,7 +1442,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='to_screen',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Print to stdout instead of writing',
@@ -1455,7 +1455,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='lintfix',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Also apply auto-lint fixes in the same pass',
@@ -1468,7 +1468,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='check',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Check if files are formatted without modifying them (exit 1 if unformatted)',
@@ -1481,7 +1481,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='cache',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Skip files already known to be formatted (content + config + version keyed)',
@@ -1515,7 +1515,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='verify',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Check that manifest.impl.jac route table is up to date; exit 1 if not',
@@ -1549,7 +1549,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='verify',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Check that jir_registry.jac is up to date; exit 1 if not',
@@ -1583,7 +1583,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='verify',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Check that dispatch annexes are up to date; exit 1 if not',
@@ -1635,7 +1635,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='topic',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Guide or doc to print, or a doc set (reference, quick-guide, build, tutorials, internals, community) to list; omit to show the full index',
@@ -1648,7 +1648,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='search',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Grep every bundled guide and doc (name:line: hits)',
@@ -1661,7 +1661,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='export',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Export all guides as a Claude Code skills directory at this path',
@@ -1674,7 +1674,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='json',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Emit machine-readable JSON (for tools and agents)',
@@ -1768,7 +1768,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='packages',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_POSITIONAL,
                     typ='str',
                     default=[],
                     help="Package(s) to add to jac.toml and install into the project's venv (.jac/venv)",
@@ -1781,7 +1781,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='editable',
-                    kind='APPEND',
+                    kind=ArgKind.APPEND,
                     typ='str',
                     default=[],
                     help='Install the package at this path in editable mode; repeat for multiple packages',
@@ -1794,7 +1794,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='dev',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Include dev dependencies, or record named package(s) as dev dependencies',
@@ -1807,7 +1807,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='extras',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_OPTION,
                     typ='str',
                     default=[],
                     help='Optional dependency groups to install (e.g. data monitoring)',
@@ -1820,7 +1820,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='no-save',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Install named package(s) without recording them in jac.toml',
@@ -1833,7 +1833,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='git',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Git repository URL to install and record as a git dependency',
@@ -1846,7 +1846,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='npm',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help="Install npm package(s); with no names, install all npm deps from jac.toml. With --global, install standalone npm CLI tools runnable via 'jac x --global'",
@@ -1859,7 +1859,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='shadcn',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Install shadcn UI component(s) from the bundled registry',
@@ -1872,7 +1872,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='verbose',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Verbose output',
@@ -1885,7 +1885,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='force-reinstall',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Reinstall all packages even if they are already up-to-date',
@@ -1898,7 +1898,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='no-cache-dir',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Disable the pip download cache',
@@ -1911,7 +1911,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='pre',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Include pre-release and development versions',
@@ -1924,7 +1924,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='dry-run',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Show what would be installed without actually installing anything',
@@ -1937,7 +1937,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='no-deps',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help="Don't install package dependencies",
@@ -1950,7 +1950,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='quiet',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Suppress pip output',
@@ -1963,7 +1963,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='prefer-binary',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Prefer wheel files over source distributions',
@@ -1976,7 +1976,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='global',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Install into the jac-owned global store shared by every project, not the project venv (Python: the global site; with --npm: global npm CLI tools)',
@@ -1989,7 +1989,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='scale',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Materialize the deploy-time capability closure (adds deploy-only clients like kubernetes/docker) instead of just the runtime closure',
@@ -2002,7 +2002,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='plan',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help="Show the fully resolved dependency plan instead of installing (absorbs 'jac deps')",
@@ -2015,7 +2015,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='json',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='With --plan: emit the plan as JSON',
@@ -2064,7 +2064,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='transport',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='stdio',
                     help='Transport protocol: stdio, sse, or streamable-http',
@@ -2077,7 +2077,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='port',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=3001,
                     help='Port for SSE/HTTP transports (default: 3001)',
@@ -2090,7 +2090,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='host',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='127.0.0.1',
                     help='Bind address for SSE/HTTP transports (default: 127.0.0.1)',
@@ -2103,7 +2103,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='mode',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Tool/prompt exposure mode: lite, standard, or full (default: full)',
@@ -2116,7 +2116,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='inspect',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Print inventory of resources, tools, and prompts then exit',
@@ -2148,7 +2148,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='action',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='list',
                     help='Action: list, pull, rm',
@@ -2161,7 +2161,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='alias',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Local-model alias (e.g. gemma-4-e4b). Omit for `list`.',
@@ -2210,7 +2210,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='filename',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default=None,
                     help='Path to the .jac file to compile natively',
@@ -2223,7 +2223,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='output',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Output binary path (defaults to filename without extension)',
@@ -2236,7 +2236,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='scrub',
-                    kind='FLAG',
+                    kind=ArgKind.FLAG,
                     typ='str',
                     default=None,
                     help='Scrub build: wipe cached IR and recompile everything from scratch',
@@ -2249,7 +2249,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='target',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help="Code target: native host (default) or 'wasm32' for a browser .wasm module",
@@ -2262,7 +2262,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='shared',
-                    kind='FLAG',
+                    kind=ArgKind.FLAG,
                     typ='str',
                     default=None,
                     help='Build a C-ABI shared library (.so/.dylib/.dll) exporting `:pub` symbols instead of an executable',
@@ -2275,7 +2275,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='debug',
-                    kind='FLAG',
+                    kind=ArgKind.FLAG,
                     typ='str',
                     default=None,
                     help='Emit DWARF debug info + symbol table so the binary is debuggable with gdb/lldb',
@@ -2288,7 +2288,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='gc',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help="Memory-management runtime to emit: 'cycles' (refcounting + cycle collector), 'rc' (refcounting only, no collector code), or 'none' (no refcounting call sites; memory is never reclaimed). Defaults to jac.toml [gc] default, else 'cycles'",
@@ -2301,7 +2301,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='assert-no-rc',
-                    kind='FLAG',
+                    kind=ArgKind.FLAG,
                     typ='str',
                     default=None,
                     help='Fail the build if the emitted IR contains any RC/collector machinery: __rc_* helpers, trace functions, roots-buffer globals, or entry-point GC env probes',
@@ -2314,7 +2314,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='enforce-nogc',
-                    kind='FLAG',
+                    kind=ArgKind.FLAG,
                     typ='str',
                     default=None,
                     help='Enforce zero-RC ownership coverage (E140x hard errors) on the compiled module, regardless of jac.toml [gc.enforce] patterns',
@@ -2366,7 +2366,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='paths',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_POSITIONAL,
                     typ='str',
                     default=[],
                     help='Paths to .jac files or directories (default: project root)',
@@ -2379,7 +2379,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='staged',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Only process git-staged .jac files',
@@ -2392,7 +2392,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='verify',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Verify only: do not rewrite files (exit 1 if unformatted)',
@@ -2405,7 +2405,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='install',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Install git pre-commit + commit-msg hooks',
@@ -2418,7 +2418,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='force',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='With --install: replace an existing foreign hook (a backup is kept)',
@@ -2451,7 +2451,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='packages',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_POSITIONAL,
                     typ='str',
                     default=[],
                     help='Packages to remove',
@@ -2464,7 +2464,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='dev',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Remove from dev dependencies',
@@ -2477,7 +2477,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='npm',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Remove npm (client-side) dependency',
@@ -2490,7 +2490,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='shadcn',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Remove shadcn UI component(s)',
@@ -2531,7 +2531,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='style',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='Component style preset',
@@ -2544,7 +2544,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='baseColor',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='Base neutral palette',
@@ -2557,7 +2557,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='theme',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='Accent color theme',
@@ -2570,7 +2570,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='font',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='Font family',
@@ -2583,7 +2583,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='radius',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='Border radius preset',
@@ -2596,7 +2596,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='menuAccent',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='Menu accent (subtle|bold)',
@@ -2609,7 +2609,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='menuColor',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='Menu color scheme',
@@ -2661,7 +2661,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='filename',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help="Path to .jac or .py file (omit to use the project's jac.toml)",
@@ -2674,7 +2674,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='show',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Print the resolved project-kind run plan without executing it',
@@ -2687,7 +2687,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='main',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=True,
                     help='Treat module as __main__',
@@ -2700,7 +2700,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='cache',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=True,
                     help='Enable compilation cache',
@@ -2713,7 +2713,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='profile',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Configuration profile to load (e.g. prod, staging)',
@@ -2726,7 +2726,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='diagnostics',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Diagnostic verbosity: error (default, fail on errors), all (errors+warnings), none (silent)',
@@ -2739,7 +2739,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='entry',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help="Invoke a specific function/walker entrypoint (absorbs 'jac enter')",
@@ -2752,7 +2752,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='node',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Starting node ID for --entry (OSP node binding)',
@@ -2765,7 +2765,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='root',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Root executor ID for --entry',
@@ -2778,7 +2778,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='debug',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help="Run under the Python debugger (absorbs 'jac debug')",
@@ -2791,7 +2791,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='args',
-                    kind='REMAINDER',
+                    kind=ArgKind.REMAINDER,
                     typ='str',
                     default=None,
                     help='Arguments passed to the script',
@@ -2831,7 +2831,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='action',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default=None,
                     help='Action: status, stop, restart, logs, destroy',
@@ -2844,7 +2844,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='service_name',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Service name (stop/restart/logs), or a .jac app file for platform status/destroy',
@@ -2857,7 +2857,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='lines',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=50,
                     help="Number of log lines to show (for 'logs' action)",
@@ -2870,7 +2870,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='target',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='kubernetes',
                     help='Platform target for .jac app status/destroy (kubernetes, aws, gcp, etc.)',
@@ -2883,7 +2883,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='component',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Platform destroy: component to remove (application, database, cache, monitoring, dashboard; default: entire deployment)',
@@ -2918,7 +2918,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='target',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default=None,
                     help='Target to setup (e.g., desktop)',
@@ -2931,7 +2931,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='platform',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default=None,
                     help='Platform for mobile setup (android, ios, all)',
@@ -2975,7 +2975,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='filename',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='main.jac',
                     help='Path to .jac file (default: main.jac)',
@@ -2988,7 +2988,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='port',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=8000,
                     help='Server port',
@@ -3001,7 +3001,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='main',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=True,
                     help='Treat as __main__',
@@ -3014,7 +3014,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='faux',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Print docs only (no server)',
@@ -3027,7 +3027,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='dev',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Enable HMR (Hot Module Replacement) mode',
@@ -3040,7 +3040,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='api_port',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=0,
                     help='Separate API port for HMR mode (0=same as port)',
@@ -3053,7 +3053,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='no-client',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Skip client bundling/serving (API only)',
@@ -3066,7 +3066,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='profile',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Configuration profile to load (e.g. prod, staging)',
@@ -3079,7 +3079,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='client',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='web',
                     help='Client build target for dev server (web, pwa, mobile, desktop). Choices reflect installed targets (desktop builds a native webview app).',
@@ -3100,7 +3100,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='host',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Mobile dev (--client mobile --dev): optional host/IP override for Capacitor live-reload. When omitted, jac auto-selects a host.',
@@ -3113,7 +3113,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='platform',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='auto',
                     help='Mobile start/dev: android or ios (auto = use [client.mobile] default_platform or android)',
@@ -3126,7 +3126,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='scale',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Deploy to a target platform instead of running locally',
@@ -3139,7 +3139,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='target',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='kubernetes',
                     help='Deployment target (kubernetes, aws, gcp, etc.)',
@@ -3152,7 +3152,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='enable-tls',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help="Enable HTTPS via Let's Encrypt (run after pointing your domain CNAME to the NLB)",
@@ -3165,7 +3165,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='dry-run',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Print the manifests that would be applied; touch nothing (no cluster contact, no downloads, no client build, no DB provisioning, no TLS issuance, no deploy tooling installed)',
@@ -3178,7 +3178,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='show-yaml',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='With --dry-run: dump the raw YAML stream',
@@ -3215,7 +3215,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='paths',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_POSITIONAL,
                     typ='str',
                     default=[],
                     help='Paths to test files or directories',
@@ -3228,7 +3228,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='test_name',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Run specific test (without test_ prefix)',
@@ -3241,7 +3241,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='filter',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Filter test files (Unix patterns)',
@@ -3254,7 +3254,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='xit',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Stop on first failure',
@@ -3267,7 +3267,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='maxfail',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='int',
                     default=None,
                     help='Stop after N failures',
@@ -3280,7 +3280,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='directory',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Test directory',
@@ -3293,7 +3293,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='verbose',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Verbose output',
@@ -3306,7 +3306,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='ignore',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Path to skip during collection (pytest --ignore)',
@@ -3319,7 +3319,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='profile',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='str',
                     default='',
                     help='Configuration profile to load (e.g. prod, staging)',
@@ -3350,7 +3350,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='tool',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default=None,
                     help='Name of the AST tool to run',
@@ -3363,7 +3363,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='args',
-                    kind='REMAINDER',
+                    kind=ArgKind.REMAINDER,
                     typ='str',
                     default=[],
                     help='Arguments for the tool',
@@ -3395,7 +3395,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='packages',
-                    kind='MULTI',
+                    kind=ArgKind.MULTI_POSITIONAL,
                     typ='str',
                     default=[],
                     help='Packages to update (all if empty)',
@@ -3408,7 +3408,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='dev',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Include dev dependencies',
@@ -3421,7 +3421,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='verbose',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Verbose output',
@@ -3469,7 +3469,7 @@ def _command_routes -> list[CommandMeta] {
             args=[
                 ArgMeta(
                     name='name',
-                    kind='POSITIONAL',
+                    kind=ArgKind.POSITIONAL,
                     typ='str',
                     default='',
                     help='Tool/command name to run (omit to list available tools)',
@@ -3482,7 +3482,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='global',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='Resolve from jac-owned global tools only (global python site + global npm), ignoring the project',
@@ -3495,7 +3495,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='node',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help="Resolve from the project's npm tools (node_modules/.bin) only",
@@ -3508,7 +3508,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='list_tools',
-                    kind='OPTION',
+                    kind=ArgKind.OPTION,
                     typ='bool',
                     default=False,
                     help='List the CLI tools available to run here',
@@ -3521,7 +3521,7 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='args',
-                    kind='REMAINDER',
+                    kind=ArgKind.REMAINDER,
                     typ='str',
                     default=None,
                     help='Arguments passed to the tool',

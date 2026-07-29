@@ -10,12 +10,7 @@ impl tool(tool: str, args: list = []) -> int {
             console.error(f"Usage: jac tool {tool} <file>");
             return 1;
         }
-        fwd = {
-            "jac2py": jac2py,
-            "py2jac": py2jac,
-            "jac2js": jac2js,
-
-        };
+        fwd = {"jac2py": jac2py, "py2jac": py2jac, "jac2js": jac2js,};
         return fwd[tool](args[0]);
     }
     if tool == "grammar" {
@@ -186,7 +181,11 @@ def _extract_commands(registry: any) -> list {
                 } else {
                     flags.append((f"--{arg.name}", short, arg.help or ""));
                 }
-            } elif arg.kind in (ArgKind.POSITIONAL, ArgKind.MULTI, ArgKind.REMAINDER) {
+            } elif arg.kind in (
+                ArgKind.POSITIONAL,
+                ArgKind.MULTI_POSITIONAL,
+                ArgKind.REMAINDER
+            ) {
                 has_file_positional = True;
             }
         }

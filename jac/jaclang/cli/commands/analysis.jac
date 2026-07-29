@@ -9,7 +9,9 @@ glob registry = get_registry();
     tier="core",
     args=[
         Arg.create(
-            "paths", kind=ArgKind.MULTI, help="Paths to .jac files or directories"
+            "paths",
+            kind=ArgKind.MULTI_POSITIONAL,
+            help="Paths to .jac files or directories"
         ),
         Arg.create(
             "print_errs",
@@ -20,13 +22,13 @@ glob registry = get_registry();
         ),
         Arg.create(
             "ignore",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_OPTION,
             default=[],
             help="Directories or files to ignore (space separated)"
         ),
         Arg.create(
             "disable-error-code",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_OPTION,
             default=[],
             help="Diagnostic codes or lint kebab aliases to suppress (same as [check].suppress in jac.toml; e.g. E1030 no-print)"
         ),
@@ -125,7 +127,9 @@ def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;
     tier="core",
     args=[
         Arg.create(
-            "paths", kind=ArgKind.MULTI, help="Paths to .jac files or directories"
+            "paths",
+            kind=ArgKind.MULTI_POSITIONAL,
+            help="Paths to .jac files or directories"
         ),
         Arg.create(
             "to_screen",
@@ -185,7 +189,7 @@ def format(
     args=[
         Arg.create(
             "paths",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_POSITIONAL,
             default=[],
             help="Paths to .jac files or directories (default: project root)"
         ),
@@ -241,7 +245,7 @@ def precommit(
     args=[
         Arg.create(
             "paths",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_POSITIONAL,
             help="Paths to test files or directories",
             default=[]
         ),

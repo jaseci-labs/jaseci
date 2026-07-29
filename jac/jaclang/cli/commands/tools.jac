@@ -36,7 +36,7 @@ def tool(tool: str, args: list = []) -> int;
         ),
         Arg.create(
             "connection",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_OPTION,
             default=[],
             help="Connection filters",
             short="c"

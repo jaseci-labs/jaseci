@@ -1,3 +1,5 @@
+import from jaclang.cli.command { ArgKind }
+
 glob VERB_BUDGET: int = 28,
      TOMBSTONED_VERBS: dict[str, str] = {
          "add": "jac install <pkg>",
@@ -50,7 +52,7 @@ glob VERB_BUDGET: int = 28,
 
 obj ArgMeta {
     has name: str,
-        kind: str = "OPTION",
+        kind: ArgKind = ArgKind.OPTION,
         typ: str = "str",
         `default: any = None,
         help: str = "",

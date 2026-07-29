@@ -193,7 +193,7 @@ def _arg_rows(args: list[Arg]) -> list[str] {
     for arg in args {
         rows.append("                ArgMeta(");
         rows.append(f"                    name={_q(arg.name)},");
-        rows.append(f"                    kind={_q(arg.kind.name)},");
+        rows.append(f"                    kind=ArgKind.{arg.kind.name},");
         rows.append(f"                    typ={_q(_typ_name(arg.typ))},");
         rows.append(f"                    default={_value_literal(arg.default)},");
         rows.append(f"                    help={_q(arg.help)},");
@@ -412,7 +412,7 @@ def write_routes -> str {
 
 def _arg_field_value(arg: Arg, field: str) -> any {
     if field == "kind" {
-        return arg.kind.name;
+        return arg.kind;
     }
     if field == "typ" {
         return _typ_name(arg.typ);
@@ -455,9 +455,8 @@ def _spec_signature(cmd: CommandSpec) -> tuple {
 def _meta_signature(cmd: CommandMeta) -> tuple {
     return tuple(
         [_meta_arg_signature(a) for a in cmd.args]
-        if field == "args"
-        else getattr(cmd, field)
-        for field in _command_meta_field_names()
+            if field == "args"
+            else getattr(cmd, field) for field in _command_meta_field_names()
     );
 }
 

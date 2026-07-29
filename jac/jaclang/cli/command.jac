@@ -4,9 +4,10 @@ enum ArgKind {
     POSITIONAL = 1,
     OPTION = 2,
     FLAG = 3,
-    MULTI = 4,
     REMAINDER = 5,
     APPEND = 6,
+    MULTI_POSITIONAL = 7,
+    MULTI_OPTION = 8,
 }
 
 obj Arg {

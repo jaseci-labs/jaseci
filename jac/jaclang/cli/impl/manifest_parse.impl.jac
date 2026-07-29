@@ -15,27 +15,8 @@ def _resolve_typ(name: str) -> any {
     return str;
 }
 
-def _kind_value(kind: str) -> ArgKind {
-    if kind == "POSITIONAL" {
-        return ArgKind.POSITIONAL;
-    }
-    if kind == "FLAG" {
-        return ArgKind.FLAG;
-    }
-    if kind == "MULTI" {
-        return ArgKind.MULTI;
-    }
-    if kind == "REMAINDER" {
-        return ArgKind.REMAINDER;
-    }
-    if kind == "APPEND" {
-        return ArgKind.APPEND;
-    }
-    return ArgKind.OPTION;
-}
-
 impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
-    kind = _kind_value(arg.kind);
+    kind = arg.kind;
     typ = _resolve_typ(arg.typ);
     kwargs: dict = {"help": arg.help};
     if arg.choices {
@@ -54,24 +35,22 @@ impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
             kwargs["default"] = arg.default;
         }
         parser.add_argument(arg.name, **kwargs);
-    } elif kind == ArgKind.MULTI {
-        if arg.name in ("paths", "packages", "names") {
-            kwargs["nargs"] = "+";
-            if arg.default is not None {
-                kwargs["default"] = arg.default;
-                kwargs["nargs"] = "*";
-            }
-            parser.add_argument(arg.name, **kwargs);
-        } else {
+    } elif kind == ArgKind.MULTI_POSITIONAL {
+        kwargs["nargs"] = "+";
+        if arg.default is not None {
+            kwargs["default"] = arg.default;
             kwargs["nargs"] = "*";
-            if arg.default is not None {
-                kwargs["default"] = arg.default;
-            }
-            if arg.short {
-                parser.add_argument(f"-{arg.short}", f"--{arg.name}", **kwargs);
-            } else {
-                parser.add_argument(f"--{arg.name}", **kwargs);
-            }
+        }
+        parser.add_argument(arg.name, **kwargs);
+    } elif kind == ArgKind.MULTI_OPTION {
+        kwargs["nargs"] = "*";
+        if arg.default is not None {
+            kwargs["default"] = arg.default;
+        }
+        if arg.short {
+            parser.add_argument(f"-{arg.short}", f"--{arg.name}", **kwargs);
+        } else {
+            parser.add_argument(f"--{arg.name}", **kwargs);
         }
     } elif kind == ArgKind.APPEND {
         kwargs["action"] = "append";

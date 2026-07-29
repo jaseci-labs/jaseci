@@ -1,7 +1,7 @@
-impl list_commands -> dict[str, any] {
+impl list_commands -> dict[str, str | int | list[dict[str, str]] | list[str]] {
     import from jaclang.cli.manifest { get_groups, iter_command_meta }
 
-    commands: list[dict[str, any]] = [];
+    commands: list[dict[str, str]] = [];
     for meta in iter_command_meta() {
         commands.append({'name': meta.name, 'help': meta.help, 'group': meta.group});
     }
@@ -9,7 +9,9 @@ impl list_commands -> dict[str, any] {
     return {'commands': commands, 'groups': get_groups(), 'total': len(commands)};
 }
 
-impl get_command(name: str) -> dict[str, any] {
+impl get_command(
+    name: str
+) -> dict[str, str | bool | list | None | list[dict[str, str]]] {
     import from jaclang.cli.manifest { get_command_meta }
 
     meta = get_command_meta(name);
@@ -17,16 +19,16 @@ impl get_command(name: str) -> dict[str, any] {
         return {'error': f"Command not found: {name}"};
     }
 
-    args: list[dict[str, any]] = [];
-    seen: set = set();
+    args: list[dict[str, str | bool | list | None]] = [];
+    seen: set[str] = set();
     for arg in meta.args {
         if arg.name in seen {
             continue;
         }
         seen.add(arg.name);
-        info: dict[str, any] = {
+        info: dict[str, str | bool | list | None] = {
             'name': arg.name,
-            'kind': arg.kind,
+            'kind': arg.kind.name,
             'type': arg.typ,
             'required': arg.required,
             'default': arg.default,

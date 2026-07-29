@@ -14,6 +14,8 @@ def _read_version_from_toml(toml_path: Path) -> (str | None) {
     return None;
 }
 
+# Intentional duplicate of cli.impl.jac::jac_version — this route layer must
+# avoid JacConfig.load (project.config) to keep startup fast.
 def _resolve_cli_version -> str {
     dev_source = os.environ.get('JAC_DEV_SOURCE');
     if dev_source {
@@ -69,14 +71,12 @@ def _print_error(message: str) {
 }
 
 def _render_version_line -> str {
-    import from jaclang.cli.manifest_help { _use_color }
+    import from jaclang.cli.manifest_help { _color, _TITLE, _use_color }
 
     sys_info = f"{platform.system()} {platform.machine()}";
     ver = _resolve_cli_version();
     use_color = _use_color();
-    bold = '\033[1m' if use_color else '';
-    reset = '\033[0m' if use_color else '';
-    return f"{bold}jac{reset} {ver}  ({sys_info})";
+    return f"{_color('jac', _TITLE, use_color)} {ver}  ({sys_info})";
 }
 
 impl handle_manifest_route(raw_argv: list[str]) -> None {
