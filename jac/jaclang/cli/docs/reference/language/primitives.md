@@ -62,7 +62,7 @@ def:pub app() -> JsxElement {           # JSX: seeds client
     async def load() -> None {
         items = await fetch_items();    # compiler generates the HTTP call
     }
-    return <ul>{[<li class={row_class(i)}>{it}</li> for (i, it) in enumerate(items)]}</ul>;
+    <ul>{[<li class={row_class(i)}>{it}</li> for (i, it) in enumerate(items)]}</ul>
 }
 ```
 
@@ -78,9 +78,12 @@ Here `app` and the `clsx` import are client (JSX and npm are client-only syntax)
 
 When inference would put a declaration somewhere it must not go -- most usefully, when something must stay on the server even though client code references it -- pin it in `jac.toml`:
 
-```toml
-[placement.pins]
-"main.audit_log" = "server"    # stays server, even if client code calls it
+A `cl { ... }` / `sv { ... }` / `na { ... }` block tags every element inside it for that codespace:
+
+```jac
+def:pub Greeting(props: dict) -> JsxElement {
+    <h1>Hello, {props.name}!</h1>
+}
 ```
 
 ```jac
@@ -105,7 +108,7 @@ def:pub app() -> JsxElement {
     async def load() -> None {
         items = await fetch_items();      # compiler generates the HTTP call
     }
-    return <ul>{items}</ul>;
+    <ul>{items}</ul>
 }
 ```
 

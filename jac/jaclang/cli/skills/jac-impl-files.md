@@ -75,12 +75,12 @@ def:pub app -> JsxElement {
     async def loadItems -> None;            # handler stubs - bodies in the annex
     async def addItem -> None;
 
-    return <div>
+    <div>
         <input value={draft} onChange={lambda (e: ChangeEvent) { draft = e.target.value; }}/>
         <button onClick={addItem}>Add</button>
         {if loading { <p>Loading...</p> }}
         {for it in items { <li key={it}>{it}</li> }}
-    </div>;
+    </div>
 }
 
 # frontend.impl.jac - bodies; `has` state is bare (no self.), writes re-render

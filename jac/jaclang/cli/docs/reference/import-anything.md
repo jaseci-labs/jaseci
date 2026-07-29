@@ -236,12 +236,12 @@ import from .main { create_task }
 
 import from react { useState }
 
-def TaskForm() -> JsxElement {
-    has title: str = "";
-    return <button onClick={lambda (e: ChangeEvent) {
-        create_task(title=title);
-    }}>Add</button>;
-}
+    def TaskForm() -> JsxElement {
+        has title: str = "";
+        <button onClick={lambda (e: ChangeEvent) {
+            create_task(title=title);
+        }}>Add</button>
+    }
 ```
 
 Server and native code interoperate the same way -- a native function (in a `na { }` block) can be called directly from server code in the same file, with the compiler generating the interop stubs:

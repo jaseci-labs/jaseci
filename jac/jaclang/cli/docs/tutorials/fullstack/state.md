@@ -22,13 +22,13 @@ Inside client-side code (a `.cl.jac` file or a `cl { }` block), `has` creates re
 def:pub Counter() -> JsxElement {
     has count: int = 0;  # Reactive state
 
-    return <div>
-        <p>Count: {count}</p>
-        <button onClick={lambda -> None { count = count + 1; }}>
-            Increment
-        </button>
-    </div>;
-}
+        <div>
+            <p>Count: {count}</p>
+            <button onClick={lambda -> None { count = count + 1; }}>
+                Increment
+            </button>
+        </div>
+    }
 ```
 
 **How it works:**
@@ -218,8 +218,8 @@ def:pub Timer() -> JsxElement {
         return lambda { clearInterval(intervalId); };
     }, []);
 
-    return <p>Seconds: {seconds}</p>;
-}
+        <p>Seconds: {seconds}</p>
+    }
 ```
 
 ### Manual useEffect
@@ -236,8 +236,8 @@ def:pub DataFetcher() -> JsxElement {
         fetch_data();
     }, []);
 
-    return <div>...</div>;
-}
+        <div>...</div>
+    }
 ```
 
 ---
@@ -273,7 +273,7 @@ The example above uses a ref *inside* a component. The other direction -- lettin
 
 ```jac
 def:pub FancyInput(props: any, ref: Ref[HTMLInputElement]) -> JsxElement {
-    return <input ref={ref} className="fancy" {**props} />;
+    <input ref={ref} className="fancy" {**props} />
 }
 ```
 
@@ -282,7 +282,7 @@ This lowers to `const FancyInput = forwardRef(function FancyInput(props, ref) { 
 ```jac
 def:pub ParentForm() -> JsxElement {
     has inputRef: Ref[HTMLInputElement] = Ref();
-    return <FancyInput ref={inputRef} placeholder="Type here" />;
+    <FancyInput ref={inputRef} placeholder="Type here" />
 }
 ```
 
@@ -316,19 +316,9 @@ def:pub AppProvider(children: any = None) -> JsxElement {
         "setTheme": lambda (t: str) -> None { theme = t; }
     };
 
-    return <AppContext.Provider value={value}>
+    <AppContext.Provider value={value}>
         {children}
-    </AppContext.Provider>;
-}
-
-# Consumer component
-def:pub UserDisplay() -> JsxElement {
-    ctx = useContext(AppContext);
-
-    if ctx.user {
-        return <p>Welcome, {ctx.user.name}!</p>;
-    }
-    return <p>Not logged in</p>;
+    </AppContext.Provider>
 }
 
 def:pub ThemeToggle() -> JsxElement {
@@ -381,16 +371,16 @@ def use_local_storage(key: str, initial_value: any) -> tuple {
 def:pub Settings() -> JsxElement {
     (theme, set_theme) = use_local_storage("theme", "light");
 
-    return <div>
-        <p>Current theme: {theme}</p>
-        <button onClick={lambda -> None { set_theme("dark"); }}>
-            Dark
-        </button>
-        <button onClick={lambda -> None { set_theme("light"); }}>
-            Light
-        </button>
-    </div>;
-}
+        <div>
+            <p>Current theme: {theme}</p>
+            <button onClick={lambda -> None { set_theme("dark"); }}>
+                Dark
+            </button>
+            <button onClick={lambda -> None { set_theme("light"); }}>
+                Light
+            </button>
+        </div>
+    }
 ```
 
 ---

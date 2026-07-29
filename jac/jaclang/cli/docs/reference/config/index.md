@@ -643,7 +643,7 @@ These values are inlined by Vite during bundling. String values must be double-q
 
 ```jac
 def:pub Footer() -> JsxElement {
-    return <p>Version: {globalThis.BUILD_VERSION}</p>;
+    <p>Version: {globalThis.BUILD_VERSION}</p>
 }
 ```
 

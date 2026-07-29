@@ -27,13 +27,13 @@ def:pub app -> JsxElement {
             text = "";
         }
     }
-    return <div>
+    <div>
         <input value={text}
             onChange={lambda (e: ChangeEvent) { text = e.target.value; }}
             placeholder="Add a todo..." />
         <button onClick={add}>Add</button>
         {[<p key={jid(t)}>{t.title}</p> for t in todos]}
-    </div>;
+    </div>
 }
 ```
 
@@ -102,10 +102,10 @@ def:pub app -> JsxElement {
         # an i64 crosses the JS boundary as a BigInt; format it straight to text
         answer = f"{wasm.count_primes(BigInt(20000))}";
     }
-    return <div>
+    <div>
         <h1>Native compute in the browser</h1>
         <p>{"primes below 20000 (computed in wasm): "}<b>{answer}</b></p>
-    </div>;
+    </div>
 }
 ```
 

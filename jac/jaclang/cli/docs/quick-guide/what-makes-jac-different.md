@@ -54,11 +54,11 @@ def:pub app -> JsxElement {
         items = items + [todo];
     }
 
-    return <div>
+    <div>
         <button onClick={lambda -> None { add(); }}>
             Add
         </button>
-    </div>;
+    </div>
 }
 ```
 

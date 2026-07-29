@@ -101,7 +101,7 @@ def:pub Dashboard() -> JsxElement {
     if not jacIsLoggedIn() {
         return <Navigate to="/login" replace={True} />;
     }
-    return <div className="p-4">Welcome to the dashboard</div>;
+    <div className="p-4">Welcome to the dashboard</div>
 }
 ```
 
@@ -114,7 +114,7 @@ def:pub Dashboard() -> JsxElement {
 import from "@jac/runtime" { AuthGuard, Outlet }
 
 def:pub AuthShell() -> JsxLayout {
-    return <AuthGuard redirect="/login"><Outlet /></AuthGuard>;
+    <AuthGuard redirect="/login"><Outlet /></AuthGuard>
 }
 ```
 

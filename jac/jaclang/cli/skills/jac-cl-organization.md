@@ -23,7 +23,7 @@ def:pub Showcase -> JsxElement {
     async def loadInitial -> None;        # bodies in <thisfile>.impl.jac
     async def signGuestbook -> None;
 
-    return <main>
+    <main>
         <HeroSection/>                    # static section - takes no props
         <FullstackSection
             entries={guestbook}
@@ -32,7 +32,7 @@ def:pub Showcase -> JsxElement {
             onSign={signGuestbook}
             signing={gbSigning}
         />
-    </main>;
+    </main>
 }
 ```
 
@@ -155,19 +155,19 @@ def:pub AppProvider(children: any = None) -> JsxElement {
         "setUser": lambda (u: any) -> None { user = u; },
         "setTheme": lambda (t: str) -> None { theme = t; },
     };
-    return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
+    <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
 }
 
 # Any descendant reads/writes the SAME state
 def:pub ThemeToggle() -> JsxElement {
     ctx: any = useContext(AppCtx);
-    return <button onClick={lambda {
+    <button onClick={lambda {
         ctx.setTheme("dark" if ctx.theme == "light" else "light");
-    }}>Theme: {ctx.theme}</button>;
+    }}>Theme: {ctx.theme}</button>
 }
 ```
 
-Wire it in the entry: `def:pub app() -> JsxElement { return <AppProvider><AppShell /></AppProvider>; }`. (That no-argument shape is the manual/single-page entry. With file-based routing `app` instead takes `children` and must render it, so wrap `{children}` rather than a shell - see `jac-cl-routing`.) Annotate the consumer's `ctx: any` - a bare `ctx = useContext(...)` is Unknown-typed and `ctx.user` fails `jac check` with E1032. In a shell-architected app the provider is rarely needed - the shell already sees everything; reach for context only when ≥2 *distant* consumers exist.
+Wire it in the entry: `def:pub app() -> JsxElement { <AppProvider><AppShell /></AppProvider> }`. (That no-argument shape is the manual/single-page entry. With file-based routing `app` instead takes `children` and must render it, so wrap `{children}` rather than a shell - see `jac-cl-routing`.) Annotate the consumer's `ctx: any` - a bare `ctx = useContext(...)` is Unknown-typed and `ctx.user` fails `jac check` with E1032. In a shell-architected app the provider is rarely needed - the shell already sees everything; reach for context only when ≥2 *distant* consumers exist.
 
 ## jac-shadcn project layout
 

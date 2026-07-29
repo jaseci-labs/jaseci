@@ -1390,12 +1390,12 @@ def:pub Counter() -> JsxElement {
     # `has` in client components becomes React useState
     has count: int = 0;
 
-    return <div>
+    <div>
         <p>Count: {count}</p>
         <button onClick={lambda -> None { count = count + 1; }}>
             Increment
         </button>
-    </div>;
+    </div>
 }
 
 # JSX `{...}` slots accept statement-form control flow as children.

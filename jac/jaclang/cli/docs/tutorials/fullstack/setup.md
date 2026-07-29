@@ -65,10 +65,10 @@ walker:pub get_todos {
 def:pub app() -> JsxElement {
     has message: str = "Hello from Jac!";
 
-    return <div>
-        <h1>{message}</h1>
-    </div>;
-}
+        <div>
+            <h1>{message}</h1>
+        </div>
+    }
 ```
 
 ### jac.toml
@@ -143,7 +143,7 @@ walker api_endpoint {
 
 # This is frontend code (runs in browser)
 def:pub MyComponent() -> JsxElement {
-    return <div>I run in the browser</div>;
+    <div>I run in the browser</div>
 }
 ```
 
@@ -170,7 +170,7 @@ walker get_user {
 
 # Frontend
 def:pub app() -> JsxElement {
-    return <div>App</div>;
+    <div>App</div>
 }
 ```
 
@@ -212,12 +212,12 @@ walker get_user {
 # main.jac
 import from "./components/Header.cl.jac" { Header }
 
-def:pub app() -> JsxElement {
-    return <div>
-        <Header />
-        <main>Content</main>
-    </div>;
-}
+    def:pub app() -> JsxElement {
+        <div>
+            <Header />
+            <main>Content</main>
+        </div>
+    }
 ```
 
 ---
@@ -251,10 +251,10 @@ Then use in frontend:
 ```jac
 import lodash;
 
-def:pub app() -> JsxElement {
-    items = lodash.sortBy(["c", "a", "b"]);
-    return <ul>{[<li>{i}</li> for i in items]}</ul>;
-}
+    def:pub app() -> JsxElement {
+        items = lodash.sortBy(["c", "a", "b"]);
+        <ul>{[<li>{i}</li> for i in items]}</ul>
+    }
 ```
 
 ---
@@ -295,14 +295,14 @@ Create this minimal `main.jac`:
 def:pub app() -> JsxElement {
     has count: int = 0;
 
-    return <div style={{"textAlign": "center", "marginTop": "50px"}}>
-        <h1>Jac Full-Stack</h1>
-        <p>Count: {count}</p>
-        <button onClick={lambda -> None { count = count + 1; }}>
-            Increment
-        </button>
-    </div>;
-}
+        <div style={{"textAlign": "center", "marginTop": "50px"}}>
+            <h1>Jac Full-Stack</h1>
+            <p>Count: {count}</p>
+            <button onClick={lambda -> None { count = count + 1; }}>
+                Increment
+            </button>
+        </div>
+    }
 ```
 
 Run `jac start --dev` and open http://localhost:8000/cl/app

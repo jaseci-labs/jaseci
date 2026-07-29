@@ -345,9 +345,9 @@ def:pub DataView() -> JsxElement {
         </div>;
     }
 
-    return <div className="data">
+    <div className="data">
         {JSON.stringify(data)}
-    </div>;
+    </div>
 }
 ```
 

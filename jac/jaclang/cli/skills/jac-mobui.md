@@ -47,7 +47,7 @@ def:pub app -> JsxElement {
         count = 0;                                    # mount effect
     }
 
-    return <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
         <Text>Hello, {name}</Text>
         <TextInput
             value={name}
@@ -58,7 +58,7 @@ def:pub app -> JsxElement {
         <Pressable style={styles.button} onPress={lambda { count = count + 1; }}>
             <Text style={styles.label}>Clicks: {str(count)}</Text>
         </Pressable>
-    </ScrollView>;
+    </ScrollView>
 }
 ```
 
