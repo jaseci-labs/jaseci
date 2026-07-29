@@ -1,7 +1,7 @@
 """Bundled native `zlib` cross-backend equivalence fixture (#6940 Phase 2).
 
 The SAME `import from zlib { ... }` binds CPython's `zlib` on the sv (Python)
-backend and the bundled `na_stdlib/zlib.na.jac` Mechanism-F module — a thin
+backend and the bundled `na_stdlib/zlib.jac` Mechanism-F module — a thin
 pure-Jac surface over the system `libz` (the FFI floor) — on the na (native
 LLVM) backend. This fixture pins the two implementations congruent on the
 one-shot DEFLATE surface: `compress` produces byte-identical output (asserted

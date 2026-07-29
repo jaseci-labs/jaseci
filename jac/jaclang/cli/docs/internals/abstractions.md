@@ -19,22 +19,22 @@ abstraction is implemented two different ways, that shows up here.
 ## Category 1 -- Language-Level Keywords
 
 All nine keywords flow through a single, unified pipeline: tokenized in
-`jac0core/parser/tokens.na.jac`, parsed by `jac0core/parser/impl/parser.impl.jac`
+`jac0core/parser/tokens.jac`, parsed by `jac0core/parser/impl/parser.impl.jac`
 into a small set of AST node types defined in `jac0core/unitree.jac`, and
 implemented by `JacRuntimeInterface` in `jac0core/runtime.jac`. Both the
 bootstrap compiler (`jac0.py`) and the full compiler share this front end.
 
 | Keyword | Token | AST node | Runtime |
 |---|---|---|---|
-| `walker` | `KW_WALKER` -- [tokens.na.jac:48](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac#L48) | `Archetype` (discriminated by `arch_type`) -- [unitree.jac:636](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/unitree.jac#L636) | `WalkerArchetype` (constructs.jac); traversal in [`JacWalker`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L222) |
-| `node` | `KW_NODE` -- [tokens.na.jac:46](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac#L46) | `Archetype` | `NodeArchetype` + `NodeAnchor` -- [archetype.jac:108](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/archetype.jac#L108) |
-| `edge` | `KW_EDGE` -- [tokens.na.jac:47](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac#L47) | `Archetype` | `EdgeArchetype` + `EdgeAnchor` -- [archetype.jac:122](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/archetype.jac#L122) |
-| `visit` | `KW_VISIT` -- [tokens.na.jac:88](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac#L88) | `VisitStmt` -- [unitree.jac:938](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/unitree.jac#L938) | [`JacWalker.visit`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L224) |
-| `spawn` | `KW_SPAWN` -- [tokens.na.jac:89](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac#L89) | unpack-position modifier -- [parser.impl.jac:1309](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/impl/parser.impl.jac#L1309) | `spawn_call` / `spawn_walker` -- [runtime.jac:272,822](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L272) |
-| `entry` | `KW_ENTRY` -- [tokens.na.jac:90](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac#L90) | `Ability` (in archetype) **or** module-level `with entry` block | `_jac_entry_funcs_` ClassVar; dispatched by `_execute_entries` -- [runtime.jac:239](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L239) |
-| `exit` | `KW_EXIT` -- [tokens.na.jac:91](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac#L91) | `Ability` | `_jac_exit_funcs_` ClassVar; `_execute_exits` -- [runtime.jac:249](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L249) |
-| `can` | `KW_CAN` -- [tokens.na.jac:50](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac#L50) | `Ability` -- [unitree.jac:688](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/unitree.jac#L688) | compiled to a plain Python method on the archetype class |
-| `has` | `KW_HAS` -- [tokens.na.jac:49](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac#L49) | `HasVar` -- [unitree.jac:781](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/unitree.jac#L781) | dataclass field; wrapped by `JacField` (jac0) or `_.field()` (full compiler) |
+| `walker` | `KW_WALKER` -- [tokens.jac:48](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac#L48) | `Archetype` (discriminated by `arch_type`) -- [unitree.jac:636](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/unitree.jac#L636) | `WalkerArchetype` (constructs.jac); traversal in [`JacWalker`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L222) |
+| `node` | `KW_NODE` -- [tokens.jac:46](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac#L46) | `Archetype` | `NodeArchetype` + `NodeAnchor` -- [archetype.jac:108](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/archetype.jac#L108) |
+| `edge` | `KW_EDGE` -- [tokens.jac:47](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac#L47) | `Archetype` | `EdgeArchetype` + `EdgeAnchor` -- [archetype.jac:122](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/archetype.jac#L122) |
+| `visit` | `KW_VISIT` -- [tokens.jac:88](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac#L88) | `VisitStmt` -- [unitree.jac:938](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/unitree.jac#L938) | [`JacWalker.visit`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L224) |
+| `spawn` | `KW_SPAWN` -- [tokens.jac:89](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac#L89) | unpack-position modifier -- [parser.impl.jac:1309](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/impl/parser.impl.jac#L1309) | `spawn_call` / `spawn_walker` -- [runtime.jac:272,822](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L272) |
+| `entry` | `KW_ENTRY` -- [tokens.jac:90](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac#L90) | `Ability` (in archetype) **or** module-level `with entry` block | `_jac_entry_funcs_` ClassVar; dispatched by `_execute_entries` -- [runtime.jac:239](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L239) |
+| `exit` | `KW_EXIT` -- [tokens.jac:91](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac#L91) | `Ability` | `_jac_exit_funcs_` ClassVar; `_execute_exits` -- [runtime.jac:249](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/runtime.jac#L249) |
+| `can` | `KW_CAN` -- [tokens.jac:50](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac#L50) | `Ability` -- [unitree.jac:688](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/unitree.jac#L688) | compiled to a plain Python method on the archetype class |
+| `has` | `KW_HAS` -- [tokens.jac:49](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac#L49) | `HasVar` -- [unitree.jac:781](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/unitree.jac#L781) | dataclass field; wrapped by `JacField` (jac0) or `_.field()` (full compiler) |
 
 **Notes**
 
@@ -192,7 +192,7 @@ analogous to `jac0core/jaclib.jac`.
 When adding a new abstraction:
 
 1. **Keyword** -- add a row to Category 1. The token must be defined in
-   [`jac0core/parser/tokens.na.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac),
+   [`jac0core/parser/tokens.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac),
    the AST node must live in
    [`jac0core/unitree.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/unitree.jac),
    and the runtime entry point belongs on `JacRuntimeInterface` in

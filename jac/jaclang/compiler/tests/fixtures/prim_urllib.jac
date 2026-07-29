@@ -8,7 +8,7 @@ implementations congruent -- for a direct GET and for a redirect both follow:
   - sv (py): CPython's real `urllib.request.urlopen` (via `import urllib.request`),
     returning a rich dict (status/body/length/content-type) that also serves as a
     hard sv-side guard.
-  - na: the bundled `na_stdlib/urllib/request.na.jac` module -- a pure-Jac surface
+  - na: the bundled `na_stdlib/urllib/request.jac` module -- a pure-Jac surface
     over the bundled `socket` + `ssl` modules -- via `import from urllib.request {
     urlopen }`. The native functions return plain `int`s (status, body length),
     the scalar fields the native pathway marshals across a module boundary

@@ -8,8 +8,8 @@ targets, called **codespaces**:
 | Codespace | Selector | Backend output | Runs on |
 |-----------|----------|----------------|---------|
 | **Server** | Inferred; the default, anchored by python imports, graph archetypes, `::py::` blocks, and typed context blocks; `[placement.pins]` override | Python AST → CPython bytecode | CPython |
-| **Client** | **Inferred** from client-only syntax (JSX, browser globals, string-path npm imports) and symbol references; `[placement.pins]` override, or a `.cl.jac` implementation-variant file | ESTree → JavaScript | Browsers / Node |
-| **Native** | **Inferred** from extern-decl (C-ABI FFI) imports and their users; `[placement.pins]` override, or a `.na.jac` implementation-variant file | LLVM IR → object code → executable | Bare machine (Linux / macOS, x86_64 / arm64) |
+| **Client** | **Inferred** from client-only syntax (JSX, browser globals, string-path npm imports) and symbol references; `[placement.pins]` override, a `variant client;` declaration, or a `.cl.jac` implementation-variant file | ESTree → JavaScript | Browsers / Node |
+| **Native** | **Inferred** -- whole modules by the placement solver's verdict under the native default codespace, elements from extern-decl (C-ABI FFI) imports and their users; `[placement.pins]` override, a `variant native;` declaration, or forced module-wide by `jac nacompile` / `jac build --as native` / `CompileOptions(force_codespace='native')` | LLVM IR → object code → executable | Bare machine (Linux / macOS, x86_64 / arm64) |
 
 A single `.jac` file can mix all three codespaces; there is no placement
 syntax (the old `sv`/`cl`/`na` markers were deleted -- `jac fix placement`
@@ -97,7 +97,7 @@ the interop boundaries become a compiler concern instead of a developer one.
 
 ```mermaid
 graph TD
-    SRC[".jac source<br/>(.jac / .cl.jac / .na.jac)"] --> PARSE[Parser<br/>jac0core/parser]
+    SRC[".jac source<br/>(.jac / .cl.jac)"] --> PARSE[Parser<br/>jac0core/parser]
     PARSE --> UNI["UniTree (unified AST)<br/>jac0core/unitree.jac"]
     UNI --> COERCE["Codespace Coercion<br/>_coerce_*_module"]
     COERCE --> FRONTEND[Shared Frontend Passes]
@@ -135,7 +135,7 @@ classes to run, and the `JacCompiler.compile` method walks them in order.
 
 Every codespace shares the **same front end**.
 
-- Tokens are declared in [`jac0core/parser/tokens.na.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.na.jac).
+- Tokens are declared in [`jac0core/parser/tokens.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/parser/tokens.jac).
   There are no placement keywords -- the old `sv`/`cl`/`na` tokens were
   deleted, and the parser emits a targeted "placement markers were removed"
   error (pointing at `jac fix placement`) when it sees one in legacy code.
@@ -152,8 +152,10 @@ table.
 ## Stage 2: Codespace Coercion
 
 After parsing, the compiler decides what context each top-level statement
-belongs to. Implementation-variant file extensions coerce whole modules; every
-plain `.jac` module goes through placement inference instead.
+belongs to. The `.cl.jac` extension or a `variant` declaration coerces whole
+modules; whole-module native placement comes from a `variant native;`
+declaration, a forced codespace, or the placement solver's verdict. Every
+other plain `.jac` module goes through placement inference instead.
 
 The coercion helpers live in
 [`compiler.jac:_coerce_module`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/compiler.jac#L250)
@@ -161,8 +163,8 @@ and two wrappers around it:
 
 | Helper | Triggered by | What it does |
 |--------|--------------|--------------|
-| `_coerce_client_module` | `.cl.jac` extension | Marks the module's nodes `CodeContext.CLIENT` |
-| `_coerce_native_module` | `.na.jac` extension | Marks the module's nodes `CodeContext.NATIVE` |
+| `_coerce_client_module` | `.cl.jac` extension or `variant client;` declaration | Marks the module's nodes `CodeContext.CLIENT` |
+| `_coerce_native_module` | `variant native;` declaration, forced placement (`CompileOptions(force_codespace='native')` -- set by `jac nacompile` / `jac build --as native` -- or an AOT build under the native default codespace), else a passing placement-solver verdict | Marks the module's nodes `CodeContext.NATIVE` |
 
 From this point on, every declaration carries a `CodeContext` enum value that
 downstream passes use to dispatch to the correct backend.
@@ -221,23 +223,11 @@ note, their call sites bridging instead.
 On the Python backend, inferred-native declarations in mixed modules are
 pruned from the server projection (mirroring the client pruning), with the
 module's native interop stubs attached to the first such element. Two
-carve-outs: extension-coerced `.na.jac` files keep their full legacy Python
-projection (so their `test` blocks still collect and run under `jac test`),
-and `test` elements are never pruned -- tests always execute server-side,
-reaching native code through the interop stubs.
-
-Import classification has a single source of truth as computed getters on
-`uni.Import` (`has_string_path`, `has_clib_decls`, `is_service_import`,
-`is_virtual_jac`, `ecosystem`) plus `ModulePath.string_path_value`. On
-imports, `code_context` means **placement** (which side consumes the import)
-while service-boundary status is a **config fact**: a target module listed in
-`[scale.microservices.routes]` (`jac0core/service_cut.jac`) or pinned
-`"server"` at module level (`jac0core/placement_pins.jac`) stays server-side,
-so client-consumed imports of it become RPC stubs and server-consumed ones
-become server-to-server microservice calls. Native contexts are inferred from
-extern-decl seeds as described above; `"native"` pins and `nacompile`
-auto-promotion remain the explicit native paths for code with no FFI seed.
-Pins of any kind are never overridden by inference.
+carve-outs: whole-module-coerced native modules (declared, forced, or
+verdict-passing) keep their full legacy Python projection (so their `test`
+blocks still collect and run under `jac test`), and `test` elements are
+never pruned -- tests always execute server-side, reaching native code
+through the interop stubs.
 
 ---
 
@@ -256,7 +246,7 @@ These passes run regardless of codespace and are collected by
 | `SemDefMatchPass` | [`compiler/passes/main/sem_def_match_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/sem_def_match_pass.jac) | Matches `sem` blocks to definitions for `by llm` |
 | `CFGBuildPass` | [`compiler/passes/main/cfg_build_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/cfg_build_pass.jac) | Builds control-flow graphs |
 | `MTIRGenPass` | [`compiler/passes/main/mtir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/mtir_gen_pass.jac) | Generates Meaning-Typed IR for `by llm` calls |
-| `CapabilityCheckPass` | [`compiler/passes/main/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/capability_check_pass.jac) | Stamps capability/portability facts (native auto-promotion eligibility) on module nodes |
+| `CapabilityCheckPass` | [`compiler/passes/main/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/capability_check_pass.jac) | Stamps capability/portability facts (native-lowering eligibility for the placement verdict) on module nodes |
 | `PlacementApplyPass` | [`jac0core/placement_solver.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/placement_solver.jac) | Applies the placement solver's per-module stage: summary-driven seeding plus the CLIENT/NATIVE reference fixpoint (see Stage 2) |
 | `TypeCheckPass` | [`compiler/passes/main/type_checker_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/type_checker_pass.jac) | Static type checking against the type registry |
 | `PortabilityWarnPass` | [`compiler/passes/main/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/main/capability_check_pass.jac) | Emits portability warnings (W6001-W6004) for JS-idiom violations; diagnostic-only, runs in the check-extras schedule |
@@ -365,7 +355,7 @@ runs once *before* code generation. It walks every call site and records:
 
 1. The `CodeContext` of the **caller** and **callee** (SERVER / CLIENT / NATIVE).
 2. Type information on each parameter and return value at the boundary.
-3. Imports that cross from a Python module into a `.na.jac` module (for
+3. Imports that cross from a Python module into a native-placed module (for
    native↔native linking).
 4. Server-to-server calls that resolve to a different microservice (the
    target module is in `[scale.microservices.routes]` or pinned `"server"`
@@ -463,6 +453,17 @@ The native backend supplies its own memory management: a 32-byte
 allocation header with reference counts (see `HDR_*` globals in
 `na_ir_gen_pass.jac`). Cross-codespace calls between Python and native
 flow through the interop bridge generated from `BoundaryAnalysisPass`.
+
+**Sealed AOT native artifacts.** The compiler dogfoods this backend for its
+own hot path: sealing a release AOT-compiles `jac0core/parser/lexer.jac`
+(plus its `tokens.jac` closure) into a per-platform shared library at
+`_precompiled/native/<triple>/libjac_lexer.*`, alongside a persisted
+`NativeModuleLayout` JSON describing the marshal layout. Both are recorded
+in `MANIFEST.json` (format 4) under `native_artifacts` with sha256 digests
+that fail closed on mismatch. A sealed runtime binds the library with plain
+ctypes (`jac0core/native_dylib.jac`) at startup -- no LLVM on the boot path
+-- and `parse()` uses it when present; dev trees without a seal
+transparently fall back to the bytecode lexer.
 
 ---
 

@@ -95,7 +95,7 @@ impl BoundaryAnalysisPass._extract_type_name(
 }
 
 impl BoundaryAnalysisPass._resolve_native_module(
-    self: BoundaryAnalysisPass, module_name: str
+    self: BoundaryAnalysisPass, module_name: str, inferred_ok: bool = True
 ) -> (str | None) {
     import os;
     import from jaclang.jac0core.codeinfo { resolve_native_module }
@@ -103,24 +103,17 @@ impl BoundaryAnalysisPass._resolve_native_module(
     if (self.ir_in and self.ir_in.loc) {
         base_dir = os.path.dirname(self.ir_in.loc.mod_path);
     }
-    (src_mod_str, _full_path) = resolve_native_module(module_name, base_dir);
+    (src_mod_str, _full_path) = resolve_native_module(
+        module_name, base_dir, allow_inferred=inferred_ok
+    );
     return src_mod_str;
 }
 
 impl BoundaryAnalysisPass._in_native_module(self: BoundaryAnalysisPass) -> bool {
-    import os;
-    import from jaclang.jac0core.ext_registry { is_native_module }
     if not (self.ir_in and self.ir_in.loc) {
         return False;
     }
-    if self.ir_in.decided_codespace == 'native' {
-        return True;
-    }
-    mod_path = self.ir_in.loc.mod_path;
-    if mod_path and is_native_module(mod_path) {
-        return True;
-    }
-    return False;
+    return self.ir_in.decided_codespace == 'native';
 }
 
 impl BoundaryAnalysisPass._native_source_module_of(
@@ -143,9 +136,6 @@ impl BoundaryAnalysisPass._native_source_module_of(
     }
     if rel.startswith('..') {
         return None;
-    }
-    if rel.endswith('.na.jac') {
-        return rel[:-4];
     }
     if rel.endswith('.jac') {
         return rel;
@@ -185,6 +175,7 @@ impl BoundaryAnalysisPass._absorbed_module(
 impl BoundaryAnalysisPass._register_native_absorb(
     self: BoundaryAnalysisPass, nd: uni.Import
 ) -> None {
+    import from jaclang.jac0core.compiler { import_declares_native_target }
     import from jaclang.jac0core.constant { SymbolAccess }
     item = nd.items[0];
     if not (isinstance(item, uni.ModulePath) and item.path) {
@@ -194,7 +185,13 @@ impl BoundaryAnalysisPass._register_native_absorb(
     if not module_name {
         return;
     }
-    native_path = self._resolve_native_module(module_name);
+    _ctx = self._get_context(nd);
+    _na_intent = (
+        _ctx == InteropContext.NATIVE
+        or self._in_native_module()
+        or import_declares_native_target(nd)
+    );
+    native_path = self._resolve_native_module(module_name, inferred_ok=_na_intent);
     if not native_path {
         return;
     }
@@ -236,6 +233,7 @@ impl BoundaryAnalysisPass._register_native_absorb(
 impl BoundaryAnalysisPass.enter_import(
     self: BoundaryAnalysisPass, nd: uni.Import
 ) -> None {
+    import from jaclang.jac0core.compiler { import_declares_native_target }
     import from jaclang.jac0core.ext_registry { is_server_module, is_client_module }
     import_context = self._get_context(nd);
     if (nd.from_loc and isinstance(nd.from_loc, uni.ModulePath)) {
@@ -246,7 +244,18 @@ impl BoundaryAnalysisPass.enter_import(
             );
         }
         if module_name {
-            native_path = self._resolve_native_module(module_name);
+            import from jaclang.jac0core.compiler {
+                is_client_native_edge_import as _is_cl_na_edge
+            }
+            _na_intent = (
+                import_context == InteropContext.NATIVE
+                or self._in_native_module()
+                or import_declares_native_target(nd)
+                or _is_cl_na_edge(nd, self.prog)
+            );
+            native_path = self._resolve_native_module(
+                module_name, inferred_ok=_na_intent
+            );
 
             mod_path_str = self.ir_in.loc.mod_path
                 if (self.ir_in and self.ir_in.loc)
@@ -341,7 +350,14 @@ impl BoundaryAnalysisPass.enter_import(
                 _eligible = is_bundled_native_module(whole_name)
                 or (item.alias is None and len(item.path) == 1);
                 if whole_name and _eligible {
-                    native_path = self._resolve_native_module(whole_name);
+                    _na_intent = (
+                        import_context == InteropContext.NATIVE
+                        or self._in_native_module()
+                        or import_declares_native_target(nd)
+                    );
+                    native_path = self._resolve_native_module(
+                        whole_name, inferred_ok=_na_intent
+                    );
                     if native_path {
                         self._imported_native_modules[whole_name] = (
                             native_path,

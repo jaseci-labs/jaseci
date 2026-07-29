@@ -79,16 +79,14 @@ test "kind cli -> execute via run" {
 }
 
 test "kind cli-native -> execute via run" {
-    p = _plan("kind = \"cli-native\"\nentry-point = \"main.na.jac\"\n", "main.na.jac");
+    p = _plan("kind = \"cli-native\"\nentry-point = \"main.jac\"\n", "main.jac");
     assert p.kind == "cli-native";
     assert p.action == "execute";
     assert p.verb == "run";
 }
 
 test "kind native-binary -> build via nacompile" {
-    p = _plan(
-        "kind = \"native-binary\"\nentry-point = \"main.na.jac\"\n", "main.na.jac"
-    );
+    p = _plan("kind = \"native-binary\"\nentry-point = \"main.jac\"\n", "main.jac");
     assert p.action == "build";
     assert p.verb == "nacompile";
     assert "output" in p.flags;
@@ -96,7 +94,7 @@ test "kind native-binary -> build via nacompile" {
 }
 
 test "kind native-lib -> build shared via nacompile" {
-    p = _plan("kind = \"native-lib\"\nentry-point = \"lib.na.jac\"\n", "lib.na.jac");
+    p = _plan("kind = \"native-lib\"\nentry-point = \"lib.jac\"\n", "lib.jac");
     assert p.action == "build";
     assert p.verb == "nacompile";
     assert p.flags.get("shared") == True;
@@ -186,9 +184,12 @@ test "kind mobile -> build the mobile client shell (core)" {
 # ---------------------------------------------------------------------------
 # Kind inference (no explicit [project] kind)
 # ---------------------------------------------------------------------------
-test "infer cli-native from .na.jac entry" {
-    p = _plan("entry-point = \"main.na.jac\"\n", "main.na.jac");
-    assert p.kind == "cli-native";
+test "plain .jac entry no longer infers cli-native (marker retired)" {
+    # Pre-0.35 a main.na.jac entry inferred cli-native from the filename.
+    # With the marker retired, native is a placement decision, not a kind
+    # signal: plain .jac infers "cli" and cli-native must be explicit.
+    p = _plan("entry-point = \"main.jac\"\n", "main.jac");
+    assert p.kind == "cli";
 }
 
 test "infer web-app from .cl.jac entry" {
@@ -217,10 +218,10 @@ test "infer web-app from plain .jac when [client] is configured" {
 # Entry-point resolution
 # ---------------------------------------------------------------------------
 test "stale entry-point resolves by stem to the real codespace file" {
-    # entry-point says main.jac but only main.na.jac exists on disk.
-    p = _plan("entry-point = \"main.jac\"\n", "main.na.jac");
-    assert p.entry_path.endswith("main.na.jac");
-    assert p.kind == "cli-native";
+    # entry-point says main.jac but only main.sv.jac exists on disk.
+    p = _plan("entry-point = \"main.jac\"\n", "main.sv.jac");
+    assert p.entry_path.endswith("main.sv.jac");
+    assert p.kind == "service";
 }
 
 test "missing entry yields no plan for runnable kinds" {
@@ -319,8 +320,8 @@ test "jac run with no file executes a cli-native project from cwd" {
     # cli-native prints via the JIT'd binary, which writes to fd 1 directly
     # (C printf) -- so we capture at the file-descriptor level, not sys.stdout.
     d = _mk_project(
-        "kind = \"cli-native\"\nentry-point = \"main.na.jac\"\n",
-        "main.na.jac",
+        "kind = \"cli-native\"\nentry-point = \"main.jac\"\n",
+        "main.jac",
         "with entry { print(\"RAN_NA_OK\"); }"
     );
     old = os.getcwd();
@@ -346,8 +347,8 @@ test "jac run with no file executes a cli-native project from cwd" {
 
 test "jac run builds a native-binary project into dist/" {
     d = _mk_project(
-        "kind = \"native-binary\"\nentry-point = \"app.na.jac\"\n",
-        "app.na.jac",
+        "kind = \"native-binary\"\nentry-point = \"app.jac\"\n",
+        "app.jac",
         "with entry { print(\"x\"); }"
     );
     old = os.getcwd();

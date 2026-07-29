@@ -1,7 +1,7 @@
 """Bundled native ``statistics`` cross-backend equivalence fixture.
 
 The sv entry uses CPython's statistics module; the na entry the bundled
-`statistics.na.jac`. Results are pinned as scaled ints so the exact-Fraction
+`statistics.jac`. Results are pinned as scaled ints so the exact-Fraction
 CPython pipeline and the double-precision native pipeline agree. The bundled
 median always computes in float (CPython preserves the element for odd
 counts); consumers pin through int(). Errors are pinned via ValueError

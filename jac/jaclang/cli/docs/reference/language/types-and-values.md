@@ -44,7 +44,7 @@ Jac is statically typed -- all variables, fields, and function signatures requir
 | `f64` | 64-bit float | `double` |
 | `c_void` | Opaque pointer | `void*` |
 
-These types are used in `.na.jac` files for C library interop. The compiler automatically coerces between Jac's standard types (`int` = `i64`, `float` = `f64`) and fixed-width types at call boundaries.
+These types are used in native code for C library interop. The compiler automatically coerces between Jac's standard types (`int` = `i64`, `float` = `f64`) and fixed-width types at call boundaries.
 
 ## 2 Type Annotations
 

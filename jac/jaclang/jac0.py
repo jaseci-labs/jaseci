@@ -2476,19 +2476,19 @@ def discover_impl_files(jac_path: str) -> list[str]:
             bare_base = os.path.join(dir_path, bare_base_name)
             break
 
-    # Same directory: foo.impl.jac (or foo.na.impl.jac for variants)
+    # Same directory: foo.impl.jac (or foo.sv.impl.jac for variants)
     impl_file = f"{base}{impl_suffix}"
     if os.path.isfile(impl_file):
         impls.append(impl_file)
 
-    # Module folder: foo.impl/*.impl.jac (or foo.na.impl/*.impl.jac)
+    # Module folder: foo.impl/*.impl.jac (or foo.sv.impl/*.impl.jac)
     impl_dir = f"{base}{impl_folder}"
     if os.path.isdir(impl_dir):
         for f in sorted(os.listdir(impl_dir)):
             if f.endswith(impl_suffix):
                 impls.append(os.path.join(impl_dir, f))
 
-    # Shared folder: impl/foo.impl.jac (or impl/foo.na.impl.jac)
+    # Shared folder: impl/foo.impl.jac (or impl/foo.sv.impl.jac)
     shared_impl = os.path.join(dir_path, "impl", f"{base_name}{impl_suffix}")
     if os.path.isfile(shared_impl):
         impls.append(shared_impl)

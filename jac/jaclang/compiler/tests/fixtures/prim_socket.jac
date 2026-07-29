@@ -1,6 +1,6 @@
 """Bundled native `socket` cross-backend equivalence fixture (#6978 Phase 1).
 
-`import socket` binds the bundled `na_stdlib/socket.na.jac` Mechanism-A/F module
+`import socket` binds the bundled `na_stdlib/socket.jac` Mechanism-A/F module
 (a pure-Jac client surface over the libc BSD-sockets FFI floor) on the na
 backend; the sv reference is CPython's real `socket`. There is no live network:
 the owning `test_socket_equivalence` suite stands up a loopback TCP/HTTP server

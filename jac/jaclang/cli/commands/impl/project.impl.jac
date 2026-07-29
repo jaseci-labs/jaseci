@@ -1424,8 +1424,8 @@ def _bundle_wheel(config: any, output: str) -> int {
     }
     if builder.skipped_codespace {
         console.print(
-            f"  ⚠ skipped {len(builder.skipped_codespace)} client/native "
-            "codespace file(s) (.cl.jac/.na.jac) — not part of a Python wheel",
+            f"  ⚠ skipped {len(builder.skipped_codespace)} client "
+            "codespace file(s) (.cl.jac) — not part of a Python wheel",
             style="warning"
         );
     }
@@ -1703,11 +1703,12 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
 
 def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
     import os;
-    import from jaclang.jac0core.ext_registry { is_native_module, base_stem }
+    import from jaclang.jac0core.ext_registry { base_stem }
+    import from jaclang.jac0core.placement_solver { native_default_path_ok }
     import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
 
     entry_file = _resolve_entry_file(config);
-    if entry_file is None or not is_native_module(str(entry_file)) {
+    if entry_file is None or not native_default_path_ok(str(entry_file)) {
         return True;
     }
     try {

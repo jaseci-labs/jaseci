@@ -478,15 +478,45 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
         return None;
     }
     target = hub_module_for_path(resolved, prog);
-    if target is None {
+    if target is not None {
+        if (
+            target.decided_codespace == 'native'
+            or module_has_native_anchor(target, prog)
+        ) {
+            return resolved;
+        }
         return None;
     }
-    if (
-        target.decided_codespace == 'native' or module_has_native_anchor(target, prog)
-    ) {
-        return resolved;
+
+    import from jaclang.jac0core.helpers { read_file_with_encoding }
+    import from jaclang.jac0core.parser { parse as _rd_parse }
+    import from jaclang.jac0core.program { JacProgram as _ScanProg }
+    try {
+        _src_txt = read_file_with_encoding(resolved);
+    } except Exception {
+        return None;
     }
-    return None;
+    (_scan_mod, _had_err) = _rd_parse(_src_txt, resolved, prog=_ScanProg());
+    if _had_err {
+        return None;
+    }
+    return resolved if module_has_native_anchor(_scan_mod, prog) else None;
+}
+
+def import_declares_native_target(nd: uni.Import) -> bool {
+    import from jaclang.jac0core.ext_registry { NATIVE, codespace_of }
+    if nd.from_loc is None {
+        return False;
+    }
+    try {
+        resolved = nd.from_loc.resolve_relative_path();
+    } except Exception {
+        return False;
+    }
+    if not isinstance(resolved, str) or not resolved.endswith('.jac') {
+        return False;
+    }
+    return codespace_of(resolved) == NATIVE;
 }
 
 def native_only_import_target(nd: uni.Import, prog: object) -> (str | None) {
@@ -506,16 +536,15 @@ def native_only_import_target(nd: uni.Import, prog: object) -> (str | None) {
 }
 
 def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
-    if plain_native_import_target(nd, prog) is None {
-        return False;
-    }
     if nd.code_context == CodeContext.CLIENT {
-        return True;
-    }
-    if nd.code_context != CodeContext.SERVER {
+        ;
+    } elif nd.code_context == CodeContext.SERVER
+    and module_has_client_top(nd.find_parent_of_type(uni.Module)) {
+        ;
+    } else {
         return False;
     }
-    return module_has_client_top(nd.find_parent_of_type(uni.Module));
+    return plain_native_import_target(nd, prog) is not None;
 }
 
 def _ability_of_defn(defn_node: uni.UniNode) -> (uni.Ability | None) {

@@ -22,12 +22,23 @@ def _load_native_fmt_kernel_module -> (uni.Module | None) {
     import from jaclang.jac0core.program { JacProgram }
     _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
     tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "fmt_kernel.na.jac");
+    na_copy = os.path.join(tmp_dir, "fmt_kernel.jac");
     mod = None;
     try {
+        import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
         _write_native_fmt_source(_core, na_copy);
         prog = JacProgram();
-        mod = prog.compile(na_copy, no_cgen=True, symtab_ir_only=True);
+        mod = prog.compile(
+            na_copy,
+            options=_KernelOpts(
+                no_cgen=True,
+                symtab_ir_only=True,
+                aot_mode=True,
+                type_check=False,
+                default_codespace='native',
+                force_target_program=True
+            )
+        );
     } except Exception {
         mod = None;
     } finally {

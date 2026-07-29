@@ -650,12 +650,14 @@ test "client call to endpoint with function-typed param warns W6005" {
     );
 }
 
-test "explicit .na.jac mandate still fails loudly" {
+test "aot native mandate still fails loudly" {
     import from jaclang.jac0core.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
-        os.path.join(FIXTURE_DIR, "nadefault_mandate.na.jac"),
-        options=CompileOptions(type_check=False)
+        os.path.join(FIXTURE_DIR, "nadefault_mandate.jac"),
+        options=CompileOptions(
+            type_check=False, aot_mode=True, default_codespace='native'
+        )
     );
-    assert prog.errors_had , "explicit native modules must surface lowering errors";
+    assert prog.errors_had , "forced-native modules must surface lowering errors";
 }

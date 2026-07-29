@@ -1,8 +1,8 @@
 """Bundled native `uuid` (v4) cross-backend equivalence fixture (#6978 Phase 1).
 
 The SAME `import uuid` binds CPython's `uuid` on the sv (Python) backend and the
-bundled `na_stdlib/uuid.na.jac` Mechanism-F module -- a thin pure-Jac surface
-over OpenSSL's `RAND_bytes` (the `_csprng_native.na.jac` floor on the same
+bundled `na_stdlib/uuid.jac` Mechanism-F module -- a thin pure-Jac surface
+over OpenSSL's `RAND_bytes` (the `_csprng_native.jac` floor on the same
 bundled `libcrypto.a` as hashlib/secrets) -- on the na (native LLVM) backend.
 
 Because the output is RANDOM, this fixture pins the two implementations congruent

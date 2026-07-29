@@ -2,7 +2,7 @@
 (issues #6404 / #6940).
 
 The SAME `import from os.path { ... }` binds CPython's `posixpath` on the sv
-(Python) backend and the bundled `na_stdlib/os/path.na.jac` Mechanism-B module
+(Python) backend and the bundled `na_stdlib/os/path.jac` Mechanism-B module
 on the na (native LLVM) backend (the first module to ride the bundled native
 stdlib resolution keystone). This fixture pins the two implementations
 congruent on the pure-string POSIX path helpers, including the `normpath` /

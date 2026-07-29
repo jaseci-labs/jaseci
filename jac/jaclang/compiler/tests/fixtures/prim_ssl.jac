@@ -1,6 +1,6 @@
 """Bundled native `ssl` cross-backend equivalence fixture (#6978 Phase 1).
 
-`import ssl` binds the bundled `na_stdlib/ssl.na.jac` Mechanism-F module (a
+`import ssl` binds the bundled `na_stdlib/ssl.jac` Mechanism-F module (a
 verifying TLS-client surface over the libssl/libcrypto FFI floor) on the na
 backend; the sv reference is CPython's real `ssl`. The owning
 `test_ssl_equivalence` suite stands up a loopback HTTPS server with a

@@ -483,7 +483,9 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
     return reasons;
 }
 
-def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[str]] {
+def scan_native_blockers(
+    module: uni.Module, base_dir: str, allow_pub: bool = False
+) -> tuple[str, list[str]] {
     import from jaclang.jac0core.codeinfo {
         NATIVE_SUPPORTED_STDLIB,
         is_bundled_native_module,
@@ -528,7 +530,8 @@ def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[s
                 return ("explicit sv/cl pin", deps);
             }
         }
-        if _is_pub_element(stmt) {
+
+        if not allow_pub and _is_pub_element(stmt) {
             return ("pub access", deps);
         }
     }
@@ -587,11 +590,11 @@ def scan_native_blockers(module: uni.Module, base_dir: str) -> tuple[str, list[s
                     return (f"non-native import '{clean}'", deps);
                 }
             }
-            if path is not None and path.endswith('.na.jac') {
-                continue;
-            }
-            if path is not None and path.endswith('.cl.jac') {
-                return ("cl/sv module import", deps);
+            if path is not None {
+                import from jaclang.jac0core.ext_registry { is_client_module }
+                if is_client_module(path) {
+                    return ("client module import", deps);
+                }
             }
             if path is not None and path.endswith('.jac') {
                 deps.append(os.path.abspath(path));

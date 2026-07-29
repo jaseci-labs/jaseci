@@ -79,9 +79,11 @@ Keys are fnmatch patterns over `module` or `module.element` dotted paths; values
 Two rules to keep in mind:
 
 - **Pins always win.** Inference never moves a pinned element -- the most useful pin is `"server"` on a declaration you want kept server-side even though client code references it (the client call bridges over RPC instead).
-- **Native compatibility is not intent.** Extern C declarations infer native placement, but pure code that merely *could* compile natively stays on the server -- without an FFI seed, taking it native is your call, made via a `"native"` pin, a `.na.jac` implementation-variant module, or `jac nacompile`.
+- **Native compatibility is not intent.** Extern C declarations infer native placement, but pure code that merely *could* compile natively stays on the server -- without an FFI seed, taking it native is your call, made via a `"native"` pin, a `variant native;` declaration, or `jac nacompile`.
 
-(`.cl.jac` / `.na.jac` suffixes still exist as **implementation variants** -- per-space implementations of one logical module -- not as the way ordinary code is placed.)
+- **Whole modules go native by inference.** Under the default `[build] default_codespace = "native"`, an anchor-free module that can lower compiles native, and one that cannot demotes to the server with a note; extern C declarations seed native placement inside mixed files. To force the choice -- loud errors instead of demotion -- use `jac nacompile` or `jac build --as native`.
+
+(`.cl.jac` still exists as an **implementation variant** -- the per-space implementation of one logical module -- not as the way ordinary code is placed. Native has no file extension: a module declares `variant native;`, is inferred, or is forced.)
 
 Codespaces are similar to namespaces, but instead of organizing names, they organize where code executes. Interop between them -- function calls, spawn calls, type sharing -- is handled by the compiler and runtime.
 

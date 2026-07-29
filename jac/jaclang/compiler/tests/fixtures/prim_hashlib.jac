@@ -1,7 +1,7 @@
 """Bundled native `hashlib`/`hmac` cross-backend equivalence fixture (#6978 Phase 1).
 
 The SAME `import hashlib; import hmac;` binds CPython's `hashlib`/`hmac` on the sv
-(Python) backend and the bundled `na_stdlib/hashlib.na.jac` / `hmac.na.jac`
+(Python) backend and the bundled `na_stdlib/hashlib.jac` / `hmac.jac`
 Mechanism-F modules -- thin pure-Jac surfaces over OpenSSL's `libcrypto` (the FFI
 floor) -- on the na (native LLVM) backend. Module-qualified `hashlib.sha256(...)`
 access on the native pathway is the whole-module-import support added in #6978

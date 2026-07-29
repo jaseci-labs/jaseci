@@ -1,19 +1,16 @@
-"""Variant module tests — verifies that .cl.jac / .na.jac variant files (and the
+"""Variant module tests -- verifies that .cl.jac variant files (and the
 annexes that belong to them) are discovered and merged into the head module as a
 single unified tree, each statement keeping its own deployment context.
 
 Scenario 1 (variant_module/):
-  mymod.jac                head with Circle {area}
-  mymod.sv.jac             server variant with CircleService {describe}
+  mymod.jac                head with Circle {area} and CircleService {describe}
   mymod.cl.jac             client variant with Display {render}
   mymod.impl.jac           head impl for Circle.area AND Display.render (cross-variant)
-  impl/mymod.sv.impl.jac   server impl in shared folder
   mymod.test.jac           head test
 
 Scenario 2 (variant_no_head/):
-  svc.sv.jac               head (no plain .jac) with Handler {tag}
+  svc.jac                  head with Handler {tag}
   svc.cl.jac               client variant with Widget {render}
-  impl/svc.sv.impl.jac     head impl in shared folder
   svc.cl.impl.jac          client impl in same dir
 """
 

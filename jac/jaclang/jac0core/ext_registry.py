@@ -1,19 +1,19 @@
 """Canonical Jac file-extension / module-resolution registry.
 
 Single source of truth for what a filename *suffix means*: its language, its
-codespace (server / client / native), whether it is an annex (impl / test), the
-package ``__init__`` variants, and — most importantly — the longest-suffix
-matching rule that makes ``.cl.jac`` outrank ``.jac`` and ``.na.impl.jac``
-outrank ``.impl.jac``. Before this module that knowledge was re-derived in ~30
-places as copy-pasted suffix tuples and hand-rolled ``endswith`` precedence
-chains (see issue #6858).
+explicit codespace (server / client — native is inferred, never spelled in the
+filename), whether it is an annex (impl / test), the package ``__init__``
+variants, and — most importantly — the longest-suffix matching rule that makes
+``.cl.jac`` outrank ``.jac`` and ``.test.cl.jac`` outrank ``.test.jac``. Before
+this module that knowledge was re-derived in ~30 places as copy-pasted suffix
+tuples and hand-rolled ``endswith`` precedence chains (see issue #6858).
 
 This is **plain Python with no jaclang dependencies** so the pre-runtime
 bootstrap (``_jac_finder.py``, ``jac0.py``, ``meta_importer.py``) can import it,
 exactly like the sibling ``cache_paths.py``. Jac code consumes it as a normal
 ``.py`` import::
 
-    import from jaclang.jac0core.ext_registry { is_native_module, base_stem }
+    import from jaclang.jac0core.ext_registry { is_client_module, base_stem }
 """
 
 from __future__ import annotations
@@ -25,9 +25,13 @@ import os
 # ---------------------------------------------------------------------------
 JAC_SUFFIX = ".jac"
 CLIENT_SUFFIX = ".cl.jac"
-NATIVE_SUFFIX = ".na.jac"
 IMPL_SUFFIX = ".impl.jac"
 TEST_SUFFIX = ".test.jac"
+
+# The retired native marker (removed in 0.35): native placement is inferred
+# (or forced per-invocation by AOT builds), never spelled in the filename.
+# Kept only so the migration diagnostic can name what it found.
+RETIRED_NATIVE_SUFFIX = ".na.jac"
 
 # Codespace name constants (returned by ``codespace_of``).
 SERVER = "server"
@@ -36,25 +40,26 @@ NATIVE = "native"
 
 # Codespace variant suffixes, in canonical longest-precedence order. Mirrors
 # the former ``bccache._VARIANT_SUFFIXES``.
-VARIANT_SUFFIXES = (CLIENT_SUFFIX, NATIVE_SUFFIX)
-# Post-``.jac``-strip stem forms of the variants (".cl", ".na").
-VARIANT_STEM_SUFFIXES = (".cl", ".na")
+VARIANT_SUFFIXES = (CLIENT_SUFFIX,)
+# Post-``.jac``-strip stem forms of the variants (".cl").
+VARIANT_STEM_SUFFIXES = (".cl",)
 # Annex suffixes and the per-module folder each annex groups under.
 ANNEX_SUFFIXES = (IMPL_SUFFIX, TEST_SUFFIX)
 ANNEX_FOLDER = {IMPL_SUFFIX: ".impl", TEST_SUFFIX: ".test"}
 # Folder-name suffixes that mark a module-scoped annex directory (``foo.impl/``).
 
 # Every Jac *module* file shape the importer / finder probe, precedence order.
-MODULE_SUFFIXES = (JAC_SUFFIX, CLIENT_SUFFIX, NATIVE_SUFFIX)
+MODULE_SUFFIXES = (JAC_SUFFIX, CLIENT_SUFFIX)
 # Package ``__init__`` variants, precedence order.
 INIT_FILES = ("__init__.jac", "__init__.cl.jac")
 
 # Variant suffix -> codespace name. Plain ``.jac`` is intentionally absent: it
 # has no *explicit* codespace, so ``codespace_of`` returns None for it and the
 # compiler applies no coercion (matching the historical elif-chain default).
+# Native is deliberately not spellable here: it is inferred (placement solver)
+# or forced per-invocation (AOT builds), never a filename property.
 _VARIANT_CODESPACE = {
     CLIENT_SUFFIX: CLIENT,
-    NATIVE_SUFFIX: NATIVE,
 }
 
 # Stem suffixes stripped when re-keying MTIR entries in the importer. Native
@@ -77,7 +82,7 @@ def base_stem(filename: str) -> str:
     This is the one shared longest-suffix matcher that replaces every
     hand-rolled ``endswith`` precedence chain. It strips the language base
     extension (``.jac`` / ``.py`` / ``.js`` family) and then any trailing
-    codespace/annex stem components, so ``foo.cl.jac``, ``foo.na.impl.jac`` and
+    codespace/annex stem components, so ``foo.cl.jac``, ``foo.sv.impl.jac`` and
     ``foo.test.cl.jac`` all reduce to the bare module name ``foo``. A name with
     no recognized extension is returned unchanged.
     """
@@ -221,8 +226,21 @@ def codespace_of(path: str) -> str | None:
 
 
 def is_native_module(path: str) -> bool:
-    """True for a native-variant module (declaration-first)."""
+    """True for a module that *declares* native via ``variant native;``.
+
+    The retired ``.na.jac`` suffix never classifies; declaration is the only
+    per-file native spelling (inference / forcing / location cover the rest).
+    """
     return codespace_of(path) == NATIVE
+
+
+def is_retired_native_marker(path: str) -> bool:
+    """True for a file still carrying the retired ``.na.jac`` marker.
+
+    Exists solely to power the migration diagnostic; nothing resolves or
+    classifies through this.
+    """
+    return path.endswith(RETIRED_NATIVE_SUFFIX) or path.endswith(".na.impl.jac")
 
 
 def is_client_module(path: str) -> bool:
@@ -231,16 +249,17 @@ def is_client_module(path: str) -> bool:
 
 
 def is_server_module(path: str) -> bool:
-    """True for a Jac module that lives in the server codespace.
+    """True for a Jac module that lives in the server-or-inferred codespace.
 
     Server is the default codespace, so this is any ``.jac`` file that is not
-    explicitly client (``.cl.jac``), native (``.na.jac``), or an impl annex
-    (``.impl.jac``). Plain ``.jac`` and ``.test.jac`` both qualify.
+    explicitly client (``.cl.jac``) or an impl annex (``.impl.jac``). Plain
+    ``.jac`` and ``.test.jac`` both qualify (a plain ``.jac`` may still
+    *declare* ``variant native;`` or infer native at compile time; that is a
+    placement decision, not a filename property).
     """
     return (
         path.endswith(JAC_SUFFIX)
         and not path.endswith(CLIENT_SUFFIX)
-        and not path.endswith(NATIVE_SUFFIX)
         and not path.endswith(IMPL_SUFFIX)
     )
 
