@@ -1116,6 +1116,34 @@ test "redundant `{...}` slot wrapping inside slot body raises E2023" {
     );
 }
 
+test "implicit return outside function tail position raises E2084" {
+    (program, _) = compile_and_check("implicit_return_rules.jac");
+    # `misplaced_in_if` (tail of an `if` body) and the module-level
+    # `with entry` tail should each fire E2084; the function-tail
+    # implicit returns must not.
+    n = count_diagnostic_code(program, "E2084");
+    assert n == 2 , (
+        f"E2084 should fire for if-body and module-level tails only, got {n}"
+    );
+    # The recovery path must not produce an E0002 parse-error cascade —
+    # the placement diagnostic replaces it entirely.
+    assert count_diagnostic_code(program, "E0002") == 0 , (
+        "tail-expression recovery must not cascade into E0002"
+    );
+}
+
+test "implicit return participates in return-type checking" {
+    (program, _) = compile_and_check("implicit_return_rules.jac");
+    # `wrong_type_tail` returns a string from `-> int` via implicit return.
+    assert has_diagnostic_code(program, "E1002") , (
+        "implicit return must be type-checked like an explicit return"
+    );
+    # `ok_tail`'s implicit return satisfies the all-paths-return analysis.
+    assert not has_diagnostic_code(program, "E1004") , (
+        "a tail implicit return must count as returning on all paths"
+    );
+}
+
 test "redundant `{expr}` slot wrapping inside slot body raises E2028 (issue #6733)" {
     # `RedundantExprSlotWrap` re-wraps three *expression* bodies — a string
     # literal `{"none"}`, an arithmetic expr `{n + 1}` and a JSX element

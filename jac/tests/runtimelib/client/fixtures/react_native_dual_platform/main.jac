@@ -25,18 +25,16 @@ def:pub HomePage -> JsxElement {
         }
     }
 
-    return
-        <div>
-            <PlatformHeader title="Home"/>
-            <p data-testid="greeting">{greeting}</p>
-        </div>;
+    <div>
+        <PlatformHeader title="Home"/>
+        <p data-testid="greeting">{greeting}</p>
+    </div>
 }
 
 def:pub app -> JsxElement {
-    return
-        <Router>
-            <Routes>
-                <Route path="/" element={<HomePage/>}/>
-            </Routes>
-        </Router>;
+    <Router>
+        <Routes>
+            <Route path="/" element={<HomePage/>}/>
+        </Routes>
+    </Router>
 }

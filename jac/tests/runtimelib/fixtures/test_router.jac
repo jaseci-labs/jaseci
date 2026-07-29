@@ -24,37 +24,36 @@ import from "@jac/runtime" {
 
 # Mock components for testing
 def HomePage -> JsxElement {
-    return <div id="home-page">Home Page</div>;
+    <div id="home-page">Home Page</div>
 }
 
 def AboutPage -> JsxElement {
-    return <div id="about-page">About Page</div>;
+    <div id="about-page">About Page</div>
 }
 
 def ProfilePage -> JsxElement {
-    return <div id="profile-page">Profile Page</div>;
+    <div id="profile-page">Profile Page</div>
 }
 
 def UserPage -> JsxElement {
     params = useParams();
-    return <div id="user-page">User: {params.id}</div>;
+    <div id="user-page">User: {params.id}</div>
 }
 
 def LoginPage -> JsxElement {
-    return <div id="login-page">Login Page</div>;
+    <div id="login-page">Login Page</div>
 }
 
 # Test 1: Declarative route tree compiles via JSX.
 def test_router_basic -> JsxElement {
-    return
-        <Router>
-            <Routes>
-                <Route path="/home" element={<HomePage/>}/>
-                <Route path="/about" element={<AboutPage/>}/>
-                <Route path="/profile" element={<ProfilePage/>}/>
-                <Route path="/users/:id" element={<UserPage/>}/>
-            </Routes>
-        </Router>;
+    <Router>
+        <Routes>
+            <Route path="/home" element={<HomePage/>}/>
+            <Route path="/about" element={<AboutPage/>}/>
+            <Route path="/profile" element={<ProfilePage/>}/>
+            <Route path="/users/:id" element={<UserPage/>}/>
+        </Routes>
+    </Router>
 }
 
 # Test 2: Programmatic navigation via the imperative `navigate` helper.
@@ -80,20 +79,19 @@ def AuthedProfile -> JsxElement {
     if isAuthed {
         return <ProfilePage/>;
     }
-    return <Navigate to="/login"/>;
+    <Navigate to="/login"/>
 }
 
 def test_router_guards -> JsxElement {
-    return
-        <Routes>
-            <Route path="/profile" element={<AuthedProfile/>}/>
-            <Route path="/login" element={<LoginPage/>}/>
-        </Routes>;
+    <Routes>
+        <Route path="/profile" element={<AuthedProfile/>}/>
+        <Route path="/login" element={<LoginPage/>}/>
+    </Routes>
 }
 
 # Test 4: <Link to/> renders an anchor that intercepts clicks.
 def test_link_component -> JsxElement {
-    return <Link to="/about">Go to About</Link>;
+    <Link to="/about">Go to About</Link>
 }
 
 # Test 5: Hooks return router state.

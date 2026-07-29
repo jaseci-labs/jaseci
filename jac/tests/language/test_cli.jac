@@ -2069,8 +2069,11 @@ test "syntax error pretty print" {
 
     program = JacProgram();
     program.compile(fixture_path("test_syntax_err.jac"));
-    assert len(program.errors_had) == 3 , (
-        f"Expected 3 errors with improved error reporting, got {len(
+    # The trailing string before '}' is a semicolon-less tail expression
+    # (implicit return), so only the 'print "..."' juncture is a syntax
+    # error alongside the 'can'-signature error.
+    assert len(program.errors_had) == 2 , (
+        f"Expected 2 errors with improved error reporting, got {len(
             program.errors_had
         )}"
     );
@@ -2084,7 +2087,6 @@ test "syntax error pretty print" {
         program.errors_had[0].pretty_print()
     );
     _assert_error_pretty_found("Missing ';'", program.errors_had[1].pretty_print());
-    _assert_error_pretty_found("Missing ';'", program.errors_had[2].pretty_print());
 }
 
 test "jac grammar" {

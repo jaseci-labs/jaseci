@@ -6,5 +6,5 @@ server endpoint. The endpoints are reached only through the client's
 import from .crossbound_frontend { Panel as ClientPanel }
 
 def:pub app -> JsxElement {
-    return <ClientPanel/>;
+    <ClientPanel/>
 }

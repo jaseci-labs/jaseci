@@ -3,5 +3,7 @@
 
 variant client;
 def:pub page -> JsxPage {
-    return <div data-testid="about"><h1>About</h1></div>;
+    <div data-testid="about">
+        <h1>About</h1>
+    </div>
 }

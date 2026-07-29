@@ -1029,6 +1029,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "another project.",
          help="Protected (`:protect`) names are visible only within their own project (the directory tree rooted at its jac.toml). Mark '{name}' `:pub` to export it as a library endpoint."
      ),
+     E2084 = _err(
+         "E2084",
+         Category.SEMANTIC,
+         "An expression without a trailing ';' is only treated as an "
+         "implicit return when it is the final statement of a function, "
+         "ability, or lambda body.",
+         help="Add ';' to discard the expression's value, or use an explicit `return` if the value should leave the enclosing function from this position."
+     ),
      W3001 = _warn(
          "W3001",
          Category.LINT,

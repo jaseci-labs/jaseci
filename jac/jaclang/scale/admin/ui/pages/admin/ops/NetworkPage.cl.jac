@@ -92,159 +92,147 @@ def:pub NetworkPage -> JsxElement {
         return base + "text-success";
     }
 
-    return
-        <div className="space-y-4">
-            <PageHeader
-                icon={Network}
-                title="Endpoints & Storage"
-                namespace={namespace}
-                onRefresh={lambda { load(); }}
-            />
-            <OpsUnavailableBanner
-                show={loadedOnce and not available}
-                detail={detail}
-                remediation="Enable [scale.kubernetes].ops_console and redeploy."
-            />
-            {<div className="text-danger text-sm">{errorMsg}</div>
-                if errorMsg
-                else None}
-            {<div className="text-faint text-sm">Loading...</div>
-                if (isLoading and not loadedOnce)
-                else None}
-            {<div className="space-y-2">
-                <div className="text-xs uppercase tracking-wide text-faint">
-                    Services ({len(services)})
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-left text-faint border-b border-line">
-                                <th className="py-1.5 pr-3 font-medium">Name</th>
-                                <th className="py-1.5 pr-3 font-medium">Type</th>
-                                <th className="py-1.5 pr-3 font-medium">Cluster IP</th>
-                                <th className="py-1.5 pr-3 font-medium">Ports</th>
-                                <th className="py-1.5 pr-3 font-medium">
-                                    Ready backends
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {[
-                                <tr key={s["name"]} className="border-b border-line/50">
-                                    <td className="py-1.5 pr-3 text-fg font-medium">
-                                        {s["name"]}
-                                    </td>
-                                    <td className="py-1.5 pr-3 text-muted">
-                                        {s["type"]}
-                                    </td>
-                                    <td
-                                        className="py-1.5 pr-3 text-faint font-mono text-xs"
-                                    >
-                                        {s["cluster_ip"]}
-                                    </td>
-                                    <td className="py-1.5 pr-3 text-faint text-xs">
-                                        {portsLabel(s["ports"] or [])}
-                                    </td>
-                                    <td className={backendCls(s)}>
-                                        {String(s["ready_backends"])}
-                                    </td>
-                                </tr> for s in services
-                            ]}
-                        </tbody>
-                    </table>
-                </div>
+    <div className="space-y-4">
+        <PageHeader
+            icon={Network}
+            title="Endpoints & Storage"
+            namespace={namespace}
+            onRefresh={lambda { load(); }}
+        />
+        <OpsUnavailableBanner
+            show={loadedOnce and not available}
+            detail={detail}
+            remediation="Enable [scale.kubernetes].ops_console and redeploy."
+        />
+        {<div className="text-danger text-sm">{errorMsg}</div> if errorMsg else None}
+        {<div className="text-faint text-sm">Loading...</div>
+            if (isLoading and not loadedOnce)
+            else None}
+        {<div className="space-y-2">
+            <div className="text-xs uppercase tracking-wide text-faint">
+                Services ({len(services)})
             </div>
-                if (available and len(services) > 0)
-                else None}
-            {<div className="space-y-2">
-                <div className="text-xs uppercase tracking-wide text-faint">
-                    Ingress
-                </div>
-                {[
-                    <div
-                        key={ing["name"]}
-                        className="rounded-lg border border-line bg-surface p-3 space-y-1.5"
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-fg">
-                                {ing["name"]}
-                            </span>
-                            <span className="text-xs text-faint font-mono">
-                                {(ing["lb"] or []).join(", ") or "no LB address"}
-                            </span>
-                        </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-left text-faint border-b border-line">
+                            <th className="py-1.5 pr-3 font-medium">Name</th>
+                            <th className="py-1.5 pr-3 font-medium">Type</th>
+                            <th className="py-1.5 pr-3 font-medium">Cluster IP</th>
+                            <th className="py-1.5 pr-3 font-medium">Ports</th>
+                            <th className="py-1.5 pr-3 font-medium">Ready backends</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         {[
-                            <div
-                                key={r["host"] + r["path"] + r["service"]}
-                                className="text-xs text-muted font-mono"
-                            >
-                                {r["host"] or "*"}{r["path"]} {"->"} {r["service"]}:{String(
-                                    r["port"]
-                                )}
-                            </div> for r in (ing["rules"] or [])
+                            <tr key={s["name"]} className="border-b border-line/50">
+                                <td className="py-1.5 pr-3 text-fg font-medium">
+                                    {s["name"]}
+                                </td>
+                                <td className="py-1.5 pr-3 text-muted">{s["type"]}</td>
+                                <td
+                                    className="py-1.5 pr-3 text-faint font-mono text-xs"
+                                >
+                                    {s["cluster_ip"]}
+                                </td>
+                                <td className="py-1.5 pr-3 text-faint text-xs">
+                                    {portsLabel(s["ports"] or [])}
+                                </td>
+                                <td className={backendCls(s)}>
+                                    {String(s["ready_backends"])}
+                                </td>
+                            </tr> for s in services
                         ]}
-                    </div> for ing in ingresses
-                ]}
+                    </tbody>
+                </table>
             </div>
-                if (available and len(ingresses) > 0)
-                else None}
-            {<div className="space-y-2">
-                <div className="text-xs uppercase tracking-wide text-faint">
-                    Persistent Volume Claims ({len(pvcs)})
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-left text-faint border-b border-line">
-                                <th className="py-1.5 pr-3 font-medium">Name</th>
-                                <th className="py-1.5 pr-3 font-medium">Phase</th>
-                                <th className="py-1.5 pr-3 font-medium">Capacity</th>
-                                <th className="py-1.5 pr-3 font-medium">
-                                    Storage class
-                                </th>
-                                <th className="py-1.5 pr-3 font-medium">Claimants</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {[
-                                <tr key={v["name"]} className="border-b border-line/50">
-                                    <td className="py-1.5 pr-3 text-fg font-medium">
-                                        {v["name"]}
-                                    </td>
-                                    <td className="py-1.5 pr-3">
-                                        <span className={pvcPhaseCls(v["phase"])}>
-                                            {v["phase"]}
-                                        </span>
-                                    </td>
-                                    <td className="py-1.5 pr-3 text-muted">
-                                        {v["capacity"]}
-                                    </td>
-                                    <td className="py-1.5 pr-3 text-faint text-xs">
-                                        {v["storage_class"]}
-                                    </td>
-                                    <td className="py-1.5 pr-3 text-faint text-xs">
-                                        {(v["claimants"] or []).join(", ")
-                                        or "unmounted"}
-                                    </td>
-                                </tr> for v in pvcs
-                            ]}
-                        </tbody>
-                    </table>
-                </div>
+        </div>
+            if (available and len(services) > 0)
+            else None}
+        {<div className="space-y-2">
+            <div className="text-xs uppercase tracking-wide text-faint">Ingress</div>
+            {[
+                <div
+                    key={ing["name"]}
+                    className="rounded-lg border border-line bg-surface p-3 space-y-1.5"
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-fg">
+                            {ing["name"]}
+                        </span>
+                        <span className="text-xs text-faint font-mono">
+                            {(ing["lb"] or []).join(", ") or "no LB address"}
+                        </span>
+                    </div>
+                    {[
+                        <div
+                            key={r["host"] + r["path"] + r["service"]}
+                            className="text-xs text-muted font-mono"
+                        >
+                            {r["host"] or "*"}{r["path"]} {"->"} {r["service"]}:{String(
+                                r["port"]
+                            )}
+                        </div> for r in (ing["rules"] or [])
+                    ]}
+                </div> for ing in ingresses
+            ]}
+        </div>
+            if (available and len(ingresses) > 0)
+            else None}
+        {<div className="space-y-2">
+            <div className="text-xs uppercase tracking-wide text-faint">
+                Persistent Volume Claims ({len(pvcs)})
             </div>
-                if (available and len(pvcs) > 0)
-                else None}
-            {<div className="text-faint text-sm">
-                No services, ingresses, or PVCs in this namespace.
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-left text-faint border-b border-line">
+                            <th className="py-1.5 pr-3 font-medium">Name</th>
+                            <th className="py-1.5 pr-3 font-medium">Phase</th>
+                            <th className="py-1.5 pr-3 font-medium">Capacity</th>
+                            <th className="py-1.5 pr-3 font-medium">Storage class</th>
+                            <th className="py-1.5 pr-3 font-medium">Claimants</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {[
+                            <tr key={v["name"]} className="border-b border-line/50">
+                                <td className="py-1.5 pr-3 text-fg font-medium">
+                                    {v["name"]}
+                                </td>
+                                <td className="py-1.5 pr-3">
+                                    <span className={pvcPhaseCls(v["phase"])}>
+                                        {v["phase"]}
+                                    </span>
+                                </td>
+                                <td className="py-1.5 pr-3 text-muted">
+                                    {v["capacity"]}
+                                </td>
+                                <td className="py-1.5 pr-3 text-faint text-xs">
+                                    {v["storage_class"]}
+                                </td>
+                                <td className="py-1.5 pr-3 text-faint text-xs">
+                                    {(v["claimants"] or []).join(", ") or "unmounted"}
+                                </td>
+                            </tr> for v in pvcs
+                        ]}
+                    </tbody>
+                </table>
             </div>
-                if (
-                    available
-                    and loadedOnce
-                    and not errorMsg
-                    and len(services) == 0
-                    and len(ingresses) == 0
-                    and len(pvcs) == 0
-                )
-                else None}
-        </div>;
+        </div>
+            if (available and len(pvcs) > 0)
+            else None}
+        {<div className="text-faint text-sm">
+            No services, ingresses, or PVCs in this namespace.
+        </div>
+            if (
+                available
+                and loadedOnce
+                and not errorMsg
+                and len(services) == 0
+                and len(ingresses) == 0
+                and len(pvcs) == 0
+            )
+            else None}
+    </div>
 }

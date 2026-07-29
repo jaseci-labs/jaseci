@@ -8,7 +8,7 @@ referenced here.
 variant client;
 import from .crossbound_server { cross_pub, cross_priv, CrossView }
 
-def:pub Panel() -> JsxElement {
+def:pub Panel -> JsxElement {
     has msg: str = "";
 
     async can with entry {
@@ -17,5 +17,5 @@ def:pub Panel() -> JsxElement {
         msg = a.msg;
     }
 
-    return <div id="panel">{msg}</div>;
+    <div id="panel">{msg}</div>
 }

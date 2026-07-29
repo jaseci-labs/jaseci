@@ -1,3 +1,5 @@
+variant client;
+
 """Solid ref end-to-end fixture (P2.2 jsdom matrix).
 
 `has btnRef: Ref[HTMLButtonElement] = Ref()` lowers to `let btnRef = null`
@@ -11,14 +13,11 @@ that the ref was populated. The test also proves that `ref={btnRef}` was
 NOT wrapped in a view thunk (the compiler guard in test_acceptance_matrix
 pins the string; this pins the runtime behaviour).
 """
+def:pub app -> JsxElement {
+    has btnRef: Ref[HTMLButtonElement] = Ref(),
+        refStatus: str = "unset";
 
-
-variant client;
-def:pub app() -> JsxElement {
-    has btnRef: Ref[HTMLButtonElement] = Ref();
-    has refStatus: str = "unset";
-
-    def check_ref(e: any) -> None {
+    def check_ref(e: any) {
         if btnRef {
             refStatus = "set";
         } else {
@@ -26,9 +25,9 @@ def:pub app() -> JsxElement {
         }
     }
 
-    return <div>
+    <div>
         <button ref={btnRef} data-testid="target">button</button>
         <button data-testid="check" onClick={check_ref}>check ref</button>
         <p data-testid="ref-status">{refStatus}</p>
-    </div>;
+    </div>
 }

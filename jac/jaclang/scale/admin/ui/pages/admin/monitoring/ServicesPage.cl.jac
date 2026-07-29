@@ -12,6 +12,8 @@ cards; per-service traffic is deferred (see ServiceDetail).
 """
 
 variant client;
+
+
 import from "lucide-react" { Server, RefreshCw, Activity, ChevronRight }
 
 import from react { useEffect }
@@ -287,144 +289,138 @@ def:pub ServicesPage -> JsxElement {
         </button>
     </div>;
 
-    return
-        <div className="space-y-4">
-            <PageHeader icon={Server} title="Services" live={True} right={headerRight}/>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {[
-                    <div
-                        key={c["label"]}
-                        className="bg-surface border border-line rounded-lg p-4 shadow-sm"
+    <div className="space-y-4">
+        <PageHeader icon={Server} title="Services" live={True} right={headerRight}/>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+                <div
+                    key={c["label"]}
+                    className="bg-surface border border-line rounded-lg p-4 shadow-sm"
+                >
+                    <p className="text-xs text-faint uppercase tracking-wider">
+                        {c["label"]}
+                    </p>
+                    <p
+                        className={"text-2xl font-semibold mt-1 tabular-nums " + str(
+                            toneClasses[c["tone"]] or "text-fg"
+                        )}
                     >
-                        <p className="text-xs text-faint uppercase tracking-wider">
-                            {c["label"]}
-                        </p>
-                        <p
-                            className={"text-2xl font-semibold mt-1 tabular-nums " + str(
-                                toneClasses[c["tone"]] or "text-fg"
-                            )}
-                        >
-                            {c["value"]}
-                        </p>
-                        {c["sub"]
-                        and <p className="text-xs text-faint mt-1">{c["sub"]}</p>}
-                    </div> for c in primaryCards
-                ]}
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                    <div
-                        key={c["label"]}
-                        className="bg-surface border border-line rounded-lg p-4 shadow-sm"
+                        {c["value"]}
+                    </p>
+                    {c["sub"] and <p className="text-xs text-faint mt-1">{c["sub"]}</p>}
+                </div> for c in primaryCards
+            ]}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+                <div
+                    key={c["label"]}
+                    className="bg-surface border border-line rounded-lg p-4 shadow-sm"
+                >
+                    <p className="text-xs text-faint uppercase tracking-wider">
+                        {c["label"]}
+                    </p>
+                    <p
+                        className={"text-2xl font-semibold mt-1 tabular-nums " + str(
+                            toneClasses[c["tone"]] or "text-fg"
+                        )}
                     >
-                        <p className="text-xs text-faint uppercase tracking-wider">
-                            {c["label"]}
-                        </p>
-                        <p
-                            className={"text-2xl font-semibold mt-1 tabular-nums " + str(
-                                toneClasses[c["tone"]] or "text-fg"
-                            )}
-                        >
-                            {c["value"]}
-                        </p>
-                        {c["sub"]
-                        and <p className="text-xs text-faint mt-1">{c["sub"]}</p>}
-                    </div> for c in secondaryCards
-                ]}
-            </div>
-            <div className="flex items-center justify-between">
-                <h2 className="text-sm font-medium text-fg">
-                    Services ({len(services)})
-                </h2>
-                {autoRefresh
-                and <p className="text-xs text-faint">refreshing every 10s</p>}
-            </div>
-            {len(services) == 0
-            and <div
-                className="bg-surface border border-line rounded-lg p-6 text-center text-sm text-faint shadow-sm"
-            >
-                No services visible.
-            </div>}
-            {len(services) > 0
-            and <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {[
-                    <button
-                        key={str(s["kind"]) + "/" + str(s["name"])}
-                        onClick={makeSelect(str(s["name"]))}
-                        className="text-left bg-surface border border-line rounded-lg p-4 shadow-sm hover:border-accent-line hover:bg-surface-2 transition-colors group"
-                    >
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                                <p className="text-sm font-semibold text-fg truncate">
-                                    {s["name"]}
-                                </p>
-                                <span
-                                    className="inline-flex items-center px-2 py-0.5 mt-1 rounded text-xs font-medium bg-surface-2 text-muted border border-line"
-                                >
-                                    {s["kind"]}
-                                </span>
-                            </div>
+                        {c["value"]}
+                    </p>
+                    {c["sub"] and <p className="text-xs text-faint mt-1">{c["sub"]}</p>}
+                </div> for c in secondaryCards
+            ]}
+        </div>
+        <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-fg">Services ({len(services)})</h2>
+            {autoRefresh and <p className="text-xs text-faint">refreshing every 10s</p>}
+        </div>
+        {len(services) == 0
+        and <div
+            className="bg-surface border border-line rounded-lg p-6 text-center text-sm text-faint shadow-sm"
+        >
+            No services visible.
+        </div>}
+        {len(services) > 0
+        and <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {[
+                <button
+                    key={str(s["kind"]) + "/" + str(s["name"])}
+                    onClick={makeSelect(str(s["name"]))}
+                    className="text-left bg-surface border border-line rounded-lg p-4 shadow-sm hover:border-accent-line hover:bg-surface-2 transition-colors group"
+                >
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                            <p className="text-sm font-semibold text-fg truncate">
+                                {s["name"]}
+                            </p>
                             <span
-                                className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border shrink-0 " + str(
-                                    statusClasses[s["status"]]
-                                    or "bg-surface-2 text-muted border-line"
+                                className="inline-flex items-center px-2 py-0.5 mt-1 rounded text-xs font-medium bg-surface-2 text-muted border border-line"
+                            >
+                                {s["kind"]}
+                            </span>
+                        </div>
+                        <span
+                            className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border shrink-0 " + str(
+                                statusClasses[s["status"]]
+                                or "bg-surface-2 text-muted border-line"
+                            )}
+                        >
+                            <span
+                                className={"w-1.5 h-1.5 rounded-full " + str(
+                                    statusDotClasses[s["status"]] or "bg-faint"
                                 )}
+                            ></span>
+                            {s["status"]}
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                        <div>
+                            <p
+                                className="text-[11px] text-faint uppercase tracking-wider"
                             >
-                                <span
-                                    className={"w-1.5 h-1.5 rounded-full " + str(
-                                        statusDotClasses[s["status"]] or "bg-faint"
-                                    )}
-                                ></span>
-                                {s["status"]}
-                            </span>
+                                Pods
+                            </p>
+                            <p className="text-sm text-fg tabular-nums">
+                                {s["replicas_ready"]}{" / "}{s["replicas_desired"]}
+                            </p>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 mt-3">
-                            <div>
-                                <p
-                                    className="text-[11px] text-faint uppercase tracking-wider"
-                                >
-                                    Pods
-                                </p>
-                                <p className="text-sm text-fg tabular-nums">
-                                    {s["replicas_ready"]}{" / "}{s["replicas_desired"]}
-                                </p>
-                            </div>
-                            <div>
-                                <p
-                                    className="text-[11px] text-faint uppercase tracking-wider"
-                                >
-                                    CPU
-                                </p>
-                                <p className="text-sm text-fg tabular-nums">
-                                    {formatCores(s["cpu_cores"] or 0)}
-                                </p>
-                            </div>
-                            <div>
-                                <p
-                                    className="text-[11px] text-faint uppercase tracking-wider"
-                                >
-                                    Memory
-                                </p>
-                                <p className="text-sm text-fg tabular-nums">
-                                    {formatBytes(s["memory_bytes"] or 0)}
-                                </p>
-                            </div>
+                        <div>
+                            <p
+                                className="text-[11px] text-faint uppercase tracking-wider"
+                            >
+                                CPU
+                            </p>
+                            <p className="text-sm text-fg tabular-nums">
+                                {formatCores(s["cpu_cores"] or 0)}
+                            </p>
                         </div>
-                        <div
-                            className="flex items-center justify-between mt-3 pt-3 border-t border-line"
+                        <div>
+                            <p
+                                className="text-[11px] text-faint uppercase tracking-wider"
+                            >
+                                Memory
+                            </p>
+                            <p className="text-sm text-fg tabular-nums">
+                                {formatBytes(s["memory_bytes"] or 0)}
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        className="flex items-center justify-between mt-3 pt-3 border-t border-line"
+                    >
+                        <span className="text-xs text-faint tabular-nums">
+                            {s["restarts_last_hour"]} restarts (1h)
+                        </span>
+                        <span
+                            className="inline-flex items-center gap-1 text-xs text-muted group-hover:text-accent"
                         >
-                            <span className="text-xs text-faint tabular-nums">
-                                {s["restarts_last_hour"]} restarts (1h)
-                            </span>
-                            <span
-                                className="inline-flex items-center gap-1 text-xs text-muted group-hover:text-accent"
-                            >
-                                Details
-                                <ChevronRight className="w-3.5 h-3.5"/>
-                            </span>
-                        </div>
-                    </button> for s in services
-                ]}
-            </div>}
-        </div>;
+                            Details
+                            <ChevronRight className="w-3.5 h-3.5"/>
+                        </span>
+                    </div>
+                </button> for s in services
+            ]}
+        </div>}
+    </div>
 }

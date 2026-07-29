@@ -345,329 +345,292 @@ def:pub MetricsPage -> JsxElement {
         </Button>
     </div>;
 
-    return
-        <div className="space-y-6">
-            <PageHeader
-                icon={Activity}
-                title="Metrics"
-                live={True}
-                right={headerRight}
-            />
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs text-faint">Total requests</span>
-                        <Globe className="w-4 h-4 text-faint"/>
-                    </div>
-                    <div className="text-2xl font-semibold text-fg mt-2 tabular-nums">
-                        {totalReqs}
-                    </div>
+    <div className="space-y-6">
+        <PageHeader icon={Activity} title="Metrics" live={True} right={headerRight}/>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-faint">Total requests</span>
+                    <Globe className="w-4 h-4 text-faint"/>
                 </div>
-                <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs text-faint">Active now</span>
-                        <Activity className="w-4 h-4 text-faint"/>
-                    </div>
-                    <div className="text-2xl font-semibold text-fg mt-2 tabular-nums">
-                        {activeReqs}
-                    </div>
-                </div>
-                <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs text-faint">Avg latency</span>
-                        <Clock className="w-4 h-4 text-faint"/>
-                    </div>
-                    <div className="text-2xl font-semibold text-fg mt-2 tabular-nums">
-                        {avgLatencyDisplay}
-                        <span className="text-base text-faint">ms</span>
-                    </div>
-                </div>
-                <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs text-faint">Runtime</span>
-                        <Cpu className="w-4 h-4 text-faint"/>
-                    </div>
-                    <div className="text-base font-semibold text-fg mt-3 font-mono">
-                        Python {pythonVersion}
-                    </div>
+                <div className="text-2xl font-semibold text-fg mt-2 tabular-nums">
+                    {totalReqs}
                 </div>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                    <div
-                        className="bg-surface border border-line rounded-lg p-5 shadow-sm"
-                    >
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                                <Globe className="w-4 h-4 text-muted"/>
-                                <span className="text-sm font-medium text-fg">
-                                    HTTP traffic
-                                </span>
-                            </div>
-                            <span className="text-xs text-faint">Last 60s</span>
+            <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-faint">Active now</span>
+                    <Activity className="w-4 h-4 text-faint"/>
+                </div>
+                <div className="text-2xl font-semibold text-fg mt-2 tabular-nums">
+                    {activeReqs}
+                </div>
+            </div>
+            <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-faint">Avg latency</span>
+                    <Clock className="w-4 h-4 text-faint"/>
+                </div>
+                <div className="text-2xl font-semibold text-fg mt-2 tabular-nums">
+                    {avgLatencyDisplay}
+                    <span className="text-base text-faint">ms</span>
+                </div>
+            </div>
+            <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-faint">Runtime</span>
+                    <Cpu className="w-4 h-4 text-faint"/>
+                </div>
+                <div className="text-base font-semibold text-fg mt-3 font-mono">
+                    Python {pythonVersion}
+                </div>
+            </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+                <div className="bg-surface border border-line rounded-lg p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-muted"/>
+                            <span className="text-sm font-medium text-fg">
+                                HTTP traffic
+                            </span>
                         </div>
-                        <div className="h-24 flex items-end gap-1 mb-4">
+                        <span className="text-xs text-faint">Last 60s</span>
+                    </div>
+                    <div className="h-24 flex items-end gap-1 mb-4">
+                        {[
+                            <div
+                                key={str(h["time"])}
+                                className="flex-1 bg-accent rounded-t opacity-80 hover:opacity-100 transition-opacity"
+                                style={{
+                                    "minHeight": "2px",
+                                    "height": getBarHeight(h["delta"] or 0, maxReqs, 14)
+                                }}
+                                title={str(h["delta"] or 0) + " req / interval"}
+                            ></div> for h in history
+                        ]}
+                    </div>
+                    <div className="border-t border-line pt-4">
+                        <div className="text-xs text-muted mb-3">
+                            All endpoints ({len(httpRequests)})
+                        </div>
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                             {[
                                 <div
-                                    key={str(h["time"])}
-                                    className="flex-1 bg-accent rounded-t opacity-80 hover:opacity-100 transition-opacity"
-                                    style={{
-                                        "minHeight": "2px",
-                                        "height": getBarHeight(
-                                            h["delta"] or 0, maxReqs, 14
-                                        )
-                                    }}
-                                    title={str(h["delta"] or 0) + " req / interval"}
-                                ></div> for h in history
+                                    key={req["path"] + req["status"]}
+                                    className="flex items-center gap-3 text-xs"
+                                >
+                                    <span className={getMethodBadge(req["method"])}>
+                                        {req["method"]}
+                                    </span>
+                                    <span
+                                        className="font-mono text-muted flex-1 truncate"
+                                    >
+                                        {req["path"]}
+                                    </span>
+                                    <span className={getStatusColor(req["status"])}>
+                                        {req["status"]}
+                                    </span>
+                                    <span
+                                        className="text-fg font-semibold w-12 text-right tabular-nums"
+                                    >
+                                        {req["count"]}
+                                    </span>
+                                    <div className="w-20 bg-surface-2 rounded-full h-1">
+                                        <div
+                                            className="bg-accent h-1 rounded-full"
+                                            style={{
+                                                "width": getBarHeight(
+                                                    req["count"], maxReqCount
+                                                )
+                                            }}
+                                        ></div>
+                                    </div>
+                                </div> for req in httpRequests
                             ]}
                         </div>
-                        <div className="border-t border-line pt-4">
-                            <div className="text-xs text-muted mb-3">
-                                All endpoints ({len(httpRequests)})
-                            </div>
-                            <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                                {[
-                                    <div
-                                        key={req["path"] + req["status"]}
-                                        className="flex items-center gap-3 text-xs"
-                                    >
-                                        <span className={getMethodBadge(req["method"])}>
-                                            {req["method"]}
-                                        </span>
-                                        <span
-                                            className="font-mono text-muted flex-1 truncate"
-                                        >
-                                            {req["path"]}
-                                        </span>
-                                        <span className={getStatusColor(req["status"])}>
-                                            {req["status"]}
-                                        </span>
-                                        <span
-                                            className="text-fg font-semibold w-12 text-right tabular-nums"
-                                        >
-                                            {req["count"]}
-                                        </span>
-                                        <div
-                                            className="w-20 bg-surface-2 rounded-full h-1"
-                                        >
-                                            <div
-                                                className="bg-accent h-1 rounded-full"
-                                                style={{
-                                                    "width": getBarHeight(
-                                                        req["count"], maxReqCount
-                                                    )
-                                                }}
-                                            ></div>
-                                        </div>
-                                    </div> for req in httpRequests
-                                ]}
-                            </div>
-                        </div>
-                        {slowestLatency > 1000
-                        and <div
-                            className="mt-4 p-3 bg-warning-weak border border-line rounded-lg"
-                        >
-                            <div className="flex items-center gap-2 text-xs">
-                                <AlertTriangle
-                                    className="w-3.5 h-3.5 text-warning shrink-0"
-                                />
-                                <span className="text-warning font-medium">
-                                    Slowest path
-                                </span>
-                                <span className="text-muted font-mono flex-1 truncate">
-                                    {slowestPath}
-                                </span>
-                                <span className="text-fg font-semibold">
-                                    {int(slowestLatency / 100) / 10}s
-                                </span>
-                            </div>
-                        </div>}
                     </div>
-                    <div
-                        className="bg-surface border border-line rounded-lg p-5 shadow-sm"
+                    {slowestLatency > 1000
+                    and <div
+                        className="mt-4 p-3 bg-warning-weak border border-line rounded-lg"
                     >
-                        <div className="flex items-center gap-2 mb-4">
-                            <Recycle className="w-4 h-4 text-muted"/>
-                            <span className="text-sm font-medium text-fg">
-                                Garbage collection
+                        <div className="flex items-center gap-2 text-xs">
+                            <AlertTriangle
+                                className="w-3.5 h-3.5 text-warning shrink-0"
+                            />
+                            <span className="text-warning font-medium">
+                                Slowest path
+                            </span>
+                            <span className="text-muted font-mono flex-1 truncate">
+                                {slowestPath}
+                            </span>
+                            <span className="text-fg font-semibold">
+                                {int(slowestLatency / 100) / 10}s
                             </span>
                         </div>
-                        <div className="grid grid-cols-3 gap-6">
-                            <div className="text-center">
-                                <div
-                                    className="h-32 flex items-end justify-center mb-2"
-                                >
-                                    <div
-                                        className="w-12 bg-accent rounded-t"
-                                        style={{"height": getBarHeight(gcGen0, maxGc)}}
-                                    ></div>
-                                </div>
-                                <div
-                                    className="text-lg font-semibold text-fg font-mono tabular-nums"
-                                >
-                                    {gcGen0}
-                                </div>
-                                <div className="text-xs text-faint">Gen 0 (young)</div>
-                            </div>
-                            <div className="text-center">
-                                <div
-                                    className="h-32 flex items-end justify-center mb-2"
-                                >
-                                    <div
-                                        className="w-12 bg-accent rounded-t"
-                                        style={{"height": getBarHeight(gcGen1, maxGc)}}
-                                    ></div>
-                                </div>
-                                <div
-                                    className="text-lg font-semibold text-fg font-mono tabular-nums"
-                                >
-                                    {gcGen1}
-                                </div>
-                                <div className="text-xs text-faint">Gen 1 (mid)</div>
-                            </div>
-                            <div className="text-center">
-                                <div
-                                    className="h-32 flex items-end justify-center mb-2"
-                                >
-                                    <div
-                                        className="w-12 bg-accent rounded-t"
-                                        style={{"height": getBarHeight(gcGen2, maxGc)}}
-                                    ></div>
-                                </div>
-                                <div
-                                    className="text-lg font-semibold text-fg font-mono tabular-nums"
-                                >
-                                    {gcGen2}
-                                </div>
-                                <div className="text-xs text-faint">Gen 2 (old)</div>
-                            </div>
-                        </div>
-                        <div
-                            className="mt-4 p-3 bg-surface-2 border border-line rounded-lg"
-                        >
-                            <div className="flex items-center gap-2 text-xs">
-                                <CheckCircle2
-                                    className="w-3.5 h-3.5 text-success shrink-0"
-                                />
-                                <span className="text-muted">
-                                    Gen 2 is doing the heavy lifting - no memory leaks detected.
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                    </div>}
                 </div>
-                <div className="space-y-6">
-                    <div
-                        className="bg-surface border border-line rounded-lg p-5 shadow-sm"
-                    >
-                        <div className="flex items-center gap-2 mb-4">
-                            <MemoryStick className="w-4 h-4 text-muted"/>
-                            <span className="text-sm font-medium text-fg">Memory</span>
-                        </div>
-                        <div className="relative w-32 h-32 mx-auto mb-4">
-                            <svg
-                                className="w-full h-full -rotate-90"
-                                viewBox="0 0 100 100"
-                            >
-                                <circle
-                                    cx="50"
-                                    cy="50"
-                                    r="40"
-                                    fill="none"
-                                    className="stroke-line"
-                                    strokeWidth="8"
-                                ></circle>
-                                <circle
-                                    cx="50"
-                                    cy="50"
-                                    r="40"
-                                    fill="none"
-                                    className="stroke-accent"
-                                    strokeWidth="8"
-                                    strokeLinecap="round"
-                                    strokeDasharray={str(memUsagePercent * 2.51) + " 251"}
-                                ></circle>
-                            </svg>
+                <div className="bg-surface border border-line rounded-lg p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Recycle className="w-4 h-4 text-muted"/>
+                        <span className="text-sm font-medium text-fg">
+                            Garbage collection
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-6">
+                        <div className="text-center">
+                            <div className="h-32 flex items-end justify-center mb-2">
+                                <div
+                                    className="w-12 bg-accent rounded-t"
+                                    style={{"height": getBarHeight(gcGen0, maxGc)}}
+                                ></div>
+                            </div>
                             <div
-                                className="absolute inset-0 flex items-center justify-center"
+                                className="text-lg font-semibold text-fg font-mono tabular-nums"
                             >
-                                <span
-                                    className="text-xl font-semibold text-fg tabular-nums"
-                                >
-                                    {memUsagePercent}%
-                                </span>
+                                {gcGen0}
                             </div>
+                            <div className="text-xs text-faint">Gen 0 (young)</div>
                         </div>
-                        <div className="space-y-2 text-xs">
-                            <div className="flex justify-between">
-                                <span className="text-muted">Virtual</span>
-                                <span className="text-fg font-mono">
-                                    {formatBytes(virtualMem)}
-                                </span>
+                        <div className="text-center">
+                            <div className="h-32 flex items-end justify-center mb-2">
+                                <div
+                                    className="w-12 bg-accent rounded-t"
+                                    style={{"height": getBarHeight(gcGen1, maxGc)}}
+                                ></div>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted">Resident</span>
-                                <span className="text-fg font-mono">
-                                    {formatBytes(residentMem)}
-                                </span>
+                            <div
+                                className="text-lg font-semibold text-fg font-mono tabular-nums"
+                            >
+                                {gcGen1}
                             </div>
+                            <div className="text-xs text-faint">Gen 1 (mid)</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="h-32 flex items-end justify-center mb-2">
+                                <div
+                                    className="w-12 bg-accent rounded-t"
+                                    style={{"height": getBarHeight(gcGen2, maxGc)}}
+                                ></div>
+                            </div>
+                            <div
+                                className="text-lg font-semibold text-fg font-mono tabular-nums"
+                            >
+                                {gcGen2}
+                            </div>
+                            <div className="text-xs text-faint">Gen 2 (old)</div>
                         </div>
                     </div>
                     <div
-                        className="bg-surface border border-line rounded-lg p-5 shadow-sm"
+                        className="mt-4 p-3 bg-surface-2 border border-line rounded-lg"
                     >
-                        <div className="flex items-center gap-2 mb-4">
-                            <Cpu className="w-4 h-4 text-muted"/>
-                            <span className="text-sm font-medium text-fg">
-                                CPU time
+                        <div className="flex items-center gap-2 text-xs">
+                            <CheckCircle2
+                                className="w-3.5 h-3.5 text-success shrink-0"
+                            />
+                            <span className="text-muted">
+                                Gen 2 is doing the heavy lifting - no memory leaks detected.
                             </span>
-                        </div>
-                        <div className="text-center">
-                            <div
-                                className="text-3xl font-semibold text-fg font-mono tabular-nums"
-                            >
-                                {str(int(cpuSeconds * 100) / 100)}s
-                            </div>
-                            <div className="text-xs text-faint mt-2">
-                                Total CPU seconds
-                            </div>
-                        </div>
-                    </div>
-                    <div
-                        className="bg-surface border border-line rounded-lg p-5 shadow-sm"
-                    >
-                        <div className="flex items-center gap-2 mb-4">
-                            <FileText className="w-4 h-4 text-muted"/>
-                            <span className="text-sm font-medium text-fg">
-                                File descriptors
-                            </span>
-                        </div>
-                        <div className="text-center">
-                            <div
-                                className="text-2xl font-semibold text-fg font-mono tabular-nums"
-                            >
-                                {int(openFds)}
-                                <span className="text-faint text-lg">
-                                    /{int(maxFds)}
-                                </span>
-                            </div>
-                            <div className="text-xs text-faint mt-2">Open / max</div>
-                        </div>
-                    </div>
-                    <div
-                        className="bg-surface border border-line rounded-lg p-5 shadow-sm"
-                    >
-                        <div className="flex items-center gap-2 mb-3">
-                            <Clock className="w-4 h-4 text-muted"/>
-                            <span className="text-sm font-medium text-fg">Uptime</span>
-                        </div>
-                        <div className="text-center">
-                            <div className="text-xl font-semibold text-fg font-mono">
-                                {formatUptime(startTime)}
-                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>;
+            <div className="space-y-6">
+                <div className="bg-surface border border-line rounded-lg p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                        <MemoryStick className="w-4 h-4 text-muted"/>
+                        <span className="text-sm font-medium text-fg">Memory</span>
+                    </div>
+                    <div className="relative w-32 h-32 mx-auto mb-4">
+                        <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                            <circle
+                                cx="50"
+                                cy="50"
+                                r="40"
+                                fill="none"
+                                className="stroke-line"
+                                strokeWidth="8"
+                            ></circle>
+                            <circle
+                                cx="50"
+                                cy="50"
+                                r="40"
+                                fill="none"
+                                className="stroke-accent"
+                                strokeWidth="8"
+                                strokeLinecap="round"
+                                strokeDasharray={str(memUsagePercent * 2.51) + " 251"}
+                            ></circle>
+                        </svg>
+                        <div
+                            className="absolute inset-0 flex items-center justify-center"
+                        >
+                            <span
+                                className="text-xl font-semibold text-fg tabular-nums"
+                            >
+                                {memUsagePercent}%
+                            </span>
+                        </div>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                        <div className="flex justify-between">
+                            <span className="text-muted">Virtual</span>
+                            <span className="text-fg font-mono">
+                                {formatBytes(virtualMem)}
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-muted">Resident</span>
+                            <span className="text-fg font-mono">
+                                {formatBytes(residentMem)}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-surface border border-line rounded-lg p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Cpu className="w-4 h-4 text-muted"/>
+                        <span className="text-sm font-medium text-fg">CPU time</span>
+                    </div>
+                    <div className="text-center">
+                        <div
+                            className="text-3xl font-semibold text-fg font-mono tabular-nums"
+                        >
+                            {str(int(cpuSeconds * 100) / 100)}s
+                        </div>
+                        <div className="text-xs text-faint mt-2">Total CPU seconds</div>
+                    </div>
+                </div>
+                <div className="bg-surface border border-line rounded-lg p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                        <FileText className="w-4 h-4 text-muted"/>
+                        <span className="text-sm font-medium text-fg">
+                            File descriptors
+                        </span>
+                    </div>
+                    <div className="text-center">
+                        <div
+                            className="text-2xl font-semibold text-fg font-mono tabular-nums"
+                        >
+                            {int(openFds)}
+                            <span className="text-faint text-lg">/{int(maxFds)}</span>
+                        </div>
+                        <div className="text-xs text-faint mt-2">Open / max</div>
+                    </div>
+                </div>
+                <div className="bg-surface border border-line rounded-lg p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Clock className="w-4 h-4 text-muted"/>
+                        <span className="text-sm font-medium text-fg">Uptime</span>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-xl font-semibold text-fg font-mono">
+                            {formatUptime(startTime)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 }

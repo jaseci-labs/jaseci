@@ -30,8 +30,7 @@ def:pub Button(
         variantClasses[variant] or variantClasses["primary"]
     ) + " " + className;
 
-    return
-        <button type={type} onClick={onClick} disabled={disabled} className={classes}>
-            {children}
-        </button>;
+    <button type={type} onClick={onClick} disabled={disabled} className={classes}>
+        {children}
+    </button>
 }

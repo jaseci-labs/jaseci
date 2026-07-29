@@ -4,20 +4,20 @@ import from "@jac/runtime" { renderJsxTree, }
 
 # Define some nodes
 node Task {
-    has title: str;
-    has completed: bool = False;
-    has priority: int = 0;
+    has title: str,
+        completed: bool = False,
+        priority: int = 0;
 }
 
 node User {
-    has name: str;
-    has email: str;
+    has name: str,
+        email: str;
 }
 
 # Define a walker to create tasks
 walker CreateTask {
-    has title: str;
-    has priority: int = 1;
+    has title: str,
+        priority: int = 1;
 
     can create with Root entry {
         task = here ++> Task(title=self.title, priority=self.priority);
@@ -94,10 +94,9 @@ def greet(name: str = "World") -> str {
 
 glob WELCOME_TITLE: str = "Runtime Test";
 
-def:pub client_page() -> JsxElement {
-    return
-        <section class="welcome">
-            <h1>{WELCOME_TITLE}</h1>
-            <p>{greet()}</p>
-        </section>;
+def:pub client_page -> JsxElement {
+    <section class="welcome">
+        <h1>{WELCOME_TITLE}</h1>
+        <p>{greet()}</p>
+    </section>
 }

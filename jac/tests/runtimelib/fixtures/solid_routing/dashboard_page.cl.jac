@@ -7,5 +7,7 @@ redirects to the login path and this node never renders.
 
 variant client;
 def:pub page -> JsxPage {
-    return <div data-testid="dashboard"><h1>Dashboard</h1></div>;
+    <div data-testid="dashboard">
+        <h1>Dashboard</h1>
+    </div>
 }

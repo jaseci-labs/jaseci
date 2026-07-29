@@ -15,11 +15,11 @@ def:pub Badge(text: str, variant: str = "default") -> JsxElement {
         variantClasses[variant] or variantClasses["default"]
     );
 
-    return <span className={classes}>{text}</span>;
+    <span className={classes}>{text}</span>
 }
 
 def:pub RoleBadge(role: str) -> JsxElement {
-    return <Badge text={role or "user"} variant={role or "user"}/>;
+    <Badge text={role or "user"} variant={role or "user"}/>
 }
 
 def:pub StatusBadge(
@@ -28,5 +28,5 @@ def:pub StatusBadge(
     if active {
         return <span className="text-xs text-success">{activeText}</span>;
     }
-    return <span className="text-xs text-faint">{inactiveText}</span>;
+    <span className="text-xs text-faint">{inactiveText}</span>
 }

@@ -38,63 +38,58 @@ def:pub TokenStream(
         }},
         [len(calls)]
     );
-    return
-        <div className="bp-section tokenstream">
-            <div className="pane-head">
-                token usage
-                <span className="spacer"/>
-                {<span className="think-dot live"/> if live else <span/>}
-            </div>
-            <div className="bp-body tokusage-body">
-                {<div className="empty">
-                    per-call tokens appear here as the model runs…
-                </div>
-                    if len(calls) == 0
-                    else <div className="tokfeed">
-                        {[
-                            (
-                                <div
-                                    className={"tokrow clickable" + (
-                                        " sel" if e.id == selected else ""
-                                    )}
-                                    key={e.id}
-                                    onClick={lambda { onSelect(e.id); }}
-                                >
-                                    <span className={"tok-chip tok-" + e.node}>
-                                        {e.node}
-                                    </span>
-                                    <div className="tok-inwrap">
-                                        <div
-                                            className="tokbar"
-                                            style={{
-                                                "width": str(
-                                                    int(e.tokens_in * 100 / maxIn)
-                                                ) + "%"
-                                            }}
-                                        />
-                                        <span className="tok-in">
-                                            {_k(e.tokens_in) + " in"}
-                                        </span>
-                                    </div>
-                                    <span className="tok-out">
-                                        {_k(e.tokens_out) + " out"}
-                                    </span>
-                                    <span
-                                        className="tok-cache"
-                                        title="cache read / created"
-                                    >
-                                        {"⟳" + _k(e.cache_read) + " +" + _k(
-                                            e.cache_create
-                                        )}
-                                    </span>
-                                    <span className="tok-ms">
-                                        {(str(int(e.ms)) + "ms") if e.ms > 0 else ""}
+    <div className="bp-section tokenstream">
+        <div className="pane-head">
+            token usage
+            <span className="spacer"/>
+            {<span className="think-dot live"/> if live else <span/>}
+        </div>
+        <div className="bp-body tokusage-body">
+            {<div className="empty">per-call tokens appear here as the model runs…</div>
+                if len(calls) == 0
+                else <div className="tokfeed">
+                    {[
+                        (
+                            <div
+                                className={"tokrow clickable" + (
+                                    " sel" if e.id == selected else ""
+                                )}
+                                key={e.id}
+                                onClick={lambda { onSelect(e.id); }}
+                            >
+                                <span className={"tok-chip tok-" + e.node}>
+                                    {e.node}
+                                </span>
+                                <div className="tok-inwrap">
+                                    <div
+                                        className="tokbar"
+                                        style={{
+                                            "width": str(
+                                                int(e.tokens_in * 100 / maxIn)
+                                            ) + "%"
+                                        }}
+                                    />
+                                    <span className="tok-in">
+                                        {_k(e.tokens_in) + " in"}
                                     </span>
                                 </div>
-                            ) for e in calls
-                        ]}
-                        <div ref={endRef}/>
-                    </div>}
-            </div>
-        </div>;
+                                <span className="tok-out">
+                                    {_k(e.tokens_out) + " out"}
+                                </span>
+                                <span
+                                    className="tok-cache"
+                                    title="cache read / created"
+                                >
+                                    {"⟳" + _k(e.cache_read) + " +" + _k(e.cache_create)}
+                                </span>
+                                <span className="tok-ms">
+                                    {(str(int(e.ms)) + "ms") if e.ms > 0 else ""}
+                                </span>
+                            </div>
+                        ) for e in calls
+                    ]}
+                    <div ref={endRef}/>
+                </div>}
+        </div>
+    </div>
 }

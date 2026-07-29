@@ -5,5 +5,5 @@
 import from .failload_frontend { Panel as ClientPanel }
 
 def:pub app -> JsxElement {
-    return <ClientPanel/>;
+    <ClientPanel/>
 }

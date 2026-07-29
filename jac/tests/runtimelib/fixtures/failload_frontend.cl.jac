@@ -4,12 +4,12 @@
 variant client;
 import from .failload_server { do_thing }
 
-def:pub Panel() -> JsxElement {
+def:pub Panel -> JsxElement {
     has value: int = 0;
 
     async can with entry {
         value = await do_thing();
     }
 
-    return <div id="panel">{value}</div>;
+    <div id="panel">{value}</div>
 }

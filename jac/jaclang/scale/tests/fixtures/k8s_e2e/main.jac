@@ -16,5 +16,5 @@ Run: jac start main.jac
 import from .frontend { app as ClientApp }
 
 def:pub app -> any {
-    return <ClientApp/>;
+    <ClientApp/>
 }

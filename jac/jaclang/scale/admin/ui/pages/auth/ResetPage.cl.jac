@@ -35,47 +35,44 @@ def:pub ResetPage -> JsxElement {
         }
     }
 
-    return
-        <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-            <div className="w-full max-w-sm">
-                <div className="text-center mb-8">
-                    <h1 className="text-xl font-semibold text-fg tracking-tight">
-                        Reset Password
-                    </h1>
-                    <p className="text-muted text-sm mt-1">
-                        Create a new password to continue
-                    </p>
-                </div>
-                <div className="bg-surface border border-line rounded-lg p-6 shadow-sm">
-                    <InlineAlert message={resetError} type="error"/>
-                    <form onSubmit={handleResetPassword}>
-                        <Input
-                            label="Current Password"
-                            type="password"
-                            value={resetCurrent}
-                            onChange={lambda (e: any) { resetCurrent = e.target.value; }}
-                            className="mb-4"
-                        />
-                        <Input
-                            label="New Password"
-                            type="password"
-                            value={resetNew}
-                            onChange={lambda (e: any) { resetNew = e.target.value; }}
-                            placeholder="Min 8 characters"
-                            className="mb-4"
-                        />
-                        <Input
-                            label="Confirm Password"
-                            type="password"
-                            value={resetConfirm}
-                            onChange={lambda (e: any) { resetConfirm = e.target.value; }}
-                            className="mb-5"
-                        />
-                        <Button type="submit" className="w-full">
-                            Update Password
-                        </Button>
-                    </form>
-                </div>
+    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+        <div className="w-full max-w-sm">
+            <div className="text-center mb-8">
+                <h1 className="text-xl font-semibold text-fg tracking-tight">
+                    Reset Password
+                </h1>
+                <p className="text-muted text-sm mt-1">
+                    Create a new password to continue
+                </p>
             </div>
-        </div>;
+            <div className="bg-surface border border-line rounded-lg p-6 shadow-sm">
+                <InlineAlert message={resetError} type="error"/>
+                <form onSubmit={handleResetPassword}>
+                    <Input
+                        label="Current Password"
+                        type="password"
+                        value={resetCurrent}
+                        onChange={lambda (e: any) { resetCurrent = e.target.value; }}
+                        className="mb-4"
+                    />
+                    <Input
+                        label="New Password"
+                        type="password"
+                        value={resetNew}
+                        onChange={lambda (e: any) { resetNew = e.target.value; }}
+                        placeholder="Min 8 characters"
+                        className="mb-4"
+                    />
+                    <Input
+                        label="Confirm Password"
+                        type="password"
+                        value={resetConfirm}
+                        onChange={lambda (e: any) { resetConfirm = e.target.value; }}
+                        className="mb-5"
+                    />
+                    <Button type="submit" className="w-full">Update Password</Button>
+                </form>
+            </div>
+        </div>
+    </div>
 }

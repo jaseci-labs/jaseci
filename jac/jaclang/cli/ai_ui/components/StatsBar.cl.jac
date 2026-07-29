@@ -28,57 +28,56 @@ def:pub StatsBar(stats: TurnStatsView, active: str) -> JsxElement {
     health_cls = "stat health " + (
         "ok" if clean else ("warn" if stats.errors == 0 else "err")
     );
-    return
-        <div className="stats">
-            <span className="stat">
-                phase
-                <b>{active or "—"}</b>
-            </span>
-            <span className="stat-sep"/>
-            {<span className="stat-hint">no turns yet</span>
-                if not stats.has_run
-                else <span className="stat-row">
-                    <span className="stat">
-                        <b>{str(stats.elapsed) + "s"}</b>
+    <div className="stats">
+        <span className="stat">
+            phase
+            <b>{active or "—"}</b>
+        </span>
+        <span className="stat-sep"/>
+        {<span className="stat-hint">no turns yet</span>
+            if not stats.has_run
+            else <span className="stat-row">
+                <span className="stat">
+                    <b>{str(stats.elapsed) + "s"}</b>
+                </span>
+                <span className="stat">
+                    <b>{str(stats.tools)}</b>
+                    tools
+                    <span className="stat-sub">
+                        {str(stats.reads) + "r / " + str(stats.writes) + "w / " + str(
+                            stats.runs
+                        ) + "x"}
                     </span>
-                    <span className="stat">
-                        <b>{str(stats.tools)}</b>
-                        tools
-                        <span className="stat-sub">
-                            {str(stats.reads) + "r / " + str(stats.writes) + "w / " + str(
-                                stats.runs
-                            ) + "x"}
-                        </span>
-                    </span>
-                    <span className="stat">
-                        <b>{str(stats.files)}</b>
-                        {"file" if stats.files == 1 else "files"}
-                    </span>
-                    {<span className="stat">
-                        <b>{short_num(stats.tokens_in)}</b>
-                        in
-                        <b>{short_num(stats.tokens_out)}</b>
-                        out
-                    </span>
-                        if has_tokens
-                        else <span/>}
-                    {<span className="stat">
-                        <b>{"~$" + str(stats.cost)}</b>
-                    </span>
-                        if stats.cost > 0.0
-                        else <span/>}
-                    {<span className="stat">
-                        <b>{str(stats.tok_per_s)}</b>
-                        tok/s
-                    </span>
-                        if stats.tok_per_s > 0.0
-                        else <span/>}
-                    {<span className={health_cls}>
-                        <span className="dot"/>
-                        {health_label}
-                    </span>
-                        if stats.health_loaded
-                        else <span/>}
-                </span>}
-        </div>;
+                </span>
+                <span className="stat">
+                    <b>{str(stats.files)}</b>
+                    {"file" if stats.files == 1 else "files"}
+                </span>
+                {<span className="stat">
+                    <b>{short_num(stats.tokens_in)}</b>
+                    in
+                    <b>{short_num(stats.tokens_out)}</b>
+                    out
+                </span>
+                    if has_tokens
+                    else <span/>}
+                {<span className="stat">
+                    <b>{"~$" + str(stats.cost)}</b>
+                </span>
+                    if stats.cost > 0.0
+                    else <span/>}
+                {<span className="stat">
+                    <b>{str(stats.tok_per_s)}</b>
+                    tok/s
+                </span>
+                    if stats.tok_per_s > 0.0
+                    else <span/>}
+                {<span className={health_cls}>
+                    <span className="dot"/>
+                    {health_label}
+                </span>
+                    if stats.health_loaded
+                    else <span/>}
+            </span>}
+    </div>
 }

@@ -1,3 +1,5 @@
+variant client;
+
 """Solid control-flow app for jsdom runtime verification (Branch 4).
 
 End-to-end proof that the producer's lifted control flow compiles **and renders**
@@ -12,20 +14,17 @@ through `babel-preset-solid`, not just that we emit plausible JSX strings:
 As a `.cl.jac` the whole module is client codespace, so the bare `def:pub` runs
 client-side (mirrors `solid_counter_app.cl.jac`).
 """
-
-
-variant client;
-def:pub app() -> JsxElement {
+def:pub app -> JsxElement {
     has show: bool = True;
     labels = ["alpha", "beta", "gamma"];
 
-    return <div>
-        <ul data-testid="list">
-            {[<li key={label}>{label}</li> for label in labels]}
-        </ul>
+    <div>
+        <ul data-testid="list">{[<li key={label}>{label}</li> for label in labels]}</ul>
         <button data-testid="toggle" onClick={lambda (e: any) { show = not show; }}>
             toggle
         </button>
-        {<p data-testid="shown">visible</p> if show else <p data-testid="hidden">hidden</p>}
-    </div>;
+        {<p data-testid="shown">visible</p>
+            if show
+            else <p data-testid="hidden">hidden</p>}
+    </div>
 }

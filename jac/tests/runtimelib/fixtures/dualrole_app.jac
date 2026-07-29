@@ -9,5 +9,5 @@ consumer of the analytics service.
 import from .dualrole_frontend { Panel as ClientPanel }
 
 def:pub app -> JsxElement {
-    return <ClientPanel/>;
+    <ClientPanel/>
 }

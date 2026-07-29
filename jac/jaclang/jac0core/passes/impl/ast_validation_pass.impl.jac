@@ -392,6 +392,14 @@ impl ASTValidationPass.enter_jsx_slot(
     self._check_slot_body([s for s in nd.body], False, "");
 }
 
+impl ASTValidationPass.enter_expr_stmt(
+    self: ASTValidationPass, nd: uni.ExprStmt
+) -> None {
+    if not nd.has_semi {
+        self.emit(E2084, node_override=nd);
+    }
+}
+
 impl ASTValidationPass._check_slot_body(
     self: ASTValidationPass, stmts: list, in_loop: bool, loop_kw: str
 ) -> None {

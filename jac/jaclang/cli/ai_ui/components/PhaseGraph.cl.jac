@@ -250,18 +250,17 @@ def:pub PhaseGraph(
         [active, status]
     );
 
-    return
-        <div className="graph-wrap">
-            <div className="cy" ref={containerRef}/>
-            <div className="graph-legend">
-                <span className="legend-item">
-                    <span className="legend-swatch" style={{"background": "#818cf8"}}/>
-                    active
-                </span>
-                <span className="legend-item">
-                    <span className="legend-swatch" style={{"background": "#4f46e5"}}/>
-                    visited
-                </span>
-            </div>
-        </div>;
+    <div className="graph-wrap">
+        <div className="cy" ref={containerRef}/>
+        <div className="graph-legend">
+            <span className="legend-item">
+                <span className="legend-swatch" style={{"background": "#818cf8"}}/>
+                active
+            </span>
+            <span className="legend-item">
+                <span className="legend-swatch" style={{"background": "#4f46e5"}}/>
+                visited
+            </span>
+        </div>
+    </div>
 }

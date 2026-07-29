@@ -835,6 +835,10 @@ impl NormalizePass.enter_report_stmt(nd: uni.ReportStmt) -> None {
 }
 
 impl NormalizePass.enter_return_stmt(nd: uni.ReturnStmt) -> None {
+    if nd.is_implicit and nd.expr {
+        nd.set_kids(nodes=[nd.expr]);
+        return;
+    }
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_RETURN), ];
     if nd.expr {
         new_kid.append(nd.expr);

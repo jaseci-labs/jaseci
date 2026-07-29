@@ -99,146 +99,139 @@ def:pub DeployPage -> JsxElement {
     }
 
     # ---- render ------------------------------------------------------
-    return
-        <div className="space-y-4">
-            <PageHeader
-                icon={Boxes}
-                title="Deploy Health"
-                namespace={namespace}
-                onRefresh={lambda { load(); }}
-            />
-            <OpsUnavailableBanner
-                show={loadedOnce and not available}
-                detail={detail}
-                remediation="Set [scale.kubernetes].ops_console = true and redeploy so the read-only Role is bound to the gateway ServiceAccount."
-            />
-            {<div className="text-danger text-sm">{errorMsg}</div>
-                if errorMsg
-                else None}
-            {<div className="text-faint text-sm">Loading...</div>
-                if (isLoading and not loadedOnce)
-                else None}
-            {<div className="space-y-2">
-                <div className="text-xs uppercase tracking-wide text-faint">
-                    Deployments ({len(deployments)})
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-left text-faint border-b border-line">
-                                <th className="py-1.5 pr-3 font-medium">Name</th>
-                                <th className="py-1.5 pr-3 font-medium">Ready</th>
-                                <th className="py-1.5 pr-3 font-medium">Rollout</th>
-                                <th className="py-1.5 pr-3 font-medium">Image</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {[
-                                <tr key={d["name"]} className="border-b border-line/50">
-                                    <td className="py-1.5 pr-3 text-fg font-medium">
-                                        {d["name"]}
-                                    </td>
-                                    <td
-                                        className={"py-1.5 pr-3 " + (
-                                            "text-success"
-                                                if (
-                                                    d["ready"] == d["desired"]
-                                                    and d["desired"] > 0
-                                                )
-                                                else "text-warning"
-                                        )}
-                                    >
-                                        {String(d["ready"])}/{String(d["desired"])}
-                                    </td>
-                                    <td className="py-1.5 pr-3">
-                                        <span
-                                            className={rolloutCls(
-                                                d["rollout"]["status"]
-                                            )}
-                                        >
-                                            {d["rollout"]["status"]}
-                                        </span>
-                                    </td>
-                                    <td
-                                        className="py-1.5 pr-3 text-faint text-xs font-mono truncate max-w-xs"
-                                    >
-                                        {(d["images"] or []).join(", ")}
-                                    </td>
-                                </tr> for d in deployments
-                            ]}
-                        </tbody>
-                    </table>
-                </div>
+    <div className="space-y-4">
+        <PageHeader
+            icon={Boxes}
+            title="Deploy Health"
+            namespace={namespace}
+            onRefresh={lambda { load(); }}
+        />
+        <OpsUnavailableBanner
+            show={loadedOnce and not available}
+            detail={detail}
+            remediation="Set [scale.kubernetes].ops_console = true and redeploy so the read-only Role is bound to the gateway ServiceAccount."
+        />
+        {<div className="text-danger text-sm">{errorMsg}</div> if errorMsg else None}
+        {<div className="text-faint text-sm">Loading...</div>
+            if (isLoading and not loadedOnce)
+            else None}
+        {<div className="space-y-2">
+            <div className="text-xs uppercase tracking-wide text-faint">
+                Deployments ({len(deployments)})
             </div>
-                if (available and len(deployments) > 0)
-                else None}
-            {<div className="space-y-2">
-                <div className="text-xs uppercase tracking-wide text-faint">
-                    Pods ({len(pods)})
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-left text-faint border-b border-line">
-                                <th className="py-1.5 pr-3 font-medium">Pod</th>
-                                <th className="py-1.5 pr-3 font-medium">Phase</th>
-                                <th className="py-1.5 pr-3 font-medium">Ready</th>
-                                <th className="py-1.5 pr-3 font-medium">Restarts</th>
-                                <th className="py-1.5 pr-3 font-medium">Containers</th>
-                                <th className="py-1.5 pr-3 font-medium">Node</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {[
-                                <tr key={p["name"]} className="border-b border-line/50">
-                                    <td
-                                        className="py-1.5 pr-3 text-fg truncate max-w-xs"
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-left text-faint border-b border-line">
+                            <th className="py-1.5 pr-3 font-medium">Name</th>
+                            <th className="py-1.5 pr-3 font-medium">Ready</th>
+                            <th className="py-1.5 pr-3 font-medium">Rollout</th>
+                            <th className="py-1.5 pr-3 font-medium">Image</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {[
+                            <tr key={d["name"]} className="border-b border-line/50">
+                                <td className="py-1.5 pr-3 text-fg font-medium">
+                                    {d["name"]}
+                                </td>
+                                <td
+                                    className={"py-1.5 pr-3 " + (
+                                        "text-success"
+                                            if (
+                                                d["ready"] == d["desired"]
+                                                and d["desired"] > 0
+                                            )
+                                            else "text-warning"
+                                    )}
+                                >
+                                    {String(d["ready"])}/{String(d["desired"])}
+                                </td>
+                                <td className="py-1.5 pr-3">
+                                    <span
+                                        className={rolloutCls(d["rollout"]["status"])}
                                     >
-                                        {p["name"]}
-                                    </td>
-                                    <td className="py-1.5 pr-3">
-                                        <span className={phaseCls(p["phase"])}>
-                                            {p["phase"]}
-                                        </span>
-                                    </td>
-                                    <td className="py-1.5 pr-3 text-muted">
-                                        {String(p["ready"])}/{String(p["total"])}
-                                    </td>
-                                    <td
-                                        className={"py-1.5 pr-3 " + (
-                                            "text-danger font-medium"
-                                                if p["restarts"] > 0
-                                                else "text-muted"
-                                        )}
-                                    >
-                                        {String(p["restarts"])}
-                                    </td>
-                                    <td className="py-1.5 pr-3 text-faint text-xs">
-                                        {containerSummary(p["containers"] or [])}
-                                    </td>
-                                    <td
-                                        className="py-1.5 pr-3 text-faint text-xs truncate max-w-xs"
-                                    >
-                                        {p["node"]}
-                                    </td>
-                                </tr> for p in pods
-                            ]}
-                        </tbody>
-                    </table>
-                </div>
+                                        {d["rollout"]["status"]}
+                                    </span>
+                                </td>
+                                <td
+                                    className="py-1.5 pr-3 text-faint text-xs font-mono truncate max-w-xs"
+                                >
+                                    {(d["images"] or []).join(", ")}
+                                </td>
+                            </tr> for d in deployments
+                        ]}
+                    </tbody>
+                </table>
             </div>
-                if (available and len(pods) > 0)
-                else None}
-            {<div className="text-faint text-sm">
-                No deployments or pods in this namespace.
+        </div>
+            if (available and len(deployments) > 0)
+            else None}
+        {<div className="space-y-2">
+            <div className="text-xs uppercase tracking-wide text-faint">
+                Pods ({len(pods)})
             </div>
-                if (
-                    available
-                    and loadedOnce
-                    and not errorMsg
-                    and len(deployments) == 0
-                    and len(pods) == 0
-                )
-                else None}
-        </div>;
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-left text-faint border-b border-line">
+                            <th className="py-1.5 pr-3 font-medium">Pod</th>
+                            <th className="py-1.5 pr-3 font-medium">Phase</th>
+                            <th className="py-1.5 pr-3 font-medium">Ready</th>
+                            <th className="py-1.5 pr-3 font-medium">Restarts</th>
+                            <th className="py-1.5 pr-3 font-medium">Containers</th>
+                            <th className="py-1.5 pr-3 font-medium">Node</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {[
+                            <tr key={p["name"]} className="border-b border-line/50">
+                                <td className="py-1.5 pr-3 text-fg truncate max-w-xs">
+                                    {p["name"]}
+                                </td>
+                                <td className="py-1.5 pr-3">
+                                    <span className={phaseCls(p["phase"])}>
+                                        {p["phase"]}
+                                    </span>
+                                </td>
+                                <td className="py-1.5 pr-3 text-muted">
+                                    {String(p["ready"])}/{String(p["total"])}
+                                </td>
+                                <td
+                                    className={"py-1.5 pr-3 " + (
+                                        "text-danger font-medium"
+                                            if p["restarts"] > 0
+                                            else "text-muted"
+                                    )}
+                                >
+                                    {String(p["restarts"])}
+                                </td>
+                                <td className="py-1.5 pr-3 text-faint text-xs">
+                                    {containerSummary(p["containers"] or [])}
+                                </td>
+                                <td
+                                    className="py-1.5 pr-3 text-faint text-xs truncate max-w-xs"
+                                >
+                                    {p["node"]}
+                                </td>
+                            </tr> for p in pods
+                        ]}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+            if (available and len(pods) > 0)
+            else None}
+        {<div className="text-faint text-sm">
+            No deployments or pods in this namespace.
+        </div>
+            if (
+                available
+                and loadedOnce
+                and not errorMsg
+                and len(deployments) == 0
+                and len(pods) == 0
+            )
+            else None}
+    </div>
 }

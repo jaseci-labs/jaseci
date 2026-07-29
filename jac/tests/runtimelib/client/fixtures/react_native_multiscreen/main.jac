@@ -33,16 +33,15 @@ def:pub LoginPage -> JsxElement {
         await jacLogin(data["username"], data["password"]);
     }
 
-    return
-        <JacForm
-            schema={schema}
-            onSubmit={handleSubmit}
-            field_config={{
-                "username": {"label": "Username", "type": "text"},
-                "password": {"label": "Password", "type": "password"}
-            }}
-            submitLabel="Login"
-        />;
+    <JacForm
+        schema={schema}
+        onSubmit={handleSubmit}
+        field_config={{
+            "username": {"label": "Username", "type": "text"},
+            "password": {"label": "Password", "type": "password"}
+        }}
+        submitLabel="Login"
+    />
 }
 
 def:pub ListPage -> JsxElement {
@@ -55,38 +54,35 @@ def:pub ListPage -> JsxElement {
         }
     }
 
-    return
-        <div>
-            <h1>Items</h1>
-            <p data-testid="greeting">{greeting}</p>
-            <Link to="/detail/1">View item 1</Link>
-        </div>;
+    <div>
+        <h1>Items</h1>
+        <p data-testid="greeting">{greeting}</p>
+        <Link to="/detail/1">View item 1</Link>
+    </div>
 }
 
 def:pub DetailPage -> JsxElement {
-    return
-        <div>
-            <h1>Item Detail</h1>
-        </div>;
+    <div>
+        <h1>Item Detail</h1>
+    </div>
 }
 
 def:pub app -> JsxElement {
-    return
-        <Router>
-            <Routes>
-                <Route path="/login" element={<LoginPage/>}/>
-                <Route
-                    path="/"
-                    element={<AuthGuard redirect="/login">
-                        <ListPage/>
-                    </AuthGuard>}
-                />
-                <Route
-                    path="detail/:id"
-                    element={<AuthGuard redirect="/login">
-                        <DetailPage/>
-                    </AuthGuard>}
-                />
-            </Routes>
-        </Router>;
+    <Router>
+        <Routes>
+            <Route path="/login" element={<LoginPage/>}/>
+            <Route
+                path="/"
+                element={<AuthGuard redirect="/login">
+                    <ListPage/>
+                </AuthGuard>}
+            />
+            <Route
+                path="detail/:id"
+                element={<AuthGuard redirect="/login">
+                    <DetailPage/>
+                </AuthGuard>}
+            />
+        </Routes>
+    </Router>
 }

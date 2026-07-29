@@ -715,7 +715,8 @@ obj ExprStmt(CodeBlockStmt) {
     def accept_enter(v: UniPass) -> None;
 
     has expr: Expr,
-        in_fstring: bool;
+        in_fstring: bool,
+        has_semi: bool = True;
 
     def postinit -> None;
 }
@@ -876,7 +877,8 @@ obj ReturnStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: (Expr | None);
+    has expr: (Expr | None),
+        is_implicit: bool = False;
 
     def postinit -> None;
 }

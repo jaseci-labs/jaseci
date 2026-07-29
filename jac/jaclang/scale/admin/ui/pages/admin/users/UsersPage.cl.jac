@@ -129,72 +129,71 @@ def:pub UsersPage -> JsxElement {
         {"key": "actions", "label": "Actions", "align": "right"}
     ];
 
-    return
-        <div>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-                <StatsCard label="Users" value={totalUsers} color="white"/>
-                <StatsCard label="Admins" value={adminCount} color="orange"/>
-                <StatsCard label="SSO Providers" value={ssoCount} color="emerald"/>
-            </div>
-            <Card className="overflow-hidden">
-                <CardHeader
-                    title="Users"
-                    action={<Button onClick={lambda { showCreateModal = True; }}>
-                        Add User
-                    </Button>}
-                />
-                <DataTable columns={columns}>
-                    {[
-                        <TableRow key={u["username"]}>
-                            <TableCell>
-                                <span className="text-sm text-fg">{u["username"]}</span>
-                            </TableCell>
-                            <TableCell>
-                                <RoleBadge role={u["role"]}/>
-                            </TableCell>
-                            <TableCell>
-                                <StatusBadge
-                                    active={not u["requires_password_reset"]}
-                                    activeText="Active"
-                                    inactiveText="Reset Required"
-                                />
-                            </TableCell>
-                            <TableCell align="right">
-                                <Button
-                                    variant="ghost"
-                                    onClick={makeEditHandler(
-                                        u["username"],
-                                        u["role"] or "user",
-                                        u["requires_password_reset"] or False
-                                    )}
-                                    className="mr-3"
-                                >
-                                    Edit
-                                </Button>
-                                <Button
-                                    variant="link"
-                                    onClick={makeDeleteHandler(u["username"])}
-                                    className="text-red-500/70 hover:text-red-400"
-                                >
-                                    Delete
-                                </Button>
-                            </TableCell>
-                        </TableRow> for u in users
-                    ]}
-                </DataTable>
-            </Card>
-            <CreateUserModal
-                isOpen={showCreateModal}
-                onClose={lambda { showCreateModal = False; }}
-                onCreate={handleCreate}
+    <div>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+            <StatsCard label="Users" value={totalUsers} color="white"/>
+            <StatsCard label="Admins" value={adminCount} color="orange"/>
+            <StatsCard label="SSO Providers" value={ssoCount} color="emerald"/>
+        </div>
+        <Card className="overflow-hidden">
+            <CardHeader
+                title="Users"
+                action={<Button onClick={lambda { showCreateModal = True; }}>
+                    Add User
+                </Button>}
             />
-            <EditUserModal
-                isOpen={showEditModal}
-                onClose={lambda { showEditModal = False; }}
-                onUpdate={handleUpdate}
-                username={editUsername}
-                initialRole={editRole}
-                initialResetRequired={editResetRequired}
-            />
-        </div>;
+            <DataTable columns={columns}>
+                {[
+                    <TableRow key={u["username"]}>
+                        <TableCell>
+                            <span className="text-sm text-fg">{u["username"]}</span>
+                        </TableCell>
+                        <TableCell>
+                            <RoleBadge role={u["role"]}/>
+                        </TableCell>
+                        <TableCell>
+                            <StatusBadge
+                                active={not u["requires_password_reset"]}
+                                activeText="Active"
+                                inactiveText="Reset Required"
+                            />
+                        </TableCell>
+                        <TableCell align="right">
+                            <Button
+                                variant="ghost"
+                                onClick={makeEditHandler(
+                                    u["username"],
+                                    u["role"] or "user",
+                                    u["requires_password_reset"] or False
+                                )}
+                                className="mr-3"
+                            >
+                                Edit
+                            </Button>
+                            <Button
+                                variant="link"
+                                onClick={makeDeleteHandler(u["username"])}
+                                className="text-red-500/70 hover:text-red-400"
+                            >
+                                Delete
+                            </Button>
+                        </TableCell>
+                    </TableRow> for u in users
+                ]}
+            </DataTable>
+        </Card>
+        <CreateUserModal
+            isOpen={showCreateModal}
+            onClose={lambda { showCreateModal = False; }}
+            onCreate={handleCreate}
+        />
+        <EditUserModal
+            isOpen={showEditModal}
+            onClose={lambda { showEditModal = False; }}
+            onUpdate={handleUpdate}
+            username={editUsername}
+            initialRole={editRole}
+            initialResetRequired={editResetRequired}
+        />
+    </div>
 }

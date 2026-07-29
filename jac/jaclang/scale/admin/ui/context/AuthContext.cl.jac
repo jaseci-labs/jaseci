@@ -136,7 +136,7 @@ def:pub AuthProvider(children: any) -> JsxElement {
         "logout": logout
     };
 
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 def:pub useAuth -> dict {

@@ -10,18 +10,18 @@ spuriously on prop access or mount.
 
 variant client;
 def:pub Clicker(label: str, handler: any) -> JsxElement {
-    return <button data-testid="child-btn" onClick={handler}>{label}</button>;
+    <button data-testid="child-btn" onClick={handler}>{label}</button>
 }
 
-def:pub app() -> JsxElement {
+def:pub app -> JsxElement {
     has clicks: int = 0;
 
-    def on_click(e: any) -> None {
+    def on_click(e: any) {
         clicks = clicks + 1;
     }
 
-    return <div>
-        <Clicker label="click me" handler={on_click} />
+    <div>
+        <Clicker label="click me" handler={on_click}/>
         <p data-testid="click-count">Clicks: {clicks}</p>
-    </div>;
+    </div>
 }

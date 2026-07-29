@@ -10,9 +10,9 @@ variant client;
 import from "@jac/runtime" { Link }
 
 def:pub page -> JsxPage {
-    return <div data-testid="home">
+    <div data-testid="home">
         <h1>Home</h1>
         <Link to="/about" data-testid="to-about">About</Link>
         <Link to="/dashboard" data-testid="to-dashboard">Dashboard</Link>
-    </div>;
+    </div>
 }

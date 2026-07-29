@@ -1,3 +1,5 @@
+variant client;
+
 """Minimal Solid counter app for jsdom runtime verification.
 
 The Solid analogue of `preact_counter_app.jac`: a `count` state field, a dynamic
@@ -8,16 +10,13 @@ what the jsdom harness in `test_solid_jsdom.jac` mounts and asserts. As a
 `.cl.jac` the whole module is client codespace, so the bare `def:pub` runs
 client-side (no `cl { }` wrapper needed).
 """
-
-
-variant client;
-def:pub app() -> JsxElement {
+def:pub app -> JsxElement {
     has count: int = 0;
 
-    return <div>
+    <div>
         <p data-testid="count">Count: {count}</p>
         <button data-testid="inc" onClick={lambda (e: any) { count = count + 1; }}>
             +
         </button>
-    </div>;
+    </div>
 }

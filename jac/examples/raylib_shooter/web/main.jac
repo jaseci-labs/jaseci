@@ -49,29 +49,28 @@ def:pub app -> JsxElement {
     # whitespace, so plain `mouse · <b>WASD</b> move` would render as
     # `mouse ·WASDmove`. Keep these literals until the formatter preserves
     # JSX whitespace on break.
-    return
-        <div id="page">
-            <h1>Jac Cube Shooter - na wasm + cl WebGL, one app module</h1>
-            <div id="hint">
-                {"Click the canvas to capture the mouse · "}
-                <b>WASD</b>
-                {" move · mouse/arrows aim · "}
-                <b>Space</b>
-                {" fire · "}
-                <b>Tab</b>
-                {" release"}
+    <div id="page">
+        <h1>Jac Cube Shooter - na wasm + cl WebGL, one app module</h1>
+        <div id="hint">
+            {"Click the canvas to capture the mouse · "}
+            <b>WASD</b>
+            {" move · mouse/arrows aim · "}
+            <b>Space</b>
+            {" fire · "}
+            <b>Tab</b>
+            {" release"}
+        </div>
+        <div id="wrap">
+            <canvas id="glcanvas" width={960} height={600}></canvas>
+            <div id="hud">
+                {"score "}
+                <b id="hud-score">0</b>
+                {" · "}
+                <b id="hud-fps">0</b>
+                {" fps"}
             </div>
-            <div id="wrap">
-                <canvas id="glcanvas" width={960} height={600}></canvas>
-                <div id="hud">
-                    {"score "}
-                    <b id="hud-score">0</b>
-                    {" · "}
-                    <b id="hud-fps">0</b>
-                    {" fps"}
-                </div>
-            </div>
-        </div>;
+        </div>
+    </div>
 }
 
 import from raylib {

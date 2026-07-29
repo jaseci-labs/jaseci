@@ -8,5 +8,5 @@ def:pub Button(
     disabled: bool = False
 ) -> JsxElement {
     cls = "btn" if variant == "primary" else "btn ghost";
-    return <button className={cls} {onClick} {disabled}>{label}</button>;
+    <button className={cls} {onClick} {disabled}>{label}</button>
 }

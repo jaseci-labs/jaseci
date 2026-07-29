@@ -169,79 +169,68 @@ def:pub OpsPage -> JsxElement {
         Refresh
     </button>;
 
-    return
-        <div className="space-y-4">
-            <PageHeader
-                icon={Stethoscope}
-                title="Signal Self-Check"
-                right={refreshBtn}
-            />
-            <p className="text-sm text-muted">
-                Each signal's causal chain, evaluated top-down. The first red step is the diagnosis - no kubectl needed.
-            </p>
-            {<div
-                className="flex items-start gap-2 text-danger text-sm bg-danger-weak border border-line rounded-md p-3"
-            >
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5"/>
-                <span>{errorMsg}</span>
-            </div>
-                if errorMsg
-                else None}
-            {<div className="text-faint text-sm">Running self-check...</div>
-                if (isLoading and not loadedOnce)
-                else None}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {[
-                    <div
-                        key={card["name"]}
-                        className="rounded-lg border border-line bg-surface p-4 space-y-3"
-                    >
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-semibold text-fg">
-                                {card["label"]}
-                            </h2>
-                            <span className={card["badgeCls"]}>
-                                {card["statusLabel"]}
-                            </span>
-                        </div>
-                        <div className="space-y-0.5">
-                            {[
-                                <div
-                                    key={step["name"]}
-                                    className={"flex items-start gap-2 px-2 py-1.5 rounded " + (
-                                        "bg-danger-weak ring-1 ring-danger/40"
-                                            if step["_firstFail"]
-                                            else ""
-                                    )}
-                                >
-                                    {stepIcons[stepKey(step["ok"])]
-                                    or <Minus
-                                        className="w-3.5 h-3.5 text-faint shrink-0"
-                                    />}
-                                    <div className="min-w-0">
-                                        <div
-                                            className={"text-xs " + (
-                                                "font-medium text-fg"
-                                                    if step["_firstFail"]
-                                                    else "text-muted"
-                                            )}
-                                        >
-                                            {step["name"]}
-                                        </div>
-                                        <div
-                                            className="text-[11px] text-faint break-words"
-                                        >
-                                            {step["detail"]}
-                                        </div>
+    <div className="space-y-4">
+        <PageHeader icon={Stethoscope} title="Signal Self-Check" right={refreshBtn}/>
+        <p className="text-sm text-muted">
+            Each signal's causal chain, evaluated top-down. The first red step is the diagnosis - no kubectl needed.
+        </p>
+        {<div
+            className="flex items-start gap-2 text-danger text-sm bg-danger-weak border border-line rounded-md p-3"
+        >
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5"/>
+            <span>{errorMsg}</span>
+        </div>
+            if errorMsg
+            else None}
+        {<div className="text-faint text-sm">Running self-check...</div>
+            if (isLoading and not loadedOnce)
+            else None}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {[
+                <div
+                    key={card["name"]}
+                    className="rounded-lg border border-line bg-surface p-4 space-y-3"
+                >
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-sm font-semibold text-fg">
+                            {card["label"]}
+                        </h2>
+                        <span className={card["badgeCls"]}>{card["statusLabel"]}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                        {[
+                            <div
+                                key={step["name"]}
+                                className={"flex items-start gap-2 px-2 py-1.5 rounded " + (
+                                    "bg-danger-weak ring-1 ring-danger/40"
+                                        if step["_firstFail"]
+                                        else ""
+                                )}
+                            >
+                                {stepIcons[stepKey(step["ok"])]
+                                or <Minus className="w-3.5 h-3.5 text-faint shrink-0"/>}
+                                <div className="min-w-0">
+                                    <div
+                                        className={"text-xs " + (
+                                            "font-medium text-fg"
+                                                if step["_firstFail"]
+                                                else "text-muted"
+                                        )}
+                                    >
+                                        {step["name"]}
                                     </div>
-                                </div> for step in card["steps"]
-                            ]}
-                        </div>
-                    </div> for card in cardData()
-                ]}
-            </div>
-            {<div className="text-faint text-sm">No signals reported.</div>
-                if (loadedOnce and len(cardData()) == 0)
-                else None}
-        </div>;
+                                    <div className="text-[11px] text-faint break-words">
+                                        {step["detail"]}
+                                    </div>
+                                </div>
+                            </div> for step in card["steps"]
+                        ]}
+                    </div>
+                </div> for card in cardData()
+            ]}
+        </div>
+        {<div className="text-faint text-sm">No signals reported.</div>
+            if (loadedOnce and len(cardData()) == 0)
+            else None}
+    </div>
 }

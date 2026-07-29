@@ -35,14 +35,13 @@ def AppContent -> JsxElement {
         return <ResetPage/>;
     }
 
-    return <DashboardLayout/>;
+    <DashboardLayout/>
 }
 
 def:pub app -> JsxElement {
-    return
-        <AuthProvider>
-            <AlertProvider>
-                <AppContent/>
-            </AlertProvider>
-        </AuthProvider>;
+    <AuthProvider>
+        <AlertProvider>
+            <AppContent/>
+        </AlertProvider>
+    </AuthProvider>
 }

@@ -10,5 +10,5 @@ import from endpoints { Message, PostMessage, ListMessages }
 import from .frontend { app as ClientApp }
 
 def:pub app -> JsxElement {
-    return <ClientApp/>;
+    <ClientApp/>
 }

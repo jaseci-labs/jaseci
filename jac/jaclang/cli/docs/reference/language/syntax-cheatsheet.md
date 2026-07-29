@@ -132,6 +132,12 @@ def greet(name: str) -> str {
     return f"Hello, {name}!";
 }
 
+# Implicit return: the final expression without ';' is the return value
+# (Rust-style tail expression; early returns stay explicit)
+def double(n: int) -> int {
+    n * 2
+}
+
 # Default parameters and multiple return values
 def divmod_example(a: int, b: int = 2) -> tuple[int, int] {
     return (a // b, a % b);

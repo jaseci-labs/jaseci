@@ -31,110 +31,99 @@ def:pub SettingsModal(
 ) -> JsxElement {
     keyLabel = ("API key (" + keyEnv + ")") if keyEnv else "API key";
     keyPlaceholder = "•••••••• set — leave blank to keep" if apiKeySet else "sk-…";
-    return
-        <div className="modal-overlay" onClick={lambda { onClose(); }}>
-            <div className="modal" onClick={lambda (e: any) { e.stopPropagation(); }}>
-                <div className="modal-head">
-                    <span>Settings</span>
-                    <span className="spacer"/>
-                    <button className="modal-x" onClick={lambda { onClose(); }}>
-                        ×
-                    </button>
-                </div>
-                <div className="modal-body">
-                    {<div className="modal-note">
-                        This model needs an API key{(" (" + keyEnv + ")")
-                            if keyEnv
-                            else ""} before it can run. Add one below.
-                    </div>
-                        if needsKey
-                        else <span/>}
-                    <div className="field">
-                        <label>Model</label>
-                        <input
-                            className="input"
-                            value={model}
-                            placeholder="anthropic/claude-opus-4-7"
-                            onChange={lambda (e: ChangeEvent) { onModel(
-                                e.target.value
-                            ); }}
-                        />
-                        <div className="preset-row">
-                            {[
-                                <button
-                                    className="preset"
-                                    key={p}
-                                    onClick={lambda { onModel(p); }}
-                                >
-                                    {p}
-                                </button> for p in presets
-                            ]}
-                        </div>
-                        {<div className="field-hint">source: {modelSource}</div>
-                            if modelSource
-                            else <span/>}
-                    </div>
-                    <div className="field">
-                        <label>{keyLabel}</label>
-                        <input
-                            className="input"
-                            type="password"
-                            value={keyDraft}
-                            placeholder={keyPlaceholder}
-                            onChange={lambda (e: ChangeEvent) { onKey(
-                                e.target.value
-                            ); }}
-                        />
-                    </div>
-                    <div className="field">
-                        <label>Base URL (optional)</label>
-                        <input
-                            className="input"
-                            value={baseUrl}
-                            placeholder="https://… (custom endpoint or proxy)"
-                            onChange={lambda (e: ChangeEvent) { onBaseUrl(
-                                e.target.value
-                            ); }}
-                        />
-                    </div>
-                    <div className="field-row">
-                        <div className="field">
-                            <label>Temperature</label>
-                            <input
-                                className="input"
-                                value={temp}
-                                placeholder="default"
-                                onChange={lambda (e: ChangeEvent) { onTemp(
-                                    e.target.value
-                                ); }}
-                            />
-                        </div>
-                        <div className="field">
-                            <label>Context (n_ctx)</label>
-                            <input
-                                className="input"
-                                value={nctx}
-                                placeholder="0 = model default"
-                                onChange={lambda (e: ChangeEvent) { onNctx(
-                                    e.target.value
-                                ); }}
-                            />
-                        </div>
-                    </div>
-                    {<div className="modal-err">{error}</div> if error else <span/>}
-                </div>
-                <div className="modal-foot">
-                    <button className="btn ghost" onClick={lambda { onClose(); }}>
-                        Cancel
-                    </button>
-                    <button
-                        className="btn"
-                        disabled={busy}
-                        onClick={lambda { onApply(); }}
-                    >
-                        {"Applying…" if busy else "Apply"}
-                    </button>
-                </div>
+    <div className="modal-overlay" onClick={lambda { onClose(); }}>
+        <div className="modal" onClick={lambda (e: any) { e.stopPropagation(); }}>
+            <div className="modal-head">
+                <span>Settings</span>
+                <span className="spacer"/>
+                <button className="modal-x" onClick={lambda { onClose(); }}>×</button>
             </div>
-        </div>;
+            <div className="modal-body">
+                {<div className="modal-note">
+                    This model needs an API key{(" (" + keyEnv + ")")
+                        if keyEnv
+                        else ""} before it can run. Add one below.
+                </div>
+                    if needsKey
+                    else <span/>}
+                <div className="field">
+                    <label>Model</label>
+                    <input
+                        className="input"
+                        value={model}
+                        placeholder="anthropic/claude-opus-4-7"
+                        onChange={lambda (e: ChangeEvent) { onModel(e.target.value); }}
+                    />
+                    <div className="preset-row">
+                        {[
+                            <button
+                                className="preset"
+                                key={p}
+                                onClick={lambda { onModel(p); }}
+                            >
+                                {p}
+                            </button> for p in presets
+                        ]}
+                    </div>
+                    {<div className="field-hint">source: {modelSource}</div>
+                        if modelSource
+                        else <span/>}
+                </div>
+                <div className="field">
+                    <label>{keyLabel}</label>
+                    <input
+                        className="input"
+                        type="password"
+                        value={keyDraft}
+                        placeholder={keyPlaceholder}
+                        onChange={lambda (e: ChangeEvent) { onKey(e.target.value); }}
+                    />
+                </div>
+                <div className="field">
+                    <label>Base URL (optional)</label>
+                    <input
+                        className="input"
+                        value={baseUrl}
+                        placeholder="https://… (custom endpoint or proxy)"
+                        onChange={lambda (e: ChangeEvent) { onBaseUrl(
+                            e.target.value
+                        ); }}
+                    />
+                </div>
+                <div className="field-row">
+                    <div className="field">
+                        <label>Temperature</label>
+                        <input
+                            className="input"
+                            value={temp}
+                            placeholder="default"
+                            onChange={lambda (e: ChangeEvent) { onTemp(
+                                e.target.value
+                            ); }}
+                        />
+                    </div>
+                    <div className="field">
+                        <label>Context (n_ctx)</label>
+                        <input
+                            className="input"
+                            value={nctx}
+                            placeholder="0 = model default"
+                            onChange={lambda (e: ChangeEvent) { onNctx(
+                                e.target.value
+                            ); }}
+                        />
+                    </div>
+                </div>
+                {<div className="modal-err">{error}</div> if error else <span/>}
+            </div>
+            <div className="modal-foot">
+                <button className="btn ghost" onClick={lambda { onClose(); }}>
+                    Cancel
+                </button>
+                <button className="btn" disabled={busy} onClick={lambda { onApply(); }}>
+                    {"Applying…" if busy else "Apply"}
+                </button>
+            </div>
+        </div>
+    </div>
 }
