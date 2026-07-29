@@ -1391,6 +1391,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Client code imports '{name}' from '{module}', but '{name}' has no client-side presence",
          help="A plain import into client code can only reference client declarations; server `def:pub` endpoints bridge automatically over RPC. Make '{name}' a `def:pub` endpoint, mark it (or its module) client, or move it into client code."
      ),
+     E5084 = _err(
+         "E5084",
+         Category.CODEGEN,
+         "Client code uses '{name}' from bare import '{module}', which resolves in the Python ecosystem and has no client-side presence",
+         help="A bare `import from {module} {{ ... }}` stays on the server, so the client bundle never binds '{name}' and the page fails at runtime with a ReferenceError. For an npm package, quote the module: `import from \"{module}\" {{ {name} }}`. For server logic, expose a `def:pub` endpoint; plain imports of endpoints bridge over RPC automatically."
+     ),
      W6001 = _warn(
          "W6001",
          Category.SEMANTIC,

@@ -2,7 +2,7 @@ import from collections.abc { Sequence }
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok, SymbolType }
-import from jaclang.jac0core.diagnostics { E5082, W6006, W6007 }
+import from jaclang.jac0core.diagnostics { E5082, E5084, W6006, W6007 }
 import from jaclang.jac0core.compiler {
     ClientImportVerdict,
     ability_of_symbol,
@@ -79,7 +79,8 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
 
     if sym is not None
     and sym.decl is not None
-    and sym.sym_type not in (
+    and sym.sym_type
+    not in (
         SymbolType.OBJECT_ARCH,
         SymbolType.NODE_ARCH,
         SymbolType.EDGE_ARCH,
@@ -92,7 +93,8 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
         }
     }
     if sym is not None and _is_user_symbol(sym) {
-        if sym.sym_type in (
+        if sym.sym_type
+        in (
             SymbolType.OBJECT_ARCH,
             SymbolType.NODE_ARCH,
             SymbolType.EDGE_ARCH,
@@ -518,6 +520,84 @@ def _already_warned(reporter: any, diag: any, nd: uni.UniNode) -> bool {
     return False;
 }
 
+def _in_annotation_position(nm: uni.Name, stop: uni.UniNode) -> bool {
+    cur = nm.parent;
+    while cur is not None and cur is not stop {
+        if isinstance(cur, uni.SubTag) {
+            return True;
+        }
+        if isinstance(cur, uni.ParamVar) {
+            return False;
+        }
+        if isinstance(cur, uni.FuncSignature) {
+            return True;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+def _report_client_bare_import_uses(reporter: any, mod: uni.Module, stmt: uni.UniNode) {
+    for nm in stmt.get_all_sub_nodes(uni.Name) {
+        par = nm.parent;
+        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+            continue;
+        }
+        sym = nm.sym;
+        if sym is None or sym.decl is None {
+            continue;
+        }
+        decl = sym.decl;
+
+        if isinstance(decl, uni.ModuleItem) {
+            item = decl;
+        } elif isinstance(decl.parent, uni.ModuleItem) {
+            item = decl.parent;
+        } else {
+            continue;
+        }
+        imp = item.from_parent;
+        if imp.is_service_import or imp.is_typed {
+            continue;
+        }
+        if imp.ecosystem != 'py' {
+            continue;
+        }
+        if imp.from_loc is not None and imp.from_loc.level > 0 {
+            continue;
+        }
+        if imp.code_context == CodeContext.CLIENT {
+            continue;
+        }
+        if _in_annotation_position(nm, stmt) {
+            continue;
+        }
+        module_name = imp.from_loc.dot_path_str if imp.from_loc is not None else '';
+        already = False;
+        for e in reporter.prog.errors_had {
+            if (
+                e.code is E5084
+                and e.loc.mod_path == item.loc.mod_path
+                and e.loc.first_line == item.loc.first_line
+                and e.loc.col_start == item.loc.col_start
+            ) {
+                already = True;
+                break;
+            }
+        }
+        if not already {
+            reporter.emit(
+                E5084,
+                node_override=item,
+                name=item.name.sym_name
+                    if isinstance(item.name, uni.Name)
+                    else str(item.name.value),
+                module=module_name
+            );
+        }
+    }
+}
+
 def report_placement_warnings(reporter: any, mod: uni.Module) {
     import from jaclang.jac0core.placement { get_module_summary }
     import from jaclang.jac0core.constant { CodeContext }
@@ -542,6 +622,9 @@ def report_placement_warnings(reporter: any, mod: uni.Module) {
             if not _already_warned(reporter, W6006, stmt) {
                 reporter.emit(W6006, node_override=stmt, name=gname);
             }
+        }
+        if stmt.code_context == CodeContext.CLIENT and not stmt.codespace_dual {
+            _report_client_bare_import_uses(reporter, mod, stmt);
         }
         is_clientish = stmt.code_context == CodeContext.CLIENT or stmt.codespace_dual;
         if not is_clientish or idx >= len(ps.elements) {

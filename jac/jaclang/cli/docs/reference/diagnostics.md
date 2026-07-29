@@ -509,8 +509,11 @@ Emitted during code generation, formatting, and native compilation.
 | `E5080` | Argument '{name}' for server function '{func}' is given both positionally and by keyword |
 | `E5081` | Unknown client framework '{framework}' |
 | `E5082` | Client code imports '{name}' from '{module}', but '{name}' has no client-side presence |
+| `E5084` | Client code uses '{name}' from bare import '{module}', which resolves in the Python ecosystem and has no client-side presence |
 
 `E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, pin it (or its module) `"client"` via `[placement.pins]`, or move it into client code.
+
+`E5084` is the bare-import sibling: `import from react { useRef }` (no quotes) resolves in the Python ecosystem, so placement pins the import server-side and the client bundle never binds `useRef`; the page then fails at runtime with a ReferenceError even though every file compiled cleanly. For an npm package, quote the module (`import from "react" { useRef }`); for server logic, expose a `def:pub` endpoint, which bridges over RPC on a plain import. Annotation-only uses do not fire it, since ES output erases type annotations.
 
 ---
 
