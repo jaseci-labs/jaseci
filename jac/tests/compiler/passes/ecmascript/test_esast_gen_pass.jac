@@ -782,6 +782,49 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(plain_spread_call.arguments[0], es.SpreadElement);
 }
 
+test "implicit JSX returns lower like explicit returns" {
+    es_ast = compile_to_esast(fixture_path("component_implicit_jsx_return.cl.jac"));
+
+    funcs: dict[str, es.FunctionDeclaration] = {};
+    for nd in es_ast.body {
+        if isinstance(nd, es.FunctionDeclaration) and nd.id {
+            funcs[nd.id.name] = nd;
+        }
+    }
+
+    # A tail JSX element without ';' compiles to a ReturnStatement and the
+    # component still gets the single-`props` destructure ABI.
+    badge = funcs["ImplicitBadge"];
+    assert len(badge.params) == 1;
+    assert isinstance(badge.params[0], es.Identifier);
+    assert badge.params[0].name == "props";
+    badge_ret = badge.body.body[-1];
+    assert isinstance(badge_ret, es.ReturnStatement) , (
+        "implicit JSX tail must lower to a ReturnStatement"
+    );
+
+    # Statements before the tail expression are kept ahead of the return.
+    after_stmts = funcs["ImplicitAfterStmts"];
+    after_ret = after_stmts.body.body[-1];
+    assert isinstance(after_ret, es.ReturnStatement);
+    assert len(after_stmts.body.body) >= 2 , (
+        "leading statements must be preserved before the implicit return"
+    );
+
+    # An early explicit return can mix with an implicit tail return.
+    guarded = funcs["GuardedImplicit"];
+    guarded_ret = guarded.body.body[-1];
+    assert isinstance(guarded_ret, es.ReturnStatement);
+
+    # Call sites wrap args into a props object, same as explicit-return components.
+    direct_ret = funcs["direct_call_implicit"].body.body[0];
+    assert isinstance(direct_ret, es.ReturnStatement);
+    direct_call = direct_ret.argument;
+    assert isinstance(direct_call, es.CallExpression);
+    assert len(direct_call.arguments) == 1;
+    assert isinstance(direct_call.arguments[0], es.ObjectExpression);
+}
+
 test "conditional JSX returns still trigger props-destructure lowering" {
     es_ast = compile_to_esast(fixture_path("component_conditional_jsx_return.cl.jac"));
 

@@ -1966,6 +1966,14 @@ impl LambdaExpr.tail_return_expr -> Expr | None {
     if (len(stmts) == 1 and isinstance(stmts[0], ExprStmt)) {
         return stmts[0].expr;
     }
+    if (
+        len(stmts) == 1
+        and isinstance(stmts[0], ReturnStmt)
+        and stmts[0].is_implicit
+        and stmts[0].expr is not None
+    ) {
+        return stmts[0].expr;
+    }
     return None;
 }
 

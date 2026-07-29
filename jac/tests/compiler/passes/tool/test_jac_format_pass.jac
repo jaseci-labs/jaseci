@@ -122,6 +122,10 @@ test "lambda whitespace fmt" {
     compare_files(os.path.join(FIXTURES, "lambda_whitespace_fmt.jac"));
 }
 
+test "implicit return fmt" {
+    compare_files(os.path.join(FIXTURES, "implicit_return_fmt.jac"));
+}
+
 test "forever fmt" {
     compare_files(os.path.join(FIXTURES, "forever_fmt.jac"));
 }

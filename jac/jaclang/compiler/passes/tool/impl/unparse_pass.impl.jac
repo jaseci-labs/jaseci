@@ -684,6 +684,10 @@ impl UnparsePass.exit_report_stmt(nd: uni.ReportStmt) -> None {
 }
 
 impl UnparsePass.exit_return_stmt(nd: uni.ReturnStmt) -> None {
+    if nd.is_implicit and nd.expr {
+        nd.gen.jac = nd.expr.gen.jac;
+        return;
+    }
     parts: list = ["return"];
     if nd.expr {
         parts.append(nd.expr.gen.jac);

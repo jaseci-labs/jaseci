@@ -1587,6 +1587,14 @@ impl DocIRGenPass.exit_func_call(nd: uni.FuncCall) -> None {
 impl DocIRGenPass.exit_return_stmt(nd: uni.ReturnStmt) -> None {
     parts: list[doc.DocType] = [];
 
+    if nd.is_implicit {
+        for i in nd.kid {
+            parts.append(i.gen.doc_ir);
+        }
+        nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
+        return;
+    }
+
     is_jsx_return = isinstance(nd.expr, uni.JsxElement);
     if is_jsx_return {
         for i in nd.kid {

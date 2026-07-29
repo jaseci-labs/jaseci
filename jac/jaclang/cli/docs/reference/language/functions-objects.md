@@ -31,6 +31,37 @@ def log(message: str) {
 }
 ```
 
+#### Implicit Returns
+
+The final expression of a function body, written *without* a trailing `;`,
+is the function's return value -- the same tail-expression rule as Rust.
+The semicolon is the switch: `expr;` is an ordinary discarded statement,
+while a trailing `expr` right before the closing `}` returns its value.
+
+```jac
+def add(a: int, b: int) -> int {
+    a + b
+}
+
+def classify(n: int) -> str {
+    if n > 0 {
+        return "pos";  # early returns stay explicit
+    }
+    "non-pos"
+}
+```
+
+The tail expression is type-checked exactly like an explicit `return`
+(`E1002` on mismatch), and it satisfies the all-paths-return analysis
+(`E1004`). Two guardrails keep the rule unambiguous:
+
+- An expression without `;` anywhere *other* than the end of a function,
+  ability, or lambda body is an error (`E2084`) -- blocks such as `if`
+  bodies do not produce values.
+- Falling off the end of a body whose last statement kept its `;` still
+  returns `None`, so `def f -> int { 42; }` remains the `E1004`
+  missing-return error, never a silent implicit return.
+
 ### 2 Docstrings
 
 Docstrings appear *before* declarations (not inside like Python):
@@ -310,6 +341,11 @@ zero-parameter lambda may omit the parens entirely (`lambda { 42; }`). A body
 that is a single expression statement is the **implicit return**
 (`lambda (x: int) { x + 1; }` returns `x + 1`); a multi-statement body uses an
 explicit `return` (with no `return`, it returns `None`).
+
+Lambdas also follow the function-body tail-expression rule: the final
+expression without a trailing `;` is the return value, even in a
+multi-statement body (`lambda (x: int) { y = x + 1; y * 10 }` returns
+`y * 10`).
 
 ```jac
 # Simple lambda -- single expression statement is the implicit return

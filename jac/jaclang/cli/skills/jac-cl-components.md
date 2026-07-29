@@ -3,7 +3,7 @@ name: jac-cl-components
 description: Writing a client-side UI component - shape, reactive state, mount effects, props and Callable callbacks, JSX rendering, event handlers. Load when creating or editing any client component file (a plain `.jac` placed client by its JSX/npm imports; see `jac-codespaces`). Pair with `jac-cl-routing` (multi-page apps), `jac-cl-organization` (architecture & file layout), `jac-cl-auth` (protected pages).
 ---
 
-A plain `.jac` declaration carrying JSX or npm imports is client-side Jac: client placement is inferred, and the `cl` marker and `.cl` extension are optional explicit overrides (see `jac-codespaces`). Everything in this guide applies to client code however it was placed. A component is a `def:pub` function returning `JsxElement`. State = `has` fields, which compile 1:1 to React `useState` - assign directly (`x = x + 1` re-renders; no `setX(...)` call) but all `useState` semantics apply: writes are async, the closure stays stale until the next render. Mount effects = `async can with entry` (compiles to `useEffect`). Event handlers = `def` methods typed with ambient DOM events (`MouseEvent`, `ChangeEvent`, `FormEvent`, `KeyboardEvent`). No wrapper or marker needed - the JSX or npm import already places the declaration client.
+A plain `.jac` declaration carrying JSX or npm imports is client-side Jac: client placement is inferred, and the `cl` marker and `.cl` extension are optional explicit overrides (see `jac-codespaces`). Everything in this guide applies to client code however it was placed. A component is a `def:pub` function returning `JsxElement`. The idiomatic body ends with the JSX element as a bare **implicit return** - the final expression without a trailing `;` is the return value (early guard returns stay explicit `return <X />;`). State = `has` fields, which compile 1:1 to React `useState` - assign directly (`x = x + 1` re-renders; no `setX(...)` call) but all `useState` semantics apply: writes are async, the closure stays stale until the next render. Mount effects = `async can with entry` (compiles to `useEffect`). Event handlers = `def` methods typed with ambient DOM events (`MouseEvent`, `ChangeEvent`, `FormEvent`, `KeyboardEvent`). No wrapper or marker needed - the JSX or npm import already places the declaration client.
 
 ## This is Jac, not React or JavaScript
 
@@ -37,11 +37,11 @@ def:pub Counter() -> JsxElement {
     def handle_click(e: MouseEvent) { count = count + 1; }
     def handle_input(e: ChangeEvent) { label = e.target.value; }   # typed via ChangeEvent
 
-    return <section className="p-4">
+    <section className="p-4">
         <input value={label} onChange={handle_input} />
         <h1>{"Clicks: " + str(count) if count > 0 else "Start clicking!"}</h1>
         <button onClick={handle_click}>+</button>
-    </section>;
+    </section>
 }
 ```
 
@@ -54,7 +54,7 @@ def:pub BookCard(bookId: str, title: str, onDelete: Callable[[str], None]) -> Js
     def handle_delete(e: MouseEvent) {
         onDelete(bookId);
     }
-    return <div>{title} <button onClick={handle_delete}>X</button></div>;
+    <div>{title} <button onClick={handle_delete}>X</button></div>
 }
 ```
 
@@ -64,7 +64,7 @@ Call site: `<BookCard bookId={b["id"]} title={b["title"]} onDelete={remove} />`.
 
 ```jac
 def:pub Card(title: str, children: any = None) -> JsxElement {
-    return <div className="card"><h2>{title}</h2>{children}</div>;
+    <div className="card"><h2>{title}</h2>{children}</div>
 }
 ```
 
@@ -127,7 +127,7 @@ def:pub Poller() -> JsxElement {
         interval = setInterval(lambda { fetch_data(); }, 5000);
         return lambda { clearInterval(interval); };
     }, []);
-    return <p>polling</p>;
+    <p>polling</p>
 }
 ```
 
@@ -140,7 +140,7 @@ Every `{...}` in JSX child position is a **slot**. The compiler picks the shape 
 
 ```jac
 def:pub ItemList(items: list[Item]) -> JsxElement {
-    return <ul class="items">
+    <ul class="items">
         {if len(items) == 0 {
             <p class="empty">Nothing yet.</p>
             skip;                          # skip; ends the slot early
@@ -149,7 +149,7 @@ def:pub ItemList(items: list[Item]) -> JsxElement {
         {for (i, it) in enumerate(items) {
             <li key={str(i)} class={"done" if it.done else "todo"}>{it.label}</li>
         }}
-    </ul>;
+    </ul>
 }
 ```
 
