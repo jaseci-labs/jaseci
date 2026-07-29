@@ -277,32 +277,30 @@ client_kind = "mobui"
 ### Authoring UI with `@jac/mobui`
 
 ```jac
-cl {
-    import from "@jac/mobui" {
-        View, Text, Pressable, TextInput, ScrollView, StyleSheet
-    }
+import from "@jac/mobui" {
+    View, Text, Pressable, TextInput, ScrollView, StyleSheet
+}
 
-    glob styles = StyleSheet.create({
-        screen: {flex: 1, backgroundColor: "#10131c", padding: 24, gap: 16},
-        title: {fontSize: 22, fontWeight: "bold", color: "#f4f5fb"},
-        button: {padding: 12, borderRadius: 10, backgroundColor: "#6c5ce7", alignItems: "center"},
-    });
+glob styles = StyleSheet.create({
+    screen: {flex: 1, backgroundColor: "#10131c", padding: 24, gap: 16},
+    title: {fontSize: 22, fontWeight: "bold", color: "#f4f5fb"},
+    button: {padding: 12, borderRadius: 10, backgroundColor: "#6c5ce7", alignItems: "center"},
+});
 
-    def:pub app -> JsxElement {
-        has name: str = "";
-        return
-            <ScrollView style={styles.screen}>
-                <Text style={styles.title}>Hello, {name or "stranger"}</Text>
-                <TextInput
-                    value={name}
-                    placeholder="Type your name"
-                    onChangeText={lambda (t: str) { name = t; }}
-                />
-                <Pressable style={styles.button} onPress={lambda { name = "Jac"; }}>
-                    <Text>Reset</Text>
-                </Pressable>
-            </ScrollView>;
-    }
+def:pub app -> JsxElement {
+    has name: str = "";
+    return
+        <ScrollView style={styles.screen}>
+            <Text style={styles.title}>Hello, {name or "stranger"}</Text>
+            <TextInput
+                value={name}
+                placeholder="Type your name"
+                onChangeText={lambda (t: str) { name = t; }}
+            />
+            <Pressable style={styles.button} onPress={lambda { name = "Jac"; }}>
+                <Text>Reset</Text>
+            </Pressable>
+        </ScrollView>;
 }
 ```
 
@@ -314,7 +312,7 @@ The same source builds for web (`jac build`) and native (`jac build --client rea
 jac start main.jac --client react-native --dev
 ```
 
-This launches the Jac backend, compiles `.cl.jac` to JS, and runs `expo start` on the bundled Bun. Metro serves both platforms -- pick the device in the Expo CLI (press `a` for Android, `i` for the iOS simulator) or scan the QR code in Expo Go. Editing a `.cl.jac` file recompiles and Metro Fast Refreshes the device. Dev networking is auto-resolved (LAN IPv4 > `127.0.0.1`, override with `JAC_RN_DEV_HOST`); Metro defaults to port `8081` (`JAC_RN_METRO_PORT`); `adb reverse` is auto-attempted for Android.
+This launches the Jac backend, compiles `.jac` to JS, and runs `expo start` on the bundled Bun. Metro serves both platforms -- pick the device in the Expo CLI (press `a` for Android, `i` for the iOS simulator) or scan the QR code in Expo Go. Editing a `.jac` file recompiles and Metro Fast Refreshes the device. Dev networking is auto-resolved (LAN IPv4 > `127.0.0.1`, override with `JAC_RN_DEV_HOST`); Metro defaults to port `8081` (`JAC_RN_METRO_PORT`); `adb reverse` is auto-attempted for Android.
 
 ### Production build
 
@@ -355,7 +353,7 @@ See the [jac-client Reference -> EAS Update (OTA)](../../reference/plugins/jac-c
 
 ### Platform-specific files
 
-When you need platform-exclusive native modules, add a `.native.cl.jac` variant alongside a `.cl.jac` module. The compiler picks up the `.native.cl.jac` file when `--client react-native` is selected and falls back to `.cl.jac` otherwise. This is a last resort -- prefer components from the `@jac/mobui` vocabulary, which absorb platform divergence internally. (A `Platform.select` one-liner API is planned but not yet part of `@jac/mobui`.)
+When you need platform-exclusive native modules, add a `.native.jac` variant alongside a `.jac` module. The compiler picks up the `.native.jac` file when `--client react-native` is selected and falls back to `.jac` otherwise. This is a last resort -- prefer components from the `@jac/mobui` vocabulary, which absorb platform divergence internally. (A `Platform.select` one-liner API is planned but not yet part of `@jac/mobui`.)
 
 ### What carries over
 

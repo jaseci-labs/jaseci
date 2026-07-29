@@ -1,10 +1,10 @@
 """Test module that imports JavaScript functions."""
 
-cl import from .utils { formatMessage, calculateSum, JS_CONSTANT, MessageFormatter }
+import from .utils { formatMessage, calculateSum, JS_CONSTANT, MessageFormatter }
 
-cl glob JS_IMPORT_LABEL: str = "JavaScript Import Test";
+glob JS_IMPORT_LABEL: str = "JavaScript Import Test";
 
-cl def JsImportTest -> JsxElement {
+def JsImportTest -> JsxElement {
     greeting = formatMessage("Jac");
     sum = calculateSum(5, 3);
     formatter = MessageFormatter("JS");
@@ -19,6 +19,6 @@ cl def JsImportTest -> JsxElement {
     </div>
 }
 
-cl def app -> JsxElement {
+def app -> JsxElement {
     <JsImportTest/>
 }

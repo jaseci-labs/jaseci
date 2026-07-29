@@ -795,9 +795,9 @@ test "resolve_plan folds capability deps with manifest priority" {
     try {
         # Manifest pins its own fastapi; the serve capability must not
         # override or duplicate it.
-        toml = '[project]\nname = "svc"\nversion = "0.1.0"\nkind = "service"\nentry-point = "main.sv.jac"\n\n[dependencies]\nfastapi = ">=0.100.0"\n';
+        toml = '[project]\nname = "svc"\nversion = "0.1.0"\nkind = "service"\nentry-point = "main.jac"\n\n[dependencies]\nfastapi = ">=0.100.0"\n';
         project_path = create_test_project(tmp, toml);
-        (Path(project_path) / "main.sv.jac").write_text(
+        (Path(project_path) / "main.jac").write_text(
             "with entry {\n    print(\"hi\");\n}\n"
         );
         config = JacConfig.load(Path(project_path) / "jac.toml");

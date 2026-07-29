@@ -269,16 +269,16 @@ test "native block comments stay in place" {
     formatted = prog.mod.main.gen.jac;
     lines = formatted.splitlines();
 
-    # Comments must appear between "na {" and its closing "}", not at end of file
+    # Comments must appear between "obj Ops {" and its closing "}", not at EOF
     na_start = next(
         (
             i
             for (i, ln) in enumerate(lines)
-            if ln.strip().startswith("na {")
+            if ln.strip().startswith("obj Ops {")
         ),
         None
     );
-    assert na_start is not None , "na { not found in formatted output";
+    assert na_start is not None , "obj Ops { not found in formatted output";
     # Find the matching closing brace at the same or lesser indentation
     na_indent = len(lines[na_start]) - len(lines[na_start].lstrip());
     na_end: int | None = None;
@@ -289,7 +289,7 @@ test "native block comments stay in place" {
             break;
         }
     }
-    assert na_end is not None , "closing } for na block not found in formatted output";
+    assert na_end is not None , "closing } for obj block not found in formatted output";
     comment_lines = [
         i
         for (i, ln) in enumerate(lines)
@@ -298,15 +298,15 @@ test "native block comments stay in place" {
     assert len(comment_lines) == 2 , f"Expected 2 comments, found {len(comment_lines)}";
     for cl in comment_lines {
         assert na_start < cl < na_end , (
-            f"Comment at line {cl + 1} is outside the na block "
-            f"(na: {na_start + 1}-{na_end + 1}):\n" + formatted
+            f"Comment at line {cl + 1} is outside the obj block "
+            f"(obj: {na_start + 1}-{na_end + 1}):\n" + formatted
         );
     }
 
     # Idempotency
     prog2 = JacProgram.jac_file_formatter(path);
     formatted2 = prog2.mod.main.gen.jac;
-    assert formatted == formatted2 , "Formatting of na {} block is not idempotent";
+    assert formatted == formatted2 , "Formatting of the obj block is not idempotent";
 }
 
 """Regression (#7495): comment-dense adjacent JSX blocks exercise shared IfBreak
@@ -378,7 +378,7 @@ vertical expansion on compact JSX like `<button>Add</button>` and on
 event-handler lambdas like `lambda e: T { if cond { stmt; } }`."""
 test "jsx and lambda inline compact forms stay flat" {
     source = (
-        'cl def:pub app -> JsxElement {\n'
+        'def:pub app -> JsxElement {\n'
         '    has text: str = "";\n'
         '\n'
         '    async def add {\n'
@@ -509,16 +509,14 @@ Previously the JSX-return path used `hard_line()` unconditionally, forcing
 even tiny elements like `<p>Hello</p>` onto a second line."""
 test "return jsx stays on one line when it fits" {
     source = (
-        'cl {\n'
-        '    def:pub AlertDialog(props: any) -> JsxElement {\n'
-        '        return\n'
-        '            <AlertDialogPrimitive.Root data-slot="alert-dialog" {**props}/>;\n'
-        '    }\n'
+        'def:pub AlertDialog(props: any) -> JsxElement {\n'
+        '    return\n'
+        '        <AlertDialogPrimitive.Root data-slot="alert-dialog" {**props}/>;\n'
+        '}\n'
         '\n'
-        '    def:pub Greeting -> JsxElement {\n'
-        '        return\n'
-        '            <p>Hello</p>;\n'
-        '    }\n'
+        'def:pub Greeting -> JsxElement {\n'
+        '    return\n'
+        '        <p>Hello</p>;\n'
         '}\n'
     );
     prog = JacProgram.jac_str_formatter(source_str=source, file_path="<test>.jac");
@@ -553,17 +551,15 @@ carry hard lines — must still drop the element onto its own indented line
 below `return`."""
 test "return jsx breaks when it does not fit" {
     source = (
-        'cl {\n'
-        '    def:pub Big(props: any) -> JsxElement {\n'
-        '        return <AlertDialogPrimitive.Overlay {**props} '
+        'def:pub Big(props: any) -> JsxElement {\n'
+        '    return <AlertDialogPrimitive.Overlay {**props} '
         'data-slot="alert-dialog-overlay" '
         'className={cn("a-very-long-class-name-string-that-blows-past-print-width", '
         'props["className"])}/>;\n'
-        '    }\n'
+        '}\n'
         '\n'
-        '    def:pub Tree -> JsxElement {\n'
-        '        return <div><span>a</span><span>b</span></div>;\n'
-        '    }\n'
+        'def:pub Tree -> JsxElement {\n'
+        '    return <div><span>a</span><span>b</span></div>;\n'
         '}\n'
     );
     prog = JacProgram.jac_str_formatter(source_str=source, file_path="<test>.jac");
@@ -657,7 +653,7 @@ three buckets this test locks in:
              same line as the closing `>` of the opening tag)."""
 test "jsx attributes and children group independently" {
     source = (
-        'cl def app -> JsxElement {\n'
+        'def app -> JsxElement {\n'
         '    return\n'
         '        <div>\n'
         '            <h2 style={{color: "#dc2626"}}>Short</h2>\n'
@@ -899,7 +895,7 @@ test "jsx significant whitespace around inline elements is preserved" {
     # Short, space-separated mixed JSX (text interleaved with <b> elements)
     # must stay flat -- the inline spaces are significant and must survive.
     short_src = (
-        'cl def:pub hud -> JsxElement {\n'
+        'def:pub hud -> JsxElement {\n'
         '    return <div id="hud">score <b>0</b> · <b>0</b> fps</div>;\n'
         '}\n'
     );
@@ -920,7 +916,7 @@ test "jsx significant whitespace around inline elements is preserved" {
     # at text<->element boundaries must be preserved as `{" "}` markers
     # rather than dropped.
     long_src = (
-        'cl def:pub hint -> JsxElement {\n'
+        'def:pub hint -> JsxElement {\n'
         '    return <div id="hint">Click the canvas to capture the mouse · '
         '<b>WASD</b> move and mouse aim · <b>Space</b> fire · <b>Tab</b> release the '
         'cursor</div>;\n'

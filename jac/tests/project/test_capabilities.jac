@@ -462,9 +462,9 @@ def make_service_project(scale_toml: str) -> tuple[str, Path] {
     project_dir.mkdir();
     (project_dir / "jac.toml").write_text(
         '[project]\nname = "svc"\nversion = "0.1.0"\nkind = "service"\n'
-        'entry-point = "main.sv.jac"\n\n' + scale_toml
+        'entry-point = "main.jac"\n\n' + scale_toml
     );
-    (project_dir / "main.sv.jac").write_text("with entry {\n    print(\"hi\");\n}\n");
+    (project_dir / "main.jac").write_text("with entry {\n    print(\"hi\");\n}\n");
     return (tmp, project_dir);
 }
 

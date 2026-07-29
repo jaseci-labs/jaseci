@@ -956,17 +956,17 @@ impl Calculator.multiply {
 
 ### 4 Variant Modules
 
-A single logical module can be split across *variant files* that target different execution contexts. Variant suffixes are `.sv.jac` (server) and `.cl.jac` (client). All files sharing the same base name are automatically discovered and compiled together.
+A single logical module can be split across *variant files* that target different execution contexts. Variant suffixes are `.sv.jac` (server) and `.jac` (client). All files sharing the same base name are automatically discovered and compiled together.
 
-Variant files are an *explicit* placement mechanism, and for the client side they are optional: the compiler infers client placement from client-only syntax (JSX, npm imports) in plain `.jac` files, so splitting a module into `.cl.jac` variants is a style choice rather than a requirement. Native placement has **no filename variant at all** -- it is always inferred. Under `[build] default_codespace = "native"` (the default), the placement solver decides whether a plain `.jac` module can lower natively; a module that prefers native but cannot lower demotes to the server codespace with a note. An import whose braces declare C-ABI functions (e.g. `import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) seeds native placement for itself and the declarations that use it, and an `na {}` block tags a section within a mixed file. To force a whole module native, use `jac nacompile`, `jac build --as native`, or `CompileOptions(force_codespace='native')`.
+Variant files are an *explicit* placement mechanism, and for the client side they are optional: the compiler infers client placement from client-only syntax (JSX, npm imports) in plain `.jac` files, so splitting a module into `.jac` variants is a style choice rather than a requirement. Native placement has **no filename variant at all** -- it is always inferred. Under `[build] default_codespace = "native"` (the default), the placement solver decides whether a plain `.jac` module can lower natively; a module that prefers native but cannot lower demotes to the server codespace with a note. An import whose braces declare C-ABI functions (e.g. `import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) seeds native placement for itself and the declarations that use it, and an `na {}` block tags a section within a mixed file. To force a whole module native, use `jac nacompile`, `jac build --as native`, or `CompileOptions(force_codespace='native')`.
 
-**Head module precedence:** `.jac` > `.sv.jac` > `.cl.jac`. The highest-precedence file that exists on disk becomes the *head module*; all lower-precedence variants are attached as variant annexes. If no plain `.jac` file exists, the next available variant acts as head.
+**Head module precedence:** `.jac` > `.sv.jac` > `.jac`. The highest-precedence file that exists on disk becomes the *head module*; all lower-precedence variants are attached as variant annexes. If no plain `.jac` file exists, the next available variant acts as head.
 
 ```
 mymod/
 ├── mymod.jac            # Head module (declarations + entry)
 ├── mymod.sv.jac         # Server variant (extra server-only declarations)
-├── mymod.cl.jac         # Client variant (extra client-only declarations)
+├── mymod.jac         # Client variant (extra client-only declarations)
 ├── mymod.impl.jac       # Head implementations (can also impl variant decls)
 ├── impl/
 │   └── mymod.sv.impl.jac   # Server variant impl (from shared folder)
@@ -997,7 +997,7 @@ obj CircleService {
 }
 ```
 
-**mymod.cl.jac:**
+**mymod.jac:**
 
 ```jac
 obj Display {
@@ -1084,7 +1084,7 @@ with entry {
 
 - **Circular dependencies**: Forward declare to break cycles
 - **Code organization**: Keep interfaces clean
-- **UI components**: Separate render tree from method logic (`.cl.jac` + `.impl.jac`)
+- **UI components**: Separate render tree from method logic (`.jac` + `.impl.jac`)
 - **Plugin architectures**: Define interfaces that plugins implement
 - **Large codebases**: Separate concerns across files
 - **Variant modules**: Split server, client, and native code into separate files while keeping them as one logical module

@@ -7,7 +7,7 @@ import os;
 import tarfile;
 import zipfile;
 import from pathlib { Path }
-import from jaclang.jac0core.ext_registry { is_annex, is_server_module }
+import from jaclang.jac0core.ext_registry { is_annex }
 import type from jaclang.jac0core.program { JacProgram }
 import from jaclang.project.config { JacConfig }
 import from jaclang.publish.metadata { generate_metadata, generate_pyproject_toml }
@@ -85,6 +85,23 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         f.write(buf.getvalue())
     return _WHEEL_NAME
 ''';
+
+
+def _module_is_client_source(source_path: Path) -> bool {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.constant { CodeContext }
+    import from jaclang.jac0core.program { JacProgram as JacProgramRt }
+    try {
+        mod = JacProgramRt().compile(
+            str(source_path),
+            options=CompileOptions(symtab_ir_only=True, type_check=False)
+        );
+        return mod is not None
+        and mod.declares_codespace(CodeContext.CLIENT, path_hint=str(source_path));
+    } except Exception {
+        return False;
+    }
+}
 
 
 def _transpile_jac_to_py(program: JacProgram, source_path: Path) -> str {
@@ -187,7 +204,7 @@ impl WheelBuilder._assemble_src_data -> dict[str, bytes] {
             if is_annex(wp) {
                 continue;
             }
-            if not is_server_module(wp) {
+            if src_path is not None and _module_is_client_source(src_path) {
                 self.skipped_codespace.append(wp);
                 continue;
             }

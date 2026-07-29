@@ -89,20 +89,18 @@ def process_data(items: list[dict]) -> list[dict] {
     return [item for item in items if item["active"]];
 }
 
-na {
-    # Native codespace -- compiles to machine code
-    def compute_checksum(data: list[int]) -> int {
-        has result: int = 0;
-        for val in data {
-            result = (result * 31 + val) % 1000000007;
-        }
-        return result;
+# Native codespace -- compiles to machine code
+def compute_checksum(data: list[int]) -> int {
+    has result: int = 0;
+    for val in data {
+        result = (result * 31 + val) % 1000000007;
     }
+    return result;
+}
 
-    def fibonacci(n: int) -> int {
-        if n <= 1 { return n; }
-        return fibonacci(n - 1) + fibonacci(n - 2);
-    }
+def fibonacci(n: int) -> int {
+    if n <= 1 { return n; }
+    return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
 with entry {
@@ -139,12 +137,10 @@ def py_double(x: int) -> int {
     return x * 2;
 }
 
-na {
-    # Native function that calls the Python function
-    def native_add_one_to_doubled(x: int) -> int {
-        has doubled: int = py_double(x);
-        return doubled + 1;
-    }
+# Native function that calls the Python function
+def native_add_one_to_doubled(x: int) -> int {
+    has doubled: int = py_double(x);
+    return doubled + 1;
 }
 
 with entry {
@@ -1079,15 +1075,13 @@ def serialize(data: dict) -> str {
     return dumps(data);
 }
 
-na {
-    # Native side -- compiled to machine code
-    def sum_squares(n: int) -> int {
-        has total: int = 0;
-        for i in range(n) {
-            total += i * i;
-        }
-        return total;
+# Native side -- compiled to machine code
+def sum_squares(n: int) -> int {
+    has total: int = 0;
+    for i in range(n) {
+        total += i * i;
     }
+    return total;
 }
 
 with entry {

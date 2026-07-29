@@ -39,7 +39,7 @@ Most of the time the codespace is chosen *for* you. An import inherits the codes
 - **Python / PyPI imports** are server code -- the default for anything unmarked.
 - An **extern-decl C import** -- braces containing C-ABI function declarations (`import from "libm.so" { def sqrt(x: f64) -> f64; }`) -- can only be satisfied by the native backend, so it lands in the native codespace automatically, and the declarations that use it become native too. Merely importing *from* a native module is not a native signal for the importer. (Whole markerless modules are a separate question: under the default native codespace, the placement solver compiles a module native whenever its import closure can lower -- see the codespace model.)
 
-Explicit markers override inference: a braced block (`cl { ... }`), a single-statement prefix (`cl import from react { useEffect }`), or a file extension (`.sv.jac` / `.cl.jac`). The full marker system, the inference rules, and their precedence are specified once in [Primitives & Codespace Semantics](language/primitives.md#codespace-model); this page assumes them and covers what is specific to imports.
+Explicit markers override inference: a braced block (`cl { ... }`), a single-statement prefix (`cl import from react { useEffect }`), or a file extension (`.sv.jac` / `.jac`). The full marker system, the inference rules, and their precedence are specified once in [Primitives & Codespace Semantics](language/primitives.md#codespace-model); this page assumes them and covers what is specific to imports.
 
 ---
 
@@ -115,51 +115,45 @@ include math_helpers;
 Client code compiles to JavaScript, so the import list maps directly onto ECMAScript `import` declarations -- giving you **the entire npm ecosystem**. Client imports live in the client codespace, but that rarely needs marking: a quoted npm path is client by construction, and a bare-name npm import is inferred client through the JSX components that use it. The examples below use explicit `cl { }` blocks -- the unambiguous style for a mixed file -- but every form also works markerless.
 
 ```jac
-cl {
-    # Named imports -- the most common form
-    import from react { useState, useEffect }
+# Named imports -- the most common form
+import from react { useState, useEffect }
 
-    # Named imports with aliases
-    import from lodash { map as mapArray, filter }
+# Named imports with aliases
+import from lodash { map as mapArray, filter }
 
-    # Default import -- "default as Name". Requires the client codespace,
-    # because Python has no concept of a default export.
-    import from react { default as React }
+# Default import -- "default as Name". Requires the client codespace,
+# because Python has no concept of a default export.
+import from react { default as React }
 
-    # Namespace import -- "* as Name"
-    import from react { * as React }
+# Namespace import -- "* as Name"
+import from react { * as React }
 
-    # Mixed: default + named in one statement (default listed first)
-    import from react { default as React, useRef }
-}
+# Mixed: default + named in one statement (default listed first)
+import from react { default as React, useRef }
 ```
 
 npm package names often contain hyphens or `@scope/` prefixes that are not valid Jac identifiers. Quote them as **string literals** -- this works for every import form:
 
 ```jac
-cl {
-    import from "react-dom" { render, hydrate }
-    import from "react-router-dom" { BrowserRouter, Route }
-    import from "styled-components" { default as styled }
-    import from "date-fns" { * as DateFns }
+import from "react-dom" { render, hydrate }
+import from "react-router-dom" { BrowserRouter, Route }
+import from "styled-components" { default as styled }
+import from "date-fns" { * as DateFns }
 
-    # @jac/runtime -- built-in client runtime helpers
-    import from "@jac/runtime" { Link, useNavigate, JacForm }
-}
+# @jac/runtime -- built-in client runtime helpers
+import from "@jac/runtime" { Link, useNavigate, JacForm }
 ```
 
 Relative client modules and configured path aliases:
 
 ```jac
-cl {
-    # Relative imports between .jac client modules
-    import from .components.Button { default as Button }
-    import from ..lib.helpers { formatDate }
+# Relative imports between .jac client modules
+import from .components.Button { default as Button }
+import from ..lib.helpers { formatDate }
 
-    # Path aliases -- prefixes defined in jac.toml under [client.paths]
-    import from "@components/Button" { default as Button }
-    import from "@shared" { constants }
-}
+# Path aliases -- prefixes defined in jac.toml under [client.paths]
+import from "@components/Button" { default as Button }
+import from "@shared" { constants }
 ```
 
 A path alias is declared once in `jac.toml`:
@@ -175,17 +169,15 @@ A path alias is declared once in `jac.toml`:
 Some imports bind no names -- they exist purely for their side effects. **Stylesheets are the most common case:** importing a `.css` or `.scss` file applies its styles to the bundle. Drop the `{ items }` list entirely and import the path as a bare string literal:
 
 ```jac
-cl {
-    # Stylesheets -- applied to the bundle, no names bound
-    import "./styles.css";
-    import "./theme.scss";
+# Stylesheets -- applied to the bundle, no names bound
+import "./styles.css";
+import "./theme.scss";
 
-    # A font package whose CSS you want applied globally
-    import "@fontsource/roboto/400.css";
+# A font package whose CSS you want applied globally
+import "@fontsource/roboto/400.css";
 
-    # A polyfill or any import-for-its-effects-only package
-    import "core-js/stable";
-}
+# A polyfill or any import-for-its-effects-only package
+import "core-js/stable";
 ```
 
 Each lowers to a side-effect-only ECMAScript import -- `import "./styles.css";` stays `import "./styles.css";` in the generated JavaScript. Asset files (`.css`, `.scss`, `.sass`, `.less`, `.svg`, images, fonts) are detected by the client bundler and emitted into the built `styles.css` / asset output automatically.
@@ -197,41 +189,35 @@ Each lowers to a side-effect-only ECMAScript import -- `import "./styles.css";` 
 Native code compiles to machine code through LLVM. It has no Python interpreter, so PyPI packages are unavailable -- instead, the native codespace can call into **any C-ABI shared library** and import other native Jac modules.
 
 ```jac
-na {
-    # Import from another native Jac module
-    import from math_utils { square, cube }
+# Import from another native Jac module
+import from math_utils { square, cube }
 
-    # A small slice of the standard library is available natively
-    import sys;   # sys.argv, sys.exit()
-}
+# A small slice of the standard library is available natively
+import sys;   # sys.argv, sys.exit()
 ```
 
 The headline native feature is **C library interop**. Point `import from` at a shared library path and declare the foreign functions you need right inside the braces -- the compiler generates the C-ABI bridge. An extern-decl import like this is also a *native signal*: in a markerless file it seeds native placement for itself and the declarations that use it, so the `na { }` blocks below are the explicit style, not a requirement:
 
 ```jac
-na {
-    # Pull a math function out of libm
-    import from "/usr/lib/libm.so.6" {
-        def sqrt(x: f64) -> f64;
-    }
+# Pull a math function out of libm
+import from "/usr/lib/libm.so.6" {
+    def sqrt(x: f64) -> f64;
+}
 
-    # C signatures use fixed-width types -- carry those types through code
-    # that feeds values into the C call.
-    def hypotenuse(a: f64, b: f64) -> f64 {
-        return sqrt(a * a + b * b);
-    }
+# C signatures use fixed-width types -- carry those types through code
+# that feeds values into the C call.
+def hypotenuse(a: f64, b: f64) -> f64 {
+    return sqrt(a * a + b * b);
 }
 ```
 
 The same mechanism works for any third-party C library, and a C `import from` block can declare structs (as `obj`) alongside functions:
 
 ```jac
-na {
-    import from "libgeometry.so" {
-        obj Point { has x: f64; has y: f64; }
-        def make_point(x: f64, y: f64) -> Point;
-        def distance(a: Point, b: Point) -> f64;
-    }
+import from "libgeometry.so" {
+    obj Point { has x: f64; has y: f64; }
+    def make_point(x: f64, y: f64) -> Point;
+    def distance(a: Point, b: Point) -> f64;
 }
 ```
 
@@ -242,14 +228,13 @@ na {
 
 ## Crossing codespaces
 
-A single file can mix all three codespaces, and imports can reach *across* the boundary. The most important cross-codespace import is **`sv import`**: it declares a boundary fact, not a placement -- the imported module's target stays on the server, while the import itself lives with its consumers. Inside client code it pulls in a server walker or `def:pub` function, and the compiler rewrites each call into an HTTP request automatically; used between two server modules, it declares a server-to-server microservice boundary instead.
+A single file can mix all three codespaces, and imports can reach *across* the boundary. Placement is inferred: importing a server walker or `def:pub` function into client code is just a plain import, and the compiler rewrites each call into an HTTP request automatically. A server-to-server microservice boundary is declared in config instead -- list the provider module in `[scale.microservices.routes]` and imports of it lower to service RPC stubs.
 
 ```jac
-cl {
-    # Import a server walker into client code -- calls become HTTP requests.
-    sv import from .main { create_task }
+# Import a server walker into client code -- calls become HTTP requests.
+import from .main { create_task }
 
-    import from react { useState }
+import from react { useState }
 
     def TaskForm() -> JsxElement {
         has title: str = "";
@@ -257,7 +242,6 @@ cl {
             create_task(title=title);
         }}>Add</button>
     }
-}
 ```
 
 Server and native code interoperate the same way -- a native function (in a `na { }` block) can be called directly from server code in the same file, with the compiler generating the interop stubs:
@@ -272,11 +256,9 @@ def now_iso() -> str {
     return datetime.now().isoformat();
 }
 
-na {
-    def fib(n: int) -> int {
-        if n <= 1 { return n; }
-        return fib(n - 1) + fib(n - 2);
-    }
+def fib(n: int) -> int {
+    if n <= 1 { return n; }
+    return fib(n - 1) + fib(n - 2);
 }
 
 with entry {

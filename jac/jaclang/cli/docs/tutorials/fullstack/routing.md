@@ -15,7 +15,7 @@ When your application grows beyond a single view, you need routing -- the abilit
     If your app is a single-page application (like the [AI Day Planner tutorial](../first-app/build-ai-day-planner.md)), you don't need routing -- a single `def:pub app -> JsxElement` entry point is sufficient. Add routing when your app needs multiple distinct pages (e.g., dashboard, settings, profile).
 
 !!! tip "Browser APIs in client code"
-    Inside client-side code (a `.cl.jac` file or a `cl { }` block), standard JavaScript browser APIs like `URLSearchParams`, `parseInt`, `setInterval`, `clearInterval`, `localStorage`, and `JSON` are available since client code compiles to JavaScript.
+    Inside client-side code (a `.jac` file or a `cl { }` block), standard JavaScript browser APIs like `URLSearchParams`, `parseInt`, `setInterval`, `clearInterval`, `localStorage`, and `JSON` are available since client code compiles to JavaScript.
 
 !!! note "Reading route params"
     `useParams()` returns a `dict`. Read parameters with subscript access -- `params["id"]`, `params["slug"]` -- not dotted attribute access. Dotted access (`params.id`) fails `jac check` with `error[E1030]: Type "dict" has no attribute "id"`.

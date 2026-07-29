@@ -226,17 +226,17 @@ test "remove resolves registry filename mismatch" {
     }
 }
 
-test "remove finds legacy .cl.jac component" {
-    # GUARD: pre-markerless projects hold `button.cl.jac`. The registry now
-    # resolves to `button.jac`, so remove must fall back to the legacy `.cl.jac`
+test "remove finds legacy .jac component" {
+    # GUARD: pre-markerless projects hold `button.jac`. The registry now
+    # resolves to `button.jac`, so remove must fall back to the legacy `.jac`
     # name or it silently leaves the old file installed.
     with tempfile.TemporaryDirectory() as tmpdir {
         ui_dir = Path(tmpdir) / "components" / "ui";
         ui_dir.mkdir(parents=True);
-        (ui_dir / "button.cl.jac").write_text("// legacy button component");
+        (ui_dir / "button.jac").write_text("// legacy button component");
         result = remove_shadcn_components(MockConfig(project_root=tmpdir), ["button"]);
         assert result == True;
-        assert not (ui_dir / "button.cl.jac").exists();
+        assert not (ui_dir / "button.jac").exists();
     }
 }
 

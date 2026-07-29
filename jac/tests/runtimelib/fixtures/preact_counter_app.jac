@@ -1,6 +1,6 @@
 """Minimal Preact counter app for framework-backend E2E verification."""
 
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has count: int = 0;
 
     <div>

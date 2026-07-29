@@ -31,7 +31,7 @@ def:pub get_todos -> list[Todo] {
     return [root-->][?:Todo];
 }
 
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has todos: list[Todo] = [], text: str = "";
     async can with entry { todos = await get_todos(); }
     async def add {

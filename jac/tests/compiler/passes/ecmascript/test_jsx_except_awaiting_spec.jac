@@ -50,7 +50,7 @@ test "rec 2: try/awaiting with except synthesises a JacClientErrorBoundary wrapp
     # `<JacAwaiting fallback={...}>{...}</JacAwaiting>` wrapper. The
     # except-arm bodies feed the error-boundary's fallback the same way
     # the awaiting body feeds the suspense fallback.
-    es_ast = compile_to_esast("try_awaiting_except.cl.jac");
+    es_ast = compile_to_esast("try_awaiting_except.jac");
     js_code = es_to_js(es_ast);
 
     assert "JacClientErrorBoundary" in js_code , (
@@ -92,7 +92,7 @@ test "rec 2: a body diagnostic in the except arm is emitted exactly once" {
     # checker -- `exit_jsx_slot` already validated the whole raw template
     # (with the correct loop context). A keyless `for` in the except arm
     # must therefore warn W2021 once, not once per validation pass.
-    path = os.path.join(SLOT_EXT, "try_awaiting_except_loop.cl.jac");
+    path = os.path.join(SLOT_EXT, "try_awaiting_except_loop.jac");
     prog = JacProgram();
     prog.compile(file_path=path);
     w2021 = [

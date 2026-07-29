@@ -140,11 +140,11 @@ my_project/
 |-----------|---------|
 | `.jac` | Universal Jac code (head module) |
 | `.sv.jac` | Server-variant code |
-| `.cl.jac` | Client-variant code |
+| `.jac` | Client-variant code |
 | `.impl.jac` | Implementation file (annex) |
 | `.test.jac` | Test file (annex) |
 
-Files sharing the same base name form a single logical module. For example, `mymod.jac`, `mymod.sv.jac`, `mymod.cl.jac`, `mymod.impl.jac`, and `mymod.test.jac` are all part of the `mymod` module. Variant files (`.sv.jac`, `.cl.jac`) are automatically discovered and merged during compilation -- see [Variant Modules](functions-objects.md#4-variant-modules) for details. Note that variant extensions are explicit placement pins: plain `.jac` files work for client code too, since the compiler infers client placement from JSX and npm imports. Native placement has no filename variant at all -- it is inferred (or forced with `jac nacompile` / `jac build --as native`).
+Files sharing the same base name form a single logical module. For example, `mymod.jac`, `mymod.sv.jac`, `mymod.jac`, `mymod.impl.jac`, and `mymod.test.jac` are all part of the `mymod` module. Variant files (`.sv.jac`, `.jac`) are automatically discovered and merged during compilation -- see [Variant Modules](functions-objects.md#4-variant-modules) for details. Note that variant extensions are explicit placement pins: plain `.jac` files work for client code too, since the compiler infers client placement from JSX and npm imports. Native placement has no filename variant at all -- it is inferred (or forced with `jac nacompile` / `jac build --as native`).
 
 ### 4 Editor Setup
 

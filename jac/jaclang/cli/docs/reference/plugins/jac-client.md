@@ -1,6 +1,6 @@
 # jac-client Reference
 
-jac-client adds client-side compilation to Jac so you can write React-style UI components in ordinary `.jac` files. The compiler separates your code automatically: declarations with client-only syntax (JSX, npm imports) -- plus anything client code references -- compile to JavaScript with React as the rendering engine, while the rest compiles to Python on the server. You never have to mark the split, though explicit `cl { }` blocks and `.cl.jac` files remain available when you want the boundary pinned in source.
+jac-client adds client-side compilation to Jac so you can write React-style UI components in ordinary `.jac` files. The compiler separates your code automatically: declarations with client-only syntax (JSX, npm imports) -- plus anything client code references -- compile to JavaScript with React as the rendering engine, while the rest compiles to Python on the server. You never have to mark the split, though explicit `cl { }` blocks and `.jac` files remain available when you want the boundary pinned in source.
 
 You also get project scaffolding (`jac create --kind web-static`), npm dependency management, a Vite-powered dev server with HMR, and automatic HTTP bridge generation so your client components can call server walkers without manual API wiring. This reference covers installation, project structure, the module system, component authoring, and build configuration.
 
@@ -52,10 +52,10 @@ def:pub Header() -> JsxElement {
 }
 ```
 
-If you prefer the placement to be visible in the filename, the `.cl.jac` extension still works and pins the whole file client-side:
+If you prefer the placement to be visible in the filename, the `.jac` extension still works and pins the whole file client-side:
 
 ```jac
-# components/Header.cl.jac -- explicitly client-side
+# components/Header.jac -- explicitly client-side
 def:pub Header() -> JsxElement {
     <header>My App</header>
 }
@@ -157,8 +157,8 @@ node User {
 }
 
 # Single-statement form (no header, no braces)
-sv import from .database { connect_db }
-sv node SecretData { has value: str; }
+import from .database { connect_db }
+node SecretData { has value: str; }
 ```
 
 > **Note on `sv import` between two server modules.** When both the importer and the importee are server-context modules running as separate microservices, `sv import` generates HTTP client stubs instead of pulling the provider into the consumer's process. The same source also works as a monolith. See [Microservice Interop (sv-to-sv)](jac-scale-http.md#microservice-interop-sv-to-sv) in the Scale reference for details.
@@ -208,7 +208,7 @@ def:pub create_task(title: str) -> Task {
 }
 
 # Client: receives hydrated Task instances
-sv import from .main { get_tasks, create_task }
+import from .main { get_tasks, create_task }
 
 def:pub app -> JsxElement {
     has tasks: list = [];
@@ -289,7 +289,7 @@ def:pub app() -> JsxElement {
 }
 ```
 
-A `cl { ... }` block also works inside a function or class body to locally override the active codespace. In `.cl.jac` files, the whole file is already client-side, so no wrapper is needed. Inference never overrides an explicit marker.
+A `cl { ... }` block also works inside a function or class body to locally override the active codespace. In `.jac` files, the whole file is already client-side, so no wrapper is needed. Inference never overrides an explicit marker.
 
 ### Single-Statement Forms
 
@@ -297,13 +297,13 @@ For one-off client-side declarations, use the single-statement `cl` prefix:
 
 ```jac
 import from react { useState }
-cl glob THEME: str = "dark";
+glob THEME: str = "dark";
 ```
 
 This also works for component definitions -- a handy shorthand for a single tagged declaration inside a mostly-server file:
 
 ```jac
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has count: int = 0;
     <div>Count: {count}</div>
 }
@@ -373,7 +373,7 @@ def:pub app() -> JsxElement {
 
 ### The `has` Keyword
 
-Inside client-tagged code (a `cl { }` block or a `.cl.jac` file), `has` creates reactive state:
+Inside client-tagged code (a `cl { }` block or a `.jac` file), `has` creates reactive state:
 
 ```jac
 def:pub Counter() -> JsxElement {
@@ -565,7 +565,7 @@ Use native Jac `spawn` syntax to call walkers from client code. First, import yo
 
 ```jac
 # Import walkers from backend
-sv import from ...main { get_tasks, create_task }
+import from ...main { get_tasks, create_task }
 
 def:pub TaskList() -> JsxElement {
     has tasks: list = [];
@@ -615,7 +615,7 @@ The spawn call returns a result object with:
 ### Mutations (Create, Update, Delete)
 
 ```jac
-sv import from ...main { add_task, toggle_task, delete_task }
+import from ...main { add_task, toggle_task, delete_task }
 
 def:pub TaskManager() -> JsxElement {
     has tasks: list = [];
@@ -1054,7 +1054,7 @@ import "./styles/main.css";
 
 ### Scoped CSS (`.style.css` annexes)
 
-A `.style.css` file that **shares a base name** with a `.cl.jac` module is
+A `.style.css` file that **shares a base name** with a `.jac` module is
 treated as a scoped-style annex -- the two files form one logical module. The
 compiler hashes every class selector the annex declares with a per-module
 digest, rewrites the CSS rule selectors, and rewrites JSX `className`/`class`
@@ -1062,7 +1062,7 @@ literals in the module that reference a declared class to the same hashed
 form. Class names are scoped to the component automatically, so two modules
 can both declare `.card` without colliding.
 
-Given `Card.style.css` beside `Card.cl.jac`:
+Given `Card.style.css` beside `Card.jac`:
 
 ```css
 /* Card.style.css */
@@ -1077,7 +1077,7 @@ Given `Card.style.css` beside `Card.cl.jac`:
 ```
 
 ```jac
-# Card.cl.jac
+# Card.jac
 def:pub Card(title: str, body: str) -> JsxElement {
     <article className="card">
         <h2 className="card-title">{title}</h2>
@@ -1142,10 +1142,10 @@ def:pub StylingExamples() -> JsxElement {
 }
 ```
 
-> **Note:** In jac-shadcn projects `jac install --shadcn` / `jac create --use jac-shadcn` generate `lib/utils.cl.jac` for you. You can also write `cn()` by hand -- entirely in Jac (no TypeScript needed) with a variadic parameter:
+> **Note:** In jac-shadcn projects `jac install --shadcn` / `jac create --use jac-shadcn` generate `lib/utils.jac` for you. You can also write `cn()` by hand -- entirely in Jac (no TypeScript needed) with a variadic parameter:
 >
 > ```jac
-> # lib/utils.cl.jac
+> # lib/utils.jac
 > cl import from "clsx" { clsx }
 > cl import from "tailwind-merge" { twMerge }
 >
@@ -1350,7 +1350,7 @@ The `[client.paths]` section lets you define custom import path aliases. Aliases
 "@shared" = "./shared/index"
 ```
 
-With the above config, you can use aliases in your `.cl.jac` or `cl {}` code:
+With the above config, you can use aliases in your `.jac` or `cl {}` code:
 
 ```jac
 import from "@components/Button" { Button }
@@ -1457,7 +1457,7 @@ jac install --npm --dev tailwindcss autoprefixer postcss
 plugins = ["tailwindcss", "autoprefixer"]
 
 [client.configs.tailwind]
-content = ["./**/*.jac", "./**/*.cl.jac", "./.jac/client/**/*.{js,jsx,ts,tsx}"]
+content = ["./**/*.jac", "./**/*.jac", "./.jac/client/**/*.{js,jsx,ts,tsx}"]
 plugins = []
 
 [client.configs.tailwind.theme.extend.colors]
@@ -2047,7 +2047,7 @@ error[E1105]: JSX tag '<div>' is not in scope in a mobUI project; use View inste
 - **Uppercase components** (`<Card>`, `<Image>`) are always allowed.
 - **Lowercase components that resolve to an in-scope symbol are allowed** (e.g. a local `counter` component used as `<counter .../>`).
 - Only unresolved lowercase names (`div`, `span`, ...) are rejected.
-- **`.cl.jac` web-boundary files are exempt** (raw HTML stays valid where the code can only run in a browser) -- but `.native.cl.jac` files are not, since they target React Native. Modules outside the project root (framework and third-party code) are exempt too. The kind is discovered from each module's own project `jac.toml`, never the process cwd.
+- **`.jac` web-boundary files are exempt** (raw HTML stays valid where the code can only run in a browser) -- but `.native.jac` files are not, since they target React Native. Modules outside the project root (framework and third-party code) are exempt too. The kind is discovered from each module's own project `jac.toml`, never the process cwd.
 
 See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics reference. Web projects (`client_kind` unset) are unaffected -- HTML tags remain valid there.
 
@@ -2056,7 +2056,7 @@ See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics 
 Platform differences are handled in priority order:
 
 1. **The vocabulary absorbs divergence** (primary). Components own their platform differences internally -- `ScrollView`, `Image`, and future additions present one API and branch inside `@jac/mobui`. Authors see a single component.
-2. **`.native.cl.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `examples/mobui/littlex`'s `icon.cl.jac` / `icon.native.cl.jac` split. The compiler picks the `.native.cl.jac` variant when `--client react-native` is selected and falls back to `.cl.jac` when not found. (A `Platform.os` / `Platform.select` one-liner API is planned but not yet part of `@jac/mobui`.)
+2. **`.native.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `examples/mobui/littlex`'s `icon.jac` / `icon.native.jac` split. The compiler picks the `.native.jac` variant when `--client react-native` is selected and falls back to `.jac` when not found. (A `Platform.os` / `Platform.select` one-liner API is planned but not yet part of `@jac/mobui`.)
 
 #### What carries over from web
 

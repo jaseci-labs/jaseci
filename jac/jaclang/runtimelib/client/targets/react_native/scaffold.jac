@@ -171,7 +171,7 @@ def _build_metro_config -> str {
         "// graph (`Unable to resolve react-dom/client`). jac-src lives inside\n"
         "// the Expo project and is only written by the native build/HMR, so\n"
         "// it stays isolated. Metro watches projectRoot by default, so\n"
-        "// re-staging on a .cl.jac save still triggers Fast Refresh.\n"
+        "// re-staging on a client .jac save still triggers Fast Refresh.\n"
         "config.resolver = config.resolver || {};\n"
         "config.resolver.extraNodeModules = {\n"
         "  ...(config.resolver.extraNodeModules || {}),\n"

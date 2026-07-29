@@ -346,11 +346,12 @@ echo "=== verify per-service routing ==="
 # we reached a healthy service that just doesn't have that walker.
 ROUTES=$(jac -c "
 import tomllib
-from jaclang.scale.runtime.discovery.discovery import resolve_routes
+from jaclang.scale.runtime.routing import resolve_routes
 with open('${PROJECT_DIR}/jac.toml', 'rb') as f:
     cfg = tomllib.load(f)
-explicit = cfg.get('plugins', {}).get('scale', {}).get('microservices', {}).get('routes', {})
-for prefix in resolve_routes('${PROJECT_DIR}', dict(explicit)).values():
+ms = cfg.get('scale', {}).get('microservices', {}) \
+    or cfg.get('plugins', {}).get('scale', {}).get('microservices', {})
+for prefix in resolve_routes(dict(ms)).values():
     print(prefix)
 ")
 for prefix in ${ROUTES}; do
@@ -670,11 +671,12 @@ run_availability_assertion "gateway" \
 FIRST_PREFIX=$(echo "${ROUTES}" | head -n1)
 FIRST_SVC=$(jac -c "
 import tomllib
-from jaclang.scale.runtime.discovery.discovery import resolve_routes
+from jaclang.scale.runtime.routing import resolve_routes
 with open('${PROJECT_DIR}/jac.toml', 'rb') as f:
     cfg = tomllib.load(f)
-explicit = cfg.get('plugins', {}).get('scale', {}).get('microservices', {}).get('routes', {})
-for name, prefix in resolve_routes('${PROJECT_DIR}', dict(explicit)).items():
+ms = cfg.get('scale', {}).get('microservices', {}) \
+    or cfg.get('plugins', {}).get('scale', {}).get('microservices', {})
+for name, prefix in resolve_routes(dict(ms)).items():
     if prefix == '${FIRST_PREFIX}':
         print(name.replace('_', '-'))
         break

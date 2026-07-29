@@ -1425,7 +1425,7 @@ def _bundle_wheel(config: any, output: str) -> int {
     if builder.skipped_codespace {
         console.print(
             f"  ⚠ skipped {len(builder.skipped_codespace)} client "
-            "codespace file(s) (.cl.jac) — not part of a Python wheel",
+            "client codespace file(s) — not part of a Python wheel",
             style="warning"
         );
     }

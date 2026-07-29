@@ -175,6 +175,7 @@ impl BoundaryAnalysisPass._absorbed_module(
 impl BoundaryAnalysisPass._register_native_absorb(
     self: BoundaryAnalysisPass, nd: uni.Import
 ) -> None {
+    import from jaclang.jac0core.compiler { import_declares_native_target }
     import from jaclang.jac0core.constant { SymbolAccess }
     item = nd.items[0];
     if not (isinstance(item, uni.ModulePath) and item.path) {
@@ -186,7 +187,9 @@ impl BoundaryAnalysisPass._register_native_absorb(
     }
     _ctx = self._get_context(nd);
     _na_intent = (
-        _ctx == InteropContext.NATIVE or self._in_native_module() or nd.is_na_marked
+        _ctx == InteropContext.NATIVE
+        or self._in_native_module()
+        or import_declares_native_target(nd)
     );
     native_path = self._resolve_native_module(module_name, inferred_ok=_na_intent);
     if not native_path {
@@ -230,7 +233,8 @@ impl BoundaryAnalysisPass._register_native_absorb(
 impl BoundaryAnalysisPass.enter_import(
     self: BoundaryAnalysisPass, nd: uni.Import
 ) -> None {
-    import from jaclang.jac0core.ext_registry { is_server_module, is_client_module }
+    import from jaclang.jac0core.compiler { import_declares_native_target }
+    import from jaclang.jac0core.ext_registry { is_server_module }
     import_context = self._get_context(nd);
     if (nd.from_loc and isinstance(nd.from_loc, uni.ModulePath)) {
         module_name = nd.from_loc?.dot_path_str;
@@ -246,7 +250,7 @@ impl BoundaryAnalysisPass.enter_import(
             _na_intent = (
                 import_context == InteropContext.NATIVE
                 or self._in_native_module()
-                or nd.is_na_marked
+                or import_declares_native_target(nd)
                 or _is_cl_na_edge(nd, self.prog)
             );
             native_path = self._resolve_native_module(
@@ -256,22 +260,43 @@ impl BoundaryAnalysisPass.enter_import(
             mod_path_str = self.ir_in.loc.mod_path
                 if (self.ir_in and self.ir_in.loc)
                 else '';
-            if (nd.is_sv_marked and not native_path and nd.items) {
+            if (nd.is_service_import and not native_path) {
                 sv_module_name = nd.from_loc.base_module_name;
                 caller_ctx = InteropContext.CLIENT
                     if nd.in_client_context()
                     else InteropContext.SERVER;
                 self._register_sv_import(nd, sv_module_name, caller_ctx);
             }
-            if nd.items and not nd.is_sv_marked {
+            if nd.items and not nd.is_service_import {
                 import from jaclang.jac0core.compiler { is_client_native_edge_import }
-                if nd.is_na_marked or is_client_native_edge_import(nd, self.prog) {
+                pinned_server_target = False;
+                if nd.in_client_context() and nd.from_loc {
+                    try {
+                        resolved_target = nd.from_loc.resolve_relative_path();
+                        if isinstance(resolved_target, str)
+                        and resolved_target.endswith('.jac') {
+                            import from jaclang.jac0core.placement_pins {
+                                config_module_pin
+                            }
+                            pinned_server_target = config_module_pin(
+                                resolved_target
+                            ) == 'server';
+                        }
+                    } except Exception {
+                        pinned_server_target = False;
+                    }
+                }
+                if pinned_server_target {
+                    self._register_sv_import(
+                        nd, nd.from_loc.base_module_name, InteropContext.CLIENT
+                    );
+                } elif is_client_native_edge_import(nd, self.prog) {
                     self._register_na_client_import(nd);
                 } else {
                     self._register_client_bridged_import(nd);
                 }
             }
-            if (native_path and nd.items and not nd.is_na_marked) {
+            if (native_path and nd.items) {
                 manifest = self.ir_in.gen.interop_manifest;
                 for item in nd.items {
                     if isinstance(item, uni.ModuleItem) {
@@ -328,7 +353,7 @@ impl BoundaryAnalysisPass.enter_import(
                     _na_intent = (
                         import_context == InteropContext.NATIVE
                         or self._in_native_module()
-                        or nd.is_na_marked
+                        or import_declares_native_target(nd)
                     );
                     native_path = self._resolve_native_module(
                         whole_name, inferred_ok=_na_intent
@@ -1183,17 +1208,26 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
 
     for binding in manifest.server_exports_to_client {
         if binding.ast_node and isinstance(binding.ast_node, uni.Ability) {
+            cl_src_mod: (uni.Module | None) = None;
+            walk_node: (uni.UniNode | None) = binding.ast_node;
+            while walk_node {
+                if isinstance(walk_node, uni.Module) {
+                    cl_src_mod = walk_node;
+                    break;
+                }
+                walk_node = walk_node.parent;
+            }
             sig = binding.ast_node.signature;
             if isinstance(sig, uni.FuncSignature) {
                 if sig.return_type {
                     for tn in self._extract_all_type_names(sig.return_type) {
-                        self._collect_boundary_type(tn, None);
+                        self._collect_boundary_type(tn, cl_src_mod);
                     }
                 }
                 for p in sig.params {
                     if p.type_tag {
                         for tn in self._extract_all_type_names(p.type_tag.tag) {
-                            self._collect_boundary_type(tn, None);
+                            self._collect_boundary_type(tn, cl_src_mod);
                         }
                     }
                 }
@@ -1233,7 +1267,7 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
     has_client = False;
     if self.ir_in and self.ir_in.body {
         for item in self.ir_in.body {
-            if isinstance(item, uni.ClientBlock) or item.in_client_context() {
+            if item.in_client_context() {
                 has_client = True;
                 break;
             }

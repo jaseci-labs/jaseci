@@ -22,7 +22,7 @@ def:pub get_todos -> list {
     return [{"title": t.title, "done": t.done} for t in [root-->][?:Todo]];
 }
 
-cl def:pub app() -> JsxElement {
+def:pub app() -> JsxElement {
     has items: list = [];
 
     async can with entry {

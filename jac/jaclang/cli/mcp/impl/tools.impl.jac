@@ -176,7 +176,7 @@ impl ToolProvider.list_tools -> list[dict[str, any]] {
         },
         {
             "name": "jac_to_js",
-            "description": "Transpile Jac code to JavaScript. Shows generated JS from .cl.jac code.",
+            "description": "Transpile Jac code to JavaScript. Shows generated JS from client-codespace code.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

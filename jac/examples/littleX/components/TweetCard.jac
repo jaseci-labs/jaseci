@@ -17,7 +17,7 @@ import from .ui.alert_dialog {
     AlertDialogCancel
 }
 import from ..lib.utils { cn }
-sv import from ..social_graph { Tweet }
+import from ..social_graph { Tweet }
 
 def:pub TweetCard(
     tweet: Tweet,
