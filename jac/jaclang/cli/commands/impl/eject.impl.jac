@@ -192,8 +192,12 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
 
         if server {
             import from jaclang.jac0core.constant { CodeContext }
+            mod_is_native = ir.decided_codespace == 'native';
             for item in ir.body {
-                if item?.code_context in (CodeContext.CLIENT, CodeContext.NATIVE) {
+                if item?.code_context == CodeContext.CLIENT {
+                    continue;
+                }
+                if (not mod_is_native and item?.code_context == CodeContext.NATIVE) {
                     continue;
                 }
                 if isinstance(item, uni.Archetype)

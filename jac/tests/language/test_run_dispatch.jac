@@ -218,10 +218,10 @@ test "infer web-app from plain .jac when [client] is configured" {
 # Entry-point resolution
 # ---------------------------------------------------------------------------
 test "stale entry-point resolves by stem to the real codespace file" {
-    # entry-point says main.jac but only main.sv.jac exists on disk.
-    p = _plan("entry-point = \"main.jac\"\n", "main.sv.jac");
-    assert p.entry_path.endswith("main.sv.jac");
-    assert p.kind == "service";
+    # entry-point says main.jac but only main.cl.jac exists on disk.
+    p = _plan("entry-point = \"main.jac\"\n", "main.cl.jac");
+    assert p.entry_path.endswith("main.cl.jac");
+    assert p.kind == "web-app";
 }
 
 test "missing entry yields no plan for runnable kinds" {
