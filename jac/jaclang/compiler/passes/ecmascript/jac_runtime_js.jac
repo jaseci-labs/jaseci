@@ -1488,7 +1488,7 @@ def build_osp_kernel_js -> str {
     src = os.path.join(os.path.dirname(jaclang.__file__), "jac0core", "osp_kernel.jac");
 
     tmp_dir = tempfile.mkdtemp();
-    cl_copy = os.path.join(tmp_dir, "osp_kernel.cl.jac");
+    cl_copy = os.path.join(tmp_dir, "osp_kernel_cl.jac");
     shutil.copyfile(src, cl_copy);
     js = "";
     try {

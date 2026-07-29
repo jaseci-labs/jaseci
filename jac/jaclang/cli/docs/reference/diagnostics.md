@@ -264,7 +264,7 @@ Emitted by the type checker and type evaluator.
 
 ### mobUI-Project JSX Host Tags
 
-Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native target](plugins/jac-client.md#react-native-target-beta)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.cl.jac` web-boundary files (but not `.native.cl.jac` files, which target React Native) and modules outside the project root are exempt; the client kind is discovered from each module's own project `jac.toml`, never the process cwd.
+Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native target](plugins/jac-client.md#react-native-target-beta)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.jac` web-boundary files (but not `.native.jac` files, which target React Native) and modules outside the project root are exempt; the client kind is discovered from each module's own project `jac.toml`, never the process cwd.
 
 | Code | Message |
 |------|---------|

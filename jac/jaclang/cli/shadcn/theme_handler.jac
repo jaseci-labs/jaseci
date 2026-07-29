@@ -486,9 +486,7 @@ def retheme_project(config: any, overrides: dict) -> bool {
         stem_to_key: dict = {};
         for key in components_meta {
             reg_file = str(components_meta[key].get("file", str(key) + ".jac"));
-            reg_stem = reg_file.replace(".cl.jac", "").replace(".jac", "").replace(
-                "-", "_"
-            );
+            reg_stem = reg_file.replace(".jac", "").replace("-", "_");
             stem_to_key[reg_stem] = key;
         }
         if ui_dir.exists() {
@@ -496,7 +494,7 @@ def retheme_project(config: any, overrides: dict) -> bool {
                 if not f.name.endswith(".jac") {
                     continue;
                 }
-                stem = f.name.replace(".cl.jac", "").replace(".jac", "");
+                stem = f.name.replace(".jac", "");
                 comp = resolve_single_component(stem_to_key.get(stem, stem), new_style);
                 if not comp or "error" in comp {
                     continue;

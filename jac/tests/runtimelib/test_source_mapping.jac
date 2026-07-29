@@ -61,10 +61,10 @@ test "scan handles subdirectories" {
         components = compiled / "components";
         components.mkdir(parents=True);
         (components / "Button.js").write_text(
-            "/* Source: /project/components/Button.cl.jac */\n"
+            "/* Source: /project/components/Button.jac */\n"
         );
         comments = _scan_source_comments(compiled);
-        assert any("Button.cl.jac" in v for v in comments.values());
+        assert any("Button.jac" in v for v in comments.values());
     }
 }
 
@@ -286,7 +286,7 @@ test "es compiler produces exact line mapping for function body statements" {
 
     with TemporaryDirectory() as tmpdir {
         # Write a .jac file with distinct statements on known lines
-        jac_file = Path(tmpdir) / "test_precision.cl.jac";
+        jac_file = Path(tmpdir) / "test_precision.jac";
         jac_source = (
             'def:pub app() -> Any {\n'  # line 1
             '    has x: int = 1;\n'  # line 2

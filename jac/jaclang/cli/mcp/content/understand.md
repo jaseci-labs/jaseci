@@ -86,7 +86,7 @@ a re-render. NEVER mutate directly (`items.append(x)` won't re-render - use `ite
   jac://guide/jac-cl-organization      splitting client code, importing server walkers
   jac://guide/jac-cl-styling           styling client components
   jac://guide/jac-cl-js-interop        DOM refs and JS value interop
-  jac://guide/jac-npm-packages         adding npm packages, importing them in .cl.jac
+  jac://guide/jac-npm-packages         adding npm packages, importing them in .jac
   jac://guide/jac-scaffold             scaffolding a new project
   jac://guide/jac-project-kinds        project kinds: server / client / fullstack / native
   jac://guide/jac-shadcn-components    shadcn/ui components for cl blocks
@@ -106,7 +106,7 @@ Available example categories (use ONLY these names with get_example):
 
 ### [G] Code Organization & Project Structure
 
-.jac (placement inferred; server default), .impl.jac (implementations), .cl.jac (client
+.jac (placement inferred; server default), .impl.jac (implementations), .jac (client
 implementation variant), .test.jac (tests). impl/ subdirectory for method bodies.
 Declaration/impl separation pattern.
 

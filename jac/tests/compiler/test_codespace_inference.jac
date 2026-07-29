@@ -512,7 +512,7 @@ test "aliased bare jac import stays server under native default" {
 test "bare import of a cl module stays server under native default" {
     mod = compile_with_default("nadefault_bare_cl.jac", "native");
     assert mod.decided_codespace == '' , (
-        "a .cl.jac sibling is a cl/sv server signal even when its body has no "
+        "a .jac sibling is a cl/sv server signal even when its body has no "
         "other signals"
     );
 }

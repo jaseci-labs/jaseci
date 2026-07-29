@@ -506,22 +506,20 @@ impl fix(
             skipped.append(f"{path} ({res.note})");
             continue;
         }
-        base_name = os.path.basename(path);
-        if not base_name.endswith(('.impl.jac', '.test.jac')) {
-            directive = '';
-            if base_name.endswith('.cl.jac') {
-                directive = 'client';
-            } elif base_name.endswith('.na.jac') {
-                directive = 'native';
-            }
-            if directive and 'variant ' + directive + ';' not in res.text[:4096] {
-                res.text = f"variant {directive};\n\n" + res.text;
-                res.changed = True;
-            }
-        }
         final_path = path;
+        rename_suffix = '';
         if path.endswith('.sv.jac') {
-            candidate = path[:-len('.sv.jac')] + '.jac';
+            rename_suffix = '.sv.jac';
+        } elif path.endswith('.native.cl.jac') {
+            rename_suffix = '.native.cl.jac';
+        } elif path.endswith('.cl.jac') {
+            rename_suffix = '.cl.jac';
+        } elif path.endswith('.na.jac') {
+            rename_suffix = '.na.jac';
+        }
+        if rename_suffix {
+            tail = '.native.jac' if rename_suffix == '.native.cl.jac' else '.jac';
+            candidate = path[:-len(rename_suffix)] + tail;
             if os.path.exists(candidate) {
                 skipped.append(f"{path} (rename target {candidate} exists)");
             } else {

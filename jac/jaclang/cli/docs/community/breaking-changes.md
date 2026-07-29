@@ -23,7 +23,7 @@ the .na.jac marker was retired in 0.35 -- rename the file to .jac
 | `jac nacompile mod.na.jac` | `jac nacompile mod.jac` (forces native) |
 | `mod.na.impl.jac` | `mod.impl.jac` (the `.na.impl.jac` annex variant no longer exists) |
 
-**Impact:** rename every `*.na.jac` to `*.jac` and rely on inference; where native must be mandatory (AOT binaries, `--shared` libraries, wasm), use `jac nacompile` / `jac build --as native` / `force_codespace='native'`. `.sv.jac` and `.cl.jac` variants and the `.impl.jac` / `.test.jac` annexes are unchanged. One clarification makes the old native-library idiom carry over unchanged: `pub` elements anchor a *standalone* module to the server (endpoint semantics), but a module pulled in as a **native dependency** may freely use `pub` as its C-ABI export marker. The bundled native stdlib (`jaclang/runtimelib/na_stdlib/`) is native **by location**; its files are plain `.jac`, with per-OS variants as `<name>.<os>.jac` (e.g. `_dirent_native.darwin.jac`).
+**Impact:** rename every `*.na.jac` to `*.jac` and rely on inference; where native must be mandatory (AOT binaries, `--shared` libraries, wasm), use `jac nacompile` / `jac build --as native` / `force_codespace='native'`. `.sv.jac` and `.jac` variants and the `.impl.jac` / `.test.jac` annexes are unchanged. One clarification makes the old native-library idiom carry over unchanged: `pub` elements anchor a *standalone* module to the server (endpoint semantics), but a module pulled in as a **native dependency** may freely use `pub` as its C-ABI export marker. The bundled native stdlib (`jaclang/runtimelib/na_stdlib/`) is native **by location**; its files are plain `.jac`, with per-OS variants as `<name>.<os>.jac` (e.g. `_dirent_native.darwin.jac`).
 
 ---
 
@@ -113,7 +113,7 @@ Use the braced block form instead. It compiles to the same node and is now the c
 | `to sv:` <br> `<server stmts>` | `sv { <server stmts> }` (or leave at module top level -- server is the default context) |
 | `to na:` <br> `<native stmts>` | `na { <native stmts> }` |
 
-**Impact:** rewrite any `to cl:` / `to sv:` / `to na:` section into the matching braced block, wrapping exactly the statements that belonged to that section. Single-statement prefixes (`cl def:pub foo() {...}`, `sv ...`, `na ...`) and file-extension contexts (`.cl.jac`, `.na.jac`) are unaffected. (At the time, `to` still drove the iter-for loop; `to` has since been removed as a keyword entirely -- see [the clean-break entry above](#legacy-syntax-removed-in-one-clean-break-7514).)
+**Impact:** rewrite any `to cl:` / `to sv:` / `to na:` section into the matching braced block, wrapping exactly the statements that belonged to that section. Single-statement prefixes (`cl def:pub foo() {...}`, `sv ...`, `na ...`) and file-extension contexts (`.jac`, `.na.jac`) are unaffected. (At the time, `to` still drove the iter-for loop; `to` has since been removed as a keyword entirely -- see [the clean-break entry above](#legacy-syntax-removed-in-one-clean-break-7514).)
 
 ---
 

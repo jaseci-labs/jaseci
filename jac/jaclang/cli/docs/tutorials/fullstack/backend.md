@@ -20,7 +20,7 @@ This tutorial shows how to call backend functions from the frontend, use walkers
 In Jac full-stack apps, the compiler handles the client-server boundary for you. Here's the mental model:
 
 1. **Backend** = Functions or walkers that process data and return results
-2. **Frontend** = Components in `cl { }` blocks (or `.cl.jac` files)
+2. **Frontend** = Components in `cl { }` blocks (or `.jac` files)
 3. **Connection** = Direct function calls (`await func()`) or walker spawning (`root spawn Walker()`)
 
 ```mermaid

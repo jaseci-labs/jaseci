@@ -1,6 +1,6 @@
-"""Server module: def:pub functions called with kwargs from a .cl.jac client.
+"""Server module: def:pub functions called with kwargs from a .jac client.
 
-Companion to ``sv_import_kwargs_client.cl.jac`` — exercises the kwargs
+Companion to ``sv_import_kwargs_client.jac`` — exercises the kwargs
 form of ``sv import`` calls (e.g. ``greet(name=x)``) which previously
 miscompiled (issue #5852): the compiler dropped the kwargs and emitted
 ``__jacCallFunction("greet", {})``, producing a server 422.

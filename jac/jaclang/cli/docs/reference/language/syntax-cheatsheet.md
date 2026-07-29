@@ -1372,9 +1372,9 @@ node Secret { has value: str; }
 # .jac           The only placement story: inference (whole-module
 #                native when the module can lower, else server; client
 #                parts from JSX/npm, native parts from C extern decls)
-# .cl.jac        Client implementation variant of a logical module
-# (native)       No native extension - a module declares `variant native;`,
-#                infers native, or is forced via jac nacompile /
+# .jac        Client implementation variant of a logical module
+# (native)       No native extension - a module infers native, is pinned
+#                native in jac.toml, or is forced via jac nacompile /
 #                jac build --as native
 # .impl.jac      Implementation annex (method bodies)
 # .test.jac      Test annex

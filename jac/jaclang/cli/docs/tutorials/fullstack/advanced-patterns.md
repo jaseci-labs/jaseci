@@ -2,7 +2,7 @@
 
 When building real applications, you'll encounter patterns that go beyond basic components and state. This tutorial covers WebSocket communication, JavaScript interop gotchas, module-level state, and debugging strategies for Jac client code.
 
-These patterns are drawn from [JacBuilder](https://github.com/jaseci-labs/jacBuilder), a production Jac application with 150+ client-side `.cl.jac` files.
+These patterns are drawn from [JacBuilder](https://github.com/jaseci-labs/jacBuilder), a production Jac application with 150+ client-side `.jac` files.
 
 > **Prerequisites**
 >
@@ -473,7 +473,7 @@ The compiled JavaScript lives in `.jac/client/`. When debugging tricky issues, i
 ```
 .jac/
 └── client/
-    ├── compiled/     # Generated JS from your .cl.jac files
+    ├── compiled/     # Generated JS from your .jac files
     ├── dist/         # Production build output
     ├── configs/      # Generated config files (vite, tailwind, etc.)
     └── node_modules/ # Installed npm dependencies
@@ -492,18 +492,18 @@ Organize API calls and WebSocket logic into modules separate from UI components 
 ```
 myapp/
 ├── auth/
-│   ├── session.cl.jac         # login/logout transport
-│   └── LoginForm.cl.jac
+│   ├── session.jac         # login/logout transport
+│   └── LoginForm.jac
 ├── feed/
 │   ├── posts.jac              # server endpoints + types
-│   ├── wsService.cl.jac       # WebSocket management for this feature
-│   └── FeedShell.cl.jac
+│   ├── wsService.jac       # WebSocket management for this feature
+│   └── FeedShell.jac
 ├── hooks/
-│   └── useData.cl.jac         # only for REUSED fetch+state units
+│   └── useData.jac         # only for REUSED fetch+state units
 ├── pages/                     # route pages
 └── shared/                    # promoted here once a SECOND feature needs it
     ├── ui/
-    └── utils.cl.jac
+    └── utils.jac
 ```
 
 Within a feature the cross-codespace import is a sibling: `sv import from .posts { list_posts }`. Across packages, server modules should use the no-dot absolute form (`import from shared.utils { cn }`) - a `..` that climbs out of a feature folder works under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`.
@@ -516,7 +516,7 @@ Extract reusable stateful logic into custom hooks (functions starting with `use`
 
 ```jac
 
-# hooks/usePolling.cl.jac
+# hooks/usePolling.jac
 import from react { useRef, useEffect }
 
 def:pub usePolling(callback: any, intervalMs: int, enabled: bool) -> None {

@@ -1,5 +1,3 @@
-variant native;
-
 """Native math utilities - a .jac module for cross-module native imports.
 
 This module is imported by na_py_interop_multi.jac to test NATIVE→NATIVE linking.

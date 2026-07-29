@@ -7,7 +7,7 @@ def _write_native_fmt_source(core_dir: str, dest: str) {
         _ktext = _kf.read();
     }
     with open(dest, "w") as _out {
-        _out.write("variant native;\n\n" + _ktext);
+        _out.write(_ktext);
     }
 }
 
@@ -36,6 +36,7 @@ def _load_native_fmt_kernel_module -> (uni.Module | None) {
                 aot_mode=True,
                 type_check=False,
                 default_codespace='native',
+                force_codespace='native',
                 force_target_program=True
             )
         );

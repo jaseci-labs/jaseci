@@ -11,21 +11,14 @@ import from jaclang.jac0core.program { JacProgram }
 glob FIXTURE_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
      ),
-     _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_codegen_");
+     _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_codegen_"),
+     _client_tmp_dir: str = os.path.join(_test_tmp_dir, "client");
 
-def _with_client_directive(code: str) -> str {
-    if "variant client;" in code {
-        return code;
+with entry {
+    os.makedirs(_client_tmp_dir, exist_ok=True);
+    with open(os.path.join(_client_tmp_dir, "jac.toml"), "w") as _pins {
+        _pins.write('[placement.pins]\n"*" = "client"\n');
     }
-    stripped = code.lstrip();
-    if stripped.startswith('\"\"\"') {
-        end = stripped.find('\"\"\"', 3);
-        if end != -1 {
-            head_len = len(code) - len(stripped) + end + 3;
-            return code[:head_len] + "\n\nvariant client;\n" + code[head_len:];
-        }
-    }
-    return "variant client;\n\n" + code;
 }
 
 
@@ -35,13 +28,10 @@ def compile_inline(
 ) -> object {
     with NamedTemporaryFile(
         mode="w",
-        suffix=".cl.jac" if client else ".jac",
+        suffix=".jac",
         delete=False,
-        dir=_test_tmp_dir
+        dir=_client_tmp_dir if client else _test_tmp_dir
     ) as f {
-        if client {
-            code = _with_client_directive(code);
-        }
         f.write(code);
         f.flush();
         if prog is None {
@@ -105,9 +95,10 @@ test "type to typeof and spawn operator" {
 
 test "client import local jac module gets relative path" {
     with TemporaryDirectory() as tmpdir {
-        local_module = Path(tmpdir) / "mymodule.cl.jac";
+        (Path(tmpdir) / "jac.toml").write_text('[placement.pins]\n"*" = "client"\n');
+        local_module = Path(tmpdir) / "mymodule.jac";
         local_module.write_text("def helper() { return 42; }");
-        main_file = Path(tmpdir) / "main.cl.jac";
+        main_file = Path(tmpdir) / "main.jac";
         main_file.write_text(
             "import from mymodule { helper }\n\ndef:pub app() {\n    return helper();\n}\n"
         );

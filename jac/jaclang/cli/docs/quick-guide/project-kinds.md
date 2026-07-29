@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/ins
 This installs the self-contained `jac` binary -- no Python, pip, or uv required.
 
 !!! tip "`jac run` is kind-aware"
-    Set `kind` under `[project]` in `jac.toml` (or let it be inferred from the entry-point's codespace: `.sv.jac` implies `service`, `.cl.jac` implies `web-app`; `cli-native` is always set explicitly - native has no filename marker), and a bare `jac run` does the right thing for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). `jac run --show` prints the resolved plan and the equivalent primitive command without running it.
+    Set `kind` under `[project]` in `jac.toml` (or let it be inferred from the entry-point's codespace: `.sv.jac` implies `service`, `.jac` implies `web-app`; `cli-native` is always set explicitly - native has no filename marker), and a bare `jac run` does the right thing for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). `jac run --show` prints the resolved plan and the equivalent primitive command without running it.
 
 ## The recipes at a glance
 

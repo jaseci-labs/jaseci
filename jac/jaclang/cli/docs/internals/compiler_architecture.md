@@ -8,8 +8,8 @@ targets, called **codespaces**:
 | Codespace | Selector | Backend output | Runs on |
 |-----------|----------|----------------|---------|
 | **Server** | Inferred; the default, anchored by python imports, graph archetypes, `::py::` blocks, and typed context blocks; `[placement.pins]` override | Python AST → CPython bytecode | CPython |
-| **Client** | **Inferred** from client-only syntax (JSX, browser globals, string-path npm imports) and symbol references; `[placement.pins]` override, a `variant client;` declaration, or a `.cl.jac` implementation-variant file | ESTree → JavaScript | Browsers / Node |
-| **Native** | **Inferred** -- whole modules by the placement solver's verdict under the native default codespace, elements from extern-decl (C-ABI FFI) imports and their users; `[placement.pins]` override, a `variant native;` declaration, or forced module-wide by `jac nacompile` / `jac build --as native` / `CompileOptions(force_codespace='native')` | LLVM IR → object code → executable | Bare machine (Linux / macOS, x86_64 / arm64) |
+| **Client** | **Inferred** from client-only syntax (JSX, browser globals, string-path npm imports) and symbol references; `[placement.pins]` override or a `.jac` implementation-variant file | ESTree → JavaScript | Browsers / Node |
+| **Native** | **Inferred** -- whole modules by the placement solver's verdict under the native default codespace, elements from extern-decl (C-ABI FFI) imports and their users; `[placement.pins]` override, or forced module-wide by `jac nacompile` / `jac build --as native` / `CompileOptions(force_codespace='native')` | LLVM IR → object code → executable | Bare machine (Linux / macOS, x86_64 / arm64) |
 
 A single `.jac` file can mix all three codespaces; there is no placement
 syntax (the old `sv`/`cl`/`na` markers were deleted -- `jac fix placement`
@@ -97,7 +97,7 @@ the interop boundaries become a compiler concern instead of a developer one.
 
 ```mermaid
 graph TD
-    SRC[".jac source<br/>(.jac / .cl.jac)"] --> PARSE[Parser<br/>jac0core/parser]
+    SRC[".jac source<br/>(.jac / .jac)"] --> PARSE[Parser<br/>jac0core/parser]
     PARSE --> UNI["UniTree (unified AST)<br/>jac0core/unitree.jac"]
     UNI --> COERCE["Codespace Coercion<br/>_coerce_*_module"]
     COERCE --> FRONTEND[Shared Frontend Passes]
@@ -152,10 +152,10 @@ table.
 ## Stage 2: Codespace Coercion
 
 After parsing, the compiler decides what context each top-level statement
-belongs to. The `.cl.jac` extension or a `variant` declaration coerces whole
-modules; whole-module native placement comes from a `variant native;`
-declaration, a forced codespace, or the placement solver's verdict. Every
-other plain `.jac` module goes through placement inference instead.
+belongs to. The `.jac` extension coerces whole modules; whole-module
+native placement comes from a forced codespace or the placement solver's
+verdict. Every other plain `.jac` module goes through placement inference
+instead.
 
 The coercion helpers live in
 [`compiler.jac:_coerce_module`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/compiler.jac#L250)
@@ -163,8 +163,8 @@ and two wrappers around it:
 
 | Helper | Triggered by | What it does |
 |--------|--------------|--------------|
-| `_coerce_client_module` | `.cl.jac` extension or `variant client;` declaration | Marks the module's nodes `CodeContext.CLIENT` |
-| `_coerce_native_module` | `variant native;` declaration, forced placement (`CompileOptions(force_codespace='native')` -- set by `jac nacompile` / `jac build --as native` -- or an AOT build under the native default codespace), else a passing placement-solver verdict | Marks the module's nodes `CodeContext.NATIVE` |
+| `_coerce_client_module` | `.jac` extension | Marks the module's nodes `CodeContext.CLIENT` |
+| `_coerce_native_module` | Forced placement (`CompileOptions(force_codespace='native')` -- set by `jac nacompile` / `jac build --as native` -- or an AOT build under the native default codespace), else a passing placement-solver verdict | Marks the module's nodes `CodeContext.NATIVE` |
 
 From this point on, every declaration carries a `CodeContext` enum value that
 downstream passes use to dispatch to the correct backend.

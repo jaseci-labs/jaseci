@@ -25,7 +25,7 @@ myapp/
 ├── main.jac                  # Entry point with the client app
 ├── jac.toml                  # Project configuration (auto-generated)
 ├── components/
-│   └── Button.cl.jac         # Example client component
+│   └── Button.jac         # Example client component
 ├── assets/                   # Static assets
 ├── README.md
 ├── AGENTS.md                 # Points AI coding agents at `jac guide`
@@ -250,7 +250,7 @@ dir = ".jac"                # Build artifacts directory
 default_codespace = "native"  # Codespace for markerless .jac modules: "native"/"na" or "server"/"sv"
 ```
 
-`default_codespace` controls how a plain `.jac` module (not a `.cl.jac` implementation variant or a `variant`-declared module) is treated when whole-module native compilation is possible. With `"native"` (the default) the compiler infers: a module with no server-requiring constructs, and whose imported plain `.jac` modules are likewise native-clean, is compiled whole-module in the native codespace and executed through the native engine. Modules with server-requiring constructs (OSP archetypes, python imports, serve endpoints, test blocks, JSX, and similar) compile in the server codespace exactly as before, and an inferred-native module that does not lower yet is transparently recompiled server-side with a dim `note:` -- the preference is always safe. Set `"server"` to opt a project out of native inference entirely; `variant native;` declarations, `[placement.pins]` entries mapping to `"native"`, and forced builds (`jac nacompile`, `jac build --as native`, `CompileOptions(force_codespace='native')`) remain strict mandates.
+`default_codespace` controls how a plain `.jac` module (not a `.jac` implementation variant) is treated when whole-module native compilation is possible. With `"native"` (the default) the compiler infers: a module with no server-requiring constructs, and whose imported plain `.jac` modules are likewise native-clean, is compiled whole-module in the native codespace and executed through the native engine. Modules with server-requiring constructs (OSP archetypes, python imports, serve endpoints, test blocks, JSX, and similar) compile in the server codespace exactly as before, and an inferred-native module that does not lower yet is transparently recompiled server-side with a dim `note:` -- the preference is always safe. Set `"server"` to opt a project out of native inference entirely; `[placement.pins]` entries mapping to `"native"` and forced builds (`jac nacompile`, `jac build --as native`, `CompileOptions(force_codespace='native')`) remain strict mandates.
 
 The `dir` setting controls where all build artifacts are stored:
 

@@ -25,7 +25,7 @@ test "static private and protected members are not exposed on the instance" {
     # skipped; only the public instance `value` resolves.
     with TemporaryDirectory() as td {
         proj = make_modifiers_npm_project(Path(cast(str, td)));
-        f = proj / "lib" / "app.cl.jac";
+        f = proj / "lib" / "app.jac";
         f.write_text(
             'import from "modpkg" { getWidget }\n\n'
             'def:pub use() -> None {\n'
@@ -59,7 +59,7 @@ test "overloaded methods degrade to any instead of picking the wrong signature" 
     # any keeps both overload call sites gradual (no false positives).
     with TemporaryDirectory() as td {
         proj = make_modifiers_npm_project(Path(cast(str, td)));
-        f = proj / "lib" / "over.cl.jac";
+        f = proj / "lib" / "over.jac";
         f.write_text(
             'import from "modpkg" { getApi }\n\n'
             'def:pub use() -> None {\n'

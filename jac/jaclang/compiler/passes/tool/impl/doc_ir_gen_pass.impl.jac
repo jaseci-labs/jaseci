@@ -739,10 +739,6 @@ impl DocIRGenPass.exit_test(nd: uni.Test) -> None {
     nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
 }
 
-impl DocIRGenPass.exit_variant_decl(nd: uni.VariantDecl) -> None {
-    nd.gen.doc_ir = self.text(f"variant {nd.space};");
-}
-
 impl DocIRGenPass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
     parts: list[doc.DocType] = [];
     for i in nd.kid {

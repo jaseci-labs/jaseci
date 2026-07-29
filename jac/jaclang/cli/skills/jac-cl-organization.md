@@ -82,7 +82,7 @@ my-app/
 └── shared/                     # PROMOTION destination - see the rule below
     ├── ui/                     # jac-shadcn primitives, if present
     ├── Button.jac
-    └── utils.cl.jac            # cn()
+    └── utils.jac            # cn()
 ```
 
 **`shared/` is a promotion destination, not a default one.** A module lives with the feature that owns it until a *second feature* needs it; only then does it move. That is the whole difference from a catch-all, and it keeps `shared/` small: a `Reveal` wrapper with nine consumers stays put if all nine are sections of the same feature.
@@ -96,7 +96,7 @@ my-app/
 ```toml
 [jac-shadcn]
 components_dir = "shared/ui"      # where primitives live
-utils_path = "shared/utils.cl.jac" # where cn() lives
+utils_path = "shared/utils.jac" # where cn() lives
 ```
 
 ### Import forms - two rules, neither stylistic

@@ -28,10 +28,7 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
     if _is_demoted_native(os.path.realpath(path)) {
         return ("previously-demoted", []);
     }
-    import from jaclang.jac0core.bccache {
-        discover_annex_files,
-        discover_variant_files
-    }
+    import from jaclang.jac0core.bccache { discover_annex_files }
     import from jaclang.jac0core.parser { parse as rd_parse }
     files = [path] + discover_annex_files(path, '.impl.jac') + discover_annex_files(
         path, '.test.jac'
@@ -50,7 +47,7 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
     if cached is not None and cached[0] == fresh_key {
         return (cached[1], cached[2]);
     }
-    sv_reason = "sv-variant-file" if discover_variant_files(path) else '';
+    sv_reason = '';
     deps: list[str] = [];
     if not sv_reason {
         base_dir = os.path.dirname(os.path.abspath(path)) or '.';
@@ -128,7 +125,6 @@ def native_default_path_ok(path: str) -> bool {
 }
 
 def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
-    import from jaclang.jac0core.bccache { discover_variant_files }
     import from jaclang.jac0core.compiler { _is_demoted_native }
     mod_path = module.loc.mod_path if module.loc is not None else '';
     if not mod_path {
@@ -136,9 +132,6 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
     }
     if _is_demoted_native(os.path.realpath(mod_path)) {
         return (False, "previously-demoted");
-    }
-    if discover_variant_files(mod_path) {
-        return (False, "sv-variant-file");
     }
     base_dir = os.path.dirname(os.path.abspath(mod_path)) or '.';
     (sv_reason, deps) = scan_native_blockers(module, base_dir);
@@ -361,21 +354,13 @@ def _closure_pullable(
 
 
 def _module_externally_pinned(mod_path: str) -> bool {
-    import from jaclang.jac0core.ext_registry { codespace_of }
-    if codespace_of(mod_path) is not None {
-        return True;
-    }
     import from jaclang.jac0core.placement_pins { config_module_pin }
     return config_module_pin(mod_path) != '';
 }
 
 def _seed_from_summary(module: uni.Module, prog: any) -> int {
-    import from jaclang.jac0core.ext_registry { codespace_of }
     import from jaclang.jac0core.compiler { _stamp_context_element }
     mod_path = module.loc.mod_path or '';
-    if codespace_of(mod_path) is not None {
-        return 0;
-    }
     ps = get_module_summary(module, prog);
     seeded = 0;
     for es in ps.elements {
@@ -746,7 +731,6 @@ def _pull_into_target(
 }
 
 def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int {
-    import from jaclang.jac0core.ext_registry { codespace_of }
     if (
         imp.is_service_import
         or imp.is_virtual_jac
@@ -834,11 +818,7 @@ def solve_program_placement(entry_mod: uni.Module, prog: any) -> None {
 def demote_client_pulled_elements(
     module: uni.Module, prog: any, err_mark: int, warn_mark: int
 ) -> bool {
-    import from jaclang.jac0core.ext_registry { codespace_of }
     mod_path = module.loc.mod_path or '';
-    if codespace_of(mod_path) is not None {
-        return False;
-    }
     demoted: list[str] = [];
     demote_pinned: set[int] = set();
     for des in get_module_summary(module, prog).elements {

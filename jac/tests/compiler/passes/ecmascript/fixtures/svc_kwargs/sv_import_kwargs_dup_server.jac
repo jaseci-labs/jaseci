@@ -1,4 +1,4 @@
-"""Server module backing sv_import_kwargs_dup.cl.jac."""
+"""Server module backing sv_import_kwargs_dup.jac."""
 
 def:pub greet(name: str) -> str {
     return "Hello, " + name + "!";

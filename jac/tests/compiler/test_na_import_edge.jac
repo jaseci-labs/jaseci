@@ -17,8 +17,6 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 
 glob KERNEL_SRC: str = (
-         "variant native;\n"
-         "\n"
          "def:pub fib(n: int) -> int {\n"
          "    if n < 2 {\n"
          "        return n;\n"
@@ -40,7 +38,10 @@ glob KERNEL_SRC: str = (
          "    return await fib(10);\n"
          "}\n"
      ),
-     PIN_HOST_CLIENT: str = "[placement.pins]\nhost = \"client\"\n";
+     PIN_HOST_CLIENT: str = (
+         "[placement.pins]\nhost = \"client\"\nkernel = \"native\"\n"
+         "\"*.kernel\" = \"native\"\n"
+     );
 
 def compile_host -> uni.Module {
     tmp = tempfile.mkdtemp(prefix="jac_na_edge_");

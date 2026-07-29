@@ -1,6 +1,6 @@
 import os;
 import from jaclang.project.config { JacConfig }
-import from jaclang.jac0core.ext_registry { base_stem, codespace_of, MODULE_SUFFIXES }
+import from jaclang.jac0core.ext_registry { base_stem, MODULE_SUFFIXES }
 
 obj KindSpec {
     has name: str,
@@ -223,11 +223,12 @@ def resolve_project_kind(config: JacConfig, entry_path: str) -> str {
     if explicit {
         return explicit;
     }
-    entry_codespace = codespace_of(entry_path);
-    if (entry_codespace == 'native') {
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+    entry_pin = config_module_pin(entry_path) if entry_path else '';
+    if (entry_pin == 'native') {
         return "cli-native";
     }
-    if (entry_codespace == 'client') {
+    if (entry_pin == 'client') {
         return "web-app";
     }
     if _has_client(config) {

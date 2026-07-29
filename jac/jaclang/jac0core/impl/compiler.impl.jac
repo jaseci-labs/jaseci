@@ -688,7 +688,7 @@ impl JacCompiler.parse_str(
     } else {
         import from jaclang.jac0core.parser { parse as rd_parse }
         import from jaclang.jac0core.ext_registry {
-            codespace_of,
+            is_retired_client_marker,
             is_retired_native_marker
         }
         if is_retired_native_marker(file_path) {
@@ -699,12 +699,27 @@ impl JacCompiler.parse_str(
                 "reference/language/native-pathway'."
             );
         }
+        if is_retired_client_marker(file_path) {
+            raise ValueError(
+                f"{file_path}: the .jac marker was retired -- rename the "
+                "file to .jac; client placement is inferred from JSX/npm "
+                "imports (override via [placement.pins] in jac.toml). Run "
+                "'jac fix placement' to migrate the project."
+            );
+        }
         (mod, had_error) = rd_parse(source_str, file_path, prog=target_program);
-        codespace = codespace_of(file_path);
+        codespace = '';
+        import from jaclang.jac0core.codeinfo { is_native_by_location as _nbl }
+        if _nbl(file_path) {
+            codespace = 'native';
+        }
         if not codespace {
-            import from jaclang.jac0core.codeinfo { is_native_by_location as _nbl }
-            if _nbl(file_path) {
-                codespace = 'native';
+            import from jaclang.jac0core.placement_pins {
+                config_module_pin as _mod_pin
+            }
+            _pinned_space = _mod_pin(file_path);
+            if _pinned_space in ('client', 'native') {
+                codespace = _pinned_space;
             }
         }
         if not codespace {
@@ -773,7 +788,6 @@ impl JacCompiler.compile(
     options: CompileOptions = CompileOptions()
 ) -> uni.Module {
     import from pathlib { Path as _WrapPath }
-    import from jaclang.jac0core.ext_registry { codespace_of as _cs_of }
     import from jaclang.jac0core.codeinfo {
         get_effective_default_codespace_override,
         set_effective_default_codespace
@@ -810,8 +824,7 @@ impl JacCompiler.compile(
         _resolved = os.path.realpath(file_path);
         _probe = _mod if _mod is not None else _wrap_prog.mod.hub.get(_resolved);
         _inferred_native = (
-            _cs_of(file_path) is None
-            and not options.aot_mode
+            not options.aot_mode
             and not options.force_codespace
             and _probe is not None
             and _probe.decided_codespace == 'native'
@@ -1110,15 +1123,9 @@ impl JacCompiler._compile_once(
                 } except Exception {
                     continue;
                 }
-                import from jaclang.jac0core.ext_registry { is_client_module }
                 cb_is_client_dep = isinstance(cb_src, str)
-                and (
-                    is_client_module(cb_src)
-                    or (
-                        cb_imp.code_context == CodeContext.CLIENT
-                        and cb_src.endswith('.jac')
-                    )
-                );
+                and cb_imp.code_context == CodeContext.CLIENT
+                and cb_src.endswith('.jac');
                 if not cb_is_client_dep {
                     continue;
                 }

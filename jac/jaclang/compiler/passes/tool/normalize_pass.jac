@@ -12,7 +12,6 @@ obj NormalizePass(UniPass) {
     def enter_global_vars(nd: uni.GlobalVars) -> None;
     def enter_test(nd: uni.Test) -> None;
     def enter_module_code(nd: uni.ModuleCode) -> None;
-    def enter_variant_decl(nd: uni.VariantDecl) -> None;
     def enter_py_inline_code(nd: uni.PyInlineCode) -> None;
     def enter_import(nd: uni.Import) -> None;
     def enter_module_path(nd: uni.ModulePath) -> None;

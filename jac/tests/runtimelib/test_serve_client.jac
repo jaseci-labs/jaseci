@@ -115,7 +115,7 @@ def make_crossboundary_client(tmp_path: str) -> JacTestClient {
         );
     }
     shutil.copy(
-        fixtures_src / "crossbound_frontend.cl.jac", dest / "crossbound_frontend.cl.jac"
+        fixtures_src / "crossbound_frontend.jac", dest / "crossbound_frontend.jac"
     );
     return JacTestClient.from_file(
         str(dest / f"{module_name}.jac"), base_path=str(dest), module_name=module_name
@@ -148,7 +148,7 @@ def make_dualrole_client(tmp_path: str) -> JacTestClient {
         );
     }
     for name in [
-        "dualrole_frontend.cl.jac",
+        "dualrole_frontend.jac",
         "dualrole_guestbook.jac",
         "dualrole_analytics.jac"
     ] {
@@ -178,7 +178,7 @@ def make_failload_client(tmp_path: str) -> JacTestClient {
             "\"failload_server\" = \"server\"\n"
         );
     }
-    for name in ["failload_frontend.cl.jac", "failload_server.jac"] {
+    for name in ["failload_frontend.jac", "failload_server.jac"] {
         shutil.copy(fixtures_src / name, dest / name);
     }
     return JacTestClient.from_file(
@@ -213,7 +213,7 @@ def make_bundled_crossboundary_client -> tuple {
         );
     }
     shutil.copy(
-        fixtures_src / "crossbound_frontend.cl.jac", dest / "crossbound_frontend.cl.jac"
+        fixtures_src / "crossbound_frontend.jac", dest / "crossbound_frontend.jac"
     );
     client = JacTestClient.from_file(
         str(dest / f"{module_name}.jac"), base_path=str(dest), module_name=module_name

@@ -1,5 +1,3 @@
-variant native;
-
 """Native transformers - another .jac module for cross-module native imports.
 
 This module is imported INSIDE an na {} block to test scoped native imports.

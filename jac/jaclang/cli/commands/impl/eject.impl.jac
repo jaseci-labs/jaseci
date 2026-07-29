@@ -3,7 +3,7 @@ import shutil;
 import json;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.ext_registry { base_stem, is_client_module, is_annex }
+import from jaclang.jac0core.ext_registry { base_stem, is_annex }
 
 glob _SKIP_DIRS: set = {
          ".jac",
@@ -187,7 +187,7 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
             bmod = ".".join(parent_parts + [stem]);
         }
 
-        is_client = is_client_module(rel.name);
+        is_client = ir.decided_codespace == 'client';
         server = _is_meaningful_python(py_code) and (not is_client);
 
         if server {

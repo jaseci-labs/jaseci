@@ -1131,10 +1131,6 @@ impl PyastGenPass.exit_open_stmt(nd: uni.OpenStmt) -> None {
     nd.gen.py_ast = [assign_stmt, open_stmt, try_stmt];
 }
 
-impl PyastGenPass.exit_variant_decl(nd: uni.VariantDecl) -> None {
-    nd.gen.py_ast = [];
-}
-
 impl PyastGenPass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
     if nd.doc {
         doc = self.sync(

@@ -13,7 +13,7 @@ micr-s-example/
   cart_app.jac          add_to_cart, view_cart, remove_from_cart, clear_cart
   orders_app.jac        create_order, list_orders, get_order, cancel_order
                         imports cart_app.{view_cart, clear_cart} (service cut)
-  frontend.cl.jac       SPA view
+  frontend.jac       SPA view
   components/           reusable UI components
 ```
 

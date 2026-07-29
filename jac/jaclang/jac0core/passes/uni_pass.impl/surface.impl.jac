@@ -426,10 +426,6 @@ impl UniPass.enter_unary_expr(nd: uni.UnaryExpr) -> None {
     self.default_enter(nd);
 }
 
-impl UniPass.enter_variant_decl(nd: uni.VariantDecl) -> None {
-    self.default_enter(nd);
-}
-
 impl UniPass.enter_visit_stmt(nd: uni.VisitStmt) -> None {
     self.default_enter(nd);
 }
@@ -899,10 +895,6 @@ impl UniPass.exit_typed_ctx_block(nd: uni.TypedCtxBlock) -> None {
 }
 
 impl UniPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
-    self.default_exit(nd);
-}
-
-impl UniPass.exit_variant_decl(nd: uni.VariantDecl) -> None {
     self.default_exit(nd);
 }
 

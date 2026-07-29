@@ -97,7 +97,7 @@ with entry {
 }
 ```
 
-These pure-compute functions carry no FFI seed, and the `json` import anchors this mixed module server, so they default to Python; pin the hot functions native in `jac.toml` (`[placement.pins] "main.sum_squares" = "native"` - see `jac-codespaces`), or move them into their own anchor-free module (which compiles whole-module native by verdict, or declares `variant native;` outright), then run with plain `jac run`. Interop stubs are generated automatically in both directions; primitives, collections, and `obj` instances cross the boundary. Each codespace only sees its own definitions at compile time (context isolation) - a native function referencing a Python function defined *after* the native section fails E5090 and returns 0.
+These pure-compute functions carry no FFI seed, and the `json` import anchors this mixed module server, so they default to Python; pin the hot functions native in `jac.toml` (`[placement.pins] "main.sum_squares" = "native"` - see `jac-codespaces`), or move them into their own anchor-free module (which compiles whole-module native by verdict, or gets a module-level `"native"` pin), then run with plain `jac run`. Interop stubs are generated automatically in both directions; primitives, collections, and `obj` instances cross the boundary. Each codespace only sees its own definitions at compile time (context isolation) - a native function referencing a Python function defined *after* the native section fails E5090 and returns 0.
 
 ## Native-to-native imports + decl/impl separation
 

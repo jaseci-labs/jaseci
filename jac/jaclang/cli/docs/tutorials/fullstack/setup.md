@@ -1,6 +1,6 @@
 # Full-Stack Project Setup
 
-Jac's built-in client framework lets you build full-stack web applications where the frontend (React-style JSX components) and backend (walkers, functions, graph operations) live in the same codebase -- even the same file. The compiler separates client and server code automatically: client-side code -- a `.cl.jac` file or anything inside a `cl { }` block -- compiles to JavaScript and runs in the browser, while everything else compiles to Python and runs on the server.
+Jac's built-in client framework lets you build full-stack web applications where the frontend (React-style JSX components) and backend (walkers, functions, graph operations) live in the same codebase -- even the same file. The compiler separates client and server code automatically: client-side code -- a `.jac` file or anything inside a `cl { }` block -- compiles to JavaScript and runs in the browser, while everything else compiles to Python and runs on the server.
 
 This means no separate frontend repository, no REST API boilerplate, and no manual data serialization. When a client component calls a server function, the compiler generates the HTTP layer for you. Hot Module Replacement (HMR) is built in, so changes to both frontend and backend code reflect instantly during development.
 
@@ -14,7 +14,7 @@ In this tutorial, you'll set up a full-stack project, understand the file struct
 > - Time: ~15 minutes
 
 !!! note "Explicit markers are optional"
-    This tutorial uses the explicit `cl { }` / `.cl.jac` style throughout so the client/server split is visible at a glance. The markers are optional: the compiler infers client placement from JSX and npm imports (and from what that client code uses), so everything shown here also works markerless. See [Core Concepts](../../quick-guide/what-makes-jac-different.md) for how inference works.
+    This tutorial uses the explicit `cl { }` / `.jac` style throughout so the client/server split is visible at a glance. The markers are optional: the compiler infers client placement from JSX and npm imports (and from what that client code uses), so everything shown here also works markerless. See [Core Concepts](../../quick-guide/what-makes-jac-different.md) for how inference works.
 
 ---
 
@@ -34,7 +34,7 @@ myapp/
 ├── README.md             # Project readme
 ├── AGENTS.md             # Agent guide for the project
 ├── components/           # Reusable UI components
-│   └── Button.cl.jac     # Example button component
+│   └── Button.jac     # Example button component
 ├── assets/               # Static assets (images, fonts)
 ├── .jac/                 # Build artifacts (gitignored)
 └── .gitignore            # Git ignore rules
@@ -149,7 +149,7 @@ def:pub MyComponent() -> JsxElement {
 
 **Key rules:**
 
-- Code inside a `cl { }` block (or in a `.cl.jac` file) compiles to JavaScript/React
+- Code inside a `cl { }` block (or in a `.jac` file) compiles to JavaScript/React
 - `def:pub` exports functions (like React components)
 - `app()` is the required entry point
 
@@ -182,14 +182,14 @@ myapp/
 ├── models.jac         # Backend nodes
 ├── api.jac            # Backend walkers
 ├── components/
-│   ├── Header.cl.jac  # Frontend component
-│   └── Footer.cl.jac  # Frontend component
+│   ├── Header.jac  # Frontend component
+│   └── Footer.jac  # Frontend component
 └── pages/
-    ├── Home.cl.jac    # Frontend page
-    └── About.cl.jac   # Frontend page
+    ├── Home.jac    # Frontend page
+    └── About.jac   # Frontend page
 ```
 
-**Note:** `.cl.jac` files are automatically client-side (no `cl { }` block needed).
+**Note:** `.jac` files are automatically client-side (no `cl { }` block needed).
 
 ---
 
@@ -210,7 +210,7 @@ walker get_user {
 
 ```jac
 # main.jac
-import from "./components/Header.cl.jac" { Header }
+import from "./components/Header.jac" { Header }
 
     def:pub app() -> JsxElement {
         <div>

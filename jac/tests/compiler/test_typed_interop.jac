@@ -56,14 +56,14 @@ def compile_inline(code: str, prog: JacProgram | None = None) -> object {
 test "all typed fixtures compile with correct stubs" {
     function_fixtures = [
         "typed_return_obj.jac",
-        "typed_return_obj_client.cl.jac",
+        "typed_return_obj_client.jac",
         "typed_return_nested.jac",
         "typed_return_enum.jac",
         "typed_optional_union.jac",
         "typed_collection_return.jac",
         "typed_args_obj.jac",
         "typed_bidirectional.jac",
-        "typed_bidirectional_client.cl.jac"
+        "typed_bidirectional_client.jac"
     ];
     spawn_fixtures = [
         "typed_walker_spawn.jac",
@@ -86,11 +86,11 @@ test "all typed fixtures compile with correct stubs" {
 
 # Existing non-typed fixtures still compile (regression guard)
 test "existing fixtures still compile" {
-    mod = compile_fixture("separated_client.cl.jac");
+    mod = compile_fixture("separated_client.jac");
     assert "__jacSpawn" in mod.gen.js;
-    mod = compile_fixture("separated_defpub_client.cl.jac");
+    mod = compile_fixture("separated_defpub_client.jac");
     assert "__jacCallFunction" in mod.gen.js;
-    mod = compile_fixture("mixed_cl_default.cl.jac");
+    mod = compile_fixture("mixed_cl_default.jac");
     assert mod.gen.js.strip();
     mod = compile_fixture("mixed_sv_default.jac");
     assert mod.gen.js.strip();
@@ -153,13 +153,13 @@ test "sv-to-sv: typed archetype return is rehydrated, not a raw dict (#6710)" {
     );
 }
 
-# A `.cl.jac` that `sv import`s a function AND the obj type it returns must not
+# A `.jac` that `sv import`s a function AND the obj type it returns must not
 # emit an `async function <Type>()` RPC stub for the type. The type already
 # lowers to a wire `class <Type>`, so a second `<Type>` declaration collides at
 # bundle time with `The symbol "<Type>" has already been declared` (#6795 -- the
 # cl->sv analog of the Python-path #6710 fix). Only the function gets a stub.
 test "cl->sv: sv-imported type does not become a callable stub (#6795)" {
-    js = compile_fixture("svc_kwargs/sv_import_type_client.cl.jac").gen.js;
+    js = compile_fixture("svc_kwargs/sv_import_type_client.jac").gen.js;
     assert "async function Todo(" not in js , (
         "an sv-imported type must not degrade into a callable RPC function stub"
     );

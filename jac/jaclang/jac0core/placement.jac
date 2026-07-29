@@ -591,8 +591,10 @@ def scan_native_blockers(
                 }
             }
             if path is not None {
-                import from jaclang.jac0core.ext_registry { is_client_module }
-                if is_client_module(path) {
+                import from jaclang.jac0core.placement_pins {
+                    config_module_pin as _cmp
+                }
+                if _cmp(path) == 'client' {
                     return ("client module import", deps);
                 }
             }

@@ -178,7 +178,6 @@ impl UniNode.parent_of_type(typ: type[T]) -> T {
 }
 
 impl UniNode.codespace -> CodeContext {
-    import from jaclang.jac0core.ext_registry { is_client_module }
     if isinstance(self, ContextAwareNode) {
         if (self.code_context == CodeContext.CLIENT) {
             return CodeContext.CLIENT;
@@ -205,10 +204,6 @@ impl UniNode.codespace -> CodeContext {
             if nd.decided_codespace == CodeContext.CLIENT.value {
                 return CodeContext.CLIENT;
             }
-            mp = nd.loc.mod_path if nd.loc is not None else '';
-            if mp and is_client_module(mp) {
-                return CodeContext.CLIENT;
-            }
             return CodeContext.SERVER;
         }
         nd = nd.parent;
@@ -225,14 +220,7 @@ impl UniNode.in_native_context -> bool {
 }
 
 impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
-    import from jaclang.jac0core.ext_registry { is_client_module }
     if ctx != CodeContext.SERVER and self.decided_codespace == ctx.value {
-        return True;
-    }
-    mp = self.loc.mod_path
-        if (self.loc is not None and self.loc.mod_path)
-        else path_hint;
-    if ctx == CodeContext.CLIENT and bool(mp) and is_client_module(mp) {
         return True;
     }
     if self.body {
@@ -1054,11 +1042,6 @@ impl Test.postinit -> None {
 impl ModuleCode.postinit -> None {
     UniNode.postinit(self);
     ContextAwareNode.postinit(self);
-}
-
-
-impl VariantDecl.postinit -> None {
-    UniNode.postinit(self);
 }
 
 

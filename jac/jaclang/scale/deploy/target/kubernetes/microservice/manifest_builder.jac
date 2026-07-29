@@ -326,8 +326,12 @@ obj MicroserviceManifestBuilder {
         if not os.path.isdir(root_dir) {
             return False;
         }
-        matches = glob.glob(os.path.join(root_dir, "**", "*.cl.jac"), recursive=True);
-        return len(matches) > 0;
+        for probe in ("pages", "components") {
+            if os.path.isdir(os.path.join(root_dir, probe)) {
+                return True;
+            }
+        }
+        return False;
     }
 
     def _shared_volumes_config -> list[dict[str, any]] {

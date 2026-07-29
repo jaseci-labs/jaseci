@@ -1,7 +1,7 @@
 """Dual-platform fixture: shared main.jac with web/native header variants.
 
-The web build picks ``src/header.cl.jac`` (className + CSS); the native
-build picks ``src/header.native.cl.jac`` (inline styles only).
+The web build picks ``src/header.jac`` (className + CSS); the native
+build picks ``src/header.native.jac`` (inline styles only).
 """
 walker:pub get_greeting {
     can greet with Root entry {

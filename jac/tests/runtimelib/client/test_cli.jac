@@ -186,7 +186,7 @@ test "create jac app existing directory" {
     }
 }
 
-"""Test jac create --kind mobile command creates Button.cl.jac component."""
+"""Test jac create --kind mobile command creates Button.jac component."""
 test "create jac app with button component" {
     test_project_name = "test-jac-app-component";
 
@@ -245,16 +245,16 @@ test "create jac app with button component" {
                 f"serve table: {config_data['serve']}"
             );
 
-            # Verify components directory and Button.cl.jac were created at project root
+            # Verify components directory and Button.jac were created at project root
             components_dir = os.path.join(project_path, "components");
             assert os.path.exists(components_dir) , (
                 f"no components dir; project has: {os.listdir(project_path)}"
             );
             assert os.path.isdir(components_dir) , f"not a dir: {components_dir}";
 
-            button_jac_path = os.path.join(components_dir, "Button.cl.jac");
+            button_jac_path = os.path.join(components_dir, "Button.jac");
             assert os.path.exists(button_jac_path) , (
-                f"no Button.cl.jac; components has: {os.listdir(components_dir)}"
+                f"no Button.jac; components has: {os.listdir(components_dir)}"
             );
 
             with open(button_jac_path) as f {
@@ -262,10 +262,10 @@ test "create jac app with button component" {
             }
 
             assert "def:pub Button" in button_content , (
-                f"Button.cl.jac head: {button_content[:400]}"
+                f"Button.jac head: {button_content[:400]}"
             );
             assert "base_styles" in button_content , (
-                f"Button.cl.jac head: {button_content[:400]}"
+                f"Button.jac head: {button_content[:400]}"
             );
 
             # Verify main.jac includes Jac component import
@@ -294,7 +294,7 @@ test "create jac app with button component" {
             assert "Components" in readme_content , (
                 f"README missing Components section: {readme_content[:600]}"
             );
-            assert "Button.cl.jac" in readme_content;
+            assert "Button.jac" in readme_content;
 
             # Verify default packages installation (package.json should be generated)
             package_json_path = os.path.join(

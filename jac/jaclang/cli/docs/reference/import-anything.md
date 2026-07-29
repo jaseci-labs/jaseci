@@ -39,7 +39,7 @@ Most of the time the codespace is chosen *for* you. An import inherits the codes
 - **Python / PyPI imports** are server code -- the default for anything unmarked.
 - An **extern-decl C import** -- braces containing C-ABI function declarations (`import from "libm.so" { def sqrt(x: f64) -> f64; }`) -- can only be satisfied by the native backend, so it lands in the native codespace automatically, and the declarations that use it become native too. Merely importing *from* a native module is not a native signal for the importer. (Whole markerless modules are a separate question: under the default native codespace, the placement solver compiles a module native whenever its import closure can lower -- see the codespace model.)
 
-Explicit markers override inference: a braced block (`cl { ... }`), a single-statement prefix (`cl import from react { useEffect }`), or a file extension (`.sv.jac` / `.cl.jac`). The full marker system, the inference rules, and their precedence are specified once in [Primitives & Codespace Semantics](language/primitives.md#codespace-model); this page assumes them and covers what is specific to imports.
+Explicit markers override inference: a braced block (`cl { ... }`), a single-statement prefix (`cl import from react { useEffect }`), or a file extension (`.sv.jac` / `.jac`). The full marker system, the inference rules, and their precedence are specified once in [Primitives & Codespace Semantics](language/primitives.md#codespace-model); this page assumes them and covers what is specific to imports.
 
 ---
 

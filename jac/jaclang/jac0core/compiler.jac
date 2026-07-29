@@ -413,7 +413,6 @@ def is_server_anchored_module(module: (uni.Module | None)) -> bool {
 def module_has_native_anchor(
     module: (uni.Module | None), prog: object, seen: (set[int] | None) = None
 ) -> bool {
-    import from jaclang.jac0core.ext_registry { NATIVE, codespace_of }
     import from jaclang.jac0core.constant { OwnershipKind }
     if module is None {
         return False;
@@ -444,11 +443,11 @@ def module_has_native_anchor(
         if not isinstance(resolved, str) or not resolved.endswith('.jac') {
             continue;
         }
-        if codespace_of(resolved) == NATIVE {
+        import from jaclang.jac0core.placement_pins { config_module_pin as _cfg_pin }
+        if _cfg_pin(resolved) == 'native' {
             return True;
         }
-        if codespace_of(resolved) is None
-        and module_has_native_anchor(hub_module_for_path(resolved, prog), prog, seen) {
+        if module_has_native_anchor(hub_module_for_path(resolved, prog), prog, seen) {
             return True;
         }
     }
@@ -456,7 +455,7 @@ def module_has_native_anchor(
 }
 
 def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
-    import from jaclang.jac0core.ext_registry { NATIVE, codespace_of }
+    import from jaclang.jac0core.placement_pins { config_module_pin }
     if (
         nd.is_service_import
         or nd.is_typed
@@ -470,12 +469,8 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
     if not isinstance(resolved, str) or not resolved.endswith('.jac') {
         return None;
     }
-    explicit = codespace_of(resolved);
-    if explicit == NATIVE {
+    if config_module_pin(resolved) == 'native' {
         return resolved;
-    }
-    if explicit is not None {
-        return None;
     }
     target = hub_module_for_path(resolved, prog);
     if target is not None {
@@ -504,7 +499,7 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
 }
 
 def import_declares_native_target(nd: uni.Import) -> bool {
-    import from jaclang.jac0core.ext_registry { NATIVE, codespace_of }
+    import from jaclang.jac0core.placement_pins { config_module_pin }
     if nd.from_loc is None {
         return False;
     }
@@ -516,16 +511,16 @@ def import_declares_native_target(nd: uni.Import) -> bool {
     if not isinstance(resolved, str) or not resolved.endswith('.jac') {
         return False;
     }
-    return codespace_of(resolved) == NATIVE;
+    return config_module_pin(resolved) == 'native';
 }
 
 def native_only_import_target(nd: uni.Import, prog: object) -> (str | None) {
-    import from jaclang.jac0core.ext_registry { NATIVE, codespace_of }
+    import from jaclang.jac0core.placement_pins { config_module_pin }
     resolved = plain_native_import_target(nd, prog);
     if resolved is None {
         return None;
     }
-    if codespace_of(resolved) == NATIVE {
+    if config_module_pin(resolved) == 'native' {
         return resolved;
     }
     target = hub_module_for_path(resolved, prog);

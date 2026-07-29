@@ -38,7 +38,7 @@ the discovery:
 
 - **`BoundaryAnalysisPass`** detects a cross-runtime import (a
   server-module import in client-placed code -- whether that placement is
-  inferred or comes from a `.cl.jac` variant file -- a `clib` import in
+  inferred or comes from a `.jac` variant file -- a `clib` import in
   native code, etc.) and re-reads the *provider* module's AST to extract
   the public surface -- walker `has`-fields, `def` signatures, struct
   layouts -- into an `InteropBinding`. On an import, service-boundary

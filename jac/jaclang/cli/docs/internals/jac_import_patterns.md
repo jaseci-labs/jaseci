@@ -206,7 +206,7 @@ def MyComponent() {
 }
 ```
 
-> **Note:** Inside client-tagged code (`.cl.jac` files and `cl { }` blocks), use `has` variables for reactive state instead of explicit `useState` calls. The compiler automatically generates `const [count, setCount] = useState(0);`, auto-injects the `useState` import from `@jac-client/utils`, and transforms assignments to setter calls.
+> **Note:** Inside client-tagged code (`.jac` files and `cl { }` blocks), use `has` variables for reactive state instead of explicit `useState` calls. The compiler automatically generates `const [count, setCount] = useState(0);`, auto-injects the `useState` import from `@jac-client/utils`, and transforms assignments to setter calls.
 
 ### Generated JavaScript Output
 

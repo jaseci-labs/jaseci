@@ -1,6 +1,6 @@
 # NPM Packages & UI Libraries
 
-Jac's client-side compiler gives you full access to the npm ecosystem. You can import React hooks, UI component libraries, utility packages, and any other npm module directly into your `.cl.jac` files. This tutorial covers how to add npm dependencies, import them, and integrate popular UI libraries like Tailwind CSS and shadcn/ui.
+Jac's client-side compiler gives you full access to the npm ecosystem. You can import React hooks, UI component libraries, utility packages, and any other npm module directly into your `.jac` files. This tutorial covers how to add npm dependencies, import them, and integrate popular UI libraries like Tailwind CSS and shadcn/ui.
 
 > **Prerequisites**
 >
@@ -286,7 +286,7 @@ cd myapp
 jac install
 ```
 
-This scaffolds a themed starter: a generated `global.css` (theme colors + font + radius), `lib/utils.cl.jac`, and `button`/`card` components for the chosen style, plus a `main.jac` that demos them. All theme flags are optional and default to `nova`/`neutral`/`figtree`:
+This scaffolds a themed starter: a generated `global.css` (theme colors + font + radius), `lib/utils.jac`, and `button`/`card` components for the chosen style, plus a `main.jac` that demos them. All theme flags are optional and default to `nova`/`neutral`/`figtree`:
 
 | Flag | Values | Default |
 |------|--------|---------|
@@ -315,11 +315,11 @@ jac retheme                                  # regenerate from the current jac.t
 jac install --shadcn button card dialog
 ```
 
-This resolves the chosen style's `.cl.jac` components into `components/ui/`, installs peer dependencies automatically, and creates the `cn()` utility if needed -- all from the bundled component set, no network required.
+This resolves the chosen style's `.jac` components into `components/ui/`, installs peer dependencies automatically, and creates the `cn()` utility if needed -- all from the bundled component set, no network required.
 
 ### Adding Components to Your Code
 
-Components install as `components/ui/<name>.cl.jac` with the name **underscored** -- `jac install --shadcn dropdown-menu` writes `dropdown_menu.cl.jac`, because a hyphen is the minus operator and cannot appear in a Jac module name. Import the underscored name (no quoting needed, since `_` is a valid identifier character) and make the leading dots relative to the importing file's folder: `.components.ui.<name>` from a root file like `main.jac`, `.ui.<name>` from a file in `components/`. Never write the hyphen: unquoted it is a parse error, and quoted it compiles to `./ui/dropdown-menu.js`, which no installed file matches.
+Components install as `components/ui/<name>.jac` with the name **underscored** -- `jac install --shadcn dropdown-menu` writes `dropdown_menu.jac`, because a hyphen is the minus operator and cannot appear in a Jac module name. Import the underscored name (no quoting needed, since `_` is a valid identifier character) and make the leading dots relative to the importing file's folder: `.components.ui.<name>` from a root file like `main.jac`, `.ui.<name>` from a file in `components/`. Never write the hyphen: unquoted it is a parse error, and quoted it compiles to `./ui/dropdown-menu.js`, which no installed file matches.
 
 ```jac
 import from .components.ui.button { Button }
@@ -334,10 +334,10 @@ import from .components.ui.dropdown_menu { DropdownMenu, DropdownMenuTrigger, Dr
 
 ### The cn() Utility in Jac
 
-`jac install --shadcn` and `jac create --use jac-shadcn` generate `lib/utils.cl.jac` for you, so you rarely write this by hand. For reference, the standard shadcn `cn()` utility is written entirely in Jac (no TypeScript needed) using a variadic parameter:
+`jac install --shadcn` and `jac create --use jac-shadcn` generate `lib/utils.jac` for you, so you rarely write this by hand. For reference, the standard shadcn `cn()` utility is written entirely in Jac (no TypeScript needed) using a variadic parameter:
 
 ```jac
-# lib/utils.cl.jac
+# lib/utils.jac
 import from "clsx" { clsx }
 import from "tailwind-merge" { twMerge }
 
@@ -361,7 +361,7 @@ tailwind-merge = "*"
 Here's how the shadcn Button component looks in Jac, using Class Variance Authority (CVA) for variant management:
 
 ```jac
-# components/ui/button.cl.jac
+# components/ui/button.jac
 import from "class-variance-authority" { cva }
 import from ...lib.utils { cn }
 
@@ -417,7 +417,7 @@ Required dependencies:
 shadcn components wrap Radix UI primitives. Each wrapper that renders a DOM node **forwards a ref** to it (via a trailing `ref: Ref` parameter) so the primitive stays a valid `asChild` / positioning target -- exactly as upstream shadcn does with `React.forwardRef`. The exception is a wrapper around a context-only primitive like `Dialog.Root`, which renders no element and takes no ref. Here's a Dialog example in Jac:
 
 ```jac
-# components/ui/dialog.cl.jac
+# components/ui/dialog.jac
 import from "radix-ui" { Dialog as DialogPrimitive }
 import from ...lib.utils { cn }
 

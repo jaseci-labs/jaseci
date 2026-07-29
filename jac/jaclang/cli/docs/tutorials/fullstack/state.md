@@ -16,7 +16,7 @@ This tutorial covers declaring reactive state, handling user input, sharing stat
 
 ## Reactive State with `has`
 
-Inside client-side code (a `.cl.jac` file or a `cl { }` block), `has` creates reactive state (like React's `useState`). Declaring `has count: int = 0;` inside a component function creates a stateful variable that persists across re-renders and triggers a UI update whenever its value changes:
+Inside client-side code (a `.jac` file or a `cl { }` block), `has` creates reactive state (like React's `useState`). Declaring `has count: int = 0;` inside a component function creates a stateful variable that persists across re-renders and triggers a UI update whenever its value changes:
 
 ```jac
 def:pub Counter() -> JsxElement {

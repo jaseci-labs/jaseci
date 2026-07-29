@@ -240,7 +240,6 @@ jsx_child ::=
 
 element_stmt ::=
     ";"
-    | NAME NAME ";"
     | type_alias
     | import_stmt
     | archetype

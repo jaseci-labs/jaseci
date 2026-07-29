@@ -3,11 +3,11 @@ name: jac-native-wasm
 description: Running native-compiled Jac in the browser as WebAssembly - the client->native import edge (client code imports a native Jac module; the build emits /static/<stem>.wasm and binds lazy async stubs), `set_na_env` for modules with app FFI, plus the raw mechanics underneath - `__jac_glob_init()`, BigInt i64 marshalling, externs-as-wasm-imports, WebAssembly.Module.imports introspection, and standalone `jac nacompile --target wasm32`. Load when building in-browser native compute: a game loop, simulation, or client-side hot loop. Pair with `jac-cl-components` (the page side) and `jac-native` (the native subset).
 ---
 
-The native codespace's second target: instead of a host binary, your module's native code compiles to **WebAssembly** and runs in the browser, driven by a client page - native-speed compute with no server round-trip. Jac's own wasm linker produces the module; no emscripten, no `wasm-ld`. Native placement is inferred from extern-decl imports (`import from raylib { def ... ; }`) and the code that uses them; pure compute with no FFI surface (like `count_primes` below) has nothing to infer from, so you pin it native in `jac.toml` (`[placement.pins] "main.count_primes" = "native"`) or declare the kernel module `variant native;` (see `jac-codespaces`).
+The native codespace's second target: instead of a host binary, your module's native code compiles to **WebAssembly** and runs in the browser, driven by a client page - native-speed compute with no server round-trip. Jac's own wasm linker produces the module; no emscripten, no `wasm-ld`. Native placement is inferred from extern-decl imports (`import from raylib { def ... ; }`) and the code that uses them; pure compute with no FFI surface (like `count_primes` below) has nothing to infer from, so you pin it native in `jac.toml` (`[placement.pins] "main.count_primes" = "native"`) or pin the kernel module native (see `jac-codespaces`).
 
 ## The first-class path: importing a native module from client code
 
-Keep the native code in its own module - declare `variant native;` (or let an
+Keep the native code in its own module - pin it native (or let an
 anchor-free kernel infer native) - and import it from client code with a plain
 import - the client -> native twin of the RPC bridge:
 
@@ -35,7 +35,7 @@ What the one import does:
   code is the server -> native ctypes crossing and executes the module
   server-side; written in client code it is the wasm edge and compiles to
   nothing under Python. The edge claims only decidedly-native targets -
-  declared `variant native;`, already native-compiled, or carrying a real
+  pinned `"native"`, already native-compiled, or carrying a real
   native anchor (ownership annotations, clib extern decls); a plain `pub`
   module with no anchor reads as a server endpoint and bridges over RPC
   instead. The interop manifest records who calls what.

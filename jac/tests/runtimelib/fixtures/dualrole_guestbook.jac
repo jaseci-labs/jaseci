@@ -1,7 +1,7 @@
 """Dual-role server module (#6507).
 
 It is reached by the browser as a cl->sv endpoint provider (its walkers are
-`sv import`ed by `dualrole_frontend.cl.jac`) AND it is itself a server->server
+`sv import`ed by `dualrole_frontend.jac`) AND it is itself a server->server
 consumer of `dualrole_analytics` via a *relative* `sv import`. Before the fix,
 that one outgoing relative `sv import` lowered to a plain `from
 .dualrole_analytics import ...`, which crashed the module at load time and

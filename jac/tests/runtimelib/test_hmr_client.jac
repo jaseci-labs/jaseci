@@ -513,7 +513,7 @@ test "client recompile preserves directory structure" {
         components_dir = unique_dir / "components";
         components_dir.mkdir(parents=True, exist_ok=True);
         # Create a component file in the subdirectory
-        component_file = components_dir / "Button.cl.jac";
+        component_file = components_dir / "Button.jac";
         component_file.write_text(
             "    def Button() {\n"
             "        return <button>Click me</button>;\n"
@@ -718,15 +718,15 @@ test "server impl file reloads base jac file" {
     }
 }
 
-"""Test that changing a .impl.jac file triggers recompilation of its base .cl.jac file."""
+"""Test that changing a .impl.jac file triggers recompilation of its base .jac file."""
 test "client impl file reloads base cl.jac file" {
     with TemporaryDirectory() as tmpdir {
         unique_dir = Path(tmpdir) / f"project_{uuid.uuid4().hex[:8]}";
         unique_dir.mkdir(parents=True, exist_ok=True);
         compiled_dir = unique_dir / ".jac" / "client" / "compiled";
         compiled_dir.mkdir(parents=True, exist_ok=True);
-        # Create base client-side .cl.jac file
-        base_file = unique_dir / "Button.cl.jac";
+        # Create base client-side .jac file
+        base_file = unique_dir / "Button.jac";
         base_file.write_text(
             "    obj ButtonProps {\n"
             "        def get_label() -> str;\n"
@@ -771,20 +771,19 @@ test "client impl file reloads base cl.jac file" {
 }
 
 # --- TestHMRRecursiveDependency ---
-"""When app.cl.jac imports Button.cl.jac, recompiling app should also generate Button.js."""
+"""When app.jac imports Button.jac, recompiling app should also generate Button.js."""
 test "dependency compiled when imported file recompiled" {
     with TemporaryDirectory() as tmpdir {
         unique_dir = Path(tmpdir) / f"project_{uuid.uuid4().hex[:8]}";
         unique_dir.mkdir(parents=True, exist_ok=True);
         # Button component in components/
-        btn_file = unique_dir / "Button.cl.jac";
+        btn_file = unique_dir / "Button.jac";
         btn_file.write_text(
             "    def Button() {\n" "        return <button>Click</button>;\n" "    }\n"
         );
         # App imports Button
-        app_file = unique_dir / "app.cl.jac";
+        app_file = unique_dir / "app.jac";
         app_file.write_text(
-            "variant client;\n"
             "import from .Button { Button }\n"
             "def App() {\n"
             "    return <div><Button /></div>;\n"
@@ -797,7 +796,7 @@ test "dependency compiled when imported file recompiled" {
         # Compile app - should recursively compile Button as a dependency
         reloader._recompile_client_code(str(app_file));
         compiled_dir = unique_dir / ".jac" / "client" / "compiled" / "Button.js";
-        assert compiled_dir.exists() , "Button.js should be compiled as a dependency of app.cl.jac";
+        assert compiled_dir.exists() , "Button.js should be compiled as a dependency of app.jac";
     }
 }
 
@@ -981,7 +980,7 @@ test "deleted client module drops its stale compiled output" {
         (reloader, compiler, compiled_dir) = _make_unified_reloader(unique_dir);
         components_dir = unique_dir / "components";
         components_dir.mkdir();
-        footer_file = components_dir / "Footer.cl.jac";
+        footer_file = components_dir / "Footer.jac";
         footer_file.write_text(
             "def:pub Footer() {\n    return <footer>hi</footer>;\n}\n"
         );

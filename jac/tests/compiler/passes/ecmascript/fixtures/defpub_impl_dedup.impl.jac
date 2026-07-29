@@ -1,4 +1,4 @@
-"""Implementation for defpub_impl_dedup.cl.jac.
+"""Implementation for defpub_impl_dedup.jac.
 
 This impl module also uses sv import, which would trigger a second
 __jacCallFunction injection in the child pass if not deduplicated.

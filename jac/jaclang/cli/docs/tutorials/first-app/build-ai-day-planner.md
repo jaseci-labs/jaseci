@@ -1961,14 +1961,14 @@ With `def:priv`, each authenticated user gets their own isolated graph with its 
 
 You met components at the end of Part 5 -- four `cl def:pub` functions in one file. As your app grows, you'll want each component in its own file. Jac gives you two **orthogonal** axes for splitting code:
 
-1. **Split by component** -- each component lives in its own `.cl.jac` file. This is the primary axis, and it's what every real Jac project does.
-2. **Split by declaration / implementation** -- *inside* one component, you can put the state and render tree in a `.cl.jac` file and the method bodies in a `.impl.jac` file. This is optional and useful only when a single component grows too long to read top-to-bottom.
+1. **Split by component** -- each component lives in its own `.jac` file. This is the primary axis, and it's what every real Jac project does.
+2. **Split by declaration / implementation** -- *inside* one component, you can put the state and render tree in a `.jac` file and the method bodies in a `.impl.jac` file. This is optional and useful only when a single component grows too long to read top-to-bottom.
 
 Most code organization happens on axis (1). We'll cover (2) at the end of this section.
 
 **Component files**
 
-A component file is just a `.cl.jac` file that exports a `def:pub` function returning `JsxElement`. The `.cl.jac` extension tells the compiler "this whole file is client-side" -- you don't write `cl` prefixes anymore, because *everything* in a `.cl.jac` file is client by default. Other files import the component by name:
+A component file is just a `.jac` file that exports a `def:pub` function returning `JsxElement`. The `.jac` extension tells the compiler "this whole file is client-side" -- you don't write `cl` prefixes anymore, because *everything* in a `.jac` file is client by default. Other files import the component by name:
 
 ```jac
 import from .components.TaskItem { TaskItem }
@@ -1980,14 +1980,14 @@ The authenticated app will have this shape:
 ```
 day-planner-auth/
 ├── main.jac                       # Server: nodes, AI, endpoints + client entry
-├── frontend.cl.jac                # Client: top-level orchestrator
+├── frontend.jac                # Client: top-level orchestrator
 ├── components/
-│   ├── AuthForm.cl.jac            # Login / signup form
-│   ├── Header.cl.jac              # Header with sign-out button
-│   ├── TasksPanel.cl.jac          # Task column -- owns task state
-│   ├── TaskItem.cl.jac            # Single task row -- presentational
-│   ├── ShoppingPanel.cl.jac       # Shopping column -- owns ingredient state
-│   └── IngredientItem.cl.jac      # Single ingredient row -- presentational
+│   ├── AuthForm.jac            # Login / signup form
+│   ├── Header.jac              # Header with sign-out button
+│   ├── TasksPanel.jac          # Task column -- owns task state
+│   ├── TaskItem.jac            # Single task row -- presentational
+│   ├── ShoppingPanel.jac       # Shopping column -- owns ingredient state
+│   └── IngredientItem.jac      # Single ingredient row -- presentational
 └── styles.css
 ```
 
@@ -1995,7 +1995,7 @@ day-planner-auth/
 
 **`sv import` -- bringing server code into client files**
 
-When a `.cl.jac` file calls server functions, it needs `sv import` so the compiler generates HTTP stubs instead of raw function calls:
+When a `.jac` file calls server functions, it needs `sv import` so the compiler generates HTTP stubs instead of raw function calls:
 
 ```jac
 import from ..main { Task, get_tasks, add_task, toggle_task, delete_task }
@@ -2025,7 +2025,7 @@ Everything inside the `cl { ... }` block runs in the browser; everything inside 
 For an individual component that grows too large, you can split its state and render tree from its method bodies using `.impl.jac`. The header file holds method *signatures*:
 
 ```jac
-# big_component.cl.jac
+# big_component.jac
 def:pub BigComponent -> JsxElement {
     has tasks: list[Task] = [];
 
@@ -2199,7 +2199,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     }
     ```
 
-??? note "Complete `frontend.cl.jac`"
+??? note "Complete `frontend.jac`"
 
     ```jac
     """AI Day Planner -- top-level client app composes feature components."""
@@ -2252,7 +2252,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     }
     ```
 
-??? note "Complete `components/AuthForm.cl.jac`"
+??? note "Complete `components/AuthForm.jac`"
 
     ```jac
     """Login / signup form -- owns its own form state.
@@ -2384,7 +2384,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     }
     ```
 
-??? note "Complete `components/Header.cl.jac`"
+??? note "Complete `components/Header.jac`"
 
     ```jac
     """App header with title, subtitle, and sign-out button."""
@@ -2401,7 +2401,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     }
     ```
 
-??? note "Complete `components/TasksPanel.cl.jac`"
+??? note "Complete `components/TasksPanel.jac`"
 
     ```jac
     """Tasks column -- owns task list state, fetches on mount."""
@@ -2489,7 +2489,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     }
     ```
 
-??? note "Complete `components/TaskItem.cl.jac`"
+??? note "Complete `components/TaskItem.jac`"
 
     ```jac
     """Single task row -- presentational; toggle and delete are passed in."""
@@ -2513,7 +2513,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     }
     ```
 
-??? note "Complete `components/ShoppingPanel.cl.jac`"
+??? note "Complete `components/ShoppingPanel.jac`"
 
     ```jac
     """Shopping list column -- owns ingredient state, fetches on mount."""
@@ -2616,7 +2616,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     }
     ```
 
-??? note "Complete `components/IngredientItem.cl.jac`"
+??? note "Complete `components/IngredientItem.jac`"
 
     ```jac
     """Single ingredient row -- presentational."""
@@ -2727,14 +2727,14 @@ Step back and consider what you've built: a **complete, fully functional applica
 - **`def:priv`** -- private endpoints with per-user data isolation (each user gets their own `root`)
 - **`jacSignup`**, **`jacLogin`**, **`jacLogout`**, **`jacIsLoggedIn`** -- built-in auth functions
 - **`import from "@jac/runtime"`** -- import Jac's built-in client-side utilities
-- **Component files** -- each component in its own `.cl.jac` file; the whole file is client-side, no `cl` prefixes needed
+- **Component files** -- each component in its own `.jac` file; the whole file is client-side, no `cl` prefixes needed
 - **`sv import from ..main { ... }`** -- bring server functions and node types into client files; the `..` is a relative import to the parent directory
 - **`cl { }`** / **`sv { }`** -- braced blocks that tag a whole region of a file for the client or server codespace
 - **`can with [deps] entry`** -- dependency-triggered abilities (re-run when state changes); useful when the component owning the dependency stays mounted
-- **Optional: declaration/implementation split** -- `.cl.jac` for state + render tree, `.impl.jac` for `impl Component.method { ... }` bodies; reach for it only when a single component is too long to read top-to-bottom
+- **Optional: declaration/implementation split** -- `.jac` for state + render tree, `.impl.jac` for `impl Component.method { ... }` bodies; reach for it only when a single component is too long to read top-to-bottom
 
 !!! example "Try It Yourself"
-    Add a small `Footer` component (presentational, no state) that shows a copyright line. Place it in `components/Footer.cl.jac`, import it into `frontend.cl.jac`, and render it at the bottom of the logged-in container -- the same pattern as `Header`.
+    Add a small `Footer` component (presentational, no state) that shows a copyright line. Place it in `components/Footer.jac`, import it into `frontend.jac`, and render it at the bottom of the logged-in container -- the same pattern as `Header`.
 
 ---
 
@@ -3068,11 +3068,11 @@ When you use `walker:priv`, the walker runs on the authenticated user's **own pr
 **The Complete Walker Version**
 
 !!! info "Same UI, different backend"
-    The UI is identical to Part 6 -- so `frontend.cl.jac`, `components/AuthForm.cl.jac`, `components/Header.cl.jac`, `components/TaskItem.cl.jac`, `components/IngredientItem.cl.jac`, and `styles.css` are all **unchanged** from Part 6. Only three files change:
+    The UI is identical to Part 6 -- so `frontend.jac`, `components/AuthForm.jac`, `components/Header.jac`, `components/TaskItem.jac`, `components/IngredientItem.jac`, and `styles.css` are all **unchanged** from Part 6. Only three files change:
 
     - `main.jac` -- replaces `def:priv` functions with `walker:priv` declarations
-    - `components/TasksPanel.cl.jac` -- spawns walkers instead of calling functions
-    - `components/ShoppingPanel.cl.jac` -- same
+    - `components/TasksPanel.jac` -- spawns walkers instead of calling functions
+    - `components/ShoppingPanel.jac` -- same
 
     Focus on those three files below.
 
@@ -3088,14 +3088,14 @@ You'll end up with the same file layout as Part 6:
 ```
 day-planner-v2/
 ├── main.jac                       # Server: walkers (instead of def:priv functions)
-├── frontend.cl.jac                # Client orchestrator -- unchanged from Part 6
+├── frontend.jac                # Client orchestrator -- unchanged from Part 6
 ├── components/
-│   ├── AuthForm.cl.jac            # Unchanged from Part 6
-│   ├── Header.cl.jac              # Unchanged from Part 6
-│   ├── TasksPanel.cl.jac          # Now spawns walkers
-│   ├── TaskItem.cl.jac            # Unchanged from Part 6
-│   ├── ShoppingPanel.cl.jac       # Now spawns walkers
-│   └── IngredientItem.cl.jac      # Unchanged from Part 6
+│   ├── AuthForm.jac            # Unchanged from Part 6
+│   ├── Header.jac              # Unchanged from Part 6
+│   ├── TasksPanel.jac          # Now spawns walkers
+│   ├── TaskItem.jac            # Unchanged from Part 6
+│   ├── ShoppingPanel.jac       # Now spawns walkers
+│   └── IngredientItem.jac      # Unchanged from Part 6
 └── styles.css                     # Unchanged from Part 6
 ```
 
@@ -3264,7 +3264,7 @@ The three files that change are in the collapsible sections below. Copy the unch
     }
     ```
 
-??? note "Complete `components/TasksPanel.cl.jac` (spawns walkers)"
+??? note "Complete `components/TasksPanel.jac` (spawns walkers)"
 
     ```jac
     """Tasks column -- owns task list state, spawns walkers for CRUD."""
@@ -3352,7 +3352,7 @@ The three files that change are in the collapsible sections below. Copy the unch
     }
     ```
 
-??? note "Complete `components/ShoppingPanel.cl.jac` (spawns walkers)"
+??? note "Complete `components/ShoppingPanel.jac` (spawns walkers)"
 
     ```jac
     """Shopping list column -- owns ingredient state, spawns walkers."""

@@ -12,7 +12,7 @@ def app() -> any {
     return count;
 }
 
-# has statements in client-side function (typically in .cl.jac files)
+# has statements in client-side function (typically in .jac files)
 
 def:pub counter() -> JsxElement {
     has value: int = 0;

@@ -640,7 +640,7 @@ test "E1042: missing await on sv-imported call (issue #6236)" {
     # `sv import` functions are async RPC stubs on the client; calling one
     # without `await` assigns a coroutine to a typed field and crashes at
     # runtime. `jac check` must flag it.
-    (prog, _) = compile_and_check("type_E1042_sv_missing_await.cl.jac");
+    (prog, _) = compile_and_check("type_E1042_sv_missing_await.jac");
     assert has_diagnostic_code(prog, "E1042") , f"expected E1042 for the un-awaited sv import call; "
     f"errors={[str(e) for e in prog.errors_had]}";
 }

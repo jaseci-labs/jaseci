@@ -146,7 +146,7 @@ test "kind js-package -> build npm via build --as" {
 }
 
 test "kind web-app -> serve dev (client framework is core)" {
-    p = _plan("kind = \"web-app\"\nentry-point = \"app.cl.jac\"\n", "app.cl.jac");
+    p = _plan("kind = \"web-app\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "serve";
     assert p.verb == "start";
     assert p.flags.get("dev") == True;
@@ -155,14 +155,14 @@ test "kind web-app -> serve dev (client framework is core)" {
 }
 
 test "kind web-static -> serve (client framework is core)" {
-    p = _plan("kind = \"web-static\"\nentry-point = \"page.cl.jac\"\n", "page.cl.jac");
+    p = _plan("kind = \"web-static\"\nentry-point = \"page.jac\"\n", "page.jac");
     assert p.action == "serve";
     assert p.verb == "start";
     assert "client" not in p.flags;
 }
 
 test "kind desktop -> serve the desktop client target (core)" {
-    p = _plan("kind = \"desktop\"\nentry-point = \"app.cl.jac\"\n", "app.cl.jac");
+    p = _plan("kind = \"desktop\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "serve";
     assert p.verb == "start";
     # The desktop target is a core client target -- it must reach `start`,
@@ -172,7 +172,7 @@ test "kind desktop -> serve the desktop client target (core)" {
 }
 
 test "kind mobile -> build the mobile client shell (core)" {
-    p = _plan("kind = \"mobile\"\nentry-point = \"app.cl.jac\"\n", "app.cl.jac");
+    p = _plan("kind = \"mobile\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "build";
     assert p.verb == "build";
     # Must build the mobile shell, not fall through to a default .jab build.
@@ -192,8 +192,11 @@ test "plain .jac entry no longer infers cli-native (marker retired)" {
     assert p.kind == "cli";
 }
 
-test "infer web-app from .cl.jac entry" {
-    p = _plan("entry-point = \"main.cl.jac\"\n", "main.cl.jac");
+test "infer web-app from a client-pinned entry" {
+    p = _plan(
+        "entry-point = \"main.jac\"\n\n[placement.pins]\nmain = \"client\"\n",
+        "main.jac"
+    );
     assert p.kind == "web-app";
 }
 
@@ -217,11 +220,10 @@ test "infer web-app from plain .jac when [client] is configured" {
 # ---------------------------------------------------------------------------
 # Entry-point resolution
 # ---------------------------------------------------------------------------
-test "stale entry-point resolves by stem to the real codespace file" {
-    # entry-point says main.jac but only main.cl.jac exists on disk.
-    p = _plan("entry-point = \"main.jac\"\n", "main.cl.jac");
-    assert p.entry_path.endswith("main.cl.jac");
-    assert p.kind == "web-app";
+test "stale entry-point resolves by stem to the real language file" {
+    # entry-point says main.jac but only main.py exists on disk.
+    p = _plan("entry-point = \"main.jac\"\n", "main.py", entry_body="print('ok')");
+    assert p.entry_path.endswith("main.py");
 }
 
 test "missing entry yields no plan for runnable kinds" {

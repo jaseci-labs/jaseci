@@ -40,7 +40,7 @@ def _write_project(src: Path, name: str = "test_app") {
     (src / "server.jac").write_text(
         'walker:pub Greet {\n' + '    has name: str,\n' + '        reports: list[str] = [];\n' + '    can g with Root entry {\n' + '        report f"Hello, {self.name}!";\n' + '    }\n' + '}\n\n' + 'walker Secret {\n' + '    has reports: list[str] = [];\n' + '    can g with Root entry {\n' + '        report "secret";\n' + '    }\n' + '}\n'
     );
-    (src / "frontend.cl.jac").write_text(
+    (src / "frontend.jac").write_text(
         '"""Client UI."""\n' + 'import from server { Greet }\n\n' + 'def:pub app -> JsxElement {\n' + '    has msg: str = "hi";\n' + '    return <div>{msg}</div>;\n' + '}\n'
     );
 }
@@ -118,7 +118,7 @@ test "backend exposes the server walker and not the client app" {
         assert "from server import Greet" in main_py;
         assert '@app.post("/walker/Greet")' in main_py;
         assert "class GreetIn(BaseModel)" in main_py;
-        # The .cl.jac `app` component must never become a backend endpoint.
+        # The .jac `app` component must never become a backend endpoint.
         assert "/function/app" not in main_py;
         assert "from frontend import" not in main_py;
     }
@@ -260,7 +260,7 @@ test "plain projects do not vendor byllm or pin llm deps" {
 
 
 # ==================== frontend ====================
-test "frontend compiles .cl.jac pages to JavaScript" {
+test "frontend compiles .jac pages to JavaScript" {
     with TemporaryDirectory() as td {
         src = Path(td) / "myapp";
         _write_project(src, "myapp");
@@ -395,7 +395,7 @@ test "load_eject_project_metadata falls back to source dir name on placeholder" 
 
 
 # ==================== backend-only projects (no client app) ====================
-"""Materialize a walker-only project: no `cl {}` block / `.cl.jac`, so no
+"""Materialize a walker-only project: no `cl {}` block / `.jac`, so no
 client `app` component exists."""
 def _write_backend_only_project(src: Path, name: str = "be_app") {
     src.mkdir(parents=True, exist_ok=True);

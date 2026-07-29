@@ -1,6 +1,6 @@
 # React-Style Components
 
-Jac's client-side code uses JSX syntax (the same HTML-in-code approach popularized by React) to build UI components. Components are functions declared in client-side code -- a `.cl.jac` file or a `cl { }` block -- that return `JsxElement` values. Each prop is a named parameter -- the type-checker validates every JSX call site per attribute -- and components compose just like in React, with conditional rendering, list mapping, and event handling.
+Jac's client-side code uses JSX syntax (the same HTML-in-code approach popularized by React) to build UI components. Components are functions declared in client-side code -- a `.jac` file or a `cl { }` block -- that return `JsxElement` values. Each prop is a named parameter -- the type-checker validates every JSX call site per attribute -- and components compose just like in React, with conditional rendering, list mapping, and event handling.
 
 The key difference from a standard React setup: there's no separate JavaScript project, no webpack configuration, and no build toolchain to manage. You write components in Jac syntax, the compiler generates optimized JavaScript, and the dev server bundles and serves it automatically.
 
@@ -463,10 +463,10 @@ def:pub Comment(c: dict) -> JsxElement {
 
 ## Separate Component Files
 
-### Header.cl.jac
+### Header.jac
 
 ```jac
-# No `cl { }` block needed for .cl.jac files
+# No `cl { }` block needed for .jac files
 
 def:pub Header(title: str) -> JsxElement {
     <header>
@@ -478,7 +478,7 @@ def:pub Header(title: str) -> JsxElement {
 ### main.jac
 
 ```jac
-import from "./Header.cl.jac" { Header }
+import from "./Header.jac" { Header }
 
     def:pub app() -> JsxElement {
         <div>
@@ -570,7 +570,7 @@ The compiler hashes each declared class, rewrites the CSS, and rewrites the
 matching `className` references to agree.
 
 ```jac
-# Card.cl.jac
+# Card.jac
 def:pub Card(title: str) -> JsxElement {
     <div className="card">
         <h2 className="card-title">{title}</h2>
@@ -618,7 +618,7 @@ for the full contract.
 | Conditional | `{("A" if condition else "B")}` |
 | Children | `def:pub Card(children: any = None) { ... }` then `{children}` |
 | Forwarding bundle | `def:pub Wrap(props: dict)` (suppress W5015) |
-| Import component | `import from "./File.cl.jac" { Component }` |
+| Import component | `import from "./File.jac" { Component }` |
 
 ---
 

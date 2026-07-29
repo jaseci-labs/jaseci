@@ -52,7 +52,6 @@ import from jaclang.jac0core.unitree {
     PyInlineCode
 }
 import from jaclang.jac0core.unitree { Import, ModulePath, ModuleItem }
-import from jaclang.jac0core.unitree { VariantDecl }
 import from jaclang.jac0core.unitree { CommentToken }
 import from jaclang.jac0core.unitree {
     Archetype,

@@ -576,7 +576,7 @@ test "gap 52 class enum iteration yields enum instance" {
 # =========================================================================
 # Gap #53: discover_base_file misses .jac — self is Unknown in impl files
 #
-# discover_base_file searched for .jac and .cl.jac but not .jac, so impl
+# discover_base_file searched for .jac and .jac but not .jac, so impl
 # files backed by a .jac declaration were compiled standalone. Without the
 # declaration, self resolved as Unknown → E1032 on every self.x access.
 #

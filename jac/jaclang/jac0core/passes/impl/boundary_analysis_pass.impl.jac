@@ -234,7 +234,7 @@ impl BoundaryAnalysisPass.enter_import(
     self: BoundaryAnalysisPass, nd: uni.Import
 ) -> None {
     import from jaclang.jac0core.compiler { import_declares_native_target }
-    import from jaclang.jac0core.ext_registry { is_server_module, is_client_module }
+    import from jaclang.jac0core.ext_registry { is_server_module }
     import_context = self._get_context(nd);
     if (nd.from_loc and isinstance(nd.from_loc, uni.ModulePath)) {
         module_name = nd.from_loc?.dot_path_str;

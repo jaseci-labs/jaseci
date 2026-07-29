@@ -16,7 +16,6 @@ import from jaclang.jac0core.unitree {
     PyInlineCode
 }
 import from jaclang.jac0core.unitree { Import, ModulePath, ModuleItem }
-import from jaclang.jac0core.unitree { VariantDecl }
 import from jaclang.jac0core.unitree { CommentToken }
 import from jaclang.jac0core.unitree { Archetype, Ability, Enum, ImplDef, SemDef }
 import from jaclang.jac0core.unitree {
@@ -3268,17 +3267,6 @@ impl Parser.parse_element_stmt{
         return None;
     }
 
-    if (
-        self.check(TokenKind.NAME)
-        and self.current().value == 'variant'
-        and self.check_peek(TokenKind.NAME)
-        and self.peek().value in ('client', 'native')
-    ) {
-        v_tok = self.consume_uni(TokenKind.NAME);
-        space_tok = self.consume_uni(TokenKind.NAME);
-        semi_tok = self.consume_uni(TokenKind.SEMI);
-        return VariantDecl(space=space_tok.value, kid=[v_tok, space_tok, semi_tok]);
-    }
     if (
         self.check(TokenKind.NAME)
         and self.current().value in ('sv', 'cl', 'na')

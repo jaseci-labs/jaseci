@@ -279,8 +279,8 @@ impl FileTools._js_drift_error(path: str, content: str) -> str {
             return (
                 f"REFUSED: '{base}' is a JavaScript/TypeScript file, but this is a "
                 "Jac project -- all source is Jac. Write a .jac file instead "
-                "(a client UI component goes in a .cl.jac file, e.g. "
-                "components/Calculator.cl.jac), using Jac syntax (def:pub "
+                "(a client UI component goes in its own file, e.g. "
+                "components/Calculator.jac), using Jac syntax (def:pub "
                 "Name() -> JsxElement, has fields, def handlers). Do not create "
                 ".js/.ts files."
             );
@@ -1939,7 +1939,7 @@ impl Build.run with AgentSession entry {
                     "described code, pasted it into your reply, or left notes. That "
                     "is not building. Call write_file NOW with the COMPLETE Jac "
                     "contents of each file the task needs (for a UI, e.g. "
-                    "components/Calculator.cl.jac as a `def:pub Calculator() -> "
+                    "components/Calculator.jac as a `def:pub Calculator() -> "
                     "JsxElement` component, and edit main.jac to render it). Write "
                     "real Jac files this turn -- do not explain, just write them."
                 )

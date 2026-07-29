@@ -1,7 +1,7 @@
-"""Test multi-file def:pub: server functions called from separate .cl.jac file.
+"""Test multi-file def:pub: server functions called from separate .jac file.
 
 When def:pub functions are defined in main.jac and the frontend is in a
-separate .cl.jac file, the compiler must generate __jacCallFunction stubs
+separate .jac file, the compiler must generate __jacCallFunction stubs
 in the client bundle so the browser can call the server over HTTP.
 """
 
