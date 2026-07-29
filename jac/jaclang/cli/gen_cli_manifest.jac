@@ -7,23 +7,7 @@ import from jaclang.cli.manifest {
     VERB_BUDGET
 }
 
-glob CORE_MODULES: list[str] = [
-         "jaclang.cli.commands.execution",
-         "jaclang.cli.commands.analysis",
-         "jaclang.cli.commands.build",
-         "jaclang.cli.commands.transform",
-         "jaclang.cli.commands.project",
-         "jaclang.cli.commands.guide",
-         "jaclang.cli.commands.eject",
-         "jaclang.cli.commands.tools",
-         "jaclang.cli.commands.config",
-         "jaclang.cli.commands.db",
-         "jaclang.cli.commands.nacompile",
-         "jaclang.cli.commands.ai",
-         "jaclang.cli.commands.code",
-         "jaclang.cli.commands.browse"
-     ],
-     FEATURE_MODULES: list[str] = [
+glob FEATURE_MODULES: list[str] = [
          "jaclang.byllm.cli",
          "jaclang.cli.shadcn.cli",
          "jaclang.runtimelib.client.cli",
@@ -32,11 +16,37 @@ glob CORE_MODULES: list[str] = [
      ],
      MANIFEST_IMPL_REL: str = "cli/impl/manifest.impl.jac";
 
+def _discover_core_modules -> list[str] {
+    src_root = _resolve_jaclang_root();
+    if src_root is None {
+        raise RuntimeError(
+            "could not locate jaclang source root; run `jac gen-cli-manifest`"
+            " from a jaclang source checkout (or set JAC_DEV_SOURCE)."
+        );
+    }
+    cmds_dir = src_root / "jaclang" / "cli" / "commands";
+    excluded: set[str] = {"cli_helpers"};
+    seen: set[str] = set();
+    mods: list[str] = [];
+    for entry in sorted(cmds_dir.iterdir()) {
+        if entry.is_dir() or entry.suffix not in (".jac", ".py") {
+            continue;
+        }
+        stem = entry.stem;
+        if stem in excluded or stem.startswith("_") or stem in seen {
+            continue;
+        }
+        seen.add(stem);
+        mods.append(f"jaclang.cli.commands.{stem}");
+    }
+    return mods;
+}
+
 def collect -> list[CommandSpec] {
     import importlib;
     import from jaclang.cli.registry { get_registry }
 
-    for mod in CORE_MODULES + FEATURE_MODULES {
+    for mod in _discover_core_modules() + FEATURE_MODULES {
         importlib.import_module(mod);
     }
 

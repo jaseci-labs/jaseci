@@ -2043,6 +2043,94 @@ def _command_routes -> list[CommandMeta] {
             args=[]
         ),
         CommandMeta(
+            name='mcp',
+            help='Start the MCP (Model Context Protocol) server for AI-assisted Jac development',
+            group='tools',
+            tier='',
+            hidden=False,
+            handler_module='jaclang.cli.commands.mcp',
+            handler_name='mcp_cmd',
+            needs=[],
+            description="",
+            examples=[
+                ('jac mcp', 'Start MCP server with stdio transport (default)'),
+                (
+                    'jac mcp --transport streamable-http --port 3001',
+                    'Start with HTTP transport'
+                ),
+                ('jac mcp --mode lite', 'Start with lite mode for smaller models'),
+                ('jac mcp --inspect', 'List available resources, tools, and prompts')
+            ],
+            args=[
+                ArgMeta(
+                    name='transport',
+                    kind='OPTION',
+                    typ='str',
+                    default='stdio',
+                    help='Transport protocol: stdio, sse, or streamable-http',
+                    short='t',
+                    choices=['stdio', 'sse', 'streamable-http'],
+                    required=False,
+                    dest=None,
+                    metavar=None,
+                    config_key=None
+                ),
+                ArgMeta(
+                    name='port',
+                    kind='OPTION',
+                    typ='int',
+                    default=3001,
+                    help='Port for SSE/HTTP transports (default: 3001)',
+                    short='p',
+                    choices=None,
+                    required=False,
+                    dest=None,
+                    metavar=None,
+                    config_key=None
+                ),
+                ArgMeta(
+                    name='host',
+                    kind='OPTION',
+                    typ='str',
+                    default='127.0.0.1',
+                    help='Bind address for SSE/HTTP transports (default: 127.0.0.1)',
+                    short='',
+                    choices=None,
+                    required=False,
+                    dest=None,
+                    metavar=None,
+                    config_key=None
+                ),
+                ArgMeta(
+                    name='mode',
+                    kind='OPTION',
+                    typ='str',
+                    default='',
+                    help='Tool/prompt exposure mode: lite, standard, or full (default: full)',
+                    short='',
+                    choices=['lite', 'standard', 'full', ''],
+                    required=False,
+                    dest=None,
+                    metavar=None,
+                    config_key=None
+                ),
+                ArgMeta(
+                    name='inspect',
+                    kind='OPTION',
+                    typ='bool',
+                    default=False,
+                    help='Print inventory of resources, tools, and prompts then exit',
+                    short='',
+                    choices=None,
+                    required=False,
+                    dest=None,
+                    metavar=None,
+                    config_key=None
+                ),
+
+            ]
+        ),
+        CommandMeta(
             name='model',
             help='Manage byllm local-model weights (Gemma 4 and friends)',
             group='config',
@@ -2098,27 +2186,24 @@ def _command_routes -> list[CommandMeta] {
             needs=[],
             description="",
             examples=[
-                ('jac nacompile program.na.jac', 'Compile to ./program'),
+                ('jac nacompile program.jac', 'Compile to ./program'),
                 ('jac nacompile program.jac', 'Auto-promote and compile to ./program'),
-                ('jac nacompile program.na.jac -o mybin', 'Compile to ./mybin'),
+                ('jac nacompile program.jac -o mybin', 'Compile to ./mybin'),
+                ('jac nacompile program.jac --scrub', 'Clean rebuild (wipe IR cache)'),
                 (
-                    'jac nacompile program.na.jac --scrub',
-                    'Clean rebuild (wipe IR cache)'
-                ),
-                (
-                    'jac nacompile program.na.jac -g',
+                    'jac nacompile program.jac -g',
                     'Compile with DWARF debug info (gdb ./program works)'
                 ),
                 (
-                    'jac nacompile game.na.jac --target wasm32 -o game.wasm',
+                    'jac nacompile game.jac --target wasm32 -o game.wasm',
                     'Compile to a wasm module'
                 ),
                 (
-                    'jac nacompile mathlib.na.jac --shared',
+                    'jac nacompile mathlib.jac --shared',
                     'Build ./libmathlib.so exporting its `:pub` functions over the C ABI'
                 ),
                 (
-                    'jac nacompile service.na.jac --gc none --assert-no-rc',
+                    'jac nacompile service.jac --gc none --assert-no-rc',
                     'Compile and prove the artifact contains no RC/collector machinery'
                 )
             ],
@@ -2128,7 +2213,7 @@ def _command_routes -> list[CommandMeta] {
                     kind='POSITIONAL',
                     typ='str',
                     default=None,
-                    help='Path to .jac or .na.jac file',
+                    help='Path to the .jac file to compile natively',
                     short=None,
                     choices=None,
                     required=True,

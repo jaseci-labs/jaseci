@@ -23,28 +23,17 @@ import subprocess;
 import sys;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
+import from jaclang.cli.gen_cli_manifest { _discover_core_modules }
 
 glob REPO: str = str(Path(JAC_ROOT).parent),
-     # The authoritative core registration modules (must match the
-     # generator-owned CORE_MODULES list in gen_cli_manifest.jac). Loading any
-     # single command must not import registration modules outside this command's
-     # owning module.
-     REGISTRATION_SHORT: set[str] = {
-         "execution",
-         "analysis",
-         "build",
-         "transform",
-         "project",
-         "guide",
-         "eject",
-         "tools",
-         "config",
-         "db",
-         "nacompile",
-         "ai",
-         "code",
-         "browse"
-     },
+     # The authoritative core registration modules, derived from the same
+     # filesystem discovery the manifest generator uses
+     # (gen_cli_manifest._discover_core_modules) so the two cannot drift apart.
+     # Loading any single command must not import registration modules outside
+     # that command's owning module.
+     REGISTRATION_SHORT: set[str] = set(
+         m.split(".")[-1] for m in _discover_core_modules()
+     ),
      # Commands representative of every family: core runtime (run), compiler
      # analysis (check), config/filesystem (config), pure tool (guide), client
      # (build), and a hidden tool command (dot -> tools).
