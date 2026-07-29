@@ -1335,8 +1335,13 @@ impl JacPersistence.destroy(
         if JacRuntimeInterface.check_write_access(anchor, op_hint="delete") {
             match anchor {
                 case NodeAnchor():
+                    import from jaclang.runtimelib.topo_utils { on_edge_destroyed }
                     for `edge in anchor.edges[:] {
-                        JacRuntimeInterface.destroy([`edge]);
+                        if `edge.is_populated() {
+                            on_edge_destroyed(`edge.source, `edge.target, `edge);
+                        }
+                        `edge.detach();
+                        JacRuntimeInterface.get_context().mem.delete(`edge.id);
                     }
 
                 case EdgeAnchor():
