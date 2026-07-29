@@ -34,34 +34,31 @@ def:pub EditUserModal(
         onClose();
     }
 
-    return
-        <Modal isOpen={isOpen} onClose={handleClose} title={"Edit " + username}>
-            <form onSubmit={handleSubmit}>
-                <InlineAlert message={editError} type="error"/>
-                <Select
-                    label="Role"
-                    value={editRole}
-                    onChange={lambda (e: any) { editRole = e.target.value; }}
-                    options={ROLE_OPTIONS}
-                    className="mb-3"
-                />
-                <div className="mb-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={editResetPassword}
-                            onChange={lambda (e: any) { editResetPassword = e.target.checked; }}
-                            className="w-4 h-4 rounded border-line bg-bg text-accent focus:ring-accent focus:ring-offset-0"
-                        />
-                        <span className="text-xs text-muted">
-                            Require password reset
-                        </span>
-                    </label>
-                </div>
-                <ModalFooter>
-                    <Button variant="ghost" onClick={handleClose}>Cancel</Button>
-                    <Button type="submit">Save</Button>
-                </ModalFooter>
-            </form>
-        </Modal>;
+    <Modal isOpen={isOpen} onClose={handleClose} title={"Edit " + username}>
+        <form onSubmit={handleSubmit}>
+            <InlineAlert message={editError} type="error"/>
+            <Select
+                label="Role"
+                value={editRole}
+                onChange={lambda (e: any) { editRole = e.target.value; }}
+                options={ROLE_OPTIONS}
+                className="mb-3"
+            />
+            <div className="mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={editResetPassword}
+                        onChange={lambda (e: any) { editResetPassword = e.target.checked; }}
+                        className="w-4 h-4 rounded border-line bg-bg text-accent focus:ring-accent focus:ring-offset-0"
+                    />
+                    <span className="text-xs text-muted">Require password reset</span>
+                </label>
+            </div>
+            <ModalFooter>
+                <Button variant="ghost" onClick={handleClose}>Cancel</Button>
+                <Button type="submit">Save</Button>
+            </ModalFooter>
+        </form>
+    </Modal>
 }

@@ -9,8 +9,8 @@ plus the `__JacOutletContext` bridge that delivers `props.children` to `Outlet`.
 import from "@jac/runtime" { Outlet }
 
 def:pub layout -> JsxLayout {
-    return <div data-testid="layout">
+    <div data-testid="layout">
         <nav data-testid="chrome">chrome</nav>
         <Outlet/>
-    </div>;
+    </div>
 }

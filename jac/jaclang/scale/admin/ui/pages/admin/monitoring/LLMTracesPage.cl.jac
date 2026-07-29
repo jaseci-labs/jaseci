@@ -439,135 +439,128 @@ def:pub LLMTracesPage -> JsxElement {
         return items;
     }
 
-    return
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-fg">LLM Traces</h2>
-                <div className="flex items-center gap-3">
-                    <label
-                        className="flex items-center gap-2 text-sm text-muted cursor-pointer"
-                    >
-                        <input
-                            type="checkbox"
-                            checked={autoRefresh}
-                            onChange={lambda (e: any) { autoRefresh = e.target.checked; }}
-                            className="rounded border-line bg-surface-2 text-teal-500 focus:ring-teal-500"
-                        />
-                        Auto-refresh
-                    </label>
-                    <Button
-                        onClick={lambda {
-                            isLoading = True;
-                            loadTraces();
-                        }}
-                        variant="secondary"
-                    >
-                        Refresh
-                    </Button>
-                </div>
-            </div>
-            {len(traces) == 0
-            and <div
-                className="bg-surface border border-line rounded-lg p-8 text-center"
-            >
-                <div className="text-faint text-lg mb-2">No traces yet</div>
-                <div className="text-faint text-sm">
-                    Make some LLM calls to see traces here
-                </div>
-            </div>}
-            {len(traces) > 0
-            and <div
-                className="bg-surface border border-line rounded-lg overflow-hidden"
-            >
-                <div
-                    className="flex items-center px-4 py-2.5 border-b border-line text-xs text-faint font-semibold uppercase tracking-wider"
+    <div className="space-y-6">
+        <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-fg">LLM Traces</h2>
+            <div className="flex items-center gap-3">
+                <label
+                    className="flex items-center gap-2 text-sm text-muted cursor-pointer"
                 >
-                    <div className="flex-1">Trace</div>
-                    <div className="w-14 text-right">Calls</div>
-                    <div className="w-20 text-right">Tokens</div>
-                    <div className="w-24 text-right">Cost</div>
-                    <div className="w-16 text-right">Latency</div>
-                    <div className="w-16 text-right">Time</div>
-                </div>
-                {[
+                    <input
+                        type="checkbox"
+                        checked={autoRefresh}
+                        onChange={lambda (e: any) { autoRefresh = e.target.checked; }}
+                        className="rounded border-line bg-surface-2 text-teal-500 focus:ring-teal-500"
+                    />
+                    Auto-refresh
+                </label>
+                <Button
+                    onClick={lambda {
+                        isLoading = True;
+                        loadTraces();
+                    }}
+                    variant="secondary"
+                >
+                    Refresh
+                </Button>
+            </div>
+        </div>
+        {len(traces) == 0
+        and <div className="bg-surface border border-line rounded-lg p-8 text-center">
+            <div className="text-faint text-lg mb-2">No traces yet</div>
+            <div className="text-faint text-sm">
+                Make some LLM calls to see traces here
+            </div>
+        </div>}
+        {len(traces) > 0
+        and <div className="bg-surface border border-line rounded-lg overflow-hidden">
+            <div
+                className="flex items-center px-4 py-2.5 border-b border-line text-xs text-faint font-semibold uppercase tracking-wider"
+            >
+                <div className="flex-1">Trace</div>
+                <div className="w-14 text-right">Calls</div>
+                <div className="w-20 text-right">Tokens</div>
+                <div className="w-24 text-right">Cost</div>
+                <div className="w-16 text-right">Latency</div>
+                <div className="w-16 text-right">Time</div>
+            </div>
+            {[
+                <div
+                    key={item["trace"]["invocation_id"]}
+                    className="flex items-center px-4 py-3 border-b border-line hover:bg-surface-2 transition-colors cursor-pointer"
+                >
                     <div
-                        key={item["trace"]["invocation_id"]}
-                        className="flex items-center px-4 py-3 border-b border-line hover:bg-surface-2 transition-colors cursor-pointer"
+                        className="flex-1 flex items-center gap-2 min-w-0"
+                        style={{"paddingLeft": String(item["depth"] * 28) + "px"}}
+                        onClick={lambda { loadTraceDetail(
+                            item["trace"]["invocation_id"]
+                        ); }}
                     >
-                        <div
-                            className="flex-1 flex items-center gap-2 min-w-0"
-                            style={{"paddingLeft": String(item["depth"] * 28) + "px"}}
-                            onClick={lambda { loadTraceDetail(
-                                item["trace"]["invocation_id"]
-                            ); }}
+                        {(item["trace"]["child_count"] or 0) > 0
+                        and <button
+                            className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-muted hover:text-teal-400 rounded hover:bg-surface-2"
+                            onClick={lambda (e: any) {
+                                e.stopPropagation();
+                                toggleExpand(item["trace"]["invocation_id"]);
+                            }}
                         >
-                            {(item["trace"]["child_count"] or 0) > 0
-                            and <button
-                                className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-muted hover:text-teal-400 rounded hover:bg-surface-2"
-                                onClick={lambda (e: any) {
-                                    e.stopPropagation();
-                                    toggleExpand(item["trace"]["invocation_id"]);
-                                }}
-                            >
-                                {expandedIds.indexOf(
-                                    item["trace"]["invocation_id"]
-                                ) >= 0
-                                and <span className="text-xs">▼</span>}{expandedIds.indexOf(
-                                    item["trace"]["invocation_id"]
-                                ) < 0
-                                and <span className="text-xs">▶</span>}
-                            </button>}
-                            {(item["trace"]["child_count"] or 0) == 0
-                            and <span className="flex-shrink-0 w-5"/>}
-                            {item["depth"] > 0
-                            and <span className="text-faint text-xs mr-1">└</span>}
-                            <span
-                                className={getStatusBadge(
-                                    item["trace"]["status"] or "unknown"
-                                )}
-                            >
-                                {item["trace"]["status"] or "unknown"}
-                            </span>
-                            <span
-                                className="text-purple-300 font-mono text-sm truncate hover:text-purple-200"
-                            >
-                                {item["trace"]["caller_name"] or "unknown"}
-                            </span>
                             {expandedIds.indexOf(item["trace"]["invocation_id"]) >= 0
-                            and not childrenMap[item["trace"]["invocation_id"]]
-                            and <span className="text-teal-400 text-xs animate-pulse">
-                                loading...
-                            </span>}
-                        </div>
-                        <div className="w-14 text-right text-sm text-muted">
-                            {String(
-                                item["trace"]["aggregated_llm_call_count"]
-                                or item["trace"]["llm_call_count"]
-                                or 0
+                            and <span className="text-xs">▼</span>}{expandedIds.indexOf(
+                                item["trace"]["invocation_id"]
+                            ) < 0
+                            and <span className="text-xs">▶</span>}
+                        </button>}
+                        {(item["trace"]["child_count"] or 0) == 0
+                        and <span className="flex-shrink-0 w-5"/>}
+                        {item["depth"] > 0
+                        and <span className="text-faint text-xs mr-1">└</span>}
+                        <span
+                            className={getStatusBadge(
+                                item["trace"]["status"] or "unknown"
                             )}
-                        </div>
-                        <div className="w-20 text-right text-sm text-muted">
-                            {formatTokens(
-                                item["trace"]["aggregated_total_tokens"]
-                                or item["trace"]["total_tokens"]
-                                or 0
-                            )}
-                        </div>
-                        <div className="w-24 text-right text-sm text-yellow-400">
-                            {formatCost(
-                                item["trace"]["aggregated_total_cost"]
-                                or item["trace"]["total_cost"]
-                                or 0
-                            )}
-                        </div>
-                        <div className="w-16 text-right text-sm text-muted">
-                            {formatLatency(item["trace"]["total_latency_ms"] or 0)}
-                        </div>
-                        <div className="w-16 text-right text-sm text-faint">
-                            {formatTimestamp(item["trace"]["timestamp"] or "")}
-                        </div>
-                    </div> for item in getDisplayItems()
-                ]}
-            </div>}
-        </div>;
+                        >
+                            {item["trace"]["status"] or "unknown"}
+                        </span>
+                        <span
+                            className="text-purple-300 font-mono text-sm truncate hover:text-purple-200"
+                        >
+                            {item["trace"]["caller_name"] or "unknown"}
+                        </span>
+                        {expandedIds.indexOf(item["trace"]["invocation_id"]) >= 0
+                        and not childrenMap[item["trace"]["invocation_id"]]
+                        and <span className="text-teal-400 text-xs animate-pulse">
+                            loading...
+                        </span>}
+                    </div>
+                    <div className="w-14 text-right text-sm text-muted">
+                        {String(
+                            item["trace"]["aggregated_llm_call_count"]
+                            or item["trace"]["llm_call_count"]
+                            or 0
+                        )}
+                    </div>
+                    <div className="w-20 text-right text-sm text-muted">
+                        {formatTokens(
+                            item["trace"]["aggregated_total_tokens"]
+                            or item["trace"]["total_tokens"]
+                            or 0
+                        )}
+                    </div>
+                    <div className="w-24 text-right text-sm text-yellow-400">
+                        {formatCost(
+                            item["trace"]["aggregated_total_cost"]
+                            or item["trace"]["total_cost"]
+                            or 0
+                        )}
+                    </div>
+                    <div className="w-16 text-right text-sm text-muted">
+                        {formatLatency(item["trace"]["total_latency_ms"] or 0)}
+                    </div>
+                    <div className="w-16 text-right text-sm text-faint">
+                        {formatTimestamp(item["trace"]["timestamp"] or "")}
+                    </div>
+                </div> for item in getDisplayItems()
+            ]}
+        </div>}
+    </div>
 }

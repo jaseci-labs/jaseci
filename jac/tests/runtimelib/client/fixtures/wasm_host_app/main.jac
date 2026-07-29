@@ -27,12 +27,11 @@ cl {
             status = "booted";
         }
 
-        return
-            <div style={{"padding": "1rem", "fontFamily": "system-ui, sans-serif"}}>
-                <button data-testid="boot" onClick={lambda (e: any) { boot(); }}>
-                    Boot wasm
-                </button>
-                <span data-testid="status">{status}</span>
-            </div>;
+        <div style={{"padding": "1rem", "fontFamily": "system-ui, sans-serif"}}>
+            <button data-testid="boot" onClick={lambda (e: any) { boot(); }}>
+                Boot wasm
+            </button>
+            <span data-testid="status">{status}</span>
+        </div>
     }
 }
