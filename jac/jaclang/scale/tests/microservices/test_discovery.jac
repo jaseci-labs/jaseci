@@ -111,7 +111,7 @@ test "scan_markers returns multiple sv-import targets" {
 }
 
 test "discover registers .sv.jac services under their logical module stem" {
-    # base_stem applies to all variant suffixes (.sv/.cl/.na.jac), not only .sv.jac.
+    # base_stem applies to all variant suffixes (.sv/.cl), not only .sv.jac.
     tmp = tempfile.mkdtemp();
     (Path(tmp) / "main.jac").write_text("with entry { print(1); }\n");
     (Path(tmp) / "products_app.sv.jac").write_text(

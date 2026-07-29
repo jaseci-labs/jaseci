@@ -9,27 +9,19 @@ cl {
     glob setUiState = _uiState[1];
 
     # UI Component
-    def: pub Button(label: str) -> JsxElement {
-        return <button
-            onclick={handleClick}
-        >
-            {label}
-        </button>;
+    def:pub Button(label: str) -> JsxElement {
+        <button onclick={handleClick}>{label}</button>
     }
 
-    def: pub handleClick()  -> None {
+    def:pub handleClick {
         navigate("/clicked");
     }
 
     # Another component
-    def: pub Card(title: str) -> JsxElement {
-        return <div class="card">
-            <h2>
-                {title}
-            </h2>
-            <p>
-                Current theme: {uiState["theme"]}
-            </p>
-        </div>;
+    def:pub Card(title: str) -> JsxElement {
+        <div class="card">
+            <h2>{title}</h2>
+            <p>Current theme: {uiState["theme"]}</p>
+        </div>
     }
 }

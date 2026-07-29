@@ -23,12 +23,12 @@ cl {
     def:pub Counter() -> JsxElement {
         has count: int = 0;  # Reactive state
 
-        return <div>
+        <div>
             <p>Count: {count}</p>
             <button onClick={lambda -> None { count = count + 1; }}>
                 Increment
             </button>
-        </div>;
+        </div>
     }
 }
 ```
@@ -59,7 +59,7 @@ cl {
             return <p>Thanks, {name}!</p>;
         }
 
-        return <form>
+        <form>
             <input
                 value={name}
                 onChange={lambda (e: ChangeEvent) { name = e.target.value; }}
@@ -76,7 +76,7 @@ cl {
             >
                 Submit
             </button>
-        </form>;
+        </form>
     }
 }
 ```
@@ -102,7 +102,7 @@ cl {
             todos = [t for t in todos if t["id"] != id];
         }
 
-        return <div>
+        <div>
             <input
                 value={input_text}
                 onChange={lambda (e: ChangeEvent) { input_text = e.target.value; }}
@@ -120,7 +120,7 @@ cl {
                     for todo in todos
                 ]}
             </ul>
-        </div>;
+        </div>
     }
 }
 ```
@@ -155,9 +155,9 @@ cl {
             return <p>Loading...</p>;
         }
 
-        return <ul>
+        <ul>
             {[<li key={item.id}>{item.name}</li> for item in data]}
-        </ul>;
+        </ul>
     }
 }
 ```
@@ -179,7 +179,7 @@ cl {
             }
         }
 
-        return <div>
+        <div>
             <input
                 value={query}
                 onChange={lambda (e: ChangeEvent) { query = e.target.value; }}
@@ -187,7 +187,7 @@ cl {
             <ul>
                 {[<li>{r}</li> for r in results]}
             </ul>
-        </div>;
+        </div>
     }
 }
 ```
@@ -210,7 +210,7 @@ cl {
             cleanup_subscriptions();
         }
 
-        return <p>{len(events)} events</p>;
+        <p>{len(events)} events</p>
     }
 }
 ```
@@ -231,7 +231,7 @@ cl {
             return lambda { clearInterval(intervalId); };
         }, []);
 
-        return <p>Seconds: {seconds}</p>;
+        <p>Seconds: {seconds}</p>
     }
 }
 ```
@@ -251,7 +251,7 @@ cl {
             fetch_data();
         }, []);
 
-        return <div>...</div>;
+        <div>...</div>
     }
 }
 ```
@@ -271,10 +271,10 @@ cl {
             if inputRef.current { inputRef.current.focus(); }
         }
 
-        return <div>
+        <div>
             <input ref={inputRef} type="text" />
             <button onClick={lambda -> None { focus(); }}>Focus</button>
-        </div>;
+        </div>
     }
 }
 ```
@@ -292,7 +292,7 @@ The example above uses a ref *inside* a component. The other direction -- lettin
 ```jac
 cl {
     def:pub FancyInput(props: any, ref: Ref[HTMLInputElement]) -> JsxElement {
-        return <input ref={ref} className="fancy" {**props} />;
+        <input ref={ref} className="fancy" {**props} />
     }
 }
 ```
@@ -303,7 +303,7 @@ This lowers to `const FancyInput = forwardRef(function FancyInput(props, ref) { 
 cl {
     def:pub ParentForm() -> JsxElement {
         has inputRef: Ref[HTMLInputElement] = Ref();
-        return <FancyInput ref={inputRef} placeholder="Type here" />;
+        <FancyInput ref={inputRef} placeholder="Type here" />
     }
 }
 ```
@@ -339,9 +339,9 @@ cl {
             "setTheme": lambda (t: str) -> None { theme = t; }
         };
 
-        return <AppContext.Provider value={value}>
+        <AppContext.Provider value={value}>
             {children}
-        </AppContext.Provider>;
+        </AppContext.Provider>
     }
 
     # Consumer component
@@ -351,24 +351,24 @@ cl {
         if ctx.user {
             return <p>Welcome, {ctx.user.name}!</p>;
         }
-        return <p>Not logged in</p>;
+        <p>Not logged in</p>
     }
 
     def:pub ThemeToggle() -> JsxElement {
         ctx = useContext(AppContext);
 
-        return <button onClick={lambda -> None {
+        <button onClick={lambda -> None {
             ctx.setTheme("dark" if ctx.theme == "light" else "light");
         }}>
             Toggle Theme ({ctx.theme})
-        </button>;
+        </button>
     }
 
     def:pub app() -> JsxElement {
-        return <AppProvider>
+        <AppProvider>
             <UserDisplay />
             <ThemeToggle />
-        </AppProvider>;
+        </AppProvider>
     }
 }
 ```
@@ -406,7 +406,7 @@ cl {
     def:pub Settings() -> JsxElement {
         (theme, set_theme) = use_local_storage("theme", "light");
 
-        return <div>
+        <div>
             <p>Current theme: {theme}</p>
             <button onClick={lambda -> None { set_theme("dark"); }}>
                 Dark
@@ -414,7 +414,7 @@ cl {
             <button onClick={lambda -> None { set_theme("light"); }}>
                 Light
             </button>
-        </div>;
+        </div>
     }
 }
 ```
@@ -442,7 +442,7 @@ cl {
             return <div className="error">{error}</div>;
         }
 
-        return <div>{data}</div>;
+        <div>{data}</div>
     }
 }
 ```
@@ -483,13 +483,13 @@ cl {
             }
         }
 
-        return <form>
+        <form>
             <input
                 value={form_data["name"]}
                 onChange={lambda (e: ChangeEvent) { update_field("name", e.target.value); }}
             />
             {errors.get("name") and <span className="error">{errors["name"]}</span>}
-        </form>;
+        </form>
     }
 }
 ```

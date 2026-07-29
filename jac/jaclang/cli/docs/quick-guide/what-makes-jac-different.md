@@ -57,11 +57,11 @@ def:pub app -> JsxElement {
         items = items + [todo];
     }
 
-    return <div>
+    <div>
         <button onClick={lambda -> None { add(); }}>
             Add
         </button>
-    </div>;
+    </div>
 }
 ```
 
@@ -84,15 +84,16 @@ Inference can always be overridden. To pin code to a codespace -- or simply to m
 
 - `prog.sv.jac` -- top-level code defaults to server
 - `prog.cl.jac` -- top-level code defaults to client
-- `prog.na.jac` -- top-level code defaults to native
-- `prog.jac` -- placement is inferred (server unless client or native signals say otherwise)
+- `prog.jac` -- placement is inferred (whole-module native under the default `[build] default_codespace = "native"` when the module can lower, otherwise server; client parts follow their signals)
+
+Native has no file extension -- whole-module native placement is inferred, or forced with `jac nacompile` / `jac build --as native`.
 
 Any `.jac` file can still use all codespace forms regardless of its extension. The extension only changes what the default is for untagged code.
 
 Three rules make the two styles interchangeable:
 
 - **Markers always win.** Inference never moves anything tagged with a block, prefix, or extension -- the most useful pin is `sv` on a declaration you want kept server-side even though client code references it.
-- **Native compatibility is not intent.** Extern C declarations infer native placement, but pure code that merely *could* compile natively stays on the server -- without an FFI seed, taking it native is your call, made via `na { }`, `.na.jac`, or `jac nacompile`.
+- **Whole modules go native by inference.** Under the default `[build] default_codespace = "native"`, a markerless module that can lower compiles native, and one that cannot demotes to the server with a note; extern C declarations seed native placement inside mixed files. To force the choice -- loud errors instead of demotion -- use `na { }`, `jac nacompile`, or `jac build --as native`.
 - **The two styles compile identically.** A markerless file produces byte-identical output to its marker-annotated equivalent; the example above wrapped in an explicit `cl { ... }` block is the same program.
 
 Codespaces are similar to namespaces, but instead of organizing names, they organize where code executes. Interop between them -- function calls, spawn calls, type sharing -- is handled by the compiler and runtime.

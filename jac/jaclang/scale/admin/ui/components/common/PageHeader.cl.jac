@@ -28,25 +28,24 @@ def:pub PageHeader(
             Refresh
         </button>;
     }
-    return
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-                <Icon className="w-5 h-5 text-accent"/>
-                <h1 className="text-lg font-semibold text-fg">{title}</h1>
-                {<span className="text-xs text-faint">{namespace}</span>
-                    if namespace
-                    else None}
-                {<span
-                    className="ml-1 inline-flex items-center gap-1.5 text-xs text-success"
-                >
-                    <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
-                    Live
-                </span>
-                    if live
-                    else None}
-            </div>
-            {rightContent}
-        </div>;
+    <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+            <Icon className="w-5 h-5 text-accent"/>
+            <h1 className="text-lg font-semibold text-fg">{title}</h1>
+            {<span className="text-xs text-faint">{namespace}</span>
+                if namespace
+                else None}
+            {<span
+                className="ml-1 inline-flex items-center gap-1.5 text-xs text-success"
+            >
+                <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
+                Live
+            </span>
+                if live
+                else None}
+        </div>
+        {rightContent}
+    </div>
 }
 
 def:pub OpsUnavailableBanner(

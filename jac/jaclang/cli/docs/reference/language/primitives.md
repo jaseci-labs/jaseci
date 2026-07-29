@@ -37,9 +37,9 @@ A **codespace** determines *where* your code runs. By default you do not have to
 
 The rules are:
 
-- **Server is the default.** Unmarked code compiles to the Python backend, exactly as before.
+- **Server is the default element placement.** Within a module anchored to the server (endpoints, graph archetypes, Python imports, JSX, ...), unmarked code compiles to the Python backend, exactly as before.
 - **Client is inferred.** Declarations whose syntax is structurally client-only -- JSX, or a string-path import from the npm ecosystem (`import from "react" { ... }`) -- are placed in the client codespace automatically. From those seeds, placement propagates through symbol references: a helper, `glob`, or import that client code uses joins the client bundle too. Propagation is scope-aware (a local variable that shadows a module-level name does not count) and never relocates things the compiler already bridges across the boundary -- `def:pub` endpoints and walkers stay on the server behind auto-generated RPC calls, and top-level objects referenced from both sides are shared into the bundle.
-- **Native is inferred from FFI surfaces.** An import whose braces contain C-ABI function *declarations* (`import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) declares an extern surface only the native backend can satisfy, so it seeds native placement, and code using those extern names follows. Consuming a native *module* (`import from mymod { fast_fn }` where `mymod` is native) is NOT a native signal -- that is the server-to-native interop crossing. Native-*compatible* pure code still defaults to server: compatibility is not intent, and the build decision stays with `na` markers or `nacompile` targeting.
+- **Native is inferred from FFI surfaces.** An import whose braces contain C-ABI function *declarations* (`import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) declares an extern surface only the native backend can satisfy, so it seeds native placement, and code using those extern names follows. Consuming a native *module* (`import from mymod { fast_fn }` where `mymod` is native) is NOT a native signal -- that is the server-to-native interop crossing. Whole markerless modules are placed at module granularity: under `[build] default_codespace = "native"` (the default), the placement solver compiles a module native when its import closure can lower, and a module that prefers native but cannot lower demotes to the server codespace with a note. Inside a server-anchored module, native-*compatible* pure code stays server: there, compatibility is not intent, and the decision stays with `na` markers or the forced path (`jac nacompile` / `jac build --as native` / `CompileOptions(force_codespace='native')`).
 - **Explicit markers always win.** Inference never overrides an `sv`/`cl`/`na` block, prefix, or file extension.
 
 ### Inferred placement (the default)
@@ -62,7 +62,7 @@ def:pub app() -> JsxElement {           # JSX: seeds client
     async def load() -> None {
         items = await fetch_items();    # compiler generates the HTTP call
     }
-    return <ul>{[<li class={row_class(i)}>{it}</li> for (i, it) in enumerate(items)]}</ul>;
+    <ul>{[<li class={row_class(i)}>{it}</li> for (i, it) in enumerate(items)]}</ul>
 }
 ```
 
@@ -76,14 +76,14 @@ You can pin a codespace with a file extension or, within a file, a **braced bloc
 |-----------|--------------|-----------------|----------------|-------------|-----------|
 | Server    | `sv { }` | `sv stmt` | `.sv.jac` or `.jac` (default) | Python | PyPI |
 | Client    | `cl { }` | `cl stmt` | `.cl.jac` | JavaScript / TypeScript | npm |
-| Native    | `na { }` | `na stmt` | `.na.jac` | LLVM IR → machine code | C ABI |
+| Native    | `na { }` | `na stmt` | -- (inferred; forced via `jac nacompile` / `jac build --as native`) | LLVM IR → machine code | C ABI |
 
 A `cl { ... }` / `sv { ... }` / `na { ... }` block tags every element inside it for that codespace:
 
 ```jac
 cl {
     def:pub Greeting(props: dict) -> JsxElement {
-        return <h1>Hello, {props.name}!</h1>;
+        <h1>Hello, {props.name}!</h1>
     }
 }
 ```
@@ -112,7 +112,7 @@ def:pub app() -> JsxElement {
     async def load() -> None {
         items = await fetch_items();      # compiler generates the HTTP call
     }
-    return <ul>{items}</ul>;
+    <ul>{items}</ul>
 }
 ```
 

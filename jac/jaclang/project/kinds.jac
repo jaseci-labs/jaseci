@@ -28,7 +28,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="cli-native",
                  description="Natively-compiled Jac program (compiled and run)",
-                 entry="main.na.jac",
+                 entry="main.jac",
                  action="execute",
                  verb="run",
                  summary="Execute {kind} entry-point {entry}"
@@ -36,7 +36,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="native-binary",
                  description="Natively-compiled standalone binary (built into dist/)",
-                 entry="main.na.jac",
+                 entry="main.jac",
                  action="build",
                  verb="nacompile",
                  summary="Build native binary -> {output}",
@@ -45,7 +45,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="native-lib",
                  description="Natively-compiled shared library (.so / .dylib / .dll)",
-                 entry="main.na.jac",
+                 entry="main.jac",
                  action="build",
                  verb="nacompile",
                  summary="Build shared library (.so / .dylib / .dll)",
@@ -224,9 +224,6 @@ def resolve_project_kind(config: JacConfig, entry_path: str) -> str {
         return explicit;
     }
     entry_codespace = codespace_of(entry_path);
-    if (entry_codespace == 'native') {
-        return "cli-native";
-    }
     if (entry_codespace == 'server') {
         return "service";
     }

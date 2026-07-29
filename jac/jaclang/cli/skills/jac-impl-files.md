@@ -75,12 +75,12 @@ def:pub app -> JsxElement {
     async def loadItems -> None;            # handler stubs - bodies in the annex
     async def addItem -> None;
 
-    return <div>
+    <div>
         <input value={draft} onChange={lambda (e: ChangeEvent) { draft = e.target.value; }}/>
         <button onClick={addItem}>Add</button>
         {if loading { <p>Loading...</p> }}
         {for it in items { <li key={it}>{it}</li> }}
-    </div>;
+    </div>
 }
 
 # frontend.impl.jac - bodies; `has` state is bare (no self.), writes re-render
@@ -112,7 +112,7 @@ impl app.addItem -> None {
 ## Other annexes and module variants
 
 - **`.test.jac`**: `mod.test.jac` is the test annex - `test name { assert ...; }` blocks that see `mod`'s symbols without imports; run with `jac test` (see `jac-testing`).
-- **Variant modules**: placement is inferred, so a plain `.jac` module is the default; the `.sv`/`.cl`/`.na` suffixes are the explicit form for splitting one logical module across codespaces (see `jac-codespaces`). `mod.sv.jac` (server), `mod.cl.jac` (client), `mod.na.jac` (native) are auto-discovered and merged into one logical module `mod`. Head-module precedence: `.jac` > `.sv.jac` > `.cl.jac` > `.na.jac` - the highest-precedence existing file is the head; the rest attach as variant annexes. Variant impls pair by full name (`mod.sv.impl.jac` implements `mod.sv.jac` decls); a head `mod.impl.jac` may implement declarations from *any* variant.
+- **Variant modules**: placement is inferred, so a plain `.jac` module is the default; the `.sv`/`.cl` suffixes are the explicit form for splitting one logical module across the server and client codespaces (see `jac-codespaces`; native placement is inferred or forced, never a filename suffix). `mod.sv.jac` (server) and `mod.cl.jac` (client) are auto-discovered and merged into one logical module `mod`. Head-module precedence: `.jac` > `.sv.jac` > `.cl.jac` - the highest-precedence existing file is the head; the rest attach as variant annexes. Variant impls pair by full name (`mod.sv.impl.jac` implements `mod.sv.jac` decls); a head `mod.impl.jac` may implement declarations from *any* variant.
 - **Packages need no `__init__.jac`.** Any directory with `.jac` files is importable (`import from utils.math_utils { add }`). Add `__init__.jac` only as a re-export barrel (`import from .operations { add }` so consumers write `import from mathlib { add }`) or for package-init code.
 
 ## See also

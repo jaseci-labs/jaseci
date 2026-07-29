@@ -15,7 +15,7 @@ import ".styles.global.css";                    # string-path import -> client
 import from .recipes.RecipesShell { RecipesShell }   # pulled client: app() renders it
 
 def:pub app() -> JsxElement {                   # JSX -> inferred client
-    return <RecipesShell />;
+    <RecipesShell />
 }
 ```
 

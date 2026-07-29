@@ -1106,21 +1106,13 @@ impl NaIRGenPass._emit_binary_op(
     }
     i8p_type = ir.IntType(8).as_pointer();
     if op == Tok.PLUS and left.type == i8p_type and right.type == i8p_type {
-        strlen_fn = self._get_or_declare_extern(
-            "strlen", ir.IntType(64), [ir.IntType(8).as_pointer()]
+        _i8p_cc = ir.IntType(8).as_pointer();
+        _i64_cc = ir.IntType(64);
+        memcpy_cc = self._get_or_declare_extern(
+            "memcpy", _i8p_cc, [_i8p_cc, _i8p_cc, _i64_cc]
         );
-        strcpy_fn = self._get_or_declare_extern(
-            "strcpy",
-            ir.IntType(8).as_pointer(),
-            [ir.IntType(8).as_pointer(), ir.IntType(8).as_pointer()]
-        );
-        strcat_fn = self._get_or_declare_extern(
-            "strcat",
-            ir.IntType(8).as_pointer(),
-            [ir.IntType(8).as_pointer(), ir.IntType(8).as_pointer()]
-        );
-        len1 = self.builder.call(strlen_fn, [left], name="len1");
-        len2 = self.builder.call(strlen_fn, [right], name="len2");
+        len1 = self._call_str_len(self.builder, left, name="len1");
+        len2 = self._call_str_len(self.builder, right, name="len2");
         total = self.builder.add(len1, len2, name="total_len");
         buf_size = self.builder.add(
             total, ir.Constant(ir.IntType(64), 1), name="buf_size"
@@ -1133,8 +1125,13 @@ impl NaIRGenPass._emit_binary_op(
             loc=_concat_loc,
             name="concat.buf"
         );
-        self.builder.call(strcpy_fn, [buf, left]);
-        self.builder.call(strcat_fn, [buf, right]);
+        self.builder.call(memcpy_cc, [buf, left, len1]);
+        _cc_dst2 = self.builder.gep(buf, [len1], name="concat.dst2");
+        self.builder.call(memcpy_cc, [_cc_dst2, right, len2]);
+        _cc_end = self.builder.gep(buf, [total], name="concat.end");
+        self.builder.store(ir.Constant(ir.IntType(8), 0), _cc_end);
+        self._emit_set_type_tag(self.builder, buf, "str");
+        self._stamp_str_len(self.builder, buf, total);
 
         self._mark_owned(buf);
         return buf;
@@ -1184,9 +1181,8 @@ impl NaIRGenPass._emit_binary_op(
             i8 = ir.IntType(8);
             i8p = i8.as_pointer();
             i64 = ir.IntType(64);
-            strlen_fn = self._get_or_declare_extern("strlen", i64, [i8p]);
             memcpy_fn = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
-            slen = self.builder.call(strlen_fn, [str_val], name="rep.slen");
+            slen = self._call_str_len(self.builder, str_val, name="rep.slen");
 
             _rep_neg = self.builder.icmp_signed(
                 "<", int_val, ir.Constant(i64, 0), name="rep.neg"
@@ -1223,6 +1219,8 @@ impl NaIRGenPass._emit_binary_op(
             self.builder.position_at_start(done_bb);
             null_ptr = self.builder.gep(buf, [total], name="rep.null");
             self.builder.store(ir.Constant(i8, 0), null_ptr);
+            self._emit_set_type_tag(self.builder, buf, "str");
+            self._stamp_str_len(self.builder, buf, total);
             return buf;
         }
     }

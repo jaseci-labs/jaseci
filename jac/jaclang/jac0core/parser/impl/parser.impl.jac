@@ -761,7 +761,17 @@ impl Parser._check_js_arrow_fault -> bool {
 impl Parser._recover_js_arrow_fault(left: Expr) -> Expr {
     eq_tok = self.advance();
     gt_tok = self.advance();
-    self.emit_diag(E0025, loc=eq_tok.loc.span_to(gt_tok.loc));
+
+    _arrow_span = SourceLoc(
+        file_path=eq_tok.loc.file_path,
+        line=eq_tok.loc.line,
+        end_line=gt_tok.loc.end_line,
+        col_start=eq_tok.loc.col_start,
+        col_end=gt_tok.loc.col_end,
+        pos_start=eq_tok.loc.pos_start,
+        pos_end=gt_tok.loc.pos_end
+    );
+    self.emit_diag(E0025, loc=_arrow_span);
     if self.check(TokenKind.LBRACE) {
         self.advance();
         self.parse_code_block_stmts();
@@ -2862,6 +2872,7 @@ impl Parser.parse_lambda_expr -> Expr {
     if self.match_tok(TokenKind.LBRACE) {
         lbrace_uni = self.make_uni_token(self.previous());
         body = self.parse_code_block_stmts();
+        body = self._apply_implicit_return(body);
         rbrace_uni = self.consume_uni(TokenKind.RBRACE);
     } else {
         self.emit_diag(E0022);
@@ -3664,6 +3675,7 @@ impl Parser.parse_code_block_stmts -> list {
                 and self._view_body_depth == 0
                 and isinstance(stmt, ExprStmt)
                 and not stmt.in_fstring
+                and stmt.has_semi
             ) {
                 if isinstance(stmt.expr, String) {
                     is_docstring = True;
@@ -3705,6 +3717,17 @@ impl Parser.parse_code_block_stmts -> list {
         }
     }
     return stmts;
+}
+
+impl Parser._apply_implicit_return(body: list) -> list {
+    if len(body) == 0 {
+        return body;
+    }
+    last = body[-1];
+    if isinstance(last, ExprStmt) and not last.has_semi and not last.in_fstring {
+        body[-1] = ReturnStmt(expr=last.expr, is_implicit=True, kid=[last.expr]);
+    }
+    return body;
 }
 
 impl Parser.parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None {
@@ -3996,6 +4019,8 @@ impl Parser.parse_statement{
     )
     and expr.value == "new" {
         self.emit_diag(E0012, loc=self.current().loc);
+    } elif self.check(TokenKind.RBRACE) {
+        return ExprStmt(expr=expr, in_fstring=False, has_semi=False, kid=expr_kid);
     } else {
         self.emit_diag(E0002, token=";");
     }
@@ -5860,6 +5885,7 @@ impl Parser.parse_ability -> Ability {
         body_type = "brace";
         body_lb_uni = self.make_uni_token(self.previous());
         body = self.parse_code_block_stmts();
+        body = self._apply_implicit_return(body);
         body_rb_uni = self.consume_uni(TokenKind.RBRACE);
     } elif self.match_tok(TokenKind.KW_BY) {
         body_type = "by";
@@ -6596,6 +6622,7 @@ impl Parser.parse_impl_def -> ImplDef {
             body = self.parse_impl_enum_body();
         } else {
             body = self.parse_code_block_stmts();
+            body = self._apply_implicit_return(body);
         }
         rb_uni = self.consume_uni(TokenKind.RBRACE);
     } elif self.match_tok(TokenKind.KW_BY) {

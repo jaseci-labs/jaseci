@@ -279,7 +279,7 @@ def:pub ThemeListener() -> JsxElement {
         };
     }, []);
 
-    return <div className={theme}>Content</div>;
+    <div className={theme}>Content</div>
 }
 ```
 
@@ -550,7 +550,7 @@ When dragging near iframes (common in editors/previews), the iframe steals mouse
 def:pub PreviewPanel() -> JsxElement {
     has isDragging: bool = False;
 
-    return <div>
+    <div>
         <div
             onMouseDown={lambda -> None { isDragging = True; }}
             onMouseUp={lambda -> None { isDragging = False; }}
@@ -559,7 +559,7 @@ def:pub PreviewPanel() -> JsxElement {
             src={previewUrl}
             style={{"pointerEvents": ("none" if isDragging else "auto")}}
         />
-    </div>;
+    </div>
 }
 ```
 

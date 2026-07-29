@@ -63,7 +63,7 @@ def render(prog: JacProgram) -> str {
 }
 
 test "E1402 names the sealed value, not the storage container" {
-    prog = compile_enforced("e1402_names_value.na.jac");
+    prog = compile_enforced("e1402_names_value.jac");
     msgs = [
         alert.msg
         for alert in list(prog.errors_had)
@@ -78,7 +78,7 @@ test "E1402 names the sealed value, not the storage container" {
 }
 
 test "scalar reads off an owned root do not consume it" {
-    prog = compile_enforced("scalar_reads_keep_owner.na.jac");
+    prog = compile_enforced("scalar_reads_keep_owner.jac");
     codes = ownership_codes(prog);
     assert codes == [] , f"expected no ownership diagnostics, got {codes}:\n  {render(
         prog
@@ -86,7 +86,7 @@ test "scalar reads off an owned root do not consume it" {
 }
 
 test "scalar-element container shapes pass the enforcement fences" {
-    prog = compile_enforced("scalar_container_shapes.na.jac");
+    prog = compile_enforced("scalar_container_shapes.jac");
     codes = ownership_codes(prog);
     assert codes == [] , f"expected no ownership diagnostics, got {codes}:\n  {render(
         prog

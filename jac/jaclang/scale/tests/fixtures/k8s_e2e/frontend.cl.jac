@@ -301,19 +301,18 @@ def:pub app -> any {
     }
 
     # Not logged in - Auth Form
-    return
-        <AuthForm
-            isSignup={isSignup}
-            username={authUsername}
-            password={authPassword}
-            error={error}
-            loading={loading}
-            onUsernameChange={lambda (e: any) { authUsername = e.target.value; }}
-            onPasswordChange={lambda (e: any) { authPassword = e.target.value; }}
-            onSubmit={handleSubmit}
-            onToggleMode={lambda {
-                isSignup = not isSignup;
-                error = "";
-            }}
-        />;
+    <AuthForm
+        isSignup={isSignup}
+        username={authUsername}
+        password={authPassword}
+        error={error}
+        loading={loading}
+        onUsernameChange={lambda (e: any) { authUsername = e.target.value; }}
+        onPasswordChange={lambda (e: any) { authPassword = e.target.value; }}
+        onSubmit={handleSubmit}
+        onToggleMode={lambda {
+            isSignup = not isSignup;
+            error = "";
+        }}
+    />
 }

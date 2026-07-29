@@ -24,7 +24,7 @@ class BoundaryAnalysisPass(UniPass) {
     ) -> str;
 
     def _resolve_native_module(
-        self: BoundaryAnalysisPass, module_name: str
+        self: BoundaryAnalysisPass, module_name: str, inferred_ok: bool = True
     ) -> (str | None);
 
     def _in_native_module(self: BoundaryAnalysisPass) -> bool;

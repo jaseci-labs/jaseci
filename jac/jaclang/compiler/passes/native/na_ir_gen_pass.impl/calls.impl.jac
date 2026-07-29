@@ -861,11 +861,8 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
                     if _len_result is None
                     and arg_val.type == ir.IntType(8).as_pointer() {
-                        strlen_fn = self._get_or_declare_extern(
-                            "strlen", ir.IntType(64), [ir.IntType(8).as_pointer()]
-                        );
-                        _len_result = self.builder.call(
-                            strlen_fn, [arg_val], name="str.len"
+                        _len_result = self._call_str_len(
+                            self.builder, arg_val, name="str.len"
                         );
                     }
                     if _len_result is not None {

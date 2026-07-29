@@ -1,7 +1,7 @@
 """Bundled native ``gzip`` cross-backend equivalence fixture (#6978 Phase 2).
 
 The SAME ``import from gzip { compress, decompress }`` binds CPython's ``gzip``
-on the sv (Python) backend and the bundled ``na_stdlib/gzip.na.jac`` Mechanism-B
+on the sv (Python) backend and the bundled ``na_stdlib/gzip.jac`` Mechanism-B
 module -- a pure-Jac surface that frames the raw DEFLATE body of the existing
 ``zlib`` floor with the RFC 1952 gzip header/CRC-32/ISIZE wrapper (no new FFI) --
 on the na (native LLVM) backend.

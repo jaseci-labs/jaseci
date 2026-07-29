@@ -209,172 +209,165 @@ def:pub TracesPage -> JsxElement {
     # ---- render ------------------------------------------------------
     byIdMap = buildById();
 
-    return
-        <div className="space-y-4">
-            <PageHeader
-                icon={Workflow}
-                title="Distributed Traces"
-                onRefresh={lambda { loadTraces(); }}
-            />
-            <div className="flex flex-wrap gap-3 items-end">
-                <select
-                    value={filterService}
-                    onChange={lambda (e: any) { filterService = e.target.value; }}
-                    className="bg-surface border border-line rounded px-2 py-1.5 text-sm text-fg"
-                >
-                    <option value="">All services</option>
-                    {[<option key={s} value={s}>{s}</option> for s in services]}
-                </select>
-                <select
-                    value={filterStatus}
-                    onChange={lambda (e: any) { filterStatus = e.target.value; }}
-                    className="bg-surface border border-line rounded px-2 py-1.5 text-sm text-fg"
-                >
-                    <option value="">All statuses</option>
-                    <option value="error">Errors only</option>
-                </select>
-                <select
-                    value={String(filterMinDuration)}
-                    onChange={lambda (e: any) { filterMinDuration = Number(
-                        e.target.value
-                    ); }}
-                    className="bg-surface border border-line rounded px-2 py-1.5 text-sm text-fg"
-                >
-                    <option value="0">Any duration</option>
-                    <option value="100">{">"} 100ms</option>
-                    <option value="500">{">"} 500ms</option>
-                    <option value="1000">{">"} 1s</option>
-                </select>
-                <select
-                    value={filterSince}
-                    onChange={lambda (e: any) { filterSince = e.target.value; }}
-                    className="bg-surface border border-line rounded px-2 py-1.5 text-sm text-fg"
-                >
-                    <option value="15m">Last 15 min</option>
-                    <option value="1h">Last 1 hour</option>
-                    <option value="6h">Last 6 hours</option>
-                    <option value="1d">Last 24 hours</option>
-                </select>
-            </div>
-            {<div
-                className="flex items-start gap-2 text-warning text-sm bg-warning-weak border border-line rounded-md p-3"
+    <div className="space-y-4">
+        <PageHeader
+            icon={Workflow}
+            title="Distributed Traces"
+            onRefresh={lambda { loadTraces(); }}
+        />
+        <div className="flex flex-wrap gap-3 items-end">
+            <select
+                value={filterService}
+                onChange={lambda (e: any) { filterService = e.target.value; }}
+                className="bg-surface border border-line rounded px-2 py-1.5 text-sm text-fg"
             >
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5"/>
-                <span className="text-muted">
-                    Trace backend unavailable. Enable tracing with [scale.microservices.tracing].enabled = true and redeploy so Tempo + the Alloy OTLP lane come up.
-                </span>
+                <option value="">All services</option>
+                {[<option key={s} value={s}>{s}</option> for s in services]}
+            </select>
+            <select
+                value={filterStatus}
+                onChange={lambda (e: any) { filterStatus = e.target.value; }}
+                className="bg-surface border border-line rounded px-2 py-1.5 text-sm text-fg"
+            >
+                <option value="">All statuses</option>
+                <option value="error">Errors only</option>
+            </select>
+            <select
+                value={String(filterMinDuration)}
+                onChange={lambda (e: any) { filterMinDuration = Number(
+                    e.target.value
+                ); }}
+                className="bg-surface border border-line rounded px-2 py-1.5 text-sm text-fg"
+            >
+                <option value="0">Any duration</option>
+                <option value="100">{">"} 100ms</option>
+                <option value="500">{">"} 500ms</option>
+                <option value="1000">{">"} 1s</option>
+            </select>
+            <select
+                value={filterSince}
+                onChange={lambda (e: any) { filterSince = e.target.value; }}
+                className="bg-surface border border-line rounded px-2 py-1.5 text-sm text-fg"
+            >
+                <option value="15m">Last 15 min</option>
+                <option value="1h">Last 1 hour</option>
+                <option value="6h">Last 6 hours</option>
+                <option value="1d">Last 24 hours</option>
+            </select>
+        </div>
+        {<div
+            className="flex items-start gap-2 text-warning text-sm bg-warning-weak border border-line rounded-md p-3"
+        >
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5"/>
+            <span className="text-muted">
+                Trace backend unavailable. Enable tracing with [scale.microservices.tracing].enabled = true and redeploy so Tempo + the Alloy OTLP lane come up.
+            </span>
+        </div>
+            if backendOffline
+            else None}
+        {<div className="text-danger text-sm">{errorMsg}</div>
+            if (errorMsg and not backendOffline)
+            else None}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-1 space-y-2">
+                <div className="text-xs uppercase tracking-wide text-faint">
+                    Traces ({len(traces)})
+                </div>
+                {<div className="text-faint text-sm">Loading...</div>
+                    if isLoading
+                    else None}
+                {[
+                    <div
+                        key={t["trace_id"]}
+                        className={"p-2 rounded border cursor-pointer " + (
+                            "border-accent-line bg-accent-weak"
+                                if (t["trace_id"] == selectedTraceId)
+                                else "border-line bg-surface hover:bg-surface-2"
+                        )}
+                        onClick={lambda { openTrace(t["trace_id"]); }}
+                    >
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-fg">
+                                {t["root_service"] or "unknown"}
+                            </span>
+                            <span className="text-xs text-muted">
+                                {fmtMs(t["duration_ms"])}
+                            </span>
+                        </div>
+                        <div className="text-xs text-faint truncate">
+                            {t["root_name"] or t["trace_id"]}
+                        </div>
+                    </div> for t in traces
+                ]}
+                {<div className="text-faint text-sm">No traces in this window.</div>
+                    if (not isLoading and len(traces) == 0)
+                    else None}
             </div>
-                if backendOffline
-                else None}
-            {<div className="text-danger text-sm">{errorMsg}</div>
-                if (errorMsg and not backendOffline)
-                else None}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-1 space-y-2">
-                    <div className="text-xs uppercase tracking-wide text-faint">
-                        Traces ({len(traces)})
+            <div className="lg:col-span-2">
+                {<div className="text-faint text-sm">Loading trace...</div>
+                    if isLoadingTrace
+                    else None}{<div className="space-y-1">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-mono text-muted truncate">
+                            {selectedTraceId}
+                        </span>
+                        <button
+                            className="inline-flex items-center gap-1 text-xs text-muted hover:text-fg"
+                            onClick={closeTrace}
+                        >
+                            <X className="w-3.5 h-3.5"/>
+                            Close
+                        </button>
                     </div>
-                    {<div className="text-faint text-sm">Loading...</div>
-                        if isLoading
-                        else None}
                     {[
                         <div
-                            key={t["trace_id"]}
-                            className={"p-2 rounded border cursor-pointer " + (
-                                "border-accent-line bg-accent-weak"
-                                    if (t["trace_id"] == selectedTraceId)
-                                    else "border-line bg-surface hover:bg-surface-2"
-                            )}
-                            onClick={lambda { openTrace(t["trace_id"]); }}
+                            key={sp["span_id"]}
+                            className="flex items-center gap-2 text-xs"
                         >
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-fg">
-                                    {t["root_service"] or "unknown"}
-                                </span>
-                                <span className="text-xs text-muted">
-                                    {fmtMs(t["duration_ms"])}
-                                </span>
+                            <div
+                                className="w-1/3 truncate text-muted"
+                                style={{
+                                    "paddingLeft": String(
+                                        spanDepth(sp, byIdMap) * 12
+                                    ) + "px"
+                                }}
+                            >
+                                <span className="text-faint">{sp["service"]}</span>{" "}
+                                {sp["name"]}
                             </div>
-                            <div className="text-xs text-faint truncate">
-                                {t["root_name"] or t["trace_id"]}
+                            <div className="flex-1 relative h-4 bg-surface rounded">
+                                <div
+                                    className={"absolute h-4 rounded " + (
+                                        serviceColorBar(sp["service"])
+                                    ) + (
+                                        " ring-1 ring-danger"
+                                            if (
+                                                sp["status"] == "STATUS_CODE_ERROR"
+                                                or sp["status"] == "2"
+                                            )
+                                            else ""
+                                    )}
+                                    style={{
+                                        "left": String(barLeft(sp)) + "%",
+                                        "width": String(barWidth(sp)) + "%"
+                                    }}
+                                    title={sp["name"] + " " + fmtMs(sp["duration_ms"])}
+                                ></div>
                             </div>
-                        </div> for t in traces
+                            <div className="w-16 text-right text-muted">
+                                {fmtMs(sp["duration_ms"])}
+                            </div>
+                        </div> for sp in spans
                     ]}
-                    {<div className="text-faint text-sm">No traces in this window.</div>
-                        if (not isLoading and len(traces) == 0)
+                    {<div className="text-faint text-sm">No spans for this trace.</div>
+                        if (not isLoadingTrace and len(spans) == 0)
                         else None}
                 </div>
-                <div className="lg:col-span-2">
-                    {<div className="text-faint text-sm">Loading trace...</div>
-                        if isLoadingTrace
-                        else None}{<div className="space-y-1">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-mono text-muted truncate">
-                                {selectedTraceId}
-                            </span>
-                            <button
-                                className="inline-flex items-center gap-1 text-xs text-muted hover:text-fg"
-                                onClick={closeTrace}
-                            >
-                                <X className="w-3.5 h-3.5"/>
-                                Close
-                            </button>
-                        </div>
-                        {[
-                            <div
-                                key={sp["span_id"]}
-                                className="flex items-center gap-2 text-xs"
-                            >
-                                <div
-                                    className="w-1/3 truncate text-muted"
-                                    style={{
-                                        "paddingLeft": String(
-                                            spanDepth(sp, byIdMap) * 12
-                                        ) + "px"
-                                    }}
-                                >
-                                    <span className="text-faint">
-                                        {sp["service"]}
-                                    </span>{" "}
-                                    {sp["name"]}
-                                </div>
-                                <div className="flex-1 relative h-4 bg-surface rounded">
-                                    <div
-                                        className={"absolute h-4 rounded " + (
-                                            serviceColorBar(sp["service"])
-                                        ) + (
-                                            " ring-1 ring-danger"
-                                                if (
-                                                    sp["status"] == "STATUS_CODE_ERROR"
-                                                    or sp["status"] == "2"
-                                                )
-                                                else ""
-                                        )}
-                                        style={{
-                                            "left": String(barLeft(sp)) + "%",
-                                            "width": String(barWidth(sp)) + "%"
-                                        }}
-                                        title={sp["name"] + " " + fmtMs(
-                                            sp["duration_ms"]
-                                        )}
-                                    ></div>
-                                </div>
-                                <div className="w-16 text-right text-muted">
-                                    {fmtMs(sp["duration_ms"])}
-                                </div>
-                            </div> for sp in spans
-                        ]}
-                        {<div className="text-faint text-sm">
-                            No spans for this trace.
-                        </div>
-                            if (not isLoadingTrace and len(spans) == 0)
-                            else None}
-                    </div>
-                        if selectedTraceId
-                        else <div className="text-faint text-sm">
-                            Select a trace to view its flame graph.
-                        </div>}
-                </div>
+                    if selectedTraceId
+                    else <div className="text-faint text-sm">
+                        Select a trace to view its flame graph.
+                    </div>}
             </div>
-        </div>;
+        </div>
+    </div>
 }

@@ -132,6 +132,12 @@ def greet(name: str) -> str {
     return f"Hello, {name}!";
 }
 
+# Implicit return: the final expression without ';' is the return value
+# (Rust-style tail expression; early returns stay explicit)
+def double(n: int) -> int {
+    n * 2
+}
+
 # Default parameters and multiple return values
 def divmod_example(a: int, b: int = 2) -> tuple[int, int] {
     return (a // b, a % b);
@@ -1337,9 +1343,9 @@ cl {
             items = await get_todos();
         }
 
-        return <div>
+        <div>
             {[<p key={i.title}>{i.title}</p> for i in items]}
-        </div>;
+        </div>
     }
 }
 
@@ -1356,11 +1362,13 @@ cl import from react { useState }
 # ============================================================
 # Extensions pin a file's default codespace explicitly -- an
 # override, not a requirement (a plain .jac file infers placement):
-# .jac           Default (server; client/native parts inferred from
-#                JSX/npm and C extern-decl imports)
+# .jac           Default (placement inferred: whole-module native when
+#                the module can lower, else server; client/native parts
+#                from JSX/npm and C extern-decl imports)
 # .sv.jac        Server-only variant (explicit)
 # .cl.jac        Client-only variant (explicit client codespace)
-# .na.jac        Native variant (explicit native codespace)
+# (native)       No native extension - whole-module native placement is
+#                inferred, or forced via jac nacompile / jac build --as native
 # .impl.jac      Implementation annex (method bodies)
 # .test.jac      Test annex
 # .style.css     Scoped CSS annex (auto-scopes classes for the matching .cl.jac)
@@ -1375,25 +1383,25 @@ cl {
         # `has` in client components becomes React useState
         has count: int = 0;
 
-        return <div>
+        <div>
             <p>Count: {count}</p>
             <button onClick={lambda -> None { count = count + 1; }}>
                 Increment
             </button>
-        </div>;
+        </div>
     }
 
     # JSX `{...}` slots accept statement-form control flow as children.
     # Inside the slot, JSX statements push into the enclosing element's
     # children list; `skip;` ends the slot with whatever was emitted.
     def:pub Greeting(name: str) -> JsxElement {
-        return <div>
+        <div>
             {if name == "" {
                 <p>(no name given)</p>
                 skip;                     # skip; = slot early-exit guard
             }}
             <h1>Hello, {name}!</h1>
-        </div>;
+        </div>
     }
 
     # Raw HTML opt-in (the name is the security review hint):
@@ -1443,7 +1451,7 @@ cl {
         # can with exit { unsubscribe(); }
 
         if loading { return <p>Loading...</p>; }
-        return <div>{data}</div>;
+        <div>{data}</div>
     }
 }
 
@@ -1473,7 +1481,7 @@ cl {
             }
         }
 
-        return <div>...</div>;
+        <div>...</div>
     }
 }
 

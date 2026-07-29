@@ -157,10 +157,11 @@ test "new keyword errors" {
 
 test "pass keyword errors" {
     # ASTValidationPass catches all 17 occurrences of 'pass' with the same
-    # message. The 5 archetype body usages also produce 'Missing ;' from the
-    # parser (fixture omits semicolons for those, mimicking Python style).
-    # The parameter named 'pass' additionally emits E0067 (Python reserved
-    # word as parameter name).
+    # message. The 5 archetype body usages (fixture omits semicolons for
+    # those, mimicking Python style) parse as semicolon-less tail
+    # expressions and are rejected with E2084 (implicit return is only
+    # valid at the end of a function body). The parameter named 'pass'
+    # additionally emits E0067 (Python reserved word as parameter name).
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     prog = JacProgram();
@@ -168,20 +169,20 @@ test "pass keyword errors" {
     sys.stdout = sys.__stdout__;
     assert len(prog.errors_had) == 23;
     keyword_errors = 0;
-    missing_semi = 0;
+    misplaced_tail_expr = 0;
     reserved_param = 0;
     for alrt in prog.errors_had {
         pretty = alrt.pretty_print();
         if "'pass' is not supported in Jac" in pretty {
             keyword_errors += 1;
-        } elif "Missing ';'" in pretty {
-            missing_semi += 1;
+        } elif "implicit return" in pretty {
+            misplaced_tail_expr += 1;
         } elif "Python reserved word" in pretty {
             reserved_param += 1;
         }
     }
     assert keyword_errors == 17;
-    assert missing_semi == 5;
+    assert misplaced_tail_expr == 5;
     assert reserved_param == 1;
 }
 
@@ -647,7 +648,7 @@ import from raylib {
 }
 """;
     prog = JacProgram();
-    mod = prog.parse_str(source, "test_logical_clib.na.jac");
+    mod = prog.parse_str(source, "test_logical_clib.jac");
     assert not prog.errors_had , f"Parser errors: {prog.errors_had}";
     imports = [
         stmt
@@ -676,7 +677,7 @@ import from libs.raylib {
 }
 """;
     prog = JacProgram();
-    mod = prog.parse_str(source, "test_dotted_clib.na.jac");
+    mod = prog.parse_str(source, "test_dotted_clib.jac");
     assert not prog.errors_had , f"Parser errors: {prog.errors_had}";
     imports = [
         stmt

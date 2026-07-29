@@ -96,53 +96,6 @@ def _inject_entry_pe(llvm_ir_str: str) -> str {
 }
 
 
-def _inject_shared_init(
-    llvm_ir_str: str, transitive_sources: list[str]
-) -> tuple[str, list[str]] {
-    init_calls: list[str] = [];
-
-    if ('@"__jac_glob_init"' in llvm_ir_str) or ("@__jac_glob_init(" in llvm_ir_str) {
-        init_calls.append("  call void @__jac_glob_init()");
-    }
-    import from jaclang.jac0core.codeinfo { native_safe_sym }
-    _seen: set = set();
-    for _src in transitive_sources {
-        if _src is None or _src in _seen {
-            continue;
-        }
-        _seen.add(_src);
-
-        _safe = native_safe_sym(_src);
-        _nm = f"__jac_glob_init_{_safe}";
-        if (f'@"{_nm}"' in llvm_ir_str) or (f"@{_nm}(" in llvm_ir_str) {
-            init_calls.append(f"  call void @{_nm}()");
-        }
-    }
-    parts: list[str] = ["\n; --- injected shared-library init + RC wrappers ---"];
-    _body = ("\n".join(init_calls) + "\n") if init_calls else "";
-    parts.append(
-        "define void @__jac_shared_init() {\nentry:\n" + _body + "  ret void\n}"
-    );
-    extra_exports: list[str] = [];
-
-    if "__rc_retain" in llvm_ir_str {
-        parts.append(
-            "define void @jac_retain(ptr %p) {\nentry:\n"
-            "  call void @__rc_retain(ptr %p)\n  ret void\n}"
-        );
-        extra_exports.append("jac_retain");
-    }
-    if "__rc_release_simple" in llvm_ir_str {
-        parts.append(
-            "define void @jac_release(ptr %p) {\nentry:\n"
-            "  call void @__rc_release_simple(ptr %p)\n  ret void\n}"
-        );
-        extra_exports.append("jac_release");
-    }
-    return (llvm_ir_str + "\n".join(parts) + "\n", extra_exports);
-}
-
-
 impl nacompile(
     filename: str,
     output: str = "",
@@ -154,7 +107,11 @@ impl nacompile(
     assert_no_rc: bool = False,
     enforce_nogc: bool = False
 ) -> int {
-    import from jaclang.jac0core.ext_registry { is_jac, is_native_module, base_stem }
+    import from jaclang.jac0core.ext_registry {
+        is_jac,
+        is_retired_native_marker,
+        base_stem
+    }
     import from jaclang.project { get_config }
 
     _gc_cfg = None;
@@ -170,7 +127,7 @@ impl nacompile(
         return 1;
     }
     if not is_jac(filename) {
-        console.error("Input must be a .jac or .na.jac file.");
+        console.error("Input must be a .jac file.");
         return 1;
     }
 
@@ -225,7 +182,14 @@ impl nacompile(
         }
     }
 
-    auto_promote = is_jac(filename) and not is_native_module(filename);
+    if is_retired_native_marker(filename) {
+        console.error(
+            f"{filename}: the .na.jac marker was retired in 0.35 -- rename the "
+            "file to .jac; 'jac nacompile' compiles plain .jac natively."
+        );
+        return 1;
+    }
+    auto_promote = is_jac(filename);
 
     is_macos = ((sys.platform == "darwin") and not is_windows and not is_linux_target)
     or is_macos_target;
@@ -253,6 +217,7 @@ impl nacompile(
             aot_mode=True,
             type_check=False,
             default_codespace=('native' if auto_promote else ''),
+            force_target_program=True,
             na_gc_mode=gc,
             nogc_cli_target=(base_stem(filename) if enforce_nogc else ""),
             nogc_enforce_modules=(_gc_cfg.enforce.modules if _gc_cfg else []),
@@ -288,7 +253,7 @@ impl nacompile(
                 "This .jac file is not compatible with native compilation.\n"
                 "  It may use walkers, nodes, edges, async, lambdas, or other\n"
                 "  constructs not supported by the native backend.\n"
-                "  Use a .na.jac file or remove incompatible constructs."
+                "  Remove the incompatible constructs it names."
             );
         } else {
             console.error("Native compilation produced no LLVM IR.");
@@ -368,8 +333,7 @@ impl nacompile(
 
     if not shared and "jac_entry" not in llvm_ir_str {
         console.error(
-            "No entry point found. "
-            "The .na.jac file must have a 'with entry { }' block."
+            "No entry point found. " "The file must have a 'with entry { }' block."
         );
         return 1;
     }
@@ -431,6 +395,9 @@ impl nacompile(
         _mf = ir_module.gen.interop_manifest;
         if _mf {
             _transitive = _mf.native_transitive_sources;
+        }
+        import from jaclang.compiler.passes.native.shared_emit {
+            inject_shared_init as _inject_shared_init
         }
         (llvm_ir_str, _extra_exports) = _inject_shared_init(llvm_ir_str, _transitive);
         init_funcs = ["__jac_shared_init"];

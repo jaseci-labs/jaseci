@@ -13,13 +13,15 @@ that reads through the getter on every update, tracking `count`.
 """
 
 def:pub Display(props: dict) -> JsxElement {
-    return <p data-testid="display">Value: {props["value"]}</p>;
+    <p data-testid="display">Value: {props["value"]}</p>
 }
 
-def:pub app() -> JsxElement {
+def:pub app -> JsxElement {
     has count: int = 0;
-    return <div>
-        <Display value={count} />
-        <button data-testid="inc" onClick={lambda (e: any) { count = count + 1; }}>+</button>
-    </div>;
+    <div>
+        <Display value={count}/>
+        <button data-testid="inc" onClick={lambda (e: any) { count = count + 1; }}>
+            +
+        </button>
+    </div>
 }

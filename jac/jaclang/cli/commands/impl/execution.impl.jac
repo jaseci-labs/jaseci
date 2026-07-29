@@ -5,7 +5,6 @@ import types;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
-import from jaclang.jac0core.ext_registry { is_native_module }
 import from jaclang.project.kinds { RunPlan }
 
 def _discover_config_from_file(filename: str) -> None {
@@ -325,40 +324,34 @@ impl run(
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
     try {
-        if is_native_module(filename) {
-            import ctypes;
-            full_path = os.path.abspath(filename);
-            program = Jac.get_program();
-            ir_mod = program.compile(file_path=full_path);
-            if program.errors_had {
-                for _err in program.errors_had {
-                    console.error(_err.pretty_print());
-                }
-                mach.close();
-                return 1;
-            }
-            if ir_mod and ir_mod.gen.native_engine {
-                engine = ir_mod.gen.native_engine;
-                _populate_native_argv(engine, sys.argv);
-                if main {
-                    addr = engine.get_function_address("jac_entry");
-                    if addr != 0 {
-                        fn = ctypes.CFUNCTYPE(None)(addr);
-                        fn();
-                    }
-                }
-            } else {
-                console.error("Native compilation failed for " + filename);
-                mach.close();
-                return 1;
-            }
-        } elif filename.endswith('.jac') {
+        if filename.endswith('.jac') {
             native_executed = False;
-            if (_default_codespace_is_native() and sys.stdout is sys.__stdout__) {
+
+            _cfg_kind = get_config();
+            _kind_forced = (
+                _cfg_kind is not None
+                and (_cfg_kind.project.kind or '').strip() == 'cli-native'
+            );
+            if (
+                _kind_forced
+                or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+            ) {
                 import ctypes;
+                import from jaclang.jac0core.compile_options {
+                    CompileOptions as _RunOpts
+                }
                 full_path = os.path.abspath(filename);
                 program = Jac.get_program();
-                ir_mod = program.compile(file_path=full_path);
+                _run_options = (
+                    _RunOpts(
+                        type_check=False,
+                        force_codespace='native',
+                        force_target_program=True
+                    )
+                        if _kind_forced
+                        else None
+                );
+                ir_mod = program.compile(file_path=full_path, options=_run_options);
                 if program.errors_had {
                     for _err in program.errors_had {
                         console.error(_err.pretty_print());
@@ -381,6 +374,14 @@ impl run(
                             native_executed = True;
                         }
                     }
+                }
+                if _kind_forced and not native_executed {
+                    console.error(
+                        "cli-native project did not produce a runnable native "
+                        "entry (no engine or no jac_entry)."
+                    );
+                    mach.close();
+                    return 1;
                 }
             }
             if not native_executed {

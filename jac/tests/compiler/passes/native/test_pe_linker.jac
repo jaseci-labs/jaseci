@@ -30,7 +30,7 @@ glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      ),
      WIN_TRIPLE = "x86_64-pc-windows-msvc",
-     FIXTURE = "pe_smoke.na.jac";
+     FIXTURE = "pe_smoke.jac";
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────

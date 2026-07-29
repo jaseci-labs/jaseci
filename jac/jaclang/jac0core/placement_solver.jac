@@ -61,7 +61,7 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
                 sv_reason = "parse error";
                 break;
             }
-            (f_sv, f_deps) = scan_native_blockers(dep_mod, base_dir);
+            (f_sv, f_deps) = scan_native_blockers(dep_mod, base_dir, allow_pub=True);
             if f_sv {
                 sv_reason = f_sv;
                 break;

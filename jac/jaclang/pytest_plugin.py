@@ -367,7 +367,7 @@ class JacFile(pytest.File):
             base_dir = str(Path(filepath).parent)
             # Derive the importable module name via the extension registry's
             # canonical longest-suffix matcher: a compound codespace suffix
-            # (``foo.na.jac`` / ``foo.sv.jac``) imports as module ``foo``, so a
+            # (``foo.sv.jac`` / ``foo.cl.jac``) imports as module ``foo``, so a
             # bare ``Path.stem`` would leave the ``.na`` component and the
             # importer would read it as a package path and fail to resolve the
             # file (issue #7150).
@@ -386,7 +386,7 @@ class JacFile(pytest.File):
                 # A test file that fails to import is not an empty result --
                 # swallowing it silently converts a broken test module into a
                 # passing run (issue #7150). When the file was named directly on
-                # the command line (``jac test foo.na.jac``) surface it as a hard
+                # the command line (``jac test foo.jac``) surface it as a hard
                 # collection error, matching pytest's contract for an
                 # unimportable ``test_*.py``, so a broken target can never
                 # masquerade as a pass. During directory recursion, where one

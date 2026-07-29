@@ -636,7 +636,8 @@ glob NODE_SPECS: tuple = (
              is_name_atom=False,
              fields=(
                  FieldDesc(name="expr", kind=4),
-                 FieldDesc(name="in_fstring", kind=2)
+                 FieldDesc(name="in_fstring", kind=2),
+                 FieldDesc(name="has_semi", kind=2)
              )
          ),
          NodeSpec(
@@ -1360,7 +1361,10 @@ glob NODE_SPECS: tuple = (
              is_scope=False,
              is_cfg=True,
              is_name_atom=False,
-             fields=(FieldDesc(name="expr", kind=6), )
+             fields=(
+                 FieldDesc(name="expr", kind=6),
+                 FieldDesc(name="is_implicit", kind=2)
+             )
          ),
          NodeSpec(
              type_idx=121,

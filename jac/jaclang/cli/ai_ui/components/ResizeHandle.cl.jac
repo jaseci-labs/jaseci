@@ -36,9 +36,8 @@ def:pub ResizeHandle(vertical: bool, onResize: any) -> JsxElement {
         window.addEventListener("mousemove", onMove);
         window.addEventListener("mouseup", onUp);
     }
-    return
-        <div
-            className={"resize-handle " + ("v" if vertical else "h")}
-            onMouseDown={onDown}
-        />;
+    <div
+        className={"resize-handle " + ("v" if vertical else "h")}
+        onMouseDown={onDown}
+    />
 }

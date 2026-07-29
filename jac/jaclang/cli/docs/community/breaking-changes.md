@@ -7,6 +7,26 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ---
 
+### The `.na.jac` filename marker retired ([#7770](https://github.com/jaseci-labs/jac/pull/7770), jaclang 0.35)
+
+Native placement is no longer spelled in the filename. A plain `.jac` module becomes native by **inference**: under `[build] default_codespace = "native"` (the default), the placement solver's verdict (`scan_native_blockers` plus an import-closure fixpoint) decides, and a module that prefers native but cannot lower demotes to the server codespace with a note. Native is **forced** per-invocation rather than per-file: `jac nacompile file.jac` and `jac build --as native` coerce the module native outright -- lowering problems stay loud errors instead of demoting -- and `CompileOptions(force_codespace='native')` is the marker's programmatic successor.
+
+This is a **clean break** -- a leftover `.na.jac` file fails loudly everywhere (the compiler, the importer, and `jac nacompile`) with:
+
+```text
+the .na.jac marker was retired in 0.35 -- rename the file to .jac
+```
+
+| Old | New |
+|---|---|
+| `mod.na.jac` | `mod.jac` (placement inferred) |
+| `jac nacompile mod.na.jac` | `jac nacompile mod.jac` (forces native) |
+| `mod.na.impl.jac` | `mod.impl.jac` (the `.na.impl.jac` annex variant no longer exists) |
+
+**Impact:** rename every `*.na.jac` to `*.jac` and rely on inference; where native must be mandatory (AOT binaries, `--shared` libraries, wasm), use `jac nacompile` / `jac build --as native` / `force_codespace='native'`. `.sv.jac` and `.cl.jac` variants and the `.impl.jac` / `.test.jac` annexes are unchanged. One clarification makes the old native-library idiom carry over unchanged: `pub` elements anchor a *standalone* module to the server (endpoint semantics), but a module pulled in as a **native dependency** may freely use `pub` as its C-ABI export marker. The bundled native stdlib (`jaclang/runtimelib/na_stdlib/`) is native **by location**; its files are plain `.jac`, with per-OS variants as `<name>.<os>.jac` (e.g. `_dirent_native.darwin.jac`).
+
+---
+
 ### Legacy syntax removed in one clean break ([#7514](https://github.com/jaseci-labs/jac/issues/7514))
 
 A set of long-deprecated or redundant forms is removed with no deprecation window -- the old spellings are now hard errors:
