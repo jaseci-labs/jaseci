@@ -18,6 +18,10 @@ reader, `exec_module`, `deref_cell`, and `bytes_to_str`.
 | `cliff_binary_buffer.na.jac` | str concat drops NUL, `len`=strlen | `bytes_to_str` builds str from bytes incl NUL | na-chr-concat-drops-nul, na-len-strlen-binary-guard |
 | `cliff_user_dispatch.na.jac` | data-driven `dict[str,PyObj]` method dispatch over an MRO, no fn values (dynamism) | `PyUserObj.tp_getattro` instance-dict-wins-then-`class_mro`-walk + vtable invoke | na-dict-literal-subclass-upcast-ice, na-method-call-on-union-receiver |
 | `cliff_gen_frame.na.jac` | generator as suspended-frame state machine: resume-into-try/finally, expr-position yield, yield-from (dynamism) | `PyFrame`/`PyGenerator` suspend/resume machinery | na-lexical-exceptions-finally-lift |
+| `cliff_op_switch.na.jac` | large N-way (40-arm) method-id switch at the dict-value-to-native-call boundary (dynamism scale) | `nb_binop` operator-slot dispatch table | native-no-indirect-calls |
+| `cliff_descriptor.na.jac` | attribute protocol: data-descriptor `__get__` preempts instance dict, `__getattr__` on miss (dynamism) | `PyUserObj.tp_getattro` descriptor + `__getattr__` chain | na-dict-literal-subclass-upcast-ice |
+| `cliff_reflected_op.na.jac` | reflected binop: `__radd__` fallback on NotImplemented over the MRO (dynamism) | `nb_binop` reflected-slot dispatch over `PyUserObj` operands | na-method-call-on-union-receiver |
+| `cliff_except_match.na.jac` | except-arm matching by MRO walk, first-match-wins (dynamism) | `exception_matches`/`CHECK_EXC_MATCH` + `class_mro` | na-lexical-exceptions-finally-lift |
 
 ## Two gates
 
@@ -34,8 +38,8 @@ value) that compile cleanly but compute the wrong answer.
 
 ## Measured status (local, 2026-07-15)
 
-All six **pass the compile gate**: capability-clean, LLVM IR generated, object
-code emitted (6.4–45.8 KB). Only the final static-musl link is blocked locally
+All ten **pass the compile gate**: capability-clean, LLVM IR generated, object
+code emitted (6.4–66 KB). Only the final static-musl link is blocked locally
 (environment, not code -- no vendored musl on this box). Runtime-correctness legs
 are therefore **pending CI** (or a local musl / system-`cc` link). Notably the
 dict-return shape did **not** ICE here -- better than the folklore; the ratchet
@@ -66,6 +70,23 @@ fell out and are worked around in-fixture (never in the leaf): the **dict-litera
 subclass-upcast ICE** (build empty + subscript-store) and na's **lexically-
 structured exceptions** (no mid-`try` resume). Runtime legs verified on the
 bytecode backend now; the na-linked legs remain CI (musl link, as above).
+
+**Dynamism surface widened (2026-07-18, cliffs 7--10).** Four more shapes the
+port depends on now compile na-clean with bytecode-backend truth pinned: (7)
+`cliff_op_switch` -- a **40-arm** runtime-keyed method-id switch at the
+dict-value-to-native-call boundary (the advisor's #1 suspected *scale* cliff);
+it does **not** reproduce, na resolves all 40 arms statically (truth `163283`).
+(8) `cliff_descriptor` -- the full attribute-precedence chain: a data-descriptor
+`__get__` preempting a present instance-dict entry, `__getattr__` only on total
+miss, and a mutation flipping two opposite precedence rulings at one site (truth
+`1125777105`). (9) `cliff_reflected_op` -- reflected-binop fallback: forward
+`__add__` returns NotImplemented, only `type(b).__radd__` (reached by a real MRO
+walk) supplies the answer; ordering and both-decline-to-TypeError asserted (truth
+`3038`). (10) `cliff_except_match` -- `except`-arm selection by MRO walk with
+first-match-wins (base-match not exact, broad-before-specific shadowing), handler
+selection lifted to integer data per the lexical-exception constraint (truth
+`20100130`). No new na findings in any of the four; the closed method-id switch,
+descriptor protocol, reflected dispatch, and exception matching are all na-clean.
 
 **Known na multi-module gap.** Compiling `objects.jac` via a separate entry that
 `import from objects { … }` fails with E5090 on the *imported* symbols -- na's
