@@ -219,14 +219,12 @@ def _run_project(
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
     import from jaclang.project.kinds { plan_project_run, is_valid_kind, VALID_KINDS }
-    import importlib;
-
     try {
-        initialize_provider_registry = importlib.import_module(
-            ".".join(["jaclang", "project", "providers"])
-        ).initialize_provider_registry;
+        import from jaclang.project.providers { initialize_provider_registry }
         initialize_provider_registry();
-    } except Exception { }
+    } except Exception as exc {
+        console.warning(f"Failed to initialize provider registry: {exc}");
+    }
 
     existing_config = get_config();
     active_profile = existing_config.active_profile if existing_config else None;
