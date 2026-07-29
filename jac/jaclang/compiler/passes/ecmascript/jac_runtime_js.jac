@@ -1492,9 +1492,15 @@ def build_osp_kernel_js -> str {
     shutil.copyfile(src, cl_copy);
     js = "";
     try {
+        import from jaclang.jac0core.compile_options { CompileOptions }
         prog = JacProgram();
 
-        ir = prog.compile(file_path=cl_copy, no_cgen=True, type_check=True);
+        ir = prog.compile(
+            file_path=cl_copy,
+            options=CompileOptions(
+                force_codespace='client', no_cgen=True, type_check=True
+            )
+        );
         program = EsastGenPass(ir_in=ir, prog=prog).ir_out.gen.es_ast;
         kept: list = [];
         if isinstance(program, es.Program) {
