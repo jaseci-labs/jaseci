@@ -105,8 +105,12 @@ test "create jac app" {
                     package_data = json.load(f);
                 }
                 # Verify core dependencies are in package.json (individual packages)
-                assert "react" in package_data.get("dependencies", {});
-                assert "vite" in package_data.get("devDependencies", {});
+                assert "react" in package_data.get("dependencies", {}) , (
+                    f"package.json deps: {package_data}"
+                );
+                assert "vite" in package_data.get("devDependencies", {}) , (
+                    f"package.json devDeps: {package_data}"
+                );
             }
         } finally {
             # Return to original directory
@@ -195,23 +199,29 @@ test "create jac app with button component" {
             );
             (stdout, stderr) = process.communicate();
             result_code = process.returncode;
+            create_report = (
+                f"rc={result_code}\nstdout tail: {stdout[-1500:]}\n"
+                f"stderr tail: {stderr[-1500:]}"
+            );
 
             # Check that command succeeded
-            assert result_code == 0;
+            assert result_code == 0 , f"jac create failed: {create_report}";
             # Check for success message (handles both old and new console formats)
             assert (
                 f"Project '{test_project_name}' created successfully!" in stdout
                 or f"Project '{test_project_name}' created" in stdout
-            );
+            ) , f"no success message: {create_report}";
 
             # Verify project directory was created
             project_path = os.path.join(temp_dir, test_project_name);
-            assert os.path.exists(project_path);
+            assert os.path.exists(project_path) , f"no project dir: {create_report}";
             assert os.path.isdir(project_path);
 
             # Verify jac.toml was created
             jac_toml_path = os.path.join(project_path, "jac.toml");
-            assert os.path.exists(jac_toml_path);
+            assert os.path.exists(jac_toml_path) , (
+                f"no jac.toml; dir has: {os.listdir(project_path)}"
+            );
 
             with open(jac_toml_path, "rb") as f {
                 config_data = tomllib.load(f);
@@ -229,7 +239,9 @@ test "create jac app with button component" {
             assert os.path.isdir(components_dir);
 
             button_jac_path = os.path.join(components_dir, "Button.cl.jac");
-            assert os.path.exists(button_jac_path);
+            assert os.path.exists(button_jac_path) , (
+                f"no Button.cl.jac; components has: {os.listdir(components_dir)}"
+            );
 
             with open(button_jac_path) as f {
                 button_content = f.read();
@@ -257,7 +269,9 @@ test "create jac app with button component" {
                 readme_content = f.read();
             }
 
-            assert "Components" in readme_content;
+            assert "Components" in readme_content , (
+                f"README missing Components section: {readme_content[:600]}"
+            );
             assert "Button.cl.jac" in readme_content;
 
             # Verify default packages installation (package.json should be generated)
@@ -269,8 +283,12 @@ test "create jac app with button component" {
                     package_data = json.load(f);
                 }
                 # Verify core dependencies are in package.json (individual packages)
-                assert "react" in package_data.get("dependencies", {});
-                assert "vite" in package_data.get("devDependencies", {});
+                assert "react" in package_data.get("dependencies", {}) , (
+                    f"package.json deps: {package_data}"
+                );
+                assert "vite" in package_data.get("devDependencies", {}) , (
+                    f"package.json devDeps: {package_data}"
+                );
             }
         } finally {
             # Return to original directory
@@ -372,8 +390,12 @@ test "create jac app installs default packages" {
                     package_data = json.load(f);
                 }
                 # Verify core dependencies are in package.json (individual packages)
-                assert "react" in package_data.get("dependencies", {});
-                assert "vite" in package_data.get("devDependencies", {});
+                assert "react" in package_data.get("dependencies", {}) , (
+                    f"package.json deps: {package_data}"
+                );
+                assert "vite" in package_data.get("devDependencies", {}) , (
+                    f"package.json devDeps: {package_data}"
+                );
             }
         } finally {
             # Return to original directory
