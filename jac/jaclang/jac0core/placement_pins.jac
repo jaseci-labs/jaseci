@@ -4,7 +4,7 @@ import os;
 import from jaclang.jac0core.modresolver { find_jac_project_root }
 
 glob _VALID_SPACES: tuple = ('server', 'client', 'native'),
-     _pins_cache: dict = {};
+     _pins_cache: dict[str, tuple[float, dict[str, str]]] = {};
 
 
 def _load_pins(root_dir: str) -> dict[str, str] {
@@ -106,7 +106,7 @@ def pins_digest(source_path: str) -> str {
     return json.dumps(pins, sort_keys=True);
 }
 
-glob _npm_deps_cache: dict = {};
+glob _npm_deps_cache: dict[str, tuple[float, set[str]]] = {};
 
 
 def npm_dependency_names(source_path: str) -> set[str] {

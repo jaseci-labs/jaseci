@@ -4801,46 +4801,21 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
 }
 
 
-def _decl_has_access(source_mod: uni.Module, item: uni.ModuleItem) -> bool {
-    nm = item.name.value if isinstance(item.name, uni.Name) else '';
-    if not nm or source_mod.sym_tab is None {
-        return False;
-    }
-    sym = source_mod.sym_tab.lookup(nm, deep=True);
-    if not (sym and sym.defn) {
-        return False;
-    }
-    decl = sym.defn[0];
-    if isinstance(decl, uni.NameAtom) and decl.parent {
-        decl = decl.parent;
-    }
-    return decl?.access is not None;
-}
-
 impl EsastGenPass._partition_client_import_items(
     nd: uni.Import
 ) -> (tuple[list, list] | None) {
     import from jaclang.compiler.symbol_utils {
         ClientImportVerdict,
         classify_client_import_item,
+        decl_has_access,
+        import_target_pinned_server,
         is_client_boundary_import,
         report_dead_client_import
     }
     if not is_client_boundary_import(nd) {
         return None;
     }
-    pinned_server = False;
-    if nd.from_loc {
-        try {
-            pinned_target = nd.from_loc.resolve_relative_path();
-            if isinstance(pinned_target, str) and pinned_target.endswith('.jac') {
-                import from jaclang.jac0core.placement_pins { config_module_pin }
-                pinned_server = config_module_pin(pinned_target) == 'server';
-            }
-        } except Exception {
-            pinned_server = False;
-        }
-    }
+    pinned_server = import_target_pinned_server(nd);
     source_mod = self._resolve_source_module(nd);
     if source_mod is None {
         return ([], list(nd.items)) if pinned_server else None;
@@ -4855,7 +4830,7 @@ impl EsastGenPass._partition_client_import_items(
         }
         if pinned_server
         and verdict == ClientImportVerdict.DEAD
-        and _decl_has_access(source_mod, item) {
+        and decl_has_access(source_mod, item) {
             bridged.append(item);
             continue;
         }

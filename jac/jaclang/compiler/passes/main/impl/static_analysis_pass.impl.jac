@@ -377,6 +377,8 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
     import from jaclang.compiler.symbol_utils {
         ClientImportVerdict,
         classify_client_import_item,
+        decl_has_access,
+        import_target_pinned_server,
         is_client_boundary_import,
         report_dead_client_import,
         resolve_import_source_module
@@ -392,9 +394,11 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
         if source_mod is None {
             continue;
         }
+        pinned_server = import_target_pinned_server(nd);
         for item in nd.items {
             verdict = classify_client_import_item(source_mod, item);
-            if verdict == ClientImportVerdict.DEAD {
+            if verdict == ClientImportVerdict.DEAD
+            and not (pinned_server and decl_has_access(source_mod, item)) {
                 report_dead_client_import(self, nd, item);
             }
         }

@@ -1,5 +1,6 @@
 import os;
 import from jaclang.cli.console { console }
+import from jaclang.jac0core.parser.tokens { Token }
 
 glob _ELEMENT_KEYWORDS: tuple = (
          'import',
@@ -69,7 +70,7 @@ def _is_string_kind(kind_str: str) -> bool {
 }
 
 
-def _dotted_target(tokens: list, start: int) -> str {
+def _dotted_target(tokens: list[Token], start: int) -> str {
     parts: list[str] = [];
     j = start;
     while j < len(tokens) {
@@ -84,7 +85,7 @@ def _dotted_target(tokens: list, start: int) -> str {
 }
 
 
-def _first_name_after(tokens: list, start: int) -> str {
+def _first_name_after(tokens: list[Token], start: int) -> str {
     j = start;
     while j < len(tokens) and j < start + 8 {
         tok = tokens[j];
@@ -105,7 +106,7 @@ def _first_name_after(tokens: list, start: int) -> str {
 
 
 def _collect_block_claims(
-    tokens: list, body_start: int, body_end: int, space: str, res: StripResult
+    tokens: list[Token], body_start: int, body_end: int, space: str, res: StripResult
 ) {
     depth = 0;
     j = body_start;
@@ -157,7 +158,7 @@ def _strip_markers(src: str, file_path: str) -> StripResult {
         res.note = "lex errors; skipped";
         return res;
     }
-    edits: list[tuple] = [];
+    edits: list[tuple[int, int, str]] = [];
     depth = 0;
     stmt_start = True;
     i = 0;
@@ -305,16 +306,21 @@ def _iter_migration_files(paths: list) -> list[str] {
 }
 
 
+def _read_text_if_exists(path: str) -> str {
+    if os.path.exists(path) {
+        with open(path, 'r') as f {
+            return f.read();
+        }
+    }
+    return '';
+}
+
+
 def _append_toml_entries(
     toml_path: str, header: str, entries: dict[str, str], dry_run: bool
 ) -> list[str] {
     import tomllib;
-    text = '';
-    if os.path.exists(toml_path) {
-        with open(toml_path, 'r') as f {
-            text = f.read();
-        }
-    }
+    text = _read_text_if_exists(toml_path);
     try {
         doc = tomllib.loads(text);
     } except Exception {
@@ -337,7 +343,7 @@ def _append_toml_entries(
     if dry_run {
         return added;
     }
-    lines = text.splitlines();
+    lines: list[str] = text.splitlines();
     header_idx = -1;
     for (idx, ln) in enumerate(lines) {
         if ln.strip() == header {
@@ -347,11 +353,8 @@ def _append_toml_entries(
     }
     if header_idx >= 0 {
         insert_at = header_idx + 1;
-        for entry in added {
-            lines.insert(insert_at, entry);
-            insert_at += 1;
-        }
-        new_text = "\n".join(lines);
+        merged = lines[:insert_at] + added + lines[insert_at:];
+        new_text = "\n".join(merged);
         if text.endswith("\n") {
             new_text += "\n";
         }

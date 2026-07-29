@@ -2,7 +2,7 @@ import json;
 import os;
 import from jaclang.jac0core.modresolver { find_jac_project_root }
 
-glob _cut_cache: dict = {};
+glob _cut_cache: dict[str, tuple[float, set[str]]] = {};
 
 
 def _load_cut(root_dir: str) -> set[str] {
