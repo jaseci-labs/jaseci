@@ -22,9 +22,9 @@ walker parameterized_walker {
 }
 
 walker positional_walker {
-    has label: str;
-    has count: int;
-    has metadata: dict = {};
+    has label: str,
+        count: int,
+        metadata: dict = {};
 
     can execute with Root entry {
         report {"label": self.label, "count": self.count, "meta": self.metadata};
@@ -33,14 +33,14 @@ walker positional_walker {
 
 # Client-side code testing both spawn orderings
 cl {
-    def app() -> JsxElement {
-        has standardResult: any = None;
-        has standardComputed: any = None;
-        has reverseResult: any = None;
-        has uuidResult: any = None;
-        has reverseUuidResult: any = None;
-        has positionalResult: any = None;
-        has spreadResult: any = None;
+    def app -> JsxElement {
+        has standardResult: any = None,
+            standardComputed: any = None,
+            reverseResult: any = None,
+            uuidResult: any = None,
+            reverseUuidResult: any = None,
+            positionalResult: any = None,
+            spreadResult: any = None;
 
         async can with entry {
             # Test standard spawn order: node spawn walker()
@@ -74,50 +74,21 @@ cl {
             spreadResult = data7;
         }
 
-        return
-            <div>
-                <h1>
-                    Spawn Operator Test
-                </h1>
-                <h2>
-                    Standard Order (node spawn walker)
-                </h2>
-                <div>
-                    Result: {JSON.stringify(standardResult)}
-                </div>
-                <div>
-                    Computed: {JSON.stringify(standardComputed)}
-                </div>
-                <h2>
-                    Reverse Order (walker spawn node)
-                </h2>
-                <div>
-                    Result: {JSON.stringify(reverseResult)}
-                </div>
-                <h2>
-                    UUID Spawn (uuid spawn walker)
-                </h2>
-                <div>
-                    Result: {JSON.stringify(uuidResult)}
-                </div>
-                <h2>
-                    Reverse UUID Spawn (walker spawn uuid)
-                </h2>
-                <div>
-                    Result: {JSON.stringify(reverseUuidResult)}
-                </div>
-                <h2>
-                    Positional Walker Arguments
-                </h2>
-                <div>
-                    Result: {JSON.stringify(positionalResult)}
-                </div>
-                <h2>
-                    Spread Walker Arguments
-                </h2>
-                <div>
-                    Result: {JSON.stringify(spreadResult)}
-                </div>
-            </div>;
+        <div>
+            <h1>Spawn Operator Test</h1>
+            <h2>Standard Order (node spawn walker)</h2>
+            <div>Result: {JSON.stringify(standardResult)}</div>
+            <div>Computed: {JSON.stringify(standardComputed)}</div>
+            <h2>Reverse Order (walker spawn node)</h2>
+            <div>Result: {JSON.stringify(reverseResult)}</div>
+            <h2>UUID Spawn (uuid spawn walker)</h2>
+            <div>Result: {JSON.stringify(uuidResult)}</div>
+            <h2>Reverse UUID Spawn (walker spawn uuid)</h2>
+            <div>Result: {JSON.stringify(reverseUuidResult)}</div>
+            <h2>Positional Walker Arguments</h2>
+            <div>Result: {JSON.stringify(positionalResult)}</div>
+            <h2>Spread Walker Arguments</h2>
+            <div>Result: {JSON.stringify(spreadResult)}</div>
+        </div>
     }
 }

@@ -10,5 +10,5 @@ longer need to be re-imported here under the server context.
 cl import from .frontend { app as ClientApp }
 
 cl def:pub app -> JsxElement {
-    return <ClientApp/>;
+    <ClientApp/>
 }

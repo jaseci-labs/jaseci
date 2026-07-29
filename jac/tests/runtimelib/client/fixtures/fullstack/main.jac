@@ -50,11 +50,10 @@ cl {
     # Renders an undefined child (`props.maybe` is never passed) beside a marker.
     # If an undefined JSX child crashed render, the marker would never mount.
     def:pub UndefChildProbe(props: any) -> JsxElement {
-        return
-            <div data-testid="undef-child-probe" style={{"display": "none"}}>
-                {props.maybe}
-                <span data-testid="undef-child-probe-ok">ok</span>
-            </div>;
+        <div data-testid="undef-child-probe" style={{"display": "none"}}>
+            {props.maybe}
+            <span data-testid="undef-child-probe-ok">ok</span>
+        </div>
     }
 
     def:pub Home -> JsxElement {
@@ -87,30 +86,26 @@ cl {
             await loadServerMessage();
         }
 
-        return
-            <div style={{"padding": "2rem", "fontFamily": "system-ui, sans-serif"}}>
-                <UndefChildProbe/>
-                <h1>Fullstack Base</h1>
-                <span data-testid="build-meta" style={{"display": "none"}}>
-                    {globalThis.APP_BUILD_TIME or "(unset)"}|{import.meta.env.VITE_APP_NAME
-                    or "(unset)"}
-                </span>
-                <p data-testid="server-message">{serverMessage}</p>
-                <button
-                    data-testid="ping-btn"
-                    onClick={lambda (e: any) { handlePing(); }}
-                >
-                    Ping Backend
-                </button>
-                <button
-                    data-testid="create-btn"
-                    onClick={lambda (e: any) { handleCreateItem(); }}
-                >
-                    Create Item
-                </button>
-                {pingResult and (<span data-testid="ping-result">{pingResult}</span>)}
-                {lastItem and (<p data-testid="last-item">{lastItem}</p>)}
-            </div>;
+        <div style={{"padding": "2rem", "fontFamily": "system-ui, sans-serif"}}>
+            <UndefChildProbe/>
+            <h1>Fullstack Base</h1>
+            <span data-testid="build-meta" style={{"display": "none"}}>
+                {globalThis.APP_BUILD_TIME or "(unset)"}|{import.meta.env.VITE_APP_NAME
+                or "(unset)"}
+            </span>
+            <p data-testid="server-message">{serverMessage}</p>
+            <button data-testid="ping-btn" onClick={lambda (e: any) { handlePing(); }}>
+                Ping Backend
+            </button>
+            <button
+                data-testid="create-btn"
+                onClick={lambda (e: any) { handleCreateItem(); }}
+            >
+                Create Item
+            </button>
+            {pingResult and (<span data-testid="ping-result">{pingResult}</span>)}
+            {lastItem and (<p data-testid="last-item">{lastItem}</p>)}
+        </div>
     }
 
     def:pub AuthForms -> JsxElement {
@@ -199,39 +194,34 @@ cl {
             status = "logged_out";
         }
 
-        return
-            <div style={{"padding": "20px", "fontFamily": "sans-serif"}}>
-                <h1>Auth Calling Forms</h1>
-                <p data-testid="logged-in">logged_in={str(logged_in)}</p>
-                <input
-                    type="text"
-                    data-testid="username-input"
-                    value={username}
-                    onChange={lambda (e: ChangeEvent) { username = e.target.value; }}
-                    placeholder="username"
-                />
-                <input
-                    type="password"
-                    data-testid="password-input"
-                    value={password}
-                    onChange={lambda (e: ChangeEvent) { password = e.target.value; }}
-                    placeholder="password"
-                />
-                <button data-testid="signup-old" onClick={do_signup_old}>
-                    Signup (old)
-                </button>
-                <button data-testid="signup-new" onClick={do_signup_new}>
-                    Signup (new)
-                </button>
-                <button data-testid="login-old" onClick={do_login_old}>
-                    Login (old)
-                </button>
-                <button data-testid="login-new" onClick={do_login_new}>
-                    Login (new)
-                </button>
-                <button data-testid="logout-btn" onClick={do_logout}>Logout</button>
-                <div data-testid="status">{status}</div>
-            </div>;
+        <div style={{"padding": "20px", "fontFamily": "sans-serif"}}>
+            <h1>Auth Calling Forms</h1>
+            <p data-testid="logged-in">logged_in={str(logged_in)}</p>
+            <input
+                type="text"
+                data-testid="username-input"
+                value={username}
+                onChange={lambda (e: ChangeEvent) { username = e.target.value; }}
+                placeholder="username"
+            />
+            <input
+                type="password"
+                data-testid="password-input"
+                value={password}
+                onChange={lambda (e: ChangeEvent) { password = e.target.value; }}
+                placeholder="password"
+            />
+            <button data-testid="signup-old" onClick={do_signup_old}>
+                Signup (old)
+            </button>
+            <button data-testid="signup-new" onClick={do_signup_new}>
+                Signup (new)
+            </button>
+            <button data-testid="login-old" onClick={do_login_old}>Login (old)</button>
+            <button data-testid="login-new" onClick={do_login_new}>Login (new)</button>
+            <button data-testid="logout-btn" onClick={do_logout}>Logout</button>
+            <div data-testid="status">{status}</div>
+        </div>
     }
 
     def:pub FormPage -> JsxElement {
@@ -251,30 +241,28 @@ cl {
             window.__submitFired = True;
         }
 
-        return
-            <JacForm
-                schema={schema}
-                onSubmit={handleSubmit}
-                field_config={{
-                    "emailField": {
-                        "label": "Email",
-                        "type": "email",
-                        "placeholder": "you@example.com"
-                    },
-                    "passwordField": {"label": "Password", "type": "password"}
-                }}
-                submitLabel="Submit"
-            />;
+        <JacForm
+            schema={schema}
+            onSubmit={handleSubmit}
+            field_config={{
+                "emailField": {
+                    "label": "Email",
+                    "type": "email",
+                    "placeholder": "you@example.com"
+                },
+                "passwordField": {"label": "Password", "type": "password"}
+            }}
+            submitLabel="Submit"
+        />
     }
 
     def:pub app -> JsxElement {
-        return
-            <Router>
-                <Routes>
-                    <Route path="/" element={<Home/>}/>
-                    <Route path="/auth" element={<AuthForms/>}/>
-                    <Route path="/form" element={<FormPage/>}/>
-                </Routes>
-            </Router>;
+        <Router>
+            <Routes>
+                <Route path="/" element={<Home/>}/>
+                <Route path="/auth" element={<AuthForms/>}/>
+                <Route path="/form" element={<FormPage/>}/>
+            </Routes>
+        </Router>
     }
 }

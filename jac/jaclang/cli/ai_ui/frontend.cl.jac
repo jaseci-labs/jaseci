@@ -337,120 +337,119 @@ def:pub app -> JsxElement {
         []
     );
 
-    return
-        <div className="app">
-            <div className="topbar">
-                <span className="brand">
-                    jac
-                    <span className="dot">●</span>
-                    ai
-                </span>
-                <span className="meta">
-                    {("agent control room" + (" · " + modelName if modelName else ""))}
-                </span>
-                <span className="spacer"/>
-                <button className="btn ghost" onClick={lambda { reset(); }}>
-                    New session
-                </button>
-                <button
-                    className={"icon-btn attn" if needsKey else "icon-btn"}
-                    title="Settings"
-                    onClick={lambda { openSettings(); }}
-                >
-                    ⚙
-                </button>
+    <div className="app">
+        <div className="topbar">
+            <span className="brand">
+                jac
+                <span className="dot">●</span>
+                ai
+            </span>
+            <span className="meta">
+                {("agent control room" + (" · " + modelName if modelName else ""))}
+            </span>
+            <span className="spacer"/>
+            <button className="btn ghost" onClick={lambda { reset(); }}>
+                New session
+            </button>
+            <button
+                className={"icon-btn attn" if needsKey else "icon-btn"}
+                title="Settings"
+                onClick={lambda { openSettings(); }}
+            >
+                ⚙
+            </button>
+        </div>
+        <div className="workspace">
+            <div className="col left" style={{"width": str(leftW) + "px"}}>
+                <Conversation
+                    {events}
+                    {status}
+                    {draft}
+                    onDraftChange={lambda (v: str) { draft = v; }}
+                    onSend={send}
+                    onStop={stop}
+                />
             </div>
-            <div className="workspace">
-                <div className="col left" style={{"width": str(leftW) + "px"}}>
-                    <Conversation
-                        {events}
+            <ResizeHandle
+                vertical={True}
+                onResize={lambda (dx: float) { leftW = max(
+                    300, min(int(leftW + dx), int(win.innerWidth) - rightW - 320)
+                ); }}
+            />
+            <div className="col center">
+                <div className="pane">
+                    <div className="pane-head">Phase graph</div>
+                    <PhaseGraph
+                        {nodes}
+                        {edges}
+                        {active}
+                        {path}
                         {status}
-                        {draft}
-                        onDraftChange={lambda (v: str) { draft = v; }}
-                        onSend={send}
-                        onStop={stop}
+                        {selected}
+                        onSelect={lambda (id: str) {
+                            selected = id;
+                            loadPhaseCtx(id);
+                        }}
                     />
-                </div>
-                <ResizeHandle
-                    vertical={True}
-                    onResize={lambda (dx: float) { leftW = max(
-                        300, min(int(leftW + dx), int(win.innerWidth) - rightW - 320)
-                    ); }}
-                />
-                <div className="col center">
-                    <div className="pane">
-                        <div className="pane-head">Phase graph</div>
-                        <PhaseGraph
-                            {nodes}
-                            {edges}
-                            {active}
-                            {path}
-                            {status}
-                            {selected}
-                            onSelect={lambda (id: str) {
-                                selected = id;
-                                loadPhaseCtx(id);
-                            }}
-                        />
-                    </div>
-                </div>
-                <ResizeHandle
-                    vertical={True}
-                    onResize={lambda (dx: float) { rightW = max(
-                        300, min(int(rightW - dx), int(win.innerWidth) - leftW - 320)
-                    ); }}
-                />
-                <div className="col right" style={{"width": str(rightW) + "px"}}>
-                    <ActivityFeed {events} {status}/>
                 </div>
             </div>
             <ResizeHandle
-                vertical={False}
-                onResize={lambda (dy: float) { bottomH = max(
-                    90, min(int(bottomH - dy), int(win.innerHeight) - 260)
+                vertical={True}
+                onResize={lambda (dx: float) { rightW = max(
+                    300, min(int(rightW - dx), int(win.innerWidth) - leftW - 320)
                 ); }}
             />
-            <div className="bottompane" style={{"height": str(bottomH) + "px"}}>
-                <TokenStream
-                    events={events}
-                    live={status == "running"}
-                    selected={selectedCall}
-                    onSelect={lambda (id: int) { openCall(id); }}
-                />
-                <LedgerPane {ledger}/>
-                <PhaseInspector {nodes} {selected} context={phaseCtx}/>
+            <div className="col right" style={{"width": str(rightW) + "px"}}>
+                <ActivityFeed {events} {status}/>
             </div>
-            <StatsBar {stats} {active}/>
-            {<SettingsModal
-                model={sModel}
-                apiKeySet={sApiKeySet}
-                keyDraft={sKey}
-                baseUrl={sBaseUrl}
-                temp={sTemp}
-                nctx={sNctx}
-                presets={sPresets}
-                modelSource={sModelSource}
-                needsKey={needsKey}
-                keyEnv={keyEnv}
-                error={sError}
-                busy={sBusy}
-                onModel={lambda (v: str) { sModel = v; }}
-                onKey={lambda (v: str) { sKey = v; }}
-                onBaseUrl={lambda (v: str) { sBaseUrl = v; }}
-                onTemp={lambda (v: str) { sTemp = v; }}
-                onNctx={lambda (v: str) { sNctx = v; }}
-                onApply={applySettings}
-                onClose={lambda { showSettings = False; }}
+        </div>
+        <ResizeHandle
+            vertical={False}
+            onResize={lambda (dy: float) { bottomH = max(
+                90, min(int(bottomH - dy), int(win.innerHeight) - 260)
+            ); }}
+        />
+        <div className="bottompane" style={{"height": str(bottomH) + "px"}}>
+            <TokenStream
+                events={events}
+                live={status == "running"}
+                selected={selectedCall}
+                onSelect={lambda (id: int) { openCall(id); }}
             />
-                if showSettings
-                else <span/>}
-            {<CallDetailModal
-                detail={callDetail}
-                onPrev={lambda { openCall(int(callDetail.prev_id)); }}
-                onNext={lambda { openCall(int(callDetail.next_id)); }}
-                onClose={lambda { openCall(-1); }}
-            />
-                if (selectedCall >= 0 and callDetail)
-                else <span/>}
-        </div>;
+            <LedgerPane {ledger}/>
+            <PhaseInspector {nodes} {selected} context={phaseCtx}/>
+        </div>
+        <StatsBar {stats} {active}/>
+        {<SettingsModal
+            model={sModel}
+            apiKeySet={sApiKeySet}
+            keyDraft={sKey}
+            baseUrl={sBaseUrl}
+            temp={sTemp}
+            nctx={sNctx}
+            presets={sPresets}
+            modelSource={sModelSource}
+            needsKey={needsKey}
+            keyEnv={keyEnv}
+            error={sError}
+            busy={sBusy}
+            onModel={lambda (v: str) { sModel = v; }}
+            onKey={lambda (v: str) { sKey = v; }}
+            onBaseUrl={lambda (v: str) { sBaseUrl = v; }}
+            onTemp={lambda (v: str) { sTemp = v; }}
+            onNctx={lambda (v: str) { sNctx = v; }}
+            onApply={applySettings}
+            onClose={lambda { showSettings = False; }}
+        />
+            if showSettings
+            else <span/>}
+        {<CallDetailModal
+            detail={callDetail}
+            onPrev={lambda { openCall(int(callDetail.prev_id)); }}
+            onNext={lambda { openCall(int(callDetail.next_id)); }}
+            onClose={lambda { openCall(-1); }}
+        />
+            if (selectedCall >= 0 and callDetail)
+            else <span/>}
+    </div>
 }

@@ -1,87 +1,61 @@
 """Complete SPA example using reactive state and routing."""
 
-cl import from "@jac/runtime" {
-    createSignal,
-    createState,
-    createRouter,
-    Route,
-    Link,
-}
+cl import from "@jac/runtime" { createSignal, createState, createRouter, Route, Link, }
 
-cl glob _appState = createState({"user": None, "loggedIn": False});
-cl glob appState = _appState[0];
-cl glob setAppState = _appState[1];
+cl glob _appState = createState({"user": None, "loggedIn": False}),
+     appState = _appState[0],
+     setAppState = _appState[1];
 
 cl {
     # Counter component using reactive signal
-    def CounterApp()  -> JsxElement {
+    def CounterApp -> JsxElement {
         [count, setCount] = createSignal(0);
 
-        def increment()  -> None {
+        def increment {
             setCount(count() + 1);
         }
 
-        def decrement()  -> None {
+        def decrement {
             setCount(count() - 1);
         }
 
-        return <div class="counter-app">
-            <h1>
-                Counter: {count()}
-            </h1>
-            <button
-                onclick={increment}
-            >
-                +
-            </button>
-            <button
-                onclick={decrement}
-            >
-                -
-            </button>
-        </div>;
+        <div class="counter-app">
+            <h1>Counter: {count()}</h1>
+            <button onclick={increment}>+</button>
+            <button onclick={decrement}>-</button>
+        </div>
     }
 
     # Todo list component using reactive state
-    def TodoApp()  -> JsxElement {
+    def TodoApp -> JsxElement {
         [todos, setTodos] = createState({"items": [], "nextId": 1});
 
-        def addTodo(text: str) -> None {
+        def addTodo(text: str) {
             currentState = todos();
             newItem = {"id": currentState.nextId, "text": text, "done": False};
             newItems = [*currentState.items, newItem];
             setTodos({"items": newItems, "nextId": currentState.nextId + 1});
         }
 
-        return <div class="todo-app">
-            <h1>
-                Todos
-            </h1>
-            <div>
-                Total: {todos().items.length}
-            </div>
-        </div>;
+        <div class="todo-app">
+            <h1>Todos</h1>
+            <div>Total: {todos().items.length}</div>
+        </div>
     }
 
     # Home component
-    def Home()  -> JsxElement {
-        return <div>
-            <h1>
-                Home
-            </h1>
+    def Home -> JsxElement {
+        <div>
+            <h1>Home</h1>
             <nav>
-                <Link href="/counter">
-                    Counter App
-                </Link>
-                <Link href="/todos">
-                    Todo App
-                </Link>
+                <Link href="/counter">Counter App</Link>
+                <Link href="/todos">Todo App</Link>
             </nav>
-        </div>;
+        </div>
     }
 
     # Main app with router
-    def App()  -> JsxElement {
+    def App -> JsxElement {
         router = createRouter(
             [
                 Route(path="/", component=Home),
@@ -92,13 +66,11 @@ cl {
             defaultRoute="/"
         );
 
-        return <div class="app">
-            {router.render()}
-        </div>;
+        <div class="app">{router.render()}</div>
     }
 
     # Test that demonstrates no manual renderJsxTree calls needed
-    def test_spa_no_manual_rendering()  -> dict {
+    def test_spa_no_manual_rendering -> dict {
         # The app component just returns JSX
         # The framework handles all rendering automatically
         component = App();
@@ -111,7 +83,7 @@ cl {
     }
 
     # Test reactive counter
-    def test_counter_reactivity()  -> dict {
+    def test_counter_reactivity -> dict {
         [count, setCount] = createSignal(0);
 
         initial = count();
@@ -124,7 +96,7 @@ cl {
     }
 
     # Entry point
-    def test_spa_integration()  -> dict {
+    def test_spa_integration -> dict {
         return {
             "noManualRender": test_spa_no_manual_rendering(),
             "counterReactivity": test_counter_reactivity()

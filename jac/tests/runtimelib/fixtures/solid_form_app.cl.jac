@@ -30,18 +30,23 @@ The jsdom harness in `test_solid_jsdom.jac` verifies:
 
 import from "@jac/runtime" { JacForm, JacSchema }
 
-def:pub app() -> JsxElement {
-    schema = JacSchema({
-        email: JacSchema.string().email("Invalid email"),
-        agree: JacSchema.boolean(),
-        plan: JacSchema.enum(["free", "pro", "enterprise"]),
-        role: JacSchema.enum(["admin", "user"])
-    });
+def:pub app -> JsxElement {
+    schema = JacSchema(
+        {
+            email: JacSchema.string().email("Invalid email"),
+            agree: JacSchema.boolean(),
+            plan: JacSchema.enum(["free", "pro", "enterprise"]),
+            role: JacSchema.enum(["admin", "user"])
+        }
+    );
 
-    return <div data-testid="form-root">
+    <div data-testid="form-root">
         <JacForm
             schema={schema}
-            onSubmit={lambda (data: any) { globalThis.__jacFormSubmitted = True; return; }}
+            onSubmit={lambda (data: any) {
+                globalThis.__jacFormSubmitted = True;
+                return;
+            }}
             field_config={{
                 "email": {"type": "email", "label": "Email"},
                 "agree": {"type": "checkbox", "label": "I agree"},
@@ -49,5 +54,5 @@ def:pub app() -> JsxElement {
                 "role": {"type": "radio", "label": "Role"}
             }}
         />
-    </div>;
+    </div>
 }

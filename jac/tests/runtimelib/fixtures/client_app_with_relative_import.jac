@@ -2,9 +2,9 @@
 
 cl import from .client_ui_components { Button, Card, }
 
-cl def: pub main_page()  -> JsxElement {
-    return <div class="app">
-        <Card title="Welcome" />
-        <Button label="Click Me" />
-    </div>;
+cl def:pub main_page -> JsxElement {
+    <div class="app">
+        <Card title="Welcome"/>
+        <Button label="Click Me"/>
+    </div>
 }

@@ -9,13 +9,13 @@ what the jsdom harness in `test_solid_jsdom.jac` mounts and asserts. As a
 client-side (no `cl { }` wrapper needed).
 """
 
-def:pub app() -> JsxElement {
+def:pub app -> JsxElement {
     has count: int = 0;
 
-    return <div>
+    <div>
         <p data-testid="count">Count: {count}</p>
         <button data-testid="inc" onClick={lambda (e: any) { count = count + 1; }}>
             +
         </button>
-    </div>;
+    </div>
 }

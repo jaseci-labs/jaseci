@@ -504,6 +504,7 @@ obj Parser {
     def parse_native_block -> NativeBlock;
     def parse_module_code -> ModuleCode;
     def parse_code_block_stmts -> list;
+    def _apply_implicit_return(body: list) -> list;
     def parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None;
     def parse_statement;
     def parse_if_stmt -> IfStmt;

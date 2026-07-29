@@ -6,7 +6,7 @@ referenced here.
 """
 sv import from .crossbound_server { cross_pub, cross_priv, CrossView }
 
-cl def:pub Panel() -> JsxElement {
+cl def:pub Panel -> JsxElement {
     has msg: str = "";
 
     async can with entry {
@@ -15,6 +15,5 @@ cl def:pub Panel() -> JsxElement {
         msg = a.msg;
     }
 
-    return
-        <div id="panel">{msg}</div>;
+    <div id="panel">{msg}</div>
 }

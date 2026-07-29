@@ -318,6 +318,21 @@ test "lambda expr" {
     assert lines[3] == "None";
 }
 
+test "implicit return" {
+    output = run_jac(os.path.join(FIXTURES, "implicit_return.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "3" , f"def tail expr: {lines[0]}";
+    assert lines[1] == "pos" , f"guarded explicit return: {lines[1]}";
+    assert lines[2] == "non-pos" , f"tail after guard: {lines[2]}";
+    assert lines[3] == "JAC!" , f"tail after statements: {lines[3]}";
+    assert lines[4] == "hello mars" , f"method tail expr: {lines[4]}";
+    assert lines[5] == "bye mars" , f"impl body tail expr: {lines[5]}";
+    assert lines[6] == "{'color': 'red', 'size': 4}" , f"dict literal tail: {lines[6]}";
+    assert lines[7] == "(7, 8)" , f"tuple tail: {lines[7]}";
+    assert lines[8] == "42" , f"single-expr lambda no semi: {lines[8]}";
+    assert lines[9] == "40" , f"multi-stmt lambda tail: {lines[9]}";
+}
+
 test "override walker inherit" {
     output = run_jac(os.path.join(FIXTURES, "walker_override.jac"));
     assert output == "baz\nbar\n";

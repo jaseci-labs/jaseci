@@ -32,50 +32,45 @@ def:pub SSOPage -> JsxElement {
         {"key": "secret", "label": "Secret"}
     ];
 
-    return
-        <Card className="overflow-hidden">
-            <CardHeader title="SSO Providers"/>
-            <DataTable columns={columns}>
-                {[
-                    <TableRow key={p["platform"]}>
-                        <TableCell>
-                            <span className="text-sm text-fg capitalize">
-                                {p["platform"]}
-                            </span>
-                        </TableCell>
-                        <TableCell>
-                            {p["configured"]
-                            and <span className="text-xs text-emerald-400">
-                                Configured
-                            </span>
-                            or <span className="text-xs text-faint">
-                                Not configured
-                            </span>}
-                        </TableCell>
-                        <TableCell>
-                            <span
-                                className={"text-xs " + (
-                                    p["client_id_set"]
-                                    and "text-emerald-400"
-                                    or "text-faint"
-                                )}
-                            >
-                                {p["client_id_set"] and "Set" or "Not set"}
-                            </span>
-                        </TableCell>
-                        <TableCell>
-                            <span
-                                className={"text-xs " + (
-                                    p["client_secret_set"]
-                                    and "text-emerald-400"
-                                    or "text-faint"
-                                )}
-                            >
-                                {p["client_secret_set"] and "Set" or "Not set"}
-                            </span>
-                        </TableCell>
-                    </TableRow> for p in ssoProviders
-                ]}
-            </DataTable>
-        </Card>;
+    <Card className="overflow-hidden">
+        <CardHeader title="SSO Providers"/>
+        <DataTable columns={columns}>
+            {[
+                <TableRow key={p["platform"]}>
+                    <TableCell>
+                        <span className="text-sm text-fg capitalize">
+                            {p["platform"]}
+                        </span>
+                    </TableCell>
+                    <TableCell>
+                        {p["configured"]
+                        and <span className="text-xs text-emerald-400">Configured</span>
+                        or <span className="text-xs text-faint">Not configured</span>}
+                    </TableCell>
+                    <TableCell>
+                        <span
+                            className={"text-xs " + (
+                                p["client_id_set"]
+                                and "text-emerald-400"
+                                or "text-faint"
+                            )}
+                        >
+                            {p["client_id_set"] and "Set" or "Not set"}
+                        </span>
+                    </TableCell>
+                    <TableCell>
+                        <span
+                            className={"text-xs " + (
+                                p["client_secret_set"]
+                                and "text-emerald-400"
+                                or "text-faint"
+                            )}
+                        >
+                            {p["client_secret_set"] and "Set" or "Not set"}
+                        </span>
+                    </TableCell>
+                </TableRow> for p in ssoProviders
+            ]}
+        </DataTable>
+    </Card>
 }
