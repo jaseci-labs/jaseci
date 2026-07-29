@@ -11,7 +11,7 @@ import from jaclang.compiler.passes.main.ownership_facts_pass {
     OwnershipFactsPass,
     get_ownership_facts
 }
-import from jaclang.compiler.ownership { Ownership }
+import from jaclang.compiler.passes.main.rc_facts_pass { Ownership }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 import os;

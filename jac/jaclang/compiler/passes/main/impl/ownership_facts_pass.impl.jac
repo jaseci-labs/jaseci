@@ -29,7 +29,12 @@ impl OwnershipFactsPass.transform(ir_in: uni.Module) -> uni.Module {
 }
 
 impl OwnershipFactsPass.analyze(mod: uni.Module) {
-    self.tf = get_type_facts(mod, self.prog);
+    if not self.tf.ok and self.prog is not None {
+        self.tf = get_shared_type_facts([mod], self.prog);
+    }
+    if self.tf.type_ids is not None and not self.type_scope {
+        self.type_scope = self.tf.type_ids.scope_for(mod);
+    }
     for stmt in mod.body {
         if isinstance(stmt, uni.Ability) {
             self.analyze_ability(stmt, "");
@@ -47,8 +52,13 @@ impl OwnershipFactsPass.tag_name(type_tag: uni.SubTag[uni.Expr] | None) -> str {
     return type_tag_name(type_tag);
 }
 
+impl OwnershipFactsPass.resolve_type(name: str) -> str {
+    return self.type_scope.get(name, name);
+}
+
 impl OwnershipFactsPass.analyze_ability(ab: uni.Ability, cls: str) {
-    self.local_types = ScopeTypes.for_ability(ab.signature, cls);
+    self_type = self.resolve_type(cls) if cls else "";
+    self.local_types = ScopeTypes.for_ability(ab.signature, self_type, self.type_scope);
     body = list(ab.body or []);
     for st in body {
         self.categorize_stmt(st);
@@ -73,7 +83,7 @@ impl OwnershipFactsPass.compute_consumed(
     idx = 0;
     for p in sig.params {
         pname = p.name.value;
-        if self.tag_name(p.type_tag) in self.tf.ref_types {
+        if self.tf.is_ref(self.resolve_type(self.tag_name(p.type_tag))) {
             store = self.sole_field_store(body, pname);
             if store is not None and self.count_name(body, pname) == 1 {
                 s = self.facts.consumed_params.get(key, None);
@@ -250,7 +260,7 @@ impl OwnershipFactsPass.note_local_type(a: uni.Assignment) {
         return;
     }
     if a.type_tag is not None {
-        self.local_types[tgt.value] = self.tag_name(a.type_tag);
+        self.local_types[tgt.value] = self.resolve_type(self.tag_name(a.type_tag));
     } else {
         self.local_types[tgt.value] = self.type_of(a.value);
     }
@@ -299,7 +309,7 @@ impl OwnershipFactsPass.is_str_concat(e: uni.Expr) -> bool {
 }
 
 impl OwnershipFactsPass.type_of(e: object) -> str {
-    return self.tf.type_of(e, self.local_types);
+    return self.tf.type_of(e, self.local_types, self.type_scope);
 }
 
 impl OwnershipFactsPass.mark_last_uses(body: list[uni.UniNode]) {
@@ -360,14 +370,25 @@ impl OwnershipFactsPass.collect_reads(e: object, last_read: dict[str, uni.UniNod
 }
 
 impl get_ownership_facts(
-    module: uni.Module, prog: JacProgram | None = None
+    module: uni.Module,
+    prog: JacProgram | None = None,
+    type_facts: TypeFacts | None = None,
+    type_scope: dict[str, str] = {}
 ) -> OwnershipFacts {
     cached = module.gen.ownership_facts;
     if isinstance(cached, OwnershipFacts) {
         return cached;
     }
     if prog is not None {
-        OwnershipFactsPass(ir_in=module, prog=prog);
+        tf = type_facts;
+        scope = type_scope;
+        if tf is None {
+            tf = get_shared_type_facts([module], prog);
+        }
+        if tf.type_ids is not None and not scope {
+            scope = tf.type_ids.scope_for(module);
+        }
+        OwnershipFactsPass(ir_in=module, prog=prog, tf=tf, type_scope=scope);
         result = module.gen.ownership_facts;
         if isinstance(result, OwnershipFacts) {
             return result;

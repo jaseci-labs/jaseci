@@ -202,7 +202,7 @@ impl CGenPass.gen_module(mod: uni.Module) {
     }
     self.load_layout(mod);
     try {
-        self.facts = get_ownership_facts(mod, self.prog);
+        self.facts = get_ownership_facts(mod, self.prog, self.tf, self.type_scope);
     } except Exception {
         if self.strict_c {
             raise;

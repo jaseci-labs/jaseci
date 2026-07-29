@@ -36,6 +36,14 @@ def _facts(fixture: str) -> tuple {
     return (ir, get_type_facts(ir, prog));
 }
 
+def _arch_tid(tf: TypeFacts, mod: uni.Module, name: str) -> str {
+    if tf.type_ids is not None {
+        mp = mod.loc.mod_path if mod.loc else "";
+        return tf.type_ids.tid_for(mp, name);
+    }
+    return name;
+}
+
 test "reference archetypes are indexed as ref types" {
     (mod, tf) = _facts("obj_rc.jac");
     assert tf.is_ref("Counter") , "Counter is a ref archetype";
@@ -85,8 +93,9 @@ test "shared facts merge modules first-wins" {
     ir = prog.compile(file_path=os.path.join(FIXTURES, "obj_rc.jac"));
     assert not prog.errors_had , "obj_rc must compile clean";
     merged = get_shared_type_facts([ir], prog);
-    assert "Counter" in merged.ref_types , "merged facts include Counter";
-    assert "Counter" in merged.field_types , "merged facts include Counter fields";
+    counter_tid = _arch_tid(merged, ir, "Counter");
+    assert counter_tid in merged.ref_types , "merged facts include Counter";
+    assert counter_tid in merged.field_types , "merged facts include Counter fields";
 }
 
 test "shared facts are isolated from the cached per-module facts" {
@@ -95,7 +104,8 @@ test "shared facts are isolated from the cached per-module facts" {
     # A consumer mutating the merged facts (as the C emitter does when it folds
     # in layout-derived field types) must not corrupt the cached facts that
     # other passes share.
-    merged.field_types["Counter"]["injected"] = "int";
+    counter_tid = _arch_tid(merged, mod, "Counter");
+    merged.field_types[counter_tid]["injected"] = "int";
     assert "injected" not in cached.field_types["Counter"] , "merge must copy nested field maps, not alias them";
 }
 
@@ -145,8 +155,8 @@ test "type_of resolves a local name through the local context" {
             # `c = Counter(10)` -- the assignment target is the local name `c`.
             name = list(list(s.body)[0].target)[0];
             assert tf.type_of(name, {"c": "Counter"}) == "Counter" , "local name resolves via local_types";
-            # With no local context the same name is untyped.
-            assert tf.type_of(name, {}) == "" , "unknown local yields the empty string";
+            # Checker types the binding from the assignment even without local_types.
+            assert tf.type_of(name, {}) == "Counter" , "checker types the bound local from its AST type";
         }
     }
 }
@@ -183,7 +193,9 @@ test "shared merge is first-wins on colliding archetype names" {
     (b, pb) = _compile("obj_move.jac");
     # Both modules define a `Counter`, but only obj_rc's has a `bump` method.
     ab = get_shared_type_facts([a, b], pa);
-    assert "bump" in ab.method_returns["Counter"] , "first module (obj_rc) wins";
+    rc_counter = _arch_tid(ab, a, "Counter");
+    assert "bump" in ab.method_returns[rc_counter] , "first module (obj_rc) wins";
     ba = get_shared_type_facts([b, a], pb);
-    assert "bump" not in ba.method_returns["Counter"] , "first module (obj_move) wins";
+    mv_counter = _arch_tid(ba, b, "Counter");
+    assert "bump" not in ba.method_returns[mv_counter] , "first module (obj_move) wins";
 }

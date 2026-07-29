@@ -1,91 +1,23 @@
 impl TypeFacts.type_of(
     e: object, local_types: dict[str, str], scope: dict[str, str] = {}
 ) -> str {
-    # Checker-first: the real type evaluator is authoritative when it can type
-    # the expression. It cannot type everything (bare lvalue names, locals only
-    # knowable from a prior in-pass assignment, prog-less facts), so fall back to
-    # the syntactic inference that consumers (ownership str-concat detection, the
-    # C emitter's typed-local decls) depend on.
     if self.prog is not None and isinstance(e, uni.Expr) {
         resolved = self.type_of_via_checker(e);
         if resolved {
             return resolved;
         }
     }
-    return self.infer_type(e, local_types, scope);
-}
-
-impl TypeFacts.infer_type(
-    e: object, local_types: dict[str, str], scope: dict[str, str] = {}
-) -> str {
     if isinstance(e, uni.AtomUnit) {
-        return self.infer_type(e.value, local_types, scope);
-    }
-    if isinstance(e, (uni.String, uni.MultiString)) {
-        return "str";
-    }
-    if isinstance(e, uni.Bool) {
-        return "bool";
-    }
-    if isinstance(e, uni.Int) {
-        return "int";
-    }
-    if isinstance(e, uni.Float) {
-        return "float";
+        return self.type_of(e.value, local_types, scope);
     }
     if isinstance(e, uni.Name) {
         t = local_types.get(e.value, "");
         return scope.get(t, t);
     }
-    if isinstance(e, uni.BinaryExpr) {
-        lt = self.infer_type(e.left, local_types, scope);
-        rt = self.infer_type(e.right, local_types, scope);
-        if isinstance(e.op, uni.Token)
-        and e.op.value == "+"
-        and (lt == "str" or rt == "str") {
-            return "str";
-        }
-        if lt == "float" or rt == "float" {
-            return "float";
-        }
-        if lt == "int" or rt == "int" {
-            return "int";
-        }
-        return "";
-    }
-    if isinstance(e, uni.CompareExpr) {
-        return "bool";
-    }
-    if isinstance(e, uni.FuncCall) {
-        tgt = e.target;
-        if isinstance(tgt, uni.Name) and tgt.value in self.ref_types {
-            return scope.get(tgt.value, tgt.value);
-        }
-        if isinstance(tgt, uni.Name) and tgt.value in self.func_returns {
-            return self.func_returns[tgt.value];
-        }
-        if isinstance(tgt, uni.AtomTrailer) and tgt.is_attr {
-            recv = self.infer_type(tgt.target, local_types, scope);
-            m = _attr_name(tgt.right);
-            if recv in self.method_returns and m in self.method_returns[recv] {
-                return self.method_returns[recv][m];
-            }
-        }
-        return "";
-    }
-    if isinstance(e, uni.AtomTrailer) and e.is_attr {
-        recv = self.infer_type(e.target, local_types, scope);
-        f = _attr_name(e.right);
-        if recv in self.field_types and f in self.field_types[recv] {
-            return self.field_types[recv][f];
-        }
-    }
     return "";
 }
 
 impl TypeFacts.type_of_via_checker(e: uni.Expr) -> str {
-    import from jaclang.compiler.type_system.type_utils { primitive_type_name_of }
-    import from jaclang.compiler.type_system.types { ClassType }
     if self.prog is None {
         return "";
     }
@@ -103,24 +35,10 @@ impl TypeFacts.type_of_via_checker(e: uni.Expr) -> str {
     if ty is None {
         return "";
     }
-    prim = primitive_type_name_of(ty);
-    if prim {
-        return prim;
-    }
-    # A class-typed EXPRESSION resolves to its stable type id only when the id
-    # index is present (shared/C-emit mode). Without it, defer to the syntactic
-    # inference / local context rather than leaking a bare arch name -- that name
-    # belongs to annotation resolution (typebase_to_typename), not expressions.
-    if self.type_ids is not None and isinstance(ty, ClassType) {
-        arch = ty.shared.symbol_table;
-        if isinstance(arch, uni.Archetype) and self.type_ids.has_arch(arch) {
-            return self.type_ids.tid_of_arch(arch);
-        }
-    }
-    return "";
+    return self.typebase_to_typename(ty);
 }
 
-impl TypeFacts.typebase_to_typename(ty: object) -> str {
+impl TypeFacts.typebase_to_typename(ty: TypeBase | None) -> str {
     import from jaclang.compiler.type_system.type_utils { primitive_type_name_of }
     import from jaclang.compiler.type_system.types { ClassType }
     if ty is None {
@@ -296,13 +214,6 @@ impl ret_type_name(ret: uni.Expr | None) -> str {
     return ret.unparse();
 }
 
-impl _attr_name(nd: object) -> str {
-    if isinstance(nd, uni.Name) {
-        return nd.value;
-    }
-    return "";
-}
-
 impl get_shared_type_facts(
     modules: list[uni.Module], prog: JacProgram | None = None
 ) -> TypeFacts {
@@ -441,7 +352,7 @@ impl build_type_id_index(modules: list[uni.Module]) -> TypeIdIndex {
         placed.add(k);
         colliders.append((mp, nm));
     }
-    colliders.sort(key=lambda pair : pair[1] + "\x00" + pair[0]);
+    colliders.sort(key=lambda (pair) { pair[1] + "\x00" + pair[0]; });
     for (mp, nm) in colliders {
         base = sanitize_c_ident(module_stem(mp)) + "__" + nm;
         cand = base;

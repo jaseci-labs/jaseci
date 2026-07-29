@@ -4,7 +4,7 @@ import from jaclang.jac0core.program { JacProgram }
 import from jaclang.compiler.passes.main.rc_facts_pass { Ownership, result_ownership }
 import from jaclang.compiler.passes.main.type_facts_pass {
     TypeFacts,
-    get_type_facts,
+    get_shared_type_facts,
     type_tag_name,
     ScopeTypes
 }
@@ -21,17 +21,22 @@ obj OwnershipFacts {
 }
 
 def get_ownership_facts(
-    module: uni.Module, prog: JacProgram | None = None
+    module: uni.Module,
+    prog: JacProgram | None = None,
+    type_facts: TypeFacts | None = None,
+    type_scope: dict[str, str] = {}
 ) -> OwnershipFacts;
 
 obj OwnershipFactsPass(Transform[uni.Module, uni.Module]) {
     has tf: TypeFacts = TypeFacts(),
+        type_scope: dict[str, str] = {},
         local_types: dict[str, str] = {},
         facts: OwnershipFacts = OwnershipFacts();
 
     def transform(ir_in: uni.Module) -> uni.Module;
     def analyze(mod: uni.Module);
     def tag_name(type_tag: uni.SubTag[uni.Expr] | None) -> str;
+    def resolve_type(name: str) -> str;
     def analyze_ability(ab: uni.Ability, cls: str);
     def compute_consumed(ab: uni.Ability, cls: str, body: list[uni.UniNode]);
     def callee_key(ab: uni.Ability, cls: str) -> str;
