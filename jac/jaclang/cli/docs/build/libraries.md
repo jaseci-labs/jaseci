@@ -32,7 +32,7 @@ The client-side counterpart: a `cl` component (or function) library published to
 ```jac
 # greetui/index.cl.jac
 def:pub Greeting(name: str) -> JsxElement {
-    return <h1>Hello, {name}!</h1>;
+    <h1>Hello, {name}!</h1>
 }
 ```
 

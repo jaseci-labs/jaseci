@@ -87,7 +87,7 @@ def:pub app -> JsxElement {
         wasm.__jac_glob_init();                        # REQUIRED before any other export
         answer = f"{wasm.count_primes(BigInt(20000))}";  # i64 param must be a BigInt
     }
-    return <div><p>{"primes below 20000: "}<b>{answer}</b></p></div>;
+    <div><p>{"primes below 20000: "}<b>{answer}</b></p></div>
 }
 ```
 

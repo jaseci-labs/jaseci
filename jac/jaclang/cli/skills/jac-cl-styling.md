@@ -45,9 +45,9 @@ class and rewrites the matching `className` literals to agree.
 ```jac
 # Card.jac
 def:pub Card(title: str) -> JsxElement {
-    return <div className="card">
+    <div className="card">
         <h2 className="card-title">{title}</h2>
-    </div>;
+    </div>
 }
 ```
 
@@ -79,7 +79,7 @@ Ternary is Python-style (`A if cond else B`). String concatenation for dynamic c
 ```jac
 def:pub TabButton(active: bool, children: any = None) -> JsxElement {
     tab_cls = "border-primary text-foreground" if active else "border-transparent text-muted-foreground";
-    return <button className={"px-2.5 py-1.5 border-b-2 " + tab_cls}>{children}</button>;
+    <button className={"px-2.5 py-1.5 border-b-2 " + tab_cls}>{children}</button>
 }
 ```
 

@@ -62,7 +62,7 @@ def:pub app() -> JsxElement {           # JSX: seeds client
     async def load() -> None {
         items = await fetch_items();    # compiler generates the HTTP call
     }
-    return <ul>{[<li class={row_class(i)}>{it}</li> for (i, it) in enumerate(items)]}</ul>;
+    <ul>{[<li class={row_class(i)}>{it}</li> for (i, it) in enumerate(items)]}</ul>
 }
 ```
 
@@ -83,7 +83,7 @@ A `cl { ... }` / `sv { ... }` / `na { ... }` block tags every element inside it 
 ```jac
 cl {
     def:pub Greeting(props: dict) -> JsxElement {
-        return <h1>Hello, {props.name}!</h1>;
+        <h1>Hello, {props.name}!</h1>
     }
 }
 ```
@@ -112,7 +112,7 @@ def:pub app() -> JsxElement {
     async def load() -> None {
         items = await fetch_items();      # compiler generates the HTTP call
     }
-    return <ul>{items}</ul>;
+    <ul>{items}</ul>
 }
 ```
 
