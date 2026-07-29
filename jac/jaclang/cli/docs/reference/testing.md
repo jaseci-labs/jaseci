@@ -206,9 +206,9 @@ A `test` block runs in the codespace its surrounding context compiles to, so tes
 
 | Context | Where the test runs |
 |---------|---------------------|
-| `.jac` / `.sv.jac` | Python runtime (unittest) |
-| Native-placed module or inline `na { }` block | Native code via the LLVM JIT |
-| `test_*.jac` / `*.test.jac` | JavaScript runtime via bun |
+| Server-placed module (the default) | Python runtime (unittest) |
+| Native-placed module | Native code via the LLVM JIT |
+| Client-placed module (inferred or pinned) | JavaScript runtime via bun |
 
 All of them report through the same `jac test` pass/fail pipeline, and the CLI options above apply uniformly. A test in a native-placed module compiles to native code and runs with native semantics -- a failing `assert` reports the failing source location (`file:line`). See [Native Compilation -- Testing](language/native-pathway.md#testing) for native-specific details and limitations.
 

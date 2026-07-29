@@ -701,7 +701,7 @@ impl JacCompiler.parse_str(
         }
         if is_retired_client_marker(file_path) {
             raise ValueError(
-                f"{file_path}: the .jac marker was retired -- rename the "
+                f"{file_path}: the .cl.jac marker was retired -- rename the "
                 "file to .jac; client placement is inferred from JSX/npm "
                 "imports (override via [placement.pins] in jac.toml). Run "
                 "'jac fix placement' to migrate the project."

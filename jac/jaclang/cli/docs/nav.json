@@ -92,7 +92,7 @@
           "title": "Ship It — Deploy & Scale",
           "items": [
             { "title": "Local API Server", "page": "tutorials/production/local.md" },
-            { "title": "Microservices with sv import", "page": "tutorials/production/microservices.md" },
+            { "title": "Microservices", "page": "tutorials/production/microservices.md" },
             { "title": "Kubernetes", "page": "tutorials/production/kubernetes.md" }
           ]
         }

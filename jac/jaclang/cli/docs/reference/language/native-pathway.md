@@ -24,7 +24,7 @@
 
 Jac's native codespace compiles code to **machine-code via LLVM** -- the same Jac syntax, but running as native instructions instead of on the Python runtime. You can use it in two ways:
 
-1. **Inline native sections** -- drop native-compiled functions into any Jac application alongside Python-backed code using a `na { }` block (or `na` statement prefix). The compiler generates the interop layer automatically.
+1. **Inline native sections** -- drop native-compiled functions into any Jac application alongside Python-backed code; extern C declarations seed native placement and a `"native"` pin in `[placement.pins]` forces it. The compiler generates the interop layer automatically.
 2. **Standalone binaries** -- compile an entire program to a self-contained binary with `jac nacompile`, which forces the whole module native. No Python runtime, no external compiler, no external linker -- the entire toolchain from source to executable runs within Jac itself.
 
 Native compilation is ideal for:
@@ -56,7 +56,7 @@ nacompile`, `jac build --as native`, or
 
 | Aspect | Details |
 |--------|---------|
-| **Inline section** | `na { }` block (or `na` prefix) in any `.jac` file |
+| **Inline section** | native-placed declarations in any `.jac` file (extern-decl seeds or a `"native"` pin) |
 | **Whole module** | Inferred by the placement solver; forced with `jac nacompile` / `jac build --as native` |
 | **Entry point** | `with entry { }` (standalone binaries only) |
 | **CLI command** | `jac nacompile <file> [-o output] [--shared]` |
@@ -75,10 +75,10 @@ nacompile`, `jac build --as native`, or
 
 The most common way to use native compilation is to tag elements of a regular `.jac` file for the native codespace. Functions in a native section compile to native machine code while the rest of the file runs on Python as usual.
 
-There are two ways to select the native codespace inside a file:
+There is no syntax for it -- native placement inside a file comes from evidence or from configuration:
 
-- **`na { ... }` braced block** (recommended) -- every element inside the braces compiles native; the braces bracket exactly the tagged region. Also works inside inner scopes.
-- **`na` single-statement prefix** -- tags one declaration.
+- **Extern C declarations** -- an `import from <lib> { def ...; }` surface seeds native placement for itself and the declarations that use it.
+- **`[placement.pins]`** -- a `"native"` pin in `jac.toml` forces one declaration (`"app.compute_checksum" = "native"`) or a whole module (`"app" = "native"`).
 
 ```jac
 # app.jac
@@ -855,7 +855,7 @@ The proof is scoped to the exact move site (`Assignment.na_move_lowerable`), not
 
 ## Testing
 
-`test` blocks in native context compile to native code and run through `jac test` -- the same harness used everywhere else in Jac. A test in a native-placed module, or inside an inline `na { }` block, executes inside the module's JIT engine with full native semantics: the same integer, float, string, and object behavior as the code it exercises.
+`test` blocks in native context compile to native code and run through `jac test` -- the same harness used everywhere else in Jac. A test in a native-placed module executes inside the module's JIT engine with full native semantics: the same integer, float, string, and object behavior as the code it exercises.
 
 ```jac
 # vectors.jac
@@ -923,7 +923,7 @@ The following Jac features are **not yet available** in the native codespace:
 | PyPI imports | No Python ecosystem in native binaries |
 
 !!! tip
-    If you need a feature from the list above, keep that code in the Python codespace and use `na { }` blocks only for the performance-critical parts. The compiler handles the interop automatically.
+    If you need a feature from the list above, keep that code in the Python codespace and place only the performance-critical parts native. The compiler handles the interop automatically.
 
 ---
 

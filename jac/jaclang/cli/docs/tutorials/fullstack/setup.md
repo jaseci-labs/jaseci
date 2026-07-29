@@ -1,6 +1,6 @@
 # Full-Stack Project Setup
 
-Jac's built-in client framework lets you build full-stack web applications where the frontend (React-style JSX components) and backend (walkers, functions, graph operations) live in the same codebase -- even the same file. The compiler separates client and server code automatically: client-side code -- a `.jac` file or anything inside a `cl { }` block -- compiles to JavaScript and runs in the browser, while everything else compiles to Python and runs on the server.
+Jac's built-in client framework lets you build full-stack web applications where the frontend (React-style JSX components) and backend (walkers, functions, graph operations) live in the same codebase -- even the same file. The compiler separates client and server code automatically: declarations with client-only syntax (JSX, npm imports) -- plus anything client code references -- compile to JavaScript and run in the browser, while everything else compiles to Python and runs on the server.
 
 This means no separate frontend repository, no REST API boilerplate, and no manual data serialization. When a client component calls a server function, the compiler generates the HTTP layer for you. Hot Module Replacement (HMR) is built in, so changes to both frontend and backend code reflect instantly during development.
 
@@ -14,7 +14,7 @@ In this tutorial, you'll set up a full-stack project, understand the file struct
 > - Time: ~15 minutes
 
 !!! note "Explicit markers are optional"
-    This tutorial uses the explicit `cl { }` / `.jac` style throughout so the client/server split is visible at a glance. The markers are optional: the compiler infers client placement from JSX and npm imports (and from what that client code uses), so everything shown here also works markerless. See [Core Concepts](../../quick-guide/what-makes-jac-different.md) for how inference works.
+    Nothing in this tutorial marks the client/server split -- the compiler infers client placement from JSX and npm imports (and from what that client code uses). When a decision must be forced, the override is a `[placement.pins]` entry in `jac.toml`. See [Core Concepts](../../quick-guide/what-makes-jac-different.md) for how inference works.
 
 ---
 
@@ -131,9 +131,9 @@ Open http://localhost:8000/cl/app
 
 ---
 
-## Understanding `cl { }`
+## How the Split Works
 
-A `cl { }` block marks frontend (client) code -- everything inside the braces compiles to JavaScript/React, while everything outside stays on the server:
+The compiler reads the evidence in each declaration -- JSX makes a component client code, graph constructs make a walker server code -- and splits the file for you:
 
 ```jac
 # This is backend code (runs on server)
@@ -149,7 +149,7 @@ def:pub MyComponent() -> JsxElement {
 
 **Key rules:**
 
-- Code inside a `cl { }` block (or in a `.jac` file) compiles to JavaScript/React
+- Declarations with JSX (and the helpers they use) compile to JavaScript/React
 - `def:pub` exports functions (like React components)
 - `app()` is the required entry point
 
@@ -189,7 +189,7 @@ myapp/
     └── About.jac   # Frontend page
 ```
 
-**Note:** `.jac` files are automatically client-side (no `cl { }` block needed).
+**Note:** component files need no marking -- their JSX places them client-side.
 
 ---
 

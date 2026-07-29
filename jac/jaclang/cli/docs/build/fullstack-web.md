@@ -70,7 +70,7 @@ Open [http://localhost:8000](http://localhost:8000). No database, no separate fr
 
 ## Client-only & in-browser native {#web-static}
 
-Set `kind = "web-static"` for an app with **no backend** -- a pure `cl` page that `jac build` emits as a portable, self-contained `dist/`. This is also the home of *in-browser native compute*: an `na {}` block compiles to **WebAssembly** and runs client-side at native speed (a game loop, a simulation, a hot inner loop), driven by the `cl` page with no server round-trip. One module holds both halves:
+Set `kind = "web-static"` for an app with **no backend** -- a pure `cl` page that `jac build` emits as a portable, self-contained `dist/`. This is also the home of *in-browser native compute*: native-placed code compiles to **WebAssembly** and runs client-side at native speed (a game loop, a simulation, a hot inner loop), driven by the client page with no server round-trip. One module holds both halves:
 
 ```jac
 # main.jac
@@ -119,7 +119,7 @@ jac build          # portable, self-contained dist in .jac/client/dist/
 
 Because a `web-static` project has no server, `jac start` serves the build with a **minimal static server** (no API server, auth, or database) and `jac build` emits a **portable `index.html`** with its JS/CSS inlined, so a pure `cl` page opens directly from disk (`file://`). An app that fetches `/static/main.wasm` at runtime, like this one, must be *served* (the browser can't fetch the module over `file://`). See [Client-only apps](../reference/plugins/jac-client.md#client-only-apps).
 
-`jac start` compiles the `na` block to `/static/main.wasm` as part of the client build -- no emscripten and no `wasm-ld`; Jac's own WebAssembly linker turns the object into an instantiable module -- and the page fetches it on mount:
+`jac start` compiles the native-placed code to `/static/main.wasm` as part of the client build -- no emscripten and no `wasm-ld`; Jac's own WebAssembly linker turns the object into an instantiable module -- and the page fetches it on mount:
 
 ```text
 primes below 20000 (computed in wasm): 2262

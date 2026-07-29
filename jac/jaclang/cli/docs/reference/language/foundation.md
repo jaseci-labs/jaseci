@@ -138,13 +138,11 @@ my_project/
 
 | Extension | Purpose |
 |-----------|---------|
-| `.jac` | Universal Jac code (head module) |
-| `.sv.jac` | Server-variant code |
-| `.jac` | Client-variant code |
+| `.jac` | Jac code (any codespace -- placement is inferred) |
 | `.impl.jac` | Implementation file (annex) |
 | `.test.jac` | Test file (annex) |
 
-Files sharing the same base name form a single logical module. For example, `mymod.jac`, `mymod.sv.jac`, `mymod.jac`, `mymod.impl.jac`, and `mymod.test.jac` are all part of the `mymod` module. Variant files (`.sv.jac`, `.jac`) are automatically discovered and merged during compilation -- see [Variant Modules](functions-objects.md#4-variant-modules) for details. Note that variant extensions are explicit placement pins: plain `.jac` files work for client code too, since the compiler infers client placement from JSX and npm imports. Native placement has no filename variant at all -- it is inferred (or forced with `jac nacompile` / `jac build --as native`).
+Files sharing the same base name form a single logical module. For example, `mymod.jac`, `mymod.impl.jac`, and `mymod.test.jac` are all part of the `mymod` module; the annexes are discovered and merged automatically during compilation. Placement carries no filename spelling at all: the compiler infers each declaration's codespace from the code itself (JSX and npm imports place client, extern C declarations place native, everything else defaults to server), and `[placement.pins]` in `jac.toml` overrides when needed -- see [Codespace Model](primitives.md#codespace-model).
 
 ### 4 Editor Setup
 

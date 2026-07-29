@@ -7,38 +7,38 @@ This document provides a comprehensive reference of all JavaScript/ECMAScript im
 | Category | JavaScript Pattern | Jac Pattern | Status | Generated JavaScript | Notes |
 |----------|-------------------|-------------|--------|---------------------|-------|
 | **Category 1: Named Imports** |
-| Single named | `import { useState } from 'react'` | `cl import from react { useState }` |  Working | `import { useState } from "react";` | |
-| Multiple named | `import { map, filter } from 'lodash'` | `cl import from lodash { map, filter }` |  Working | `import { map, filter } from "lodash";` | |
-| Named with alias | `import { get as httpGet } from 'axios'` | `cl import from axios { get as httpGet }` |  Working | `import { get as httpGet } from "axios";` | |
-| Mixed named + aliases | `import { createApp, ref as reactive } from 'vue'` | `cl import from vue { createApp, ref as reactive }` |  Working | `import { createApp, ref as reactive } from "vue";` | |
+| Single named | `import { useState } from 'react'` | `import from react { useState }` |  Working | `import { useState } from "react";` | |
+| Multiple named | `import { map, filter } from 'lodash'` | `import from lodash { map, filter }` |  Working | `import { map, filter } from "lodash";` | |
+| Named with alias | `import { get as httpGet } from 'axios'` | `import from axios { get as httpGet }` |  Working | `import { get as httpGet } from "axios";` | |
+| Mixed named + aliases | `import { createApp, ref as reactive } from 'vue'` | `import from vue { createApp, ref as reactive }` |  Working | `import { createApp, ref as reactive } from "vue";` | |
 | **Category 1: Relative Paths** |
-| Single dot (current) | `import { helper } from './utils'` | `cl import from .utils { helper }` |  Working | `import { helper } from "./utils";` | |
-| Double dot (parent) | `import { format } from '../lib'` | `cl import from ..lib { format }` |  Working | `import { format } from "../lib";` | |
-| Triple dot (grandparent) | `import { settings } from '../../config'` | `cl import from ...config { settings }` |  Working | `import { settings } from "../../config";` | Supports any number of dots |
+| Single dot (current) | `import { helper } from './utils'` | `import from .utils { helper }` |  Working | `import { helper } from "./utils";` | |
+| Double dot (parent) | `import { format } from '../lib'` | `import from ..lib { format }` |  Working | `import { format } from "../lib";` | |
+| Triple dot (grandparent) | `import { settings } from '../../config'` | `import from ...config { settings }` |  Working | `import { settings } from "../../config";` | Supports any number of dots |
 | **Category 1: Module Prefix** |
-| With jac: prefix | `import { renderJsxTree } from 'jac:client_runtime'` | `cl import from jac:client_runtime { renderJsxTree }` |  Working | `import { renderJsxTree } from "client_runtime";` | Prefix stripped for resolution |
+| With jac: prefix | `import { renderJsxTree } from 'jac:client_runtime'` | `import from jac:client_runtime { renderJsxTree }` |  Working | `import { renderJsxTree } from "client_runtime";` | Prefix stripped for resolution |
 | **Category 1: String Literal Imports** |
-| Hyphenated packages | `import { render } from 'react-dom'` | `cl import from "react-dom" { render }` |  Working | `import { render } from "react-dom";` | Use string literals for package names with hyphens |
-| Multiple hyphens | `import { BrowserRouter } from 'react-router-dom'` | `cl import from "react-router-dom" { BrowserRouter }` |  Working | `import { BrowserRouter } from "react-router-dom";` | Works with any special characters |
+| Hyphenated packages | `import { render } from 'react-dom'` | `import from "react-dom" { render }` |  Working | `import { render } from "react-dom";` | Use string literals for package names with hyphens |
+| Multiple hyphens | `import { BrowserRouter } from 'react-router-dom'` | `import from "react-router-dom" { BrowserRouter }` |  Working | `import { BrowserRouter } from "react-router-dom";` | Works with any special characters |
 | **Category 1: Path Alias Imports** |
-| Alias with wildcard | `import { Button } from '@components/Button'` | `cl import from "@components/Button" { Button }` |  Working | `import { Button } from "@components/Button";` | Requires `[client.paths]` in jac.toml |
-| Exact alias | `import { constants } from '@shared'` | `cl import from "@shared" { constants }` |  Working | `import { constants } from "@shared";` | Maps to a single target path |
+| Alias with wildcard | `import { Button } from '@components/Button'` | `import from "@components/Button" { Button }` |  Working | `import { Button } from "@components/Button";` | Requires `[client.paths]` in jac.toml |
+| Exact alias | `import { constants } from '@shared'` | `import from "@shared" { constants }` |  Working | `import { constants } from "@shared";` | Maps to a single target path |
 | **Category 2: Default Imports** |
-| Default import | `import React from 'react'` | `cl import from react { default as React }` |  Working | `import React from "react";` | Must use `cl` prefix |
-| Default with relative | `import Component from './Button'` | `cl import from .Button { default as Component }` |  Working | `import Component from "./Button";` | |
+| Default import | `import React from 'react'` | `import from react { default as React }` |  Working | `import React from "react";` | Must use `cl` prefix |
+| Default with relative | `import Component from './Button'` | `import from .Button { default as Component }` |  Working | `import Component from "./Button";` | |
 | **Category 4: Namespace Imports** |
-| Namespace import | `import * as React from 'react'` | `cl import from react { * as React }` |  Working | `import * as React from "react";` | Must use `cl` prefix |
-| Namespace with relative | `import * as utils from './utils'` | `cl import from .utils { * as utils }` |  Working | `import * as utils from "./utils";` | |
+| Namespace import | `import * as React from 'react'` | `import from react { * as React }` |  Working | `import * as React from "react";` | Must use `cl` prefix |
+| Namespace with relative | `import * as utils from './utils'` | `import from .utils { * as utils }` |  Working | `import * as utils from "./utils";` | |
 | **Category 3: Mixed Imports** |
-| Default + Named | `import React, { useState } from 'react'` | `cl import from react { default as React, useState }` |  Working | `import React, { useState } from "react";` | Order matters: default first |
-| Default + Namespace | `import React, * as All from 'react'` | `cl import from react { default as React, * as All }` |  Working | `import React, * as All from "react";` | Valid JS (rarely used) |
-| Named + Namespace | `import * as _, { map } from 'lodash'` | `cl import from lodash { * as _, map }` | ️ Generates | `import * as _, { map } from "lodash";` | **Invalid JavaScript** - not recommended |
+| Default + Named | `import React, { useState } from 'react'` | `import from react { default as React, useState }` |  Working | `import React, { useState } from "react";` | Order matters: default first |
+| Default + Namespace | `import React, * as All from 'react'` | `import from react { default as React, * as All }` |  Working | `import React, * as All from "react";` | Valid JS (rarely used) |
+| Named + Namespace | `import * as _, { map } from 'lodash'` | `import from lodash { * as _, map }` | ️ Generates | `import * as _, { map } from "lodash";` | **Invalid JavaScript** - not recommended |
 
 ## Unsupported Patterns
 
 | Pattern | Why Not Supported | Workaround |
 |---------|-------------------|------------|
-| `default` or `*` in non-`cl` imports | No Python equivalent for default/namespace exports | Use `cl import` instead |
+| `default` or `*` in server imports | No Python equivalent for default/namespace exports | Client-only import forms |
 | Side-effect only imports | Not yet implemented | Use regular Python import for now |
 | Dynamic imports | Runtime feature, not syntax | Use JavaScript directly or add to roadmap |
 | Import assertions (JSON, CSS) | Stage 3 proposal, specialized | May add in future |
@@ -206,7 +206,7 @@ def MyComponent() {
 }
 ```
 
-> **Note:** Inside client-tagged code (`.jac` files and `cl { }` blocks), use `has` variables for reactive state instead of explicit `useState` calls. The compiler automatically generates `const [count, setCount] = useState(0);`, auto-injects the `useState` import from `@jac-client/utils`, and transforms assignments to setter calls.
+> **Note:** Inside client-placed code, use `has` variables for reactive state instead of explicit `useState` calls. The compiler automatically generates `const [count, setCount] = useState(0);`, auto-injects the `useState` import from `@jac-client/utils`, and transforms assignments to setter calls.
 
 ### Generated JavaScript Output
 
