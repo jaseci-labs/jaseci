@@ -74,7 +74,7 @@ There is no placement syntax in the source -- `prog.jac` is always placement-inf
 "main.hot_loop" = "native"    # performance mandate
 ```
 
-Keys are fnmatch patterns over `module` or `module.element` dotted paths; values are `"server"`, `"client"`, or `"native"`. A pinned element is immovable; the solver re-solves everything else around it. Review any module's placements -- with the evidence behind each decision -- via `jac check <entry> --placements`, and commit `jac.placements.lock` (written by `--update-placements-lock`) to make placement changes reviewable diffs.
+Keys are fnmatch patterns over `module` or `module.element` dotted paths; values are `"server"`, `"client"`, or `"native"`. A pinned element is immovable; the solver re-solves everything else around it. Review any module's placements -- with the evidence behind each decision -- via `jac check <entry> --placements`.
 
 Two rules to keep in mind:
 

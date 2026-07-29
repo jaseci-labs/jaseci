@@ -789,49 +789,6 @@ def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int
     return new_stamps;
 }
 
-def _check_lock_stability(entry_mod: uni.Module, prog: any) {
-    import from jaclang.jac0core.placement {
-        collect_placement_rows,
-        diff_rows_vs_lock,
-        load_placement_lock,
-        placement_lock_file_for
-    }
-    state = placement_state(prog);
-    if state.get('lock_checked') {
-        return;
-    }
-    state['lock_checked'] = True;
-    mod_path = entry_mod.loc.mod_path or '';
-    if not mod_path {
-        return;
-    }
-    lock_path = placement_lock_file_for(mod_path);
-    locked = load_placement_lock(lock_path);
-    if locked is None {
-        return;
-    }
-    rows = collect_placement_rows(prog);
-    flips = diff_rows_vs_lock(
-        rows, locked, os.path.dirname(os.path.abspath(lock_path))
-    );
-    if not flips {
-        return;
-    }
-    state['flips'] = flips;
-    try {
-        import sys;
-        import from jaclang.cli.console { console }
-        console.print(
-            f"note: {len(flips)} placement(s) moved vs {lock_path}; "
-            f"run 'jac check --placements' for the diff",
-            style="dim",
-            file=sys.stderr
-        );
-    } except Exception {
-        ;
-    }
-}
-
 def solve_program_placement(entry_mod: uni.Module, prog: any) -> None {
     state = placement_state(prog);
     if state.get('solving') {
@@ -871,11 +828,6 @@ def solve_program_placement(entry_mod: uni.Module, prog: any) -> None {
         }
     } finally {
         state['solving'] = False;
-    }
-    try {
-        _check_lock_stability(entry_mod, prog);
-    } except Exception {
-        ;
     }
 }
 

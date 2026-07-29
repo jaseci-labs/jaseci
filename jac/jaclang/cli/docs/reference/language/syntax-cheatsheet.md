@@ -1311,9 +1311,7 @@ obj Res {
 #                                NOT a signal; pure code stays server)
 # Overrides live in jac.toml, not in source:
 #   [placement.pins] "mod.elem" = "server" | "client" | "native"
-# Review with `jac check <entry> --placements` (evidence per element);
-# lock with `--update-placements-lock` / gate with
-# `--verify-placements-lock`.
+# Review with `jac check <entry> --placements` (evidence per element).
 # (The old sv/cl/na markers no longer parse -- `jac fix placement`
 # migrates marker-era code.)
 

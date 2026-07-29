@@ -214,8 +214,7 @@ The solver owns every placement decision, in three cooperating stages:
    when stamps change.
 
 Every stamp records an evidence note (`jac check --placements` prints the
-chains), and a `jac.placements.lock` snapshot, when present, is diffed on
-every solve so placement flips are reported. Lowering failures demote:
+chains). Lowering failures demote:
 inferred-native modules recompile server-side, and client-pulled (dual)
 elements that fail ES generation are un-stamped back to the server with a
 note, their call sites bridging instead.

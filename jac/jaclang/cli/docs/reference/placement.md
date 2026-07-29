@@ -81,13 +81,6 @@ imports lower to RPC service stubs.
   plus an estimated boundary-crossing count.
 - Editor hover shows `placement: <space> (inferred)` for any symbol, with a
   `dual` tag when the element is emitted into both spaces.
-- `jac check --update-placements-lock` writes `jac.placements.lock` next to
-  `jac.toml`. Committed, it makes placement changes reviewable: every build
-  diffs fresh placements against it and reports flips ("`Ability:record_hit`:
-  dual -> server"), so an edit that silently turns three call sites into
-  network round trips is loud instead of invisible.
-- `jac check --verify-placements-lock` fails (exit 1) on any drift from the
-  committed lock -- the parity gate for placement-preserving refactors and CI.
 
 ## When do I still pin?
 
@@ -102,7 +95,7 @@ Pins are never *placement* facts -- the solver can infer those. They are
 | Environment-dependent semantics | Clock / RNG / env / fs mean different things per space; dual emission changes observable behavior | pin an explicit home |
 | Foreign-boundary facts | Ecosystem portability is not program dataflow | portability table + clib declarations |
 | Cost mandates | The solver optimizes an average; you hold hard constraints it cannot know | a `"native"` pin as a performance mandate |
-| Stability pins | A correct placement flip can still be operationally disruptive | the lockfile + a pin to acknowledge a flip |
+| Stability pins | A correct placement flip can still be operationally disruptive | a pin to hold an element where it is |
 
 Punchline: placement syntax is unnecessary. What survives is the
 pin-as-trust-boundary, `def:pub`-as-contract, and state / environment / FFI

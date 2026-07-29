@@ -1,6 +1,6 @@
 ---
 name: jac-codespaces
-description: Inferred client/server/native code placement - how the whole-program solver decides what runs where (JSX/npm imports mark code client, python imports and graph archetypes anchor code server, extern C declarations mark code native), what never moves (def:pub endpoints, walkers, shared objs), the [placement.pins] override table, and the --placements/lock review tooling. Load when deciding where code runs, pinning a declaration server-side, migrating marker-era code with `jac fix placement`, or debugging why something landed in the wrong bundle.
+description: Inferred client/server/native code placement - how the whole-program solver decides what runs where (JSX/npm imports mark code client, python imports and graph archetypes anchor code server, extern C declarations mark code native), what never moves (def:pub endpoints, walkers, shared objs), the [placement.pins] override table, and the --placements review tooling. Load when deciding where code runs, pinning a declaration server-side, migrating marker-era code with `jac fix placement`, or debugging why something landed in the wrong bundle.
 ---
 
 **Placement is inferred - there is no syntax for it.** Jac compiles one language to three codespaces: server (Python - the default), client (JavaScript/JSX), and native (LLVM). A whole-program placement solver reads the evidence in your code and places every top-level element. The old `sv`/`cl`/`na` markers (blocks, statement prefixes, the `.sv.jac` / `.na.jac` suffixes) were removed and are now syntax errors - run `jac fix placement` to migrate old code (see Migration below). Overrides live in `jac.toml` under `[placement.pins]`, not in the source.
@@ -123,7 +123,7 @@ def open_window() -> None {        # uses InitWindow -> native
 - **`def:pub` + JSX body = client component; `def:pub` in a server-anchored module = server endpoint**, RPC-bridged when the client calls it.
 - **Pin in `jac.toml`** when client code references something that must stay server-side (secrets, server-only deps, trust boundaries): `[placement.pins] "mod.name" = "server"`.
 - **`.cl.jac` is an implementation-variant suffix, not a placement tool** (native has no filename spelling; a module declares `variant native;` or is inferred/forced). Use variants for per-space implementations of one interface; use inference and pins to place ordinary code.
-- **Review, then lock.** `--placements` to see the evidence, `--update-placements-lock` + commit to make future flips reviewable.
+- **Review with evidence.** `--placements` shows every decision and the chain behind it.
 
 ## See also
 
