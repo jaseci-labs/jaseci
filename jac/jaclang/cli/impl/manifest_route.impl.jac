@@ -14,7 +14,7 @@ def _read_version_from_toml(toml_path: Path) -> (str | None) {
     return None;
 }
 
-def _resolve_cli_version -> str {
+impl resolve_cli_version -> str {
     dev_source = os.environ.get('JAC_DEV_SOURCE');
     if dev_source {
         toml_path = Path(dev_source) / 'jac.toml';
@@ -53,10 +53,6 @@ def _looks_like_script_token(tok: str) -> bool {
     return (not tok.startswith('-') and tok.lower().endswith(('.jac', '.py', '.jab')));
 }
 
-def _has_script_file(raw_argv: list[str]) -> bool {
-    return any(_looks_like_script_token(tok) for tok in raw_argv);
-}
-
 def _write_stdout(text: str) {
     sys.stdout.write(text);
     if not text.endswith('\n') {
@@ -72,7 +68,7 @@ def _render_version_line -> str {
     import from jaclang.cli.manifest_help { _color, _TITLE, _use_color }
 
     sys_info = f"{platform.system()} {platform.machine()}";
-    ver = _resolve_cli_version();
+    ver = resolve_cli_version();
     use_color = _use_color();
     return f"{_color('jac', _TITLE, use_color)} {ver}  ({sys_info})";
 }
@@ -96,7 +92,7 @@ impl handle_manifest_route(raw_argv: list[str]) -> None {
     }
 
     if not raw_argv {
-        ver = _resolve_cli_version();
+        ver = resolve_cli_version();
         _write_stdout(format_logo(ver));
         _write_stdout('');
         _write_stdout(format_curated_help());
@@ -129,11 +125,11 @@ impl handle_manifest_route(raw_argv: list[str]) -> None {
         sys.exit(2);
     }
 
-    if _has_script_file(raw_argv) and first not in dispatchable {
+    if first in dispatchable {
+        command_name = first;
+    } elif _looks_like_script_token(first) {
         sys.argv = [sys.argv[0], 'run'] + raw_argv;
         command_name = 'run';
-    } elif first is not None and first in dispatchable {
-        command_name = first;
     } else {
         choices = "', '".join(sorted(visible));
         sys.stderr.write('usage: jac [-h] [-V] COMMAND ...\n');

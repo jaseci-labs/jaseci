@@ -1,4 +1,4 @@
-import from jaclang.cli.command { Arg, ArgKind, CommandNeed, CommandSpec, arg_typ_name }
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec, arg_typ_name }
 import from jaclang.cli.manifest {
     ArgMeta,
     CommandMeta,
@@ -141,14 +141,6 @@ def _value_literal(v: any) -> str {
     raise TypeError(f"unsupported manifest literal type: {type(v).__name__}");
 }
 
-def _needs_literal(needs: list[CommandNeed]) -> str {
-    if not needs {
-        return "[]";
-    }
-    inner = ", ".join(f"CommandNeed.{need.name}" for need in needs);
-    return f"[{inner}]";
-}
-
 def _examples_literal(examples: list[tuple[str, str]]) -> str {
     if not examples {
         return "[]";
@@ -168,36 +160,50 @@ def _choices_literal(choices: list[any] | None) -> str {
     return f"[{inner}]";
 }
 
+def _arg_fields(arg: Arg) -> list[str] {
+    fields: list[str] = [f"name={_q(arg.name)}"];
+    if arg.kind != ArgKind.OPTION {
+        fields.append(f"kind=ArgKind.{arg.kind.name}");
+    }
+    typ_name = arg_typ_name(arg.typ);
+    if typ_name != "str" {
+        fields.append(f"typ={_q(typ_name)}");
+    }
+    if arg.default is not None {
+        fields.append(f"default={_value_literal(arg.default)}");
+    }
+    if arg.help {
+        fields.append(f"help={_q(arg.help)}");
+    }
+    if arg.short is not None {
+        fields.append(f"short={_q(arg.short)}");
+    }
+    if arg.choices is not None {
+        fields.append(f"choices={_choices_literal(arg.choices)}");
+    }
+    if arg.required {
+        fields.append("required=True");
+    }
+    if arg.dest is not None {
+        fields.append(f"dest={_q(arg.dest)}");
+    }
+    if arg.metavar is not None {
+        fields.append(f"metavar={_q(arg.metavar)}");
+    }
+    if arg.config_key is not None {
+        fields.append(f"config_key={_q(arg.config_key)}");
+    }
+    return fields;
+}
+
 def _arg_rows(args: list[Arg]) -> list[str] {
     rows: list[str] = [];
     for arg in args {
+        fields = _arg_fields(arg);
         rows.append("                ArgMeta(");
-        rows.append(f"                    name={_q(arg.name)},");
-        rows.append(f"                    kind=ArgKind.{arg.kind.name},");
-        rows.append(f"                    typ={_q(arg_typ_name(arg.typ))},");
-        rows.append(f"                    default={_value_literal(arg.default)},");
-        rows.append(f"                    help={_q(arg.help)},");
-        if arg.short is None {
-            rows.append("                    short=None,");
-        } else {
-            rows.append(f"                    short={_q(arg.short)},");
-        }
-        rows.append(f"                    choices={_choices_literal(arg.choices)},");
-        rows.append(f"                    required={arg.required},");
-        if arg.dest is None {
-            rows.append("                    dest=None,");
-        } else {
-            rows.append(f"                    dest={_q(arg.dest)},");
-        }
-        if arg.metavar is None {
-            rows.append("                    metavar=None,");
-        } else {
-            rows.append(f"                    metavar={_q(arg.metavar)},");
-        }
-        if arg.config_key is None {
-            rows.append("                    config_key=None");
-        } else {
-            rows.append(f"                    config_key={_q(arg.config_key)}");
+        for (i, field) in enumerate(fields) {
+            suffix = "," if i < len(fields) - 1 else "";
+            rows.append(f"                    {field}{suffix}");
         }
         rows.append("                ),");
     }
@@ -223,14 +229,21 @@ def _route_rows -> list[str] {
         rows.append(f"            hidden={spec.hidden},");
         rows.append(f"            handler_module={_q(handler_module)},");
         rows.append(f"            handler_name={_q(handler_name)},");
-        rows.append(f"            needs={_needs_literal(spec.needs)},");
-        rows.append(f"            description={_text_literal(spec.description)},");
-        rows.append(f"            examples={_examples_literal(spec.examples)},");
-        rows.append("            args=[");
-        for arg_row in _arg_rows(spec.args) {
-            rows.append(arg_row);
+        if spec.description {
+            rows.append(f"            description={_text_literal(spec.description)},");
         }
-        rows.append("            ]");
+        if spec.examples {
+            rows.append(f"            examples={_examples_literal(spec.examples)},");
+        }
+        if spec.args {
+            rows.append("            args=[");
+            for arg_row in _arg_rows(spec.args) {
+                rows.append(arg_row);
+            }
+            rows.append("            ]");
+        } else {
+            rows.append("            args=[]");
+        }
         rows.append("        ),");
     }
     return rows;
@@ -420,7 +433,7 @@ def _spec_field_value(cmd: CommandSpec, field: str) -> any {
     if field == "args" {
         return [_arg_signature(a) for a in cmd.args];
     }
-    if field in ("needs", "examples") {
+    if field == "examples" {
         return list(getattr(cmd, field));
     }
     return getattr(cmd, field);

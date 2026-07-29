@@ -622,11 +622,7 @@ impl CompilerBridge.graph_viz_snippet(
 
 impl CompilerBridge.list_templates -> dict[str, any] {
     def _do_list_templates -> dict[str, any] {
-        import from jaclang.project.template_registry {
-            get_template_registry,
-            initialize_template_registry
-        }
-        initialize_template_registry();
+        import from jaclang.project.template_registry { get_template_registry }
         registry = get_template_registry();
         templates = registry.list_templates();
         result: list[dict[str, str]] = [];

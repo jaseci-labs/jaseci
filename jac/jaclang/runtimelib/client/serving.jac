@@ -6,7 +6,7 @@ import types;
 import from http.server { BaseHTTPRequestHandler }
 import from pathlib { Path }
 import from typing { Any, Literal, TypeAlias }
-import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { ModuleIntrospector }
 
 glob JsonValue: TypeAlias = None | str | int | float | bool | list['JsonValue'] | dict[

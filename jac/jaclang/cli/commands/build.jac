@@ -1,12 +1,11 @@
 import from jaclang.cli.registry { get_registry }
-import from jaclang.cli.command { Arg, ArgKind, CommandNeed }
+import from jaclang.cli.command { Arg, ArgKind }
 
 glob registry = get_registry();
 
 @registry.command(
     name="build",
     help="Build a sealed .jab artifact (type-checks first)",
-    needs=[CommandNeed.PROVIDERS, CommandNeed.CLIENT],
     args=[
         Arg.create(
             "filename",

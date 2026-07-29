@@ -1,5 +1,5 @@
 import argparse;
-import from jaclang.cli.command { ArgKind, resolve_arg_typ }
+import from jaclang.cli.command { ArgKind, arg_consumes_value, resolve_arg_typ }
 import from jaclang.cli.manifest { ArgMeta, CommandMeta }
 
 impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
@@ -51,7 +51,7 @@ impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
     } elif kind == ArgKind.REMAINDER {
         kwargs["nargs"] = argparse.REMAINDER;
         parser.add_argument(arg.name, **kwargs);
-    } elif kind == ArgKind.FLAG or typ == bool {
+    } elif not arg_consumes_value(kind, arg.typ) {
         kwargs["action"] = "store_true";
         kwargs["default"] = arg.default if arg.default is not None else False;
         shared_dest: str = kwargs.get("dest") or arg.name.replace("-", "_");

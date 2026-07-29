@@ -1,7 +1,5 @@
 import from typing { Callable }
 
-enum CommandNeed { PROVIDERS, CLIENT, TEMPLATES, }
-
 glob ARG_TYPES: dict[str, type] = {
          "str": str,
          "int": int,
@@ -35,6 +33,13 @@ enum ArgKind {
     APPEND = 6,
     MULTI_POSITIONAL = 7,
     MULTI_OPTION = 8,
+}
+
+def arg_consumes_value(kind: ArgKind, typ_name: str) -> bool {
+    if kind in (ArgKind.POSITIONAL, ArgKind.MULTI_POSITIONAL, ArgKind.REMAINDER) {
+        return False;
+    }
+    return kind != ArgKind.FLAG and typ_name != "bool";
 }
 
 obj Arg {
@@ -74,7 +79,6 @@ obj CommandSpec {
         group: str = "general",
         tier: str = "",
         hidden: bool = False,
-        needs: list[CommandNeed] = [],
         handler: Callable | None = None;
 
     def get_all_args -> list[Arg];

@@ -1,5 +1,5 @@
 import from jaclang.cli.registry { get_registry }
-import from jaclang.cli.command { Arg, ArgKind, CommandNeed }
+import from jaclang.cli.command { Arg, ArgKind }
 import from jaclang.project.config { JacConfig }
 import from jaclang.runtimelib.client.mobile_setup_env {
     mobile_setup_platform_env_restore,
@@ -7,24 +7,19 @@ import from jaclang.runtimelib.client.mobile_setup_env {
 }
 import os;
 
-import from jaclang.runtimelib.client.targets.register {
-    register_targets,
-    sync_client_target_choices
-}
+import from jaclang.runtimelib.client.targets.register { sync_client_target_choices }
 import from jaclang.runtimelib.client.targets.registry { ClientTarget }
 import from pathlib { Path }
 
 glob registry = get_registry();
 
 with entry {
-    register_targets();
     sync_client_target_choices();
 }
 
 @registry.command(
     name="setup",
     help="Setup a build target (one-time initialization)",
-    needs=[CommandNeed.PROVIDERS, CommandNeed.CLIENT],
     args=[
         Arg.create(
             "target", kind=ArgKind.POSITIONAL, help="Target to setup (e.g., desktop)"

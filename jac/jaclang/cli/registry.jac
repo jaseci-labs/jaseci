@@ -1,5 +1,5 @@
 import from typing { Callable }
-import from jaclang.cli.command { Arg, CommandNeed, CommandSpec }
+import from jaclang.cli.command { Arg, CommandSpec }
 
 obj CommandRegistry {
     has commands: dict[str, CommandSpec] = {};
@@ -12,8 +12,7 @@ obj CommandRegistry {
         examples: list[tuple[str, str]] | None = None,
         group: str = "general",
         tier: str = "",
-        hidden: bool = False,
-        needs: list[CommandNeed] = []
+        hidden: bool = False
     ) -> Callable[[Callable], Callable];
 
     def get(name: str) -> CommandSpec | None;

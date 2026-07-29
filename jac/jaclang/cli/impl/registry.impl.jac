@@ -9,8 +9,7 @@ impl CommandRegistry.command(
     examples: list[tuple[str, str]] | None = None,
     group: str = "general",
     tier: str = "",
-    hidden: bool = False,
-    needs: list[CommandNeed] = []
+    hidden: bool = False
 ) -> Callable[[Callable], Callable] {
     import from jaclang.cli.command { Arg, CommandSpec }
     def decorator(func: Callable) -> Callable {
@@ -23,7 +22,6 @@ impl CommandRegistry.command(
             group=group,
             tier=tier,
             hidden=hidden,
-            needs=needs,
             handler=func
         );
         return func;

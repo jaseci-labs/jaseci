@@ -1,4 +1,4 @@
-import from jaclang.cli.command { Arg, ArgKind, CommandNeed }
+import from jaclang.cli.command { Arg, ArgKind }
 import from jaclang.cli.registry { get_registry }
 
 glob registry = get_registry();
@@ -7,7 +7,6 @@ glob registry = get_registry();
     name="create",
     help="Create a new Jac project",
     tier="core",
-    needs=[CommandNeed.PROVIDERS, CommandNeed.TEMPLATES],
     args=[
         Arg.create(
             "name",
@@ -155,7 +154,6 @@ def create(
 @registry.command(
     name="install",
     help="Install project dependencies",
-    needs=[CommandNeed.PROVIDERS],
     args=[
         Arg.create(
             "packages",
@@ -359,7 +357,6 @@ def install(
 @registry.command(
     name="remove",
     help="Remove a dependency from the project",
-    needs=[CommandNeed.PROVIDERS],
     args=[
         Arg.create(
             "packages",
@@ -398,7 +395,6 @@ def remove(
 @registry.command(
     name="update",
     help="Update project dependencies to latest compatible versions",
-    needs=[CommandNeed.PROVIDERS],
     args=[
         Arg.create(
             "packages",
@@ -431,7 +427,6 @@ def script(name: str = "", list_scripts: bool = False) -> int;
 @registry.command(
     name="clean",
     help="Clean project build artifacts",
-    needs=[CommandNeed.PROVIDERS],
     args=[
         Arg.create(
             "all",

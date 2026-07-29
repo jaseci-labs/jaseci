@@ -1,7 +1,5 @@
 import os;
 import sys;
-import from importlib.metadata { version as pkg_version }
-import from pathlib { Path }
 
 impl start_cli -> None {
     import from jaclang.cli.console { console }
@@ -23,16 +21,7 @@ impl start_cli -> None {
 }
 
 impl jac_version -> str {
-    import from jaclang.project.config { JacConfig }
+    import from jaclang.cli.manifest_route { resolve_cli_version }
 
-    dev_source = os.environ.get('JAC_DEV_SOURCE');
-    if dev_source {
-        toml_path = Path(dev_source) / 'jac.toml';
-        if toml_path.exists() {
-            try {
-                return JacConfig.load(toml_path).project.version;
-            } except Exception { }
-        }
-    }
-    return pkg_version('jaclang');
+    return resolve_cli_version();
 }

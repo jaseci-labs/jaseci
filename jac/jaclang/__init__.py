@@ -78,6 +78,14 @@ def _install_runtime_shim() -> None:
             shim.__doc__ = "Lazy alias for jaclang.jac0core.runtime."
 
             def _forward(attr: str) -> object:
+                import warnings
+
+                warnings.warn(
+                    "jaclang.runtimelib.runtime is a deprecated alias; import "
+                    "from jaclang.jac0core.runtime instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
                 import jaclang.jac0core.runtime as _runtime_mod
 
                 return getattr(_runtime_mod, attr)

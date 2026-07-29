@@ -1,6 +1,6 @@
 import os;
 import sys;
-import from jaclang.cli.command { ArgKind, CommandNeed }
+import from jaclang.cli.command { ArgKind, arg_consumes_value }
 import from jaclang.cli.manifest { ArgMeta, CommandMeta }
 
 def _discover_project_config {
@@ -28,26 +28,6 @@ def _exit_on_malformed_jac_toml(exc: any) {
     sys.exit(2);
 }
 
-def _initialize_provider_registry {
-    try {
-        import from jaclang.project.providers { initialize_provider_registry }
-        initialize_provider_registry();
-    } except Exception as exc {
-        import from jaclang.cli.console { console }
-        console.warning(f"Failed to initialize provider registry: {exc}");
-    }
-}
-
-def _initialize_template_registry {
-    try {
-        import from jaclang.project.template_registry { initialize_template_registry }
-        initialize_template_registry();
-    } except Exception as exc {
-        import from jaclang.cli.console { console }
-        console.warning(f"Failed to initialize template registry: {exc}");
-    }
-}
-
 impl split_remainder_argv(
     raw: list[str], meta: CommandMeta
 ) -> tuple[list[str], list[str]] | None {
@@ -68,14 +48,7 @@ impl split_remainder_argv(
     );
     value_flags: set = set();
     for arg in all_args {
-        if arg.kind in (
-            ArgKind.POSITIONAL,
-            ArgKind.MULTI_POSITIONAL,
-            ArgKind.REMAINDER
-        ) {
-            continue;
-        }
-        if arg.kind == ArgKind.FLAG or arg.typ == "bool" {
+        if not arg_consumes_value(arg.kind, arg.typ) {
             continue;
         }
         value_flags.add(f"--{arg.name}");
@@ -248,15 +221,6 @@ impl run_selected_command(command_name: str) -> None {
     import from jaclang.cli.loader { load_handler }
 
     _discover_project_config();
-    if CommandNeed.TEMPLATES in meta.needs {
-        _initialize_template_registry();
-    }
-    if CommandNeed.PROVIDERS in meta.needs {
-        _initialize_provider_registry();
-    }
-    if CommandNeed.CLIENT in meta.needs {
-        import jaclang.runtimelib.client.cli;
-    }
 
     script_args = _extract_script_args(meta);
     (args, unknown) = parser.parse_known_args(cmd_argv);
