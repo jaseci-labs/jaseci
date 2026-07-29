@@ -38,6 +38,11 @@ on:
 permissions:
   contents: read
 
+# Only one arm64 re-capture in flight per ref; a newer push cancels a stale build.
+concurrency:
+  group: portability-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   recapture:
     runs-on: ubuntu-24.04-arm
