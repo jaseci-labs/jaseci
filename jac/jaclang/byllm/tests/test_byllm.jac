@@ -649,7 +649,7 @@ test "api key masking formats" {
 
 test "resolved api_base reaches the litellm call" {
     # `make_model_params` resolves api_base, then dispatch pops it off `params`
-    # into `self.api_base` — an attribute only the proxy and http_client
+    # into `self.api_base`, an attribute only the proxy and http_client
     # branches read. On the default litellm path a configured base_url was
     # therefore dropped and requests went to the provider's own endpoint
     # (api.openai.com for gpt-*) instead of the configured gateway.
@@ -700,7 +700,7 @@ test "resolved api_base reaches the litellm call" {
     assert _dispatched_api_base(configured) == "https://gateway.example.com/v1" , "a configured base_url must reach litellm";
 
     # With nothing configured the loader's empty-string default must normalise
-    # to None so litellm keeps the provider's endpoint — never DEFAULT_BASE_URL.
+    # to None so litellm keeps the provider's endpoint, never DEFAULT_BASE_URL.
     with unittest.mock.patch.dict(
         _byllm_llm_mod._model_config, {"base_url": ""}, clear=True
     ) {
