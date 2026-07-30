@@ -10,7 +10,12 @@ bundler anymore.
 
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.runtimelib.client_bundle { ClientBundleBuilder, ClientBundleError }
+import from types { ModuleType }
+import from jaclang.runtimelib.client_bundle {
+    ClientBundle,
+    ClientBundleBuilder,
+    ClientBundleError
+}
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -281,4 +286,58 @@ test "a missing vite install is an error, not a silent bunx fallback" {
             assert "node_modules" in str(e);
         }
     }
+}
+
+obj _CountingBuilder(ClientBundleBuilder) {
+    has digest: str = "d1",
+        builds: int = 0;
+
+    override def _compile_bundle(
+        module: ModuleType, module_path: Path
+    ) -> ClientBundle {
+        self.builds += 1;
+        return ClientBundle(
+            module_name=module.__name__,
+            code="js",
+            client_functions=[],
+            client_globals=[],
+            hash="h"
+        );
+    }
+
+    override def _emitted_digest -> str {
+        return self.digest;
+    }
+}
+
+test "a changed emitted tree invalidates the cached bundle" {
+    (module, ) = Jac.jac_import("client_app", FIXTURES);
+    builder = _CountingBuilder();
+    builder.build(module);
+    assert builder.builds == 1;
+    builder.build(module);
+    assert builder.builds == 1 , "unchanged inputs must serve the cached bundle";
+    builder.digest = "d2";
+    builder.build(module);
+    assert builder.builds == 2 , "changed emitted output must rebuild the bundle";
+}
+
+test "emitted tree digest tracks content not just mtimes" {
+    import os;
+    import tempfile;
+    import from jaclang.runtimelib.client_bundle { emitted_tree_digest }
+    tmp = tempfile.mkdtemp(prefix="jac_emit_digest_");
+    js_path = os.path.join(tmp, "a.js");
+    with open(js_path, "w") as f {
+        f.write("export const a = 1;");
+    }
+    first = emitted_tree_digest(Path(tmp));
+    st = os.stat(js_path);
+    with open(js_path, "w") as f {
+        f.write("export const a = 2;");
+    }
+    os.utime(js_path, ns=(st.st_atime_ns, st.st_mtime_ns));
+    second = emitted_tree_digest(Path(tmp));
+    assert first != second , "content changes must change the digest even at equal mtimes";
+    assert emitted_tree_digest(Path(tmp) / "missing") == "" , "missing tree digests empty";
 }
