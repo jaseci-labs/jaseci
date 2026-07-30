@@ -62,4 +62,3 @@ See [#5573](https://github.com/jaseci-labs/jaseci/pull/5573) for a real example 
 ## Skipping
 
 To skip this check, add the `skip-release-notes-check` label to your PR.
-
