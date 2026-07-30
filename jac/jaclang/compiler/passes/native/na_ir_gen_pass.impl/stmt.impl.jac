@@ -1479,6 +1479,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                             value = self.builder.call(
                                 helpers["new"], [], name="set.new"
                             );
+                            self._nogc_stamp_elem_drops(
+                                value, self._nogc_type_arg_mangles(_set_t0), "set"
+                            );
 
                             self._mark_owned(value);
                         }
@@ -1643,6 +1646,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                     }
                                 }
                                 if store_val is not None {
+                                    store_val = self._nogc_elem_prep(
+                                        nd.value, store_val
+                                    );
                                     self._codegen_dict_set(
                                         target_val,
                                         idx_val,
@@ -1674,6 +1680,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                     }
                                 }
                                 if store_val is not None {
+                                    store_val = self._nogc_elem_prep(
+                                        nd.value, store_val
+                                    );
                                     self._codegen_index_set(
                                         target_val, idx_val, store_val, elem_type_name
                                     );

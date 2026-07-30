@@ -398,6 +398,10 @@ impl OwnershipCheckPass._call_move_gen(nd: uni.UniCFGNode) -> set[SymId] {
                 and _stdlib_root in _NONRETAINING_STDLIB_MODULES {
                 continue;
             }
+
+            if self._nogc_container_grow_method(call) is not None {
+                continue;
+            }
         }
         for param in self._call_params(call) {
             arg: uni.Expr | None = None;

@@ -13,7 +13,16 @@ impl NaIRGenPass._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> 
     list_struct = self.llvm_module.context.get_identified_type(
         f"List.{elem_type_name}"
     );
-    list_struct.set_body(ir.IntType(64), ir.IntType(64), elem_type.as_pointer());
+    if self._gc_mode() == "none" {
+        list_struct.set_body(
+            ir.IntType(64),
+            ir.IntType(64),
+            elem_type.as_pointer(),
+            self._nogc_elem_drop_slot_ty()
+        );
+    } else {
+        list_struct.set_body(ir.IntType(64), ir.IntType(64), elem_type.as_pointer());
+    }
     self.list_types[elem_type_name] = list_struct;
     list_ptr_type = list_struct.as_pointer();
     i64 = ir.IntType(64);
@@ -174,9 +183,13 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
                 if nd.loc
                 else 0}";
 
-            return self._rc_call_with_ctx(
+            _empty_new = self._rc_call_with_ctx(
                 helpers["new"], [], op="new", loc=_empty_loc, name="list.empty"
             );
+            self._nogc_stamp_elem_drops(
+                _empty_new, self._nogc_type_arg_mangles(nd), "list"
+            );
+            return _empty_new;
         }
         return None;
     }
@@ -225,7 +238,9 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     list_val = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_list_new_loc, name="list.new"
     );
+    self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd), "list");
 
+    first_val = self._nogc_elem_prep(nd.values[0], first_val);
     append_val = first_val;
     if elem_type_name == "ptr" and isinstance(first_val.type, ir.PointerType) {
         append_val = self.builder.bitcast(first_val, i8p, name="elem.cast");
@@ -260,6 +275,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             if _clos_elem is not None and val.type != _decl_elem {
                 val = self._coerce_type(val, _decl_elem);
             }
+            val = self._nogc_elem_prep(nd.values[i], val);
             _boxed_val = val;
             if elem_type_name == "ptr" and isinstance(val.type, ir.PointerType) {
                 val = self.builder.bitcast(val, i8p, name="elem.cast");

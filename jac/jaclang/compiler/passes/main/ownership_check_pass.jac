@@ -66,6 +66,7 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _nogc_resolve_provenance -> (str | None);
     def _nogc_infer_locals -> None;
     def _nogc_str_slice_value(expr: uni.Expr | None) -> bool;
+    def _nogc_str_elem_ok(expr: uni.Expr | None, idx_ctx: bool = False) -> bool;
     def _nogc_tag_shape(tag: uni.SubTag | None) -> str;
     def _nogc_local_shape(nm: uni.Name) -> str;
     def _nogc_local_shape_expr_heap(expr: uni.Expr | None) -> bool;
