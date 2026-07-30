@@ -52,10 +52,17 @@ impl TopologyIndex.add_node(
     owner_root: (UUID | None) = None
 ) -> int {
     if node_id in self.node_to_lid {
+        lid = self.node_to_lid[node_id];
         if mro_chain {
             self._ensure_type(type_name, mro_chain);
         }
-        return self.node_to_lid[node_id];
+        if owner_root is not None {
+            (uid, tid, old_owner) = self.node_table[lid];
+            if old_owner != owner_root {
+                self.node_table[lid] = (uid, tid, owner_root);
+            }
+        }
+        return lid;
     }
     tid = self._ensure_type(type_name, mro_chain);
     lid = len(self.node_table);
