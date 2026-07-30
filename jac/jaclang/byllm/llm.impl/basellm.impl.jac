@@ -961,6 +961,7 @@ impl BaseLLM.make_model_params(mt_run: MTRuntime) -> dict {
             self.config.get("base_url")
             or self.config.get("host")
             or self.config.get("api_base")
+            or self.api_base
             or _model_config.get("base_url")
         ),
         "messages": messages,

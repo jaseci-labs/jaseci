@@ -651,6 +651,69 @@ test "api key masking formats" {
     assert len("x") <= 1;
 }
 
+test "resolved api_base reaches the litellm call" {
+    # `make_model_params` resolves api_base, then dispatch pops it off `params`
+    # into `self.api_base`, an attribute only the proxy and http_client
+    # branches read. On the default litellm path a configured base_url was
+    # therefore dropped and requests went to the provider's own endpoint
+    # (api.openai.com for gpt-*) instead of the configured gateway.
+    if not hasattr(_byllm_llm_mod.litellm, "completion") {
+        pytest.skip("litellm is not installed");
+    }
+    seen: dict[str, object] = {};
+
+    def _fake_completion(**kwargs: object) -> dict[str, object] {
+        seen.clear();
+        seen.update(kwargs);
+        return {
+            "model": "gpt-4o-mini",
+            "choices": [
+                {
+                    "message": {"role": "assistant", "content": "ok"},
+                    "finish_reason": "stop"
+                }
+            ],
+            "usage": {}
+        };
+    }
+    def _dispatched_api_base(model: Model) -> object {
+        with unittest.mock.patch.object(
+            _byllm_llm_mod.litellm, "completion", _fake_completion
+        ) {
+            model.dispatch_no_streaming(
+                MTRuntime(
+                    messages=[
+                        Message(role=MessageRole.SYSTEM, content="s"),
+                        Message(role=MessageRole.USER, content="u")
+                    ],
+                    resp_type=str,
+                    stream=False,
+                    tools=[],
+                    call_params={},
+                    mtir=None
+                )
+            );
+        }
+        return seen.get("api_base");
+    }
+    configured = Model(
+        model_name="gpt-4o-mini",
+        api_key="sk-test",
+        config={"base_url": "https://gateway.example.com/v1"}
+    );
+    assert _dispatched_api_base(configured) == "https://gateway.example.com/v1" , "a configured base_url must reach litellm";
+
+    # With nothing configured the loader's empty-string default must normalise
+    # to None so litellm keeps the provider's endpoint, never DEFAULT_BASE_URL.
+    with unittest.mock.patch.dict(
+        _byllm_llm_mod._model_config, {"base_url": ""}, clear=True
+    ) {
+        bare = Model(model_name="gpt-4o-mini", api_key="sk-test");
+        assert _dispatched_api_base(bare) is None , "api_base must stay unset when nothing configures one";
+    }
+}
+
+
 test "api key not in verbose output" {
     import from loguru { logger }
 
