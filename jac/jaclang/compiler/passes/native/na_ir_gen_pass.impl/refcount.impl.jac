@@ -811,7 +811,7 @@ impl NaIRGenPass._emit_rc_release_simple(
 ) -> None {
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(ptr)
-        and not self._nogc_emit_drop(ptr, op=op, loc=loc) {
+            and not self._nogc_emit_drop(ptr, op=op, loc=loc) {
             self._nogc_free_scratch(ptr, op);
         }
         return;
@@ -848,7 +848,7 @@ impl NaIRGenPass._emit_rc_release_typed(
 ) -> None {
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(val)
-        and not self._nogc_emit_drop(val, op=op, loc=loc) {
+            and not self._nogc_emit_drop(val, op=op, loc=loc) {
             self._nogc_free_scratch(val, op);
         }
         return;
@@ -898,7 +898,7 @@ impl NaIRGenPass._arch_is_walker_name(arch_name: str) -> bool {
 
 impl NaIRGenPass._nogc_headerless -> bool {
     return getattr(self.ir_in.gen, "nogc_enforced", False)
-    and self._gc_mode() == "none";
+        and self._gc_mode() == "none";
 }
 
 impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
@@ -929,7 +929,7 @@ impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
     b.position_at_end(body_bb);
     _dobj = b.bitcast(fn.args[0], struct_type.as_pointer(), name="drop.obj");
     _hook = self.struct_drop_hooks.get(type_name)
-    or self.func_symtab.get(f"{type_name}.drop");
+        or self.func_symtab.get(f"{type_name}.drop");
     if _hook is not None {
         self.struct_drop_hooks[type_name] = _hook;
         b.call(_hook, [_dobj]);
@@ -952,8 +952,8 @@ impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
         if _pname in self.struct_types or _pname == type_name {
             _fld_drop = self._emit_struct_drop_fn(_pname);
         } elif _pname.startswith("List.")
-        or _pname.startswith("Dict.")
-        or _pname.startswith("Set.") {
+            or _pname.startswith("Dict.")
+            or _pname.startswith("Set.") {
             _fld_drop = self._emit_container_drop_fn(_pname);
         }
         if _fld_drop is None {
@@ -1041,8 +1041,8 @@ impl NaIRGenPass._nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> 
         _pointee = val.type?.pointee;
         _pname = getattr(_pointee, "name", "") or "";
         if _pname.startswith("List.")
-        or _pname.startswith("Dict.")
-        or _pname.startswith("Set.") {
+            or _pname.startswith("Dict.")
+            or _pname.startswith("Set.") {
             _fn = self._emit_container_drop_fn(_pname);
         }
     }
@@ -1056,14 +1056,15 @@ impl NaIRGenPass._nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> 
 }
 
 impl NaIRGenPass._nogc_free_scratch(val: ir.Value, op: str) -> None {
-    if op not in (
-        "print_tmp",
-        "fstr_obj_tmp",
-        "mstr_old",
-        "mstr_val",
-        "fstring",
-        "str_index"
-    ) {
+    if op
+        not in (
+            "print_tmp",
+            "fstr_obj_tmp",
+            "mstr_old",
+            "mstr_val",
+            "fstring",
+            "str_index"
+        ) {
         return;
     }
     if not isinstance(val.type, ir.PointerType) {
@@ -1111,7 +1112,7 @@ impl NaIRGenPass._emit_scope_cleanup(
         }
 
         if isinstance(alloca.type, ir.PointerType)
-        and isinstance(alloca.type.pointee, ir.PointerType) {
+            and isinstance(alloca.type.pointee, ir.PointerType) {
             if var_name in self.region_handle_vars {
                 if var_name != skip_var {
                     _region_handles.append((var_name, alloca));
@@ -1227,7 +1228,7 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
     (b, done_bb) = self._emit_rc_destructor_preamble(release_fn, struct_ptr_type);
 
     _hook = self.struct_drop_hooks.get(arch_name)
-    or self.func_symtab.get(f"{arch_name}.drop");
+        or self.func_symtab.get(f"{arch_name}.drop");
     if _hook is not None {
         self.struct_drop_hooks[arch_name] = _hook;
         b.call(_hook, [release_fn.args[0]]);
@@ -1235,8 +1236,8 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
 
     _has_ref_fields = any(
         isinstance(_ft, ir.PointerType)
-        and _fn not in opaque_fields
-        and field_indices.get(_fn, -1) >= 0 for (_fn, _ft) in field_types.items()
+            and _fn not in opaque_fields
+            and field_indices.get(_fn, -1) >= 0 for (_fn, _ft) in field_types.items()
     );
     if _has_ref_fields {
         _cycles_on = self._gc_mode() == "cycles";

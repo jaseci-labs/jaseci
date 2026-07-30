@@ -4925,7 +4925,7 @@ impl NativeTupleEmitter._get_struct_info(
     self, ctx: NativeEmitCtx, target: ir.Value
 ) -> (object | None) {
     if isinstance(target.type, ir.PointerType)
-    and isinstance(target.type.pointee, ir.LiteralStructType) {
+        and isinstance(target.type.pointee, ir.LiteralStructType) {
         return target.type.pointee;
     }
 

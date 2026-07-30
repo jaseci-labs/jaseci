@@ -32,9 +32,8 @@ glob CHECKER_FIXTURES = os.path.join(
 def compile_and_check(fixture_name: str) -> JacProgram {
     program = JacProgram();
     mod = program.compile(os.path.join(CHECKER_FIXTURES, fixture_name));
-    assert mod is not None , f"fixture '{fixture_name}' failed to parse:\n" + "\n".join(
-        str(e) for e in program.errors_had
-    );
+    assert mod is not None , f"fixture '{fixture_name}' failed to parse:\n"
+        + "\n".join(str(e) for e in program.errors_had);
     TypeCheckPass(ir_in=mod, prog=program);
     return program;
 }
@@ -69,8 +68,8 @@ test "client browser host apis check cleanly and stay strict" {
     f"got {len(program.errors_had)} diagnostic(s):\n{pretty}";
     only = program.errors_had[0];
     assert only.code is not None
-    and only.code.code == "E1030"
-    and "nope" in only.pretty_print() , "the single expected error is E1030 on resp.nope() (Response has "
+        and only.code.code == "E1030"
+        and "nope" in only.pretty_print() , "the single expected error is E1030 on resp.nope() (Response has "
     f"no attribute nope), got:\n{pretty}";
 }
 

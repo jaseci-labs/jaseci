@@ -85,9 +85,9 @@ def is_excluded(rel: Path) -> bool {
 
 def _is_secret_path(name: str) -> bool {
     return name == "plugins.scale.secrets"
-    or name.startswith("plugins.scale.secrets.")
-    or name == "scale.secrets"
-    or name.startswith("scale.secrets.");
+        or name.startswith("plugins.scale.secrets.")
+        or name == "scale.secrets"
+        or name.startswith("scale.secrets.");
 }
 
 
@@ -206,7 +206,9 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
         jac_path = stage_root / ".pod-jac";
         jac_path.write_bytes(pod_binary);
         jac_path.chmod(0o755);
-        script = Path(str(__file__)).parent.parent.parent / "utils" / "precompile_bytecode.jac";
+        script = Path(str(__file__)).parent.parent.parent
+            / "utils"
+            / "precompile_bytecode.jac";
 
         result = subprocess.run(
             [str(jac_path), "run", str(script), str(stage_root), "--seal"],

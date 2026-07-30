@@ -97,7 +97,7 @@ def _module_is_client_source(source_path: Path) -> bool {
             options=CompileOptions(symtab_ir_only=True, type_check=False)
         );
         return mod is not None
-        and mod.declares_codespace(CodeContext.CLIENT, path_hint=str(source_path));
+            and mod.declares_codespace(CodeContext.CLIENT, path_hint=str(source_path));
     } except Exception {
         return False;
     }
@@ -135,7 +135,24 @@ def _bootstrap_shim(top: str, primary_pkg: str) -> str {
         );
     }
     return (
-        "# jac bundle: prefer a host jaclang; else use the vendored runtime.\n" + "def _jac_use_vendored_runtime():\n" + "    import importlib.util\n" + "    import os\n" + "    import sys\n" + "    try:\n" + "        if importlib.util.find_spec('jaclang') is not None:\n" + "            return\n" + "    except (ImportError, ValueError):\n" + "        pass\n" + "    vendor = " + vendor_expr + "\n" + "    if os.path.isdir(vendor) and vendor not in sys.path:\n" + "        sys.path.insert(0, vendor)\n" + "\n" + "\n" + "_jac_use_vendored_runtime()\n"
+        "# jac bundle: prefer a host jaclang; else use the vendored runtime.\n"
+        + "def _jac_use_vendored_runtime():\n"
+        + "    import importlib.util\n"
+        + "    import os\n"
+        + "    import sys\n"
+        + "    try:\n"
+        + "        if importlib.util.find_spec('jaclang') is not None:\n"
+        + "            return\n"
+        + "    except (ImportError, ValueError):\n"
+        + "        pass\n"
+        + "    vendor = "
+        + vendor_expr
+        + "\n"
+        + "    if os.path.isdir(vendor) and vendor not in sys.path:\n"
+        + "        sys.path.insert(0, vendor)\n"
+        + "\n"
+        + "\n"
+        + "_jac_use_vendored_runtime()\n"
     );
 }
 

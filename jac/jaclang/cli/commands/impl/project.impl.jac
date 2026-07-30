@@ -1486,9 +1486,11 @@ def _run_precompiler(src_dir: str, flags: list[str]) -> int {
 
     code = (
         "import _jac_finder as _jf; _jf.apply_dev_source_override(); _jf.install(); "
-        "import sys; sys.argv = ['precompile', " + repr(src_dir) + "] + " + repr(
-            list(flags)
-        ) + "; from jaclang.utils.precompile_bytecode import main; main()"
+        "import sys; sys.argv = ['precompile', "
+        + repr(src_dir)
+        + "] + "
+        + repr(list(flags))
+        + "; from jaclang.utils.precompile_bytecode import main; main()"
     );
     return subprocess.call([sys.executable, "-c", code]);
 }
@@ -1797,11 +1799,12 @@ def _make_sealed_image(
         skipped = _seal_copy_ignore(d, items);
         if out_names and Path(d).resolve() == Path(proj_root).resolve() {
             skipped = list(
-                set(skipped) | {
-                    it
-                    for it in items
-                    if it in out_names
-                }
+                set(skipped)
+                    | {
+                        it
+                        for it in items
+                        if it in out_names
+                    }
             );
         }
         return skipped;

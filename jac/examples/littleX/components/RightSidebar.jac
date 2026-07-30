@@ -89,7 +89,7 @@ def:pub RightSidebar(
                             <Avatar className="size-9 shrink-0">
                                 <AvatarImage
                                     src={"https://i.pravatar.cc/150?u=fake@"
-                                    + u.username}
+                                        + u.username}
                                     alt={u.username}
                                 />
                                 <AvatarFallback>
@@ -116,7 +116,7 @@ def:pub RightSidebar(
                                             <Avatar className="size-11">
                                                 <AvatarImage
                                                     src={"https://i.pravatar.cc/150?u=fake@"
-                                                    + u.username}
+                                                        + u.username}
                                                     alt={u.username}
                                                 />
                                                 <AvatarFallback>
@@ -139,11 +139,11 @@ def:pub RightSidebar(
                                                     className="truncate text-xs text-muted-foreground"
                                                 >
                                                     {"@"
-                                                    + (
-                                                        u.username.split("@")[0]
-                                                            if "@" in u.username
-                                                            else u.username
-                                                    )}
+                                                        + (
+                                                            u.username.split("@")[0]
+                                                                if "@" in u.username
+                                                                else u.username
+                                                        )}
                                                 </div>
                                             </div>
                                         </div>
@@ -156,11 +156,11 @@ def:pub RightSidebar(
                                 </HoverCard>
                                 <div className="truncate text-xs text-muted-foreground">
                                     {"@"
-                                    + (
-                                        u.username.split("@")[0]
-                                            if "@" in u.username
-                                            else u.username
-                                    )}
+                                        + (
+                                            u.username.split("@")[0]
+                                                if "@" in u.username
+                                                else u.username
+                                        )}
                                 </div>
                             </div>
                             <Button

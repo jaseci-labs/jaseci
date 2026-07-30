@@ -203,7 +203,8 @@ test "no [dependencies.system] means no apt install in the service container" {
         assert k8s["service_dependencies"] == [];
         assert build_service_apt_prefix(
             KubernetesConfig.from_dict(KubernetesConfig, k8s)
-        ) == "";
+        )
+            == "";
     }
 }
 

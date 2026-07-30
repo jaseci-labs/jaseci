@@ -48,9 +48,13 @@ import from jaclang.publish.runtime_npm {
 """Scaffold a minimal client library (jac.toml + a public .jac module)."""
 def _scaffold_lib(tmp_path: str, name: str = "mylib") {
     toml = (
-        '[project]\nname = "' + name + '"\nversion = "1.0.0"\n'
+        '[project]\nname = "'
+        + name
+        + '"\nversion = "1.0.0"\n'
         'description = "A handy Jac library"\nlicense = "MIT"\n\n'
-        '[project.include]\npackages = ["' + name + '"]\n'
+        '[project.include]\npackages = ["'
+        + name
+        + '"]\n'
     );
     (Path(tmp_path) / "jac.toml").write_text(toml);
     pkg = Path(tmp_path) / name;

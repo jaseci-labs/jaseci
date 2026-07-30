@@ -698,11 +698,11 @@ def sibling_declaration_file(js_path: str) -> (str | None) {
     by_ext = {'.mjs': '.d.mts', '.cjs': '.d.cts', '.js': '.d.ts'};
     preferred = by_ext.get(ext);
     suffixes = (preferred, )
-    + tuple(
-        s
-        for s in NPM_DTS_SUFFIXES
-        if s != preferred
-    )
+        + tuple(
+            s
+            for s in NPM_DTS_SUFFIXES
+            if s != preferred
+        )
         if preferred
         else NPM_DTS_SUFFIXES;
     for suffix in suffixes {
@@ -888,7 +888,7 @@ def is_untyped_third_party_module(path: str) -> bool {
     }
     normalized = path.replace('\\', '/');
     if ('/site-packages/' not in normalized)
-    and ('/dist-packages/' not in normalized) {
+        and ('/dist-packages/' not in normalized) {
         return False;
     }
     mod_path = Path(path);

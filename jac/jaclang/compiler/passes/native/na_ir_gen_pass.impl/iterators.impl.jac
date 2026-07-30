@@ -626,7 +626,7 @@ impl NaIRGenPass._make_iter_from_value(
         return (self._make_str_iter(val), "str", i8p);
     }
     if self._jac_iter_type is not None
-    and val.type == self._jac_iter_type.as_pointer() {
+        and val.type == self._jac_iter_type.as_pointer() {
         if not self._is_owned(val) {
             self._emit_rc_retain(val, op="iter_alias");
             self._mark_owned(val);
@@ -712,7 +712,7 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
         params = expr.params or [];
 
         if cname in ("map", "filter", "enumerate", "zip", "iter")
-        and expr.call_kind != "builtin" {
+            and expr.call_kind != "builtin" {
             cname = None;
         }
         if cname == "map" and len(params) == 2 {
@@ -1073,7 +1073,7 @@ impl NaIRGenPass._resolve_method(
 
 impl NaIRGenPass._arch_implements_iter(arch_name: str) -> bool {
     return self._resolve_method(arch_name, "__next__") is not None
-    or self._resolve_method(arch_name, "__iter__") is not None;
+        or self._resolve_method(arch_name, "__iter__") is not None;
 }
 
 impl NaIRGenPass._user_iter_next_fn(
@@ -1276,7 +1276,7 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
 
     _gen_it_spill: (ir.Value | None) = None;
     if self._gen_ctx is not None
-    and self.builder.function is self._gen_ctx["resume_fn"] {
+        and self.builder.function is self._gen_ctx["resume_fn"] {
         _gen_it_spill = self._entry_alloca(iter_val.type, "iterf.itslot");
         self.builder.store(iter_val, _gen_it_spill);
     }

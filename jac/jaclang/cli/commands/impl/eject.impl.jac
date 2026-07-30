@@ -118,7 +118,7 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         f
         for f in _collect_jac_files(src)
         if (out not in Path(str(f)).parents)
-        and not _under_any(Path(str(f)), eject_roots)
+            and not _under_any(Path(str(f)), eject_roots)
     ];
     if not jac_files {
         console.error("No .jac source files found to eject.");
@@ -172,8 +172,8 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
 
             stem = str(_strip_jac_suffix(rel.name));
             if (len(rel.parent.parts) == 0)
-            and (stem == entry_module)
-            and _js_exports_app(js_code) {
+                and (stem == entry_module)
+                and _js_exports_app(js_code) {
                 entry_has_app = True;
             }
         }
@@ -201,7 +201,7 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
                     continue;
                 }
                 if isinstance(item, uni.Archetype)
-                and item.sym_category == SymbolType.WALKER_ARCH {
+                    and item.sym_category == SymbolType.WALKER_ARCH {
                     walkers.append(
                         {
                             "name": str(item.name.sym_name),
@@ -268,7 +268,8 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         if dropped {
             console.print(
                 "  ○ not imported by the entry module (kept as plain modules, "
-                "no endpoints): " + ", ".join(sorted(dropped)),
+                "no endpoints): "
+                    + ", ".join(sorted(dropped)),
                 style="muted"
             );
         }
@@ -431,18 +432,18 @@ def _js_exports_app(js_code: str) -> bool {
         }
         compact = line.replace(" ", "");
         if ("{app}" in compact)
-        or ("{app," in compact)
-        or (",app}" in compact)
-        or (",app," in compact)
-        or ("asapp}" in compact)
-        or ("asapp," in compact) {
+            or ("{app," in compact)
+            or (",app}" in compact)
+            or (",app," in compact)
+            or ("asapp}" in compact)
+            or ("asapp," in compact) {
             return True;
         }
         if compact.startswith("exportconstapp=")
-        or compact.startswith("exportfunctionapp(")
-        or compact.startswith("exportletapp=")
-        or compact.startswith("exportvarapp=")
-        or compact.startswith("exportasyncfunctionapp(") {
+            or compact.startswith("exportfunctionapp(")
+            or compact.startswith("exportletapp=")
+            or compact.startswith("exportvarapp=")
+            or compact.startswith("exportasyncfunctionapp(") {
             return True;
         }
     }
@@ -549,8 +550,8 @@ def _is_meaningful_python(py_code: str) -> bool {
             continue;
         }
         if isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Constant)
-        and isinstance(node.value.value, str) {
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str) {
             continue;
         }
         return True;

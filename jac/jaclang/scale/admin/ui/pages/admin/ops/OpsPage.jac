@@ -201,22 +201,24 @@ def:pub OpsPage -> JsxElement {
                             <div
                                 key={step["name"]}
                                 className={"flex items-start gap-2 px-2 py-1.5 rounded "
-                                + (
-                                    "bg-danger-weak ring-1 ring-danger/40"
-                                        if step["_firstFail"]
-                                        else ""
-                                )}
+                                    + (
+                                        "bg-danger-weak ring-1 ring-danger/40"
+                                            if step["_firstFail"]
+                                            else ""
+                                    )}
                             >
                                 {stepIcons[stepKey(step["ok"])]
-                                or <Minus className="w-3.5 h-3.5 text-faint shrink-0"/>}
+                                    or <Minus
+                                        className="w-3.5 h-3.5 text-faint shrink-0"
+                                    />}
                                 <div className="min-w-0">
                                     <div
                                         className={"text-xs "
-                                        + (
-                                            "font-medium text-fg"
-                                                if step["_firstFail"]
-                                                else "text-muted"
-                                        )}
+                                            + (
+                                                "font-medium text-fg"
+                                                    if step["_firstFail"]
+                                                    else "text-muted"
+                                            )}
                                     >
                                         {step["name"]}
                                     </div>

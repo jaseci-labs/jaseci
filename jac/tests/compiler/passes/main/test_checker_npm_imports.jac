@@ -155,7 +155,9 @@ test "npm resolver handles exports maps, scoped packages, and @types" {
         assert scoped_entry is not None and scoped_entry.endswith("index.js") , f"scoped entry: {scoped_entry}";
         scoped_dts = resolve_client_npm_declarations("@scoped/tool", base);
         assert scoped_dts is not None
-        and scoped_dts.endswith(os.path.join("@types", "scoped__tool", "index.d.ts")) , f"scoped dts: {scoped_dts}";
+            and scoped_dts.endswith(
+                os.path.join("@types", "scoped__tool", "index.d.ts")
+            ) , f"scoped dts: {scoped_dts}";
         # Negative cases.
         assert resolve_client_npm_package("not-installed", base) is None;
         assert resolve_client_npm_package("./local", base) is None;

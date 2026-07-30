@@ -23,9 +23,9 @@ def:pub Conversation(
         e
         for e in events
         if e.kind == "user"
-        or e.kind == "answer"
-        or e.kind == "system"
-        or e.kind == "error"
+            or e.kind == "answer"
+            or e.kind == "system"
+            or e.kind == "error"
     ];
     running = status == "running";
     stopping = status == "stopping";
@@ -73,8 +73,8 @@ def:pub Conversation(
                             <div className="bubble">
                                 {m.text}{<span className="cursor"/>
                                     if running
-                                    and m.id == last_id
-                                    and m.kind == "answer"
+                                        and m.id == last_id
+                                        and m.kind == "answer"
                                     else <span/>}
                             </div>
                         </div> for m in msgs
@@ -89,7 +89,7 @@ def:pub Conversation(
                 disabled={busy}
                 onChange={lambda (e: ChangeEvent) { onDraftChange(e.target.value); }}
                 onKeyDown={lambda (e: KeyboardEvent) { if e.key == "Enter"
-                and not e.shiftKey {
+                    and not e.shiftKey {
                     e.preventDefault();
                     onSend();
                 }}}

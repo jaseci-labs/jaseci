@@ -56,7 +56,8 @@ test "props+ref component lowers to forwardRef with a (props, ref) signature" {
         js
     ) , (
         "a component with a trailing `ref: Ref` param should lower to "
-        "`const Button = forwardRef(function Button(props, ref) {...})`:\n" + js
+        "`const Button = forwardRef(function Button(props, ref) {...})`:\n"
+        + js
     );
     # `ref` must be the 2nd positional arg, NOT destructured out of `props`
     # (the pre-fix bug produced `const {props, ref} = props;`).
@@ -82,7 +83,8 @@ test "named props alongside a ref: props destructure, ref stays positional" {
         js
     ) , (
         "a named-param component with a trailing `ref: Ref` should still lower "
-        "to `forwardRef(function Card(props, ref) {...})`:\n" + js
+        "to `forwardRef(function Card(props, ref) {...})`:\n"
+        + js
     );
     # The named props destructure from `props` as exactly `{title, body}` --
     # `ref` is not among them (it is the trailing positional arg instead).
