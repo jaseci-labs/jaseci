@@ -238,7 +238,7 @@ jobs:
           check() {
             local f="$1" hi
             [ -f "$f" ] || { echo "::error::missing $f"; exit 1; }
-            hi="$(objdump -T "$f" 2>/dev/null | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sed 's/GLIBC_//' | sort -V | tail -1)"
+            hi="$(objdump -T "$f" 2>/dev/null | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sed 's/GLIBC_//' | sort -V | tail -1 || true)"
             : "${hi:=0}"
             echo "$f -> max GLIBC_$hi (floor $FLOOR)"
             if [ "$(printf '%s\n%s\n' "$FLOOR" "$hi" | sort -V | tail -1)" != "$FLOOR" ]; then
