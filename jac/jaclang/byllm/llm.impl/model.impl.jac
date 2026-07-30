@@ -176,7 +176,9 @@ impl Model.model_call_no_stream(params: dict) -> dict {
             response = client.chat.completions.create(**params);
         } else {
             require_optional("litellm", "llm");
-            response = litellm.completion(api_key=self.api_key or None, **params);
+            response = litellm.completion(
+                api_key=self.api_key or None, api_base=self.api_base or None, **params
+            );
         }
     } except Exception as e {
         self._raise_mapped_provider_error(e);
@@ -196,7 +198,10 @@ impl Model.model_call_with_stream(params: dict) {
         } else {
             require_optional("litellm", "llm");
             response = litellm.completion(
-                stream=True, api_key=self.api_key or None, **params
+                stream=True,
+                api_key=self.api_key or None,
+                api_base=self.api_base or None,
+                **params
             );
         }
     } except litellm.exceptions.AuthenticationError as e {
@@ -246,7 +251,7 @@ impl Model.model_call_no_stream_async(params: dict) -> dict {
         } else {
             require_optional("litellm", "llm");
             response = await litellm.acompletion(
-                api_key=self.api_key or None, **params
+                api_key=self.api_key or None, api_base=self.api_base or None, **params
             );
         }
     } except Exception as e {
@@ -280,7 +285,10 @@ impl Model.model_call_with_stream_async(params: dict) {
         } else {
             require_optional("litellm", "llm");
             response = await litellm.acompletion(
-                stream=True, api_key=self.api_key or None, **params
+                stream=True,
+                api_key=self.api_key or None,
+                api_base=self.api_base or None,
+                **params
             );
         }
     } except Exception as e {
