@@ -187,11 +187,8 @@ def _extract_commands(registry: any) -> list {
                 } else {
                     flags.append((f"--{arg.name}", short, arg.help or ""));
                 }
-            } elif arg.kind in (
-                ArgKind.POSITIONAL,
-                ArgKind.MULTI_POSITIONAL,
-                ArgKind.REMAINDER
-            ) {
+            } elif arg.kind
+                in (ArgKind.POSITIONAL, ArgKind.MULTI_POSITIONAL, ArgKind.REMAINDER) {
                 has_file_positional = True;
             }
         }
