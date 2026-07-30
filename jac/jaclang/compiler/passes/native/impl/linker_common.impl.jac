@@ -374,20 +374,27 @@ def _elf_obj_undefs(mem: bytes) -> list[str] {
 }
 
 
-glob _AR_PARSE_CACHE: dict = {};
+glob _AR_PARSE_CACHE:
+         dict[
+             bytes,
+             tuple[dict[str, int], dict[int, ArMember], dict[int, list[str]]]
+         ] = {};
 
 impl select_ar_members(data: bytes, root_undef: list[str]) -> list[ArMember] {
     cached = _AR_PARSE_CACHE.get(data);
     if cached is None {
-        index = parse_ar_symbol_index(data);
-        by_off: dict[int, ArMember] = {};
+        fresh_index = parse_ar_symbol_index(data);
+        fresh_by_off: dict[int, ArMember] = {};
         for m in parse_ar_archive(data) {
-            by_off[m.header_offset] = m;
+            fresh_by_off[m.header_offset] = m;
         }
-        cached = (index, by_off, {});
+        fresh_undefs: dict[int, list[str]] = {};
+        cached = (fresh_index, fresh_by_off, fresh_undefs);
         _AR_PARSE_CACHE[data] = cached;
     }
-    (index, by_off, undefs_by_off) = cached;
+    index: dict[str, int] = cached[0];
+    by_off: dict[int, ArMember] = cached[1];
+    undefs_by_off: dict[int, list[str]] = cached[2];
     selected: dict[int, ArMember] = {};
     seen_syms: set[str] = set();
     worklist: list[str] = list(root_undef);
