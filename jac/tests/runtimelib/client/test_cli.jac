@@ -937,7 +937,8 @@ test "raw template config files from jac toml" {
                 content = f.read();
             }
 
-            assert 'import { defineConfig, defineDocs } from "fumadocs-mdx/config";' in content;
+            assert 'import { defineConfig, defineDocs } from "fumadocs-mdx/config";'
+            in content;
             assert "export const docs = defineDocs({" in content;
             assert "export default defineConfig({});" in content;
             assert "module.exports" not in content;
@@ -1299,9 +1300,12 @@ test "path aliases in generated vite and tsconfig" {
             build_content = build_config_path.read_text();
 
             # Vite aliases strip trailing /* from patterns
-            assert '"@components": path.resolve(projectRoot, "components")' in build_content , f"@components alias not found in build config:\n{build_content}";
-            assert '"@utils": path.resolve(projectRoot, "src/utils")' in build_content , f"@utils alias not found in build config:\n{build_content}";
-            assert '"@shared": path.resolve(projectRoot, "shared/index")' in build_content , f"@shared alias not found in build config:\n{build_content}";
+            assert '"@components": path.resolve(projectRoot, "components")'
+            in build_content , f"@components alias not found in build config:\n{build_content}";
+            assert '"@utils": path.resolve(projectRoot, "src/utils")'
+            in build_content , f"@utils alias not found in build config:\n{build_content}";
+            assert '"@shared": path.resolve(projectRoot, "shared/index")'
+            in build_content , f"@shared alias not found in build config:\n{build_content}";
 
             # Test dev config also includes path aliases
             dev_config_path = bundler.create_vite_config(
@@ -1309,9 +1313,11 @@ test "path aliases in generated vite and tsconfig" {
             );
             dev_content = dev_config_path.read_text();
 
-            assert '"@components": path.resolve(projectRoot, "components")' in dev_content , f"@components alias not found in dev config:\n{dev_content}";
+            assert '"@components": path.resolve(projectRoot, "components")'
+            in dev_content , f"@components alias not found in dev config:\n{dev_content}";
             assert '"@utils": path.resolve(projectRoot, "src/utils")' in dev_content , f"@utils alias not found in dev config:\n{dev_content}";
-            assert '"@shared": path.resolve(projectRoot, "shared/index")' in dev_content , f"@shared alias not found in dev config:\n{dev_content}";
+            assert '"@shared": path.resolve(projectRoot, "shared/index")'
+            in dev_content , f"@shared alias not found in dev config:\n{dev_content}";
 
             # Test tsconfig includes path aliases
             tsconfig_path = bundler.create_tsconfig();
