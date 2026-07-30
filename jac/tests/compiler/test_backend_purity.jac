@@ -61,11 +61,12 @@ glob FORBIDDEN: dict[str, str] = {
              "ability_of_symbol read at sv-import stub generation is "
              "deleted (#7760): stubs now consume the InteropBinding "
              "recorded by BoundaryAnalysisPass. Plus "
-             "report_unresolvable_client_import at the prune hook: a "
-             "pruned import whose symbols have stamped client uses is a "
-             "guaranteed runtime ReferenceError - the reporter consumes "
-             "stamped code_context and symbol-use facts, shared with "
-             "StaticAnalysisPass so build-only and check-only runs agree"
+             "report_client_bare_import_uses at exit_module: client use "
+             "of a bare import that resolves to no client-reachable "
+             "module is a guaranteed runtime ReferenceError - the "
+             "reporter consumes stamped code_context and symbol facts, "
+             "shared with StaticAnalysisPass so build-only and "
+             "check-only runs agree"
          ),
          ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
              1,

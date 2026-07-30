@@ -510,11 +510,11 @@ Emitted during code generation, formatting, and native compilation.
 | `E5080` | Argument '{name}' for server function '{func}' is given both positionally and by keyword |
 | `E5081` | Unknown client framework '{framework}' |
 | `E5082` | Client code imports '{name}' from '{module}', but '{name}' has no client-side presence |
-| `E5084` | Client code uses '{name}' from '{module}', which resolves to no client-reachable module |
+| `E5084` | Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module |
 
 `E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, pin it (or its module) `"client"` via `[placement.pins]`, or move it into client code.
 
-`E5084` fires when client code uses a symbol from an import that resolves to no Jac module, no declared or installed npm package, and no framework package -- the import cannot appear in the client bundle, so the use would be a runtime `ReferenceError`. Install or declare the package in `[dependencies.npm]`, quote the name to pin the npm form, or keep the use server-side. Imports whose uses are all server-side prune silently as before.
+`E5084` is the bare-import sibling. A bare name resolves across the module universe -- local Jac module first, then Python, then the client npm world (jac.toml `[dependencies.npm]`, the active framework's own packages, and whatever is installed under `.jac/client/node_modules`), so `import from react { useRef }` works unquoted. When the name resolves to none of those client-reachable worlds, placement pins the import server-side, the bundle never binds the symbol, and the page would fail at runtime with a ReferenceError -- so client use fails the build instead. Install or declare the package in `[dependencies.npm]` (or quote the module to pin the npm form), or keep the use server-side behind a `def:pub` endpoint. Annotation-only uses do not fire it, since ES output erases type annotations; imports whose uses are all server-side prune silently as before.
 
 ---
 

@@ -1400,8 +1400,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E5084 = _err(
          "E5084",
          Category.CODEGEN,
-         "Client code uses '{name}' from '{module}', which resolves to no client-reachable module",
-         help="'{module}' is not a Jac module, a declared or installed npm package, or a framework package, so its import cannot appear in the client bundle and '{name}' would crash at runtime. Install or declare the npm package in [dependencies.npm], quote the name to pin the npm form, or keep the use server-side."
+         "Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module",
+         help="A bare import resolves to a local Jac module, a declared or installed npm package, or the client framework's own packages; '{module}' is none of these, so it stays on the server and the client bundle never binds '{name}' -- the page fails at runtime with a ReferenceError. Install or declare the npm package in [dependencies.npm] (or quote the module: `import from \"{module}\" {{ {name} }}`), or keep the use server-side behind a `def:pub` endpoint."
      ),
      W6001 = _warn(
          "W6001",

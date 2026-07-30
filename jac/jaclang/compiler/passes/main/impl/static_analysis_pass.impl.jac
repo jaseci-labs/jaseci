@@ -39,7 +39,8 @@ impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
             continue;
         }
 
-        if sym.sym_type in (
+        if sym.sym_type
+        in (
             SymbolType.MODULE,
             SymbolType.MOD_VAR,
             SymbolType.IMPL,
@@ -54,7 +55,8 @@ impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
             continue;
         }
 
-        if sym.sym_type in (
+        if sym.sym_type
+        in (
             SymbolType.OBJECT_ARCH,
             SymbolType.NODE_ARCH,
             SymbolType.EDGE_ARCH,
@@ -382,7 +384,6 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
         import_target_pinned_server,
         is_client_boundary_import,
         report_dead_client_import,
-        report_unresolvable_client_import,
         resolve_import_source_module
     }
     for nd in mod.get_all_sub_nodes(typ=uni.Import) {
@@ -390,7 +391,6 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
             continue;
         }
         if nd.code_context != CodeContext.CLIENT {
-            report_unresolvable_client_import(self, nd);
             continue;
         }
         if (
