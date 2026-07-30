@@ -822,8 +822,6 @@ impl NativeCompilePass._link_osp_kernel(main_mod: object) -> None {
         _OSP_KERNEL_MOD_CACHE.append(kmod);
     }
     try {
-        # preserve=True: link_in destroys its source otherwise, and this
-        # module is linked into every native build in the process.
         main_mod.link_in(_OSP_KERNEL_MOD_CACHE[0], preserve=True);
     } except Exception as _e {
         ;
@@ -914,8 +912,6 @@ impl NativeCompilePass._link_fmt_kernel(main_mod: object) -> None {
         _FMT_KERNEL_MOD_CACHE.append(kmod);
     }
     try {
-        # preserve=True: link_in destroys its source otherwise, and this
-        # module is linked into every native build in the process.
         main_mod.link_in(_FMT_KERNEL_MOD_CACHE[0], preserve=True);
     } except Exception as _e {
         ;

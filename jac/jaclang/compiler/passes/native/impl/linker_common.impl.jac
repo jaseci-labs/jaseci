@@ -374,8 +374,6 @@ def _elf_obj_undefs(mem: bytes) -> list[str] {
 }
 
 
-# Content-keyed: the same archive is re-read and re-selected for every native
-# link in a test run; parsing it once per process is the whole point.
 glob _AR_PARSE_CACHE: dict = {};
 
 impl select_ar_members(data: bytes, root_undef: list[str]) -> list[ArMember] {
