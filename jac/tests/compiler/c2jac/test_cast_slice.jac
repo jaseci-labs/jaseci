@@ -129,7 +129,7 @@ test "cfor.c promotes a C for-loop to a Jac IterForStmt" {
     src = _read("cfor.c");
     res = lift_c_str(src, "cfor.c");
     out = res.module.unparse(requires_format=True);
-    assert "for i = 0 to i < n by i += 1 {" in out , out;
+    assert "for i = 0 while i < n with i += 1 {" in out , out;
     assert "continue;" in out;
     # `sum_for` promotes faithfully; the only diag is W4213 from `count_odds`'s
     # `i % 2` parity test (signed `%`), orthogonal to the for-loop promotion here.
@@ -140,7 +140,7 @@ test "for_incdec_body.c lowers statement-position ++/-- to augassign" {
     src = _read("for_incdec_body.c");
     res = lift_c_str(src, "for_incdec_body.c");
     out = res.module.unparse(requires_format=True);
-    assert "for i = 0 to i < n by i += 1 {" in out , out;
+    assert "for i = 0 while i < n with i += 1 {" in out , out;
     assert "s += 1;" in out;
     assert "s -= 1;" in out;
     assert res.diags == [] , f"expected no diags, got {res.diags}";

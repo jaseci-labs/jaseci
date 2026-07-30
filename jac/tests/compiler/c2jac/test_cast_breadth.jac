@@ -66,7 +66,7 @@ test "for_continue.c promotes descending for-with-continue to IterForStmt" {
     out = res.module.unparse(requires_format=True);
     # `>`/`>=` are promotable; Jac IterForStmt runs count_by on continue, so
     # the C `for` step is faithful and no W4208 quarantine is needed.
-    assert "for i = n to i > 0 by" in out , out;
+    assert "for i = n while i > 0 with" in out , out;
     assert "continue;" in out;
     assert res.diags == [] , res.diags;
     assert res.quarantined_functions == [];
@@ -75,7 +75,7 @@ test "for_continue.c promotes descending for-with-continue to IterForStmt" {
 test "for_comma.c promotes past a pure comma-init and flags a dropped operand" {
     res = lift_c_str(_read("for_comma.c"), "for_comma.c");
     out = res.module.unparse(requires_format=True);
-    assert "for i = 0 to i < n by i += 1 {" in out , out;
+    assert "for i = 0 while i < n with i += 1 {" in out , out;
     assert res.diags[0][0] == "W4204";
 }
 
@@ -133,10 +133,10 @@ test "struct_array.c lifts an object array + subscript member assign" {
 test "for_funcall_step.c lifts a module-scope global as `glob`" {
     res = lift_c_str(_read("for_funcall_step.c"), "for_funcall_step.c");
     out = res.module.unparse(requires_format=True);
-    # C BSS-zeroed globals become `glob` with an explicit zero; functions that
-    # assign them need `global name;` (Jac/Python local-binding rule).
+    # C BSS-zeroed globals become `glob` with an explicit zero. Jac `glob`
+    # binds at module scope, so a function that assigns it mutates the global
+    # directly -- no `global name;` redeclaration (unlike CPython Python).
     assert "glob counter: int = 0;" in out , out;
-    assert "global counter;" in out , out;
     assert "def tick() -> None {" in out;
     assert res.diags == [] , res.diags;
 }
