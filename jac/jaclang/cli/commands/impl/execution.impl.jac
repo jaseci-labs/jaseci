@@ -218,6 +218,8 @@ def _run_project(
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
     import from jaclang.project.kinds { plan_project_run, is_valid_kind, VALID_KINDS }
+    import from jaclang.project.providers { initialize_provider_registry }
+    initialize_provider_registry();
 
     existing_config = get_config();
     active_profile = existing_config.active_profile if existing_config else None;
@@ -1063,8 +1065,8 @@ def _run_entry_point(name: str, ep: object, site_dir: object, args: list) -> int
 
 def _run_node_tool(name: str, bin_path: object, args: list) -> int {
     import subprocess;
-    import from jaclang.runtimelib.client.bun_installer { get_bun }
     import from jaclang.project.config { get_config }
+    import from jaclang.runtimelib.client.bun_installer { get_bun }
 
     bun = get_bun();
     if bun is None {

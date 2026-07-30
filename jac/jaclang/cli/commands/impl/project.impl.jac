@@ -96,8 +96,7 @@ def _create_body(
     import from jaclang.project.config { find_project_root }
     import from jaclang.project.template_registry {
         TemplateRegistry,
-        get_template_registry,
-        initialize_template_registry
+        get_template_registry
     }
     import from jaclang.project.template_loader {
         load_template_from_json,
@@ -105,10 +104,6 @@ def _create_body(
     }
     import from jaclang.project.kinds { is_valid_kind, VALID_KINDS }
     registry: TemplateRegistry = get_template_registry();
-
-    if registry.is_empty() {
-        initialize_template_registry();
-    }
 
     if list_kinds {
         kinds = registry.list_kinds();

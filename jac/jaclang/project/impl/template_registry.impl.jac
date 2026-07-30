@@ -116,6 +116,7 @@ impl get_template_registry -> TemplateRegistry {
     import from jaclang.project.template_registry { TemplateRegistry }
     if _registry is None {
         _registry = TemplateRegistry();
+        initialize_template_registry();
     }
     return _registry;
 }
