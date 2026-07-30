@@ -108,8 +108,7 @@ test "params format" {
     assert add_message[1]["role"] == "user" , "Second message should be of role 'user'";
     assert add_message[3]["role"] == "tool" , "Fourth message should be of role 'tool'";
     assert (
-        add_message[3]["content"]
-        == "The current wind speed in Puttalam is about 18-22 km/h."
+        add_message[3]["content"] == "The current wind speed in Puttalam is about 18-22 km/h."
     ) , "Content mismatch";
 
     add_tool = extracted_dict["tools"][0];
@@ -158,8 +157,7 @@ test "streaming output" {
     sys.stdout = sys.__stdout__;
     stdout_value = captured_output.getvalue();
     assert (
-        "The orca whale, or killer whale, is one of the most intelligent and adaptable marine predators"
-        in stdout_value
+        "The orca whale, or killer whale, is one of the most intelligent and adaptable marine predators" in stdout_value
     );
 }
 
@@ -314,8 +312,7 @@ test "with llm type" {
     assert "14/03/1879" in stdout_value;
     assert (
         'University (University) (obj) = type(__module__="with_llm_type", __doc__=None, '
-        "_jac_entry_funcs_`=[`], _jac_exit_funcs_=[], __init__=function(__wrapped__=function()))"
-        not in stdout_value
+        "_jac_entry_funcs_`=[`], _jac_exit_funcs_=[], __init__=function(__wrapped__=function()))" not in stdout_value
     );
     desired_output_count = stdout_value.count(
         "Person(name='Jason Mars', dob='1994-01-01', age=30)"
@@ -499,8 +496,7 @@ test "max react iterations" {
     assert "WIND_TOOL_CALLS: 1" in stdout_value;
     assert "UNIT_TOOL_CALLS: 1" in stdout_value;
     assert (
-        "Based on the tool calls and their results above, provide only your final answer."
-        in stdout_value
+        "Based on the tool calls and their results above, provide only your final answer." in stdout_value
     );
 }
 
@@ -1454,8 +1450,9 @@ test "prompt caching marks system, last non-system message, and last tool for an
     assert "cache_control" not in messages[1];
     assert "cache_control" not in messages[2];
     assert "cache_control" not in messages[3].get("content")[0];
-    assert messages[3].get("content")[-1].get("cache_control")
-    == _CACHE_CONTROL_EPHEMERAL;
+    assert messages[3].get("content")[-1].get(
+        "cache_control"
+    ) == _CACHE_CONTROL_EPHEMERAL;
     # Only last tool marked
     assert "cache_control" not in tools[0];
     assert tools[-1].get("cache_control") == _CACHE_CONTROL_EPHEMERAL;
@@ -1467,8 +1464,9 @@ test "prompt caching disabled via config" {
         'get_prompt_caching_config',
         return_value={'enabled': False}
     ) {
-        assert _is_prompt_caching_eligible("anthropic/claude-sonnet-4-20250514")
-        == False;
+        assert _is_prompt_caching_eligible(
+            "anthropic/claude-sonnet-4-20250514"
+        ) == False;
     }
 }
 
