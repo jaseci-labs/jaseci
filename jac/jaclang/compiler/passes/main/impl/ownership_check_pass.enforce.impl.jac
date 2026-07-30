@@ -207,6 +207,41 @@ impl OwnershipCheckPass._nogc_str_slice_value(expr: uni.Expr | None) -> bool {
     return _m == "str";
 }
 
+impl OwnershipCheckPass._nogc_str_elem_ok(
+    expr: uni.Expr | None, idx_ctx: bool = False
+) -> bool {
+    if not isinstance(expr, uni.Expr) {
+        return False;
+    }
+    _m = "";
+    try {
+        _m = expr.type.mangle() if expr.type is not None else "";
+    } except Exception {
+        return False;
+    }
+    if _m != "str" {
+        return False;
+    }
+    if idx_ctx {
+        return True;
+    }
+    if isinstance(expr, (uni.String, uni.MultiString, uni.FString)) {
+        return True;
+    }
+    if isinstance(expr, (uni.FuncCall, uni.BinaryExpr)) {
+        return True;
+    }
+    if isinstance(expr, uni.Name) {
+        _root = self._place_of(expr);
+        return (
+            _root is not None
+            and _root.sym is not None
+            and _root.sym.ownership == OwnershipKind.OWN
+        );
+    }
+    return self._nogc_str_slice_value(expr);
+}
+
 impl OwnershipCheckPass._nogc_local_shape_expr_heap(expr: uni.Expr | None) -> bool {
     if expr is None {
         return False;
@@ -461,7 +496,11 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 or _lv.find_parent_of_type(uni.FuncSignature) is not None {
                 continue;
             }
+            _idx_ctx = _lv.find_parent_of_type(uni.IndexSlice) is not None;
             for _le in (_lv.values or []) {
+                if self._nogc_str_elem_ok(_le, idx_ctx=_idx_ctx) {
+                    continue;
+                }
                 if self._nogc_local_shape_expr_heap(_le) {
                     self.emit(
                         E1406,
@@ -479,6 +518,9 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 continue;
             }
             for _se in (_sv.values or []) {
+                if self._nogc_str_elem_ok(_se) {
+                    continue;
+                }
                 if self._nogc_local_shape_expr_heap(_se) {
                     self.emit(
                         E1406,
@@ -496,8 +538,15 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 continue;
             }
             for _kv in (_dv.kv_pairs or []) {
-                if self._nogc_local_shape_expr_heap(_kv.key)
-                    or self._nogc_local_shape_expr_heap(_kv.value) {
+                _key_bad = (
+                    not self._nogc_str_elem_ok(_kv.key, idx_ctx=True)
+                    and self._nogc_local_shape_expr_heap(_kv.key)
+                );
+                _val_bad = (
+                    not self._nogc_str_elem_ok(_kv.value)
+                    and self._nogc_local_shape_expr_heap(_kv.value)
+                );
+                if _key_bad or _val_bad {
                     self.emit(
                         E1406,
                         node_override=_dv,
@@ -518,6 +567,25 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 if isinstance(_gav, uni.FuncCall)
                     and isinstance(_gav.target, uni.Name)
                     and _gav.target.sym_name == "managed" {
+                    continue;
+                }
+                _is_str = False;
+                try {
+                    _is_str = (_gav.type.mangle() if _gav.type is not None else "")
+                        == "str";
+                } except Exception {
+                    _is_str = False;
+                }
+                if _is_str {
+                    if not self._nogc_str_elem_ok(_gav) {
+                        self.emit(
+                            E1406,
+                            node_override=_mc,
+                            name=f"{_grow}() of a heap element",
+                            provenance=_prov
+                        );
+                        break;
+                    }
                     continue;
                 }
                 if self._nogc_local_shape_expr_heap(_gav) {
@@ -626,6 +694,7 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 and not _tgt.is_attr
                 and self._nogc_is_container_expr(_tgt.target)
                 and nd.value is not None
+                and not self._nogc_str_elem_ok(nd.value)
                 and self._nogc_local_shape_expr_heap(nd.value) {
                 self.emit(
                     E1406,

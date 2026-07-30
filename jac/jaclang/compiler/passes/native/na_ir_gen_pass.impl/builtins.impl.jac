@@ -909,6 +909,7 @@ impl NaIRGenPass._codegen_str_split(
     self._set_rc_ctx("str_split", "");
     new_list = self.builder.call(helpers["new"], [], name="split.list");
     self._clear_rc_ctx();
+    self._nogc_stamp_elem_drops(new_list, ["str"], "list");
 
     str_len = self._call_str_len(self.builder, str_val, name="str.len");
     sep_len = self._call_str_len(self.builder, sep_val, name="sep.len");

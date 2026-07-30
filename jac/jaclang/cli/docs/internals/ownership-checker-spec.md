@@ -41,7 +41,10 @@ consumption are facts about names, not about heap objects:
   ...) and calls into the native stdlib surface (`os`/`sys`/`time`/`math`/
   `random`/`struct`), whose C-backed shims copy or read transiently and never
   retain. str-typed subscript/slice results are fresh copies and likewise do
-  not consume their base.
+  not consume their base. Container grow methods (`append`/`add`/`insert` on
+  a list/set/dict receiver) also do not consume their arguments: under the
+  headerless contract fresh strings move into the container and named
+  bindings are copied in at codegen, so the source binding stays live.
 - There is no alias analysis through managed storage. Once a value is moved
   into a field, container, or graph object (sealed across the membrane), the
   checker's knowledge of it ends; reading it back yields an ordinary managed

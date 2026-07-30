@@ -588,6 +588,10 @@ impl PortabilityWarnPass._check_js_methods(mod: uni.Module) -> None {
         if not is_method_call {
             continue;
         }
+
+        if trailer.right.sym is not None {
+            continue;
+        }
         if method_name == "find" and not self._find_call_is_js_style(parent) {
             continue;
         }
@@ -659,6 +663,10 @@ impl PortabilityWarnPass._check_js_properties(mod: uni.Module) -> None {
         }
         prop_name = trailer.right.value;
         if prop_name not in JS_PROPERTIES {
+            continue;
+        }
+
+        if trailer.right.sym is not None {
             continue;
         }
 

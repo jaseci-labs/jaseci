@@ -1690,6 +1690,25 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
             arg_vals = self._codegen_call_args(nd);
             _orig_args = list(arg_vals);
 
+            _prep_idx = -1;
+            if method_name == "append" and arg_vals {
+                _prep_idx = 0;
+            } elif method_name == "insert" and len(arg_vals) > 1 {
+                _prep_idx = 1;
+            }
+            if _prep_idx >= 0 {
+                _prep_params = list(nd.params or []);
+                if _prep_idx < len(_prep_params) {
+                    _prep_e = _prep_params[_prep_idx];
+                    _prep_e = (
+                        _prep_e.value if isinstance(_prep_e, uni.KWPair) else _prep_e
+                    );
+                    arg_vals[_prep_idx] = self._nogc_elem_prep(
+                        _prep_e, arg_vals[_prep_idx]
+                    );
+                }
+            }
+
             _elem_struct = self.var_list_elem_struct.get(target_name);
             if _elem_struct is not None
                 and isinstance(_elem_struct, ir.PointerType)
@@ -1740,6 +1759,16 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         set_val = self._codegen_expr(trailer.target);
         if set_val is not None {
             arg_vals = self._codegen_call_args(nd);
+            if method_name == "add" and arg_vals {
+                _sprep_params = list(nd.params or []);
+                if _sprep_params {
+                    _sprep_e = _sprep_params[0];
+                    _sprep_e = (
+                        _sprep_e.value if isinstance(_sprep_e, uni.KWPair) else _sprep_e
+                    );
+                    arg_vals[0] = self._nogc_elem_prep(_sprep_e, arg_vals[0]);
+                }
+            }
             result = self._dispatch_primitive_method(
                 "set", method_name, set_val, arg_vals, elem_type_name
             );
