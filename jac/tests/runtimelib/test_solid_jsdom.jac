@@ -774,7 +774,7 @@ def _require_client_integration {
     }
 }
 
-"""Compile a `.cl.jac` to JS with the Solid backend; type errors are non-fatal."""
+"""Compile a `.jac` to JS with the Solid backend; type errors are non-fatal."""
 def _compile_solid(path: str) -> str {
     prog = JacProgram();
     ir = prog.compile(file_path=str(path), no_cgen=True);
@@ -807,7 +807,7 @@ def _wire_jac_runtime(js: str) -> str {
     return js;
 }
 
-"""Compile a page/layout `.cl.jac`, prepend its `@jac/runtime` globals (the bare
+"""Compile a page/layout `.jac`, prepend its `@jac/runtime` globals (the bare
 `__jacJsx`/`Link`/`Outlet` the compiler emits), and wire the runtime specifier."""
 def _compile_page(path: str, backend: any) -> str {
     return _wire_jac_runtime(with_runtime_globals(_compile_solid(path), backend));
@@ -824,12 +824,12 @@ test "solid counter mounts and reacts in jsdom" {
     # Compiler emits bare `__jacJsx(...)` and expects the bundler to prepend the
     # `@jac/runtime` import -- do exactly that.
     component_js = with_runtime_globals(
-        _compile_solid(os.path.join(FIXTURES, "solid_counter_app.cl.jac")), backend
+        _compile_solid(os.path.join(FIXTURES, "solid_counter_app.jac")), backend
     );
     runtime_path = resolve_client_runtime_cl_path("solid");
     runtime_js = _rewrite_core_specifier(_compile_solid(runtime_path));
     core_js = _compile_solid(
-        str(Path(runtime_path).parent / "client_runtime_core.cl.jac")
+        str(Path(runtime_path).parent / "client_runtime_core.jac")
     );
     # Wire the three emitted modules together by relative path inside the work dir.
     for q in ['"', "'"] {
@@ -896,12 +896,12 @@ test "solid native control flow (<For>/<Show>) renders + reacts in jsdom (Branch
 
     backend = SolidBackend();
     component_js = with_runtime_globals(
-        _compile_solid(os.path.join(FIXTURES, "solid_control_flow_app.cl.jac")), backend
+        _compile_solid(os.path.join(FIXTURES, "solid_control_flow_app.jac")), backend
     );
     runtime_path = resolve_client_runtime_cl_path("solid");
     runtime_js = _rewrite_core_specifier(_compile_solid(runtime_path));
     core_js = _compile_solid(
-        str(Path(runtime_path).parent / "client_runtime_core.cl.jac")
+        str(Path(runtime_path).parent / "client_runtime_core.jac")
     );
     for q in ['"', "'"] {
         component_js = component_js.replace(
@@ -963,15 +963,15 @@ test "solid file-based routing mounts, navigates, and guards in jsdom" {
 
     backend = SolidBackend();
     rdir = os.path.join(FIXTURES, "solid_routing");
-    home_js = _compile_page(os.path.join(rdir, "home_page.cl.jac"), backend);
-    about_js = _compile_page(os.path.join(rdir, "about_page.cl.jac"), backend);
-    dash_js = _compile_page(os.path.join(rdir, "dashboard_page.cl.jac"), backend);
-    layout_js = _compile_page(os.path.join(rdir, "root_layout.cl.jac"), backend);
+    home_js = _compile_page(os.path.join(rdir, "home_page.jac"), backend);
+    about_js = _compile_page(os.path.join(rdir, "about_page.jac"), backend);
+    dash_js = _compile_page(os.path.join(rdir, "dashboard_page.jac"), backend);
+    layout_js = _compile_page(os.path.join(rdir, "root_layout.jac"), backend);
 
     runtime_path = resolve_client_runtime_cl_path("solid");
     runtime_js = _rewrite_core_specifier(_compile_solid(runtime_path));
     core_js = _compile_solid(
-        str(Path(runtime_path).parent / "client_runtime_core.cl.jac")
+        str(Path(runtime_path).parent / "client_runtime_core.jac")
     );
     # The entry is built exactly as the ViteCompiler builds it for `pages/` apps;
     # only its `@jac/runtime` specifier is rewired to the flat sibling.
@@ -1086,13 +1086,13 @@ test "solid JacForm renders and validates in jsdom (TanStack Form end-to-end)" {
     backend = SolidBackend();
     component_js = _wire_jac_runtime(
         with_runtime_globals(
-            _compile_solid(os.path.join(FIXTURES, "solid_form_app.cl.jac")), backend
+            _compile_solid(os.path.join(FIXTURES, "solid_form_app.jac")), backend
         )
     );
     runtime_path = resolve_client_runtime_cl_path("solid");
     runtime_js = _rewrite_core_specifier(_compile_solid(runtime_path));
     core_js = _compile_solid(
-        str(Path(runtime_path).parent / "client_runtime_core.cl.jac")
+        str(Path(runtime_path).parent / "client_runtime_core.jac")
     );
 
     with TemporaryDirectory() as tmp {
@@ -1155,22 +1155,22 @@ test "solid P2 jsdom matrix: dynamic prop, ref e2e, and callback prop" {
     runtime_path = resolve_client_runtime_cl_path("solid");
     runtime_js = _rewrite_core_specifier(_compile_solid(runtime_path));
     core_js = _compile_solid(
-        str(Path(runtime_path).parent / "client_runtime_core.cl.jac")
+        str(Path(runtime_path).parent / "client_runtime_core.jac")
     );
 
     dynprop_js = _wire_jac_runtime(
         with_runtime_globals(
-            _compile_solid(os.path.join(FIXTURES, "solid_dynprop_app.cl.jac")), backend
+            _compile_solid(os.path.join(FIXTURES, "solid_dynprop_app.jac")), backend
         )
     );
     ref_js = _wire_jac_runtime(
         with_runtime_globals(
-            _compile_solid(os.path.join(FIXTURES, "solid_ref_app.cl.jac")), backend
+            _compile_solid(os.path.join(FIXTURES, "solid_ref_app.jac")), backend
         )
     );
     callback_js = _wire_jac_runtime(
         with_runtime_globals(
-            _compile_solid(os.path.join(FIXTURES, "solid_callback_app.cl.jac")), backend
+            _compile_solid(os.path.join(FIXTURES, "solid_callback_app.jac")), backend
         )
     );
 

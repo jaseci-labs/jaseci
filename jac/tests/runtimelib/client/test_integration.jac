@@ -40,7 +40,7 @@ def _pkg_root -> Path {
     return pkg;
 }
 
-"""Locate the native/ directory (contains plugin_bridge.na.jac)."""
+"""Locate the native/ directory (contains plugin_bridge.jac)."""
 def _native_dir -> Path {
     return _pkg_root() / "native";
 }
@@ -61,7 +61,7 @@ def _plugin_config_path -> Path {
 """The rich window.__jac SDK shim (invoke/on/__emit__).
 
 Single in-test copy of the SDK so the JS tests below don't each carry their own.
-`cef_dispatch.na.jac`'s BOOTSTRAP_JS glob is the source of truth (this is the
+`cef_dispatch.jac`'s BOOTSTRAP_JS glob is the source of truth (this is the
 slice `_jac_sdk_js()` extracts for the web target); the "js sdk snippet matches
 generated host source" test asserts this copy has not drifted from it."""
 def _bootstrap_js_snippet -> str {
@@ -1139,8 +1139,8 @@ __jac_invoke). The native webview host (_host_bootstrap.jac) emits the same
 SDK body and sets __JAC_NATIVE__, while window.__jac_invoke comes from
 wv.bind. Both hosts must keep the shared invoke/on/__emit__ body in sync."""
 test "js sdk snippet matches generated host source" {
-    cef_src = (_native_dir() / "cef" / "cef_dispatch.na.jac").read_text();
-    assert _bootstrap_js_snippet() in cef_src , "in-test JS shim drifted from cef_dispatch.na.jac BOOTSTRAP_JS";
+    cef_src = (_native_dir() / "cef" / "cef_dispatch.jac").read_text();
+    assert _bootstrap_js_snippet() in cef_src , "in-test JS shim drifted from cef_dispatch.jac BOOTSTRAP_JS";
     host_boot = (_pkg_root() / "_host_bootstrap.jac").read_text();
     # Native bootstrap stores the SDK as a Python string concat; spot-check the
     # critical pieces rather than requiring a single contiguous literal.
@@ -1152,16 +1152,16 @@ test "js sdk snippet matches generated host source" {
 
 """Every command the client SDK invokes maps to a real host plugin command.
 
-A text-level contract between desktop_api.cl.jac (the hand-written typed SDK)
+A text-level contract between desktop_api.jac (the hand-written typed SDK)
 and the built-in plugins' dispatch. Catches the drift a hand-written SDK is
 prone to: a method calling a renamed/removed plugin or command. (The host may
 expose more commands than the SDK surfaces -- that direction is allowed.)"""
 test "client SDK commands map to host plugin commands" {
     import re;
     plugin_dir = _plugin_src_dir();
-    sdk_text = (plugin_dir / "desktop_api.cl.jac").read_text();
+    sdk_text = (plugin_dir / "desktop_api.jac").read_text();
     sdk_pairs = re.findall(r'_invoke\(\s*"([^"]+)"\s*,\s*"([^"]+)"', sdk_text);
-    assert len(sdk_pairs) > 0 , "no _invoke() calls found in desktop_api.cl.jac";
+    assert len(sdk_pairs) > 0 , "no _invoke() calls found in desktop_api.jac";
     # Map host plugin name -> handled commands, parsed from each plugin source.
     host = {};
     for pf in sorted((plugin_dir / "built_in").glob("*_plugin.jac")) {
@@ -1180,7 +1180,7 @@ test "client SDK commands map to host plugin commands" {
 
 
 """The hand-maintained `desktop_sdk_exports` list tracks the `obj` declarations
-in desktop_api.cl.jac.
+in desktop_api.jac.
 
 `desktop_sdk_exports` (in plugin_config.jac) is the authoritative export list
 the `@jac/desktop` module entry point hands to jaclang's client compiler --
@@ -1191,11 +1191,11 @@ than at app startup."""
 test "desktop_sdk exports match api declarations" {
     import re;
     plugin_dir = _plugin_src_dir();
-    sdk_text = (plugin_dir / "desktop_api.cl.jac").read_text();
+    sdk_text = (plugin_dir / "desktop_api.jac").read_text();
     declared = set(re.findall(r'^obj\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{', sdk_text, re.M));
     # `_invoke` is a free `def`, not an exported `obj`; we only compare obj
     # surfaces, so non-obj helpers can't perturb the result.
-    assert len(declared) > 0 , "no obj declarations found in desktop_api.cl.jac";
+    assert len(declared) > 0 , "no obj declarations found in desktop_api.jac";
     # Scope to the desktop_sdk_exports function body so unrelated string
     # literals elsewhere in desktop_plugin_config.jac can't create false matches.
     cfg_text = _plugin_config_path().read_text();
@@ -1205,7 +1205,7 @@ test "desktop_sdk exports match api declarations" {
     assert fn is not None , "desktop_sdk_exports not found in desktop_plugin_config.jac";
     listed = set(re.findall(r"'([A-Za-z_][A-Za-z0-9_]*)'", fn.group(1)));
     assert listed == declared , (
-        f"desktop_sdk_exports drifted from desktop_api.cl.jac obj declarations: "
+        f"desktop_sdk_exports drifted from desktop_api.jac obj declarations: "
         f"missing from exports={sorted(declared - listed)}, "
         f"stale in exports={sorted(listed - declared)}"
     );
@@ -1276,9 +1276,9 @@ test "plugin configs empty when no plugins section" {
 # ---------------------------------------------------------------------------
 # 8. Plugin bridge native shim validity
 # ---------------------------------------------------------------------------
-"""plugin_bridge.na.jac contains the expected native shim elements."""
+"""plugin_bridge.jac contains the expected native shim elements."""
 test "plugin bridge source contains expected elements" {
-    bridge = _native_dir() / "plugin_bridge.na.jac";
+    bridge = _native_dir() / "plugin_bridge.jac";
     src = bridge.read_text();
     assert "PyGILState_Ensure" in src;
     assert "PyGILState_Release" in src;
@@ -1293,7 +1293,7 @@ test "plugin bridge source contains expected elements" {
     assert "req as str" in src;
 }
 
-"""plugin_bridge.na.jac compiles with webview + libpython (link test)."""
+"""plugin_bridge.jac compiles with webview + libpython (link test)."""
 test "plugin bridge links with full native stack" {
     soname = sysconfig.get_config_var("INSTSONAME") or "libpython3.12.so.1.0";
     webview_dir = _native_dir() / "webview";
@@ -1356,13 +1356,13 @@ test "plugin bridge links with full native stack" {
     tmp = tempfile.mkdtemp();
     try {
         shutil.copy2(
-            str(webview_dir / "webview.na.jac"), os.path.join(tmp, "webview.na.jac")
+            str(webview_dir / "webview.jac"), os.path.join(tmp, "webview.jac")
         );
-        with open(os.path.join(tmp, "host.na.jac"), "w") as f {
+        with open(os.path.join(tmp, "host.jac"), "w") as f {
             f.write(src);
         }
         result = subprocess.run(
-            [jac, "nacompile", "host.na.jac", "-o", "test_integration"],
+            [jac, "nacompile", "host.jac", "-o", "test_integration"],
             cwd=tmp,
             capture_output=True,
             text=True,
@@ -1533,14 +1533,15 @@ test "_coerce_config normalizes config values" {
     );
 }
 
-"""Plugin bridge extraction between markers works."""
-test "bridge marker extraction from plugin_bridge.na.jac" {
+"""The plugin bridge module carries its dispatch surface. (The old BRIDGE
+START/END comment markers were vestigial -- nothing extracts between them
+anymore, and the formatter strips free-standing comments -- so the pin is
+the load-bearing code symbols.)"""
+test "bridge marker extraction from plugin_bridge.jac" {
     import from pathlib { Path }
 
-    bridge_path = _native_dir() / "plugin_bridge.na.jac";
+    bridge_path = _native_dir() / "plugin_bridge.jac";
     src = bridge_path.read_text();
-    assert "# --- BRIDGE START ---" in src;
-    assert "# --- BRIDGE END ---" in src;
     assert "_PH_DISPATCH" in src;
     assert "_jac_invoke_handler" in src;
     assert "_stash_wv_in_python" in src;

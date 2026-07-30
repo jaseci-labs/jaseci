@@ -47,7 +47,7 @@ def compile_to_js(filename: str) -> str {
 
 test "props+ref component lowers to forwardRef with a (props, ref) signature" {
     import re;
-    js = compile_to_js("forward_ref_button.cl.jac");
+    js = compile_to_js("forward_ref_button.jac");
 
     # Wrapped in forwardRef and bound to a const of the component's name, with
     # the React render signature `(props, ref)`.
@@ -75,7 +75,7 @@ test "props+ref component lowers to forwardRef with a (props, ref) signature" {
 
 test "named props alongside a ref: props destructure, ref stays positional" {
     import re;
-    js = compile_to_js("forward_ref_named.cl.jac");
+    js = compile_to_js("forward_ref_named.jac");
 
     assert re.search(
         r'const\s+Card\s*=\s*forwardRef\(\s*function\s+Card\s*\(\s*props\s*,\s*ref\s*\)',

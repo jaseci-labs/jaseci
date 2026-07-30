@@ -26,15 +26,14 @@ def write_mods(mods: dict[str, str]) -> str {
 test "bridged plain client import records a typed cl->sv binding" {
     tmp = write_mods(
         {
+            "jac.toml": ('[placement.pins]\nprovider = "server"\n'),
             "provider.jac": (
                 "def:pub greet(who: str) -> str {\n" "    return \"hi \" + who;\n" "}\n"
             ),
             "app.jac": (
-                "cl {\n"
-                "    import from .provider { greet as hello }\n"
-                "    def:pub Panel -> JsxElement {\n"
-                "        return <div>{hello(\"x\")}</div>;\n"
-                "    }\n"
+                "import from .provider { greet as hello }\n\n"
+                "def:pub Panel -> JsxElement {\n"
+                "    return <div>{hello(\"x\")}</div>;\n"
                 "}\n"
             )
         }
@@ -58,14 +57,13 @@ test "bridged plain client import records a typed cl->sv binding" {
 test "unmappable ctypes wire type across na->sv is E5093" {
     tmp = write_mods(
         {
+            "jac.toml": ('[placement.pins]\n"main.crunch" = "native"\n'),
             "main.jac": (
                 "def py_helper(vals: list) -> int {\n"
                 "    return len(vals);\n"
                 "}\n"
-                "na {\n"
-                "    def crunch -> int {\n"
-                "        return py_helper([1, 2]);\n"
-                "    }\n"
+                "def crunch -> int {\n"
+                "    return py_helper([1, 2]);\n"
                 "}\n"
             )
         }

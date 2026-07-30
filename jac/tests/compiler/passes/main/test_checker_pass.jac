@@ -658,11 +658,11 @@ test "checker_import_missing_module" {
 
 test "checker_jac_runtime_alias" {
     # `@jac/runtime` is a virtual module resolved by the bundler to
-    # jaclang/runtimelib/client_runtime.cl.jac. The type checker must use the
+    # jaclang/runtimelib/client_runtime.jac. The type checker must use the
     # same mapping so imported symbols keep their declared types (e.g.
     # jacIsLoggedIn -> bool) instead of decaying to Unknown and producing
     # spurious assignment errors.
-    path = os.path.join(CHECKER_FIXTURES, "checker_jac_runtime_alias.cl.jac");
+    path = os.path.join(CHECKER_FIXTURES, "checker_jac_runtime_alias.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
     TypeCheckPass(ir_in=mod, prog=program);
@@ -680,7 +680,7 @@ test "checker_react_router_props" {
     # `Outlet`, `useNavigate` / `useLocation` / `useParams`) in both runtimes —
     # bare-serve implements it natively, jac-client wraps React Router. The
     # type checker validates JSX props against bare-serve's declarations.
-    path = os.path.join(CHECKER_FIXTURES, "checker_react_router_props.cl.jac");
+    path = os.path.join(CHECKER_FIXTURES, "checker_react_router_props.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
     TypeCheckPass(ir_in=mod, prog=program);
@@ -5225,7 +5225,7 @@ test "enum_member_assignable_to_base_type" {
     # `enum Color { RED = 1 }` — `Color.RED` is the int value 1.
     # Returning / assigning it where the base type (int / str) is
     # expected must typecheck. Surfaced in native fixtures
-    # string_enums.na.jac, ast.na.jac, na_enum_import.na.jac.
+    # string_enums.jac, ast.jac, na_enum_import.jac.
     path = os.path.join(CHECKER_FIXTURES, "checker_enum_member_as_base.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
@@ -5242,15 +5242,13 @@ test "enum_member_assignable_to_base_type" {
 }
 
 test "local_module_shadows_stdlib_in_resolver" {
-    # `import from ast { ... }` from a file alongside a local `ast.na.jac`
+    # `import from ast { ... }` from a file alongside a local `ast.jac`
     # must resolve to the local file, not Python's stdlib ast.pyi. Without
     # this the imported symbols decay to Unknown and propagate cascade
     # errors (E1001 / E1030 / E1053). Symmetric with NaIRGenPass's
-    # struct-registration fix; covered by fix_shadow_entry.na.jac in the
+    # struct-registration fix; covered by fix_shadow_entry.jac in the
     # native fixture suite too.
-    path = os.path.join(
-        CHECKER_FIXTURES, "checker_local_shadows_stdlib", "entry.na.jac"
-    );
+    path = os.path.join(CHECKER_FIXTURES, "checker_local_shadows_stdlib", "entry.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
     TypeCheckPass(ir_in=mod, prog=program);
@@ -5260,7 +5258,7 @@ test "local_module_shadows_stdlib_in_resolver" {
         for e in program.errors_had
         if e.code and e.code.code in ("E1001", "E1002", "E1030", "E1053")
     ];
-    assert len(cascade) == 0 , f"Expected no cascade errors when local ast.na.jac shadows stdlib, got {len(
+    assert len(cascade) == 0 , f"Expected no cascade errors when local ast.jac shadows stdlib, got {len(
         cascade
     )}:\n" + "\n---\n".join(e.pretty_print() for e in cascade);
 }
@@ -5397,7 +5395,7 @@ test "mobui_project_forbids_html_intrinsic_tags" {
     # forbidden — JsxIntrinsicGuardPass emits E1105 for each lowercase tag,
     # with a fix-it pointing at the @jac/mobui / RN component. Uppercase user
     # components (<Card>) are allowed. The pass runs in get_ir_gen_sched, so
-    # it fires even with type_check=False (the .cl.jac / build path).
+    # it fires even with type_check=False (the .jac / build path).
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_mobui_html_forbidden.jac");
     program = JacProgram();
     program.compile(
@@ -5494,13 +5492,13 @@ test "mobui_project_lowercase_component_no_w1050" {
 
 test "mobui_kind_does_not_leak_outside_project_root" {
     # Regression: a consumer's project_kind="mobui" must not reach files
-    # outside the project root. The real failure was client_runtime.cl.jac
+    # outside the project root. The real failure was client_runtime.jac
     # (from jac-client) being compiled into the user's JacProgram during
     # `jac build` and receiving E1105 for its HTML tags ("kind-leak").
     # We simulate it by passing an explicit project_root that does NOT contain
     # the fixture, mimicking a framework file outside the user's project.
     import tempfile;
-    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_cl_html_allowed.cl.jac");
+    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_cl_html_allowed.jac");
     with tempfile.TemporaryDirectory() as tmp_root {
         program = JacProgram();
         program.compile(
@@ -5519,30 +5517,6 @@ test "mobui_kind_does_not_leak_outside_project_root" {
             f"got {len(e1105)}:\n" + "\n---\n".join(e.pretty_print() for e in e1105)
         );
     }
-}
-
-test "cl_jac_files_inside_project_root_also_exempt" {
-    # Even when a .cl.jac file lives inside the project root (user's own
-    # web-client boundary file), E1105 must not fire — .cl.jac always targets
-    # the browser and raw HTML is valid there.
-    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_cl_html_allowed.cl.jac");
-    fixtures_dir = os.path.dirname(path);
-    program = JacProgram();
-    program.compile(
-        path,
-        options=CompileOptions(
-            type_check=False, project_kind="mobui", project_root=fixtures_dir
-        )
-    );
-    e1105 = [
-        e
-        for e in program.errors_had
-        if e.code and e.code.code == "E1105"
-    ];
-    assert len(e1105) == 0 , (
-        f"E1105 must not fire on .cl.jac files even inside project_root, "
-        f"got {len(e1105)}:\n" + "\n---\n".join(e.pretty_print() for e in e1105)
-    );
 }
 
 test "jac_toml_kind_mobui_round_trip" {

@@ -2752,7 +2752,6 @@ impl TypeEvaluator._is_strict_site(nd: uni.UniNode) -> bool {
 }
 
 impl TypeEvaluator._in_native_context -> bool {
-    import from jaclang.jac0core.ext_registry { is_native_module }
     if self._pass is None {
         return False;
     }
@@ -2765,10 +2764,7 @@ impl TypeEvaluator._in_native_context -> bool {
         return True;
     }
     mod = cur.find_parent_of_type(uni.Module);
-    if mod is None or mod.loc is None {
-        return False;
-    }
-    return is_native_module(mod.loc.mod_path);
+    return mod is not None and mod.decided_codespace == 'native';
 }
 
 impl TypeEvaluator._is_typing_special_form(ty: TypeBase, name: str) -> bool {
@@ -3273,27 +3269,76 @@ impl TypeEvaluator._is_sv_async_call(expr: uni.FuncCall) -> bool {
     if syms is None {
         syms = set();
         import from jaclang.jac0core.compiler { is_client_native_edge_import }
+        import from jaclang.compiler.symbol_utils {
+            ClientImportVerdict,
+            classify_client_import_item,
+            decl_has_access,
+            import_target_pinned_server,
+            is_client_boundary_import,
+            resolve_import_source_module
+        }
         for imp in mod.get_all_sub_nodes(uni.Import) {
+            is_boundary = is_client_boundary_import(imp);
+            if not is_boundary and imp.in_client_context() {
+                try {
+                    is_boundary = (
+                        not imp.is_service_import
+                        and not imp.is_typed
+                        and not imp.is_virtual_jac
+                        and imp.from_loc is not None
+                        and bool(imp.items)
+                        and str(imp.from_loc.resolve_relative_path()).endswith('.jac')
+                    );
+                } except Exception {
+                    is_boundary = False;
+                }
+            }
             if not (
-                imp.is_sv_marked
-                or imp.is_na_marked
+                imp.is_service_import
                 or is_client_native_edge_import(imp, self.program)
+                or is_boundary
             ) {
                 continue;
             }
 
-            if imp.is_sv_marked and not imp.in_client_context() {
+            if imp.is_service_import and not imp.in_client_context() {
                 continue;
             }
+            source_mod = (
+                resolve_import_source_module(self.program, imp) if is_boundary else None
+            );
+            pinned_server = import_target_pinned_server(imp) if is_boundary else False;
             for item in imp.items {
-                if (
+                if not (
                     isinstance(item, uni.ModuleItem)
                     and isinstance(item.name, uni.Name)
                     and item.name.sym is not None
                     and item.name.sym.sym_type == SymbolType.ABILITY
                 ) {
-                    syms.add(id(item.name.sym));
+                    continue;
                 }
+                if (
+                    is_boundary
+                    and not imp.is_service_import
+                    and not is_client_native_edge_import(imp, self.program)
+                ) {
+                    if source_mod is None {
+                        continue;
+                    }
+                    verdict = classify_client_import_item(source_mod, item);
+                    is_stub = verdict == ClientImportVerdict.BRIDGED
+                    or (
+                        pinned_server
+                        and (
+                            verdict != ClientImportVerdict.DEAD
+                            or decl_has_access(source_mod, item)
+                        )
+                    );
+                    if not is_stub {
+                        continue;
+                    }
+                }
+                syms.add(id(item.name.sym));
             }
         }
         self._sv_async_syms_cache[mod_key] = syms;

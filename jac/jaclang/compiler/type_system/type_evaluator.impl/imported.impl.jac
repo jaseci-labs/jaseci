@@ -17,18 +17,7 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
         is_dir = from_path.is_dir() or (from_path.stem == "__init__");
         if is_dir {
             mod_dir = from_path.parent if not from_path.is_dir() else from_path;
-            for ext in (
-                ".jac",
-                ".cl.jac",
-                ".sv.jac",
-                ".na.jac",
-                ".py",
-                ".pyi",
-                ".js",
-                ".ts",
-                ".jsx",
-                ".tsx"
-            ) {
+            for ext in (".jac", ".py", ".pyi", ".js", ".ts", ".jsx", ".tsx") {
                 candidate_paths = [
                     (mod_dir / f"{node_.name.value}{ext}").resolve(),
                     (mod_dir / node_.name.value / f"__init__{ext}").resolve(),

@@ -1488,13 +1488,19 @@ def build_osp_kernel_js -> str {
     src = os.path.join(os.path.dirname(jaclang.__file__), "jac0core", "osp_kernel.jac");
 
     tmp_dir = tempfile.mkdtemp();
-    cl_copy = os.path.join(tmp_dir, "osp_kernel.cl.jac");
+    cl_copy = os.path.join(tmp_dir, "osp_kernel_cl.jac");
     shutil.copyfile(src, cl_copy);
     js = "";
     try {
+        import from jaclang.jac0core.compile_options { CompileOptions }
         prog = JacProgram();
 
-        ir = prog.compile(file_path=cl_copy, no_cgen=True, type_check=True);
+        ir = prog.compile(
+            file_path=cl_copy,
+            options=CompileOptions(
+                force_codespace='client', no_cgen=True, type_check=True
+            )
+        );
         program = EsastGenPass(ir_in=ir, prog=prog).ir_out.gen.es_ast;
         kept: list = [];
         if isinstance(program, es.Program) {

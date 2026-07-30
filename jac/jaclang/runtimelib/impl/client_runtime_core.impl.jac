@@ -614,12 +614,24 @@ impl __jacInstallErrorHandlers -> None {
 }
 
 impl ErrorFallback(error: any, resetErrorBoundary: any) -> JsxElement {
-    return
+    <div
+        role="alert"
+        style={{
+            minHeight: "100vh",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "#f9fafb",
+            fontFamily: "system-ui, sans-serif",
+
+        }}
+    >
         <div
             role="alert"
             style={{
                 minHeight: "100vh",
                 display: "flex",
+                flexDirection: "column",
                 justifyContent: "center",
                 alignItems: "center",
                 backgroundColor: "#f9fafb",
@@ -627,56 +639,43 @@ impl ErrorFallback(error: any, resetErrorBoundary: any) -> JsxElement {
 
             }}
         >
-            <div
-                role="alert"
+            <h2 style={{color: "#dc2626", marginBottom: "12px"}}>
+                🚨 Something went wrong
+            </h2>
+            <p style={{color: "#374151", marginBottom: "16px"}}>
+                An unexpected error occurred. Please try again.
+            </p>
+            <pre
                 style={{
-                    minHeight: "100vh",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor: "#f9fafb",
-                    fontFamily: "system-ui, sans-serif",
+                    color: "#991b1b",
+                    background: "#fee2e2",
+                    padding: "12px",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    overflowX: "auto",
+                    marginBottom: "16px",
 
                 }}
             >
-                <h2 style={{color: "#dc2626", marginBottom: "12px"}}>
-                    🚨 Something went wrong
-                </h2>
-                <p style={{color: "#374151", marginBottom: "16px"}}>
-                    An unexpected error occurred. Please try again.
-                </p>
-                <pre
-                    style={{
-                        color: "#991b1b",
-                        background: "#fee2e2",
-                        padding: "12px",
-                        borderRadius: "8px",
-                        fontSize: "14px",
-                        overflowX: "auto",
-                        marginBottom: "16px",
+                {error.message}
+            </pre>
+            <button
+                onClick={lambda { resetErrorBoundary(); }}
+                style={{
+                    backgroundColor: "#2563eb",
+                    color: "#fff",
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "14px",
 
-                    }}
-                >
-                    {error.message}
-                </pre>
-                <button
-                    onClick={lambda { resetErrorBoundary(); }}
-                    style={{
-                        backgroundColor: "#2563eb",
-                        color: "#fff",
-                        padding: "10px 16px",
-                        borderRadius: "8px",
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: "14px",
-
-                    }}
-                >
-                    🔄 Try again
-                </button>
-            </div>
-        </div>;
+                }}
+            >
+                🔄 Try again
+            </button>
+        </div>
+    </div>
 }
 
 impl errorOverlay(filePath: str, errors: str) -> JsxElement {

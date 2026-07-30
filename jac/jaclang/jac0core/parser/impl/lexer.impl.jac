@@ -1682,6 +1682,9 @@ impl Lexer.next_token -> Token {
         ] {
             return self.scan_jsx_open_start();
         }
+        if self.prev_token_kind in [TokenKind.RBRACE] {
+            return self.scan_jsx_open_start();
+        }
     }
 
     if self.is_alpha(ch) {

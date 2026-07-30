@@ -31,7 +31,13 @@ glob FIXTURES = os.path.join(
      _js_production_compile_cache: dict[str, str] = {},
      _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_js_");
 
-"""Write code to a temp .jac file in a dedicated directory (avoids /tmp scan)."""
+with entry {
+    with open(os.path.join(_test_tmp_dir, "jac.toml"), "w") as _pins {
+        _pins.write('[placement.pins]\n"*" = "client"\n');
+    }
+}
+
+
 def write_temp_jac(code: str) -> str {
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
@@ -259,7 +265,7 @@ test "advanced fixture emits expected constructs" {
 }
 
 test "props-destructured JSX components wrap direct call arguments" {
-    fixture = "component_direct_call_props_wrap.cl.jac";
+    fixture = "component_direct_call_props_wrap.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     assert "function Greeting(props) {" in js_code;
@@ -350,7 +356,7 @@ test "cli js command outputs js" {
 }
 
 test "cl only js command outputs js" {
-    core_fixture = "cl_only.cl.jac";
+    core_fixture = "cl_only.jac";
     fixture_file_path = os.path.join(FIXTURES, core_fixture);
     env = os.environ.copy();
     project_root = JAC_ROOT;
@@ -392,7 +398,7 @@ test "empty file generates minimal js" {
 }
 
 test "type to typeof transformation" {
-    jac_code = "\"\"\"Test type() to typeof conversion.\"\"\"\n\ncl def check_types() {\n    x = 42;\n    y = \"hello\";\n    my_obj = {\"key\": \"value\"};\n    arr = [1, 2, 3];\n\n    t1 = type(x);\n    t2 = type(y);\n    t3 = type(my_obj);\n    t4 = type(arr[0]);\n\n    return t1;\n}\n";
+    jac_code = "\"\"\"Test type() to typeof conversion.\"\"\"\n\ndef check_types() {\n    x = 42;\n    y = \"hello\";\n    my_obj = {\"key\": \"value\"};\n    arr = [1, 2, 3];\n\n    t1 = type(x);\n    t2 = type(y);\n    t3 = type(my_obj);\n    t4 = type(arr[0]);\n\n    return t1;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
 
@@ -528,7 +534,7 @@ test "hyphenated package imports generate correct js" {
 }
 
 test "relative imports include js extension" {
-    jac_code = "\"\"\"Test relative imports with .js extension.\"\"\"\n\ncl {\n# Single dot relative import\nimport from .utils { MessageFormatter }\n\n# Double dot relative import\nimport from ..lib { formatter }\n\n# Triple dot relative import\nimport from ...config { settings }\n\n# Module name with dots (should still get .js)\nimport from .components.Button { Button }\n\n# Using imported functions\ndef test_usage() {\n    fmt = MessageFormatter();\n    return fmt.format(\"test\");\n}\n}\n";
+    jac_code = "\"\"\"Test relative imports with .js extension.\"\"\"\n\n# Single dot relative import\nimport from .utils { MessageFormatter }\n\n# Double dot relative import\nimport from ..lib { formatter }\n\n# Triple dot relative import\nimport from ...config { settings }\n\n# Module name with dots (should still get .js)\nimport from .components.Button { Button }\n\n# Using imported functions\ndef test_usage() {\n    fmt = MessageFormatter();\n    return fmt.format(\"test\");\n}\n";
 
     temp_path = write_temp_jac(jac_code);
 
@@ -589,7 +595,7 @@ test "side effect imports generate correct js" {
 }
 
 test "fstring simple variable interpolation" {
-    jac_code = "\"\"\"Test f-string with simple variables.\"\"\"\n\ncl def greet_user(name: str, age: int) -> str {\n    return f\"Hello, {name}! You are {age} years old.\";\n}\n";
+    jac_code = "\"\"\"Test f-string with simple variables.\"\"\"\n\ndef greet_user(name: str, age: int) -> str {\n    return f\"Hello, {name}! You are {age} years old.\";\n}\n";
 
     temp_path = write_temp_jac(jac_code);
 
@@ -609,7 +615,7 @@ test "fstring simple variable interpolation" {
 }
 
 test "fstring with expressions" {
-    jac_code = "\"\"\"Test f-string with expressions.\"\"\"\n\ncl def calculate_message(x: int, y: int) -> str {\n    return f\"The sum of {x} and {y} is {x + y}\";\n}\n\ncl def conditional_message(score: int) -> str {\n    return f\"Score: {score}, Status: {score >= 60}\";\n}\n";
+    jac_code = "\"\"\"Test f-string with expressions.\"\"\"\n\ndef calculate_message(x: int, y: int) -> str {\n    return f\"The sum of {x} and {y} is {x + y}\";\n}\n\ndef conditional_message(score: int) -> str {\n    return f\"Score: {score}, Status: {score >= 60}\";\n}\n";
 
     temp_path = write_temp_jac(jac_code);
 
@@ -667,7 +673,7 @@ test "fstring advanced fixture template literals" {
 }
 
 test "fstring edge cases" {
-    jac_code = "\"\"\"Test f-string edge cases.\"\"\"\n\ncl def test_edge_cases() -> dict {\n    name = \"Alice\";\n    value = 42;\n\n    # Text only (no interpolation)\n    text_only = f\"This is just plain text\";\n\n    # Expression only (no static text)\n    expr_only = f\"{value}\";\n\n    # Multiple consecutive expressions\n    consecutive = f\"{name}{value}\";\n\n    # Mixed with spaces\n    mixed = f\"Name: {name}, Value: {value}\";\n\n    return {\"text\": text_only, \"expr\": expr_only, \"cons\": consecutive, \"mixed\": mixed};\n}\n";
+    jac_code = "\"\"\"Test f-string edge cases.\"\"\"\n\ndef test_edge_cases() -> dict {\n    name = \"Alice\";\n    value = 42;\n\n    # Text only (no interpolation)\n    text_only = f\"This is just plain text\";\n\n    # Expression only (no static text)\n    expr_only = f\"{value}\";\n\n    # Multiple consecutive expressions\n    consecutive = f\"{name}{value}\";\n\n    # Mixed with spaces\n    mixed = f\"Name: {name}, Value: {value}\";\n\n    return {\"text\": text_only, \"expr\": expr_only, \"cons\": consecutive, \"mixed\": mixed};\n}\n";
 
     temp_path = write_temp_jac(jac_code);
 
@@ -694,7 +700,7 @@ test "fstring edge cases" {
 }
 
 test "fstring no concatenation operators" {
-    jac_code = "\"\"\"Test that f-strings use template literals, not concatenation.\"\"\"\n\ncl def format_message(user: str, count: int) -> str {\n    return f\"User {user} has {count} items\";\n}\n";
+    jac_code = "\"\"\"Test that f-strings use template literals, not concatenation.\"\"\"\n\ndef format_message(user: str, count: int) -> str {\n    return f\"User {user} has {count} items\";\n}\n";
 
     temp_path = write_temp_jac(jac_code);
 
@@ -744,7 +750,7 @@ test "keyword variables" {
 
 test "separated files" {
     # Compile the standalone client module directly
-    client_fixture = "separated_client.cl.jac";
+    client_fixture = "separated_client.jac";
     js_code = compile_fixture_to_js(client_fixture, FIXTURES);
 
     # Check the spawned walker function is present
@@ -760,7 +766,7 @@ test "separated files" {
 test "separated defpub generates rpc stubs" {
     # Compile the client module directly. It uses `sv import` to reference
     # def:pub functions defined in separated_defpub.jac (the main module).
-    fixture = "separated_defpub_client.cl.jac";
+    fixture = "separated_defpub_client.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     # The sv-imported def:pub functions must produce __jacCallFunction stubs
@@ -797,7 +803,7 @@ test "sv import kwargs preserve names in jac call function" {
     # ``__jacCallFunction("greet", {"name": x})`` shape that the positional
     # form produces.  Previously the kwargs were silently dropped, emitting
     # ``__jacCallFunction("greet", {})`` and causing a server 422.
-    fixture = "sv_import_kwargs_client.cl.jac";
+    fixture = "svc_kwargs/sv_import_kwargs_client.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     # Pure-kwargs single arg: ``greet(name=input_text)``
@@ -839,7 +845,7 @@ test "sv import kwargs preserve names in jac call function" {
 }
 
 test "sv import kwargs preserve names in production jac2js path" {
-    fixture = "sv_import_kwargs_client.cl.jac";
+    fixture = "svc_kwargs/sv_import_kwargs_client.jac";
     js_code = compile_fixture_to_js_production(fixture, FIXTURES);
 
     assert '__jacCallFunction("greet", {"name": input_text})' in js_code , (
@@ -860,7 +866,7 @@ test "sv import wrapper covers posonly and kwonly params" {
     # both from its JS function signature and from the ``__jacCallFunction``
     # args object.  After unifying on ``_param_names_from_ability``, all three
     # buckets are walked and the wrapper's shape matches the source ability.
-    fixture = "sv_import_posonly_kwonly_client.cl.jac";
+    fixture = "svc_kwargs/sv_import_posonly_kwonly_client.jac";
     js_code = compile_fixture_to_js_production(fixture, FIXTURES);
     compact_js = js_code.replace("\n", "").replace(" ", "");
 
@@ -882,7 +888,7 @@ test "sv import wrapper covers posonly and kwonly params" {
 }
 
 test "plain client kwargs lower to ordered js arguments" {
-    fixture = "plain_kwargs_client.cl.jac";
+    fixture = "plain_kwargs_client.jac";
     js_code = compile_fixture_to_js_production(fixture, FIXTURES);
     compact_js = js_code.replace("\n", "").replace(" ", "");
 
@@ -942,7 +948,7 @@ test "sv import duplicate kwarg is a compile error" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 
-    fixture = os.path.join(FIXTURES, "sv_import_kwargs_dup.cl.jac");
+    fixture = os.path.join(FIXTURES, "svc_kwargs/sv_import_kwargs_dup.jac");
     prog = JacProgram();
     ir = prog.compile(file_path=fixture, no_cgen=True, type_check=True);
     EsastGenPass(ir_in=ir, prog=prog);
@@ -963,7 +969,9 @@ test "sv import duplicate kwarg is a compile error" {
 test "sv import nested in cl block emits no dead import" {
     # Regression: a cl {} block clobbered a nested sv import's SERVER
     # context, making it emit a dead client import of the server.
-    js_code = compile_fixture_to_js("sv_import_cl_block_client.jac", FIXTURES);
+    js_code = compile_fixture_to_js(
+        "svc_kwargs/sv_import_cl_block_client.jac", FIXTURES
+    );
     assert "sv_import_cl_block_server" not in js_code , (
         "nested sv import must not emit a client import of the server "
         "module; got:\n" + js_code
@@ -974,10 +982,10 @@ test "sv import nested in cl block emits no dead import" {
 }
 
 test "cl.jac with impl.jac does not duplicate __jacCallFunction import" {
-    # When a .cl.jac file has a separate .impl.jac file, both the main pass
+    # When a .jac file has a separate .impl.jac file, both the main pass
     # and the child pass for the impl module may independently inject
     # __jacCallFunction from @jac/runtime. The import must appear only once.
-    fixture = "defpub_impl_dedup.cl.jac";
+    fixture = "defpub_impl_dedup.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     # The import must be present
@@ -1000,7 +1008,7 @@ test "lexer does not treat comparison lt as jsx tag" {
     # mode because `<` followed by an alpha char is always treated as a
     # JSX opening tag.  This corrupts the mode state machine, causing
     # the compiler to hang in an infinite loop.
-    fixture = "jsx_lt_comparison_bug.cl.jac";
+    fixture = "jsx_lt_comparison_bug.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     # The for-loop comparison must compile to JS `<` operator, NOT a JSX tag.
@@ -1016,7 +1024,7 @@ test "jsx text with quotes does not produce double-double quotes" {
     # BUG: JSX text content containing quote characters (e.g. "text")
     # is wrapped in an extra pair of quotes by gen_literal, producing
     # ""text"" which is invalid JavaScript.
-    fixture = "jsx_text_quotes_bug.cl.jac";
+    fixture = "jsx_text_quotes_bug.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     # The generated JS must NOT contain unescaped double-double quotes.
@@ -1108,7 +1116,7 @@ test "convert to js import path preserves js format" {
 
 test "for-of tuple targets destructure into binding patterns" {
     jac_code = (
-        "cl def f() {\n"
+        "def f() {\n"
         "    pairs = [[1, 2]];\n"
         "    nested = [[[1, 2], 3]];\n"
         "    rows = [[1, 2, 3]];\n"
@@ -1139,7 +1147,7 @@ test "for-of tuple targets destructure into binding patterns" {
 # Comprehension → JavaScript Tests
 # ============================================================================
 test "compr list basic map" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # list_compr_map: [x * 2 for x in items] → items.map(x => (x * 2))
     assert ".map(" in js_code , "List comprehension should generate .map() call";
@@ -1147,7 +1155,7 @@ test "compr list basic map" {
 }
 
 test "compr list filter only" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # list_compr_filter: [x for x in items if x > 0] → items.filter(x => (x > 0))
     assert ".filter(" in js_code , "Filtered comprehension should generate .filter() call";
@@ -1155,7 +1163,7 @@ test "compr list filter only" {
 }
 
 test "compr list map and filter" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # list_compr_map_filter: [x * 2 for x in items if x > 0]
     #   → items.filter(x => (x > 0)).map(x => (x * 2))
@@ -1165,7 +1173,7 @@ test "compr list map and filter" {
 }
 
 test "compr list multiple filters" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # list_compr_multi_filter: [x for x in items if x > 0 if x < 100]
     #   → items.filter(x => (x > 0)).filter(x => (x < 100))
@@ -1173,7 +1181,7 @@ test "compr list multiple filters" {
 }
 
 test "compr list method call" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # list_compr_method: [x.strip() for x in items] → items.map(x => _jac.poly.call(x, "strip"))
     # `items` is typed as bare `list` (no element type), so x is Unknown.
@@ -1187,7 +1195,7 @@ test "compr list method call" {
 }
 
 test "str methods on local vars and chained calls" {
-    js_code = compile_fixture_to_js("str_method_chaining.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("str_method_chaining.jac", FIXTURES);
     assert "temp.toLowerCase()" in js_code , "str.lower() on local var should map to .toLowerCase()";
     assert "text.trim().toLowerCase()" in js_code , "chained str.strip().lower() should map to .trim().toLowerCase()";
     assert "text.toUpperCase().trim()" in js_code , "chained str.upper().strip() should map to .toUpperCase().trim()";
@@ -1202,7 +1210,7 @@ test "issue 5508 case1 in operator on str method call" {
     # to recognize the LiteralString return type as `str`. The receiver of
     # `.lower()` got translated to `.toLowerCase()`, but the `in` operator
     # itself was left untranslated, crashing at runtime in the browser.
-    js_code = compile_fixture_to_js("issue_5508_str_method_dispatch.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("issue_5508_str_method_dispatch.jac", FIXTURES);
     assert "name.toLowerCase().includes(\"a\")" in js_code , (
         "`x in str_method()` should lower to .includes() on the method result"
     );
@@ -1212,7 +1220,7 @@ test "issue 5508 case1 in operator on str method call" {
 }
 
 test "poly get dispatches through runtime helper for untyped receivers" {
-    js_code = compile_fixture_to_js("poly_get_dispatch.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("poly_get_dispatch.jac", FIXTURES);
 
     # Pluck out the user-compiled function body (skip the injected _jac
     # runtime, which legitimately contains `.get(` inside its dispatcher).
@@ -1253,11 +1261,11 @@ test "poly get dispatches through runtime helper for untyped receivers" {
         "poly.get miss must return default -1, got " + str(got)
     );
 
-    assert_balanced_syntax(js_code, "poly_get_dispatch.cl.jac");
+    assert_balanced_syntax(js_code, "poly_get_dispatch.jac");
 }
 
 test "poly get dispatches to custom obj method not plain-object bracket" {
-    js_code = compile_fixture_to_js("poly_get_custom_obj.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("poly_get_custom_obj.jac", FIXTURES);
 
     fn_idx = js_code.find("function test_poly_get_custom");
     assert fn_idx >= 0 , "compiled function test_poly_get_custom must be present";
@@ -1292,11 +1300,11 @@ test "poly get dispatches to custom obj method not plain-object bracket" {
         "poly.get on custom obj must return default -1 for missing key, got " + str(got)
     );
 
-    assert_balanced_syntax(js_code, "poly_get_custom_obj.cl.jac");
+    assert_balanced_syntax(js_code, "poly_get_custom_obj.jac");
 }
 
 test "poly call dispatches dict/list/set/user methods on untyped receivers" {
-    js_code = compile_fixture_to_js("poly_dispatch_complete.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("poly_dispatch_complete.jac", FIXTURES);
 
     # Every untyped method call routes through the single dispatcher; no
     # Python method name leaks verbatim into the compiled user code.
@@ -1364,7 +1372,7 @@ test "poly call dispatches dict/list/set/user methods on untyped receivers" {
         "AttributeError, not silently return a wrong value"
     );
 
-    assert_balanced_syntax(js_code, "poly_dispatch_complete.cl.jac");
+    assert_balanced_syntax(js_code, "poly_dispatch_complete.jac");
 }
 
 test "issue 5508 case2 str methods on untyped receivers" {
@@ -1374,7 +1382,7 @@ test "issue 5508 case2 str methods on untyped receivers" {
     # list, etc.) the codegen used to emit Python method names verbatim
     # (`.upper`, `.strip`, `.lower`) which crash at runtime in JS. Fall
     # back to runtime-polymorphic helpers (`_jac.poly.*`) instead.
-    js_code = compile_fixture_to_js("issue_5508_str_method_dispatch.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("issue_5508_str_method_dispatch.jac", FIXTURES);
     # Pluck out the user-compiled function bodies (slice from each function
     # so the injected _jac runtime is not scanned).
     user_chunks = [];
@@ -1417,7 +1425,7 @@ test "issue 5508 case2 str methods on untyped receivers" {
 }
 
 test "compr list ternary output" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # list_compr_ternary: [x if x > 0 else 0 for x in items]
     #   → items.map(x => (x > 0) ? x : 0)
@@ -1427,7 +1435,7 @@ test "compr list ternary output" {
 }
 
 test "compr set basic" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # set_compr_basic: {x * 2 for x in items} → new Set(items.map(x => (x * 2)))
     assert "new Set(" in js_code , (
@@ -1439,7 +1447,7 @@ test "compr set basic" {
 }
 
 test "compr set with filter" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # set_compr_filter: {x for x in items if x > 0}
     #   → new Set(items.filter(x => (x > 0)).map(x => x))
@@ -1450,7 +1458,7 @@ test "compr set with filter" {
 }
 
 test "compr dict basic" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # dict_compr_basic: {k: v for (k, v) in pairs}
     #   → Object.fromEntries(pairs.map(([k, v]) => [k, v]))
@@ -1460,7 +1468,7 @@ test "compr dict basic" {
 }
 
 test "compr dict with filter" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # dict_compr_filter: {k: v for (k, v) in pairs if v > 0}
     #   → Object.fromEntries(pairs.filter(([k, v]) => (v > 0)).map(([k, v]) => [k, v]))
@@ -1473,7 +1481,7 @@ test "compr dict with filter" {
 }
 
 test "compr dict transform" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # dict_compr_transform: {k: v * 2 for (k, v) in pairs}
     #   → Object.fromEntries(pairs.map(([k, v]) => [k, (v * 2)]))
@@ -1486,7 +1494,7 @@ test "compr dict transform" {
 }
 
 test "compr generator basic" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # gen_compr_basic: list((x * 2 for x in items)) → items.map(x => (x * 2))
     # Generator expressions produce eager arrays in JS
@@ -1494,7 +1502,7 @@ test "compr generator basic" {
 }
 
 test "compr generator filter" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # gen_compr_filter: list((x for x in items if x > 0))
     #   → items.filter(x => (x > 0))
@@ -1504,7 +1512,7 @@ test "compr generator filter" {
 }
 
 test "compr nested basic" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # nested_compr_basic: [x + y for x in a for y in b]
     #   → a.flatMap(x => b.map(y => (x + y)))
@@ -1514,7 +1522,7 @@ test "compr nested basic" {
 }
 
 test "compr nested with filter" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
 
     # nested_compr_filter: [x + y for x in a for y in b if x != y]
     #   → a.flatMap(x => b.filter(y => (x !== y)).map(y => (x + y)))
@@ -1525,13 +1533,13 @@ test "compr nested with filter" {
 }
 
 test "compr balanced syntax" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
-    assert_balanced_syntax(js_code, "comprehensions.cl.jac");
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
+    assert_balanced_syntax(js_code, "comprehensions.jac");
 }
 
 test "compr no jac keywords" {
-    js_code = compile_fixture_to_js("comprehensions.cl.jac", FIXTURES);
-    assert_no_jac_keywords(js_code, "comprehensions.cl.jac");
+    js_code = compile_fixture_to_js("comprehensions.jac", FIXTURES);
+    assert_no_jac_keywords(js_code, "comprehensions.jac");
 }
 
 test "await expression parenthesized as member expression object" {
@@ -1588,7 +1596,7 @@ test "list concat in impl file uses array spread not string plus" {
     # BUG: In .impl.jac files, `items = items + [item]` compiles to
     # JS string concatenation `M + [J]` instead of array spread `[...M, J]`
     # or `[...M, ...J]`.
-    fixture = "list_concat_impl.cl.jac";
+    fixture = "list_concat_impl.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     # The JS output must NOT contain raw `+` between array expressions
@@ -1652,7 +1660,7 @@ test "jsx preserves single-space whitespace between adjacent expression children
     # Whitespace that crosses a newline (indent between `}` and the next
     # `{` on a new line) is structural and must still be dropped, matching
     # Babel's JSX text normalization.
-    fixture = "jsx_adjacent_expressions_spaces.cl.jac";
+    fixture = "jsx_adjacent_expressions_spaces.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     # First span: same-line `{count} {("task" if ... else "tasks")} remaining`.
@@ -1687,7 +1695,7 @@ test "is and is not emit identity comparison operators" {
     # was accidentally correct; `is not None` silently inverted to `===`,
     # causing branches like `if x is not None { ... }` to run only when x
     # *was* None.
-    jac_code = "\"\"\"Test is/is not codegen.\"\"\"\n\ncl def check(x: int | None) -> int {\n    if x is None {\n        return 1;\n    }\n    if x is not None {\n        return 2;\n    }\n    return 3;\n}\n";
+    jac_code = "\"\"\"Test is/is not codegen.\"\"\"\n\ndef check(x: int | None) -> int {\n    if x is None {\n        return 1;\n    }\n    if x is not None {\n        return 2;\n    }\n    return 3;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -1710,7 +1718,7 @@ test "fstring format spec invokes runtime format helper" {
     # "8.00". The fix routes formatted values with a spec through the
     # _jac.builtin.format runtime helper, which honors precision, width,
     # alignment, and type specifiers.
-    jac_code = "\"\"\"Test f-string format spec.\"\"\"\n\ncl def fmt_price(x: float) -> str {\n    return f\"${x:.2f}\";\n}\n\ncl def fmt_plain(x: float) -> str {\n    return f\"${x}\";\n}\n";
+    jac_code = "\"\"\"Test f-string format spec.\"\"\"\n\ndef fmt_price(x: float) -> str {\n    return f\"${x:.2f}\";\n}\n\ndef fmt_plain(x: float) -> str {\n    return f\"${x}\";\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -1744,7 +1752,7 @@ test "issue 5930 sibling if else branches each get block scoped let" {
     # already been popped. The fix drops the `is_first` half of the guard;
     # block-scope membership is the authoritative signal for whether a JS
     # `let` is still in flight.
-    jac_code = "\"\"\"Test #5930 sibling block let.\"\"\"\n\ncl def test(mode: bool) -> int {\n    if mode {\n        x: int = 1;\n        x = 2;\n    } else {\n        x: int = 3;\n        x = 4;\n    }\n    return 0;\n}\n";
+    jac_code = "\"\"\"Test #5930 sibling block let.\"\"\"\n\ndef test(mode: bool) -> int {\n    if mode {\n        x: int = 1;\n        x = 2;\n    } else {\n        x: int = 3;\n        x = 4;\n    }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -1801,7 +1809,7 @@ test "sibling block scopes — elif chain each branch gets its own let" {
     # Generalizes #5930: every alternate-branch (elif as well as else) must
     # re-declare a same-named local with `let`, since each is an independent
     # JS lexical block.
-    jac_code = "\"\"\"Test elif chain sibling-block lets.\"\"\"\n\ncl def test_elif(mode: int) -> int {\n    if mode == 1 {\n        x: int = 1;\n        x = 2;\n    } elif mode == 2 {\n        x: int = 3;\n        x = 4;\n    } elif mode == 3 {\n        x: int = 5;\n        x = 6;\n    } else {\n        x: int = 7;\n        x = 8;\n    }\n    return 0;\n}\n";
+    jac_code = "\"\"\"Test elif chain sibling-block lets.\"\"\"\n\ndef test_elif(mode: int) -> int {\n    if mode == 1 {\n        x: int = 1;\n        x = 2;\n    } elif mode == 2 {\n        x: int = 3;\n        x = 4;\n    } elif mode == 3 {\n        x: int = 5;\n        x = 6;\n    } else {\n        x: int = 7;\n        x = 8;\n    }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -1850,7 +1858,7 @@ test "walrus in if-condition still hoists its let despite alt-branch scope final
     # should be visible after the if per Python semantics. This test
     # locks in the current behavior so a future correctness fix is a
     # deliberate change, not an accidental regression.
-    jac_code = "\"\"\"Test walrus hoist preservation across alt-branch finalization.\"\"\"\n\ncl def check(seed: int) -> int {\n    if (n := seed) > 5 {\n        x: int = 1;\n    } else {\n        x: int = 2;\n    }\n    return 0;\n}\n";
+    jac_code = "\"\"\"Test walrus hoist preservation across alt-branch finalization.\"\"\"\n\ndef check(seed: int) -> int {\n    if (n := seed) > 5 {\n        x: int = 1;\n    } else {\n        x: int = 2;\n    }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -1879,7 +1887,7 @@ test "sibling block scopes — try except finally each get their own let" {
     # blocks are AST children of the TryStmt — so the try-body's `let x`
     # would leak into except / finally and downgrade them to bare
     # assignment. Generalized sibling-block fix.
-    jac_code = "\"\"\"Test try/except/finally sibling-block lets.\"\"\"\n\ncl def test_try(mode: bool) -> int {\n    try {\n        x: int = 1;\n        x = 2;\n        if mode {\n            raise Exception(\"force-except\");\n        }\n    } except Exception {\n        x: int = 3;\n        x = 4;\n    } finally {\n        x: int = 5;\n        x = 6;\n    }\n    return 0;\n}\n";
+    jac_code = "\"\"\"Test try/except/finally sibling-block lets.\"\"\"\n\ndef test_try(mode: bool) -> int {\n    try {\n        x: int = 1;\n        x = 2;\n        if mode {\n            raise Exception(\"force-except\");\n        }\n    } except Exception {\n        x: int = 3;\n        x = 4;\n    } finally {\n        x: int = 5;\n        x = 6;\n    }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -1921,7 +1929,7 @@ test "except Exception catches native JS errors (interop resilience)" {
     # pattern silently re-threw them. The fix routes builtin except clauses
     # through `_jac.exc.matches`, whose `Exception` arm also accepts non-Jac
     # throws (Python semantics).
-    jac_code = "\"\"\"native-error catch test.\"\"\"\n\ncl def parse_or_default(raw: str) -> any {\n    try { return JSON.parse(raw); } except Exception { return None; }\n}\n";
+    jac_code = "\"\"\"native-error catch test.\"\"\"\n\ndef parse_or_default(raw: str) -> any {\n    try { return JSON.parse(raw); } except Exception { return None; }\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -1953,7 +1961,7 @@ test "narrow builtin except does not catch native JS errors" {
     # The flip side of #6656: `except ValueError` must stay Python-faithful and
     # NOT swallow an unrelated native SyntaxError — only `except Exception`
     # broadens to native throws. A native error here must propagate.
-    jac_code = "\"\"\"narrow except test.\"\"\"\n\ncl def narrow(raw: str) -> int {\n    try { JSON.parse(raw); return 1; } except ValueError { return 0; }\n}\n";
+    jac_code = "\"\"\"narrow except test.\"\"\"\n\ndef narrow(raw: str) -> int {\n    try { JSON.parse(raw); return 1; } except ValueError { return 0; }\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -1986,7 +1994,7 @@ test "user-defined exception except is not a catch-all" {
     # else branch and compiled to `if (true)` — catching EVERY exception. It
     # must now emit `instanceof MyError` so it catches only that type and lets
     # unrelated exceptions fall through to the next handler.
-    jac_code = "\"\"\"user-defined except is not a catch-all.\"\"\"\n\nobj MyError {}\ncl def classify(which: int) -> str {\n    try {\n        if which == 1 { raise MyError(); }\n        raise ValueError(\"b\");\n    } except MyError { return \"mine\"; } except ValueError { return \"ve\"; }\n    return \"none\";\n}\n";
+    jac_code = "\"\"\"user-defined except is not a catch-all.\"\"\"\n\nobj MyError {}\ndef classify(which: int) -> str {\n    try {\n        if which == 1 { raise MyError(); }\n        raise ValueError(\"b\");\n    } except MyError { return \"mine\"; } except ValueError { return \"ve\"; }\n    return \"none\";\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -2020,7 +2028,7 @@ test "user-defined exception except is not a catch-all" {
 
 
 test "exception archetype subclassing a builtin extends _jac.exc.X" {
-    jac_code = "\"\"\"custom exception base test.\"\"\"\n\nobj MyError(Exception) {}\ncl def boom() -> int {\n    try { raise MyError(\"x\"); } except Exception { return 1; }\n    return 0;\n}\n";
+    jac_code = "\"\"\"custom exception base test.\"\"\"\n\nobj MyError(Exception) {}\ndef boom() -> int {\n    try { raise MyError(\"x\"); } except Exception { return 1; }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -2055,7 +2063,7 @@ test "exception archetype subclassing a builtin extends _jac.exc.X" {
 
 
 test "exception archetype subclassing ValueError extends _jac.exc.ValueError" {
-    jac_code = "\"\"\"custom ValueError base test.\"\"\"\n\nobj MyValueError(ValueError) {}\ncl def parse_int(s: str) -> int {\n    try { raise MyValueError(\"bad\"); } except ValueError { return -1; }\n    return 0;\n}\n";
+    jac_code = "\"\"\"custom ValueError base test.\"\"\"\n\nobj MyValueError(ValueError) {}\ndef parse_int(s: str) -> int {\n    try { raise MyValueError(\"bad\"); } except ValueError { return -1; }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
@@ -2130,7 +2138,7 @@ test "cl negative indexing counts from the end like Python (#6320)" {
     # Python/Jac negative indices count from the end. A raw JS subscript
     # `xs[-1]` is `undefined`, silently producing the wrong value.
     jac_code = """
-cl def neg_index() -> dict {
+def neg_index() -> dict {
     xs: list[int] = [10, 20, 30];
     s: str = "abc";
     return {
@@ -2183,7 +2191,7 @@ test "cl collection truthiness matches Python emptiness (#6320)" {
     # never short-circuit. Boolean contexts on a collection must test
     # emptiness like Python (empty list/dict/set is falsy; str already agrees).
     jac_code = """
-cl def truthy_probe() -> dict {
+def truthy_probe() -> dict {
     el: list[int] = [];
     fl: list[int] = [1];
     ed: dict[str, int] = {};
@@ -2271,7 +2279,7 @@ test "cl negative-index assignment and while-truthiness match Python (#6320)" {
     # (raw `xs[-1] = v` would create a bogus "-1" property), and a `while`
     # guard on a collection must drain like Python rather than loop forever.
     jac_code = """
-cl def probe() -> dict {
+def probe() -> dict {
     xs: list[int] = [1, 2, 3];
     xs[-1] = 99;
     xs[0] = 5;
@@ -2337,7 +2345,7 @@ test "cl subscript on unknown-typed values keeps JS undefined-on-miss (#6320)" {
     # index is rewritten to count from the end. This guards the jac-client
     # `data["data"]["user_id"]` pattern from regressing to a KeyError throw.
     jac_code = """
-cl def probe(resp: any, xs: any) -> dict {
+def probe(resp: any, xs: any) -> dict {
     present: any = resp["user_id"];
     guard: int = 1 if (resp["data"] and resp["data"]["k"]) else 0;
     return {
@@ -2390,7 +2398,7 @@ test "isinstance/issubclass against builtin types, user class, and tuples (#6458
     # the ES pass had no `exit_builtin_type` handler, so the builtin-type
     # argument was dropped and `emit_isinstance` indexed past the end of its
     # arg list.
-    js_code = compile_fixture_to_js("isinstance_builtin.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("isinstance_builtin.jac", FIXTURES);
 
     # The Python builtin-type name must never leak into the emitted JS as a
     # bare reference to an undefined global (e.g. `value instanceof str`),
@@ -2425,7 +2433,7 @@ test "isinstance/issubclass against builtin types, user class, and tuples (#6458
         f"issubclass (builtin-tag) mismatch: {got['subclass']}\njs:\n{js_code}"
     );
 
-    assert_balanced_syntax(js_code, "isinstance_builtin.cl.jac");
+    assert_balanced_syntax(js_code, "isinstance_builtin.jac");
 }
 
 test "builtin type used as a value lowers to a callable (#7454)" {
@@ -2433,7 +2441,7 @@ test "builtin type used as a value lowers to a callable (#7454)" {
     # (`map(int, xs)`, `key=int`, `f = int`, an element of a list) lowered to a
     # bare JS string tag, so calling it threw `TypeError: "int" is not a
     # function` in the browser -- only direct calls (`int(x)`) were coerced.
-    js_code = compile_fixture_to_js("builtin_type_as_value.cl.jac", FIXTURES);
+    js_code = compile_fixture_to_js("builtin_type_as_value.jac", FIXTURES);
 
     # Scope the string-tag assertions to the compiled user code: the injected
     # _jac runtime legitimately carries the type names as strings (the
@@ -2496,7 +2504,7 @@ test "builtin type used as a value lowers to a callable (#7454)" {
         f"issubclass mismatch: {got['subclass']}\njs:\n{js_code}"
     );
 
-    assert_balanced_syntax(js_code, "builtin_type_as_value.cl.jac");
+    assert_balanced_syntax(js_code, "builtin_type_as_value.jac");
 }
 
 test "builtin functions lower to runtime helpers without type-check (#7480)" {
@@ -2506,7 +2514,7 @@ test "builtin functions lower to runtime helpers without type-check (#7480)" {
     # _jac.builtin.* helpers rather than bare, undefined identifiers.
     import re;
     import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
-    fixture_path = _resolve_fixture_path("builtin_func_untyped.cl.jac", FIXTURES);
+    fixture_path = _resolve_fixture_path("builtin_func_untyped.jac", FIXTURES);
     prog = JacProgram();
     ir = prog.compile(file_path=fixture_path, no_cgen=True, type_check=False);
     _fatal = _fatal_compile_errors(prog);
@@ -2569,11 +2577,11 @@ test "builtin functions lower to runtime helpers without type-check (#7480)" {
     assert got["numeric"]["round"] == 3.14 , got["numeric"];
     assert got["zipped"] == [[1, 3], [2, 4]] , got["zipped"];
 
-    assert_balanced_syntax(js_code, "builtin_func_untyped.cl.jac");
+    assert_balanced_syntax(js_code, "builtin_func_untyped.jac");
 }
 
 test "getattr default with or/and emits parenthesized nullish coalescing (#6562)" {
-    fixture = "dict_get_nullish_or_precedence.cl.jac";
+    fixture = "dict_get_nullish_or_precedence.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     wrapper = js_code + "\nconsole.log(JSON.stringify(test_nullish_logical_precedence_cases()));\n";
@@ -2644,7 +2652,7 @@ test "builtin name used as a dict key lowers to that key, not the 'key' fallback
     # renderer read that accidental `config.key`, so once the builtin-type
     # handler started lowering `type` correctly the form input types broke
     # (native `type="email"` validation stopped working). Lock the key down.
-    jac_code = "cl def make_cfg() -> dict {\n    return {type: \"email\", label: \"Email\"};\n}\n";
+    jac_code = "def make_cfg() -> dict {\n    return {type: \"email\", label: \"Email\"};\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {

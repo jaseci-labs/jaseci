@@ -248,11 +248,11 @@ test "osp edge del: `del e` removes the edge from the adjacency (rewire)" {
 }
 
 test "osp cross-module: spawn / connect / edge-ref on imported archetypes" {
-    # Issue #6642 Blocker 2: archetypes defined in osp_xmod_lib.na.jac, wired +
-    # walked from the consumer osp_xmod_main.na.jac. Imported OSP archetypes
+    # Issue #6642 Blocker 2: archetypes defined in osp_xmod_lib.jac, wired +
+    # walked from the consumer osp_xmod_main.jac. Imported OSP archetypes
     # materialize into the consumer's deterministic tag space, so spawn / connect
     # and the imported walker body's own edge-refs all lower across the boundary
-    # and agree at runtime. Native-only (a .na.jac library is not @sv-importable);
+    # and agree at runtime. Native-only (a .jac library is not @sv-importable);
     # the @sv result {"seen": 7, "ports": 2} is pinned in the fixture docstring.
     import os;
     import jaclang;
@@ -267,7 +267,7 @@ test "osp cross-module: spawn / connect / edge-ref on imported archetypes" {
         "passes",
         "native",
         "fixtures",
-        "osp_xmod_main.na.jac"
+        "osp_xmod_main.jac"
     );
     (_eng, _) = compile_native(_xmod);
     assert run_native_function(_eng, "xmod_na") == {"seen": 7, "ports": 2};
@@ -293,7 +293,7 @@ test "osp cross-module general: consumer with its OWN OSP archetype still agrees
         "passes",
         "native",
         "fixtures",
-        "osp_xmod_local.na.jac"
+        "osp_xmod_local.jac"
     );
     (_eng, _) = compile_native(_xmod);
     assert run_native_function(_eng, "xmod_local_na") == {
@@ -320,7 +320,7 @@ test "osp cross-module two libraries: OSP imported from two modules agrees" {
         "passes",
         "native",
         "fixtures",
-        "osp_xmod_two.na.jac"
+        "osp_xmod_two.jac"
     );
     (_eng, _) = compile_native(_xmod);
     assert run_native_function(_eng, "xmod_two_na") == {"total": 7, "power": 9};
@@ -332,7 +332,7 @@ test "osp cross-module field read: imported node reserves its OSP header" {
     # still must lay the imported node out with its OSP header (vtable@0,
     # __type_tag@1) so the field offsets match the defining module. Before the
     # fix the consumer dropped the header and `a.tag` read the vtable slot,
-    # returning a garbage pointer instead of 7. Native-only (a .na.jac library
+    # returning a garbage pointer instead of 7. Native-only (a .jac library
     # is not @sv-importable); the @sv result {"tag": 7} is pinned in the fixture.
     import os;
     import jaclang;
@@ -347,7 +347,7 @@ test "osp cross-module field read: imported node reserves its OSP header" {
         "passes",
         "native",
         "fixtures",
-        "xmod_fieldread_main.na.jac"
+        "xmod_fieldread_main.jac"
     );
     (_eng, _) = compile_native(_xmod);
     assert run_native_function(_eng, "fieldread_na") == {"tag": 7};
@@ -372,7 +372,7 @@ test "osp cross-module inherited write: write an inherited field of imported nod
         "passes",
         "native",
         "fixtures",
-        "xmod_inherited_main.na.jac"
+        "xmod_inherited_main.jac"
     );
     (_eng, _) = compile_native(_xmod);
     assert run_native_function(_eng, "inherited_na") == {"yaw": 2.0, "pitch": 0.5};
@@ -398,7 +398,7 @@ test "osp cross-module union return: narrow `Area | None`, read / pass / spawn" 
         "passes",
         "native",
         "fixtures",
-        "xmod_unionret_main.na.jac"
+        "xmod_unionret_main.jac"
     );
     (_eng, _) = compile_native(_xmod);
     assert run_native_function(_eng, "unionret_na") == {
@@ -431,7 +431,7 @@ test "xmod narrow: `is not None` narrowing applies on the imported-module path" 
         "passes",
         "native",
         "fixtures",
-        "xmod_narrow_main.na.jac"
+        "xmod_narrow_main.jac"
     );
     (_eng, _) = compile_native(_xmod);
     assert run_native_function(_eng, "narrow_na") == {

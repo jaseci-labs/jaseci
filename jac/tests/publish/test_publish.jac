@@ -651,7 +651,8 @@ test "WheelBuilder skips client codespace files with a record" {
         pkg = proj / "mypkg";
         pkg.mkdir();
         (pkg / "core.jac").write_text("def go() -> int {\n    return 1;\n}\n");
-        (pkg / "view.cl.jac").write_text("def View() -> None {}\n");
+        (pkg / "view.jac").write_text("def View() -> None {}\n");
+        (proj / "jac.toml").write_text('[placement.pins]\n"mypkg.view" = "client"\n');
         cfg = pkg_config_with_include(proj, "mypkg");
         builder = WheelBuilder(config=cfg, project_root=proj);
         data = builder.build();
@@ -660,7 +661,7 @@ test "WheelBuilder skips client codespace files with a record" {
             assert "mypkg/core.py" in names;
             assert not any("view" in n for n in names);
         }
-        assert builder.skipped_codespace == ["mypkg/view.cl.jac"];
+        assert builder.skipped_codespace == ["mypkg/view.jac"];
     } finally {
         shutil.rmtree(tmpdir, ignore_errors=True);
     }

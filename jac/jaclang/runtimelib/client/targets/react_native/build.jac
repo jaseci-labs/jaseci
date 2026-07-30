@@ -308,7 +308,7 @@ def lint_unmapped_tags(
         console.print(
             "    These render as <View> with a red dashed border in dev. "
             "Replace with a React Native primitive (View/Text/Pressable/"
-            "TextInput/Image/ScrollView) or a .native.cl.jac override. See the "
+            "TextInput/Image/ScrollView) or a .native.jac override. See the "
             "React Native target section of the jac-client reference "
             "(jac/jaclang/cli/docs/reference/plugins/jac-client.md).",
             style="muted"
@@ -381,7 +381,7 @@ def lint_native_incompatible_usage(
         console.print(
             "    CSS files are web-only. For --client react-native use "
             "inline style objects or move platform-specific UI into "
-            "`.native.cl.jac` modules.",
+            "`.native.jac` modules.",
             style="muted"
         );
     }

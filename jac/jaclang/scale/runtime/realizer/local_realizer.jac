@@ -3,7 +3,7 @@ import from jaclang.scale.runtime.planner.planner {
     plan_realization,
     TOPOLOGY_MICROSERVICE
 }
-import from jaclang.scale.runtime.discovery.discovery { should_enter_local_ms }
+import from jaclang.scale.runtime.routing { should_enter_local_ms }
 import from jaclang.scale.runtime.orchestrator.orchestrator { start_microservice_mode }
 
 glob logger = logging.getLogger(__name__);

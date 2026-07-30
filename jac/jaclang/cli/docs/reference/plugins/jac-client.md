@@ -1,6 +1,6 @@
 # jac-client Reference
 
-jac-client adds client-side compilation to Jac so you can write React-style UI components in ordinary `.jac` files. The compiler separates your code automatically: declarations with client-only syntax (JSX, npm imports) -- plus anything client code references -- compile to JavaScript with React as the rendering engine, while the rest compiles to Python on the server. You never have to mark the split, though explicit `cl { }` blocks and `.cl.jac` files remain available when you want the boundary pinned in source.
+jac-client adds client-side compilation to Jac so you can write React-style UI components in ordinary `.jac` files. The compiler separates your code automatically: declarations with client-only syntax (JSX, npm imports) -- plus anything client code references -- compile to JavaScript with React as the rendering engine, while the rest compiles to Python on the server. You never mark the split in source; when a placement decision must be forced, pin it in `jac.toml` under `[placement.pins]`.
 
 You also get project scaffolding (`jac create --kind web-static`), npm dependency management, a Vite-powered dev server with HMR, and automatic HTTP bridge generation so your client components can call server walkers without manual API wiring. This reference covers installation, project structure, the module system, component authoring, and build configuration.
 
@@ -48,16 +48,16 @@ A component file needs no marker at all -- JSX and npm imports are client-only s
 ```jac
 # components/Header.jac -- client-side by inference
 def:pub Header() -> JsxElement {
-    return <header>My App</header>;
+    <header>My App</header>
 }
 ```
 
-If you prefer the placement to be visible in the filename, the `.cl.jac` extension still works and pins the whole file client-side:
+If you prefer the placement to be visible in the filename, the `.jac` extension still works and pins the whole file client-side:
 
 ```jac
-# components/Header.cl.jac -- explicitly client-side
+# components/Header.jac -- explicitly client-side
 def:pub Header() -> JsxElement {
-    return <header>My App</header>;
+    <header>My App</header>
 }
 ```
 
@@ -157,11 +157,11 @@ node User {
 }
 
 # Single-statement form (no header, no braces)
-sv import from .database { connect_db }
-sv node SecretData { has value: str; }
+import from .database { connect_db }
+node SecretData { has value: str; }
 ```
 
-> **Note on `sv import` between two server modules.** When both the importer and the importee are server-context modules running as separate microservices, `sv import` generates HTTP client stubs instead of pulling the provider into the consumer's process. The same source also works as a monolith. See [Microservice Interop (sv-to-sv)](jac-scale-http.md#microservice-interop-sv-to-sv) in the Scale reference for details.
+> **Note on imports between two server modules.** When both the importer and the importee are server modules running as separate microservices (the importee is listed in `[scale.microservices.routes]`), the import generates HTTP client stubs instead of pulling the provider into the consumer's process. The same source also works as a monolith. See [Microservice Interop (sv-to-sv)](jac-scale-http.md#microservice-interop-sv-to-sv) in the Scale reference for details.
 
 ### REST API with jac start
 
@@ -208,7 +208,7 @@ def:pub create_task(title: str) -> Task {
 }
 
 # Client: receives hydrated Task instances
-sv import from .main { get_tasks, create_task }
+import from .main { get_tasks, create_task }
 
 def:pub app -> JsxElement {
     has tasks: list = [];
@@ -222,9 +222,9 @@ def:pub app -> JsxElement {
         tasks = tasks + [task];
     }
 
-    return <div>
+    <div>
         {[<span key={t.title}>{t.title} - {t.done}</span> for t in tasks]}
-    </div>;
+    </div>
 }
 ```
 
@@ -263,15 +263,15 @@ with entry {
 
 ---
 
-## Client Sections
+## Client Placement
 
 Client placement is inferred, so mixing client and server code in one file needs no wrapper -- a component sits next to server logic and each lands on its own side:
 
 ```jac
 def:pub app() -> JsxElement {           # JSX -> client
-    return <div>
+    <div>
         <h1>Hello, World!</h1>
-    </div>;
+    </div>
 }
 
 def:pub get_greeting() -> str {         # unmarked -> server endpoint
@@ -279,33 +279,33 @@ def:pub get_greeting() -> str {         # unmarked -> server endpoint
 }
 ```
 
-When you want the boundary explicit, wrap client code in a `cl { ... }` block -- the braces bracket exactly the tagged region:
+The same inference covers whole components -- JSX alone decides:
 
 ```jac
 def:pub app() -> JsxElement {
-    return <div>
+    <div>
         <h1>Hello, World!</h1>
-    </div>;
+    </div>
 }
 ```
 
-A `cl { ... }` block also works inside a function or class body to locally override the active codespace. In `.cl.jac` files, the whole file is already client-side, so no wrapper is needed. Inference never overrides an explicit marker.
+Placement propagates from those seeds: helpers, globals, and imports that client code references join the bundle with it. Inference never overrides a `[placement.pins]` entry, so a pin is the way to hold something on the server (or force a signal-less module client).
 
-### Single-Statement Forms
+### Other Client Seeds
 
-For one-off client-side declarations, use the single-statement `cl` prefix:
+npm imports and reactive globals are client seeds in their own right:
 
 ```jac
 import from react { useState }
-cl glob THEME: str = "dark";
+glob THEME: str = "dark";
 ```
 
-This also works for component definitions -- a handy shorthand for a single tagged declaration inside a mostly-server file:
+A lone component inside a mostly-server file needs nothing extra either:
 
 ```jac
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has count: int = 0;
-    return <div>Count: {count}</div>;
+    <div>Count: {count}</div>
 }
 ```
 
@@ -315,7 +315,7 @@ The entry `app()` function must be exported with `:pub`:
 
 ```jac
 def:pub app() -> JsxElement {  # :pub required
-    return <App />;
+    <App />
 }
 ```
 
@@ -335,9 +335,9 @@ def:pub Button(
     onClick: MouseEventHandler = None,
     children: any = None
 ) -> JsxElement {
-    return <button className={className} onClick={onClick}>
+    <button className={className} onClick={onClick}>
         {children}
-    </button>;
+    </button>
 }
 ```
 
@@ -345,11 +345,11 @@ def:pub Button(
 
 ```jac
 def:pub Card(title: str, description: str = "", children: any = None) -> JsxElement {
-    return <div className="card">
+    <div className="card">
         <h2>{title}</h2>
         <p>{description}</p>
         {children}
-    </div>;
+    </div>
 }
 ```
 
@@ -357,13 +357,13 @@ def:pub Card(title: str, description: str = "", children: any = None) -> JsxElem
 
 ```jac
 def:pub app() -> JsxElement {
-    return <div>
+    <div>
         <Card title="Welcome" description="Hello!">
             <Button onClick={lambda -> None { print("clicked"); }}>
                 Click Me
             </Button>
         </Card>
-    </div>;
+    </div>
 }
 ```
 
@@ -373,18 +373,18 @@ def:pub app() -> JsxElement {
 
 ### The `has` Keyword
 
-Inside client-tagged code (a `cl { }` block or a `.cl.jac` file), `has` creates reactive state:
+Inside client-placed code, `has` creates reactive state:
 
 ```jac
 def:pub Counter() -> JsxElement {
     has count: int = 0;  # Compiles to useState(0)
 
-    return <div>
+    <div>
         <p>Count: {count}</p>
         <button onClick={lambda -> None { count = count + 1; }}>
             Increment
         </button>
-    </div>;
+    </div>
 }
 ```
 
@@ -408,7 +408,7 @@ def:pub Form() -> JsxElement {
         items = items + [item];  # Concatenate to new list
     }
 
-    return <div>Form</div>;
+    <div>Form</div>
 }
 ```
 
@@ -456,7 +456,7 @@ def:pub DataLoader() -> JsxElement {
         cleanup_subscriptions();
     }
 
-    return <div>...</div>;
+    <div>...</div>
 }
 
 def:pub UserProfile(userId: str) -> JsxElement {
@@ -472,7 +472,7 @@ def:pub UserProfile(userId: str) -> JsxElement {
         user = await fetch_user(userId);
     }
 
-    return <div>{user.name}</div>;
+    <div>{user.name}</div>
 }
 ```
 
@@ -497,7 +497,7 @@ def:pub DataLoader() -> JsxElement {
         refresh_data();
     }, [some_dep]);
 
-    return <div>...</div>;
+    <div>...</div>
 }
 ```
 
@@ -511,14 +511,14 @@ glob AppContext = createContext(None);
 def:pub AppProvider(children: any = None) -> JsxElement {
     has theme: str = "light";
 
-    return <AppContext.Provider value={{"theme": theme}}>
+    <AppContext.Provider value={{"theme": theme}}>
         {children}
-    </AppContext.Provider>;
+    </AppContext.Provider>
 }
 
 def:pub ThemedComponent() -> JsxElement {
     ctx = useContext(AppContext);
-    return <div className={ctx.theme}>Content</div>;
+    <div className={ctx.theme}>Content</div>
 }
 ```
 
@@ -548,10 +548,10 @@ def use_local_storage(key: str, initial_value: any) -> tuple {
 
 def:pub Settings() -> JsxElement {
     (theme, set_theme) = use_local_storage("theme", "light");
-    return <div>
+    <div>
         <p>Current: {theme}</p>
         <button onClick={lambda -> None { set_theme("dark"); }}>Dark</button>
-    </div>;
+    </div>
 }
 ```
 
@@ -561,11 +561,11 @@ def:pub Settings() -> JsxElement {
 
 ### Calling Walkers from Client
 
-Use native Jac `spawn` syntax to call walkers from client code. First, import your walkers with `sv import`, then spawn them:
+Use native Jac `spawn` syntax to call walkers from client code. Import the walkers -- the compiler bridges them over HTTP -- then spawn them:
 
 ```jac
 # Import walkers from backend
-sv import from ...main { get_tasks, create_task }
+import from ...main { get_tasks, create_task }
 
 def:pub TaskList() -> JsxElement {
     has tasks: list = [];
@@ -584,9 +584,9 @@ def:pub TaskList() -> JsxElement {
         return <p>Loading...</p>;
     }
 
-    return <ul>
+    <ul>
         {[<li key={task["id"]}>{task["title"]}</li> for task in tasks]}
-    </ul>;
+    </ul>
 }
 ```
 
@@ -615,7 +615,7 @@ The spawn call returns a result object with:
 ### Mutations (Create, Update, Delete)
 
 ```jac
-sv import from ...main { add_task, toggle_task, delete_task }
+import from ...main { add_task, toggle_task, delete_task }
 
 def:pub TaskManager() -> JsxElement {
     has tasks: list = [];
@@ -647,7 +647,7 @@ def:pub TaskManager() -> JsxElement {
         }
     }
 
-    return <div>...</div>;
+    <div>...</div>
 }
 ```
 
@@ -681,7 +681,7 @@ def:pub SafeDataView() -> JsxElement {
             <button onClick={lambda -> None { location.reload(); }}>Retry</button>
         </div>;
     }
-    return <div>{JSON.stringify(data)}</div>;
+    <div>{JSON.stringify(data)}</div>
 }
 ```
 
@@ -711,7 +711,7 @@ def:pub LiveData() -> JsxElement {
         return lambda { clearInterval(interval); };
     }, []);
 
-    return <div>{data and <p>Last updated: {data["timestamp"]}</p>}</div>;
+    <div>{data and <p>Last updated: {data["timestamp"]}</p>}</div>
 }
 ```
 
@@ -760,10 +760,10 @@ import from "@jac/runtime" { useParams, Link }
 
 def:pub UserDetail() -> JsxPage {
     params = useParams();
-    return <div>
+    <div>
         <Link to="/users">Back</Link>
         <h1>User {params["id"]}</h1>
-    </div>;
+    </div>
 }
 ```
 
@@ -774,9 +774,9 @@ def:pub UserDetail() -> JsxPage {
 import from "@jac/runtime" { AuthGuard, Outlet }
 
 def:pub AuthShell() -> JsxLayout {
-    return <AuthGuard redirect="/login">
+    <AuthGuard redirect="/login">
         <Outlet />
-    </AuthGuard>;
+    </AuthGuard>
 }
 ```
 
@@ -788,7 +788,7 @@ For manual routing, import components from `@jac/runtime`:
 import from "@jac/runtime" { Router, Routes, Route, Link }
 
 def:pub app() -> JsxElement {
-    return <Router>
+    <Router>
         <nav>
             <Link to="/">Home</Link>
             <Link to="/about">About</Link>
@@ -798,7 +798,7 @@ def:pub app() -> JsxElement {
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
         </Routes>
-    </Router>;
+    </Router>
 }
 ```
 
@@ -811,7 +811,7 @@ def:pub UserProfile() -> JsxElement {
     params = useParams();
     user_id = params["id"];
 
-    return <div>User: {user_id}</div>;
+    <div>User: {user_id}</div>
 }
 
 # Route: /user/:id
@@ -832,9 +832,9 @@ def:pub LoginForm() -> JsxElement {
         }
     }
 
-    return <button onClick={lambda -> None { handle_login(); }}>
+    <button onClick={lambda -> None { handle_login(); }}>
         Login
-    </button>;
+    </button>
 }
 ```
 
@@ -845,22 +845,22 @@ import from "@jac/runtime" { Outlet }
 
 # pages/layout.jac -- root layout wrapping all pages
 def:pub RootShell() -> JsxLayout {
-    return <>
+    <>
         <nav>...</nav>
         <main><Outlet /></main>
         <footer>...</footer>
-    </>;
+    </>
 }
 
 # pages/dashboard/layout.jac -- nested dashboard layout
 def:pub DashboardLayout() -> JsxLayout {
     # Child routes render where Outlet is placed
-    return <div>
+    <div>
         <Sidebar />
         <main>
             <Outlet />
         </main>
-    </div>;
+    </div>
 }
 ```
 
@@ -923,7 +923,7 @@ def:pub LoginForm() -> JsxElement {
         }
     }
 
-    return <form onSubmit={handleLogin}>...</form>;
+    <form onSubmit={handleLogin}>...</form>
 }
 ```
 
@@ -957,13 +957,13 @@ def:pub NavBar() -> JsxElement {
         # Redirect to login
     }
 
-    return <nav>
+    <nav>
         {isLoggedIn and (
             <button onClick={lambda -> None { handleLogout(); }}>Logout</button>
         ) or (
             <a href="/login">Login</a>
         )}
-    </nav>;
+    </nav>
 }
 ```
 
@@ -1008,9 +1008,9 @@ import from "@jac/runtime" { AuthGuard, Outlet }
 
 # pages/(auth)/layout.jac
 def:pub AuthShell() -> JsxLayout {
-    return <AuthGuard redirect="/login">
+    <AuthGuard redirect="/login">
         <Outlet />
-    </AuthGuard>;
+    </AuthGuard>
 }
 ```
 
@@ -1022,9 +1022,9 @@ def:pub AuthShell() -> JsxLayout {
 
 ```jac
 def:pub StyledComponent() -> JsxElement {
-    return <div style={{"color": "blue", "padding": "10px"}}>
+    <div style={{"color": "blue", "padding": "10px"}}>
         Styled content
-    </div>;
+    </div>
 }
 ```
 
@@ -1032,9 +1032,9 @@ def:pub StyledComponent() -> JsxElement {
 
 ```jac
 def:pub Card() -> JsxElement {
-    return <div className="card card-primary">
+    <div className="card card-primary">
         Content
-    </div>;
+    </div>
 }
 ```
 
@@ -1054,7 +1054,7 @@ import "./styles/main.css";
 
 ### Scoped CSS (`.style.css` annexes)
 
-A `.style.css` file that **shares a base name** with a `.cl.jac` module is
+A `.style.css` file that **shares a base name** with a `.jac` module is
 treated as a scoped-style annex -- the two files form one logical module. The
 compiler hashes every class selector the annex declares with a per-module
 digest, rewrites the CSS rule selectors, and rewrites JSX `className`/`class`
@@ -1062,7 +1062,7 @@ literals in the module that reference a declared class to the same hashed
 form. Class names are scoped to the component automatically, so two modules
 can both declare `.card` without colliding.
 
-Given `Card.style.css` beside `Card.cl.jac`:
+Given `Card.style.css` beside `Card.jac`:
 
 ```css
 /* Card.style.css */
@@ -1077,12 +1077,12 @@ Given `Card.style.css` beside `Card.cl.jac`:
 ```
 
 ```jac
-# Card.cl.jac
+# Card.jac
 def:pub Card(title: str, body: str) -> JsxElement {
-    return <article className="card">
+    <article className="card">
         <h2 className="card-title">{title}</h2>
         <p>{body}</p>
-    </article>;
+    </article>
 }
 ```
 
@@ -1135,19 +1135,19 @@ def:pub StylingExamples() -> JsxElement {
         {"error": hasError, "success": isSuccess}
     );
 
-    return <div>
+    <div>
         <div className="p-4 bg-blue-500 text-white">Tailwind</div>
         <div className={className}>Dynamic</div>
-    </div>;
+    </div>
 }
 ```
 
-> **Note:** In jac-shadcn projects `jac install --shadcn` / `jac create --use jac-shadcn` generate `lib/utils.cl.jac` for you. You can also write `cn()` by hand -- entirely in Jac (no TypeScript needed) with a variadic parameter:
+> **Note:** In jac-shadcn projects `jac install --shadcn` / `jac create --use jac-shadcn` generate `lib/utils.jac` for you. You can also write `cn()` by hand -- entirely in Jac (no TypeScript needed) with a variadic parameter:
 >
 > ```jac
-> # lib/utils.cl.jac
-> cl import from "clsx" { clsx }
-> cl import from "tailwind-merge" { twMerge }
+> # lib/utils.jac
+> import from "clsx" { clsx }
+> import from "tailwind-merge" { twMerge }
 >
 > def:pub cn(*inputs: any) -> str {
 >     return twMerge(clsx(inputs));
@@ -1165,7 +1165,7 @@ def:pub JsxExamples() -> JsxElement {
     has items: list = [];
     has props: dict = {};
 
-    return <div>
+    <div>
         <input type="text" value={variable} />
 
         {condition and <div>Shown if true</div>}
@@ -1173,7 +1173,7 @@ def:pub JsxExamples() -> JsxElement {
         {items}
 
         <button {**props} {variable}>Click</button>
-    </div>;
+    </div>
 }
 ```
 
@@ -1181,17 +1181,17 @@ Two brace forms appear in attribute position. `{**props}` is a **spread** -- it 
 
 ### Suspense Fallbacks: `try` with `awaiting`
 
-A `try` slot whose body needs to wait on async work can name its loading state with an `awaiting` clause. The cl lowering wraps the slot in `<JacAwaiting fallback={...}>{...}</JacAwaiting>` from `@jac/runtime` -- a `React.Suspense` shim -- so the `awaiting` body renders during the dispatched-but-not-joined window and the `try` body takes over once it settles. On `sv` and `na` targets the `awaiting` body is dropped with a `W2020` warning until the streaming-SSR and native-thread lowerings land.
+A `try` slot whose body needs to wait on async work can name its loading state with an `awaiting` clause. The client lowering wraps the slot in `<JacAwaiting fallback={...}>{...}</JacAwaiting>` from `@jac/runtime` -- a `React.Suspense` shim -- so the `awaiting` body renders during the dispatched-but-not-joined window and the `try` body takes over once it settles. On server and native targets the `awaiting` body is dropped with a `W2020` warning until the streaming-SSR and native-thread lowerings land.
 
 ```jac
 def:pub Profile(user_id: int) -> JsxElement {
-    return <article>
+    <article>
         {try {
             <ResolvedProfile id={user_id}/>
         } awaiting {
             <p>Loading profile…</p>
         }}
-    </article>;
+    </article>
 }
 ```
 
@@ -1199,7 +1199,7 @@ Add an `except` arm to name the error state. On the cl target the slot then lowe
 
 ```jac
 def:pub Profile(user_id: int) -> JsxElement {
-    return <article>
+    <article>
         {try {
             <ResolvedProfile id={user_id}/>
         } awaiting {
@@ -1207,7 +1207,7 @@ def:pub Profile(user_id: int) -> JsxElement {
         } except Exception {
             <p>Could not load profile.</p>
         }}
-    </article>;
+    </article>
 }
 ```
 
@@ -1219,11 +1219,11 @@ Use Jac's block-comment syntax wrapped in a JSX expression slot -- `{#* ... *#}`
 
 ```jac
 def:pub App() -> JsxElement {
-    return <div>
+    <div>
         <h1>Hello</h1>
         {#* TODO: replace with a custom Button component *#}
         <button>Click me</button>
-    </div>;
+    </div>
 }
 ```
 
@@ -1257,7 +1257,7 @@ export const Button: React.FC<ButtonProps> = ({ label, onClick }) => {
 import from "./components/Button" { Button }
 
 def:pub app() -> JsxElement {
-    return <Button label="Click" onClick={lambda -> None { }} />;
+    <Button label="Click" onClick={lambda -> None { }} />
 }
 ```
 
@@ -1350,7 +1350,7 @@ The `[client.paths]` section lets you define custom import path aliases. Aliases
 "@shared" = "./shared/index"
 ```
 
-With the above config, you can use aliases in your `.cl.jac` or `cl {}` code:
+With the above config, you can use aliases in your client code:
 
 ```jac
 import from "@components/Button" { Button }
@@ -1402,9 +1402,9 @@ Then import Tailwind in your entry CSS and use `className=` in components:
 import "./assets/main.css";  # contains: @import "tailwindcss";
 
 def:pub app() -> JsxElement {
-    return <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-100 p-8">
         <h1 className="text-3xl font-bold">Hello</h1>
-    </div>;
+    </div>
 }
 ```
 
@@ -1457,7 +1457,7 @@ jac install --npm --dev tailwindcss autoprefixer postcss
 plugins = ["tailwindcss", "autoprefixer"]
 
 [client.configs.tailwind]
-content = ["./**/*.jac", "./**/*.cl.jac", "./.jac/client/**/*.{js,jsx,ts,tsx}"]
+content = ["./**/*.jac", "./**/*.jac", "./.jac/client/**/*.{js,jsx,ts,tsx}"]
 plugins = []
 
 [client.configs.tailwind.theme.extend.colors]
@@ -1630,7 +1630,7 @@ jac build [filename] [--client TARGET] [-p PLATFORM]
 A project whose `jac.toml` declares `kind = "web-static"` is built with the
 `static` target automatically -- no `--client` flag needed (see [Client-only apps](#client-only-apps)).
 
-For desktop builds, see the [jac-desktop Reference](jac-desktop.md): the desktop target compiles your `cl` UI into a single native binary that embeds the OS webview. In all desktop builds the build environment sets `JAC_BUILD=1` so import-time server starts stay inert.
+For desktop builds, see the [jac-desktop Reference](jac-desktop.md): the desktop target compiles your client UI into a single native binary that embeds the OS webview. In all desktop builds the build environment sets `JAC_BUILD=1` so import-time server starts stay inert.
 
 **Examples:**
 
@@ -1660,7 +1660,7 @@ jac build --client mobile --platform ios
 ### Client-only apps
 
 A **client-only** app runs entirely in the browser with no backend -- all of
-its code lives in `cl { }` blocks (optionally with an `na { }` block compiled
+its code is client-placed (optionally with a native-placed section compiled
 to in-browser WebAssembly). Declare it once in `jac.toml`:
 
 ```toml
@@ -1703,12 +1703,12 @@ jac start -p 3000              # choose the port
 ```
 
 The static server also maps the conventional `/static/<name>.wasm` mount onto
-the dist, so an `na { }` block compiled to WebAssembly (fetched client-side at
+the dist, so a native-placed section compiled to WebAssembly (fetched client-side at
 runtime) is served correctly.
 
 !!! note "file:// vs. served"
-    A pure `cl` app opens straight from disk. An app that fetches a resource at
-    runtime -- e.g. an `na`->wasm module at `/static/main.wasm` -- must be
+    A pure client app opens straight from disk. An app that fetches a resource at
+    runtime -- e.g. a native->wasm module at `/static/main.wasm` -- must be
     *served* (`jac start` or any static host), because the browser cannot fetch
     that resource over `file://`. `jac build` warns when code-splitting leaves
     chunks that the inlined page would need to fetch.
@@ -1786,7 +1786,7 @@ jac start --dev              # Dev server with HMR
 
 ### Desktop Targets
 
-The desktop targets ship with `jaclang` core (documented in the **[jac-desktop Reference](jac-desktop.md)**). They reuse jac-client's Vite frontend pipeline and compile a native host (`jac nacompile`) that renders your `cl` UI - one self-contained binary, no Rust toolchain, no PyInstaller, no setup step.
+The desktop targets ship with `jaclang` core (documented in the **[jac-desktop Reference](jac-desktop.md)**). They reuse jac-client's Vite frontend pipeline and compile a native host (`jac nacompile`) that renders your client UI - one self-contained binary, no Rust toolchain, no PyInstaller, no setup step.
 
 ```bash
 jac build --client desktop
@@ -1872,7 +1872,7 @@ For a step-by-step tutorial, see [Building a Mobile App](../../tutorials/fullsta
 
 ### React Native Target (beta)
 
-Native mobile applications for Android and iOS using [React Native](https://reactnative.dev/). Unlike the [Capacitor mobile target](#mobile-target-capacitor) (which wraps a web bundle in a webview), the React Native target compiles your `cl` UI to **platform-native views** via Expo/Metro/Hermes, giving native gesture/scroll performance and access to the RN ecosystem.
+Native mobile applications for Android and iOS using [React Native](https://reactnative.dev/). Unlike the [Capacitor mobile target](#mobile-target-capacitor) (which wraps a web bundle in a webview), the React Native target compiles your client UI to **platform-native views** via Expo/Metro/Hermes, giving native gesture/scroll performance and access to the RN ecosystem.
 
 A React Native app is a **mobUI** project: one source tree that compiles to both web (via `react-native-web`) and native (Android/iOS). mobUI projects use Jac's `@jac/mobui` component vocabulary instead of HTML -- see [The `@jac/mobui` vocabulary](#the-jacmobui-vocabulary) below.
 
@@ -2025,15 +2025,14 @@ glob styles = StyleSheet.create({
 
 def:pub app -> JsxElement {
     has name: str = "";
-    return
-        <ScrollView style={{flex: 1, backgroundColor: "#10131c"}}>
-            <View style={styles.card}>
-                <Text style={styles.title}>Hello, {name or "stranger"}</Text>
-                <Pressable onPress={lambda { name = "Jac"; }}>
-                    <Text>Tap me</Text>
-                </Pressable>
-            </View>
-        </ScrollView>;
+    <ScrollView style={{flex: 1, backgroundColor: "#10131c"}}>
+        <View style={styles.card}>
+            <Text style={styles.title}>Hello, {name or "stranger"}</Text>
+            <Pressable onPress={lambda { name = "Jac"; }}>
+                <Text>Tap me</Text>
+            </Pressable>
+        </View>
+    </ScrollView>
 }
 ```
 
@@ -2048,7 +2047,7 @@ error[E1105]: JSX tag '<div>' is not in scope in a mobUI project; use View inste
 - **Uppercase components** (`<Card>`, `<Image>`) are always allowed.
 - **Lowercase components that resolve to an in-scope symbol are allowed** (e.g. a local `counter` component used as `<counter .../>`).
 - Only unresolved lowercase names (`div`, `span`, ...) are rejected.
-- **`.cl.jac` web-boundary files are exempt** (raw HTML stays valid where the code can only run in a browser) -- but `.native.cl.jac` files are not, since they target React Native. Modules outside the project root (framework and third-party code) are exempt too. The kind is discovered from each module's own project `jac.toml`, never the process cwd.
+- **`.jac` web-boundary files are exempt** (raw HTML stays valid where the code can only run in a browser) -- but `.native.jac` files are not, since they target React Native. Modules outside the project root (framework and third-party code) are exempt too. The kind is discovered from each module's own project `jac.toml`, never the process cwd.
 
 See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics reference. Web projects (`client_kind` unset) are unaffected -- HTML tags remain valid there.
 
@@ -2057,7 +2056,7 @@ See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics 
 Platform differences are handled in priority order:
 
 1. **The vocabulary absorbs divergence** (primary). Components own their platform differences internally -- `ScrollView`, `Image`, and future additions present one API and branch inside `@jac/mobui`. Authors see a single component.
-2. **`.native.cl.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `examples/mobui/littlex`'s `icon.cl.jac` / `icon.native.cl.jac` split. The compiler picks the `.native.cl.jac` variant when `--client react-native` is selected and falls back to `.cl.jac` when not found. (A `Platform.os` / `Platform.select` one-liner API is planned but not yet part of `@jac/mobui`.)
+2. **`.native.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `examples/mobui/littlex`'s `icon.jac` / `icon.native.jac` split. The compiler picks the `.native.jac` variant when `--client react-native` is selected and falls back to `.jac` when not found. (A `Platform.os` / `Platform.select` one-liner API is planned but not yet part of `@jac/mobui`.)
 
 #### What carries over from web
 
@@ -2146,13 +2145,13 @@ import from "@jac/pwa" { usePwaInstall, PwaInstallButton }
 def:pub CustomInstallUI() -> JsxElement {
     (canInstall, triggerInstall) = usePwaInstall();
 
-    return <div>
+    <div>
         {canInstall and (
             <button onClick={lambda -> None { triggerInstall(); }}>
                 Get the App
             </button>
         )}
-    </div>;
+    </div>
 }
 ```
 
@@ -2224,7 +2223,7 @@ These values are inlined by Vite during bundling. String values must be double-q
 
 ```jac
 def:pub Footer() -> JsxElement {
-    return <p>Version: {globalThis.BUILD_VERSION}</p>;
+    <p>Version: {globalThis.BUILD_VERSION}</p>
 }
 ```
 
@@ -2270,7 +2269,7 @@ Jac provides ambient DOM types (`ChangeEvent`, `KeyboardEvent`, `MouseEvent`, `F
 def:pub Form() -> JsxElement {
     has value: str = "";
 
-    return <div>
+    <div>
         <input
             value={value}
             onChange={lambda (e: ChangeEvent) { value = e.target.value; }}
@@ -2281,7 +2280,7 @@ def:pub Form() -> JsxElement {
         <button onClick={lambda -> None { submit(); }}>
             Submit
         </button>
-    </div>;
+    </div>
 }
 ```
 
@@ -2332,7 +2331,7 @@ def:pub TypedForm() -> JsxElement {
     has text: str = "";
     has checked: bool = False;
 
-    return <div>
+    <div>
         <input
             value={text}
             onChange={lambda (e: ChangeEvent) { text = e.target.value; }}
@@ -2351,7 +2350,7 @@ def:pub TypedForm() -> JsxElement {
         }}>
             <button type="submit">Submit</button>
         </form>
-    </div>;
+    </div>
 }
 ```
 
@@ -2380,13 +2379,13 @@ def:pub ConditionalComponent() -> JsxElement {
     } else {
         content = <p>Hidden</p>;
     }
-    return <div>
+    <div>
         {content}
 
         {show and <p>Only when true</p>}
 
         {[<li key={item["id"]}>{item["name"]}</li> for item in items]}
-    </div>;
+    </div>
 }
 ```
 
@@ -2406,9 +2405,9 @@ Import and wrap `JacClientErrorBoundary` around any subtree where you want to ca
 import from "@jac/runtime" { JacClientErrorBoundary }
 
 def:pub app() -> JsxElement {
-    return <JacClientErrorBoundary fallback={<div>Oops! Something went wrong.</div>}>
+    <JacClientErrorBoundary fallback={<div>Oops! Something went wrong.</div>}>
         <MainAppComponents />
-    </JacClientErrorBoundary>;
+    </JacClientErrorBoundary>
 }
 ```
 
@@ -2432,9 +2431,9 @@ By default, jac-client internally wraps your entire application with `JacClientE
 
 ```jac
 def:pub App() -> JsxElement {
-    return <JacClientErrorBoundary fallback={<div className="error">Component failed to load</div>}>
+    <JacClientErrorBoundary fallback={<div className="error">Component failed to load</div>}>
         <ExpensiveWidget />
-    </JacClientErrorBoundary>;
+    </JacClientErrorBoundary>
 }
 ```
 
@@ -2444,13 +2443,13 @@ You can nest multiple error boundaries for fine-grained error isolation:
 
 ```jac
 def:pub App() -> JsxElement {
-    return <JacClientErrorBoundary fallback={<div>App error</div>}>
+    <JacClientErrorBoundary fallback={<div>App error</div>}>
         <Header />
         <JacClientErrorBoundary fallback={<div>Content error</div>}>
             <MainContent />
         </JacClientErrorBoundary>
         <Footer />
-    </JacClientErrorBoundary>;
+    </JacClientErrorBoundary>
 }
 ```
 
@@ -2533,7 +2532,7 @@ p = new(Promise, lambda(resolve: any, reject: any) {
 evt = new(CustomEvent, "my-event", {"detail": data});
 ```
 
-`new(Cls, ...args)` is portable: it works in any codespace. On the server it is a thin wrapper for `Cls(*args)`; in `cl` blocks the compiler rewrites the call into `Reflect.construct(Cls, [args])` so it can drive JS class constructors that require `new`.
+`new(Cls, ...args)` is portable: it works in any codespace. On the server it is a thin wrapper for `Cls(*args)`; in client code the compiler rewrites the call into `Reflect.construct(Cls, [args])` so it can drive JS class constructors that require `new`.
 
 ### Callback Invocations
 

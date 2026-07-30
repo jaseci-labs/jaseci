@@ -191,21 +191,6 @@ impl UnparsePass.exit_module_code(nd: uni.ModuleCode) -> None {
     nd.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_client_block(nd: uni.ClientBlock) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "client { " + body + " }";
-}
-
-impl UnparsePass.exit_server_block(nd: uni.ServerBlock) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "server { " + body + " }";
-}
-
-impl UnparsePass.exit_native_block(nd: uni.NativeBlock) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "native { " + body + " }";
-}
-
 impl UnparsePass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
     body = " ".join([s.gen.jac for s in nd.body]);
     nd.gen.jac = "code { " + body + " }";
@@ -684,6 +669,10 @@ impl UnparsePass.exit_report_stmt(nd: uni.ReportStmt) -> None {
 }
 
 impl UnparsePass.exit_return_stmt(nd: uni.ReturnStmt) -> None {
+    if nd.is_implicit and nd.expr {
+        nd.gen.jac = nd.expr.gen.jac;
+        return;
+    }
     parts: list = ["return"];
     if nd.expr {
         parts.append(nd.expr.gen.jac);

@@ -2839,10 +2839,7 @@ impl NaIRGenPass._codegen_for_indexed(
         }
     } else {
         if kind == "str" {
-            strlen_fn = self._get_or_declare_extern(
-                "strlen", i64, [ir.IntType(8).as_pointer()]
-            );
-            len_val = self.builder.call(strlen_fn, [collection_val], name="for.len");
+            len_val = self._call_str_len(self.builder, collection_val, name="for.len");
         } elif kind == "bytes" {
             len_val = self._bytes_len_val(collection_val);
         } else {
@@ -2902,10 +2899,7 @@ impl NaIRGenPass._codegen_for_indexed(
     if _gen_coll_slot is not None {
         collection_val = self.builder.load(_gen_coll_slot, name="for.coll");
         if kind == "str" {
-            strlen_fn = self._get_or_declare_extern(
-                "strlen", i64, [ir.IntType(8).as_pointer()]
-            );
-            len_val = self.builder.call(strlen_fn, [collection_val], name="for.len");
+            len_val = self._call_str_len(self.builder, collection_val, name="for.len");
         } elif kind == "bytes" {
             len_val = self._bytes_len_val(collection_val);
         } else {

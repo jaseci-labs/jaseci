@@ -455,7 +455,15 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     is_dtor_zero = b.icmp_unsigned(
         "==", dtor_val, ir.Constant(i64, 0), name="dtor.zero"
     );
-    b.cbranch(is_dtor_zero, log_free_bb, call_dtor_bb);
+    is_dtor_len = b.icmp_unsigned(
+        "!=",
+        b.and_(dtor_val, ir.Constant(i64, 1), name="dtor.lowbit"),
+        ir.Constant(i64, 0),
+        name="dtor.is.len"
+    );
+    b.cbranch(
+        b.or_(is_dtor_zero, is_dtor_len, name="dtor.skip"), log_free_bb, call_dtor_bb
+    );
 
     b = ir.IRBuilder(call_dtor_bb);
     dtor_fnty = ir.FunctionType(ir.VoidType(), [i8_ptr]);
@@ -565,6 +573,188 @@ impl NaIRGenPass._emit_magic_check(
     return b.icmp_unsigned(
         "==", _hi, ir.Constant(i64, HDR_MAGIC), name=f"{name_prefix}.ok"
     );
+}
+
+impl NaIRGenPass._emit_str_len_helpers -> None {
+    if self.str_len_fn is not None {
+        return;
+    }
+    if self.rc_alloc_fn is None {
+        self._emit_rc_helpers();
+    }
+    i8 = ir.IntType(8);
+    i8_ptr = i8.as_pointer();
+    i64 = ir.IntType(64);
+    i64_ptr = i64.as_pointer();
+    strlen_fn = self._get_or_declare_extern("strlen", i64, [i8_ptr]);
+    _headerless = self._nogc_headerless();
+
+    len_fn = self._define_function("__jac_str_len", ir.FunctionType(i64, [i8_ptr]));
+    len_fn.linkage = "private";
+    len_fn.args[0].name = "s";
+    _l_entry = len_fn.append_basic_block("entry");
+    b = ir.IRBuilder(_l_entry);
+    if _headerless {
+        _l_null = b.icmp_unsigned(
+            "==", len_fn.args[0], ir.Constant(i8_ptr, None), name="sl.null"
+        );
+        _l_zero = len_fn.append_basic_block("zero");
+        _l_slow0 = len_fn.append_basic_block("slow");
+        b.cbranch(_l_null, _l_zero, _l_slow0);
+        b = ir.IRBuilder(_l_zero);
+        b.ret(ir.Constant(i64, 0));
+        b = ir.IRBuilder(_l_slow0);
+        b.ret(b.call(strlen_fn, [len_fn.args[0]], name="sl.strlen"));
+    } else {
+        _l_zero = len_fn.append_basic_block("zero");
+        _l_sent = len_fn.append_basic_block("check.sentinel");
+        _l_magic = len_fn.append_basic_block("check.magic");
+        _l_hdr = len_fn.append_basic_block("hdr");
+        _l_fast = len_fn.append_basic_block("fast");
+        _l_slow = len_fn.append_basic_block("slow");
+        _l_null = b.icmp_unsigned(
+            "==", len_fn.args[0], ir.Constant(i8_ptr, None), name="sl.null"
+        );
+        b.cbranch(_l_null, _l_zero, _l_sent);
+        b = ir.IRBuilder(_l_zero);
+        b.ret(ir.Constant(i64, 0));
+        b = ir.IRBuilder(_l_sent);
+        _l_rc_slot = b.gep(
+            len_fn.args[0], [ir.Constant(i64, HDR_RC_OFF)], name="sl.rc.slot"
+        );
+        _l_rc = b.load(b.bitcast(_l_rc_slot, i64_ptr, name="sl.rc.p"), name="sl.rc");
+        _l_static = b.icmp_unsigned(
+            "==", _l_rc, ir.Constant(i64, RC_SENTINEL), name="sl.static"
+        );
+        b.cbranch(_l_static, _l_hdr, _l_magic);
+        b = ir.IRBuilder(_l_magic);
+        _l_mc = self._emit_magic_check(b, len_fn.args[0], name_prefix="sl.mc");
+        b.cbranch(_l_mc, _l_hdr, _l_slow);
+        b = ir.IRBuilder(_l_hdr);
+        _l_dt_slot = b.gep(
+            len_fn.args[0], [ir.Constant(i64, HDR_DTOR_OFF)], name="sl.dt.slot"
+        );
+        _l_dv = b.load(b.bitcast(_l_dt_slot, i64_ptr, name="sl.dt.p"), name="sl.dv");
+        _l_odd = b.and_(_l_dv, ir.Constant(i64, 1), name="sl.odd");
+        b.cbranch(
+            b.icmp_unsigned("!=", _l_odd, ir.Constant(i64, 0), name="sl.has.len"),
+            _l_fast,
+            _l_slow
+        );
+        b = ir.IRBuilder(_l_fast);
+        b.ret(b.lshr(_l_dv, ir.Constant(i64, 1), name="sl.len"));
+        b = ir.IRBuilder(_l_slow);
+        b.ret(b.call(strlen_fn, [len_fn.args[0]], name="sl.strlen"));
+    }
+    self.str_len_fn = len_fn;
+    self._emit_str_stamp_and_new();
+}
+
+impl NaIRGenPass._emit_str_stamp_and_new -> None {
+    i8 = ir.IntType(8);
+    i8_ptr = i8.as_pointer();
+    i64 = ir.IntType(64);
+    i64_ptr = i64.as_pointer();
+    _headerless = self._nogc_headerless();
+    stamp_fn = self._define_function(
+        "__jac_str_stamp", ir.FunctionType(ir.VoidType(), [i8_ptr, i64])
+    );
+    stamp_fn.linkage = "private";
+    stamp_fn.args[0].name = "s";
+    stamp_fn.args[1].name = "n";
+    _s_entry = stamp_fn.append_basic_block("entry");
+    _s_done = stamp_fn.append_basic_block("done");
+    b = ir.IRBuilder(_s_entry);
+    if _headerless {
+        b.branch(_s_done);
+    } else {
+        _s_magic = stamp_fn.append_basic_block("check.magic");
+        _s_store = stamp_fn.append_basic_block("store");
+        _s_null = b.icmp_unsigned(
+            "==", stamp_fn.args[0], ir.Constant(i8_ptr, None), name="ss.null"
+        );
+        b.cbranch(_s_null, _s_done, _s_magic);
+        b = ir.IRBuilder(_s_magic);
+        _s_mc = self._emit_magic_check(b, stamp_fn.args[0], name_prefix="ss.mc");
+        b.cbranch(_s_mc, _s_store, _s_done);
+        b = ir.IRBuilder(_s_store);
+        _s_enc = b.or_(
+            b.shl(stamp_fn.args[1], ir.Constant(i64, 1), name="ss.shl"),
+            ir.Constant(i64, 1),
+            name="ss.enc"
+        );
+        _s_slot = b.gep(
+            stamp_fn.args[0], [ir.Constant(i64, HDR_DTOR_OFF)], name="ss.slot"
+        );
+        b.store(_s_enc, b.bitcast(_s_slot, i64_ptr, name="ss.slot.p"));
+        b.branch(_s_done);
+    }
+    b = ir.IRBuilder(_s_done);
+    b.ret_void();
+    self.str_stamp_fn = stamp_fn;
+
+    memcpy_fn = self._get_or_declare_extern("memcpy", i8_ptr, [i8_ptr, i8_ptr, i64]);
+    new_fn = self._define_function(
+        "__jac_str_new", ir.FunctionType(i8_ptr, [i8_ptr, i64])
+    );
+    new_fn.linkage = "weak_odr";
+    new_fn.args[0].name = "data";
+    new_fn.args[1].name = "n";
+    _n_entry = new_fn.append_basic_block("entry");
+    b = ir.IRBuilder(_n_entry);
+    _n_null = b.icmp_unsigned(
+        "==", new_fn.args[0], ir.Constant(i8_ptr, None), name="sn.null"
+    );
+    _n_len = b.select(_n_null, ir.Constant(i64, 0), new_fn.args[1], name="sn.n");
+    _n_size = b.add(_n_len, ir.Constant(i64, 1), name="sn.size");
+    _n_buf = b.call(self.rc_alloc_fn, [_n_size], name="sn.buf");
+    _n_copy = new_fn.append_basic_block("copy");
+    _n_fin = new_fn.append_basic_block("finish");
+    b.cbranch(
+        b.icmp_unsigned("==", _n_len, ir.Constant(i64, 0), name="sn.empty"),
+        _n_fin,
+        _n_copy
+    );
+    b = ir.IRBuilder(_n_copy);
+    b.call(memcpy_fn, [_n_buf, new_fn.args[0], _n_len]);
+    b.branch(_n_fin);
+    b = ir.IRBuilder(_n_fin);
+    _n_end = b.gep(_n_buf, [_n_len], name="sn.end");
+    b.store(ir.Constant(i8, 0), _n_end);
+    if not _headerless {
+        if self.rc_set_type_fn is not None {
+            _i32n = ir.IntType(32);
+            _n_tag_gv = self._get_snprintf_fmt("str");
+            _n_tag = b.gep(
+                _n_tag_gv, [ir.Constant(_i32n, 0), ir.Constant(_i32n, 0)], name="sn.tag"
+            );
+            b.call(self.rc_set_type_fn, [_n_buf, _n_tag]);
+        }
+        b.call(stamp_fn, [_n_buf, _n_len]);
+    }
+    b.ret(_n_buf);
+    self.str_new_fn = new_fn;
+}
+
+impl NaIRGenPass._call_str_len(
+    b: ir.IRBuilder, ptr: ir.Value, name: str = "s.len"
+) -> ir.Value {
+    if self.str_len_fn is None {
+        self._emit_str_len_helpers();
+    }
+    return b.call(self.str_len_fn, [ptr], name=name);
+}
+
+impl NaIRGenPass._stamp_str_len(
+    b: ir.IRBuilder, ptr: ir.Value, len_val: ir.Value
+) -> None {
+    if self._nogc_headerless() {
+        return;
+    }
+    if self.str_stamp_fn is None {
+        self._emit_str_len_helpers();
+    }
+    b.call(self.str_stamp_fn, [ptr, len_val]);
 }
 
 impl NaIRGenPass._emit_set_type_tag(
@@ -988,8 +1178,7 @@ impl NaIRGenPass._rc_strdup(ptr: ir.Value, name: str = "rc.str") -> ir.Value {
     i8_ptr = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
 
-    strlen_fn = self._get_or_declare_extern("strlen", i64, [i8_ptr]);
-    slen = self.builder.call(strlen_fn, [ptr], name="str.len");
+    slen = self._call_str_len(self.builder, ptr, name="str.len");
 
     alloc_size = self.builder.add(slen, ir.Constant(i64, 1), name="str.alloc.size");
     _strdup_loc = getattr(ptr, 'jac_loc', '');
@@ -1000,6 +1189,7 @@ impl NaIRGenPass._rc_strdup(ptr: ir.Value, name: str = "rc.str") -> ir.Value {
     memcpy_fn = self._get_or_declare_extern("memcpy", i8_ptr, [i8_ptr, i8_ptr, i64]);
     self.builder.call(memcpy_fn, [new_str, ptr, alloc_size]);
     self._emit_set_type_tag(self.builder, new_str, "str");
+    self._stamp_str_len(self.builder, new_str, slen);
 
     self._mark_owned(new_str);
     return new_str;

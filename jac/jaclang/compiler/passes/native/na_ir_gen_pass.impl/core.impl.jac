@@ -611,10 +611,6 @@ impl NaIRGenPass._register_imported_struct_types -> None {
 }
 
 impl NaIRGenPass._ensure_imported_module_inferred(imported_mod: uni.Module) -> None {
-    mod_path = imported_mod.loc.mod_path if imported_mod?.loc else '';
-    if mod_path.endswith('.na.jac') {
-        return;
-    }
     if id(imported_mod) in self.prog._inferred_mods {
         return;
     }
@@ -742,9 +738,8 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
     _wl_internal = False;
     if _imp_layout is None and imported_mod?.loc and imported_mod.loc.mod_path {
         import os as _wl_os2;
-        import from jaclang.jac0core.ext_registry { is_native_module as _wl_is_na }
 
-        _wl_internal = not _wl_is_na(imported_mod.loc.mod_path)
+        _wl_internal = imported_mod.decided_codespace != 'native'
         and (_wl_os2.sep + "jaclang" + _wl_os2.sep) in _wl_os2.path.abspath(
             imported_mod.loc.mod_path
         );

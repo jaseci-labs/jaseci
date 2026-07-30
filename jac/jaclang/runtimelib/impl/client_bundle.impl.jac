@@ -38,7 +38,7 @@ impl _ensure_js_generated(mod: Module, program: any) -> None {
 
 impl ClientBundleBuilder.postinit -> None {
     if not self.runtime_path {
-        self.runtime_path = Path(__file__).with_name('client_runtime.cl.jac');
+        self.runtime_path = Path(__file__).with_name('client_runtime.jac');
     }
 }
 
@@ -135,7 +135,7 @@ impl ClientBundleBuilder._compile_bundle(
     raise ClientBundleError(
         "Client bundling requires the built-in client framework (Vite/Bun pipeline), "
         "which ships with jaclang core; the base builder cannot bundle client "
-        "(.cl.jac) code on its own."
+        "code on its own."
     );
 }
 

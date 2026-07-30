@@ -33,10 +33,10 @@ The graph hanging off `root` is saved between runs automatically -- the same per
 
 ## Ship it as a native binary {#native-binary}
 
-A `.na.jac` file compiles through LLVM to a **standalone, zero-dependency executable** you can ship to machines that have neither Jac nor Python -- like a `curl`-style single-binary tool:
+`jac nacompile` compiles a `.jac` file through LLVM to a **standalone, zero-dependency executable** you can ship to machines that have neither Jac nor Python -- like a `curl`-style single-binary tool:
 
 ```jac
-# sum.na.jac
+# sum.jac
 def compute_sum(n: int) -> int {
     total: int = 0; i: int = 1;
     while i <= n { total = total + i; i = i + 1; }
@@ -47,7 +47,7 @@ with entry { print(f"Sum of 1 to 10: {compute_sum(10)}"); }
 ```
 
 ```bash
-jac nacompile sum.na.jac -o sum
+jac nacompile sum.jac -o sum
 ./sum
 ```
 
@@ -58,7 +58,7 @@ Jac ships its own native linker, so there's no `gcc`/`ld` in the loop. The nativ
 
 ## Run natively in place {#cli-native}
 
-Set `kind = "cli-native"` in `jac.toml` when you want the *program* to execute through the native pathway rather than producing a distributable artifact -- the same `.na.jac` subset, run as a command. A bare `jac run` then compiles-and-executes it. (`cli` runs on the Python VM; `cli-native` runs the native build; `native-binary` ships the executable.)
+Set `kind = "cli-native"` in `jac.toml` when you want the *program* to execute through the native pathway rather than producing a distributable artifact -- the same native subset, run as a command. A bare `jac run` then compiles-and-executes it. (`cli` runs on the Python VM; `cli-native` runs the native build; `native-binary` ships the executable.)
 
 ## Your learning path
 
