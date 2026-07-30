@@ -506,6 +506,19 @@ def report_dead_client_import(
     reporter.emit(E5082, node_override=item, name=name, module=module_name);
 }
 
+
+def report_client_bare_import_uses(reporter: any, mod: uni.Module) {
+    for stmt in mod.body {
+        if (
+            isinstance(stmt, uni.ContextAwareNode)
+            and stmt.code_context == CodeContext.CLIENT
+            and not stmt.codespace_dual
+        ) {
+            _report_client_bare_import_uses(reporter, mod, stmt);
+        }
+    }
+}
+
 def _already_warned(reporter: any, diag: any, nd: uni.UniNode) -> bool {
     for w in reporter.prog.warnings_had {
         if (
@@ -537,41 +550,87 @@ def _in_annotation_position(nm: uni.Name, stop: uni.UniNode) -> bool {
     return False;
 }
 
-def _report_client_bare_import_uses(reporter: any, mod: uni.Module, stmt: uni.UniNode) {
-    for nm in stmt.get_all_sub_nodes(uni.Name) {
-        par = nm.parent;
-        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
-            continue;
-        }
-        sym = nm.sym;
-        if sym is None or sym.decl is None {
-            continue;
-        }
-        decl = sym.decl;
-
-        if isinstance(decl, uni.ModuleItem) {
-            item = decl;
-        } elif isinstance(decl.parent, uni.ModuleItem) {
-            item = decl.parent;
-        } else {
-            continue;
-        }
-        imp = item.from_parent;
+def _bare_py_import_bindings(mod: uni.Module) -> dict[str, tuple] {
+    out: dict[str, tuple] = {};
+    for imp in mod.get_all_sub_nodes(uni.Import) {
         if imp.is_service_import or imp.is_typed {
             continue;
         }
         if imp.ecosystem != 'py' {
             continue;
         }
-        if imp.from_loc is not None and imp.from_loc.level > 0 {
+        if imp.from_loc is None or imp.from_loc.level > 0 {
             continue;
         }
         if imp.code_context == CodeContext.CLIENT {
             continue;
         }
+        for item in imp.items {
+            if not isinstance(item, uni.ModuleItem) {
+                continue;
+            }
+            if item.alias is not None {
+                binding = item.alias.sym_name;
+            } elif isinstance(item.name, uni.Name) {
+                binding = item.name.sym_name;
+            } else {
+                binding = str(item.name.value);
+            }
+            out[binding] = (item, imp);
+        }
+    }
+    return out;
+}
+
+
+def _shadows_bare_import(nm: uni.Name) -> bool {
+    sym = nm.sym;
+    if sym is None or sym.decl is None {
+        return False;
+    }
+    decl = sym.decl;
+    if isinstance(decl, uni.ModuleItem) or isinstance(decl.parent, uni.ModuleItem) {
+        return False;
+    }
+    cur = decl.parent;
+    while cur is not None {
+        if isinstance(cur, (uni.ParamVar, uni.HasVar)) {
+            return True;
+        }
+        if isinstance(cur, uni.Assignment) {
+            return decl in cur.target
+            or any([decl in t.get_all_sub_nodes(uni.Name) for t in cur.target]);
+        }
+        if isinstance(cur, uni.ElementStmt) {
+            return False;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+
+def _report_client_bare_import_uses(reporter: any, mod: uni.Module, stmt: uni.UniNode) {
+    bindings = _bare_py_import_bindings(mod);
+    if not bindings {
+        return;
+    }
+    for nm in stmt.get_all_sub_nodes(uni.Name) {
+        par = nm.parent;
+        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+            continue;
+        }
+        hit = bindings.get(nm.value);
+        if hit is None {
+            continue;
+        }
+        if _shadows_bare_import(nm) {
+            continue;
+        }
         if _in_annotation_position(nm, stmt) {
             continue;
         }
+        (item, imp) = hit;
         module_name = imp.from_loc.dot_path_str if imp.from_loc is not None else '';
         already = False;
         for e in reporter.prog.errors_had {

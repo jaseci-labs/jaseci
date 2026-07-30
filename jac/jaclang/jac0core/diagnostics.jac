@@ -760,6 +760,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.IMPORT,
          "Use the lowercase 'any' keyword instead of importing 'Any' from typing"
      ),
+     W1105 = _warn(
+         "W1105",
+         Category.IMPORT,
+         "Local module '{name}' shadows the npm package of the same name",
+         help="A bare module name resolves to the local Jac module first. Quote the name (import from \"{name}\") to import the npm package instead."
+     ),
      W2001 = _warn("W2001", Category.SEMANTIC, "Name '{name}' may be undefined"),
      W2002 = _warn("W2002", Category.SEMANTIC, "Unreachable code detected"),
      W2003 = _warn("W2003", Category.SEMANTIC, "'{name}' is defined but never used"),
@@ -1394,8 +1400,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E5084 = _err(
          "E5084",
          Category.CODEGEN,
-         "Client code uses '{name}' from bare import '{module}', which resolves in the Python ecosystem and has no client-side presence",
-         help="A bare `import from {module} {{ ... }}` stays on the server, so the client bundle never binds '{name}' and the page fails at runtime with a ReferenceError. For an npm package, quote the module: `import from \"{module}\" {{ {name} }}`. For server logic, expose a `def:pub` endpoint; plain imports of endpoints bridge over RPC automatically."
+         "Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module",
+         help="A bare import resolves to a local Jac module, a declared or installed npm package, or the client framework's own packages; '{module}' is none of these, so it stays on the server and the client bundle never binds '{name}' -- the page fails at runtime with a ReferenceError. Install or declare the npm package in [dependencies.npm] (or quote the module: `import from \"{module}\" {{ {name} }}`), or keep the use server-side behind a `def:pub` endpoint."
      ),
      W6001 = _warn(
          "W6001",
