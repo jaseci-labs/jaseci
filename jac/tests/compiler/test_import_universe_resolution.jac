@@ -32,7 +32,8 @@ def _write_project(base: str, files: dict[str, str], npm_deps: str = "") -> Path
     proj.mkdir(parents=True, exist_ok=True);
     (proj / "jac.toml").write_text(
         '[project]\nname = "universe"\nversion = "0.1.0"\n'
-        'entry-point = "main.jac"\n\n[dependencies.npm]\n' + npm_deps
+        'entry-point = "main.jac"\n\n[dependencies.npm]\n'
+        + npm_deps
     );
     for (rel, content) in files.items() {
         f = proj / rel;
@@ -47,7 +48,11 @@ def _install_pkg(proj: Path, name: str, with_types: bool = True) {
     pkg.mkdir(parents=True, exist_ok=True);
     types_line = '"types": "index.d.ts",' if with_types else '';
     pkg_json = (
-        '{"name": "' + name + '", "version": "1.0.0",' + types_line + '"main": "index.js"}'
+        '{"name": "'
+        + name
+        + '", "version": "1.0.0",'
+        + types_line
+        + '"main": "index.js"}'
     );
     (pkg / "package.json").write_text(pkg_json);
     (pkg / "index.js").write_text(REACT_JS);

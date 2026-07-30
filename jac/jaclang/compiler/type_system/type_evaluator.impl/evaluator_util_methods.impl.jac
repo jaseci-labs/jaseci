@@ -801,7 +801,8 @@ impl TypeEvaluator._is_unbound_method_call(expr: uni.FuncCall) -> bool {
                 if member {
                     member_type = self.get_type_of_symbol(member.symbol);
                     if isinstance(member_type, types.FunctionType) {
-                        if member_type.function_flags & types.FunctionTypeFlags.StaticMethod {
+                        if member_type.function_flags
+                        & types.FunctionTypeFlags.StaticMethod {
                             return False;
                         }
                         return True;
@@ -1246,7 +1247,8 @@ impl TypeEvaluator._get_special_form_type(
         and symbol_type.shared == self.prefetch.callable_class.shared
     );
 
-    is_known_special_form_name = name in (
+    is_known_special_form_name = name
+    in (
         "Self",
         "Callable",
         "Protocol",
@@ -1372,7 +1374,8 @@ impl TypeEvaluator._is_fstring_all_literal(fstring: uni.FString) -> bool {
                     if isinstance(
                         self.prefetch.literal_string_class, types.ClassType
                     ) {
-                        if part_type.shared == self.prefetch.literal_string_class.shared {
+                        if part_type.shared
+                        == self.prefetch.literal_string_class.shared {
                             continue;
                         }
                     }

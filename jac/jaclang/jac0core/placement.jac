@@ -608,9 +608,8 @@ def scan_native_blockers(
                 continue;
             }
             if clean
-            and resolve_native_module(clean, base_dir, allow_inferred=False)[
-                1
-            ] is not None {
+            and resolve_native_module(clean, base_dir, allow_inferred=False)[1]
+            is not None {
                 continue;
             }
             return (f"unresolved import '{clean}'", deps);
