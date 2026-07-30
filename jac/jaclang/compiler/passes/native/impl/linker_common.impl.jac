@@ -374,12 +374,22 @@ def _elf_obj_undefs(mem: bytes) -> list[str] {
 }
 
 
+# Content-keyed: the same archive is re-read and re-selected for every native
+# link in a test run; parsing it once per process is the whole point.
+glob _AR_PARSE_CACHE: dict = {};
+
 impl select_ar_members(data: bytes, root_undef: list[str]) -> list[ArMember] {
-    index = parse_ar_symbol_index(data);
-    by_off: dict[int, ArMember] = {};
-    for m in parse_ar_archive(data) {
-        by_off[m.header_offset] = m;
+    cached = _AR_PARSE_CACHE.get(data);
+    if cached is None {
+        index = parse_ar_symbol_index(data);
+        by_off: dict[int, ArMember] = {};
+        for m in parse_ar_archive(data) {
+            by_off[m.header_offset] = m;
+        }
+        cached = (index, by_off, {});
+        _AR_PARSE_CACHE[data] = cached;
     }
+    (index, by_off, undefs_by_off) = cached;
     selected: dict[int, ArMember] = {};
     seen_syms: set[str] = set();
     worklist: list[str] = list(root_undef);
@@ -398,7 +408,12 @@ impl select_ar_members(data: bytes, root_undef: list[str]) -> list[ArMember] {
             continue;
         }
         selected[off] = m;
-        for u in _ar_member_undefs(m.data) {
+        m_undefs = undefs_by_off.get(off);
+        if m_undefs is None {
+            m_undefs = _ar_member_undefs(m.data);
+            undefs_by_off[off] = m_undefs;
+        }
+        for u in m_undefs {
             if u not in seen_syms {
                 worklist.append(u);
             }
