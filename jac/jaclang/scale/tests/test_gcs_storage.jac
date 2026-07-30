@@ -92,7 +92,6 @@ def make_gcs_storage(
     project_id: str = "test-project"
 ) -> GcsStorage {
     endpoint = _require_emulator();
-    os.environ["STORAGE_EMULATOR_HOST"] = endpoint;
     if bucket is None {
         bucket = f"jac-test-{uuid.uuid4().hex[:12]}";
     }

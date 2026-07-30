@@ -8,8 +8,20 @@ import from jaclang.scale.persistence.lib { kvstore }
 import from jaclang.scale._optdeps.pymongo { DuplicateKeyError }
 
 
-glob _EMULATOR_IMAGE: str = 'gcr.io/google.com/cloudsdktool/google-cloud-cli',
+# Digest-pinned so the ~5GB SDK image cannot change under CI without warning.
+glob _EMULATOR_IMAGE: str = 'gcr.io/google.com/cloudsdktool/google-cloud-cli@sha256:6457b782d5ce5fcf3ed557b6b6a2d4689abec15f4aa796a87ae86c6a4a7b3d88',
      _EMULATOR_STATE: dict = {};
+
+
+def _restore_emulator_env(prev: dict) {
+    for (k, v) in prev.items() {
+        if v is None {
+            os.environ.pop(k, None);
+        } else {
+            os.environ[k] = v;
+        }
+    }
+}
 
 
 def _ensure_emulator -> dict {
@@ -59,14 +71,22 @@ def _ensure_emulator -> dict {
     port = container.get_exposed_port(8080);
     _EMULATOR_STATE['container'] = container;
     _EMULATOR_STATE['host_port'] = f'{host}:{port}';
+
+    # Point google-cloud clients at the emulator, restoring the prior values at
+    # process exit so a later test cannot silently talk to the emulator.
+    prev = {
+        k: os.environ.get(k)
+        for k in ('FIRESTORE_EMULATOR_HOST', 'GOOGLE_CLOUD_PROJECT')
+    };
+    os.environ['FIRESTORE_EMULATOR_HOST'] = _EMULATOR_STATE['host_port'];
+    os.environ['GOOGLE_CLOUD_PROJECT'] = 'test';
+    atexit.register(_restore_emulator_env, prev);
     return _EMULATOR_STATE;
 }
 
 
 def _make_client -> any {
-    state = _ensure_emulator();
-    os.environ['FIRESTORE_EMULATOR_HOST'] = state['host_port'];
-    os.environ['GOOGLE_CLOUD_PROJECT'] = 'test';
+    _ensure_emulator();
     import from google.cloud.firestore { Client }
     return Client(project='test');
 }

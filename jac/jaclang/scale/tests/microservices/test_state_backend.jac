@@ -18,7 +18,7 @@ glob _redis_client: any = None;
 
 with entry {
     try {
-        _container = RedisContainer("redis:7");
+        _container = RedisContainer("redis:7.2-alpine");
         _container.start();
         _redis_client = _container.get_client();
     } except Exception as e {

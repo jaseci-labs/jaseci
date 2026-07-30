@@ -388,10 +388,20 @@ ORDER_ID=$(curl -fsS -X POST "${GW_URL}/orders/function/create_order" -H "${AUTH
     -H 'content-type: application/json' -d '{}' \
     | jac -c "import json, sys; d = json.load(sys.stdin); print(((d.get('data') or {}).get('result') or {}).get('id', ''))")
 if [ -z "${ORDER_ID}" ]; then echo "FAIL: create_order returned no id" >&2; exit 1; fi
-echo "  created ${ORDER_ID}; restarting orders-app..."
-kubectl delete pod -n "${NAMESPACE}" -l app=orders-app --wait=true >/dev/null 2>&1 || true
+OLD_POD=$(kubectl get pod -n "${NAMESPACE}" -l app=orders-app \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+if [ -z "${OLD_POD}" ]; then
+    echo "FAIL: no pod matched app=orders-app, so nothing was restarted (label drift?)" >&2
+    exit 1
+fi
+echo "  created ${ORDER_ID}; deleting pod ${OLD_POD}..."
+kubectl delete pod -n "${NAMESPACE}" "${OLD_POD}" --wait=true
 if ! kubectl rollout status -n "${NAMESPACE}" deploy/orders-app-deployment --timeout=300s >/dev/null 2>&1; then
     echo "FAIL: orders-app did not roll back out after restart" >&2
+    exit 1
+fi
+if kubectl get pod -n "${NAMESPACE}" "${OLD_POD}" >/dev/null 2>&1; then
+    echo "FAIL: pod ${OLD_POD} still exists; it was not actually replaced" >&2
     exit 1
 fi
 AFTER=$(curl -fsS --max-time 20 --retry 6 --retry-delay 3 --retry-all-errors -X POST \

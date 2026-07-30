@@ -424,7 +424,7 @@ test "sv boundary: unauthenticated cross-service call is rejected downstream" {
         resp = cons.post("/function/proxy_status", json={"actor": "anon"});
         body = resp.json();
         assert body["ok"] is False;
-        assert "Unauthorized" in json.dumps(body);
+        assert "Unauthorized" in json.dumps(body.get("error") or {});
     } finally {
         done(tmp);
     }
