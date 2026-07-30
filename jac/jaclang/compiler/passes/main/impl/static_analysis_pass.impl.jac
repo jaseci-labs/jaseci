@@ -374,6 +374,7 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
 
 impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
     import from jaclang.jac0core.compiler { is_client_native_edge_import }
+    import from jaclang.jac0core.constant { CodeContext }
     import from jaclang.compiler.symbol_utils {
         ClientImportVerdict,
         classify_client_import_item,
@@ -381,11 +382,36 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
         import_target_pinned_server,
         is_client_boundary_import,
         report_dead_client_import,
+        report_unresolvable_client_import,
         resolve_import_source_module
     }
     for nd in mod.get_all_sub_nodes(typ=uni.Import) {
         if is_client_native_edge_import(nd, self.prog) {
             continue;
+        }
+        if nd.code_context != CodeContext.CLIENT {
+            report_unresolvable_client_import(self, nd);
+            continue;
+        }
+        if (
+            nd.from_loc is not None
+            and nd.from_loc.string_path_value is None
+            and not nd.is_virtual_jac
+        ) {
+            resolved = None;
+            try {
+                resolved = nd.from_loc.resolve_relative_path();
+            } except Exception {
+                resolved = None;
+            }
+            if isinstance(resolved, str) and resolved.endswith('.jac') {
+                import from jaclang.jac0core.diagnostics { W1105 }
+                import from jaclang.jac0core.modresolver { is_client_npm_import }
+                spec = nd.from_loc.dot_path_str;
+                if is_client_npm_import(spec, nd.loc.mod_path or '') {
+                    self.emit(W1105, node_override=nd.from_loc, name=spec);
+                }
+            }
         }
         if not is_client_boundary_import(nd) {
             continue;

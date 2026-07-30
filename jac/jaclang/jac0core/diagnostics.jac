@@ -760,6 +760,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.IMPORT,
          "Use the lowercase 'any' keyword instead of importing 'Any' from typing"
      ),
+     W1105 = _warn(
+         "W1105",
+         Category.IMPORT,
+         "Local module '{name}' shadows the npm package of the same name",
+         help="A bare module name resolves to the local Jac module first. Quote the name (import from \"{name}\") to import the npm package instead."
+     ),
      W2001 = _warn("W2001", Category.SEMANTIC, "Name '{name}' may be undefined"),
      W2002 = _warn("W2002", Category.SEMANTIC, "Unreachable code detected"),
      W2003 = _warn("W2003", Category.SEMANTIC, "'{name}' is defined but never used"),
@@ -1390,6 +1396,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client code imports '{name}' from '{module}', but '{name}' has no client-side presence",
          help="A plain import into client code can only reference client declarations; server `def:pub` endpoints bridge automatically over RPC. Make '{name}' a `def:pub` endpoint, mark it (or its module) client, or move it into client code."
+     ),
+     E5084 = _err(
+         "E5084",
+         Category.CODEGEN,
+         "Client code uses '{name}' from '{module}', which resolves to no client-reachable module",
+         help="'{module}' is not a Jac module, a declared or installed npm package, or a framework package, so its import cannot appear in the client bundle and '{name}' would crash at runtime. Install or declare the npm package in [dependencies.npm], quote the name to pin the npm form, or keep the use server-side."
      ),
      W6001 = _warn(
          "W6001",

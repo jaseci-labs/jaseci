@@ -6328,6 +6328,12 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
         is_native_edge = isinstance(nd, uni.Import)
         and self._is_client_native_import(nd);
         if (not is_sv_import and not is_native_edge and not is_shared_arch) {
+            if isinstance(nd, uni.Import) {
+                import from jaclang.compiler.symbol_utils {
+                    report_unresolvable_client_import
+                }
+                report_unresolvable_client_import(self, nd);
+            }
             self.prune();
             return;
         }

@@ -1314,8 +1314,8 @@ impl TypeEvaluator._resolve_from_path(from_mod: uni.ModulePath) -> Path {
 }
 
 impl TypeEvaluator._resolve_client_npm_module(node_: uni.ModulePath) -> (str | None) {
-    spv = node_.string_path_value;
-    if spv is None {
+    spec = node_.string_path_value or node_.dot_path_str;
+    if not spec {
         return None;
     }
     if not node_.in_client_context() {
@@ -1326,11 +1326,11 @@ impl TypeEvaluator._resolve_client_npm_module(node_: uni.ModulePath) -> (str | N
         return None;
     }
     import from jaclang.jac0core.modresolver { resolve_client_npm_package }
-    base = self._client_npm_base(spv, mod_path);
+    base = self._client_npm_base(spec, mod_path);
     if base is None {
         return None;
     }
-    return resolve_client_npm_package(spv, base);
+    return resolve_client_npm_package(spec, base);
 }
 
 impl TypeEvaluator._client_npm_base(spec: str, mod_path: str) -> (str | None) {

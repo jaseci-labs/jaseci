@@ -325,6 +325,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `E1120` | Import of '{name}' from untyped external module '{module}' (no type declarations found) |
 | `W1103` | '{name}' is ambient and does not need to be imported from '{module}' |
 | `W1104` | Use the lowercase `any` keyword instead of importing `Any` from typing |
+| `W1105` | Local module '{name}' shadows the npm package of the same name |
 
 ---
 
@@ -509,8 +510,11 @@ Emitted during code generation, formatting, and native compilation.
 | `E5080` | Argument '{name}' for server function '{func}' is given both positionally and by keyword |
 | `E5081` | Unknown client framework '{framework}' |
 | `E5082` | Client code imports '{name}' from '{module}', but '{name}' has no client-side presence |
+| `E5084` | Client code uses '{name}' from '{module}', which resolves to no client-reachable module |
 
 `E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, pin it (or its module) `"client"` via `[placement.pins]`, or move it into client code.
+
+`E5084` fires when client code uses a symbol from an import that resolves to no Jac module, no declared or installed npm package, and no framework package -- the import cannot appear in the client bundle, so the use would be a runtime `ReferenceError`. Install or declare the package in `[dependencies.npm]`, quote the name to pin the npm form, or keep the use server-side. Imports whose uses are all server-side prune silently as before.
 
 ---
 

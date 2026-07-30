@@ -2,7 +2,7 @@ import from collections.abc { Sequence }
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok, SymbolType }
-import from jaclang.jac0core.diagnostics { E5082, W6006, W6007 }
+import from jaclang.jac0core.diagnostics { E5082, E5084, W6006, W6007 }
 import from jaclang.jac0core.compiler {
     ClientImportVerdict,
     ability_of_symbol,
@@ -502,6 +502,65 @@ def report_dead_client_import(
         }
     }
     reporter.emit(E5082, node_override=item, name=name, module=module_name);
+}
+
+
+def report_unresolvable_client_import(reporter: any, nd: uni.Import) -> None {
+    if nd.from_loc is None or nd.is_typed or nd.is_service_import {
+        return;
+    }
+    import from jaclang.jac0core.modresolver { is_client_npm_import }
+    module_name = nd.from_loc.dot_path_str;
+    mod_path = nd.loc.mod_path or '';
+    resolved = None;
+    try {
+        resolved = nd.from_loc.resolve_relative_path();
+    } except Exception {
+        resolved = None;
+    }
+    if isinstance(resolved, str) and resolved.endswith('.jac') {
+        return;
+    }
+    if is_client_npm_import(module_name, mod_path) {
+        return;
+    }
+    for item in nd.items {
+        if not isinstance(item, uni.ModuleItem) {
+            continue;
+        }
+        sym = item.name.sym if isinstance(item.name, uni.Name) else None;
+        if sym is None {
+            continue;
+        }
+        client_use = None;
+        for use in sym.uses {
+            if use.in_client_context() {
+                client_use = use;
+                break;
+            }
+        }
+        if client_use is None {
+            continue;
+        }
+        name = item.name.sym_name
+            if isinstance(item.name, uni.Name)
+            else str(item.name.value);
+        duplicate = False;
+        for e in reporter.prog.errors_had {
+            if (
+                e.code is E5084
+                and e.loc.mod_path == item.loc.mod_path
+                and e.loc.first_line == item.loc.first_line
+                and e.loc.col_start == item.loc.col_start
+            ) {
+                duplicate = True;
+                break;
+            }
+        }
+        if not duplicate {
+            reporter.emit(E5084, node_override=item, name=name, module=module_name);
+        }
+    }
 }
 
 def _already_warned(reporter: any, diag: any, nd: uni.UniNode) -> bool {
