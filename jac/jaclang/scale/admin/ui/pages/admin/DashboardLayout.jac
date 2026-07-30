@@ -28,7 +28,7 @@ import from "lucide-react" {
     Moon
 }
 
-import from react { useEffect }
+import from "react" { useEffect }
 import from ...components.common.Alert { Alert }
 import from ...context.AuthContext { useAuth }
 import from ...context.AlertContext { useAlert }
@@ -163,14 +163,15 @@ def:pub DashboardLayout -> JsxElement {
                                 <button
                                     key={item["id"]}
                                     onClick={makeHandler(item["id"])}
-                                    className={"w-full flex items-center gap-2.5 px-2.5 py-2 text-sm rounded-md transition-colors " + (
-                                        activeTab == item["id"]
-                                        and "bg-accent-weak text-accent font-medium"
-                                        or "text-muted hover:text-fg hover:bg-surface-2"
-                                    )}
+                                    className={"w-full flex items-center gap-2.5 px-2.5 py-2 text-sm rounded-md transition-colors "
+                                        + (
+                                            activeTab == item["id"]
+                                            and "bg-accent-weak text-accent font-medium"
+                                            or "text-muted hover:text-fg hover:bg-surface-2"
+                                        )}
                                 >
                                     {navIcons[item["id"]]
-                                    or <Workflow className={iconCls}/>}
+                                        or <Workflow className={iconCls}/>}
                                     <span>{item["label"]}</span>
                                 </button> for item in group["items"]
                             ]}
@@ -184,8 +185,8 @@ def:pub DashboardLayout -> JsxElement {
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm rounded-md text-muted hover:text-fg hover:bg-surface-2 transition-colors"
                 >
                     {isLight
-                    and <Moon className="w-[17px] h-[17px] shrink-0"/>
-                    or <Sun className="w-[17px] h-[17px] shrink-0"/>}
+                        and <Moon className="w-[17px] h-[17px] shrink-0"/>
+                        or <Sun className="w-[17px] h-[17px] shrink-0"/>}
                     <span>{isLight and "Dark mode" or "Light mode"}</span>
                 </button>
                 <button

@@ -36,6 +36,14 @@ impl make_client_bundle_builder(
     );
 }
 
+impl ViteClientBundleBuilder._emitted_digest(self: ViteClientBundleBuilder) -> str {
+    import from jaclang.runtimelib.client_bundle { emitted_tree_digest }
+    if not self.vite_package_json {
+        return '';
+    }
+    return emitted_tree_digest(self.vite_package_json.parent / 'compiled');
+}
+
 impl ViteClientBundleBuilder._compile_bundle(
     self: ViteClientBundleBuilder, module: ModuleType, module_path: Path
 ) -> ClientBundle {

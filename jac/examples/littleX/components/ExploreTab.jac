@@ -49,11 +49,12 @@ def:pub ExploreTab(
                         {u.username.split("@")[0] if "@" in u.username else u.username}
                     </div>
                     <div className="text-sm text-muted-foreground truncate">
-                        {"@" + (
-                            u.username.split("@")[0]
-                                if "@" in u.username
-                                else u.username
-                        )}
+                        {"@"
+                            + (
+                                u.username.split("@")[0]
+                                    if "@" in u.username
+                                    else u.username
+                            )}
                     </div>
                     <div className="mt-0.5 line-clamp-2 text-sm text-foreground/80">
                         {u.bio or "No bio yet"}

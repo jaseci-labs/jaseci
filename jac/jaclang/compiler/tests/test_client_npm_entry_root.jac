@@ -134,9 +134,10 @@ test "library-local installation never borrows entry declarations" {
         ];
         assert "W1100" not in codes , codes;
         assert "W1102" in codes , (
-            "library's own untyped installation must stay foreign any; typing" + " it means the entry project's declarations leaked across" + " installations: " + str(
-                codes
-            )
+            "library's own untyped installation must stay foreign any; typing"
+            + " it means the entry project's declarations leaked across"
+            + " installations: "
+            + str(codes)
         );
     } finally {
         shutil.rmtree(base_dir, ignore_errors=True);

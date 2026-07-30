@@ -1298,7 +1298,7 @@ test "CORS disabled when allow_origins is empty" {
     assert resp.status_code == 200;
 
     assert "access-control-allow-origin"
-    not in {k.lower() for k in resp.headers.keys()};
+        not in {k.lower() for k in resp.headers.keys()};
 }
 
 
@@ -1393,12 +1393,12 @@ test "CORS preflight still responds during drain (headers reachable on 503)" {
         );
         assert resp.status_code == 200;
         assert resp.headers.get("access-control-allow-origin")
-        == "http://app.example.com";
+            == "http://app.example.com";
 
         resp2 = client.get("/health", headers={"Origin": "http://app.example.com"});
         assert resp2.status_code == 503;
         assert resp2.headers.get("access-control-allow-origin")
-        == "http://app.example.com";
+            == "http://app.example.com";
     } finally {
         reset_drain();
     }

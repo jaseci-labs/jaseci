@@ -184,10 +184,10 @@ def:pub b32decode(s: bytes, casefold: bool = False, map01: bytes = b"") -> bytes
     padchars: int = len(work) - end;
     decoded: bytes = _decode_bits(work[0:end], rev, 5, "Non-base32 digit found");
     if padchars != 0
-    and padchars != 1
-    and padchars != 3
-    and padchars != 4
-    and padchars != 6 {
+        and padchars != 1
+        and padchars != 3
+        and padchars != 4
+        and padchars != 6 {
         raise ValueError("Incorrect padding");
     }
     return decoded;
@@ -274,9 +274,9 @@ def _b64_decode_core(data: bytes, rev: list[int], strict: bool) -> bytes {
     }
     if quad_pos == 1 {
         raise ValueError(
-            "Invalid base64-encoded string: number of data characters (" + str(
-                datachars
-            ) + ") cannot be 1 more than a multiple of 4"
+            "Invalid base64-encoded string: number of data characters ("
+                + str(datachars)
+                + ") cannot be 1 more than a multiple of 4"
         );
     }
     if quad_pos >= 2 {

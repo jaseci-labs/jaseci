@@ -137,7 +137,7 @@ test 'supported platforms includes firebase when configured' {
         user_manager = JacScaleUserManager(base_path='');
         assert 'firebase' in user_manager.SUPPORTED_PLATFORMS;
         assert user_manager.SUPPORTED_PLATFORMS['firebase']['project_id']
-        == 'test-firebase-project';
+            == 'test-firebase-project';
     }
 }
 

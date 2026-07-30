@@ -173,7 +173,7 @@ test "ELF shared object loads and runs through the C ABI" {
         assert e_type == 3 , f"expected ET_DYN (3), got {e_type}";
         # Only a Linux x86_64 host can dlopen + execute the produced .so.
         if sys.platform.startswith("linux")
-        and ("x86_64" in llvm.get_default_triple()) {
+            and ("x86_64" in llvm.get_default_triple()) {
             import ctypes;
             lib = ctypes.CDLL(out);
             lib.jadd.restype = ctypes.c_int64;
@@ -249,7 +249,7 @@ test "ELF shared object initializes a global clib struct on dlopen" {
         assert ok , "ElfLinker.link(shared=True) returned False";
         # Only a Linux x86_64 host can dlopen + execute the produced .so.
         if sys.platform.startswith("linux")
-        and ("x86_64" in llvm.get_default_triple()) {
+            and ("x86_64" in llvm.get_default_triple()) {
             import ctypes;
             try {
                 lib = ctypes.CDLL(out);  # __jac_shared_init runs here (CTOR)

@@ -211,7 +211,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     }
 
     if isinstance(elem_type, ir.PointerType)
-    and isinstance(elem_type.pointee, ir.LiteralStructType) {
+        and isinstance(elem_type.pointee, ir.LiteralStructType) {
         self._pending_list_elem_struct = elem_type;
     }
 
@@ -247,10 +247,10 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         val = self._codegen_expr(nd.values[i]);
         if val is not None {
             if self._pending_list_elem_struct is not None
-            and isinstance(self._pending_list_elem_struct, ir.PointerType)
-            and isinstance(
-                self._pending_list_elem_struct.pointee, ir.LiteralStructType
-            ) {
+                and isinstance(self._pending_list_elem_struct, ir.PointerType)
+                and isinstance(
+                    self._pending_list_elem_struct.pointee, ir.LiteralStructType
+                ) {
                 val = self._coerce_tuple_to_struct(
                     val, self._pending_list_elem_struct.pointee
                 );
@@ -271,7 +271,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             );
 
             if isinstance(_boxed_val.type, ir.PointerType)
-            and self._is_owned(_boxed_val) {
+                and self._is_owned(_boxed_val) {
                 self._emit_rc_release_simple(
                     _boxed_val, op="list_init", loc=_linit_loc
                 );

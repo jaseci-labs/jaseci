@@ -13,7 +13,7 @@ import from jaclang.scale.runtime.transport.http_forward {
 
 test "ws scheme rewrite: http -> ws" {
     assert _to_ws_scheme("http://127.0.0.1:8001/ws/chat")
-    == "ws://127.0.0.1:8001/ws/chat";
+        == "ws://127.0.0.1:8001/ws/chat";
 }
 
 

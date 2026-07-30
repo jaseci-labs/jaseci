@@ -297,8 +297,8 @@ test "validate: request > limit (cpu and memory) -> error" {
     );
     assert any(
         d.severity == "error"
-        and "cpu_request" in d.message
-        and "cpu_limit" in d.message for d in diags_cpu
+            and "cpu_request" in d.message
+            and "cpu_limit" in d.message for d in diags_cpu
     );
     diags_mem = _validate(
         {
@@ -323,8 +323,8 @@ test "validate: invalid Kubernetes resource quantity ('500MB' not 'Mi') -> error
     );
     assert any(
         d.severity == "error"
-        and "memory_request" in d.message
-        and "not a valid" in d.message for d in diags
+            and "memory_request" in d.message
+            and "not a valid" in d.message for d in diags
     );
 }
 
@@ -399,5 +399,5 @@ test "has_errors: True iff any diagnostic has severity='error'" {
             Diagnostic(severity="error", message="y")
         ]
     )
-    is True;
+        is True;
 }

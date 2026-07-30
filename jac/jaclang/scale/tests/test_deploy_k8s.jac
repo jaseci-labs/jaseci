@@ -328,9 +328,9 @@ test "redis template file in package" {
         # jaclang.scale is a .jac package (custom loader) that importlib.resources
         # can't traverse; resolve bundled data via the package __file__ instead.
         ref = Path(jaclang.scale.__file__).parent
-        / "deploy"
-        / "database"
-        / "redis.conf.template";
+            / "deploy"
+            / "database"
+            / "redis.conf.template";
         assert ref.is_file() , (
             "redis.conf.template not discoverable as package data. "
             "Ensure it ships next to the jaclang.scale package."
@@ -555,7 +555,7 @@ test "kubernetes target security policy dicts" {
             ).get(
                 'kubernetes.io/metadata.name'
             )
-            == 'kube-system'
+                == 'kube-system'
             for rule in egress_rules
             if rule.get('to')
         );
@@ -585,7 +585,7 @@ test "kubernetes target security policy dicts" {
     mongo_from = mongo_policy['spec']['ingress'][0]['from'];
     assert {'podSelector': {'matchLabels': {'app': app_name}}} in mongo_from;
     assert {'podSelector': {'matchLabels': {'app': f"{app_name}-mongo-express"}}}
-    in mongo_from;
+        in mongo_from;
     assert mongo_policy['spec']['ingress'][0]['ports'][0]['port'] == 27017;
 
     redis_policy = next(
@@ -600,7 +600,7 @@ test "kubernetes target security policy dicts" {
     redis_from = redis_policy['spec']['ingress'][0]['from'];
     assert {'podSelector': {'matchLabels': {'app': app_name}}} in redis_from;
     assert {'podSelector': {'matchLabels': {'app': f"{app_name}-redis-insight"}}}
-    in redis_from;
+        in redis_from;
     assert redis_policy['spec']['ingress'][0]['ports'][0]['port'] == 6379;
 }
 
@@ -629,7 +629,7 @@ test "get service url switches between http and https based on tls state" {
             return_value=mock_networking_v1
         ) {
             assert deployment_target.get_service_url("myapp")
-            == "https://app.example.com";
+                == "https://app.example.com";
         }
     }
 
@@ -644,7 +644,7 @@ test "get service url switches between http and https based on tls state" {
             return_value=mock_networking_v1
         ) {
             assert deployment_target.get_service_url("myapp")
-            == "http://app.example.com";
+                == "http://app.example.com";
         }
     }
 }
@@ -834,8 +834,8 @@ test "redis ACL is secret mounted not in configmap and creds validated" {
     assert acl_vol['secret']['items'][0]['key'] == 'users.acl';
     assert any(
         m['name'] == 'redis-acl'
-        and m['mountPath'] == '/etc/redis-acl'
-        and m.get('readOnly') is True for m in pod['containers'][0]['volumeMounts']
+            and m['mountPath'] == '/etc/redis-acl'
+            and m.get('readOnly') is True for m in pod['containers'][0]['volumeMounts']
     ) , "redis-acl must be mounted read-only at /etc/redis-acl";
 
     raised = False;
@@ -854,9 +854,9 @@ test "redis ACL is secret mounted not in configmap and creds validated" {
     assert raised2 , "ACL-significant chars in username must be rejected";
 
     assert provider._build_connection_string('default', 'pw', 'h')
-    == 'redis://default:pw@h:6379/0';
+        == 'redis://default:pw@h:6379/0';
     assert provider._build_connection_string('admin', 'pw', 'h')
-    == 'redis://admin:pw@h:6379/0';
+        == 'redis://admin:pw@h:6379/0';
     assert secret_sd['connection-string'] == provider.get_connection_string();
 }
 

@@ -1201,7 +1201,7 @@ impl x(
     }
 
     searched = ", ".join([f"{label} ({loc})" for (label, kind, loc) in tiers])
-    or "no tiers";
+        or "no tiers";
     console.error(
         f"No CLI tool named '{name}' found.",
         hint=f"Install it — 'jac install <package>' (project Python), "

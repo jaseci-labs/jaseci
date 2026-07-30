@@ -34,10 +34,10 @@ def CalendarDayButton(props: any) -> JsxElement {
         dateStr = str(day.date.toISOString().split("T")[0]);
     }
     isSelectedSingle = mm
-    and mm.selected
-    and not mm.range_start
-    and not mm.range_end
-    and not mm.range_middle;
+        and mm.selected
+        and not mm.range_start
+        and not mm.range_end
+        and not mm.range_middle;
     <Button
         {**props}
         variant="ghost"

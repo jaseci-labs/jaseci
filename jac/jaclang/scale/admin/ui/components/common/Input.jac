@@ -12,9 +12,9 @@ def:pub Input(
 
     <div className={className}>
         {label
-        and <label className="block text-xs font-medium text-muted mb-1.5">
-            {label}
-        </label>}
+            and <label className="block text-xs font-medium text-muted mb-1.5">
+                {label}
+            </label>}
         <input
             type={type}
             value={value}
@@ -37,9 +37,9 @@ def:pub TextArea(
 
     <div className={className}>
         {label
-        and <label className="block text-xs font-medium text-muted mb-1.5">
-            {label}
-        </label>}
+            and <label className="block text-xs font-medium text-muted mb-1.5">
+                {label}
+            </label>}
         <textarea
             value={value}
             onChange={onChange}

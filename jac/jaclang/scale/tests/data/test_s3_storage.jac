@@ -78,8 +78,8 @@ def _ensure_bucket(bucket: str) -> any {
         } except Exception as e {
             msg = str(e);
             if "BucketAlreadyOwnedByYou" in msg
-            or "BucketAlreadyExists" in msg
-            or "409" in msg {
+                or "BucketAlreadyExists" in msg
+                or "409" in msg {
                 ready = True;
                 break;
             }

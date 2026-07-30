@@ -34,9 +34,10 @@ impl JacLangServer.type_check(file_uri: str) -> None {
                 self.dirty_files[self.last_task.file_uri] = True;
             }
             self.debug(
-                " Cancelling id: " + str(self.last_task.task_id) + " " + str(
-                    time.time()
-                )
+                " Cancelling id: "
+                    + str(self.last_task.task_id)
+                    + " "
+                    + str(time.time())
             );
         }
         self._debounce_timer = threading.Timer(
@@ -396,7 +397,7 @@ impl JacLangServer.get_definition(
         } elif isinstance(node_type, ClassType) and node_selected.sym {
             return make_location(node_selected.sym.decl);
         } elif isinstance(node_type, (FunctionType, OverloadedType))
-        and node_selected.sym {
+            and node_selected.sym {
             return make_location(node_selected.sym.decl);
         }
     }
@@ -830,9 +831,10 @@ impl JacLangServer.get_completion(
             }
         }
 
-        if scope_node := self.get_scope_at_position(
-            file_path, position.line, position.character
-        ) {
+        if scope_node
+            := self.get_scope_at_position(
+                file_path, position.line, position.character
+            ) {
             self.debug("fallback scope completion " + str(scope_node));
             return self.get_scope_completion(scope_node);
         }

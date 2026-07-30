@@ -96,6 +96,10 @@ impl ClientBundleBuilder.build(
         }
     }
     signature = self._signature(bundle_paths);
+    emitted = self._emitted_digest();
+    if emitted {
+        signature = f"{signature}:{emitted}";
+    }
     cached = self._cache.get(module.__name__);
     if (not force and cached and (cached.signature == signature)) {
         return cached.bundle;
@@ -158,6 +162,35 @@ impl ClientBundleBuilder._compile_to_js(source_path: Path) -> tuple[str, Module]
 
     _ensure_js_generated(mod, program);
     return ((mod.gen.js or ''), mod) if mod else ('', mod);
+}
+
+impl ClientBundleBuilder._emitted_digest -> str {
+    return '';
+}
+
+impl emitted_tree_digest(tree_root: Path) -> str {
+    if not tree_root.is_dir() {
+        return '';
+    }
+    hasher = hashlib.sha256();
+    found = False;
+    files = sorted(tree_root.rglob('*'));
+    for p in files {
+        if not p.is_file() or p.suffix not in ('.js', '.css') {
+            continue;
+        }
+        found = True;
+        hasher.update(str(p.relative_to(tree_root)).encode('utf-8'));
+        try {
+            hasher.update(p.read_bytes());
+        } except OSError {
+            hasher.update('?'.encode('utf-8'));
+        }
+    }
+    if not found {
+        return '';
+    }
+    return hasher.hexdigest();
 }
 
 impl ClientBundleBuilder._signature(paths: Iterable[Path]) -> str {

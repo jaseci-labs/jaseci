@@ -115,7 +115,9 @@ def _generate_host_source(
         "    cef_open_browser,\n"
         "    cef_run_loop,\n"
         "    cef_cleanup,\n"
-        "}\n" + _jacpyembed_import_block() + "glob PY_EVAL: i32 = 258;\n"
+        "}\n"
+        + _jacpyembed_import_block()
+        + "glob PY_EVAL: i32 = 258;\n"
         f"glob BOOT_PY: str = {json.dumps(boot_py, ensure_ascii=False)};\n"
         "with entry {\n"
         "    code: i32 = cef_execute_subprocess();\n"

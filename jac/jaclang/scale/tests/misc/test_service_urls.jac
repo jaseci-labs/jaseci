@@ -28,7 +28,7 @@ test "explicit env var wins and is trimmed of whitespace + trailing slashes; por
     os.environ["SVCURL_EXPLICIT"] = "  http://custom-host:1234///  ";
     try {
         assert service_base_url("SVCURL_EXPLICIT", "api", 8000)
-        == "http://custom-host:1234";
+            == "http://custom-host:1234";
     } finally {
         if prev is None {
             os.environ.pop("SVCURL_EXPLICIT", None);
@@ -45,7 +45,7 @@ test "K8S_APP_NAME env drives the service host as <app>-<suffix>:<port>" {
     os.environ["K8S_APP_NAME"] = "shop";
     try {
         assert service_base_url("SVCURL_UNSET", "gateway", 8000)
-        == "http://shop-gateway:8000";
+            == "http://shop-gateway:8000";
     } finally {
         if prev_app is None {
             os.environ.pop("K8S_APP_NAME", None);
@@ -65,7 +65,7 @@ test "scale config app_name drives the host when no env var is set" {
     project_dir = _seed_k8s_config("[scale.kubernetes]\napp_name = \"orders\"\n");
     try {
         assert service_base_url("SVCURL_UNSET", "worker", 7000)
-        == "http://orders-worker:7000";
+            == "http://orders-worker:7000";
     } finally {
         _teardown_config(project_dir);
         if prev_app is not None {
@@ -84,7 +84,7 @@ test "empty app_name in config falls back to http://localhost:<port>" {
     project_dir = _seed_k8s_config("[scale.kubernetes]\napp_name = \"\"\n");
     try {
         assert service_base_url("SVCURL_UNSET", "worker", 5555)
-        == "http://localhost:5555";
+            == "http://localhost:5555";
     } finally {
         _teardown_config(project_dir);
         if prev_app is not None {
@@ -107,7 +107,7 @@ test "an unresolved ${VAR} app_name is rejected and falls back to localhost" {
     try {
         # expandvars leaves an unresolved ${VAR} intact, so the "${" guard rejects it.
         assert service_base_url("SVCURL_UNSET", "worker", 6000)
-        == "http://localhost:6000";
+            == "http://localhost:6000";
     } finally {
         _teardown_config(project_dir);
         if prev_app is not None {

@@ -34,7 +34,7 @@ test "auto lint full extraction" {
     # Note: consecutive globs with same modifiers are now combined; leading
     # comments stay attached to their assignment inside the combined glob
     assert ("glob x = 5,\n     y = " in formatted)
-    or ("x = 5,\n     y = " in formatted);
+        or ("x = 5,\n     y = " in formatted);
     assert "y = " in formatted;
     assert "z = " in formatted;
     assert "int_val" in formatted;
@@ -643,7 +643,7 @@ test "hasattr to null ok" {
 
     # Binary expressions with hasattr should be converted
     assert "instance?.value and" in formatted
-    or "?.value and instance.value" in formatted;
+        or "?.value and instance.value" in formatted;
 
     # Variable attribute name should NOT be converted (attr_name is a variable)
     assert "hasattr(instance, attr_name)" in formatted;
@@ -742,7 +742,7 @@ test "ternary to or" {
 
     # Null-safe with int default should be converted
     assert "instance?.value or -1" in formatted
-    or "instance?.value or (- 1)" in formatted;
+        or "instance?.value or (- 1)" in formatted;
 }
 
 test "ternary no lint preserves" {
@@ -1365,7 +1365,8 @@ test "W3042 converts map lambda to list comprehension" {
 
     # Single-param case: HourGrid is converted.
     assert "for hour in hours" in formatted;
-    assert "[<div className=\"text-xs text-center\">{hour}</div> for hour in hours]" in formatted;
+    assert "[<div className=\"text-xs text-center\">{hour}</div> for hour in hours]"
+        in formatted;
 
     # Multi-param case: MultiParamMap must be left untouched — list
     # comprehensions only bind one iteration variable per `for` clause.

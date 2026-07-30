@@ -487,7 +487,7 @@ impl JacForm(props: dict) -> JsxElement {
                             }}
                         >
                             {fs.isSubmitting and "Submitting..."}{not fs.isSubmitting
-                            and submitLabel}
+                                and submitLabel}
                         </button>
                     );
                 }}

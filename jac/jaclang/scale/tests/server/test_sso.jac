@@ -712,7 +712,7 @@ test "supported platforms initialization with jac toml credentials" {
         user_manager = JacScaleUserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
         assert user_manager.SUPPORTED_PLATFORMS["google"]["client_id"]
-        == "toml_test_id";
+            == "toml_test_id";
     }
 }
 

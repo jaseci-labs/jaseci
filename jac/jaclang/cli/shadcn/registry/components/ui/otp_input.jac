@@ -1,5 +1,5 @@
 import from "input-otp" { OTPInput, OTPInputContext }
-import from react { useContext }
+import from "react" { useContext }
 import from "@hugeicons/react" { HugeiconsIcon }
 import from "@hugeicons/core-free-icons" { MinusSignIcon }
 import from ...lib.utils { cn }
@@ -49,13 +49,13 @@ def:pub InputOTPSlot(props: any) -> JsxElement {
         )}
     >
         {char}{hasFakeCaret
-        and (
-            <div
-                className="cn-input-otp-caret pointer-events-none absolute inset-0 flex items-center justify-center"
-            >
-                <div className="cn-input-otp-caret-line"/>
-            </div>
-        )}
+            and (
+                <div
+                    className="cn-input-otp-caret pointer-events-none absolute inset-0 flex items-center justify-center"
+                >
+                    <div className="cn-input-otp-caret-line"/>
+                </div>
+            )}
     </div>
 }
 

@@ -211,7 +211,7 @@ impl BoundaryAnalysisPass._register_native_absorb(
             continue;
         }
         src = self._native_source_module_of(defn0.find_parent_of_type(uni.Module))
-        or native_path;
+            or native_path;
         self._imported_native_funcs[name] = (src, import_context);
         if (is_native_ctx and name not in manifest.bindings) {
             decl = self._resolved_native_decl(defn0);
@@ -274,13 +274,12 @@ impl BoundaryAnalysisPass.enter_import(
                     try {
                         resolved_target = nd.from_loc.resolve_relative_path();
                         if isinstance(resolved_target, str)
-                        and resolved_target.endswith('.jac') {
+                            and resolved_target.endswith('.jac') {
                             import from jaclang.jac0core.placement_pins {
                                 config_module_pin
                             }
-                            pinned_server_target = config_module_pin(
-                                resolved_target
-                            ) == 'server';
+                            pinned_server_target = config_module_pin(resolved_target)
+                                == 'server';
                         }
                     } except Exception {
                         pinned_server_target = False;
@@ -348,7 +347,7 @@ impl BoundaryAnalysisPass.enter_import(
             if isinstance(item, uni.ModulePath) and item.path {
                 whole_name = '.'.join(getattr(p, 'value', str(p)) for p in item.path);
                 _eligible = is_bundled_native_module(whole_name)
-                or (item.alias is None and len(item.path) == 1);
+                    or (item.alias is None and len(item.path) == 1);
                 if whole_name and _eligible {
                     _na_intent = (
                         import_context == InteropContext.NATIVE

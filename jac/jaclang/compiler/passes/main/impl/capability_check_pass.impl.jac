@@ -222,7 +222,7 @@ impl native_capability_violations(mod: uni.Module) -> list {
                         and len(item.path) == 1
                     );
                     if (stmt.is_absorb or _plain_bare)
-                    and resolve_native_module(mod_name, _base_dir)[1] is not None {
+                        and resolve_native_module(mod_name, _base_dir)[1] is not None {
                         continue;
                     }
 
@@ -263,15 +263,15 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, uni.CtrlStmt)
-            and isinstance(nd.ctrl, uni.Token)
-            and (nd.ctrl.name == Tok.KW_SKIP) {
+                and isinstance(nd.ctrl, uni.Token)
+                and (nd.ctrl.name == Tok.KW_SKIP) {
                 _encl = nd.find_parent_of_type(uni.Ability);
                 _in_event = (_encl is not None)
-                and isinstance(_encl.signature, uni.EventSignature);
+                    and isinstance(_encl.signature, uni.EventSignature);
                 if (_encl is None) {
                     _encl_impl = nd.find_parent_of_type(uni.ImplDef);
                     _in_event = (_encl_impl is not None)
-                    and isinstance(_encl_impl.spec, uni.EventSignature);
+                        and isinstance(_encl_impl.spec, uni.EventSignature);
                 }
                 if not _in_event {
                     out.append((nd, "statement", "SkipStmt", _NATIVE_SKIP_HELP));
@@ -280,7 +280,7 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, (uni.Ability, uni.ArchSpec, uni.ImplDef))
-            and nd.decorators {
+                and nd.decorators {
                 _dec_static_fn = (
                     isinstance(nd, uni.Ability)
                     and not isinstance(nd.parent, uni.Archetype)
@@ -319,7 +319,7 @@ impl native_capability_violations(mod: uni.Module) -> list {
                 if _vp_encl is None {
                     _vp_impl = nd.find_parent_of_type(uni.ImplDef);
                     if _vp_impl is not None
-                    and isinstance(_vp_impl.decl_link, uni.Ability) {
+                        and isinstance(_vp_impl.decl_link, uni.Ability) {
                         _vp_encl = _vp_impl.decl_link;
                     }
                 }
@@ -385,10 +385,10 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, uni.UnaryExpr)
-            and isinstance(nd.op, uni.Token)
-            and nd.op.name == Tok.STAR_POW
-            and isinstance(nd.parent, uni.FuncCall)
-            and nd in (nd.parent.params or []) {
+                and isinstance(nd.op, uni.Token)
+                and nd.op.name == Tok.STAR_POW
+                and isinstance(nd.parent, uni.FuncCall)
+                and nd in (nd.parent.params or []) {
                 out.append(
                     (nd, "call argument unpacking", nd.op.value, _NATIVE_UNPACK_HELP)
                 );
@@ -396,15 +396,17 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, uni.KWPair)
-            and nd.key is None
-            and isinstance(nd.parent, uni.FuncCall) {
+                and nd.key is None
+                and isinstance(nd.parent, uni.FuncCall) {
                 out.append((nd, "call argument unpacking", "**", _NATIVE_UNPACK_HELP));
                 continue;
             }
 
             if isinstance(nd, uni.Ability)
-            and not isinstance(nd.signature, (uni.FuncSignature, uni.EventSignature))
-            and isinstance(nd.parent, uni.Archetype) {
+                and not isinstance(
+                    nd.signature, (uni.FuncSignature, uni.EventSignature)
+                )
+                and isinstance(nd.parent, uni.Archetype) {
                 _sig_kind = (
                     type(nd.signature).__name__
                         if nd.signature is not None
@@ -442,10 +444,10 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, uni.AtomTrailer)
-            and nd.is_attr
-            and isinstance(nd.right, uni.Name)
-            and (nd.target.type is not None)
-            and nd.target.type.is_any_type() {
+                and nd.is_attr
+                and isinstance(nd.right, uni.Name)
+                and (nd.target.type is not None)
+                and nd.target.type.is_any_type() {
                 _fld = nd.right.value;
                 if (
                     _fld == "environ"
@@ -480,8 +482,8 @@ impl native_capability_violations(mod: uni.Module) -> list {
                     _hops += 1;
                     _ci += 1;
                     if (_ci < len(_chain))
-                    and isinstance(_chain[_ci], uni.FilterCompr)
-                    and (_chain[_ci].f_type is not None) {
+                        and isinstance(_chain[_ci], uni.FilterCompr)
+                        and (_chain[_ci].f_type is not None) {
                         _ci += 1;
                     }
                 }
@@ -632,8 +634,8 @@ impl PortabilityWarnPass._check_js_keywords(mod: uni.Module) -> None {
 
         parent = name_nd.parent;
         if isinstance(parent, uni.AtomTrailer)
-        and parent.is_attr
-        and parent.right is name_nd {
+            and parent.is_attr
+            and parent.right is name_nd {
             continue;
         }
         if name_nd.value in JS_KEYWORDS {

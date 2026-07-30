@@ -57,7 +57,14 @@ jobs:
 
   # Build (or cache-restore) the jac binary ONCE per run, smoke it hermetically,
   # and publish it (plus the gitignored typeshed stubs) as artifacts. Every
-  # Linux job below gates on this so a cold cache pays a single build.
+  # Linux job below gates on this and downloads the artifact instead of calling
+  # setup-jac again -- a second setup-jac is a ~3 min rebuild whenever
+  # jaclang/** changed (the binary cache key hashes it), paid once per job.
+  # Only jac-check and contribution-checks still run setup-jac: they are
+  # required checks that must not depend on this job (a skipped required check
+  # would satisfy branch protection). Jobs that ship or introspect the binary
+  # by path expect it at jac/zig-out/bin/jac, where setup-jac builds it, so
+  # the download steps below restore it there.
   build-jac:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
@@ -528,8 +535,18 @@ jobs:
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
 
-    - name: Set up jac (build the binary)
-      uses: ./.github/actions/setup-jac
+    - name: Download the jac binary (build-jac artifact)
+      uses: actions/download-artifact@v4
+      with:
+        name: jac-binary
+        path: jac/zig-out/bin
+
+    - name: Put jac on PATH
+      # upload-artifact strips the executable bit; restore it. The artifact
+      # lands at jac/zig-out/bin, where setup-jac would have built it.
+      run: |
+        chmod +x "$PWD/jac/zig-out/bin/jac"
+        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
     - name: Run Solid jsdom runtime test
       env:
@@ -556,8 +573,18 @@ jobs:
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
 
-    - name: Set up jac (build the binary)
-      uses: ./.github/actions/setup-jac
+    - name: Download the jac binary (build-jac artifact)
+      uses: actions/download-artifact@v4
+      with:
+        name: jac-binary
+        path: jac/zig-out/bin
+
+    - name: Put jac on PATH
+      # upload-artifact strips the executable bit; restore it. The artifact
+      # lands at jac/zig-out/bin, where setup-jac would have built it.
+      run: |
+        chmod +x "$PWD/jac/zig-out/bin/jac"
+        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
     - name: Set environment for testing
       run: echo "TEST_ENV=true" >> $GITHUB_ENV
@@ -591,8 +618,18 @@ jobs:
       with:
         submodules: true
 
-    - name: Set up jac (build the binary)
-      uses: ./.github/actions/setup-jac
+    - name: Download the jac binary (build-jac artifact)
+      uses: actions/download-artifact@v4
+      with:
+        name: jac-binary
+        path: jac/zig-out/bin
+
+    - name: Put jac on PATH
+      # upload-artifact strips the executable bit; restore it. The artifact
+      # lands at jac/zig-out/bin, where setup-jac would have built it.
+      run: |
+        chmod +x "$PWD/jac/zig-out/bin/jac"
+        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
     - name: Install byllm deps + test deps
       run: |
@@ -715,8 +752,18 @@ jobs:
       with:
         submodules: true
 
-    - name: Set up jac (build the binary)
-      uses: ./.github/actions/setup-jac
+    - name: Download the jac binary (build-jac artifact)
+      uses: actions/download-artifact@v4
+      with:
+        name: jac-binary
+        path: jac/zig-out/bin
+
+    - name: Put jac on PATH
+      # upload-artifact strips the executable bit; restore it. The artifact
+      # lands at jac/zig-out/bin, where setup-jac would have built it.
+      run: |
+        chmod +x "$PWD/jac/zig-out/bin/jac"
+        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
     - name: Build dispatch shim and subprocess binary
       working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
@@ -757,8 +804,21 @@ jobs:
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
 
-    - name: Set up jac (build the binary)
-      uses: ./.github/actions/setup-jac
+    - name: Download the jac binary (build-jac artifact)
+      uses: actions/download-artifact@v4
+      with:
+        name: jac-binary
+        path: jac/zig-out/bin
+
+    - name: Put jac on PATH
+      # upload-artifact strips the executable bit; restore it. The artifact
+      # MUST land at jac/zig-out/bin: the microservices bundle tests
+      # (test_fat_bundle, test_app_precompile, test_seed_determinism,
+      # test_pvc_injector) read the pod binary from that checkout path via a
+      # __file__-relative lookup and silently self-skip when it is missing.
+      run: |
+        chmod +x "$PWD/jac/zig-out/bin/jac"
+        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
     - name: Install scale deps + test deps
       # Pins mirror jac/jaclang/project/capabilities.jac.
@@ -817,6 +877,9 @@ jobs:
         jac test jac/jaclang/scale/tests/test_firestore_db.jac -x
         jac test jac/jaclang/scale/tests/test_firebase_auth_sso.jac -x
 
+  # One job, not a two-leg matrix: the deploy-core and failure-path phases
+  # partition a single test file and share one MicroK8s cluster (exactly how
+  # the suite runs locally), so the cluster + deps setup is paid once.
   test-scale-k8s:
     needs: [changes, build-jac]
     if: >-
@@ -825,18 +888,25 @@ jobs:
        needs.changes.outputs.scale == 'true') &&
       !contains(github.event.pull_request.labels.*.name, 'skip-k8s')
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [deploy-core, failure-path]
     steps:
       - name: Check out code
         uses: actions/checkout@v5
         with:
           submodules: true
 
-      - name: Set up jac (build the binary)
-        uses: ./.github/actions/setup-jac
+      - name: Download the jac binary (build-jac artifact)
+        uses: actions/download-artifact@v4
+        with:
+          name: jac-binary
+          path: jac/zig-out/bin
+
+      - name: Put jac on PATH
+        # upload-artifact strips the executable bit; restore it. The artifact
+        # MUST land at jac/zig-out/bin: JAC_SCALE_BINARY_PATH below ships that
+        # exact file to the pods.
+        run: |
+          chmod +x "$PWD/jac/zig-out/bin/jac"
+          echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
       - name: Install scale deploy deps
         # Pins mirror jac/jaclang/project/capabilities.jac.
@@ -871,7 +941,6 @@ jobs:
           kubectl get nodes -o wide
 
       - name: Run K8 tests (deploy-core)
-        if: matrix.group == 'deploy-core'
         env:
           JAC_TEST_JOBS: "0"
         run: |
@@ -880,7 +949,6 @@ jobs:
           jac test jac/jaclang/scale/tests/test_deploy_k8s.jac -x -f "not (early and exit)"
 
       - name: Run K8 tests (failure-path)
-        if: matrix.group == 'failure-path'
         env:
           JAC_TEST_JOBS: "0"
           # Seal + ship the jac built from this checkout (channel LOCAL) so the
@@ -913,8 +981,26 @@ jobs:
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
 
-    - name: Set up jac (build the binary)
-      uses: ./.github/actions/setup-jac
+    - name: Restore typeshed stdlib stubs into the checkout
+      # The precompile step below compiles the CHECKOUT tree, which needs the
+      # gitignored stubs that setup-jac used to materialize.
+      uses: actions/download-artifact@v4
+      with:
+        name: typeshed-stdlib
+        path: jac/jaclang/vendor/typeshed/stdlib
+
+    - name: Download the jac binary (build-jac artifact)
+      uses: actions/download-artifact@v4
+      with:
+        name: jac-binary
+        path: jac/zig-out/bin
+
+    - name: Put jac on PATH
+      # upload-artifact strips the executable bit; restore it. The artifact
+      # lands at jac/zig-out/bin, where setup-jac would have built it.
+      run: |
+        chmod +x "$PWD/jac/zig-out/bin/jac"
+        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
     - name: Precompile all packages
       run: |
@@ -943,18 +1029,12 @@ jobs:
     - name: Run integration tests
       run: jac run scripts/integration_tests.jac
 
-    - name: Install byllm deps (for the built-package byllm test)
-      run: |
-        jac install \
-          "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
-          "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
-          --global
-
     - name: Run tests on built packages
+      # test_byllm.jac is deliberately NOT re-run here: test-packages-and-docs
+      # already runs the full byllm suite against the same build-jac artifact,
+      # so a second pass bought no extra coverage.
       run: |
         jac check jac/tests/compiler/passes/main/fixtures/checker/checker_type_ref.jac
-        # Serial: byllm tests share a SQLite mock-LLM cache.
-        JAC_TEST_JOBS=0 jac test jac/jaclang/byllm/tests/test_byllm.jac
 
     # ========== jac_site fullstack smoke ==========
     # JAC_NO_DEV_SOURCE=1 on every jac_site step: the site's jac.toml carries a

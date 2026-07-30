@@ -250,7 +250,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         }
         if (path_obj.suffix == '.jac') {
             if skip_existing
-            and self._output_path_for(path_obj, source_root).exists() {
+                and self._output_path_for(path_obj, source_root).exists() {
                 continue;
             }
             self.compile_dependencies_recursively(
@@ -669,7 +669,7 @@ impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> Non
 
     try {
         if manifest_path.exists()
-        and manifest_path.read_text(encoding='utf-8') == new_content {
+            and manifest_path.read_text(encoding='utf-8') == new_content {
             return;
         }
     } except OSError { }
