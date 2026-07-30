@@ -1,13 +1,13 @@
 """Sample Jac module containing client-side declarations."""
 
-cl glob API_LABEL: str = "Runtime Test";
+glob API_LABEL: str = "Runtime Test";
 
-cl obj ButtonProps {
+obj ButtonProps {
     has label: str = "Tap Me",
         color: str = "primary";
 }
 
-cl def app {
+def app {
     props = ButtonProps(label="Tap Me", color="primary");
     <div class="app">
         <h1>{API_LABEL}</h1>

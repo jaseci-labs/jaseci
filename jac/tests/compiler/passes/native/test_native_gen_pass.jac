@@ -5066,7 +5066,7 @@ test "cross-pathway: glob scoping is identical in the na and sv pathways" {
 # ─── Finding 2 guard: native pointer-bitcast escape hatch stays native-only ──
 # The type checker permits a handful of pointer-shaped cross-type assignments
 # (int/str/obj) because in native code they are all 64-bit pointers. That
-# escape hatch is gated to `.jac` modules via `_in_native_context()`. This
+# escape hatch is gated to native modules via `_in_native_context()`. This
 # test locks that gating in: the sv pathway must still reject the assignment,
 # so the escape hatch can never silently weaken sv type-checking.
 test "finding 2 guard: int-to-obj escape hatch does not leak into the sv pathway" {
@@ -5077,11 +5077,11 @@ test "finding 2 guard: int-to-obj escape hatch does not leak into the sv pathway
     # remain a type error. The snippet is otherwise valid, so any error here
     # is the assignability error.
     sv_prog = JacProgram();
-    sv_path = os.path.join(FIXTURES, "_finding2_guard.sv.jac");
+    sv_path = os.path.join(FIXTURES, "_finding2_guard.jac");
     sv_prog.compile(file_path=sv_path, use_str=code, type_check=True);
     assert sv_prog.errors_had , (
         "sv pathway must reject `w: Wrapper = raw` (int → obj). The native "
-        "pointer-bitcast escape hatch must not apply outside .jac modules."
+        "pointer-bitcast escape hatch must not apply outside native modules."
     );
 }
 

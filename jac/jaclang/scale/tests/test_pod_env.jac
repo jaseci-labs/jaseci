@@ -14,21 +14,26 @@ import from jaclang.scale.config.app_config { AppConfig }
 glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e";
 
 
-test "generate_service_pod_specs auto-discovers services when no routes declared" {
-    # The #7137 companion: a microservice app with no
-    # [scale.microservices.routes] section still deploys - services are
-    # discovered from `sv import` under the project root.
+test "generate_service_pod_specs builds one pod per declared route" {
+    # The [scale.microservices.routes] table is the authoritative service
+    # cut (#7772): every key becomes its own service pod plus the gateway.
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = MicroserviceManifestBuilder(
         k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE)
     );
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
-    with mock.patch.object(builder, "_ms_cfg", return_value={}), mock.patch.object(
+    declared = {
+        "routes": {
+            "products_app": "/products",
+            "orders_app": "/orders",
+            "cart_app": "/cart"
+        }
+    };
+    with mock.patch.object(builder, "_ms_cfg", return_value=declared), mock.patch.object(
         builder, "_build_service_pod_spec", return_value={}
     ), mock.patch.object(builder, "_build_gateway_pod_spec", return_value={}) {
         specs = builder.generate_service_pod_specs(app_cfg, "img");
     }
-    # discovered from the fixture's sv graph, no toml routes needed
     assert "products_app" in specs;
     assert "orders_app" in specs;
     assert "cart_app" in specs;

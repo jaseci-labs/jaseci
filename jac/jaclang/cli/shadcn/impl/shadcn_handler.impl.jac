@@ -236,7 +236,7 @@ impl _resolve_one(
 impl _module_of(project_root: Path, path: Path) -> str {
     rel = path.relative_to(project_root);
     name = rel.name;
-    for suf in [".cl.jac", ".sv.jac", ".jac"] {
+    for suf in [".jac"] {
         if name.endswith(suf) {
             name = name[:-len(suf)];
             break;
@@ -317,9 +317,7 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
     if ui_dir.exists() {
         for f in ui_dir.iterdir() {
             if f.name.endswith(".jac") {
-                existing.add(
-                    f.name.replace(".cl.jac", "").replace(".jac", "").replace("_", "-")
-                );
+                existing.add(f.name.replace(".jac", "").replace("_", "-"));
             }
         }
     }
@@ -434,7 +432,7 @@ impl remove_shadcn_components(config: any, component_names: list) -> bool {
         );
         filepath = ui_dir / filename;
         if not filepath.exists() {
-            legacy = ui_dir / filename.replace(".jac", ".cl.jac");
+            legacy = ui_dir / filename.replace(".jac", ".jac");
             if legacy.exists() {
                 filepath = legacy;
             }

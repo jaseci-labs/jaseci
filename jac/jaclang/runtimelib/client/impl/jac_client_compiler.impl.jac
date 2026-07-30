@@ -41,7 +41,7 @@ impl JacClientCompiler._native_variant(self: JacClientCompiler, path: Path) -> P
         return path;
     }
     stem = base_stem(name);
-    for suffix in (".native.cl.jac", ".native.jac") {
+    for suffix in (".native.jac", ) {
         candidate = path.with_name(stem + suffix);
         if candidate.exists() {
             return candidate.resolve();
@@ -392,17 +392,17 @@ impl JacClientCompiler.compile_runtime_utils(
     self: JacClientCompiler, runtime_filename: str
 ) -> tuple[str, list[str]] {
     plugin_dir = _jac_client_plugin_dir();
-    core_path = plugin_dir / 'client_runtime_core.cl.jac';
+    core_path = plugin_dir / 'client_runtime_core.jac';
     runtime_utils_path = plugin_dir / runtime_filename;
     if not core_path.exists() {
         raise ClientBundleError(
-            f'Runtime core not found: {core_path}. Expected client_runtime_core.cl.jac.'
+            f'Runtime core not found: {core_path}. Expected client_runtime_core.jac.'
         );
     }
     if not runtime_utils_path.exists() {
         raise ClientBundleError(
             f'Runtime file not found: {runtime_utils_path}. '
-            'Expected a platform runtime beside client_runtime_core.cl.jac.'
+            'Expected a platform runtime beside client_runtime_core.jac.'
         );
     }
     (core_js, _core_mod, core_manifest) = self.jac_compiler.compile_module(core_path);
@@ -463,7 +463,7 @@ impl JacClientCompiler.compile_pwa_runtime(
 ) -> tuple[str, list[str]] {
     import jaclang;
     pwa_runtime_path: Path = (
-        Path(jaclang.__file__).parent / "runtimelib" / "pwa_runtime.cl.jac"
+        Path(jaclang.__file__).parent / "runtimelib" / "pwa_runtime.jac"
     );
     if not pwa_runtime_path.exists() {
         return ('', []);
@@ -525,7 +525,7 @@ impl JacClientCompiler.compile_mobui_utils(
     self: JacClientCompiler
 ) -> tuple[str, list[str]] {
     plugin_dir = _jac_client_plugin_dir();
-    ui_path = plugin_dir / 'client_mobui.cl.jac';
+    ui_path = plugin_dir / 'client_mobui.jac';
     if not ui_path.exists() {
         return ('', []);
     }

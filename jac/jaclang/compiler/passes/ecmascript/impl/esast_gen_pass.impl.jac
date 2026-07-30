@@ -128,14 +128,6 @@ impl EsastGenPass.exit_test(nd: uni.Test) -> None {
     );
 }
 
-impl EsastGenPass.exit_client_block(nd: uni.ClientBlock) -> None {
-    nd.gen.es_ast = self._collect_body_stmts(nd.body);
-}
-
-impl EsastGenPass.exit_native_block(nd: uni.NativeBlock) -> None {
-    ;
-}
-
 impl EsastGenPass.exit_module_code(nd: uni.ModuleCode) -> None {
     nd.gen.es_ast = self._collect_body_stmts(nd.body);
 }
@@ -152,9 +144,8 @@ impl EsastGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
                         if (
                             assignment.value
                             and (
-                                (
-                                    lit_val := self._literal_value(assignment.value)
-                                ) is not None
+                                (lit_val := self._literal_value(assignment.value))
+                                is not None
                             )
                         ) {
                             self.client_manifest.globals_values[sym_name] = lit_val;
@@ -2359,14 +2350,8 @@ impl EsastGenPass._is_collection_expr(expr_node: uni.UniNode) -> bool {
         }
         return False;
     }
-    return self._expr_type_name(expr_node) in {
-        "list",
-        "dict",
-        "set",
-        "tuple",
-        "frozenset",
-        "bytes"
-    };
+    return self._expr_type_name(expr_node)
+    in {"list", "dict", "set", "tuple", "frozenset", "bytes"};
 }
 
 impl EsastGenPass._build_jac_ref(
@@ -4232,7 +4217,12 @@ impl EsastGenPass._build_osp_setup_js -> str {
     }
     lines.append("const __ospDESC = {" + ", ".join(desc_parts) + "};");
     lines.append(
-        "const __ospRT = new OspRuntime({" + "tag_of: (h) => h.__tag, " + "is_a: (t, b) => __ospISA[t] ? __ospISA[t].has(b) : (t === b), " + "node_desc: (t) => __ospDESC[t], " + "on_complete: (s, ok) => { if (s.wlk) s.wlk.reports = s.reports; }" + "});"
+        "const __ospRT = new OspRuntime({"
+        + "tag_of: (h) => h.__tag, "
+        + "is_a: (t, b) => __ospISA[t] ? __ospISA[t].has(b) : (t === b), "
+        + "node_desc: (t) => __ospDESC[t], "
+        + "on_complete: (s, ok) => { if (s.wlk) s.wlk.reports = s.reports; }"
+        + "});"
     );
     return "\n".join(lines);
 }
@@ -4682,7 +4672,7 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         return;
     }
 
-    if nd.is_sv_marked {
+    if nd.is_service_import {
         if (nd.from_loc and nd.items) {
             self._generate_sv_import_stubs(nd);
             self._record_sv_backend(nd);
@@ -4690,7 +4680,7 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         return;
     }
 
-    if nd.is_na_marked or self._is_client_native_import(nd) {
+    if self._is_client_native_import(nd) {
         if (nd.from_loc and nd.items) {
             self._generate_na_import_binding(nd);
         }
@@ -4804,26 +4794,40 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
     nd.gen.es_ast = None;
 }
 
+
 impl EsastGenPass._partition_client_import_items(
     nd: uni.Import
 ) -> (tuple[list, list] | None) {
     import from jaclang.compiler.symbol_utils {
         ClientImportVerdict,
         classify_client_import_item,
+        decl_has_access,
+        import_target_pinned_server,
         is_client_boundary_import,
         report_dead_client_import
     }
     if not is_client_boundary_import(nd) {
         return None;
     }
+    pinned_server = import_target_pinned_server(nd);
     source_mod = self._resolve_source_module(nd);
     if source_mod is None {
-        return None;
+        return ([], list(nd.items)) if pinned_server else None;
     }
     kept: list = [];
     bridged: list = [];
     for item in nd.items {
         verdict = classify_client_import_item(source_mod, item);
+        if pinned_server and verdict != ClientImportVerdict.DEAD {
+            bridged.append(item);
+            continue;
+        }
+        if pinned_server
+        and verdict == ClientImportVerdict.DEAD
+        and decl_has_access(source_mod, item) {
+            bridged.append(item);
+            continue;
+        }
         if verdict == ClientImportVerdict.BRIDGED {
             bridged.append(item);
         } elif verdict == ClientImportVerdict.DEAD {
@@ -5725,6 +5729,8 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
 }
 
 impl EsastGenPass.exit_module(nd: uni.Module) -> None {
+    import from jaclang.compiler.symbol_utils { report_client_bare_import_uses }
+    report_client_bare_import_uses(self, nd);
     if (self.scoped_styles is not None and self.scoped_styles.class_map) {
         import os;
         nd.gen.css = self.scoped_styles.scoped_css;
@@ -6284,8 +6290,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         and nd.code_context != CodeContext.CLIENT
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
-        is_sv_import = isinstance(nd, uni.Import)
-        and (nd.is_sv_marked or nd.is_na_marked);
+        is_sv_import = isinstance(nd, uni.Import) and nd.is_service_import;
 
         is_native_edge = isinstance(nd, uni.Import)
         and self._is_client_native_import(nd);
@@ -6294,12 +6299,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
             and (nd.name is not None)
             and (nd.name.value in self.shared_arch_names)
         );
-        if (
-            not is_sv_import
-            and not is_native_edge
-            and not isinstance(nd, uni.ServerBlock)
-            and not is_shared_arch
-        ) {
+        if (not is_sv_import and not is_native_edge and not is_shared_arch) {
             return;
         }
     }
@@ -6312,18 +6312,13 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
 }
 
 impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
-    if isinstance(nd, uni.NativeBlock) {
-        self.prune();
-        return;
-    }
     if (
         isinstance(nd, uni.ElementStmt)
         and isinstance(nd, uni.ContextAwareNode)
         and nd.code_context != CodeContext.CLIENT
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
-        is_sv_import = isinstance(nd, uni.Import)
-        and (nd.is_sv_marked or nd.is_na_marked);
+        is_sv_import = isinstance(nd, uni.Import) and nd.is_service_import;
 
         is_shared_arch = (
             isinstance(nd, uni.Archetype)
@@ -6332,12 +6327,7 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
         );
         is_native_edge = isinstance(nd, uni.Import)
         and self._is_client_native_import(nd);
-        if (
-            not is_sv_import
-            and not is_native_edge
-            and not isinstance(nd, uni.ServerBlock)
-            and not is_shared_arch
-        ) {
+        if (not is_sv_import and not is_native_edge and not is_shared_arch) {
             self.prune();
             return;
         }

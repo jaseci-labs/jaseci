@@ -36,6 +36,7 @@ def _load_native_fmt_kernel_module -> (uni.Module | None) {
                 aot_mode=True,
                 type_check=False,
                 default_codespace='native',
+                force_codespace='native',
                 force_target_program=True
             )
         );

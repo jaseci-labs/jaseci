@@ -178,7 +178,6 @@ impl UniNode.parent_of_type(typ: type[T]) -> T {
 }
 
 impl UniNode.codespace -> CodeContext {
-    import from jaclang.jac0core.ext_registry { is_client_module }
     if isinstance(self, ContextAwareNode) {
         if (self.code_context == CodeContext.CLIENT) {
             return CodeContext.CLIENT;
@@ -189,19 +188,7 @@ impl UniNode.codespace -> CodeContext {
     }
     nd: (UniNode | None) = self.parent;
     while (nd is not None) {
-        if isinstance(nd, ServerBlock) {
-            return CodeContext.SERVER;
-        }
-        if isinstance(nd, ClientBlock) {
-            return CodeContext.CLIENT;
-        }
-        if isinstance(nd, NativeBlock) {
-            return CodeContext.NATIVE;
-        }
         if isinstance(nd, ContextAwareNode) {
-            if nd._source_context_token() is not None {
-                return nd.code_context;
-            }
             context = nd.code_context;
             if (context == CodeContext.CLIENT) {
                 return CodeContext.CLIENT;
@@ -215,10 +202,6 @@ impl UniNode.codespace -> CodeContext {
                 return CodeContext.NATIVE;
             }
             if nd.decided_codespace == CodeContext.CLIENT.value {
-                return CodeContext.CLIENT;
-            }
-            mp = nd.loc.mod_path if nd.loc is not None else '';
-            if mp and is_client_module(mp) {
                 return CodeContext.CLIENT;
             }
             return CodeContext.SERVER;
@@ -237,25 +220,11 @@ impl UniNode.in_native_context -> bool {
 }
 
 impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
-    import from jaclang.jac0core.ext_registry { is_client_module }
     if ctx != CodeContext.SERVER and self.decided_codespace == ctx.value {
-        return True;
-    }
-    mp = self.loc.mod_path
-        if (self.loc is not None and self.loc.mod_path)
-        else path_hint;
-    if ctx == CodeContext.CLIENT and bool(mp) and is_client_module(mp) {
         return True;
     }
     if self.body {
         for _stmt in self.body {
-            if ctx == CodeContext.NATIVE and isinstance(_stmt, NativeBlock) {
-                return True;
-            }
-            if ctx == CodeContext.CLIENT and isinstance(_stmt, ClientBlock) {
-                return True;
-            }
-
             if ctx != CodeContext.SERVER
             and isinstance(_stmt, ContextAwareNode)
             and _stmt.code_context == ctx {
@@ -731,18 +700,6 @@ impl ContextAwareNode.postinit -> None {
 }
 
 
-impl ContextAwareNode._source_context_token -> (Token | None) {
-    for kid in self.kid {
-        if (
-            isinstance(kid, Token)
-            and (kid.name in (Tok.KW_CLIENT, Tok.KW_SERVER, Tok.KW_NATIVE))
-        ) {
-            return kid;
-        }
-    }
-    return None;
-}
-
 impl WalkerStmtOnlyNode.postinit -> None {
     self.from_walker = False;
 }
@@ -1088,24 +1045,6 @@ impl ModuleCode.postinit -> None {
 }
 
 
-impl ClientBlock.postinit -> None {
-    self.body = `list(self.body);
-    UniNode.postinit(self);
-}
-
-
-impl ServerBlock.postinit -> None {
-    self.body = `list(self.body);
-    UniNode.postinit(self);
-}
-
-
-impl NativeBlock.postinit -> None {
-    self.body = `list(self.body);
-    UniNode.postinit(self);
-}
-
-
 impl PyInlineCode.postinit -> None {
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
@@ -1171,19 +1110,25 @@ impl Import.has_string_path.getter -> bool {
     return False;
 }
 
-impl Import.is_sv_marked.getter -> bool {
-    tok = self._source_context_token();
-    return (tok is not None and tok.name == Tok.KW_SERVER);
-}
-
-impl Import.is_cl_marked.getter -> bool {
-    tok = self._source_context_token();
-    return (tok is not None and tok.name == Tok.KW_CLIENT);
-}
-
-impl Import.is_na_marked.getter -> bool {
-    tok = self._source_context_token();
-    return (tok is not None and tok.name == Tok.KW_NATIVE);
+impl Import.is_service_import.getter -> bool {
+    if self.from_loc is None or not self.items {
+        return False;
+    }
+    import os;
+    import from jaclang.jac0core.service_cut { is_service_module_stem }
+    mod_path = self.loc.mod_path or '';
+    stem = self.from_loc.base_module_name;
+    if not stem or not is_service_module_stem(mod_path, stem) {
+        return False;
+    }
+    own_stem = '';
+    if mod_path {
+        own_stem = os.path.basename(mod_path);
+        if own_stem.endswith('.jac') {
+            own_stem = own_stem[:-4];
+        }
+    }
+    return stem != own_stem;
 }
 
 impl Import.is_virtual_jac.getter -> bool {

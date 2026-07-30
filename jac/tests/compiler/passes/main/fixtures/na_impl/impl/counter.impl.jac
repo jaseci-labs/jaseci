@@ -1,7 +1,7 @@
 """Implementation for Counter declared in counter.jac.
 
 Before fix: discover_base_file returned None for this file (only checked
-.jac and .cl.jac, not .jac), so self was Unknown → E1032 on every
+.jac and .jac, not .jac), so self was Unknown → E1032 on every
 self.value / self.step access.
 
 After fix: discovers counter.jac → self is Counter → no false errors.

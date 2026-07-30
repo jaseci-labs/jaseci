@@ -135,7 +135,7 @@ test "jac cli run" {
 }
 
 test "proc_file strips compound codespace suffixes to bare module stem" {
-    # Issue #6696: `jac run`/`jac start` failed on `.sv.jac` / `.cl.jac`
+    # Issue #6696: `jac run`/`jac start` failed on `.sv.jac` / `.jac`
     # entries because proc_file stripped only the trailing `.jac`, leaving
     # e.g. `main.sv`, which the meta-importer misread as the package `main.sv`
     # ("No module named 'main.sv'"). Every compound codespace suffix must
@@ -143,8 +143,7 @@ test "proc_file strips compound codespace suffixes to bare module stem" {
     cases = [
         ("proj/main.jac", "main"),
         ("proj/main.jac", "main"),
-        ("proj/main.sv.jac", "main"),
-        ("proj/main.cl.jac", "main"),
+        ("proj/main.jac", "main"),
         ("proj/server.py", "server"),
 
     ];
@@ -2723,9 +2722,9 @@ test "jac check on impl file redirects to base and filters errors" {
     }
 }
 
-"""Regression: JIR cache must preserve code_context for .cl.jac modules.
+"""Regression: JIR cache must preserve code_context for .jac modules.
 
-When a .cl.jac file is compiled, its body items get code_context=CLIENT via
+When a .jac file is compiled, its body items get code_context=CLIENT via
 _coerce_client_module. The JIR serializer must persist this per-node context
 so that the ES code generator includes (not filters out) client statements
 when the module is loaded from cache.
@@ -2737,17 +2736,20 @@ test "jir cache preserves code context for cl jac files" {
     import from jaclang.jac0core.unitree { ContextAwareNode }
 
     with tempfile.TemporaryDirectory() as tmpdir {
-        # Create a .cl.jac module with a pub global and a pub function
-        cl_jac_path = os.path.join(tmpdir, "api.cl.jac");
+        # Create a client-pinned .jac module with a pub global and a pub
+        # function; the module pin coerces the whole module client at parse,
+        # the way the retired .cl.jac suffix used to.
+        cl_jac_path = os.path.join(tmpdir, "api.jac");
         with open(cl_jac_path, "w") as f {
             f.write(
-                'cl {\n'
-                '    glob:pub baseUrl = "http://localhost";\n'
-                '    def:pub fetchData() -> str { return baseUrl; }\n'
-                '}\n'
+                'glob:pub baseUrl = "http://localhost";\n'
+                'def:pub fetchData() -> str { return baseUrl; }\n'
             );
         }
-        # Compile the .cl.jac file
+        with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
+            f.write('[placement.pins]\n"api" = "client"\n');
+        }
+        # Compile the .jac file
         program = JacProgram();
         mod = program.compile(cl_jac_path);
         # Verify code_context is CLIENT after compilation

@@ -173,10 +173,9 @@ class SealedImage:
         self._build_index()
 
     def _build_index(self) -> None:
-        # MODULE_SUFFIXES precedence: when foo.jac and foo.cl.jac both map to
-        # one fullname, earlier (shorter) suffixes win -- same rule the
-        # filesystem finder applies. Process in precedence-sorted order and
-        # keep first.
+        # MODULE_SUFFIXES precedence: earlier (shorter) suffixes win -- same
+        # rule the filesystem finder applies. Process in precedence-sorted
+        # order and keep first.
         def precedence(src: str) -> tuple[int, str]:
             name = os.path.basename(src)
             for i, init in enumerate(ext_registry.INIT_FILES):

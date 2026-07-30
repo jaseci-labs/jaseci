@@ -30,7 +30,7 @@ Upload it with `twine`, then `pip install greetlib` anywhere. The wheel ships yo
 The client-side counterpart: a `cl` component (or function) library published to npm so any JavaScript/TypeScript project can `npm install` it -- whether or not they use Jac. `jac build --as npm` compiles your client modules to ES-module JavaScript, generates `package.json`, and emits `.d.ts` declarations.
 
 ```jac
-# greetui/index.cl.jac
+# greetui/index.jac
 def:pub Greeting(name: str) -> JsxElement {
     <h1>Hello, {name}!</h1>
 }

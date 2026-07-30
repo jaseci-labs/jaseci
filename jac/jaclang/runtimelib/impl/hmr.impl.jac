@@ -574,7 +574,6 @@ impl HotReloader._get_js_filename(file_path: str) -> str {
 
 impl HotReloader._classify_declarations(file_path: str) -> tuple[bool, bool] {
     import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.unitree { ClientBlock, ServerBlock }
     has_client = False;
     has_server = False;
     try {
@@ -582,11 +581,7 @@ impl HotReloader._classify_declarations(file_path: str) -> tuple[bool, bool] {
         mod = prog.compile(file_path, no_cgen=True);
 
         for nd in mod.body {
-            if isinstance(nd, ClientBlock) {
-                has_client = True;
-            } elif isinstance(nd, ServerBlock) {
-                has_server = True;
-            } elif nd?.code_context {
+            if nd?.code_context {
                 if nd.code_context == CodeContext.CLIENT {
                     has_client = True;
                 } else {

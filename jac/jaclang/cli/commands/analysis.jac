@@ -72,13 +72,6 @@ glob registry = get_registry();
             short="",
             help="Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision"
         ),
-        Arg.create(
-            "update-placements-lock",
-            typ=bool,
-            default=False,
-            short="",
-            help="Write jac.placements.lock (next to jac.toml) from the computed placements; committed, it makes placement flips reviewable like dependency bumps"
-        ),
 
     ],
     examples=[
@@ -113,8 +106,7 @@ def check(
     lint_only: bool = False,
     fix: bool = False,
     native_census: bool = False,
-    placements: bool = False,
-    update_placements_lock: bool = False
+    placements: bool = False
 ) -> int;
 
 def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;

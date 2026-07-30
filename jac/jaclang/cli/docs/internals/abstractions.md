@@ -138,7 +138,7 @@ as interface contracts:
 
 ### Client framework (`jac/jaclang/runtimelib/client/`, formerly the `jac-client` plugin)
 
-No `lib.jac`. Client-side code is written in `.cl.jac` files that are
+No `lib.jac`. Client-side code is written in `.jac` files that are
 compiled to TypeScript/JavaScript by the client toolchain; the framework
 exposes its capabilities through core's built-in provider system rather than a
 curated re-export module.

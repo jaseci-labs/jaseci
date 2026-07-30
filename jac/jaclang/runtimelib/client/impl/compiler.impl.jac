@@ -176,7 +176,7 @@ impl ViteCompiler.compile_runtime_utils(self: ViteCompiler) -> tuple[str, list[s
     );
     self.compiled_dir.mkdir(parents=True, exist_ok=True);
 
-    core_path = runtime_utils_path.parent / 'client_runtime_core.cl.jac';
+    core_path = runtime_utils_path.parent / 'client_runtime_core.jac';
     if core_path.exists() {
         core_specifier = './jaclang/runtimelib/client_runtime_core.js';
         if core_specifier in runtimeutils_js {

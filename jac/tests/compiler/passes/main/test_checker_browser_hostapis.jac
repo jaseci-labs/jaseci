@@ -57,7 +57,7 @@ def error_codes(program: JacProgram) -> list[str] {
 #    pointer-lock patterns.
 # -------------------------------------------------------------------------
 test "client browser host apis check cleanly and stay strict" {
-    program = compile_and_check("checker_browser_hostapis.cl.jac");
+    program = compile_and_check("checker_browser_hostapis.jac");
 
     pretty = "\n".join([e.pretty_print() for e in program.errors_had]);
     # The fixture's ONLY error must be the deliberate `resp.nope()` E1030 --

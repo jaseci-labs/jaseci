@@ -28,3 +28,6 @@ jaclang = "0.9.8"
 
 [jacpack.options]
 directories = [".jac", "assets"]
+
+[scale.microservices.routes]
+"endpoints" = "/endpoints"

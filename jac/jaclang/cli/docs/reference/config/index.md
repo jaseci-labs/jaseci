@@ -25,7 +25,7 @@ myapp/
 ├── main.jac                  # Entry point with the client app
 ├── jac.toml                  # Project configuration (auto-generated)
 ├── components/
-│   └── Button.cl.jac         # Example client component
+│   └── Button.jac         # Example client component
 ├── assets/                   # Static assets
 ├── README.md
 ├── AGENTS.md                 # Points AI coding agents at `jac guide`
@@ -250,7 +250,7 @@ dir = ".jac"                # Build artifacts directory
 default_codespace = "native"  # Codespace for markerless .jac modules: "native"/"na" or "server"/"sv"
 ```
 
-`default_codespace` controls how a plain `.jac` module with no explicit codespace marker (no `.sv.jac`/`.cl.jac` suffix and no top-level `sv`/`cl`/`na` markers) is treated. With `"native"` (the default) the compiler infers: a markerless module with no server-requiring constructs, and whose imported plain `.jac` modules are likewise native-clean, is compiled whole-module in the native codespace and executed through the native engine; `sv { }` blocks remain the per-block escape hatch. Modules with server-requiring constructs (OSP archetypes, python imports, serve endpoints, test blocks, JSX, and similar) compile in the server codespace exactly as before, and an inferred-native module that does not lower yet is transparently recompiled server-side with a dim `note:` -- the preference is always safe. Set `"server"` to opt a project out of native inference entirely; explicit `na` markers and forced builds (`jac nacompile`, `jac build --as native`, `CompileOptions(force_codespace='native')`) remain strict mandates.
+`default_codespace` controls how a plain `.jac` module (not a `.jac` implementation variant) is treated when whole-module native compilation is possible. With `"native"` (the default) the compiler infers: a module with no server-requiring constructs, and whose imported plain `.jac` modules are likewise native-clean, is compiled whole-module in the native codespace and executed through the native engine. Modules with server-requiring constructs (OSP archetypes, python imports, serve endpoints, test blocks, JSX, and similar) compile in the server codespace exactly as before, and an inferred-native module that does not lower yet is transparently recompiled server-side with a dim `note:` -- the preference is always safe. Set `"server"` to opt a project out of native inference entirely; `[placement.pins]` entries mapping to `"native"` and forced builds (`jac nacompile`, `jac build --as native`, `CompileOptions(force_codespace='native')`) remain strict mandates.
 
 The `dir` setting controls where all build artifacts are stored:
 
@@ -258,6 +258,41 @@ The `dir` setting controls where all build artifacts are stored:
 - `.jac/venv/` - Project virtual environment
 - `.jac/client/` - Client-side builds
 - `.jac/data/` - Runtime data
+
+---
+
+### [placement.pins]
+
+Placement overrides. Element placement (server / client / native) is inferred
+by the compiler from evidence in the source (see
+[Placement](../placement.md)); this table is the escape hatch when a decision
+must be forced. Keys are
+[fnmatch](https://docs.python.org/3/library/fnmatch.html) patterns matched
+against an element's dotted path -- `module` or `module.element`, relative to
+the project root -- and values are `"server"`, `"client"`, or `"native"`
+(any other value is a hard error at load time):
+
+```toml
+[placement.pins]
+"app.API_KEY"   = "server"    # one element: keep a secret out of the JS bundle
+"app.summarize" = "server"    # client calls to it bridge over RPC instead
+"kernels.*"     = "server"    # every element of the kernels module
+helpers         = "client"    # module-level pin: the whole module
+```
+
+A pinned element is immovable to the placement solver; everything else
+re-solves around it. Module-level `"server"` pins additionally give client
+imports of that module full service-boundary semantics (non-`:pub` items
+callable with auth, boundary types collected). Pins are part of the program:
+changing them invalidates the compilation cache, and
+`jac check --placements` reports them in each element's evidence chain.
+
+Note that declaring a module as its own **service** is a different fact with
+a different home: the `[scale.microservices.routes]` table is the service
+cut -- each key in it runs as its own service process behind the gateway, and
+imports of it lower to RPC stubs (`jac scale split <module>` writes an
+entry). See
+[Microservice Interop](../plugins/jac-scale-http.md#microservice-interop-sv-to-sv).
 
 ---
 
@@ -607,10 +642,8 @@ Define global variables that are replaced at compile time in client code via the
 These values are inlined by Vite during bundling. String values must be double-quoted (JSON-encoded). In client code, access them directly:
 
 ```jac
-cl {
-    def:pub Footer() -> JsxElement {
-        <p>Version: {globalThis.BUILD_VERSION}</p>
-    }
+def:pub Footer() -> JsxElement {
+    <p>Version: {globalThis.BUILD_VERSION}</p>
 }
 ```
 
@@ -884,7 +917,7 @@ Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `FIRESTORE_PROJECT_ID`, `JAC_STORAG
 | Variable | Description |
 |----------|-------------|
 | `JAC_SV_ROUTES` | JSON object mapping service module names to URL route prefixes |
-| `JAC_SV_<MODULE>_URL` | Point an `sv import` of `<MODULE>` at a remote provider URL |
+| `JAC_SV_<MODULE>_URL` | Point service RPC calls into `<MODULE>` (a `[scale.microservices.routes]` key) at a remote provider URL |
 
 ### Client
 

@@ -1,10 +1,10 @@
 """Sample Jac module using Ant Design components."""
 
-cl import from antd { Button }
+import from antd { Button }
 
-cl glob APP_NAME: str = "Ant Design Test";
+glob APP_NAME: str = "Ant Design Test";
 
-cl def ButtonTest {
+def ButtonTest {
     <div>
         <h1>{APP_NAME}</h1>
         <p>Testing Ant Design integration</p>
@@ -12,13 +12,13 @@ cl def ButtonTest {
     </div>
 }
 
-cl def CardTest {
+def CardTest {
     <div class="card-wrapper">
         <h2>Card Component</h2>
     </div>
 }
 
-cl def app {
+def app {
     <div>
         <ButtonTest/>
         <CardTest/>

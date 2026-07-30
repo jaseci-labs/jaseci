@@ -445,11 +445,12 @@ test "E0063: glob in statement position is always rejected" {
     }
 }
 
-test "E0063: glob inside a codespace block is valid" {
-    # glob is a declaration, so it is allowed directly under cl/sv/na blocks.
+test "removed placement-marker blocks raise the migration error" {
+    # cl/sv/na blocks were removed with #7772; the parser points authors at
+    # 'jac fix placement' instead of a bare syntax error.
     for src in ["cl { glob counter: int = 0; }", "sv { glob token = \"x\"; }"] {
         (has_err, _) = parse_and_validate(src);
-        assert not has_err , f"Unexpected error for: {src}";
+        assert has_err , f"Expected the marker-removal error for: {src}";
     }
 }
 
@@ -639,7 +640,7 @@ test "E1042: missing await on sv-imported call (issue #6236)" {
     # `sv import` functions are async RPC stubs on the client; calling one
     # without `await` assigns a coroutine to a typed field and crashes at
     # runtime. `jac check` must flag it.
-    (prog, _) = compile_and_check("type_E1042_sv_missing_await.cl.jac");
+    (prog, _) = compile_and_check("type_E1042_sv_missing_await.jac");
     assert has_diagnostic_code(prog, "E1042") , f"expected E1042 for the un-awaited sv import call; "
     f"errors={[str(e) for e in prog.errors_had]}";
 }

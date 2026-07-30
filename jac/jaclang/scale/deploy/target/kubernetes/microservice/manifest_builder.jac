@@ -252,19 +252,17 @@ obj MicroserviceManifestBuilder {
     ) -> dict[str, dict[str, any]] {
         app_name = app_config.app_name or self.k8s_config.app_name;
 
-        import from jaclang.scale.runtime.discovery.discovery { resolve_routes }
+        import from jaclang.scale.runtime.routing { resolve_routes }
         ms_cfg = dict(self._ms_cfg());
-        proj = self.project_dir or app_config.code_folder;
-        routes: dict[str, str] = resolve_routes(proj, dict(ms_cfg.get("routes", {})));
+        routes: dict[str, str] = resolve_routes(ms_cfg);
         ms_cfg["routes"] = routes;
         self.microservices_config = ms_cfg;
 
         if not routes {
             raise ValueError(
-                "No microservices found to deploy: declare "
-                "[scale.microservices.routes] in jac.toml, or add "
-                "`sv import` / `sv { }` services under the project root so they "
-                "can be auto-discovered."
+                "No microservices to deploy: declare them in "
+                "[scale.microservices.routes] in jac.toml "
+                "(`jac scale split <module>` adds one)."
             );
         }
 
@@ -328,8 +326,12 @@ obj MicroserviceManifestBuilder {
         if not os.path.isdir(root_dir) {
             return False;
         }
-        matches = glob.glob(os.path.join(root_dir, "**", "*.cl.jac"), recursive=True);
-        return len(matches) > 0;
+        for probe in ("pages", "components") {
+            if os.path.isdir(os.path.join(root_dir, probe)) {
+                return True;
+            }
+        }
+        return False;
     }
 
     def _shared_volumes_config -> list[dict[str, any]] {

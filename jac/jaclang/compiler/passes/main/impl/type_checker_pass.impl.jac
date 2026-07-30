@@ -844,19 +844,7 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
     emit_full = (not self.inference_only) or _tc_requested;
     if not emit_full {
         mod = self.ir_in;
-        is_native_mod = mod is not None and mod.decided_codespace == 'native';
-        if not is_native_mod and mod?.body {
-            for _stmt in mod.body {
-                if isinstance(_stmt, uni.NativeBlock) {
-                    is_native_mod = True;
-                    break;
-                }
-            }
-        }
-        if not is_native_mod and mod?.decided_codespace == 'native' {
-            is_native_mod = True;
-        }
-        emit_full = is_native_mod;
+        emit_full = mod is not None and mod.decided_codespace == 'native';
     }
 
     if self.inference_only and not _emit_intent {

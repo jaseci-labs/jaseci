@@ -15,7 +15,6 @@ import from jaclang.jac0core.unitree {
     ModuleCode,
     PyInlineCode
 }
-import from jaclang.jac0core.unitree { ClientBlock, ServerBlock, NativeBlock }
 import from jaclang.jac0core.unitree { Import, ModulePath, ModuleItem }
 import from jaclang.jac0core.unitree { CommentToken }
 import from jaclang.jac0core.unitree { Archetype, Ability, Enum, ImplDef, SemDef }
@@ -396,9 +395,6 @@ impl Parser.is_keyword_token -> bool {
         TokenKind.KW_PUB,
         TokenKind.KW_PRIV,
         TokenKind.KW_PROT,
-        TokenKind.KW_CLIENT,
-        TokenKind.KW_SERVER,
-        TokenKind.KW_NATIVE,
         TokenKind.KW_SELF,
         TokenKind.KW_PROPS,
         TokenKind.KW_INIT,
@@ -756,6 +752,14 @@ impl Parser._check_js_arrow_fault -> bool {
         return False;
     }
     return self.current().loc.pos_end == nxt.loc.pos_start;
+}
+
+impl Parser._recover_removed_marker{
+    self.error(
+        f"'{self.current().value}' placement markers were removed: " + "placement is inferred (override via [placement.pins] in " + "jac.toml; declare services in [scale.microservices.routes]). " + "Run 'jac fix placement' to migrate this file."
+    );
+    self.advance();
+    return self.parse_element_stmt();
 }
 
 impl Parser._recover_js_arrow_fault(left: Expr) -> Expr {
@@ -3263,59 +3267,33 @@ impl Parser.parse_element_stmt{
         return None;
     }
 
-    if self.check(TokenKind.KW_CLIENT) {
-        self._explicit_section = True;
-        if self.check_peek(TokenKind.LBRACE) {
-            return self.parse_client_block();
-        } else {
-            self.expect(TokenKind.KW_CLIENT);
-            cl_tok = self.make_uni_token(self.previous());
-            stmt = self.parse_element_stmt();
-            if stmt is not None {
-                stmt.add_kids_left([cl_tok]);
-                if stmt?.code_context {
-                    stmt.code_context = CodeContext.CLIENT;
-                }
-            }
-            return stmt;
-        }
+    if (
+        self.check(TokenKind.NAME)
+        and self.current().value in ('sv', 'cl', 'na')
+        and (
+            self.check_peek(TokenKind.LBRACE)
+            or self.peek().kind in (
+                TokenKind.KW_IMPORT,
+                TokenKind.KW_INCLUDE,
+                TokenKind.KW_DEF,
+                TokenKind.KW_CAN,
+                TokenKind.KW_OBJECT,
+                TokenKind.KW_CLASS,
+                TokenKind.KW_ENUM,
+                TokenKind.KW_NODE,
+                TokenKind.KW_EDGE,
+                TokenKind.KW_WALKER,
+                TokenKind.KW_GLOBAL,
+                TokenKind.KW_TEST,
+                TokenKind.KW_IMPL,
+                TokenKind.KW_SEM,
+                TokenKind.KW_WITH,
+                TokenKind.KW_ASYNC
+            )
+        )
+    ) {
+        return self._recover_removed_marker();
     }
-    if self.check(TokenKind.KW_SERVER) {
-        self._explicit_section = True;
-        if self.check_peek(TokenKind.LBRACE) {
-            return self.parse_server_block();
-        } else {
-            self.expect(TokenKind.KW_SERVER);
-            sv_tok = self.make_uni_token(self.previous());
-            stmt = self.parse_element_stmt();
-            if stmt is not None {
-                stmt.add_kids_left([sv_tok]);
-
-                if stmt?.code_context and not isinstance(stmt, Import) {
-                    stmt.code_context = CodeContext.SERVER;
-                }
-            }
-            return stmt;
-        }
-    }
-    if self.check(TokenKind.KW_NATIVE) {
-        self._explicit_section = True;
-        if self.check_peek(TokenKind.LBRACE) {
-            return self.parse_native_block();
-        } else {
-            self.expect(TokenKind.KW_NATIVE);
-            na_tok = self.make_uni_token(self.previous());
-            stmt = self.parse_element_stmt();
-            if stmt is not None {
-                stmt.add_kids_left([na_tok]);
-                if stmt?.code_context and not isinstance(stmt, Import) {
-                    stmt.code_context = CodeContext.NATIVE;
-                }
-            }
-            return stmt;
-        }
-    }
-
     if self.check(TokenKind.TYP_TYPE) {
         save = self.pos;
         self.expect(TokenKind.TYP_TYPE);
@@ -3369,10 +3347,7 @@ impl Parser.parse_element_stmt{
         TokenKind.KW_IMPL,
         TokenKind.TYP_TYPE,
         TokenKind.KW_GLOBAL,
-        TokenKind.KW_WITH,
-        TokenKind.KW_CLIENT,
-        TokenKind.KW_SERVER,
-        TokenKind.KW_NATIVE
+        TokenKind.KW_WITH
     ) {
         return self.parse_docstring_target();
     }
@@ -3522,108 +3497,10 @@ impl Parser.parse_docstring_target{
         return result;
     }
 
-    if self.check_any(TokenKind.KW_CLIENT, TokenKind.KW_SERVER, TokenKind.KW_NATIVE) {
-        result = self.parse_element_stmt();
-        if result is not None {
-            result.doc = elem_doc;
-            result.add_kids_left([elem_doc]);
-        }
-        return result;
-    }
-
     result = self._dispatch_decorated();
     result.doc = elem_doc;
     result.add_kids_left([elem_doc]);
     return result;
-}
-
-impl Parser.parse_client_block -> ClientBlock {
-    cl_tok = self.consume_uni(TokenKind.KW_CLIENT);
-    kid: list = [cl_tok];
-    body: list = [];
-    if self.match_tok(TokenKind.LBRACE) {
-        kid.append(self.make_uni_token(self.previous()));
-        while not self.check(TokenKind.RBRACE) and not self.at_end() {
-            stmt = self.parse_element_stmt();
-            if stmt is not None {
-                body.append(stmt);
-                kid.append(stmt);
-
-                if stmt?.code_context
-                and (
-                    stmt._source_context_token() is None or isinstance(stmt, Import)
-                ) {
-                    stmt.code_context = CodeContext.CLIENT;
-                }
-            }
-        }
-        rb_uni = self.consume_uni(TokenKind.RBRACE);
-        kid.append(rb_uni);
-    } else {
-        stmt = self.parse_element_stmt();
-        if stmt is not None {
-            body.append(stmt);
-            kid.append(stmt);
-        }
-    }
-    return ClientBlock(body=body, kid=kid);
-}
-
-impl Parser.parse_server_block -> ServerBlock {
-    sv_tok = self.consume_uni(TokenKind.KW_SERVER);
-    kid: list = [sv_tok];
-    body: list = [];
-    if self.match_tok(TokenKind.LBRACE) {
-        kid.append(self.make_uni_token(self.previous()));
-        while not self.check(TokenKind.RBRACE) and not self.at_end() {
-            stmt = self.parse_element_stmt();
-            if stmt is not None {
-                body.append(stmt);
-                kid.append(stmt);
-                if stmt?.code_context {
-                    stmt.code_context = CodeContext.SERVER;
-                }
-            }
-        }
-        rb_uni = self.consume_uni(TokenKind.RBRACE);
-        kid.append(rb_uni);
-    } else {
-        stmt = self.parse_element_stmt();
-        if stmt is not None {
-            stmt.add_kids_left([sv_tok]);
-            return stmt;
-        }
-    }
-    return ServerBlock(body=body, kid=kid);
-}
-
-impl Parser.parse_native_block -> NativeBlock {
-    na_tok = self.consume_uni(TokenKind.KW_NATIVE);
-    kid: list = [na_tok];
-    body: list = [];
-    if self.match_tok(TokenKind.LBRACE) {
-        kid.append(self.make_uni_token(self.previous()));
-        while not self.check(TokenKind.RBRACE) and not self.at_end() {
-            stmt = self.parse_element_stmt();
-            if stmt is not None {
-                body.append(stmt);
-                kid.append(stmt);
-
-                if stmt?.code_context {
-                    stmt.code_context = CodeContext.NATIVE;
-                }
-            }
-        }
-        rb_uni = self.consume_uni(TokenKind.RBRACE);
-        kid.append(rb_uni);
-    } else {
-        stmt = self.parse_element_stmt();
-        if stmt is not None {
-            stmt.add_kids_left([na_tok]);
-            return stmt;
-        }
-    }
-    return NativeBlock(body=body, kid=kid);
 }
 
 impl Parser.parse_module_code -> ModuleCode {

@@ -78,12 +78,12 @@ test "create --kind native-lib" {
 }
 
 test "create --kind service" {
-    _assert_kind("service", "main.sv.jac", "serve");
+    _assert_kind("service", "main.jac", "serve");
     _cleanup();
 }
 
 test "create --kind service-mesh" {
-    _assert_kind("service-mesh", "main.sv.jac", "serve");
+    _assert_kind("service-mesh", "main.jac", "serve");
     _cleanup();
 }
 
@@ -124,7 +124,7 @@ test "create rejects an unknown kind" {
 test "kind_entry matches the scaffolded entry-point" {
     assert kind_entry("cli") == "main.jac";
     assert kind_entry("cli-native") == "main.jac";
-    assert kind_entry("service") == "main.sv.jac";
+    assert kind_entry("service") == "main.jac";
     assert is_valid_kind("cli");
     assert not is_valid_kind("nope");
 }

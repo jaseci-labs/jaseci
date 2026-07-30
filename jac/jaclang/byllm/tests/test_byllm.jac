@@ -1943,7 +1943,7 @@ test "a tool call cut off mid-arguments is reported to the model (issue #7657)" 
     # arguments are replaced with "{}" and the tool is then invoked bare.
     cut_off = types.SimpleNamespace(
         name="write_code",
-        arguments='{"file_path": "/app/Landing.cl.jac", "content": "node Landing { has t'
+        arguments='{"file_path": "/app/Landing.jac", "content": "node Landing { has t'
     );
     message = {
         "tool_calls": [

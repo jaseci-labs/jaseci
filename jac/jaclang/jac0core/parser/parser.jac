@@ -51,7 +51,6 @@ import from jaclang.jac0core.unitree {
     ModuleCode,
     PyInlineCode
 }
-import from jaclang.jac0core.unitree { ClientBlock, ServerBlock, NativeBlock }
 import from jaclang.jac0core.unitree { Import, ModulePath, ModuleItem }
 import from jaclang.jac0core.unitree { CommentToken }
 import from jaclang.jac0core.unitree {
@@ -276,9 +275,6 @@ glob TOKEN_KIND_TO_TOK: dict[TokenKind, str] = {
          TokenKind.KW_PUB: Tok.KW_PUB.value,
          TokenKind.KW_PRIV: Tok.KW_PRIV.value,
          TokenKind.KW_PROT: Tok.KW_PROT.value,
-         TokenKind.KW_CLIENT: Tok.KW_CLIENT.value,
-         TokenKind.KW_SERVER: Tok.KW_SERVER.value,
-         TokenKind.KW_NATIVE: Tok.KW_NATIVE.value,
          TokenKind.KW_SELF: Tok.KW_SELF.value,
          TokenKind.KW_PROPS: Tok.KW_PROPS.value,
          TokenKind.KW_INIT: Tok.KW_INIT.value,
@@ -431,6 +427,7 @@ obj Parser {
     def parse_expression(allow_cast: bool = True) -> Expr;
     def _check_js_arrow_fault -> bool;
     def _recover_js_arrow_fault(left: Expr) -> Expr;
+    def _recover_removed_marker;
     def _recover_missing_connect_rhs -> bool;
     def _recover_misplaced_disconnect -> None;
     def parse_concurrent_expr -> Expr;
@@ -499,9 +496,6 @@ obj Parser {
     def _dispatch_decorated;
     def _dispatch_async;
     def parse_docstring_target;
-    def parse_client_block -> ClientBlock;
-    def parse_server_block -> ServerBlock;
-    def parse_native_block -> NativeBlock;
     def parse_module_code -> ModuleCode;
     def parse_code_block_stmts -> list;
     def _apply_implicit_return(body: list) -> list;

@@ -1,6 +1,6 @@
 """Example Jac program for REST API server."""
 
-cl import from "@jac/runtime" { renderJsxTree, }
+import from "@jac/runtime" { renderJsxTree, }
 
 # Define some nodes
 node Task {
@@ -92,9 +92,9 @@ def greet(name: str = "World") -> str {
     return "Hello, " + name + "!";
 }
 
-cl glob WELCOME_TITLE: str = "Runtime Test";
+glob WELCOME_TITLE: str = "Runtime Test";
 
-cl def:pub client_page -> JsxElement {
+def:pub client_page -> JsxElement {
     <section class="welcome">
         <h1>{WELCOME_TITLE}</h1>
         <p>{greet()}</p>
