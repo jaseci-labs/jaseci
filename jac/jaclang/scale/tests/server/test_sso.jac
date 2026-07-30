@@ -711,7 +711,8 @@ test "supported platforms initialization with jac toml credentials" {
     ) {
         user_manager = JacScaleUserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
-        assert user_manager.SUPPORTED_PLATFORMS["google"]["client_id"] == "toml_test_id";
+        assert user_manager.SUPPORTED_PLATFORMS["google"]["client_id"]
+        == "toml_test_id";
     }
 }
 
@@ -1088,9 +1089,8 @@ test "apple sso callback auto register new user" {
     try {
         mock_request = unittest.mock.Mock(spec=Request);
         assert (
-            user_manager.find_user_by_identity(
-                "newuser@privaterelay.appleid.com"
-            ) is None
+            user_manager.find_user_by_identity("newuser@privaterelay.appleid.com")
+            is None
         );
         mock_sso = MockAppleSSO("id", "secret", "uri");
         mock_sso.verify_and_process = unittest.mock.AsyncMock(

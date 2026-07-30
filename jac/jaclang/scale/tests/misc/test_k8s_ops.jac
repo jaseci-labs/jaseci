@@ -47,17 +47,20 @@ test "api_error_detail falls back to str(e) when status is absent" {
 
 test "unavailable_detail reflects capability, cluster, and config states" {
     with patch.object(k8s_ops, "HAS_KUBERNETES", False) {
-        assert k8s_ops.unavailable_detail() == "kubernetes client not installed (image lacks the 'deploy.k8s' capability).";
+        assert k8s_ops.unavailable_detail()
+        == "kubernetes client not installed (image lacks the 'deploy.k8s' capability).";
     }
 
     with patch.object(k8s_ops, "HAS_KUBERNETES", True) {
         with patch.dict(os.environ) {
             os.environ.pop("KUBERNETES_SERVICE_HOST", None);
-            assert k8s_ops.unavailable_detail() == "not running inside a Kubernetes cluster.";
+            assert k8s_ops.unavailable_detail()
+            == "not running inside a Kubernetes cluster.";
         }
         with patch.dict(os.environ) {
             os.environ["KUBERNETES_SERVICE_HOST"] = "10.0.0.1";
-            assert k8s_ops.unavailable_detail() == "in-cluster Kubernetes config could not be loaded.";
+            assert k8s_ops.unavailable_detail()
+            == "in-cluster Kubernetes config could not be loaded.";
         }
     }
 }

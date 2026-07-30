@@ -398,5 +398,6 @@ test "has_errors: True iff any diagnostic has severity='error'" {
             Diagnostic(severity="warn", message="x"),
             Diagnostic(severity="error", message="y")
         ]
-    ) is True;
+    )
+    is True;
 }

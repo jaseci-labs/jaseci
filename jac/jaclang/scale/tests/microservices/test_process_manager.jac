@@ -325,9 +325,8 @@ test "check all health reports a dead process once, not every poll" {
         exit_reports = [
             c
             for c in (
-                list(fake_log.warning.call_args_list) + list(
-                    fake_log.error.call_args_list
-                )
+                list(fake_log.warning.call_args_list)
+                + list(fake_log.error.call_args_list)
             )
             if "exited" in str(c)
         ];
