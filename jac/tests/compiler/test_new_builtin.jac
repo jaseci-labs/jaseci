@@ -14,7 +14,7 @@ import tempfile;
 import from pathlib { Path }
 import from tempfile { NamedTemporaryFile }
 import jaclang;
-import from jaclang.jac0core.parser.parser { parse }
+import from jaclang.jac0core.parser.frontend { parse }
 import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.program { JacProgram }
 

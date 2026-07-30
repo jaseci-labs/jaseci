@@ -517,6 +517,16 @@ impl PyastGenPass._py_name(nd: uni.AstSymbolNode) -> str {
     return nd.sym_name;
 }
 
+impl PyastGenPass.py_ctx(nd: uni.AstSymbolNode) -> ast3.expr_context {
+    if (nd.expr_ctx == uni.ExprCtx.STORE) {
+        return ast3.Store();
+    }
+    if (nd.expr_ctx == uni.ExprCtx.DEL) {
+        return ast3.Del();
+    }
+    return ast3.Load();
+}
+
 impl PyastGenPass._function_expr_from_def(
     func_def: (ast3.FunctionDef | ast3.AsyncFunctionDef),
     jac_node: uni.UniNode,
@@ -2995,7 +3005,7 @@ impl PyastGenPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
             )
         ];
     } elif (nd.op.name in [Tok.STAR_MUL]) {
-        ctx_val = nd.operand.py_ctx_func()
+        ctx_val = self.py_ctx(nd.operand)
             if isinstance(nd.operand, uni.AstSymbolNode)
             else ast3.Load();
         nd.gen.py_ast = [
@@ -3140,9 +3150,7 @@ impl PyastGenPass.exit_formatted_value(nd: uni.FormattedValue) -> None {
 
 impl PyastGenPass.exit_list_val(nd: uni.ListVal) -> None {
     elts = [cast(ast3.expr, self.py_ast_val(v)) for v in nd.values];
-    ctx = ast3.Load()
-        if isinstance(nd.py_ctx_func(), ast3.Load)
-        else cast(ast3.expr_context, nd.py_ctx_func());
+    ctx = self.py_ctx(nd);
     nd.gen.py_ast = [self.sync(ast3.List(elts=elts, ctx=ctx))];
 }
 
@@ -3156,7 +3164,7 @@ impl PyastGenPass.exit_tuple_val(nd: uni.TupleVal) -> None {
         self.sync(
             ast3.Tuple(
                 elts=[cast(ast3.expr, self.py_ast_val(i)) for i in nd.values],
-                ctx=cast(ast3.expr_context, nd.py_ctx_func())
+                ctx=self.py_ctx(nd)
             )
         )
     ];
@@ -3274,7 +3282,7 @@ impl PyastGenPass.exit_atom_trailer(nd: uni.AtomTrailer) -> None {
                     ast3.Attribute(
                         value=cast(ast3.expr, self.py_ast_val(nd.target)),
                         attr=self._py_name(nd.right),
-                        ctx=cast(ast3.expr_context, nd.right.py_ctx_func())
+                        ctx=self.py_ctx(nd.right)
                     )
                 )
             ];
@@ -3372,7 +3380,7 @@ impl PyastGenPass.exit_atom_trailer(nd: uni.AtomTrailer) -> None {
                 ast3.Subscript(
                     value=cast(ast3.expr, self.py_ast_val(nd.target)),
                     slice=cast(ast3.expr, self.py_ast_val(nd.right)),
-                    ctx=cast(ast3.expr_context, nd.right.py_ctx_func())
+                    ctx=self.py_ctx(nd.right)
                         if isinstance(nd.right, uni.AstSymbolNode)
                         else ast3.Load()
                 )
@@ -3594,7 +3602,7 @@ impl PyastGenPass.exit_special_var_ref(nd: uni.SpecialVarRef) -> None {
         nd.gen.py_ast = [
             self.sync(
                 ast3.Call(
-                    func=self.sync(ast3.Name(id='super', ctx=nd.py_ctx_func())),
+                    func=self.sync(ast3.Name(id='super', ctx=self.py_ctx(nd))),
                     args=[],
                     keywords=[]
                 )
@@ -3606,7 +3614,7 @@ impl PyastGenPass.exit_special_var_ref(nd: uni.SpecialVarRef) -> None {
         ];
     } else {
         nd.gen.py_ast = [
-            self.sync(ast3.Name(id=self._py_name(nd), ctx=nd.py_ctx_func()))
+            self.sync(ast3.Name(id=self._py_name(nd), ctx=self.py_ctx(nd)))
         ];
     }
 }
@@ -4004,7 +4012,7 @@ impl PyastGenPass.exit_name(nd: uni.Name) -> None {
     if (name in self._get_ambient_typing_names()) {
         self.typing_imports.add(name);
     }
-    nd.gen.py_ast = [self.sync(ast3.Name(id=name, ctx=nd.py_ctx_func()))];
+    nd.gen.py_ast = [self.sync(ast3.Name(id=name, ctx=self.py_ctx(nd)))];
 }
 
 
@@ -4054,7 +4062,7 @@ impl PyastGenPass._resolve_self_type(nd: uni.Name) -> ast3.expr | None {
         );
     }
     if is_in_classmethod {
-        return self.sync(ast3.Name(id='cls', ctx=nd.py_ctx_func()));
+        return self.sync(ast3.Name(id='cls', ctx=self.py_ctx(nd)));
     }
     if is_in_method {
         return self.sync(
@@ -4066,7 +4074,7 @@ impl PyastGenPass._resolve_self_type(nd: uni.Name) -> ast3.expr | None {
         );
     }
 
-    return self.sync(ast3.Name(id=enclosing_name, ctx=nd.py_ctx_func()));
+    return self.sync(ast3.Name(id=enclosing_name, ctx=self.py_ctx(nd)));
 }
 
 impl PyastGenPass._is_in_type_annotation(nd: uni.UniNode) -> bool {
@@ -4138,11 +4146,11 @@ impl PyastGenPass.exit_builtin_type(nd: uni.BuiltinType) -> None {
         );
         if not is_call_func {
             self.typing_imports.add("Any");
-            nd.gen.py_ast = [self.sync(ast3.Name(id="Any", ctx=nd.py_ctx_func()))];
+            nd.gen.py_ast = [self.sync(ast3.Name(id="Any", ctx=self.py_ctx(nd)))];
             return;
         }
     }
-    nd.gen.py_ast = [self.sync(ast3.Name(id=nd.sym_name, ctx=nd.py_ctx_func()))];
+    nd.gen.py_ast = [self.sync(ast3.Name(id=nd.sym_name, ctx=self.py_ctx(nd)))];
 }
 
 impl PyastGenPass.exit_null(nd: uni.Null) -> None {

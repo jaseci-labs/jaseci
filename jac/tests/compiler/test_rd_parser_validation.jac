@@ -16,7 +16,7 @@ glob GAP_DIR = os.path.join(
 
 def parse_with_rd(source: str, file_path: str) -> Module | None {
     try {
-        import from jaclang.jac0core.parser.parser { parse }
+        import from jaclang.jac0core.parser.frontend { parse }
         (module, had_error) = parse(source, file_path);
         if had_error {
             return None;
@@ -222,7 +222,7 @@ glob GAP_FILES = [
 
 def parse_and_validate(source: str, file_path: str) -> bool {
     try {
-        import from jaclang.jac0core.parser.parser { parse }
+        import from jaclang.jac0core.parser.frontend { parse }
         (module, had_error) = parse(source, file_path);
         if had_error {
             return True;
