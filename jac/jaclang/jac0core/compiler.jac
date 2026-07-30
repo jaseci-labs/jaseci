@@ -343,9 +343,10 @@ def hub_module_for_path(path: str, prog: object) -> (uni.Module | None) {
     if abs_path in hub {
         return hub[abs_path];
     }
-    normalized = os.path.normcase(abs_path);
+    normalized = os.path.normcase(os.path.realpath(abs_path));
     for (hub_path, hub_mod) in hub.items() {
-        if os.path.normcase(os.path.abspath(hub_path)) == normalized {
+        if os.path.normcase(os.path.realpath(os.path.abspath(hub_path)))
+        == normalized {
             return hub_mod;
         }
     }
@@ -416,44 +417,18 @@ def is_server_anchored_module(module: (uni.Module | None)) -> bool {
     return False;
 }
 
-def module_has_native_anchor(
-    module: (uni.Module | None), prog: object, seen: (set[int] | None) = None
-) -> bool {
+def module_own_native_anchor(module: (uni.Module | None)) -> bool {
     import from jaclang.jac0core.constant { OwnershipKind }
     if module is None {
         return False;
     }
-    if seen is None {
-        seen = set();
-    }
-    if id(module) in seen {
-        return False;
-    }
-    seen.add(id(module));
     for tag in module.get_all_sub_nodes(uni.SubTag) {
         if tag.ownership != OwnershipKind.NONE {
             return True;
         }
     }
     for stmt in module.body {
-        if not isinstance(stmt, uni.Import) {
-            continue;
-        }
-        if stmt.has_clib_decls {
-            return True;
-        }
-        if stmt.from_loc is None {
-            continue;
-        }
-        resolved = stmt.from_loc.resolve_relative_path();
-        if not isinstance(resolved, str) or not resolved.endswith('.jac') {
-            continue;
-        }
-        import from jaclang.jac0core.placement_pins { config_module_pin as _cfg_pin }
-        if _cfg_pin(resolved) == 'native' {
-            return True;
-        }
-        if module_has_native_anchor(hub_module_for_path(resolved, prog), prog, seen) {
+        if isinstance(stmt, uni.Import) and stmt.has_clib_decls {
             return True;
         }
     }
@@ -479,29 +454,21 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
         return resolved;
     }
     target = hub_module_for_path(resolved, prog);
-    if target is not None {
-        if (
-            target.decided_codespace == 'native'
-            or module_has_native_anchor(target, prog)
-        ) {
-            return resolved;
-        }
+    if target is None {
+        import from jaclang.jac0core.placement_solver { _materialize_module }
+        target = _materialize_module(resolved, prog);
+    }
+    if target is None {
         return None;
     }
-
-    import from jaclang.jac0core.helpers { read_file_with_encoding }
-    import from jaclang.jac0core.parser { parse as _rd_parse }
-    import from jaclang.jac0core.program { JacProgram as _ScanProg }
-    try {
-        _src_txt = read_file_with_encoding(resolved);
-    } except Exception {
-        return None;
+    if (
+        target.decided_codespace == 'native'
+        or target.declares_codespace(CodeContext.NATIVE)
+        or module_own_native_anchor(target)
+    ) {
+        return resolved;
     }
-    (_scan_mod, _had_err) = _rd_parse(_src_txt, resolved, prog=_ScanProg());
-    if _had_err {
-        return None;
-    }
-    return resolved if module_has_native_anchor(_scan_mod, prog) else None;
+    return None;
 }
 
 def import_declares_native_target(nd: uni.Import) -> bool {
@@ -530,7 +497,7 @@ def native_only_import_target(nd: uni.Import, prog: object) -> (str | None) {
         return resolved;
     }
     target = hub_module_for_path(resolved, prog);
-    if target is not None and module_has_native_anchor(target, prog) {
+    if target is not None and module_own_native_anchor(target) {
         return resolved;
     }
     return None;
