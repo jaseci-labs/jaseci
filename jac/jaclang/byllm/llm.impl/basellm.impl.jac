@@ -194,7 +194,8 @@ def _default_compact(messages: list, keep_recent: int, model: BaseLLM) -> list {
     summary_prompt = (
         "Summarise the following agent tool-call history concisely. "
         "Preserve key findings, decisions, and intermediate results that "
-        "may be needed to complete the ongoing task. Output plain text only.\n\n" + history_text
+        "may be needed to complete the ongoing task. Output plain text only.\n\n"
+        + history_text
     );
     comp_mt_run = MTRuntime(
         messages=[
@@ -563,15 +564,17 @@ impl BaseLLM._nonconforming_feedback(
     attempt: int, max_attempts: int, mt_run: MTRuntime, result: object
 ) -> tuple {
     self.log_info(
-        f"[byllm] typed-output attempt {attempt}/{max_attempts} " + "returned a non-conforming value; retrying"
+        f"[byllm] typed-output attempt {attempt}/{max_attempts} "
+        + "returned a non-conforming value; retrying"
     );
     err = OutputConversionError(
-        f"LLM returned a non-conforming value for return type " + f"'{mt_run.resp_type}' (got '{type(
-            result
-        ).__name__}'); the " + "response was likely empty or not valid JSON"
+        f"LLM returned a non-conforming value for return type "
+        + f"'{mt_run.resp_type}' (got '{type(result).__name__}'); the "
+        + "response was likely empty or not valid JSON"
     );
     reason = (
-        "The previous response was empty or did not contain a JSON " + "object (it could not be converted to the required type)."
+        "The previous response was empty or did not contain a JSON "
+        + "object (it could not be converted to the required type)."
     );
     return (err, reason, str(result));
 }
@@ -581,7 +584,8 @@ impl BaseLLM._typed_retry_exhausted(
     attempts: int, cause: object, raw: str
 ) -> OutputConversionError {
     err = OutputConversionError(
-        f"typed-output generation failed after {attempts} attempt(s) " + f"({attempts - 1} retries); last error: {cause}"
+        f"typed-output generation failed after {attempts} attempt(s) "
+        + f"({attempts - 1} retries); last error: {cause}"
     );
     err.raw_output = raw;
     return err;
@@ -604,7 +608,12 @@ impl BaseLLM._typed_retry_feedback(
     return Message(
         role=MessageRole.USER,
         content=(
-            f"Your previous response could not be used. {reason}\n" + prev_block + f"You MUST reply with ONLY a single JSON object that validates " + f"against this JSON schema for `{type_name}`:\n{schema_txt}\n" + "Output the raw JSON object only, with no explanation, no reasoning " + "text, no markdown code fences, nothing before or after the JSON."
+            f"Your previous response could not be used. {reason}\n"
+            + prev_block
+            + f"You MUST reply with ONLY a single JSON object that validates "
+            + f"against this JSON schema for `{type_name}`:\n{schema_txt}\n"
+            + "Output the raw JSON object only, with no explanation, no reasoning "
+            + "text, no markdown code fences, nothing before or after the JSON."
         )
     );
 }

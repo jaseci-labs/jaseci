@@ -187,9 +187,8 @@ impl Model.model_call_no_stream(params: dict) -> dict {
 }
 
 impl Model.model_call_with_stream(params: dict) {
-    params["stream_options"] = (params.get("stream_options") or {}) | {
-        "include_usage": True
-    };
+    params["stream_options"] = (params.get("stream_options") or {})
+    | {"include_usage": True};
     try {
         if self.proxy {
             require_optional("openai", "llm");
@@ -261,9 +260,8 @@ impl Model.model_call_no_stream_async(params: dict) -> dict {
 }
 
 impl Model.model_call_with_stream_async(params: dict) {
-    params["stream_options"] = (params.get("stream_options") or {}) | {
-        "include_usage": True
-    };
+    params["stream_options"] = (params.get("stream_options") or {})
+    | {"include_usage": True};
     try {
         if self.http_client {
             response = await self.model_call_http_async(
