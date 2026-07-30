@@ -113,6 +113,10 @@ impl handle_manifest_route(raw_argv: list[str]) -> None {
         _print_error(f"unrecognized arguments: {' '.join(raw_argv)}");
         sys.exit(2);
     }
+    # Every branch above either returns or sys.exit()s, so `first` is provably
+    # a str from here on; the assert narrows the type (sys.exit is not NoReturn
+    # to the checker) and documents the invariant.
+    assert first is not None;
 
     dispatchable = known_command_names(include_hidden=True);
     visible = known_command_names();
