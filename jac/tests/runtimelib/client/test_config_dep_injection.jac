@@ -141,6 +141,52 @@ test "npm provider plan carries self-heal origins for client projects" {
         backend_config = JacConfig.load(backend_path);
         backend_resolved = NpmProvider().resolve(backend_config);
         assert backend_resolved == [];
+        # A compiled client dir is the compiler-derived is-client signal:
+        # once the project has built client code, resolve self-heals the
+        # closure even without a [client] table (jac install / jac eject).
+        (Path(temp_dir) / ".jac" / "client" / "compiled").mkdir(parents=True);
+        built_config = JacConfig.load(backend_path);
+        built_resolved = NpmProvider().resolve(built_config);
+        built_by_name = {d.name: d for d in built_resolved};
+        assert built_by_name["react"].origin == "self-heal:client-core";
+        assert built_by_name["@tanstack/react-form"].origin == "self-heal:client-core";
+    }
+}
+
+# =============================================================================
+# Form deps follow the configured client framework
+# =============================================================================
+"""A solid project gets @tanstack/solid-form injected instead of the react form dep."""
+test "solid framework gets solid form deps injected" {
+    import from jaclang.runtimelib.client.config_loader { JacClientConfig }
+
+    with tempfile.TemporaryDirectory() as temp_dir {
+        original_cwd = os.getcwd();
+        try {
+            os.chdir(temp_dir);
+            (config_path, original_bytes) = _write_toml(
+                temp_dir,
+                '[project]\nname = "solid-app"\nversion = "1.0.0"\n'
+                'entry-point = "main.jac"\n\n[client]\nframework = "solid"\n'
+            );
+
+            config = JacClientConfig(Path(temp_dir));
+            pkg = config.get_package_config();
+
+            deps = pkg.get("dependencies", {});
+            assert "@tanstack/solid-form" in deps , (
+                "solid projects should get @tanstack/solid-form injected"
+            );
+            assert "@tanstack/react-form" not in deps , (
+                "solid projects should not get the react form dep"
+            );
+            assert "zod" in deps , "zod should be injected for solid projects";
+            assert config_path.read_bytes() == original_bytes , (
+                "Injected deps must not be written back to jac.toml"
+            );
+        } finally {
+            os.chdir(original_cwd);
+        }
     }
 }
 
