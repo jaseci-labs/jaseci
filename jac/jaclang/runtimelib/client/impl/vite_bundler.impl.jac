@@ -122,13 +122,8 @@ impl ViteBundler.create_package_json(
     };
     for (key, value) in package_config.items() {
         if (
-            key not in {
-                'name',
-                'version',
-                'description',
-                'dependencies',
-                'devDependencies'
-            }
+            key
+            not in {'name', 'version', 'description', 'dependencies', 'devDependencies'}
         ) {
             package_data[key] = value;
         }
