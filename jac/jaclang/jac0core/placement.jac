@@ -262,7 +262,7 @@ def _element_reqs(stmt: uni.UniNode) -> list {
         }
     }
     if isinstance(stmt, uni.Ability)
-    and isinstance(stmt.signature, uni.EventSignature) {
+        and isinstance(stmt.signature, uni.EventSignature) {
         reqs.append(['SERVER', 'event ability outside an archetype']);
     }
     if _is_pub_element(stmt) {
@@ -568,9 +568,9 @@ def scan_native_blockers(
                             _resolve_import_path(item),
                             not imp.is_absorb,
                             not imp.is_absorb
-                            and item.alias is None
-                            and item.path is not None
-                            and len(item.path) == 1
+                                and item.alias is None
+                                and item.path is not None
+                                and len(item.path) == 1
                         )
                     );
                 }
@@ -608,8 +608,8 @@ def scan_native_blockers(
                 continue;
             }
             if clean
-            and resolve_native_module(clean, base_dir, allow_inferred=False)[1]
-            is not None {
+                and resolve_native_module(clean, base_dir, allow_inferred=False)[1]
+                    is not None {
                 continue;
             }
             return (f"unresolved import '{clean}'", deps);

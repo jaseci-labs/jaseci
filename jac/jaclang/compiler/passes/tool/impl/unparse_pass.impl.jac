@@ -726,10 +726,10 @@ impl UnparsePass.exit_assignment(nd: uni.Assignment) -> None {
     result = " ".join(parts);
 
     if not nd.is_enum_stmt
-    and not (
-        isinstance(nd.parent, uni.IterForStmt)
-        and (nd == nd.parent.iter or nd == nd.parent.count_by)
-    ) {
+        and not (
+            isinstance(nd.parent, uni.IterForStmt)
+            and (nd == nd.parent.iter or nd == nd.parent.count_by)
+        ) {
         result = result + ";";
     }
     nd.gen.jac = result;
@@ -788,7 +788,11 @@ impl UnparsePass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
 }
 
 impl UnparsePass.exit_if_else_expr(nd: uni.IfElseExpr) -> None {
-    nd.gen.jac = nd.value.gen.jac + " if " + nd.condition.gen.jac + " else " + nd.else_value.gen.jac;
+    nd.gen.jac = nd.value.gen.jac
+        + " if "
+        + nd.condition.gen.jac
+        + " else "
+        + nd.else_value.gen.jac;
 }
 
 impl UnparsePass.exit_multi_string(nd: uni.MultiString) -> None {

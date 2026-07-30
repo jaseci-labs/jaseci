@@ -140,11 +140,11 @@ impl UniNode.resolve_tok_range -> tuple[(Token, Token)] {
 impl UniNode.gen_token(name: Tok, value: (str | None) = None) -> Token {
     import from jaclang.jac0core.constant { TOKEN_MAP }
     value = value
-    or (
-        DELIM_MAP[name]
-            if (name in DELIM_MAP)
-            else TOKEN_MAP.get(name.value, name.value)
-    );
+        or (
+            DELIM_MAP[name]
+                if (name in DELIM_MAP)
+                else TOKEN_MAP.get(name.value, name.value)
+        );
     return Token(
         name=name,
         value=value,
@@ -226,8 +226,8 @@ impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
     if self.body {
         for _stmt in self.body {
             if ctx != CodeContext.SERVER
-            and isinstance(_stmt, ContextAwareNode)
-            and _stmt.code_context == ctx {
+                and isinstance(_stmt, ContextAwareNode)
+                and _stmt.code_context == ctx {
                 return True;
             }
         }
@@ -881,7 +881,7 @@ impl NameAtom.sem_token.getter -> (tuple[(SemTokType, SemTokMod)] | None) {
     }
     if self.sym {
         if self.type is not None
-        and type(self.type).__name__ in ('FunctionType', 'OverloadedType') {
+            and type(self.type).__name__ in ('FunctionType', 'OverloadedType') {
             return (SemTokType.FUNCTION, SemTokMod.DEFINITION);
         }
         return (SemTokType.PROPERTY, SemTokMod.DEFINITION);
@@ -1516,15 +1516,15 @@ impl Ability.method_owner.getter -> Archetype | Enum | None {
             if (self.parent and isinstance(self.parent, (Archetype, Enum)))
             else None
     )
-    or (
-        self.parent.decl_link
-            if (
-                self.parent
-                and isinstance(self.parent, ImplDef)
-                and isinstance(self.parent.decl_link, (Archetype, Enum))
-            )
-            else None
-    );
+        or (
+            self.parent.decl_link
+                if (
+                    self.parent
+                    and isinstance(self.parent, ImplDef)
+                    and isinstance(self.parent.decl_link, (Archetype, Enum))
+                )
+                else None
+        );
     if (found is None) and (self.accessor_kind != "") {
         nodew = self.parent;
         while nodew is not None {
@@ -2472,9 +2472,13 @@ impl Literal.init(
     Expr.postinit(self);
 }
 
-impl Literal.lit_value.getter -> int | str | float | bool | None | Callable[
-    ([], Any)
-] | EllipsisType {
+impl Literal.lit_value.getter -> int
+    | str
+    | float
+    | bool
+    | None
+    | Callable[([], Any)]
+    | EllipsisType {
     raise NotImplementedError;
 }
 

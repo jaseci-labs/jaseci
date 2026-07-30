@@ -55,10 +55,8 @@ test "resolve_service_files honors services.<name>.file with a default" {
     };
     routes = resolve_routes(ms);
     files = resolve_service_files(ms, routes);
-    assert files == {
-        "social_graph": "littlex/social_graph.jac",
-        "orders_app": "orders_app.jac"
-    };
+    assert files
+        == {"social_graph": "littlex/social_graph.jac", "orders_app": "orders_app.jac"};
 }
 
 
@@ -97,9 +95,8 @@ test "gate: --scale never takes the local path" {
 
 
 test "format_route_lines reports the applied routes" {
-    assert format_route_lines({"cart_app": "/api/cart", "orders_app": "/orders"}) == [
-        "routes: cart_app -> /api/cart, orders_app -> /orders"
-    ];
+    assert format_route_lines({"cart_app": "/api/cart", "orders_app": "/orders"})
+        == ["routes: cart_app -> /api/cart, orders_app -> /orders"];
     assert format_route_lines({}) == [];
 }
 

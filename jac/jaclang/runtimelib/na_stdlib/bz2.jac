@@ -62,9 +62,9 @@ def:pub decompress(data: bytes) -> bytes {
             );
         }
         raise ValueError(
-            "bz2.decompress: invalid or truncated stream (libbz2 error code " + str(
-                rc
-            ) + ")"
+            "bz2.decompress: invalid or truncated stream (libbz2 error code "
+                + str(rc)
+                + ")"
         );
     }
 }

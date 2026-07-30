@@ -22,15 +22,8 @@ test "watcher can be instantiated" {
         assert watcher is not None;
         assert watcher.watch_paths == [str(temp_dir)];
         assert watcher.pattern == "*.jac";
-        assert watcher.additional_patterns == [
-            "*.tsx",
-            "*.js",
-            "*.css",
-            "*.scss",
-            "*.png",
-            "*.jpg",
-            "*.jpeg"
-        ];
+        assert watcher.additional_patterns
+            == ["*.tsx", "*.js", "*.css", "*.scss", "*.png", "*.jpg", "*.jpeg"];
         assert watcher._running is False;
     }
 }
@@ -214,11 +207,8 @@ test "build status records errors and recovers" {
         reloader.record_error("app.jac", "Missing ';'");
         status = reloader.build_status();
         assert status["status"] == "error";
-        assert status["error"] == {
-            "file": "app.jac",
-            "message": "Missing ';'",
-            "source": "jac"
-        };
+        assert status["error"]
+            == {"file": "app.jac", "message": "Missing ';'", "source": "jac"};
         # Recovery clears the error completely
         reloader.record_ok();
         assert reloader.build_status() == {"status": "ok", "error": None};

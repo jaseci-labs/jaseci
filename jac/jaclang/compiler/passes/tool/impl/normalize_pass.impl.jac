@@ -355,7 +355,7 @@ impl NormalizePass.enter_enum(nd: uni.Enum) -> None {
             prev_stmt = None;
             for stmt in nd.body {
                 if isinstance(prev_stmt, uni.EnumBlockStmt)
-                and prev_stmt.is_enum_stmt {
+                    and prev_stmt.is_enum_stmt {
                     new_kid.append(nd.gen_token(Tok.COMMA));
                 }
                 new_kid.append(stmt);
@@ -900,10 +900,10 @@ impl NormalizePass.enter_assignment(nd: uni.Assignment) -> None {
             new_kid.append(nd.gen_token(Tok.SEMI));
         }
     } elif (not nd.is_enum_stmt)
-    and not (
-        isinstance(nd.parent, uni.IterForStmt)
-        and nd in [nd.parent.iter, nd.parent.count_by]
-    ) {
+        and not (
+            isinstance(nd.parent, uni.IterForStmt)
+            and nd in [nd.parent.iter, nd.parent.count_by]
+        ) {
         new_kid.append(nd.gen_token(Tok.SEMI));
     }
     nd.set_kids(nodes=new_kid);

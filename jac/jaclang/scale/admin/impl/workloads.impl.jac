@@ -297,28 +297,28 @@ impl JacAPIServerWorkloads.admin_workloads_list(
     }
     dep_desired = prom_query(_scoped('kube_deployment_spec_replicas', ns_filter)) or [];
     sts_ready = prom_query(_scoped('kube_statefulset_status_replicas_ready', ns_filter))
-    or [];
+        or [];
     sts_desired = prom_query(_scoped('kube_statefulset_replicas', ns_filter)) or [];
     ds_ready = prom_query(_scoped('kube_daemonset_status_number_available', ns_filter))
-    or [];
+        or [];
     ds_desired = prom_query(
         _scoped('kube_daemonset_status_desired_number_scheduled', ns_filter)
     )
-    or [];
+        or [];
     cpu_by_pod = prom_query(
         f'sum(rate(container_cpu_usage_seconds_total{{pod=~".+",container!=""{ns_and}}}[5m])) by (pod)'
     )
-    or [];
+        or [];
     mem_by_pod = prom_query(
         f'sum(container_memory_working_set_bytes{{pod=~".+",container!=""{ns_and}}}) by (pod)'
     )
-    or [];
+        or [];
     restarts_by_pod = prom_query(
         f'sum(increase(kube_pod_container_status_restarts_total{{{ns_filter}}}[1h])) by (pod)'
             if ns_filter
             else 'sum(increase(kube_pod_container_status_restarts_total[1h])) by (pod)'
     )
-    or [];
+        or [];
     dep_created = prom_query(_scoped('kube_deployment_created', ns_filter)) or [];
     sts_created = prom_query(_scoped('kube_statefulset_created', ns_filter)) or [];
     ds_created = prom_query(_scoped('kube_daemonset_created', ns_filter)) or [];
@@ -421,21 +421,21 @@ impl JacAPIServerWorkloads.admin_workloads_list(
             prom_query(
                 'sum by (service)(rate({__name__=~".+_gateway_requests_total"}[1m]))'
             )
-            or [],
+                or [],
             'service'
         );
         svc_err = _index_by(
             prom_query(
                 'sum by (service)(rate({__name__=~".+_gateway_requests_total",outcome=~"5xx|err"}[1m]))'
             )
-            or [],
+                or [],
             'service'
         );
         svc_p95 = _index_by(
             prom_query(
                 'histogram_quantile(0.95, sum by (service, le)(rate({__name__=~".+_gateway_request_duration_seconds_bucket"}[5m])))'
             )
-            or [],
+                or [],
             'service'
         );
     } else {
@@ -527,17 +527,17 @@ impl JacAPIServerWorkloads.admin_workloads_pods(
     cpu_by_pod = prom_query(
         f'sum(rate(container_cpu_usage_seconds_total{{pod=~".+",container!=""{ns_and}}}[5m])) by (pod)'
     )
-    or [];
+        or [];
     mem_by_pod = prom_query(
         f'sum(container_memory_working_set_bytes{{pod=~".+",container!=""{ns_and}}}) by (pod)'
     )
-    or [];
+        or [];
     restarts_by_pod = prom_query(
         f'sum(increase(kube_pod_container_status_restarts_total{{{ns_filter}}}[1h])) by (pod)'
             if ns_filter
             else 'sum(increase(kube_pod_container_status_restarts_total[1h])) by (pod)'
     )
-    or [];
+        or [];
     node_by_pod = prom_query(_scoped('kube_pod_info', ns_filter)) or [];
     started_by_pod = prom_query(_scoped('kube_pod_start_time', ns_filter)) or [];
 
@@ -691,7 +691,7 @@ impl JacAPIServerWorkloads.admin_workloads_timeseries(
         now,
         step
     )
-    or [];
+        or [];
     cpu_by_wl = _rollup_range(cpu_rows, names);
     mem_by_wl = _rollup_range(mem_rows, names);
     all_names = set();

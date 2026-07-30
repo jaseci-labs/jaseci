@@ -78,15 +78,15 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
     sym = resolve_expr_symbol(nd.target);
 
     if sym is not None
-    and sym.decl is not None
-    and sym.sym_type
-    not in (
-        SymbolType.OBJECT_ARCH,
-        SymbolType.NODE_ARCH,
-        SymbolType.EDGE_ARCH,
-        SymbolType.WALKER_ARCH,
-        SymbolType.ENUM_ARCH
-    ) {
+        and sym.decl is not None
+        and sym.sym_type
+            not in (
+                SymbolType.OBJECT_ARCH,
+                SymbolType.NODE_ARCH,
+                SymbolType.EDGE_ARCH,
+                SymbolType.WALKER_ARCH,
+                SymbolType.ENUM_ARCH
+            ) {
         _imp = sym.decl.find_parent_of_type(uni.Import);
         if _imp is not None and _imp.clib_decls {
             return CallKind.CLIB;
@@ -94,20 +94,20 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
     }
     if sym is not None and _is_user_symbol(sym) {
         if sym.sym_type
-        in (
-            SymbolType.OBJECT_ARCH,
-            SymbolType.NODE_ARCH,
-            SymbolType.EDGE_ARCH,
-            SymbolType.WALKER_ARCH,
-            SymbolType.ENUM_ARCH
-        ) {
+            in (
+                SymbolType.OBJECT_ARCH,
+                SymbolType.NODE_ARCH,
+                SymbolType.EDGE_ARCH,
+                SymbolType.WALKER_ARCH,
+                SymbolType.ENUM_ARCH
+            ) {
             return CallKind.INSTANTIATION;
         }
         return CallKind.FUNCTION;
     }
 
     if isinstance(nd.target, uni.Name)
-    and JAC_TYPE_REGISTRY.is_builtin(nd.target.sym_name) {
+        and JAC_TYPE_REGISTRY.is_builtin(nd.target.sym_name) {
         return CallKind.BUILTIN;
     }
     return CallKind.FUNCTION;
@@ -161,8 +161,8 @@ def int_subscript_suffix(right: uni.IndexSlice) -> str | None {
             }
 
             if isinstance(start, uni.MultiString)
-            and len(start.strings) == 1
-            and isinstance(start.strings[0], uni.String) {
+                and len(start.strings) == 1
+                and isinstance(start.strings[0], uni.String) {
                 return f'[{start.strings[0].lit_value!r}]';
             }
 
@@ -317,7 +317,7 @@ def collect_narrowing_symbols(condition: uni.Expr) -> set[str] {
     if isinstance(condition, uni.CfgExpr) {
         symbols.update(collect_narrowing_symbols(condition.expr));
     } elif isinstance(condition, uni.AtomUnit)
-    and isinstance(condition.value, uni.Expr) {
+        and isinstance(condition.value, uni.Expr) {
         symbols.update(collect_narrowing_symbols(condition.value));
     } elif isinstance(condition, uni.UnaryExpr) {
         symbols.update(collect_narrowing_symbols(condition.operand));
@@ -599,7 +599,7 @@ def _shadows_bare_import(nm: uni.Name) -> bool {
         }
         if isinstance(cur, uni.Assignment) {
             return decl in cur.target
-            or any([decl in t.get_all_sub_nodes(uni.Name) for t in cur.target]);
+                or any([decl in t.get_all_sub_nodes(uni.Name) for t in cur.target]);
         }
         if isinstance(cur, uni.ElementStmt) {
             return False;

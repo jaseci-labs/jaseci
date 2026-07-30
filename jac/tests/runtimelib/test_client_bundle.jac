@@ -136,7 +136,7 @@ test "dev config wires fast refresh and index.html installs the hook before the 
         assert "injectIntoGlobalHook" in html;
         # The refresh hook must install before React loads with the app entry
         assert html.index('"/@react-refresh"')
-        < html.index('import("/compiled/_entry.js")');
+            < html.index('import("/compiled/_entry.js")');
         build_content = bundler.create_vite_config(entry, is_dev=False).read_text();
         assert "jacFastRefresh" not in build_content;
     }
@@ -151,7 +151,7 @@ test "dev config wires the layered dev-status bridge; build config does not" {
         dev_cfg = bundler.create_vite_config(entry, is_dev=True);
         dev_content = dev_cfg.read_text();
         assert 'import jacDevStatus, { reportClientLoad } from "./jac-dev-status.js"'
-        in dev_content;
+            in dev_content;
         assert "jacDevStatus()," in dev_content;
         # Browser load-phase failures feed the client slot via the reporter
         assert "reportClientLoad(data)" in dev_content;

@@ -179,7 +179,12 @@ impl PyastGenPass._gen_native_interop_stubs(nd: uni.UniNode) -> None {
                 for pt in binding.param_types
             );
             parts.append(
-                f"def {binding.name}({params}):\n" + f"    import ctypes\n" + f"    _addr = __jac_native_engine__" + f".get_function_address('{binding.name}')\n" + f"    _fn = ctypes.CFUNCTYPE({ret_ct}, {arg_cts})(_addr)\n" + f"    return _fn({params})"
+                f"def {binding.name}({params}):\n"
+                    + f"    import ctypes\n"
+                    + f"    _addr = __jac_native_engine__"
+                    + f".get_function_address('{binding.name}')\n"
+                    + f"    _fn = ctypes.CFUNCTYPE({ret_ct}, {arg_cts})(_addr)\n"
+                    + f"    return _fn({params})"
             );
         }
     }
@@ -286,7 +291,15 @@ impl PyastGenPass._gen_py_sv_func_stub(
         ptype = binding.param_types[i] if i < len(binding.param_types) else '';
         if (ptype in boundary_types and boundary_types[ptype].kind != "enum") {
             args_kvs.append(
-                "'" + pname + "': (" + pname + "._to_wire() if hasattr(" + pname + ", '_to_wire') else " + pname + ")"
+                "'"
+                    + pname
+                    + "': ("
+                    + pname
+                    + "._to_wire() if hasattr("
+                    + pname
+                    + ", '_to_wire') else "
+                    + pname
+                    + ")"
             );
         } else {
             args_kvs.append("'" + pname + "': " + pname);
@@ -295,7 +308,13 @@ impl PyastGenPass._gen_py_sv_func_stub(
     args_dict = '{' + ', '.join(args_kvs) + '}';
     ret_type = binding.ret_type;
     raw_call = (
-        "__jac_sv_client.call('" + module_name + "', '" + func_name + "', " + args_dict + ")"
+        "__jac_sv_client.call('"
+        + module_name
+        + "', '"
+        + func_name
+        + "', "
+        + args_dict
+        + ")"
     );
     if (ret_type in boundary_types and boundary_types[ret_type].kind != "enum") {
         ret_expr = ret_type + '._from_wire(' + raw_call + ')';
@@ -333,7 +352,15 @@ impl PyastGenPass._gen_py_sv_walker_stub(
         ptype = field_types[i] if i < len(field_types) else '';
         if (ptype in boundary_types and boundary_types[ptype].kind != "enum") {
             args_kvs.append(
-                "'" + pname + "': (" + pname + "._to_wire() if hasattr(" + pname + ", '_to_wire') else " + pname + ")"
+                "'"
+                    + pname
+                    + "': ("
+                    + pname
+                    + "._to_wire() if hasattr("
+                    + pname
+                    + ", '_to_wire') else "
+                    + pname
+                    + ")"
             );
         } else {
             args_kvs.append("'" + pname + "': " + pname);
@@ -358,7 +385,12 @@ impl PyastGenPass._gen_py_sv_walker_stub(
     }
 
     lines.append(
-        '        return globals()["__jac_sv_client"].spawn_walker(' + "'" + module_name + "', '" + walker_name + "', kwargs, cls)"
+        '        return globals()["__jac_sv_client"].spawn_walker('
+            + "'"
+            + module_name
+            + "', '"
+            + walker_name
+            + "', kwargs, cls)"
     );
 
     lines.append('    def __init__(self, *args, **kwargs):');
@@ -784,7 +816,9 @@ impl PyastGenPass._native_import_registration_map -> dict {
             continue;
         }
         parsed = ast3.parse(
-            f"if '__jac_interop_py_funcs__' in globals() " + f"and '{binding.name}' in globals():\n" + f"    __jac_interop_py_funcs__['{binding.name}'] = {binding.name}"
+            f"if '__jac_interop_py_funcs__' in globals() "
+                + f"and '{binding.name}' in globals():\n"
+                + f"    __jac_interop_py_funcs__['{binding.name}'] = {binding.name}"
         );
         for stub_node in ast3.walk(parsed) {
             stub_node.jac_link = [];
@@ -1041,7 +1075,13 @@ impl PyastGenPass._native_test_shim_stmts(nd: uni.Test) -> list {
     init_list = "[" + ", ".join(f"'{s}'" for s in init_syms) + "]";
     src_lines = [
         "from jaclang.runtimelib.test import invoke_native_test as _jac_invoke",
-        "_jac_invoke(globals().get('__jac_native_engine__'), '" + symbol + "', '" + test_name + "', " + init_list + ")"
+        "_jac_invoke(globals().get('__jac_native_engine__'), '"
+            + symbol
+            + "', '"
+            + test_name
+            + "', "
+            + init_list
+            + ")"
     ];
     parsed = ast3.parse('\n'.join(src_lines));
     return `list(parsed.body);
@@ -1157,9 +1197,8 @@ impl PyastGenPass.exit_import(nd: uni.Import) -> None {
     native_target = native_only_import_target(nd, self.prog);
     if native_target is not None {
         import os as _os;
-        drop_native_target = (_os.sep + "jaclang" + _os.sep) not in _os.path.abspath(
-            native_target
-        );
+        drop_native_target = (_os.sep + "jaclang" + _os.sep)
+            not in _os.path.abspath(native_target);
     }
     if (
         import_binds_client_native(nd, self.ir_in.gen.interop_manifest)
@@ -1403,9 +1442,8 @@ impl PyastGenPass.exit_enum(nd: uni.Enum) -> None {
         }
     }
     self.needs_enum_kind(trailing_kind);
-    base_classes = extra_bases + [
-        cast(ast3.expr, self.py_ast_val(i)) for i in nd.base_classes
-    ];
+    base_classes = extra_bases
+        + [cast(ast3.expr, self.py_ast_val(i)) for i in nd.base_classes];
     base_classes.append(self.builtin_name(trailing_kind));
     class_def = self.sync(
         ast3.ClassDef(
@@ -1728,9 +1766,9 @@ impl PyastGenPass.exit_ability(nd: uni.Ability) -> None {
     }
 
     if is_prop_acc
-    and (nd.accessor_kind == "property")
-    and (nd.signature is None)
-    and (prop_owner_name is not None) {
+        and (nd.accessor_kind == "property")
+        and (nd.signature is None)
+        and (prop_owner_name is not None) {
         hv2 = nd.find_parent_of_type(uni.HasVar);
         if hv2 and hv2.type_tag {
             ast_returns = cast(ast3.expr, self.py_ast_val(hv2.type_tag));
@@ -3482,8 +3520,8 @@ impl PyastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         self.ice('Type(by llm()) call feature is temporarily disabled.');
     } else {
         if isinstance(nd.target, uni.SpecialVarRef)
-        and nd.target.name == Tok.KW_ROOT
-        and (nd.params is None or len(nd.params) == 0) {
+            and nd.target.name == Tok.KW_ROOT
+            and (nd.params is None or len(nd.params) == 0) {
             nd.gen.py_ast = nd.target.gen.py_ast;
             return;
         }
@@ -3761,7 +3799,8 @@ impl PyastGenPass.exit_filter_compr(nd: uni.FilterCompr) -> None {
         )
     );
     if (
-        body := (
+        body
+        := (
             self.sync(
                 ast3.BoolOp(
                     op=self.sync(ast3.And()),
@@ -4002,11 +4041,11 @@ impl PyastGenPass._resolve_self_type(nd: uni.Name) -> ast3.expr | None {
     if ability {
         is_in_classmethod = ability.is_cls_method;
         is_in_method = ability.is_method
-        and not ability.is_static
-        and not ability.is_cls_method;
+            and not ability.is_static
+            and not ability.is_cls_method;
     } elif impl_def
-    and impl_def.decl_link
-    and isinstance(impl_def.decl_link, uni.Ability) {
+        and impl_def.decl_link
+        and isinstance(impl_def.decl_link, uni.Ability) {
         is_in_classmethod = impl_def.decl_link.is_cls_method;
         is_in_method = (
             impl_def.decl_link.is_method
