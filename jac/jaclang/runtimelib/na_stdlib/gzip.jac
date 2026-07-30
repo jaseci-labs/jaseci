@@ -26,14 +26,14 @@ def:pub compress(data: bytes, compresslevel: int = 9, mtime: int = 0) -> bytes {
         xfl = 4;
     }
 
-    header = b"\x1f\x8b\x08\x00" + (mtime & _MASK32).to_bytes(4, "little") + xfl.to_bytes(
-        1, "little"
-    ) + b"\xff";
+    header = b"\x1f\x8b\x08\x00"
+    + (mtime & _MASK32).to_bytes(4, "little")
+    + xfl.to_bytes(1, "little")
+    + b"\xff";
 
     crc: int = z_crc32(0, data, source_len);
-    trailer = (crc & _MASK32).to_bytes(4, "little") + (source_len & _MASK32).to_bytes(
-        4, "little"
-    );
+    trailer = (crc & _MASK32).to_bytes(4, "little")
+    + (source_len & _MASK32).to_bytes(4, "little");
 
     return header + body + trailer;
 }

@@ -97,18 +97,14 @@ test "test_impl_stay_connected" {
         lsp.type_check_file(circle_file);
         pos = lspt.Position(20, 8);
         assert (
-            "Circle class inherits from Shape." in lsp.get_hover_info(
-                circle_file, pos
-            ).contents.value
+            "Circle class inherits from Shape."
+            in lsp.get_hover_info(circle_file, pos).contents.value
         );
         lsp.type_check_file(circle_impl_file);
         pos = lspt.Position(8, 11);
         assert (
-            "ability) calculate_area\n( radius : float ) -> float" in lsp.get_hover_info(
-                circle_impl_file, pos
-            ).contents.value.replace(
-                "'", ""
-            )
+            "ability) calculate_area\n( radius : float ) -> float"
+            in lsp.get_hover_info(circle_impl_file, pos).contents.value.replace("'", "")
         );
     } finally {
         teardown_test();
@@ -123,11 +119,8 @@ test "test_impl_auto_discover" {
         lsp.type_check_file(circle_impl_file);
         pos = lspt.Position(8, 11);
         assert (
-            "(public ability) calculate_area\n( radius : float ) -> float" in lsp.get_hover_info(
-                circle_impl_file, pos
-            ).contents.value.replace(
-                "'", ""
-            )
+            "(public ability) calculate_area\n( radius : float ) -> float"
+            in lsp.get_hover_info(circle_impl_file, pos).contents.value.replace("'", "")
         );
     } finally {
         teardown_test();
@@ -152,33 +145,27 @@ test "test_go_to_definition" {
         lsp = create_server();
         circle_file = uris.from_fs_path(fixture_path("circle_pure.jac"));
         lsp.type_check_file(circle_file);
-        assert "fixtures/circle_pure.impl.jac:8:5-8:19" in str(
-            lsp.get_definition(circle_file, lspt.Position(9, 16))
-        );
-        assert "fixtures/circle_pure.jac:13:9-13:14" in str(
-            lsp.get_definition(circle_file, lspt.Position(20, 16))
-        );
+        assert "fixtures/circle_pure.impl.jac:8:5-8:19"
+        in str(lsp.get_definition(circle_file, lspt.Position(9, 16)));
+        assert "fixtures/circle_pure.jac:13:9-13:14"
+        in str(lsp.get_definition(circle_file, lspt.Position(20, 16)));
 
         goto_defs_file = uris.from_fs_path(fixture_path("goto_def_tests.jac"));
         lsp.type_check_file(goto_defs_file);
 
         # Test if the visitor keyword goes to the walker definition
-        assert "fixtures/goto_def_tests.jac:8:7-8:17" in str(
-            lsp.get_definition(goto_defs_file, lspt.Position(4, 14))
-        );
+        assert "fixtures/goto_def_tests.jac:8:7-8:17"
+        in str(lsp.get_definition(goto_defs_file, lspt.Position(4, 14)));
         # Test if the here keyword goes to the node definition
-        assert "fixtures/goto_def_tests.jac:0:5-0:13" in str(
-            lsp.get_definition(goto_defs_file, lspt.Position(10, 14))
-        );
+        assert "fixtures/goto_def_tests.jac:0:5-0:13"
+        in str(lsp.get_definition(goto_defs_file, lspt.Position(10, 14)));
         # Test the SomeNode node inside the visit statement goes to its definition
-        assert "fixtures/goto_def_tests.jac:0:5-0:13" in str(
-            lsp.get_definition(goto_defs_file, lspt.Position(11, 21))
-        );
+        assert "fixtures/goto_def_tests.jac:0:5-0:13"
+        in str(lsp.get_definition(goto_defs_file, lspt.Position(11, 21)));
 
         # Test when the left of assignment is a list.
-        assert "fixtures/goto_def_tests.jac:16:5-16:8" in str(
-            lsp.get_definition(goto_defs_file, lspt.Position(17, 10))
-        );
+        assert "fixtures/goto_def_tests.jac:16:5-16:8"
+        in str(lsp.get_definition(goto_defs_file, lspt.Position(17, 10)));
 
         # Test go-to-definition for self-member assigned in impl file.
         # t2.program (line 25) should go to 'has program' declaration (line 12).
@@ -246,9 +233,8 @@ test "test_go_to_definition_method_manual_impl" {
         );
         lsp.type_check_file(decldef_main_file);
         lsp.type_check_file(decldef_file);
-        assert "decl_defs_main.jac:7:8-7:17" in str(
-            lsp.get_definition(decldef_file, lspt.Position(2, 20))
-        );
+        assert "decl_defs_main.jac:7:8-7:17"
+        in str(lsp.get_definition(decldef_file, lspt.Position(2, 20)));
     } finally {
         teardown_test();
     }
@@ -334,9 +320,8 @@ test "test_go_to_definition_connect_filter" {
         ];
 
         for (line, char, expected) in positions {
-            assert expected in str(
-                lsp.get_definition(import_file, lspt.Position(line - 1, char - 1))
-            );
+            assert expected
+            in str(lsp.get_definition(import_file, lspt.Position(line - 1, char - 1)));
         }
     } finally {
         teardown_test();
@@ -356,9 +341,8 @@ test "test_go_to_definition_atom_trailer" {
         ];
 
         for (line, char, expected) in positions {
-            assert expected in str(
-                lsp.get_definition(import_file, lspt.Position(line - 1, char - 1))
-            );
+            assert expected
+            in str(lsp.get_definition(import_file, lspt.Position(line - 1, char - 1)));
         }
     } finally {
         teardown_test();
@@ -614,7 +598,8 @@ test "test_go_to_def_import_star" {
         ];
 
         for (line, char, expected) in positions {
-            assert expected in str(
+            assert expected
+            in str(
                 lsp.get_definition(import_star_file, lspt.Position(line - 1, char - 1))
             );
         }
@@ -1118,8 +1103,10 @@ test "test_namedtuple_hover" {
         # Run all hover tests
         for (line, col, name, expected_type) in hover_tests {
             hover = lsp.get_hover_info(namedtuple_file, lspt.Position(line, col));
-            assert hover is not None , f"Hover for '{name}' at line {line + 1} should exist";
-            assert expected_type in hover.contents.value , f"'{name}' at line {line + 1}: expected '{expected_type}', got: {hover.contents.value}";
+            assert hover is not None , f"Hover for '{name}' at line {line
+            + 1} should exist";
+            assert expected_type in hover.contents.value , f"'{name}' at line {line
+            + 1}: expected '{expected_type}', got: {hover.contents.value}";
         }
     } finally {
         teardown_test();

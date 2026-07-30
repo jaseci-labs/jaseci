@@ -51,9 +51,8 @@ def _raise_ensurepip_unavailable(err: str) {
     raise RuntimeError(
         "Failed to create virtual environment: ensurepip is not available.\n"
         "On Debian/Ubuntu, install it with: sudo apt install python3-venv\n"
-        "On Fedora/RHEL: sudo dnf install python3-libs\n" + (
-            f"\n{err.strip()}" if err.strip() else ""
-        )
+        "On Fedora/RHEL: sudo dnf install python3-libs\n"
+        + (f"\n{err.strip()}" if err.strip() else "")
     );
 }
 
@@ -339,7 +338,10 @@ def get_venv_site_packages(venv_dir: Path) -> Path {
         return venv_dir / "lib" / f"python{version_tag}" / "site-packages";
     }
     return (
-        venv_dir / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+        venv_dir
+        / "lib"
+        / f"python{sys.version_info.major}.{sys.version_info.minor}"
+        / "site-packages"
     );
 }
 

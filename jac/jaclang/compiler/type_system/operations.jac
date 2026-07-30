@@ -346,9 +346,8 @@ def get_type_of_binary_operation(
             return False;
         }
 
-        if (
-            left_unparam := unparameterized_connect_collection(left_type)
-        ) is not None {
+        if (left_unparam := unparameterized_connect_collection(left_type))
+        is not None {
             evaluator.emit_diag(E1118, expr.left, side="left", type=left_unparam);
         } elif not is_valid_node_operand(left_type) {
             evaluator.emit_diag(E1096, expr.left);
@@ -375,9 +374,8 @@ def get_type_of_binary_operation(
             }
             return False;
         }
-        if (
-            right_unparam := unparameterized_connect_collection(right_type)
-        ) is not None {
+        if (right_unparam := unparameterized_connect_collection(right_type))
+        is not None {
             evaluator.emit_diag(E1118, expr.right, side="right", type=right_unparam);
         } elif not is_valid_right_operand(right_type) {
             evaluator.emit_diag(E1097, expr.right);
@@ -407,7 +405,8 @@ def get_type_of_binary_operation(
                         if (assign.key is not None)
                         and isinstance(edge_inst_type, jtypes.ClassType) {
                             if (
-                                member := evaluator._lookup_object_member(
+                                member
+                                := evaluator._lookup_object_member(
                                     edge_inst_type, assign.key.sym_name
                                 )
                             ) {
@@ -536,12 +535,8 @@ def get_type_of_binary_operation(
     }
 
     if isinstance(expr.op, uni.Token)
-    and expr.op.name in [
-        Tok.PIPE_FWD,
-        Tok.A_PIPE_FWD,
-        Tok.PIPE_BKWD,
-        Tok.A_PIPE_BKWD
-    ] {
+    and expr.op.name
+    in [Tok.PIPE_FWD, Tok.A_PIPE_FWD, Tok.PIPE_BKWD, Tok.A_PIPE_BKWD] {
         is_forward = expr.op.name in [Tok.PIPE_FWD, Tok.A_PIPE_FWD];
         callable_node = expr.right if is_forward else expr.left;
         arg_node = expr.left if is_forward else expr.right;

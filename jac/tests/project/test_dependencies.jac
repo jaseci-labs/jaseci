@@ -294,13 +294,8 @@ test "ensure_venv recreates fused jac-as-python venvs" {
             assert run.call_count == 2 , (
                 "bundled venv create should run venv then ensurepip"
             );
-            assert run.call_args_list[0].args[0] == [
-                "/fake/rt/python/bin/python3.14",
-                "-m",
-                "venv",
-                str(venv_dir),
-
-            ];
+            assert run.call_args_list[0].args[0]
+            == ["/fake/rt/python/bin/python3.14", "-m", "venv", str(venv_dir), ];
             assert "--with-pip" not in run.call_args_list[0].args[0];
             ensurepip_cmd = run.call_args_list[1].args[0];
             assert ensurepip_cmd[-3:] == ["-m", "ensurepip", "--upgrade"];
@@ -443,7 +438,8 @@ test "summarize_pip_failure names package and keeps final error line" {
         ["sympy>=1.10.0", "numpy==1.24.3"], stderr
     );
     assert package == "numpy==1.24.3";
-    assert detail == "pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'setuptools.build_meta'";
+    assert detail
+    == "pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'setuptools.build_meta'";
 }
 
 test "summarize_pip_failure prefers explicit ERROR line" {
@@ -741,7 +737,8 @@ test "python resolve git dependencies" {
         assert git_deps[0].name == "my-lib";
         assert git_deps[0].data["git"] == "https://github.com/user/my-lib.git";
         assert (
-            python.pip_spec(git_deps[0]) == "git+https://github.com/user/my-lib.git@main"
+            python.pip_spec(git_deps[0])
+            == "git+https://github.com/user/my-lib.git@main"
         );
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
@@ -1641,7 +1638,8 @@ test "install git dependency" {
             assert result == 0;
             config = JacConfig.load(Path(project_path) / "jac.toml");
             assert "my-lib" in config.git_dependencies;
-            assert config.git_dependencies["my-lib"]["git"] == "https://github.com/user/my-lib.git";
+            assert config.git_dependencies["my-lib"]["git"]
+            == "https://github.com/user/my-lib.git";
         } finally {
             os.chdir(original_cwd);
             reset_config();
@@ -1978,7 +1976,8 @@ test "pip_command passes flags through unchanged" {
     cmd = pip_command(
         "/path/to/python", ["install", "--force-reinstall", "--prefer-binary", "pkg"]
     );
-    assert cmd == [
+    assert cmd
+    == [
         "/path/to/python",
         "-m",
         "pip",

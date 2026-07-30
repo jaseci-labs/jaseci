@@ -50,7 +50,11 @@ def _parse_url(u: str) -> _Url {
 
 
 def _request_text(host: str, path: str) -> str {
-    return "GET " + path + " HTTP/1.0\r\nHost: " + host + "\r\nConnection: close\r\nUser-Agent: jac-urllib/1.0\r\nAccept: */*\r\n\r\n";
+    return "GET "
+    + path
+    + " HTTP/1.0\r\nHost: "
+    + host
+    + "\r\nConnection: close\r\nUser-Agent: jac-urllib/1.0\r\nAccept: */*\r\n\r\n";
 }
 
 

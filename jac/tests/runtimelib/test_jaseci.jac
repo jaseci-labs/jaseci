@@ -508,7 +508,8 @@ test "walker purger" {
             args=[]
         );
         output = capture_get(captured).strip();
-        assert output == (
+        assert output
+        == (
             "Root()\n"
             "A(id=0)\nA(id=1)\n"
             "B(id=0)\nB(id=1)\nB(id=0)\nB(id=1)\n"
@@ -755,7 +756,8 @@ test "savable object" {
         prints = capture_get(captured).strip().split("\n");
         id = prints[0];
 
-        assert prints[1] == (
+        assert prints[1]
+        == (
             "SavableObject(val=0, arr=[], json={}, parent=Parent(val=1, arr=[1], json"
             "={'a': 1}, enum_field=<Enum.B: 'b'>, child=Child(val=2, arr=[1, 2], json"
             "={'a': 1, 'b': 2}, enum_field=<Enum.C: 'c'>)), enum_field=<Enum.A: 'a'>)"
@@ -800,7 +802,8 @@ test "savable object" {
         );
 
         got = capture_get(captured).strip();
-        assert got == (
+        assert got
+        == (
             "SavableObject(val=1, arr=[1], json={'a': 1}, parent=Parent(val=2, arr=[1, 2], json"
             "={'a': 1, 'b': 2}, enum_field=<Enum.C: 'c'>, child=Child(val=3, arr=[1, 2, 3], json"
             "={'a': 1, 'b': 2, 'c': 3}, enum_field=<Enum.A: 'a'>)), enum_field=<Enum.B: 'b'>)"
@@ -845,7 +848,8 @@ test "traversing save" {
             args=[]
         );
 
-        assert capture_get(captured).strip() == (
+        assert capture_get(captured).strip()
+        == (
             "digraph {\n"
             "node [style=\"filled\", shape=\"ellipse\", fillcolor=\"invis\", fontcolor=\"black\"];\n"
             "0 -> 1 [label=\"\"];\n"

@@ -509,9 +509,9 @@ impl jacSsoLogin(platform: str, api_base: str = "", operation: str = "login") ->
     broker = __jacDesktopBroker();
     if broker {
         start_url = (
-            f"{broker}/oauth/start?platform={encodeURIComponent(platform)}" + f"&operation={encodeURIComponent(
-                operation
-            )}" + f"&api_base={encodeURIComponent(base)}"
+            f"{broker}/oauth/start?platform={encodeURIComponent(platform)}"
+            + f"&operation={encodeURIComponent(operation)}"
+            + f"&api_base={encodeURIComponent(base)}"
         );
         started = await fetch(start_url);
         if not started.ok {

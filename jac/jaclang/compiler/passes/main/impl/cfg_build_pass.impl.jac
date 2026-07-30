@@ -119,7 +119,10 @@ impl CoalesceBBPass._node_label(nd: uni.UniNode) -> str {
         return 'for ' + nd.target.unparse() + ' in ' + nd.collection.unparse();
     }
     if isinstance(nd, uni.IterForStmt) {
-        return 'for ' + nd.iter.unparse() + nd.condition.unparse() + nd.count_by.unparse();
+        return 'for '
+        + nd.iter.unparse()
+        + nd.condition.unparse()
+        + nd.count_by.unparse();
     }
 
     if isinstance(nd, uni.MatchStmt) {

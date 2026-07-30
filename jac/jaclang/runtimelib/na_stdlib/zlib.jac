@@ -57,9 +57,9 @@ def:pub decompress(data: bytes) -> bytes {
             continue;
         }
         raise ValueError(
-            "zlib.decompress: invalid or truncated stream (libz error code " + str(
-                rc
-            ) + ")"
+            "zlib.decompress: invalid or truncated stream (libz error code "
+            + str(rc)
+            + ")"
         );
     }
 }

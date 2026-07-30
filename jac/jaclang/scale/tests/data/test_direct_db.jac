@@ -44,16 +44,16 @@ test "mongodb crud" {
     assert db.find_by_id("users", doc_id) is None;
 
     assert db.find_by_id("users", "not-an-objectid") is None;
-    assert db.update_by_id(
-        "users", "not-an-objectid", {"$set": {"x": 1}}
-    ).matched_count == 0;
+    assert db.update_by_id("users", "not-an-objectid", {"$set": {"x": 1}}).matched_count
+    == 0;
     assert db.delete_by_id("users", "not-an-objectid").deleted_count == 0;
 
     db.insert_many("scores", [{"score": 100}, {"score": 200}, {"score": 300}]);
     assert (
         db.update_many(
             "scores", {"score": {"$gte": 200}}, {"$set": {"tier": "gold"}}
-        ).modified_count == 2
+        ).modified_count
+        == 2
     );
     assert db.delete_many("scores", {"tier": "gold"}).deleted_count == 2;
 

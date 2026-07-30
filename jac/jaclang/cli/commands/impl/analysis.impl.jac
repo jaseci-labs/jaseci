@@ -45,9 +45,8 @@ impl check(
     );
     if unknown_codes {
         console.warning(
-            "Ignoring unknown diagnostic codes in --disable-error-code: " + ", ".join(
-                unknown_codes
-            )
+            "Ignoring unknown diagnostic codes in --disable-error-code: "
+            + ", ".join(unknown_codes)
         );
     }
     if native_census {
@@ -275,9 +274,8 @@ impl lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int {
             import from jaclang.jac0core.bccache { discover_annex_files }
             import os;
             annex_paths = (
-                discover_annex_files(str(path_obj), '.impl.jac') + discover_annex_files(
-                    str(path_obj), '.test.jac'
-                )
+                discover_annex_files(str(path_obj), '.impl.jac')
+                + discover_annex_files(str(path_obj), '.test.jac')
             );
             for annex_path in annex_paths {
                 if os.path.realpath(annex_path) in covered {
@@ -403,9 +401,8 @@ def _format_single_file_worker(
         import from jaclang.jac0core.bccache { discover_annex_files }
 
         annex_paths = (
-            discover_annex_files(file_path, '.impl.jac') + discover_annex_files(
-                file_path, '.test.jac'
-            )
+            discover_annex_files(file_path, '.impl.jac')
+            + discover_annex_files(file_path, '.test.jac')
         );
         if logical_path {
             phys_parent = str(Path(file_path).resolve().parent);
@@ -970,9 +967,8 @@ impl precommit(
                             continue;
                         }
                         for ap in (
-                            discover_annex_files(abs_t, '.impl.jac') + discover_annex_files(
-                                abs_t, '.test.jac'
-                            )
+                            discover_annex_files(abs_t, '.impl.jac')
+                            + discover_annex_files(abs_t, '.test.jac')
                         ) {
                             ap_rel = os.path.relpath(ap, git_root).replace(os.sep, "/");
                             if ap_rel not in rel_set {
@@ -1004,7 +1000,8 @@ impl precommit(
                         "-f",
                         f"--prefix={tmp_root}{os.sep}",
                         "--"
-                    ] + checkout_paths,
+                    ]
+                    + checkout_paths,
                     check=True,
                     cwd=git_root
                 );

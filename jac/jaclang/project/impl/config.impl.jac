@@ -600,7 +600,9 @@ def _toml_token_alt(name: str) -> str {
 def _toml_find_span(lines: list[str], parts: tuple) -> tuple[int, int] | None {
     import re;
     header_re = re.compile(
-        r"^\s*\[\s*" + r"\s*\.\s*".join([_toml_token_alt(p) for p in parts]) + r"\s*\]\s*(?:#.*)?$"
+        r"^\s*\[\s*"
+        + r"\s*\.\s*".join([_toml_token_alt(p) for p in parts])
+        + r"\s*\]\s*(?:#.*)?$"
     );
     header = -1;
     for (i, line) in enumerate(lines) {

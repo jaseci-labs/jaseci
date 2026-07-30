@@ -109,7 +109,8 @@ impl Serializer._serialize_value(
         };
         if val.is_populated() {
             arch = val.archetype;
-            result['archetype'] = Serializer._type_info(arch, include_type) | Serializer._serialize_attrs(
+            result['archetype'] = Serializer._type_info(arch, include_type)
+            | Serializer._serialize_attrs(
                 arch, include_type, api_mode, ref_mode, _seen
             );
         }
@@ -178,9 +179,8 @@ impl Serializer._serialize_value(
                     else 'walker' if isinstance(val, WalkerArchetype) else 'archetype'
             };
         }
-        return result | Serializer._serialize_attrs(
-            val, include_type, api_mode, ref_mode, _seen
-        );
+        return result
+        | Serializer._serialize_attrs(val, include_type, api_mode, ref_mode, _seen);
     }
 
     if val?.__dict__ {

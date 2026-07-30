@@ -1970,9 +1970,8 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         );
     }
 
-    args: list[ir.Value] = [obj_val] + self._codegen_bound_args(
-        nd, func, self_offset=1
-    );
+    args: list[ir.Value] = [obj_val]
+    + self._codegen_bound_args(nd, func, self_offset=1);
 
     if self._arch_has_vtable(type_name) and not _is_mono_method {
         result = self._codegen_virtual_call(obj_val, method_name, args, type_name);

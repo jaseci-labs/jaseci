@@ -298,9 +298,8 @@ def:pub ServicesPage -> JsxElement {
                         {c["label"]}
                     </p>
                     <p
-                        className={"text-2xl font-semibold mt-1 tabular-nums " + str(
-                            toneClasses[c["tone"]] or "text-fg"
-                        )}
+                        className={"text-2xl font-semibold mt-1 tabular-nums "
+                        + str(toneClasses[c["tone"]] or "text-fg")}
                     >
                         {c["value"]}
                     </p>
@@ -318,9 +317,8 @@ def:pub ServicesPage -> JsxElement {
                         {c["label"]}
                     </p>
                     <p
-                        className={"text-2xl font-semibold mt-1 tabular-nums " + str(
-                            toneClasses[c["tone"]] or "text-fg"
-                        )}
+                        className={"text-2xl font-semibold mt-1 tabular-nums "
+                        + str(toneClasses[c["tone"]] or "text-fg")}
                     >
                         {c["value"]}
                     </p>
@@ -358,15 +356,15 @@ def:pub ServicesPage -> JsxElement {
                             </span>
                         </div>
                         <span
-                            className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border shrink-0 " + str(
+                            className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border shrink-0 "
+                            + str(
                                 statusClasses[s["status"]]
                                 or "bg-surface-2 text-muted border-line"
                             )}
                         >
                             <span
-                                className={"w-1.5 h-1.5 rounded-full " + str(
-                                    statusDotClasses[s["status"]] or "bg-faint"
-                                )}
+                                className={"w-1.5 h-1.5 rounded-full "
+                                + str(statusDotClasses[s["status"]] or "bg-faint")}
                             ></span>
                             {s["status"]}
                         </span>

@@ -1685,7 +1685,8 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 import logging;
                 import traceback;
                 logging.getLogger('jaclang.serve').error(
-                    f"Unhandled error serving {self.command} {self.path}:\n" + traceback.format_exc()
+                    f"Unhandled error serving {self.command} {self.path}:\n"
+                    + traceback.format_exc()
                 );
                 try {
                     Jac.send_json(self, 500, {'error': f"{type(exc).__name__}: {exc}"});
@@ -1965,7 +1966,8 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 and not path.startswith('/walkers')
                 and not path.startswith('/protected')
                 and (
-                    Path(path).suffix in (
+                    Path(path).suffix
+                    in (
                         custom_asset_extensions
                         or {
                             '.png',
@@ -2009,8 +2011,16 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                     }
                     file_name = Path(relative_path).name;
 
-                    client_build_dist_file = base_path / '.jac' / 'client' / 'dist' / relative_path;
-                    client_build_dist_file_simple = base_path / '.jac' / 'client' / 'dist' / file_name;
+                    client_build_dist_file = base_path
+                    / '.jac'
+                    / 'client'
+                    / 'dist'
+                    / relative_path;
+                    client_build_dist_file_simple = base_path
+                    / '.jac'
+                    / 'client'
+                    / 'dist'
+                    / file_name;
 
                     dist_file = base_path / 'dist' / relative_path;
                     dist_file_simple = base_path / 'dist' / file_name;

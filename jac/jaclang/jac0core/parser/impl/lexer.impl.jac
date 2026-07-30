@@ -53,7 +53,8 @@ impl Lexer._track_view_context(tok: Token) {
 }
 
 impl Lexer.prev_is_value -> bool {
-    return self.prev_token_kind in [
+    return self.prev_token_kind
+    in [
         TokenKind.NAME,
         TokenKind.KWESC_NAME,
         TokenKind.INT,
@@ -1630,7 +1631,8 @@ impl Lexer.scan_operator -> Token {
 impl Lexer.next_token -> Token {
     mode = self.current_mode();
 
-    if mode in [
+    if mode
+    in [
         LexerMode.FSTRING_DQ,
         LexerMode.FSTRING_SQ,
         LexerMode.FSTRING_TDQ,
@@ -1674,7 +1676,8 @@ impl Lexer.next_token -> Token {
             return self.scan_jsx_open_start();
         }
         if self.in_view_body()
-        and self.prev_token_kind in [
+        and self.prev_token_kind
+        in [
             TokenKind.RBRACE,
             TokenKind.JSX_TAG_END,
             TokenKind.JSX_SELF_CLOSE,

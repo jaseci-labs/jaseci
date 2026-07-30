@@ -160,7 +160,8 @@ impl gen_diagnostics(
         )
         for error in errors
         if error.loc.mod_path == from_path
-    ] + [
+    ]
+    + [
         lspt.Diagnostic(
             range=create_range(warning.loc),
             message=_message(warning),

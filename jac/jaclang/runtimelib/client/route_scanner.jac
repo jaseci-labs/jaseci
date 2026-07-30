@@ -23,8 +23,10 @@ def describe_pages_without_routes(pages_dir: Path) -> list[str] {
         return [];
     }
     lines: list[str] = [
-        f"{pages_dir} contains {len(candidates)} module(s) but no recognized " + "routes — the app will mount without a router and render a blank page.",
-        "A route is an export returning JsxPage (JsxLayout for layouts); " + "the export name and filename are free."
+        f"{pages_dir} contains {len(candidates)} module(s) but no recognized "
+        + "routes — the app will mount without a router and render a blank page.",
+        "A route is an export returning JsxPage (JsxLayout for layouts); "
+        + "the export name and filename are free."
     ];
     for f in candidates {
         try {
@@ -38,7 +40,8 @@ def describe_pages_without_routes(pages_dir: Path) -> list[str] {
         for hit in re.finditer(_JSX_ELEMENT_EXPORT_RE, source) {
             kind = 'JsxLayout' if 'layout' in hit.group(1).lower() else 'JsxPage';
             lines.append(
-                f"  {f}: '{hit.group(1)}' returns JsxElement — change the " + f"return type to {kind} to make it a route."
+                f"  {f}: '{hit.group(1)}' returns JsxElement — change the "
+                + f"return type to {kind} to make it a route."
             );
         }
     }

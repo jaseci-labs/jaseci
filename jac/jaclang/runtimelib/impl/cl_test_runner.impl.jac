@@ -117,9 +117,13 @@ impl _build_harness(
     entries = [];
     for t in tests {
         entries.append(
-            "  [" + json.dumps(t["name"]) + ", " + json.dumps(
-                t.get("description", t["name"])
-            ) + ", " + t["name"] + "]"
+            "  ["
+            + json.dumps(t["name"])
+            + ", "
+            + json.dumps(t.get("description", t["name"]))
+            + ", "
+            + t["name"]
+            + "]"
         );
     }
     fn_entries = ",\n".join(entries);

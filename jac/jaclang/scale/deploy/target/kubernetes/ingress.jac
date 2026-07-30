@@ -493,7 +493,8 @@ obj IngressDeployer {
         main_spec: dict = {'ingressClassName': ingress_class, 'rules': main_rules};
 
         cert_manager_managed = (
-            'cert-manager.io/cluster-issuer' in self.k8s_config.shared_ingress_annotations
+            'cert-manager.io/cluster-issuer'
+            in self.k8s_config.shared_ingress_annotations
             or 'cert-manager.io/issuer' in self.k8s_config.shared_ingress_annotations
         );
 

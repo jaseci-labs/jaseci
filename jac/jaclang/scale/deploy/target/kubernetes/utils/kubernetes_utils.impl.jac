@@ -156,17 +156,15 @@ impl wait_for_pod_phase(
         }
         if (phase == 'Failed') {
             raise RuntimeError(
-                f"Sync pod '{pod_name}' entered Failed state." + describe_pod_status(
-                    core_v1, namespace, pod_name, pod
-                )
+                f"Sync pod '{pod_name}' entered Failed state."
+                + describe_pod_status(core_v1, namespace, pod_name, pod)
             );
         }
         time.sleep(2);
     }
     raise TimeoutError(
-        f"Timed out while waiting for pod '{pod_name}' to reach phase {target_phases}." + describe_pod_status(
-            core_v1, namespace, pod_name, last_pod
-        )
+        f"Timed out while waiting for pod '{pod_name}' to reach phase {target_phases}."
+        + describe_pod_status(core_v1, namespace, pod_name, last_pod)
     );
 }
 
@@ -188,9 +186,8 @@ impl describe_pod_status(
                 );
             }
         }
-        container_states = (pod.status.init_container_statuses or []) + (
-            pod.status.container_statuses or []
-        );
+        container_states = (pod.status.init_container_statuses or [])
+        + (pod.status.container_statuses or []);
         for cs in container_states {
             waiting = cs.state.waiting if cs.state else None;
             if waiting and waiting.reason {
@@ -486,9 +483,8 @@ impl check_pods_restarted(
                 continue;
             }
         }
-        statuses = (pod.status.init_container_statuses or []) + (
-            pod.status.container_statuses or []
-        );
+        statuses = (pod.status.init_container_statuses or [])
+        + (pod.status.container_statuses or []);
         if not statuses {
             continue;
         }
@@ -645,9 +641,8 @@ impl check_deployment_status(
         );
         for p in diag_pods.items {
             console.print(
-                f"timeout diagnostics: pod {p.metadata.name}" + describe_pod_status(
-                    diag_v1, namespace, p.metadata.name, p
-                )
+                f"timeout diagnostics: pod {p.metadata.name}"
+                + describe_pod_status(diag_v1, namespace, p.metadata.name, p)
             );
         }
     } except Exception as diag_err {

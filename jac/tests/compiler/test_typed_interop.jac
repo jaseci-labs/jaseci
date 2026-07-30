@@ -142,7 +142,8 @@ test "sv-to-sv: typed archetype return is rehydrated, not a raw dict (#6710)" {
     assert (
         "AnalyticsReport._from_wire(__jac_sv_client.call('sv_relative_provider', "
         "'analyze'"
-    ) in py , "sv->sv typed return must be rehydrated via <RetType>._from_wire(...)";
+    )
+    in py , "sv->sv typed return must be rehydrated via <RetType>._from_wire(...)";
     # The imported archetype must lower to a boundary stub *class* (carrying
     # `_from_wire`), never a function stub that would RPC the type name itself.
     assert "class AnalyticsReport:" in py , (

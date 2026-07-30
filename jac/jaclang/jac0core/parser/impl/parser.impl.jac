@@ -243,7 +243,8 @@ impl Parser.expect(kind: TokenKind) -> Token {
         return self.advance();
     }
 
-    if kind in (
+    if kind
+    in (
         TokenKind.RPAREN,
         TokenKind.RBRACE,
         TokenKind.RSQUARE,
@@ -756,7 +757,10 @@ impl Parser._check_js_arrow_fault -> bool {
 
 impl Parser._recover_removed_marker{
     self.error(
-        f"'{self.current().value}' placement markers were removed: " + "placement is inferred (override via [placement.pins] in " + "jac.toml; declare services in [scale.microservices.routes]). " + "Run 'jac fix placement' to migrate this file."
+        f"'{self.current().value}' placement markers were removed: "
+        + "placement is inferred (override via [placement.pins] in "
+        + "jac.toml; declare services in [scale.microservices.routes]). "
+        + "Run 'jac fix placement' to migrate this file."
     );
     self.advance();
     return self.parse_element_stmt();
@@ -1660,7 +1664,8 @@ impl Parser.parse_call_arg -> Expr | KWPair {
         name: Name;
         if name_tok.kind == TokenKind.NAME or name_tok.kind == TokenKind.KWESC_NAME {
             name = self.make_name(name_tok);
-        } elif name_tok.kind in [
+        } elif name_tok.kind
+        in [
             TokenKind.KW_SELF,
             TokenKind.KW_PROPS,
             TokenKind.KW_SUPER,
@@ -1841,20 +1846,8 @@ impl Parser.parse_multistring -> Expr | None {
     strings: list = [];
 
     if self.check(TokenKind.NAME)
-    and self.current().value in [
-        "r",
-        "b",
-        "rb",
-        "br",
-        "R",
-        "B",
-        "rB",
-        "Rb",
-        "bR",
-        "Br",
-        "BR",
-        "RB"
-    ]
+    and self.current().value
+    in ["r", "b", "rb", "br", "R", "B", "rB", "Rb", "bR", "Br", "BR", "RB"]
     and self.check_peek(TokenKind.STRING) {
         prefix_tok = self.expect(TokenKind.NAME);
         str_tok = self.expect(TokenKind.STRING);
@@ -1892,20 +1885,8 @@ impl Parser.parse_multistring -> Expr | None {
     )
     or (
         self.check(TokenKind.NAME)
-        and self.current().value in [
-            "r",
-            "b",
-            "rb",
-            "br",
-            "R",
-            "B",
-            "rB",
-            "Rb",
-            "bR",
-            "Br",
-            "BR",
-            "RB"
-        ]
+        and self.current().value
+        in ["r", "b", "rb", "br", "R", "B", "rB", "Rb", "bR", "Br", "BR", "RB"]
         and self.check_peek(TokenKind.STRING)
     ) {
         if self.check(TokenKind.NAME) and self.check_peek(TokenKind.STRING) {
@@ -2053,20 +2034,8 @@ impl Parser.parse_atom -> Expr {
     )
     or (
         self.check(TokenKind.NAME)
-        and self.current().value in [
-            "r",
-            "b",
-            "rb",
-            "br",
-            "R",
-            "B",
-            "rB",
-            "Rb",
-            "bR",
-            "Br",
-            "BR",
-            "RB"
-        ]
+        and self.current().value
+        in ["r", "b", "rb", "br", "R", "B", "rB", "Rb", "bR", "Br", "BR", "RB"]
         and self.check_peek(TokenKind.STRING)
     ) {
         return self.parse_multistring();
@@ -3272,7 +3241,8 @@ impl Parser.parse_element_stmt{
         and self.current().value in ('sv', 'cl', 'na')
         and (
             self.check_peek(TokenKind.LBRACE)
-            or self.peek().kind in (
+            or self.peek().kind
+            in (
                 TokenKind.KW_IMPORT,
                 TokenKind.KW_INCLUDE,
                 TokenKind.KW_DEF,
@@ -5524,7 +5494,8 @@ impl Parser.parse_has_var -> HasVar {
         name_tok = self.expect_name();
     }
     name: Name;
-    if name_tok.kind in [
+    if name_tok.kind
+    in [
         TokenKind.KW_SELF,
         TokenKind.KW_PROPS,
         TokenKind.KW_SUPER,

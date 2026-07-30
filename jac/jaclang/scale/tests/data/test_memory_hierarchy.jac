@@ -1020,9 +1020,8 @@ test "partial update only writes mutated fields — unmodified fields survive in
             {"$set": {"data.archetype.metadata.__sentinel__": "PRESERVED"}}
         );
         sentinel_check = collection.find_one({"_id": item_id});
-        assert sentinel_check["data"]["archetype"]["metadata"].get("__sentinel__") == "PRESERVED" , (
-            "Sentinel injection failed"
-        );
+        assert sentinel_check["data"]["archetype"]["metadata"].get("__sentinel__")
+        == "PRESERVED" , ("Sentinel injection failed");
 
         post_request(base_url, "/walker/AppendTag", {"id": 42, "tag": "urgent"}, token);
 
@@ -1030,7 +1029,8 @@ test "partial update only writes mutated fields — unmodified fields survive in
         assert "urgent" in doc["data"]["archetype"]["tags"] , (
             "tags mutation was not persisted to MongoDB"
         );
-        assert doc["data"]["archetype"]["metadata"].get("__sentinel__") == "PRESERVED" , (
+        assert doc["data"]["archetype"]["metadata"].get("__sentinel__")
+        == "PRESERVED" , (
             "put_partial overwrote metadata — a full $set was issued instead of a partial one"
         );
     } finally {

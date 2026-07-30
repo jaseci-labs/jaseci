@@ -58,7 +58,8 @@ def _prepend_env_path(env: dict[str, str], key: str, path: str) -> None {
     }
     existing = env.get(key, "");
     if existing {
-        parts = [path] + [
+        parts = [path]
+        + [
             p
             for p in existing.split(os.pathsep)
             if p and p != path

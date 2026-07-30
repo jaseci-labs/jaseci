@@ -29,9 +29,8 @@ def:pub StatsCard(label: str, value: any, color: str = "white") -> JsxElement {
         "blue": "text-fg"
     };
 
-    valueClass = "text-2xl font-semibold mt-1 tracking-tight " + (
-        colorClasses[color] or "text-fg"
-    );
+    valueClass = "text-2xl font-semibold mt-1 tracking-tight "
+    + (colorClasses[color] or "text-fg");
 
     <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
         <p className="text-[11px] text-faint uppercase tracking-wider font-medium">

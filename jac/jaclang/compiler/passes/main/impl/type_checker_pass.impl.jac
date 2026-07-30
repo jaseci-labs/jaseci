@@ -963,9 +963,8 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: uni.HasVar) -> None {
                 }
             } elif isinstance(arch, uni.ImplDef)
             and isinstance(arch.decl_link, uni.Archetype) {
-                if (
-                    postinit_sym := arch.decl_link.names_in_scope.get("__post_init__")
-                ) is not None {
+                if (postinit_sym := arch.decl_link.names_in_scope.get("__post_init__"))
+                is not None {
                     postinit_nd._sym = postinit_sym;
                 }
             }
@@ -1182,12 +1181,10 @@ impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: uni.WithStmt) -> None
 
             if isinstance(expr_type, types.ClassType) {
                 has_exit = (
-                    self.evaluator._lookup_class_member(
-                        expr_type, exit_method
-                    ) is not None
-                    or self.evaluator._lookup_object_member(
-                        expr_type, exit_method
-                    ) is not None
+                    self.evaluator._lookup_class_member(expr_type, exit_method)
+                    is not None
+                    or self.evaluator._lookup_object_member(expr_type, exit_method)
+                    is not None
                 );
                 if not has_exit and not expr_type.is_any_type() {
                     self.emit(E1092, node_override=nd, type=str(expr_type));

@@ -25,9 +25,13 @@ def:pub Button(
         "link": "text-accent hover:text-accent-hover"
     };
 
-    classes = baseClass + " " + (sizeClasses[size] or sizeClasses["md"]) + " " + (
-        variantClasses[variant] or variantClasses["primary"]
-    ) + " " + className;
+    classes = baseClass
+    + " "
+    + (sizeClasses[size] or sizeClasses["md"])
+    + " "
+    + (variantClasses[variant] or variantClasses["primary"])
+    + " "
+    + className;
 
     <button type={type} onClick={onClick} disabled={disabled} className={classes}>
         {children}

@@ -17,7 +17,9 @@ import from jaclang.cli.shadcn.shadcn_handler { resolve_single_component }
 
 # The jac-shadcn template dir, resolved from the installed package (robust to
 # the test file's own location).
-glob _TEMPLATE_DIR: any = Path(str(files("jaclang.cli.shadcn"))) / "templates" / "jac-shadcn";
+glob _TEMPLATE_DIR: any = Path(str(files("jaclang.cli.shadcn")))
+     / "templates"
+     / "jac-shadcn";
 
 
 # Module-level config mocks. A dataclass declared inside a test function can't

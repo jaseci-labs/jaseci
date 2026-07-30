@@ -18,16 +18,22 @@ def _webview_dir -> Path {
     here = Path(os.path.abspath(__file__)).parent;
     probe = here;
     for _ in range(8) {
-        cand = probe / "jaclang" / "runtimelib" / "client" / "targets" / "desktop" / "native" / "webview";
+        cand = probe
+        / "jaclang"
+        / "runtimelib"
+        / "client"
+        / "targets"
+        / "desktop"
+        / "native"
+        / "webview";
         if (cand / "webview.jac").exists() {
             return cand;
         }
         probe = probe.parent;
     }
     raise RuntimeError(
-        "jaclang/runtimelib/client/targets/desktop/native/webview/webview.jac not found from " + str(
-            here
-        )
+        "jaclang/runtimelib/client/targets/desktop/native/webview/webview.jac not found from "
+        + str(here)
     );
 }
 
@@ -36,16 +42,21 @@ def _native_dir -> Path {
     here = Path(os.path.abspath(__file__)).parent;
     probe = here;
     for _ in range(8) {
-        cand = probe / "jaclang" / "runtimelib" / "client" / "targets" / "desktop" / "native";
+        cand = probe
+        / "jaclang"
+        / "runtimelib"
+        / "client"
+        / "targets"
+        / "desktop"
+        / "native";
         if (cand / "plugin_bridge.jac").exists() {
             return cand;
         }
         probe = probe.parent;
     }
     raise RuntimeError(
-        "jaclang/runtimelib/client/targets/desktop/native/plugin_bridge.jac not found from " + str(
-            here
-        )
+        "jaclang/runtimelib/client/targets/desktop/native/plugin_bridge.jac not found from "
+        + str(here)
     );
 }
 

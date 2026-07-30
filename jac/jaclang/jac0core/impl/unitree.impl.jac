@@ -2472,9 +2472,13 @@ impl Literal.init(
     Expr.postinit(self);
 }
 
-impl Literal.lit_value.getter -> int | str | float | bool | None | Callable[
-    ([], Any)
-] | EllipsisType {
+impl Literal.lit_value.getter -> int
+| str
+| float
+| bool
+| None
+| Callable[([], Any)]
+| EllipsisType {
     raise NotImplementedError;
 }
 

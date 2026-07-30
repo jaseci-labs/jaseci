@@ -195,9 +195,8 @@ def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
         encs = [];
         for nd in order {
             if nd["term"] is not None {
-                info = _encode_uleb128(EXPORT_SYMBOL_FLAGS_KIND_REGULAR) + _encode_uleb128(
-                    nd["term"]
-                );
+                info = _encode_uleb128(EXPORT_SYMBOL_FLAGS_KIND_REGULAR)
+                + _encode_uleb128(nd["term"]);
                 e = _encode_uleb128(len(info)) + info;
             } else {
                 e = _encode_uleb128(0);
@@ -205,9 +204,9 @@ def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
             e += bytes([len(nd["kids"])]);
             for label in sorted(nd["kids"].keys()) {
                 child = nd["kids"][label];
-                e += label.encode("utf-8") + b"\x00" + _encode_uleb128(
-                    offsets[node_index[id(child)]]
-                );
+                e += label.encode("utf-8")
+                + b"\x00"
+                + _encode_uleb128(offsets[node_index[id(child)]]);
             }
             encs.append(e);
         }
@@ -824,10 +823,8 @@ impl MachOLinker.build_executable -> bytes {
     for rel in self.relocations {
         is_got_rel = False;
         if is_arm64 {
-            is_got_rel = rel.rtype in (
-                ARM64_RELOC_GOT_LOAD_PAGE21,
-                ARM64_RELOC_GOT_LOAD_PAGEOFF12
-            );
+            is_got_rel = rel.rtype
+            in (ARM64_RELOC_GOT_LOAD_PAGE21, ARM64_RELOC_GOT_LOAD_PAGEOFF12);
         } else {
             is_got_rel = rel.rtype in (X86_64_RELOC_GOT_LOAD, X86_64_RELOC_GOT);
         }
@@ -1173,9 +1170,8 @@ impl MachOLinker.build_executable -> bytes {
         got_addr_map[extern_func_syms[i]] = got_sec_vaddr + i * 8;
     }
     for i in range(len(extern_data_syms)) {
-        got_addr_map[extern_data_syms[i]] = got_sec_vaddr + (
-            len(extern_func_syms) + i
-        ) * 8;
+        got_addr_map[extern_data_syms[i]] = got_sec_vaddr
+        + (len(extern_func_syms) + i) * 8;
     }
     for i in range(len(internal_got_syms)) {
         got_addr_map[internal_got_syms[i]] = got_sec_vaddr + (num_extern_got + i) * 8;
@@ -1200,10 +1196,8 @@ impl MachOLinker.build_executable -> bytes {
             sym_name = sym.name;
 
             if is_arm64 {
-                is_got_reloc = rel.rtype in (
-                    ARM64_RELOC_GOT_LOAD_PAGE21,
-                    ARM64_RELOC_GOT_LOAD_PAGEOFF12
-                );
+                is_got_reloc = rel.rtype
+                in (ARM64_RELOC_GOT_LOAD_PAGE21, ARM64_RELOC_GOT_LOAD_PAGEOFF12);
             } else {
                 is_got_reloc = rel.rtype in (X86_64_RELOC_GOT_LOAD, X86_64_RELOC_GOT);
             }
@@ -1704,10 +1698,8 @@ impl MachOLinker.build_shared_object -> bytes {
     for rel in self.relocations {
         is_got_rel = False;
         if is_arm64 {
-            is_got_rel = rel.rtype in (
-                ARM64_RELOC_GOT_LOAD_PAGE21,
-                ARM64_RELOC_GOT_LOAD_PAGEOFF12
-            );
+            is_got_rel = rel.rtype
+            in (ARM64_RELOC_GOT_LOAD_PAGE21, ARM64_RELOC_GOT_LOAD_PAGEOFF12);
         } else {
             is_got_rel = rel.rtype in (X86_64_RELOC_GOT_LOAD, X86_64_RELOC_GOT);
         }
@@ -2064,9 +2056,8 @@ impl MachOLinker.build_shared_object -> bytes {
         got_addr_map[extern_func_syms[i]] = got_sec_vaddr + i * 8;
     }
     for i in range(len(extern_data_syms)) {
-        got_addr_map[extern_data_syms[i]] = got_sec_vaddr + (
-            len(extern_func_syms) + i
-        ) * 8;
+        got_addr_map[extern_data_syms[i]] = got_sec_vaddr
+        + (len(extern_func_syms) + i) * 8;
     }
     for i in range(len(internal_got_syms)) {
         got_addr_map[internal_got_syms[i]] = got_sec_vaddr + (num_extern_got + i) * 8;
@@ -2086,10 +2077,8 @@ impl MachOLinker.build_shared_object -> bytes {
             sym = self.symbols[rel.symbolnum];
             sym_name = sym.name;
             if is_arm64 {
-                is_got_reloc = rel.rtype in (
-                    ARM64_RELOC_GOT_LOAD_PAGE21,
-                    ARM64_RELOC_GOT_LOAD_PAGEOFF12
-                );
+                is_got_reloc = rel.rtype
+                in (ARM64_RELOC_GOT_LOAD_PAGE21, ARM64_RELOC_GOT_LOAD_PAGEOFF12);
             } else {
                 is_got_reloc = rel.rtype in (X86_64_RELOC_GOT_LOAD, X86_64_RELOC_GOT);
             }

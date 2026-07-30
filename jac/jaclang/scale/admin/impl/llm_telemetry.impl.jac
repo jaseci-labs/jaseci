@@ -399,24 +399,21 @@ obj TelemetryStore {
                     cd["aggregated_total_cost"] = round(
                         ct.total_cost + _ct_agg["cost"], 6
                     );
-                    cd["aggregated_llm_call_count"] = ct.llm_call_count + _ct_agg[
-                        "calls"
-                    ];
+                    cd["aggregated_llm_call_count"] = ct.llm_call_count
+                    + _ct_agg["calls"];
                     enriched_children.append(cd);
                 }
                 result["child_traces"] = enriched_children;
                 result["child_count"] = len(child_traces);
 
                 _top_agg = self._aggregate_descendants(invocation_id, children_lookup);
-                result["aggregated_total_tokens"] = result["total_tokens"] + _top_agg[
-                    "tokens"
-                ];
+                result["aggregated_total_tokens"] = result["total_tokens"]
+                + _top_agg["tokens"];
                 result["aggregated_total_cost"] = round(
                     result["total_cost"] + _top_agg["cost"], 6
                 );
-                result["aggregated_llm_call_count"] = result["llm_call_count"] + _top_agg[
-                    "calls"
-                ];
+                result["aggregated_llm_call_count"] = result["llm_call_count"]
+                + _top_agg["calls"];
                 return result;
             }
             return None;

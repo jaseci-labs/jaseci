@@ -71,7 +71,14 @@ def _find_native_asset_dir(subdir: str, marker: str) -> Path {
     }
     for src in _jaclang_src_roots() {
         dev = (
-            src / "jaclang" / "runtimelib" / "client" / "targets" / "desktop" / "native" / subdir
+            src
+            / "jaclang"
+            / "runtimelib"
+            / "client"
+            / "targets"
+            / "desktop"
+            / "native"
+            / subdir
         );
         if (dev / marker).exists() {
             return dev;
@@ -470,7 +477,9 @@ def fetch_cef_dist(cef_dir: Path, headers_only: bool = False) -> Path {
     index_sha1 = _cef_index_sha1(plat_tag, archive);
     if index_sha1 and (index_sha1 != expected) {
         raise RuntimeError(
-            "live CEF index SHA-1 disagrees with cef_sums.lock for " + archive + f" (pinned {expected}, index {index_sha1}); pin or release host is stale."
+            "live CEF index SHA-1 disagrees with cef_sums.lock for "
+            + archive
+            + f" (pinned {expected}, index {index_sha1}); pin or release host is stale."
         );
     }
 

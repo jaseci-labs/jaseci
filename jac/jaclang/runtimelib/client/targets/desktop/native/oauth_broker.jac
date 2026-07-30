@@ -17,7 +17,10 @@ glob _SAME_SITE_VALUES: frozenset = frozenset({"same-origin", "none"});
 glob DEFAULT_PREFIX: str = "/__jac",
      ALLOWED_PLATFORMS: tuple = ("google", "github", "apple"),
      ALLOWED_OPERATIONS: tuple = ("login", "register"),
-     _CLOSE_PAGE: str = "<!doctype html><meta charset=utf-8><title>{heading}</title>" + "<body style='font-family:system-ui,sans-serif;text-align:center;margin-top:4rem'>" + "<h2>{heading}</h2><p>{body}</p>" + "<p style='color:#888'>You can close this window and return to the app.</p>";
+     _CLOSE_PAGE: str = "<!doctype html><meta charset=utf-8><title>{heading}</title>"
+     + "<body style='font-family:system-ui,sans-serif;text-align:center;margin-top:4rem'>"
+     + "<h2>{heading}</h2><p>{body}</p>"
+     + "<p style='color:#888'>You can close this window and return to the app.</p>";
 
 
 class SessionStore {

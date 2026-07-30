@@ -29,7 +29,8 @@ def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     initarr_ir = ""
         if "__jac_init_array" in llvm_ir_str
         else (
-            '@__jac_init_array = global ptr null\n' + '@__jac_init_count = global i64 0\n\n'
+            '@__jac_init_array = global ptr null\n'
+            + '@__jac_init_count = global i64 0\n\n'
         );
 
     has_exit = "@exit" in llvm_ir_str or '@"exit"' in llvm_ir_str;
@@ -45,10 +46,54 @@ def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     atexit_def = ""
         if ("@atexit(" in llvm_ir_str or '@"atexit"' in llvm_ir_str)
         else (
-            'declare i32 @__cxa_atexit(ptr, ptr, ptr)\n' + 'define i32 @atexit(ptr %atx_fn) {\nentry:\n' + '    %atx_r = call i32 @__cxa_atexit(ptr %atx_fn, ptr null, ptr @__dso_handle)\n' + '    ret i32 %atx_r\n}\n\n'
+            'declare i32 @__cxa_atexit(ptr, ptr, ptr)\n'
+            + 'define i32 @atexit(ptr %atx_fn) {\nentry:\n'
+            + '    %atx_r = call i32 @__cxa_atexit(ptr %atx_fn, ptr null, ptr @__dso_handle)\n'
+            + '    ret i32 %atx_r\n}\n\n'
         );
     ir = (
-        '\n; --- injected entry point ---\n' + globals_ir + initarr_ir + exit_decl + lsm_decl + dso_def + atexit_def + 'declare ptr @llvm.stacksave()\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    %ia = load ptr, ptr @__jac_init_array\n' + '    %ic = load i64, ptr @__jac_init_count\n' + '    br label %ia.cond\n' + 'ia.cond:\n' + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n' + '    %more = icmp ult i64 %i, %ic\n' + '    br i1 %more, label %ia.body, label %ia.done\n' + 'ia.body:\n' + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n' + '    %fn = load ptr, ptr %slot\n' + '    call void %fn()\n' + '    %inext = add i64 %i, 1\n' + '    br label %ia.cond\n' + 'ia.done:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() naked noreturn {\n' + 'entry:\n' + '    %sp = call ptr @llvm.stacksave()\n' + '    %argc = load i32, ptr %sp\n' + '    %argv = getelementptr i8, ptr %sp, i64 8\n' + '    call void @_jac_boot(i32 %argc, ptr %argv, ptr %sp)\n' + '    unreachable\n' + '}\n\n' + 'define internal void @_jac_boot(i32 %bargc, ptr %bargv, ptr %bstack) noreturn {\n' + 'entry:\n' + '    %r = call i32 @__libc_start_main(ptr @main, i32 %bargc, ptr %bargv, ptr null, ptr null, ptr null, ptr %bstack)\n' + '    unreachable\n' + '}\n'
+        '\n; --- injected entry point ---\n'
+        + globals_ir
+        + initarr_ir
+        + exit_decl
+        + lsm_decl
+        + dso_def
+        + atexit_def
+        + 'declare ptr @llvm.stacksave()\n\n'
+        + 'define i32 @main(i32 %argc, ptr %argv) {\n'
+        + 'entry:\n'
+        + '    store i32 %argc, ptr @__jac_argc\n'
+        + '    store ptr %argv, ptr @__jac_argv\n'
+        + '    %ia = load ptr, ptr @__jac_init_array\n'
+        + '    %ic = load i64, ptr @__jac_init_count\n'
+        + '    br label %ia.cond\n'
+        + 'ia.cond:\n'
+        + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n'
+        + '    %more = icmp ult i64 %i, %ic\n'
+        + '    br i1 %more, label %ia.body, label %ia.done\n'
+        + 'ia.body:\n'
+        + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n'
+        + '    %fn = load ptr, ptr %slot\n'
+        + '    call void %fn()\n'
+        + '    %inext = add i64 %i, 1\n'
+        + '    br label %ia.cond\n'
+        + 'ia.done:\n'
+        + '    call void @jac_entry()\n'
+        + '    ret i32 0\n'
+        + '}\n\n'
+        + 'define void @_start() naked noreturn {\n'
+        + 'entry:\n'
+        + '    %sp = call ptr @llvm.stacksave()\n'
+        + '    %argc = load i32, ptr %sp\n'
+        + '    %argv = getelementptr i8, ptr %sp, i64 8\n'
+        + '    call void @_jac_boot(i32 %argc, ptr %argv, ptr %sp)\n'
+        + '    unreachable\n'
+        + '}\n\n'
+        + 'define internal void @_jac_boot(i32 %bargc, ptr %bargv, ptr %bstack) noreturn {\n'
+        + 'entry:\n'
+        + '    %r = call i32 @__libc_start_main(ptr @main, i32 %bargc, ptr %bargv, ptr null, ptr null, ptr null, ptr %bstack)\n'
+        + '    unreachable\n'
+        + '}\n'
     );
     return llvm_ir_str + ir;
 }
@@ -59,7 +104,15 @@ def _inject_entry_macho(llvm_ir_str: str) -> str {
     globals_ir = ""
         if has_jac_argc
         else ('@__jac_argc = global i32 0\n' + '@__jac_argv = global ptr null\n\n');
-    ir = '\n; --- injected entry point ---\n' + globals_ir + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n';
+    ir = '\n; --- injected entry point ---\n'
+    + globals_ir
+    + 'define i32 @main(i32 %argc, ptr %argv) {\n'
+    + 'entry:\n'
+    + '    store i32 %argc, ptr @__jac_argc\n'
+    + '    store ptr %argv, ptr @__jac_argv\n'
+    + '    call void @jac_entry()\n'
+    + '    ret i32 0\n'
+    + '}\n';
     return llvm_ir_str + ir;
 }
 
@@ -72,10 +125,34 @@ def _inject_entry_elf_static(llvm_ir_str: str) -> str {
     initarr_ir = ""
         if "__jac_init_array" in llvm_ir_str
         else (
-            '@__jac_init_array = global ptr null\n' + '@__jac_init_count = global i64 0\n\n'
+            '@__jac_init_array = global ptr null\n'
+            + '@__jac_init_count = global i64 0\n\n'
         );
     ir = (
-        '\n; --- injected entry point (musl static) ---\n' + globals_ir + initarr_ir + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    %ia = load ptr, ptr @__jac_init_array\n' + '    %ic = load i64, ptr @__jac_init_count\n' + '    br label %ia.cond\n' + 'ia.cond:\n' + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n' + '    %more = icmp ult i64 %i, %ic\n' + '    br i1 %more, label %ia.body, label %ia.done\n' + 'ia.body:\n' + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n' + '    %fn = load ptr, ptr %slot\n' + '    call void %fn()\n' + '    %inext = add i64 %i, 1\n' + '    br label %ia.cond\n' + 'ia.done:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n'
+        '\n; --- injected entry point (musl static) ---\n'
+        + globals_ir
+        + initarr_ir
+        + 'define i32 @main(i32 %argc, ptr %argv) {\n'
+        + 'entry:\n'
+        + '    store i32 %argc, ptr @__jac_argc\n'
+        + '    store ptr %argv, ptr @__jac_argv\n'
+        + '    %ia = load ptr, ptr @__jac_init_array\n'
+        + '    %ic = load i64, ptr @__jac_init_count\n'
+        + '    br label %ia.cond\n'
+        + 'ia.cond:\n'
+        + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n'
+        + '    %more = icmp ult i64 %i, %ic\n'
+        + '    br i1 %more, label %ia.body, label %ia.done\n'
+        + 'ia.body:\n'
+        + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n'
+        + '    %fn = load ptr, ptr %slot\n'
+        + '    call void %fn()\n'
+        + '    %inext = add i64 %i, 1\n'
+        + '    br label %ia.cond\n'
+        + 'ia.done:\n'
+        + '    call void @jac_entry()\n'
+        + '    ret i32 0\n'
+        + '}\n'
     );
     return llvm_ir_str + ir;
 }
@@ -90,7 +167,32 @@ def _inject_entry_pe(llvm_ir_str: str) -> str {
     exit_decl = "" if has_exit else 'declare void @exit(i32)\n\n';
     fltused = "" if "@_fltused" in llvm_ir_str else '@_fltused = global i32 0\n\n';
     ir = (
-        '\n; --- injected PE entry ---\n' + globals_ir + exit_decl + fltused + 'declare i32 @__getmainargs(ptr, ptr, ptr, i32, ptr)\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_jac_win_start() {\n' + 'entry:\n' + '    %argc.addr = alloca i32\n' + '    %argv.addr = alloca ptr\n' + '    %env.addr = alloca ptr\n' + '    %si = alloca i32\n' + '    store i32 0, ptr %si\n' + '    %gr = call i32 @__getmainargs(ptr %argc.addr, ptr %argv.addr, ptr %env.addr, i32 0, ptr %si)\n' + '    %ac = load i32, ptr %argc.addr\n' + '    %av = load ptr, ptr %argv.addr\n' + '    %r = call i32 @main(i32 %ac, ptr %av)\n' + '    call void @exit(i32 %r)\n' + '    ret void\n' + '}\n'
+        '\n; --- injected PE entry ---\n'
+        + globals_ir
+        + exit_decl
+        + fltused
+        + 'declare i32 @__getmainargs(ptr, ptr, ptr, i32, ptr)\n\n'
+        + 'define i32 @main(i32 %argc, ptr %argv) {\n'
+        + 'entry:\n'
+        + '    store i32 %argc, ptr @__jac_argc\n'
+        + '    store ptr %argv, ptr @__jac_argv\n'
+        + '    call void @jac_entry()\n'
+        + '    ret i32 0\n'
+        + '}\n\n'
+        + 'define void @_jac_win_start() {\n'
+        + 'entry:\n'
+        + '    %argc.addr = alloca i32\n'
+        + '    %argv.addr = alloca ptr\n'
+        + '    %env.addr = alloca ptr\n'
+        + '    %si = alloca i32\n'
+        + '    store i32 0, ptr %si\n'
+        + '    %gr = call i32 @__getmainargs(ptr %argc.addr, ptr %argv.addr, ptr %env.addr, i32 0, ptr %si)\n'
+        + '    %ac = load i32, ptr %argc.addr\n'
+        + '    %av = load ptr, ptr %argv.addr\n'
+        + '    %r = call i32 @main(i32 %ac, ptr %av)\n'
+        + '    call void @exit(i32 %r)\n'
+        + '    ret void\n'
+        + '}\n'
     );
     return llvm_ir_str + ir;
 }
@@ -321,7 +423,10 @@ impl nacompile(
                 _parts.append("entry-point env probes: " + ", ".join(_rc_probes));
             }
             console.error(
-                "assert-no-rc: emitted IR contains " + "; ".join(_parts) + "\n  (module has managed heap types or RC-emitting code;" + " see rc-stats coverage)"
+                "assert-no-rc: emitted IR contains "
+                + "; ".join(_parts)
+                + "\n  (module has managed heap types or RC-emitting code;"
+                + " see rc-stats coverage)"
             );
             return 1;
         }
@@ -419,9 +524,8 @@ impl nacompile(
             return 1;
         }
         console.print(
-            f"  Exporting {len(export_symbols)} C-ABI symbol(s): " + ", ".join(
-                export_symbols
-            )
+            f"  Exporting {len(export_symbols)} C-ABI symbol(s): "
+            + ", ".join(export_symbols)
         );
     } elif is_windows {
         llvm_ir_str = _inject_entry_pe(llvm_ir_str);

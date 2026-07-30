@@ -69,7 +69,8 @@ async def _pump_upstream_to_client(upstream_ws: any, client_ws: any) {
                 await client_ws.send_text(msg.data);
             } elif msg.type == aiohttp.WSMsgType.BINARY {
                 await client_ws.send_bytes(msg.data);
-            } elif msg.type in (
+            } elif msg.type
+            in (
                 aiohttp.WSMsgType.CLOSE,
                 aiohttp.WSMsgType.CLOSED,
                 aiohttp.WSMsgType.CLOSING

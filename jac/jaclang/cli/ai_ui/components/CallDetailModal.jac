@@ -182,9 +182,11 @@ def:pub CallDetailModal(
                             onClick={lambda { showTools = not showTools; }}
                         >
                             <span className="chev">{"▾" if showTools else "▸"}</span>
-                            {"tools available — " + str(len(detail.tools)) + " · ~" + str(
-                                toolTokens
-                            ) + " tok (sent as schemas, not messages)"}
+                            {"tools available — "
+                            + str(len(detail.tools))
+                            + " · ~"
+                            + str(toolTokens)
+                            + " tok (sent as schemas, not messages)"}
                         </button>
                             if len(detail.tools) > 0
                             else <span/>}

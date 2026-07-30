@@ -141,9 +141,8 @@ obj _FakeQuery {
             actual_op = op_string;
             actual_val = value;
         }
-        next_filters = self.filters + [
-            {'field_path': actual_field, 'op_string': actual_op, 'value': actual_val}
-        ];
+        next_filters = self.filters
+        + [{'field_path': actual_field, 'op_string': actual_op, 'value': actual_val}];
         return _FakeQuery(
             collection=self.collection,
             filters=next_filters,
@@ -355,13 +354,15 @@ test "firestore kvstore operations" {
 
     assert db.update_one(
         'users', {'name': 'Alice'}, {'$set': {'status': 'active'}}
-    ).modified_count == 1;
+    ).modified_count
+    == 1;
     assert db.find_one('users', {'name': 'Alice'})['status'] == 'active';
 
     assert (
         db.update_many(
             'users', {'role': 'admin'}, {'$set': {'tier': 'gold'}}
-        ).modified_count == 2
+        ).modified_count
+        == 2
     );
     assert len(list(db.find('users', {'tier': 'gold'}))) == 2;
 
@@ -373,7 +374,8 @@ test "firestore kvstore operations" {
     profile = db.insert_one('profiles', {'name': 'Dora'});
     assert db.update_by_id(
         'profiles', profile.inserted_id, {'$set': {'status': 'active'}}
-    ).modified_count == 1;
+    ).modified_count
+    == 1;
     assert db.find_by_id('profiles', profile.inserted_id)['status'] == 'active';
     assert db.delete_by_id('profiles', profile.inserted_id).deleted_count == 1;
     assert db.find_by_id('profiles', profile.inserted_id) is None;
@@ -423,19 +425,14 @@ test "firestore find honors projection" {
     db.insert_one('users', {'_id': 'u1', 'name': 'Alice', 'role': 'admin', 'age': 30});
     db.insert_one('users', {'_id': 'u2', 'name': 'Bob', 'role': 'user', 'age': 25});
 
-    assert db.find_one('users', {'name': 'Alice'}, {'name': 1}) == {
-        'name': 'Alice',
-        '_id': 'u1'
-    };
+    assert db.find_one('users', {'name': 'Alice'}, {'name': 1})
+    == {'name': 'Alice', '_id': 'u1'};
 
-    assert db.find_one('users', {'name': 'Alice'}, {'name': 1, '_id': 0}) == {
-        'name': 'Alice'
-    };
+    assert db.find_one('users', {'name': 'Alice'}, {'name': 1, '_id': 0})
+    == {'name': 'Alice'};
 
-    assert db.find_one('users', {'name': 'Bob'}, {'age': 0, 'role': 0}) == {
-        'name': 'Bob',
-        '_id': 'u2'
-    };
+    assert db.find_one('users', {'name': 'Bob'}, {'age': 0, 'role': 0})
+    == {'name': 'Bob', '_id': 'u2'};
 
     rows = list(db.find('users', {}, {'role': 1, '_id': 0}));
     assert sorted([r['role'] for r in rows]) == ['admin', 'user'];
@@ -517,7 +514,8 @@ test "firestore config fallback" {
         db_config = get_scale_config().get_database_config();
         assert db_config['project_id'] == 'firebase-project';
         assert _resolve_uri(None, DatabaseType.FIRESTORE) == 'firebase-project';
-        assert _resolve_uri('explicit-project', DatabaseType.FIRESTORE) == 'explicit-project';
+        assert _resolve_uri('explicit-project', DatabaseType.FIRESTORE)
+        == 'explicit-project';
     } finally {
         if old_project_id is None {
             os.environ.pop('FIRESTORE_PROJECT_ID', None);

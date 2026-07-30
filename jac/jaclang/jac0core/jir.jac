@@ -419,9 +419,8 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         }
         cache_mtime = os.path.getmtime(cache_path);
 
-        related = discover_annex_files(source_path, '.impl.jac') + discover_annex_files(
-            source_path, '.test.jac'
-        );
+        related = discover_annex_files(source_path, '.impl.jac')
+        + discover_annex_files(source_path, '.test.jac');
         style = discover_style_annex(source_path);
         if style is not None {
             related.append(style);

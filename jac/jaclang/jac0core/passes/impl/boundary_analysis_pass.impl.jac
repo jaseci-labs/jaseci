@@ -278,9 +278,8 @@ impl BoundaryAnalysisPass.enter_import(
                             import from jaclang.jac0core.placement_pins {
                                 config_module_pin
                             }
-                            pinned_server_target = config_module_pin(
-                                resolved_target
-                            ) == 'server';
+                            pinned_server_target = config_module_pin(resolved_target)
+                            == 'server';
                         }
                     } except Exception {
                         pinned_server_target = False;

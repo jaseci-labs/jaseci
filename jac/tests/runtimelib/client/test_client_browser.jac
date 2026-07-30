@@ -197,25 +197,25 @@ test "auth round trip in old and new calling forms" {
 
                     assert _click_and_wait_status(
                         page, user_old, password, "signup-old"
-                    ) == "signup_old_ok";
+                    )
+                    == "signup_old_ok";
 
                     page.locator('[data-testid="logout-btn"]').click();
                     page.wait_for_timeout(500);
-                    assert _click_and_wait_status(
-                        page, user_old, password, "login-old"
-                    ) == "login_old_ok";
+                    assert _click_and_wait_status(page, user_old, password, "login-old")
+                    == "login_old_ok";
 
                     page.locator('[data-testid="logout-btn"]').click();
                     page.wait_for_timeout(500);
                     assert _click_and_wait_status(
                         page, user_new, password, "signup-new"
-                    ) == "signup_new_ok";
+                    )
+                    == "signup_new_ok";
 
                     page.locator('[data-testid="logout-btn"]').click();
                     page.wait_for_timeout(500);
-                    assert _click_and_wait_status(
-                        page, user_new, password, "login-new"
-                    ) == "login_new_ok";
+                    assert _click_and_wait_status(page, user_new, password, "login-new")
+                    == "login_new_ok";
                 } finally {
                     browser.close();
                 }

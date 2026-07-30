@@ -77,7 +77,8 @@ for (const f of fs.readdirSync(".")) {
      # browser globals solid's DOM build needs BEFORE importing it, mount the
      # compiled component via `solid-js/web`'s `render`, and assert render +
      # reactivity. A plain (non-f) string so the JS `${}` / `{}` need no escaping.
-     _HARNESS: str = _BABEL_BUILD + """
+     _HARNESS: str = _BABEL_BUILD
+     + """
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(
@@ -161,7 +162,8 @@ assert it actually renders + reacts through `babel-preset-solid` — the keyed
 comprehension produces three ordered `<li>` with no stray `key` DOM attribute, and
 the `show` signal toggle swaps the `<Show>` arm. A plain (non-f) string so the JS
 `${}`/`{}` need no escaping; the leading `_BABEL_BUILD` builds `component.src.jsx`."""
-glob _CONTROL_FLOW_HARNESS: str = _BABEL_BUILD + """
+glob _CONTROL_FLOW_HARNESS: str = _BABEL_BUILD
+     + """
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(
@@ -252,7 +254,8 @@ path, `argv[3]` is `loggedIn`/`loggedOut`. A plain (non-f) string so JS `${}`/`{
 need no escaping. The leading `_BABEL_BUILD` step compiles every emitted
 `*.src.jsx` (pages, layout, runtime shim) to `*.js` via `babel-preset-solid`; the
 entry and route manifest carry no JSX, so their transform is a no-op."""
-glob _ROUTING_HARNESS: str = _BABEL_BUILD + """
+glob _ROUTING_HARNESS: str = _BABEL_BUILD
+     + """
 import { JSDOM } from "jsdom";
 
 const startUrl = process.argv[2] || "/";
@@ -351,7 +354,8 @@ submit flow: dirty → button enabled → click → onSubmit fires (sets
 `globalThis.__jacFormSubmitted`). A plain (non-f) string so JS `${}`/`{}`
 need no escaping; `_BABEL_BUILD` compiles every emitted `*.src.jsx` before any
 import."""
-glob _FORM_HARNESS: str = _BABEL_BUILD + """
+glob _FORM_HARNESS: str = _BABEL_BUILD
+     + """
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(
@@ -622,7 +626,8 @@ process.exit(failures.length ? 1 : 0);
 Mounts three separate Solid apps in three root divs and asserts each scenario.
 A plain (non-f) string so JS `${}`/`{}` need no escaping; `_BABEL_BUILD` compiles
 every emitted `*.src.jsx` before any import."""
-glob _P2_HARNESS: str = _BABEL_BUILD + """
+glob _P2_HARNESS: str = _BABEL_BUILD
+     + """
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(

@@ -372,15 +372,10 @@ impl TypeEvaluator.get_type_of_ability(node_: uni.Ability) -> TypeBase {
                 or (
                     node_.is_method
                     and node_.signature.is_in_py_class
-                    and param.param_kind in (
-                        uni.ParamKind.POSONLY,
-                        uni.ParamKind.NORMAL
-                    )
-                    and node_.name_spec.sym_name not in (
-                        "__new__",
-                        "__init_subclass__",
-                        "__class_getitem__"
-                    )
+                    and param.param_kind
+                    in (uni.ParamKind.POSONLY, uni.ParamKind.NORMAL)
+                    and node_.name_spec.sym_name
+                    not in ("__new__", "__init_subclass__", "__class_getitem__")
                     and not self._is_ability_staticmethod(node_)
                 )
             )
@@ -594,9 +589,8 @@ impl TypeEvaluator.get_type_of_enum(node_: uni.Enum) -> types.ClassType {
 }
 
 impl TypeEvaluator._get_type_from_module(module: uni.Module, name: str) -> TypeBase {
-    if (
-        symbol := type_utils.lookup_symtab(module, name, self.builtins_module)
-    ) is not None {
+    if (symbol := type_utils.lookup_symtab(module, name, self.builtins_module))
+    is not None {
         return self.get_type_of_symbol(symbol);
     }
     return types.UnknownType();

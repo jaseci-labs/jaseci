@@ -98,16 +98,13 @@ test "cron field matching and next run computation" {
 
     # Cron next-run
     now = datetime.datetime(2026, 1, 1, 12, 0, 0);
-    assert sched._parse_cron_next("* * * * *", now) == datetime.datetime(
-        2026, 1, 1, 12, 1, 0
-    );
-    assert sched._parse_cron_next("30 * * * *", now) == datetime.datetime(
-        2026, 1, 1, 12, 30, 0
-    );
+    assert sched._parse_cron_next("* * * * *", now)
+    == datetime.datetime(2026, 1, 1, 12, 1, 0);
+    assert sched._parse_cron_next("30 * * * *", now)
+    == datetime.datetime(2026, 1, 1, 12, 30, 0);
     now2 = datetime.datetime(2026, 1, 1, 8, 0, 0);
-    assert sched._parse_cron_next("0 9 * * *", now2) == datetime.datetime(
-        2026, 1, 1, 9, 0, 0
-    );
+    assert sched._parse_cron_next("0 9 * * *", now2)
+    == datetime.datetime(2026, 1, 1, 9, 0, 0);
 
     # Invalid field count raises ValueError
     raised = False;

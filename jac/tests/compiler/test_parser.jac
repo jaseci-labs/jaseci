@@ -220,9 +220,8 @@ test "connect_disconnect_missing_rhs" {
         for e in prog.errors_had
         if e.code and e.code.code == "E0026"
     ];
-    assert len(e0026) == 5 , f"Expected 5 E0026 (missing RHS), got {len(e0026)}:\n" + "\n---\n".join(
-        e.pretty_print() for e in e0026
-    );
+    assert len(e0026) == 5 , f"Expected 5 E0026 (missing RHS), got {len(e0026)}:\n"
+    + "\n---\n".join(e.pretty_print() for e in e0026);
     # Sanity: the misleading "Unexpected token in expression" diagnostic
     # must no longer appear for these inputs.
     bad = [
@@ -230,9 +229,8 @@ test "connect_disconnect_missing_rhs" {
         for e in prog.errors_had
         if e.code and e.code.code == "E0004"
     ];
-    assert len(bad) == 0 , "E0004 leaked through after E0026 fix:\n" + "\n---\n".join(
-        e.pretty_print() for e in bad
-    );
+    assert len(bad) == 0 , "E0004 leaked through after E0026 fix:\n"
+    + "\n---\n".join(e.pretty_print() for e in bad);
 }
 
 test "jsx comprehensive fixture" {

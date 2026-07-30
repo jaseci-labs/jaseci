@@ -30,9 +30,9 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
     }
     import from jaclang.jac0core.bccache { discover_annex_files }
     import from jaclang.jac0core.parser { parse as rd_parse }
-    files = [path] + discover_annex_files(path, '.impl.jac') + discover_annex_files(
-        path, '.test.jac'
-    );
+    files = [path]
+    + discover_annex_files(path, '.impl.jac')
+    + discover_annex_files(path, '.test.jac');
     fresh_parts: list[tuple] = [];
     for f in files {
         try {
@@ -406,11 +406,8 @@ def _seed_from_summary(module: uni.Module, prog: any) -> int {
                 break;
             }
             if cap == 'NPM'
-            and reason in (
-                'string-path import',
-                'virtual @jac import',
-                'npm dependency'
-            ) {
+            and reason
+            in ('string-path import', 'virtual @jac import', 'npm dependency') {
                 target_ctx = CodeContext.CLIENT;
                 ctx_label = 'client';
                 why = reason;

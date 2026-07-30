@@ -13,7 +13,10 @@ import pytest;
 
 # Client target modules ship with core under jaclang/runtimelib/client/.
 glob _client_dir = (
-         Path(os.path.dirname(__file__)).parent.parent.parent / "jaclang" / "runtimelib" / "client"
+         Path(os.path.dirname(__file__)).parent.parent.parent
+         / "jaclang"
+         / "runtimelib"
+         / "client"
      ),
      _targets_dir = _client_dir / "targets";
 
@@ -263,7 +266,8 @@ test "react native target addresses the entry by project-relative module path" {
     );
     assert impl_content.count(
         "entry_module: str = entry_module_for(entry_file, project_dir)"
-    ) == 2 , ("both build() and dev() must resolve the entry module the same way");
+    )
+    == 2 , ("both build() and dev() must resolve the entry module the same way");
 }
 
 test "react native compiler selects .native variants when available" {
@@ -283,9 +287,8 @@ test "react native compiler selects .native variants when available" {
     );
     assert "target_name=target_name" in impl_content;
     assert "_scan_and_compile_pages(" in impl_content;
-    assert "target_name=target_name" in impl_content.split("_scan_and_compile_pages(")[
-        1
-    ];
+    assert "target_name=target_name"
+    in impl_content.split("_scan_and_compile_pages(")[1];
 }
 
 
@@ -639,9 +642,8 @@ test "html tag map is shared between build lint and native runtime" {
     assert "div" in expected;
     assert "button" in expected;
     assert "marquee" not in expected;
-    assert len(expected) == (
-        len(RN_HTML_VIEW_TAGS) + len(RN_HTML_TEXT_TAGS) + len(RN_HTML_SPECIAL_TAGS)
-    );
+    assert len(expected)
+    == (len(RN_HTML_VIEW_TAGS) + len(RN_HTML_TEXT_TAGS) + len(RN_HTML_SPECIAL_TAGS));
 }
 
 test "lint_native_incompatible_usage flags css imports and web globals" {
@@ -959,9 +961,8 @@ test "_RNHmrHandler obj is declared and wired in target module" {
     assert "impl _RNHmrHandler.on_event" in impl_content;
     assert "rn_hmr_on_jac_changed" in impl_content;
     # Dev impl must invoke the real flow, not the old NotImplementedError.
-    assert "raise NotImplementedError" not in impl_content.split(
-        "impl ReactNativeTarget.dev"
-    )[1].split(
+    assert "raise NotImplementedError"
+    not in impl_content.split("impl ReactNativeTarget.dev")[1].split(
         "impl ReactNativeTarget.start"
     )[0];
     assert "run_expo_start" in impl_content;
@@ -1235,7 +1236,8 @@ test "expo prebuild runs even when native tree and prebuild state exist" {
         "--platform",
         "android",
         "--no-install"
-    ] in calls;
+    ]
+    in calls;
 }
 
 test "dual-target gate can run e2e builds when explicitly enabled" {
@@ -1277,14 +1279,8 @@ test "dual-target gate can run e2e builds when explicitly enabled" {
         assert web_result.returncode == 0 , (
             f"web build failed\nSTDOUT:\n{web_result.stdout}\nSTDERR:\n{web_result.stderr}"
         );
-        rn_cmd = jac_cmd + [
-            "build",
-            "main.jac",
-            "--client",
-            "react-native",
-            "--platform",
-            "android"
-        ];
+        rn_cmd = jac_cmd
+        + ["build", "main.jac", "--client", "react-native", "--platform", "android"];
         rn_result = subprocess.run(
             rn_cmd,
             cwd=project_dir,
@@ -1745,14 +1741,8 @@ test "e2e: react-native android build produces APK" {
         env = get_env_with_npm();
         jac_cmd = get_jac_command();
         # Step 1: jac build --client react-native --platform android
-        rn_cmd = jac_cmd + [
-            "build",
-            "main.jac",
-            "--client",
-            "react-native",
-            "--platform",
-            "android"
-        ];
+        rn_cmd = jac_cmd
+        + ["build", "main.jac", "--client", "react-native", "--platform", "android"];
         result = subprocess.run(
             rn_cmd,
             cwd=project_dir,
@@ -1767,7 +1757,13 @@ test "e2e: react-native android build produces APK" {
         );
         # Step 2: verify the APK artifact was produced.
         rn_project = project_dir / ".jac" / "mobile-rn";
-        apk_outputs = rn_project / "android" / "app" / "build" / "outputs" / "apk" / "debug";
+        apk_outputs = rn_project
+        / "android"
+        / "app"
+        / "build"
+        / "outputs"
+        / "apk"
+        / "debug";
         assert apk_outputs.exists() , (f"Expected Gradle output dir at {apk_outputs}");
         apks = list(apk_outputs.glob("*.apk"));
         assert len(apks) > 0 , (

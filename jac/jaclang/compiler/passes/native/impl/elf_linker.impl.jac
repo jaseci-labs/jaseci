@@ -321,7 +321,9 @@ def _x86_64_apply_reloc(
         val = sym_addr + addend;
         if val < 0 or val > 0xFFFFFFFF {
             raise ValueError(
-                "R_X86_64_32 overflow: " + hex(val) + " does not fit in unsigned "
+                "R_X86_64_32 overflow: "
+                + hex(val)
+                + " does not fit in unsigned "
                 "32-bit (the image must load inside the low 4 GiB)"
             );
         }
@@ -331,7 +333,9 @@ def _x86_64_apply_reloc(
         val = sym_addr + addend;
         if val < -(1 << 31) or val > (1 << 31) - 1 {
             raise ValueError(
-                "R_X86_64_32S overflow: " + hex(val) + " does not fit in signed "
+                "R_X86_64_32S overflow: "
+                + hex(val)
+                + " does not fit in signed "
                 "32-bit (the image must load inside the low 2 GiB)"
             );
         }
@@ -987,7 +991,9 @@ impl ElfLinker.build_executable -> bytes {
 
     extern_plt_addr: dict[str, int] = {};
     for plt_idx in range(len(extern_func_syms)) {
-        extern_plt_addr[extern_func_syms[plt_idx]] = plt_vaddr + plt0_size + plt_idx * plt_entry_size;
+        extern_plt_addr[extern_func_syms[plt_idx]] = plt_vaddr
+        + plt0_size
+        + plt_idx * plt_entry_size;
     }
     extern_got_addr: dict[str, int] = {};
     for got_idx in range(len(extern_data_syms)) {
@@ -1702,10 +1708,12 @@ impl ElfLinker.build_shared_object -> bytes {
     _soname = self.soname or "lib.so";
 
     dynsym_names: list[str] = [""] + exports + extern_func_syms + extern_data_syms;
-    dynstr_strings: list[str] = [""] + exports + extern_func_syms + extern_data_syms + self.needed_libs + [
-        _soname,
-        "$ORIGIN"
-    ];
+    dynstr_strings: list[str] = [""]
+    + exports
+    + extern_func_syms
+    + extern_data_syms
+    + self.needed_libs
+    + [_soname, "$ORIGIN"];
     (dynstr_data, dynstr_offsets) = _build_strtab(dynstr_strings);
     hash_data = _build_sysv_hash_for_names(dynsym_names);
 
@@ -1757,9 +1765,10 @@ impl ElfLinker.build_shared_object -> bytes {
             }
         }
     }
-    n_rela_dyn = len(data_abs_relocs) + len(local_got_syms) + len(inits) + len(
-        extern_data_syms
-    );
+    n_rela_dyn = len(data_abs_relocs)
+    + len(local_got_syms)
+    + len(inits)
+    + len(extern_data_syms);
     rela_dyn_foff = cur_offset;
     cur_offset += n_rela_dyn * 24;
     cur_offset = _align(cur_offset, 16);
@@ -2197,7 +2206,9 @@ impl ElfLinker.build_shared_object -> bytes {
     data_bytes = bytearray(data_blob);
     extern_plt_addr: dict[str, int] = {};
     for plt_idx in range(len(extern_func_syms)) {
-        extern_plt_addr[extern_func_syms[plt_idx]] = plt_vaddr + plt0_size + plt_idx * plt_entry_size;
+        extern_plt_addr[extern_func_syms[plt_idx]] = plt_vaddr
+        + plt0_size
+        + plt_idx * plt_entry_size;
     }
 
     for rela in self.relocations {
@@ -2943,9 +2954,9 @@ impl ElfLinker.build_static_executable -> bytes {
     }
     if missing {
         sys.stderr.write(
-            "  Warning: static link left undefined references resolved to 0: " + ", ".join(
-                sorted(missing)
-            ) + "\n"
+            "  Warning: static link left undefined references resolved to 0: "
+            + ", ".join(sorted(missing))
+            + "\n"
         );
     }
 

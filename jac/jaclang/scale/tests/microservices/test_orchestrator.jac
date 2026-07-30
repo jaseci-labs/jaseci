@@ -69,7 +69,8 @@ test "build_registry routes work after build" {
     ms_config = {"routes": {"orders_app": "/api/orders", "cart_app": "/api/cart"}};
 
     registry = build_registry(ms_config);
-    assert registry.match_route("/api/orders/function/create_order").name == "orders_app";
+    assert registry.match_route("/api/orders/function/create_order").name
+    == "orders_app";
     assert registry.match_route("/api/cart/function/view_cart").name == "cart_app";
     assert registry.match_route("/api/unknown") is None;
 }
@@ -190,10 +191,12 @@ test "_populate_k8s_urls writes DNS map onto svc_entry.url (regression)" {
     }
 
     assert (
-        registry.entries["products_app"].url == "http://products-app-service.default.svc.cluster.local:8000"
+        registry.entries["products_app"].url
+        == "http://products-app-service.default.svc.cluster.local:8000"
     );
     assert (
-        registry.entries["orders_app"].url == "http://orders-app-service.default.svc.cluster.local:8000"
+        registry.entries["orders_app"].url
+        == "http://orders-app-service.default.svc.cluster.local:8000"
     );
 }
 

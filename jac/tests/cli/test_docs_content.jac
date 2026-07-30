@@ -217,8 +217,7 @@ test "docs do not describe the removed image-build pipeline" {
     }
 
     assert not stale , (
-        "docs reference an image-build pipeline that no longer exists:\n" + "\n".join(
-            stale
-        )
+        "docs reference an image-build pipeline that no longer exists:\n"
+        + "\n".join(stale)
     );
 }

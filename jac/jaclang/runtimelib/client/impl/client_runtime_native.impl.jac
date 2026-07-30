@@ -184,9 +184,9 @@ impl _adaptImageProps(props: dict) -> dict {
                 if uri not in _RELATIVE_IMG_SRC_WARNED {
                     _RELATIVE_IMG_SRC_WARNED[uri] = True;
                     console.warn(
-                        "[jac-native-runtime] Missing Metro asset mapping for token " + str(
-                            uri
-                        ) + ". Re-run jac build --client react-native."
+                        "[jac-native-runtime] Missing Metro asset mapping for token "
+                        + str(uri)
+                        + ". Re-run jac build --client react-native."
                     );
                 }
                 out["source"] = {"uri": uri};
@@ -200,7 +200,11 @@ impl _adaptImageProps(props: dict) -> dict {
                 if uri not in _RELATIVE_IMG_SRC_WARNED {
                     _RELATIVE_IMG_SRC_WARNED[uri] = True;
                     console.warn(
-                        "[jac-native-runtime] Relative <img src> path " + str(uri) + " cannot be bundled reliably on React Native. " + "Use imported assets, /static/... URLs, absolute URLs, " + "or pass source={{uri: ...}}."
+                        "[jac-native-runtime] Relative <img src> path "
+                        + str(uri)
+                        + " cannot be bundled reliably on React Native. "
+                        + "Use imported assets, /static/... URLs, absolute URLs, "
+                        + "or pass source={{uri: ...}}."
                     );
                 }
                 out["source"] = {"uri": uri};

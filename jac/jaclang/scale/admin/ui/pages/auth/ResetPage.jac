@@ -24,7 +24,9 @@ def:pub ResetPage -> JsxElement {
             return;
         }
         if len(resetNew) < MIN_PASSWORD_LENGTH {
-            resetError = "Password must be at least " + str(MIN_PASSWORD_LENGTH) + " characters";
+            resetError = "Password must be at least "
+            + str(MIN_PASSWORD_LENGTH)
+            + " characters";
             return;
         }
 

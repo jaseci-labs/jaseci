@@ -235,7 +235,14 @@ def _install_completion(shell: str, code: str) -> int {
     if shell == "fish" {
         source_line = "source " + comp_file;
     } else {
-        source_line = "[[ -f " + q + comp_file + q + " ]] && source " + q + comp_file + q;
+        source_line = "[[ -f "
+        + q
+        + comp_file
+        + q
+        + " ]] && source "
+        + q
+        + comp_file
+        + q;
     }
     new_block = f"{start_marker}\n{source_line}\n{end_marker}\n";
     if os.path.exists(config_file) {

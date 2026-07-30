@@ -238,7 +238,11 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
                 E1054,
                 expr,
                 help_text=(
-                    "Unannotated lambda parameter '" + lambda_param + "' could not be inferred from the call context, so it stays Unknown and no overload matches. Annotate it, e.g. `lambda " + lambda_param + ": <type> : ...`, or pass a typed `def` as the callback."
+                    "Unannotated lambda parameter '"
+                    + lambda_param
+                    + "' could not be inferred from the call context, so it stays Unknown and no overload matches. Annotate it, e.g. `lambda "
+                    + lambda_param
+                    + ": <type> : ...`, or pass a typed `def` as the callback."
                 )
             );
         } else {

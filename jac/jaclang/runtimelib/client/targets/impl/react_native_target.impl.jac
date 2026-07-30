@@ -224,9 +224,9 @@ impl ReactNativeTarget.build(
         console.print("\nInstall with: adb install -r " + str(artifact), style="muted");
     } else {
         console.print(
-            "\nInstall on a booted simulator with: " "xcrun simctl install booted " + str(
-                artifact
-            ) + "\n"
+            "\nInstall on a booted simulator with: " "xcrun simctl install booted "
+            + str(artifact)
+            + "\n"
             "For signing/provisioning and real-device distribution, follow "
             "Expo iOS build docs:\n"
             "  https://docs.expo.dev/build-reference/ios-builds/",

@@ -226,9 +226,10 @@ impl HotReloader._remove_compiled_output(file_path: str) -> None {
             rel_dir = Path('.');
         }
         output_path = (
-            Path(self.base_path) / self._client_output_dir / rel_dir / self._get_js_filename(
-                file_path
-            )
+            Path(self.base_path)
+            / self._client_output_dir
+            / rel_dir
+            / self._get_js_filename(file_path)
         );
     }
     removed = False;

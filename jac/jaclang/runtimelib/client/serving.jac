@@ -9,9 +9,13 @@ import from typing { Any, Literal, TypeAlias }
 import from jaclang.runtimelib.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { ModuleIntrospector }
 
-glob JsonValue: TypeAlias = None | str | int | float | bool | list['JsonValue'] | dict[
-         (str, 'JsonValue')
-     ],
+glob JsonValue: TypeAlias = None
+     | str
+     | int
+     | float
+     | bool
+     | list['JsonValue']
+     | dict[(str, 'JsonValue')],
      StatusCode: TypeAlias = Literal[(200, 201, 400, 401, 404, 503)];
 
 obj HeaderBuilder {

@@ -227,9 +227,10 @@ def _hex_digit(v: int) -> str {
 
 def _hex4_str(n: int) -> str {
     return (
-        _hex_digit((n // 4096) % 16) + _hex_digit((n // 256) % 16) + _hex_digit(
-            (n // 16) % 16
-        ) + _hex_digit(n % 16)
+        _hex_digit((n // 4096) % 16)
+        + _hex_digit((n // 256) % 16)
+        + _hex_digit((n // 16) % 16)
+        + _hex_digit(n % 16)
     );
 }
 

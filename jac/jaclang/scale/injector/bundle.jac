@@ -206,7 +206,9 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
         jac_path = stage_root / ".pod-jac";
         jac_path.write_bytes(pod_binary);
         jac_path.chmod(0o755);
-        script = Path(str(__file__)).parent.parent.parent / "utils" / "precompile_bytecode.jac";
+        script = Path(str(__file__)).parent.parent.parent
+        / "utils"
+        / "precompile_bytecode.jac";
 
         result = subprocess.run(
             [str(jac_path), "run", str(script), str(stage_root), "--seal"],

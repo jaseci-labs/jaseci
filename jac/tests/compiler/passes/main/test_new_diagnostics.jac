@@ -210,7 +210,8 @@ test "W0100: each invalid escape warns once" {
 
 # ── E0025: JS arrow function syntax (=>) ───────────────────────────
 test "E0025: js arrow in jsx attribute slot" {
-    src = 'cl { def:pub Foo() -> JsxElement {' + ' return <button onClick={e => doThing(e)}>Click</button>; } }';
+    src = 'cl { def:pub Foo() -> JsxElement {'
+    + ' return <button onClick={e => doThing(e)}>Click</button>; } }';
     (prog, _) = parse_with_prog(src);
     assert has_diagnostic_code(prog, "E0025");
     assert count_diagnostic_code(prog, "E0025") == 1;
@@ -1175,7 +1176,8 @@ test "genuine collection literals in a slot body are not mistaken for slot wraps
     # disambiguates them, so the parser leaves them as collection literals and
     # must NOT raise E2028. Uses `parse_with_prog` so the parser diagnostics
     # (E2028 is parser-emitted) are captured.
-    src = 'def:pub C(a: int) -> JsxElement { ' + 'return <ul>{for x in [a] { {1, 2}; {a: 1}; }}</ul>; }';
+    src = 'def:pub C(a: int) -> JsxElement { '
+    + 'return <ul>{for x in [a] { {1, 2}; {a: 1}; }}</ul>; }';
     (prog, _) = parse_with_prog(src);
     n = count_diagnostic_code(prog, "E2028");
     assert n == 0 , f"genuine collection literals must not raise E2028, got {n}";

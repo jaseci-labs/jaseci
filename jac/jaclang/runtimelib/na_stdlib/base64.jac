@@ -274,9 +274,9 @@ def _b64_decode_core(data: bytes, rev: list[int], strict: bool) -> bytes {
     }
     if quad_pos == 1 {
         raise ValueError(
-            "Invalid base64-encoded string: number of data characters (" + str(
-                datachars
-            ) + ") cannot be 1 more than a multiple of 4"
+            "Invalid base64-encoded string: number of data characters ("
+            + str(datachars)
+            + ") cannot be 1 more than a multiple of 4"
         );
     }
     if quad_pos >= 2 {

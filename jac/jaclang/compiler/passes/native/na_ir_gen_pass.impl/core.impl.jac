@@ -740,9 +740,8 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
         import os as _wl_os2;
 
         _wl_internal = imported_mod.decided_codespace != 'native'
-        and (_wl_os2.sep + "jaclang" + _wl_os2.sep) in _wl_os2.path.abspath(
-            imported_mod.loc.mod_path
-        );
+        and (_wl_os2.sep + "jaclang" + _wl_os2.sep)
+        in _wl_os2.path.abspath(imported_mod.loc.mod_path);
         if _wl_internal {
             try {
                 import from jaclang.jac0core { sealed as _wl_sealed }

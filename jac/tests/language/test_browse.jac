@@ -334,7 +334,8 @@ test "_walk_ax assigns @e refs to interactive and named nodes only" {
     _walk_ax(nodes["1"], nodes, 0, lines, refs);
 
     assert refs == {"e1": 100, "e2": 200, "e3": 400};
-    assert lines == [
+    assert lines
+    == [
         'WebArea',
         '  @e1 button "Send"',
         '  @e2 heading "Welcome"',
@@ -369,7 +370,8 @@ test "_cookie_param projects a CDP cookie to Network.setCookies shape" {
             "session": False
         }
     );
-    assert full == {
+    assert full
+    == {
         "name": "sid",
         "value": "abc",
         "domain": "example.com",
@@ -383,7 +385,8 @@ test "_cookie_param projects a CDP cookie to Network.setCookies shape" {
     # Session cookie: negative `expires` and missing `sameSite` are dropped,
     # and the domain/path/flag defaults are filled in.
     minimal = _cookie_param({"name": "t", "value": "1", "expires": -1});
-    assert minimal == {
+    assert minimal
+    == {
         "name": "t",
         "value": "1",
         "domain": "",

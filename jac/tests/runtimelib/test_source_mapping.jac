@@ -159,7 +159,9 @@ def _create_mapper_with_map(tmpdir: str) -> SourceMapper {
 test "resolve stack trace to jac files" {
     with TemporaryDirectory() as tmpdir {
         mapper = _create_mapper_with_map(tmpdir);
-        stack = "TypeError: Cannot read property\n" + "    at MyComponent (http://localhost:8001/static/client.js:1:0)\n" + "    at React.render (http://localhost:8001/static/client.js:1:100)";
+        stack = "TypeError: Cannot read property\n"
+        + "    at MyComponent (http://localhost:8001/static/client.js:1:0)\n"
+        + "    at React.render (http://localhost:8001/static/client.js:1:100)";
         resolved = mapper.resolve_stack_trace(stack);
         assert "main.jac" in resolved;
         assert "TypeError: Cannot read property" in resolved;
@@ -212,7 +214,9 @@ def _create_mapper_with_artifact_and_node_modules(tmpdir: str) -> SourceMapper {
 test "non-source frames are dropped by default, .jac frames kept" {
     with TemporaryDirectory() as tmpdir {
         mapper = _create_mapper_with_artifact_and_node_modules(tmpdir);
-        stack = "    at foo (http://x/client.js:1:0)\n" + "    at bar (http://x/client.js:2:0)\n" + "    at baz (http://x/client.js:3:0)";
+        stack = "    at foo (http://x/client.js:1:0)\n"
+        + "    at bar (http://x/client.js:2:0)\n"
+        + "    at baz (http://x/client.js:3:0)";
         resolved = mapper.resolve_stack_trace(stack);
         # Only the .jac-resolving frame survives; stray artifact and
         # node_modules are both inside .jac/ and get filtered.
@@ -228,7 +232,9 @@ test "non-source frames are dropped by default, .jac frames kept" {
 test "verbose mode keeps all resolved frames" {
     with TemporaryDirectory() as tmpdir {
         mapper = _create_mapper_with_artifact_and_node_modules(tmpdir);
-        stack = "    at foo (http://x/client.js:1:0)\n" + "    at bar (http://x/client.js:2:0)\n" + "    at baz (http://x/client.js:3:0)";
+        stack = "    at foo (http://x/client.js:1:0)\n"
+        + "    at bar (http://x/client.js:2:0)\n"
+        + "    at baz (http://x/client.js:3:0)";
         resolved = mapper.resolve_stack_trace(stack, verbose=True);
         assert "main.jac" in resolved;
         assert "stray.js" in resolved;

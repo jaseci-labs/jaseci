@@ -271,7 +271,8 @@ test "E2016 impl for method with full body" {
     }
 
     assert "E2016" in errors_output;
-    assert "Cannot provide implementation for a method that already has a body" in errors_output;
+    assert "Cannot provide implementation for a method that already has a body"
+    in errors_output;
     assert "impl Foo.make()" in errors_output;
     assert "impl Foo.clone()" in errors_output;
 }

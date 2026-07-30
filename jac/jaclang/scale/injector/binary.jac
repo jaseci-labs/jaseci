@@ -492,7 +492,9 @@ def _scale_cache_root -> Path {
     if base {
         return Path(base);
     }
-    return Path(os.environ.get("XDG_CACHE_HOME", "") or (Path.home() / ".cache")) / "jac" / "scale-binaries";
+    return Path(os.environ.get("XDG_CACHE_HOME", "") or (Path.home() / ".cache"))
+    / "jac"
+    / "scale-binaries";
 }
 
 

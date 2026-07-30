@@ -268,7 +268,8 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         if dropped {
             console.print(
                 "  ○ not imported by the entry module (kept as plain modules, "
-                "no endpoints): " + ", ".join(sorted(dropped)),
+                "no endpoints): "
+                + ", ".join(sorted(dropped)),
                 style="muted"
             );
         }

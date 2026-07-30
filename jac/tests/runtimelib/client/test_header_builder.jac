@@ -23,8 +23,10 @@ test "attribute values are quoted so spaces survive crawlers" {
     );
     head = hb.build_head();
     assert '<title>The Jac Programming Language</title>' in head;
-    assert '<meta property="og:title" content="The Jac Programming Language" />' in head;
-    assert '<meta name="description" content="One language, one compiler, the whole stack." />' in head;
+    assert '<meta property="og:title" content="The Jac Programming Language" />'
+    in head;
+    assert '<meta name="description" content="One language, one compiler, the whole stack." />'
+    in head;
     assert '<link rel="icon" href="/static/assets/jac-logo.png" />' in head;
     assert '<meta name="color-scheme" content="dark light" />' in head;
     assert "content=The " not in head;
@@ -44,7 +46,8 @@ test "og property names keep their spec underscores" {
     );
     head = hb.build_head();
     assert '<meta property="og:site_name" content="jaclang.org" />' in head;
-    assert '<meta property="og:image:secure_url" content="https://jaclang.org/logo.png" />' in head;
+    assert '<meta property="og:image:secure_url" content="https://jaclang.org/logo.png" />'
+    in head;
     assert '<meta property="og:locale:alternate" content="en_GB" />' in head;
     assert '<meta property="og:image:width" content="1200" />' in head;
     assert "og:site:name" not in head;
@@ -62,7 +65,8 @@ test "twitter keys emit twitter colon names" {
     );
     head = hb.build_head();
     assert '<meta name="twitter:card" content="summary" />' in head;
-    assert '<meta name="twitter:image" content="https://jaclang.org/logo.png" />' in head;
+    assert '<meta name="twitter:image" content="https://jaclang.org/logo.png" />'
+    in head;
     assert '<meta name="twitter:image:alt" content="Jac logo" />' in head;
 }
 

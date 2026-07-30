@@ -282,9 +282,8 @@ test "all plugin files transpile or have jac0 fallback" {
             if not r[1]["ok"]
         ];
         assert len(failures) == 0 , (
-            "Some plugins failed to transpile:\n" + "\n".join(
-                [f"  {r[0]}: {r[1]['error']}" for r in failures]
-            )
+            "Some plugins failed to transpile:\n"
+            + "\n".join([f"  {r[0]}: {r[1]['error']}" for r in failures])
         );
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
@@ -1109,7 +1108,9 @@ test "js sdk invoke produces correct request format" {
         "var captured = null;"
         "window = {__jac_invoke: function(p,c,a) { captured = {plugin:p,command:c,args:a}; "
         "return Promise.resolve({ok:true,data:{x:1}}); }};"
-    ) + _bootstrap_js_snippet() + (
+    )
+    + _bootstrap_js_snippet()
+    + (
         "window.__jac.invoke('fs','read_file',{path:'/tmp/x'}).then(function(r){"
         "console.log(JSON.stringify(captured));"
         "console.log('RESULT:'+JSON.stringify(r));"
@@ -1407,7 +1408,8 @@ test "build pipeline wires the runtime-imported bootstrap" {
     # No transpiled-plugin staging: everything imports from the runtime.
     assert "spec_from_file_location" not in host_src , "must not load staged .py via spec_from_file_location";
     # The one generated Python statement: host_boot.boot(<config json>).
-    assert "from jaclang.runtimelib.client.targets.desktop.native import host_boot" in host_src;
+    assert "from jaclang.runtimelib.client.targets.desktop.native import host_boot"
+    in host_src;
     assert "host_boot.boot(" in host_src;
     # Plugin bootstrap / broker / dispatch wiring live in host_boot, not here.
     assert "bootstrap_plugins" not in host_src;

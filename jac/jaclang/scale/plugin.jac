@@ -656,9 +656,8 @@ class JacScalePlugin {
         child_env = dict(os.environ);
         child_env["JAC_SV_SIBLING"] = "1";
 
-        cmd = [jac_executable()] + sv_client.headless_start_args(
-            str(module_file), port
-        );
+        cmd = [jac_executable()]
+        + sv_client.headless_start_args(str(module_file), port);
 
         log_dir = base_dir / '.jac' / 'logs';
         log_dir.mkdir(parents=True, exist_ok=True);

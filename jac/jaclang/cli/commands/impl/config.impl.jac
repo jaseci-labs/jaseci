@@ -295,15 +295,25 @@ def _output_table(settings: dict, show_all: bool) -> None {
     max_default = max(max_default, 7);
 
     if show_all {
-        fmt_str = "{:<" + str(max_group) + "}  {:<" + str(max_key) + "}  {:<" + str(
-            max_value
-        ) + "}  {:<" + str(max_default) + "}  {}";
+        fmt_str = "{:<"
+        + str(max_group)
+        + "}  {:<"
+        + str(max_key)
+        + "}  {:<"
+        + str(max_value)
+        + "}  {:<"
+        + str(max_default)
+        + "}  {}";
         header = fmt_str.format("Group", "Key", "Value", "Default", "Set");
         separator = "-" * len(header);
     } else {
-        fmt_str = "{:<" + str(max_group) + "}  {:<" + str(max_key) + "}  {:<" + str(
-            max_value
-        ) + "}";
+        fmt_str = "{:<"
+        + str(max_group)
+        + "}  {:<"
+        + str(max_key)
+        + "}  {:<"
+        + str(max_value)
+        + "}";
         header = fmt_str.format("Group", "Key", "Value");
         separator = "-" * len(header);
     }
@@ -321,16 +331,26 @@ def _output_table(settings: dict, show_all: bool) -> None {
 
             if show_all {
                 set_marker = "*" if is_set else "";
-                fmt_str = "{:<" + str(max_group) + "}  {:<" + str(max_key) + "}  {:<" + str(
-                    max_value
-                ) + "}  {:<" + str(max_default) + "}  {}";
+                fmt_str = "{:<"
+                + str(max_group)
+                + "}  {:<"
+                + str(max_key)
+                + "}  {:<"
+                + str(max_value)
+                + "}  {:<"
+                + str(max_default)
+                + "}  {}";
                 console.print(
                     fmt_str.format(grp, key, value_str, default_str, set_marker)
                 );
             } else {
-                fmt_str = "{:<" + str(max_group) + "}  {:<" + str(max_key) + "}  {:<" + str(
-                    max_value
-                ) + "}";
+                fmt_str = "{:<"
+                + str(max_group)
+                + "}  {:<"
+                + str(max_key)
+                + "}  {:<"
+                + str(max_value)
+                + "}";
                 console.print(fmt_str.format(grp, key, value_str));
             }
         }

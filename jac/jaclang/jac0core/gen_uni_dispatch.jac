@@ -212,9 +212,8 @@ def verify_all -> list {
         }
     }
     up_src = open(abs_path(UNI_PASS_SRC), encoding="utf-8").read();
-    if apply_surface_block(
-        up_src, surface_decls_block(enter, exits, snake_map)
-    ) != up_src {
+    if apply_surface_block(up_src, surface_decls_block(enter, exits, snake_map))
+    != up_src {
         stale.append(UNI_PASS_SRC + " (surface decls)");
     }
     for d in missing_accept_decls(enter, exits) {

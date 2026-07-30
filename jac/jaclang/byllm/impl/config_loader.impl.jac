@@ -119,11 +119,8 @@ impl JacByllmConfig.get_parallel_config(self: JacByllmConfig) -> dict[str, any] 
     parallel_config = config.get('parallel', {});
 
     import os;
-    env_enabled = os.environ.get('BYLLM_PARALLEL_TOOL_CALLING', '').lower() in (
-        'true',
-        '1',
-        'yes'
-    );
+    env_enabled = os.environ.get('BYLLM_PARALLEL_TOOL_CALLING', '').lower()
+    in ('true', '1', 'yes');
     toml_enabled = bool(parallel_config.get('enabled', False));
     return {'enabled': env_enabled or toml_enabled};
 }

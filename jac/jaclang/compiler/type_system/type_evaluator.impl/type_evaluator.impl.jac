@@ -26,7 +26,8 @@ impl TypeEvaluator._get_type_of_expression_core(
 ) -> TypeBase {
     if isinstance(expr, uni.BuiltinType) and expr.value == "any" {
         if expr.sym is None and self.typing_module is not None {
-            if symbol := type_utils.lookup_symtab(
+            if symbol
+            := type_utils.lookup_symtab(
                 self.typing_module, "Any", self.typing_module
             ) {
                 symbol.add_use(expr);
@@ -628,9 +629,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
             } elif not isinstance(expr.target, uni.Name)
             and isinstance(base_type, (types.UnionType, types.ClassType)) {
-                if narrowed := self.get_narrowed_type_for_expr(
-                    expr.target, base_type, expr
-                ) {
+                if narrowed
+                := self.get_narrowed_type_for_expr(expr.target, base_type, expr) {
                     base_type = narrowed;
                 }
             }
@@ -680,9 +680,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                         sym = member_sym;
                         sym_type = self.get_type_of_symbol(sym);
 
-                        if special_form := self._get_special_form_type(
-                            sym.sym_name, sym_type
-                        ) {
+                        if special_form
+                        := self._get_special_form_type(sym.sym_name, sym_type) {
                             sym.add_use(expr.right);
                             expr.right.type = special_form;
                             return special_form;
@@ -724,9 +723,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                         return sym_type;
                     }
 
-                    if submod_type := self._resolve_submodule_attr(
-                        base_type, expr.right.value
-                    ) {
+                    if submod_type
+                    := self._resolve_submodule_attr(base_type, expr.right.value) {
                         expr.right.type = submod_type;
                         return submod_type;
                     }
@@ -734,9 +732,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                 } elif base_type.is_instantiable_class() {
                     assert isinstance(base_type, types.ClassType);
                     lookup_type = self._get_type_for_member_lookup(base_type);
-                    if member := self._lookup_class_member(
-                        lookup_type, expr.right.value
-                    ) {
+                    if member
+                    := self._lookup_class_member(lookup_type, expr.right.value) {
                         if lookup_type.is_enum_class() {
                             member_name = expr.right.value;
                             if (
@@ -852,23 +849,22 @@ impl TypeEvaluator._get_type_of_expression_core(
                     }
                     if self._is_type_subscript(base_type) {
                         lookup_type = self._get_type_for_member_lookup(base_type);
-                        if member := self._lookup_class_member(
-                            lookup_type, expr.right.value
-                        ) {
+                        if member
+                        := self._lookup_class_member(lookup_type, expr.right.value) {
                             value = self._set_symbol_to_expr(expr.right, member.symbol);
                             return value;
                         }
                     }
-                    if member := self._lookup_object_member(
-                        base_type, expr.right.value
-                    ) {
+                    if member
+                    := self._lookup_object_member(base_type, expr.right.value) {
                         if (
                             expr.right.value in ('init', '__init__')
                             and base_type.is_data_class()
                         ) {
                             has_explicit_init = (
                                 'init' in base_type.shared.symbol_table.names_in_scope
-                                or '__init__' in base_type.shared.symbol_table.names_in_scope
+                                or '__init__'
+                                in base_type.shared.symbol_table.names_in_scope
                             );
 
                             has_any_has_vars = any(
@@ -906,9 +902,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                             }
                         }
 
-                        if prop_return_type := self.get_getter_type_from_property(
-                            member.symbol
-                        ) {
+                        if prop_return_type
+                        := self.get_getter_type_from_property(member.symbol) {
                             prop_return_type = self.specialize_member_type(
                                 prop_return_type, base_type
                             );
@@ -959,9 +954,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                         if (
                             td_dict is not None
                             and (
-                                td_member := self._lookup_object_member(
-                                    td_dict, expr.right.value
-                                )
+                                td_member
+                                := self._lookup_object_member(td_dict, expr.right.value)
                             )
                         ) {
                             td_member_ty = self.get_type_of_member(td_member, td_dict);
@@ -1031,12 +1025,12 @@ impl TypeEvaluator._get_type_of_expression_core(
                         }
                         if isinstance(union_member, types.ClassType)
                         and union_member.is_class_instance() {
-                            if member := self._lookup_object_member(
+                            if member
+                            := self._lookup_object_member(
                                 union_member, expr.right.value
                             ) {
-                                if prop_ret := self.get_getter_type_from_property(
-                                    member.symbol
-                                ) {
+                                if prop_ret
+                                := self.get_getter_type_from_property(member.symbol) {
                                     member_types.append(prop_ret);
                                 } else {
                                     member_types.append(
@@ -1049,9 +1043,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                             }
                         }
                     }
-                    all_union_members_have_field = len(member_types) == len(
-                        base_type.types
-                    );
+                    all_union_members_have_field = len(member_types)
+                    == len(base_type.types);
                     if all_union_members_have_field {
                         if decl_for_ide and decl_for_ide.sym {
                             decl_for_ide.sym.add_use(expr.right);
@@ -1109,7 +1102,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                         found_member: any = None;
                         for constraint_type in base_type.constraints {
                             if isinstance(constraint_type, types.ClassType) {
-                                if member := self._lookup_object_member(
+                                if member
+                                := self._lookup_object_member(
                                     constraint_type, attr_name
                                 ) {
                                     if found_member is None {
@@ -1134,9 +1128,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if base_type.bound {
                         bound_type = base_type.bound;
                         if isinstance(bound_type, types.ClassType) {
-                            if member := self._lookup_object_member(
-                                bound_type, attr_name
-                            ) {
+                            if member
+                            := self._lookup_object_member(bound_type, attr_name) {
                                 self._set_symbol_to_expr(expr.right, member.symbol);
                                 return self.get_type_of_symbol(member.symbol);
                             }
@@ -1179,7 +1172,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                     };
                     if attr_name in universal_attrs {
                         if self.prefetch.object_class {
-                            if member := self._lookup_object_member(
+                            if member
+                            := self._lookup_object_member(
                                 self.prefetch.object_class.clone_as_instance(),
                                 attr_name
                             ) {
@@ -1200,11 +1194,13 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if expr.right.value in ("setter", "getter", "deleter")
                     and isinstance(expr.target, uni.Name)
                     and (expr.target.sym is not None)
-                    and self._classify_property_symbol(expr.target.sym) != PropertyWriteKind.NOT_PROPERTY {
+                    and self._classify_property_symbol(expr.target.sym)
+                    != PropertyWriteKind.NOT_PROPERTY {
                         return base_type;
                     }
                     if self.prefetch and self.prefetch.function_class {
-                        if member := self._lookup_object_member(
+                        if member
+                        := self._lookup_object_member(
                             self.prefetch.function_class.clone_as_instance(),
                             expr.right.value
                         ) {
@@ -1230,7 +1226,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                     );
                     for assign in expr.right.assigns {
                         if assign.key is not None {
-                            if member := self._lookup_object_member(
+                            if member
+                            := self._lookup_object_member(
                                 sequence_of, assign.key.sym_name
                             ) {
                                 self._set_symbol_to_expr(assign.key, member.symbol);
@@ -1449,9 +1446,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                         return td_result;
                     }
                 }
-                if tuple_elem := self._tuple_literal_index_type(
-                    base_type, subscript_arg
-                ) {
+                if tuple_elem
+                := self._tuple_literal_index_type(base_type, subscript_arg) {
                     return tuple_elem;
                 }
                 result = self.get_type_of_magic_method_call(
@@ -1829,12 +1825,14 @@ impl TypeEvaluator._get_type_of_expression_core(
                                     expr
                                 );
                                 if cls_ {
-                                    if cls_.sym_category == uni.SymbolType.WALKER_ARCH {
+                                    if cls_.sym_category
+                                    == uni.SymbolType.WALKER_ARCH {
                                         self._set_symbol_to_expr(
                                             expr,
                                             self.prefetch.node_class.get_class_symbol(),
                                         );
-                                    } elif cls_.sym_category == uni.SymbolType.NODE_ARCH {
+                                    } elif cls_.sym_category
+                                    == uni.SymbolType.NODE_ARCH {
                                         self._set_symbol_to_expr(
                                             expr,
                                             self.prefetch.walker_class.get_class_symbol(),
@@ -1888,9 +1886,8 @@ impl TypeEvaluator._get_type_of_expression_core(
 
                     symbol_type = self.get_type_of_symbol(symbol);
 
-                    if special_form := self._get_special_form_type(
-                        symbol.sym_name, symbol_type
-                    ) {
+                    if special_form
+                    := self._get_special_form_type(symbol.sym_name, symbol_type) {
                         if isinstance(special_form, types.TypeVarType) {
                             return special_form;
                         }
@@ -2108,7 +2105,8 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
                             return extracted;
                         }
 
-                        if elem := self._get_iterable_element_type(
+                        if elem
+                        := self._get_iterable_element_type(
                             rhs_type, unpack_assignment.value
                         ) {
                             return elem;
@@ -2133,9 +2131,8 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
                             }
                         }
                         if idx >= 0 {
-                            if elem := self._extract_tuple_element_type(
-                                elem_type, idx
-                            ) {
+                            if elem
+                            := self._extract_tuple_element_type(elem_type, idx) {
                                 return elem;
                             }
                         }
@@ -2691,7 +2688,8 @@ impl TypeEvaluator.slice_assignment_is_valid(
     }
     return self.get_type_of_magic_method_call(
         base_type, "__setitem__", [target.right, value_node], None
-    ) is not None;
+    )
+    is not None;
 }
 
 impl TypeEvaluator.is_any_type(ty: TypeBase) -> bool {
@@ -3074,13 +3072,8 @@ impl TypeEvaluator.assign_type(
         and src_type.is_instantiable()
         and isinstance(dest_type, types.ClassType)
         and dest_type.is_builtin()
-        and dest_type.shared.class_name in (
-            "Sized",
-            "Iterable",
-            "Container",
-            "Reversible",
-            "Hashable"
-        )
+        and dest_type.shared.class_name
+        in ("Sized", "Iterable", "Container", "Reversible", "Hashable")
     ) {
         return True;
     }
@@ -3150,9 +3143,8 @@ impl TypeEvaluator.get_type_of_expression(
             )
         ) {
             if isinstance(node_.type, (types.UnionType, types.ClassType)) {
-                if narrowed := self.get_narrowed_type_for_expr(
-                    node_, node_.type, node_
-                ) {
+                if narrowed
+                := self.get_narrowed_type_for_expr(node_, node_.type, node_) {
                     return narrowed;
                 }
             }
@@ -3564,9 +3556,8 @@ impl TypeEvaluator.postinit -> None {
             py_tree = py_ast.parse(read_file_with_encoding(path));
             for node in py_tree.body {
                 if (isinstance(node, py_ast.ImportFrom) and node.module is not None) {
-                    public = {
-                        (alias.asname or alias.name) for alias in node.names
-                    } & allowed;
+                    public = {(alias.asname or alias.name) for alias in node.names}
+                    & allowed;
                     if public {
                         out[node.module] = out.get(node.module, set()) | public;
                     }
@@ -4927,9 +4918,8 @@ impl TypeEvaluator._resolve_py_ast_type_node(
             member = base.symbol_table.lookup(ast_node.attr);
             if member is None
             and (
-                inner := type_utils.collect_member_syms(
-                    base.symbol_table, ast_node.attr
-                )
+                inner
+                := type_utils.collect_member_syms(base.symbol_table, ast_node.attr)
             ) {
                 member = inner[0];
             }

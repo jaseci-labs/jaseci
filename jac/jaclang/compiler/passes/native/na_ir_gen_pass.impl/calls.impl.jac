@@ -179,9 +179,9 @@ impl NaIRGenPass._codegen_bound_args(
         _has_pack = False;
     }
     if _has_pack {
-        _chk = self_offset - _self_skip + len(callee_sig.posonly_params or []) + len(
-            callee_sig.params or []
-        );
+        _chk = self_offset - _self_skip
+        + len(callee_sig.posonly_params or [])
+        + len(callee_sig.params or []);
         if callee_sig.varargs is not None {
             _vt_ok = False;
             if _chk < len(func.args)
@@ -1025,17 +1025,8 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
 
-        if func_name in (
-            "abs",
-            "min",
-            "max",
-            "pow",
-            "divmod",
-            "sum",
-            "any",
-            "all",
-            "format"
-        ) {
+        if func_name
+        in ("abs", "min", "max", "pow", "divmod", "sum", "any", "all", "format") {
             params_l = nd.params or [];
             arg_vals: list[ir.Value] = [];
             for param in params_l {
@@ -1073,7 +1064,8 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return None;
         }
 
-        if func_name in (
+        if func_name
+        in (
             "ord",
             "int",
             "chr",

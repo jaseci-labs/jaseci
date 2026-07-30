@@ -92,9 +92,8 @@ test "rules are collected from __jac_schema__ at class registration" {
 
 test "schema_was registers a class alias to the defining class" {
     mod = getattr(_DriftUser, '__module__');
-    assert Serializer._aliases.get("oldapp.models._DriftOldUser") == f"{mod}._DriftUser" , (
-        f"was-alias not registered: {Serializer._aliases}"
-    );
+    assert Serializer._aliases.get("oldapp.models._DriftOldUser")
+    == f"{mod}._DriftUser" , (f"was-alias not registered: {Serializer._aliases}");
 }
 
 
@@ -104,7 +103,8 @@ test "field rules are inherited by subclasses; was-rules are definer-only" {
     assert any(a.new_name == 'name' for a in rules.aliases);
     # The was-alias must still point at the definer, not the subclass.
     mod = getattr(_DriftUser, '__module__');
-    assert Serializer._aliases.get("oldapp.models._DriftOldUser") == f"{mod}._DriftUser";
+    assert Serializer._aliases.get("oldapp.models._DriftOldUser")
+    == f"{mod}._DriftUser";
 }
 
 

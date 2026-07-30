@@ -729,7 +729,8 @@ def main {
     sys.stderr.flush();
 
     console.print(
-        f"\nDone! Compiled {compiled}/{len(jac_files)} modules" + f" ({reused} reused, {failed} failed)"
+        f"\nDone! Compiled {compiled}/{len(jac_files)} modules"
+        + f" ({reused} reused, {failed} failed)"
     );
     console.print(f"  Output: {precompiled_dir}");
     console.print(f"  Python version: {pyver}");
@@ -742,7 +743,8 @@ def main {
                 "reused": reused,
                 "failed": failed
             }
-        ) + "\n",
+        )
+        + "\n",
         encoding="utf-8"
     );
 

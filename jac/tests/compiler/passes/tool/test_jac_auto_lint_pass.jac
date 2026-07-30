@@ -1365,7 +1365,8 @@ test "W3042 converts map lambda to list comprehension" {
 
     # Single-param case: HourGrid is converted.
     assert "for hour in hours" in formatted;
-    assert "[<div className=\"text-xs text-center\">{hour}</div> for hour in hours]" in formatted;
+    assert "[<div className=\"text-xs text-center\">{hour}</div> for hour in hours]"
+    in formatted;
 
     # Multi-param case: MultiParamMap must be left untouched — list
     # comprehensions only bind one iteration variable per `for` clause.

@@ -2605,9 +2605,8 @@ impl JacAutoLintPass._detect_map_lambda_jsx(
     if sig is None {
         return None;
     }
-    all_params: list[uni.ParamVar] = list(sig.posonly_params or []) + list(
-        sig.params or []
-    );
+    all_params: list[uni.ParamVar] = list(sig.posonly_params or [])
+    + list(sig.params or []);
     if len(all_params) != 1 {
         return None;
     }

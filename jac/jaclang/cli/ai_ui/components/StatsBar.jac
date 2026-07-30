@@ -19,14 +19,13 @@ def:pub StatsBar(stats: TurnStatsView, active: str) -> JsxElement {
         "clean"
             if clean
             else (
-                str(stats.errors) + " err" + (
-                    (", " + str(stats.warnings) + " warn") if stats.warnings > 0 else ""
-                )
+                str(stats.errors)
+                + " err"
+                + ((", " + str(stats.warnings) + " warn") if stats.warnings > 0 else "")
             )
     );
-    health_cls = "stat health " + (
-        "ok" if clean else ("warn" if stats.errors == 0 else "err")
-    );
+    health_cls = "stat health "
+    + ("ok" if clean else ("warn" if stats.errors == 0 else "err"));
     <div className="stats">
         <span className="stat">
             phase
@@ -43,9 +42,12 @@ def:pub StatsBar(stats: TurnStatsView, active: str) -> JsxElement {
                     <b>{str(stats.tools)}</b>
                     tools
                     <span className="stat-sub">
-                        {str(stats.reads) + "r / " + str(stats.writes) + "w / " + str(
-                            stats.runs
-                        ) + "x"}
+                        {str(stats.reads)
+                        + "r / "
+                        + str(stats.writes)
+                        + "w / "
+                        + str(stats.runs)
+                        + "x"}
                     </span>
                 </span>
                 <span className="stat">

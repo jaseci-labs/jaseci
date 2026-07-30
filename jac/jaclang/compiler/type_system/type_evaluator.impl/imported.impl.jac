@@ -44,7 +44,8 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
                         }
                         sibling_dts = sibling_declaration_file(path_str);
                         if sibling_dts {
-                            if declared := self._ts_declared_type_from_file(
+                            if declared
+                            := self._ts_declared_type_from_file(
                                 sibling_dts, node_.name.value
                             ) {
                                 node_.name.type = declared;
@@ -73,15 +74,15 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
                     );
 
                     if is_parent_init {
-                        if sym := type_utils.lookup_symtab(
+                        if sym
+                        := type_utils.lookup_symtab(
                             mod, node_.name.value, self.builtins_module
                         ) {
                             return self._set_module_item_symbol_and_type(node_, sym);
                         }
 
-                        if sym := self._resolve_star_import_symbol(
-                            mod, node_.name.value
-                        ) {
+                        if sym
+                        := self._resolve_star_import_symbol(mod, node_.name.value) {
                             return self._set_module_item_symbol_and_type(node_, sym);
                         }
                         continue;
@@ -111,7 +112,8 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
                 return node_.name.type;
             }
             if from_mod_type.is_external {
-                if declared := self._get_ts_declared_item_type(
+                if declared
+                := self._get_ts_declared_item_type(
                     import_node.from_loc, node_.name.value
                 ) {
                     node_.name.type = declared;
@@ -125,13 +127,15 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
                 );
                 return node_.name.type;
             }
-            if sym := type_utils.lookup_symtab(
+            if sym
+            := type_utils.lookup_symtab(
                 from_mod_type.symbol_table, node_.name.value, self.builtins_module
             ) {
                 return self._set_module_item_symbol_and_type(node_, sym);
             }
             if isinstance(from_mod_type.symbol_table, uni.Module) {
-                if sym := self._resolve_star_import_symbol(
+                if sym
+                := self._resolve_star_import_symbol(
                     from_mod_type.symbol_table, node_.name.value
                 ) {
                     return self._set_module_item_symbol_and_type(node_, sym);

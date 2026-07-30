@@ -17,9 +17,15 @@ impl JacAccessValidation._check_access(
     granted = actual.value > min_level.value;
     if not granted {
         logger.info(
-            "Current root doesn't have " + operation + " access to " + to.__class__.__name__ + " " + to.archetype.__class__.__name__ + "[" + str(
-                to.id
-            ) + "]"
+            "Current root doesn't have "
+            + operation
+            + " access to "
+            + to.__class__.__name__
+            + " "
+            + to.archetype.__class__.__name__
+            + "["
+            + str(to.id)
+            + "]"
         );
         if operation != "read" {
             required = AccessLevel(min_level.value + 1);
@@ -350,9 +356,12 @@ impl JacWalker.`visit(
     `walker: WalkerArchetype,
     expr:
         (
-            list[(NodeArchetype | EdgeArchetype)] | list[NodeArchetype] | list[
-                EdgeArchetype
-            ] | NodeArchetype | EdgeArchetype | ObjectSpatialPath
+            list[(NodeArchetype | EdgeArchetype)]
+            | list[NodeArchetype]
+            | list[EdgeArchetype]
+            | NodeArchetype
+            | EdgeArchetype
+            | ObjectSpatialPath
         ),
     insert_loc: int = -1
 ) -> bool {
@@ -530,9 +539,8 @@ impl JacBuiltin.printgraph(
     for (source, target, `edge) in connections {
         edge_label = html.escape(str(`edge.__jac__.archetype));
         dot_content += (
-            f"{visited_nodes.index(source)} -> {visited_nodes.index(target)} " + f' [label="{edge_label
-                if "GenericEdge" not in edge_label
-                else ""}"];\n'
+            f"{visited_nodes.index(source)} -> {visited_nodes.index(target)} "
+            + f'[label="{edge_label if "GenericEdge" not in edge_label else ""}"];\n'
         );
         if (('GenericEdge' in edge_label) or not edge_label.strip()) {
             mermaid_content += (

@@ -385,11 +385,8 @@ impl ParamAssignmentTracker.match_named_argument(
 impl ParamAssignmentTracker._mark_all_positional_params_as_matched -> None {
     for param in self.params {
         if (
-            param.param_kind in (
-                types.ParamKind.POSONLY,
-                types.ParamKind.NORMAL,
-                types.ParamKind.VARARG
-            )
+            param.param_kind
+            in (types.ParamKind.POSONLY, types.ParamKind.NORMAL, types.ParamKind.VARARG)
         ) {
             self.spread_filled.add(param);
         }
@@ -400,11 +397,8 @@ impl ParamAssignmentTracker._mark_all_positional_params_as_matched -> None {
 impl ParamAssignmentTracker._mark_all_named_params_as_matched -> None {
     for param in self.params {
         if (
-            param.param_kind in (
-                types.ParamKind.NORMAL,
-                types.ParamKind.KWONLY,
-                types.ParamKind.KWARG
-            )
+            param.param_kind
+            in (types.ParamKind.NORMAL, types.ParamKind.KWONLY, types.ParamKind.KWARG)
         ) {
             self.spread_filled.add(param);
         }

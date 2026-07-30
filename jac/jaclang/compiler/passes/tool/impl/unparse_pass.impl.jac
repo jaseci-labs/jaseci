@@ -788,7 +788,11 @@ impl UnparsePass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
 }
 
 impl UnparsePass.exit_if_else_expr(nd: uni.IfElseExpr) -> None {
-    nd.gen.jac = nd.value.gen.jac + " if " + nd.condition.gen.jac + " else " + nd.else_value.gen.jac;
+    nd.gen.jac = nd.value.gen.jac
+    + " if "
+    + nd.condition.gen.jac
+    + " else "
+    + nd.else_value.gen.jac;
 }
 
 impl UnparsePass.exit_multi_string(nd: uni.MultiString) -> None {

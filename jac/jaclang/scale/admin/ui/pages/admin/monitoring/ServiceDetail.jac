@@ -161,14 +161,12 @@ def:pub ServiceDetail(
                 <h1 className="text-lg font-semibold text-fg">{name}</h1>
             </div>
             <span
-                className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border " + str(
-                    statusClasses[status] or "bg-surface-2 text-muted border-line"
-                )}
+                className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border "
+                + str(statusClasses[status] or "bg-surface-2 text-muted border-line")}
             >
                 <span
-                    className={"w-1.5 h-1.5 rounded-full " + str(
-                        statusDotClasses[status] or "bg-faint"
-                    )}
+                    className={"w-1.5 h-1.5 rounded-full "
+                    + str(statusDotClasses[status] or "bg-faint")}
                 ></span>
                 {status}
             </span>
@@ -205,9 +203,8 @@ def:pub ServiceDetail(
                             {t["label"]}
                         </p>
                         <p
-                            className={"text-2xl font-semibold mt-1 tabular-nums " + (
-                                "text-fg" if isRouted else "text-faint"
-                            )}
+                            className={"text-2xl font-semibold mt-1 tabular-nums "
+                            + ("text-fg" if isRouted else "text-faint")}
                         >
                             {t["value"]}
                         </p>
@@ -408,7 +405,8 @@ def:pub ServiceDetail(
                                 <td className="px-4 py-2 text-fg">{p["name"]}</td>
                                 <td className="px-4 py-2">
                                     <span
-                                        className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border " + str(
+                                        className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border "
+                                        + str(
                                             statusClasses[
                                                 phaseToStatus[p["phase"]] or p["phase"]
                                             ]
@@ -416,7 +414,8 @@ def:pub ServiceDetail(
                                         )}
                                     >
                                         <span
-                                            className={"w-1.5 h-1.5 rounded-full " + str(
+                                            className={"w-1.5 h-1.5 rounded-full "
+                                            + str(
                                                 statusDotClasses[
                                                     phaseToStatus[p["phase"]]
                                                     or p["phase"]
