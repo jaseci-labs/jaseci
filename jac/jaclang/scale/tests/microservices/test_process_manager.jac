@@ -260,10 +260,6 @@ test "start service passes the registry's subdir file path to jac start" {
 }
 
 test "check all health marks a dead managed process STOPPED without HTTP polling" {
-    # A live, healthy 200 endpoint stands behind the service: if the dead-child
-    # path ever consulted the real check_health, the entry would flip HEALTHY and
-    # the server would log a request. Proving it stays STOPPED with zero requests
-    # shows the real check_all_health short-circuits before any HTTP poll.
     srv = _serve_health(200);
     try {
         reg = ServiceRegistry();
@@ -356,9 +352,6 @@ test "check all health marks service unhealthy after max failures" {
 
     pm = ServiceProcessManager(registry=reg, _max_failures=2);
 
-    # A real endpoint that answers 503: the real check_health does a real GET
-    # /healthz and genuinely fails each poll, so the failure counter climbs to
-    # _max_failures on real health transitions.
     srv = _serve_health(503);
     reg.entries["orders"].url = _health_url(srv);
     try {
@@ -389,9 +382,6 @@ test "check all health resets failure count on success" {
 
     pm = ServiceProcessManager(registry=reg, _max_failures=3);
 
-    # One real endpoint we toggle live: 503 first (a genuine failed poll bumps the
-    # counter to 1), then 200 (a genuine healthy poll resets it to 0 and marks the
-    # entry HEALTHY). The real check_health reacts to the real health transition.
     srv = _serve_health(503);
     reg.entries["orders"].url = _health_url(srv);
     try {

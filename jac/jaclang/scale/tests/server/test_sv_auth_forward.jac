@@ -343,15 +343,11 @@ test "HALF_OPEN probe failure re-opens the breaker with a fresh cooldown" {
     }
     assert breaker_should_skip(mod);
 
-    # Cooldown lapses: the next allow-check must promote OPEN -> HALF_OPEN and
-    # let exactly one probe through.
     _breaker_force_cooldown_elapsed(mod);
     assert not breaker_should_skip(mod);
     st = _breaker_peek(mod);
     assert st is not None and st["state"] == "HALF_OPEN";
 
-    # The probe itself fails: the breaker must slam back to OPEN and stamp a
-    # brand-new opened_at (a fresh cooldown window), not stay half-open.
     before = time.time();
     breaker_record_failure(mod);
     after = time.time();
@@ -360,7 +356,6 @@ test "HALF_OPEN probe failure re-opens the breaker with a fresh cooldown" {
     assert st is not None and st["state"] == "OPEN";
     assert before <= st["opened_at"] <= after;
 
-    # Fresh window means the very next call is blocked again.
     assert breaker_should_skip(mod);
 
     _breaker_reset(mod);

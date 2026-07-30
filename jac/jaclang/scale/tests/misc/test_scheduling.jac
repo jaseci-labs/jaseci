@@ -528,16 +528,11 @@ test "static walkers and functions actually execute" {
     }
 }
 
-# Minimal real server shape: the scheduler only reaches for `.user_manager`
-# (and `.introspector`, unused by these unit tests). This just carries the
-# REAL user_manager - it stubs no behavior.
 obj _SchedServer {
     has user_manager: Any;
 }
 
 def _make_user_manager(usernames: list[str]) -> tuple[str, Any] {
-    # A genuine JacScaleUserManager on a throwaway SQLite store. Each listed
-    # username becomes a real user, so user_exists() answers from real state.
     test_dir = mkdtemp();
     with open(os.path.join(test_dir, "jac.toml"), "w") as f {
         f.write('[project]\nname = "sched-test"\nversion = "1.0.0"\n');
@@ -572,11 +567,8 @@ def _make_sched(
 ) -> tuple[JacScaleScheduler, str, Any] {
     # postinit runs automatically on construction (allocates _user_exists_cache).
     sched = JacScaleScheduler();
-    # Real in-memory store - the scheduler's own collaborator, exercised for real.
     sched._store = MemoryJobStore();
-    # APScheduler is a third-party boundary; the tests below patch
-    # _schedule_apscheduler_job, so _apscheduler only needs to be non-None to
-    # clear the early-return guard in register_dynamic_tasks_from_db.
+    # _apscheduler just needs to be non-None to clear the early-return guard.
     sched._apscheduler = unittest.mock.MagicMock();
     (test_dir, um) = _make_user_manager(existing_users or []);
     sched._server = _SchedServer(user_manager=um);
@@ -610,10 +602,6 @@ test "TriggerSpec.validate accepts well-formed cron expressions" {
 }
 
 test "scheduler list_jobs propagates PyMongoError so endpoint can 503-map" {
-    # A real pymongo client pointed at an unreachable server raises a genuine
-    # ServerSelectionTimeoutError (a PyMongoError) on its first operation - no
-    # stub. The store and scheduler must let it propagate unwrapped so the
-    # endpoint layer can map it to STORAGE_UNAVAILABLE / 503.
     client = MongoClient("mongodb://127.0.0.1:1/", serverSelectionTimeoutMS=250);
     try {
         sched = JacScaleScheduler();
@@ -667,8 +655,6 @@ test "scheduler get_job propagates PyMongoError" {
 test "user_is_live caches positive answer for ttl seconds" {
     # First call hits user_manager.user_exists; subsequent calls within TTL
     # are served from cache. After TTL expiry, user_manager is hit again.
-    # 'alice' is a REAL user - user_exists answers from the real store; we only
-    # spy on it (wraps=) to count how often the scheduler consults it.
     (sched, test_dir, um) = _make_sched(existing_users=['alice']);
     sched._user_exists_ttl = 30.0;
     try {
@@ -705,8 +691,6 @@ test "user_is_live caches positive answer for ttl seconds" {
 }
 
 test "user_is_live negative result is not cached" {
-    # 'ghost' is never created, so the real user_manager genuinely reports
-    # it as non-existent on every call.
     (sched, test_dir, um) = _make_sched(existing_users=[]);
     sched._user_exists_ttl = 30.0;
     try {
@@ -728,8 +712,6 @@ test "user_is_live negative result is not cached" {
 }
 
 test "user_is_live evicts positive cache when user later disappears" {
-    # 'bob' starts as a real user, is cached live, then is genuinely deleted
-    # from the real store; after TTL the re-check must observe the deletion.
     (sched, test_dir, um) = _make_sched(existing_users=['bob']);
     sched._user_exists_ttl = 30.0;
     try {
@@ -760,8 +742,6 @@ test "user_is_live evicts positive cache when user later disappears" {
 }
 
 test "register_dynamic_tasks_from_db marks jobs orphaned when creator gone" {
-    # 'alice' is a real user, 'ghost' is not - so the orphan decision is driven
-    # by the real user_manager, and the orphaning is asserted on the real store.
     (sched, test_dir, um) = _make_sched(existing_users=['alice']);
     try {
         alive_job = {
@@ -825,9 +805,6 @@ test "register_dynamic_tasks_from_db marks jobs orphaned when creator gone" {
 }
 
 test "register_dynamic_tasks_from_db restores system-owned jobs without user_exists check" {
-    # No '__system__' user exists in the real store, so user_exists('__system__')
-    # genuinely returns False - yet the system-owned job must still be restored,
-    # proving the scheduler bypasses the liveness check for the system user.
     (sched, test_dir, um) = _make_sched(existing_users=[]);
     try {
         assert not um.user_exists('__system__');

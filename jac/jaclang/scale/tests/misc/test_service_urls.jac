@@ -5,12 +5,6 @@ import from pathlib { Path }
 import from jaclang.scale.admin.service_urls { service_base_url }
 import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 
-# service_base_url builds the in-cluster URL a gateway uses to reach a sibling
-# service. It has three real sources, in precedence order: an explicit env var,
-# the K8S_APP_NAME env var, then the kubernetes app_name from scale config -
-# with a localhost fallback when none resolve. These assert the real strings the
-# pure logic produces for each branch; config-driven branches are fed a real
-# jac.toml through get_scale_config(), never a mock of the function under test.
 
 def _seed_k8s_config(k8s_toml: str) -> str {
     project_dir = tempfile.mkdtemp(prefix="jac-svcurl-test-");
@@ -33,8 +27,6 @@ test "explicit env var wins and is trimmed of whitespace + trailing slashes; por
     prev = os.environ.get("SVCURL_EXPLICIT");
     os.environ["SVCURL_EXPLICIT"] = "  http://custom-host:1234///  ";
     try {
-        # The env override short-circuits before app_name/port are ever consulted,
-        # so the port arg (8000) must not appear in the result.
         assert service_base_url("SVCURL_EXPLICIT", "api", 8000) == "http://custom-host:1234";
     } finally {
         if prev is None {
@@ -109,8 +101,7 @@ test "an unresolved ${VAR} app_name is rejected and falls back to localhost" {
         "[scale.kubernetes]\napp_name = \"${JAC_SVCURL_NONEXISTENT}\"\n"
     );
     try {
-        # expandvars leaves the token intact, so the "${" guard must reject it
-        # rather than emit a garbage host like http://${...}-worker:6000.
+        # expandvars leaves an unresolved ${VAR} intact, so the "${" guard rejects it.
         assert service_base_url("SVCURL_UNSET", "worker", 6000) == "http://localhost:6000";
     } finally {
         _teardown_config(project_dir);

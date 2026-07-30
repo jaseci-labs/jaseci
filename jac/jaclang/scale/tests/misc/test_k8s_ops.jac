@@ -40,7 +40,6 @@ test "api_error_detail formats non-403 status with extracted reason" {
 test "api_error_detail falls back to str(e) when status is absent" {
     err = ApiException();
     detail = k8s_ops.api_error_detail(err);
-    # no status -> neither the 403 branch nor the status-format branch fires
     assert detail == str(err);
     assert "Reason:" in detail;
 }
@@ -70,7 +69,6 @@ test "ops_namespace resolves POD_NAMESPACE env and falls back to default" {
         assert k8s_ops.ops_namespace() == "team-ops";
     }
 
-    # unset env and no mounted serviceaccount namespace file -> "default"
     with patch.dict(os.environ) {
         os.environ.pop("POD_NAMESPACE", None);
         assert k8s_ops.ops_namespace() == "default";
@@ -88,14 +86,12 @@ test "k8s_available gates on client presence and service host env" {
             os.environ.pop("KUBERNETES_SERVICE_HOST", None);
             assert k8s_ops.k8s_available() == False;
         }
-        # host present but blank/whitespace -> unavailable (stripped)
         with patch.dict(os.environ) {
             os.environ["KUBERNETES_SERVICE_HOST"] = "   ";
             assert k8s_ops.k8s_available() == False;
         }
     }
 
-    # client absent short-circuits regardless of host env
     with patch.object(k8s_ops, "HAS_KUBERNETES", False) {
         with patch.dict(os.environ) {
             os.environ["KUBERNETES_SERVICE_HOST"] = "10.0.0.1";
@@ -112,7 +108,6 @@ test "_ensure_config short-circuits to False when not in a cluster" {
         with patch.dict(os.environ) {
             os.environ.pop("KUBERNETES_SERVICE_HOST", None);
             assert k8s_ops._ensure_config() == False;
-            # it records the resolution so it will not retry
             assert k8s_ops._config_loaded == True;
             assert k8s_ops._config_ok == False;
         }
@@ -163,15 +158,12 @@ test "_ensure_config returns False when in-cluster config load raises" {
 
 test "_ensure_config caches the first resolution and skips reloading" {
     ok_cfg = MagicMock();
-    # prime the cache as already loaded + ok; loader must never be called again
     k8s_ops._config_loaded = True;
     k8s_ops._config_ok = True;
     with patch.object(k8s_ops, "config", ok_cfg) {
         with patch.dict(os.environ) {
             os.environ.pop("KUBERNETES_SERVICE_HOST", None);
-            # cached True wins even though k8s now looks unavailable
             assert k8s_ops._ensure_config() == True;
-            # flip the cached verdict and confirm it is honoured verbatim
             k8s_ops._config_ok = False;
             assert k8s_ops._ensure_config() == False;
         }

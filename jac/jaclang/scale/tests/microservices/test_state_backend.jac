@@ -10,10 +10,6 @@ import from jaclang.scale.state.redis_state_backend { RedisStateBackend }
 import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 import from testcontainers.community.redis { RedisContainer }
 
-# A real Redis, not a hand-rolled fake: the fake could only ever assert the
-# semantics its author already assumed (ttl<=0, SET NX PX, incrbyfloat). Every
-# lock/ttl/increment test below runs against the real backend AND the in-process
-# one, so the two implementations must actually agree.
 glob _redis_client: any = None;
 
 with entry {
@@ -68,9 +64,6 @@ test "acquire_lock is exclusive until released (redis + in-process)" {
 
 
 test "a lock lease expires by ttl so a second client can acquire it (redis handover)" {
-    # Overlap prevention in a distributed setup can't rely on the holder
-    # calling release_lock (it may crash). This proves the SET NX PX lease:
-    # after the ttl lapses Redis drops the key on its own and a rival wins.
     if _redis_client is None {
         raise unittest.SkipTest("Redis container unavailable");
     }
@@ -79,14 +72,12 @@ test "a lock lease expires by ttl so a second client can acquire it (redis hando
     holder = RedisStateBackend(client=_redis_client);
     rival = RedisStateBackend(client=_redis_client);
 
-    # Holder takes a 1s lease; before it lapses the rival is locked out.
     assert holder.acquire_lock("lease", 1);
     assert not rival.acquire_lock("lease", 1);
 
     # Wait past the ttl - the holder never releases, the lease just dies.
     time.sleep(1.3);
 
-    # Handover: the rival now wins the lease the dead holder left behind.
     assert rival.acquire_lock("lease", 1);
 
     rival.release_lock("lease");
@@ -101,11 +92,9 @@ test "increment accumulates atomically and returns the new total (redis + in-pro
 }
 
 
-# get_state_backend caches its choice in a module-level holder, so every test
-# clears it first to observe a fresh selection.
+# get_state_backend memoizes in a module-level holder; each test clears it first.
 
 def _seed_no_redis_config -> str {
-    # jac.toml with no redis_url, so the factory's Redis branch finds nothing.
     project_dir = tempfile.mkdtemp(prefix="jac-state-factory-test-");
     (Path(project_dir) / "jac.toml").write_text(
         "[project]\nname = \"state-factory-test\"\nentry-point = \"main.jac\"\n"
@@ -142,7 +131,6 @@ test "get_state_backend() defaults to the in-process backend" {
 test "get_state_backend memoizes the first backend across later calls" {
     state_factory._backend_holder.clear();
     first = state_factory.get_state_backend(scale_enabled=False);
-    # A later scale_enabled=True call must NOT re-select: the holder is sticky.
     second = state_factory.get_state_backend(scale_enabled=True);
     assert second is first;
     assert isinstance(second, InProcessStateBackend);
@@ -153,8 +141,7 @@ test "get_state_backend memoizes the first backend across later calls" {
 test "get_state_backend(scale_enabled=True) with a redis URL selects the redis backend" {
     state_factory._backend_holder.clear();
     prev = os.environ.get("REDIS_URL");
-    # A resolvable URL is enough: Redis.from_url is lazy, so no live server is
-    # contacted at selection time - the factory returns a RedisStateBackend.
+    # Redis.from_url is lazy, so no live server is contacted at selection time.
     os.environ["REDIS_URL"] = "redis://localhost:6379/0";
     try {
         backend = state_factory.get_state_backend(scale_enabled=True);

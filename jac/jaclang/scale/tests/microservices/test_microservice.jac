@@ -267,19 +267,6 @@ test "sv-to-sv: sv-imported walker does not load provider in-process" {
     }
 }
 
-# ============================================================================
-# Downstream sv-boundary auth enforcement
-#
-# A cross-service call arrives at the downstream provider as a plain HTTP
-# request whose Authorization header is whatever the caller forwarded (the
-# real httpx sv path forwards it - see test_sv_auth_forward). These tests
-# drive the provider's REAL serve layer (jwt_validation_middleware +
-# requires_auth in serve.endpoints) with the exact tokens a caller would
-# carry, and assert the boundary REJECTS missing / bad / expired tokens and
-# only accepts a genuine JWT minted by the provider's own UserManager.
-# Nothing on the enforcement path is mocked.
-# ============================================================================
-
 glob _SECURE_PROVIDER_SRC: str = '"""Secure downstream provider fixture.\n\n`report_status` (function) and `PrivateAudit` (walker) carry NO :pub marker,\nso the scale serve layer treats them as auth-required. A cross-service caller\nthat reaches these endpoints without a valid token is rejected by the real\ndownstream enforcement in serve.endpoints (requires_auth).\n"""\n\nobj AuditEntry {\n    has actor: str = "",\n        action: str = "",\n        allowed: bool = False;\n}\n\ndef report_status(actor: str) -> AuditEntry {\n    return AuditEntry(actor=actor, action="status", allowed=True);\n}\n\nwalker PrivateAudit {\n    has action: str;\n\n    can run with Root entry {\n        report AuditEntry(actor="downstream", action=self.action, allowed=True);\n    }\n}\n',
      _SECURE_CONSUMER_SRC: str = '"""Consumer that sv-imports the private downstream function report_status."""\n\nsv import from secure_service { report_status, AuditEntry }\n\ndef:pub proxy_status(actor: str) -> AuditEntry {\n    return report_status(actor);\n}\n';
 
@@ -417,10 +404,6 @@ test "sv boundary: unauthenticated cross-service call is rejected downstream" {
         prov = make_server("secure_service", tmp);
         cons = make_server("secure_consumer", tmp);
 
-        # Consumer's proxy_status is public, so it runs, but it forwards no
-        # credential to the private downstream report_status, which the real
-        # provider serve layer rejects. The rejection propagates back as an
-        # application-level failure envelope on the consumer.
         resp = cons.post("/function/proxy_status", json={"actor": "anon"});
         body = resp.json();
         assert body["ok"] is False;

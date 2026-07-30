@@ -312,10 +312,6 @@ test "ws route rejects with 1012 during drain" {
 }
 
 
-# A real, in-process stand-in for the Starlette/ASGI client websocket that
-# websocket_forward drives. It is NOT a mock of the SUT: the duplex proxy and
-# both of its pumps run their real logic against this endpoint, which speaks the
-# same receive()/send_text/send_bytes/close surface the gateway hands them.
 obj FakeClientWS {
     has inbound: object,
         sent: list,
@@ -397,8 +393,6 @@ test "websocket_forward round-trips text and binary through a real upstream ws" 
             client.inbound.put_nowait({"type": "websocket.receive", "text": "bye"});
             client.inbound.put_nowait({"type": "websocket.disconnect"});
 
-            # real duplex proxy over a real ws connection; base is http:// so the
-            # scheme-rewrite + handshake-header selection also run for real.
             await websocket_forward(
                 client, base, {"Authorization": "Bearer t", "Cookie": "drop=me"}
             );
@@ -430,7 +424,6 @@ test "websocket_forward round-trips text and binary through a real upstream ws" 
 test "websocket_forward closes the client with 1011 when the upstream handshake fails" {
     async def body -> dict {
         client = FakeClientWS(inbound=asyncio.Queue(), sent=[]);
-        # nothing is listening on port 1 -> ws_connect raises before any pump runs
         await websocket_forward(client, "http://127.0.0.1:1/ws", {});
         return {"closed": client.closed, "code": client.close_code};
     }
