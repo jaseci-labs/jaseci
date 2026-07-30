@@ -2141,9 +2141,7 @@ test "pwa target uses jac-scale server" {
     with tempfile.TemporaryDirectory() as temp_dir {
         temp_path = Path(temp_dir);
         main_jac = temp_path / "main.jac";
-        main_jac.write_text(
-            'cl { def:pub app -> JsxElement { return <div>Test</div>; } }'
-        );
+        main_jac.write_text('def:pub app -> JsxElement { return <div>Test</div>; }');
         jac_toml = temp_path / "jac.toml";
         jac_toml.write_text(
             '''[project]

@@ -311,9 +311,6 @@ class Tokens(StrEnum) {
         KW_SWITCH = 'KW_SWITCH';
         KW_CASE = 'KW_CASE';
         KW_DEFAULT = 'KW_DEFAULT';
-        KW_CLIENT = 'KW_CLIENT';
-        KW_SERVER = 'KW_SERVER';
-        KW_NATIVE = 'KW_NATIVE';
         PLUS = 'PLUS';
         MINUS = 'MINUS';
         STAR_MUL = 'STAR_MUL';
@@ -473,7 +470,6 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_CAN': 'can',
          'KW_CASE': 'case',
          'KW_CLASS': 'class',
-         'KW_CLIENT': 'cl',
          'KW_CONTINUE': 'continue',
          'KW_DEF': 'def',
          'KW_DEFAULT': 'default',
@@ -504,7 +500,6 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_ISN': 'is not',
          'KW_LAMBDA': 'lambda',
          'KW_MATCH': 'match',
-         'KW_NATIVE': 'na',
          'KW_NIN': 'not in',
          'KW_NODE': 'node',
          'KW_OBJECT': 'obj',
@@ -522,7 +517,6 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_ROOT': 'root',
          'KW_SELF': 'self',
          'KW_SEM': 'sem',
-         'KW_SERVER': 'sv',
          'KW_SKIP': 'skip',
          'KW_SPAWN': 'spawn',
          'KW_STATIC': 'static',

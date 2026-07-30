@@ -84,18 +84,9 @@ test "three codespaces in one markerless module" {
     assert stamp_of(mod, "Item") == 'server' , "node archetype stays server (auto-shared, never pulled)";
     assert stamp_of(mod, "list_items") == 'server' , "walker stays server (spawned via RPC)";
     assert stamp_of(mod, "os") == 'server' , "python import stays server";
-    has_native_block = False;
-    for stmt in mod.body {
-        if isinstance(stmt, uni.NativeBlock) {
-            has_native_block = True;
-            for inner in stmt.body {
-                if isinstance(inner, uni.ContextAwareNode) {
-                    assert str(inner.code_context) == 'native' , "na block contents are native";
-                }
-            }
-        }
-    }
-    assert has_native_block , "explicit na block should be preserved";
+    assert stamp_of(mod, "fast_add") == 'server' , (
+        "an unreferenced pure helper homes server by default"
+    );
 }
 
 test "mixed module generates rpc bridges in js" {
@@ -129,13 +120,13 @@ test "pull policy: tagged globs and one-sided objs relocate, stubs keep defaults
     assert '"untitled"' in js , "stub ctor materializes literal has-defaults";
 }
 
-test "sv import placement is inferred while boundary fact stays" {
-    mod = compile_fixture("infer_sv_client.jac", cgen=True);
-    assert stamp_of(mod, "fetch_items") == 'client' , "client-consumed sv import is placed client";
+test "service-cut import placement is inferred while boundary fact stays" {
+    mod = compile_fixture(os.path.join("svc_cut", "app.jac"), cgen=True);
+    assert stamp_of(mod, "fetch_items") == 'client' , "client-consumed service import is placed client";
     assert stamp_of(mod, "app") == 'client';
-    assert stamp_of(mod, "local_report") == 'server' , "using an sv-imported name must not pull the caller client";
+    assert stamp_of(mod, "local_report") == 'server' , "using a service-imported name must not pull the caller client";
     js = mod.gen.js;
-    assert '__jacCallFunction("fetch_items"' in js , "sv import in client placement generates RPC stub";
+    assert '__jacCallFunction("fetch_items"' in js , "service import in client placement generates RPC stub";
 }
 
 test "plain client import of a server endpoint bridges over rpc" {
@@ -168,7 +159,9 @@ test "mixed plain import keeps client symbols and bridges endpoints" {
 
 test "plain client import of a server-only helper is a codegen error" {
     prog = JacProgram();
-    mod = prog.compile(os.path.join(FIXTURE_DIR, "infer_import_dead_client.jac"));
+    mod = prog.compile(
+        os.path.join(FIXTURE_DIR, "pinned_dead", "infer_import_dead_client.jac")
+    );
     dead_errs = [
         e
         for e in prog.errors_had
@@ -189,7 +182,7 @@ test "jac check flags a dead client import without codegen" {
     import from jaclang.jac0core.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
-        os.path.join(FIXTURE_DIR, "infer_import_dead_client.jac"),
+        os.path.join(FIXTURE_DIR, "pinned_dead", "infer_import_dead_client.jac"),
         options=CompileOptions(no_cgen=True, type_check=True)
     );
     dead_errs = [
@@ -519,7 +512,7 @@ test "aliased bare jac import stays server under native default" {
 test "bare import of a cl module stays server under native default" {
     mod = compile_with_default("nadefault_bare_cl.jac", "native");
     assert mod.decided_codespace == '' , (
-        "a .cl.jac sibling is a cl/sv server signal even when its body has no "
+        "a .jac sibling is a cl/sv server signal even when its body has no "
         "other signals"
     );
 }
@@ -657,12 +650,14 @@ test "client call to endpoint with function-typed param warns W6005" {
     );
 }
 
-test "explicit .na.jac mandate still fails loudly" {
+test "aot native mandate still fails loudly" {
     import from jaclang.jac0core.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
-        os.path.join(FIXTURE_DIR, "nadefault_mandate.na.jac"),
-        options=CompileOptions(type_check=False)
+        os.path.join(FIXTURE_DIR, "nadefault_mandate.jac"),
+        options=CompileOptions(
+            type_check=False, aot_mode=True, default_codespace='native'
+        )
     );
-    assert prog.errors_had , "explicit native modules must surface lowering errors";
+    assert prog.errors_had , "forced-native modules must surface lowering errors";
 }

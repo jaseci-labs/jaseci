@@ -1029,6 +1029,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "another project.",
          help="Protected (`:protect`) names are visible only within their own project (the directory tree rooted at its jac.toml). Mark '{name}' `:pub` to export it as a library endpoint."
      ),
+     E2084 = _err(
+         "E2084",
+         Category.SEMANTIC,
+         "An expression without a trailing ';' is only treated as an "
+         "implicit return when it is the final statement of a function, "
+         "ability, or lambda body.",
+         help="Add ';' to discard the expression's value, or use an explicit `return` if the value should leave the enclosing function from this position."
+     ),
      W3001 = _warn(
          "W3001",
          Category.LINT,
@@ -1345,7 +1353,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5090",
          Category.CODEGEN,
          "Native pathway does not yet support {kind} '{name}'",
-         help="This Jac construct is supported on the @sv/Python pathway but is not implemented in the .na.jac native compiler yet. Move the code to a non-native context, or extend NaIRGenPass to handle this node type."
+         help="This Jac construct is supported on the @sv/Python pathway but is not implemented in the native compiler yet. Move the code to a non-native context, or extend NaIRGenPass to handle this node type."
      ),
      E5091 = _err(
          "E5091",

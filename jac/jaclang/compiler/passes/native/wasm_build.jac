@@ -417,12 +417,11 @@ def _assert_ir_rc_free(llvm_ir_str: str, file_path: str) {
 def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.ext_registry { is_native_module }
     import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
     (gc_mode, enf_mods, enf_grand) = _project_gc_settings();
     prev = os.environ.get("JAC_NATIVE_TARGET", None);
     os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
-    auto_promote = not is_native_module(file_path);
+    auto_promote = True;
     try {
         prog = JacProgram();
         na_census_begin();

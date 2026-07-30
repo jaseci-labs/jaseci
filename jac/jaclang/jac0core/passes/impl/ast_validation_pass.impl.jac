@@ -241,7 +241,7 @@ impl ASTValidationPass.enter_ctrl_stmt(
 impl ASTValidationPass.enter_global_vars(
     self: ASTValidationPass, nd: uni.GlobalVars
 ) -> None {
-    valid_parents = (uni.Module, uni.ClientBlock, uni.ServerBlock, uni.NativeBlock);
+    valid_parents = (uni.Module, );
     if not isinstance(nd.parent, valid_parents) {
         self.emit(E0063, node_override=nd);
     }
@@ -390,6 +390,14 @@ impl ASTValidationPass.enter_jsx_slot(
     self: ASTValidationPass, nd: uni.JsxSlot
 ) -> None {
     self._check_slot_body([s for s in nd.body], False, "");
+}
+
+impl ASTValidationPass.enter_expr_stmt(
+    self: ASTValidationPass, nd: uni.ExprStmt
+) -> None {
+    if not nd.has_semi {
+        self.emit(E2084, node_override=nd);
+    }
 }
 
 impl ASTValidationPass._check_slot_body(

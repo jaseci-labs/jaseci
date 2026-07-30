@@ -610,13 +610,6 @@ impl normalize_microservices_config(ms_config: dict[str, any]) -> dict[str, any]
     };
 }
 
-impl JacScaleConfig.microservices_declared(self: JacScaleConfig) -> bool {
-    declared = self.get_jac_config().get_plugin_config(self.get_plugin_name()).get(
-        'microservices'
-    );
-    return isinstance(declared, dict) and bool(declared);
-}
-
 impl JacScaleConfig.get_admin_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     admin_config = config.get('admin', {});

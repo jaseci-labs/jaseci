@@ -515,8 +515,6 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _is_call_target(nd: uni.UniNode) -> bool;
     def exit_global_vars(nd: uni.GlobalVars) -> None;
     def exit_module_code(nd: uni.ModuleCode) -> None;
-    def exit_client_block(nd: uni.ClientBlock) -> None;
-    def exit_native_block(nd: uni.NativeBlock) -> None;
     def exit_test(nd: uni.Test) -> None;
     def exit_token(nd: uni.Token) -> None;
     def exit_semi(nd: uni.Semi) -> None;

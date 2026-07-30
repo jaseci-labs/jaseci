@@ -322,7 +322,7 @@ impl ReactNativeTarget.dev(
             f"\n📱 React Native dev ready.\n"
             f"   Metro     : http://{visible_host}:{metro_port}\n"
             f"   API       : {dev_api_url}\n"
-            f"   Edit .cl.jac files — Metro will Fast Refresh on save.\n",
+            f"   Edit client .jac files — Metro will Fast Refresh on save.\n",
             style="bold green"
         );
 

@@ -94,7 +94,7 @@ impl AuthGuard(redirect: str = "/login") -> JsxElement {
     if jacIsLoggedIn() {
         return <ReactRouterOutlet/>;
     }
-    return <ReactRouterNavigate to={redirect} replace={True}/>;
+    <ReactRouterNavigate to={redirect} replace={True}/>
 }
 
 impl JacAwaiting(props: dict) -> JsxElement {

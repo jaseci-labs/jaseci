@@ -30,9 +30,9 @@ Upload it with `twine`, then `pip install greetlib` anywhere. The wheel ships yo
 The client-side counterpart: a `cl` component (or function) library published to npm so any JavaScript/TypeScript project can `npm install` it -- whether or not they use Jac. `jac build --as npm` compiles your client modules to ES-module JavaScript, generates `package.json`, and emits `.d.ts` declarations.
 
 ```jac
-# greetui/index.cl.jac
+# greetui/index.jac
 def:pub Greeting(name: str) -> JsxElement {
-    return <h1>Hello, {name}!</h1>;
+    <h1>Hello, {name}!</h1>
 }
 ```
 
@@ -65,7 +65,7 @@ The generated `package.json` wires in `@jaseci/runtime` automatically for JSX/re
 The native counterpart: an `na` module compiled to a **C-ABI shared library** (`.so` / `.dylib` / `.dll`) that any language with a C FFI -- C, C++, Rust, Go (`cgo`), Python (`ctypes`) -- can link or `dlopen`. Like the other packages it has no entry point; the public surface is whatever you mark `:pub`.
 
 ```jac
-# mathlib.na.jac
+# mathlib.jac
 glob:pub counter: int = 7;                  # exported global
 
 def:pub jadd(a: int, b: int) -> int {       # exported function
@@ -81,9 +81,9 @@ def:pub point_sum(p: Point) -> int { return p.x + p.y; }
 ```
 
 ```bash
-jac nacompile mathlib.na.jac --shared                    # → ./libmathlib.so
-jac nacompile mathlib.na.jac --shared --target macos     # → ./libmathlib.dylib
-jac nacompile mathlib.na.jac --shared --target windows   # → ./libmathlib.dll
+jac nacompile mathlib.jac --shared                    # → ./libmathlib.so
+jac nacompile mathlib.jac --shared --target macos     # → ./libmathlib.dylib
+jac nacompile mathlib.jac --shared --target windows   # → ./libmathlib.dll
 ```
 
 Load it like any other shared library -- here from Python via `ctypes`:

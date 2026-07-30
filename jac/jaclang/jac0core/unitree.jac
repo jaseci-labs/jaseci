@@ -199,7 +199,6 @@ obj ContextAwareNode(UniNode) {
         codespace_dual: bool = False;
 
     def postinit -> None;
-    def _source_context_token -> (Token | None);
 }
 
 obj AstDocNode(UniNode) {
@@ -430,33 +429,6 @@ obj ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt) {
     def postinit -> None;
 }
 
-obj ClientBlock(ElementStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has body: Sequence[ElementStmt];
-
-    def postinit -> None;
-}
-
-obj ServerBlock(ElementStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has body: Sequence[ElementStmt];
-
-    def postinit -> None;
-}
-
-obj NativeBlock(ElementStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has body: Sequence[ElementStmt];
-
-    def postinit -> None;
-}
-
 obj PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
@@ -483,9 +455,7 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     has __jac_detected: bool { getter; }
     has has_string_path: bool { getter; }
     has has_clib_decls: bool { getter; }
-    has is_sv_marked: bool { getter; }
-    has is_cl_marked: bool { getter; }
-    has is_na_marked: bool { getter; }
+    has is_service_import: bool { getter; }
     has is_virtual_jac: bool { getter; }
     has ecosystem: str { getter; }
 }
@@ -736,7 +706,8 @@ obj ExprStmt(CodeBlockStmt) {
     def accept_enter(v: UniPass) -> None;
 
     has expr: Expr,
-        in_fstring: bool;
+        in_fstring: bool,
+        has_semi: bool = True;
 
     def postinit -> None;
 }
@@ -897,7 +868,8 @@ obj ReturnStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: (Expr | None);
+    has expr: (Expr | None),
+        is_implicit: bool = False;
 
     def postinit -> None;
 }

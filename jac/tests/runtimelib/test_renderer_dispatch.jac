@@ -77,12 +77,10 @@ def _compile_runtime_to_js -> str {
         return _compiled_runtime_js;
     }
     plugin_dir = _jac_client_plugin_dir();
-    core_src = os.path.join(plugin_dir, "client_runtime_core.cl.jac");
-    native_src = os.path.join(plugin_dir, "client_runtime_native.cl.jac");
+    core_src = os.path.join(plugin_dir, "client_runtime_core.jac");
+    native_src = os.path.join(plugin_dir, "client_runtime_native.jac");
     if not os.path.isfile(core_src) or not os.path.isfile(native_src) {
-        pytest.skip(
-            "client_runtime_core.cl.jac or client_runtime_native.cl.jac not found"
-        );
+        pytest.skip("client_runtime_core.jac or client_runtime_native.jac not found");
     }
     jac_bin = shutil.which("jac");
     if not jac_bin {

@@ -473,11 +473,7 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
                 if top.codespace_dual {
                     tags.append('dual');
                 }
-                tags.append(
-                    'explicit marker'
-                        if top._source_context_token() is not None
-                        else 'inferred'
-                );
+                tags.append('inferred');
                 node_info += f"'\n'placement: {space} ({', '.join(tags)})";
             }
         } except Exception {

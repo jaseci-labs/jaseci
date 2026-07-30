@@ -21,7 +21,7 @@ glob _NOGC_SCALARS: tuple = (
 
 def _nogc_name_candidates(mod_name: str) -> list[str] {
     _cands = [mod_name];
-    for _suf in (".na", ".cl", ".sv") {
+    for _suf in (".na", ".cl") {
         if mod_name.endswith(_suf) {
             _cands.append(mod_name[:-len(_suf)]);
         }

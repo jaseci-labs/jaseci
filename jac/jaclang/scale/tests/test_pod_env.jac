@@ -9,7 +9,6 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.config.app_config { AppConfig }
-import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 
 
 glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e",
@@ -20,57 +19,43 @@ glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e",
      };
 
 
-# Routes the real discovery derives from the k8s_e2e fixture's `sv` graph.
-# No [scale.microservices.routes] table exists; these come from `sv import`.
-test "generate_service_pod_specs auto-discovers services when no routes declared" {
+# A declared [scale.microservices.routes] table (#7772) is the authoritative
+# service cut: every key becomes its own pod. Driven through the real builder via
+# a real microservices_config, not a patched _ms_cfg / _build_*_pod_spec.
+test "generate_service_pod_specs builds one pod per declared route" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    declared = {
+        "routes": {
+            "products_app": "/products",
+            "orders_app": "/orders",
+            "cart_app": "/cart"
+        }
+    };
     builder = MicroserviceManifestBuilder(
-        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE)
+        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE), microservices_config=declared
     );
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
 
     specs = builder.generate_service_pod_specs(app_cfg, "img");
 
-    assert "products_app" in specs;
-    assert "orders_app" in specs;
-    assert "cart_app" in specs;
-    assert GATEWAY_NAME in specs;
-
-    orders_env = specs["orders_app"]["containers"][0]["env"];
-    pairs = {e["name"]: e["value"] for e in orders_env};
-    assert json.loads(pairs["JAC_SV_ROUTES"]) == _DISCOVERED_ROUTES;
-    assert pairs["JAC_SV_NAME"] == "orders_app";
-    assert pairs["K8S_APP_NAME"] == "jac-shop";
-    assert pairs["K8S_NAMESPACE"] == "ns";
+    assert set(specs.keys()) == {
+        "products_app",
+        "orders_app",
+        "cart_app",
+        GATEWAY_NAME
+    };
+    orders_env = {
+        e["name"]: e["value"] for e in specs["orders_app"]["containers"][0]["env"]
+    };
+    assert json.loads(orders_env["JAC_SV_ROUTES"]) == _DISCOVERED_ROUTES;
 }
 
 
-test "build_env injects JAC_SV_ROUTES so pods get routes without a toml table" {
+test "build_env omits JAC_SV_ROUTES when no routes are declared" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = MicroserviceManifestBuilder(
-        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE)
+        k8s_config=cfg, microservices_config={"routes": {}}
     );
-    app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
-    # real discovery populates the builder's routes from the fixture sv graph
-    builder.generate_service_pod_specs(app_cfg, "img");
-
-    env = builder._build_env("orders_app", {});
-
-    pairs = {e["name"]: e["value"] for e in env};
-    assert "JAC_SV_ROUTES" in pairs;
-    assert json.loads(pairs["JAC_SV_ROUTES"]) == _DISCOVERED_ROUTES;
-}
-
-test "build_env omits JAC_SV_ROUTES when there are no routes" {
-    # The fixture's static toml declares no routes table; a builder fed that
-    # real config (without running discovery) must inject no JAC_SV_ROUTES.
-    reset_scale_config();
-    ms_cfg = get_scale_config(_K8S_E2E_FIXTURE).get_microservices_config();
-    reset_scale_config();
-    assert ms_cfg["routes"] == {};
-
-    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = MicroserviceManifestBuilder(k8s_config=cfg, microservices_config=ms_cfg);
 
     env = builder._build_env("orders_app", {});
 

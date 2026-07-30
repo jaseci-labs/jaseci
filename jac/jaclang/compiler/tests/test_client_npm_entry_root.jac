@@ -81,11 +81,11 @@ def _write_projects(
     if lib_pkg {
         _install_pkg(lib, typed=False);
     }
-    entry_file = os.path.join(app, "main.cl.jac");
+    entry_file = os.path.join(app, "main.jac");
     with open(entry_file, "w") as f {
         f.write(_ENTRY_SRC);
     }
-    with open(os.path.join(lib, "libmod.cl.jac"), "w") as f {
+    with open(os.path.join(lib, "libmod.jac"), "w") as f {
         f.write(_LIB_SRC);
     }
     return (entry_file, lib);

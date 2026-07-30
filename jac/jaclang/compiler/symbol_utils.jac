@@ -438,13 +438,50 @@ def resolve_import_source_module(prog: any, nd: uni.Import) -> (uni.Module | Non
         return source_mod;
     }
     if Path(resolved_path).exists() {
-        source_mod = prog.compile(
-            resolved_path, no_cgen=True, type_check=False, symtab_ir_only=True
-        );
+        saved_opts = prog?._compile_options;
+        try {
+            source_mod = prog.compile(
+                resolved_path, no_cgen=True, type_check=False, symtab_ir_only=True
+            );
+        } finally {
+            if saved_opts is not None {
+                prog._compile_options = saved_opts;
+            }
+        }
         prog.mod.hub[abs_path] = source_mod;
         return source_mod;
     }
     return None;
+}
+
+def import_target_pinned_server(nd: uni.Import) -> bool {
+    if nd.from_loc is None {
+        return False;
+    }
+    try {
+        target = nd.from_loc.resolve_relative_path();
+        if isinstance(target, str) and target.endswith('.jac') {
+            import from jaclang.jac0core.placement_pins { config_module_pin }
+            return config_module_pin(target) == 'server';
+        }
+    } except Exception {
+        return False;
+    }
+    return False;
+}
+
+def decl_has_access(source_mod: uni.Module, item: uni.ModuleItem) -> bool {
+    nm = item.name.value if isinstance(item.name, uni.Name) else '';
+    if not nm or source_mod.sym_tab is None {
+        return False;
+    }
+    sym = source_mod.sym_tab.lookup(nm, deep=True);
+    if not (sym and sym.defn) {
+        return False;
+    }
+    decl = sym.defn[0];
+    owner = decl.parent if (isinstance(decl, uni.NameAtom) and decl.parent) else decl;
+    return owner?.access is not None;
 }
 
 def report_dead_client_import(

@@ -164,7 +164,7 @@ Answers to common questions about Jac, organized by topic. Click a category to e
         `jac create <project_name> --use <template_name>`
         - Organize files by purpose:
           - .jac: Core logic
-          - .cl.jac: Client-side code
+          - .jac: Client-side code
           - .impl.jac: Implementation details
 
     ??? question "How do I handle authentication and authorization in Jac walkers?"

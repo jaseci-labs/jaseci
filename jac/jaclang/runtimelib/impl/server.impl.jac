@@ -680,7 +680,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
             } except Exception {
                 continue;
             }
-            if not (src and src.endswith(('.jac', '.cl.jac'))) {
+            if not (src and src.endswith(('.jac', '.jac'))) {
                 continue;
             }
             prov = Jac.program.find_module(src);
