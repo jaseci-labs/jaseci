@@ -50,7 +50,11 @@ def _parse_url(u: str) -> _Url {
 
 
 def _request_text(host: str, path: str) -> str {
-    return "GET " + path + " HTTP/1.0\r\nHost: " + host + "\r\nConnection: close\r\nUser-Agent: jac-urllib/1.0\r\nAccept: */*\r\n\r\n";
+    return "GET "
+        + path
+        + " HTTP/1.0\r\nHost: "
+        + host
+        + "\r\nConnection: close\r\nUser-Agent: jac-urllib/1.0\r\nAccept: */*\r\n\r\n";
 }
 
 
@@ -86,9 +90,9 @@ def _find_header_end(raw: bytes) -> int {
     i = 0;
     while i + 3 < n {
         if raw[i] == 13
-        and raw[i + 1] == 10
-        and raw[i + 2] == 13
-        and raw[i + 3] == 10 {
+            and raw[i + 1] == 10
+            and raw[i + 2] == 13
+            and raw[i + 3] == 10 {
             return i;
         }
         i += 1;

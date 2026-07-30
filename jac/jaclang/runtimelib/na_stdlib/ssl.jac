@@ -96,7 +96,11 @@ obj:pub SSLContext {
             vr = verify_result(ssl);
             msg = "";
             if vr != 0 {
-                msg = "certificate verify failed: " + verify_message(vr) + " (host '" + server_hostname + "')";
+                msg = "certificate verify failed: "
+                    + verify_message(vr)
+                    + " (host '"
+                    + server_hostname
+                    + "')";
             } else {
                 msg = "TLS handshake failed: " + last_error();
             }

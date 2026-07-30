@@ -417,7 +417,7 @@ obj MicroserviceManifestBuilder {
             }
             size = str(vol.get("size", "1Gi")).strip() or "1Gi";
             access_mode = str(vol.get("access_mode", "ReadWriteOnce")).strip()
-            or "ReadWriteOnce";
+                or "ReadWriteOnce";
             storage_class = str(vol.get("storage_class", "")).strip();
             pvc_name = k8s_safe_name(name);
 

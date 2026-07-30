@@ -484,7 +484,8 @@ test "sso callback login existing user" {
                     refreshed = call_args[1]['profile'];
                     assert 'google' in refreshed['sso'];
                     assert refreshed['sso']['google']['display_name'] == 'Test User';
-                    assert refreshed['sso']['google']['picture'] == 'https://example.com/picture.jpg';
+                    assert refreshed['sso']['google']['picture']
+                        == 'https://example.com/picture.jpg';
                 }
             }
         }
@@ -758,7 +759,8 @@ test "supported platforms initialization with jac toml credentials" {
     ) {
         user_manager = JacScaleUserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
-        assert user_manager.SUPPORTED_PLATFORMS["google"]["client_id"] == "toml_test_id";
+        assert user_manager.SUPPORTED_PLATFORMS["google"]["client_id"]
+            == "toml_test_id";
     }
 }
 

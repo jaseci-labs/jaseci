@@ -24,7 +24,8 @@ obj LocalRealizer {
     def serve {
         plan = plan_realization(False, self._service_count() + 1);
         logger.info(
-            f"LocalRealizer: {plan.topology} via {plan.gateway_mode} gateway, " + f"{plan.transport} transport, {plan.state_backend} state"
+            f"LocalRealizer: {plan.topology} via {plan.gateway_mode} gateway, "
+                + f"{plan.transport} transport, {plan.state_backend} state"
         );
         if plan.topology == TOPOLOGY_MICROSERVICE {
             start_microservice_mode(self.ms_config);

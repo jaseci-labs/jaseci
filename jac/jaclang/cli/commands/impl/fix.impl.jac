@@ -133,8 +133,8 @@ def _collect_block_claims(
                     );
                 }
                 while j < body_end
-                and tokens[j].value != '{'
-                and tokens[j].value != ';' {
+                    and tokens[j].value != '{'
+                    and tokens[j].value != ';' {
                     j += 1;
                 }
                 continue;
@@ -231,8 +231,8 @@ def _strip_markers(src: str, file_path: str) -> StripResult {
                 edits.append((tok.loc.pos_start, nxt.loc.pos_start, ''));
                 if nxt.value == 'import' {
                     if space == 'server'
-                    and i + 2 < n
-                    and tokens[i + 2].value == 'from' {
+                        and i + 2 < n
+                        and tokens[i + 2].value == 'from' {
                         tgt = _dotted_target(tokens, i + 3);
                         if tgt {
                             res.sv_imports.append(tgt);

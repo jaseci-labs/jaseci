@@ -7,9 +7,8 @@ def:pub DataTable(columns: list, children: any) -> JsxElement {
                 {[
                     <th
                         key={col["key"]}
-                        className={"px-4 py-2 text-xs font-medium text-faint uppercase tracking-wider " + (
-                            col["align"] == "right" and "text-right" or "text-left"
-                        )}
+                        className={"px-4 py-2 text-xs font-medium text-faint uppercase tracking-wider "
+                            + (col["align"] == "right" and "text-right" or "text-left")}
                     >
                         {col["label"]}
                     </th> for col in columns

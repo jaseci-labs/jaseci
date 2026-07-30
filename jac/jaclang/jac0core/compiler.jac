@@ -540,7 +540,7 @@ def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
     if nd.code_context == CodeContext.CLIENT {
         ;
     } elif nd.code_context == CodeContext.SERVER
-    and module_has_client_top(nd.find_parent_of_type(uni.Module)) {
+        and module_has_client_top(nd.find_parent_of_type(uni.Module)) {
         ;
     } else {
         return False;
@@ -568,7 +568,7 @@ def ability_of_symbol(sym: (uni.Symbol | None)) -> (uni.Ability | None) {
         for alt in sym.defn {
             alt_decl = _ability_of_defn(alt);
             if alt_decl is not None
-            and not str(alt_decl.loc.mod_path).endswith(".pyi") {
+                and not str(alt_decl.loc.mod_path).endswith(".pyi") {
                 return alt_decl;
             }
         }

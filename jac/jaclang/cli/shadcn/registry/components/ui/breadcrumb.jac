@@ -79,11 +79,11 @@ def:pub BreadcrumbSeparator(props: any) -> JsxElement {
         className={cn("cn-breadcrumb-separator", props["className"])}
     >
         {props["children"]
-        or <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            strokeWidth={2}
-            className="cn-rtl-flip"
-        />}
+            or <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                strokeWidth={2}
+                className="cn-rtl-flip"
+            />}
     </li>
 }
 

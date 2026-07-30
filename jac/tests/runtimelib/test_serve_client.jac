@@ -425,7 +425,7 @@ test "serve get user info requires auth" {
             assert "error" in response.data or "message" in response.data;
         } else {
             assert "error" in response.text.lower()
-            or "unauthorized" in response.text.lower();
+                or "unauthorized" in response.text.lower();
         }
         client.close();
     }
@@ -442,7 +442,7 @@ test "serve get user info invalid token" {
             assert "error" in response.data or "message" in response.data;
         } else {
             assert "error" in response.text.lower()
-            or "unauthorized" in response.text.lower();
+                or "unauthorized" in response.text.lower();
         }
         client.close();
     }

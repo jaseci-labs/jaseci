@@ -200,7 +200,7 @@ impl JacScaleConfig.get_sso_config(self: JacScaleConfig) -> dict[str, any] {
                 FIREBASE_AUTH_PROJECT_ID_ENV,
                 firebase_config.get('project_id', '') or None
             )
-            or ''
+                or ''
         }
     };
 }
@@ -412,7 +412,7 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
         backplane = str(backplane).lower();
     }
     ws_redis_url = ws_config.get('redis_url')
-    or self.get_database_config().get('redis_url');
+        or self.get_database_config().get('redis_url');
     return {
         'backplane': backplane,
         'redis_url': ws_redis_url,

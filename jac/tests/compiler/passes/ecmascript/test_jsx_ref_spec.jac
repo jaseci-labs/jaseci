@@ -57,7 +57,8 @@ test "rec 7: Ref[T] field declared with has lowers to useRef(null) in client con
         r'import\s*\{[^}]*\buseRef\b[^}]*\}\s*from\s*[\'"]react[\'"]', js_code
     ) , (
         "useRef should be auto-imported from react when a Ref-typed "
-        "has-field is present:\n" + js_code
+        "has-field is present:\n"
+        + js_code
     );
 }
 

@@ -135,9 +135,8 @@ test "a non-positive websocket limit is rejected at load" {
     # fractional values survive instead of truncating to zero
     assert _ws_positive({'messages_per_second': 0.5}, 'messages_per_second', 20) == 0.5;
     assert (
-        _ws_positive(
-            {'target_timeout_seconds': 1.5}, 'target_timeout_seconds', 30
-        ) == 1.5
+        _ws_positive({'target_timeout_seconds': 1.5}, 'target_timeout_seconds', 30)
+        == 1.5
     );
 }
 

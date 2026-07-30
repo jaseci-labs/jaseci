@@ -74,17 +74,18 @@ test "resolve_active_backend reads solid from project config" {
 test "solid reports signals runtime symbols for reactive lowering" {
     backend = SolidBackend();
     init = es.Literal(value=0, raw="0");
-    assert backend.state_field_symbols(StateField(name="count", init_expr=init)) == [
-        "createSignal"
-    ];
+    assert backend.state_field_symbols(StateField(name="count", init_expr=init))
+        == ["createSignal"];
     # Refs are deferred on Solid — a `let` binding needs no import.
     assert backend.ref_field_symbols(RefField(name="node", init_expr=init)) == [];
     assert backend.effect_symbols(
         Effect(body=[], deps=[], is_entry=True, is_async=False)
-    ) == ["createEffect"];
+    )
+        == ["createEffect"];
     assert backend.effect_symbols(
         Effect(body=[], deps=[], is_entry=False, is_async=False)
-    ) == ["onCleanup"];
+    )
+        == ["onCleanup"];
     try_expr = es.Identifier(name="tryFn");
     awaiting_only = AsyncBoundary(
         try_expr=try_expr, awaiting_expr=None, except_exprs=[]
@@ -260,7 +261,8 @@ test "solid entry script renders via solid-js/web" {
     assert 'solid-js/h' not in script;
     assert "createRoot" not in script;
     assert 'JacClientErrorBoundary' in script;
-    assert '<JacClientErrorBoundary FallbackComponent={ErrorFallback} onError={__jacReactErrorHandler}>' in script;
+    assert '<JacClientErrorBoundary FallbackComponent={ErrorFallback} onError={__jacReactErrorHandler}>'
+        in script;
     assert '<App />' in script;
     assert 'getElementById("__jac_root")' in script;
 }
@@ -289,10 +291,12 @@ test "solid file-based-routing entry mounts via solid-js/web + router shim" {
     assert '<Route path={r.path} component={r.element} />' in script;
     # AuthGuard nests the protected routes and renders the matched child
     # (`props.children`) when authenticated.
-    assert 'function _AuthGuardRoute(props) { return AuthGuard({ redirect: "/login", children: props.children }); }' in script;
+    assert 'function _AuthGuardRoute(props) { return AuthGuard({ redirect: "/login", children: props.children }); }'
+        in script;
     assert '<Route component={_AuthGuardRoute}>' in script;
     # Root layout (when present) rides the router's `root` prop.
-    assert 'const routerProps = RootLayout ? { root: __jacMakeLayoutRoot(RootLayout) } : {};' in script;
+    assert 'const routerProps = RootLayout ? { root: __jacMakeLayoutRoot(RootLayout) } : {};'
+        in script;
     assert '<Router {...routerProps}>' in script;
     # The router tree is `<App />`, wrapped in the error boundary.
     assert '<App />' in script;
@@ -423,10 +427,12 @@ test "solid runtime shim reaches router/form parity with the React shim" {
     # Solid onTouched uses onChange only (stale onBlur errorMap across fields);
     # error display is gated on isTouched in JacForm. onBlur mode still exists.
     assert (
-        'validators["onBlur"] = schema;\n        validators["onChange"] = schema' not in use_jac_form
+        'validators["onBlur"] = schema;\n        validators["onChange"] = schema'
+        not in use_jac_form
     ) , "Solid onTouched must not wire both onBlur and onChange validators";
     assert (
-        'form_mode === "onTouched")) {\n    validators["onChange"] = schema;' in use_jac_form
+        'form_mode === "onTouched")) {\n    validators["onChange"] = schema;'
+        in use_jac_form
     ) , "Solid onTouched must validate on change only";
     # Error boundary + async boundary over solid-js primitives.
     assert "function JacClientErrorBoundary(" in js;

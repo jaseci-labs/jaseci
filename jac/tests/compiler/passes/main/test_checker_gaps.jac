@@ -502,7 +502,7 @@ test "gap 50 postinit assignment tracking" {
         e
         for e in program.errors_had
         if "checker_gap_postinit_tracking.jac" in (e.loc.mod_path or "")
-        and 44 <= e.loc.first_line <= 51
+            and 44 <= e.loc.first_line <= 51
     ];
     assert len(incomplete_errors) >= 1 , "Gap #50: postinit missing assignment not caught. "
     "Incomplete.postinit never assigns to self.z (postinit field), but "

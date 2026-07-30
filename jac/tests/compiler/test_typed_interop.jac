@@ -142,7 +142,8 @@ test "sv-to-sv: typed archetype return is rehydrated, not a raw dict (#6710)" {
     assert (
         "AnalyticsReport._from_wire(__jac_sv_client.call('sv_relative_provider', "
         "'analyze'"
-    ) in py , "sv->sv typed return must be rehydrated via <RetType>._from_wire(...)";
+    )
+        in py , "sv->sv typed return must be rehydrated via <RetType>._from_wire(...)";
     # The imported archetype must lower to a boundary stub *class* (carrying
     # `_from_wire`), never a function stub that would RPC the type name itself.
     assert "class AnalyticsReport:" in py , (
@@ -363,7 +364,7 @@ test "tight: nested __to_wire serializes inner fields" {
     mod = compile_fixture("typed_return_nested.jac");
     js = mod.gen.js;
     assert "this.address.__to_wire()" in js
-    or "this.address ? this.address.__to_wire()" in js , "Person.__to_wire should serialize nested Address field";
+        or "this.address ? this.address.__to_wire()" in js , "Person.__to_wire should serialize nested Address field";
 }
 
 # list[Obj] field in __from_wire should .map each element

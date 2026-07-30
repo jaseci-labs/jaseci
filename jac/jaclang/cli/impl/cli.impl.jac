@@ -48,8 +48,8 @@ impl start_cli -> None {
 
     raw_argv = sys.argv[1:];
     if raw_argv
-    and raw_argv[0] in TOMBSTONED_VERBS
-    and raw_argv[0] not in registry.commands {
+        and raw_argv[0] in TOMBSTONED_VERBS
+        and raw_argv[0] not in registry.commands {
         console.error(
             f"'jac {raw_argv[0]}' was removed in the CLI cleanup (#7255); "
             f"use: {TOMBSTONED_VERBS[raw_argv[0]]}"
