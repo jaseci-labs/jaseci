@@ -450,6 +450,14 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
     if not isinstance(resolved, str) or not resolved.endswith('.jac') {
         return None;
     }
+    real_resolved = os.path.realpath(resolved);
+    jaclang_root = os.path.realpath(os.path.dirname(os.path.dirname(__file__)));
+    if (
+        real_resolved.startswith(jaclang_root + os.sep)
+        and (os.sep + 'na_stdlib' + os.sep) not in real_resolved
+    ) {
+        return None;
+    }
     if config_module_pin(resolved) == 'native' {
         return resolved;
     }
