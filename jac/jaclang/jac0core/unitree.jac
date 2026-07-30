@@ -1,19 +1,16 @@
-import ast as ast3;
-import builtins;
 import os;
-import from collections.abc { Callable, Sequence }
-import from copy { copy }
+import from collections.abc { Sequence }
 import from enum { IntEnum }
 import from hashlib { md5 }
-import from types { EllipsisType }
-import from typing { Any, cast }
 import from jaclang.jac0core.bccache { discover_base_file }
 import type from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.codeinfo { CodeGenTarget, CodeLocInfo }
 import from jaclang.jac0core.constant {
+    BUILTIN_CALLABLE_NAMES,
     DELIM_MAP,
     CodeContext,
     EdgeDir,
+    ExprCtx,
     OwnershipKind,
     SymbolAccess,
     SymbolStorage,
@@ -163,7 +160,7 @@ obj UniScopeNode(UniNode) {
     ) -> (Symbol | None);
 
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
-    def update_py_ctx_for_def(nd: AstSymbolNode) -> None;
+    def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
     def sym_pp(depth: (int | None) = None) -> str;
     def sym_printgraph -> str;
     def __repr__ -> str;
@@ -180,7 +177,7 @@ obj AstSymbolNode(UniNode) {
     has sym: (Symbol | None) { getter; }
     has sym_name: str { getter; }
     has sym_category: SymbolType { getter; }
-    has py_ctx_func: type[ast3.AST] { getter; }
+    has expr_ctx: ExprCtx { getter; }
     has type_sym_tab: (UniScopeNode | None) { getter; }
 }
 
@@ -286,7 +283,7 @@ obj NameAtom(AtomExpr, EnumBlockStmt) {
         _sym: (Symbol | None) postinit,
         _sym_name: str postinit,
         _sym_category: SymbolType postinit,
-        _py_ctx_func: type[ast3.expr_context] postinit,
+        _expr_ctx: ExprCtx postinit,
         is_getattr_resolved: bool = False;
 
     def postinit -> None;
@@ -302,11 +299,7 @@ obj NameAtom(AtomExpr, EnumBlockStmt) {
     ) -> Symbol;
 
     has clean_type: str { getter; }
-    has py_ctx_func: type[ast3.expr_context] {
-        getter;
-        setter(py_ctx_func: type[ast3.expr_context]);
-    }
-
+    has expr_ctx: ExprCtx { getter; setter(expr_ctx: ExprCtx); }
     has sem_token: (tuple[(SemTokType, SemTokMod)] | None) { getter; }
 }
 
@@ -852,7 +845,7 @@ obj DeleteStmt(CodeBlockStmt) {
 
     def postinit -> None;
 
-    has py_ast_targets: list[ast3.AST] { getter; }
+    has py_ast_targets: list { getter; }
 }
 
 obj ReportStmt(CodeBlockStmt) {
@@ -1589,10 +1582,7 @@ obj Literal(Token, AtomExpr) {
         pos_end: int
     ) -> None;
 
-    has lit_value:
-        int | str | bytes | float | bool | None | Callable[([], Any)] | EllipsisType {
-        getter;
-    }
+    has lit_value: int | str | bytes | float | bool | None | type | object { getter; }
 }
 
 obj BuiltinType(Name, Literal) {
@@ -1603,7 +1593,7 @@ obj BuiltinType(Name, Literal) {
         SYMBOL_TYPE = SymbolType.VAR;
     }
 
-    has lit_value: Callable[([], Any)] { getter; }
+    has lit_value: type { getter; }
 }
 
 obj Float(Literal) {
@@ -1664,7 +1654,7 @@ obj Ellipsis(Literal) {
         SYMBOL_TYPE = SymbolType.NULL;
     }
 
-    has lit_value: EllipsisType { getter; }
+    has lit_value: object { getter; }
 }
 
 obj EmptyToken(Token) {
@@ -1716,5 +1706,88 @@ obj PythonModuleAst(EmptyToken) {
     has orig_src: Source postinit,
         file_path: str postinit;
 
-    def init(ast: ast3.Module, orig_src: Source) -> None;
+    def init(ast: object, orig_src: Source) -> None;
+}
+
+glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',
+     _OCT_DIGITS: str = '01234567',
+     _SIMPLE_ESCAPES: dict[str, str] = {
+         '\\': '\\',
+         "'": "'",
+         '"': '"',
+         'a': '\x07',
+         'b': '\x08',
+         'f': '\x0c',
+         'n': '\n',
+         'r': '\r',
+         't': '\t',
+         'v': '\x0b'
+     };
+
+def _decode_str_escapes(text: str) -> str {
+    if ('\\' not in text) {
+        return text;
+    }
+    out: list[str] = [];
+    i = 0;
+    n = len(text);
+    while (i < n) {
+        ch = text[i];
+        if (ch != '\\' or (i + 1) >= n) {
+            out.append(ch);
+            i += 1;
+            continue;
+        }
+        nxt = text[i + 1];
+        if (nxt in _SIMPLE_ESCAPES) {
+            out.append(_SIMPLE_ESCAPES[nxt]);
+            i += 2;
+            continue;
+        }
+        if (nxt == '\n') {
+            i += 2;
+            continue;
+        }
+        if (nxt == '\r') {
+            i += 3 if ((i + 2) < n and text[i + 2] == '\n') else 2;
+            continue;
+        }
+        if (nxt in _OCT_DIGITS) {
+            j = i + 1;
+            end = min(n, i + 4);
+            while (j < end and text[j] in _OCT_DIGITS) {
+                j += 1;
+            }
+            out.append(chr(int(text[i + 1:j], 8)));
+            i = j;
+            continue;
+        }
+        if (nxt in 'xuU') {
+            width = 2 if (nxt == 'x') else (4 if (nxt == 'u') else 8);
+            digits = text[i + 2:i + 2 + width];
+            ok = len(digits) == width;
+            if ok {
+                for c in digits {
+                    if (c not in _HEX_DIGITS) {
+                        ok = False;
+                        break;
+                    }
+                }
+            }
+            code = int(digits, 16) if ok else 0;
+            if (ok and code <= 1114111) {
+                out.append(chr(code));
+                i += 2 + width;
+            } else {
+                out.append('\\');
+                out.append(nxt);
+                i += 2;
+            }
+            continue;
+        }
+        out.append('\\');
+        out.append(nxt);
+        i += 2;
+    }
+    return ''.join(out);
 }

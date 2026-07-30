@@ -93,7 +93,7 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
             continue;
         }
 
-        if name_nd._py_ctx_func != ast3.Load {
+        if name_nd.expr_ctx != ExprCtx.LOAD {
             continue;
         }
 

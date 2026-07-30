@@ -1929,7 +1929,7 @@ impl JacAutoLintPass._walk_for_has_uses(
     writes: list[tuple[int, int, str]],
     reads: list[tuple[int, int, str, uni.Name]]
 ) -> None {
-    import ast as ast3;
+    import from jaclang.jac0core.constant { ExprCtx }
     if isinstance(nd, (uni.LambdaExpr, uni.Ability, uni.Archetype)) {
         return;
     }
@@ -1948,7 +1948,7 @@ impl JacAutoLintPass._walk_for_has_uses(
         return;
     }
     if isinstance(nd, uni.Name) {
-        if nd.value in reactive and nd._py_ctx_func == ast3.Load {
+        if nd.value in reactive and nd.expr_ctx == ExprCtx.LOAD {
             parent = nd.parent;
             if not (isinstance(parent, uni.AtomTrailer) and parent.is_attr) {
                 reads.append((nd.loc.first_line, nd.loc.col_start, nd.value, nd));

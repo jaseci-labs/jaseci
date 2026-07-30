@@ -167,8 +167,7 @@ impl static_fstring_spec_text(spec: uni.UniNode) -> (str | None) {
 
 impl native_capability_violations(mod: uni.Module) -> list {
     import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
-    import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-    import ast as ast3;
+    import from jaclang.jac0core.constant { CodeContext, ExprCtx, Tokens as Tok }
     out: list = [];
     _stdlib_help: (str | None) = None;
 
@@ -182,7 +181,7 @@ impl native_capability_violations(mod: uni.Module) -> list {
             continue;
         }
         for _nm in _stmt.get_all_sub_nodes(typ=uni.Name) {
-            if _nm._py_ctx_func != ast3.Load {
+            if _nm.expr_ctx != ExprCtx.LOAD {
                 continue;
             }
             if _nm.find_parent_of_type(uni.Import) is not None {
@@ -544,10 +543,10 @@ impl PortabilityWarnPass.transform(ir_in: uni.Module) -> uni.Module {
 }
 
 impl PortabilityWarnPass._check_js_globals(mod: uni.Module) -> None {
-    import ast as ast3;
+    import from jaclang.jac0core.constant { ExprCtx }
     all_names = mod.get_all_sub_nodes(typ=uni.Name);
     for name_nd in all_names {
-        if name_nd._py_ctx_func != ast3.Load {
+        if name_nd.expr_ctx != ExprCtx.LOAD {
             continue;
         }
 
@@ -617,10 +616,10 @@ impl PortabilityWarnPass._find_call_is_js_style(call: uni.FuncCall) -> bool {
 }
 
 impl PortabilityWarnPass._check_js_keywords(mod: uni.Module) -> None {
-    import ast as ast3;
+    import from jaclang.jac0core.constant { ExprCtx }
     all_names = mod.get_all_sub_nodes(typ=uni.Name);
     for name_nd in all_names {
-        if name_nd._py_ctx_func != ast3.Load {
+        if name_nd.expr_ctx != ExprCtx.LOAD {
             continue;
         }
 
