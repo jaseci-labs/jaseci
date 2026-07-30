@@ -2561,9 +2561,8 @@ test "clib bytes argument lowers to a raw data pointer (issue #6940 Phase 2)" {
     assert ir.gen.llvm_ir is not None , "No LLVM IR generated";
     llvm_ir_str = str(ir.gen.llvm_ir);
     # The extern's bytes parameter is declared as a raw i8*, not jacbytes*.
-    assert 'declare i64 @"crc32_z"(i64 %"crc", i8* %"buf", i64 %"len")' in llvm_ir_str , (
-        f"clib bytes param not declared as i8*: {llvm_ir_str}"
-    );
+    assert 'declare i64 @"crc32_z"(i64 %"crc", i8* %"buf", i64 %"len")'
+        in llvm_ir_str , (f"clib bytes param not declared as i8*: {llvm_ir_str}");
     # The call passes the data pointer (the by.data GEP/bitcast), and the
     # jacbytes struct pointer is never handed to C.
     assert 'call i64 @"crc32_z"(i64 0, i8* %"by.data.i8"' in llvm_ir_str , (
@@ -2686,11 +2685,13 @@ test "clib struct value-type coercion" {
     if "x86_64" in platform.machine() or "AMD64" in platform.machine() {
         # System V AMD64: the 4-byte Color eightbyte coerces to i32 and the
         # value is reinterpreted via a struct-to-ABI bitcast.
-        assert 'declare void @"draw"(i32 %"x", i32 %"y", i32 %"color")' in llvm_ir_str , "draw should use i32 for Color param (SysV ABI coercion)";
+        assert 'declare void @"draw"(i32 %"x", i32 %"y", i32 %"color")'
+            in llvm_ir_str , "draw should use i32 for Color param (SysV ABI coercion)";
         assert "clib.arg.cast" in llvm_ir_str , "Missing struct-to-ABI bitcast";
     } elif platform.machine() in ("arm64", "aarch64") {
         # AAPCS64: composites are rounded up to the 8-byte register size.
-        assert 'declare void @"draw"(i32 %"x", i32 %"y", i64 %"color")' in llvm_ir_str , "draw should use i64 for Color param (AAPCS64 coercion)";
+        assert 'declare void @"draw"(i32 %"x", i32 %"y", i64 %"color")'
+            in llvm_ir_str , "draw should use i64 for Color param (AAPCS64 coercion)";
     }
 }
 
@@ -2710,7 +2711,8 @@ test "clib System V AMD64 ABI lowering" {
     s = str(ir.gen.llvm_ir);
     # SSE eightbytes: float fields pack into <2 x float> / trailing float.
     assert 'declare float @"v2_sum"(<2 x float> %"v")' in s , "V2 -> <2 x float>";
-    assert 'declare {<2 x float>, float} @"v3_scale"(<2 x float> %"v.0", float %"v.1", float %"s")' in s , "V3 expand + 2-eightbyte SSE return";
+    assert 'declare {<2 x float>, float} @"v3_scale"(<2 x float> %"v.0", float %"v.1", float %"s")'
+        in s , "V3 expand + 2-eightbyte SSE return";
     assert 'declare float @"v4_sum"(<2 x float> %"v.0", <2 x float> %"v.1")' in s , "V4 -> two <2 x float>";
     # INTEGER eightbyte: all-int small struct coerces to a single integer.
     assert 'declare i32 @"col_sum"(i32 %"c")' in s , "Color -> i32";
@@ -3141,9 +3143,9 @@ test "native-default chess.jac runs via cli" {
         _src = os.path.dirname(os.path.dirname(os.path.abspath(_jl.__file__)));
         with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
             f.write(
-                '[project]\nname = "chess-na"\n\n[dev]\njaclang_source = "' + _src.replace(
-                    "\\", "/"
-                ) + '"\n\n[build]\ndefault_codespace = "na"\n'
+                '[project]\nname = "chess-na"\n\n[dev]\njaclang_source = "'
+                    + _src.replace("\\", "/")
+                    + '"\n\n[build]\ndefault_codespace = "na"\n'
             );
         }
         result = subprocess.run(
@@ -3220,9 +3222,9 @@ test "sys argv via jac run native default" {
         _src = os.path.dirname(os.path.dirname(os.path.abspath(_jl.__file__)));
         with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
             f.write(
-                '[project]\nname = "argv-na"\n\n[dev]\njaclang_source = "' + _src.replace(
-                    "\\", "/"
-                ) + '"\n\n[build]\ndefault_codespace = "na"\n'
+                '[project]\nname = "argv-na"\n\n[dev]\njaclang_source = "'
+                    + _src.replace("\\", "/")
+                    + '"\n\n[build]\ndefault_codespace = "na"\n'
             );
         }
         result = subprocess.run(
@@ -3646,7 +3648,9 @@ test "elf linker rejects unhandled relocation (issue #6366 guard)" {
     llvm.initialize_all_asmprinters();
     # A function that loads a module global forces an address-materialization
     # relocation into .text against the global.
-    ir = "target triple = \"aarch64-unknown-linux-gnu\"\n" + "@g = global i64 0\n" + "define i64 @f() {\n  %v = load i64, i64* @g\n  ret i64 %v\n}\n";
+    ir = "target triple = \"aarch64-unknown-linux-gnu\"\n"
+        + "@g = global i64 0\n"
+        + "define i64 @f() {\n  %v = load i64, i64* @g\n  ret i64 %v\n}\n";
     mod = llvm.parse_assembly(ir);
     tm = llvm.Target.from_triple("aarch64-unknown-linux-gnu").create_target_machine(
         opt=2
@@ -3692,7 +3696,8 @@ test "elf linker emits DT_RUNPATH=$ORIGIN (issue #6353 gap 4)" {
     import from jaclang.compiler.passes.native.elf_linker { ElfLinker }
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();
-    ir = "target triple = \"x86_64-unknown-linux-gnu\"\n" + "define i64 @f() {\n  ret i64 0\n}\n";
+    ir = "target triple = \"x86_64-unknown-linux-gnu\"\n"
+        + "define i64 @f() {\n  ret i64 0\n}\n";
     mod = llvm.parse_assembly(ir);
     tm = llvm.Target.from_triple("x86_64-unknown-linux-gnu").create_target_machine(
         opt=2
@@ -5048,7 +5053,12 @@ test "cross-pathway: glob scoping is identical in the na and sv pathways" {
     # --- sv pathway: identical source, entry block prints the same sequence ---
     sv_src = base_src.replace(
         "with entry {}",
-        "with entry {\n" + "    print(bump_local());\n" + "    print(read_global());\n" + "    print(bump_global());\n" + "    print(read_global());\n" + "}"
+        "with entry {\n"
+            + "    print(bump_local());\n"
+            + "    print(read_global());\n"
+            + "    print(bump_global());\n"
+            + "    print(read_global());\n"
+            + "}"
     );
     assert "with entry {\n" in sv_src , "fixture entry block not substituted";
     sv_out = run_sv_source(sv_src);
@@ -5066,22 +5076,26 @@ test "cross-pathway: glob scoping is identical in the na and sv pathways" {
 # ─── Finding 2 guard: native pointer-bitcast escape hatch stays native-only ──
 # The type checker permits a handful of pointer-shaped cross-type assignments
 # (int/str/obj) because in native code they are all 64-bit pointers. That
-# escape hatch is gated to `.jac` modules via `_in_native_context()`. This
+# escape hatch is gated to native modules via `_in_native_context()`. This
 # test locks that gating in: the sv pathway must still reject the assignment,
 # so the escape hatch can never silently weaken sv type-checking.
 test "finding 2 guard: int-to-obj escape hatch does not leak into the sv pathway" {
     code = (
-        "obj Wrapper { has slot: int; }\n" + "def make(raw: int) -> Wrapper {\n" + "    w: Wrapper = raw;\n" + "    return w;\n" + "}\n"
+        "obj Wrapper { has slot: int; }\n"
+        + "def make(raw: int) -> Wrapper {\n"
+        + "    w: Wrapper = raw;\n"
+        + "    return w;\n"
+        + "}\n"
     );
     # sv pathway (.sv.jac): assigning an int to an obj-typed variable must
     # remain a type error. The snippet is otherwise valid, so any error here
     # is the assignability error.
     sv_prog = JacProgram();
-    sv_path = os.path.join(FIXTURES, "_finding2_guard.sv.jac");
+    sv_path = os.path.join(FIXTURES, "_finding2_guard.jac");
     sv_prog.compile(file_path=sv_path, use_str=code, type_check=True);
     assert sv_prog.errors_had , (
         "sv pathway must reject `w: Wrapper = raw` (int → obj). The native "
-        "pointer-bitcast escape hatch must not apply outside .jac modules."
+        "pointer-bitcast escape hatch must not apply outside native modules."
     );
 }
 
@@ -5371,11 +5385,12 @@ test "native test blocks compile to pass/fail functions" {
     tests = layout.tests;
     assert len(tests) == 3 , f"expected 3 test entries in layout, got {len(tests)}";
     by_name = {t.name: t for t in tests};
-    assert set(by_name.keys()) == {
-        "test_add_works",
-        "test_globals_visible_in_tests",
-        "test_deliberate_failure"
-    };
+    assert set(by_name.keys())
+        == {
+            "test_add_works",
+            "test_globals_visible_in_tests",
+            "test_deliberate_failure"
+        };
     assert by_name["test_add_works"].description == "add works";
     # Globals must be initialized before tests touch them.
     glob_init = get_func(eng, "__jac_glob_init", None);

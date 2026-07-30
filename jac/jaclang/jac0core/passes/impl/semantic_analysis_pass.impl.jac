@@ -2,11 +2,11 @@ impl SemanticAnalysisPass.enter_archetype(
     self: SemanticAnalysisPass, nd: uni.Archetype
 ) -> None {
     def inform_from_walker(nd: uni.UniNode) {
-        for i in nd.get_all_sub_nodes(uni.VisitStmt) + nd.get_all_sub_nodes(
-            uni.DisengageStmt
-        ) + nd.get_all_sub_nodes(uni.EdgeOpRef) + nd.get_all_sub_nodes(
-            uni.EventSignature
-        ) + nd.get_all_sub_nodes(uni.TypedCtxBlock) {
+        for i in nd.get_all_sub_nodes(uni.VisitStmt)
+            + nd.get_all_sub_nodes(uni.DisengageStmt)
+            + nd.get_all_sub_nodes(uni.EdgeOpRef)
+            + nd.get_all_sub_nodes(uni.EventSignature)
+            + nd.get_all_sub_nodes(uni.TypedCtxBlock) {
             i.from_walker = True;
         }
     }

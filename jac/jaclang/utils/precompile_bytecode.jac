@@ -133,10 +133,19 @@ def sealable_sources(package_dir: str) -> list[str] {
         p
         for p in find_jac_files(package_dir)
         if not p.startswith(boot_prefix)
-        and not _is_native_only_source(package_dir, p)
-        and not ext_registry.is_client_module(p)
-        and not any(p.startswith(n) for n in nested)
+            and not _is_native_only_source(package_dir, p)
+            and not _is_pinned_client(package_dir, p)
+            and not any(p.startswith(n) for n in nested)
     ];
+}
+
+def _is_pinned_client(package_dir: str, p: str) -> bool {
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+    try {
+        return config_module_pin(p) == 'client';
+    } except Exception {
+        return False;
+    }
 }
 
 def precompile_unit(
@@ -376,7 +385,7 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
         caps.append("has-entry");
     }
     if (pkg_path / CLIENT_DIST_REL).is_dir()
-    or any(ext_registry.is_client_module(p) for p in find_jac_files(str(pkg_path))) {
+        or kind in ["web-app", "desktop", "mobile"] {
         caps.append("has-client");
     }
     if (pkg_path / NATIVE_DIR_REL).is_dir() {
@@ -694,7 +703,7 @@ def main {
             if jir_path.is_file() {
                 existing = jir_path.read_bytes();
                 if jir_matches_source(existing, jac_path)
-                and embed_src == (read_debug_source(existing) is not None) {
+                    and embed_src == (read_debug_source(existing) is not None) {
                     reused += 1;
                     continue;
                 }
@@ -720,7 +729,8 @@ def main {
     sys.stderr.flush();
 
     console.print(
-        f"\nDone! Compiled {compiled}/{len(jac_files)} modules" + f" ({reused} reused, {failed} failed)"
+        f"\nDone! Compiled {compiled}/{len(jac_files)} modules"
+            + f" ({reused} reused, {failed} failed)"
     );
     console.print(f"  Output: {precompiled_dir}");
     console.print(f"  Python version: {pyver}");
@@ -733,7 +743,8 @@ def main {
                 "reused": reused,
                 "failed": failed
             }
-        ) + "\n",
+        )
+            + "\n",
         encoding="utf-8"
     );
 

@@ -6,7 +6,7 @@ import from .ui.empty { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescrip
 import from .TweetCard { TweetCard }
 import from .Composer { Composer }
 import from .WelcomeBanner { WelcomeBanner }
-sv import from ..social_graph { Tweet }
+import from ..social_graph { Tweet }
 
 def:pub FeedTab(
     showWelcome: bool,

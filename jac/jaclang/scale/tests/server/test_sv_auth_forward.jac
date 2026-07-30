@@ -596,9 +596,8 @@ test "ensure_sv_service early-returns when peer already registered" {
 
     try {
         JacScalePlugin.ensure_sv_service("k9_2_already_registered", ".");
-        assert sv_client._registry["k9_2_already_registered"] == (
-            "http://prior-url.example.com:8000"
-        );
+        assert sv_client._registry["k9_2_already_registered"]
+            == ("http://prior-url.example.com:8000");
     } finally {
         sv_client.unregister("k9_2_already_registered");
         if orig_k8s_host is None {

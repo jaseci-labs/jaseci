@@ -46,7 +46,7 @@ impl CommandRegistry.get_all(
         spec
         for spec in self.commands.values()
         if (include_hidden or not spec.hidden)
-        and (group is None or spec.group == group)
+            and (group is None or spec.group == group)
     ];
 }
 

@@ -1,4 +1,4 @@
-import from react { useState, useEffect, useCallback, createContext, useContext }
+import from "react" { useState, useEffect, useCallback, createContext, useContext }
 import from "class-variance-authority" { cva }
 import from "@radix-ui/react-slot" { Slot }
 import from "@hugeicons/react" { HugeiconsIcon }
@@ -98,8 +98,9 @@ def:pub SidebarProvider(props: any) -> JsxElement {
     );
     useEffect(
         lambda -> any {
-            handleKeyDown = lambda (event: any) -> any { if event.key == SIDEBAR_KEYBOARD_SHORTCUT
-            and (event.metaKey or event.ctrlKey) {
+            handleKeyDown = lambda (event: any) -> any { if event.key
+                == SIDEBAR_KEYBOARD_SHORTCUT
+                and (event.metaKey or event.ctrlKey) {
                 event.preventDefault();
                 toggleSidebar();
             }};
@@ -481,12 +482,12 @@ def:pub SidebarMenuSkeleton(props: any) -> JsxElement {
         {**attrs}
     >
         {showIcon
-        and (
-            <Skeleton
-                className="cn-sidebar-menu-skeleton-icon"
-                data-sidebar="menu-skeleton-icon"
-            />
-        )}
+            and (
+                <Skeleton
+                    className="cn-sidebar-menu-skeleton-icon"
+                    data-sidebar="menu-skeleton-icon"
+                />
+            )}
         <Skeleton
             className="cn-sidebar-menu-skeleton-text max-w-(--skeleton-width) flex-1"
             data-sidebar="menu-skeleton-text"

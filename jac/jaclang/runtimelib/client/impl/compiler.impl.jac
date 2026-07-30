@@ -34,7 +34,8 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
     compiled = Jac.program.mod.hub.get(str(module_path.resolve()));
     if compiled is None {
         console.warning(
-            f"'{module_path.name}' not found in the compile hub; cannot " + "check for native code, so no wasm will be emitted for it."
+            f"'{module_path.name}' not found in the compile hub; cannot "
+                + "check for native code, so no wasm will be emitted for it."
         );
     } else {
         has_na = compiled.declares_codespace(CodeContext.NATIVE);
@@ -95,7 +96,8 @@ impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> No
         }
         if app_ffi {
             console.print(
-                f"    app FFI imports ({len(app_ffi)}): provide via the shim's" + " env at instantiation (see .wasm.imports.json)"
+                f"    app FFI imports ({len(app_ffi)}): provide via the shim's"
+                    + " env at instantiation (see .wasm.imports.json)"
             );
         }
     } except Exception as e {
@@ -119,7 +121,7 @@ impl ViteCompiler.create_entry_file(self: ViteCompiler, module_path: Path) -> No
 
     try {
         if entry_file.exists()
-        and entry_file.read_text(encoding='utf-8') == entry_content {
+            and entry_file.read_text(encoding='utf-8') == entry_content {
             return;
         }
     } except OSError { }
@@ -171,12 +173,14 @@ impl ViteCompiler.compile_runtime_utils(self: ViteCompiler) -> tuple[str, list[s
     glob_names = list(runtimeutils_manifest.globals) if runtimeutils_manifest else [];
     all_exports = sorted(
         set(
-            runtimeutils_exports_list + self.jac_client_compiler.ROUTER_EXPORTS + glob_names
+            runtimeutils_exports_list
+                + self.jac_client_compiler.ROUTER_EXPORTS
+                + glob_names
         )
     );
     self.compiled_dir.mkdir(parents=True, exist_ok=True);
 
-    core_path = runtime_utils_path.parent / 'client_runtime_core.cl.jac';
+    core_path = runtime_utils_path.parent / 'client_runtime_core.jac';
     if core_path.exists() {
         core_specifier = './jaclang/runtimelib/client_runtime_core.js';
         if core_specifier in runtimeutils_js {

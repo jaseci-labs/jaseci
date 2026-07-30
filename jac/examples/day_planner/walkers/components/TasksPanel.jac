@@ -1,6 +1,6 @@
 """Tasks column -- owns task list state, spawns walkers for CRUD."""
 
-sv import from ..main { Task, AddTask, ListTasks, ToggleTask, DeleteTask }
+import from ..main { Task, AddTask, ListTasks, ToggleTask, DeleteTask }
 
 import from .TaskItem { TaskItem }
 

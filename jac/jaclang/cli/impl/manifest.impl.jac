@@ -328,13 +328,6 @@ def _command_routes -> list[CommandMeta] {
                     help='Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision',
                     short=''
                 ),
-                ArgMeta(
-                    name='update-placements-lock',
-                    typ='bool',
-                    default=False,
-                    help='Write jac.placements.lock (next to jac.toml) from the computed placements; committed, it makes placement flips reviewable like dependency bumps',
-                    short=''
-                ),
 
             ]
         ),
@@ -829,6 +822,53 @@ def _command_routes -> list[CommandMeta] {
                     short='p'
                 ),
                 ArgMeta(name='format', default='dot', help='Output format', short='f'),
+
+            ]
+        ),
+        CommandMeta(
+            name='fix',
+            help="Mechanical source migrations. 'jac fix placement' strips removed sv/cl/na placement markers, renames retired .sv.jac/.cl.jac/.na.jac files, preserves service topology as [scale.microservices.routes] entries, and pins any element whose inferred placement differs from its old marker via [placement.pins]",
+            group='analysis',
+            tier='',
+            hidden=False,
+            handler_module='jaclang.cli.commands.fix',
+            handler_name='fix',
+            examples=[
+                (
+                    'jac fix placement',
+                    'Migrate the current project off sv/cl/na markers'
+                ),
+                ('jac fix placement src/', 'Migrate one directory'),
+                ('jac fix placement --dry-run', 'Preview the migration')
+            ],
+            args=[
+                ArgMeta(
+                    name='target',
+                    kind=ArgKind.POSITIONAL,
+                    help='Migration to run (currently: placement)',
+                    required=True
+                ),
+                ArgMeta(
+                    name='paths',
+                    kind=ArgKind.MULTI_POSITIONAL,
+                    default=['.'],
+                    help='Files or directories to migrate (default: current directory)',
+                    short='p'
+                ),
+                ArgMeta(
+                    name='dry-run',
+                    typ='bool',
+                    default=False,
+                    help='Report what would change without writing anything',
+                    short=''
+                ),
+                ArgMeta(
+                    name='strip-only',
+                    typ='bool',
+                    default=False,
+                    help='Only strip markers and rename files; skip placement verification and jac.toml pin/route recording (for fixture trees)',
+                    short=''
+                ),
 
             ]
         ),
@@ -1700,6 +1740,10 @@ def _command_routes -> list[CommandMeta] {
             handler_name='scale_cmd',
             examples=[
                 ('jac scale status', 'Show status of all microservices'),
+                (
+                    'jac scale split orders',
+                    'Declare the orders module as a service in [scale.microservices.routes]'
+                ),
                 ('jac scale stop orders', 'Stop the orders service'),
                 ('jac scale restart cart', 'Restart the cart service'),
                 ('jac scale logs products', 'Show logs for products service'),
@@ -1715,14 +1759,14 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='action',
                     kind=ArgKind.POSITIONAL,
-                    help='Action: status, stop, restart, logs, destroy',
+                    help='Action: status, stop, restart, logs, destroy, split',
                     required=True
                 ),
                 ArgMeta(
                     name='service_name',
                     kind=ArgKind.POSITIONAL,
                     default='',
-                    help='Service name (stop/restart/logs), or a .jac app file for platform status/destroy'
+                    help='Service name (stop/restart/logs), module to declare as a service (split), or a .jac app file for platform status/destroy'
                 ),
                 ArgMeta(
                     name='lines',

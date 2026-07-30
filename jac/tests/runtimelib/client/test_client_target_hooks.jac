@@ -7,7 +7,10 @@ a `get_client_targets` hook. These tests pin that direct-registration contract.
 
 import from pathlib { Path }
 
-glob _client_dir = Path(__file__).parent.parent.parent.parent / "jaclang" / "runtimelib" / "client",
+glob _client_dir = Path(__file__).parent.parent.parent.parent
+         / "jaclang"
+         / "runtimelib"
+         / "client",
      _register_jac = _client_dir / "targets" / "register.jac",
      _registry_jac = _client_dir / "targets" / "registry.jac",
      _cli_jac = _client_dir / "cli.jac";

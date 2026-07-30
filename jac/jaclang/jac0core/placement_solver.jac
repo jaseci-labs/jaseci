@@ -10,7 +10,12 @@ import from jaclang.jac0core.placement {
     summarize_module
 }
 
-glob _na_scan_memo: dict[str, tuple] = {};
+glob _na_scan_memo: dict[str, tuple] = {},
+     _SPACE_BY_NAME: dict[str, CodeContext] = {
+         'server': CodeContext.SERVER,
+         'client': CodeContext.CLIENT,
+         'native': CodeContext.NATIVE
+     };
 
 def native_scan_memo_clear {
     _na_scan_memo.clear();
@@ -23,14 +28,11 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
     if _is_demoted_native(os.path.realpath(path)) {
         return ("previously-demoted", []);
     }
-    import from jaclang.jac0core.bccache {
-        discover_annex_files,
-        discover_variant_files
-    }
+    import from jaclang.jac0core.bccache { discover_annex_files }
     import from jaclang.jac0core.parser { parse as rd_parse }
-    files = [path] + discover_annex_files(path, '.impl.jac') + discover_annex_files(
-        path, '.test.jac'
-    );
+    files = [path]
+        + discover_annex_files(path, '.impl.jac')
+        + discover_annex_files(path, '.test.jac');
     fresh_parts: list[tuple] = [];
     for f in files {
         try {
@@ -45,7 +47,7 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
     if cached is not None and cached[0] == fresh_key {
         return (cached[1], cached[2]);
     }
-    sv_reason = "sv-variant-file" if discover_variant_files(path) else '';
+    sv_reason = '';
     deps: list[str] = [];
     if not sv_reason {
         base_dir = os.path.dirname(os.path.abspath(path)) or '.';
@@ -123,7 +125,6 @@ def native_default_path_ok(path: str) -> bool {
 }
 
 def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
-    import from jaclang.jac0core.bccache { discover_variant_files }
     import from jaclang.jac0core.compiler { _is_demoted_native }
     mod_path = module.loc.mod_path if module.loc is not None else '';
     if not mod_path {
@@ -131,9 +132,6 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
     }
     if _is_demoted_native(os.path.realpath(mod_path)) {
         return (False, "previously-demoted");
-    }
-    if discover_variant_files(mod_path) {
-        return (False, "sv-variant-file");
     }
     base_dir = os.path.dirname(os.path.abspath(mod_path)) or '.';
     (sv_reason, deps) = scan_native_blockers(module, base_dir);
@@ -155,11 +153,8 @@ def _top_element(module: uni.Module, nd: uni.UniNode) -> (uni.UniNode | None) {
 }
 
 def _is_client_top(elem: uni.UniNode) -> bool {
-    if isinstance(elem, uni.ClientBlock) {
-        return True;
-    }
     return isinstance(elem, uni.ContextAwareNode)
-    and elem.code_context == CodeContext.CLIENT;
+        and elem.code_context == CodeContext.CLIENT;
 }
 
 def _py_import_client_portable(elem: uni.Import) -> bool {
@@ -251,7 +246,7 @@ def _ref_top_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
 }
 
 def _is_sv_import(elem: uni.UniNode) -> bool {
-    return isinstance(elem, uni.Import) and (elem.is_sv_marked or elem.is_na_marked);
+    return isinstance(elem, uni.Import) and elem.is_service_import;
 }
 
 def _named_top_element(target: uni.Module, name: str) -> (uni.UniNode | None) {
@@ -308,11 +303,11 @@ def _closure_pullable(
     }
     seen.add(id(top));
     if isinstance(top, uni.ContextAwareNode)
-    and top.code_context == CodeContext.CLIENT {
+        and top.code_context == CodeContext.CLIENT {
         return True;
     }
     if isinstance(top, uni.Import) {
-        if top.is_sv_marked or top.is_na_marked {
+        if top.is_service_import {
             return True;
         }
         source_mod = _import_source_module(top, prog);
@@ -327,7 +322,7 @@ def _closure_pullable(
             }
             item_top = _named_top_element(source_mod, item.name.value);
             if item_top is None
-            or not _closure_pullable(item_top, source_mod, prog, seen) {
+                or not _closure_pullable(item_top, source_mod, prog, seen) {
                 return False;
             }
         }
@@ -357,13 +352,15 @@ def _closure_pullable(
     return True;
 }
 
+
+def _module_externally_pinned(mod_path: str) -> bool {
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+    return config_module_pin(mod_path) != '';
+}
+
 def _seed_from_summary(module: uni.Module, prog: any) -> int {
-    import from jaclang.jac0core.ext_registry { codespace_of }
     import from jaclang.jac0core.compiler { _stamp_context_element }
     mod_path = module.loc.mod_path or '';
-    if codespace_of(mod_path) is not None {
-        return 0;
-    }
     ps = get_module_summary(module, prog);
     seeded = 0;
     for es in ps.elements {
@@ -374,10 +371,18 @@ def _seed_from_summary(module: uni.Module, prog: any) -> int {
         if not isinstance(stmt, uni.ContextAwareNode) {
             continue;
         }
-        if (
-            stmt._source_context_token() is not None
-            or stmt.code_context != CodeContext.SERVER
-        ) {
+        if es.pinned {
+            pin_ctx = _SPACE_BY_NAME.get(es.pinned);
+            if pin_ctx is not None and stmt.code_context != pin_ctx {
+                _stamp_context_element(stmt, pin_ctx);
+                record_placement_evidence(
+                    prog, mod_path, es.index, f"config pin: {es.pinned}"
+                );
+                seeded += 1;
+            }
+            continue;
+        }
+        if stmt.code_context != CodeContext.SERVER {
             continue;
         }
         target_ctx: (CodeContext | None) = None;
@@ -400,7 +405,13 @@ def _seed_from_summary(module: uni.Module, prog: any) -> int {
                 why = reason;
                 break;
             }
-            if cap == 'NPM' and reason == 'string-path import' {
+            if cap == 'NPM'
+                and reason
+                    in (
+                        'string-path import',
+                        'virtual @jac import',
+                        'npm dependency'
+                    ) {
                 target_ctx = CodeContext.CLIENT;
                 ctx_label = 'client';
                 why = reason;
@@ -467,32 +478,32 @@ def solve_module_placement(
     }
 
     _seed_from_summary(module, prog);
+    pinned_idx: set[int] = set();
+    for pes in get_module_summary(module, prog).elements {
+        if pes.pinned {
+            pinned_idx.add(pes.index);
+        }
+    }
     client_tops: list[uni.UniNode] = [];
     native_tops: list[uni.UniNode] = [];
     inferable: list[uni.UniNode] = [];
-    for stmt in module.body {
-        if isinstance(stmt, (uni.ClientBlock, uni.ServerBlock, uni.NativeBlock)) {
-            continue;
-        }
+    for (sidx, stmt) in enumerate(module.body) {
         if not isinstance(stmt, uni.ContextAwareNode) {
             continue;
         }
         if stmt.code_context == CodeContext.CLIENT {
-            if stmt._source_context_token() is None {
+            if sidx not in pinned_idx {
                 client_tops.append(stmt);
             }
             continue;
         }
         if stmt.code_context == CodeContext.NATIVE {
-            if stmt._source_context_token() is None {
+            if sidx not in pinned_idx {
                 native_tops.append(stmt);
             }
             continue;
         }
-        is_placement_pinned = (
-            stmt._source_context_token() is not None
-            and not isinstance(stmt, uni.Import)
-        );
+        is_placement_pinned = sidx in pinned_idx and not isinstance(stmt, uni.Import);
         if (stmt.code_context != CodeContext.SERVER or is_placement_pinned) {
             continue;
         }
@@ -721,10 +732,8 @@ def _pull_into_target(
 }
 
 def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int {
-    import from jaclang.jac0core.ext_registry { codespace_of }
     if (
-        imp.is_sv_marked
-        or imp.is_na_marked
+        imp.is_service_import
         or imp.is_virtual_jac
         or imp.has_string_path
         or imp.from_loc is None
@@ -737,7 +746,7 @@ def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int
     if not isinstance(resolved, str) or not resolved.endswith('.jac') {
         return 0;
     }
-    if codespace_of(resolved) is not None {
+    if _module_externally_pinned(resolved) {
         return 0;
     }
     targets: list[uni.Module] = [];
@@ -763,49 +772,6 @@ def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int
         new_stamps += _pull_into_target(imp, target, module, prog);
     }
     return new_stamps;
-}
-
-def _check_lock_stability(entry_mod: uni.Module, prog: any) {
-    import from jaclang.jac0core.placement {
-        collect_placement_rows,
-        diff_rows_vs_lock,
-        load_placement_lock,
-        placement_lock_file_for
-    }
-    state = placement_state(prog);
-    if state.get('lock_checked') {
-        return;
-    }
-    state['lock_checked'] = True;
-    mod_path = entry_mod.loc.mod_path or '';
-    if not mod_path {
-        return;
-    }
-    lock_path = placement_lock_file_for(mod_path);
-    locked = load_placement_lock(lock_path);
-    if locked is None {
-        return;
-    }
-    rows = collect_placement_rows(prog);
-    flips = diff_rows_vs_lock(
-        rows, locked, os.path.dirname(os.path.abspath(lock_path))
-    );
-    if not flips {
-        return;
-    }
-    state['flips'] = flips;
-    try {
-        import sys;
-        import from jaclang.cli.console { console }
-        console.print(
-            f"note: {len(flips)} placement(s) moved vs {lock_path}; "
-            f"run 'jac check --placements' for the diff",
-            style="dim",
-            file=sys.stderr
-        );
-    } except Exception {
-        ;
-    }
 }
 
 def solve_program_placement(entry_mod: uni.Module, prog: any) -> None {
@@ -848,28 +814,25 @@ def solve_program_placement(entry_mod: uni.Module, prog: any) -> None {
     } finally {
         state['solving'] = False;
     }
-    try {
-        _check_lock_stability(entry_mod, prog);
-    } except Exception {
-        ;
-    }
 }
 
 def demote_client_pulled_elements(
     module: uni.Module, prog: any, err_mark: int, warn_mark: int
 ) -> bool {
-    import from jaclang.jac0core.ext_registry { codespace_of }
     mod_path = module.loc.mod_path or '';
-    if codespace_of(mod_path) is not None {
-        return False;
-    }
     demoted: list[str] = [];
+    demote_pinned: set[int] = set();
+    for des in get_module_summary(module, prog).elements {
+        if des.pinned {
+            demote_pinned.add(des.index);
+        }
+    }
     for (idx, stmt) in enumerate(module.body) {
         if (
             isinstance(stmt, uni.ContextAwareNode)
             and stmt.codespace_dual
             and stmt.code_context == CodeContext.CLIENT
-            and stmt._source_context_token() is None
+            and idx not in demote_pinned
         ) {
             stmt.code_context = CodeContext.SERVER;
             stmt.codespace_dual = False;

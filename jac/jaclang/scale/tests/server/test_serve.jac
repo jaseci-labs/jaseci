@@ -485,10 +485,8 @@ test "token refresh functionality" {
             assert error_entry["type"] == "missing";
         } else {
             assert "error" in refresh_result;
-            assert refresh_result["error"] in [
-                "Token is required",
-                "Invalid or expired token"
-            ];
+            assert refresh_result["error"]
+                in ["Token is required", "Invalid or expired token"];
         }
 
         response = client.post("/user/refresh-token", json={"token": ""});
@@ -734,10 +732,12 @@ test "/user/me rejects missing or invalid token with 401" {
         assert client.get("/user/me").status_code == 401;
         assert client.get(
             "/user/me", headers={"Authorization": "Bearer not-a-real-token"}
-        ).status_code == 401;
+        ).status_code
+            == 401;
         assert client.raw_client.patch(
             "/user/me", json={"profile": {"firstname": "Alice"}}
-        ).status_code == 401;
+        ).status_code
+            == 401;
     } finally {
         client.close();
     }
@@ -2133,9 +2133,7 @@ test "pwa target uses jac-scale server" {
     with tempfile.TemporaryDirectory() as temp_dir {
         temp_path = Path(temp_dir);
         main_jac = temp_path / "main.jac";
-        main_jac.write_text(
-            'cl { def:pub app -> JsxElement { return <div>Test</div>; } }'
-        );
+        main_jac.write_text('def:pub app -> JsxElement { return <div>Test</div>; }');
         jac_toml = temp_path / "jac.toml";
         jac_toml.write_text(
             '''[project]

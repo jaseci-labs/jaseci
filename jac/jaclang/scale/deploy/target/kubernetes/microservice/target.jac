@@ -170,9 +170,8 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
                     }
                 }
                 phase = str(p.status.phase or '?');
-                statuses = list(p.status.init_container_statuses or []) + list(
-                    p.status.container_statuses or []
-                );
+                statuses = list(p.status.init_container_statuses or [])
+                    + list(p.status.container_statuses or []);
                 pod_reason = "";
                 pod_crash = "";
                 pod_crash_restarts = 0;
@@ -207,7 +206,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
                                 if cs.state and cs.state.waiting
                                 else ""
                         )
-                        or ""
+                            or ""
                     ) for cs in statuses
                 ];
                 stuck_creating = (
@@ -429,7 +428,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
                 };
                 for (pod_name, pod) in creating_now.items() {
                     if creating_streak.get(pod_name, 0) >= 30
-                    and self._pod_mount_wedged(core_v1, ns, pod_name) {
+                        and self._pod_mount_wedged(core_v1, ns, pod_name) {
                         if self._try_self_heal(
                             core_v1,
                             ns,
@@ -481,9 +480,8 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
                 else [];
             for p in stuck {
                 timeout_detail += (
-                    f" [pod {p.metadata.name}]" + self._pod_failure_detail(
-                        core_v1, ns, str(p.metadata.name), p
-                    )
+                    f" [pod {p.metadata.name}]"
+                    + self._pod_failure_detail(core_v1, ns, str(p.metadata.name), p)
                 );
             }
         } except Exception {
@@ -507,9 +505,8 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             if pod is None {
                 pod = core_v1.read_namespaced_pod(pod_name, namespace);
             }
-            statuses = (pod.status.init_container_statuses or []) + (
-                pod.status.container_statuses or []
-            );
+            statuses = (pod.status.init_container_statuses or [])
+                + (pod.status.container_statuses or []);
             for cs in statuses {
                 states: list = [];
                 if cs.state and cs.state.terminated {
@@ -541,7 +538,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         logs_cfg = self._read_microservices_logs_config();
         tracing_cfg = self._read_microservices_tracing_config();
         if not logs_cfg.get("enabled", False)
-        and not tracing_cfg.get("enabled", False) {
+            and not tracing_cfg.get("enabled", False) {
             return;
         }
 

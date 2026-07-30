@@ -36,6 +36,7 @@ def _load_native_fmt_kernel_module -> (uni.Module | None) {
                 aot_mode=True,
                 type_check=False,
                 default_codespace='native',
+                force_codespace='native',
                 force_target_program=True
             )
         );
@@ -63,7 +64,7 @@ impl NaIRGenPass._ensure_fmt_kernel -> bool {
 
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
     if (_manifest is not None)
-    and ("fmt_kernel" not in _manifest.native_transitive_sources) {
+        and ("fmt_kernel" not in _manifest.native_transitive_sources) {
         _manifest.native_transitive_sources.append("fmt_kernel");
     }
     return True;

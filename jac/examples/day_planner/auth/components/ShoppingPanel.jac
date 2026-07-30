@@ -1,6 +1,6 @@
 """Shopping list column -- owns ingredient state, fetches on mount."""
 
-sv import from ..main {
+import from ..main {
     ShoppingItem,
     generate_list,
     get_shopping_list,

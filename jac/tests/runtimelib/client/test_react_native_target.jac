@@ -13,7 +13,10 @@ import pytest;
 
 # Client target modules ship with core under jaclang/runtimelib/client/.
 glob _client_dir = (
-         Path(os.path.dirname(__file__)).parent.parent.parent / "jaclang" / "runtimelib" / "client"
+         Path(os.path.dirname(__file__)).parent.parent.parent
+         / "jaclang"
+         / "runtimelib"
+         / "client"
      ),
      _targets_dir = _client_dir / "targets";
 
@@ -147,17 +150,17 @@ test "react native build source includes iOS and release wiring" {
 
 test "native runtime file ships parallel to the web runtime" {
     # D9: shared logic lives in client_runtime_core; native is platform adapters.
-    runtime_core = _client_dir / "client_runtime_core.cl.jac";
+    runtime_core = _client_dir / "client_runtime_core.jac";
     runtime_core_impl = _client_dir / "impl" / "client_runtime_core.impl.jac";
-    runtime_native = _client_dir / "client_runtime_native.cl.jac";
+    runtime_native = _client_dir / "client_runtime_native.jac";
     runtime_native_impl = _client_dir / "impl" / "client_runtime_native.impl.jac";
 
     assert runtime_core.exists() , (
-        f"client_runtime_core.cl.jac not found at {runtime_core}"
+        f"client_runtime_core.jac not found at {runtime_core}"
     );
     assert runtime_core_impl.exists();
     assert runtime_native.exists() , (
-        f"client_runtime_native.cl.jac not found at {runtime_native}"
+        f"client_runtime_native.jac not found at {runtime_native}"
     );
     assert runtime_native_impl.exists();
     assert "import from client_runtime_core" in runtime_native.read_text();
@@ -227,15 +230,14 @@ test "JacClientCompiler maps targets to platform runtimes" {
     assert "PLATFORM_RUNTIME_FILES" in src_content , (
         "JacClientCompiler must map target names to platform runtime files"
     );
-    assert 'client_runtime_native.cl.jac' in src_content;
+    assert 'client_runtime_native.jac' in src_content;
     assert "target_name" in src_content;
     assert "target_name" in impl_content;
-    assert ".native.cl.jac" in src_content;
-    assert src_content.index(".native.cl.jac") < src_content.index(".cl.jac") , (
-        "COMPOUND_EXTENSIONS must put .native.cl.jac before .cl.jac so "
-        "Header.native.cl.jac maps to Header.js (not Header.native.js)."
+    assert "COMPOUND_EXTENSIONS = ['.native.jac']" in src_content , (
+        "COMPOUND_EXTENSIONS must strip .native.jac ahead of the plain .jac "
+        "fallback so Header.native.jac maps to Header.js (not Header.native.js)."
     );
-    assert "client_runtime_core.cl.jac" in impl_content , (
+    assert "client_runtime_core.jac" in impl_content , (
         "compile_runtime_utils must bundle client_runtime_core (D9)"
     );
     assert "_bundle_runtime_js" in impl_content;
@@ -260,11 +262,12 @@ test "react native target addresses the entry by project-relative module path" {
     assert "entry_file.stem" not in impl_content , (
         "the entry must be addressed by its project-relative module path; "
         "entry_file.stem drops the directory for a nested entry and only "
-        "half-strips compound extensions like .cl.jac"
+        "half-strips compound extensions like .jac"
     );
     assert impl_content.count(
         "entry_module: str = entry_module_for(entry_file, project_dir)"
-    ) == 2 , ("both build() and dev() must resolve the entry module the same way");
+    )
+        == 2 , ("both build() and dev() must resolve the entry module the same way");
 }
 
 test "react native compiler selects .native variants when available" {
@@ -273,20 +276,19 @@ test "react native compiler selects .native variants when available" {
 
     assert "target_name == \"react-native\"" in impl_content;
     assert "_native_variant" in impl_content;
-    assert ".native.cl.jac" in impl_content , (
+    assert ".native.jac" in impl_content , (
         "the stem probe must cover the suffixed variant pair"
     );
     assert ".native.jac" in impl_content , (
         "the stem probe must cover the markerless variant pair"
     );
     assert "base_stem" in impl_content , (
-        "variant resolution keys on the module stem, not the .cl.jac extension"
+        "variant resolution keys on the module stem, not the .jac extension"
     );
     assert "target_name=target_name" in impl_content;
     assert "_scan_and_compile_pages(" in impl_content;
-    assert "target_name=target_name" in impl_content.split("_scan_and_compile_pages(")[
-        1
-    ];
+    assert "target_name=target_name"
+        in impl_content.split("_scan_and_compile_pages(")[1];
 }
 
 
@@ -414,11 +416,11 @@ def _nested_entry_project(proj: Path) -> tuple[any, Path] {
 
     (proj / "package.json").write_text('{"name":"t","version":"0.0.0"}');
     (proj / "shared").mkdir(parents=True, exist_ok=True);
-    (proj / "shared" / "utils.cl.jac").write_text(
+    (proj / "shared" / "utils.jac").write_text(
         'def:pub format_date(d: str) -> str {\n    return "on " + d;\n}\n'
     );
     (proj / "apps" / "mobile").mkdir(parents=True, exist_ok=True);
-    entry = proj / "apps" / "mobile" / "main.cl.jac";
+    entry = proj / "apps" / "mobile" / "main.jac";
     entry.write_text(
         'import from ...shared.utils { format_date }\n\n'
         'def:pub app() -> any {\n'
@@ -467,10 +469,10 @@ test "entry outside the project dir stages relative to its own folder" {
         (proj / "package.json").write_text('{"name":"t","version":"0.0.0"}');
         app = proj / "app";
         (app / "src").mkdir(parents=True, exist_ok=True);
-        (app / "src" / "header.cl.jac").write_text(
+        (app / "src" / "header.jac").write_text(
             'def:pub Header() -> any {\n    return <div>hi</div>;\n}\n'
         );
-        entry = app / "main.cl.jac";
+        entry = app / "main.jac";
         entry.write_text(
             'import from .src.header { Header }\n\n'
             'def:pub app() -> any {\n    return <div><Header/></div>;\n}\n'
@@ -511,10 +513,10 @@ test "entry_module_for matches the path the compiler actually writes" {
         compiler = builder._get_compiler().jac_client_compiler;
         for rel in [
             "apps/mobile/main.jac",
-            "apps/mobile/main.cl.jac",
-            "apps/mobile/main.native.cl.jac",
+            "apps/mobile/main.jac",
+            "apps/mobile/main.native.jac",
             "apps/mobile/main.impl.jac",
-            "shared/widgets.cl.jac",
+            "shared/widgets.jac",
             "main.jac"
         ] {
             f = proj / rel;
@@ -630,7 +632,7 @@ test "html tag map is shared between build lint and native runtime" {
         supported_rn_html_tags
     }
 
-    runtime_native = _client_dir / "client_runtime_native.cl.jac";
+    runtime_native = _client_dir / "client_runtime_native.jac";
     runtime_text = runtime_native.read_text();
     assert "html_tag_map" in runtime_text;
     assert "RN_HTML_VIEW_TAGS as _VIEW_TAGS" in runtime_text;
@@ -640,9 +642,10 @@ test "html tag map is shared between build lint and native runtime" {
     assert "div" in expected;
     assert "button" in expected;
     assert "marquee" not in expected;
-    assert len(expected) == (
-        len(RN_HTML_VIEW_TAGS) + len(RN_HTML_TEXT_TAGS) + len(RN_HTML_SPECIAL_TAGS)
-    );
+    assert len(expected)
+        == (
+            len(RN_HTML_VIEW_TAGS) + len(RN_HTML_TEXT_TAGS) + len(RN_HTML_SPECIAL_TAGS)
+        );
 }
 
 test "lint_native_incompatible_usage flags css imports and web globals" {
@@ -960,11 +963,10 @@ test "_RNHmrHandler obj is declared and wired in target module" {
     assert "impl _RNHmrHandler.on_event" in impl_content;
     assert "rn_hmr_on_jac_changed" in impl_content;
     # Dev impl must invoke the real flow, not the old NotImplementedError.
-    assert "raise NotImplementedError" not in impl_content.split(
-        "impl ReactNativeTarget.dev"
-    )[1].split(
-        "impl ReactNativeTarget.start"
-    )[0];
+    assert "raise NotImplementedError"
+        not in impl_content.split("impl ReactNativeTarget.dev")[1].split(
+            "impl ReactNativeTarget.start"
+        )[0];
     assert "run_expo_start" in impl_content;
     assert "JacFileWatcher" in impl_content;
 }
@@ -1236,7 +1238,8 @@ test "expo prebuild runs even when native tree and prebuild state exist" {
         "--platform",
         "android",
         "--no-install"
-    ] in calls;
+    ]
+        in calls;
 }
 
 test "dual-target gate can run e2e builds when explicitly enabled" {
@@ -1278,14 +1281,15 @@ test "dual-target gate can run e2e builds when explicitly enabled" {
         assert web_result.returncode == 0 , (
             f"web build failed\nSTDOUT:\n{web_result.stdout}\nSTDERR:\n{web_result.stderr}"
         );
-        rn_cmd = jac_cmd + [
-            "build",
-            "main.jac",
-            "--client",
-            "react-native",
-            "--platform",
-            "android"
-        ];
+        rn_cmd = jac_cmd
+            + [
+                "build",
+                "main.jac",
+                "--client",
+                "react-native",
+                "--platform",
+                "android"
+            ];
         rn_result = subprocess.run(
             rn_cmd,
             cwd=project_dir,
@@ -1375,9 +1379,9 @@ test "strip_css_imports removes CSS import lines and deletes CSS files" {
 }
 
 
-test "compiler resolves .native.cl.jac when target is react-native" {
-    # Functional test: create a temp project with both .cl.jac and
-    # .native.cl.jac, compile with target_name="react-native", and
+test "compiler resolves .native.jac when target is react-native" {
+    # Functional test: create a temp project with both .jac and
+    # .native.jac, compile with target_name="react-native", and
     # verify the native variant was chosen.
     import tempfile;
     import from jaclang.runtimelib.client.config_loader { JacClientConfig }
@@ -1746,14 +1750,15 @@ test "e2e: react-native android build produces APK" {
         env = get_env_with_npm();
         jac_cmd = get_jac_command();
         # Step 1: jac build --client react-native --platform android
-        rn_cmd = jac_cmd + [
-            "build",
-            "main.jac",
-            "--client",
-            "react-native",
-            "--platform",
-            "android"
-        ];
+        rn_cmd = jac_cmd
+            + [
+                "build",
+                "main.jac",
+                "--client",
+                "react-native",
+                "--platform",
+                "android"
+            ];
         result = subprocess.run(
             rn_cmd,
             cwd=project_dir,
@@ -1768,7 +1773,13 @@ test "e2e: react-native android build produces APK" {
         );
         # Step 2: verify the APK artifact was produced.
         rn_project = project_dir / ".jac" / "mobile-rn";
-        apk_outputs = rn_project / "android" / "app" / "build" / "outputs" / "apk" / "debug";
+        apk_outputs = rn_project
+            / "android"
+            / "app"
+            / "build"
+            / "outputs"
+            / "apk"
+            / "debug";
         assert apk_outputs.exists() , (f"Expected Gradle output dir at {apk_outputs}");
         apks = list(apk_outputs.glob("*.apk"));
         assert len(apks) > 0 , (

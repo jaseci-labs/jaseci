@@ -45,7 +45,9 @@ def ownership_codes(prog: JacProgram) -> list[str] {
     codes: set[str] = set();
     for alert in (list(prog.errors_had) + list(prog.warnings_had)) {
         if alert.code is not None
-        and (alert.code.code.startswith("E13") or alert.code.code.startswith("E14")) {
+            and (
+                alert.code.code.startswith("E13") or alert.code.code.startswith("E14")
+            ) {
             codes.add(alert.code.code);
         }
     }

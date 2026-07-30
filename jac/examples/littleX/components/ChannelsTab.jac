@@ -18,7 +18,7 @@ import from .ui.dialog {
 }
 import from .TweetCard { TweetCard }
 import from .Composer { Composer }
-sv import from ..social_graph { ChannelBundle, Tweet }
+import from ..social_graph { ChannelBundle, Tweet }
 
 def:pub ChannelsTab(
     channels: list[ChannelBundle],
@@ -161,9 +161,12 @@ def:pub ChannelsTab(
                         >
                             <Users size={12}/>
                             <span>
-                                {str(ch.member_count) + (
-                                    " member" if ch.member_count == 1 else " members"
-                                )}
+                                {str(ch.member_count)
+                                    + (
+                                        " member"
+                                            if ch.member_count == 1
+                                            else " members"
+                                    )}
                             </span>
                         </div>
                     </div>
@@ -200,11 +203,12 @@ def:pub ChannelsTab(
                         >
                             <Users size={12}/>
                             <span>
-                                {str(selectedChannel.member_count) + (
-                                    " member"
-                                        if selectedChannel.member_count == 1
-                                        else " members"
-                                )}
+                                {str(selectedChannel.member_count)
+                                    + (
+                                        " member"
+                                            if selectedChannel.member_count == 1
+                                            else " members"
+                                    )}
                             </span>
                         </div>
                     </div>

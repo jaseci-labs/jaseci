@@ -7,7 +7,7 @@ import from .ui.card { Card, CardHeader, CardTitle, CardContent }
 import from .ui.avatar { Avatar, AvatarImage, AvatarFallback }
 import from .ui.badge { Badge }
 import from .ui.hover_card { HoverCard, HoverCardTrigger, HoverCardContent }
-sv import from ..social_graph { Profile, TrendingTag }
+import from ..social_graph { Profile, TrendingTag }
 
 def:pub RightSidebar(
     searchQuery: str,
@@ -88,7 +88,8 @@ def:pub RightSidebar(
                         >
                             <Avatar className="size-9 shrink-0">
                                 <AvatarImage
-                                    src={"https://i.pravatar.cc/150?u=fake@" + u.username}
+                                    src={"https://i.pravatar.cc/150?u=fake@"
+                                        + u.username}
                                     alt={u.username}
                                 />
                                 <AvatarFallback>
@@ -114,7 +115,8 @@ def:pub RightSidebar(
                                         <div className="flex items-center gap-3">
                                             <Avatar className="size-11">
                                                 <AvatarImage
-                                                    src={"https://i.pravatar.cc/150?u=fake@" + u.username}
+                                                    src={"https://i.pravatar.cc/150?u=fake@"
+                                                        + u.username}
                                                     alt={u.username}
                                                 />
                                                 <AvatarFallback>
@@ -136,11 +138,12 @@ def:pub RightSidebar(
                                                 <div
                                                     className="truncate text-xs text-muted-foreground"
                                                 >
-                                                    {"@" + (
-                                                        u.username.split("@")[0]
-                                                            if "@" in u.username
-                                                            else u.username
-                                                    )}
+                                                    {"@"
+                                                        + (
+                                                            u.username.split("@")[0]
+                                                                if "@" in u.username
+                                                                else u.username
+                                                        )}
                                                 </div>
                                             </div>
                                         </div>
@@ -152,11 +155,12 @@ def:pub RightSidebar(
                                     </HoverCardContent>
                                 </HoverCard>
                                 <div className="truncate text-xs text-muted-foreground">
-                                    {"@" + (
-                                        u.username.split("@")[0]
-                                            if "@" in u.username
-                                            else u.username
-                                    )}
+                                    {"@"
+                                        + (
+                                            u.username.split("@")[0]
+                                                if "@" in u.username
+                                                else u.username
+                                        )}
                                 </div>
                             </div>
                             <Button

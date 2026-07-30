@@ -84,18 +84,9 @@ test "three codespaces in one markerless module" {
     assert stamp_of(mod, "Item") == 'server' , "node archetype stays server (auto-shared, never pulled)";
     assert stamp_of(mod, "list_items") == 'server' , "walker stays server (spawned via RPC)";
     assert stamp_of(mod, "os") == 'server' , "python import stays server";
-    has_native_block = False;
-    for stmt in mod.body {
-        if isinstance(stmt, uni.NativeBlock) {
-            has_native_block = True;
-            for inner in stmt.body {
-                if isinstance(inner, uni.ContextAwareNode) {
-                    assert str(inner.code_context) == 'native' , "na block contents are native";
-                }
-            }
-        }
-    }
-    assert has_native_block , "explicit na block should be preserved";
+    assert stamp_of(mod, "fast_add") == 'server' , (
+        "an unreferenced pure helper homes server by default"
+    );
 }
 
 test "mixed module generates rpc bridges in js" {
@@ -129,13 +120,13 @@ test "pull policy: tagged globs and one-sided objs relocate, stubs keep defaults
     assert '"untitled"' in js , "stub ctor materializes literal has-defaults";
 }
 
-test "sv import placement is inferred while boundary fact stays" {
-    mod = compile_fixture("infer_sv_client.jac", cgen=True);
-    assert stamp_of(mod, "fetch_items") == 'client' , "client-consumed sv import is placed client";
+test "service-cut import placement is inferred while boundary fact stays" {
+    mod = compile_fixture(os.path.join("svc_cut", "app.jac"), cgen=True);
+    assert stamp_of(mod, "fetch_items") == 'client' , "client-consumed service import is placed client";
     assert stamp_of(mod, "app") == 'client';
-    assert stamp_of(mod, "local_report") == 'server' , "using an sv-imported name must not pull the caller client";
+    assert stamp_of(mod, "local_report") == 'server' , "using a service-imported name must not pull the caller client";
     js = mod.gen.js;
-    assert '__jacCallFunction("fetch_items"' in js , "sv import in client placement generates RPC stub";
+    assert '__jacCallFunction("fetch_items"' in js , "service import in client placement generates RPC stub";
 }
 
 test "plain client import of a server endpoint bridges over rpc" {
@@ -168,7 +159,9 @@ test "mixed plain import keeps client symbols and bridges endpoints" {
 
 test "plain client import of a server-only helper is a codegen error" {
     prog = JacProgram();
-    mod = prog.compile(os.path.join(FIXTURE_DIR, "infer_import_dead_client.jac"));
+    mod = prog.compile(
+        os.path.join(FIXTURE_DIR, "pinned_dead", "infer_import_dead_client.jac")
+    );
     dead_errs = [
         e
         for e in prog.errors_had
@@ -189,7 +182,7 @@ test "jac check flags a dead client import without codegen" {
     import from jaclang.jac0core.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
-        os.path.join(FIXTURE_DIR, "infer_import_dead_client.jac"),
+        os.path.join(FIXTURE_DIR, "pinned_dead", "infer_import_dead_client.jac"),
         options=CompileOptions(no_cgen=True, type_check=True)
     );
     dead_errs = [
@@ -519,7 +512,7 @@ test "aliased bare jac import stays server under native default" {
 test "bare import of a cl module stays server under native default" {
     mod = compile_with_default("nadefault_bare_cl.jac", "native");
     assert mod.decided_codespace == '' , (
-        "a .cl.jac sibling is a cl/sv server signal even when its body has no "
+        "a .jac sibling is a cl/sv server signal even when its body has no "
         "other signals"
     );
 }
@@ -651,9 +644,8 @@ test "client call to endpoint with function-typed param warns W6005" {
     prog.compile(os.path.join(FIXTURE_DIR, "infer_rpc_callable.jac"), no_cgen=False);
     warned = any('W6005' in w.pretty_print() for w in prog.warnings_had);
     assert warned , (
-        "RPC-bridged call passing a function must warn W6005; got: " + f"{[
-            w.pretty_print().split(chr(10))[0] for w in prog.warnings_had
-        ]}"
+        "RPC-bridged call passing a function must warn W6005; got: "
+        + f"{[w.pretty_print().split(chr(10))[0] for w in prog.warnings_had]}"
     );
 }
 
@@ -667,4 +659,84 @@ test "aot native mandate still fails loudly" {
         )
     );
     assert prog.errors_had , "forced-native modules must surface lowering errors";
+}
+
+"""A bare (Python-ecosystem) import whose symbols client code uses at value
+level was silently pruned from the client bundle: the PY requirement pinned
+the import server-side, the ES backend dropped it, and the page died with
+`ReferenceError: dedent is not defined` while `jac check` stayed green.
+E5084 must name the symbol and the module at compile time. (Bare npm names
+like `react` resolve through the client npm world and never fire this.)"""
+test "client value use of a bare python import is E5084" {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    prog = JacProgram();
+    prog.compile(
+        os.path.join(FIXTURE_DIR, "infer_import_bare_py_client.jac"),
+        options=CompileOptions(no_cgen=True, type_check=True)
+    );
+    bare_errs = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == 'E5084'
+    ];
+    assert len(bare_errs) == 1 , (
+        f"expected exactly one E5084 for the client dedent pull, got "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+    assert 'dedent' in str(bare_errs[0]) , "E5084 must name the unbound symbol";
+    assert 'textwrap' in str(bare_errs[0]) , "E5084 must name the bare module";
+}
+
+test "annotation-only use of a bare python import stays silent" {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    prog = JacProgram();
+    prog.compile(
+        os.path.join(FIXTURE_DIR, "infer_import_bare_py_annotation.jac"),
+        options=CompileOptions(no_cgen=True, type_check=True)
+    );
+    bare_errs = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == 'E5084'
+    ];
+    assert not bare_errs , (
+        f"annotations are erased in ES output and must not fire E5084, got "
+        f"{[str(e) for e in bare_errs]}"
+    );
+}
+
+test "server-side use of a bare python import stays silent" {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    prog = JacProgram();
+    prog.compile(
+        os.path.join(FIXTURE_DIR, "infer_import_bare_py_server_use.jac"),
+        options=CompileOptions(no_cgen=True, type_check=True)
+    );
+    bare_errs = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == 'E5084'
+    ];
+    assert not bare_errs , (
+        f"server-placed python imports are normal and must not fire E5084, got "
+        f"{[str(e) for e in bare_errs]}"
+    );
+}
+
+test "unresolvable relative bare import stays silent" {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    prog = JacProgram();
+    prog.compile(
+        os.path.join(FIXTURE_DIR, "infer_import_bare_py_relative_template.jac"),
+        options=CompileOptions(no_cgen=True, type_check=True)
+    );
+    bare_errs = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == 'E5084'
+    ];
+    assert not bare_errs , (
+        f"a relative bare import is never npm or installed python; template "
+        f"components must not fire E5084, got {[str(e) for e in bare_errs]}"
+    );
 }

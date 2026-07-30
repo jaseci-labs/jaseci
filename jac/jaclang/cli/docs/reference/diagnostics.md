@@ -264,7 +264,7 @@ Emitted by the type checker and type evaluator.
 
 ### mobUI-Project JSX Host Tags
 
-Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native target](plugins/jac-client.md#react-native-target-beta)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.cl.jac` web-boundary files (but not `.native.cl.jac` files, which target React Native) and modules outside the project root are exempt; the client kind is discovered from each module's own project `jac.toml`, never the process cwd.
+Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native target](plugins/jac-client.md#react-native-target-beta)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.jac` web-boundary files (but not `.native.jac` files, which target React Native) and modules outside the project root are exempt; the client kind is discovered from each module's own project `jac.toml`, never the process cwd.
 
 | Code | Message |
 |------|---------|
@@ -325,6 +325,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `E1120` | Import of '{name}' from untyped external module '{module}' (no type declarations found) |
 | `W1103` | '{name}' is ambient and does not need to be imported from '{module}' |
 | `W1104` | Use the lowercase `any` keyword instead of importing `Any` from typing |
+| `W1105` | Local module '{name}' shadows the npm package of the same name |
 
 ---
 
@@ -448,8 +449,8 @@ Emitted during code generation, formatting, and native compilation.
 
 | Code | Message |
 |------|---------|
-| `E5001` | String literal imports are only supported in client (cl) imports |
-| `E5002` | {import_type} imports are only supported in client (cl) imports |
+| `E5001` | String literal imports are only supported in client-placed imports |
+| `E5002` | {import_type} imports are only supported in client-placed imports |
 | `E5003` | Archetype has no body. Perhaps an impl must be imported. |
 | `E5004` | Abstract ability {name} should not have a body |
 | `E5005` | Ability has no body. Perhaps an impl must be imported. |
@@ -509,8 +510,11 @@ Emitted during code generation, formatting, and native compilation.
 | `E5080` | Argument '{name}' for server function '{func}' is given both positionally and by keyword |
 | `E5081` | Unknown client framework '{framework}' |
 | `E5082` | Client code imports '{name}' from '{module}', but '{name}' has no client-side presence |
+| `E5084` | Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module |
 
-`E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, mark it (or its module) client, or move it into client code.
+`E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, pin it (or its module) `"client"` via `[placement.pins]`, or move it into client code.
+
+`E5084` is the bare-import sibling. A bare name resolves across the module universe -- local Jac module first, then Python, then the client npm world (jac.toml `[dependencies.npm]`, the active framework's own packages, and whatever is installed under `.jac/client/node_modules`), so `import from react { useRef }` works unquoted. When the name resolves to none of those client-reachable worlds, placement pins the import server-side, the bundle never binds the symbol, and the page would fail at runtime with a ReferenceError -- so client use fails the build instead. Install or declare the package in `[dependencies.npm]` (or quote the module to pin the npm form), or keep the use server-side behind a `def:pub` endpoint. Annotation-only uses do not fire it, since ES output erases type annotations; imports whose uses are all server-side prune silently as before.
 
 ---
 
@@ -542,7 +546,7 @@ A `def:pub` function in a server-placed module is an HTTP endpoint whose argumen
 | `W6006` | Mutable glob '{name}' is emitted into both the server and the client -- each side gets an independent copy (state fork) |
 | `W6007` | Client code uses server-placed function '{name}' as a value -- function values cannot cross the placement boundary |
 
-`W6006`: dual emission duplicates *state*, not just code -- server writes and client writes land in different copies of the glob. Home the glob with its writers by marking it (or its module) `sv` or `cl`, or bridge reads through a `def:pub` accessor.
+`W6006`: dual emission duplicates *state*, not just code -- server writes and client writes land in different copies of the glob. Home the glob with its writers by pinning it (or its module) in `jac.toml` -- `[placement.pins] "mod.the_glob" = "server"` (or `"client"`) -- or bridge reads through a `def:pub` accessor.
 
 `W6007`: the value-flow generalization of `W6005`. A function reference that flows into client-side data (stored in a container, returned, or passed along as an argument) needs client presence; only *calls* to `def:pub` endpoints bridge over RPC. Drop `:pub` so the function is pulled client-side, or restructure so the client stores data instead of the function. See [Placement](placement.md) for the full model.
 

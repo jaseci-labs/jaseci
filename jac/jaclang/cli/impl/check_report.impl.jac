@@ -213,27 +213,4 @@ impl print_placement_report(rows_by_module: dict) -> None {
             }
         }
     }
-    import from jaclang.jac0core.placement {
-        diff_rows_vs_lock,
-        load_placement_lock,
-        placement_lock_file_for
-    }
-    import os;
-    first_path = sorted(rows_by_module.keys())[0];
-    lock_path = placement_lock_file_for(first_path);
-    locked = load_placement_lock(lock_path);
-    if locked is not None {
-        flips = diff_rows_vs_lock(
-            rows_by_module, locked, os.path.dirname(os.path.abspath(lock_path))
-        );
-        console.print("");
-        if flips {
-            console.print(f"placement flips vs {lock_path}:");
-            for flip in flips {
-                console.print("  " + flip);
-            }
-        } else {
-            console.print(f"placements stable vs {lock_path}");
-        }
-    }
 }

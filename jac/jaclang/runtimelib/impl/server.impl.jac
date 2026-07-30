@@ -680,7 +680,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
             } except Exception {
                 continue;
             }
-            if not (src and src.endswith(('.jac', '.cl.jac'))) {
+            if not (src and src.endswith(('.jac', '.jac'))) {
                 continue;
             }
             prov = Jac.program.find_module(src);
@@ -903,8 +903,8 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
         auth = table.get(name, None);
         if auth is None {
             is_pub = ast_node is not None
-            and ast_node?.access is not None
-            and ast_node.access.tag.name == Tok.KW_PUB;
+                and ast_node?.access is not None
+                and ast_node.access.tag.name == Tok.KW_PUB;
             auth = not is_pub;
         }
         return auth;
@@ -1369,9 +1369,9 @@ impl ResponseBuilder._add_cors_headers(handler: BaseHTTPRequestHandler) -> None 
 impl ResponseBuilder._add_custom_headers(handler: BaseHTTPRequestHandler) -> None {
     config = get_config();
     if config
-    and config.environments
-    and "response" in config.environments
-    and "headers" in config.environments["response"] {
+        and config.environments
+        and "response" in config.environments
+        and "headers" in config.environments["response"] {
         for (header_name, header_value) in config.environments["response"][
             "headers"
         ].items() {
@@ -1685,7 +1685,8 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 import logging;
                 import traceback;
                 logging.getLogger('jaclang.serve').error(
-                    f"Unhandled error serving {self.command} {self.path}:\n" + traceback.format_exc()
+                    f"Unhandled error serving {self.command} {self.path}:\n"
+                        + traceback.format_exc()
                 );
                 try {
                     Jac.send_json(self, 500, {'error': f"{type(exc).__name__}: {exc}"});
@@ -1717,9 +1718,10 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
 
         def _send_response(self: JacRequestHandler, response: TransportResponse) {
             if isinstance(response, TransportResponse)
-            and (
-                isgenerator(response.data) or isinstance(response.data, AsyncGenerator)
-            ) {
+                and (
+                    isgenerator(response.data)
+                    or isinstance(response.data, AsyncGenerator)
+                ) {
                 self._send_sse_response(response.data);
             } else {
                 transport = HTTPTransport(handler=self);
@@ -1963,7 +1965,8 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 and not path.startswith('/walkers')
                 and not path.startswith('/protected')
                 and (
-                    Path(path).suffix in (
+                    Path(path).suffix
+                    in (
                         custom_asset_extensions
                         or {
                             '.png',
@@ -2007,8 +2010,16 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                     }
                     file_name = Path(relative_path).name;
 
-                    client_build_dist_file = base_path / '.jac' / 'client' / 'dist' / relative_path;
-                    client_build_dist_file_simple = base_path / '.jac' / 'client' / 'dist' / file_name;
+                    client_build_dist_file = base_path
+                        / '.jac'
+                        / 'client'
+                        / 'dist'
+                        / relative_path;
+                    client_build_dist_file_simple = base_path
+                        / '.jac'
+                        / 'client'
+                        / 'dist'
+                        / file_name;
 
                     dist_file = base_path / 'dist' / relative_path;
                     dist_file_simple = base_path / 'dist' / file_name;

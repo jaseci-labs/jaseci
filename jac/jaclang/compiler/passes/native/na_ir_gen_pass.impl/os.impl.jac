@@ -33,7 +33,7 @@ impl NaIRGenPass._emit_os_environ_call(
         if len(params) >= 2 {
             _default_val = self._codegen_expr(params[1]);
             if _default_val is not None
-            and isinstance(_default_val.type, ir.PointerType) {
+                and isinstance(_default_val.type, ir.PointerType) {
                 null_res = self._coerce_type(_default_val, i8p);
 
                 self._emit_take_ref(null_res, op="environ_pop_default", loc="");
@@ -107,7 +107,7 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
         if len(params) >= 2 {
             _default_val = self._codegen_expr(params[1]);
             if _default_val is not None
-            and isinstance(_default_val.type, ir.PointerType) {
+                and isinstance(_default_val.type, ir.PointerType) {
                 null_res = self._coerce_type(_default_val, i8p);
 
                 self._emit_take_ref(null_res, op="getenv_default", loc="");

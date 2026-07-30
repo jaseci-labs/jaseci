@@ -5,7 +5,7 @@ import from .ui.avatar { Avatar, AvatarImage, AvatarFallback }
 import from .ui.button { Button }
 import from .ui.skeleton { Skeleton }
 import from .ui.empty { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription }
-sv import from ..social_graph { Profile }
+import from ..social_graph { Profile }
 
 def:pub ExploreTab(
     allProfiles: list[Profile],
@@ -49,11 +49,12 @@ def:pub ExploreTab(
                         {u.username.split("@")[0] if "@" in u.username else u.username}
                     </div>
                     <div className="text-sm text-muted-foreground truncate">
-                        {"@" + (
-                            u.username.split("@")[0]
-                                if "@" in u.username
-                                else u.username
-                        )}
+                        {"@"
+                            + (
+                                u.username.split("@")[0]
+                                    if "@" in u.username
+                                    else u.username
+                            )}
                     </div>
                     <div className="mt-0.5 line-clamp-2 text-sm text-foreground/80">
                         {u.bio or "No bio yet"}

@@ -117,7 +117,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         }
 
         _needs_osp_kernel = (manifest is not None)
-        and ("osp_kernel" in manifest.native_transitive_sources);
+            and ("osp_kernel" in manifest.native_transitive_sources);
         if (not _needs_osp_kernel) and self._references_undefined_osp_kernel(mod) {
             _needs_osp_kernel = True;
         }
@@ -127,7 +127,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         }
 
         _needs_fmt_kernel = (manifest is not None)
-        and ("fmt_kernel" in manifest.native_transitive_sources);
+            and ("fmt_kernel" in manifest.native_transitive_sources);
         if (not _needs_fmt_kernel) and self._references_undefined_fmt_kernel(mod) {
             _needs_fmt_kernel = True;
         }
@@ -631,9 +631,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     continue;
                 }
                 if func.linkage == _INTERNAL_LINKAGE
-                or func.linkage == _PRIVATE_LINKAGE
-                or func.linkage == _WEAK_LINKAGE
-                or func.linkage == _WEAK_ODR_LINKAGE {
+                    or func.linkage == _PRIVATE_LINKAGE
+                    or func.linkage == _WEAK_LINKAGE
+                    or func.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
                 exported_funcs.append(func.name);
@@ -659,10 +659,10 @@ impl NativeCompilePass._compile_and_link_native_imports(
             exported_globals: list[str] = [];
             for gv in imported_mod.global_variables {
                 if gv.is_declaration
-                or gv.linkage == _INTERNAL_LINKAGE
-                or gv.linkage == _PRIVATE_LINKAGE
-                or gv.linkage == _WEAK_LINKAGE
-                or gv.linkage == _WEAK_ODR_LINKAGE {
+                    or gv.linkage == _INTERNAL_LINKAGE
+                    or gv.linkage == _PRIVATE_LINKAGE
+                    or gv.linkage == _WEAK_LINKAGE
+                    or gv.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
                 exported_globals.append(gv.name);
@@ -866,11 +866,11 @@ impl NativeCompilePass._references_undefined_fmt_kernel(main_mod: object) -> boo
     try {
         for _fn in main_mod.functions {
             if _fn.is_declaration
-            and (
-                _fn.name.startswith("jac_fmt_")
-                or _fn.name.startswith("_jac_fmt_")
-                or _fn.name == "__jac_glob_init_fmt_kernel"
-            ) {
+                and (
+                    _fn.name.startswith("jac_fmt_")
+                    or _fn.name.startswith("_jac_fmt_")
+                    or _fn.name == "__jac_glob_init_fmt_kernel"
+                ) {
                 return True;
             }
         }

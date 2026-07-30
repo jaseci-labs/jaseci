@@ -8,8 +8,6 @@ glob PLACEMENT_SCHEMA: int = 1,
      PLACEMENT_SV_SIGNAL_NODES: tuple = (
          uni.TypedCtxBlock,
          uni.PyInlineCode,
-         uni.ClientBlock,
-         uni.ServerBlock,
          uni.JsxElement
      );
 
@@ -163,26 +161,6 @@ def element_display_name(stmt: uni.UniNode) -> str {
     return f"<{type(stmt).__name__}>";
 }
 
-def _pinned_of(stmt: uni.UniNode) -> str {
-    if not isinstance(stmt, uni.ContextAwareNode) {
-        return '';
-    }
-    tok = stmt._source_context_token();
-    if tok is None {
-        return '';
-    }
-    if tok.name == Tok.KW_CLIENT {
-        return 'client';
-    }
-    if tok.name == Tok.KW_SERVER {
-        return 'server';
-    }
-    if tok.name == Tok.KW_NATIVE {
-        return 'native';
-    }
-    return '';
-}
-
 def _is_pub_element(stmt: uni.UniNode) -> bool {
     return (
         isinstance(stmt, (uni.Ability, uni.GlobalVars, uni.Archetype, uni.Enum))
@@ -209,7 +187,7 @@ def _resolve_import_path(nd: (uni.ModulePath | uni.ModuleItem)) -> (str | None) 
 
 def _fill_import_facts(es: ElementSummary, imp: uni.Import) {
     es.import_eco = imp.ecosystem;
-    es.sv_import = imp.is_sv_marked or imp.is_na_marked;
+    es.sv_import = imp.is_service_import;
     if imp.from_loc is not None {
         for item in imp.items {
             if isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name) {
@@ -247,7 +225,17 @@ def _element_reqs(stmt: uni.UniNode) -> list {
         } elif eco == 'virtual' {
             reqs.append(['NPM', 'virtual @jac import']);
         } elif eco == 'py' {
-            reqs.append(['PY', 'python import']);
+            npm_dep = False;
+            if isinstance(stmt, uni.Import) and stmt.from_loc is not None {
+                import from jaclang.jac0core.modresolver { is_client_npm_import }
+                mod_path = stmt.loc.mod_path or '';
+                npm_dep = is_client_npm_import(stmt.from_loc.dot_path_str, mod_path);
+            }
+            if npm_dep {
+                reqs.append(['NPM', 'npm dependency']);
+            } else {
+                reqs.append(['PY', 'python import']);
+            }
         }
         return reqs;
     }
@@ -274,7 +262,7 @@ def _element_reqs(stmt: uni.UniNode) -> list {
         }
     }
     if isinstance(stmt, uni.Ability)
-    and isinstance(stmt.signature, uni.EventSignature) {
+        and isinstance(stmt.signature, uni.EventSignature) {
         reqs.append(['SERVER', 'event ability outside an archetype']);
     }
     if _is_pub_element(stmt) {
@@ -436,7 +424,23 @@ def _references_browser_seed_global(elem: uni.UniNode) -> str {
 }
 
 def module_anchor_reasons(module: uni.Module) -> list[str] {
+    import from jaclang.jac0core.placement_pins { config_module_pin }
     reasons: list[str] = [];
+    mod_path = module.loc.mod_path or '';
+    if config_module_pin(mod_path) == 'server' {
+        reasons.append('config pin');
+    }
+    if mod_path {
+        import os;
+        import from jaclang.jac0core.service_cut { is_service_module_stem }
+        stem = os.path.basename(mod_path);
+        if stem.endswith('.jac') {
+            stem = stem[:-4];
+        }
+        if is_service_module_stem(mod_path, stem) {
+            reasons.append('declared service');
+        }
+    }
     for arch in module.get_all_sub_nodes(uni.Archetype) {
         if arch.arch_kind is not None {
             reasons.append(f"graph archetype '{arch.name.value}'");
@@ -447,15 +451,12 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
         reasons.append('inline ::py:: block');
     }
     for stmt in module.body {
-        if isinstance(stmt, uni.ServerBlock) {
-            reasons.append('sv block');
-            break;
-        }
         if isinstance(stmt, uni.TypedCtxBlock) {
             reasons.append('typed context block');
             break;
         }
     }
+    import from jaclang.jac0core.modresolver { is_client_npm_import }
     for imp in module.get_all_sub_nodes(uni.Import) {
         if imp.has_clib_decls or imp.is_virtual_jac or imp.has_string_path {
             continue;
@@ -463,6 +464,9 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
         if imp.from_loc is None {
             reasons.append('plain python import');
             break;
+        }
+        if is_client_npm_import(imp.from_loc.dot_path_str, mod_path) {
+            continue;
         }
         resolved = None;
         try {
@@ -516,11 +520,13 @@ def scan_native_blockers(
             }
         }
     }
+    scan_mod_path = module.loc.mod_path or '';
     for stmt in module.body {
-        if isinstance(stmt, uni.ContextAwareNode) {
-            tok = stmt._source_context_token();
-            if tok is not None and tok.name in (Tok.KW_SERVER, Tok.KW_CLIENT) {
-                return ("explicit sv/cl marker", deps);
+        if isinstance(stmt, uni.ContextAwareNode) and scan_mod_path {
+            import from jaclang.jac0core.placement_pins { config_pin_for }
+            pin = config_pin_for(scan_mod_path, element_display_name(stmt));
+            if pin in ('server', 'client') {
+                return ("explicit sv/cl pin", deps);
             }
         }
 
@@ -562,9 +568,9 @@ def scan_native_blockers(
                             _resolve_import_path(item),
                             not imp.is_absorb,
                             not imp.is_absorb
-                            and item.alias is None
-                            and item.path is not None
-                            and len(item.path) == 1
+                                and item.alias is None
+                                and item.path is not None
+                                and len(item.path) == 1
                         )
                     );
                 }
@@ -583,9 +589,13 @@ def scan_native_blockers(
                     return (f"non-native import '{clean}'", deps);
                 }
             }
-            if path is not None
-            and (path.endswith('.cl.jac') or path.endswith('.sv.jac')) {
-                return ("cl/sv module import", deps);
+            if path is not None {
+                import from jaclang.jac0core.placement_pins {
+                    config_module_pin as _cmp
+                }
+                if _cmp(path) == 'client' {
+                    return ("client module import", deps);
+                }
             }
             if path is not None and path.endswith('.jac') {
                 deps.append(os.path.abspath(path));
@@ -598,9 +608,8 @@ def scan_native_blockers(
                 continue;
             }
             if clean
-            and resolve_native_module(clean, base_dir, allow_inferred=False)[
-                1
-            ] is not None {
+                and resolve_native_module(clean, base_dir, allow_inferred=False)[1]
+                    is not None {
                 continue;
             }
             return (f"unresolved import '{clean}'", deps);
@@ -633,7 +642,11 @@ def summarize_module(module: uni.Module, with_refs: bool = True) -> PlacementSum
         es.index = idx;
         es.kind = type(stmt).__name__;
         es.name = element_display_name(stmt);
-        es.pinned = _pinned_of(stmt);
+        es.pinned = '';
+        if ps.mod_path {
+            import from jaclang.jac0core.placement_pins { config_pin_for }
+            es.pinned = config_pin_for(ps.mod_path, es.name);
+        }
         es.is_pub = _is_pub_element(stmt);
         es.reqs = _element_reqs(stmt);
         if isinstance(stmt, uni.Import) {
@@ -746,7 +759,7 @@ def collect_placement_rows(prog: any) -> dict {
             notes: list[str] = [];
             if es is not None {
                 if es.pinned {
-                    notes.append(f"explicit '{es.pinned}' marker");
+                    notes.append(f"pinned '{es.pinned}' ([placement.pins])");
                 }
                 for req in es.reqs {
                     if len(req) >= 2 {
@@ -813,93 +826,6 @@ def collect_placement_rows(prog: any) -> dict {
         };
     }
     return rows_by_module;
-}
-
-glob PLACEMENT_LOCK_NAME: str = 'jac.placements.lock';
-
-def placement_lock_file_for(mod_path: str) -> str {
-    d = os.path.dirname(os.path.abspath(mod_path));
-    cur = d;
-    while True {
-        if os.path.exists(os.path.join(cur, 'jac.toml')) {
-            return os.path.join(cur, PLACEMENT_LOCK_NAME);
-        }
-        parent = os.path.dirname(cur);
-        if parent == cur {
-            break;
-        }
-        cur = parent;
-    }
-    return os.path.join(d, PLACEMENT_LOCK_NAME);
-}
-
-def load_placement_lock(lock_path: str) -> (dict | None) {
-    if not os.path.exists(lock_path) {
-        return None;
-    }
-    try {
-        with open(lock_path, 'r') as f {
-            data = json.load(f);
-        }
-        if isinstance(data, dict) and data.get('schema') == 1 {
-            return data.get('modules', {});
-        }
-    } except Exception {
-        ;
-    }
-    return None;
-}
-
-def lock_entries_from_rows(rows_by_module: dict, lock_dir: str) -> dict {
-    modules: dict = {};
-    for (path, entry) in rows_by_module.items() {
-        try {
-            rel = os.path.relpath(path, lock_dir);
-        } except ValueError {
-            rel = path;
-        }
-        spaces: dict = {};
-        for row in entry['rows'] {
-            space = 'dual' if row['dual'] else row['space'];
-            rkind = row['kind'];
-            rname = row['name'];
-            spaces[f"{rkind}:{rname}"] = space;
-        }
-        modules[rel] = spaces;
-    }
-    return modules;
-}
-
-def write_placement_lock(lock_path: str, rows_by_module: dict) {
-    lock_dir = os.path.dirname(os.path.abspath(lock_path));
-    payload = {
-        'schema': 1,
-        'modules': lock_entries_from_rows(rows_by_module, lock_dir)
-    };
-    with open(lock_path, 'w') as f {
-        json.dump(payload, f, indent=1, sort_keys=True);
-        f.write('\n');
-    }
-}
-
-def diff_rows_vs_lock(
-    rows_by_module: dict, locked_modules: dict, lock_dir: str
-) -> list[str] {
-    flips: list[str] = [];
-    current = lock_entries_from_rows(rows_by_module, lock_dir);
-    for (rel, spaces) in current.items() {
-        locked = locked_modules.get(rel);
-        if locked is None {
-            continue;
-        }
-        for (key, space) in spaces.items() {
-            was = locked.get(key);
-            if was is not None and was != space {
-                flips.append(f"{rel} :: {key}: {was} -> {space}");
-            }
-        }
-    }
-    return flips;
 }
 
 def get_module_summary(

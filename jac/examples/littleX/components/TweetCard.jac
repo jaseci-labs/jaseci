@@ -17,7 +17,7 @@ import from .ui.alert_dialog {
     AlertDialogCancel
 }
 import from ..lib.utils { cn }
-sv import from ..social_graph { Tweet }
+import from ..social_graph { Tweet }
 
 def:pub TweetCard(
     tweet: Tweet,
@@ -192,9 +192,8 @@ def:pub TweetCard(
                         <div className="flex gap-2" key={c["created_at"]}>
                             <Avatar className="size-7 shrink-0">
                                 <AvatarImage
-                                    src={"https://i.pravatar.cc/150?u=fake@" + c[
-                                        "username"
-                                    ]}
+                                    src={"https://i.pravatar.cc/150?u=fake@"
+                                        + c["username"]}
                                     alt={c["username"]}
                                 />
                                 <AvatarFallback className="text-[0.6rem]">
@@ -219,7 +218,7 @@ def:pub TweetCard(
                             value={commentText}
                             onChange={lambda (e: ChangeEvent) { commentText = e.target.value; }}
                             onKeyDown={lambda (e: KeyboardEvent) { if e.key == "Enter"
-                            and commentText.strip() {
+                                and commentText.strip() {
                                 onComment(jid(tweet), commentText);
                                 commentText = "";
                             }}}
