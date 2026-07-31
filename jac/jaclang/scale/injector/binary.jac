@@ -151,6 +151,11 @@ def _satisfies(version: str, spec: str) -> bool {
 }
 
 
+def version_satisfies(version: str, spec: str) -> bool {
+    return _satisfies(version, spec);
+}
+
+
 def _exact_of(spec: str) -> str {
     clauses = [
         c.strip()

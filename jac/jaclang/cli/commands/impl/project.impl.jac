@@ -1840,6 +1840,30 @@ def _make_sealed_image(
     }
 }
 
+def _toolchain_matches_pin(config: any) -> bool {
+    spec = (config.project.jac_version or "").strip();
+    if not spec {
+        return True;
+    }
+    import from jaclang.cli.cli { jac_version }
+    import from jaclang.scale.injector.binary { version_satisfies }
+
+    running = jac_version();
+    if version_satisfies(running, spec) {
+        return True;
+    }
+    console.error(
+        f"This project pins jac-version \"{spec}\" but this jac is {running}, "
+        "and a sealed bundle is locked to the toolchain that builds it.",
+        hint=(
+            "Build with a jac that satisfies the pin, or update [project] "
+            "jac-version in jac.toml."
+        )
+    );
+    return False;
+}
+
+
 def _bundle_sealed(config: any, output: str) -> int {
     name = config.project.name;
     Path(output).mkdir(parents=True, exist_ok=True);
@@ -2125,6 +2149,9 @@ impl bundle(output: str = "dist", target: str = "wheel", fat: bool = False) -> i
             "No project name in jac.toml",
             hint="Add 'name' under [project] to use jac bundle."
         );
+        return 1;
+    }
+    if target in ("sealed", "jab", "binary") and not _toolchain_matches_pin(config) {
         return 1;
     }
     if target == "sealed" {
