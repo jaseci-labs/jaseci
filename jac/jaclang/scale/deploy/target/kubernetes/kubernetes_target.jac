@@ -4,6 +4,7 @@ import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.models.deployment_result { DeploymentResult }
 import from jaclang.scale.models.resource_status { ResourceStatus, ResourceStatusInfo }
+import from jaclang.scale.models.progress { EventSink, ProgressEvent }
 import from jaclang.scale.observability.logger { Logger }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -56,10 +57,42 @@ obj KubernetesTarget(DeploymentTarget) {
         k8s_config: KubernetesConfig postinit,
         env_list: list = [],
         secrets: dict[str, str] = {},
+        env: dict[str, str] = {},
+        events: (EventSink | None) = None,
         dry_run: bool = False;
 
     def postinit {
         self.k8s_config = self.config;
+    }
+
+    def _emit(
+        phase: str,
+        status: str,
+        message: str,
+        step: str = "",
+        detail: dict[str, any] = {}
+    ) {
+        if self.events {
+            self.events.emit(
+                ProgressEvent(
+                    phase=phase,
+                    step=step,
+                    status=status,
+                    message=message,
+                    detail=detail
+                )
+            );
+        }
+    }
+
+    def _load_cluster_config {
+        try {
+            k8s_cluster_config.load_kube_config(
+                context=(self.k8s_config.kube_context or None)
+            );
+        } except ConfigException {
+            k8s_cluster_config.load_incluster_config();
+        }
     }
 
     def _get_database_init_containers(app_name: str) -> list[dict[(str, Any)]] {
@@ -894,11 +927,7 @@ obj KubernetesTarget(DeploymentTarget) {
             time.sleep(self.k8s_config.aws_nlb_wait);
             nlb_url = None;
             try {
-                try {
-                    k8s_cluster_config.load_kube_config();
-                } except ConfigException {
-                    k8s_cluster_config.load_incluster_config();
-                }
+                self._load_cluster_config();
                 core_v1 = client.CoreV1Api();
 
                 ingress_svc_name = f"{app_name}-ingress-nginx-service";
@@ -982,11 +1011,7 @@ obj KubernetesTarget(DeploymentTarget) {
             }
             details["validate_shared_ingress"] = "Successful";
 
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             apps_v1 = client.AppsV1Api();
             core_v1 = client.CoreV1Api();
             networking_v1 = client.NetworkingV1Api();
@@ -997,6 +1022,9 @@ obj KubernetesTarget(DeploymentTarget) {
 
             self.env_list.append({"name": "K8S_APP_NAME", "value": app_name});
             self.env_list.append({"name": "K8S_NAMESPACE", "value": namespace});
+            for (env_name, env_value) in (self.env or {}).items() {
+                self.env_list.append({"name": env_name, "value": str(env_value)});
+            }
             details["load_env_variables"] = "Successful";
 
             secret_ref_name: str | None = None;
@@ -1661,11 +1689,7 @@ obj KubernetesTarget(DeploymentTarget) {
         }
 
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             apps_v1 = client.AppsV1Api();
             core_v1 = client.CoreV1Api();
             namespace = self.k8s_config.namespace;
@@ -1763,11 +1787,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     def get_status(app_name: str) -> ResourceStatusInfo {
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             apps_v1 = client.AppsV1Api();
             core_v1 = client.CoreV1Api();
             namespace = self.k8s_config.namespace;
@@ -1806,11 +1826,7 @@ obj KubernetesTarget(DeploymentTarget) {
         }
 
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             apps_v1 = client.AppsV1Api();
             namespace = self.k8s_config.namespace;
 
@@ -1838,11 +1854,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     def _get_lb_endpoint(app_name: str) -> (str | None) {
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             namespace = self.k8s_config.namespace;
 
             if self.k8s_config.shared_ingress {
@@ -1877,11 +1889,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     def get_service_url(app_name: str) -> (str | None) {
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             namespace = self.k8s_config.namespace;
 
             if self.k8s_config.domain {
@@ -1925,11 +1933,7 @@ obj KubernetesTarget(DeploymentTarget) {
             self.logger.info(f"Enabling TLS for '{app_name}'...");
         }
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             namespace = self.k8s_config.namespace;
             networking_v1 = client.NetworkingV1Api();
             custom_api = client.CustomObjectsApi();
@@ -2017,11 +2021,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     def get_full_status(app_name: str) -> dict {
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             apps_v1 = client.AppsV1Api();
             core_v1 = client.CoreV1Api();
         } except Exception as e {

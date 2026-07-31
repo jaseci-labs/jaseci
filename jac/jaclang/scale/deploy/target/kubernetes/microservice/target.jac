@@ -69,6 +69,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             );
         }
 
+        self._emit("provision", "start", "Provisioning backends");
         try {
             self._deploy_context = MicroserviceDatabaseProvisioner(
                 k8s_target=self, logger=self.logger, enabled=self.no_image
@@ -76,26 +77,39 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
                 app_name
             );
         } except Exception as e {
+            self._emit("provision", "error", f"database provisioning failed: {e}");
             return DeploymentResult(
                 success=False, message=f"database provisioning failed: {e}"
             );
         }
+        self._emit("provision", "ok", "Backends provisioned");
 
+        self._emit("bundle", "start", "Generating manifests");
         try {
             bundle = self.generate_manifests(app_config);
         } except Exception as e {
+            self._emit("bundle", "error", f"manifest generation failed: {e}");
             return DeploymentResult(
                 success=False, message=f"manifest generation failed: {e}"
             );
         }
+        self._emit(
+            "bundle",
+            "ok",
+            "Manifests generated",
+            detail={"services": len(bundle.get("pod_specs", {}))}
+        );
 
+        self._emit("apply", "start", "Applying manifests to the cluster");
         try {
             self.apply_manifests(bundle);
         } except Exception as e {
+            self._emit("apply", "error", f"manifest apply failed: {e}");
             return DeploymentResult(
                 success=False, message=f"manifest apply failed: {e}", details=bundle
             );
         }
+        self._emit("apply", "ok", "Manifests applied");
 
         observability_err: str = "";
         try {
@@ -103,6 +117,9 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         } except Exception as e {
             observability_err = str(e);
             bundle["observability_error"] = observability_err;
+            self._emit(
+                "observability", "warn", f"observability stack deploy failed: {e}"
+            );
             if self.logger {
                 self.logger.warn(
                     f"Observability stack deploy reported a non-fatal error: {e}",
@@ -111,15 +128,18 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             }
         }
 
+        self._emit("rollout", "start", "Waiting for the fleet to become ready");
         try {
             self._wait_for_fleet_rollout(bundle);
         } except Exception as e {
+            self._emit("rollout", "error", f"fleet did not become ready: {e}");
             return DeploymentResult(
                 success=False,
                 message=f"fleet did not become ready: {e}",
                 details=bundle
             );
         }
+        self._emit("rollout", "ok", "Fleet is ready");
 
         svc_count = len(bundle["pod_specs"]) - 1;
         success_msg = (
@@ -665,7 +685,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         builder = MicroserviceManifestBuilder(
             k8s_config=self.k8s_config,
             secrets=self.secrets,
-            deploy_context=self._deploy_context,
+            deploy_context=self._context_with_env(),
             logger=self.logger,
             no_image=True,
             project_dir=app_config.code_folder,
@@ -675,10 +695,29 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         return builder.generate_manifests(app_config, self.k8s_config.python_image);
     }
 
+    def _context_with_env -> DeployContext {
+        if not self.env {
+            return self._deploy_context;
+        }
+        ctx = DeployContext(
+            env_list=list(self._deploy_context.env_list),
+            init_containers=self._deploy_context.init_containers
+        );
+        present = {entry.get("name") for entry in ctx.env_list};
+        for (env_name, env_value) in self.env.items() {
+            if env_name not in present {
+                ctx.env_list.append({"name": env_name, "value": str(env_value)});
+            }
+        }
+        return ctx;
+    }
+
     def _load_kube_config {
         kubeconfig_failed: bool = False;
         try {
-            k8s_cluster_config.load_kube_config();
+            k8s_cluster_config.load_kube_config(
+                context=(self.k8s_config.kube_context or None)
+            );
         } except ConfigException {
             kubeconfig_failed = True;
         }
