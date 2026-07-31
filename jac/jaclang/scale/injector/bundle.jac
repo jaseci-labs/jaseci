@@ -220,7 +220,8 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
             capture_output=True,
             text=True,
             timeout=600,
-            env=seal_env
+            env=seal_env,
+            cwd=str(stage_root)
         );
         jac_path.unlink();
         if (
@@ -229,7 +230,7 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
         ) {
             raise RuntimeError(
                 f"App seal did not complete, so the deploy cannot produce a "
-                f".jab: {(result.stderr or result.stdout).strip()[-300:]}"
+                f".jab: {(result.stderr or result.stdout).strip()[-2000:]}"
             );
         }
         return stage;
