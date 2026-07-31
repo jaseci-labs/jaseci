@@ -2,7 +2,13 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.7 (Latest Release)
+## jaclang 0.34.8 (Latest Release)
+
+### Bug Fixes
+
+- **Fix: seal with the pod binary's own precompile, not the builder's**: deploying an app whose pinned jac version differs from the builder's own version failed at the app-seal step (`module 'jaclang.jac0core.ext_registry' has no attribute 'is_native_module'`), so no `.jab` was produced. The seal now precompiles with the pod binary that will actually run the app, so a builder on one jac version can deploy apps pinned to another.
+
+## jaclang 0.34.7
 
 ### Bug Fixes
 
