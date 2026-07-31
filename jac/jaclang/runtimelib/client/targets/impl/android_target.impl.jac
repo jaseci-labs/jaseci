@@ -93,11 +93,7 @@ impl AndroidTarget._android_dir(project_dir: Path) -> Path {
     return project_dir / "apps" / "android";
 }
 
-impl AndroidTarget._resolve_android_avd(project_dir: Path) -> str {
-    env_avd = os.environ.get("JAC_ANDROID_AVD", "").strip();
-    if env_avd {
-        return env_avd;
-    }
+impl AndroidTarget._load_android_cfg(project_dir: Path) -> dict {
     try {
         import from jaclang.project.config { JacConfig }
         cfg = JacConfig.load(project_dir / "jac.toml");
@@ -109,11 +105,21 @@ impl AndroidTarget._resolve_android_avd(project_dir: Path) -> str {
         if not isinstance(android_cfg, dict) {
             android_cfg = {};
         }
-        avd = android_cfg.get("avd");
-        if avd {
-            return str(avd).strip();
-        }
-    } except Exception { }
+        return android_cfg;
+    } except Exception {
+        return {};
+    }
+}
+
+impl AndroidTarget._resolve_android_avd(project_dir: Path) -> str {
+    env_avd = os.environ.get("JAC_ANDROID_AVD", "").strip();
+    if env_avd {
+        return env_avd;
+    }
+    avd = self._load_android_cfg(project_dir).get("avd");
+    if avd {
+        return str(avd).strip();
+    }
     return "";
 }
 
@@ -123,22 +129,11 @@ impl AndroidTarget._ensure_adb(project_dir: Path) -> str {
 }
 
 impl AndroidTarget._resolve_package_name(project_dir: Path) -> str {
-    try {
-        import from jaclang.project.config { JacConfig }
-        cfg = JacConfig.load(project_dir / "jac.toml");
-        android_cfg = cfg.get_section("client.android");
-        if not android_cfg {
-            client = cfg.get_section("client") or {};
-            android_cfg = client.get("android") if isinstance(client, dict) else {};
-        }
-        if not isinstance(android_cfg, dict) {
-            android_cfg = {};
-        }
-        pkg = android_cfg.get("package") or android_cfg.get("application_id");
-        if pkg {
-            return str(pkg);
-        }
-    } except Exception { }
+    cfg = self._load_android_cfg(project_dir);
+    pkg = cfg.get("package") or cfg.get("application_id");
+    if pkg {
+        return str(pkg);
+    }
     return "dev.jac.generated";
 }
 
@@ -148,18 +143,9 @@ impl AndroidTarget._resolve_type_check(project_dir: Path) -> bool {
     # jac_to_kotlin lowers specially) are not valid Jac yet — Jac has no
     # extension properties. Projects written in valid Jac can opt in to catch
     # typo'd modifier names / wrong primitive args before Gradle.
-    try {
-        import from jaclang.project.config { JacConfig }
-        cfg = JacConfig.load(project_dir / "jac.toml");
-        android_cfg = cfg.get_section("client.android");
-        if not android_cfg {
-            client = cfg.get_section("client") or {};
-            android_cfg = client.get("android") if isinstance(client, dict) else {};
-        }
-        if isinstance(android_cfg, dict) and android_cfg.get("type_check") {
-            return True;
-        }
-    } except Exception { }
+    if self._load_android_cfg(project_dir).get("type_check") {
+        return True;
+    }
     return False;
 }
 
@@ -426,24 +412,13 @@ impl AndroidTarget.build(
     }
     model.intent.package_name = self._resolve_package_name(project_dir);
 
-    try {
-        import from jaclang.project.config { JacConfig }
-        cfg = JacConfig.load(project_dir / "jac.toml");
-        android_cfg = cfg.get_section("client.android");
-        if not android_cfg {
-            client = cfg.get_section("client") or {};
-            android_cfg = client.get("android") if isinstance(client, dict) else {};
-        }
-        if not isinstance(android_cfg, dict) {
-            android_cfg = {};
-        }
-        if android_cfg.get("app_name") {
-            model.intent.app_name = str(android_cfg["app_name"]);
-        }
-        if android_cfg.get("backend_url") {
-            model.intent.backend_url = str(android_cfg["backend_url"]);
-        }
-    } except Exception { }
+    android_cfg = self._load_android_cfg(project_dir);
+    if android_cfg.get("app_name") {
+        model.intent.app_name = str(android_cfg["app_name"]);
+    }
+    if android_cfg.get("backend_url") {
+        model.intent.backend_url = str(android_cfg["backend_url"]);
+    }
 
     console.print(f"  Emitting Compose project → {android_dir}", style="muted");
     emitter = ComposeEmit(model=model, out_dir=android_dir);

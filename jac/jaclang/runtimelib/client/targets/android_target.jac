@@ -23,6 +23,7 @@ obj AndroidTarget(ClientTarget) {
     def:priv _compile_compose_modules(
         entry_file: Path, project_dir: Path
     ) -> tuple[(any, any)];
+    def:priv _load_android_cfg(project_dir: Path) -> dict;
     def:priv _resolve_type_check(project_dir: Path) -> bool;
     def:priv _android_dir(project_dir: Path) -> Path;
     def:priv _resolve_package_name(project_dir: Path) -> str;
