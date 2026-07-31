@@ -86,7 +86,7 @@ test "bundle writes wheel to a custom output directory" {
 }
 
 
-test "a seal-producing build refuses a jac-version pin this jac cannot satisfy" {
+test "an unsatisfied pin with no matching release fails closed, producing nothing" {
     tmp_path = tempfile.mkdtemp();
     original_cwd = os.getcwd();
     os.chdir(tmp_path);
@@ -106,6 +106,35 @@ test "a seal-producing build refuses a jac-version pin this jac cannot satisfy" 
         assert "jac-version" in output , f"error does not name the pin: {output}";
         jabs = list((Path(tmp_path) / "dist").glob("*.jab"));
         assert not jabs , f"a jab was produced despite the pin: {jabs}";
+    } finally {
+        os.chdir(original_cwd);
+        shutil.rmtree(tmp_path, ignore_errors=True);
+    }
+}
+
+
+test "JAC_NO_TOOLCHAIN_FETCH turns an unsatisfied pin into a plain refusal" {
+    tmp_path = tempfile.mkdtemp();
+    original_cwd = os.getcwd();
+    os.chdir(tmp_path);
+    try {
+        _make_project(tmp_path, jac_version="==0.0.1");
+
+        result = run(
+            ["jac", "build", "--as", "jab", "--no_typecheck"],
+            capture_output=True,
+            text=True,
+            env={** os.environ, "JAC_NO_TOOLCHAIN_FETCH": "1"}
+        );
+
+        assert result.returncode != 0 , (
+            f"build should refuse the unsatisfied pin:\nstdout: {result.stdout}"
+        );
+        output = result.stdout + result.stderr;
+        assert "jac-version" in output , f"error does not name the pin: {output}";
+        assert "Fetching" not in output , (
+            f"fetch attempted despite JAC_NO_TOOLCHAIN_FETCH: {output}"
+        );
     } finally {
         os.chdir(original_cwd);
         shutil.rmtree(tmp_path, ignore_errors=True);

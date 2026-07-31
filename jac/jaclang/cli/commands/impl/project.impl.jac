@@ -1840,27 +1840,107 @@ def _make_sealed_image(
     }
 }
 
-def _toolchain_matches_pin(config: any) -> bool {
+glob _PIN_REEXEC_ENV: str = "JAC_TOOLCHAIN_REEXEC";
+
+
+def _toolchain_pin_gate(
+    config: any, target: str, output: str, fat: bool
+) -> (int | None) {
     spec = (config.project.jac_version or "").strip();
     if not spec {
-        return True;
+        return None;
     }
+    import os;
     import from jaclang.cli.cli { jac_version }
     import from jaclang.scale.injector.binary { version_satisfies }
 
     running = jac_version();
     if version_satisfies(running, spec) {
-        return True;
+        return None;
     }
-    console.error(
+    pinned = (
         f"This project pins jac-version \"{spec}\" but this jac is {running}, "
-        "and a sealed bundle is locked to the toolchain that builds it.",
-        hint=(
-            "Build with a jac that satisfies the pin, or update [project] "
-            "jac-version in jac.toml."
-        )
+        "and a sealed bundle is locked to the toolchain that builds it."
     );
-    return False;
+    if os.environ.get(_PIN_REEXEC_ENV) {
+        console.error(
+            pinned
+                + f" The fetched pinned toolchain still reports {running}; "
+                "refusing to bootstrap again.",
+            hint="Fix [project] jac-version, or install a matching jac."
+        );
+        return 1;
+    }
+    if os.environ.get("JAC_NO_TOOLCHAIN_FETCH") {
+        console.error(
+            pinned,
+            hint=(
+                "Build with a jac that satisfies the pin, or update [project] "
+                "jac-version in jac.toml (JAC_NO_TOOLCHAIN_FETCH disables the "
+                "automatic toolchain fetch)."
+            )
+        );
+        return 1;
+    }
+    return _bundle_under_pinned_toolchain(spec, running, target, output, fat);
+}
+
+
+def _bundle_under_pinned_toolchain(
+    spec: str, running: str, target: str, output: str, fat: bool
+) -> int {
+    import os;
+    import subprocess;
+    import from jaclang.scale.injector.binary { download_host_toolchain }
+
+    console.print(
+        f"  Project pins jac-version \"{spec}\"; this jac is {running}. "
+        "Fetching the pinned toolchain...",
+        style="muted"
+    );
+    try {
+        (version, bin_path) = download_host_toolchain(spec);
+    } except Exception as e {
+        console.error(
+            f"Could not fetch the pinned jac toolchain: {e}",
+            hint=(
+                "Install a jac that satisfies the pin, or update [project] "
+                "jac-version in jac.toml."
+            )
+        );
+        return 1;
+    }
+    console.print(
+        f"  Building with the pinned jac {version} ({bin_path})", style="muted"
+    );
+    env = {
+        k: v
+        for (k, v) in os.environ.items()
+        if k
+            not in (
+                "PYTHONPATH",
+                "PYTHONHOME",
+                "JAC_LLVM_SHIM",
+                "JAC_DEV_SOURCE",
+                "JAC_NO_PRECOMPILE"
+            )
+    };
+    env[_PIN_REEXEC_ENV] = "1";
+    env["JAC_NO_DEV_SOURCE"] = "1";
+    cmd = [
+        str(bin_path),
+        "build",
+        "--as",
+        target,
+        "--output",
+        output,
+        "--no_typecheck"
+    ];
+    if fat {
+        cmd.append("--fat");
+    }
+    result = subprocess.run(cmd, env=env);
+    return int(result.returncode);
 }
 
 
@@ -2151,8 +2231,11 @@ impl bundle(output: str = "dist", target: str = "wheel", fat: bool = False) -> i
         );
         return 1;
     }
-    if target in ("sealed", "jab", "binary") and not _toolchain_matches_pin(config) {
-        return 1;
+    if target in ("sealed", "jab", "binary") {
+        gate_rc = _toolchain_pin_gate(config, target, output, fat);
+        if gate_rc is not None {
+            return gate_rc;
+        }
     }
     if target == "sealed" {
         return _bundle_sealed(config, output);
