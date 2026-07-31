@@ -560,7 +560,8 @@ impl normalize_microservices_config(ms_config: dict[str, any]) -> dict[str, any]
     }
 
     raw_client_entry = client_config.get('entry', None);
-    if raw_client_entry is False {
+
+    if raw_client_entry is False or raw_client_entry == '' {
         resolved_client_entry: str = '';
     } elif raw_client_entry {
         resolved_client_entry: str = str(raw_client_entry);

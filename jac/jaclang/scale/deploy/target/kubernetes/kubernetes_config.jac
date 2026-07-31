@@ -83,7 +83,9 @@ obj KubernetesConfig(BaseConfig) {
         cert_manager_email: str = "",
         service_account_name: str = "",
         ops_console: bool = False,
-        ops_console_mutations: bool = False;
+        ops_console_mutations: bool = False,
+        kube_context: str = "",
+        labels: dict[str, str] = {};
 
     override def to_dict -> dict[str, any] {
         base = super.to_dict();
@@ -162,7 +164,9 @@ obj KubernetesConfig(BaseConfig) {
                 'cert_manager_email': self.cert_manager_email,
                 'service_account_name': self.service_account_name,
                 'ops_console': self.ops_console,
-                'ops_console_mutations': self.ops_console_mutations
+                'ops_console_mutations': self.ops_console_mutations,
+                'kube_context': self.kube_context,
+                'labels': self.labels
             }
         );
         return base;
@@ -254,7 +258,9 @@ obj KubernetesConfig(BaseConfig) {
             cert_manager_email=config.get('cert_manager_email', ''),
             service_account_name=config.get('service_account_name', ''),
             ops_console=config.get('ops_console', False),
-            ops_console_mutations=config.get('ops_console_mutations', False)
+            ops_console_mutations=config.get('ops_console_mutations', False),
+            kube_context=config.get('kube_context', ''),
+            labels=config.get('labels', {})
         );
     }
 }
