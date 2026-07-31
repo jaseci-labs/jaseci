@@ -3,7 +3,23 @@ import os;
 import tarfile;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.scale.injector.bundle { pack_jab }
+import from unittest.mock { MagicMock, patch }
+import jaclang.scale.injector.bundle as bundle_mod;
+import from jaclang.scale.injector.bundle { pack_jab, _precompile_app }
+
+
+glob _seal_call: dict[str, str] = {};
+
+
+def _capture_seal(cmd: list[str], **kw: object) -> MagicMock {
+    # cmd = [pod_jac, "run", <seal script>, <stage_root>, "--seal"]
+    _seal_call["script_text"] = Path(cmd[2]).read_text(encoding="utf-8");
+    _seal_call["script_arg"] = cmd[2];
+    manifest = Path(cmd[3]) / "app" / "_precompiled" / "MANIFEST.json";
+    manifest.parent.mkdir(parents=True, exist_ok=True);
+    manifest.write_text("{}", encoding="utf-8");
+    return MagicMock(returncode=0, stdout="", stderr="");
+}
 
 
 def _mini_app -> str {
@@ -62,4 +78,24 @@ test "a real pod binary seals the app into a .jab (source + _precompiled + manif
         if n.startswith("_precompiled/")
     ];
     assert any([n.endswith("svc.jir") for n in pre]) , pre;
+}
+
+
+test "the seal runs the pod binary's own precompile, not the builder's script" {
+    # A builder deploying a pinned version runs a different-version pod binary.
+    # Handing it the builder's own precompile_bytecode.jac breaks across a
+    # version gap (jaseci-labs/jac#7811); the seal must instead import precompile
+    # from the running pod binary so it stays version-consistent.
+    _seal_call.clear();
+    base = Path(tempfile.mkdtemp(prefix="jac-app-"));
+    (base / "svc.jac").write_text("def:pub ping -> str { return \"pong\"; }\n");
+    with patch.object(bundle_mod.subprocess, "run", _capture_seal) {
+        _precompile_app(base, b"fake-pod-binary");
+    }
+    assert (
+        "import from jaclang.utils.precompile_bytecode { main }" in _seal_call[
+            "script_text"
+        ]
+    );
+    assert not _seal_call["script_arg"].endswith("precompile_bytecode.jac");
 }
