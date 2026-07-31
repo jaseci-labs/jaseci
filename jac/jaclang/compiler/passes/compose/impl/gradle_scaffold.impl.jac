@@ -147,7 +147,7 @@ def _gradle_properties() -> str {
     return (
         "android.useAndroidX=true\n"
         "kotlin.jvm.target.validation.mode=warning\n"
-        "# --- Gradle caching (see ANDROID_COMPOSE_PLAN.md, gradle cache) ---\n"
+        "# --- Gradle caching ---\n"
         "# Reuse task outputs across builds / machines.\n"
         "org.gradle.caching=true\n"
         "# Skip re-evaluating the build scripts when nothing changed.\n"

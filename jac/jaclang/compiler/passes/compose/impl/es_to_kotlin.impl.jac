@@ -1,4 +1,4 @@
-"""estree → kotlin_ast lowering (ANDROID_COMPOSE_IMPL_SPEC §3)."""
+"""estree → kotlin_ast lowering."""
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 

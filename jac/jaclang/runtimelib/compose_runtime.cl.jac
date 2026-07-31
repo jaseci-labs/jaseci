@@ -14,8 +14,8 @@ P0 #3 — typed surface:
   suffix and `x.len` are Kotlin-isms that jac_to_kotlin lowers specially, but
   Jac has no extension properties, so the type checker rejects `int.dp` /
   `list.len`. Until Jac gains extension members, type_check therefore defaults
-  to false and the canonical compose_android example (which uses `.dp`/`.len`)
-  stays unchecked. Components written in valid Jac (no `.dp`/`.len`) can opt in.
+  to false, so code that uses `.dp`/`.len` stays unchecked. Components written
+  in valid Jac (no `.dp`/`.len`) can opt in.
 
 Note on naming: `Modifier` and `Typography` are Kotlin singletons (a value you
 chain from / read members of). Jac can't reuse one name for both a type and a
