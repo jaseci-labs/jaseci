@@ -59,24 +59,6 @@ impl _get_index_anchor -> any {
     return None;
 }
 
-impl _owner_root_for(index_anchor: any, node_anchor: any) -> any {
-    if node_anchor.id == index_anchor.id {
-        return None;
-    }
-    if node_anchor.root {
-        return node_anchor.root;
-    }
-    try {
-        import from jaclang.jac0core.archetype { Root }
-        if isinstance(node_anchor.archetype, Root) {
-            return node_anchor.id;
-        }
-    } except Exception {
-        ;
-    }
-    return None;
-}
-
 impl _type_name(`obj: object) -> str {
     return `type(`obj).__name__;
 }
@@ -111,16 +93,10 @@ impl _index_edge_into(root_anchor: any, source: any, target: any, `edge: any) ->
         _get_type_mro(root_anchor.archetype)
     );
     idx.add_node(
-        source.id,
-        _type_name(source.archetype),
-        _get_type_mro(source.archetype),
-        _owner_root_for(root_anchor, source)
+        source.id, _type_name(source.archetype), _get_type_mro(source.archetype)
     );
     idx.add_node(
-        target.id,
-        _type_name(target.archetype),
-        _get_type_mro(target.archetype),
-        _owner_root_for(root_anchor, target)
+        target.id, _type_name(target.archetype), _get_type_mro(target.archetype)
     );
     idx.add_edge(source.id, target.id, _type_name(`edge.archetype));
     if `edge.is_undirected {
@@ -200,8 +176,7 @@ impl on_node_saved(node_anchor: any) -> None {
     idx.add_node(
         node_anchor.id,
         _type_name(node_anchor.archetype),
-        _get_type_mro(node_anchor.archetype),
-        _owner_root_for(index_anchor, node_anchor)
+        _get_type_mro(node_anchor.archetype)
     );
     index_anchor.set_topology_index(idx);
 }

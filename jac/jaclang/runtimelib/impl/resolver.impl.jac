@@ -183,10 +183,8 @@ impl resolve_hop(
             }
             triple = (hop.edge_type, hop.node_type, hop.direction);
             narrowed = idx.resolve_chain(current_ids, [triple]);
-            if narrowed is not None {
-                _trace_hop('index:set', hop_idx, in_count, len(narrowed), hop);
-                return narrowed;
-            }
+            _trace_hop('index:set', hop_idx, in_count, len(narrowed), hop);
+            return narrowed;
         }
     }
 

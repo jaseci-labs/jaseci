@@ -4,8 +4,6 @@ def _get_root_anchor(anchor: any) -> any;
 
 def _get_index_anchor -> any;
 
-def _owner_root_for(index_anchor: any, node_anchor: any) -> any;
-
 def _type_name(`obj: object) -> str;
 
 def _get_type_mro(`obj: object) -> list[str];
