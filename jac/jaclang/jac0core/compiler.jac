@@ -346,7 +346,7 @@ def hub_module_for_path(path: str, prog: object) -> (uni.Module | None) {
     normalized = os.path.normcase(os.path.realpath(abs_path));
     for (hub_path, hub_mod) in hub.items() {
         if os.path.normcase(os.path.realpath(os.path.abspath(hub_path)))
-        == normalized {
+            == normalized {
             return hub_mod;
         }
     }
