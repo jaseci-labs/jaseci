@@ -1,0 +1,42 @@
+name: Docker retag latest
+
+# Repoint jaseci/jaclang:latest at an already-published version's image by
+# creating a manifest alias -- no rebuild, no asset churn. Recovery tool for
+# backport releases: publishing a patch for an older line (e.g. 0.34.8 after
+# 0.35.0) must not leave :latest on the older version.
+#
+# Usage: dispatch with the version whose image should be :latest (e.g. 0.35.0).
+# The image jaseci/jaclang:<version> must already exist on Docker Hub.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published jaseci/jaclang image version to mark as :latest (e.g. 0.35.0)"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  retag:
+    if: github.repository == 'jaseci-labs/jac'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Point :latest at the version's multi-arch image
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          case "$VERSION" in
+            *[!0-9a-zA-Z.-]*|"") echo "::error::Invalid version: $VERSION"; exit 1 ;;
+          esac
+          docker buildx imagetools inspect "jaseci/jaclang:${VERSION}" >/dev/null
+          docker buildx imagetools create -t jaseci/jaclang:latest "jaseci/jaclang:${VERSION}"
+          echo "jaseci/jaclang:latest -> jaseci/jaclang:${VERSION}"
