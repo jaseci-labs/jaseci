@@ -225,10 +225,12 @@ glob ObjectSpatialFilter: TypeAlias = Callable[[Archetype], bool]
 obj ObjectSpatialDestination {
     has direction: EdgeDir,
         `edge: (Callable[([Archetype], bool)] | None) = None,
-        nd: (Callable[([Archetype], bool)] | None) = None;
+        nd: (Callable[([Archetype], bool)] | None) = None,
+        nd_post: (Callable[([Archetype], bool)] | None) = None;
 
     def edge_filter(arch: Archetype) -> bool;
     def node_filter(arch: Archetype) -> bool;
+    def add_node_post_filter(filt: Callable[([Archetype], bool)]) -> None;
 }
 
 obj ObjectSpatialPath {

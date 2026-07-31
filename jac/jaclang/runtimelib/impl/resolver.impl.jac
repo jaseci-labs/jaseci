@@ -4,6 +4,8 @@ import from jaclang.runtimelib.query_utils {
     _trace_enabled,
     _filter_type_name,
     _filter_has_predicates,
+    _dest_has_node_predicates,
+    _dest_node_type_name,
     _materialize_ids,
     _path_root_anchor
 }
@@ -66,7 +68,7 @@ def _build_hops(path: ObjectSpatialPath) -> list[ChainHop] {
             ChainHop(
                 dest=dest,
                 edge_type=_filter_type_name(dest.`edge),
-                node_type=_filter_type_name(dest.nd),
+                node_type=_dest_node_type_name(dest),
                 direction=dest.direction.value,
             )
         );
@@ -143,7 +145,7 @@ impl resolve_hop(
     slc: (slice | None) = None
 ) -> (set[UUID] | list[UUID]) {
     has_pred = (
-        _filter_has_predicates(hop.dest.nd) or _filter_has_predicates(hop.dest.`edge)
+        _dest_has_node_predicates(hop.dest) or _filter_has_predicates(hop.dest.`edge)
     );
     in_count = len(current_ids);
     if not has_pred and idx is not None {
@@ -226,7 +228,7 @@ impl resolve_path_anchors(
         current = _resolve_prefix(mem, current, chain[:-1], idx);
     }
     last_hop = chain[-1];
-    last_has_post_filter = _filter_has_predicates(last_hop.dest.nd);
+    last_has_post_filter = _dest_has_node_predicates(last_hop.dest);
     post_filter: (Callable[[Archetype], bool] | None) = (
         last_hop.dest.node_filter if last_has_post_filter else None
     );

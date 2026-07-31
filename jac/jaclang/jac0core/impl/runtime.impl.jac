@@ -1085,13 +1085,7 @@ impl JacGraph.refs(
     }
 
     if post_filter is not None and path.destinations {
-        last = path.destinations[-1];
-        if last.nd is None {
-            last.nd = post_filter;
-        } else {
-            orig_nd = last.nd;
-            last.nd = lambda (i: any) { orig_nd(i) and post_filter(i); };
-        }
+        path.destinations[-1].add_node_post_filter(post_filter);
     }
 
     ctx = JacRuntimeInterface.get_context();

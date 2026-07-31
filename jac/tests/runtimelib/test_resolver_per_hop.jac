@@ -14,6 +14,11 @@ import from jaclang.jac0core.archetype {
     ObjectSpatialDestination,
     EdgeDir
 }
+import from jaclang.runtimelib.query_utils {
+    _filter_has_predicates,
+    _dest_has_node_predicates,
+    _dest_node_type_name
+}
 
 
 node R1Hop {
@@ -124,6 +129,71 @@ test "predicate on non-final hop resolves via per-hop walk fallback" {
         # End-to-end via `refs()` produces the same answer.
         leaves = [r->:Hop1:->[?:R1Hop, val>5]->:Hop2:->[?:R2Hop]];
         assert sorted([n.val for n in leaves]) == [60, 70, 80, 90];
+    } finally {
+        ctx.close();
+        set_config(JacConfig());
+    }
+}
+
+
+test "a post-filter keeps its destination off the index fast path" {
+    # The fast path may only run when it can see every filter, so a trailing
+    # post-filter must be visible as structure rather than recovered from
+    # bytecode, and the type filter beside it must stay introspectable.
+    type_filter = lambda (n: any) { isinstance(n, R1Hop); };
+    pred_filter = lambda (n: any) { n.val > 5; };
+    composed = lambda (n: any) { type_filter(n) and pred_filter(n); };
+
+    assert not _filter_has_predicates(type_filter) , "type filter has no predicates";
+    assert _filter_has_predicates(pred_filter) , "field comparison is a predicate";
+    assert _filter_has_predicates(composed) , (
+        "a filter wrapping other filters hides them and must be assumed to "
+        "carry predicates"
+    );
+
+    dest = ObjectSpatialDestination(EdgeDir.OUT, None, type_filter);
+    assert not _dest_has_node_predicates(dest) , "type-only destination is indexable";
+    dest.add_node_post_filter(pred_filter);
+    assert _dest_has_node_predicates(dest) , "post-filter must block the fast path";
+    assert _dest_node_type_name(dest) == 'R1Hop' , (
+        "the type filter must stay introspectable once a post-filter is added"
+    );
+
+    # `[-->][?:T]` arrives as a bare post-filter. It is a type filter, not a
+    # predicate, so it must keep the index fast path and its narrowing type.
+    chained = ObjectSpatialDestination(EdgeDir.OUT);
+    chained.add_node_post_filter(type_filter);
+    assert not _dest_has_node_predicates(chained) , (
+        "a post-filter carrying only a type must stay on the index fast path"
+    );
+    assert _dest_node_type_name(chained) == 'R1Hop' , (
+        "a post-filter's type must still narrow the index"
+    );
+}
+
+
+test "a destination post-filter is applied to the resolved result" {
+    cfg = JacConfig();
+    cfg.run.topology_index = True;
+    set_config(cfg);
+    ctx = ExecutionContext();
+    JacRuntime.set_context(ctx);
+    try {
+        r = root;
+        for i in range(10) {
+            r +>:Hop1:+> R1Hop(val=i);
+        }
+        dest = ObjectSpatialDestination(
+            EdgeDir.OUT, None, lambda (n: any) { isinstance(n, R1Hop); }
+        );
+        dest.add_node_post_filter(lambda (n: any) { n.val > 5; });
+        anchors = resolve_path_anchors(
+            JacRuntime.get_context().mem, ObjectSpatialPath([r], [dest])
+        );
+        vals = sorted([a.archetype.val for a in anchors]);
+        assert vals == [6, 7, 8, 9] , (
+            f"resolver must apply the destination post-filter, got {vals!r}"
+        );
     } finally {
         ctx.close();
         set_config(JacConfig());

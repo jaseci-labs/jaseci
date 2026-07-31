@@ -30,7 +30,21 @@ impl ObjectSpatialDestination.edge_filter(arch: Archetype) -> bool {
 }
 
 impl ObjectSpatialDestination.node_filter(arch: Archetype) -> bool {
-    return (not self.nd or self.nd(arch));
+    if self.nd and not self.nd(arch) {
+        return False;
+    }
+    return (not self.nd_post or self.nd_post(arch));
+}
+
+impl ObjectSpatialDestination.add_node_post_filter(
+    filt: Callable[([Archetype], bool)]
+) -> None {
+    if self.nd_post is None {
+        self.nd_post = filt;
+    } else {
+        prev = self.nd_post;
+        self.nd_post = lambda (i: any) { prev(i) and filt(i); };
+    }
 }
 
 impl ObjectSpatialPath.init(

@@ -475,3 +475,43 @@ test "non-final node predicate in multi-hop chain applies at runtime" {
         set_config(JacConfig());
     }
 }
+
+test "trailing filter after a typed hop is not dropped by the index" {
+    # A trailing `[?pred]` after an in-arrow `[?:Type]` used to be fused with it
+    # into one opaque lambda, which the fast path read as "no type, no
+    # predicate" and answered with every child of the root.
+    cfg = JacConfig();
+    cfg.run.topology_index = True;
+    set_config(cfg);
+    ctx = ExecutionContext();
+    JacRuntime.set_context(ctx);
+    try {
+        r = root;
+        for i in range(10) {
+            r ++> TypeA(val=i);
+        }
+        for i in range(5) {
+            r ++> TypeB(val=i);
+        }
+
+        mixed = sorted([n.val for n in [r-->[?:TypeA]][?val>=5]]);
+        assert mixed == [5, 6, 7, 8, 9] , (
+            f"trailing predicate after a typed hop must filter; "
+            f"got {mixed}, expected [5, 6, 7, 8, 9]"
+        );
+
+        # All three spellings of the same query must agree.
+        nested = sorted([n.val for n in [r-->[?:TypeA, val>=5]]]);
+        chained = sorted([n.val for n in [r-->][?:TypeA][?val>=5]]);
+        assert nested == mixed and chained == mixed , (
+            f"spellings disagree: nested={nested}, chained={chained}, mixed={mixed}"
+        );
+
+        # The type filter alone must still narrow through the index.
+        typed = [r-->[?:TypeA]];
+        assert len(typed) == 10 , f"type-only query regressed, got {len(typed)}";
+    } finally {
+        ctx.close();
+        set_config(JacConfig());
+    }
+}

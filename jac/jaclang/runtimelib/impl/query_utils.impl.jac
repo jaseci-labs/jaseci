@@ -51,9 +51,28 @@ impl _filter_type_name(filt: (Callable[[Archetype], bool] | None)) -> (str | Non
 }
 
 
+impl _wraps_callables(filt: (Callable[[Archetype], bool] | None)) -> bool {
+    cells = filt?.__closure__ or ();
+    for cell in cells {
+        try {
+            val = cell.cell_contents;
+        } except ValueError {
+            continue;
+        }
+        if callable(val) and not isinstance(val, `type) {
+            return True;
+        }
+    }
+    return False;
+}
+
+
 impl _filter_has_predicates(filt: (Callable[[Archetype], bool] | None)) -> bool {
     if filt is None {
         return False;
+    }
+    if _wraps_callables(filt) {
+        return True;
     }
     code = filt?.__code__;
     if code is None {
@@ -65,6 +84,16 @@ impl _filter_has_predicates(filt: (Callable[[Archetype], bool] | None)) -> bool 
         return bool(opcodes & {'LOAD_ATTR', 'COMPARE_OP', 'CONTAINS_OP', 'IS_OP'});
     }
     return _filter_has_predicates_by_code(code);
+}
+
+
+impl _dest_has_node_predicates(dest: ObjectSpatialDestination) -> bool {
+    return (_filter_has_predicates(dest.nd) or _filter_has_predicates(dest.nd_post));
+}
+
+
+impl _dest_node_type_name(dest: ObjectSpatialDestination) -> (str | None) {
+    return _filter_type_name(dest.nd) or _filter_type_name(dest.nd_post);
 }
 
 

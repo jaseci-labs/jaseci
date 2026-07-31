@@ -10,6 +10,7 @@ import from jaclang.jac0core.archetype {
     Anchor,
     Archetype,
     NodeAnchor,
+    ObjectSpatialDestination,
     ObjectSpatialPath
 }
 import from jaclang.runtimelib.memory { Memory }
@@ -19,6 +20,8 @@ glob logger = logging.getLogger(__name__),
          '_trace_enabled',
          '_filter_type_name',
          '_filter_has_predicates',
+         '_dest_has_node_predicates',
+         '_dest_node_type_name',
          '_materialize_ids',
          '_path_root_anchor'
      ];
@@ -73,7 +76,16 @@ def _trace_enabled -> bool;
 def _filter_type_name(filt: (Callable[[Archetype], bool] | None)) -> (str | None);
 
 
+def _wraps_callables(filt: (Callable[[Archetype], bool] | None)) -> bool;
+
+
 def _filter_has_predicates(filt: (Callable[[Archetype], bool] | None)) -> bool;
+
+
+def _dest_has_node_predicates(dest: ObjectSpatialDestination) -> bool;
+
+
+def _dest_node_type_name(dest: ObjectSpatialDestination) -> (str | None);
 
 
 def _materialize_ids(
