@@ -14,7 +14,6 @@ import from jaclang.compiler.passes.compose.compose_view_builder { ComposeViewBu
 import from jaclang.compiler.passes.compose.kotlin_ast { KtLiteral }
 
 impl ComposeGenPass.before_pass -> None {
-    self._view_stack = [];
     self.reactive_vars = set();
     self.lowerer = JacToKotlin(reactive_vars=self.reactive_vars);
     self.view_builder = ComposeViewBuilder(lowerer=self.lowerer);
@@ -49,7 +48,6 @@ impl ComposeGenPass.after_pass -> None {
 }
 
 impl ComposeGenPass.enter_ability(nd: uni.Ability) -> None {
-    self._view_stack.append(None);
     self.intent_session.enter_ability(nd);
 }
 
@@ -102,9 +100,6 @@ impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
     }
 
     self.intent_session.pop_ability_scope();
-    if self._view_stack {
-        self._view_stack.pop();
-    }
 }
 
 impl ComposeGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {

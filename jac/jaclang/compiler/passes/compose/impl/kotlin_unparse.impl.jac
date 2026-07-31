@@ -133,9 +133,6 @@ impl KotlinCodeGenerator.gen_kt_call(nd: kt.KtCall) -> str {
 impl KotlinCodeGenerator.gen_kt_binary(nd: kt.KtBinary) -> str {
     left = self.generate(nd.left);
     right = self.generate(nd.right);
-    if nd.infix_fun {
-        return f"{left} {nd.operator} {right}";
-    }
     return f"{left} {nd.operator} {right}";
 }
 

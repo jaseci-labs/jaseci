@@ -20,8 +20,7 @@ obj ComposeGenPass(UniPass) {
         converter: (ComposeLeafConverter | None) = None,
         lowerer: JacToKotlin = JacToKotlin(),
         view_builder: ComposeViewBuilder = ComposeViewBuilder(),
-        reactive_vars: set[str] = set(),
-        _view_stack: list[(str | None)] = [];
+        reactive_vars: set[str] = set();
 
     def before_pass -> None;
     def after_pass -> None;
