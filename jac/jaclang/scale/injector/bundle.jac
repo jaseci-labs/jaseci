@@ -206,7 +206,12 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
         jac_path = stage_root / ".pod-jac";
         jac_path.write_bytes(pod_binary);
         jac_path.chmod(0o755);
-        script = Path(str(__file__)).parent.parent.parent / "utils" / "precompile_bytecode.jac";
+        script = stage_root / "pod_seal_boot.jac";
+        script.write_text(
+            "import from jaclang.utils.precompile_bytecode { main }\n"
+            "with entry:__main__ { main(); }\n",
+            encoding="utf-8"
+        );
 
         result = subprocess.run(
             [str(jac_path), "run", str(script), str(stage_root), "--seal"],
@@ -215,6 +220,7 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
             timeout=600
         );
         jac_path.unlink();
+        script.unlink();
         if (
             result.returncode != 0
             or not (stage / "_precompiled" / "MANIFEST.json").is_file()
@@ -265,7 +271,12 @@ def _vendor_stage(stage: Path, sanitized_toml: (str | None), pod_binary: bytes) 
     jac_path = stage.parent / ".pod-jac";
     jac_path.write_bytes(pod_binary);
     jac_path.chmod(0o755);
-    script = Path(str(__file__)).parent.parent / "utils" / "vendor_wheels.jac";
+    script = stage.parent / "pod_vendor_boot.jac";
+    script.write_text(
+        "import from jaclang.scale.utils.vendor_wheels { main }\n"
+        "with entry:__main__ { main(); }\n",
+        encoding="utf-8"
+    );
     try {
         result = subprocess.run(
             [str(jac_path), "run", str(script), str(stage)],
@@ -275,6 +286,7 @@ def _vendor_stage(stage: Path, sanitized_toml: (str | None), pod_binary: bytes) 
         );
     } finally {
         jac_path.unlink(missing_ok=True);
+        script.unlink(missing_ok=True);
     }
     if (result.returncode != 0 or not (stage / "_vendor" / "VENDOR.json").is_file()) {
         raise RuntimeError(
