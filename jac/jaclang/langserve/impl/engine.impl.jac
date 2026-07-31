@@ -439,25 +439,25 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
             sym_node = sym_node.name_of;
         }
         access = (sym_node.sym.access.value + ' ') if sym_node.sym else None;
-        node_info = f"'('{(access or '')}{sym_node.sym_category.value}') '{sym_node.sym_name}";
+        node_info = f"({(access or '')}{sym_node.sym_category.value}) {sym_node.sym_name}";
 
         if not isinstance(sym_node, uni.Ability) {
             if sym_node?.type and sym_node.type {
-                node_info += f"': '{sym_node.type}";
+                node_info += f": {sym_node.type}";
             } elif sym_node.name_spec.clean_type {
-                node_info += f"': '{sym_node.name_spec.clean_type}";
+                node_info += f": {sym_node.name_spec.clean_type}";
             } elif (
                 isinstance(sym_node, uni.AstSymbolNode)
                 and isinstance(sym_node.name_spec.type, ClassType)
             ) {
-                node_info += f"': '{sym_node.name_spec.type.shared.class_name}";
+                node_info += f": {sym_node.name_spec.type.shared.class_name}";
             }
         }
         if sym_node.sym and (doc := doc_of_sym(sym_node.sym)) {
-            node_info += f"'\n'{doc}";
+            node_info += f"\n{doc}";
         }
         if isinstance(sym_node, uni.Ability) and sym_node.signature {
-            node_info += f"'\n'{sym_node.signature.unparse()}";
+            node_info += f"\n{sym_node.signature.unparse()}";
         }
         try {
             top: (uni.UniNode | None) = sym_node;
@@ -475,13 +475,13 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
                     tags.append('dual');
                 }
                 tags.append('inferred');
-                node_info += f"'\n'placement: {space} ({', '.join(tags)})";
+                node_info += f"\nplacement: {space} ({', '.join(tags)})";
             }
         } except Exception {
             ;
         }
     } except AttributeError as e {
-        self.log_warning(f"'Attribute error when accessing node attributes: '{e}");
+        self.log_warning(f"Attribute error when accessing node attributes: {e}");
     }
     return node_info.strip() if node_info else None;
 }
@@ -840,7 +840,7 @@ impl JacLangServer.get_completion(
         }
         return lspt.CompletionList(is_incomplete=False, items=[]);
     } except Exception as e {
-        self.log_py(f"'Error during completion: '{e}");
+        self.log_py(f"Error during completion: {e}");
         return lspt.CompletionList(is_incomplete=False, items=[]);
     }
 }
@@ -877,7 +877,7 @@ impl JacLangServer.update_modules(
     need: bool = True,
     files: (list[str] | None) = None
 ) -> None {
-    self.log_py(f"'Updating modules for '{file_path}");
+    self.log_py(f"Updating modules for {file_path}");
     with self._state_lock.write_lock() {
         self.module_manager.update(file_path, build, update_annexed=need, files=files);
     }
