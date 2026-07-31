@@ -6,7 +6,7 @@ import zlib;
 import from pathlib { Path }
 
 glob MAGIC = b"JIR\x00",
-     FORMAT_VERSION: int = 15,
+     FORMAT_VERSION: int = 17,
      HEADER_SIZE: int = 32,
      HEADER_FMT: str = "<4sHHIIIIII",
      EXTERNAL_REF: int = 0xFFFFFF,
@@ -19,6 +19,7 @@ glob MAGIC = b"JIR\x00",
      SEC_SYMINDEX: int = 0x07,
      SEC_MODKEY: int = 0x08,
      SEC_DEBUG_SRC: int = 0x09,
+     SEC_PLACEMENT: int = 0x0A,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -112,17 +113,12 @@ def compute_content_sha256(file_path: str) -> str {
 }
 
 def _related_files(source_path: str) -> list[tuple[str, str]] {
-    import from jaclang.jac0core.bccache {
-        discover_annex_files,
-        discover_variant_files,
-        discover_style_annex
-    }
+    import from jaclang.jac0core.bccache { discover_annex_files, discover_style_annex }
     src = Path(source_path).resolve();
     base_dir = src.parent;
     paths: set = set();
     paths |= set(discover_annex_files(str(src), '.impl.jac'));
     paths |= set(discover_annex_files(str(src), '.test.jac'));
-    paths |= set(discover_variant_files(str(src)));
     style = discover_style_annex(str(src));
     if style is not None {
         paths.add(style);
@@ -136,6 +132,15 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
 }
 
 glob _client_kind_probe: dict = {"active": False};
+
+def _module_codespace_mode(source_path: str) -> str {
+    try {
+        import from jaclang.jac0core.codeinfo { effective_default_codespace }
+        return effective_default_codespace();
+    } except Exception {
+        return "server";
+    }
+}
 
 def _module_client_kind(source_path: str) -> str {
     if _client_kind_probe["active"] {
@@ -186,6 +191,11 @@ def compute_module_key(source_path: str) -> str {
     h.update(struct.pack('<H', FORMAT_VERSION));
     h.update(schema_digest().encode());
     h.update(_module_client_kind(source_path).encode());
+    h.update(_module_codespace_mode(source_path).encode());
+    import from jaclang.jac0core.placement_pins { pins_digest }
+    h.update(pins_digest(source_path).encode());
+    import from jaclang.jac0core.service_cut { cut_digest }
+    h.update(cut_digest(source_path).encode());
     h.update(compute_content_sha256(source_path).encode());
     for (rel, digest) in _related_files(source_path) {
         h.update(rel.encode());
@@ -397,11 +407,7 @@ def read_debug_source(data: bytes) -> (str | None) {
 }
 
 def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
-    import from jaclang.jac0core.bccache {
-        discover_annex_files,
-        discover_variant_files,
-        discover_style_annex
-    }
+    import from jaclang.jac0core.bccache { discover_annex_files, discover_style_annex }
     if not cache_path.exists() {
         return False;
     }
@@ -413,11 +419,8 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         }
         cache_mtime = os.path.getmtime(cache_path);
 
-        related = (
-            discover_annex_files(source_path, '.impl.jac') + discover_annex_files(
-                source_path, '.test.jac'
-            ) + discover_variant_files(source_path)
-        );
+        related = discover_annex_files(source_path, '.impl.jac')
+            + discover_annex_files(source_path, '.test.jac');
         style = discover_style_annex(source_path);
         if style is not None {
             related.append(style);

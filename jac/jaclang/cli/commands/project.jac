@@ -56,7 +56,7 @@ glob registry = get_registry();
             "skip",
             typ=bool,
             default=False,
-            help="Skip npm package installation (when creating client kinds: web-app/web-static/mobile)"
+            help="Skip dependency installation (Python + npm); run 'jac install' later"
         ),
         Arg.create(
             "style",
@@ -157,7 +157,7 @@ def create(
     args=[
         Arg.create(
             "packages",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_POSITIONAL,
             default=[],
             help="Package(s) to add to jac.toml and install into the project's venv (.jac/venv)"
         ),
@@ -178,7 +178,7 @@ def create(
         ),
         Arg.create(
             "extras",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_OPTION,
             default=[],
             help="Optional dependency groups to install (e.g. data monitoring)",
             short="x"
@@ -200,7 +200,7 @@ def create(
             "npm",
             typ=bool,
             default=False,
-            help="Install npm (client-side) package(s); with no names, install all npm deps from jac.toml"
+            help="Install npm package(s); with no names, install all npm deps from jac.toml. With --global, install standalone npm CLI tools runnable via 'jac x --global'"
         ),
         Arg.create(
             "shadcn",
@@ -260,7 +260,7 @@ def create(
             "global",
             typ=bool,
             default=False,
-            help="Install into the jac-owned global site (importable from any project), not the project venv",
+            help="Install into the jac-owned global store shared by every project, not the project venv (Python: the global site; with --npm: global npm CLI tools)",
             short="",
             dest="install_global"
         ),
@@ -359,7 +359,10 @@ def install(
     help="Remove a dependency from the project",
     args=[
         Arg.create(
-            "packages", kind=ArgKind.MULTI, default=[], help="Packages to remove"
+            "packages",
+            kind=ArgKind.MULTI_POSITIONAL,
+            default=[],
+            help="Packages to remove"
         ),
         Arg.create(
             "dev",
@@ -395,7 +398,7 @@ def remove(
     args=[
         Arg.create(
             "packages",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_POSITIONAL,
             default=[],
             help="Packages to update (all if empty)"
         ),

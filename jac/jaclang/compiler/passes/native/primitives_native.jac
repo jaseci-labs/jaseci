@@ -1590,10 +1590,14 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
             return p._emit_float_repr(arg_val);
         }
         if isinstance(arg_val.type, ir.PointerType) and arg_val.type == i8p {
-            fmt = p._get_snprintf_fmt("'%s'");
-            fmt_ptr = b.bitcast(fmt, i8p, name="repr.fmt.ptr");
-            b.call(snprintf, [buf_ptr, ir.Constant(i64, 64), fmt_ptr, arg_val]);
-            return buf_ptr;
+            str_repr = b.call(p._repr_str_fn(), [arg_val], name="repr.str");
+            return p._mark_owned(str_repr);
+        }
+        if isinstance(arg_val.type, (ir.PointerType, ir.LiteralStructType)) {
+            cont_s = p._emit_container_repr(arg_val, ctx.type_key or None);
+            if cont_s is not None {
+                return cont_s;
+            }
         }
         return None;
     }
@@ -1819,16 +1823,16 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         base = args[0];
         exp = args[1];
         if len(args) >= 3
-        and isinstance(base.type, ir.IntType)
-        and isinstance(exp.type, ir.IntType)
-        and isinstance(args[2].type, ir.IntType) {
+            and isinstance(base.type, ir.IntType)
+            and isinstance(exp.type, ir.IntType)
+            and isinstance(args[2].type, ir.IntType) {
             return self.emit_pow_mod(ctx, base, exp, args[2]);
         }
         if isinstance(base.type, ir.IntType) and isinstance(exp.type, ir.IntType) {
             return p._codegen_int_pow(base, exp);
         }
         if isinstance(base.type, ir.DoubleType)
-        and isinstance(exp.type, ir.DoubleType) {
+            and isinstance(exp.type, ir.DoubleType) {
             pow_fn = p._get_or_declare_extern(
                 "pow", ir.DoubleType(), [ir.DoubleType(), ir.DoubleType()]
             );

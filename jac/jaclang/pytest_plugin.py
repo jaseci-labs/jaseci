@@ -162,24 +162,31 @@ def pytest_collect_file(
     # run under bun via a separate collector, not this Python one.
     under_test_root = not explicit and _under_test_root(file_path, parent.config)
 
-    # Client (cl) test files run their `test` blocks under bun, not Python.
-    # test_*.cl.jac / *.test.cl.jac -> dedicated client collector.
-    if reg.is_client_module(name):
-        if explicit or name.startswith("test_") or reg.is_client_test(name):
+    name_test = (name.startswith("test_") and reg.is_jac(name)) or reg.is_test(
+        name
+    )
+    if not (explicit or name_test or under_test_root):
+        return None
+
+    # Client test modules run their `test` blocks under bun, not Python. The
+    # module's inferred codespace decides the collector: client placement
+    # (npm string imports / JSX / browser globals) routes to bun.
+    if _module_is_client(file_path):
+        if explicit or name_test:
             return ClJacFile.from_parent(parent, path=file_path)
         return None
 
-    # Collect test_*.jac (pytest convention), *.test.jac (Jac convention), and
-    # any .jac file under a declared [test] root directory.
-    if (
-        explicit
-        or under_test_root
-        or (name.startswith("test_") and reg.is_jac(name))
-        or reg.is_test(name)
-    ):
-        return JacFile.from_parent(parent, path=file_path)
+    return JacFile.from_parent(parent, path=file_path)
 
-    return None
+
+def _module_is_client(file_path: Path) -> bool:
+    """True when the module at *file_path* lives in the client codespace."""
+    try:
+        from jaclang.runtimelib.cl_test_runner import module_is_client
+
+        return bool(module_is_client(str(file_path)))
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -357,9 +364,9 @@ class JacFile(pytest.File):
 
             base_dir = str(Path(filepath).parent)
             # Derive the importable module name via the extension registry's
-            # canonical longest-suffix matcher: a compound codespace suffix
-            # (``foo.na.jac`` / ``foo.sv.jac``) imports as module ``foo``, so a
-            # bare ``Path.stem`` would leave the ``.na`` component and the
+            # canonical longest-suffix matcher: an annex suffix
+            # (``foo.impl.jac``) imports as module ``foo``, so a
+            # bare ``Path.stem`` would leave the ``.impl`` component and the
             # importer would read it as a package path and fail to resolve the
             # file (issue #7150).
             mod_name = reg.base_stem(Path(filepath).name)
@@ -377,7 +384,7 @@ class JacFile(pytest.File):
                 # A test file that fails to import is not an empty result --
                 # swallowing it silently converts a broken test module into a
                 # passing run (issue #7150). When the file was named directly on
-                # the command line (``jac test foo.na.jac``) surface it as a hard
+                # the command line (``jac test foo.jac``) surface it as a hard
                 # collection error, matching pytest's contract for an
                 # unimportable ``test_*.py``, so a broken target can never
                 # masquerade as a pass. During directory recursion, where one
@@ -520,7 +527,7 @@ class JacTestItem(pytest.Item):
 
 
 class ClJacFile(pytest.File):
-    """Collector for ``*.cl.jac`` test files.
+    """Collector for client-codespace test files.
 
     The file's ``test`` blocks compile to JavaScript and execute under bun via
     :mod:`jaclang.runtimelib.cl_test_runner`.  The whole file is compiled and

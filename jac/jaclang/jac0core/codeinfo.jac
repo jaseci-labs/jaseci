@@ -1,6 +1,7 @@
 import hashlib;
 import re;
 import from collections.abc { Sequence }
+import from contextvars { ContextVar }
 import from dataclasses { field }
 import from typing { Any }
 import type from jaclang.compiler.passes.ecmascript.estree { IndexInfo, SliceInfo }
@@ -23,7 +24,9 @@ obj ClientManifest {
         imports: dict[(str, str)] = field(default_factory=`dict),
         endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
         tests: list[dict[(str, str)]] = field(default_factory=`list),
-        server_imports: list[str] = field(default_factory=`list);
+        server_imports: list[str] = field(default_factory=`list),
+        page_export: (str | None) = None,
+        layout_export: (str | None) = None;
 }
 
 enum InteropContext { SERVER = 'server', NATIVE = 'native', CLIENT = 'client' }
@@ -79,7 +82,8 @@ obj NativeFuncLayout {
         ret_type: str = "i64",
         ret_struct_name: (str | None) = None,
         ret_tuple_layout: (NativeTupleLayout | None) = None,
-        ret_enum_type: (str | None) = None;
+        ret_enum_type: (str | None) = None,
+        ret_elem_keys: (list | None) = None;
 }
 
 obj NativeTestLayout {
@@ -94,11 +98,76 @@ def native_test_symbol(name: str, line: int) -> str {
 }
 
 def native_safe_sym(src: str) -> str {
-    if src == "osp_kernel" {
-        return "osp_kernel";
+    if src in ("osp_kernel", "fmt_kernel") {
+        return src;
     }
     safe = re.sub(r'[^a-zA-Z0-9_]', '_', src);
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
+}
+
+glob NATIVE_SUPPORTED_STDLIB: set[str] = {
+         "sys",
+         "math",
+         "time",
+         "os",
+         "random",
+         "struct"
+     },
+     _effective_codespace_ctx: ContextVar[str] = ContextVar(
+         "jac_effective_default_codespace", default=""
+     ),
+     _closure_cap_ctx: ContextVar[int] = ContextVar(
+         "jac_native_closure_cap", default=0
+     );
+
+def set_effective_default_codespace(value: str) {
+    _effective_codespace_ctx.set(value);
+}
+
+def get_effective_default_codespace_override -> str {
+    return _effective_codespace_ctx.get();
+}
+
+def effective_default_codespace -> str {
+    cur = _effective_codespace_ctx.get();
+    if cur {
+        return cur;
+    }
+    try {
+        import from jaclang.project.config { get_config, BuildConfig }
+        cfg = get_config();
+        if cfg is not None {
+            return cfg.build.default_codespace;
+        }
+        return BuildConfig().default_codespace;
+    } except Exception {
+        return "server";
+    }
+}
+
+def set_native_closure_cap(value: int) {
+    _closure_cap_ctx.set(value);
+}
+
+def get_native_closure_cap_override -> int {
+    return _closure_cap_ctx.get();
+}
+
+def effective_native_closure_cap -> int {
+    cur = _closure_cap_ctx.get();
+    if cur > 0 {
+        return cur;
+    }
+    try {
+        import from jaclang.project.config { get_config, BuildConfig }
+        cfg = get_config();
+        if cfg is not None {
+            return cfg.build.native_closure_cap;
+        }
+        return BuildConfig().native_closure_cap;
+    } except Exception {
+        return 256;
+    }
 }
 
 def native_stdlib_root -> (str | None) {
@@ -111,6 +180,47 @@ def native_stdlib_root -> (str | None) {
     return root if os.path.isdir(root) else None;
 }
 
+def is_native_by_location(file_path: str) -> bool {
+    import os;
+    import jaclang;
+    if not file_path or not jaclang?.__file__ {
+        return False;
+    }
+    ap = os.path.abspath(file_path);
+    pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
+    return ap.startswith(os.path.join(pkg, "runtimelib", "na_stdlib") + os.sep);
+}
+
+glob CLIENT_RUNTIME_SOURCE_PATHS: tuple = (
+         ("runtimelib", "client_runtime.jac"),
+         ("runtimelib", "client_runtime_core.jac"),
+         ("runtimelib", "solid_runtime.jac"),
+         ("runtimelib", "pwa_runtime.jac"),
+         ("runtimelib", "wasm_host.jac"),
+         ("runtimelib", "client", "client_mobui.jac"),
+         ("runtimelib", "client", "client_runtime_core.jac"),
+         ("runtimelib", "client", "client_runtime_native.jac"),
+         ("runtimelib", "client", "targets", "desktop", "plugin", "desktop_api.jac"),
+
+     );
+
+
+def is_client_by_location(file_path: str) -> bool {
+    import os;
+    import jaclang;
+    if not file_path or not jaclang?.__file__ {
+        return False;
+    }
+    ap = os.path.abspath(file_path);
+    pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
+    for parts in CLIENT_RUNTIME_SOURCE_PATHS {
+        if ap == os.path.join(pkg, *parts) {
+            return True;
+        }
+    }
+    return False;
+}
+
 def is_bundled_native_module(module_name: str) -> bool {
     import os;
     root = native_stdlib_root();
@@ -118,45 +228,105 @@ def is_bundled_native_module(module_name: str) -> bool {
         return False;
     }
     path_name = module_name.lstrip('.').replace('.', os.sep);
-    return os.path.exists(os.path.join(root, f"{path_name}.na.jac"));
+    return _native_variant_path(os.path.join(root, path_name)) is not None;
+}
+
+def native_target_os -> str {
+    import os;
+    import platform;
+    _t = os.environ.get("JAC_NATIVE_TARGET", "");
+    if _t {
+        if ("darwin" in _t) or ("apple" in _t) {
+            return "darwin";
+        }
+        if ("windows" in _t) or ("msvc" in _t) {
+            return "windows";
+        }
+        return "linux";
+    }
+    _s = platform.system();
+    if _s == "Darwin" {
+        return "darwin";
+    }
+    if _s == "Windows" {
+        return "windows";
+    }
+    return "linux";
+}
+
+def _native_variant_path(base_no_ext: str) -> (str | None) {
+    import os;
+    _osv = os.path.join(f"{base_no_ext}.{native_target_os()}.jac");
+    if os.path.exists(_osv) {
+        return _osv;
+    }
+    _plain = f"{base_no_ext}.jac";
+    if os.path.exists(_plain) {
+        return _plain;
+    }
+    return None;
+}
+
+def _inferred_native_path(candidate: (str | None)) -> (str | None) {
+    if candidate is None {
+        return None;
+    }
+    import from jaclang.jac0core.placement_solver { native_default_path_ok }
+    return candidate if native_default_path_ok(candidate) else None;
 }
 
 def resolve_native_module(
-    module_name: str, base_dir: str
+    module_name: str, base_dir: str, allow_inferred: bool = True
 ) -> tuple[(str | None, str | None)] {
     import os;
     clean = module_name.lstrip('.');
-
-    na_jac = os.path.join(base_dir, f"{clean}.na.jac");
-    if os.path.exists(na_jac) {
-        return (f"{clean}.na", na_jac);
-    }
-
     path_name = clean.replace('.', os.sep);
-    if path_name != clean {
-        search = os.path.abspath(base_dir);
-        while True {
-            cand = os.path.join(search, f"{path_name}.na.jac");
-            if os.path.exists(cand) {
-                rel = os.path.relpath(cand[:-4], os.path.abspath(base_dir));
-                return (rel, cand);
+
+    if allow_inferred {
+        local = _inferred_native_path(
+            _native_variant_path(os.path.join(base_dir, clean))
+        );
+        if local is not None {
+            return (f"{clean}.jac", local);
+        }
+        if path_name != clean {
+            search = os.path.abspath(base_dir);
+            while True {
+                cand = _inferred_native_path(
+                    _native_variant_path(os.path.join(search, path_name))
+                );
+                if cand is not None {
+                    rel = os.path.relpath(cand, os.path.abspath(base_dir));
+                    return (rel, cand);
+                }
+                parent = os.path.dirname(search);
+                if parent == search {
+                    break;
+                }
+                search = parent;
             }
-            parent = os.path.dirname(search);
-            if parent == search {
-                break;
-            }
-            search = parent;
         }
     }
 
     bundled_root = native_stdlib_root();
     if bundled_root is not None {
-        bundled = os.path.join(bundled_root, f"{path_name}.na.jac");
-        if os.path.exists(bundled) {
-            return (f"{path_name}.na", bundled);
+        bundled = _native_variant_path(os.path.join(bundled_root, path_name));
+        if bundled is not None {
+            return (path_name, bundled);
         }
     }
     return (None, None);
+}
+
+def native_wasm_stem(path: str) -> str {
+    import os;
+    stem = os.path.splitext(os.path.basename(path))[0];
+    for marker in ('.cl', ) {
+        if stem.endswith(marker) {
+            stem = stem[0:-len(marker)];
+        }
+    }
+    return stem;
 }
 
 glob NATIVE_ABI_VERSION: int = 1;
@@ -172,10 +342,79 @@ obj NativeModuleLayout {
         tests: list[NativeTestLayout] = field(default_factory=`list);
 }
 
+def _tuple_layout_to_dict(t: (NativeTupleLayout | None)) -> (dict | None) {
+    if t is None {
+        return None;
+    }
+    return {
+        "key": t.key,
+        "element_types": list(t.element_types),
+        "element_struct_hints": list(t.element_struct_hints)
+    };
+}
+
+def _func_layout_to_dict(f: NativeFuncLayout) -> dict {
+    return {
+        "name": f.name,
+        "param_types": list(f.param_types),
+        "param_names": list(f.param_names),
+        "ret_type": f.ret_type,
+        "ret_struct_name": f.ret_struct_name,
+        "ret_tuple_layout": _tuple_layout_to_dict(f.ret_tuple_layout),
+        "ret_enum_type": f.ret_enum_type,
+        "ret_elem_keys": (
+            list(f.ret_elem_keys) if f.ret_elem_keys is not None else None
+        )
+    };
+}
+
+def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
+    return {
+        "abi_version": layout.abi_version,
+        "structs": {
+            name: {
+                "name": s.name,
+                "has_vtable": s.has_vtable,
+                "fields": [
+                    {
+                        "name": fld.name,
+                        "llvm_type": fld.llvm_type,
+                        "index": fld.index,
+                        "enum_type": fld.enum_type,
+                        "is_func_ptr": fld.is_func_ptr,
+                        "func_param_types": (
+                            list(fld.func_param_types)
+                                if fld.func_param_types is not None
+                                else None
+                        ),
+                        "func_ret_type": fld.func_ret_type
+                    } for fld in s.fields
+                ]
+            } for (name, s) in layout.structs.items()
+        },
+        "enums": {
+            name: {
+                "name": e.name,
+                "is_string_valued": e.is_string_valued,
+                "members": list(e.members)
+            } for (name, e) in layout.enums.items()
+        },
+        "functions": {
+            name: _func_layout_to_dict(f) for (name, f) in layout.functions.items()
+        },
+        "methods": {
+            name: _func_layout_to_dict(f) for (name, f) in layout.methods.items()
+        },
+        "list_elem_types": dict(layout.list_elem_types),
+        "tuples": {key: _tuple_layout_to_dict(t) for (key, t) in layout.tuples.items()}
+    };
+}
+
 obj BoundaryTypeInfo {
     has name: str,
         kind: str,
         fields: list[tuple[(str, str)]] = field(default_factory=`list),
+        field_defaults: dict[(str, Any)] = field(default_factory=`dict),
         enum_members: list[tuple[(str, Any)]] = field(default_factory=`list),
         nested_types: list[str] = field(default_factory=`list);
 }
@@ -188,12 +427,9 @@ obj InteropBinding {
         param_types: list[str] = [],
         param_names: list[str] = [],
         ast_node: any = None,
-        route: list[InteropContext] = [],
         source_module: (str | None) = None,
         kind: str = 'function';
 
-    has is_direct: bool { getter; }
-    has is_composed: bool { getter; }
     has is_cross_module: bool { getter; }
 }
 
@@ -206,19 +442,12 @@ obj InteropManifest {
         native_module_imports: dict[(str, NativeModuleInfo)] = field(
             default_factory=`dict
         ),
-        native_transitive_sources: list[str] = field(default_factory=`list),
-        JAC_TO_CTYPES: dict[(str, str)] = field(
-            default_factory=lambda { return {
-                'int': 'ctypes.c_int64',
-                'float': 'ctypes.c_double',
-                'bool': 'ctypes.c_bool',
-                'str': 'ctypes.c_char_p'
-            }; }
-        );
+        native_transitive_sources: list[str] = field(default_factory=`list);
 
     has native_imports: list[InteropBinding] { getter; }
     has native_exports: list[InteropBinding] { getter; }
     has native_cross_module_imports: list[InteropBinding] { getter; }
+    has client_native_imports: list[InteropBinding] { getter; }
     has server_exports_to_client: list[InteropBinding] { getter; }
     has server_exports_to_server: list[InteropBinding] { getter; }
 }
@@ -248,7 +477,6 @@ obj CodeGenTarget {
         _interop_callbacks: list[any] = field(default_factory=`list),
         native_layout: (NativeModuleLayout | None) = None,
         osp_model: (OspModel | None) = None,
-        native_compat: bool = False,
         native_viols_reported: bool = False,
         nogc_enforced: bool = False,
         nogc_provenance: str = '',
