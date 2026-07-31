@@ -1267,6 +1267,7 @@ with entry {
 | `secrets` | `[scale.secrets]` | shipped as the app Secret; no `.env` file needed |
 | `env` | new | plain (non-secret) env vars injected into every service pod |
 | `domain`, `replicas`, `resources`, `autoscaler` | `[scale.kubernetes]` | `resources` takes `cpu_request`/`cpu_limit`/`memory_request`/`memory_limit`; `autoscaler` entries are raw config keys (`max_replicas`, `autoscaler_engine`, ...) |
+| `client` | `[scale.microservices.client]` | web client build: `entry` (path), or `{"entry": False}` for a headless API app |
 | `microservices` | `[scale.microservices]` | `routes`, `services`, `ingress`, ... |
 | `kube_context` | new | kubeconfig context to deploy through; empty = current context, falling back to in-cluster |
 | `labels` | new | stamped on every generated Deployment and Service (platform-owned tags) |

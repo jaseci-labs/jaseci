@@ -19,6 +19,7 @@ obj DeploySpec {
         replicas: int = 1,
         resources: dict[str, str] = {},
         autoscaler: dict[str, any] = {},
+        client: dict[str, any] = {},
         microservices: dict[str, any] = {},
         kube_context: str = '',
         labels: dict[str, str] = {},
@@ -105,6 +106,11 @@ obj DeploySpec {
     def to_microservices_config -> dict[str, any] {
         ms = dict(self.microservices);
         ms['routes'] = dict(ms.get('routes', {}));
+        if self.client {
+            merged_client = dict(ms.get('client', {}));
+            merged_client.update(dict(self.client));
+            ms['client'] = merged_client;
+        }
         services = dict(ms.get('services', {}));
         if self.replicas != 1 {
             import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {

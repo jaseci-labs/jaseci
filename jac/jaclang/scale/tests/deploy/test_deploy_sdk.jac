@@ -100,6 +100,18 @@ test "spec produces a full kubernetes config with no jac.toml involved" {
 }
 
 
+test "client entry false survives re-normalization (headless stays headless)" {
+    import from jaclang.scale.config.config_loader { normalize_microservices_config }
+    spec = DeploySpec(
+        app_name="a", client={"entry": False}, microservices={"routes": {"svc_a": "/a"}}
+    );
+    once = normalize_microservices_config(spec.to_microservices_config());
+    assert once["client"]["entry"] == "";
+    twice = normalize_microservices_config(once);
+    assert twice["client"]["entry"] == "";
+}
+
+
 test "auto target mirrors the CLI: microservice only when routes declared" {
     assert DeploySpec(app_name="a").resolved_target() == "kubernetes";
     assert DeploySpec(
