@@ -210,11 +210,17 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
             / "utils"
             / "precompile_bytecode.jac";
 
+        seal_env = {
+            k: v
+            for (k, v) in os.environ.items()
+            if k not in ("PYTHONPATH", "PYTHONHOME", "JAC_LLVM_SHIM")
+        };
         result = subprocess.run(
             [str(jac_path), "run", str(script), str(stage_root), "--seal"],
             capture_output=True,
             text=True,
-            timeout=600
+            timeout=600,
+            env=seal_env
         );
         jac_path.unlink();
         if (
