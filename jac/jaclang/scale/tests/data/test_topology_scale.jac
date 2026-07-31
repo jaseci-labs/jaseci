@@ -336,8 +336,8 @@ def _topo_run_phase(workdir: str, phase: str) -> str {
     );
     env["PYTHONPATH"] = (
         jac_src
-        if not env.get("PYTHONPATH")
-        else jac_src + os.pathsep + env["PYTHONPATH"]
+            if not env.get("PYTHONPATH")
+            else jac_src + os.pathsep + env["PYTHONPATH"]
     );
     env["JAC_TOPOLOGY_INDEX"] = "1";
     env["PHASE"] = phase;
