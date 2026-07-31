@@ -1,11 +1,47 @@
-import from jaclang.compiler.passes.ecmascript.reactive_intent {
+import from jaclang.compiler.passes.ecmascript.intent.semantics {
     StateField,
     RefField,
     StateUpdate,
     Effect,
     AsyncBoundary
 }
-import from jaclang.compiler.passes.ecmascript.intent.collector { IntentCollector }
+import from jaclang.compiler.passes.ecmascript.intent.es_leaves {
+    IntentExpr,
+    IntentStmt
+}
+import from jaclang.compiler.passes.ecmascript.intent.leaf_converter { EsastLeafConverter }
+import from jaclang.compiler.passes.ecmascript.intent.es_adapter { EsIntentAdapter }
+import from jaclang.compiler.passes.ecmascript.intent.session { IntentSession }
+import from jaclang.compiler.passes.ecmascript.intent.detection {
+    JSX_COMPONENT_TYPES,
+    arch_has_applicable,
+    ref_head_name,
+    return_type_includes,
+    return_type_route_role
+}
+
+impl EsastLeafConverter.convert_expr(nd: uni.UniNode) -> (IntentExpr | None) {
+    if nd.gen.es_ast {
+        return cast(es.Expression, nd.gen.es_ast);
+    }
+    return None;
+}
+
+impl EsastLeafConverter.convert_assignment_value(
+    nd: uni.Assignment, value_nd: (uni.UniNode | None)
+) -> (IntentExpr | None) {
+    if value_nd and value_nd.gen.es_ast {
+        return cast(es.Expression, value_nd.gen.es_ast);
+    }
+    if nd.aug_op {
+        return cast(es.Expression, es.Literal(value=0));
+    }
+    return self.fallback_expr;
+}
+
+impl EsastLeafConverter.convert_stmts(nodes: list[uni.UniNode]) -> list[IntentStmt] {
+    return self.pass_inst._collect_stmt_body(nodes);
+}
 
 impl EsastGenPass._ensure_backend -> None {
     if self.backend is not None {
@@ -186,7 +222,7 @@ impl EsastGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
 impl EsastGenPass.exit_name(nd: uni.Name) -> None {
     if nd.sym_name in self.reactive_vars {
         nd.gen.es_ast = self.sync_loc(
-            self.collector.lower_state_read(nd.sym_name), jac_node=nd
+            self.intent_session.adapter.lower_state_read(nd.sym_name), jac_node=nd
         );
         return;
     }
@@ -1033,38 +1069,11 @@ impl EsastGenPass._resolve_call_ability(nd: uni.FuncCall) -> (uni.Ability | None
 }
 
 impl EsastGenPass._return_type_includes_jsx_element(rt: uni.Expr) -> bool {
-    if (
-        isinstance(rt, uni.BinaryExpr)
-        and isinstance(rt.op, uni.Token)
-        and rt.op.name == Tok.BW_OR
-    ) {
-        return (
-            self._return_type_includes_jsx_element(rt.left)
-            or self._return_type_includes_jsx_element(rt.right)
-        );
-    }
-    return isinstance(rt, uni.Name)
-    and rt.value in ('JsxElement', 'JsxPage', 'JsxLayout');
+    return return_type_includes(rt, JSX_COMPONENT_TYPES);
 }
 
 impl EsastGenPass._return_type_route_role(rt: uni.Expr) -> (str | None) {
-    if (
-        isinstance(rt, uni.BinaryExpr)
-        and isinstance(rt.op, uni.Token)
-        and rt.op.name == Tok.BW_OR
-    ) {
-        left_role = self._return_type_route_role(rt.left);
-        return left_role or self._return_type_route_role(rt.right);
-    }
-    if isinstance(rt, uni.Name) {
-        if rt.value == 'JsxPage' {
-            return 'page';
-        }
-        if rt.value == 'JsxLayout' {
-            return 'layout';
-        }
-    }
-    return None;
+    return return_type_route_role(rt);
 }
 
 impl EsastGenPass._component_pascal_name(nd: uni.Ability) -> (str | None) {
@@ -2031,39 +2040,18 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
     if len(nd.target) == 1 and isinstance(nd.target[0], uni.Name) {
         target_name = nd.target[0].sym_name;
         if target_name in self.reactive_vars {
-            setter_arg: es.Expression;
-            aug_op: (str | None) = None;
-            if nd.aug_op {
-                aug_tok = Tok(nd.aug_op.name)
-                    if (nd.aug_op.name in Tok.__members__)
-                    else None;
-                aug_to_binary: dict[Tok, str] = {
-                    Tok.ADD_EQ: '+',
-                    Tok.SUB_EQ: '-',
-                    Tok.MUL_EQ: '*',
-                    Tok.DIV_EQ: '/',
-                    Tok.MOD_EQ: '%'
-                };
-                binary_op = aug_to_binary.get(aug_tok, '+') if aug_tok else '+';
-                aug_op = binary_op;
-
-                setter_arg = cast(es.Expression, value_expr or es.Literal(value=0));
-            } else {
-                setter_arg = cast(
-                    es.Expression, value_expr or es.Identifier(name='undefined')
+            self.converter.reactive_vars = self.reactive_vars;
+            update = self.intent_session.scan_state_update(nd);
+            if update is not None {
+                setter_call = self.sync_loc(
+                    self.intent_session.lower_state_update(nd, update), jac_node=nd
                 );
+                expr_stmt = self.sync_loc(
+                    es.ExpressionStatement(expression=setter_call), jac_node=nd
+                );
+                nd.gen.es_ast = expr_stmt;
+                return;
             }
-            state_update = StateUpdate(
-                name=target_name, value=setter_arg, aug_op=aug_op
-            );
-            setter_call = self.sync_loc(
-                self.collector.record_state_update(nd, state_update), jac_node=nd
-            );
-            expr_stmt = self.sync_loc(
-                es.ExpressionStatement(expression=setter_call), jac_node=nd
-            );
-            nd.gen.es_ast = expr_stmt;
-            return;
         }
     }
     if nd.aug_op {
@@ -3061,7 +3049,7 @@ impl EsastGenPass.exit_try_stmt(nd: uni.TryStmt) -> None {
             try_expr=try_iife, awaiting_expr=awaiting_iife, except_exprs=except_iifes
         );
         wrapper = self.sync_loc(
-            self.collector.record_async_boundary(nd, async_boundary), jac_node=nd
+            self.intent_session.adapter.lower_async_boundary(nd, async_boundary), jac_node=nd
         );
         outer = self._cur_view_acc();
         if outer is not None {
@@ -3544,7 +3532,7 @@ impl EsastGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
 
     view = self.jsx_processor._view_by_node.get(id(nd));
     if view is not None {
-        self.collector.record_view_symbols(nd, view);
+        self.intent_session.adapter.lower_view_symbols(nd, view);
     }
 }
 
@@ -3602,17 +3590,7 @@ impl EsastGenPass._inject_runtime_import(name: str, nd: uni.UniNode) -> None {
 }
 
 impl EsastGenPass._ref_head_name(expr: (uni.UniNode | None)) -> (str | None) {
-    cur = expr;
-    while True {
-        if isinstance(cur, uni.FuncCall) {
-            cur = cur.target;
-        } elif isinstance(cur, uni.AtomTrailer) {
-            cur = cur.target;
-        } else {
-            break;
-        }
-    }
-    return cur.value if isinstance(cur, uni.Name) else None;
+    return ref_head_name(expr);
 }
 
 impl EsastGenPass._ref_forward_param(nd: uni.Ability) -> (uni.ParamVar | None) {
@@ -3633,12 +3611,13 @@ impl EsastGenPass._ref_forward_param(nd: uni.Ability) -> (uni.ParamVar | None) {
 }
 
 impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
-    inner = self.unwrap_body(nd);
-    body_stmts = self._collect_stmt_body(inner);
+    lowered = self.intent_session.record_and_lower_effect(nd);
+    if lowered {
+        nd.gen.es_ast = self.sync_loc(lowered[0], jac_node=nd);
+    }
+}
 
-    is_entry = nd.signature.event.name == Tok.KW_ENTRY;
-    is_async = nd.is_async;
-
+impl EsastGenPass.effect_deps(nd: uni.Ability) -> list {
     deps_elements: list[es.Expression | es.SpreadElement | None] = [];
     arch_tag = nd.signature.arch_tag_info;
     if arch_tag {
@@ -3652,73 +3631,41 @@ impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
             deps_elements.append(cast(es.Expression, arch_tag.gen.es_ast));
         }
     }
-    effect = Effect(
-        body=body_stmts, deps=deps_elements, is_entry=is_entry, is_async=is_async
-    );
-    lowered = self.collector.record_effect(nd, effect);
-    if lowered {
-        nd.gen.es_ast = self.sync_loc(lowered[0], jac_node=nd);
-    }
+    return deps_elements;
 }
 
 impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
-    owner: (uni.UniNode | None) = nd.parent;
-    while (owner is not None and not isinstance(owner, (uni.Ability, uni.Archetype))) {
-        owner = owner.parent;
-    }
-    if isinstance(owner, uni.Archetype) or not nd.in_client_context() {
+    if not arch_has_applicable(nd, strict_client=True) {
         nd.gen.es_ast = None;
         return;
     }
 
+    null_expr = self.sync_loc(es.Literal(value=None, raw='null'), jac_node=nd);
+    undefined_expr = es.Identifier(name='undefined');
+    self.converter.null_expr = null_expr;
+    self.converter.fallback_expr = undefined_expr;
+    self.converter.reactive_vars = self.reactive_vars;
+
+    scan = self.intent_session.scan_arch_has(nd);
+    if scan is None {
+        nd.gen.es_ast = None;
+        return;
+    }
+
+    for has_var in scan.typed_ref_only {
+        self.emit(E2025, node_override=has_var);
+    }
+
     statements: list[es.Statement] = [];
-    for has_var in nd.vars {
-        var_name = has_var.name.sym_name;
-
-        ref_ctor = (
-            isinstance(has_var.value, uni.FuncCall)
-            and self._ref_head_name(has_var.value) == 'Ref'
-        );
-        ref_typed = (
-            has_var.type_tag is not None
-            and self._ref_head_name(has_var.type_tag.tag) == 'Ref'
-        );
-        if ref_ctor or ref_typed {
-            if ref_typed and not ref_ctor {
-                self.emit(E2025, node_override=has_var);
-            }
-            ref_init: es.Expression = self.sync_loc(
-                es.Literal(value=None, raw='null'), jac_node=has_var
-            );
-            if isinstance(has_var.value, uni.FuncCall) and has_var.value.params {
-                seed = has_var.value.params[0];
-                seed_expr = seed.value if isinstance(seed, uni.KWPair) else seed;
-                if seed_expr.gen.es_ast {
-                    ref_init = cast(es.Expression, seed_expr.gen.es_ast);
-                }
-            }
-            ref_field = RefField(name=var_name, init_expr=ref_init);
-            for stmt in self.collector.record_ref_field(nd, ref_field) {
-                statements.append(self.sync_loc(stmt, jac_node=has_var));
-            }
-            self._register_declaration(var_name);
-            continue;
-        }
-
-        init_value: es.Expression;
-        if has_var.value and has_var.value.gen.es_ast {
-            init_value = cast(es.Expression, has_var.value.gen.es_ast);
-        } else {
-            init_value = es.Identifier(name='undefined');
-        }
-
-        state_field = StateField(name=var_name, init_expr=init_value);
-        for stmt in self.collector.record_state_field(nd, state_field) {
-            statements.append(self.sync_loc(stmt, jac_node=has_var));
-        }
-
-        self.reactive_vars.add(var_name);
-        self._register_declaration(var_name);
+    for stmt in self.intent_session.adapter.apply_arch_has_scan(nd, scan) {
+        statements.append(self.sync_loc(stmt, jac_node=nd));
+    }
+    for r in scan.ref_fields {
+        self._register_declaration(r.name);
+    }
+    for s in scan.state_fields {
+        self.reactive_vars.add(s.name);
+        self._register_declaration(s.name);
     }
     if len(statements) == 1 {
         nd.gen.es_ast = statements[0];
@@ -3755,9 +3702,7 @@ impl EsastGenPass.exit_ability(nd: uni.Ability) -> None {
         self._view_stack.pop();
     }
 
-    if self.reactive_vars_stack {
-        self.reactive_vars = self.reactive_vars_stack.pop();
-    }
+    self.intent_session.pop_ability_scope();
 
     osp_info = self._osp_ability_info(nd);
     if osp_info is not None {
@@ -4442,26 +4387,7 @@ impl EsastGenPass.enter_ability(nd: uni.Ability) -> None {
     }
 
     self._view_stack.append(None);
-    self.reactive_vars_stack.append(self.reactive_vars);
-    self.reactive_vars = set(self.reactive_vars);
-
-    if (
-        nd.code_context == CodeContext.CLIENT
-        and not nd.is_method
-        and isinstance(nd.signature, uni.FuncSignature)
-        and nd.signature.return_type is not None
-        and self._return_type_includes_jsx_element(nd.signature.return_type)
-    ) {
-        name = nd.name_ref.sym_name;
-        self.collector.enter_component(name);
-        # Path for JsxPage screens comes from RouteScanner; only app/App
-        # defaults to "/". Layouts are not screens.
-        if name in ("app", "App") {
-            self.collector.mark_screen(name, True, "/");
-        } elif self._return_type_route_role(nd.signature.return_type) == "page" {
-            self.collector.mark_screen(name, True, None);
-        }
-    }
+    self.intent_session.enter_ability(nd);
 }
 
 impl EsastGenPass.exit_enum(nd: uni.Enum) -> None {
@@ -6413,7 +6339,24 @@ impl EsastGenPass.before_pass -> None {
         if a.name is not None
     };
     self.jsx_processor = EsJsxProcessor(self);
-    self.collector = IntentCollector(self);
+    self.collector = IntentCollector();
+    self.converter = EsastLeafConverter(
+        pass_inst=self,
+        null_expr=es.Identifier(name='undefined'),
+        fallback_expr=es.Identifier(name='undefined'),
+        reactive_vars=self.reactive_vars
+    );
+    self.intent_session = IntentSession(
+        collector=self.collector,
+        adapter=EsIntentAdapter(pass_ref=self, collector=self.collector),
+        converter=self.converter,
+        pass_ref=self,
+        component_types=JSX_COMPONENT_TYPES,
+        strict_arch_has=True,
+        use_arch_has_dedup=False,
+        skip_existing_policy="none",
+        reactive_vars=self.reactive_vars
+    );
 
     self.scoped_styles = load_style_annex(
         self.ir_in.annexable_by or self.ir_in.loc.mod_path

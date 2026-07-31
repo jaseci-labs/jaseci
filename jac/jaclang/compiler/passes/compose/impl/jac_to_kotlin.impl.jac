@@ -2,6 +2,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
+import from jaclang.compiler.passes.ecmascript.intent.detection { assignment_kt_op }
 
 glob _KT_KEYWORDS: set[str] = {
     'as', 'break', 'class', 'continue', 'do', 'else', 'false', 'for', 'fun',
@@ -366,17 +367,6 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
     return _unsupported(f"unsupported {type(nd).__name__}");
 }
 
-def _unwrap_body(nd: uni.Ability) -> (list[uni.UniNode] | None) {
-    body = nd.body;
-    if isinstance(body, uni.ImplDef) {
-        return body.body;
-    }
-    if isinstance(body, list) {
-        return body;
-    }
-    return None;
-}
-
 impl JacToKotlin._lambda_body(nd: uni.LambdaExpr) -> list[kt.KtNode] {
     inner = nd.body;
     if isinstance(inner, uni.ImplDef) {
@@ -409,17 +399,7 @@ impl JacToKotlin.convert_stmt(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         }
         name = nd.target[0].sym_name;
         if name in self.reactive_vars {
-            op = '=';
-            if nd.aug_op and nd.aug_op.name {
-                aug_map = {
-                    Tok.ADD_EQ.name: '+=',
-                    Tok.SUB_EQ.name: '-=',
-                    Tok.MUL_EQ.name: '*=',
-                    Tok.DIV_EQ.name: '/=',
-                    Tok.MOD_EQ.name: '%='
-                };
-                op = aug_map.get(nd.aug_op.name, '=');
-            }
+            op = assignment_kt_op(nd);
             return kt.KtAssignment(
                 operator=op,
                 left=kt.KtIdentifier(name=_kt_id(name)),

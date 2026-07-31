@@ -1,35 +1,17 @@
-import jaclang.compiler.passes.ecmascript.estree as es;
-import from jaclang.compiler.passes.compose.kotlin_ast { KtNode }
-import from typing { TypeAlias }
+"""Backward-compatible ESTree reactive intent types.
 
-glob IntentExpr: TypeAlias = es.Expression | KtNode;
-glob IntentStmt: TypeAlias = es.Statement | KtNode;
-
-obj StateField {
-    has name: str,
-        init_expr: IntentExpr;
+Target-neutral semantics live in intent/semantics.jac. This module re-exports
+them with ESTree leaf aliases for existing JS backend and test imports.
+"""
+import from jaclang.compiler.passes.ecmascript.intent.semantics {
+    IntentLeaf,
+    StateField,
+    RefField,
+    StateUpdate,
+    Effect,
+    AsyncBoundary
 }
-
-obj RefField {
-    has name: str,
-        init_expr: IntentExpr;
-}
-
-obj StateUpdate {
-    has name: str,
-        value: IntentExpr,
-        aug_op: (str | None) = None;
-}
-
-obj Effect {
-    has body: list[IntentStmt],
-        deps: list[IntentExpr],
-        is_entry: bool = True,
-        is_async: bool = False;
-}
-
-obj AsyncBoundary {
-    has try_expr: IntentExpr,
-        awaiting_expr: (IntentExpr | None),
-        except_exprs: list[IntentExpr];
+import from jaclang.compiler.passes.ecmascript.intent.es_leaves {
+    IntentExpr,
+    IntentStmt
 }

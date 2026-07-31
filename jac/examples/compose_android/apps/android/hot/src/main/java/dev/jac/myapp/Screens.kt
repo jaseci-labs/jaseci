@@ -18,24 +18,10 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -191,7 +177,9 @@ private data class JacRouteEntry(val path: String, val fragment: String?)
 @Composable
 fun JacApp(startPath: String = JacRoutes.initialPath, startFragment: String? = null, navigationRequest: Int = 0) {
     val context = LocalContext.current
-    val initialPath = if (JacRoutes.paths.contains(startPath)) startPath else JacRoutes.initialPath
+    val hmr = context.getSharedPreferences("jac-hmr", android.content.Context.MODE_PRIVATE)
+    val restoredPath = hmr.getString("path", null)?.takeIf { JacRoutes.paths.contains(it) }
+    val initialPath = restoredPath ?: (if (JacRoutes.paths.contains(startPath)) startPath else JacRoutes.initialPath)
     val initialFragment = startFragment?.takeIf { JacRoutes.sections[initialPath]?.contains(it) == true }
     var currentEntry by remember { mutableStateOf(JacRouteEntry(initialPath, initialFragment)) }
     var externalUrl by remember { mutableStateOf<String?>(null) }
@@ -234,6 +222,9 @@ fun JacApp(startPath: String = JacRoutes.initialPath, startFragment: String? = n
         navigate("replace", initialPath, initialFragment)
     }
     LaunchedEffect(currentEntry.path) {
+        hmr.edit().putString("path", currentEntry.path).apply()
+    }
+    LaunchedEffect(currentEntry.path) {
         scrollState.scrollTo(0)
     }
     BackHandler(enabled = true) {
@@ -257,48 +248,78 @@ fun HomeScreen(viewportWidth: Dp, scrollState: ScrollState, sectionRegistry: Jac
     var count by remember { mutableStateOf(0) }
     var name by remember { mutableStateOf("") }
     var greeting by remember { mutableStateOf("Tap Say hello") }
-    Column(modifier = Modifier.padding(24.dp)) {
-        Text(text = "Jac → Jetpack Compose", style = MaterialTheme.typography.titleLarge)
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "Counter", style = MaterialTheme.typography.titleMedium)
-            Text(text = (count).toString())
-            Row() {
+    Column() {
+        /* unsupported component: Column */
+        Column() {
+            /* unsupported component: Text */
+            Text(text = "\"Jac → Jetpack Compose\"")
+        }
+        Column() {
+            /* unsupported component: Column */
+            Column() {
+                /* unsupported component: Text */
+                Text(text = "\"Counter\"")
+            }
+            Column() {
+                /* unsupported component: Text */
+                Text(text = (count).toString())
+            }
+            Column() {
+                /* unsupported component: Row */
                 Button(onClick = {
-                    count = count + 1
+                    count = (count + 1)
                 }) {
-                    Text(text = "Increment")
+                    Column() {
+                        /* unsupported component: Text */
+                        Text(text = "\"Increment\"")
+                    }
                 }
                 Button(onClick = {
                     count = 0
                 }) {
-                    Text(text = "Reset")
+                    Column() {
+                        /* unsupported component: Text */
+                        Text(text = "\"Reset\"")
+                    }
                 }
             }
         }
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "Greeting (typed RPC)")
-            OutlinedTextField(value = name, onValueChange = { v -> 
-                name = v
-            }, placeholder = {
-                Text(text = "Your name")
-            })
+        Column() {
+            /* unsupported component: Column */
+            Column() {
+                /* unsupported component: Text */
+                Text(text = "\"Greeting (typed RPC)\"")
+            }
+            Column() {
+                /* unsupported component: OutlinedTextField */
+            }
             Button(onClick = {
                 scope.launch() {
                                     var next_greeting = "Empty response"
                                     try {
-                                            val result = JacClient.greet(GreetRequest(name = name))
-                                            if (result.reports.size > 0) {
+                                            var result = JacClient.greet(GreetRequest(name = name))
+                                            if (result.reports.len > 0) {
                             next_greeting = result.reports[0]
                         }
-                    } catch (e: Exception) {
-                        next_greeting = "Request failed — is jac serve running?"
+                    } catch (__jac_e: Exception) {
+                                            if (true) {
+                            next_greeting = "Request failed — is jac serve running?"
+                        } else {
+                                                    throw __jac_e
+                        }
                     }
                     greeting = next_greeting
                 }
             }) {
-                Text(text = "Say hello")
+                Column() {
+                    /* unsupported component: Text */
+                    Text(text = "\"Say hello\"")
+                }
             }
-            Text(text = (greeting).toString())
+            Column() {
+                /* unsupported component: Text */
+                Text(text = (greeting).toString())
+            }
         }
     }
 }

@@ -11,7 +11,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.material3.MaterialTheme
 import androidx.core.view.WindowCompat
 
 class MainActivity : ComponentActivity() {
@@ -32,9 +31,7 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = useDarkSystemBarIcons
                 }
             }
-            MaterialTheme {
-                JacApp(incomingPath, incomingFragment, incomingRequest)
-            }
+            JacApp(incomingPath, incomingFragment, incomingRequest)
         }
     }
 

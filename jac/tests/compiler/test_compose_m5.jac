@@ -81,9 +81,9 @@ def:pub app -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        comp = model.components["app"];
+        comp = model.intent.components["app"];
         emitter = ComposeNativeEmitter();
-        kt = emitter.emit_component_view(comp);
+        kt = emitter.emit_component_view(model, comp);
         assert "Icon(Icons.Default.Star" in kt;
         assert "<Raw" not in kt;
     }
@@ -104,7 +104,7 @@ def:pub app -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        model.package_name = "dev.jac.test";
+        model.intent.package_name = "dev.jac.test";
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         assert "import androidx.compose.material3.MaterialTheme" in screens;
         assert "MaterialTheme.typography.titleLarge" in screens;
@@ -136,7 +136,7 @@ def:pub app -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        model.package_name = "dev.jac.test";
+        model.intent.package_name = "dev.jac.test";
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         assert "Scaffold(" in screens;
         assert "TopAppBar(" in screens;

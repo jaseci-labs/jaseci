@@ -6,8 +6,8 @@ persists it on every navigation, so a code swap keeps the user on their current
 screen. These tests call emit_jac_app directly on a minimal model (no Gradle,
 no device) to pin the emitted Kotlin contract.
 """
+import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 import from jaclang.compiler.passes.ecmascript.intent.model {
-    IntentModule,
     IntentRoute,
     IntentComponent
 }
@@ -20,9 +20,9 @@ import from pathlib { Path }
 import tempfile;
 
 test "dev emit_jac_app restores and persists the route" {
-    model = IntentModule();
-    model.package_name = "dev.jac.t";
-    model.routes = [
+    model = ComposeModule();
+    model.intent.package_name = "dev.jac.t";
+    model.intent.routes = [
         IntentRoute(path="/", screen_name="HomeScreen", component="app")
     ];
     code = ComposeEmit(model=model, out_dir=Path("/tmp"), dev=True).emit_jac_app();
@@ -37,9 +37,9 @@ test "dev emit_jac_app restores and persists the route" {
 }
 
 test "release emit_jac_app has no HMR persistence" {
-    model = IntentModule();
-    model.package_name = "dev.jac.t";
-    model.routes = [
+    model = ComposeModule();
+    model.intent.package_name = "dev.jac.t";
+    model.intent.routes = [
         IntentRoute(path="/", screen_name="HomeScreen", component="app")
     ];
     code = ComposeEmit(model=model, out_dir=Path("/tmp"), dev=False).emit_jac_app();
@@ -55,8 +55,8 @@ test "release emit_jac_app has no HMR persistence" {
 # diagnostic, never silently emit a lossy Box stub.
 test "DOM IR (comp.view) records a diagnostic, not a silent stub" {
     with tempfile.TemporaryDirectory() as tmp {
-        model = IntentModule();
-        model.package_name = "dev.jac.t";
+        model = ComposeModule();
+        model.intent.package_name = "dev.jac.t";
         comp = IntentComponent(name="app", is_screen=True, route_path="/");
         comp.view = ViewElement(
             tag=HostTag(name="div", jac_node=None),
@@ -64,12 +64,12 @@ test "DOM IR (comp.view) records a diagnostic, not a silent stub" {
             children=[],
             jac_node=None
         );
-        model.components["app"] = comp;
-        model.routes = [
+        model.intent.components["app"] = comp;
+        model.intent.routes = [
             IntentRoute(path="/", screen_name="HomeScreen", component="app")
         ];
         ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
-        joined = "\n".join(model.diagnostics);
+        joined = "\n".join(model.intent.diagnostics);
         assert "DOM IR" in joined;
         assert "app" in joined;
     }
@@ -79,8 +79,8 @@ test "DOM IR (comp.view) records a diagnostic, not a silent stub" {
 # sees a broken/empty-screen project. write() raises and writes no Kotlin.
 test "write() raises on diagnostics and writes no Kotlin sources" {
     with tempfile.TemporaryDirectory() as tmp {
-        model = IntentModule();
-        model.package_name = "dev.jac.t";
+        model = ComposeModule();
+        model.intent.package_name = "dev.jac.t";
         comp = IntentComponent(name="app", is_screen=True, route_path="/");
         comp.view = ViewElement(
             tag=HostTag(name="div", jac_node=None),
@@ -88,8 +88,8 @@ test "write() raises on diagnostics and writes no Kotlin sources" {
             children=[],
             jac_node=None
         );
-        model.components["app"] = comp;
-        model.routes = [
+        model.intent.components["app"] = comp;
+        model.intent.routes = [
             IntentRoute(path="/", screen_name="HomeScreen", component="app")
         ];
         out = Path(tmp) / "android";
@@ -124,7 +124,7 @@ def:pub app -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        model.package_name = "dev.jac.t";
+        model.intent.package_name = "dev.jac.t";
         out = Path(tmp) / "android";
         raised = False;
         try {
@@ -133,7 +133,7 @@ def:pub app -> Composable {
             raised = True;
         }
         assert not raised;
-        assert not model.diagnostics;
+        assert not model.intent.diagnostics;
         assert (out / "app" / "src" / "main" / "java").is_dir();
     }
 }

@@ -21,13 +21,14 @@ def:pub app -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        assert "app" in model.components;
-        comp = model.components["app"];
-        assert comp.compose_view is not None;
-        assert comp.compose_view.name == "Column";
-        assert len(comp.compose_view.children) == 1;
+        assert "app" in model.intent.components;
+        comp = model.intent.components["app"];
+        view = model.compose_view_for("app");
+        assert view is not None;
+        assert view.name == "Column";
+        assert len(view.children) == 1;
         emitter = ComposeNativeEmitter();
-        kt = emitter.emit_component_view(comp);
+        kt = emitter.emit_component_view(model, comp);
         assert "Column(" in kt;
         assert 'Text(text = "hi")' in kt or 'Text("hi")' in kt;
     }
@@ -48,8 +49,8 @@ def:pub app -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        model.package_name = "dev.jac.test";
-        model.routes = [];
+        model.intent.package_name = "dev.jac.test";
+        model.intent.routes = [];
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         assert "@Composable" in screens;
         assert "fun HomeScreen" in screens or "fun appScreen" in screens or "Column(" in screens;
@@ -77,10 +78,11 @@ def:pub Counter() -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        assert "Counter" in model.components;
-        comp = model.components["Counter"];
-        assert comp.compose_view is not None;
-        text_child = comp.compose_view.children[0];
+        assert "Counter" in model.intent.components;
+        comp = model.intent.components["Counter"];
+        view = model.compose_view_for("Counter");
+        assert view is not None;
+        text_child = view.children[0];
         assert hasattr(text_child, "element");
         dynamic = text_child.element.children[0];
         assert is_kt_leaf(dynamic.value);
@@ -107,7 +109,7 @@ def:pub Counter() -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        comp = model.components["Counter"];
+        comp = model.intent.components["Counter"];
         assert len(comp.state) == 2;
         assert comp.state[0].name == "count";
         assert comp.state[1].name == "name";
@@ -183,8 +185,9 @@ def:pub app -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        comp = model.components["app"];
-        btn = comp.compose_view;
+        comp = model.intent.components["app"];
+        btn = model.compose_view_for("app");
+        assert btn is not None;
         on_click: any = None;
         for attr in btn.attrs {
             if attr.name == "onClick" {
@@ -226,7 +229,7 @@ def:pub Counter() -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        model.package_name = "dev.jac.test";
+        model.intent.package_name = "dev.jac.test";
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         assert "val count = count + 1" not in screens;
         assert "val count = 0" not in screens;
@@ -263,7 +266,7 @@ def:pub app -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        model.package_name = "dev.jac.test";
+        model.intent.package_name = "dev.jac.test";
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         assert "rememberCoroutineScope()" in screens;
         assert "scope.launch" in screens;
@@ -305,7 +308,7 @@ def:pub app -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
-        model.package_name = "dev.jac.test";
+        model.intent.package_name = "dev.jac.test";
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         # The non-reactive local is declared exactly once (val if never
         # reassigned, var if it is) and then mutated via bare assignments —

@@ -19,11 +19,26 @@ Override with `JAC_ANDROID_AVD=Other_AVD jac start --client android`.
 
 Requires JDK 17+, `ANDROID_HOME`, and Gradle (or the wrapper generated on first build).
 
-## Dev loop
+## Dev loop (DexClassLoader HMR)
 
-**Android Compose does a full Gradle rebuild on every `jac build` / `jac start` / `jac
-dev`.** There is no DEX hot-reload yet - edit `.jac` sources, then re-run build/start.
-`jac dev --client android` installs once and prints that reminder; it does not watch files.
+`jac start --client android --dev` installs the base host APK once, serves hot
+`classes.dex` over HTTP, and watches `.jac` sources for edits; the on-device
+`JacDevHostActivity` polls and hot-swaps without reinstalling.
+
+```bash
+# pick a free port if 8000 is taken (e.g. jac serve)
+jac start --client android --dev -p 8010
+```
+
+## On-device verification
+
+From the repo root (booted emulator or device required):
+
+```bash
+bash scripts/android_compose_device_e2e.sh
+```
+
+CI runs the same script inside a headless emulator (`test-android-compose-device`).
 
 For typed RPC (`root spawn greet(...)` in the demo), run a Jac API server and point the
 app at it:

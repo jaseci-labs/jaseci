@@ -1,13 +1,14 @@
 """Neutral intent leaf helpers."""
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.compose.kotlin_ast { KtNode }
+import from jaclang.compiler.passes.ecmascript.intent.semantics { IntentLeaf }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     IntentExpr,
     IntentStmt
 }
 import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
 
-impl is_kt_leaf(item: any) -> bool {
+impl is_kt_leaf(item: IntentLeaf) -> bool {
     return isinstance(item, KtNode);
 }
 

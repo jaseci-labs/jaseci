@@ -218,10 +218,10 @@ impl AndroidTarget._attach_interop_manifest(model: any, mod: any) -> None {
     if manifest is None {
         return;
     }
-    if model.interop_manifest is None {
-        model.interop_manifest = manifest;
+    if model.intent.interop_manifest is None {
+        model.intent.interop_manifest = manifest;
     } else {
-        self._merge_interop_manifest(model.interop_manifest, manifest);
+        self._merge_interop_manifest(model.intent.interop_manifest, manifest);
     }
 }
 
@@ -245,14 +245,14 @@ impl AndroidTarget._synthesize_routes_from_screens(model: any) -> None {
         component_screen_name
     }
 
-    if model.routes {
+    if model.intent.routes {
         return;
     }
     seen_paths: set[str] = set();
-    for (cname, comp) in model.components.items() {
+    for (cname, comp) in model.intent.components.items() {
         path = comp.route_path;
         is_home = cname in ("app", "App", "__root__");
-        if not (comp.is_screen or path or (is_home and comp.compose_view is not None)) {
+        if not (comp.is_screen or path or (is_home and model.compose_view_for(cname) is not None)) {
             continue;
         }
         if not path {
@@ -270,7 +270,7 @@ impl AndroidTarget._synthesize_routes_from_screens(model: any) -> None {
         if not sname {
             sname = component_screen_name(cname);
         }
-        model.routes.append(
+        model.intent.routes.append(
             IntentRoute(path=path, screen_name=sname, component=cname)
         );
         comp.is_screen = True;
@@ -326,15 +326,15 @@ impl AndroidTarget._populate_compose_routes(
         return;
     }
 
-    model.routes = [];
+    model.intent.routes = [];
     seen_paths: set[str] = set();
     for route in routes {
         page_mod = self._compile_page_into_model(route.file_path, program, model);
         self._attach_interop_manifest(model, page_mod);
 
         export_name = route.source_export;
-        if export_name and export_name in model.components {
-            comp = model.components[export_name];
+        if export_name and export_name in model.intent.components {
+            comp = model.intent.components[export_name];
             comp.is_screen = True;
             comp.route_path = route.path;
         }
@@ -346,14 +346,14 @@ impl AndroidTarget._populate_compose_routes(
         sname = (
             "HomeScreen" if route.path == "/" else route_to_screen_name(route.path)
         );
-        model.routes.append(
+        model.intent.routes.append(
             IntentRoute(
                 path=route.path, screen_name=sname, component=export_name
             )
         );
     }
 
-    if not model.routes {
+    if not model.intent.routes {
         self._synthesize_routes_from_screens(model);
     }
 }
@@ -361,7 +361,7 @@ impl AndroidTarget._populate_compose_routes(
 impl AndroidTarget._compile_compose_modules(
     entry_file: Path, project_dir: Path
 ) -> tuple {
-    console.print("  Compiling Jac modules (ComposeGenPass → IntentModule)...", style="muted");
+    console.print("  Compiling Jac modules (ComposeGenPass → ComposeModule)...", style="muted");
     import from jaclang.project.config { get_config }
     import from jaclang.compiler.passes.compose.compose_gen_pass { run_compose_gen_pass }
     import from jaclang.jac0core.compiler { get_inference_sched }
@@ -395,11 +395,11 @@ impl AndroidTarget._compile_compose_modules(
     self._attach_interop_manifest(model, mod);
     self._populate_compose_routes(model, project_dir, program);
 
-    n_comp = len(model.components);
-    n_routes = len(model.routes);
+    n_comp = len(model.intent.components);
+    n_routes = len(model.intent.routes);
     n_walkers = 0;
-    if model.interop_manifest is not None {
-        access = getattr(model.interop_manifest, "walker_access", {}) or {};
+    if model.intent.interop_manifest is not None {
+        access = getattr(model.intent.interop_manifest, "walker_access", {}) or {};
         n_walkers = len(access);
     }
     console.print(
@@ -415,16 +415,16 @@ impl AndroidTarget.build(
     entry_file: Path, project_dir: Path, platform: Optional[str] = None
 ) -> Path {
     import from jaclang.compiler.passes.compose.compose_emit { ComposeEmit }
-    import from jaclang.compiler.passes.ecmascript.intent.model { IntentModule }
+    import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 
     android_dir = self._android_dir(project_dir);
     android_dir.mkdir(parents=True, exist_ok=True);
 
     (model, _mod) = self._compile_compose_modules(entry_file, project_dir);
     if model is None {
-        model = IntentModule();
+        model = ComposeModule();
     }
-    model.package_name = self._resolve_package_name(project_dir);
+    model.intent.package_name = self._resolve_package_name(project_dir);
 
     try {
         import from jaclang.project.config { JacConfig }
@@ -438,10 +438,10 @@ impl AndroidTarget.build(
             android_cfg = {};
         }
         if android_cfg.get("app_name") {
-            model.app_name = str(android_cfg["app_name"]);
+            model.intent.app_name = str(android_cfg["app_name"]);
         }
         if android_cfg.get("backend_url") {
-            model.backend_url = str(android_cfg["backend_url"]);
+            model.intent.backend_url = str(android_cfg["backend_url"]);
         }
     } except Exception { }
 
@@ -530,26 +530,26 @@ impl AndroidTarget.dev(
     entry_file: Path, project_dir: Path, port: int = 8000, api_port: int = 0
 ) -> None {
     import from jaclang.compiler.passes.compose.compose_emit { ComposeEmit }
-    import from jaclang.compiler.passes.ecmascript.intent.model { IntentModule }
+    import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 
     android_dir = self._android_dir(project_dir);
     android_dir.mkdir(parents=True, exist_ok=True);
 
     (model, _mod) = self._compile_compose_modules(entry_file, project_dir);
     if model is None {
-        model = IntentModule();
+        model = ComposeModule();
     }
-    model.package_name = self._resolve_package_name(project_dir);
+    model.intent.package_name = self._resolve_package_name(project_dir);
     try {
         import from jaclang.project.config { JacConfig }
         android_cfg = JacConfig.load(project_dir / "jac.toml").get_section(
             "client.android"
         ) or {};
         if android_cfg.get("app_name") {
-            model.app_name = str(android_cfg["app_name"]);
+            model.intent.app_name = str(android_cfg["app_name"]);
         }
         if android_cfg.get("backend_url") {
-            model.backend_url = str(android_cfg["backend_url"]);
+            model.intent.backend_url = str(android_cfg["backend_url"]);
         }
     } except Exception { }
 
@@ -568,7 +568,7 @@ impl AndroidTarget.dev(
     self._adb_reverse_launch(base_apk, project_dir, port);
 
     # 3. Initial hot module dex (infra + screens + JacDevEntry).
-    (version, dex_path) = self._build_hot_dex(android_dir, model.package_name);
+    (version, dex_path) = self._build_hot_dex(android_dir, model.intent.package_name);
     state: dict = {"version": version, "dex_path": str(dex_path)};
     console.success(f"  Hot module v{version}: {dex_path}");
 
@@ -584,7 +584,7 @@ impl AndroidTarget.dev(
     );
 
     # 5. Watch .cl.jac → re-emit → rebuild hot dex → bump version (server serves it).
-    self._watch_hot_reload(entry_file, project_dir, android_dir, model.package_name, state);
+    self._watch_hot_reload(entry_file, project_dir, android_dir, model.intent.package_name, state);
 }
 
 impl AndroidTarget._adb_reverse_launch(
@@ -791,7 +791,7 @@ impl AndroidTarget._watch_hot_reload(
                         entry_file, project_dir
                     );
                     if model is not None {
-                        model.package_name = package_name;
+                        model.intent.package_name = package_name;
                         emitter = ComposeEmit(
                             model=model, out_dir=android_dir, dev=True
                         );

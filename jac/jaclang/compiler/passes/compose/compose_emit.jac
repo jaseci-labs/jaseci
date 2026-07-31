@@ -1,9 +1,9 @@
-"""Orchestrator: IntentModule → Android project directory on disk."""
+"""Orchestrator: ComposeModule → Android project directory on disk."""
 import from pathlib { Path }
-import from jaclang.compiler.passes.ecmascript.intent.model { IntentModule }
+import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 
 obj ComposeEmit {
-    has model: IntentModule,
+    has model: ComposeModule,
         out_dir: Path,
         dev: bool = False;
 

@@ -325,10 +325,13 @@ impl ComposeNativeEmitter.emit_view(view: (ComposeElement | None)) -> str {
     return "\n".join(indented);
 }
 
-impl ComposeNativeEmitter.emit_component_view(comp: IntentComponent) -> str {
-    if comp.compose_view is not None {
-        self._scan_coroutine_need(comp.compose_view);
-        return self.emit_view(comp.compose_view);
+impl ComposeNativeEmitter.emit_component_view(
+    model: ComposeModule, comp: IntentComponent
+) -> str {
+    view = model.compose_view_for(comp.name);
+    if view is not None {
+        self._scan_coroutine_need(view);
+        return self.emit_view(view);
     }
     return self.emit_view(None);
 }

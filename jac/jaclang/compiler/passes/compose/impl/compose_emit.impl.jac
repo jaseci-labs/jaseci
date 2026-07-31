@@ -1,6 +1,7 @@
-"""ComposeEmit — IntentModule → Gradle Android project on disk."""
+"""ComposeEmit — ComposeModule → Gradle Android project on disk."""
 import from pathlib { Path }
-import from jaclang.compiler.passes.ecmascript.intent.model { IntentModule, IntentComponent }
+import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
+import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
 import from jaclang.compiler.passes.compose.gradle_scaffold {
     build_gradle_scaffold,
     package_to_path,
@@ -107,14 +108,14 @@ private data class JacRouteEntry(val path: String, val fragment: String?)
 }
 
 impl ComposeEmit.emit_jac_app -> str {
-    routes = list(self.model.routes);
+    routes = list(self.model.intent.routes);
     paths: list[str] = [];
     if routes {
         for r in routes {
             paths.append(r.path);
         }
     } else {
-        for comp in self.model.components.values() {
+        for comp in self.model.intent.components.values() {
             if comp.route_path {
                 paths.append(comp.route_path);
             } elif comp.is_screen {
@@ -248,19 +249,20 @@ def _merge_prelude(react_prelude: str, needs_scope: bool, body: str = "") -> str
 }
 
 def _emit_screen_body(
-    comp: (IntentComponent | None), native_em: ComposeNativeEmitter, model: IntentModule
+    comp: (IntentComponent | None), native_em: ComposeNativeEmitter, model: ComposeModule
 ) -> str {
     if comp is None {
         return "    Column(modifier = Modifier.fillMaxSize()) {\n    }";
     }
-    if comp.compose_view is not None {
-        return native_em.emit_component_view(comp);
+    view = model.compose_view_for(comp.name);
+    if view is not None {
+        return native_em.emit_view(view);
     }
     # P0 #2: the Compose framework has a single code path — native compose_view.
     # DOM/Tailwind IR (comp.view) is explicitly unsupported; record a diagnostic
     # so the fail-fast gate rejects it instead of silently emitting a lossy stub.
     if comp.view is not None {
-        model.add_diagnostic(
+        model.intent.add_diagnostic(
             f"component '{comp.name}' uses DOM IR (view), which the Compose "
             "framework does not support — use Compose primitives "
             "(Column, Text, Button, …)"
@@ -270,22 +272,22 @@ def _emit_screen_body(
 }
 
 impl ComposeEmit.emit_screens -> str {
-    pkg = self.model.package_name;
+    pkg = self.model.intent.package_name;
     native_em = ComposeNativeEmitter();
     react_em = ReactiveComposeEmitter();
 
     screens: list[str] = [];
     seen: set[str] = set();
 
-    for route in self.model.routes {
+    for route in self.model.intent.routes {
         sname = route.screen_name or route_to_screen_name(route.path);
         if sname in seen {
             continue;
         }
         seen.add(sname);
         comp = None;
-        if route.component and route.component in self.model.components {
-            comp = self.model.components[route.component];
+        if route.component and route.component in self.model.intent.components {
+            comp = self.model.intent.components[route.component];
         }
         prelude = react_em.emit_prelude(comp) if comp else "";
         body = _emit_screen_body(comp, native_em, self.model);
@@ -297,7 +299,7 @@ impl ComposeEmit.emit_screens -> str {
         screens.append(_emit_screen_fun(sname, prelude, body));
     }
 
-    for (cname, comp) in self.model.components.items() {
+    for (cname, comp) in self.model.intent.components.items() {
         sname: (str | None) = (
             component_screen_name(cname) if comp.is_screen else None
         );
@@ -323,9 +325,9 @@ impl ComposeEmit.emit_screens -> str {
     }
 
     if not screens {
-        for (cname, comp) in self.model.components.items() {
+        for (cname, comp) in self.model.intent.components.items() {
             # Only native compose_view is a valid screen source now (P0 #2).
-            if comp.compose_view is None {
+            if self.model.compose_view_for(cname) is None {
                 continue;
             }
             sname = "HomeScreen" if cname in ("app", "__root__", "App") else component_screen_name(cname);
@@ -357,7 +359,7 @@ impl ComposeEmit.emit_screens -> str {
     }
 
     for diag in native_em.diagnostics {
-        self.model.add_diagnostic(diag);
+        self.model.intent.add_diagnostic(diag);
     }
 
     design = emit_jac_design();
@@ -410,11 +412,11 @@ impl ComposeEmit.write -> list[Path] {
     out.mkdir(parents=True, exist_ok=True);
 
     routes: list[str] = [];
-    for r in self.model.routes {
+    for r in self.model.intent.routes {
         routes.append(r.path);
     }
     if not routes {
-        for comp in self.model.components.values() {
+        for comp in self.model.intent.components.values() {
             if comp.route_path {
                 routes.append(comp.route_path);
             }
@@ -425,33 +427,33 @@ impl ComposeEmit.write -> list[Path] {
     }
 
     files = build_gradle_scaffold(
-        self.model.package_name,
-        self.model.app_name,
-        self.model.backend_url,
+        self.model.intent.package_name,
+        self.model.intent.app_name,
+        self.model.intent.backend_url,
         routes,
         self.dev
     );
 
-    pkg_path = package_to_path(self.model.package_name);
+    pkg_path = package_to_path(self.model.intent.package_name);
     base_root = f"app/src/main/java/{pkg_path}";
     hot_root = f"hot/src/main/java/{pkg_path}";
     # In dev mode the screen/RPC sources live in the :hot module so they can be
     # dexed separately and DexClassLoader-swapped; in release they join the base.
     screens_root = hot_root if self.dev else base_root;
     # Emit the screen/RPC sources first — this runs every lowering pass and
-    # populates self.model.diagnostics (native view builder, jac_to_kotlin, …).
+    # populates self.model.intent.diagnostics (native view builder, jac_to_kotlin, …).
     screens_src = self.emit_screens();
     client_src = emit_jac_client(
-        self.model.package_name, self.model.interop_manifest
+        self.model.intent.package_name, self.model.intent.interop_manifest
     );
     # P0 #1 fail-fast gate: any diagnostic means the generated Kotlin would be
     # broken (unsupported construct, DOM IR, …). Abort before writing the
     # project so Gradle never assembles a broken / empty-screen APK.
-    if self.model.diagnostics {
+    if self.model.intent.diagnostics {
         try {
             import from jaclang.cli.console { console }
             console.error("  Compose codegen failed with diagnostics:");
-            for diag in self.model.diagnostics {
+            for diag in self.model.intent.diagnostics {
                 console.error(f"    - {diag}");
             }
         } except Exception {
