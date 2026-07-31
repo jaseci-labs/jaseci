@@ -264,15 +264,21 @@ def _android_manifest(app_name: str, dev: bool = False) -> str {
         '            </intent-filter>\n'
         '        </activity>\n'
     ) if dev else "";
+    main_launcher = (
+        ""
+        if dev
+        else (
+            '            <intent-filter>\n'
+            '                <action android:name="android.intent.action.MAIN" />\n'
+            '                <category android:name="android.intent.category.LAUNCHER" />\n'
+            '            </intent-filter>\n'
+        )
+    );
     return f"""<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <application android:theme="@style/AppTheme" android:label="{label}" android:usesCleartextTraffic="true">
 {dev_activity}        <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize" android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
+{main_launcher}            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -575,12 +581,14 @@ class JacDevHostActivity : ComponentActivity() {{
 
     private fun restoreCachedModule() {{
         try {{
-            val version = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_VERSION, "") ?: ""
-            if (version.isEmpty()) return
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            val version = prefs.getString(KEY_PENDING_VERSION, null)
+                ?: prefs.getString(KEY_VERSION, "")
+            if (version.isNullOrEmpty()) return
             val module = moduleFile(version)
             if (!module.isFile) return
             module.setReadOnly()
-            applyModule(module, version)
+            mountModule(module, version)
         }} catch (error: Exception) {{
             Log.e(TAG, "cached module restore failed", error)
         }}
@@ -643,26 +651,46 @@ class JacDevHostActivity : ComponentActivity() {{
         if (version == activeVersion) {{
             return
         }}
-        // Persist so a recreate restores exactly this version.
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_VERSION, version).apply()
+        if (version == attemptedVersion) {{
+            return
+        }}
         attemptedVersion = version
         if (activeVersion.isEmpty()) {{
-            // First mount on this Activity instance — setContent runs fresh.
-            try {{
-                val loader = DexClassLoader(file.absolutePath, codeCacheDir.absolutePath, null, classLoader)
-                val type = loader.loadClass("{package_name}.JacDevEntry")
-                val mount = type.getMethod("mount", ComponentActivity::class.java)
-                mount.invoke(null, this)
-                activeVersion = version
-            }} catch (error: Exception) {{
-                Log.e(TAG, "module apply failed", error)
+            if (!mountModule(file, version)) {{
+                attemptedVersion = ""
             }}
         }} else {{
-            // A module is already mounted. Calling setContent again on the live
-            // Compose composition destabilizes it; recreate this Activity so the
-            // new module mounts on a fresh composition. The route is restored from
-            // prefs, so the user stays on their current screen.
+            getSharedPreferences(PREFS, MODE_PRIVATE)
+                .edit()
+                .putString(KEY_PENDING_VERSION, version)
+                .apply()
             recreate()
+        }}
+    }}
+
+    private fun mountModule(file: File, version: String): Boolean {{
+        try {{
+            val loader = DexClassLoader(file.absolutePath, codeCacheDir.absolutePath, null, classLoader)
+            val type = loader.loadClass("{package_name}.JacDevEntry")
+            val mount = type.getMethod("mount", ComponentActivity::class.java)
+            mount.invoke(null, this)
+            activeVersion = version
+            getSharedPreferences(PREFS, MODE_PRIVATE)
+                .edit()
+                .putString(KEY_VERSION, version)
+                .remove(KEY_PENDING_VERSION)
+                .apply()
+            attemptedVersion = ""
+            return true
+        }} catch (error: Exception) {{
+            Log.e(TAG, "module apply failed", error)
+            file.delete()
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            if (prefs.getString(KEY_VERSION, "") == version) {{
+                prefs.edit().remove(KEY_VERSION).apply()
+            }}
+            prefs.edit().remove(KEY_PENDING_VERSION).apply()
+            return false
         }}
     }}
 
@@ -672,6 +700,7 @@ class JacDevHostActivity : ComponentActivity() {{
         private const val EXTRA_SERVER = "jacDevServer"
         private const val KEY_ENDPOINT = "endpoint"
         private const val KEY_VERSION = "version"
+        private const val KEY_PENDING_VERSION = "pending_version"
     }}
 }}
 """;

@@ -21,7 +21,11 @@ test "dev scaffold splits host into :app and app code into :hot" {
 
     # The polling host lives in the BASE (:app) and is its launcher.
     assert "app/src/main/java/dev/jac/myapp/JacDevHostActivity.kt" in files;
-    assert "JacDevHostActivity" in files["app/src/main/AndroidManifest.xml"];
+    manifest = files["app/src/main/AndroidManifest.xml"];
+    assert "JacDevHostActivity" in manifest;
+    # Dev builds must expose exactly one launcher — the HMR host, not MainActivity.
+    assert manifest.count("android.intent.category.LAUNCHER") == 1;
+    assert "JacDevHostActivity" in manifest.split("LAUNCHER")[0];
 
     # All app code — infra, the mount entry — lives in :hot so a hot dex can
     # carry ONLY app classes (Compose stays in the parent/base).

@@ -20,12 +20,14 @@ def test_typo -> any {
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         mod = Jac.program.compile(str(path));
+        found = False;
         for ability in mod.get_all_sub_nodes(uni.Ability) {
             if ability.name_ref and ability.name_ref.sym_name == "test_typo" {
                 body = ability.body;
                 if isinstance(body, uni.ImplDef) {
                     for stmt in body.body {
                         if isinstance(stmt, uni.ReturnStmt) and stmt.expr {
+                            found = True;
                             kt_node = jac_expr_to_kt(stmt.expr);
                             src_kt = kt_to_source(kt_node);
                             assert "MaterialTheme.typography.titleLarge" in src_kt;
@@ -35,6 +37,7 @@ def test_typo -> any {
                 }
             }
         }
+        assert found;
     }
 }
 
@@ -49,12 +52,14 @@ def test_dp -> any {
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         mod = Jac.program.compile(str(path));
+        found = False;
         for ability in mod.get_all_sub_nodes(uni.Ability) {
             if ability.name_ref and ability.name_ref.sym_name == "test_dp" {
                 body = ability.body;
                 if isinstance(body, uni.ImplDef) {
                     for stmt in body.body {
                         if isinstance(stmt, uni.ReturnStmt) and stmt.expr {
+                            found = True;
                             kt_node = jac_expr_to_kt(stmt.expr);
                             src_kt = kt_to_source(kt_node).replace(" ", "");
                             assert "16.dp" in src_kt;
@@ -63,6 +68,7 @@ def test_dp -> any {
                 }
             }
         }
+        assert found;
     }
 }
 

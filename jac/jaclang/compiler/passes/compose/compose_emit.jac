@@ -12,5 +12,6 @@ obj ComposeEmit {
     def emit_jac_app -> str;
 }
 
+def normalize_route_segment(segment: str) -> str;
 def route_to_screen_name(path: str) -> str;
 def component_screen_name(comp_name: str) -> str;

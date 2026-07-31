@@ -13,6 +13,29 @@ import from jaclang.compiler.passes.compose.rpc_client { emit_jac_client }
 import from jaclang.compiler.passes.compose.compose_native_emit { ComposeNativeEmitter }
 import from jaclang.compiler.passes.compose.reactive_compose { ReactiveComposeEmitter }
 
+impl normalize_route_segment(segment: str) -> str {
+    if not segment {
+        return "";
+    }
+    words: list[str] = [];
+    current = "";
+    for ch in segment {
+        if ch.isalnum() {
+            current += ch;
+        } elif current {
+            words.append(current);
+            current = "";
+        }
+    }
+    if current {
+        words.append(current);
+    }
+    if not words {
+        return "Route";
+    }
+    return "".join([w[0].upper() + w[1:] if w else "" for w in words]);
+}
+
 impl route_to_screen_name(path: str) -> str {
     if not path or path == "/" {
         return "HomeScreen";
@@ -21,7 +44,7 @@ impl route_to_screen_name(path: str) -> str {
     if not parts {
         return "HomeScreen";
     }
-    return "".join([p[0].upper() + p[1:] if p else "" for p in parts]) + "Screen";
+    return "".join([normalize_route_segment(p) for p in parts]) + "Screen";
 }
 
 impl component_screen_name(comp_name: str) -> str {
@@ -110,32 +133,37 @@ private data class JacRouteEntry(val path: String, val fragment: String?)
 impl ComposeEmit.emit_jac_app -> str {
     routes = list(self.model.intent.routes);
     paths: list[str] = [];
+    path_to_screen: dict[str, str] = {};
     if routes {
         for r in routes {
             paths.append(r.path);
+            path_to_screen[r.path] = r.screen_name or route_to_screen_name(r.path);
         }
     } else {
         for comp in self.model.intent.components.values() {
             if comp.route_path {
                 paths.append(comp.route_path);
+                path_to_screen[comp.route_path] = route_to_screen_name(comp.route_path);
             } elif comp.is_screen {
                 paths.append("/");
+                path_to_screen["/"] = route_to_screen_name("/");
             }
         }
     }
     if not paths {
         paths = ["/"];
+        path_to_screen["/"] = route_to_screen_name("/");
     }
 
     when_arms: list[str] = [];
     for path in paths {
-        screen = route_to_screen_name(path);
+        screen = path_to_screen.get(path) or route_to_screen_name(path);
         when_arms.append(
             f'                    "{escape_kotlin(path)}" -> Box(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {{ '
             f"{screen}(viewportWidth, scrollState, sectionRegistry, ::navigate, ::goBack, ::openExternal) }}"
         );
     }
-    first_screen = route_to_screen_name(paths[0]);
+    first_screen = path_to_screen.get(paths[0]) or route_to_screen_name(paths[0]);
     when_arms.append(
         f"                    else -> Box(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {{ "
         f"{first_screen}(viewportWidth, scrollState, sectionRegistry, ::navigate, ::goBack, ::openExternal) }}"

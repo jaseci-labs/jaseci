@@ -139,6 +139,7 @@ def test_spawn -> None {
         );
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         mod = Jac.program.compile(str(path));
+        found = False;
         for ability in mod.get_all_sub_nodes(uni.Ability) {
             if ability.name_ref and ability.name_ref.sym_name == "test_spawn" {
                 body = ability.body;
@@ -146,17 +147,19 @@ def test_spawn -> None {
                     for stmt in body.body {
                         if isinstance(stmt, uni.Assignment) and len(stmt.target) == 1 {
                             if stmt.target[0].sym_name == "result" {
+                                found = True;
                                 kt_node = jac_expr_to_kt(stmt.value);
                                 src_kt = kt_to_source(kt_node);
                                 assert "JacClient.greet" in src_kt;
                                 assert "GreetRequest" in src_kt;
-                                assert "name = name" in src_kt.replace(" ", "");
+                                assert "name=name" in src_kt.replace(" ", "");
                             }
                         }
                     }
                 }
             }
         }
+        assert found;
     }
 }
 
@@ -342,12 +345,14 @@ def test_eq -> int {
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         mod = Jac.program.compile(str(path));
+        found = False;
         for ability in mod.get_all_sub_nodes(uni.Ability) {
             if ability.name_ref and ability.name_ref.sym_name == "test_eq" {
                 ret = ability.body;
                 if isinstance(ret, uni.ImplDef) {
                     for stmt in ret.body {
                         if isinstance(stmt, uni.ReturnStmt) and stmt.expr {
+                            found = True;
                             kt_node = jac_expr_to_kt(stmt.expr);
                             src_kt = kt_to_source(kt_node);
                             assert "==" in src_kt;
@@ -357,6 +362,7 @@ def test_eq -> int {
                 }
             }
         }
+        assert found;
     }
 }
 
@@ -375,12 +381,14 @@ def test_div -> int {
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         mod = Jac.program.compile(str(path));
+        found = False;
         for ability in mod.get_all_sub_nodes(uni.Ability) {
             if ability.name_ref and ability.name_ref.sym_name == "test_div" {
                 body = ability.body;
                 if isinstance(body, uni.ImplDef) {
                     for stmt in body.body {
                         if isinstance(stmt, uni.ReturnStmt) and stmt.expr {
+                            found = True;
                             kt_node = jac_expr_to_kt(stmt.expr);
                             src_kt = kt_to_source(kt_node).replace(" ", "");
                             assert "7/2" in src_kt or "7//2" in src_kt;
@@ -389,6 +397,7 @@ def test_div -> int {
                 }
             }
         }
+        assert found;
     }
 }
 
