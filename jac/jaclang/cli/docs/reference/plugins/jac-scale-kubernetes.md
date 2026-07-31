@@ -1216,3 +1216,107 @@ kubectl get all
 # Check events
 kubectl get events --sort-by='.lastTimestamp'
 ```
+
+## Programmatic SDK
+
+A platform (a PaaS, a CI job, an ops daemon) can drive deploys in-process
+instead of shelling out to `jac start --scale` and parsing stdout. The SDK is
+`jaclang.scale.sdk`: a `ScaleClient` plus a `DeploySpec` that carries the whole
+deploy configuration in memory. `jac.toml` is never read, nothing prompts for
+input, and every call returns structured data. The CLI is unchanged and shares
+the same deploy engine underneath.
+
+One call deploys a folder (config keys are the `DeploySpec` fields below;
+`app_name` defaults from the folder name):
+
+```jac
+import from jaclang.scale.sdk { deploy }
+
+with entry {
+    result = deploy("apps/orders", {"namespace": "orders-prod", "replicas": 2});
+    print(result.service_url if result.success else result.message);
+}
+```
+
+The full client, for platforms that need events and lifecycle control:
+
+```jac
+import from jaclang.scale.sdk { DeploySpec, ProgressEvent, ScaleClient }
+
+def stream(event: ProgressEvent) {
+    print(f"[{event.phase}:{event.status}] {event.message}");
+}
+
+with entry {
+    client = ScaleClient(kube_context="prod-cluster");
+    result = client.deploy(
+        DeploySpec(
+            app_name="orders",
+            namespace="orders-prod",
+            source="apps/orders/main.jac",
+            secrets={"STRIPE_KEY": "sk-live-1"},
+            env={"FEATURE_CHECKOUT": "on"},
+            replicas=2,
+            labels={"paas.example/project": "orders"}
+        ),
+        on_event=stream
+    );
+    if result.success {
+        print(f"live at {result.service_url}");
+    } else {
+        print(f"failed: {result.message}");
+    }
+}
+```
+
+### DeploySpec
+
+`DeploySpec` mirrors the `[scale.*]` tables, in memory:
+
+| Field | Maps to | Notes |
+|---|---|---|
+| `app_name`, `namespace` | `[scale.kubernetes]` | required / `"default"` |
+| `source` | CLI file argument | entry `.jac` file, or a folder containing `main.jac` |
+| `target` | `--target` | `"auto"` (default), `"kubernetes"`, `"kubernetes-microservice"` |
+| `secrets` | `[scale.secrets]` | shipped as the app Secret; no `.env` file needed |
+| `env` | new | plain (non-secret) env vars injected into every service pod |
+| `domain`, `replicas`, `resources`, `autoscaler` | `[scale.kubernetes]` | `resources` takes `cpu_request`/`cpu_limit`/`memory_request`/`memory_limit`; `autoscaler` entries are raw config keys (`max_replicas`, `autoscaler_engine`, ...) |
+| `client` | `[scale.microservices.client]` | web client build: `entry` (path), or `{"entry": False}` for a headless API app |
+| `microservices` | `[scale.microservices]` | `routes`, `services`, `ingress`, ... |
+| `kube_context` | new | kubeconfig context to deploy through; empty = current context, falling back to in-cluster |
+| `labels` | new | stamped on every generated Deployment and Service (platform-owned tags) |
+| `extra` | any `[scale.kubernetes]` key | escape hatch merged last, e.g. `{"bundle_storage_class": "efs-sc"}` |
+
+With `target = "auto"` the SDK resolves exactly like the CLI: the
+microservice target when `microservices` declares routes (or sets
+`enabled = true`), the single-app `kubernetes` target otherwise. Lifecycle
+calls (`destroy`/`status`/`scale`/`service_url`) have no spec to inspect, so
+`"auto"` there probes the namespace instead: a `jac-scale.role=gateway`
+Deployment means the microservice target, anything else the plain one. Pass
+an explicit `target=` to skip the probe (e.g. when the cluster is not
+reachable at call time).
+
+### ScaleClient
+
+| Method | Returns |
+|---|---|
+| `deploy(spec, on_event=None)` | `DeploymentResult{success, service_url, message, details}` -- `details` is the applied manifest bundle |
+| `preview(spec)` | the manifest bundle, nothing applied (microservice target only, like `--dry-run`) |
+| `destroy(app_name, namespace, component="")` | removes the deployment; never prompts |
+| `status(app_name, namespace)` | full status dict (components, pod counts, URLs) |
+| `resource_status(app_name, namespace)` | `ResourceStatusInfo{status, replicas, ready_replicas}` |
+| `service_url(app_name, namespace)` | externally reachable URL or `None` |
+| `scale(app_name, namespace, replicas)` | resizes the app deployment |
+
+`ScaleClient(kube_context=..., logger=...)` sets a default cluster context for
+every call and an optional custom logger. When `deploy` is given `on_event`,
+the whole run streams typed `ProgressEvent{phase, step, status, message,
+detail}` values: one `deploy` start/ok envelope, the `provision`, `bundle`,
+`apply`, and `rollout` phases (each with `start`/`ok`, or `error` on failure;
+phase *order* is target-specific -- the plain target ships the bundle before
+provisioning backends -- so render by arrival, not a fixed sequence), and
+every engine log line as a `phase="log"` event -- enough to render live build
+output. Without `on_event`, output goes to the console exactly like the CLI.
+One caveat on quiet output: if the deploy tooling (kubernetes client et al.)
+is not installed yet, the first call installs it and prints pip progress to
+stdout.

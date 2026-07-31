@@ -471,6 +471,12 @@ obj MicroserviceManifestBuilder {
         return f"{self.k8s_config.app_name}-secrets";
     }
 
+    def _owner_labels -> dict[str, str] {
+        return {
+            str(k): str(v) for (k, v) in dict(self.k8s_config.labels or {}).items()
+        };
+    }
+
     def _service_account_name -> str {
         return str(getattr(self.k8s_config, "service_account_name", "") or "").strip();
     }
@@ -651,6 +657,7 @@ obj MicroserviceManifestBuilder {
         k8s_name = k8s_safe_name(svc_name);
         role: str = "gateway" if svc_name == GATEWAY_NAME else "microservice";
         labels: dict[str, str] = {
+            ** self._owner_labels(),
             "app": k8s_name,
             "managed": "jac-scale",
             "jac-scale.role": role
@@ -711,7 +718,11 @@ obj MicroserviceManifestBuilder {
             "metadata": {
                 "name": f"{k8s_name}-service",
                 "namespace": self.k8s_config.namespace,
-                "labels": {"app": k8s_name, "managed": "jac-scale"}
+                "labels": {
+                    ** self._owner_labels(),
+                    "app": k8s_name,
+                    "managed": "jac-scale"
+                }
             },
             "spec": spec
         };
