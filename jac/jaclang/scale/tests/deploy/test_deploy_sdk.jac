@@ -100,6 +100,28 @@ test "spec produces a full kubernetes config with no jac.toml involved" {
 }
 
 
+test "one-call deploy(path, config) builds a validated spec" {
+    spec = DeploySpec.from_config(
+        "/apps/My_Shop", {"namespace": "prod", "replicas": 2}
+    );
+    assert spec.app_name == "my-shop";
+    assert spec.source == "/apps/My_Shop";
+    assert spec.namespace == "prod";
+    assert spec.replicas == 2;
+
+    spec = DeploySpec.from_config("/apps/shop/main.jac", {"app_name": "shop-x"});
+    assert spec.app_name == "shop-x";
+
+    error = "";
+    try {
+        DeploySpec.from_config("/apps/shop", {"replcas": 2});
+    } except ValueError as e {
+        error = str(e);
+    }
+    assert "replcas" in error , error;
+}
+
+
 test "client entry false survives re-normalization (headless stays headless)" {
     import from jaclang.scale.config.config_loader { normalize_microservices_config }
     spec = DeploySpec(

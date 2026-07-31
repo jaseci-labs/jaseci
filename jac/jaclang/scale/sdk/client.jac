@@ -22,6 +22,15 @@ import from jaclang.scale.sdk.spec { DeploySpec }
 import from jaclang.scale.sdk.events { EventLogger }
 
 
+def deploy(
+    path: str, config: (dict[str, any] | None) = None, on_event: any = None
+) -> DeploymentResult {
+    return ScaleClient().deploy(
+        DeploySpec.from_config(path, config), on_event=on_event
+    );
+}
+
+
 obj ScaleClient {
     has kube_context: str = '',
         logger: (Logger | None) = None;

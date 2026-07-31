@@ -1226,6 +1226,20 @@ deploy configuration in memory. `jac.toml` is never read, nothing prompts for
 input, and every call returns structured data. The CLI is unchanged and shares
 the same deploy engine underneath.
 
+One call deploys a folder (config keys are the `DeploySpec` fields below;
+`app_name` defaults from the folder name):
+
+```jac
+import from jaclang.scale.sdk { deploy }
+
+with entry {
+    result = deploy("apps/orders", {"namespace": "orders-prod", "replicas": 2});
+    print(result.service_url if result.success else result.message);
+}
+```
+
+The full client, for platforms that need events and lifecycle control:
+
 ```jac
 import from jaclang.scale.sdk { DeploySpec, ProgressEvent, ScaleClient }
 

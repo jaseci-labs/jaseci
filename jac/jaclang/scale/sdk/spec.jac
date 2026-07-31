@@ -25,6 +25,29 @@ obj DeploySpec {
         labels: dict[str, str] = {},
         extra: dict[str, any] = {};
 
+    static def from_config(
+        path: str, config: (dict[str, any] | None) = None
+    ) -> DeploySpec {
+        cfg = dict(config or {});
+        cfg.setdefault('source', path);
+        if not cfg.get('app_name') {
+            import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+                k8s_safe_slug
+            }
+            base = Path(str(cfg['source']));
+            name_source = base.name if base.suffix != '.jac' else base.parent.name;
+            cfg['app_name'] = k8s_safe_slug(name_source);
+        }
+        try {
+            return DeploySpec(**cfg);
+        } except TypeError as e {
+            raise ValueError(
+                f"Unknown deploy option ({e}); valid keys are the DeploySpec "
+                f"fields."
+            );
+        }
+    }
+
     def resolved_target -> str {
         if self.target == 'auto' {
             enabled = self.microservices.get('enabled', None);

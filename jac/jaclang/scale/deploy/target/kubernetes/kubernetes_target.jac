@@ -1067,6 +1067,7 @@ obj KubernetesTarget(DeploymentTarget) {
                     "mongo" if self.k8s_config.mongodb_enabled else ""
                 )
             );
+            self._emit("bundle", "start", "Shipping the source bundle");
             ensure_pvc_exists(
                 core_v1,
                 namespace,
@@ -1077,6 +1078,7 @@ obj KubernetesTarget(DeploymentTarget) {
             );
             injector.seed(app_name, namespace);
             details["ship_source_bundle"] = "Successful";
+            self._emit("bundle", "ok", "Source bundle shipped");
 
             command = self._build_runtime_setup_command(app_config);
             container_config = self._build_container_config(
@@ -1157,8 +1159,10 @@ obj KubernetesTarget(DeploymentTarget) {
                 app_name, namespace, provider, apps_v1, core_v1, rbac_v1, networking_v1
             );
 
+            self._emit("provision", "start", "Provisioning backends");
             self._deploy_databases(app_name, namespace, apps_v1, core_v1);
             details["deploy_databases"] = "Successful";
+            self._emit("provision", "ok", "Backends provisioned");
 
             self._deploy_network_policy(app_name, namespace, networking_v1);
             details["deploy_network_policy"] = "Successful";
@@ -1166,6 +1170,7 @@ obj KubernetesTarget(DeploymentTarget) {
             if self.logger {
                 self.logger.info(f'Deploying Jaseci-app app...');
             }
+            self._emit("apply", "start", "Applying the application manifests");
             apps_v1.create_namespaced_deployment(namespace=namespace, body=deployment);
             details["create_jaseci_application_deployment"] = "Successful";
             try {
@@ -1182,6 +1187,7 @@ obj KubernetesTarget(DeploymentTarget) {
                 }
             }
             details["create_jaseci_application_service"] = "Successful";
+            self._emit("apply", "ok", "Application manifests applied");
 
             triggers = [];
             if not self.k8s_config.extra_triggers {
@@ -1274,10 +1280,12 @@ obj KubernetesTarget(DeploymentTarget) {
             );
             details["deploy_ingress"] = "Successful";
 
+            self._emit("rollout", "start", "Waiting for the app to become ready");
             deployment_details = self._wait_for_deployment(
                 app_name, namespace, health_check_path, provider
             );
             details["health_check_of_deployment"] = deployment_details;
+            self._emit("rollout", "ok", "App is ready");
             service_url = self.get_service_url(app_name);
 
             if self.k8s_config.domain {
