@@ -4,7 +4,7 @@ import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.models.deployment_result { DeploymentResult }
 import from jaclang.scale.models.resource_status { ResourceStatus, ResourceStatusInfo }
-import from jaclang.scale.models.progress { EventSink, ProgressEvent }
+import from jaclang.scale.models.progress { EventSink, NoopSink, ProgressEvent }
 import from jaclang.scale.observability.logger { Logger }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -58,7 +58,7 @@ obj KubernetesTarget(DeploymentTarget) {
         env_list: list = [],
         secrets: dict[str, str] = {},
         env: dict[str, str] = {},
-        events: (EventSink | None) = None,
+        events: EventSink = NoopSink(),
         dry_run: bool = False;
 
     def postinit {
@@ -72,17 +72,17 @@ obj KubernetesTarget(DeploymentTarget) {
         step: str = "",
         detail: dict[str, any] = {}
     ) {
-        if self.events {
-            self.events.emit(
-                ProgressEvent(
-                    phase=phase,
-                    step=step,
-                    status=status,
-                    message=message,
-                    detail=detail
-                )
-            );
-        }
+        self.events.emit(
+            ProgressEvent(
+                phase=phase, step=step, status=status, message=message, detail=detail
+            )
+        );
+    }
+
+    def _owner_labels -> dict[str, str] {
+        return {
+            str(k): str(v) for (k, v) in dict(self.k8s_config.labels or {}).items()
+        };
     }
 
     def _load_cluster_config {
@@ -193,7 +193,11 @@ obj KubernetesTarget(DeploymentTarget) {
             'metadata': {
                 'name': f"{app_name}-service",
                 'namespace': self.k8s_config.namespace,
-                'labels': {'app': app_name, 'managed': 'jac-scale'}
+                'labels': {
+                    ** self._owner_labels(),
+                    'app': app_name,
+                    'managed': 'jac-scale'
+                }
             },
             'spec': {
                 'type': 'ClusterIP',
@@ -628,7 +632,11 @@ obj KubernetesTarget(DeploymentTarget) {
             'metadata': {
                 'name': sa_name,
                 'namespace': namespace,
-                'labels': {'app': app_label, 'managed': 'jac-scale'}
+                'labels': {
+                    ** self._owner_labels(),
+                    'app': app_label,
+                    'managed': 'jac-scale'
+                }
             },
             'automountServiceAccountToken': False
         };
@@ -820,7 +828,11 @@ obj KubernetesTarget(DeploymentTarget) {
                 'metadata': {
                     'name': policy_config['name'],
                     'namespace': namespace,
-                    'labels': {'app': app_name, 'managed': 'jac-scale'}
+                    'labels': {
+                        ** self._owner_labels(),
+                        'app': app_name,
+                        'managed': 'jac-scale'
+                    }
                 },
                 'spec': {
                     'podSelector': policy_config['pod_selector'],
@@ -982,6 +994,7 @@ obj KubernetesTarget(DeploymentTarget) {
         namespace = self.k8s_config.namespace;
         success_status = False;
         details = {};
+        current_phase = "";
 
         if self.logger {
             self.logger.info(
@@ -1067,6 +1080,7 @@ obj KubernetesTarget(DeploymentTarget) {
                     "mongo" if self.k8s_config.mongodb_enabled else ""
                 )
             );
+            current_phase = "bundle";
             self._emit("bundle", "start", "Shipping the source bundle");
             ensure_pvc_exists(
                 core_v1,
@@ -1079,6 +1093,7 @@ obj KubernetesTarget(DeploymentTarget) {
             injector.seed(app_name, namespace);
             details["ship_source_bundle"] = "Successful";
             self._emit("bundle", "ok", "Source bundle shipped");
+            current_phase = "";
 
             command = self._build_runtime_setup_command(app_config);
             container_config = self._build_container_config(
@@ -1111,7 +1126,11 @@ obj KubernetesTarget(DeploymentTarget) {
                 'metadata': {
                     'name': app_name,
                     'namespace': namespace,
-                    'labels': {'app': app_name, 'managed': 'jac-scale'}
+                    'labels': {
+                        ** self._owner_labels(),
+                        'app': app_name,
+                        'managed': 'jac-scale'
+                    }
                 },
                 'spec': {
                     'replicas': 1,
@@ -1159,10 +1178,12 @@ obj KubernetesTarget(DeploymentTarget) {
                 app_name, namespace, provider, apps_v1, core_v1, rbac_v1, networking_v1
             );
 
+            current_phase = "provision";
             self._emit("provision", "start", "Provisioning backends");
             self._deploy_databases(app_name, namespace, apps_v1, core_v1);
             details["deploy_databases"] = "Successful";
             self._emit("provision", "ok", "Backends provisioned");
+            current_phase = "";
 
             self._deploy_network_policy(app_name, namespace, networking_v1);
             details["deploy_network_policy"] = "Successful";
@@ -1170,6 +1191,7 @@ obj KubernetesTarget(DeploymentTarget) {
             if self.logger {
                 self.logger.info(f'Deploying Jaseci-app app...');
             }
+            current_phase = "apply";
             self._emit("apply", "start", "Applying the application manifests");
             apps_v1.create_namespaced_deployment(namespace=namespace, body=deployment);
             details["create_jaseci_application_deployment"] = "Successful";
@@ -1188,6 +1210,7 @@ obj KubernetesTarget(DeploymentTarget) {
             }
             details["create_jaseci_application_service"] = "Successful";
             self._emit("apply", "ok", "Application manifests applied");
+            current_phase = "";
 
             triggers = [];
             if not self.k8s_config.extra_triggers {
@@ -1280,12 +1303,14 @@ obj KubernetesTarget(DeploymentTarget) {
             );
             details["deploy_ingress"] = "Successful";
 
+            current_phase = "rollout";
             self._emit("rollout", "start", "Waiting for the app to become ready");
             deployment_details = self._wait_for_deployment(
                 app_name, namespace, health_check_path, provider
             );
             details["health_check_of_deployment"] = deployment_details;
             self._emit("rollout", "ok", "App is ready");
+            current_phase = "";
             service_url = self.get_service_url(app_name);
 
             if self.k8s_config.domain {
@@ -1319,6 +1344,9 @@ obj KubernetesTarget(DeploymentTarget) {
                 details=details
             );
         } except Exception as e {
+            if current_phase {
+                self._emit(current_phase, "error", str(e));
+            }
             if self.logger {
                 self.logger.error(f"Error deploying application '{app_name}': {e}");
             }

@@ -81,69 +81,9 @@ dump_state() {
     done
 }
 
-_T0=$(date +%s)
-_t() { echo "[TIMING +$(( $(date +%s) - _T0 ))s] $1"; }
-
-provision_kind_rwx_storage() {
-    # kind's local-path StorageClass is RWO-only; a static hostPath PV (own
-    # name/path, so it cannot collide with the microservice e2e's PV)
-    # satisfies the RWX bundle PVC on single-node kind.
-    echo "=== provisioning RWX hostPath storage for kind (class=${SDK_DEPLOY_STORAGE_CLASS}) ==="
-    kubectl delete pv jac-sdk-rwx-bundle-pv --ignore-not-found >/dev/null 2>&1 || true
-    kubectl apply -f - <<YAML
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: ${SDK_DEPLOY_STORAGE_CLASS}
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: Immediate
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: jac-sdk-rwx-bundle-pv
-  labels:
-    managed: jac-scale-e2e
-spec:
-  capacity:
-    storage: 20Gi
-  accessModes: ["ReadWriteMany"]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ${SDK_DEPLOY_STORAGE_CLASS}
-  hostPath:
-    path: /var/jac-sdk-rwx-bundle
-    type: DirectoryOrCreate
-YAML
-    kubectl -n "${NAMESPACE}" delete pod jac-sdk-rwx-perms --ignore-not-found >/dev/null 2>&1 || true
-    kubectl -n "${NAMESPACE}" apply -f - <<YAML
-apiVersion: v1
-kind: Pod
-metadata:
-  name: jac-sdk-rwx-perms
-spec:
-  restartPolicy: Never
-  securityContext:
-    runAsUser: 0
-  containers:
-    - name: fix
-      image: busybox:1.36
-      command: ["sh", "-c", "chmod 0777 /host && echo perms-fixed"]
-      volumeMounts:
-        - { name: host, mountPath: /host }
-  volumes:
-    - name: host
-      hostPath:
-        path: /var/jac-sdk-rwx-bundle
-        type: DirectoryOrCreate
-YAML
-    if ! kubectl -n "${NAMESPACE}" wait --for=jsonpath='{.status.phase}'=Succeeded \
-            pod/jac-sdk-rwx-perms --timeout=90s; then
-        echo "FAIL: could not open up the RWX hostPath dir for non-root pods"
-        kubectl -n "${NAMESPACE}" logs jac-sdk-rwx-perms || true
-        exit 1
-    fi
-    kubectl -n "${NAMESPACE}" delete pod jac-sdk-rwx-perms --ignore-not-found >/dev/null 2>&1 || true
-}
+# shellcheck source=../../scripts/e2e_lib.sh
+source "${REPO_ROOT}/jac/jaclang/scale/scripts/e2e_lib.sh"
+e2e_timing_init
 
 _t "prep start"
 echo "=== stage a sanitized copy of jac/examples/todo_app ==="
@@ -175,7 +115,8 @@ echo "  staged at ${APP_DIR}"
 
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 if [ "${CLUSTER_TYPE}" = "kind" ]; then
-    provision_kind_rwx_storage
+    provision_kind_rwx_storage "${NAMESPACE}" "${SDK_DEPLOY_STORAGE_CLASS}" \
+        jac-sdk-rwx-bundle-pv /var/jac-sdk-rwx-bundle jac-sdk-rwx-perms
 fi
 
 if [ "${CLUSTER_TYPE}" != "remote" ]; then
@@ -227,6 +168,17 @@ if ! kubectl rollout status "deployment/${APP}" -n "${NAMESPACE}" --timeout="${R
 fi
 
 _t "pods Ready"
+echo "=== assert DeploySpec.labels stamped on the app manifests ==="
+for res in "deployment/${APP}" "service/${APP}-service"; do
+    LABEL=$(kubectl get "${res}" -n "${NAMESPACE}" -o jsonpath='{.metadata.labels.jac-scale\.example}')
+    if [ "${LABEL}" != "sdk-deploy" ]; then
+        echo "FAIL: ${res} missing the platform label (jac-scale.example='${LABEL}')" >&2
+        dump_state
+        exit 1
+    fi
+done
+echo "  labels stamped"
+
 echo "=== assert DeploySpec.env and DeploySpec.secrets reached the pod ==="
 POD_GREETING=$(kubectl exec -n "${NAMESPACE}" "deploy/${APP}" -- printenv GREETING_PREFIX 2>/dev/null || echo "")
 if [ "${POD_GREETING}" != "${SDK_DEPLOY_GREETING}" ]; then

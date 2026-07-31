@@ -79,8 +79,8 @@ def _start_offline_patches {
     unittest.mock.patch.object(
         MicroserviceManifestBuilder, "_build_client_bundle"
     ).start();
-    unittest.mock.patch("jaclang.scale.sdk.client._ensure_deploy_tooling").start();
-    unittest.mock.patch("jaclang.scale.sdk.client._require_deploy_tooling").start();
+    unittest.mock.patch("jaclang.scale.sdk.client.ensure_deploy_tooling").start();
+    unittest.mock.patch("jaclang.scale.sdk.client.require_deploy_tooling").start();
 }
 
 
@@ -251,7 +251,7 @@ test "preview returns the manifest bundle without touching a cluster" {
             KubernetesMicroserviceTarget, "apply_manifests"
         ).start();
         loaded = unittest.mock.patch.object(
-            KubernetesMicroserviceTarget, "_load_kube_config"
+            KubernetesMicroserviceTarget, "_load_cluster_config"
         ).start();
         bundle = ScaleClient().preview(spec);
     } finally {
@@ -269,10 +269,34 @@ test "preview returns the manifest bundle without touching a cluster" {
 test "destroy is non-interactive and forwards the component" {
     try {
         _start_offline_patches();
+        unittest.mock.patch.object(
+            ScaleClient, "_namespace_has_fleet", return_value=False
+        ).start();
         destroyed = unittest.mock.patch.object(KubernetesTarget, "destroy").start();
         ScaleClient().destroy("sdk-app", "sdk-ns");
     } finally {
         unittest.mock.patch.stopall();
     }
     destroyed.assert_called_once_with("sdk-app", "");
+}
+
+
+test "lifecycle auto dispatches to the microservice target when a fleet exists" {
+    try {
+        _start_offline_patches();
+        unittest.mock.patch.object(
+            ScaleClient, "_namespace_has_fleet", return_value=True
+        ).start();
+        ms_destroyed = unittest.mock.patch.object(
+            KubernetesMicroserviceTarget, "destroy"
+        ).start();
+        plain_destroyed = unittest.mock.patch.object(
+            KubernetesTarget, "destroy"
+        ).start();
+        ScaleClient().destroy("sdk-app", "sdk-ns");
+    } finally {
+        unittest.mock.patch.stopall();
+    }
+    ms_destroyed.assert_called_once_with("sdk-app", "");
+    plain_destroyed.assert_not_called();
 }

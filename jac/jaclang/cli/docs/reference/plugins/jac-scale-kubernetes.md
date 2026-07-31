@@ -1289,7 +1289,12 @@ with entry {
 
 With `target = "auto"` the SDK resolves exactly like the CLI: the
 microservice target when `microservices` declares routes (or sets
-`enabled = true`), the single-app `kubernetes` target otherwise.
+`enabled = true`), the single-app `kubernetes` target otherwise. Lifecycle
+calls (`destroy`/`status`/`scale`/`service_url`) have no spec to inspect, so
+`"auto"` there probes the namespace instead: a `jac-scale.role=gateway`
+Deployment means the microservice target, anything else the plain one. Pass
+an explicit `target=` to skip the probe (e.g. when the cluster is not
+reachable at call time).
 
 ### ScaleClient
 
@@ -1306,7 +1311,12 @@ microservice target when `microservices` declares routes (or sets
 `ScaleClient(kube_context=..., logger=...)` sets a default cluster context for
 every call and an optional custom logger. When `deploy` is given `on_event`,
 the whole run streams typed `ProgressEvent{phase, step, status, message,
-detail}` values: one `deploy` start/ok envelope, `provision` -> `bundle` ->
-`apply` -> `rollout` phase transitions, and every engine log line as a
-`phase="log"` event -- enough to render live build output. Without `on_event`,
-output goes to the console exactly like the CLI.
+detail}` values: one `deploy` start/ok envelope, the `provision`, `bundle`,
+`apply`, and `rollout` phases (each with `start`/`ok`, or `error` on failure;
+phase *order* is target-specific -- the plain target ships the bundle before
+provisioning backends -- so render by arrival, not a fixed sequence), and
+every engine log line as a `phase="log"` event -- enough to render live build
+output. Without `on_event`, output goes to the console exactly like the CLI.
+One caveat on quiet output: if the deploy tooling (kubernetes client et al.)
+is not installed yet, the first call installs it and prints pip progress to
+stdout.

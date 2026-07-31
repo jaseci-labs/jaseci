@@ -30,6 +30,15 @@ obj DeploySpec {
     ) -> DeploySpec {
         cfg = dict(config or {});
         cfg.setdefault('source', path);
+        import dataclasses;
+        known = {field.name for field in dataclasses.fields(DeploySpec)};
+        unknown = sorted(set(cfg.keys()) - known);
+        if unknown {
+            raise ValueError(
+                f"Unknown deploy option(s) {', '.join(unknown)}; valid keys: "
+                f"{', '.join(sorted(known))}."
+            );
+        }
         if not cfg.get('app_name') {
             import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
                 k8s_safe_slug
@@ -38,14 +47,7 @@ obj DeploySpec {
             name_source = base.name if base.suffix != '.jac' else base.parent.name;
             cfg['app_name'] = k8s_safe_slug(name_source);
         }
-        try {
-            return DeploySpec(**cfg);
-        } except TypeError as e {
-            raise ValueError(
-                f"Unknown deploy option ({e}); valid keys are the DeploySpec "
-                f"fields."
-            );
-        }
+        return DeploySpec(**cfg);
     }
 
     def resolved_target -> str {
@@ -118,7 +120,11 @@ obj DeploySpec {
             raise ValueError(f"DeploySpec.replicas must be >= 1, got {self.replicas}.");
         }
         config['min_replicas'] = self.replicas;
-        if self.replicas > 3 {
+        import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+            KubernetesConfig
+        }
+        default_max = KubernetesConfig(app_name=self.app_name).max_replicas;
+        if self.replicas > default_max {
             config['max_replicas'] = self.replicas;
         }
         config.update(dict(self.autoscaler));

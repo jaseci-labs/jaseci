@@ -348,7 +348,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         if not names {
             return;
         }
-        self._load_kube_config();
+        self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
         ns = self.k8s_config.namespace;
@@ -562,7 +562,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             return;
         }
 
-        self._load_kube_config();
+        self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
 
@@ -712,7 +712,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         return ctx;
     }
 
-    def _load_kube_config {
+    def _load_cluster_config {
         kubeconfig_failed: bool = False;
         try {
             k8s_cluster_config.load_kube_config(
@@ -801,7 +801,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
     }
 
     def apply_manifests(bundle: dict[str, any]) {
-        self._load_kube_config();
+        self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
         policy_v1 = client.PolicyV1Api();
@@ -1081,7 +1081,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             );
         }
 
-        self._load_kube_config();
+        self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
         policy_v1 = client.PolicyV1Api();
