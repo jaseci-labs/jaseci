@@ -37,10 +37,26 @@ impl _get_root_anchor(anchor: any) -> any {
 impl _get_index_anchor -> any {
     try {
         import from jaclang { JacRuntimeInterface as Jac }
-        return Jac.get_context().system_root;
+        import from uuid { UUID }
+        import from jaclang.jac0core.archetype { NodeAnchor }
+        import from jaclang.jac0core.constant { Constants as Con }
+        ctx = Jac.get_context();
+        system_root_id = UUID(Con.SUPER_ROOT_UUID);
+        active_root = ctx.mem.get(system_root_id);
+        if isinstance(active_root, NodeAnchor) {
+            ctx.system_root = active_root;
+            return active_root;
+        }
+        if isinstance(ctx.system_root, NodeAnchor) {
+            ctx.system_root.id = system_root_id;
+            ctx.system_root.persistent = True;
+            ctx.mem.put(ctx.system_root);
+            return ctx.system_root;
+        }
     } except Exception {
         return None;
     }
+    return None;
 }
 
 impl _owner_root_for(index_anchor: any, node_anchor: any) -> any {

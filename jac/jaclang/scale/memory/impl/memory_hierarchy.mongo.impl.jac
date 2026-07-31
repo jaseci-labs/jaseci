@@ -407,13 +407,28 @@ impl MongoBackend.put_partial(anchor: Anchor, field_names: set[str]) -> None {
     }
     _id = to_uuid(anchor.id);
     try {
-        partial_data = Serializer.serialize_fields(anchor, field_names);
-        if not partial_data {
+        import from base64 { b64encode }
+        arch_field_names = set(field_names);
+        arch_field_names.discard('topology_index_data');
+        partial_data = Serializer.serialize_fields(anchor, arch_field_names);
+        carries_topology = (
+            'topology_index_data' in field_names
+            and isinstance(anchor, NodeAnchor)
+            and isinstance(anchor.archetype, Root)
+        );
+        if not partial_data and not carries_topology {
             return;
         }
         update: dict[str, object] = {
             f"data.archetype.{k}": v for (k, v) in partial_data.items()
         };
+        if carries_topology {
+            update['data.topology_index_data'] = (
+                b64encode(anchor.topology_index_data).decode('ascii')
+                if anchor.topology_index_data is not None
+                else None
+            );
+        }
         update['updated_at'] = datetime.now(timezone.utc).isoformat();
         self.collection.update_one({'_id': str(_id)}, {'$set': update});
         anchor.hash = Serializer._compute_hash(anchor);
