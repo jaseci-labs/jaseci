@@ -1,6 +1,6 @@
 import logging;
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
-    KubernetesTarget
+    KubernetesTargetBase
 }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.models.deployment_result { DeploymentResult }
@@ -21,13 +21,13 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
-    MicroserviceManifestBuilder,
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
 }
-import from jaclang.scale.deploy.target.kubernetes.microservice.database_provisioner {
-    MicroserviceDatabaseProvisioner
+import from jaclang.scale.deploy.target.kubernetes.database_provisioner {
+    DatabaseProvisioner
 }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import from jaclang.scale.deploy.autoscale.autoscaler {
@@ -43,9 +43,8 @@ import from jaclang.scale.config.config_loader { get_scale_config }
 glob logger = logging.getLogger(__name__);
 
 
-obj KubernetesMicroserviceTarget(KubernetesTarget) {
+obj KubernetesTarget(KubernetesTargetBase) {
     has _deploy_context: DeployContext = DeployContext(),
-        no_image: bool = True,
         microservices_config: dict[str, any] = {};
 
     def _ms_cfg -> dict[str, any] {
@@ -62,17 +61,24 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
 
     def deploy(app_config: AppConfig) -> DeploymentResult {
         app_name = app_config.app_name or self.k8s_config.app_name;
+        if self.k8s_config.shared_ingress and not self.k8s_config.domain {
+            return DeploymentResult(
+                success=False,
+                message="shared_ingress=True requires a domain: set 'domain' "
+                "under [scale.kubernetes] in jac.toml."
+            );
+        }
         if self.logger {
             self.logger.info(
-                f"Deploying microservice app '{app_name}' to Kubernetes",
+                f"Deploying app '{app_name}' to Kubernetes",
                 {"namespace": self.k8s_config.namespace}
             );
         }
 
         self._emit("provision", "start", "Provisioning backends");
         try {
-            self._deploy_context = MicroserviceDatabaseProvisioner(
-                k8s_target=self, logger=self.logger, enabled=self.no_image
+            self._deploy_context = DatabaseProvisioner(
+                k8s_target=self, logger=self.logger
             ).provision(
                 app_name
             );
@@ -682,12 +688,11 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         self.k8s_config.python_image = resolve_pod_base_image(
             app_config.code_folder, self.k8s_config.python_image, probe=not self.dry_run
         );
-        builder = MicroserviceManifestBuilder(
+        builder = ManifestBuilder(
             k8s_config=self.k8s_config,
             secrets=self.secrets,
             deploy_context=self._context_with_env(),
             logger=self.logger,
-            no_image=True,
             project_dir=app_config.code_folder,
             microservices_config=self.microservices_config,
             dry_run=self.dry_run

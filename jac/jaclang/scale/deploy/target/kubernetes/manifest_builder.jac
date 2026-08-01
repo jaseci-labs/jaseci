@@ -73,12 +73,11 @@ def merge_manifest_overlay(base: any, overlay: any) -> any {
 }
 
 
-obj MicroserviceManifestBuilder {
+obj ManifestBuilder {
     has k8s_config: KubernetesConfig,
         secrets: dict[str, str] = {},
         deploy_context: DeployContext = DeployContext(),
         logger: any = None,
-        no_image: bool = True,
         project_dir: str = "",
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
@@ -226,7 +225,7 @@ obj MicroserviceManifestBuilder {
         }
 
         if getattr(self.k8s_config, "ops_console", False) {
-            import from jaclang.scale.deploy.target.kubernetes.microservice.ops_rbac {
+            import from jaclang.scale.deploy.target.kubernetes.ops_rbac {
                 build_ops_rbac
             }
             bundle["ops_rbac"] = build_ops_rbac(
@@ -259,11 +258,9 @@ obj MicroserviceManifestBuilder {
         self.microservices_config = ms_cfg;
 
         if not routes {
-            raise ValueError(
-                "No microservices to deploy: declare them in "
-                "[scale.microservices.routes] in jac.toml "
-                "(`jac scale split <module>` adds one)."
-            );
+            routes = self._solo_route(app_config);
+            ms_cfg["routes"] = routes;
+            self.microservices_config = ms_cfg;
         }
 
         specs: dict[str, dict[str, any]] = {};
@@ -280,6 +277,30 @@ obj MicroserviceManifestBuilder {
             );
         }
         return specs;
+    }
+
+    def _solo_route(app_config: AppConfig) -> dict[str, str] {
+        import from pathlib { Path }
+        import from jaclang.scale.runtime.routing {
+            derive_route_prefix,
+            guard_route_name
+        }
+        name = Path(app_config.file_name or "").name;
+        for suffix in [".sv.jac", ".jac"] {
+            if name.endswith(suffix) {
+                name = name[:-len(suffix)];
+                break;
+            }
+        }
+        if not name {
+            raise ValueError(
+                "Cannot derive a service name for this app: the entry module is "
+                "unknown. Pass the entry file to the deploy, or declare "
+                "[scale.microservices.routes] in jac.toml."
+            );
+        }
+        guard_route_name(name);
+        return {name: derive_route_prefix(name)};
     }
 
     def _drain_timeout -> int {

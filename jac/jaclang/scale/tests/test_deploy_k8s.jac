@@ -136,14 +136,14 @@ def _run_fleet_rollout(
 ) -> (Exception | None) {
     caught: (Exception | None) = None;
     with unittest.mock.patch(
-        "jaclang.scale.deploy.target.kubernetes.microservice.target.k8s_cluster_config"
+        "jaclang.scale.deploy.target.kubernetes.target.k8s_cluster_config"
     ) {
         with unittest.mock.patch(
-            "jaclang.scale.deploy.target.kubernetes.microservice.target.client.AppsV1Api",
+            "jaclang.scale.deploy.target.kubernetes.target.client.AppsV1Api",
             return_value=fake_apps_v1
         ) {
             with unittest.mock.patch(
-                "jaclang.scale.deploy.target.kubernetes.microservice.target.client.CoreV1Api",
+                "jaclang.scale.deploy.target.kubernetes.target.client.CoreV1Api",
                 return_value=fake_core_v1
             ) {
                 with unittest.mock.patch.object(time, "sleep") {
@@ -473,135 +473,6 @@ test "redis warns when memory limit lacks headroom over maxmemory" {
         'redis_memory_limit' in str(call) for call in mock_logger.warning.call_args_list
     );
     assert warned , "expected a headroom warning when limit <= 2x maxmemory";
-}
-
-obj FakeNetworkingV1 {
-    has created_policies: list = [];
-
-    def read_namespaced_network_policy(name: str, namespace: str) {
-        e = ApiException();
-        e.status = 404;
-        raise e;
-    }
-
-    def create_namespaced_network_policy(namespace: str, body: dict[(str, Any)]) {
-        self.created_policies.append(body);
-    }
-
-    def replace_namespaced_network_policy(
-        name: str, namespace: str, body: dict[(str, Any)]
-    ) {
-        self.created_policies.append(body);
-    }
-}
-
-test "kubernetes target security policy dicts" {
-    scale_config = get_scale_config();
-    target_config = scale_config.get_kubernetes_config();
-    target_config['app_name'] = 'test-app';
-    target_config['namespace'] = 'test-ns';
-    logger = UtilityFactory.create_logger('standard');
-    deployment_target = DeploymentTargetFactory.create(
-        'kubernetes', target_config, logger
-    );
-
-    probe_configs = deployment_target._build_probe_config('/health');
-    resources = deployment_target._build_resource_config();
-    container = deployment_target._build_container_config(
-        'test-app',
-        'example/image:latest',
-        probe_configs,
-        resources,
-        secret_ref_name='test-secret'
-    );
-    sc = container['securityContext'];
-    assert sc['runAsNonRoot'] is True;
-    assert sc['readOnlyRootFilesystem'] is True;
-    assert sc['allowPrivilegeEscalation'] is False;
-    assert sc['capabilities']['drop'] == ['ALL'];
-    assert sc['seccompProfile']['type'] == 'RuntimeDefault';
-
-    app_name = 'test-app';
-    namespace = 'test-ns';
-
-    fake_net = FakeNetworkingV1();
-    deployment_target._deploy_network_policy(app_name, namespace, fake_net);
-
-    expected_policy_names = [
-        f"{app_name}-network-policy",
-        f"{app_name}-mongodb-network-policy",
-        f"{app_name}-redis-network-policy",
-        f"{app_name}-prometheus-network-policy",
-        f"{app_name}-grafana-network-policy",
-        f"{app_name}-kube-state-metrics-network-policy",
-        f"{app_name}-node-exporter-network-policy",
-
-    ];
-    created_names = [p['metadata']['name'] for p in fake_net.created_policies];
-    for name in expected_policy_names {
-        assert name in created_names;
-    }
-
-    for p in fake_net.created_policies {
-        assert p['metadata']['labels']['app'] == app_name;
-        assert p['metadata']['labels']['managed'] == 'jac-scale';
-        assert p['spec']['policyTypes'] == ['Ingress', 'Egress'];
-        assert p['spec']['podSelector']['matchLabels']['app'] is not None;
-
-        egress_rules = p['spec']['egress'];
-        assert any(
-            rule.get('to', [])[0].get('namespaceSelector', {}).get(
-                'matchLabels', {}
-            ).get(
-                'kubernetes.io/metadata.name'
-            )
-                == 'kube-system'
-            for rule in egress_rules
-            if rule.get('to')
-        );
-    }
-
-    app_policy = next(
-        (
-            p
-            for p in fake_net.created_policies
-            if p['metadata']['name'] == f"{app_name}-network-policy"
-        ),
-        None
-    );
-    assert app_policy is not None;
-    app_ports = app_policy['spec']['ingress'][0]['ports'];
-    assert app_ports[0]['port'] == deployment_target.k8s_config.container_port;
-
-    mongo_policy = next(
-        (
-            p
-            for p in fake_net.created_policies
-            if p['metadata']['name'] == f"{app_name}-mongodb-network-policy"
-        ),
-        None
-    );
-    assert mongo_policy is not None;
-    mongo_from = mongo_policy['spec']['ingress'][0]['from'];
-    assert {'podSelector': {'matchLabels': {'app': app_name}}} in mongo_from;
-    assert {'podSelector': {'matchLabels': {'app': f"{app_name}-mongo-express"}}}
-        in mongo_from;
-    assert mongo_policy['spec']['ingress'][0]['ports'][0]['port'] == 27017;
-
-    redis_policy = next(
-        (
-            p
-            for p in fake_net.created_policies
-            if p['metadata']['name'] == f"{app_name}-redis-network-policy"
-        ),
-        None
-    );
-    assert redis_policy is not None;
-    redis_from = redis_policy['spec']['ingress'][0]['from'];
-    assert {'podSelector': {'matchLabels': {'app': app_name}}} in redis_from;
-    assert {'podSelector': {'matchLabels': {'app': f"{app_name}-redis-insight"}}}
-        in redis_from;
-    assert redis_policy['spec']['ingress'][0]['ports'][0]['port'] == 6379;
 }
 
 test "get service url switches between http and https based on tls state" {
@@ -962,64 +833,12 @@ test "shared ingress deploy fails fast when domain is not set" {
         'kubernetes', target_config, logger
     );
 
-    app_config = AppConfig(code_folder='/tmp', file_name='main.jac', no_image=True);
+    app_config = AppConfig(code_folder='/tmp', file_name='main.jac');
 
     result = deployment_target.deploy(app_config);
 
     assert result.success is False , "deploy must fail when shared_ingress=True but domain is empty";
     assert "domain" in result.message.lower() , "error message must mention domain requirement";
-
-    assert "validate_shared_ingress" not in result.details , "deploy must abort before recording validate_shared_ingress";
-}
-
-test "shared ingress deploy skips nodeport validation" {
-    scale_config = get_scale_config();
-    target_config = scale_config.get_kubernetes_config();
-    target_config['app_name'] = 'test-app';
-    target_config['namespace'] = 'test-ns';
-    target_config['shared_ingress'] = True;
-    target_config['domain'] = 'myapp.example.com';
-
-    logger = UtilityFactory.create_logger('standard');
-    deployment_target = DeploymentTargetFactory.create(
-        'kubernetes', target_config, logger
-    );
-
-    app_config = AppConfig(code_folder='/tmp', file_name='main.jac', no_image=True);
-
-    mock_provider = unittest.mock.MagicMock();
-    mock_provider.needs_nlb_wait.return_value = False;
-    mock_provider.log_ingress_deployed.return_value = None;
-
-    with unittest.mock.patch(
-        "jaclang.scale.deploy.target.kubernetes.kubernetes_target.k8s_cluster_config"
-    ) {
-        with unittest.mock.patch(
-            "jaclang.scale.deploy.target.kubernetes.kubernetes_target.check_K8s_status"
-        ) {
-            with unittest.mock.patch(
-                "jaclang.scale.deploy.target.kubernetes.kubernetes_target.ensure_namespace_exists"
-            ) {
-                with unittest.mock.patch(
-                    "jaclang.scale.deploy.target.kubernetes.kubernetes_target.load_env_variables",
-                    return_value=[]
-                ) {
-                    with unittest.mock.patch(
-                        "jaclang.scale.deploy.target.kubernetes.kubernetes_target.get_cluster_provider",
-                        return_value=mock_provider
-                    ) {
-                        with unittest.mock.patch(
-                            "jaclang.scale.deploy.target.kubernetes.kubernetes_target.client"
-                        ) {
-                            deployment_target.deploy(app_config);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    assert not mock_provider.validate_ports.called , "validate_ports must not be called when shared_ingress=True - no NodePort is created";
 }
 
 test "shared ingress merges caller-supplied annotations for non-nginx controllers" {

@@ -1,7 +1,7 @@
 import os;
 import from pathlib { Path }
-import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
-    MicroserviceManifestBuilder,
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    ManifestBuilder,
     merge_manifest_overlay
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
@@ -10,8 +10,8 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.config.config_loader { JacScaleConfig }
 
 
-def _builder(services: dict) -> MicroserviceManifestBuilder {
-    return MicroserviceManifestBuilder(
+def _builder(services: dict) -> ManifestBuilder {
+    return ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="t", namespace="t-ns"),
         microservices_config={"services": services},
         dry_run=True
@@ -241,7 +241,7 @@ test "gateway entrypoint builds the client leniently and does not swallow failur
 
 
 test "embedder overrides survive normalization" {
-    b = MicroserviceManifestBuilder(
+    b = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="t", namespace="t-ns"),
         microservices_config={
             "gateway_port": 9001,
