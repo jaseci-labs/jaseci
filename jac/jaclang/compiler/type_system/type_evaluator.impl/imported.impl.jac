@@ -1,11 +1,12 @@
 impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeBase {
-    if isinstance(node_.name, uni.Name) and node_.name.type is not None {
-        return node_.name.type;
-    }
-
-    if isinstance(node_.name, uni.Name) { } else {
+    binding = node_.binding_name;
+    if binding is None {
         return types.UnknownType();
     }
+    if binding.type is not None {
+        return binding.type;
+    }
+    item_name = node_.name.value;
     import from jaclang.jac0core.modresolver { is_untyped_third_party_module }
     import_node = node_.parent_of_type(uni.Import);
     assert import_node.from_loc is not None;
@@ -19,8 +20,8 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
             mod_dir = from_path.parent if not from_path.is_dir() else from_path;
             for ext in (".jac", ".py", ".pyi", ".js", ".ts", ".jsx", ".tsx") {
                 candidate_paths = [
-                    (mod_dir / f"{node_.name.value}{ext}").resolve(),
-                    (mod_dir / node_.name.value / f"__init__{ext}").resolve(),
+                    (mod_dir / f"{item_name}{ext}").resolve(),
+                    (mod_dir / item_name / f"__init__{ext}").resolve(),
                     (mod_dir / f"__init__{ext}").resolve(),
 
                 ];
@@ -34,7 +35,7 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
                     if (not path_str.endswith((".jac", ".py", ".pyi")))
                         or is_untyped_third_party_module(path_str) {
                         mod_type = types.ModuleType(
-                            mod_name=node_.name.sym_name,
+                            mod_name=binding.sym_name,
                             file_uri=path,
                             symbol_table=None,
                             is_external=True,
@@ -46,19 +47,17 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
                         if sibling_dts {
                             if declared
                                 := self._ts_declared_type_from_file(
-                                    sibling_dts, node_.name.value
+                                    sibling_dts, item_name
                                 ) {
-                                node_.name.type = declared;
-                                node_.name._sym_category = SymbolType.VAR;
-                                return node_.name.type;
+                                binding.type = declared;
+                                binding._sym_category = SymbolType.VAR;
+                                return binding.type;
                             }
                         }
-                        node_.name.type = types.AnyType(is_foreign=True);
-                        node_.name._sym_category = SymbolType.VAR;
-                        self._emit_untyped_external(
-                            node_.name, node_.name.value, from_mod_name
-                        );
-                        return node_.name.type;
+                        binding.type = types.AnyType(is_foreign=True);
+                        binding._sym_category = SymbolType.VAR;
+                        self._emit_untyped_external(binding, item_name, from_mod_name);
+                        return binding.type;
                     }
                     mod = self._import_module_from_path(
                         path_str, importer_path=self._resolve_importer_path(node_)
@@ -66,94 +65,85 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
 
                     is_subpackage_init = (
                         path.name.startswith("__init__")
-                        and path.parent.name == node_.name.value
+                        and path.parent.name == item_name
                     );
                     is_parent_init = (
                         path.name.startswith("__init__")
-                        and path.parent.name != node_.name.value
+                        and path.parent.name != item_name
                     );
 
                     if is_parent_init {
                         if sym
                             := type_utils.lookup_symtab(
-                                mod, node_.name.value, self.builtins_module
+                                mod, item_name, self.builtins_module
                             ) {
                             return self._set_module_item_symbol_and_type(node_, sym);
                         }
 
-                        if sym
-                            := self._resolve_star_import_symbol(
-                                mod, node_.name.value
-                            ) {
+                        if sym := self._resolve_star_import_symbol(mod, item_name) {
                             return self._set_module_item_symbol_and_type(node_, sym);
                         }
                         continue;
                     }
                     mod_type = types.ModuleType(
-                        mod_name=node_.name.sym_name, file_uri=path, symbol_table=mod,
+                        mod_name=binding.sym_name, file_uri=path, symbol_table=mod,
                     );
 
-                    node_.name.type = mod_type;
+                    binding.type = mod_type;
 
-                    node_.name._sym_category = SymbolType.MODULE;
+                    binding._sym_category = SymbolType.MODULE;
                     return mod_type;
                 }
             }
 
-            node_.name.type = types.UnknownType(is_diagnosed=True);
-            self.emit_diag(
-                W1101, node_.name, name=node_.name.value, module=from_mod_name
-            );
-            return node_.name.type;
+            binding.type = types.UnknownType(is_diagnosed=True);
+            self.emit_diag(W1101, binding, name=item_name, module=from_mod_name);
+            return binding.type;
         } else {
             if not isinstance(from_mod_type, types.ModuleType) {
-                node_.name.type = types.UnknownType(
+                binding.type = types.UnknownType(
                     is_diagnosed=isinstance(from_mod_type, types.UnknownType)
                         and from_mod_type.is_diagnosed
                 );
-                return node_.name.type;
+                return binding.type;
             }
             if from_mod_type.is_external {
                 if declared
                     := self._get_ts_declared_item_type(
-                        import_node.from_loc, node_.name.value
+                        import_node.from_loc, item_name
                     ) {
-                    node_.name.type = declared;
-                    node_.name._sym_category = SymbolType.VAR;
-                    return node_.name.type;
+                    binding.type = declared;
+                    binding._sym_category = SymbolType.VAR;
+                    return binding.type;
                 }
-                node_.name.type = types.AnyType(is_foreign=True);
-                node_.name._sym_category = SymbolType.VAR;
-                self._emit_untyped_external(
-                    node_.name, node_.name.value, from_mod_name
-                );
-                return node_.name.type;
+                binding.type = types.AnyType(is_foreign=True);
+                binding._sym_category = SymbolType.VAR;
+                self._emit_untyped_external(binding, item_name, from_mod_name);
+                return binding.type;
             }
             if sym
                 := type_utils.lookup_symtab(
-                    from_mod_type.symbol_table, node_.name.value, self.builtins_module
+                    from_mod_type.symbol_table, item_name, self.builtins_module
                 ) {
                 return self._set_module_item_symbol_and_type(node_, sym);
             }
             if isinstance(from_mod_type.symbol_table, uni.Module) {
                 if sym
                     := self._resolve_star_import_symbol(
-                        from_mod_type.symbol_table, node_.name.value
+                        from_mod_type.symbol_table, item_name
                     ) {
                     return self._set_module_item_symbol_and_type(node_, sym);
                 }
             }
-            node_.name.type = types.UnknownType(is_diagnosed=True);
-            self.emit_diag(
-                W1101, node_.name, name=node_.name.value, module=from_mod_name
-            );
-            return node_.name.type;
+            binding.type = types.UnknownType(is_diagnosed=True);
+            self.emit_diag(W1101, binding, name=item_name, module=from_mod_name);
+            return binding.type;
         }
     }
 
     if isinstance(from_mod_type, types.UnknownType) and from_mod_type.is_diagnosed {
-        node_.name.type = types.UnknownType(is_diagnosed=True);
-        return node_.name.type;
+        binding.type = types.UnknownType(is_diagnosed=True);
+        return binding.type;
     }
     return types.UnknownType();
 }

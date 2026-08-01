@@ -486,6 +486,7 @@ obj ModuleItem(UniNode) {
 
     has from_parent: Import { getter; }
     has from_mod_path: ModulePath { getter; }
+    has binding_name: (Name | None) { getter; }
 
     def resolve_relative_path -> str;
 }
