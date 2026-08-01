@@ -119,12 +119,21 @@ Multiple `can with entry` blocks in one component are fine and good for separati
 `async` and dependency arrays compose freely - the "await something whenever a prop changes" effect (re-fetch on a new query, re-render a diagram from new source, reload on a route param) is a single entry ability, NOT a manual `useEffect` with `.then()` chains:
 
 ```jac
-async can with [query] entry {          # re-runs whenever `query` changes
-    try {
-        results = await search_items(query);
-    } except Exception {
-        failed = True;
+async def search_items(query: str) -> list[str];
+
+def:pub SearchResults(query: str) -> JsxElement {
+    has results: list[str] = [];
+    has failed: bool = False;
+
+    async can with [query] entry {          # re-runs whenever `query` changes
+        try {
+            results = await search_items(query);
+        } except Exception {
+            failed = True;
+        }
     }
+
+    <ul>{for r in results { <li>{r}</li> }}</ul>
 }
 ```
 
