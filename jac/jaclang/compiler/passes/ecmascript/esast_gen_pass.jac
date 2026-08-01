@@ -177,6 +177,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         collector: (IntentCollector | None) = None,
         converter: (EsastLeafConverter | None) = None,
         reactive_vars: set[str] = set(),
+        _reactive_vars_stack: list[set[str]] = [],
         strict_arch_has: bool = True,
         use_arch_has_dedup: bool = False,
         client_manifest: (ClientManifest | None) = None,
