@@ -456,7 +456,7 @@ impl TypeEvaluator._install_compose_widgets -> None {
     # `Button(onClick=.., modifier=..)` type-checks as a call returning Composable.
     # Installed into js_globals_module, so — like the other client globals — it
     # only resolves under `expr.in_client_context()`; ordinary Jac never sees it.
-    # This replaces the hand-written compose_runtime.cl.jac / stub-gen `.cl.jac`
+    # This replaces the hand-written compose_runtime.jac / stub-gen `.cl.jac`
     # output with types read straight from the upstream signature file.
     if self.js_globals_module is None {
         return;
@@ -804,7 +804,7 @@ impl TypeEvaluator._kotlin_synth_surface(
     sigs: list[ComposeSig], scope: uni.UniScopeNode
 ) -> None {
     # Install every composable as a module-scope symbol in `scope` (the client
-    # ambient globals), replacing the hand-written compose_runtime.cl.jac and the
+    # ambient globals), replacing the hand-written compose_runtime.jac and the
     # spliced stub-gen .cl.jac output with ingested types that track upstream
     # AndroidX signature files.
     synth_src = uni.Source('', '<compose-surface>');

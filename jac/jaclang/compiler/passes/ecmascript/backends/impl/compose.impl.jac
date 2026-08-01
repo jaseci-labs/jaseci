@@ -31,7 +31,7 @@ impl ComposeBackend.required_globals -> list[str] {
 }
 
 impl ComposeBackend.runtime_source_basename -> str {
-    return "compose_runtime.cl.jac";
+    return "compose_runtime.jac";
 }
 
 impl ComposeBackend.vite_aliases -> dict[str, str] {

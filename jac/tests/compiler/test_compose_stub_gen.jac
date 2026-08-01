@@ -156,7 +156,7 @@ test "emits valid def:pub stub declarations with typed params" {
     assert "modifier: (ModifierChain | None) = None" in out;
     assert "content: (any | None) = None" in out;
     assert "enabled: any = None" in out;
-    # generated marker so it can be spliced into compose_runtime.cl.jac
+    # generated marker so it can be spliced into compose_runtime.jac
     assert "GENERATED WIDGETS" in out;
 }
 
