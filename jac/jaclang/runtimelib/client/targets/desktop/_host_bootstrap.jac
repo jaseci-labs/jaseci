@@ -76,10 +76,31 @@ def _generate_host_source(
     );
 
     bootstrap_js = (
-        "(function(){try{"
+        "(function(){var _l={},_streams={};"
+        "function _pushStream(p){"
+        "var s=_streams[p.stream_id]||(_streams[p.stream_id]={q:[],r:[]});"
+        "if(s.r.length)s.r.shift()(p);else s.q.push(p);}"
+        "window.__jac={"
+        "invoke:function(p,c,a){"
+        "return window.__jac_invoke(p,c,a||{}).then(function(r){"
+        "if(typeof r==='string')r=JSON.parse(r);"
+        "if(r.ok)return r.data;"
+        "var e=new Error((r.error&&r.error.message)||'invoke failed');"
+        "e.code=r.error&&r.error.code;throw e;});},"
+        "on:function(ev,cb){(_l[ev]=_l[ev]||[]).push(cb);"
+        "return function(){var a=_l[ev]||[];var i=a.indexOf(cb);"
+        "if(i!==-1)a.splice(i,1);};},"
+        "__emit__:function(ev,p){"
+        "if(ev==='__jac_stream'&&p&&p.stream_id)_pushStream(p);"
+        "(_l[ev]||[]).forEach(function(h){try{h(p);}catch(_){}});},"
+        "__stream_next__:function(id){"
+        "var s=_streams[id]||(_streams[id]={q:[],r:[]});"
+        "if(s.q.length)return Promise.resolve(s.q.shift());"
+        "return new Promise(function(res){s.r.push(res);});}"
+        "};"
         "window.__JAC_DESKTOP__=true;window.__JAC_BROKER__='/__jac';"
         "window.__JAC_NATIVE__=true;"
-        "}catch(e){}})();"
+        "})();"
     );
 
     boot_error_html = (

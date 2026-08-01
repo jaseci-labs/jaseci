@@ -6,6 +6,17 @@ import ctypes;
 import threading;
 import queue;
 import uuid;
+import inspect;
+import from typing { AsyncGenerator }
+import from jaclang.runtimelib.streaming { iter_sync_or_async }
+import from jaclang.runtimelib.invocation {
+    InvocationKind,
+    InvocationRequest,
+    prepare_invocation_runtime,
+    _invoke_sync,
+    new_request_id
+}
+
 
 obj CallState {
     has lock: any,
@@ -14,17 +25,29 @@ obj CallState {
 }
 
 
-glob _tc: any = None,
-     _runtime: any = None,
+obj StreamHandle {
+    has cancel: any,
+        credits: any = None,
+        acked: bool = False,
+        stalls: int = 0;
+}
+
+
+glob _runtime: any = None,
      _wv_return: any = None,
      _work_q: any = None,
-     _worker: any = None,
+     _workers: any = None,
+     _pool_size: int = 4,
+     _worker_local: any = threading.local(),
      _timeout_s: float = 30.0,
      _max_queue: int = 128,
      _debug: bool = False,
      _BOOT_ERROR: str = "",
      _shutting_down: bool = False,
-     _sv_lock: any = None;
+     _stream_emit: any = None,
+     _stream_window: int = 256,
+     _streams: dict = {},
+     _streams_lock: any = threading.Lock();
 
 
 def boot(
@@ -32,13 +55,17 @@ def boot(
     graph_path: str,
     timeout_s: float = 30.0,
     max_queue: int = 128,
-    debug: bool = False
+    debug: bool = False,
+    pool_size: int = 4,
+    stream_window: int = 256
 ) {
-    global _timeout_s,_max_queue,_debug,_BOOT_ERROR;
+    global _timeout_s,_max_queue,_debug,_BOOT_ERROR,_pool_size,_stream_window;
 
     _BOOT_ERROR = "";
     _timeout_s = timeout_s;
     _max_queue = max_queue;
+    _pool_size = max(1, pool_size);
+    _stream_window = max(0, stream_window);
 
     _debug = debug or bool(os.environ.get("JAC_DESKTOP_DEBUG"));
 
@@ -62,7 +89,7 @@ def _ensure_jac_meta_importer {
 
 
 def _boot_impl(entry_file: str, graph_path: str) {
-    global _tc,_runtime,_work_q,_worker,_shutting_down,_sv_lock;
+    global _runtime,_work_q,_workers,_shutting_down;
 
     if _runtime is not None {
         try {
@@ -75,45 +102,60 @@ def _boot_impl(entry_file: str, graph_path: str) {
             );
         }
         _runtime = None;
-        _tc = None;
     }
     _shutting_down = False;
 
-    if _sv_lock is None {
-        _sv_lock = threading.Lock();
-    }
     import jaclang;
     _ensure_jac_meta_importer();
-    import from jaclang.scale.server.inprocess { prepare_inprocess_runtime }
 
-    _runtime = prepare_inprocess_runtime(
-        entry_file,
-        graph_path,
-        endpoint_profile="desktop",
-        setup_background_services=False,
-        transport_kind="testclient"
-    );
-    _tc = _runtime.client;
+    _runtime = prepare_invocation_runtime(entry_file, graph_path);
 
     if _work_q is None {
         _work_q = queue.Queue(maxsize=_max_queue);
-        _worker = threading.Thread(
-            target=_worker_loop, name="jac-inprocess-dispatch", daemon=True
-        );
-        _worker.start();
+        _workers = [];
+        for i in range(_pool_size) {
+            w = threading.Thread(
+                target=_worker_loop,
+                name="jac-inprocess-dispatch-" + str(i),
+                daemon=True
+            );
+            w.start();
+            _workers.append(w);
+        }
     }
 }
 
 
+def set_stream_emit(fn: any) {
+    global _stream_emit;
+    _stream_emit = fn;
+}
+
+
 def shutdown {
-    global _tc,_runtime,_work_q,_worker,_shutting_down,_wv_return;
-    if _work_q is None and _tc is None and _runtime is None {
+    global _runtime,_work_q,_workers,_shutting_down,_wv_return,_stream_emit;
+    if _work_q is None and _runtime is None {
         return;
     }
     if _shutting_down {
         return;
     }
     _shutting_down = True;
+
+    with _streams_lock {
+        active_streams = list(_streams.values());
+    }
+    for h in active_streams {
+        h.cancel.set();
+        creds = h.credits;
+        if creds is not None {
+            try {
+                creds.release();
+            } except Exception { }
+        }
+    }
+    workers = _workers or [];
+    worker_count = len(workers);
     if _work_q is not None {
         while True {
             try {
@@ -131,14 +173,19 @@ def shutdown {
             }
             _claim(state);
         }
-        try {
-            _work_q.put_nowait(None);
-        } except queue.Full {
-            _work_q.put(None);
+
+        for _i in range(max(worker_count, 1)) {
+            try {
+                _work_q.put_nowait(None);
+            } except queue.Full {
+                _work_q.put(None);
+            }
         }
     }
-    if _worker is not None and _worker.is_alive() {
-        _worker.join(timeout=min(_timeout_s, 5.0));
+    for w in workers {
+        if w is not None and w.is_alive() {
+            w.join(timeout=min(_timeout_s, 5.0));
+        }
     }
     if _runtime is not None {
         try {
@@ -151,58 +198,302 @@ def shutdown {
         _runtime = None;
     }
 
-    if _worker is not None and _worker.is_alive() {
-        sys.stderr.write(
-            "inprocess_dispatch: worker still running after join timeout; " + "queue cleared -- worker will drain its local ref and exit\n"
+    for w in workers {
+        if w is not None and w.is_alive() {
+            sys.stderr.write(
+                "inprocess_dispatch: worker still running after join timeout; " + "queue cleared -- worker will drain its local ref and exit\n"
+            );
+        }
+    }
+    _work_q = None;
+    _workers = None;
+    _wv_return = None;
+    _stream_emit = None;
+}
+
+
+def _transport_body(result: any) -> dict {
+    transport = result.to_transport();
+    body: dict = {"ok": transport.ok};
+    if transport.ok {
+        body["data"] = transport.data;
+    } elif transport.error {
+        err: dict = {"code": transport.error.code, "message": transport.error.message};
+        if transport.error.details is not None {
+            err["details"] = transport.error.details;
+        }
+        if transport.meta and transport.meta.request_id {
+            err["request_id"] = transport.meta.request_id;
+        }
+        body["error"] = err;
+    }
+    return body;
+}
+
+
+def cancel_stream(stream_id: str) {
+    with _streams_lock {
+        handle = _streams.get(stream_id);
+    }
+    if handle is not None {
+        handle.cancel.set();
+        creds = handle.credits;
+        if creds is not None {
+            try {
+                creds.release();
+            } except Exception { }
+        }
+    }
+}
+
+
+def stream_ack(stream_id: str, n: int = 1) {
+    with _streams_lock {
+        handle = _streams.get(stream_id);
+    }
+    if handle is not None {
+        handle.acked = True;
+        creds = handle.credits;
+        if creds is not None {
+            for _i in range(max(1, n)) {
+                creds.release();
+            }
+        }
+    }
+}
+
+
+def _await_credit(handle: StreamHandle, emit: any) -> bool {
+    if handle.credits is None {
+        return True;
+    }
+    while True {
+        if _shutting_down or handle.cancel.is_set() or emit is None {
+            return False;
+        }
+        if handle.credits.acquire(timeout=0.1) {
+            return True;
+        }
+        handle.stalls += 1;
+        if (not handle.acked) and handle.stalls >= 5 {
+            handle.credits = None;
+            if _debug {
+                sys.stderr.write(
+                    "inprocess_dispatch: stream backpressure disabled "
+                    "(no consumer acks)\n"
+                );
+            }
+            return True;
+        }
+    }
+}
+
+
+def _pump_native_stream(stream_id: str, gen: object, handle: StreamHandle) {
+    emit = _stream_emit;
+    cancelled = False;
+    items: any = None;
+    try {
+        if not inspect.isgenerator(gen) and not isinstance(gen, AsyncGenerator) {
+            if emit is not None {
+                emit(
+                    stream_id,
+                    {
+                        "type": "error",
+                        "error": {
+                            "error_type": "TypeError",
+                            "message": "native stream expected a generator, got " + type(
+                                gen
+                            ).__name__
+                        }
+                    }
+                );
+            }
+            return;
+        }
+
+        items = iter_sync_or_async(gen);
+        while True {
+            if _shutting_down or emit is None or handle.cancel.is_set() {
+                cancelled = True;
+                break;
+            }
+            if not _await_credit(handle, emit) {
+                cancelled = True;
+                break;
+            }
+            try {
+                item = next(items);
+            } except StopIteration {
+                break;
+            }
+            emit(stream_id, {"type": "data", "data": item});
+        }
+
+        if emit is not None
+        and not _shutting_down
+        and not cancelled
+        and not handle.cancel.is_set() {
+            emit(stream_id, {"type": "end"});
+        }
+    } except Exception as e {
+        if emit is not None and not _shutting_down and not handle.cancel.is_set() {
+            try {
+                emit(
+                    stream_id,
+                    {
+                        "type": "error",
+                        "error": {"error_type": type(e).__name__, "message": str(e)}
+                    }
+                );
+            } except Exception { }
+        }
+    } finally {
+        if items is not None {
+            try {
+                items.close();
+            } except Exception { }
+        }
+        try {
+            close_fn = gen?.close;
+            if close_fn {
+                close_fn();
+            }
+        } except Exception { }
+        with _streams_lock {
+            if _streams.get(stream_id) is handle {
+                del _streams[stream_id];
+            }
+        }
+    }
+}
+
+
+def _open_native_stream(gen: object) -> str {
+    emit = _stream_emit;
+    if emit is None {
+        return _error_envelope(
+            "NATIVE_DISPATCH_ERROR",
+            "streaming invocations require a native stream emit hook"
         );
     }
-    _tc = None;
-    _work_q = None;
-    _worker = None;
-    _wv_return = None;
+    stream_id = str(uuid.uuid4());
+    credits = threading.Semaphore(_stream_window) if _stream_window > 0 else None;
+    handle = StreamHandle(cancel=threading.Event(), credits=credits);
+    with _streams_lock {
+        _streams[stream_id] = handle;
+    }
+    th = threading.Thread(
+        target=_pump_native_stream,
+        args=(stream_id, gen, handle),
+        name="jac-native-stream-" + stream_id[:8],
+        daemon=True
+    );
+    th.start();
+    return json.dumps(
+        {
+            "ok": True,
+            "__jac_stream": True,
+            "v": 1,
+            "protocol": "push",
+            "stream_id": stream_id
+        }
+    );
+}
+
+
+def dispatch_outcome(payload_json: str) -> dict {
+    if _BOOT_ERROR {
+        return {
+            "mode": "error",
+            "status": 500,
+            "body": _error_envelope(
+                "NATIVE_BOOT_ERROR", "in-process backend failed to start", _BOOT_ERROR
+            ),
+            "stream": None
+        };
+    }
+
+    runtime = _runtime;
+    if runtime is None {
+        return {
+            "mode": "error",
+            "status": 500,
+            "body": _error_envelope(
+                "NOT_BOOTED", "in-process dispatch called before boot()"
+            ),
+            "stream": None
+        };
+    }
+    try {
+        req = json.loads(payload_json);
+    } except Exception as e {
+        return {
+            "mode": "error",
+            "status": 400,
+            "body": _error_envelope(
+                "NATIVE_DISPATCH_ERROR", "invalid invocation payload: " + str(e)
+            ),
+            "stream": None
+        };
+    }
+    kind_raw = req.get("kind");
+    if kind_raw == "walker" {
+        kind = InvocationKind.WALKER;
+    } elif kind_raw == "function" {
+        kind = InvocationKind.FUNCTION;
+    } else {
+        return {
+            "mode": "error",
+            "status": 400,
+            "body": _error_envelope(
+                "NATIVE_DISPATCH_ERROR", "unsupported invocation kind: " + str(kind_raw)
+            ),
+            "stream": None
+        };
+    }
+    result = _invoke_on_worker_loop(
+        runtime.dispatcher,
+        InvocationRequest(
+            kind=kind,
+            name=str(req.get("name") or ""),
+            fields=(req.get("fields") or {}) as dict,
+            node_id=(req.get("node") or "") or None,
+            token=str(req.get("token") or "")
+        )
+    );
+    if result.is_stream {
+        return {
+            "mode": "sse",
+            "status": int(result.http_status or 200),
+            "body": "",
+            "stream": result.stream
+        };
+    }
+    http_status = result.http_status;
+    return {
+        "mode": "json",
+        "status": http_status,
+        "body": json.dumps(
+            {"status": http_status, "ok": result.ok, "body": _transport_body(result)}
+        ),
+        "stream": None
+    };
 }
 
 
 def dispatch(payload_json: str) -> str {
-    if _BOOT_ERROR {
-        return _error_envelope(
-            "NATIVE_BOOT_ERROR", "in-process backend failed to start", _BOOT_ERROR
-        );
-    }
-
-    tc = _tc;
-    if tc is None {
-        return _error_envelope(
-            "NOT_BOOTED", "in-process dispatch called before boot()"
-        );
-    }
-    req = json.loads(payload_json);
-    kind = req.get("kind");
-    name = req.get("name");
-    node_id = req.get("node") or "";
-    fields = req.get("fields") or {};
-    token = req.get("token") or "";
-    headers = {};
-    if token {
-        headers["Authorization"] = "Bearer " + token;
-    }
-    if kind == "walker" {
-        path = "/walker/" + str(name);
-        if node_id {
-            path = path + "/" + str(node_id);
+    outcome = dispatch_outcome(payload_json);
+    if outcome.get("mode") == "sse" {
+        stream = outcome.get("stream");
+        if stream is None {
+            return _error_envelope(
+                "NATIVE_DISPATCH_ERROR", "streaming outcome missing generator"
+            );
         }
-    } else {
-        path = "/function/" + str(name);
+        return _open_native_stream(stream);
     }
-    resp = tc.post(path, json=fields, headers=headers);
-    try {
-        body = resp.json();
-    } except Exception {
-        body = {"ok": False, "error": {"message": resp.text}};
-    }
-    return json.dumps(
-        {"status": resp.status_code, "ok": resp.is_success, "body": body}
-    );
+    return outcome.get("body") as str;
 }
 
 
@@ -225,7 +516,7 @@ def dispatch_sync(payload_json: str, timeout_s: float = 0.0) -> str {
             "NATIVE_BOOT_ERROR", "in-process backend failed to start", _BOOT_ERROR
         );
     }
-    if _tc is None {
+    if _runtime is None {
         return _error_envelope(
             "NOT_BOOTED", "in-process dispatch called before boot()"
         );
@@ -254,47 +545,8 @@ def dispatch_sync(payload_json: str, timeout_s: float = 0.0) -> str {
 }
 
 
-def forward(
-    method: str, path: str, body: bytes, token: str = ""
-) -> tuple[int, str, str] {
-    if _BOOT_ERROR {
-        return (
-            503,
-            json.dumps({"ok": False, "error": {"message": "backend boot failed"}}),
-            "application/json"
-        );
-    }
-    tc = _tc;
-    if tc is None {
-        return (
-            503,
-            json.dumps({"ok": False, "error": {"message": "backend not booted"}}),
-            "application/json"
-        );
-    }
-    global _sv_lock;
-    if _sv_lock is None {
-        _sv_lock = threading.Lock();
-    }
-    headers = {"Content-Type": "application/json"};
-    if token {
-        headers["Authorization"] = "Bearer " + token;
-    }
-    with _sv_lock {
-        resp = tc.request(method, path, content=body, headers=headers);
-    }
-    ctype = resp.headers.get("content-type", "application/json");
-    return (resp.status_code, resp.text, ctype);
-}
-
-
-def _new_request_id -> str {
-    return uuid.uuid4().hex[:12];
-}
-
-
 def _error_envelope(code: str, message: str, details: str = "") -> str {
-    request_id = _new_request_id();
+    request_id = new_request_id();
     error = {"code": code, "message": message, "request_id": request_id};
     if details {
         sys.stderr.write(
@@ -374,36 +626,56 @@ def _on_timeout(w: int, id_bytes: bytes, state: CallState) {
 }
 
 
-def _worker_loop {
-    while True {
-        if _shutting_down {
-            break;
-        }
-        q = _work_q;
-        if q is None {
-            break;
-        }
-        item = q.get();
-        if item is None {
-            break;
-        }
-        (w, id_bytes, payload_json, state) = item;
-        result = "";
-        try {
-            result = dispatch(payload_json);
-        } except Exception as e {
-            result = _error_envelope(
-                "NATIVE_DISPATCH_ERROR", str(e), traceback.format_exc()
-            );
-        }
+def _invoke_on_worker_loop(dispatcher: any, request: any) -> any {
+    loop = _worker_local?.loop;
+    if loop is not None {
+        return loop.run_until_complete(dispatcher.invoke(request));
+    }
+    return _invoke_sync(dispatcher, request);
+}
 
-        timer = state.timer;
-        if timer is not None {
-            timer.cancel();
+
+def _worker_loop {
+    import asyncio;
+    loop = asyncio.new_event_loop();
+    asyncio.set_event_loop(loop);
+    _worker_local.loop = loop;
+    try {
+        while True {
+            if _shutting_down {
+                break;
+            }
+            q = _work_q;
+            if q is None {
+                break;
+            }
+            item = q.get();
+            if item is None {
+                break;
+            }
+            (w, id_bytes, payload_json, state) = item;
+            result = "";
+            try {
+                result = dispatch(payload_json);
+            } except Exception as e {
+                result = _error_envelope(
+                    "NATIVE_DISPATCH_ERROR", str(e), traceback.format_exc()
+                );
+            }
+
+            timer = state.timer;
+            if timer is not None {
+                timer.cancel();
+            }
+            if _claim(state) {
+                _reply(w, id_bytes, result);
+            }
         }
-        if _claim(state) {
-            _reply(w, id_bytes, result);
-        }
+    } finally {
+        _worker_local.loop = None;
+        try {
+            loop.close();
+        } except Exception { }
     }
 }
 

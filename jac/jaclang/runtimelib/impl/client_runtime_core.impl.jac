@@ -147,7 +147,85 @@ async def __nativeInvoke(kind: str, name: str, `node: str, fields: dict) -> any 
         "fields": fields,
         "token": token
     };
-    return await globalThis.__jac_invoke(JSON.stringify(payload));
+    raw = await globalThis.__jac_invoke(JSON.stringify(payload));
+    if raw and raw.__jac_stream {
+        if raw.response {
+            return {
+                "__jac_stream_iter": True,
+                "iter": __consumeNativeSse(raw.response)
+            };
+        }
+
+        if raw.stream_id {
+            return {
+                "__jac_stream_iter": True,
+                "iter": __consumeNativePush(str(raw.stream_id))
+            };
+        }
+    }
+    if isinstance(raw, str) {
+        return JSON.parse(raw);
+    }
+    return raw;
+}
+
+async def __consumeNativeSse(response: any) -> any {
+    reader = response.body.getReader();
+    decoder = new(TextDecoder);
+    nl = chr(10);
+    buf = "";
+    feeding = True;
+    while feeding {
+        part = await reader.read();
+        if part.done {
+            feeding = False;
+            continue;
+        }
+        buf = buf + decoder.decode(part.value, {"stream": True});
+        frames = buf.split(nl + nl);
+        buf = frames.pop();
+        for frame in frames {
+            lines = frame.split(nl);
+            is_event = False;
+            for line in lines {
+                if line.startsWith("event:") {
+                    is_event = True;
+                }
+            }
+            if is_event {
+                continue;
+            }
+            for line in lines {
+                if line.startsWith("data: ") {
+                    yield JSON.parse(line.slice(6));
+                }
+            }
+        }
+    }
+}
+
+async def __consumeNativePush(stream_id: str) -> any {
+    jac = globalThis.__jac;
+    if not jac or not jac.__stream_next__ {
+        raise Exception("native push streaming requires window.__jac.__stream_next__");
+    }
+    feeding = True;
+    while feeding {
+        frame = await jac.__stream_next__(stream_id);
+        kind = frame.type if frame else "";
+        if kind == "end" {
+            feeding = False;
+            continue;
+        }
+        if kind == "error" {
+            err = frame.error or {};
+            msg = err.message or "native stream error";
+            raise Exception(msg);
+        }
+        if kind == "data" {
+            yield frame.data;
+        }
+    }
 }
 
 def __nativeErrorMsg(response: any) -> str {
@@ -160,6 +238,9 @@ def __nativeErrorMsg(response: any) -> str {
 impl __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> any {
     if globalThis.__JAC_NATIVE__ and globalThis.__jac_invoke {
         response = await __nativeInvoke("walker", `walker, nodeId, fields);
+        if response and response["__jac_stream_iter"] {
+            return response["iter"];
+        }
         if not response["ok"] {
             if response["status"] == 401 {
                 __removeLocalStorage("jac_token");
@@ -200,6 +281,9 @@ impl __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> any {
 impl __doFuncFetch(function_name: str, args: dict) -> any {
     if globalThis.__JAC_NATIVE__ and globalThis.__jac_invoke {
         response = await __nativeInvoke("function", function_name, "", args);
+        if response and response["__jac_stream_iter"] {
+            return response["iter"];
+        }
         if not response["ok"] {
             raise Exception(
                 f"Function {function_name} failed: {__nativeErrorMsg(response)}"

@@ -106,6 +106,47 @@ The directory is **relocatable** - the binary finds its sibling `dist/` and `lib
 - Desktop builds set `JAC_BUILD=1` so import-time server starts stay inert - guard side effects accordingly.
 - `jac nacompile` lowers the host with Jac's pure-Jac linker (no `cc`/`ld` at link time), but the C toolchain is still needed once for `libwebview.so`.
 
+## Native dispatch - parity notes and known limitations
+
+Desktop `sv` calls go **direct** through the transport-neutral `InvocationDispatcher`
+(the same dispatcher HTTP uses), not through FastAPI. That keeps boot lean (no
+FastAPI/Starlette/Pydantic loaded for a minimal app) but the native `__jac_invoke`
+JSON envelope is a narrower surface than HTTP. What to expect:
+
+- **Input validation is lightweight, not Pydantic.** The dispatcher coerces the
+  common scalars (numeric-string → `int`/`float`, truthy tokens → `bool`) and
+  rejects missing-required or uncoercible fields with a stable
+  `VALIDATION_ERROR` (`http_status` 422) on **both** HTTP and native. It does not
+  reconstruct arbitrary Pydantic models; complex/nested shapes are passed through
+  as-is (walker/function body errors then normalize to `EXECUTION_ERROR`, never a
+  raw traceback).
+- **HTTP-only request features are not expressible natively.** restspec custom
+  paths/verbs, GET-vs-POST semantics, multipart file uploads, and query-parameter
+  binding exist only on the HTTP adapter. A walker designed around an upload or a
+  REST verb can't be driven from the native path - reach it over HTTP.
+- **Auth is Bearer-token only on native.** The middleware chain (CORS, tracing,
+  rate limiting, request-context, JWT) runs only under HTTP. Native carries a
+  `token` string; cookie/SSO/session auth is an HTTP-only concern.
+- **Concurrency is a bounded worker pool.** Native invocations run on a small pool
+  (`boot(..., pool_size=N)`, default 4), each worker holding a persistent event
+  loop so loop-bound resources survive across calls. Execution is OCC-guarded
+  exactly as under HTTP. A saturated queue returns `NATIVE_DISPATCH_BUSY`; a call
+  exceeding the timeout returns `NATIVE_DISPATCH_TIMEOUT` and the pool stays
+  healthy for the next item.
+- **Streaming uses a push protocol with cancellation + optional backpressure.** A
+  generator walker/function replies with `{__jac_stream, protocol:push,
+  stream_id}` and frames arrive via `window.__jac.on("__jac_stream", ...)`. The
+  consumer signals teardown with a `{__jac_stream_ctl:"cancel", stream_id}` frame
+  (stops the pump and closes the generator promptly) and can pace the producer
+  with `{__jac_stream_ctl:"ack", stream_id, n}` when the stream was opened with a
+  positive `stream_window`. **Known limitation:** if the client never acks, the
+  pump falls back to fire-and-forget (bounded to one window per burst, not truly
+  backpressured), and the streaming request-context lifetime tracks the same
+  open question as HTTP SSE.
+- **`http_status` rides inside the JSON body**, not a real transport status line,
+  so a consumer that keyed on an HTTP status must read `body`/`http_status`
+  instead.
+
 ## See also
 
 - `jac-project-kinds` - desktop vs web vs mobile target comparison

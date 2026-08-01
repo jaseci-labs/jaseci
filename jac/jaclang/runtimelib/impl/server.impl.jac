@@ -8,6 +8,12 @@ import from jaclang.runtimelib.auth_models {
     LoginRequest,
     RegisterRequest
 }
+import contextvars;
+import from jaclang.runtimelib.streaming {
+    context_bound_stream,
+    context_bound_async_stream,
+    drain_sse
+}
 
 impl UserManager.postinit -> None {
     import sqlite3;
@@ -344,13 +350,28 @@ impl ExecutionManager._finalize_call_response(
 ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
     call_state.reports.put_nowait(call_state._sentinel);
     reports = await self.report_collector(call_state);
-    await Jac.acommit();
+
+    stream: any = None;
     if isgenerator(result) or isinstance(result, AsyncGenerator) {
-        return result;
+        stream = result;
+    } elif isgenerator(reports) or isinstance(reports, AsyncGenerator) {
+        stream = reports;
     }
-    if isgenerator(reports) or isinstance(reports, AsyncGenerator) {
-        return reports;
+    if stream is not None {
+        captured = contextvars.copy_context();
+        def _teardown {
+            Jac.commit();
+            drain_ctx = Jac.get_context();
+            if drain_ctx.diagnostics {
+                drain_ctx.diagnostics.clear();
+            }
+        }
+        if isinstance(stream, AsyncGenerator) {
+            return context_bound_async_stream(stream, captured, _teardown);
+        }
+        return context_bound_stream(stream, captured, _teardown);
     }
+    await Jac.acommit();
 
     envelope: dict[str, JsonValue] = {
         'result': Serializer.serialize(result, api_mode=True),
@@ -1564,6 +1585,12 @@ impl JacAPIServer.postinit -> None {
         execution_manager=self.execution_manager,
         user_manager=self.user_manager
     );
+    import from jaclang.runtimelib.invocation { InvocationDispatcher }
+    self.invocation_dispatcher = InvocationDispatcher(
+        introspector=self.introspector,
+        execution_manager=self.execution_manager,
+        user_manager=self.user_manager
+    );
     self.scheduler = Scheduler.instance();
 
     if self.port > 0 {
@@ -1641,63 +1668,16 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
             self.send_header('Content-Type', 'text/event-stream');
             self.send_header('Cache-Control', 'no-cache');
             self.send_header('Connection', 'keep-alive');
-
             self.send_header('X-Accel-Buffering', 'no');
             ResponseBuilder._add_cors_headers(self);
             self.end_headers();
             wfile = self.wfile;
-            try {
-                if isgenerator(gen) {
-                    for item in gen {
-                        wfile.write(
-                            f"data: {json.dumps(item, default=str)}\n\n".encode()
-                        );
-                        wfile.flush();
-                    }
-                } else {
-                    loop = asyncio.new_event_loop();
-                    try {
-                        while True {
-                            try {
-                                item = loop.run_until_complete(gen.__anext__());
-                            } except StopAsyncIteration {
-                                break;
-                            }
-                            wfile.write(
-                                f"data: {json.dumps(item, default=str)}\n\n".encode()
-                            );
-                            wfile.flush();
-                        }
-                    } finally {
-                        loop.close();
-                    }
-                }
-                wfile.write(b"event: end\ndata: {}\n\n");
+            def _write_frame(frame: bytes) {
+                wfile.write(frame);
                 wfile.flush();
-            } except (BrokenPipeError, ConnectionResetError) {
-                pass;
-            } except Exception as e {
-                err_payload = {'error_type': type(e).__name__, 'message': str(e)};
-                try {
-                    wfile.write(
-                        f"event: error\ndata: {json.dumps(
-                            err_payload, default=str
-                        )}\n\n".encode()
-                    );
-                    wfile.flush();
-                } except Exception {
-                    pass;
-                }
-            } finally {
-                close_fn = gen?.close;
-                if close_fn {
-                    try {
-                        close_fn();
-                    } except Exception {
-                        pass;
-                    }
-                }
             }
+
+            drain_sse(gen, _write_frame);
         }
 
         def _render_page(self: JacRequestHandler, func_name: str, args: dict = {}) {

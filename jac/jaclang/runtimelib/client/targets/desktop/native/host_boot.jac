@@ -8,7 +8,10 @@ import threading;
 import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
     boot as inprocess_boot,
     dispatch_sync as inprocess_dispatch_sync,
-    forward as inprocess_forward
+    dispatch_outcome as inprocess_dispatch_outcome,
+    set_stream_emit as inprocess_set_stream_emit,
+    cancel_stream as inprocess_cancel_stream,
+    stream_ack as inprocess_stream_ack
 }
 import from jaclang.runtimelib.client.targets.desktop.native.oauth_broker {
     SessionStore,
@@ -32,6 +35,10 @@ obj HostContext {
         server: any = None;
 
     def dispatch(req_json: str) -> str {
+        ctl = stream_control(req_json);
+        if ctl is not None {
+            return json.dumps(ctl);
+        }
         payload = runtime_payload(req_json);
         if payload is not None {
             return inprocess_dispatch_sync(payload);
@@ -39,8 +46,37 @@ obj HostContext {
         return self.host.dispatch(req_json) as str;
     }
 
+    def dispatch_http(req_json: str) -> dict {
+        ctl = stream_control(req_json);
+        if ctl is not None {
+            return {
+                "mode": "json",
+                "status": 200,
+                "body": json.dumps(ctl),
+                "stream": None
+            };
+        }
+        payload = runtime_payload(req_json);
+        if payload is not None {
+            return inprocess_dispatch_outcome(payload);
+        }
+        return {
+            "mode": "json",
+            "status": 200,
+            "body": self.host.dispatch(req_json) as str,
+            "stream": None
+        };
+    }
+
     def setup_webview(wv_handle: int) {
         self.host.setup(wv_handle);
+
+        def _emit_stream(stream_id: str, frame: dict) {
+            payload = dict(frame);
+            payload["stream_id"] = stream_id;
+            self.host.emit("__jac_stream", payload);
+        }
+        inprocess_set_stream_emit(_emit_stream);
     }
 }
 
@@ -72,6 +108,53 @@ def runtime_payload(req_json: str) -> (str | None) {
 }
 
 
+def stream_control(req_json: str) -> (dict | None) {
+    try {
+        wire = json.loads(req_json);
+    } except Exception {
+        return None;
+    }
+    msg = wire;
+    if isinstance(wire, list) and len(wire) == 1 and isinstance(wire[0], str) {
+        try {
+            msg = json.loads(wire[0]);
+        } except Exception {
+            return None;
+        }
+    }
+    if not isinstance(msg, dict) {
+        return None;
+    }
+    ctl = msg.get("__jac_stream_ctl");
+    if ctl is None {
+        return None;
+    }
+    stream_id = str(msg.get("stream_id") or "");
+    if not stream_id {
+        return {
+            "ok": False,
+            "error": {"code": "STREAM_CTL_ERROR", "message": "missing stream_id"}
+        };
+    }
+    if ctl == "cancel" {
+        inprocess_cancel_stream(stream_id);
+        return {"ok": True, "__jac_stream_ctl": "cancel", "stream_id": stream_id};
+    }
+    if ctl == "ack" {
+        n = int(msg.get("n") or 1);
+        inprocess_stream_ack(stream_id, n);
+        return {"ok": True, "__jac_stream_ctl": "ack", "stream_id": stream_id, "n": n};
+    }
+    return {
+        "ok": False,
+        "error": {
+            "code": "STREAM_CTL_ERROR",
+            "message": "unknown stream control: " + str(ctl)
+        }
+    };
+}
+
+
 def preferred_port(app_name: str) -> int {
     return 49152 + (int(hashlib.sha1(app_name.encode()).hexdigest(), 16) % 16000);
 }
@@ -85,7 +168,35 @@ def _app_root -> str {
 }
 
 
-def _apply_extra_deps {
+def _is_pydeps_dir(path: str) -> bool {
+    if not os.path.isdir(path) {
+        return False;
+    }
+    try {
+        for name in os.listdir(path) {
+            if name.endswith(".dist-info") {
+                return True;
+            }
+        }
+    } except OSError {
+        return False;
+    }
+    return False;
+}
+
+
+def _prepend_sys_path(path: str) {
+    if path and path not in sys.path {
+        sys.path.insert(0, path);
+    }
+}
+
+
+def _apply_extra_deps(app_dir: str) {
+    bundled = os.path.join(app_dir, "pydeps");
+    if _is_pydeps_dir(bundled) {
+        _prepend_sys_path(bundled);
+    }
     extra = os.environ.get("JAC_DESKTOP_DEPS", "");
     if not extra {
         return;
@@ -128,11 +239,7 @@ def _start_loopback(
         server_cls = socketserver.ThreadingTCPServer;
         server_cls.daemon_threads = True;
         handler = make_handler(
-            dist,
-            store,
-            dispatch=ctx.dispatch,
-            events=ctx.host as object,
-            sv_bridge=inprocess_forward
+            dist, store, dispatch=ctx.dispatch_http, events=ctx.host as object
         );
     } else {
         handler = make_handler(dist, store);
@@ -194,7 +301,7 @@ def boot(config_json: str) -> HostContext {
     app_dir = _app_root();
     data_dir = str(os.environ.get("JAC_DATA_PATH", app_dir));
 
-    _apply_extra_deps();
+    _apply_extra_deps(app_dir);
 
     host = _bootstrap_plugin_host(plugin_configs);
     if mode == "cef" {

@@ -202,6 +202,7 @@ obj JacAPIServer {
         auth_handler: AuthHandler by postinit,
         introspection_handler: IntrospectionHandler by postinit,
         execution_handler: ExecutionHandler by postinit,
+        invocation_dispatcher: any by postinit,
         server: (HTTPServer | None) by postinit,
         scheduler: Scheduler by postinit;
 

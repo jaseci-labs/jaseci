@@ -105,29 +105,31 @@ impl JacAPIServerEndpoints.create_walker_callback(
     walker_name: str, has_node_param: bool = False
 ) -> Callable[..., (TransportResponse | StreamingResponse)] {
     import from jaclang.runtimelib.transport { TransportResponse, Meta }
+    import from jaclang.runtimelib.invocation { InvocationKind, InvocationRequest }
     import from fastapi { Request }
-    requires_auth = self.introspector.is_auth_required_for_walker(walker_name);
     async def callback(
         request: Request, nd: (str | None) = None, **kwargs: JsonValue
     ) -> (TransportResponse | StreamingResponse) {
-        username: (str | None) = request.state?.username if request?.state else None;
-        if requires_auth and not username {
-            return TransportResponse.fail(
-                code='UNAUTHORIZED',
-                message='Unauthorized',
-                meta=Meta(extra={'http_status': 401})
-            );
+        token = "";
+        auth_header = request.headers.get("Authorization");
+        if auth_header and auth_header.startswith("Bearer ") {
+            token = auth_header[7:];
         }
-        if nd {
-            kwargs['_jac_spawn_node'] = nd;
-        }
-        result = await self.execution_manager.spawn_walker(
-            self.get_walkers()[walker_name], kwargs, (username or Con.GUEST.value)
+        result = await self.invocation_dispatcher.invoke(
+            InvocationRequest(
+                kind=InvocationKind.WALKER,
+                name=walker_name,
+                fields=kwargs,
+                node_id=nd,
+                token=token,
+                resolved_user=request.state?.username,
+                identity_prevalidated=True
+            )
         );
-        if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
+        if result.is_stream and result.stream is not None {
             import from jaclang.scale.runtime.middleware.sse { sse_frame_stream }
             return StreamingResponse(
-                sse_frame_stream(result),
+                sse_frame_stream(result.stream),
                 media_type='text/event-stream',
                 headers={
                     'Cache-Control': 'no-cache',
@@ -136,17 +138,7 @@ impl JacAPIServerEndpoints.create_walker_callback(
                 }
             );
         }
-        if 'error' in result {
-            return TransportResponse.fail(
-                code='EXECUTION_ERROR',
-                message=result.get('error', 'Walker execution failed'),
-                details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
-            );
-        }
-        return TransportResponse.success(
-            data=result, meta=Meta(extra={'http_status': 200})
-        );
+        return result.to_transport();
     }
     return callback;
 }
@@ -237,28 +229,31 @@ impl JacAPIServerEndpoints.create_function_callback(
     func_name: str
 ) -> Callable[..., (TransportResponse | StreamingResponse)] {
     import from jaclang.runtimelib.transport { TransportResponse, Meta }
+    import from jaclang.runtimelib.invocation { InvocationKind, InvocationRequest }
     import from fastapi { Request }
-    requires_auth = self.introspector.is_auth_required_for_function(func_name);
     async def callback(
         request: Request, **kwargs: JsonValue
     ) -> (TransportResponse | StreamingResponse) {
-        username: (str | None) = request.state?.username if request?.state else None;
-        if requires_auth and not username {
-            return TransportResponse.fail(
-                code='UNAUTHORIZED',
-                message='Unauthorized',
-                meta=Meta(extra={'http_status': 401})
-            );
+        token = "";
+        auth_header = request.headers.get("Authorization");
+        if auth_header and auth_header.startswith("Bearer ") {
+            token = auth_header[7:];
         }
         console.print(f"Executing function '{func_name}' with params: {kwargs}");
-        result = await self.execution_manager.execute_function(
-            self.get_functions()[func_name], kwargs, (username or Con.GUEST.value)
+        result = await self.invocation_dispatcher.invoke(
+            InvocationRequest(
+                kind=InvocationKind.FUNCTION,
+                name=func_name,
+                fields=kwargs,
+                token=token,
+                resolved_user=request.state?.username,
+                identity_prevalidated=True
+            )
         );
-
-        if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
+        if result.is_stream and result.stream is not None {
             import from jaclang.scale.runtime.middleware.sse { sse_frame_stream }
             return StreamingResponse(
-                sse_frame_stream(result),
+                sse_frame_stream(result.stream),
                 media_type='text/event-stream',
                 headers={
                     'Cache-Control': 'no-cache',
@@ -267,17 +262,7 @@ impl JacAPIServerEndpoints.create_function_callback(
                 }
             );
         }
-        if 'error' in result {
-            return TransportResponse.fail(
-                code='EXECUTION_ERROR',
-                message=result.get('error', 'Function execution failed'),
-                details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
-            );
-        }
-        return TransportResponse.success(
-            data=result, meta=Meta(extra={'http_status': 200})
-        );
+        return result.to_transport();
     }
     return callback;
 }

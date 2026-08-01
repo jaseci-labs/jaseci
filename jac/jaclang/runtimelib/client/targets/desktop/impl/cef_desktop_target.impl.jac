@@ -13,6 +13,7 @@ import from jaclang.runtimelib.client.targets.desktop.desktop_build {
     _patch_host_rpath,
     _stage_pyembed_shim,
     _bundle_runtime,
+    _bundle_pydeps,
     build_cef_dispatch,
     build_cef_subprocess,
     fetch_cef_dist,
@@ -251,6 +252,7 @@ impl CefDesktopTarget.build(
     shutil.copytree(sv_root, out_dir / "sv", ignore=sv_ignore);
     sv_entry_rel = str(entry_file.name);
 
+    _bundle_pydeps(project_dir, out_dir);
     _stage_pyembed_shim(out_dir);
     cache_path = str(project_dir / ".jac" / "desktop" / "cef-cache" / str(app_name));
     host_src = _generate_host_source(
