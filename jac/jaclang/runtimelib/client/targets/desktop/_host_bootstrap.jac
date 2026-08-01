@@ -123,7 +123,9 @@ def _generate_host_source(
     return (
         '"""Generated native desktop host - do not edit (jac-desktop)."""\n'
         "import from webview { def webview_create(debug: i32, window: int) -> int; }\n"
-        "import from webview { Webview, respond, HINT_NONE, LAST_WEBVIEW_HANDLE, run_main_loop }\n" + _jacpyembed_import_block() + "glob PY_EVAL: i32 = 258;\n"
+        "import from webview { Webview, respond, HINT_NONE, LAST_WEBVIEW_HANDLE, run_main_loop }\n"
+        + _jacpyembed_import_block()
+        + "glob PY_EVAL: i32 = 258;\n"
         f"glob BOOT_PY: str = {json.dumps(boot_py, ensure_ascii=False)};\n"
         f"glob BOOTSTRAP_JS: str = {json.dumps(bootstrap_js, ensure_ascii=False)};\n"
         f"glob BOOT_ERROR_HTML: str = {json.dumps(

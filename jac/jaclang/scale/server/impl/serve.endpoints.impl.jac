@@ -227,13 +227,31 @@ impl JacAPIServerEndpoints.create_function_parameters(
 
 impl JacAPIServerEndpoints.create_function_callback(
     func_name: str
-) -> Callable[..., (TransportResponse | StreamingResponse)] {
+) -> Callable[..., (TransportResponse | StreamingResponse | Response)] {
     import from jaclang.runtimelib.transport { TransportResponse, Meta }
     import from jaclang.runtimelib.invocation { InvocationKind, InvocationRequest }
     import from fastapi { Request }
+    requires_auth = self.introspector.is_auth_required_for_function(func_name);
+
+    func_spec = self.get_functions()[func_name].restspec
+        if self.get_functions()[func_name]?.restspec
+        else None;
+    raw_body = func_spec is not None and not func_spec.envelope;
+    raw_media_type = (func_spec.produces or 'text/plain')
+        if func_spec
+        else 'text/plain';
+
     async def callback(
         request: Request, **kwargs: JsonValue
-    ) -> (TransportResponse | StreamingResponse) {
+    ) -> (TransportResponse | StreamingResponse | Response) {
+        username: (str | None) = request.state?.username if request?.state else None;
+        if requires_auth and not username {
+            return TransportResponse.fail(
+                code='UNAUTHORIZED',
+                message='Unauthorized',
+                meta=Meta(extra={'http_status': 401})
+            );
+        }
         token = "";
         auth_header = request.headers.get("Authorization");
         if auth_header and auth_header.startswith("Bearer ") {
@@ -246,7 +264,7 @@ impl JacAPIServerEndpoints.create_function_callback(
                 name=func_name,
                 fields=kwargs,
                 token=token,
-                resolved_user=request.state?.username,
+                resolved_user=username,
                 identity_prevalidated=True
             )
         );
@@ -261,6 +279,19 @@ impl JacAPIServerEndpoints.create_function_callback(
                     'X-Accel-Buffering': 'no'
                 }
             );
+        }
+        if raw_body {
+            payload = result.data;
+            if isinstance(payload, bytes) {
+                body = payload;
+            } elif isinstance(payload, str) {
+                body = payload.encode('utf-8');
+            } elif payload is None {
+                body = b"";
+            } else {
+                body = json.dumps(payload).encode('utf-8');
+            }
+            return Response(content=body, media_type=raw_media_type);
         }
         return result.to_transport();
     }

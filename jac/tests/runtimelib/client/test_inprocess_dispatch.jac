@@ -5,8 +5,17 @@ desktop host runs -- against the `inprocess_app` fixture, and asserts that a
 walker and a function call each round-trip IN-PROCESS (no socket, no remote
 server) and return the `{status, ok, body}` envelope the client runtime expects.
 
+This is the `sv` half of the `cl` -> `sv` path. The `cl` half (the client
+runtime routing a call through `window.__jac_invoke` instead of `fetch`) is
+covered by `jac/tests/runtimelib/test_native_invoke.jac`. Together they prove
+the full round-trip without a live webview, a display, or `nacompile`.
+
 Direct dispatch uses `InvocationDispatcher` in runtimelib and does not require
-FastAPI, Starlette, or `jaclang.scale.server.inprocess`.
+FastAPI, Starlette, or `jaclang.scale.server.inprocess`. The lean `jac test`
+desktop CI step does NOT install starlette, so the heavy imports are lazy
+(module import + collection stay backend-free) and each test self-skips when
+the backend deps are absent. It runs for real in the scale-backed CI step --
+see `.github/workflows/ci.yml`.
 """
 
 import os;
