@@ -18,6 +18,7 @@ import os;
 import tempfile;
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.compiler.passes.compose.compose_stub_gen { parse_signature_text }
 
 def _mk_compose_project(prefix: str) -> str {
@@ -53,13 +54,22 @@ def _mk_plain_client_project(prefix: str) -> str {
 
 glob _react_tmp: str = _mk_plain_client_project("jac_test_react_");
 
-def _errors_in(dir_: str, code: str, suffix: str = ".jac") -> list[str] {
+def _errors_in(
+    dir_: str, code: str, suffix: str = ".jac", framework: str = "compose"
+) -> list[str] {
     path = os.path.join(dir_, f"snippet_{abs(hash(code))}{suffix}");
     with open(path, "w") as f {
         f.write(code);
     }
     prog = JacProgram();
-    prog.compile(path, no_cgen=True, type_check=True);
+    # Force the client surface via CompileOptions (it takes precedence over
+    # project-config discovery), so the snippet resolves as a compose (or plain
+    # react) client module deterministically under parallel test runs.
+    prog.compile(
+        path,
+        no_cgen=True,
+        options=CompileOptions(type_check=True, client_framework=framework)
+    );
     return [str(e) for e in prog.errors_had];
 }
 
@@ -78,13 +88,7 @@ glob FIXTURE: str = "package androidx.compose.material3 {\n"
 def _errors_for(code: str, suffix: str = ".jac") -> list[str] {
     # Unique filename per call — a fixed path lets the compiler's by-path cache
     # return a prior snippet's (clean) result, masking a genuine type error.
-    path = os.path.join(_tmp, f"snippet_{abs(hash(code))}{suffix}");
-    with open(path, "w") as f {
-        f.write(code);
-    }
-    prog = JacProgram();
-    prog.compile(path, no_cgen=True, type_check=True);
-    return [str(e) for e in prog.errors_had];
+    return _errors_in(_tmp, code, suffix, "compose");
 }
 
 # ── Part 1: builtin member extensions ───────────────────────────────────────
@@ -580,7 +584,7 @@ test "Compose widgets do not leak into a plain (non-Compose) client module" {
     # (Unknown ambient names are permissive in client code, so isolation shows up
     # as the *absence* of the Compose-specific type error, not a new one.)
     snippet = "def f -> any {\n    return <Button onClick={lambda -> None { }} enabled=\"yes\">\"x\"</Button>;\n}\n";
-    assert not _errors_in(_react_tmp, snippet) , "the typed-Button error must NOT fire outside a Compose project";
+    assert not _errors_in(_react_tmp, snippet, ".jac", "react") , "the typed-Button error must NOT fire outside a Compose project";
     assert _errors_in(_tmp, snippet) , "the same wrong-typed prop must be flagged inside a Compose project";
 }
 
@@ -592,7 +596,7 @@ test "Modifier namespace does not leak into a plain client module" {
     # on the target.
     chain = "def f -> any {\n    return Modifier.padding(8.dp).fillMaxWidth();\n}\n";
     assert not _errors_in(_tmp, chain) , f"a valid Modifier chain must type-check inside a Compose project";
-    assert _errors_in(_react_tmp, chain) , "Modifier must NOT resolve to ModifierChain outside a Compose project";
+    assert _errors_in(_react_tmp, chain, ".jac", "react") , "Modifier must NOT resolve to ModifierChain outside a Compose project";
 }
 
 test ".dp / .sp extensions are Compose-target-only, permissive elsewhere" {
