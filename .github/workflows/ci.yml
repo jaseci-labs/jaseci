@@ -650,17 +650,15 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Scaffold emits compileSdk/targetSdk = 36, minSdk = 26.
+      # Scaffold emits compileSdk/targetSdk = 35, minSdk = 26.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # The runner's preinstalled cmdline-tools can be too old to resolve
-          # the newest platform (sdkmanager reports "Failed to find package
-          # platforms;android-36"); pull the latest so android-36 is known.
+          # Pin the newest cmdline-tools so sdkmanager resolves current packages.
           cmdline-tools-version: latest
           packages: |
-            platforms;android-36
-            build-tools;36.0.0
+            platforms;android-35
+            build-tools;35.0.0
 
       - name: Set up jac (build the binary)
         uses: ./.github/actions/setup-jac
@@ -700,13 +698,11 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # The runner's preinstalled cmdline-tools can be too old to resolve
-          # the newest platform (sdkmanager reports "Failed to find package
-          # platforms;android-36"); pull the latest so android-36 is known.
+          # Pin the newest cmdline-tools so sdkmanager resolves current packages.
           cmdline-tools-version: latest
           packages: |
-            platforms;android-36
-            build-tools;36.0.0
+            platforms;android-35
+            build-tools;35.0.0
 
       - name: Set up jac (build the binary)
         uses: ./.github/actions/setup-jac
@@ -714,7 +710,7 @@ jobs:
       - name: On-device DexClassLoader + HMR e2e
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 36
+          api-level: 35
           target: google_apis
           arch: x86_64
           disable-animations: true

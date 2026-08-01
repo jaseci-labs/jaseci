@@ -165,12 +165,12 @@ def _app_gradle(package_name: str) -> str {
 
 android {{
     namespace = "{pkg}"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {{
         applicationId = "{pkg}"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
     }}
@@ -188,8 +188,8 @@ kotlin {{
 }}
 
 dependencies {{
-    implementation("androidx.activity:activity-compose:1.11.0")
-    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
+    implementation("androidx.activity:activity-compose:1.10.1")
+    implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material:material-icons-extended")
@@ -211,7 +211,7 @@ def _hot_gradle(package_name: str) -> str {
 
 android {{
     namespace = "{pkg}"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {{
         minSdk = 26
@@ -230,8 +230,8 @@ kotlin {{
 }}
 
 dependencies {{
-    implementation("androidx.activity:activity-compose:1.11.0")
-    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
+    implementation("androidx.activity:activity-compose:1.10.1")
+    implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material:material-icons-extended")
