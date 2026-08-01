@@ -259,6 +259,12 @@ obj ManifestBuilder {
 
         if not routes {
             routes = self._solo_route(app_config);
+            services = dict(ms_cfg.get("services", {}));
+            solo_name = list(routes.keys())[0];
+            solo_cfg = dict(services.get(solo_name, {}));
+            solo_cfg["file"] = app_config.file_name;
+            services[solo_name] = solo_cfg;
+            ms_cfg["services"] = services;
             ms_cfg["routes"] = routes;
             self.microservices_config = ms_cfg;
         }
@@ -280,23 +286,16 @@ obj ManifestBuilder {
     }
 
     def _solo_route(app_config: AppConfig) -> dict[str, str] {
-        import from pathlib { Path }
         import from jaclang.scale.runtime.routing {
             derive_route_prefix,
             guard_route_name
         }
-        name = Path(app_config.file_name or "").name;
-        for suffix in [".sv.jac", ".jac"] {
-            if name.endswith(suffix) {
-                name = name[:-len(suffix)];
-                break;
-            }
-        }
+        name = app_config.app_name or self.k8s_config.app_name;
         if not name {
             raise ValueError(
-                "Cannot derive a service name for this app: the entry module is "
-                "unknown. Pass the entry file to the deploy, or declare "
-                "[scale.microservices.routes] in jac.toml."
+                "Cannot name the app's service: no app_name is set. Set "
+                "[project].name in jac.toml, or declare "
+                "[scale.microservices.routes] to cut the app into services."
             );
         }
         guard_route_name(name);
@@ -526,6 +525,10 @@ obj ManifestBuilder {
             {"name": "K8S_APP_NAME", "value": self.k8s_config.app_name},
             {"name": "K8S_NAMESPACE", "value": self.k8s_config.namespace}
         ];
+        svc_file: str = str(svc_cfg.get("file") or "");
+        if svc_file {
+            env.append({"name": "JAC_SV_FILE", "value": svc_file});
+        }
 
         ms_trace_cfg: dict = dict(self._ms_cfg().get("tracing", {}));
         if ms_trace_cfg.get("enabled", False) {
@@ -906,7 +909,10 @@ obj ManifestBuilder {
                 f"  {gw_prefix}"
                 "  exec jac scale gateway; "
                 "else "
-                '  SV_FILE="$(find . -name "${JAC_SV_NAME}.jac" -not -path "*/.*" -print 2>/dev/null | head -n1)"; '
+                '  SV_FILE="${JAC_SV_FILE:-}"; '
+                '  if [ -z "$SV_FILE" ]; then '
+                '    SV_FILE="$(find . -name "${JAC_SV_NAME}.jac" -not -path "*/.*" -print 2>/dev/null | head -n1)"; '
+                '  fi; '
                 '  exec jac start "${SV_FILE:-${JAC_SV_NAME}.jac}"; '
                 "fi"
             ]

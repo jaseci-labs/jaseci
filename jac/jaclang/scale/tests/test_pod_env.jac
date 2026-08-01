@@ -50,19 +50,24 @@ test "generate_service_pod_specs builds one pod per declared route" {
 test "an app with no declared routes deploys as one service plus the gateway" {
     cfg = KubernetesConfig(app_name="littlex", namespace="ns");
     builder = ManifestBuilder(k8s_config=cfg, microservices_config={"routes": {}});
-    app_cfg = AppConfig(code_folder="/apps/littlex", file_name="littlex.jac");
+    app_cfg = AppConfig(code_folder="/apps/littlex", file_name="main.jac");
 
     specs = builder.generate_service_pod_specs(app_cfg, "img");
 
+    # named after the app, not its entry file: main.jac must not turn every
+    # monolith into a "main" service.
     assert set(specs.keys()) == {"littlex", GATEWAY_NAME};
     assert builder.microservices_config["routes"] == {"littlex": "/littlex"};
+    env = {e["name"]: e["value"] for e in specs["littlex"]["containers"][0]["env"]};
+    assert env["JAC_SV_NAME"] == "littlex";
+    assert env["JAC_SV_FILE"] == "main.jac";
 }
 
 
-test "a solo app whose entry name shadows a builtin route is rejected" {
+test "a solo app whose name shadows a builtin route is rejected" {
     cfg = KubernetesConfig(app_name="admin", namespace="ns");
     builder = ManifestBuilder(k8s_config=cfg, microservices_config={"routes": {}});
-    app_cfg = AppConfig(code_folder="/apps/admin", file_name="admin.jac");
+    app_cfg = AppConfig(code_folder="/apps/admin", file_name="main.jac");
 
     raised = False;
     try {
