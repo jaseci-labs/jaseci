@@ -1,26 +1,25 @@
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
-import from jaclang.compiler.passes.ecmascript.reactive_intent {
-    IntentExpr,
-    IntentStmt
-}
 import from jaclang.compiler.passes.ecmascript.intent.leaves {
     intent_expr_to_src,
     intent_stmts_to_src
 }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
+    IntentLeaf,
     StateField,
     RefField,
     Effect
 }
 
-impl ReactiveComposeEmitter._expr_src(expr: (IntentExpr | None)) -> str {
-    return intent_expr_to_src(expr);
+impl ReactiveComposeEmitter._expr_src(expr: (IntentLeaf | None)) -> str {
+    es_expr: any = expr;
+    return intent_expr_to_src(es_expr);
 }
 
 impl ReactiveComposeEmitter._stmts_src(
-    stmts: list[IntentStmt], indent: str = "        "
+    stmts: list[IntentLeaf], indent: str = "        "
 ) -> str {
-    return intent_stmts_to_src(stmts, indent=indent);
+    es_stmts: any = stmts;
+    return intent_stmts_to_src(es_stmts, indent=indent);
 }
 
 def _emit_state_field(field: StateField) -> str {

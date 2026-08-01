@@ -87,6 +87,21 @@ def _typography_style(prop_name: str) -> kt.KtMemberAccess {
     );
 }
 
+def _string_value(nd: uni.String) -> str {
+    raw: str | bytes = nd.lit_value;
+    if isinstance(raw, bytes) {
+        return raw.decode('utf-8', 'surrogateescape');
+    }
+    return raw;
+}
+
+def _map_entries(
+    pairs: list[tuple[kt.KtNode, kt.KtNode]]
+) -> list[(kt.KtNode, kt.KtNode)] {
+    raw: any = pairs;
+    return raw;
+}
+
 impl JacToKotlin.lower_state_read(name: str) -> kt.KtNode {
     return kt.KtIdentifier(name=_kt_id(name));
 }
@@ -96,7 +111,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         return None;
     }
     if isinstance(nd, uni.String) {
-        return kt.KtLiteral(value=nd.lit_value);
+        return kt.KtLiteral(value=_string_value(nd));
     }
     if isinstance(nd, uni.Int) {
         return kt.KtLiteral(value=nd.lit_value);
@@ -121,7 +136,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         parts: list[str | kt.KtNode] = [];
         for segment in nd.strings {
             if isinstance(segment, uni.String) {
-                parts.append(segment.lit_value);
+                parts.append(_string_value(segment));
             } elif isinstance(segment, uni.FString) {
                 inner = self.convert_expr(segment);
                 if inner {
@@ -135,7 +150,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         parts: list[str | kt.KtNode] = [];
         for segment in nd.parts {
             if isinstance(segment, uni.String) {
-                parts.append(segment.lit_value);
+                parts.append(_string_value(segment));
             } elif isinstance(segment, uni.FormattedValue) {
                 inner = self.convert_expr(segment.format_part);
                 if inner {
@@ -163,7 +178,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         return kt.KtListLiteral(elements=elems);
     }
     if isinstance(nd, uni.DictVal) {
-        entries: list[(kt.KtNode, kt.KtNode)] = [];
+        entries: list[tuple[kt.KtNode, kt.KtNode]] = [];
         for pair in (nd.kv_pairs or []) {
             key = self.convert_expr(pair.key);
             val = self.convert_expr(pair.value);
@@ -171,7 +186,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
                 entries.append((key, val));
             }
         }
-        return kt.KtMapLiteral(entries=entries);
+        return kt.KtMapLiteral(entries=_map_entries(entries));
     }
     if isinstance(nd, uni.LambdaExpr) {
         params: list[str] = [];
@@ -192,12 +207,12 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         named: list[kt.KtNamedArg] = [];
         for param in (nd.params or []) {
             if isinstance(param, uni.KWPair) {
-                key = param.key.sym_name
+                arg_key = param.key.sym_name
                     if isinstance(param.key, uni.Name)
                     else str(param.key);
                 val = self.convert_expr(param.value);
                 if val {
-                    named.append(kt.KtNamedArg(name=key, value=val));
+                    named.append(kt.KtNamedArg(name=arg_key, value=val));
                 }
             } else {
                 converted = self.convert_expr(param);
@@ -270,12 +285,12 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
             named: list[kt.KtNamedArg] = [];
             for param in (nd.right.params or []) {
                 if isinstance(param, uni.KWPair) {
-                    key = param.key.sym_name
+                    arg_key = param.key.sym_name
                         if isinstance(param.key, uni.Name)
                         else str(param.key);
                     val = self.convert_expr(param.value);
                     if val {
-                        named.append(kt.KtNamedArg(name=key, value=val));
+                        named.append(kt.KtNamedArg(name=arg_key, value=val));
                     }
                 } else {
                     converted = self.convert_expr(param);
@@ -289,7 +304,8 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         return self.convert_expr(nd.right);
     }
     if isinstance(nd, uni.BinaryExpr) {
-        op_key = _op_name(nd.op);
+        op_tok = nd.op if isinstance(nd.op, uni.Token) else None;
+        op_key = _op_name(op_tok);
         if op_key == Tok.KW_SPAWN.name {
             spawn_kt = self._convert_spawn(nd);
             if spawn_kt is not None {
@@ -298,7 +314,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         }
         left = self.convert_expr(nd.left);
         right = self.convert_expr(nd.right);
-        op_key = _op_name(nd.op);
+        op_key = _op_name(op_tok);
         if op_key and op_key in _JAC_LOGICAL_OPS {
             return kt.KtBinary(
                 operator=_JAC_LOGICAL_OPS[op_key], left=left, right=right
@@ -340,18 +356,16 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
     }
     if isinstance(nd, uni.CompareExpr) {
         left = self.convert_expr(nd.left);
-        result = left;
+        acc: (kt.KtNode | None) = left;
         for (i, op_tok) in enumerate(nd.ops or []) {
             right_nd = nd.rights[i] if i < len(nd.rights or []) else None;
             right = self.convert_expr(right_nd);
             op_key = _op_name(op_tok);
             op = _JAC_BINARY_OPS.get(op_key, '==') if op_key else '==';
             infix_fun = op in _BINARY_INFIX_FUN;
-            result = kt.KtBinary(
-                operator=op, left=result, right=right, infix_fun=infix_fun
-            );
+            acc = kt.KtBinary(operator=op, left=acc, right=right, infix_fun=infix_fun);
         }
-        return result;
+        return acc;
     }
     if isinstance(nd, uni.CastExpr) {
         return self.convert_expr(nd.value);
@@ -366,7 +380,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
 }
 
 impl JacToKotlin._lambda_body(nd: uni.LambdaExpr) -> list[kt.KtNode] {
-    inner = nd.body;
+    inner: any = nd.body;
     if isinstance(inner, uni.ImplDef) {
         inner = inner.body;
     }

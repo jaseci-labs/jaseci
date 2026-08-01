@@ -1,10 +1,14 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.ecmascript.intent.detection { ArchHasScanResult }
-import from jaclang.compiler.passes.ecmascript.intent.semantics { StateUpdate, Effect }
+import from jaclang.compiler.passes.ecmascript.intent.semantics {
+    StateUpdate,
+    Effect,
+    IntentLeaf
+}
 
 impl ComposeIntentAdapter.apply_arch_has_scan(
     nd: uni.UniNode, scan: ArchHasScanResult
-) -> list {
+) -> list[IntentLeaf] {
     for r in scan.ref_fields {
         self.collector.record_ref_field(r);
     }
@@ -14,12 +18,14 @@ impl ComposeIntentAdapter.apply_arch_has_scan(
     return [];
 }
 
-impl ComposeIntentAdapter.lower_state_update(nd: uni.UniNode, u: StateUpdate) -> any {
+impl ComposeIntentAdapter.lower_state_update(
+    nd: uni.UniNode, u: StateUpdate
+) -> (IntentLeaf | None) {
     self.collector.record_state_update(u);
     return None;
 }
 
-impl ComposeIntentAdapter.lower_effect(nd: uni.UniNode, e: Effect) -> list {
+impl ComposeIntentAdapter.lower_effect(nd: uni.UniNode, e: Effect) -> list[IntentLeaf] {
     self.collector.record_effect(e);
     return [];
 }

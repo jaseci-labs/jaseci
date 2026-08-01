@@ -50,21 +50,26 @@ impl ComposeGenPass.after_pass -> None {
     }
 }
 
+impl ComposeGenPass._session -> IntentSession {
+    assert self.intent_session is not None , "intent_session is initialized in before_pass";
+    return self.intent_session;
+}
+
 impl ComposeGenPass.enter_ability(nd: uni.Ability) -> None {
-    self.intent_session.enter_ability(nd);
+    self._session().enter_ability(nd);
 }
 
 impl ComposeGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
-    scan = self.intent_session.scan_arch_has(nd);
+    scan = self._session().scan_arch_has(nd);
     if scan is not None {
-        self.intent_session.adapter.apply_arch_has_scan(nd, scan);
+        self._session().adapter.apply_arch_has_scan(nd, scan);
     }
 }
 
 impl ComposeGenPass._sync_lowerer_reactive_vars -> None {
     names = self.collector.existing_reactive_names();
     self.reactive_vars = names;
-    self.intent_session.reactive_vars = names;
+    self._session().reactive_vars = names;
     self.collector.reactive_vars = names;
     self.lowerer.reactive_vars = names;
     if self.converter is not None {
@@ -73,15 +78,15 @@ impl ComposeGenPass._sync_lowerer_reactive_vars -> None {
 }
 
 impl ComposeGenPass.exit_assignment(nd: uni.Assignment) -> None {
-    update = self.intent_session.scan_state_update(nd);
+    update = self._session().scan_state_update(nd);
     if update is not None {
-        self.intent_session.adapter.lower_state_update(nd, update);
+        self._session().adapter.lower_state_update(nd, update);
     }
 }
 
 impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
     if isinstance(nd.signature, uni.EventSignature) and nd.in_client_context() {
-        self.intent_session.record_and_lower_effect(nd);
+        self._session().record_and_lower_effect(nd);
     }
 
     inner = unwrap_ability_body(nd);
@@ -102,7 +107,7 @@ impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
         }
     }
 
-    self.intent_session.pop_ability_scope();
+    self._session().pop_ability_scope();
 }
 
 impl ComposeGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {

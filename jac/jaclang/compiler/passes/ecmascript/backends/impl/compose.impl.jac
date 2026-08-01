@@ -8,6 +8,12 @@ import from jaclang.compiler.passes.ecmascript.reactive_intent {
 }
 
 import type from jaclang.compiler.passes.ecmascript.view_ir { ViewElement }
+import from jaclang.compiler.passes.compose.kotlin_ast { KtNode }
+
+def _es_leaf(leaf: (es.Expression | KtNode)) -> es.Expression {
+    assert not isinstance(leaf, KtNode) , "ComposeBackend ES lowering receives estree expressions, not Kotlin nodes";
+    return leaf;
+}
 
 impl ComposeBackend.name -> str {
     return "compose";
@@ -60,12 +66,16 @@ impl ComposeBackend.build_pages_entry_script(
 }
 
 impl ComposeBackend.lower_state_field(s: StateField) -> list[es.Statement] {
-    declarator = es.VariableDeclarator(id=es.Identifier(name=s.name), init=s.init_expr);
+    declarator = es.VariableDeclarator(
+        id=es.Identifier(name=s.name), init=_es_leaf(s.init_expr)
+    );
     return [es.VariableDeclaration(declarations=[declarator], kind="const")];
 }
 
 impl ComposeBackend.lower_ref_field(r: RefField) -> list[es.Statement] {
-    declarator = es.VariableDeclarator(id=es.Identifier(name=r.name), init=r.init_expr);
+    declarator = es.VariableDeclarator(
+        id=es.Identifier(name=r.name), init=_es_leaf(r.init_expr)
+    );
     return [es.VariableDeclaration(declarations=[declarator], kind="const")];
 }
 
@@ -79,7 +89,7 @@ impl ComposeBackend.lower_view_expr(expr: es.Expression) -> es.Expression {
 
 impl ComposeBackend.lower_state_update(u: StateUpdate) -> es.Expression {
     return es.AssignmentExpression(
-        operator="=", left=es.Identifier(name=u.name), right=u.value
+        operator="=", left=es.Identifier(name=u.name), right=_es_leaf(u.value)
     );
 }
 

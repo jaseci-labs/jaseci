@@ -23,6 +23,7 @@ obj ComposeGenPass(UniPass) {
 
     def before_pass -> None;
     def after_pass -> None;
+    def _session -> IntentSession;
     def enter_ability(nd: uni.Ability) -> None;
     def exit_ability(nd: uni.Ability) -> None;
     def exit_arch_has(nd: uni.ArchHas) -> None;

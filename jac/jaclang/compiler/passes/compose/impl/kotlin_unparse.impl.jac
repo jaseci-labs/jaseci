@@ -190,8 +190,9 @@ impl KotlinCodeGenerator.gen_kt_list_literal(nd: kt.KtListLiteral) -> str {
 impl KotlinCodeGenerator.gen_kt_map_literal(nd: kt.KtMapLiteral) -> str {
     entries: list[str] = [];
     for e in nd.entries {
-        key = self.generate(e[0]);
-        value = self.generate(e[1]);
+        pair: any = e;
+        key = self.generate(pair[0]);
+        value = self.generate(pair[1]);
         entries.append(f"{key} to {value}");
     }
     return f"mapOf({', '.join(entries)})";
@@ -483,7 +484,8 @@ impl KotlinCodeGenerator.gen_kt_composable_call(nd: kt.KtComposableCall) -> str 
         if isinstance(na, kt.KtNamedArg) {
             arg_parts.append(f"{na.name} = {self.generate(na.value)}");
         } else {
-            arg_parts.append(self.generate(na));
+            item: any = na;
+            arg_parts.append(self.generate(item));
         }
     }
     args_str = ', '.join(arg_parts);

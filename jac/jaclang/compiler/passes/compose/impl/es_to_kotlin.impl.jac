@@ -29,6 +29,11 @@ def _unsupported_kt(message: str) -> kt.KtRaw {
     return kt.KtRaw(code=f"/* {message} */");
 }
 
+def _block_body_stmts(block: es.BlockStatement) -> list[es.Statement] {
+    stmts: any = block.body;
+    return stmts;
+}
+
 def _pattern_name(pattern: (es.Pattern | None)) -> str {
     if pattern is None {
         return '_';
@@ -105,7 +110,7 @@ impl EsToKotlin._convert_function_body(
         return ([], None);
     }
     if isinstance(body, es.BlockStatement) {
-        return (self.convert_stmts(body.body), None);
+        return (self.convert_stmts(_block_body_stmts(body)), None);
     }
     expr = self.convert_expr(body);
     if expression or not isinstance(body, es.BlockStatement) {
@@ -119,7 +124,7 @@ impl EsToKotlin._stmt_to_nodes(nd: (es.Statement | None)) -> list[kt.KtNode] {
         return [];
     }
     if isinstance(nd, es.BlockStatement) {
-        return self.convert_stmts(nd.body);
+        return self.convert_stmts(_block_body_stmts(nd));
     }
     converted = self.convert_stmt(nd);
     if converted is None {
@@ -190,7 +195,10 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
             }
             parts.append(raw);
             if idx < len(nd.expressions) {
-                parts.append(self.convert_expr(nd.expressions[idx]));
+                expr_part = self.convert_expr(nd.expressions[idx]);
+                if expr_part is not None {
+                    parts.append(expr_part);
+                }
             }
         }
         return kt.KtStringTemplate(parts=parts);
@@ -230,10 +238,20 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
         if nd.operator not in _SUPPORTED_AUG_OPS {
             return _unsupported_kt(f"unsupported assignment operator {nd.operator}");
         }
+        left_kt: (kt.KtNode | None) = None;
+        if not isinstance(
+            nd.left,
+            (es.ArrayPattern, es.ObjectPattern, es.AssignmentPattern, es.RestElement)
+        ) {
+            converted_left = self.convert_expr(nd.left);
+            if converted_left is not None {
+                left_kt = converted_left;
+            }
+        } else {
+            left_kt = _unsupported_kt(f"unsupported expression type {nd.left.type}");
+        }
         return kt.KtAssignment(
-            operator=nd.operator,
-            left=self.convert_expr(nd.left),
-            right=self.convert_expr(nd.right)
+            operator=nd.operator, left=left_kt, right=self.convert_expr(nd.right)
         );
     }
     if isinstance(nd, es.AwaitExpression) {
@@ -263,7 +281,7 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
         return kt.KtListLiteral(elements=elements);
     }
     if isinstance(nd, es.ObjectExpression) {
-        entries: list[(kt.KtNode, kt.KtNode)] = [];
+        entries: list[tuple[kt.KtNode, kt.KtNode]] = [];
         for prop in nd.properties {
             if isinstance(prop, es.SpreadElement) {
                 entries.append(
@@ -275,10 +293,9 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
                 continue;
             }
             key_expr = self._property_key_expr(prop.key);
+            value_expr: (kt.KtNode | None) = self.convert_expr(prop.value);
             if prop.shorthand and isinstance(prop.key, es.Identifier) {
                 value_expr = kt.KtIdentifier(name=prop.key.name);
-            } else {
-                value_expr = self.convert_expr(prop.value);
             }
             if key_expr and value_expr {
                 entries.append((key_expr, value_expr));
@@ -301,6 +318,7 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
     if isinstance(nd, es.JsxElement) or isinstance(nd, es.JsxFragment) {
         return _unsupported_kt('jsx unsupported in es_to_kotlin');
     }
+    assert nd is not None , "nd is guaranteed non-None past the early return above";
     return _unsupported_kt(f"unsupported expression type {nd.type}");
 }
 
@@ -316,7 +334,7 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
         return kt.KtExprStmt(expression=expr);
     }
     if isinstance(nd, es.BlockStatement) {
-        return kt.KtBlock(body=self.convert_stmts(nd.body));
+        return kt.KtBlock(body=self.convert_stmts(_block_body_stmts(nd)));
     }
     if isinstance(nd, es.VariableDeclaration) {
         mutable = nd.kind != 'const';
@@ -409,7 +427,7 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
     if isinstance(nd, es.TryStatement) {
         try_body: list[kt.KtNode] = [];
         if nd.block {
-            try_body = self.convert_stmts(nd.block.body);
+            try_body = self.convert_stmts(_block_body_stmts(nd.block));
         }
         catch_param = 'e';
         catch_body: list[kt.KtNode] = [];
@@ -418,12 +436,12 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
                 catch_param = nd.handler.param.name;
             }
             if nd.handler.body {
-                catch_body = self.convert_stmts(nd.handler.body.body);
+                catch_body = self.convert_stmts(_block_body_stmts(nd.handler.body));
             }
         }
         finally_body: list[kt.KtNode] = [];
         if nd.finalizer {
-            finally_body = self.convert_stmts(nd.finalizer.body);
+            finally_body = self.convert_stmts(_block_body_stmts(nd.finalizer));
         }
         return kt.KtTry(
             try_body=try_body,
@@ -459,7 +477,7 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
         params = self._convert_function_params(nd.params);
         body_stmts: list[kt.KtNode] = [];
         if nd.body {
-            body_stmts = self.convert_stmts(nd.body.body);
+            body_stmts = self.convert_stmts(_block_body_stmts(nd.body));
         }
         return kt.KtFunction(
             name=name, params=params, body=body_stmts, is_suspend=nd.async_
@@ -468,6 +486,7 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
     if isinstance(nd, es.ClassDeclaration) {
         return _unsupported_kt('class declaration unsupported in view scope');
     }
+    assert nd is not None , "nd is guaranteed non-None past the early return above";
     return _unsupported_kt(f"unsupported statement type {nd.type}");
 }
 
@@ -507,10 +526,9 @@ impl EsToKotlin._object_to_named_args(
         if not key_name {
             continue;
         }
+        val: (kt.KtNode | None) = self.convert_expr(prop.value);
         if prop.shorthand and isinstance(prop.key, es.Identifier) {
             val = kt.KtIdentifier(name=prop.key.name);
-        } else {
-            val = self.convert_expr(prop.value);
         }
         if val is not None {
             named.append(kt.KtNamedArg(name=key_name, value=val));
@@ -532,8 +550,11 @@ impl EsToKotlin._convert_jac_spawn(nd: es.CallExpression) -> (kt.KtNode | None) 
     }
     walker_name = walker_arg.value;
     pascal = walker_to_pascal(walker_name);
-    fields_expr = args[2] if len(args) > 2 else None;
-    named = self._object_to_named_args(fields_expr);
+    fields_arg = args[2] if len(args) > 2 else None;
+    named: list[kt.KtNamedArg] = [];
+    if fields_arg is not None and not isinstance(fields_arg, es.SpreadElement) {
+        named = self._object_to_named_args(fields_arg);
+    }
     req_call = kt.KtCall(
         callee=kt.KtIdentifier(name=f"{pascal}Request"), args=[], named_args=named
     );
@@ -544,6 +565,8 @@ impl EsToKotlin._convert_jac_spawn(nd: es.CallExpression) -> (kt.KtNode | None) 
             if target.value not in ("", None) {
                 node_id_arg = self.convert_expr(target);
             }
+        } elif isinstance(target, es.SpreadElement) {
+            node_id_arg = _unsupported_kt(f"unsupported expression type {target.type}");
         } else {
             node_id_arg = self.convert_expr(target);
         }

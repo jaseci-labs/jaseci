@@ -275,7 +275,9 @@ def _wrap_text_field_args(name: str, args: list[kt.KtNamedArg]) -> list[kt.KtNam
     }
     out: list[kt.KtNamedArg] = [];
     for a in args {
-        if a.name == "placeholder" and not isinstance(a.value, kt.KtLambda) {
+        if a.name == "placeholder"
+            and a.value is not None
+            and not isinstance(a.value, kt.KtLambda) {
             out.append(_named("placeholder", _placeholder_lambda(a.value)));
         } else {
             out.append(a);

@@ -91,7 +91,7 @@ def _emit_data_class(class_name: str, info: any, emitter: RpcClientEmitter) -> s
     if kind == 'enum' {
         return _emit_enum_class(info);
     }
-    fields = getattr(info, 'fields', []) or [];
+    fields: list[tuple[str, str]] = getattr(info, 'fields', []) or [];
     defaults = getattr(info, 'field_defaults', {}) or {};
     if not fields {
         return f'@Serializable\ndata class {class_name}()\n';
@@ -126,7 +126,7 @@ def _collect_nested_types(info: any, boundary_types: dict, collected: set[str]) 
 }
 
 def _is_pub_walker(manifest: any, walker_name: str) -> bool {
-    access = getattr(manifest, 'walker_access', {}) or {};
+    access: dict[str, bool] = getattr(manifest, 'walker_access', {}) or {};
 
     return not access.get(walker_name, True);
 }
@@ -190,8 +190,8 @@ def _emit_jac_client_body(package_name: str, manifest: any) -> str {
     walker_names: list[str] = [];
     if manifest is not None {
         boundary_types = dict(getattr(manifest, 'boundary_types', {}) or {});
-        access = getattr(manifest, 'walker_access', {}) or {};
-        bindings = getattr(manifest, 'bindings', {}) or {};
+        access: dict[str, bool] = getattr(manifest, 'walker_access', {}) or {};
+        bindings: dict[str, any] = getattr(manifest, 'bindings', {}) or {};
         seen: set[str] = set();
         for name in access.keys() {
             if _is_pub_walker(manifest, name) and name not in seen {
