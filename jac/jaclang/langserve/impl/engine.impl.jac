@@ -319,8 +319,6 @@ impl JacLangServer.get_definition(
     }
     node_selected = self.get_token_at_position(file_path, position);
     if not node_selected {
-        # String-form module paths ("pkg", "@scope/pkg") carry no semantic
-        # token, so resolve them straight from the raw AST token instead.
         return self._string_import_definition(file_path, position);
     }
     node_type = node_selected.type;
@@ -387,9 +385,7 @@ impl JacLangServer.get_definition(
 
                     return make_module_location(mod_path);
                 }
-                # Client npm packages resolve through the npm resolvers, not
-                # the module path join above -- land on the item's declaration
-                # in the package's .d.ts (issue #7839).
+
                 npm_loc = self._npm_item_location(
                     import_node.from_loc, parent.name.value
                 );
@@ -422,9 +418,7 @@ impl JacLangServer.get_definition(
 
     if node_selected.sym and node_selected.sym.defn {
         defn0 = node_selected.sym.defn[0];
-        # A symbol whose only known definition is the queried token itself has
-        # no real target -- report "no definition" instead of a silent
-        # self-jump (issue #7839).
+
         if defn0 is node_selected
             or (
                 defn0.loc.mod_path == node_selected.loc.mod_path
