@@ -88,6 +88,9 @@ impl _filter_has_predicates(filt: (Callable[[Archetype], bool] | None)) -> bool 
 
 
 impl _dest_has_node_predicates(dest: ObjectSpatialDestination) -> bool {
+    if dest.nd is not None and dest.nd_post is not None {
+        return True;
+    }
     return (_filter_has_predicates(dest.nd) or _filter_has_predicates(dest.nd_post));
 }
 

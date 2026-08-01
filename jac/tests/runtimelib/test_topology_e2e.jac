@@ -515,3 +515,45 @@ test "trailing filter after a typed hop is not dropped by the index" {
         set_config(JacConfig());
     }
 }
+
+test "trailing type filter after a typed hop narrows to both types" {
+    cfg = JacConfig();
+    cfg.run.topology_index = True;
+    set_config(cfg);
+    ctx = ExecutionContext();
+    JacRuntime.set_context(ctx);
+    try {
+        r = root;
+        for i in range(4) {
+            r ++> PostNode(val=i);
+        }
+        for i in range(3) {
+            r ++> BaseContent(val=100 + i);
+        }
+        for i in range(2) {
+            r ++> TypeB(val=200 + i);
+        }
+
+        # The index carries one type name, so the trailing type must narrow too.
+        narrowed = sorted([n.val for n in [r-->[?:BaseContent]][?:PostNode]]);
+        assert narrowed == [0, 1, 2, 3] , (
+            f"trailing type filter must narrow; got {narrowed}, expected [0, 1, 2, 3]"
+        );
+
+        chained = sorted([n.val for n in [r-->][?:BaseContent][?:PostNode]]);
+        assert chained == narrowed , (
+            f"spellings disagree: chained={chained}, narrowed={narrowed}"
+        );
+
+        disjoint = [r-->[?:BaseContent]][?:TypeB];
+        assert len(disjoint) == 0 , (
+            f"disjoint type filters must return nothing, got {len(disjoint)}"
+        );
+
+        parent = [r-->[?:BaseContent]];
+        assert len(parent) == 7 , f"parent-type query regressed, got {len(parent)}";
+    } finally {
+        ctx.close();
+        set_config(JacConfig());
+    }
+}

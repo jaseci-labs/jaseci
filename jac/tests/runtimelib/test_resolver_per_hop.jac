@@ -169,6 +169,13 @@ test "a post-filter keeps its destination off the index fast path" {
     assert _dest_node_type_name(chained) == 'R1Hop' , (
         "a post-filter's type must still narrow the index"
     );
+
+    # The index narrows by one type name, so two type filters cannot both reach it.
+    two_types = ObjectSpatialDestination(EdgeDir.OUT, None, type_filter);
+    two_types.add_node_post_filter(lambda (n: any) { isinstance(n, R2Hop); });
+    assert _dest_has_node_predicates(two_types) , (
+        "a destination carrying two type filters must leave the fast path"
+    );
 }
 
 
