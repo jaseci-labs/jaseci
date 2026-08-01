@@ -5,10 +5,6 @@ import from jaclang.compiler.passes.ecmascript.intent.semantics {
     Effect,
     AsyncBoundary
 }
-import from jaclang.compiler.passes.ecmascript.intent.es_leaves {
-    IntentExpr,
-    IntentStmt
-}
 import from jaclang.compiler.passes.ecmascript.intent.leaf_converter {
     EsastLeafConverter
 }
@@ -20,29 +16,6 @@ import from jaclang.compiler.passes.ecmascript.intent.detection {
     ref_head_name,
     return_type_includes,
     return_type_route_role
-}
-
-impl EsastLeafConverter.convert_expr(nd: uni.UniNode) -> (IntentExpr | None) {
-    if nd.gen.es_ast {
-        return cast(es.Expression, nd.gen.es_ast);
-    }
-    return None;
-}
-
-impl EsastLeafConverter.convert_assignment_value(
-    nd: uni.Assignment, value_nd: (uni.UniNode | None)
-) -> (IntentExpr | None) {
-    if value_nd and value_nd.gen.es_ast {
-        return cast(es.Expression, value_nd.gen.es_ast);
-    }
-    if nd.aug_op {
-        return cast(es.Expression, es.Literal(value=0));
-    }
-    return self.fallback_expr;
-}
-
-impl EsastLeafConverter.convert_stmts(nodes: list[uni.UniNode]) -> list[IntentStmt] {
-    return self.pass_inst._collect_stmt_body(nodes);
 }
 
 impl EsastGenPass._ensure_backend -> None {

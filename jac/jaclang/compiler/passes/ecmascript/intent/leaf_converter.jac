@@ -19,4 +19,11 @@ import type from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPas
 
 obj EsastLeafConverter(LeafConverter) {
     has pass_inst: (EsastGenPass | None) = None;
+
+    def convert_expr(nd: uni.UniNode) -> (IntentLeaf | None);
+    def convert_assignment_value(
+        nd: uni.Assignment, value_nd: (uni.UniNode | None)
+    ) -> (IntentLeaf | None);
+
+    def convert_stmts(nodes: list[uni.UniNode]) -> list[IntentLeaf];
 }
