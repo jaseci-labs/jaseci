@@ -79,109 +79,9 @@ cleanup() {
 }
 trap 'cleanup "$?"' EXIT
 
-provision_kind_rwx_storage() {
-    # kind's local-path StorageClass is RWO-only; on single-node kind a static hostPath PV satisfies the RWX bundle PVC. Recreate it each run so a Released PV can't block binding.
-    echo "=== provisioning RWX hostPath storage for kind (class=${BUNDLE_STORAGE_CLASS}) ==="
-    kubectl delete pv -l managed=jac-scale-e2e --ignore-not-found >/dev/null 2>&1 || true
-    kubectl apply -f - <<YAML
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: ${BUNDLE_STORAGE_CLASS}
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: Immediate
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: jac-rwx-bundle-pv
-  labels:
-    managed: jac-scale-e2e
-spec:
-  capacity:
-    storage: 20Gi
-  accessModes: ["ReadWriteMany"]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ${BUNDLE_STORAGE_CLASS}
-  hostPath:
-    path: /var/jac-rwx-bundle
-    type: DirectoryOrCreate
-YAML
-    # kubelet makes the hostPath dir root:0755 but the pods run non-root; a one-shot root pod opens it up (0777 is fine on this ephemeral single-node test cluster).
-    kubectl -n "${NAMESPACE}" delete pod jac-rwx-perms --ignore-not-found >/dev/null 2>&1 || true
-    kubectl -n "${NAMESPACE}" apply -f - <<YAML
-apiVersion: v1
-kind: Pod
-metadata:
-  name: jac-rwx-perms
-  labels:
-    managed: jac-scale
-spec:
-  restartPolicy: Never
-  securityContext:
-    runAsUser: 0
-  containers:
-    - name: fix
-      image: busybox:1.36
-      command: ["sh", "-c", "chmod 0777 /host && echo perms-fixed"]
-      volumeMounts:
-        - { name: host, mountPath: /host }
-  volumes:
-    - name: host
-      hostPath:
-        path: /var/jac-rwx-bundle
-        type: DirectoryOrCreate
-YAML
-    if ! kubectl -n "${NAMESPACE}" wait --for=jsonpath='{.status.phase}'=Succeeded \
-            pod/jac-rwx-perms --timeout=90s; then
-        echo "FAIL: could not open up the RWX hostPath dir for non-root pods"
-        kubectl -n "${NAMESPACE}" logs jac-rwx-perms || true
-        kubectl -n "${NAMESPACE}" describe pod jac-rwx-perms || true
-        exit 1
-    fi
-    kubectl -n "${NAMESPACE}" delete pod jac-rwx-perms --ignore-not-found >/dev/null 2>&1 || true
-}
-
-_T0=$(date +%s)
-_LAST_T=0
-# label|step_seconds|cumulative_seconds per phase, for the report at the end.
-_PHASE_ROWS=""
-_t() {
-    now=$(( $(date +%s) - _T0 ))
-    step=$(( now - _LAST_T ))
-    echo "[TIMING +${now}s] $1 (+${step}s)"
-    _PHASE_ROWS="${_PHASE_ROWS}${1}|${step}|${now}"$'\n'
-    _LAST_T=${now}
-}
-
-print_timing_report() {
-    echo ""
-    echo "======================= E2E PHASE TIMING REPORT ======================="
-    printf "%-38s %10s %12s\n" "PHASE" "STEP (s)" "CUMUL (s)"
-    printf "%-38s %10s %12s\n" "--------------------------------------" "--------" "----------"
-    printf '%s' "${_PHASE_ROWS}" | while IFS='|' read -r label step cumul; do
-        [ -z "${label}" ] && continue
-        printf "%-38s %10s %12s\n" "${label}" "${step}" "${cumul}"
-    done
-    printf "%-38s %10s %12s\n" "--------------------------------------" "--------" "----------"
-    printf "%-38s %10s %12s\n" "TOTAL" "" "${_LAST_T}"
-    echo "======================================================================="
-    echo "# CLUSTER_TYPE=${CLUSTER_TYPE}  services=$(printf '%s' "${ROUTES:-}" | grep -c . || echo 0)"
-    # Also surface the report on the GitHub Actions job-summary page.
-    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-        {
-            echo "## E2E phase timing (${CLUSTER_TYPE})"
-            echo ""
-            echo "| Phase | Step (s) | Cumulative (s) |"
-            echo "|---|---:|---:|"
-            printf '%s' "${_PHASE_ROWS}" | while IFS='|' read -r label step cumul; do
-                [ -z "${label}" ] && continue
-                echo "| ${label} | ${step} | ${cumul} |"
-            done
-            echo "| **TOTAL** | | **${_LAST_T}** |"
-        } >> "${GITHUB_STEP_SUMMARY}"
-    fi
-}
+# shellcheck source=e2e_lib.sh
+source "$(dirname "$0")/e2e_lib.sh"
+e2e_timing_init
 
 echo "# phase timings printed as [TIMING +Ns] markers; full report at the end"
 _t "deploy start"
@@ -194,7 +94,8 @@ kubectl label namespace "${NAMESPACE}" \
     --overwrite
 
 if [ "${CLUSTER_TYPE}" = "kind" ]; then
-    provision_kind_rwx_storage
+    provision_kind_rwx_storage "${NAMESPACE}" "${BUNDLE_STORAGE_CLASS}" \
+        jac-rwx-bundle-pv /var/jac-rwx-bundle jac-rwx-perms
 fi
 
 cd "${PROJECT_DIR}"
