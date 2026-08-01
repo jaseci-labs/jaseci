@@ -134,6 +134,7 @@ import_processor.impl.jac
 import_processor.jac
 imported.impl.jac
 interop_bridge.jac
+jac/examples/compose_android/main.jac
 jac/examples/mobui/hello/main.jac
 jac/examples/mobui/littlex/main.jac
 jac/examples/mobui/littlex/theme.jac
