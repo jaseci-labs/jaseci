@@ -654,6 +654,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
+          # The runner's preinstalled cmdline-tools can be too old to resolve
+          # the newest platform (sdkmanager reports "Failed to find package
+          # platforms;android-36"); pull the latest so android-36 is known.
+          cmdline-tools-version: latest
           packages: |
             platforms;android-36
             build-tools;36.0.0
@@ -696,6 +700,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
+          # The runner's preinstalled cmdline-tools can be too old to resolve
+          # the newest platform (sdkmanager reports "Failed to find package
+          # platforms;android-36"); pull the latest so android-36 is known.
+          cmdline-tools-version: latest
           packages: |
             platforms;android-36
             build-tools;36.0.0
