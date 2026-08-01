@@ -588,19 +588,23 @@ def _bundle_pydeps(project_dir: Path, output_dir: Path) {
         "--target",
         str(pydeps_dir),
 
-    ] + specs;
+    ]
+        + specs;
     res = subprocess.run(cmd, capture_output=True, text=True);
     if res.returncode != 0 {
         detail = (res.stderr or res.stdout or "").strip();
         raise RuntimeError(
-            "jac-desktop: failed to bundle Python deps into " + DESKTOP_PYDEPS_DIR + "/" + (
-                ": " + detail if detail else ""
-            )
+            "jac-desktop: failed to bundle Python deps into "
+                + DESKTOP_PYDEPS_DIR
+                + "/"
+                + (": " + detail if detail else "")
         );
     }
     if not any(pydeps_dir.glob("*.dist-info")) {
         raise RuntimeError(
-            "jac-desktop: pip reported success but " + DESKTOP_PYDEPS_DIR + "/ has no installed packages"
+            "jac-desktop: pip reported success but "
+                + DESKTOP_PYDEPS_DIR
+                + "/ has no installed packages"
         );
     }
     (pydeps_dir / ".jac_desktop_pydeps").write_text(

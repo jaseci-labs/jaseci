@@ -9,6 +9,7 @@ import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch 
     boot as inprocess_boot,
     dispatch_sync as inprocess_dispatch_sync,
     dispatch_outcome as inprocess_dispatch_outcome,
+    forward as inprocess_forward,
     set_stream_emit as inprocess_set_stream_emit,
     cancel_stream as inprocess_cancel_stream,
     stream_ack as inprocess_stream_ack
@@ -239,7 +240,11 @@ def _start_loopback(
     server_cls.daemon_threads = True;
     if mode == "cef" {
         handler = make_handler(
-            dist, store, dispatch=ctx.dispatch_http, events=ctx.host as object
+            dist,
+            store,
+            dispatch=ctx.dispatch_http,
+            events=ctx.host as object,
+            sv_bridge=inprocess_forward
         );
     } else {
         handler = make_handler(dist, store, dispatch=ctx.dispatch);

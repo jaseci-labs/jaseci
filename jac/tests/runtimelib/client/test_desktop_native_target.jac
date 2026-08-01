@@ -270,9 +270,8 @@ test "host_boot routes stream-control frames to cancel/ack" {
     import from jaclang.runtimelib.client.targets.desktop.native { host_boot }
 
     # Ordinary runtime/plugin payloads are NOT stream control.
-    assert host_boot.stream_control(
-        json.dumps({"kind": "walker", "name": "w"})
-    ) is None;
+    assert host_boot.stream_control(json.dumps({"kind": "walker", "name": "w"}))
+        is None;
     assert host_boot.stream_control(json.dumps(["jac.fs", "read_file", {}])) is None;
     assert host_boot.stream_control("not json") is None;
 
@@ -282,8 +281,8 @@ test "host_boot routes stream-control frames to cancel/ack" {
         json.dumps({"__jac_stream_ctl": "cancel", "stream_id": "s-1"})
     );
     assert out["ok"] == True
-    and out["__jac_stream_ctl"] == "cancel"
-    and out["stream_id"] == "s-1";
+        and out["__jac_stream_ctl"] == "cancel"
+        and out["stream_id"] == "s-1";
 
     # Webview bind form (one-element string array) is also accepted, ack form.
     out2 = host_boot.stream_control(
@@ -369,7 +368,7 @@ test "host bootstrap modules import + run from the fused runtime" {
         # oauth_broker + inprocess_dispatch resolve from the runtime too (no staging).
         assert hasattr(oauth_broker, "make_handler") , "oauth_broker must import from the runtime";
         assert hasattr(inprocess_dispatch, "boot")
-        and hasattr(inprocess_dispatch, "dispatch") , "inprocess_dispatch must import from the runtime";
+            and hasattr(inprocess_dispatch, "dispatch") , "inprocess_dispatch must import from the runtime";
     } finally {
         sys.path[:] = _saved_path;
         for _k in list(sys.modules.keys()) {

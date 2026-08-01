@@ -327,6 +327,9 @@ impl InvocationDispatcher.invoke(request: InvocationRequest) -> InvocationResult
         );
     }
     effective_user = username or Con.GUEST.value;
+    if effective_user == Con.GUEST.value {
+        _ensure_guest_user(self.user_manager);
+    }
 
     (verr, coerced_fields) = _validate_fields(
         field_meta, dict(request.fields), drop_unknown

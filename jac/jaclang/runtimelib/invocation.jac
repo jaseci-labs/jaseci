@@ -2,6 +2,11 @@ import uuid;
 import from typing { Any }
 import from jaclang.runtimelib.transport { ErrorInfo }
 import type from jaclang.runtimelib.transport { TransportResponse }
+import type from jaclang.runtimelib.server {
+    ExecutionManager,
+    ModuleIntrospector,
+    UserManager
+}
 
 
 enum InvocationKind { WALKER = "walker", FUNCTION = "function" }
@@ -33,9 +38,9 @@ obj InvocationResult {
 
 
 obj InvocationDispatcher {
-    has introspector: any,
-        execution_manager: any,
-        user_manager: any;
+    has introspector: ModuleIntrospector,
+        execution_manager: ExecutionManager,
+        user_manager: UserManager;
 
     async def invoke(request: InvocationRequest) -> InvocationResult;
 }
@@ -43,9 +48,9 @@ obj InvocationDispatcher {
 
 obj PreparedInvocationRuntime {
     has dispatcher: InvocationDispatcher,
-        introspector: any,
-        execution_manager: any,
-        user_manager: any,
+        introspector: ModuleIntrospector,
+        execution_manager: ExecutionManager,
+        user_manager: UserManager,
         module_name: str = "",
         _prior_ctx: any = None;
 

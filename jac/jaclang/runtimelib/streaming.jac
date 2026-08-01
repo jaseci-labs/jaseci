@@ -89,32 +89,30 @@ def iter_sync_or_async(gen: any) -> Generator {
 }
 
 
-def drain_sse(gen: any, write: Callable[[bytes], None]) {
-    items = iter_sync_or_async(gen);
+def _sse_data_frame(item: any) -> str {
+    return f"data: {json.dumps(item, default=str)}\n\n";
+}
+
+
+def iter_sse_frames(gen: any) -> Generator[str] {
+    try {
+        items = iter_sync_or_async(gen);
+    } except TypeError {
+        err = {
+            "error_type": "TypeError",
+            "message": f"sse expected a generator, got {type(gen).__name__}"
+        };
+        yield f"event: error\ndata: {json.dumps(err, default=str)}\n\n";
+        return;
+    }
     try {
         for item in items {
-            write(f"data: {json.dumps(item, default=str)}\n\n".encode());
+            yield _sse_data_frame(item);
         }
-        write(b"event: end\ndata: {}\n\n");
-    } except TypeError {
-        try {
-            err = {
-                "error_type": "TypeError",
-                "message": f"sse expected a generator, got {type(gen).__name__}"
-            };
-            write(f"event: error\ndata: {json.dumps(err, default=str)}\n\n".encode());
-        } except Exception {
-            ;
-        }
-    } except (BrokenPipeError, ConnectionResetError, OSError) {
-        ;
+        yield "event: end\ndata: {}\n\n";
     } except Exception as e {
-        try {
-            err = {"error_type": type(e).__name__, "message": str(e)};
-            write(f"event: error\ndata: {json.dumps(err, default=str)}\n\n".encode());
-        } except Exception {
-            ;
-        }
+        err = {"error_type": type(e).__name__, "message": str(e)};
+        yield f"event: error\ndata: {json.dumps(err, default=str)}\n\n";
     } finally {
         try {
             items.close();
@@ -129,5 +127,16 @@ def drain_sse(gen: any, write: Callable[[bytes], None]) {
                 ;
             }
         }
+    }
+}
+
+
+def drain_sse(gen: any, write: Callable[[bytes], None]) {
+    try {
+        for frame in iter_sse_frames(gen) {
+            write(frame.encode());
+        }
+    } except (BrokenPipeError, ConnectionResetError, OSError) {
+        ;
     }
 }

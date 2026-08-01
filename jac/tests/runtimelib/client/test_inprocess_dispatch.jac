@@ -287,7 +287,7 @@ test "stream backpressure bounds in-flight frames until acked" {
         ipd.stream_ack(sid, 5);
         deadline = time.monotonic() + 2.0;
         while not any(f["type"] == "end" for f in frames)
-        and time.monotonic() < deadline {
+            and time.monotonic() < deadline {
             time.sleep(0.02);
         }
         data_after = len(

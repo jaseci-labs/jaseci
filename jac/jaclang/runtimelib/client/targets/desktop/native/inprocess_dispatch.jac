@@ -195,7 +195,8 @@ def shutdown {
     for w in workers {
         if w is not None and w.is_alive() {
             sys.stderr.write(
-                "inprocess_dispatch: worker still running after join timeout; " + "queue cleared -- worker will drain its local ref and exit\n"
+                "inprocess_dispatch: worker still running after join timeout; "
+                    + "queue cleared -- worker will drain its local ref and exit\n"
             );
         }
     }
@@ -296,9 +297,8 @@ def _pump_native_stream(stream_id: str, gen: object, handle: StreamHandle) {
                         "type": "error",
                         "error": {
                             "error_type": "TypeError",
-                            "message": "native stream expected a generator, got " + type(
-                                gen
-                            ).__name__
+                            "message": "native stream expected a generator, got "
+                                + type(gen).__name__
                         }
                     }
                 );
@@ -325,9 +325,9 @@ def _pump_native_stream(stream_id: str, gen: object, handle: StreamHandle) {
         }
 
         if emit is not None
-        and not _shutting_down
-        and not cancelled
-        and not handle.cancel.is_set() {
+            and not _shutting_down
+            and not cancelled
+            and not handle.cancel.is_set() {
             emit(stream_id, {"type": "end"});
         }
     } except Exception as e {
@@ -473,6 +473,142 @@ def dispatch_outcome(payload_json: str) -> dict {
         ),
         "stream": None
     };
+}
+
+
+def _transport_json(result: any) -> tuple[int, str] {
+    transport = result.to_transport();
+    status = int(result.http_status or (200 if transport.ok else 500));
+    body: dict = {"type": transport.type, "ok": transport.ok};
+    if transport.ok {
+        body["data"] = transport.data;
+    } elif transport.error {
+        err: dict = {"code": transport.error.code, "message": transport.error.message};
+        if transport.error.details is not None {
+            err["details"] = transport.error.details;
+        }
+        body["error"] = err;
+    }
+    if transport.meta {
+        meta: dict = {};
+        if transport.meta.request_id {
+            meta["request_id"] = transport.meta.request_id;
+        }
+        if transport.meta.extra {
+            meta["extra"] = transport.meta.extra;
+        }
+        if meta {
+            body["meta"] = meta;
+        }
+    }
+    return (status, json.dumps(body));
+}
+
+
+def forward(
+    method: str, path: str, body: bytes, token: str = ""
+) -> tuple[int, str, str] {
+    if _BOOT_ERROR {
+        return (
+            503,
+            json.dumps({"ok": False, "error": {"message": "backend boot failed"}}),
+            "application/json"
+        );
+    }
+    runtime = _runtime;
+    if runtime is None {
+        return (
+            503,
+            json.dumps({"ok": False, "error": {"message": "backend not booted"}}),
+            "application/json"
+        );
+    }
+    parts = [
+        p
+        for p in path.strip("/").split("/")
+        if p
+    ];
+    if len(parts) < 2 {
+        return (
+            404,
+            json.dumps({"ok": False, "error": {"message": "invalid path: " + path}}),
+            "application/json"
+        );
+    }
+    route_kind = parts[0];
+    name = parts[1];
+    node_id: (str | None) = None;
+    if route_kind == "walker" {
+        kind = InvocationKind.WALKER;
+        if len(parts) > 2 {
+            node_id = parts[2];
+        }
+    } elif route_kind == "function" {
+        kind = InvocationKind.FUNCTION;
+        if len(parts) > 2 {
+            return (
+                404,
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": {"message": "invalid function path: " + path}
+                    }
+                ),
+                "application/json"
+            );
+        }
+    } else {
+        return (
+            404,
+            json.dumps({"ok": False, "error": {"message": "unknown route: " + path}}),
+            "application/json"
+        );
+    }
+    try {
+        fields = json.loads(body.decode("utf-8")) if body else {};
+    } except Exception as e {
+        return (
+            400,
+            json.dumps(
+                {"ok": False, "error": {"message": "invalid request body: " + str(e)}}
+            ),
+            "application/json"
+        );
+    }
+    if not isinstance(fields, dict) {
+        return (
+            400,
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": {"message": "request body must be a JSON object"}
+                }
+            ),
+            "application/json"
+        );
+    }
+    result = _invoke_on_worker_loop(
+        runtime.dispatcher,
+        InvocationRequest(
+            kind=kind, name=name, fields=fields as dict, node_id=node_id, token=token
+        )
+    );
+    if result.is_stream {
+        return (
+            500,
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": {
+                        "message": "streaming responses are not supported on the sv bridge"
+                    }
+                }
+            ),
+            "application/json"
+        );
+    }
+    (status, text) = _transport_json(result);
+    return (status, text, "application/json");
 }
 
 

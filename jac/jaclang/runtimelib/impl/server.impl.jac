@@ -1744,12 +1744,23 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
         }
 
         def _send_response(self: JacRequestHandler, response: TransportResponse) {
-            if isinstance(response, TransportResponse)
-                and (
-                    isgenerator(response.data)
-                    or isinstance(response.data, AsyncGenerator)
-                ) {
-                self._send_sse_response(response.data);
+            stream = None;
+            if response.meta and response.meta.extra {
+                if response.meta.extra.get("streaming") {
+                    stream = response.meta.extra.get("stream");
+                }
+            }
+            if stream is None {
+                if isinstance(response, TransportResponse)
+                    and (
+                        isgenerator(response.data)
+                        or isinstance(response.data, AsyncGenerator)
+                    ) {
+                    stream = response.data;
+                }
+            }
+            if stream is not None {
+                self._send_sse_response(stream);
             } else {
                 transport = HTTPTransport(handler=self);
                 transport.send(response);
@@ -2241,55 +2252,43 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
             }
             if path.startswith('/function/') {
                 name = path.split('/')[-1];
-                server.introspector.load();
-                if server.introspector.is_auth_required_for_function(name) {
-                    username = self._authenticate();
-                    if not username {
-                        Jac.send_json(self, 401, {'error': 'Unauthorized'});
-                        return;
-                    }
-                } else {
-                    username = self._authenticate();
-                    if not username {
-                        username = Con.GUEST.value;
-                        if not server.user_manager.user_exists(username) {
-                            server.user_manager.create_user(
-                                username, '__no_password__'
-                            );
-                        }
-                    }
+                import from jaclang.runtimelib.invocation {
+                    InvocationKind,
+                    InvocationRequest
                 }
-                response = asyncio.run(
-                    server.execution_handler.call_function(name, data, username)
+                token = self._get_auth_token() or "";
+                result = asyncio.run(
+                    server.invocation_dispatcher.invoke(
+                        InvocationRequest(
+                            kind=InvocationKind.FUNCTION,
+                            name=name,
+                            fields=data,
+                            token=token
+                        )
+                    )
                 );
-                self._send_response(response);
+                self._send_response(result.to_transport());
             } elif path.startswith('/walker/') {
                 name_parts = path.split('/');
                 name = name_parts[-2] if (len(name_parts) > 3) else name_parts[-1];
-                node_id = name_parts[-1] if (len(name_parts) > 3) else '';
-                server.introspector.load();
-                if server.introspector.is_auth_required_for_walker(name) {
-                    username = self._authenticate();
-                    if not username {
-                        Jac.send_json(self, 401, {'error': 'Unauthorized'});
-                        return;
-                    }
-                } else {
-                    username = self._authenticate();
-                    if not username {
-                        username = Con.GUEST.value;
-                        if not server.user_manager.user_exists(username) {
-                            server.user_manager.create_user(
-                                username, '__no_password__'
-                            );
-                        }
-                    }
+                node_id = name_parts[-1] if (len(name_parts) > 3) else None;
+                import from jaclang.runtimelib.invocation {
+                    InvocationKind,
+                    InvocationRequest
                 }
-                fields = data | {'_jac_spawn_node': node_id};
-                response = asyncio.run(
-                    server.execution_handler.spawn_walker(name, fields, username)
+                token = self._get_auth_token() or "";
+                result = asyncio.run(
+                    server.invocation_dispatcher.invoke(
+                        InvocationRequest(
+                            kind=InvocationKind.WALKER,
+                            name=name,
+                            fields=data,
+                            node_id=node_id,
+                            token=token
+                        )
+                    )
                 );
-                self._send_response(response);
+                self._send_response(result.to_transport());
             } elif (path == '/cl/__error__') {
                 message = data.get('message', '');
                 if not message {

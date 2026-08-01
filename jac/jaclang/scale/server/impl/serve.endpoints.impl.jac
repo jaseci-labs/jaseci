@@ -231,7 +231,6 @@ impl JacAPIServerEndpoints.create_function_callback(
     import from jaclang.runtimelib.transport { TransportResponse, Meta }
     import from jaclang.runtimelib.invocation { InvocationKind, InvocationRequest }
     import from fastapi { Request }
-    requires_auth = self.introspector.is_auth_required_for_function(func_name);
 
     func_spec = self.get_functions()[func_name].restspec
         if self.get_functions()[func_name]?.restspec
@@ -244,27 +243,18 @@ impl JacAPIServerEndpoints.create_function_callback(
     async def callback(
         request: Request, **kwargs: JsonValue
     ) -> (TransportResponse | StreamingResponse | Response) {
-        username: (str | None) = request.state?.username if request?.state else None;
-        if requires_auth and not username {
-            return TransportResponse.fail(
-                code='UNAUTHORIZED',
-                message='Unauthorized',
-                meta=Meta(extra={'http_status': 401})
-            );
-        }
         token = "";
         auth_header = request.headers.get("Authorization");
         if auth_header and auth_header.startswith("Bearer ") {
             token = auth_header[7:];
         }
-        console.print(f"Executing function '{func_name}' with params: {kwargs}");
         result = await self.invocation_dispatcher.invoke(
             InvocationRequest(
                 kind=InvocationKind.FUNCTION,
                 name=func_name,
                 fields=kwargs,
                 token=token,
-                resolved_user=username,
+                resolved_user=request.state?.username,
                 identity_prevalidated=True
             )
         );
@@ -281,7 +271,9 @@ impl JacAPIServerEndpoints.create_function_callback(
             );
         }
         if raw_body {
-            payload = result.data;
+            payload = result.data.get('result')
+                if isinstance(result.data, dict)
+                else result.data;
             if isinstance(payload, bytes) {
                 body = payload;
             } elif isinstance(payload, str) {
