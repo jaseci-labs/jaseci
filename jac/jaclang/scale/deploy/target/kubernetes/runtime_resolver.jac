@@ -4,9 +4,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry
 }
-import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
-    k8s_safe_name
-}
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder { k8s_safe_name }
 import from jaclang.scale.runtime.context.util {
     k8s_service_dns_url,
     in_cluster_namespace,
@@ -69,7 +67,7 @@ obj K8sRuntimeServiceResolver(ServiceDeployer) {
     def destroy_all -> bool {
         logger.warning(
             "K8sRuntimeServiceResolver.destroy_all: use "
-            "`KubernetesMicroserviceTarget.destroy(app_name)` instead."
+            "`KubernetesTarget.destroy(app_name)` instead."
         );
         return False;
     }

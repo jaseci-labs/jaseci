@@ -77,14 +77,16 @@ test "deployment target factory raises for not implemented target" {
     assert raised , "Expected NotImplementedError for aws target";
 }
 
-test "deployment target factory creates kubernetes-microservice target" {
+test "kubernetes-microservice stays a working alias for the unified target" {
     config = {"app_name": "test-app", "namespace": "default", "container_port": 8000};
 
-    target = DeploymentTargetFactory.create("kubernetes-microservice", config);
+    aliased = DeploymentTargetFactory.create("kubernetes-microservice", config);
+    plain = DeploymentTargetFactory.create("kubernetes", config);
 
-    assert target is not None;
-    assert hasattr(target, "deploy");
-    assert hasattr(target, "destroy");
+    assert aliased is not None;
+    assert type(aliased) is type(plain);
+    assert hasattr(aliased, "deploy");
+    assert hasattr(aliased, "destroy");
 }
 
 test "utility factory creates standard logger" {
@@ -137,7 +139,7 @@ test "app config creation" {
 
 test "deployment target with logger" {
     with unittest.mock.patch(
-        "jaclang.scale.deploy.target.kubernetes.kubernetes_target.KubernetesTarget"
+        "jaclang.scale.deploy.target.kubernetes.target.KubernetesTarget"
     ) as mock_kubernetes_target {
         mock_target = unittest.mock.MagicMock();
         mock_kubernetes_target.return_value = mock_target;
