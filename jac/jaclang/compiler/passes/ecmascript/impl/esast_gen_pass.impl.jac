@@ -3644,10 +3644,7 @@ impl EsastGenPass.exit_ability(nd: uni.Ability) -> None {
         self._view_stack.pop();
     }
 
-    if self.intent_session is not None {
-        self.intent_session.pop_ability_scope();
-        self.reactive_vars = self.intent_session.reactive_vars;
-    }
+    self.intent_session.pop_ability_scope();
 
     osp_info = self._osp_ability_info(nd);
     if osp_info is not None {
@@ -4337,10 +4334,7 @@ impl EsastGenPass.enter_ability(nd: uni.Ability) -> None {
     }
 
     self._view_stack.append(None);
-    if self.intent_session is not None {
-        self.intent_session.enter_ability(nd);
-        self.reactive_vars = self.intent_session.reactive_vars;
-    }
+    self.intent_session.enter_ability(nd);
 }
 
 impl EsastGenPass.exit_enum(nd: uni.Enum) -> None {
