@@ -9,14 +9,12 @@ import from jaclang.compiler.passes.ecmascript.intent.semantics {
     IntentLeaf,
     StateUpdate
 }
-import type from jaclang.compiler.passes.compose.compose_gen_pass { ComposeGenPass }
-import type from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
 
 obj IntentSession {
     has collector: IntentCollector,
         adapter: IntentTargetAdapter,
         converter: LeafConverter,
-        pass_ref: (EsastGenPass | ComposeGenPass | None) = None,
+        pass_ref: any = None,
         component_types: Sequence[str] = (),
         strict_arch_has: bool = False,
         use_arch_has_dedup: bool = True,
