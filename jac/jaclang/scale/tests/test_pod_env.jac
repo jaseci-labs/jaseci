@@ -1,8 +1,8 @@
 import unittest.mock as mock;
 import json;
 import from pathlib { Path }
-import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
-    MicroserviceManifestBuilder,
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    ManifestBuilder,
     GATEWAY_NAME
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
@@ -19,9 +19,7 @@ test "generate_service_pod_specs auto-discovers services when no routes declared
     # [scale.microservices.routes] section still deploys - services are
     # discovered from `sv import` under the project root.
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = MicroserviceManifestBuilder(
-        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE)
-    );
+    builder = ManifestBuilder(k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE));
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
     with mock.patch.object(builder, "_ms_cfg", return_value={}), mock.patch.object(
         builder, "_build_service_pod_spec", return_value={}
@@ -38,7 +36,7 @@ test "generate_service_pod_specs auto-discovers services when no routes declared
 
 test "build_env injects JAC_SV_ROUTES so pods get routes without a toml table" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = MicroserviceManifestBuilder(k8s_config=cfg);
+    builder = ManifestBuilder(k8s_config=cfg);
     routes = {"orders_app": "/api/orders", "cart_app": "/api/cart"};
     with mock.patch.object(builder, "_microservice_routes", return_value=routes) {
         env = builder._build_env("orders_app", {});
@@ -48,9 +46,55 @@ test "build_env injects JAC_SV_ROUTES so pods get routes without a toml table" {
     assert json.loads(pairs["JAC_SV_ROUTES"]) == routes;
 }
 
+
+test "an app with no declared routes deploys as one service plus the gateway" {
+    cfg = KubernetesConfig(app_name="littlex", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg, microservices_config={"routes": {}});
+    app_cfg = AppConfig(code_folder="/apps/littlex", file_name="main.jac");
+
+    specs = builder.generate_service_pod_specs(app_cfg, "img");
+
+    # named after the app, not its entry file: main.jac must not turn every
+    # monolith into a "main" service.
+    assert set(specs.keys()) == {"littlex", GATEWAY_NAME};
+    assert builder.microservices_config["routes"] == {"littlex": "/littlex"};
+    env = {e["name"]: e["value"] for e in specs["littlex"]["containers"][0]["env"]};
+    assert env["JAC_SV_NAME"] == "littlex";
+    assert env["JAC_SV_FILE"] == "main.jac";
+}
+
+
+test "a solo app whose name shadows a builtin route is rejected" {
+    cfg = KubernetesConfig(app_name="admin", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg, microservices_config={"routes": {}});
+    app_cfg = AppConfig(code_folder="/apps/admin", file_name="main.jac");
+
+    raised = False;
+    try {
+        builder.generate_service_pod_specs(app_cfg, "img");
+    } except ValueError as e {
+        raised = True;
+        assert "builtin" in str(e);
+    }
+    assert raised , "expected the reserved-name guard to fire";
+}
+
+
+test "every generated deployment rolls with surge, never delete-and-recreate" {
+    cfg = KubernetesConfig(app_name="littlex", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg);
+    for name in ["littlex", GATEWAY_NAME] {
+        manifest = builder._build_deployment_manifest(name, {});
+        strategy = manifest["spec"]["strategy"];
+        assert strategy["type"] == "RollingUpdate";
+        assert strategy["rollingUpdate"] == {"maxSurge": 1, "maxUnavailable": 0};
+    }
+}
+
+
 test "build_env omits JAC_SV_ROUTES when there are no routes" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = MicroserviceManifestBuilder(k8s_config=cfg);
+    builder = ManifestBuilder(k8s_config=cfg);
     with mock.patch.object(builder, "_microservice_routes", return_value={}) {
         env = builder._build_env("orders_app", {});
     }
@@ -59,7 +103,7 @@ test "build_env omits JAC_SV_ROUTES when there are no routes" {
 
 test "build_env injects K8S_APP_NAME and K8S_NAMESPACE from k8s_config" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="jac-shop-dev");
-    builder = MicroserviceManifestBuilder(k8s_config=cfg);
+    builder = ManifestBuilder(k8s_config=cfg);
 
     env = builder._build_env("orders", {});
 
@@ -72,7 +116,7 @@ test "build_env injects K8S_APP_NAME and K8S_NAMESPACE from k8s_config" {
 
 test "build_env keeps per-service overrides but never shadows the K8S_* vars" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="jac-shop-dev");
-    builder = MicroserviceManifestBuilder(k8s_config=cfg);
+    builder = ManifestBuilder(k8s_config=cfg);
 
     env = builder._build_env(
         "orders", {"env": {"STRIPE_KEY": "sk_test", "K8S_APP_NAME": "evil"}}
@@ -97,7 +141,7 @@ test "gateway pod client-build fallback uses --client web, not the typecheck-gat
     # #7667: a bare `jac build` gates on the whole-project type-check, so a
     # type-error app silently shipped without its client and / served a 404.
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = MicroserviceManifestBuilder(k8s_config=cfg);
+    builder = ManifestBuilder(k8s_config=cfg);
     with mock.patch.object(builder, "_client_entry", return_value="main.jac") {
         entry = builder._pod_entrypoint();
     }
@@ -110,9 +154,27 @@ test "gateway pod client-build fallback uses --client web, not the typecheck-gat
 
 test "no client entry means no client build in the gateway entrypoint" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = MicroserviceManifestBuilder(k8s_config=cfg);
+    builder = ManifestBuilder(k8s_config=cfg);
     with mock.patch.object(builder, "_client_entry", return_value="") {
         entry = builder._pod_entrypoint();
     }
     assert "jac build" not in entry["args"][0];
+}
+
+
+test "a single-file full-stack app still gets its client bundle built" {
+    import tempfile;
+    import os;
+    with tempfile.TemporaryDirectory() as tmp {
+        with open(os.path.join(tmp, "jac.toml"), "w") as f {
+            f.write("[project]\nname = \"todo-app\"\n");
+        }
+        with open(os.path.join(tmp, "app.cl.jac"), "w") as f {
+            f.write("");
+        }
+        cfg = KubernetesConfig(app_name="todo-app", namespace="ns");
+        builder = ManifestBuilder(k8s_config=cfg, project_dir=tmp);
+        assert builder._has_client_source();
+        assert builder._client_entry() == "main.jac";
+    }
 }

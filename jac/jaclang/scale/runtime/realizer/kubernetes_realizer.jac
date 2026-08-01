@@ -23,46 +23,48 @@ obj KubernetesRealizer {
 
         reset_deploy_version_cache();
         enabled = self.ms_config.get("enabled", None);
-
         ms_configured = get_scale_config().microservices_declared();
 
-        if target == "kubernetes" and enabled is not False {
-            scale_discovered: dict[str, str] = {};
-            if filename and os.path.exists(filename) {
-                import from jaclang.scale.runtime.discovery.discovery {
-                    discover_sv_services
-                }
-                scale_discovered = discover_sv_services(filename);
-            }
-
+        if target == "kubernetes" {
             explicit_routes = dict(self.ms_config.get("routes", {}));
-            merged_routes: dict[str, str] = dict(scale_discovered);
-            merged_routes.update(explicit_routes);
-            if (enabled is True) or merged_routes {
-                target = "kubernetes-microservice";
-                if merged_routes {
-                    raw_cfg = get_scale_config().load();
-                    raw_ms = raw_cfg.setdefault("microservices", {});
-                    raw_ms["routes"] = merged_routes;
-                    self.ms_config["routes"] = merged_routes;
-                    plural = "s" if len(merged_routes) != 1 else "";
-                    hint = (
-                        ""
-                            if ms_configured
-                            else "; set [scale.microservices] in jac.toml to customize"
-                    );
-                    label = "" if ms_configured else " (auto-detected)";
-                    console.print(
-                        f"Microservice mode{label}: {len(merged_routes)} "
-                        f"service{plural}. Deploying to kubernetes{hint}.",
-                        style="cyan"
-                    );
-                    for line in format_route_origin_lines(
-                        merged_routes, explicit_routes
-                    ) {
-                        console.print(f"  {line}", style="muted");
+            merged_routes: dict[str, str] = {};
+            if enabled is not False {
+                if filename and os.path.exists(filename) {
+                    import from jaclang.scale.runtime.discovery.discovery {
+                        discover_sv_services
                     }
+                    merged_routes = dict(discover_sv_services(filename));
                 }
+            }
+            merged_routes.update(explicit_routes);
+            if merged_routes {
+                raw_cfg = get_scale_config().load();
+                raw_ms = raw_cfg.setdefault("microservices", {});
+                raw_ms["routes"] = merged_routes;
+                self.ms_config["routes"] = merged_routes;
+                plural = "s" if len(merged_routes) != 1 else "";
+                hint = (
+                    ""
+                        if ms_configured
+                        else "; set [scale.microservices] in jac.toml to customize"
+                );
+                label = "" if ms_configured else " (auto-detected)";
+                console.print(
+                    f"Deploying {len(merged_routes)} service{plural} behind a "
+                    f"gateway{label}{hint}.",
+                    style="cyan"
+                );
+                for line in format_route_origin_lines(
+                    merged_routes, explicit_routes
+                ) {
+                    console.print(f"  {line}", style="muted");
+                }
+            } else {
+                console.print(
+                    "No [scale.microservices.routes] declared; deploying the app "
+                    "as a single service behind a gateway.",
+                    style="cyan"
+                );
             }
         }
         if not os.path.exists(filename) {
@@ -109,38 +111,21 @@ obj KubernetesRealizer {
         base_file_path = os.path.basename(filename);
         deployment_target.secrets = scale_config.get_secrets_config();
 
-        no_image = target == "kubernetes-microservice";
-        app_config = AppConfig(
-            code_folder=code_folder, file_name=base_file_path, no_image=no_image
+        app_config = AppConfig(code_folder=code_folder, file_name=base_file_path);
+        console.warning(
+            "Copying local source into the cluster via PVC and installing "
+            "jac at pod startup. Keep secrets in [scale.secrets] "
+            "(synced as a K8s Secret) or in .env, never inline in source."
         );
-        if no_image {
-            deployment_target.no_image = True;
+        if not ms_configured {
             console.warning(
-                "Copying local source into the cluster via PVC and installing "
-                "jac at pod startup. Keep secrets in [scale.secrets] "
-                "(synced as a K8s Secret) or in .env, never inline in source."
+                "Set [scale.microservices] in jac.toml to configure "
+                "resources, scaling, ingress, and secrets before going to production."
             );
-
-            if not ms_configured {
-                console.warning(
-                    "Set [scale.microservices] in jac.toml to configure "
-                    "resources, scaling, ingress, and secrets before going to production."
-                );
-            }
         }
-        if target == "kubernetes-microservice" {
-            console.print("Preparing microservice deployment...");
-        } else {
-            console.print("Installing Jaseci packages from PyPI...");
-        }
+        console.print("Preparing deployment...");
 
         if dry_run {
-            if target != "kubernetes-microservice" {
-                console.warning(
-                    f"--dry-run only supported with kubernetes-microservice target (got {target!r})."
-                );
-                return 1;
-            }
             try {
                 import from jaclang.scale.runtime.cli.plan { print_plan }
                 import from jaclang.scale.runtime.cli.diagnostics { has_errors }
