@@ -631,7 +631,7 @@ jobs:
   test-android-compose:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 35
     steps:
       - name: Check out code
@@ -676,7 +676,7 @@ jobs:
   test-android-compose-device:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 45
     steps:
       - name: Check out code
