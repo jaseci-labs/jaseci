@@ -88,6 +88,19 @@ import kotlinx.coroutines.launch
 """;
 }
 
+def _emit_kotlin_imports(model: ComposeModule) -> str {
+    # User Jac imports of JVM/AndroidX/third-party packages, translated 1:1 to
+    # Kotlin imports (collected by ComposeGenPass.exit_import). This is what makes
+    # library composables first-class: `import from com.acme.ui { FancyButton }`
+    # in Jac becomes `import com.acme.ui.FancyButton` here, so `<FancyButton/>`
+    # lowers to a resolvable call instead of needing `<Raw kotlin=..>`.
+    lines = getattr(model, "kotlin_imports", None) or [];
+    if not lines {
+        return "";
+    }
+    return "".join([f"import {line}\n" for line in lines]);
+}
+
 def _section_registry_stub -> str {
     return """
 class JacSectionRegistry {
@@ -234,6 +247,20 @@ fun {name}(viewportWidth: Dp, scrollState: ScrollState, sectionRegistry: JacSect
 """;
 }
 
+def _emit_composable_fun(name: str, prelude: str, body: str) -> str {
+    # A reusable, non-screen composable (`def:pub Card -> Composable`). Emitted
+    # under its own name with no screen plumbing so a `<Card/>` reference — which
+    # the native emitter lowers to the near-identity call `Card()` — resolves to a
+    # real @Composable. This is what makes user composables first-class alongside
+    # the standard Material vocabulary, instead of forcing a `<Raw kotlin=..>`.
+    return f"""
+@Composable
+fun {name}() {{
+{prelude}{body}
+}}
+""";
+}
+
 def _merge_prelude(react_prelude: str, needs_scope: bool, body: str = "") -> str {
     if body and ("JacClient" in body or "scope.launch" in body) {
         needs_scope = True;
@@ -354,6 +381,28 @@ impl ComposeEmit.emit_screens -> str {
         );
     }
 
+    # Reusable (non-screen, non-routed) composables. Collected by ComposeGenPass
+    # like screens but previously dropped; emit each as a plain `@Composable fun
+    # Name()` so a `<Name/>` reference resolves. Kept out of the `if not screens`
+    # gate above so a module of only reusable pieces still gets a HomeScreen.
+    reusable: list[str] = [];
+    for (cname, comp) in self.model.intent.components.items() {
+        if comp.is_screen or comp.route_path {
+            continue;
+        }
+        if self.model.compose_view_for(cname) is None {
+            continue;
+        }
+        if cname in seen {
+            continue;
+        }
+        seen.add(cname);
+        prelude = react_em.emit_prelude(comp);
+        body = _emit_screen_body(comp, native_em, self.model);
+        prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
+        reusable.append(_emit_composable_fun(cname, prelude, body));
+    }
+
     for diag in native_em.diagnostics {
         self.model.intent.add_diagnostic(diag);
     }
@@ -363,6 +412,7 @@ impl ComposeEmit.emit_screens -> str {
     return (
         f"package {pkg}\n\n"
         + _screen_imports()
+        + _emit_kotlin_imports(self.model)
         + "\n"
         + design
         + "\n"
@@ -371,6 +421,7 @@ impl ComposeEmit.emit_screens -> str {
         + app
         + "\n"
         + "\n".join(screens)
+        + ("\n" + "\n".join(reusable) if reusable else "")
     );
 }
 

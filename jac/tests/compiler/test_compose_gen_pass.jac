@@ -60,6 +60,75 @@ def:pub app -> Composable {
     }
 }
 
+# P0 #3 — open vocabulary: non-screen composables are emitted, and JVM/third-
+# party Jac imports are translated to Kotlin imports so library composables are
+# first-class instead of needing <Raw kotlin=..>.
+
+test "non-screen composables are emitted as reusable @Composable funs" {
+    src = '''
+def:pub Card -> Composable {
+    return <Column>
+        <Text>"card"</Text>
+    </Column>;
+}
+
+def:pub app -> Composable {
+    return <Column>
+        <Card />
+    </Column>;
+}
+''';
+    with tempfile.TemporaryDirectory() as tmp {
+        path = Path(tmp) / "app.cl.jac";
+        path.write_text(src, encoding="utf-8");
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        program = Jac.program;
+        mod = program.compile(str(path));
+        model = run_compose_gen_pass(mod, program);
+        model.intent.package_name = "dev.jac.test";
+        screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
+        # The reusable composable is emitted under its own name with no screen
+        # plumbing, so the `<Card/>` reference (lowered to `Card()`) resolves.
+        assert "fun Card()" in screens , "non-screen composable Card must be emitted";
+        assert "Card()" in screens , "the screen must call Card()";
+        # It must NOT be emitted with the screen signature.
+        assert "fun Card(viewportWidth" not in screens;
+    }
+}
+
+test "JVM / third-party Jac imports translate to Kotlin imports" {
+    src = '''
+import from com.acme.ui { FancyButton, FancyCard as Card2 }
+import androidx.compose.material.icons.Icons;
+import os;
+
+def:pub app -> Composable {
+    return <Column>
+        <FancyButton />
+    </Column>;
+}
+''';
+    with tempfile.TemporaryDirectory() as tmp {
+        path = Path(tmp) / "app.cl.jac";
+        path.write_text(src, encoding="utf-8");
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        program = Jac.program;
+        mod = program.compile(str(path));
+        model = run_compose_gen_pass(mod, program);
+        assert "com.acme.ui.FancyButton" in model.kotlin_imports;
+        assert "com.acme.ui.FancyCard as Card2" in model.kotlin_imports;
+        assert "androidx.compose.material.icons.Icons" in model.kotlin_imports;
+        # A non-JVM import (stdlib `os`) is NOT part of the Kotlin surface.
+        assert all("os" != x for x in model.kotlin_imports);
+
+        model.intent.package_name = "dev.jac.test";
+        screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
+        assert "import com.acme.ui.FancyButton" in screens;
+        assert "import com.acme.ui.FancyCard as Card2" in screens;
+        assert "import androidx.compose.material.icons.Icons" in screens;
+    }
+}
+
 test "ComposeGenPass records kotlin_ast leaves in reactive intent" {
     src = '''
 def:pub Counter() -> Composable {

@@ -29,6 +29,7 @@ obj ComposeGenPass(UniPass) {
     def exit_arch_has(nd: uni.ArchHas) -> None;
     def exit_jsx_element(nd: uni.JsxElement) -> None;
     def exit_assignment(nd: uni.Assignment) -> None;
+    def exit_import(nd: uni.Import) -> None;
     def _sync_lowerer_reactive_vars -> None;
 }
 

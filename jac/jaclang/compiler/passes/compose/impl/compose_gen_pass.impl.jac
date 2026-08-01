@@ -108,6 +108,77 @@ impl ComposeGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
     return;
 }
 
+# Kotlin-namespace roots a compose module may import from. An import whose dotted
+# path starts with one of these is a genuine JVM/AndroidX/third-party package and
+# is translated 1:1 into a Kotlin `import`, so a library composable referenced as
+# `<FancyButton/>` resolves without a `<Raw kotlin=..>`. Anything else (jaclang
+# internals, stdlib, relative imports) is left alone — it is server/tooling code,
+# not part of the emitted Kotlin surface.
+glob _KOTLIN_IMPORT_ROOTS: set[str] = {
+    "androidx", "android", "kotlin", "kotlinx", "java", "javax",
+    "com", "org", "io", "dev", "net"
+};
+
+def _kotlin_import_lines(nd: uni.Import) -> list[str] {
+    # Translate one Jac import into zero or more Kotlin import paths (no "import "
+    # prefix). `import from a.b.c { X, Y as Z }` -> ["a.b.c.X", "a.b.c.Z"];
+    # `import a.b.c.Icons` -> ["a.b.c.Icons"]. Relative imports are skipped.
+    fl = nd.from_loc;
+    if fl is not None {
+        if getattr(fl, "level", 0) and fl.level > 0 {
+            return [];
+        }
+        dot = fl.dot_path_str or "";
+        if "." not in dot or dot.split(".")[0] not in _KOTLIN_IMPORT_ROOTS {
+            return [];
+        }
+        lines: list[str] = [];
+        for it in (nd.items or []) {
+            if isinstance(it, uni.ModuleItem) {
+                nm = it.name.value if hasattr(it.name, "value") else str(it.name);
+                if not nm {
+                    continue;
+                }
+                # `X as Y` -> Kotlin `import pkg.X as Y`, so a `<Y/>` reference
+                # (the alias the user actually writes) resolves.
+                if it.alias is not None and getattr(it.alias, "value", "") {
+                    lines.append(f"{dot}.{nm} as {it.alias.value}");
+                } else {
+                    lines.append(f"{dot}.{nm}");
+                }
+            }
+        }
+        if not lines {
+            lines.append(f"{dot}.*");
+        }
+        return lines;
+    }
+    # Plain `import a.b.c.Thing;` — items are ModulePaths.
+    out: list[str] = [];
+    for it in (nd.items or []) {
+        if isinstance(it, uni.ModulePath) {
+            if getattr(it, "level", 0) and it.level > 0 {
+                continue;
+            }
+            dot = it.dot_path_str or "";
+            if "." in dot and dot.split(".")[0] in _KOTLIN_IMPORT_ROOTS {
+                out.append(dot);
+            }
+        }
+    }
+    return out;
+}
+
+impl ComposeGenPass.exit_import(nd: uni.Import) -> None {
+    # Only client-context imports contribute to the emitted Kotlin surface.
+    if not nd.in_client_context() {
+        return;
+    }
+    for line in _kotlin_import_lines(nd) {
+        self.model.add_kotlin_import(line);
+    }
+}
+
 impl run_compose_gen_pass(
     mod: uni.Module, prog: any = None, into: (ComposeModule | None) = None
 ) -> ComposeModule {
