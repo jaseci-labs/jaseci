@@ -41,3 +41,42 @@ test "a missing jac.toml still defaults ON" {
     d = Path(tempfile.mkdtemp(prefix="jac_test_android_tc_none_"));
     assert AndroidTarget()._resolve_type_check(d) == True;
 }
+
+# ── Single source of truth: target ⇒ framework (P0 #2) ───────────────────────
+
+test "_ensure_compose_framework persists framework = compose when absent" {
+    d = _project_with_toml("[project]\nname = \"demo\"\n");
+    t = AndroidTarget();
+    assert t._resolve_client_framework(d) is None , "framework starts unset";
+    t._ensure_compose_framework(d);
+    assert t._resolve_client_framework(d) == "compose" ,
+        "selecting Android must persist [client] framework = compose";
+    assert 'framework = "compose"' in (d / "jac.toml").read_text();
+}
+
+test "_ensure_compose_framework inserts under an existing [client] table" {
+    d = _project_with_toml("[project]\nname = \"demo\"\n\n[client]\n");
+    t = AndroidTarget();
+    t._ensure_compose_framework(d);
+    assert t._resolve_client_framework(d) == "compose";
+}
+
+test "_ensure_compose_framework rejects an explicit non-Compose framework" {
+    d = _project_with_toml("[client]\nframework = \"react\"\n");
+    raised = False;
+    try {
+        AndroidTarget()._ensure_compose_framework(d);
+    } except RuntimeError {
+        raised = True;
+    }
+    assert raised , "a react framework must be rejected for the Android target";
+    # the conflicting config is left untouched, not silently overwritten
+    assert 'framework = "react"' in (d / "jac.toml").read_text();
+}
+
+test "_ensure_compose_framework is a no-op when already compose" {
+    d = _project_with_toml("[client]\nframework = \"compose\"\n");
+    t = AndroidTarget();
+    t._ensure_compose_framework(d);
+    assert t._resolve_client_framework(d) == "compose";
+}

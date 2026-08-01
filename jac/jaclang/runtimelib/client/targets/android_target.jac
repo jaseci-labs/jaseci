@@ -25,6 +25,9 @@ obj AndroidTarget(ClientTarget) {
     ) -> tuple[(any, any)];
     def:priv _load_android_cfg(project_dir: Path) -> dict;
     def:priv _resolve_type_check(project_dir: Path) -> bool;
+    def:priv _resolve_client_framework(project_dir: Path) -> str | None;
+    def:priv _ensure_compose_framework(project_dir: Path) -> None;
+    def:priv _write_compose_framework(project_dir: Path) -> None;
     def:priv _android_dir(project_dir: Path) -> Path;
     def:priv _resolve_package_name(project_dir: Path) -> str;
     def:priv _run_gradle_assemble(

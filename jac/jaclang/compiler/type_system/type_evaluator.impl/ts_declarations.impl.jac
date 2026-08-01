@@ -464,6 +464,15 @@ impl TypeEvaluator._install_compose_widgets -> None {
     if self.js_globals_module is None {
         return;
     }
+    # The fixed namespace singletons/classes declared in js_globals.pyi are
+    # Compose-only ambient globals; record them unconditionally so the resolver
+    # gates `Modifier`/`Arrangement`/`Color`/`Dp` on `_is_compose_module` even
+    # if the bundled widget signature file is absent.
+    self._compose_global_names = {
+        "Modifier", "Typography", "Arrangement", "Alignment", "Color",
+        "Dp", "ModifierChain", "TypographyStyles", "ArrangementNamespace",
+        "AlignmentNamespace", "ColorNamespace"
+    };
     path = self._COMPOSE_WIDGETS_FILE_PATH;
     if not os.path.exists(path) {
         return;
@@ -475,7 +484,13 @@ impl TypeEvaluator._install_compose_widgets -> None {
     } except OSError {
         return;
     }
-    self._kotlin_synth_surface(parse_signature_text(text), self.js_globals_module);
+    sigs = parse_signature_text(text);
+    self._kotlin_synth_surface(sigs, self.js_globals_module);
+    # Record each ingested widget name as a Compose-only ambient global so the
+    # resolver gates it on `_is_compose_module`, not generic client context.
+    for sig in sigs {
+        self._compose_global_names.add(sig.name);
+    }
 }
 
 impl TypeEvaluator._install_compose_modifiers -> None {

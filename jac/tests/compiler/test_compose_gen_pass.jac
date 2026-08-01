@@ -413,6 +413,14 @@ test "typed Compose surface: opt-in type_check catches modifier/style typos" {
 
     def _err_count(src: str) -> int {
         with tempfile.TemporaryDirectory() as tmp {
+            # The Compose ambient surface resolves only in a Compose target module
+            # (`[client] framework = "compose"`) — the P0 #1 gate. Make the temp
+            # dir a real Compose project so the widget/Modifier/Typography names
+            # are visible here.
+            (Path(tmp) / "jac.toml").write_text(
+                "[project]\nname = \"gen_pass_test\"\n\n[client]\nframework = \"compose\"\n",
+                encoding="utf-8"
+            );
             path = Path(tmp) / "app.cl.jac";
             path.write_text(src, encoding="utf-8");
             program = Jac.program;

@@ -193,6 +193,8 @@ obj TypeEvaluator {
         _flow_pending_keys: set[str] postinit,
         _module_type_cache: dict[str, types.ModuleType] = {},
         _mobui_module_cache: dict[str, bool] = {},
+        _compose_module_cache: dict[str, bool] = {},
+        _compose_global_names: set[str] = {},
         _strict_site_cache: dict[int, bool] = {},
         _sv_async_syms_cache: dict[int, set[int]] = {},
         _and_narrowing_overrides: dict[int, TypeBase] = {},
@@ -561,6 +563,7 @@ obj TypeEvaluator {
     ) -> types.FunctionType | None;
 
     def _is_mobui_module(nd: uni.UniNode) -> bool;
+    def _is_compose_module(nd: uni.UniNode) -> bool;
     def _get_intrinsic_props_type(tag_name: str) -> types.ClassType | None;
     def _validate_component_jsx_props(
         expr: uni.JsxElement,

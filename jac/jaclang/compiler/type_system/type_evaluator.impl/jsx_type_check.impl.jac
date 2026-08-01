@@ -16,6 +16,33 @@ impl TypeEvaluator._is_mobui_module(nd: uni.UniNode) -> bool {
     return self._mobui_module_cache[mod_path];
 }
 
+impl TypeEvaluator._is_compose_module(nd: uni.UniNode) -> bool {
+    # True when `nd` lives in an Android/Compose client project (`[client]
+    # framework = "compose"`). The Compose ambient vocabulary — widgets, the
+    # Modifier/Arrangement/Alignment/Color namespaces, and the .dp/.sp/.len
+    # extensions — resolves only in such a module, so a plain React `.cl.jac`
+    # never sees Compose names even though both are client codespaces. Mirrors
+    # _is_mobui_module: config-driven and cached per module path.
+    # The active target is the single source of truth: when a build selects the
+    # Android/Compose target it threads `client_framework = "compose"` through
+    # CompileOptions, so the checker and the ES ComposeBackend cannot disagree.
+    # The disk config (`[client] framework`) is the fallback for standalone
+    # checking / LSP where no target drives the compile.
+    opts = self.program._compile_options;
+    if getattr(opts, "client_framework", "") == "compose" {
+        return True;
+    }
+    mod_path = nd.loc.mod_path if nd.loc else "";
+    if not mod_path {
+        return False;
+    }
+    if mod_path not in self._compose_module_cache {
+        import from jaclang.project.client_kind { compose_enforced_for }
+        self._compose_module_cache[mod_path] = compose_enforced_for(mod_path);
+    }
+    return self._compose_module_cache[mod_path];
+}
+
 impl TypeEvaluator._resolve_jsx_component_type(
     name: uni.JsxElementName
 ) -> types.FunctionType | None {

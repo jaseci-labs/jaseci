@@ -54,3 +54,26 @@ def mobui_enforced_for(
     }
     return not mobui_module_exempt(mod_path, proj_root);
 }
+
+def compose_enforced_for(mod_path: str) -> bool {
+    # True when `mod_path` belongs to a project whose client framework is Compose
+    # (`[client] framework = "compose"`). This is the single, config-driven signal
+    # that a module is an Android/Compose client surface — the checker gates the
+    # Compose ambient vocabulary (widgets/modifiers/consts/.dp extensions) on it so
+    # a plain React `.cl.jac` never sees Compose names. Mirrors mobui_enforced_for:
+    # a module physically outside the project root is exempt.
+    cfg = _config_for(mod_path);
+    if not cfg or cfg.project_root is None {
+        return False;
+    }
+    framework = (cfg.client.framework if cfg.client else "") or "";
+    if framework != "compose" {
+        return False;
+    }
+    if not mod_path {
+        return False;
+    }
+    real_mod = os.path.normcase(os.path.realpath(mod_path));
+    real_root = os.path.normcase(os.path.realpath(str(cfg.project_root)));
+    return real_mod == real_root or real_mod.startswith(real_root + os.sep);
+}

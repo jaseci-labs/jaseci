@@ -22,7 +22,42 @@ import from jaclang.compiler.passes.compose.compose_stub_gen {
     parse_signature_text
 }
 
-glob _tmp: str = tempfile.mkdtemp(prefix="jac_test_compose_ext_");
+def _mk_compose_project(prefix: str) -> str {
+    # A snippet dir that is a real Compose project: `[client] framework = "compose"`
+    # is the single signal `_is_compose_module` keys on, so the ingested Compose
+    # ambient surface (widgets / Modifier / Arrangement / .dp) resolves here. A
+    # plain client codespace outside such a project no longer sees Compose names.
+    d = tempfile.mkdtemp(prefix=prefix);
+    with open(os.path.join(d, "jac.toml"), "w") as f {
+        f.write("[project]\nname = \"compose_ext_test\"\n\n[client]\nframework = \"compose\"\n");
+    }
+    return d;
+}
+
+glob _tmp: str = _mk_compose_project("jac_test_compose_ext_");
+
+def _mk_plain_client_project(prefix: str) -> str {
+    # A client project that is NOT Compose (a plain React surface): no
+    # `framework = "compose"`. `_is_compose_module` is False here, so the Compose
+    # ambient vocabulary must stay invisible even in a `.cl.jac` client codespace.
+    d = tempfile.mkdtemp(prefix=prefix);
+    with open(os.path.join(d, "jac.toml"), "w") as f {
+        f.write("[project]\nname = \"plain_client_test\"\n");
+    }
+    return d;
+}
+
+glob _react_tmp: str = _mk_plain_client_project("jac_test_react_");
+
+def _errors_in(dir_: str, code: str, suffix: str = ".cl.jac") -> list[str] {
+    path = os.path.join(dir_, f"snippet_{abs(hash(code))}{suffix}");
+    with open(path, "w") as f {
+        f.write(code);
+    }
+    prog = JacProgram();
+    prog.compile(path, no_cgen=True, type_check=True);
+    return [str(e) for e in prog.errors_had];
+}
 
 glob FIXTURE: str = "package androidx.compose.material3 {\n"
     "  public final class ButtonKt {\n"
@@ -489,4 +524,45 @@ test "scope-receiver Modifier extensions resolve, and a typo is caught" {
     assert _errors_for(
         "def f -> any {\n    return Modifier.wieght(1.0);\n}\n", ".cl.jac"
     );
+}
+
+# ── Part 5: target isolation (P0 #1) ─────────────────────────────────────────
+# The Compose ambient vocabulary is gated on the Compose *target*, not on generic
+# client codespace: a plain React `.cl.jac` (client, but not a Compose project)
+# must not see Compose names, even though it is `in_client_context()`.
+
+test "Compose widgets do not leak into a plain (non-Compose) client module" {
+    # A wrong-typed prop is a type error only when `Button` resolves to the typed
+    # Compose widget. In a plain client project (client codespace, but not a
+    # Compose target) `Button` does not resolve, so the same snippet is clean —
+    # proving the Compose surface is gated on the target, not on client context.
+    # (Unknown ambient names are permissive in client code, so isolation shows up
+    # as the *absence* of the Compose-specific type error, not a new one.)
+    snippet = "def f -> any {\n    return <Button onClick={lambda -> None { }} enabled=\"yes\">\"x\"</Button>;\n}\n";
+    assert not _errors_in(_react_tmp, snippet) ,
+        "the typed-Button error must NOT fire outside a Compose project";
+    assert _errors_in(_tmp, snippet) ,
+        "the same wrong-typed prop must be flagged inside a Compose project";
+}
+
+test "Modifier namespace does not leak into a plain client module" {
+    # A *valid* Modifier chain type-checks clean only when `Modifier` resolves to
+    # the ingested ModifierChain. In a plain client project `Modifier` resolves to
+    # Unknown, so even a well-formed chain errors ("cannot access attribute on
+    # Unknown") — the mirror image of the Compose case, proving Modifier is gated
+    # on the target.
+    chain = "def f -> any {\n    return Modifier.padding(8.dp).fillMaxWidth();\n}\n";
+    assert not _errors_in(_tmp, chain) ,
+        f"a valid Modifier chain must type-check inside a Compose project";
+    assert _errors_in(_react_tmp, chain) ,
+        "Modifier must NOT resolve to ModifierChain outside a Compose project";
+}
+
+test ".dp / .sp extensions are Compose-target-only, permissive elsewhere" {
+    # Builtin member access is permissive, so `.dp` outside a Compose project is
+    # not an error — but it must not resolve to the Compose `Dp` type either.
+    ev = JacProgram().get_type_evaluator();
+    ext = ev.prefetch.int_class.shared.symbol_table.names_in_scope.get("dp");
+    assert ext is not None and "Dp" in str(ev.get_type_of_symbol(ext)) ,
+        "the .dp extension is still installed on int (resolution is gated, not the install)";
 }

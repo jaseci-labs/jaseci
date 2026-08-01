@@ -864,7 +864,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                     );
                     if member is not None
                     and self._is_compose_gated_member(member.symbol)
-                    and not expr.in_client_context() {
+                    and not (self._is_compose_module(expr) and expr.in_client_context()) {
                         member = None;
                     }
                     if member {
@@ -1876,8 +1876,18 @@ impl TypeEvaluator._get_type_of_expression_core(
 
                 if symbol is None or symbol.parent_tab is self.builtins_module {
                     js_sym = self.js_globals_module.names_in_scope.get(expr.value);
-                    if js_sym is not None and expr.in_client_context() {
-                        symbol = js_sym;
+                    if js_sym is not None {
+                        # Compose ambient names (widgets + Modifier/Arrangement/
+                        # Color/Dp namespaces) resolve only in a Compose target
+                        # module; the rest of the JS globals stay gated on generic
+                        # client context so a React `.cl.jac` never sees Compose.
+                        if expr.value in self._compose_global_names {
+                            if self._is_compose_module(expr) and expr.in_client_context() {
+                                symbol = js_sym;
+                            }
+                        } elif expr.in_client_context() {
+                            symbol = js_sym;
+                        }
                     }
                 }
                 if symbol {

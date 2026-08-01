@@ -137,6 +137,79 @@ impl AndroidTarget._resolve_package_name(project_dir: Path) -> str {
     return "dev.jac.generated";
 }
 
+impl AndroidTarget._resolve_client_framework(project_dir: Path) -> str | None {
+    # The explicitly-configured `[client] framework`, or None when unset. This
+    # distinguishes "absent" (safe — the Android target implies Compose) from an
+    # explicit non-Compose choice (a genuine mismatch to reject). Note: the parsed
+    # ClientConfig.framework defaults to "react", so we read the raw section to
+    # tell a real override from the default.
+    try {
+        import from jaclang.project.config { JacConfig }
+        cfg = JacConfig.load(project_dir / "jac.toml");
+        client = cfg.get_section("client") or {};
+        if isinstance(client, dict) and "framework" in client {
+            return str(client.get("framework"));
+        }
+    } except Exception {
+        return None;
+    }
+    return None;
+}
+
+impl AndroidTarget._ensure_compose_framework(project_dir: Path) -> None {
+    # Single source of truth: selecting the Android target IS selecting the
+    # Compose client surface, so `[client] framework` must be "compose". An
+    # explicit non-Compose framework is a real conflict — the ES backend would
+    # resolve a different surface than the target — and is rejected. An absent
+    # framework is persisted as "compose" so the checker's Compose gate
+    # (`_is_compose_module`) and the ES ComposeBackend both read one config.
+    fw = self._resolve_client_framework(project_dir);
+    if fw is not None and fw != "compose" {
+        raise RuntimeError(
+            "The Android target is the Compose client surface, so it requires "
+            + "[client] framework = \"compose\" in jac.toml, but found "
+            + f"framework = \"{fw}\". Set it to \"compose\" (or remove the "
+            + "override) to build for Android."
+        );
+    }
+    if fw == "compose" {
+        return;
+    }
+    self._write_compose_framework(project_dir);
+}
+
+impl AndroidTarget._write_compose_framework(project_dir: Path) -> None {
+    # Persist `[client] framework = "compose"`. Insert under an existing bare
+    # `[client]` header if present (leaving any `[client.android]` subtable
+    # alone); otherwise prepend a fresh `[client]` table so it precedes any
+    # `[client.android]` subtable (valid TOML: parent before child).
+    jac_toml = project_dir / "jac.toml";
+    if not jac_toml.exists() {
+        jac_toml.write_text("[client]\nframework = \"compose\"\n", encoding="utf-8");
+        return;
+    }
+    text = jac_toml.read_text(encoding="utf-8");
+    lines = text.splitlines();
+    out: list[str] = [];
+    inserted = False;
+    for line in lines {
+        out.append(line);
+        if not inserted and line.strip() == "[client]" {
+            out.append("framework = \"compose\"");
+            inserted = True;
+        }
+    }
+    if not inserted {
+        header = ["[client]", "framework = \"compose\"", ""];
+        out = header + lines;
+    }
+    jac_toml.write_text("\n".join(out) + "\n", encoding="utf-8");
+    console.print(
+        "  Set [client] framework = \"compose\" in jac.toml (Android target).",
+        style="muted"
+    );
+}
+
 impl AndroidTarget._resolve_type_check(project_dir: Path) -> bool {
     # Type checking defaults ON for [client.android]. The idiomatic Kotlin-isms
     # that once forced it off — 24.dp / 14.sp / xs.len extensions, Modifier
@@ -172,13 +245,12 @@ impl AndroidTarget.setup(project_dir: Path) -> None {
                 );
             }
         }
-        if 'framework' in text and 'compose' not in text {
-            console.print(
-                "  Tip: set [client] framework = \"compose\" for Android codegen.",
-                style="muted"
-            );
-        }
     }
+    # Single source of truth: selecting the Android target sets the Compose
+    # client surface once. Persist `[client] framework = "compose"` (or reject an
+    # explicit conflicting framework) so the checker gate and the ES ComposeBackend
+    # agree from here on.
+    self._ensure_compose_framework(project_dir);
 
     for (tool, hint) in [
         ("java", "JDK 17+"),
@@ -276,7 +348,10 @@ impl AndroidTarget._compile_page_into_model(
 
     page_mod = program.compile(
         str(page_file),
-        options=CompileOptions(type_check=getattr(self, "_type_check", False))
+        options=CompileOptions(
+            type_check=getattr(self, "_type_check", False),
+            client_framework="compose"
+        )
     );
     if not page_mod {
         return None;
@@ -358,9 +433,16 @@ impl AndroidTarget._compile_compose_modules(
     import from jaclang.jac0core.compile_options { CompileOptions }
 
     program = Jac.program;
+    # Reconcile target and framework once, up front: reject an explicit
+    # non-Compose framework and persist `framework = "compose"` so the checker's
+    # Compose gate resolves the ambient surface.
+    self._ensure_compose_framework(project_dir);
     self._type_check = self._resolve_type_check(project_dir);
     mod = program.compile(
-        str(entry_file), options=CompileOptions(type_check=self._type_check)
+        str(entry_file),
+        options=CompileOptions(
+            type_check=self._type_check, client_framework="compose"
+        )
     );
     if not mod {
         raise RuntimeError(f"Failed to compile entry module: {entry_file}");
