@@ -729,11 +729,15 @@ jobs:
         uses: ./.github/actions/setup-jac
 
       # KVM must be engaged or the emulator falls back to ~100x slower software
-      # CPU emulation, which alone causes the SystemUI ANRs. Surface it
-      # explicitly (warning only, never fatal) so a silent-software-emulation
-      # regression shows up in the log instead of looking like generic flakiness.
-      - name: Verify KVM acceleration
+      # CPU emulation, which alone causes the SystemUI ANRs. The runner user is
+      # not in the kvm group (/dev/kvm is root:kvm, mode 660), so grant it
+      # read/write access for this job, then confirm hardware acceleration
+      # actually engages (never fatal; a warning surfaces a regression).
+      - name: Enable KVM acceleration
         run: |
+          if [ -e /dev/kvm ] && [ ! -w /dev/kvm ]; then
+            sudo chmod 0666 /dev/kvm || echo "::warning::chmod /dev/kvm failed (no passwordless sudo?)"
+          fi
           if [ -w /dev/kvm ]; then
             echo "KVM present and writable (hardware acceleration engaged)"
           else
