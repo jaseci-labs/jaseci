@@ -407,7 +407,6 @@ impl CompilerBridge.jac_to_js(code: str) -> dict[str, any] {
     def _do_jac2js(tmp_path: str) -> dict[str, any] {
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         import from jaclang.jac0core.program { JacProgram }
-        import from jaclang.runtimelib.client_surface { prepend_active_runtime_globals }
 
         prog = JacProgram();
         ir = prog.compile(file_path=tmp_path);
@@ -429,7 +428,6 @@ impl CompilerBridge.jac_to_js(code: str) -> dict[str, any] {
         if not js_code.strip() {
             warnings.append("ECMAScript code generation produced no output.");
         }
-        js_code = prepend_active_runtime_globals(js_code);
         return {"js_code": js_code, "warnings": warnings};
     }
     (success, result) = run_with_timeout(
@@ -437,6 +435,11 @@ impl CompilerBridge.jac_to_js(code: str) -> dict[str, any] {
     );
     if not success {
         return {"js_code": "", "warnings": [str(result)]};
+    }
+    js_code = result.get("js_code", "") or "";
+    if js_code.strip() {
+        import from jaclang.runtimelib.client_surface { prepend_active_runtime_globals }
+        result["js_code"] = prepend_active_runtime_globals(js_code);
     }
     return result;
 }
