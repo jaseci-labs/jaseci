@@ -1,9 +1,9 @@
-import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
-    MicroserviceManifestBuilder,
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    ManifestBuilder,
     GATEWAY_NAME
 }
-import from jaclang.scale.deploy.target.kubernetes.microservice.target {
-    KubernetesMicroserviceTarget
+import from jaclang.scale.deploy.target.kubernetes.target {
+    KubernetesTarget
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -12,8 +12,8 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 
 def _builder(
     services: dict, k8s_config: KubernetesConfig | None = None
-) -> MicroserviceManifestBuilder {
-    return MicroserviceManifestBuilder(
+) -> ManifestBuilder {
+    return ManifestBuilder(
         k8s_config=k8s_config or KubernetesConfig(app_name="t", namespace="t-ns"),
         microservices_config={"services": services},
         dry_run=True
@@ -22,7 +22,7 @@ def _builder(
 
 
 def _triggers(cfg: dict, k8s_config: KubernetesConfig | None = None) -> list[str] {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=k8s_config or KubernetesConfig(app_name="t", namespace="t-ns")
     );
     return [t.type for t in target._resolve_service_triggers("billing_ops", cfg)];
@@ -66,7 +66,7 @@ test "memory triggers are seeded or skipped based on the resolved request" {
             {"type": "cpu", "metadata": {"averageUtilization": "50"}}
         ]
     );
-    gw_target = KubernetesMicroserviceTarget(config=gw_k8s);
+    gw_target = KubernetesTarget(config=gw_k8s);
     gw_types = [
         t.type
         for t in gw_target._resolve_service_triggers(

@@ -67,12 +67,33 @@ obj KubernetesTargetBase(DeploymentTarget) {
     }
 
     def _load_cluster_config {
+        kubeconfig_failed: bool = False;
         try {
             k8s_cluster_config.load_kube_config(
                 context=(self.k8s_config.kube_context or None)
             );
         } except ConfigException {
+            kubeconfig_failed = True;
+        }
+        if not kubeconfig_failed {
+            return;
+        }
+        try {
             k8s_cluster_config.load_incluster_config();
+        } except ConfigException as e {
+            raise ConfigException(
+                "Could not load Kubernetes config from either kubeconfig "
+                "or in-cluster ServiceAccount.\n"
+                "If you're deploying from a laptop:\n"
+                "  - Start a local cluster:  minikube start\n"
+                "  - Verify kubectl works:   kubectl get nodes\n"
+                "  - For a remote cluster:   set KUBECONFIG or run "
+                "`aws eks update-kubeconfig` / `gcloud container clusters get-credentials`\n"
+                "If you're deploying from inside a pod, the pod needs a "
+                "ServiceAccount with cluster API access (the default "
+                "ServiceAccount usually does, but a restricted one may not).\n"
+                f"Original error from in-cluster load: {e}"
+            );
         }
     }
 

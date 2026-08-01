@@ -136,7 +136,7 @@ def _run_fleet_rollout(
 ) -> (Exception | None) {
     caught: (Exception | None) = None;
     with unittest.mock.patch(
-        "jaclang.scale.deploy.target.kubernetes.target.k8s_cluster_config"
+        "jaclang.scale.deploy.target.kubernetes.kubernetes_target.k8s_cluster_config"
     ) {
         with unittest.mock.patch(
             "jaclang.scale.deploy.target.kubernetes.target.client.AppsV1Api",

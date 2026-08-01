@@ -5,12 +5,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.models.deployment_result { DeploymentResult }
 import from jaclang.scale.models.deploy_context { DeployContext }
-import from jaclang.scale._optdeps.kubernetes {
-    client,
-    config as k8s_cluster_config,
-    ApiException,
-    ConfigException
-}
+import from jaclang.scale._optdeps.kubernetes { client, ApiException }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     ensure_namespace_exists,
     create_k8s_secret,
@@ -717,36 +712,6 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return ctx;
     }
 
-    def _load_cluster_config {
-        kubeconfig_failed: bool = False;
-        try {
-            k8s_cluster_config.load_kube_config(
-                context=(self.k8s_config.kube_context or None)
-            );
-        } except ConfigException {
-            kubeconfig_failed = True;
-        }
-        if not kubeconfig_failed {
-            return;
-        }
-        try {
-            k8s_cluster_config.load_incluster_config();
-        } except ConfigException as e {
-            raise ConfigException(
-                "Could not load Kubernetes config from either kubeconfig "
-                "or in-cluster ServiceAccount.\n"
-                "If you're deploying from a laptop:\n"
-                "  - Start a local cluster:  minikube start\n"
-                "  - Verify kubectl works:   kubectl get nodes\n"
-                "  - For a remote cluster:   set KUBECONFIG or run "
-                "`aws eks update-kubeconfig` / `gcloud container clusters get-credentials`\n"
-                "If you're deploying from inside a pod, the pod needs a "
-                "ServiceAccount with cluster API access (the default "
-                "ServiceAccount usually does, but a restricted one may not).\n"
-                f"Original error from in-cluster load: {e}"
-            );
-        }
-    }
 
     def _resolve_service_triggers(svc_name: str, cfg: dict[str, any]) -> list[Trigger] {
         is_gateway = svc_name == GATEWAY_NAME;
