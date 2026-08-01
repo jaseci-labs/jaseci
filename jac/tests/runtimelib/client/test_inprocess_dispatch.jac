@@ -307,6 +307,143 @@ test "stream backpressure bounds in-flight frames until acked" {
 }
 
 
+# Backend-free (Step 5): a generator that raises mid-stream must emit a terminal
+# `error` frame (never `end`), close the generator, and deregister the stream.
+test "a generator raising mid-stream emits an error frame and deregisters" {
+    import time;
+    import from importlib { import_module }
+
+    ipd = import_module(
+        "jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch"
+    );
+    orig_emit = ipd._stream_emit;
+    orig_shutting = ipd._shutting_down;
+    orig_window = ipd._stream_window;
+
+    frames: list = [];
+    closed = threading.Event();
+    def _capture(sid: str, frame: dict) {
+        frames.append(frame);
+    }
+    def _boom_gen {
+        try {
+            yield {"n": 0};
+            raise ValueError("kaboom mid-stream");
+        } finally {
+            closed.set();
+        }
+    }
+    try {
+        ipd._shutting_down = False;
+        ipd._stream_window = 0;
+        ipd._stream_emit = _capture;
+
+        raw = ipd._open_native_stream(_boom_gen());
+        sid = json.loads(raw)["stream_id"];
+        deadline = time.monotonic() + 2.0;
+        while not any(f["type"] in ("error", "end") for f in frames)
+            and time.monotonic() < deadline {
+            time.sleep(0.01);
+        }
+        assert closed.wait(2.0) , "the raising generator must be closed (finally ran)";
+        types = [
+            f["type"]
+            for f in frames
+        ];
+        assert "data" in types , types;
+        assert types[-1] == "error" , types;
+        err = frames[-1]["error"];
+        assert err["error_type"] == "ValueError" , err;
+        assert "kaboom" in err["message"] , err;
+        assert not any(f["type"] == "end" for f in frames) , (
+            "an errored stream must not also emit a terminal end frame"
+        );
+        # Deregistration happens in the pump's finally, which runs just after the
+        # generator's own finally (closed.set); poll rather than race it.
+        dl = time.monotonic() + 2.0;
+        while sid in ipd._streams and time.monotonic() < dl {
+            time.sleep(0.01);
+        }
+        assert sid not in ipd._streams , "an errored stream must deregister itself";
+    } finally {
+        ipd._stream_emit = orig_emit;
+        ipd._shutting_down = orig_shutting;
+        ipd._stream_window = orig_window;
+    }
+}
+
+
+# Backend-free (Step 5): shutdown() with a live stream must cancel it -- close the
+# generator (running its commit-at-drain teardown), deregister it, emit no `end`
+# -- and return promptly without hanging or leaking. Uses a mock runtime so the
+# real booted backend is untouched.
+test "shutdown cancels an active stream without hanging or leaking" {
+    import time;
+    import queue;
+    import from importlib { import_module }
+    import from unittest.mock { MagicMock }
+
+    ipd = import_module(
+        "jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch"
+    );
+    orig_emit = ipd._stream_emit;
+    orig_shutting = ipd._shutting_down;
+    orig_window = ipd._stream_window;
+    orig_q = ipd._work_q;
+    orig_workers = ipd._workers;
+    orig_runtime = ipd._runtime;
+
+    frames: list = [];
+    started = threading.Event();
+    closed = threading.Event();
+    def _capture(sid: str, frame: dict) {
+        frames.append(frame);
+    }
+    def _slow_gen {
+        started.set();
+        try {
+            for i in range(1000) {
+                time.sleep(0.03);
+                yield {"n": i};
+            }
+        } finally {
+            closed.set();
+        }
+    }
+    try {
+        ipd._shutting_down = False;
+        ipd._stream_window = 0;
+        ipd._stream_emit = _capture;
+        ipd._work_q = queue.Queue();
+        ipd._workers = [];
+        ipd._runtime = MagicMock();
+
+        raw = ipd._open_native_stream(_slow_gen());
+        sid = json.loads(raw)["stream_id"];
+        assert started.wait(2.0);
+        time.sleep(0.05);
+
+        t0 = time.monotonic();
+        ipd.shutdown();
+        elapsed = time.monotonic() - t0;
+
+        assert closed.wait(2.0) , "shutdown must close the active stream's generator";
+        assert elapsed < 5.0 , "shutdown must not hang on an active stream";
+        assert sid not in ipd._streams , "shutdown must deregister the stream";
+        assert not any(f["type"] == "end" for f in frames) , (
+            "a cancelled stream must not emit a terminal end frame"
+        );
+    } finally {
+        ipd._stream_emit = orig_emit;
+        ipd._shutting_down = orig_shutting;
+        ipd._stream_window = orig_window;
+        ipd._work_q = orig_q;
+        ipd._workers = orig_workers;
+        ipd._runtime = orig_runtime;
+    }
+}
+
+
 # End-to-end streaming context-lifetime parity: a streaming function whose yield
 # frames perform graph WRITES is drained through the native push pump -- a daemon
 # thread with a foreign contextvars.Context. `context_bound_stream` must keep

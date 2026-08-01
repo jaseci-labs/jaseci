@@ -64,8 +64,20 @@ async def context_bound_async_stream(
 
 def iter_sync_or_async(gen: any) -> Generator {
     if isgenerator(gen) {
-        for item in gen {
-            yield item;
+        try {
+            for item in gen {
+                yield item;
+            }
+        } finally {
+            # Cascade the close to the (context-bound) source so its teardown --
+            # the commit-at-drain -- runs on an early consumer disconnect too, not
+            # only on natural exhaustion. Idempotent: closing an already
+            # exhausted/closed generator is a no-op.
+            try {
+                gen.close();
+            } except Exception {
+                ;
+            }
         }
     } elif isinstance(gen, AsyncGenerator) {
         loop = asyncio.new_event_loop();
@@ -79,6 +91,15 @@ def iter_sync_or_async(gen: any) -> Generator {
                 yield item;
             }
         } finally {
+            # aclose the async source on the SAME loop before closing it, so the
+            # async wrapper's finally (source aclose + commit teardown) runs on a
+            # live loop when the consumer cancels/disconnects -- not deferred to GC
+            # after the loop is gone.
+            try {
+                loop.run_until_complete(gen.aclose());
+            } except Exception {
+                ;
+            }
             loop.close();
         }
     } else {
@@ -132,11 +153,22 @@ def iter_sse_frames(gen: any) -> Generator[str] {
 
 
 def drain_sse(gen: any, write: Callable[[bytes], None]) {
+    frames = iter_sse_frames(gen);
     try {
-        for frame in iter_sse_frames(gen) {
+        for frame in frames {
             write(frame.encode());
         }
     } except (BrokenPipeError, ConnectionResetError, OSError) {
         ;
+    } finally {
+        # A client that disconnects mid-stream (write raises BrokenPipe) must
+        # cancel the underlying generator, not leak it until GC. Closing the frame
+        # iterator cascades through iter_sse_frames -> iter_sync_or_async -> the
+        # context-bound source, running its commit-at-drain teardown.
+        try {
+            frames.close();
+        } except Exception {
+            ;
+        }
     }
 }

@@ -88,6 +88,38 @@ notification = true
 
 **Gotcha - pass arguments POSITIONALLY, not by keyword.** The client compiler can't resolve param names across the `@jac/desktop` module boundary, so `dialog.save_file(title="Export")` silently compiles to one options object in the first positional slot and the host rejects it. Use `dialog.save_file("Export", "notes.txt")`. (Tracked in [#6675](https://github.com/jaseci-labs/jaseci/issues/6675).)
 
+## Opt-in HTTP sidecar - `[desktop.http]` in `jac.toml`
+
+Most desktop apps never need HTTP: the UI calls its own walkers/functions
+in-process over `__jac_invoke`. For the HTTP-only features (multipart file
+uploads, external webhooks, websockets, OpenAPI docs) enable the **sidecar** - a
+loopback FastAPI server that is *only* imported when you opt in, so a default app
+stays FastAPI-free and lean.
+
+```toml
+[desktop.http]
+enabled = true                       # opt-in; lazy-loads the FastAPI stack
+capabilities = ["multipart"]         # subset of: multipart, webhooks, websockets, openapi
+port = 0                             # 0 = random loopback port
+```
+
+Everything the sidecar serves still funnels through the same
+`InvocationDispatcher` your native calls use - no forked execution semantics,
+same OCC/graph writes/auth. The sidecar auto-generates a bearer token and exposes
+its discovery info to the renderer as
+`window.__JAC_HTTP__ = {base, token, capabilities}`.
+
+Upload a file from client code with `jacUploadFile` (from `@jac/runtime`); it
+routes to the sidecar when present and fails with a clear capability error when
+the sidecar is disabled:
+
+```jac
+import from "@jac/runtime" { jacUploadFile }
+
+# save_upload is a walker with e.g. `has file: bytes; has label: str;`
+result = await jacUploadFile("save_upload", {"label": "avatar"}, {"file": theFile});
+```
+
 ## Output layout
 
 ```
@@ -120,10 +152,19 @@ JSON envelope is a narrower surface than HTTP. What to expect:
   reconstruct arbitrary Pydantic models; complex/nested shapes are passed through
   as-is (walker/function body errors then normalize to `EXECUTION_ERROR`, never a
   raw traceback).
-- **HTTP-only request features are not expressible natively.** restspec custom
-  paths/verbs, GET-vs-POST semantics, multipart file uploads, and query-parameter
-  binding exist only on the HTTP adapter. A walker designed around an upload or a
-  REST verb can't be driven from the native path - reach it over HTTP.
+- **restspec paths/verbs, GET, and query binding now work on desktop.** They are
+  served by the shared transport-neutral `http_surface` route table that both
+  FastAPI and the desktop `sv` bridge consume, so `@restspec` custom paths/verbs,
+  GET-vs-POST semantics, and query-parameter binding behave identically across
+  transports (native webview calls still use the frozen `__jac_invoke` JSON
+  envelope; the CEF/broker `sv` bridge resolves HTTP-shaped paths through the same
+  table).
+- **Multipart uploads / webhooks / websockets / OpenAPI are opt-in via
+  `[desktop.http]`.** These HTTP-only features are served by a lazily-started
+  loopback FastAPI *sidecar* (no FastAPI is loaded unless you enable it). See the
+  `[desktop.http]` section below. In lean mode (sidecar disabled), attempting an
+  upload fails fast with a structured capability error (`CAPABILITY_NOT_AVAILABLE`,
+  HTTP 415/501) whose hint names `[desktop.http]` and the missing capability.
 - **Auth is Bearer-token only on native.** The middleware chain (CORS, tracing,
   rate limiting, request-context, JWT) runs only under HTTP. Native carries a
   `token` string; cookie/SSO/session auth is an HTTP-only concern.

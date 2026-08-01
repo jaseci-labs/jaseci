@@ -117,6 +117,114 @@ test "desktop dispatch config loads from jac.toml" {
     }
 }
 
+"""The opt-in [desktop.http] sidecar config is read from jac.toml: defaults are
+disabled/no-capabilities/random-port; explicit values load and validate; an
+unknown capability or out-of-range port is rejected (Phase 4, doc §7)."""
+test "desktop http sidecar config loads and validates from jac.toml" {
+    import from jaclang.runtimelib.client.desktop_config {
+        get_desktop_config,
+        reset_desktop_config
+    }
+    import from pathlib { Path }
+    import tempfile;
+
+    with tempfile.TemporaryDirectory() as d {
+        reset_desktop_config();
+        # No [desktop.http] -> opt-in defaults (disabled).
+        with open(Path(d) / "jac.toml", "w") as f {
+            f.write(
+                '[project]\nname = "t"\nversion = "1.0.0"\nentry-point = "main.jac"\n'
+            );
+        }
+        cfg = get_desktop_config(project_dir=Path(d));
+        h1 = cfg.get_http_config();
+        assert h1.enabled == False , "http sidecar defaults off";
+        assert h1.capabilities == [] , "no capabilities by default";
+        assert h1.port == 0 , "port defaults to 0 (random loopback)";
+        reset_desktop_config();
+
+        # Explicit values load, and to_dict round-trips for the boot config.
+        with open(Path(d) / "jac.toml", "w") as f {
+            f.write(
+                '[project]\nname = "t"\nversion = "1.0.0"\nentry-point = "main.jac"\n'
+                '[desktop.http]\nenabled = true\n'
+                'capabilities = ["multipart", "openapi"]\nport = 8123\n'
+            );
+        }
+        cfg2 = get_desktop_config(project_dir=Path(d));
+        h2 = cfg2.get_http_config();
+        assert h2.enabled == True , "http sidecar enabled should load";
+        assert h2.capabilities == ["multipart", "openapi"];
+        assert h2.port == 8123;
+        cfg2.validate();
+        as_dict = h2.to_dict();
+        assert as_dict["enabled"] == True and as_dict["port"] == 8123;
+        assert as_dict["capabilities"] == ["multipart", "openapi"];
+        reset_desktop_config();
+
+        # Unknown capability is rejected by validate().
+        with open(Path(d) / "jac.toml", "w") as f {
+            f.write(
+                '[project]\nname = "t"\nversion = "1.0.0"\nentry-point = "main.jac"\n'
+                '[desktop.http]\nenabled = true\ncapabilities = ["telepathy"]\n'
+            );
+        }
+        cfg3 = get_desktop_config(project_dir=Path(d));
+        rejected = False;
+        try {
+            cfg3.validate();
+        } except ValueError as e {
+            rejected = True;
+            assert "telepathy" in str(e) and "[desktop.http]" in str(e);
+        }
+        assert rejected , "unknown [desktop.http] capability must be rejected";
+        reset_desktop_config();
+
+        # Out-of-range port is rejected.
+        with open(Path(d) / "jac.toml", "w") as f {
+            f.write(
+                '[project]\nname = "t"\nversion = "1.0.0"\nentry-point = "main.jac"\n'
+                '[desktop.http]\nport = 999999\n'
+            );
+        }
+        cfg4 = get_desktop_config(project_dir=Path(d));
+        bad_port = False;
+        try {
+            cfg4.validate();
+        } except ValueError {
+            bad_port = True;
+        }
+        assert bad_port , "out-of-range [desktop.http] port must be rejected";
+        reset_desktop_config();
+    }
+}
+
+
+"""The generated host threads [desktop.http] into the boot config and injects the
+renderer-facing window.__JAC_HTTP__ discovery hook (read from _ctx at runtime),
+and still tears the sidecar down on close via _ctx.close_http()."""
+test "generated host wires the http sidecar config and __JAC_HTTP__ injection" {
+    import from jaclang.runtimelib.client.targets.desktop._host_bootstrap {
+        _generate_host_source
+    }
+
+    src = _generate_host_source(
+        "T", 800, 600, "test-app", "", 30.0, 128, False, {},
+        {"enabled": True, "capabilities": ["multipart"], "port": 0}
+    );
+    # The opt-in http config rides the frozen boot config into host_boot.boot().
+    assert "http" in src , "boot config must carry the http section";
+    assert "multipart" in src , "configured capability must be baked into boot config";
+    # Renderer discovery: read _ctx.http_bootstrap_js() and inject via on_load.
+    assert "http_bootstrap_js()" in src , "host must read the sidecar bootstrap js from _ctx";
+    assert "__JAC_HTTP__" not in src or "http_js" in src , "sidecar js is injected at runtime, not baked";
+    assert "http_js" in src , "host must inject the sidecar discovery script";
+    # Sidecar is torn down on close before dispatch shutdown.
+    assert "close_http" in src , "host must stop the sidecar on close";
+    assert src.index("close_http") < src.index("inprocess_dispatch.shutdown()") , "sidecar stops before dispatch teardown";
+}
+
+
 """The host brings up the fused runtime via the libjacpyembed shim (jac_engine_boot)
 instead of binding the build machine's libpython, and never bakes build-machine
 state. All boot behavior lives in the host_boot runtime module; the generated

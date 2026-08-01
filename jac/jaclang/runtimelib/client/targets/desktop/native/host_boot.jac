@@ -7,9 +7,11 @@ import socketserver;
 import threading;
 import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
     boot as inprocess_boot,
+    runtime as inprocess_runtime,
     dispatch_sync as inprocess_dispatch_sync,
     dispatch_outcome as inprocess_dispatch_outcome,
-    forward as inprocess_forward,
+    forward_outcome as inprocess_forward_outcome,
+    route_exists as inprocess_route_exists,
     set_stream_emit as inprocess_set_stream_emit,
     cancel_stream as inprocess_cancel_stream,
     stream_ack as inprocess_stream_ack
@@ -33,7 +35,34 @@ obj HostContext {
     has port: int = 0,
         dev_port: int = 0,
         host: any = None,
-        server: any = None;
+        server: any = None,
+        http: any = None;
+
+    def http_bootstrap_js -> str {
+        # JS the host injects (via wv.on_load) so the renderer discovers the opt-in
+        # sidecar as window.__JAC_HTTP__ = {base, token, capabilities}. Empty when
+        # no sidecar is running, matching how __JAC_NATIVE__/__JAC_BROKER__ are set.
+        if self.http is None {
+            return "";
+        }
+        info = self.http.bootstrap_info();
+        return "window.__JAC_HTTP__=" + json.dumps(info) + ";";
+    }
+
+    def close_http {
+        # Stop the opt-in FastAPI sidecar on host close (best-effort; swallows all
+        # errors so it can never block the rest of the shutdown sequence).
+        h = self.http;
+        if h is None {
+            return;
+        }
+        self.http = None;
+        try {
+            h.stop();
+        } except Exception as e {
+            sys.stderr.write("host_boot: HTTP sidecar stop failed: " + str(e) + "\n");
+        }
+    }
 
     def dispatch(req_json: str) -> str {
         ctl = stream_control(req_json);
@@ -244,7 +273,8 @@ def _start_loopback(
             store,
             dispatch=ctx.dispatch_http,
             events=ctx.host as object,
-            sv_bridge=inprocess_forward
+            sv_bridge=inprocess_forward_outcome,
+            sv_router=inprocess_route_exists
         );
     } else {
         handler = make_handler(dist, store, dispatch=ctx.dispatch);
@@ -298,6 +328,39 @@ def _start_loopback(
 }
 
 
+def _start_http_sidecar(ctx: HostContext, http_cfg: dict) {
+    # Opt-in [desktop.http] sidecar. Lazy-imports http_sidecar (which itself lazy-
+    # imports FastAPI/uvicorn), so a disabled app never loads the scale HTTP stack.
+    if not http_cfg.get("enabled") {
+        return;
+    }
+    import from jaclang.runtimelib.client.targets.desktop.native.http_sidecar {
+        start as sidecar_start
+    }
+    rt = inprocess_runtime();
+    if rt is None {
+        sys.stderr.write(
+            "host_boot: [desktop.http] enabled but the in-process runtime is not "
+            "booted; sidecar not started\n"
+        );
+        return;
+    }
+    caps = list(http_cfg.get("capabilities") or []);
+    port = int(http_cfg.get("port") or 0);
+    try {
+        ctx.http = sidecar_start(rt.dispatcher, rt.introspector, caps, port);
+        sys.stdout.write(
+            "JAC_DESKTOP_HTTP_SIDECAR " + str(ctx.http.base) + " caps="
+                + ",".join(ctx.http.capabilities)
+                + "\n"
+        );
+        sys.stdout.flush();
+    } except Exception as e {
+        sys.stderr.write("host_boot: HTTP sidecar failed to start: " + str(e) + "\n");
+    }
+}
+
+
 def boot(config_json: str) -> HostContext {
     cfg = json.loads(config_json);
     app_name = str(cfg.get("app_name") or "app");
@@ -305,6 +368,7 @@ def boot(config_json: str) -> HostContext {
     entry_rel = str(cfg.get("entry_rel") or "");
     dispatch_cfg = (cfg.get("dispatch") or {}) as dict;
     plugin_configs = (cfg.get("plugins") or {}) as dict;
+    http_cfg = (cfg.get("http") or {}) as dict;
 
     app_dir = _app_root();
     data_dir = str(os.environ.get("JAC_DATA_PATH", app_dir));
@@ -330,6 +394,7 @@ def boot(config_json: str) -> HostContext {
     } except (TypeError, ValueError) {
         ctx.dev_port = 0;
     }
+    _start_http_sidecar(ctx, http_cfg);
     _start_loopback(ctx, app_dir, data_dir, app_name, mode);
     return ctx;
 }

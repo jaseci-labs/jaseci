@@ -14,7 +14,9 @@ import asyncio;
 import contextvars;
 import from jaclang.runtimelib.streaming {
     context_bound_stream,
-    context_bound_async_stream
+    context_bound_async_stream,
+    iter_sync_or_async,
+    drain_sse
 }
 
 
@@ -224,6 +226,86 @@ test "async teardown runs once when the consumer aclose()s mid-stream" {
         loop.close();
     }
     assert len(calls) == 1 , "teardown must run exactly once on aclose";
+}
+
+
+# --- Drain-cascade lifecycle (Step 5): closing the outer iterator must cascade
+#     to close/aclose the (context-bound) source so its commit-at-drain teardown
+#     runs on cancel/disconnect, not only on natural exhaustion. --------------
+
+# Closing the iter_sync_or_async wrapper over a SYNC source closes that source
+# (its finally runs), so an early consumer disconnect still tears the request
+# context down.
+test "closing iter_sync_or_async closes the sync source" {
+    torn: list = [];
+    def _src {
+        try {
+            i = 0;
+            while True {
+                yield i;
+                i += 1;
+            }
+        } finally {
+            torn.append("closed");
+        }
+    }
+    it = iter_sync_or_async(_src());
+    assert next(it) == 0;
+    assert next(it) == 1;
+    it.close();
+    assert torn == ["closed"] , "closing the wrapper must close the sync source";
+}
+
+
+# Closing the wrapper over an ASYNC source aclose()s it on the wrapper's own live
+# loop -- the previously-missing path that left an async stream's commit teardown
+# deferred to GC after the loop was gone.
+test "closing iter_sync_or_async aclose()s the async source" {
+    torn: list = [];
+    async def _src {
+        try {
+            i = 0;
+            while True {
+                yield i;
+                i += 1;
+            }
+        } finally {
+            torn.append("closed");
+        }
+    }
+    it = iter_sync_or_async(_src());
+    assert next(it) == 0;
+    assert next(it) == 1;
+    it.close();
+    assert torn == ["closed"] , "closing the wrapper must aclose the async source";
+}
+
+
+# A client that disconnects mid-stream (write raises BrokenPipe) must have the
+# underlying generator closed by drain_sse -- not leaked until GC.
+test "drain_sse closes the source generator on client disconnect" {
+    torn: list = [];
+    def _src {
+        try {
+            i = 0;
+            while True {
+                yield {"n": i};
+                i += 1;
+            }
+        } finally {
+            torn.append("closed");
+        }
+    }
+    writes: list = [];
+    def _write(b: bytes) {
+        writes.append(b);
+        if len(writes) >= 2 {
+            raise BrokenPipeError("client gone");
+        }
+    }
+    drain_sse(_src(), _write);
+    assert len(writes) == 2;
+    assert torn == ["closed"] , "client disconnect must close the source generator";
 }
 
 

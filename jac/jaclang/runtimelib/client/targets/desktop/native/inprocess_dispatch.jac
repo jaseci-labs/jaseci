@@ -8,7 +8,9 @@ import queue;
 import uuid;
 import inspect;
 import from typing { AsyncGenerator }
-import from jaclang.runtimelib.streaming { iter_sync_or_async }
+import from urllib.parse { urlparse, parse_qs }
+import from jaclang.runtimelib.streaming { iter_sync_or_async, iter_sse_frames }
+import from jaclang.runtimelib.http_surface { build_surface }
 import from jaclang.runtimelib.invocation {
     InvocationKind,
     InvocationRequest,
@@ -29,7 +31,8 @@ obj StreamHandle {
     has cancel: any,
         credits: any = None,
         acked: bool = False,
-        stalls: int = 0;
+        stalls: int = 0,
+        thread: any = None;
 }
 
 
@@ -47,7 +50,8 @@ glob _runtime: any = None,
      _stream_emit: any = None,
      _stream_window: int = 256,
      _streams: dict = {},
-     _streams_lock: any = threading.Lock();
+     _streams_lock: any = threading.Lock(),
+     _http_surface: any = None;
 
 
 def boot(
@@ -105,6 +109,7 @@ def _boot_impl(entry_file: str, graph_path: str) {
     _ensure_jac_meta_importer();
 
     _runtime = prepare_invocation_runtime(entry_file, graph_path);
+    _http_surface = None;
 
     if _work_q is None {
         _work_q = queue.Queue(maxsize=_max_queue);
@@ -127,6 +132,15 @@ def set_stream_emit(fn: any) {
 }
 
 
+def runtime -> any {
+    # Accessor for the booted PreparedInvocationRuntime (dispatcher + introspector).
+    # The opt-in [desktop.http] sidecar shares this SAME dispatcher so uploads and
+    # webhooks funnel through the one InvocationDispatcher, exactly like the native
+    # webview path -- no second graph boot, no forked execution semantics.
+    return _runtime;
+}
+
+
 def shutdown {
     if _work_q is None and _runtime is None {
         return;
@@ -146,6 +160,17 @@ def shutdown {
             try {
                 creds.release();
             } except Exception { }
+        }
+    }
+    # Let each cancelled pump run its finally (close the generator -> commit-at-
+    # drain teardown -> deregister) while the runtime + graph DB are still open,
+    # so shutdown neither leaks a live stream nor races a commit against a closed
+    # user_manager. Best-effort join: the pumps are daemon threads honoring the
+    # cancel flag, so this returns promptly.
+    for h in active_streams {
+        th = h.thread;
+        if th is not None and th.is_alive() {
+            th.join(timeout=min(_timeout_s, 2.0));
         }
     }
     workers = _workers or [];
@@ -383,6 +408,7 @@ def _open_native_stream(gen: object) -> str {
         name="jac-native-stream-" + stream_id[:8],
         daemon=True
     );
+    handle.thread = th;
     th.start();
     return json.dumps(
         {
@@ -505,110 +531,147 @@ def _transport_json(result: any) -> tuple[int, str] {
 }
 
 
-def forward(
-    method: str, path: str, body: bytes, token: str = ""
-) -> tuple[int, str, str] {
+def _get_surface -> any {
+    # Lazily build (and cache) the transport-neutral route table from the booted
+    # runtime's introspector. Reset to None on every (re-)boot so HMR reloads pick
+    # up added/removed walkers + functions. Returns None only when not booted.
+    if _http_surface is None {
+        rt = _runtime;
+        if rt is None {
+            return None;
+        }
+        _http_surface = build_surface(rt.introspector);
+    }
+    return _http_surface;
+}
+
+
+def route_exists(method: str, path: str) -> bool {
+    # Front-door predicate (used by the CEF broker) to decide whether an incoming
+    # HTTP-shaped path is a walker/function route before delegating to forward().
+    if _runtime is None {
+        return False;
+    }
+    surface = _get_surface();
+    if surface is None {
+        return False;
+    }
+    return surface.match(method, urlparse(path).path) is not None;
+}
+
+
+def _bridge_error(status: int, message: str) -> dict {
+    return {
+        "status": status,
+        "body": json.dumps({"ok": False, "error": {"message": message}})
+    };
+}
+
+
+def _bridge_resolve(method: str, path: str, body: bytes, token: str) -> dict {
+    # Shared route resolution + invocation for both sv-bridge front doors
+    # (`forward` -> 3-tuple, `forward_outcome` -> broker outcome dict). Returns
+    # either {"error": {status, body}} for a pre-execution failure, or
+    # {"result": InvocationResult} for an executed call (which may be streaming).
     if _BOOT_ERROR {
-        return (
-            503,
-            json.dumps({"ok": False, "error": {"message": "backend boot failed"}}),
-            "application/json"
-        );
+        return {"error": _bridge_error(503, "backend boot failed")};
     }
     runtime = _runtime;
     if runtime is None {
-        return (
-            503,
-            json.dumps({"ok": False, "error": {"message": "backend not booted"}}),
-            "application/json"
-        );
+        return {"error": _bridge_error(503, "backend not booted")};
     }
-    parts = [
-        p
-        for p in path.strip("/").split("/")
-        if p
-    ];
-    if len(parts) < 2 {
-        return (
-            404,
-            json.dumps({"ok": False, "error": {"message": "invalid path: " + path}}),
-            "application/json"
-        );
+    surface = _get_surface();
+    if surface is None {
+        return {"error": _bridge_error(503, "backend not booted")};
     }
-    route_kind = parts[0];
-    name = parts[1];
-    node_id: (str | None) = None;
-    if route_kind == "walker" {
-        kind = InvocationKind.WALKER;
-        if len(parts) > 2 {
-            node_id = parts[2];
+
+    # Route + verb resolution is owned by http_surface: custom @restspec paths and
+    # verbs, path params, and the walker `/{nd}` node variant all resolve here
+    # instead of the old hard-coded `/walker/{name}` split.
+    parsed = urlparse(path);
+    matched = surface.match(method, parsed.path);
+    if matched is None {
+        return {"error": _bridge_error(404, "unknown route: " + path)};
+    }
+    route = matched[0];
+    path_params = matched[1];
+
+    body_data: any = None;
+    if body {
+        try {
+            body_data = json.loads(body.decode("utf-8"));
+        } except Exception as e {
+            return {"error": _bridge_error(400, "invalid request body: " + str(e))};
         }
-    } elif route_kind == "function" {
-        kind = InvocationKind.FUNCTION;
-        if len(parts) > 2 {
-            return (
-                404,
-                json.dumps(
-                    {
-                        "ok": False,
-                        "error": {"message": "invalid function path: " + path}
-                    }
-                ),
-                "application/json"
-            );
+        if not isinstance(body_data, dict) {
+            return {"error": _bridge_error(400, "request body must be a JSON object")};
         }
-    } else {
-        return (
-            404,
-            json.dumps({"ok": False, "error": {"message": "unknown route: " + path}}),
-            "application/json"
-        );
     }
-    try {
-        fields = json.loads(body.decode("utf-8")) if body else {};
-    } except Exception as e {
-        return (
-            400,
-            json.dumps(
-                {"ok": False, "error": {"message": "invalid request body: " + str(e)}}
-            ),
-            "application/json"
-        );
+
+    # http_surface combines path params + query params (GET binding, with light
+    # scalar coercion) + JSON body into the request; validation/422 stays in the
+    # dispatcher.
+    query = parse_qs(parsed.query) if parsed.query else {};
+    request = surface.bind(route, path_params, query, body_data, token);
+    result = _invoke_on_worker_loop(runtime.dispatcher, request);
+    return {"result": result};
+}
+
+
+def forward(
+    method: str, path: str, body: bytes, token: str = ""
+) -> tuple[int, str, str] {
+    resolved = _bridge_resolve(method, path, body, token);
+    err = resolved.get("error");
+    if err is not None {
+        return (int(err["status"]), str(err["body"]), "application/json");
     }
-    if not isinstance(fields, dict) {
-        return (
-            400,
-            json.dumps(
-                {
-                    "ok": False,
-                    "error": {"message": "request body must be a JSON object"}
-                }
-            ),
-            "application/json"
-        );
-    }
-    result = _invoke_on_worker_loop(
-        runtime.dispatcher,
-        InvocationRequest(
-            kind=kind, name=name, fields=fields as dict, node_id=node_id, token=token
-        )
-    );
+    result = resolved.get("result");
     if result.is_stream {
-        return (
-            500,
-            json.dumps(
-                {
-                    "ok": False,
-                    "error": {
-                        "message": "streaming responses are not supported on the sv bridge"
-                    }
-                }
-            ),
-            "application/json"
-        );
+        # A direct (non-broker) caller cannot carry a live generator back through
+        # the 3-tuple, so materialize the shared SSE frames into the body. The
+        # broker path (forward_outcome) instead streams the generator
+        # incrementally. Both use the same runtimelib/streaming frame helpers.
+        body_text = "".join(iter_sse_frames(result.stream));
+        return (int(result.http_status or 200), body_text, "text/event-stream");
     }
     (status, text) = _transport_json(result);
     return (status, text, "application/json");
+}
+
+
+def forward_outcome(method: str, path: str, body: bytes, token: str = "") -> dict {
+    # Streaming-aware sv bridge for the CEF broker. A streaming result comes back
+    # tagged {mode: "sse", stream: <generator>} so the broker drains it
+    # incrementally as text/event-stream (a client disconnect closes the response,
+    # which cancels the generator via drain_sse -> the stream-lifecycle teardown).
+    # Non-streaming results + pre-execution errors come back as {mode: "json"} the
+    # broker renders verbatim (preserving the sv status code).
+    resolved = _bridge_resolve(method, path, body, token);
+    err = resolved.get("error");
+    if err is not None {
+        return {
+            "mode": "json",
+            "status": int(err["status"]),
+            "body": str(err["body"]),
+            "content_type": "application/json"
+        };
+    }
+    result = resolved.get("result");
+    if result.is_stream {
+        return {
+            "mode": "sse",
+            "status": int(result.http_status or 200),
+            "stream": result.stream
+        };
+    }
+    (status, text) = _transport_json(result);
+    return {
+        "mode": "json",
+        "status": status,
+        "body": text,
+        "content_type": "application/json"
+    };
 }
 
 
