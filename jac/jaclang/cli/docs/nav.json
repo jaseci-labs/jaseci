@@ -92,7 +92,7 @@
           "title": "Ship It — Deploy & Scale",
           "items": [
             { "title": "Local API Server", "page": "tutorials/production/local.md" },
-            { "title": "Microservices with sv import", "page": "tutorials/production/microservices.md" },
+            { "title": "Microservices", "page": "tutorials/production/microservices.md" },
             { "title": "Kubernetes", "page": "tutorials/production/kubernetes.md" }
           ]
         }
@@ -156,6 +156,7 @@
             { "title": "Configuration", "page": "reference/config/index.md" },
             { "title": "Publishing Packages", "page": "reference/publishing.md" },
             { "title": "Persistence & Schema Migration", "page": "reference/persistence.md" },
+            { "title": "Placement", "page": "reference/placement.md" },
             { "title": "Errors & Warnings", "page": "reference/diagnostics.md" },
             { "title": "Code Organization", "page": "reference/code-organization.md" },
             { "title": "Testing", "page": "reference/testing.md" },

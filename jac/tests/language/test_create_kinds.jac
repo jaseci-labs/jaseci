@@ -63,27 +63,27 @@ test "create --kind cli" {
 }
 
 test "create --kind cli-native" {
-    _assert_kind("cli-native", "main.na.jac", "execute");
+    _assert_kind("cli-native", "main.jac", "execute");
     _cleanup();
 }
 
 test "create --kind native-binary" {
-    _assert_kind("native-binary", "main.na.jac", "build");
+    _assert_kind("native-binary", "main.jac", "build");
     _cleanup();
 }
 
 test "create --kind native-lib" {
-    _assert_kind("native-lib", "main.na.jac", "build");
+    _assert_kind("native-lib", "main.jac", "build");
     _cleanup();
 }
 
 test "create --kind service" {
-    _assert_kind("service", "main.sv.jac", "serve");
+    _assert_kind("service", "main.jac", "serve");
     _cleanup();
 }
 
 test "create --kind service-mesh" {
-    _assert_kind("service-mesh", "main.sv.jac", "serve");
+    _assert_kind("service-mesh", "main.jac", "serve");
     _cleanup();
 }
 
@@ -123,8 +123,8 @@ test "create rejects an unknown kind" {
 
 test "kind_entry matches the scaffolded entry-point" {
     assert kind_entry("cli") == "main.jac";
-    assert kind_entry("cli-native") == "main.na.jac";
-    assert kind_entry("service") == "main.sv.jac";
+    assert kind_entry("cli-native") == "main.jac";
+    assert kind_entry("service") == "main.jac";
     assert is_valid_kind("cli");
     assert not is_valid_kind("nope");
 }

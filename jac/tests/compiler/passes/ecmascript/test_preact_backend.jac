@@ -54,7 +54,8 @@ test "react backend reports runtime symbols for reactive lowering" {
     ];
     assert backend.runtime_symbols(
         Effect(body=[], deps=[], is_entry=True, is_async=False)
-    ) == ["useEffect"];
+    )
+        == ["useEffect"];
     try_expr = es.Identifier(name="tryFn");
     awaiting_only = AsyncBoundary(
         try_expr=try_expr, awaiting_expr=None, except_exprs=[]
@@ -79,7 +80,8 @@ test "preact backend inherits hook symbol names from react" {
     ];
     assert backend.runtime_symbols(
         Effect(body=[], deps=[], is_entry=True, is_async=False)
-    ) == ["useEffect"];
+    )
+        == ["useEffect"];
 }
 
 test "registry resolves preact backend" {
@@ -105,16 +107,16 @@ test "preact entry script uses render and h" {
 test "preact shares the canonical client runtime source" {
     # Preact rides on the React-flavored runtime; `react` imports are remapped
     # to `preact/compat` at bundle time via vite_aliases (see test below).
-    assert client_runtime_cl_basename("preact") == "client_runtime.cl.jac";
-    assert client_runtime_cl_basename("react") == "client_runtime.cl.jac";
+    assert client_runtime_cl_basename("preact") == "client_runtime.jac";
+    assert client_runtime_cl_basename("react") == "client_runtime.jac";
     path = resolve_client_runtime_cl_path("preact");
-    assert path.endswith("client_runtime.cl.jac");
+    assert path.endswith("client_runtime.jac");
     assert os.path.isfile(path);
 }
 
 test "reactive counter fixture imports hooks from preact" {
     backend = PreactBackend();
-    js = compile_fixture_with_backend("reactive_state.cl.jac", backend);
+    js = compile_fixture_with_backend("reactive_state.jac", backend);
     assert 'from "preact/hooks"' in js;
     assert "useState" in js;
     assert 'from "react"' not in js;
@@ -131,7 +133,7 @@ test "reactive effect fixture imports useEffect from preact hooks" {
 
 test "conditional jsx fixture compiles under preact backend" {
     backend = PreactBackend();
-    js = compile_fixture_with_backend("jsx_child_control_flow.cl.jac", backend);
+    js = compile_fixture_with_backend("jsx_child_control_flow.jac", backend);
     assert "__jacJsx" in js;
     assert 'from "react"' not in js;
 }
@@ -145,11 +147,11 @@ test "resolve_active_backend reads preact from project config" {
 }
 
 test "runtime_source_basename delegates to backend via registry" {
-    assert ReactBackend().runtime_source_basename() == "client_runtime.cl.jac";
-    assert PreactBackend().runtime_source_basename() == "client_runtime.cl.jac";
+    assert ReactBackend().runtime_source_basename() == "client_runtime.jac";
+    assert PreactBackend().runtime_source_basename() == "client_runtime.jac";
     # Verify the runtime_source module delegates to the backend
-    assert client_runtime_cl_basename("react") == "client_runtime.cl.jac";
-    assert client_runtime_cl_basename("preact") == "client_runtime.cl.jac";
+    assert client_runtime_cl_basename("react") == "client_runtime.jac";
+    assert client_runtime_cl_basename("preact") == "client_runtime.jac";
 }
 
 test "vite_aliases returns empty for react and compat mapping for preact" {
@@ -190,7 +192,7 @@ test "react client runtime shim imports no solid ecosystem package" {
     # source (and its impl) for any Solid-ecosystem import.
     runtime_dir = Path(resolve_client_runtime_cl_path("react")).parent;
     sources = [
-        runtime_dir / "client_runtime.cl.jac",
+        runtime_dir / "client_runtime.jac",
         runtime_dir / "impl" / "client_runtime.impl.jac"
     ];
     forbidden = ["@tanstack/solid-form", "solid-js"];

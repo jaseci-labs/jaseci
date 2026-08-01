@@ -416,7 +416,6 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _collect_pattern_names(target: uni.UniNode) -> list[tuple[(str, uni.Name)]];
     def exit_assignment(nd: uni.Assignment) -> None;
     def _resolve_source_module(nd: uni.Import) -> (uni.Module | None);
-    def _pull_plain_jac_import_client(nd: uni.Import, resolved_path: str) -> None;
     def _resolve_call_ability(nd: uni.FuncCall) -> (uni.Ability | None);
     def _return_type_includes_jsx_element(rt: uni.Expr) -> bool;
     def _return_type_route_role(rt: uni.Expr) -> (str | None);
@@ -528,8 +527,6 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _is_call_target(nd: uni.UniNode) -> bool;
     def exit_global_vars(nd: uni.GlobalVars) -> None;
     def exit_module_code(nd: uni.ModuleCode) -> None;
-    def exit_client_block(nd: uni.ClientBlock) -> None;
-    def exit_native_block(nd: uni.NativeBlock) -> None;
     def exit_test(nd: uni.Test) -> None;
     def exit_token(nd: uni.Token) -> None;
     def exit_semi(nd: uni.Semi) -> None;

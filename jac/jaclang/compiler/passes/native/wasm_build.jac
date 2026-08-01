@@ -159,7 +159,8 @@ def _rebuild_hint(libc_dir: str) -> str {
     if _is_dev_libc_dir(libc_dir) {
         return "run `zig build vendor-wasm-libc` to rebuild it";
     }
-    return "reinstall jac, or point JAC_NATIVE_WASM_LIBC_DIR at a floor built " + "from this source tree";
+    return "reinstall jac, or point JAC_NATIVE_WASM_LIBC_DIR at a floor built "
+        + "from this source tree";
 }
 
 def _assert_abi64_adapters(needed: list[str], provided: set, libc_dir: str) -> None {
@@ -177,11 +178,11 @@ def _assert_abi64_adapters(needed: list[str], provided: set, libc_dir: str) -> N
     }
     adapters = ', '.join(['__jac64_' + nm for nm in missing]);
     raise RuntimeError(
-        f"vendored wasm libc at {libc_dir} is stale: the native floor " + f"rewrites {', '.join(
-            missing
-        )} to {adapters}, which the linked " + "bitcode does not define (see _ABI64_ADAPTED and " + "wasm_rt/jac_abi64.c). The adapters exist in source; the compiled " + f"bitcode predates them -- {_rebuild_hint(
-            libc_dir
-        )}."
+        f"vendored wasm libc at {libc_dir} is stale: the native floor "
+            + f"rewrites {', '.join(missing)} to {adapters}, which the linked "
+            + "bitcode does not define (see _ABI64_ADAPTED and "
+            + "wasm_rt/jac_abi64.c). The adapters exist in source; the compiled "
+            + f"bitcode predates them -- {_rebuild_hint(libc_dir)}."
     );
 }
 
@@ -190,7 +191,9 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
     if libc_dir is None {
         import from jaclang.cli.console { console }
         console.warning(
-            "vendored wasm libc not found (run `zig build vendor-wasm-libc`); " + "libc symbols stay as raw env imports and the jac_host1 import " + "contract is NOT enforced"
+            "vendored wasm libc not found (run `zig build vendor-wasm-libc`); "
+                + "libc symbols stay as raw env imports and the jac_host1 import "
+                + "contract is NOT enforced"
         );
         return False;
     }
@@ -199,19 +202,19 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
         if _is_dev_libc_dir(libc_dir) {
             import from jaclang.cli.console { console }
             console.warning(
-                f"vendored wasm libc at {libc_dir} carries no {FLOOR_MANIFEST}, " + "so it cannot be checked against wasm_rt/; it predates the " + f"manifest -- {_rebuild_hint(
-                    libc_dir
-                )}."
+                f"vendored wasm libc at {libc_dir} carries no {FLOOR_MANIFEST}, "
+                    + "so it cannot be checked against wasm_rt/; it predates the "
+                    + f"manifest -- {_rebuild_hint(libc_dir)}."
             );
         }
     } elif drift {
-        shown = ', '.join(drift[0:4]) + (
-            f" (+{len(drift) - 4} more)" if len(drift) > 4 else ""
-        );
+        shown = ', '.join(drift[0:4])
+            + (f" (+{len(drift) - 4} more)" if len(drift) > 4 else "");
         raise RuntimeError(
-            f"vendored wasm libc at {libc_dir} was built from different " + f"wasm_rt sources than this tree: {shown}. Linking it would fold " + "the old floor into the module and ship behaviour that no longer " + f"matches the source -- {_rebuild_hint(
-                libc_dir
-            )}."
+            f"vendored wasm libc at {libc_dir} was built from different "
+                + f"wasm_rt sources than this tree: {shown}. Linking it would fold "
+                + "the old floor into the module and ship behaviour that no longer "
+                + f"matches the source -- {_rebuild_hint(libc_dir)}."
         );
     }
     libc = _load_libc_module(llvm, libc_dir, mod.triple);
@@ -246,11 +249,11 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
                 renames.append(fn);
             } elif str(fn.global_value_type) != libc_sig[fn.name] {
                 raise RuntimeError(
-                    f"native floor declares '{fn.name}' as " + f"{str(
-                        fn.global_value_type
-                    )} but the vendored wasm32 " + f"libc defines {libc_sig[
-                        fn.name
-                    ]}; a mismatched direct " + "call traps on wasm — add a widening adapter to " + "wasm_rt/jac_abi64.c and _ABI64_ADAPTED"
+                    f"native floor declares '{fn.name}' as "
+                        + f"{str(fn.global_value_type)} but the vendored wasm32 "
+                        + f"libc defines {libc_sig[fn.name]}; a mismatched direct "
+                        + "call traps on wasm — add a widening adapter to "
+                        + "wasm_rt/jac_abi64.c and _ABI64_ADAPTED"
                 );
             }
         }
@@ -262,8 +265,8 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
     mod.link_in(libc);
     for fn in mod.functions {
         if fn.name in provided
-        and not fn.is_declaration
-        and fn.name not in _LATE_BOUND {
+            and not fn.is_declaration
+            and fn.name not in _LATE_BOUND {
             fn.linkage = "internal";
         }
     }
@@ -278,8 +281,8 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
 def _internalize_late_bound(mod: object) {
     for fn in mod.functions {
         if fn.name in _LATE_BOUND
-        and fn.name not in _BACKEND_BOUND
-        and not fn.is_declaration {
+            and fn.name not in _BACKEND_BOUND
+            and not fn.is_declaration {
             fn.linkage = "internal";
         }
     }
@@ -407,9 +410,11 @@ def _assert_ir_rc_free(llvm_ir_str: str, file_path: str) {
     }
     if syms or probes {
         raise RuntimeError(
-            f"'{os.path.basename(file_path)}' compiled under [gc] default =" + " \"none\" but its IR still carries RC machinery (" + ", ".join(
-                sorted(syms) + probes
-            ) + "); add the module to [gc.enforce] modules so the ownership" + " checker reports what re-enters the reference-counted world"
+            f"'{os.path.basename(file_path)}' compiled under [gc] default ="
+                + " \"none\" but its IR still carries RC machinery ("
+                + ", ".join(sorted(syms) + probes)
+                + "); add the module to [gc.enforce] modules so the ownership"
+                + " checker reports what re-enters the reference-counted world"
         );
     }
 }
@@ -417,12 +422,11 @@ def _assert_ir_rc_free(llvm_ir_str: str, file_path: str) {
 def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.ext_registry { is_native_module }
     import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
     (gc_mode, enf_mods, enf_grand) = _project_gc_settings();
     prev = os.environ.get("JAC_NATIVE_TARGET", None);
     os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
-    auto_promote = not is_native_module(file_path);
+    auto_promote = True;
     try {
         prog = JacProgram();
         na_census_begin();
@@ -449,7 +453,9 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
         }
         if (ir is None) or (ir.gen.llvm_ir is None) {
             rec = census.get(os.path.realpath(os.path.abspath(file_path)));
-            reason = "the module did not lower to native IR" + " (no demotion recorded; it likely compiled as a" + " non-native codespace)";
+            reason = "the module did not lower to native IR"
+                + " (no demotion recorded; it likely compiled as a"
+                + " non-native codespace)";
             if rec {
                 code = f" [{rec['code']}]" if rec['code'] else '';
                 detail = f": {rec['detail']}" if rec['detail'] else '';
