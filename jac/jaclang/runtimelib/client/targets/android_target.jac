@@ -6,7 +6,8 @@ obj AndroidTarget(ClientTarget) {
     has name: str = "android",
         default: bool = False,
         requires_setup: bool = True,
-        config_section: str = "android";
+        config_section: str = "android",
+        _type_check: bool = False;
 
     override def setup(project_dir: Path) -> None;
     override def build(

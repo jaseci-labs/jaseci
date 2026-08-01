@@ -266,7 +266,8 @@ impl AndroidTarget._synthesize_routes_from_screens(model: any) -> None {
         return;
     }
     seen_paths: set[str] = set();
-    for (cname, comp) in model.intent.components.items() {
+    for cname in model.intent.components {
+        comp = model.intent.components[cname];
         path = comp.route_path;
         is_home = cname in ("app", "App", "__root__");
         if not (
