@@ -683,7 +683,10 @@ jobs:
   test-android-compose-device:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # 8 vCPU: the emulator + Gradle + the jac dev server contend on one runner,
+    # and on 4 vCPU the emulator's system_server/SystemUI ANR'd under load so
+    # uiautomator couldn't read the (correctly-rendered) Compose UI.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 45
     steps:
       - name: Check out code
@@ -728,6 +731,7 @@ jobs:
           target: google_apis
           arch: x86_64
           ram-size: 4096M
+          cores: 4
           disable-animations: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: |
