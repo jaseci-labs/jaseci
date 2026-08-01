@@ -351,7 +351,15 @@ obj ManifestBuilder {
                 return True;
             }
         }
-        return False;
+
+        import tomllib;
+        try {
+            with open(os.path.join(root_dir, "jac.toml"), "rb") as fh {
+                return isinstance(tomllib.load(fh).get("client"), dict);
+            }
+        } except Exception {
+            return False;
+        }
     }
 
     def _shared_volumes_config -> list[dict[str, any]] {

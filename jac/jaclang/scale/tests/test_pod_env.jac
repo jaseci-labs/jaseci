@@ -160,3 +160,18 @@ test "no client entry means no client build in the gateway entrypoint" {
     }
     assert "jac build" not in entry["args"][0];
 }
+
+
+test "a single-file full-stack app still gets its client bundle built" {
+    import tempfile;
+    import os;
+    with tempfile.TemporaryDirectory() as tmp {
+        with open(os.path.join(tmp, "jac.toml"), "w") as f {
+            f.write("[project]\nname = \"todo-app\"\n\n[client]\n");
+        }
+        cfg = KubernetesConfig(app_name="todo-app", namespace="ns");
+        builder = ManifestBuilder(k8s_config=cfg, project_dir=tmp);
+        assert builder._has_client_source();
+        assert builder._client_entry() == "main.jac";
+    }
+}
