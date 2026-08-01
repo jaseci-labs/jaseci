@@ -15,7 +15,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "app.cl.jac";
+        path = Path(tmp) / "app.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;
@@ -43,7 +43,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "app.cl.jac";
+        path = Path(tmp) / "app.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;
@@ -81,7 +81,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "app.cl.jac";
+        path = Path(tmp) / "app.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;
@@ -111,7 +111,12 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "app.cl.jac";
+        (Path(tmp) / "jac.toml").write_text(
+            "[project]\nname = \"t\"\n\n[client]\nframework = \"compose\"\n\n"
+            "[placement.pins]\n\"app\" = \"client\"\n",
+            encoding="utf-8"
+        );
+        path = Path(tmp) / "app.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;
@@ -140,7 +145,7 @@ def:pub Counter() -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "counter.cl.jac";
+        path = Path(tmp) / "counter.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         import from jaclang.compiler.passes.ecmascript.intent.leaves { is_kt_leaf }
@@ -172,7 +177,7 @@ def:pub Counter() -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "counter.cl.jac";
+        path = Path(tmp) / "counter.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         import from jaclang.compiler.passes.compose.reactive_compose {
@@ -252,7 +257,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "app.cl.jac";
+        path = Path(tmp) / "app.jac";
         path.write_text(
             'walker greet { has name: str; can run with Root entry { report "hi"; } }\n'
                 + src,
@@ -301,7 +306,7 @@ def:pub Counter() -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "counter.cl.jac";
+        path = Path(tmp) / "counter.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;
@@ -334,7 +339,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "app.cl.jac";
+        path = Path(tmp) / "app.jac";
         path.write_text(
             'walker greet { has name: str; can run with Root entry { report "hi"; } }\n'
                 + src,
@@ -376,7 +381,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "app.cl.jac";
+        path = Path(tmp) / "app.jac";
         path.write_text(
             'walker greet { has name: str; can run with Root entry { report "hi"; } }\n'
                 + src,
@@ -500,7 +505,7 @@ test "typed Compose surface: opt-in type_check catches modifier/style typos" {
                 "[project]\nname = \"gen_pass_test\"\n\n[client]\nframework = \"compose\"\n",
                 encoding="utf-8"
             );
-            path = Path(tmp) / "app.cl.jac";
+            path = Path(tmp) / "app.jac";
             path.write_text(src, encoding="utf-8");
             program = Jac.program;
             program.compile(str(path), options=CompileOptions(type_check=True));

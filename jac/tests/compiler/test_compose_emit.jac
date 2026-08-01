@@ -138,7 +138,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "app.cl.jac";
+        path = Path(tmp) / "app.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         import from jaclang.compiler.passes.compose.compose_gen_pass {

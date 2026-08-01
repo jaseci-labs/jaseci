@@ -82,7 +82,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "raw.cl.jac";
+        path = Path(tmp) / "raw.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;
@@ -105,7 +105,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "title.cl.jac";
+        path = Path(tmp) / "title.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;
@@ -137,7 +137,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "scaffold.cl.jac";
+        path = Path(tmp) / "scaffold.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;
@@ -167,7 +167,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "widgets.cl.jac";
+        path = Path(tmp) / "widgets.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;
@@ -194,7 +194,7 @@ def:pub app -> Composable {
 }
 ''';
     with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "slots.cl.jac";
+        path = Path(tmp) / "slots.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         program = Jac.program;

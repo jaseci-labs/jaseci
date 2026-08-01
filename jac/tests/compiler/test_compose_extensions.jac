@@ -28,7 +28,8 @@ def _mk_compose_project(prefix: str) -> str {
     d = tempfile.mkdtemp(prefix=prefix);
     with open(os.path.join(d, "jac.toml"), "w") as f {
         f.write(
-            "[project]\nname = \"compose_ext_test\"\n\n[client]\nframework = \"compose\"\n"
+            "[project]\nname = \"compose_ext_test\"\n\n[client]\nframework = \"compose\"\n\n"
+            "[placement.pins]\n\"snippet_*\" = \"client\"\n"
         );
     }
     return d;
@@ -39,17 +40,20 @@ glob _tmp: str = _mk_compose_project("jac_test_compose_ext_");
 def _mk_plain_client_project(prefix: str) -> str {
     # A client project that is NOT Compose (a plain React surface): no
     # `framework = "compose"`. `_is_compose_module` is False here, so the Compose
-    # ambient vocabulary must stay invisible even in a `.cl.jac` client codespace.
+    # ambient vocabulary must stay invisible even in a `.jac` client codespace.
     d = tempfile.mkdtemp(prefix=prefix);
     with open(os.path.join(d, "jac.toml"), "w") as f {
-        f.write("[project]\nname = \"plain_client_test\"\n");
+        f.write(
+            "[project]\nname = \"plain_client_test\"\n\n"
+            "[placement.pins]\n\"snippet_*\" = \"client\"\n"
+        );
     }
     return d;
 }
 
 glob _react_tmp: str = _mk_plain_client_project("jac_test_react_");
 
-def _errors_in(dir_: str, code: str, suffix: str = ".cl.jac") -> list[str] {
+def _errors_in(dir_: str, code: str, suffix: str = ".jac") -> list[str] {
     path = os.path.join(dir_, f"snippet_{abs(hash(code))}{suffix}");
     with open(path, "w") as f {
         f.write(code);
@@ -86,18 +90,18 @@ def _errors_for(code: str, suffix: str = ".jac") -> list[str] {
 # ── Part 1: builtin member extensions ───────────────────────────────────────
 
 test "integer literal .dp / .sp type-check in client context" {
-    assert not _errors_for("def f -> any {\n    return 16.dp;\n}\n", ".cl.jac");
-    assert not _errors_for("def f -> any {\n    return 14.sp;\n}\n", ".cl.jac");
+    assert not _errors_for("def f -> any {\n    return 16.dp;\n}\n", ".jac");
+    assert not _errors_for("def f -> any {\n    return 14.sp;\n}\n", ".jac");
 }
 
 test "float literal .dp type-checks in client context" {
-    assert not _errors_for("def f -> any {\n    return 1.5.dp;\n}\n", ".cl.jac");
+    assert not _errors_for("def f -> any {\n    return 1.5.dp;\n}\n", ".jac");
 }
 
 test "list .len type-checks as int in client context" {
     errs = _errors_for(
         "def f -> int {\n    xs: list[int] = [1, 2, 3];\n    return xs.len;\n}\n",
-        ".cl.jac"
+        ".jac"
     );
     assert not errs , f"xs.len should type-check as int, got: {errs}";
 }
@@ -269,12 +273,12 @@ test "a wrong-typed value arg is a Jac error; a right-typed one is not" {
     # bool is clean. Children fill the required content slot in both cases.
     bad = _errors_for(
         "def f -> Composable {\n    return <Button onClick={lambda -> None { }} enabled=\"yes\">\"x\"</Button>;\n}\n",
-        ".cl.jac"
+        ".jac"
     );
     assert bad , "<Button enabled=\"yes\"> must be a Jac type error";
     good = _errors_for(
         "def f -> Composable {\n    return <Button onClick={lambda -> None { }} enabled={True}>\"x\"</Button>;\n}\n",
-        ".cl.jac"
+        ".jac"
     );
     assert not good , f"<Button enabled={{True}}> must type-check, got: {good}";
 }
@@ -283,24 +287,24 @@ test "a required event handler is enforced in plain widget calls" {
     # The correctness win of carrying required-ness: a call missing the required
     # onClick handler is a Jac error (previously erased — every param defaulted).
     missing = _errors_for(
-        "def f -> any {\n    return Button(enabled=True);\n}\n", ".cl.jac"
+        "def f -> any {\n    return Button(enabled=True);\n}\n", ".jac"
     );
     assert missing , "Button() without the required onClick must be a Jac error";
     # A plain call is now faithful to Kotlin: the unmarked content slot is required,
     # so even with the handler present a bare call is flagged (JSX fills it from
     # children — see the children-awareness tests below).
     no_content = _errors_for(
-        "def f -> any {\n    return Button(onClick=lambda -> None { });\n}\n", ".cl.jac"
+        "def f -> any {\n    return Button(onClick=lambda -> None { });\n}\n", ".jac"
     );
     assert no_content , f"Button(onClick=..) with no content must be flagged in a plain call, got: {no_content}";
     # Slider's required onValueChange event is enforced too.
     no_handler = _errors_for(
-        "def f -> any {\n    return Slider(value=0.5);\n}\n", ".cl.jac"
+        "def f -> any {\n    return Slider(value=0.5);\n}\n", ".jac"
     );
     assert no_handler , "Slider() without the required onValueChange must be a Jac error";
     # A required value param (Text's text) is now enforced in a plain call as well.
     text_missing = _errors_for(
-        "def f -> any {\n    return Text(color=0);\n}\n", ".cl.jac"
+        "def f -> any {\n    return Text(color=0);\n}\n", ".jac"
     );
     assert text_missing , f"Text(color=0) must be flagged on the missing required text, got: {text_missing}";
 }
@@ -312,18 +316,18 @@ test "JSX children satisfy a required content slot" {
     # for the required content -> E1102.
     with_children = _errors_for(
         "def f -> Composable {\n    return <Button onClick={lambda -> None { }}>\"Go\"</Button>;\n}\n",
-        ".cl.jac"
+        ".jac"
     );
     assert not with_children , f"<Button>..children..</Button> must type-check, got: {with_children}";
     childless = _errors_for(
         "def f -> Composable {\n    return <Button onClick={lambda -> None { }} />;\n}\n",
-        ".cl.jac"
+        ".jac"
     );
     assert childless , "<Button onClick=.. /> with no content children must flag the required content slot";
     # A missing required *event* is still flagged even when children are present —
     # children only satisfy the primary content, never an event handler.
     no_handler = _errors_for(
-        "def f -> Composable {\n    return <Button>\"Go\"</Button>;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    return <Button>\"Go\"</Button>;\n}\n", ".jac"
     );
     assert no_handler , "<Button>..</Button> without onClick must still flag the required handler";
 }
@@ -331,18 +335,17 @@ test "JSX children satisfy a required content slot" {
 test "JSX children satisfy Text's required text value" {
     # Text routes children into its required `text` value param (Text(text=..)).
     with_text = _errors_for(
-        "def f -> Composable {\n    return <Text>\"Hi\"</Text>;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    return <Text>\"Hi\"</Text>;\n}\n", ".jac"
     );
     assert not with_text , f"<Text>\"Hi\"</Text> must type-check, got: {with_text}";
     # A dynamic child expression counts as content too.
     dynamic = _errors_for(
-        "def f -> Composable {\n    n = 1;\n    return <Text>{n}</Text>;\n}\n",
-        ".cl.jac"
+        "def f -> Composable {\n    n = 1;\n    return <Text>{n}</Text>;\n}\n", ".jac"
     );
     assert not dynamic , f"<Text>{{n}}</Text> must type-check, got: {dynamic}";
     # A self-closing Text supplies neither the text attribute nor children -> flagged.
     childless = _errors_for(
-        "def f -> Composable {\n    return <Text color={0} />;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    return <Text color={0} />;\n}\n", ".jac"
     );
     assert childless , "<Text color={0} /> with no text children must flag the required text value";
 }
@@ -386,10 +389,10 @@ test "bundled Modifier chain type-checks and chains in client context" {
     # returns a ModifierChain so calls chain, and prim args are checked.
     assert not _errors_for(
         "def f -> any {\n    return Modifier.padding(8.dp).fillMaxWidth().clickable(enabled=True);\n}\n",
-        ".cl.jac"
+        ".jac"
     );
     assert not _errors_for(
-        "def f -> any {\n    return Modifier.size(24.dp).background(0);\n}\n", ".cl.jac"
+        "def f -> any {\n    return Modifier.size(24.dp).background(0);\n}\n", ".jac"
     );
 }
 
@@ -397,7 +400,7 @@ test "unknown Modifier method is a type error" {
     # A misspelled/absent modifier must NOT resolve — the surface is closed to
     # exactly the ingested names (guards the fillMaxSize typo test in gen_pass).
     assert _errors_for(
-        "def f -> any {\n    return Modifier.filMaxWidth();\n}\n", ".cl.jac"
+        "def f -> any {\n    return Modifier.filMaxWidth();\n}\n", ".jac"
     );
 }
 
@@ -426,28 +429,26 @@ test "const namespaces resolve their members in client context" {
     # Real names from compose_consts.txt resolve off the `Arrangement`/`Alignment`/
     # `Color` client globals; previously these were an Unknown-type member error.
     assert not _errors_for(
-        "def f -> any {\n    return Arrangement.Center;\n}\n", ".cl.jac"
+        "def f -> any {\n    return Arrangement.Center;\n}\n", ".jac"
     );
     assert not _errors_for(
-        "def f -> any {\n    return Alignment.CenterVertically;\n}\n", ".cl.jac"
+        "def f -> any {\n    return Alignment.CenterVertically;\n}\n", ".jac"
     );
-    assert not _errors_for("def f -> any {\n    return Color.Red;\n}\n", ".cl.jac");
+    assert not _errors_for("def f -> any {\n    return Color.Red;\n}\n", ".jac");
 }
 
 test "a typo'd const member is a type error" {
     # The surface is closed to exactly the ingested names — a misspelling is caught
     # before Gradle (the whole point of ingesting them under type_check).
-    assert _errors_for(
-        "def f -> any {\n    return Arrangement.Centre;\n}\n", ".cl.jac"
-    );
-    assert _errors_for("def f -> any {\n    return Color.Puce;\n}\n", ".cl.jac");
+    assert _errors_for("def f -> any {\n    return Arrangement.Centre;\n}\n", ".jac");
+    assert _errors_for("def f -> any {\n    return Color.Puce;\n}\n", ".jac");
 }
 
 test "Color stays callable — the numeric ULong constructor is not regressed" {
     # A2 upgrades Color to a real value class; until then `Color(0xFF..)` must keep
     # type-checking via ColorNamespace.__call__ so named + numeric forms coexist.
     assert not _errors_for(
-        "def f -> any {\n    return Color(4294901760);\n}\n", ".cl.jac"
+        "def f -> any {\n    return Color(4294901760);\n}\n", ".jac"
     );
 }
 
@@ -455,11 +456,11 @@ test "const members flow into widget props" {
     # The DX payoff: a named color / alignment passes through a real JSX prop.
     assert not _errors_for(
         "def f -> Composable {\n    return <Text color={Color.Red}>\"hi\"</Text>;\n}\n",
-        ".cl.jac"
+        ".jac"
     );
     assert not _errors_for(
         "def f -> Composable {\n    return <Box contentAlignment={Alignment.Center}>\"x\"</Box>;\n}\n",
-        ".cl.jac"
+        ".jac"
     );
 }
 
@@ -498,12 +499,12 @@ test "a full idiomatic Compose page type-checks with no false errors" {
     "        </Button>\n"
     "    </Column>;\n"
     "}\n";
-    assert not _errors_for(page, ".cl.jac");
+    assert not _errors_for(page, ".jac");
 }
 
 test "a typo'd modifier in a page is still caught under default-on checking" {
     page = "def f -> any {\n    return Modifier.paddng(16.dp);\n}\n";
-    assert _errors_for(page, ".cl.jac");
+    assert _errors_for(page, ".jac");
 }
 
 # ── Part 6: Lazy list + scope-receiver surface (A3) ──────────────────────────
@@ -526,7 +527,7 @@ test "an idiomatic LazyColumn page with arrangement + comprehension children is 
     "        </Row> for r in rows]}\n"
     "    </LazyColumn>;\n"
     "}\n";
-    assert not _errors_for(page, ".cl.jac");
+    assert not _errors_for(page, ".jac");
 }
 
 test "LazyRow carries horizontalArrangement + verticalAlignment layout props" {
@@ -537,7 +538,7 @@ test "LazyRow carries horizontalArrangement + verticalAlignment layout props" {
     "        verticalAlignment={Alignment.CenterVertically}\n"
     "    >{[<Text>{str(x)}</Text> for x in xs]}</LazyRow>;\n"
     "}\n";
-    assert not _errors_for(page, ".cl.jac");
+    assert not _errors_for(page, ".jac");
 }
 
 test "an unknown prop on a Lazy list is still flagged" {
@@ -546,7 +547,7 @@ test "an unknown prop on a Lazy list is still flagged" {
     "    return <LazyColumn verticalArrangment={Arrangement.Center}>"
     "{[<Text>{str(x)}</Text> for x in xs]}</LazyColumn>;\n"
     "}\n";
-    assert _errors_for(page, ".cl.jac");
+    assert _errors_for(page, ".jac");
 }
 
 test "a bad primitive prop value on a Lazy list is still flagged" {
@@ -555,22 +556,20 @@ test "a bad primitive prop value on a Lazy list is still flagged" {
     "    return <LazyColumn userScrollEnabled=\"yes\">"
     "{[<Text>{str(x)}</Text> for x in xs]}</LazyColumn>;\n"
     "}\n";
-    assert _errors_for(page, ".cl.jac");
+    assert _errors_for(page, ".jac");
 }
 
 test "scope-receiver Modifier extensions resolve, and a typo is caught" {
     assert not _errors_for(
         "def f -> any {\n    return Modifier.weight(1.0).align(Alignment.CenterHorizontally);\n}\n",
-        ".cl.jac"
+        ".jac"
     );
-    assert _errors_for(
-        "def f -> any {\n    return Modifier.wieght(1.0);\n}\n", ".cl.jac"
-    );
+    assert _errors_for("def f -> any {\n    return Modifier.wieght(1.0);\n}\n", ".jac");
 }
 
 # ── Part 5: target isolation (P0 #1) ─────────────────────────────────────────
 # The Compose ambient vocabulary is gated on the Compose *target*, not on generic
-# client codespace: a plain React `.cl.jac` (client, but not a Compose project)
+# client codespace: a plain React `.jac` (client, but not a Compose project)
 # must not see Compose names, even though it is `in_client_context()`.
 
 test "Compose widgets do not leak into a plain (non-Compose) client module" {
