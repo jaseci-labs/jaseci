@@ -13,6 +13,68 @@ import from jaclang.compiler.passes.compose.view_ir {
 }
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
 
+# ── Shared Compose signature model (P0 #4) ───────────────────────────────────
+# The checker ingests the bundled AndroidX signatures (compose_widgets.txt) and
+# classifies every widget parameter modifier/event/slot/value. The emitter reads
+# the SAME file through the SAME classifier so slot-wrapping is driven by that
+# model, not a private heuristic — the two can no longer disagree about which
+# argument is a `@Composable () -> Unit` slot. Unknown (user/library) widgets are
+# absent from the table and fall back to the open-vocabulary heuristic below.
+# One-slot cache (mutated, never rebound — glob scalar rebinding is unavailable).
+glob _WIDGET_PARAM_KINDS_CACHE: dict[str, dict[str, dict[str, str]]] = {};
+
+def _widget_param_kinds() -> dict[str, dict[str, str]] {
+    # {widget name -> {param name -> kind}} from the bundled signature file,
+    # loaded and cached once. Empty if the file is missing (open-vocab fallback
+    # then applies to every widget).
+    if "table" in _WIDGET_PARAM_KINDS_CACHE {
+        return _WIDGET_PARAM_KINDS_CACHE["table"];
+    }
+    import os;
+    import jaclang;
+    import from jaclang.compiler.passes.compose.compose_stub_gen { parse_signature_text }
+    table: dict[str, dict[str, str]] = {};
+    # compose_widgets.txt lives next to the type-system stubs it feeds. Anchor to
+    # the jaclang package root so the path is independent of this pass's location.
+    path = os.path.join(
+        os.path.dirname(jaclang.__file__),
+        "compiler", "type_system", "compose_widgets.txt"
+    );
+    try {
+        if os.path.exists(path) {
+            with open(path, "r", encoding="utf-8", errors="replace") as f {
+                text = f.read();
+            }
+            for sig in parse_signature_text(text) {
+                table[sig.name] = {p.name: p.kind for p in sig.params};
+            }
+        }
+    } except OSError {
+        table = {};
+    }
+    _WIDGET_PARAM_KINDS_CACHE["table"] = table;
+    return table;
+}
+
+def _is_slot_param(widget_name: str, attr_name: str) -> bool {
+    # Authoritative slot decision from the shared classifier. A param known to be
+    # a non-slot (value/event/modifier) is never wrapped; a declared slot is.
+    kinds = _widget_param_kinds().get(widget_name);
+    if kinds is None {
+        return False;
+    }
+    return kinds.get(attr_name) == "slot";
+}
+
+def _is_known_nonslot_param(widget_name: str, attr_name: str) -> bool {
+    kinds = _widget_param_kinds().get(widget_name);
+    if kinds is None {
+        return False;
+    }
+    kind = kinds.get(attr_name);
+    return kind is not None and kind != "slot";
+}
+
 def _named(name: str, value: kt.KtNode) -> kt.KtNamedArg {
     return kt.KtNamedArg(name=name, value=value);
 }
@@ -238,18 +300,23 @@ def _wrap_text_field_args(name: str, args: list[kt.KtNamedArg]) -> list[kt.KtNam
     return out;
 }
 
-def _slot_wrap(value: kt.KtNode) -> kt.KtNode {
+def _slot_wrap(value: kt.KtNode, widget_name: str, attr_name: str) -> kt.KtNode {
     # A composable passed as an attribute value is a Compose content slot
     # (topBar=, bottomBar=, confirmButton=, label=, leadingIcon=, …). Slots are
     # `@Composable () -> Unit`, so the call must be wrapped in a lambda rather
-    # than emitted as a plain value argument. This is type-free: only JSX-element
-    # attribute values lower to KtComposableCall, and passing a composable as an
-    # attribute is unambiguously a slot. Generalizes the old per-widget
-    # placeholder/topBar special-casing to the whole open vocabulary.
-    if isinstance(value, kt.KtComposableCall) {
-        return kt.KtLambda(params=[], body=[value]);
+    # than emitted as a plain value argument. Which params are slots comes from
+    # the shared signature classifier (_widget_param_kinds) — the same model the
+    # checker uses — so the emitter and checker agree. A composable passed to a
+    # KNOWN non-slot param (value/event/modifier) is left as a plain value; a
+    # declared slot, or any param of an unknown/open-vocabulary widget, is
+    # wrapped (the open-vocab fallback the old type-free heuristic always applied).
+    if not isinstance(value, kt.KtComposableCall) {
+        return value;
     }
-    return value;
+    if _is_known_nonslot_param(widget_name, attr_name) {
+        return value;
+    }
+    return kt.KtLambda(params=[], body=[value]);
 }
 
 impl ComposeNativeEmitter._emit_element(elem: ComposeElement) -> kt.KtNode {
@@ -279,7 +346,7 @@ impl ComposeNativeEmitter._emit_element(elem: ComposeElement) -> kt.KtNode {
             handler = _normalize_click_handler(attr.value);
             args.append(_named(attr.name, _as_click_lambda(handler, needs_coro)));
         } else {
-            args.append(_named(attr.name, _slot_wrap(attr.value)));
+            args.append(_named(attr.name, _slot_wrap(attr.value, elem.name, attr.name)));
         }
     }
     if elem.children {

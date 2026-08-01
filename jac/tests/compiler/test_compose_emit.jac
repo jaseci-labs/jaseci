@@ -20,6 +20,13 @@ import from jaclang.compiler.passes.compose.compose_emit {
     route_to_screen_name,
     normalize_route_segment
 }
+import from jaclang.compiler.passes.compose.compose_native_emit {
+    _widget_param_kinds,
+    _slot_wrap,
+    _is_slot_param,
+    _is_known_nonslot_param
+}
+import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 import from pathlib { Path }
 import tempfile;
 
@@ -159,4 +166,34 @@ def:pub app -> Composable {
         assert not model.intent.diagnostics;
         assert (out / "app" / "src" / "main" / "java").is_dir();
     }
+}
+
+# P0 #4 — slot-wrapping is driven by the shared signature classifier, not a
+# type-free heuristic: the emitter reads the SAME compose_widgets.txt the checker
+# ingests, so the two cannot disagree about which argument is a @Composable slot.
+
+test "the shared classifier loads and marks Scaffold's slots" {
+    kinds = _widget_param_kinds();
+    assert kinds , "compose_widgets.txt must load into the emitter's slot model";
+    assert _is_slot_param("Scaffold", "topBar") , "topBar is a Scaffold slot";
+    assert _is_slot_param("Scaffold", "content") , "content is a Scaffold slot";
+    # a value/event param is NOT a slot
+    assert not _is_slot_param("OutlinedTextField", "enabled");
+    assert _is_known_nonslot_param("OutlinedTextField", "enabled");
+}
+
+test "_slot_wrap wraps declared slots and open-vocab widgets, not known values" {
+    call = kt.KtComposableCall(name="Text", args=[]);
+    # a declared slot on a known widget -> lambda-wrapped @Composable () -> Unit
+    wrapped = _slot_wrap(call, "Scaffold", "topBar");
+    assert isinstance(wrapped, kt.KtLambda) , "a Scaffold slot must wrap in a lambda";
+    # a composable passed to a KNOWN non-slot value param -> left as a plain value
+    passthru = _slot_wrap(call, "OutlinedTextField", "enabled");
+    assert passthru is call , "a known value param must not be slot-wrapped";
+    # an unknown (user/library) widget -> open-vocab fallback still wraps
+    open_vocab = _slot_wrap(call, "MyCustomCard", "header");
+    assert isinstance(open_vocab, kt.KtLambda) , "unknown widgets fall back to wrapping";
+    # a non-composable attribute value is never touched
+    lit = kt.KtLiteral(value="hi");
+    assert _slot_wrap(lit, "Text", "text") is lit;
 }
