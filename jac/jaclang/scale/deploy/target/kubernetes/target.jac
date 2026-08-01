@@ -712,7 +712,6 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return ctx;
     }
 
-
     def _resolve_service_triggers(svc_name: str, cfg: dict[str, any]) -> list[Trigger] {
         is_gateway = svc_name == GATEWAY_NAME;
         has_memory_request = bool(cfg.get("has_memory_request", True));
