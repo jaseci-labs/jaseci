@@ -720,9 +720,14 @@ jobs:
       - name: On-device DexClassLoader + HMR e2e
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 36
+          # Run the compileSdk-36 app on the mature, stable API 35 image (a
+          # targetSdk-36 app runs fine on it); the API 36 image was ANR-ing the
+          # emulator's system_server under CI resource pressure. Extra RAM keeps
+          # system_server responsive through the DexClassLoader + Compose startup.
+          api-level: 35
           target: google_apis
           arch: x86_64
+          ram-size: 4096M
           disable-animations: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: |
