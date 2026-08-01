@@ -280,7 +280,6 @@ impl JacAPIServerEndpoints.get_walker_protocol(walker_name: str) -> str {
     return APIProtocol.HTTP;
 }
 
-"""Get the API protocol for a function by checking its restspec."""
 impl JacAPIServerEndpoints.get_function_protocol(func_name: str) -> str {
     functions = self.get_functions();
     if func_name not in functions {
@@ -545,10 +544,12 @@ impl JacAPIServerEndpoints.create_webhook_parameters(
 }
 
 impl JacAPIServerEndpoints.register_webhook_endpoints -> None {
+    has_webhook_walkers = False;
     for walker_name in self.get_walkers() {
         protocol = self.get_walker_protocol(walker_name);
 
         if protocol == APIProtocol.WEBHOOK {
+            has_webhook_walkers = True;
             self.server.add_endpoint(
                 JEndPoint(
                     method=HTTPMethod.POST,
@@ -562,6 +563,9 @@ impl JacAPIServerEndpoints.register_webhook_endpoints -> None {
                 )
             );
         }
+    }
+    if has_webhook_walkers {
+        self.get_api_key_manager();
     }
 }
 
@@ -586,17 +590,6 @@ impl JacAPIServerEndpoints.get_ws_manager -> WebSocketConnectionManager {
     return self._ws_manager;
 }
 
-"""Drive one hardened WebSocket connection lifecycle.
-
-Handles the auth handshake (pre-accept query token with a first-frame fallback,
-tagged reject reasons and token refresh), connection-cap registration, the
-heartbeat/idle-close loop, per-message size and rate limits, target execution
-under a timeout, and streamed or single-result delivery. `make_awaitable(data,
-user)` returns the coroutine that runs the target for one request.
-
-A stray `token` key is dropped from every dispatched frame. The connection is
-authenticated once at the handshake, but clients written against the older
-per-message auth would otherwise pass their token through as a target field."""
 async def _ws_serve_connection(
     websocket: WebSocket,
     ws_manager: WebSocketConnectionManager,
@@ -734,11 +727,6 @@ async def _ws_serve_connection(
     }
 }
 
-"""Shared factory for the walker and function WebSocket handlers.
-
-`target_kind` is 'walker' or 'function'; `execute` is the async runner
-(spawn_walker / execute_function) invoked as execute(target, data, username).
-"""
 impl JacAPIServerEndpoints._create_websocket_target_handler(
     target_kind: str,
     target_name: str,
@@ -783,7 +771,6 @@ impl JacAPIServerEndpoints.create_websocket_handler(walker_name: str) -> Callabl
     );
 }
 
-"""Create a WebSocket handler for a specific def/function."""
 impl JacAPIServerEndpoints.create_websocket_function_handler(
     func_name: str
 ) -> Callable {

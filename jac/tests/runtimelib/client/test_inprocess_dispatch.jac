@@ -28,7 +28,6 @@ glob _FIXTURE: str = str(Path(__file__).parent / "fixtures" / "inprocess_app.jac
 """Dispatch one `{kind, name, node, fields, token}` request through the staged
 module (booting it once on first use); returns the reply already JSON-decoded."""
 def _dispatch_request(request: dict) -> dict {
-    global _BOOTED;
     import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
         boot,
         dispatch,
@@ -428,7 +427,6 @@ test "async streaming drains context-bound through the native pump (Phase 3)" {
 
 
 test "dispatch_outcome exposes SSE mode for streaming functions" {
-    global _BOOTED;
     import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
         boot,
         dispatch_outcome
@@ -557,7 +555,6 @@ def _slow_dispatch(payload_json: str) -> str {
 # webview_return. dispatch() short-circuits to a NOT_BOOTED envelope when no app
 # is booted, which is all this test needs.
 test "handle() copies the call id, dispatches off the UI thread, and replies off-thread" {
-    global _CAP_DONE;
     import ctypes;
     import queue;
     import from importlib { import_module }
@@ -610,7 +607,6 @@ test "handle() copies the call id, dispatches off the UI thread, and replies off
 # once -- the timed-out call rejects with NATIVE_DISPATCH_TIMEOUT, and the late
 # completion does NOT produce a second reply for the same id (suppression).
 test "handle() times out a slow call and drops the late reply (P1-A)" {
-    global _CAP_DONE;
     import ctypes;
     import queue;
     import time;
@@ -662,7 +658,6 @@ test "handle() times out a slow call and drops the late reply (P1-A)" {
 # Backend-free: swap in a pre-filled bounded queue with no drainer so the next
 # enqueue is deterministically rejected. Covers the queue-saturation acceptance.
 test "handle() replies BUSY when the dispatch queue is saturated (P1-A)" {
-    global _CAP_DONE;
     import ctypes;
     import queue;
     import from importlib { import_module }
@@ -1105,7 +1100,6 @@ test "dispatch() returns NOT_FOUND for an unknown function" {
 # _worker_loop must catch the exception and produce a NATIVE_DISPATCH_ERROR reply
 # rather than letting the JS promise hang forever.
 test "_worker_loop replies NATIVE_DISPATCH_ERROR when dispatch() raises" {
-    global _CAP_DONE;
     import queue;
     import from importlib { import_module }
 

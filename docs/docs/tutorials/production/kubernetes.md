@@ -1,5 +1,7 @@
 # Kubernetes Deployment
 
+> **Concept:** [Scale invariance](../../reference/plugins/jac-scale.md#the-scale-invariance-contract): `--scale` changes where the program runs, never what it means.
+
 Moving from a local API server to a production Kubernetes deployment typically requires writing Dockerfiles, Kubernetes manifests, configuring databases, and setting up monitoring. Jac's built-in `scale` subsystem eliminates this boilerplate: `jac start --scale` generates and applies all the necessary Kubernetes resources automatically -- your application, a MongoDB instance for graph persistence, Redis for caching, and optionally Prometheus/Grafana for monitoring.
 
 This tutorial covers deploying to a local Kubernetes cluster (MicroK8s, minikube, or Docker Desktop), but the same command works for cloud providers (EKS, GKE, AKS) with `kubectl` properly configured.
@@ -239,6 +241,29 @@ python_image = "123456789012.dkr.ecr.us-east-2.amazonaws.com/jaclang:latest"
 That is the only registry a deploy depends on, and only for the base image --
 your code is never baked into it.
 
+### Base Image Channel
+
+Which `jaseci/jaclang` tag pods boot from is chosen automatically:
+
+| `jac.toml`                     | Base image                     |
+| ------------------------------ | ------------------------------ |
+| _(default)_                    | `jaseci/jaclang:latest`        |
+| `[dev]`                        | `jaseci/jaclang:dev` (main HEAD) |
+| `[experimental]` `pr = <N>`    | `jaseci/jaclang:experimental-<N>` |
+
+The experimental channel runs an open PR's own build in your pods, for trying a
+not-yet-merged change against a real cluster:
+
+```toml
+[experimental]
+pr = 7494
+```
+
+A maintainer publishes and deletes that image on demand via the **Experimental
+jac image** workflow (dispatched with the PR number and a `build`/`delete`
+action). If it is not published yet, the deploy falls back to `:dev`. An explicit
+`python_image` still overrides all of this.
+
 ---
 
 ## Cross-Service Shared Filesystem
@@ -462,7 +487,7 @@ kubectl get events --sort-by='.lastTimestamp'
 
 ```bash
 # Create a new full-stack project
-jac create todo --use web-static
+jac create todo --kind web-static
 cd todo
 
 # Deploy to Kubernetes

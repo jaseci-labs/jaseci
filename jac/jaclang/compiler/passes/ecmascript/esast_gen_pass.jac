@@ -278,6 +278,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _sv_import_item_is_type(nd: uni.Import, item: uni.ModuleItem) -> bool;
     def _record_sv_backend(nd: uni.Import) -> None;
     def _emit_boundary_type_stubs(nd: uni.Module) -> list;
+    def _es_json_literal(value: any) -> any;
     def exit_type_alias(nd: uni.TypeAlias) -> None;
     def exit_type_param(nd: uni.TypeParam) -> None;
     def exit_archetype(nd: uni.Archetype) -> None;
@@ -398,6 +399,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _resolve_source_module(nd: uni.Import) -> (uni.Module | None);
     def _resolve_call_ability(nd: uni.FuncCall) -> (uni.Ability | None);
     def _return_type_includes_jsx_element(rt: uni.Expr) -> bool;
+    def _return_type_route_role(rt: uni.Expr) -> (str | None);
     def _component_pascal_name(nd: uni.Ability) -> (str | None);
     def _component_call_abi(ability_node: uni.Ability) -> str;
     def _build_props_spread_component_call(
@@ -505,7 +507,6 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _in_type_slot(nd: uni.UniNode) -> bool;
     def _is_call_target(nd: uni.UniNode) -> bool;
     def exit_global_vars(nd: uni.GlobalVars) -> None;
-    def exit_non_local_stmt(nd: uni.NonLocalStmt) -> None;
     def exit_module_code(nd: uni.ModuleCode) -> None;
     def exit_client_block(nd: uni.ClientBlock) -> None;
     def exit_native_block(nd: uni.NativeBlock) -> None;

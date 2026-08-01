@@ -59,8 +59,6 @@ def boot(
     pool_size: int = 4,
     stream_window: int = 256
 ) {
-    global _timeout_s,_max_queue,_debug,_BOOT_ERROR,_pool_size,_stream_window;
-
     _BOOT_ERROR = "";
     _timeout_s = timeout_s;
     _max_queue = max_queue;
@@ -89,8 +87,6 @@ def _ensure_jac_meta_importer {
 
 
 def _boot_impl(entry_file: str, graph_path: str) {
-    global _runtime,_work_q,_workers,_shutting_down;
-
     if _runtime is not None {
         try {
             _runtime.close();
@@ -127,13 +123,11 @@ def _boot_impl(entry_file: str, graph_path: str) {
 
 
 def set_stream_emit(fn: any) {
-    global _stream_emit;
     _stream_emit = fn;
 }
 
 
 def shutdown {
-    global _runtime,_work_q,_workers,_shutting_down,_wv_return,_stream_emit;
     if _work_q is None and _runtime is None {
         return;
     }
@@ -563,7 +557,6 @@ def _error_envelope(code: str, message: str, details: str = "") -> str {
 
 
 def _webview_return(w: int, id_bytes: bytes, status: int, payload: bytes) {
-    global _wv_return;
     if _wv_return is None {
         lib = ctypes.CDLL(None);
         lib.webview_return.argtypes = [

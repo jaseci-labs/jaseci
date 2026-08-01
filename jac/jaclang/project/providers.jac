@@ -138,6 +138,22 @@ def manifest_plugin_deps(
     return (deps, dev_deps);
 }
 
+def manifest_plugin_subdeps(
+    config: JacConfig, key: str, section: str
+) -> dict[str, str] {
+    raw = config.plugin_dependencies.get(key, {});
+    sub = raw.get(section, {});
+    out: dict[str, str] = {};
+    if isinstance(sub, dict) {
+        for (k, v) in sub.items() {
+            if isinstance(k, str) and isinstance(v, str) {
+                out[k] = v;
+            }
+        }
+    }
+    return out;
+}
+
 obj PythonProvider(EcosystemProvider) {
     has name: str = "python",
         manifest_key: str = "",
@@ -594,7 +610,6 @@ obj ProviderRegistry {
 glob _registry: ProviderRegistry | None = None;
 
 def get_provider_registry -> ProviderRegistry {
-    global _registry;
     if _registry is None {
         _registry = ProviderRegistry();
         _registry.register(PythonProvider());
@@ -611,7 +626,6 @@ def get_python_provider -> PythonProvider {
 }
 
 def reset_provider_registry {
-    global _registry;
     _registry = None;
 }
 
