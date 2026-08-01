@@ -7,11 +7,15 @@ impl TypeEvaluator._is_mobui_module(nd: uni.UniNode) -> bool {
         return False;
     }
     if mod_path not in self._mobui_module_cache {
-        import from jaclang.project.client_kind { mobui_enforced_for }
+        import from jaclang.project.client_kind { resolve_client_surface }
         opts = self.program._compile_options;
-        self._mobui_module_cache[mod_path] = mobui_enforced_for(
-            mod_path, opts.project_kind, opts.project_root
+        surface = resolve_client_surface(
+            mod_path,
+            getattr(opts, "client_framework", "") or "",
+            opts.project_kind,
+            opts.project_root,
         );
+        self._mobui_module_cache[mod_path] = surface.is_mobui;
     }
     return self._mobui_module_cache[mod_path];
 }
@@ -37,8 +41,14 @@ impl TypeEvaluator._is_compose_module(nd: uni.UniNode) -> bool {
         return False;
     }
     if mod_path not in self._compose_module_cache {
-        import from jaclang.project.client_kind { compose_enforced_for }
-        self._compose_module_cache[mod_path] = compose_enforced_for(mod_path);
+        import from jaclang.project.client_kind { resolve_client_surface }
+        surface = resolve_client_surface(
+            mod_path,
+            getattr(opts, "client_framework", "") or "",
+            opts.project_kind,
+            opts.project_root,
+        );
+        self._compose_module_cache[mod_path] = surface.is_compose;
     }
     return self._compose_module_cache[mod_path];
 }

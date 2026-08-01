@@ -47,20 +47,35 @@ impl EsastGenPass._ensure_backend -> None {
     if self.backend is not None {
         return;
     }
-    import from jaclang.project.config { get_config }
-    cfg = get_config();
-    fw = cfg.client.framework if (cfg and cfg.client) else "react";
+    # Select the framework backend through the single client-surface resolver so the
+    # ES pass and the type checker cannot disagree: an active target's
+    # CompileOptions.client_framework override wins, and only when there is no
+    # override do we fall back to the per-module disk config.
+    opts = self.prog._compile_options if self.prog else None;
+    override = (getattr(opts, "client_framework", "") or "") if opts else "";
     import from jaclang.compiler.passes.ecmascript.backends.registry {
-        resolve_active_backend
+        resolve_active_backend, resolve_framework_backend
     }
     try {
-        self.backend = resolve_active_backend();
+        if override {
+            import from jaclang.project.client_kind { resolve_client_surface }
+            mod_path = self.ir_in.loc.mod_path if (self.ir_in and self.ir_in.loc) else "";
+            surface = resolve_client_surface(
+                mod_path,
+                override,
+                getattr(opts, "project_kind", "web") or "web",
+                getattr(opts, "project_root", None),
+            );
+            self.backend = resolve_framework_backend(surface.framework);
+        } else {
+            self.backend = resolve_active_backend();
+        }
     } except ValueError {
         import from jaclang.jac0core.diagnostics { E5081 }
         import from jaclang.compiler.passes.ecmascript.backends.react {
             ReactBackend
         }
-        self.emit(E5081, framework=fw);
+        self.emit(E5081, framework=override);
         self.backend = ReactBackend();
     }
 }
