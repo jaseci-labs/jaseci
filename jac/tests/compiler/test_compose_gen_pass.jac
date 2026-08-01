@@ -123,6 +123,7 @@ def:pub Counter() -> Composable {
 test "jac_to_kotlin lowers walker spawn to JacClient call" {
     import from jaclang.compiler.passes.compose.jac_to_kotlin { jac_expr_to_kt }
     import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
+    import from jaclang.compiler.passes.ecmascript.intent.detection { unwrap_ability_body }
 
     src = '''
 def test_spawn -> None {
@@ -142,9 +143,9 @@ def test_spawn -> None {
         found = False;
         for ability in mod.get_all_sub_nodes(uni.Ability) {
             if ability.name_ref and ability.name_ref.sym_name == "test_spawn" {
-                body = ability.body;
-                if isinstance(body, uni.ImplDef) {
-                    for stmt in body.body {
+                stmts = unwrap_ability_body(ability);
+                if stmts {
+                    for stmt in stmts {
                         if isinstance(stmt, uni.Assignment) and len(stmt.target) == 1 {
                             if stmt.target[0].sym_name == "result" {
                                 found = True;
@@ -334,6 +335,7 @@ def:pub app -> Composable {
 test "jac_to_kotlin maps Jac == to Kotlin ==" {
     import from jaclang.compiler.passes.compose.jac_to_kotlin { jac_expr_to_kt }
     import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
+    import from jaclang.compiler.passes.ecmascript.intent.detection { unwrap_ability_body }
 
     src = '''
 def test_eq -> int {
@@ -348,9 +350,9 @@ def test_eq -> int {
         found = False;
         for ability in mod.get_all_sub_nodes(uni.Ability) {
             if ability.name_ref and ability.name_ref.sym_name == "test_eq" {
-                ret = ability.body;
-                if isinstance(ret, uni.ImplDef) {
-                    for stmt in ret.body {
+                stmts = unwrap_ability_body(ability);
+                if stmts {
+                    for stmt in stmts {
                         if isinstance(stmt, uni.ReturnStmt) and stmt.expr {
                             found = True;
                             kt_node = jac_expr_to_kt(stmt.expr);
@@ -369,6 +371,7 @@ def test_eq -> int {
 test "jac_to_kotlin maps floor div" {
     import from jaclang.compiler.passes.compose.jac_to_kotlin { jac_expr_to_kt }
     import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
+    import from jaclang.compiler.passes.ecmascript.intent.detection { unwrap_ability_body }
     import jaclang.jac0core.unitree as uni;
 
     src = '''
@@ -384,9 +387,9 @@ def test_div -> int {
         found = False;
         for ability in mod.get_all_sub_nodes(uni.Ability) {
             if ability.name_ref and ability.name_ref.sym_name == "test_div" {
-                body = ability.body;
-                if isinstance(body, uni.ImplDef) {
-                    for stmt in body.body {
+                stmts = unwrap_ability_body(ability);
+                if stmts {
+                    for stmt in stmts {
                         if isinstance(stmt, uni.ReturnStmt) and stmt.expr {
                             found = True;
                             kt_node = jac_expr_to_kt(stmt.expr);

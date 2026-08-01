@@ -15,9 +15,32 @@ import from jaclang.compiler.passes.ecmascript.view_ir {
     ViewElement,
     HostTag
 }
-import from jaclang.compiler.passes.compose.compose_emit { ComposeEmit }
+import from jaclang.compiler.passes.compose.compose_emit {
+    ComposeEmit,
+    route_to_screen_name,
+    normalize_route_segment
+}
 import from pathlib { Path }
 import tempfile;
+
+test "route_to_screen_name produces valid Kotlin identifiers" {
+    assert route_to_screen_name("/") == "HomeScreen";
+    assert route_to_screen_name("/foo-bar") == "FooBarScreen";
+    assert route_to_screen_name("/user/:id") == "UserIdScreen";
+    assert normalize_route_segment("foo-bar") == "FooBar";
+}
+
+test "emit_jac_app dispatches using IntentRoute.screen_name" {
+    model = ComposeModule();
+    model.intent.package_name = "dev.jac.t";
+    model.intent.routes = [
+        IntentRoute(path="/foo-bar", screen_name="CustomFooScreen", component="app")
+    ];
+    code = ComposeEmit(model=model, out_dir=Path("/tmp"), dev=False).emit_jac_app();
+    assert "CustomFooScreen(" in code;
+    assert "FooBarScreen(" not in code;
+    assert '"/foo-bar"' in code;
+}
 
 test "dev emit_jac_app restores and persists the route" {
     model = ComposeModule();

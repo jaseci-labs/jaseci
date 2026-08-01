@@ -138,15 +138,19 @@ impl AndroidTarget._resolve_package_name(project_dir: Path) -> str {
 }
 
 impl AndroidTarget._resolve_type_check(project_dir: Path) -> bool {
-    # P0 #3: type checking is opt-in via [client.android] type_check = true.
-    # Defaults to false because the idiomatic 24.dp / x.len Kotlin-isms (which
-    # jac_to_kotlin lowers specially) are not valid Jac yet — Jac has no
-    # extension properties. Projects written in valid Jac can opt in to catch
-    # typo'd modifier names / wrong primitive args before Gradle.
-    if self._load_android_cfg(project_dir).get("type_check") {
+    # Type checking defaults ON for [client.android]. The idiomatic Kotlin-isms
+    # that once forced it off — 24.dp / 14.sp / xs.len extensions, Modifier
+    # chains, and the Arrangement/Alignment/Color const namespaces — are now
+    # taught to the checker (client-context synth surface: _install_compose_
+    # extensions / _install_compose_modifiers / _install_compose_consts), so
+    # valid Compose Jac type-checks clean and the checker earns its keep catching
+    # typo'd modifier names / const members / wrong primitive args before Gradle.
+    # Projects can still opt out with [client.android] type_check = false.
+    val = self._load_android_cfg(project_dir).get("type_check");
+    if val is None {
         return True;
     }
-    return False;
+    return bool(val);
 }
 
 impl AndroidTarget.setup(project_dir: Path) -> None {

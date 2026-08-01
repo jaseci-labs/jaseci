@@ -413,6 +413,396 @@ impl TypeEvaluator._install_synth_member(
     );
 }
 
+impl TypeEvaluator._install_compose_extensions -> None {
+    # Compose-dialect member extensions on builtin numerics/containers. These
+    # reopen the *prefetched builtin's own* shared symbol table and install the
+    # members there, so a literal receiver (`24.dp` — an int_class clone) resolves
+    # them: member lookup walks receiver.shared.mro and every literal clone shares
+    # `_shared` (clone_with_literal passes _shared=self.shared), so what we write
+    # here is visible to the clone. Compose lowers `.dp`/`.sp` to Kotlin unit
+    # extensions and `.len` to `.size`; nothing dispatches at runtime — this is a
+    # checker-only surface that lets the Kotlin idioms type-check.
+    if self.prefetch is None {
+        return;
+    }
+    synth_src = uni.Source('', '<compose-synth>');
+    foreign_any = types.AnyType(is_foreign=True);
+
+    dp_type: TypeBase = foreign_any;
+    dp_cls = self._get_type_from_module(self.js_globals_module, "Dp");
+    if isinstance(dp_cls, types.ClassType) {
+        dp_type = self._convert_to_instance(dp_cls);
+    }
+
+    for num_cls in (self.prefetch.int_class, self.prefetch.float_class) {
+        if num_cls is None {
+            continue;
+        }
+        scope = num_cls.shared.symbol_table;
+        self._install_synth_member(scope, synth_src, "dp", dp_type);
+        self._install_synth_member(scope, synth_src, "sp", foreign_any);
+    }
+
+    if self.prefetch.int_class and self.prefetch.list_class {
+        self._install_synth_member(
+            self.prefetch.list_class.shared.symbol_table,
+            synth_src,
+            "len",
+            self._convert_to_instance(self.prefetch.int_class)
+        );
+    }
+}
+
+impl TypeEvaluator._install_compose_widgets -> None {
+    # Ingest the bundled AndroidX metalava signatures into the client ambient
+    # scope: every @Composable UI method becomes a typed module-scope symbol so
+    # `Button(onClick=.., modifier=..)` type-checks as a call returning Composable.
+    # Installed into js_globals_module, so — like the other client globals — it
+    # only resolves under `expr.in_client_context()`; ordinary Jac never sees it.
+    # This replaces the hand-written compose_runtime.cl.jac / stub-gen `.cl.jac`
+    # output with types read straight from the upstream signature file.
+    if self.js_globals_module is None {
+        return;
+    }
+    path = self._COMPOSE_WIDGETS_FILE_PATH;
+    if not os.path.exists(path) {
+        return;
+    }
+    try {
+        with open(path, 'r', encoding='utf-8', errors='replace') as f {
+            text = f.read();
+        }
+    } except OSError {
+        return;
+    }
+    self._kotlin_synth_surface(parse_signature_text(text), self.js_globals_module);
+}
+
+impl TypeEvaluator._install_compose_modifiers -> None {
+    # Ingest the bundled AndroidX Modifier extension functions into the
+    # `ModifierChain` class, so `Modifier.padding(8.dp).fillMaxWidth().clickable(..)`
+    # type-checks and chains — each method returns a ModifierChain instance.
+    # This replaces the hand-transcribed ~12-method ModifierChain stub in
+    # js_globals.pyi with the full surface read straight from the signature file,
+    # tracking upstream Compose the same way _install_compose_widgets does.
+    if self.js_globals_module is None {
+        return;
+    }
+    mc = self._get_type_from_module(self.js_globals_module, "ModifierChain");
+    if not isinstance(mc, types.ClassType) {
+        return;
+    }
+    path = self._COMPOSE_MODIFIERS_FILE_PATH;
+    if not os.path.exists(path) {
+        return;
+    }
+    try {
+        with open(path, 'r', encoding='utf-8', errors='replace') as f {
+            text = f.read();
+        }
+    } except OSError {
+        return;
+    }
+    chain_inst = self._convert_to_instance(mc);
+    synth_src = uni.Source('', '<compose-modifiers>');
+    scope = mc.shared.symbol_table;
+    for sig in parse_modifier_text(text) {
+        self._install_synth_member(
+            scope, synth_src, sig.name,
+            self._compose_modifier_functype(sig, chain_inst)
+        );
+    }
+}
+
+impl TypeEvaluator._install_compose_consts -> None {
+    # Ingest the bundled Compose constant namespaces (Arrangement/Alignment/Color)
+    # into their `<Name>Namespace` classes in js_globals.pyi, so `Arrangement.Center`
+    # / `Alignment.CenterVertically` / `Color.Red` type-check and a typo is flagged
+    # under `[client.android] type_check = true`. Mirrors _install_compose_modifiers:
+    # members installed on the class symbol table, read live from a signature file.
+    if self.js_globals_module is None {
+        return;
+    }
+    path = self._COMPOSE_CONSTS_FILE_PATH;
+    if not os.path.exists(path) {
+        return;
+    }
+    try {
+        with open(path, 'r', encoding='utf-8', errors='replace') as f {
+            text = f.read();
+        }
+    } except OSError {
+        return;
+    }
+    synth_src = uni.Source('', '<compose-consts>');
+    for (ns, members) in parse_const_text(text).items() {
+        cls = self._get_type_from_module(self.js_globals_module, f"{ns}Namespace");
+        if not isinstance(cls, types.ClassType) {
+            continue;
+        }
+        scope = cls.shared.symbol_table;
+        for m in members {
+            self._install_synth_member(
+                scope, synth_src, m.name, self._map_kotlin_type(m.ptype)
+            );
+        }
+    }
+}
+
+impl TypeEvaluator._compose_modifier_functype(
+    sig: ComposeSig, chain_inst: TypeBase
+) -> types.FunctionType {
+    # A Modifier extension -> a bound method on ModifierChain. The leading
+    # is_self parameter is dropped on a bound call (`Modifier.foo(..)`), and the
+    # return is a ModifierChain instance so calls chain. Argument params carry
+    # defaults (every Compose modifier arg is optional in practice) and map their
+    # Kotlin types via the same _map_compose_param used for widget params.
+    parameters: list[types.Parameter] = [
+        types.Parameter(
+            name="self",
+            category=types.ParameterCategory.Positional,
+            param_type=None,
+            is_self=True,
+            param_kind=types.ParamKind.NORMAL
+        )
+    ];
+    for p in sig.params {
+        parameters.append(
+            types.Parameter(
+                name=p.name,
+                category=types.ParameterCategory.Positional,
+                param_type=self._map_compose_param(p),
+                has_default=True
+            )
+        );
+    }
+    return types.FunctionType(
+        func_name=sig.name, return_type=chain_inst, parameters=parameters
+    );
+}
+
+impl TypeEvaluator._is_compose_gated_member(sym: uni.Symbol) -> bool {
+    # True for a member installed by `_install_compose_extensions` (`.dp`/`.sp`/
+    # `.len`). These are Compose-dialect idioms and must only resolve inside a
+    # client codespace; the resolver gates on this so `16.dp` stays an
+    # unknown-member error in ordinary server/native Jac. Identified by the
+    # sentinel synth Source below — same tag `_install_compose_extensions` stamps.
+    if not sym.defn {
+        return False;
+    }
+    src = sym.defn[0].orig_src;
+    return src is not None and src.file_path == '<compose-synth>';
+}
+
+impl TypeEvaluator._compose_composable_instance -> TypeBase {
+    # The @Composable return type (declared in jac_builtins.pyi as a nominal
+    # class), as an instance — what every synthesized widget call yields.
+    c = self._get_type_from_module(self.jac_builtins_module, "Composable");
+    if isinstance(c, types.ClassType) {
+        return self._convert_to_instance(c);
+    }
+    return types.AnyType(is_foreign=True);
+}
+
+impl TypeEvaluator._map_compose_param(p: SigParam) -> TypeBase {
+    # SigParam.kind (from compose_stub_gen's metalava classifier) -> Jac type:
+    #   modifier -> ModifierChain instance   (chainable Compose modifier)
+    #   slot     -> () -> Composable          (a @Composable content lambda)
+    #   event    -> () -> None                (onClick / onValueChange handler)
+    #   value    -> the real Jac prim mapped from the param's Kotlin type
+    #              (SigParam.ptype), mirroring how the React `.d.ts` path maps
+    #              TS prims via _map_ts_type — so `Button(enabled="yes")` is a
+    #              Jac type error before Kotlin ever sees it. Non-primitive
+    #              Compose value types (Color/TextStyle/enums) fall back to
+    #              foreign-any: still name/arity-checked, just not deeply typed.
+    foreign_any = types.AnyType(is_foreign=True);
+    if p.kind == "modifier" {
+        mc = self._get_type_from_module(self.js_globals_module, "ModifierChain");
+        if isinstance(mc, types.ClassType) {
+            return self._convert_to_instance(mc);
+        }
+        return foreign_any;
+    }
+    if p.kind == "slot" {
+        return types.FunctionType(
+            func_name='',
+            return_type=self._compose_composable_instance(),
+            parameters=[]
+        );
+    }
+    if p.kind == "event" {
+        # onClick / onValueChange / onCheckedChange → a handler lambda whose
+        # argument types come from the Kotlin FunctionN<..> generic (parsed from
+        # SigParam.ptype), so `onValueChange=fn(x: str)` is caught where the
+        # widget passes a Float. Empty ptype (pre-type callers) → () -> None.
+        return self._map_kotlin_lambda(p.ptype);
+    }
+    return self._map_kotlin_type(p.ptype);
+}
+
+impl TypeEvaluator._map_kotlin_lambda(ktype: str) -> TypeBase {
+    # Map a Kotlin `kotlin.jvm.functions.FunctionN<A, B, .., kotlin.Unit>` type to
+    # a Jac FunctionType. The generic args are the lambda's parameter types
+    # followed by its return type; Compose event handlers always return Unit, so
+    # we drop the trailing arg and model the return as None. Each parameter type
+    # rides _map_kotlin_type (prims deeply typed, everything else foreign-any).
+    none_ret = self._convert_to_instance(self.get_none_type());
+    empty = types.FunctionType(func_name='', return_type=none_ret, parameters=[]);
+    t = ktype.strip();
+    lt = t.find("<");
+    if lt < 0 or not t.endswith(">") {
+        # No generic payload (bare Function0 or a non-lambda) → nullary handler.
+        return empty;
+    }
+    inner = t[lt + 1:len(t) - 1];
+    # Split the generic args on top-level commas (they nest inside `<..>` for
+    # generic argument types), then drop the trailing return type (Unit).
+    args: list[str] = [];
+    depth = 0;
+    cur = "";
+    for ch in inner {
+        if ch == '<' {
+            depth += 1;
+            cur += ch;
+        } elif ch == '>' {
+            depth -= 1;
+            cur += ch;
+        } elif ch == ',' and depth == 0 {
+            args.append(cur);
+            cur = "";
+        } else {
+            cur += ch;
+        }
+    }
+    if cur.strip() {
+        args.append(cur);
+    }
+    if len(args) <= 1 {
+        # Only the Unit return type is present → the handler takes no arguments.
+        return empty;
+    }
+    parameters: list[types.Parameter] = [];
+    i = 0;
+    for a in args[:len(args) - 1] {
+        at = a.strip();
+        # Kotlin variance markers (`? super T` / `? extends T`) are not part of
+        # the type token; strip them before mapping.
+        if at.startswith("? super ") {
+            at = at[8:].strip();
+        } elif at.startswith("? extends ") {
+            at = at[10:].strip();
+        }
+        parameters.append(
+            types.Parameter(
+                name=f"arg{i}",
+                category=types.ParameterCategory.Positional,
+                param_type=self._map_kotlin_type(at),
+                has_default=False
+            )
+        );
+        i += 1;
+    }
+    return types.FunctionType(func_name='', return_type=none_ret, parameters=parameters);
+}
+
+impl TypeEvaluator._map_kotlin_type(ktype: str) -> TypeBase {
+    # Map a metalava Kotlin/Java type string (as carried on SigParam.ptype) to a
+    # Jac type. Kotlin↔Jac analogue of _map_ts_type's PRIM arm. Only scalar value
+    # types are modelled — everything richer (Compose value classes, enums,
+    # collections) returns foreign-any, keeping the call name/arity-checked
+    # without over-claiming a type we cannot faithfully represent.
+    foreign_any = types.AnyType(is_foreign=True);
+    if self.prefetch is None {
+        return foreign_any;
+    }
+    t = ktype.strip();
+    # Drop generics (rare on value params) and any leading annotations
+    # (@Nullable / @IntRange(...)) so we compare on the bare type token.
+    lt = t.find("<");
+    if lt >= 0 {
+        t = t[:lt];
+    }
+    if " " in t {
+        t = t.rsplit(" ", 1)[-1];
+    }
+    # Reduce a fully-qualified name to its simple form (kotlin.String -> String).
+    if "." in t {
+        t = t.rsplit(".", 1)[-1];
+    }
+    t = t.strip();
+    # metalava emits Java primitive spellings for Kotlin scalars; long is used
+    # for Compose's ULong-backed Color, and CharSequence/char read as str.
+    prim = {
+        'boolean': self.prefetch.bool_class,
+        'Boolean': self.prefetch.bool_class,
+        'int': self.prefetch.int_class,
+        'Int': self.prefetch.int_class,
+        'long': self.prefetch.int_class,
+        'Long': self.prefetch.int_class,
+        'short': self.prefetch.int_class,
+        'byte': self.prefetch.int_class,
+        'float': self.prefetch.float_class,
+        'Float': self.prefetch.float_class,
+        'double': self.prefetch.float_class,
+        'Double': self.prefetch.float_class,
+        'String': self.prefetch.str_class,
+        'CharSequence': self.prefetch.str_class,
+        'char': self.prefetch.str_class,
+        'Char': self.prefetch.str_class,
+    }.get(t);
+    if prim is None {
+        return foreign_any;
+    }
+    return self._convert_to_instance(prim);
+}
+
+impl TypeEvaluator._compose_sig_to_functype(sig: ComposeSig) -> types.FunctionType {
+    # A whole @Composable fun -> a FunctionType, faithful to Kotlin's required-ness
+    # (metalava's absent `optional` marker, carried on SigParam.has_default). A
+    # required handler (Button.onClick), a required value (Slider.value / Text.text)
+    # and a required content slot (Button.content) all stay required, so omitting
+    # any of them is a Jac error — it was erased before (every param defaulted).
+    #
+    # The primary content — Text's `text`, or a widget's trailing content slot — is
+    # passed as *children* in JSX (`<Text>"Hi"</Text>`, `<Button>..</Button>`), not
+    # an attribute. The JSX prop validator (_validate_component_jsx_props) is now
+    # children-aware: it routes content-bearing children into that param, mirroring
+    # the emitter's Text->`text` / else->content-slot mapping, so the dominant JSX
+    # form still type-checks while a bare `<Text/>` or `Text(color=0)` that supplies
+    # neither children nor the required value is correctly flagged.
+    parameters: list[types.Parameter] = [];
+    for p in sig.params {
+        parameters.append(
+            types.Parameter(
+                name=p.name,
+                category=types.ParameterCategory.Positional,
+                param_type=self._map_compose_param(p),
+                has_default=p.has_default
+            )
+        );
+    }
+    return types.FunctionType(
+        func_name=sig.name,
+        return_type=self._compose_composable_instance(),
+        parameters=parameters
+    );
+}
+
+impl TypeEvaluator._kotlin_synth_surface(
+    sigs: list[ComposeSig], scope: uni.UniScopeNode
+) -> None {
+    # Install every composable as a module-scope symbol in `scope` (the client
+    # ambient globals), replacing the hand-written compose_runtime.cl.jac and the
+    # spliced stub-gen .cl.jac output with ingested types that track upstream
+    # AndroidX signature files.
+    synth_src = uni.Source('', '<compose-surface>');
+    for sig in sigs {
+        self._install_synth_member(
+            scope, synth_src, sig.name, self._compose_sig_to_functype(sig)
+        );
+    }
+}
+
 impl TypeEvaluator._synthesize_ts_decl_class(
     decls: dict[str, TsDecl], item_name: str
 ) -> (TypeBase | None) {

@@ -227,13 +227,29 @@ def _wrap_text_field_args(name: str, args: list[kt.KtNamedArg]) -> list[kt.KtNam
     }
     out: list[kt.KtNamedArg] = [];
     for a in args {
-        if a.name == "placeholder" {
+        # A composable placeholder is already lambda-wrapped by _slot_wrap; only
+        # the string form (placeholder={"Search"}) needs the string→Text lambda.
+        if a.name == "placeholder" and not isinstance(a.value, kt.KtLambda) {
             out.append(_named("placeholder", _placeholder_lambda(a.value)));
         } else {
             out.append(a);
         }
     }
     return out;
+}
+
+def _slot_wrap(value: kt.KtNode) -> kt.KtNode {
+    # A composable passed as an attribute value is a Compose content slot
+    # (topBar=, bottomBar=, confirmButton=, label=, leadingIcon=, …). Slots are
+    # `@Composable () -> Unit`, so the call must be wrapped in a lambda rather
+    # than emitted as a plain value argument. This is type-free: only JSX-element
+    # attribute values lower to KtComposableCall, and passing a composable as an
+    # attribute is unambiguously a slot. Generalizes the old per-widget
+    # placeholder/topBar special-casing to the whole open vocabulary.
+    if isinstance(value, kt.KtComposableCall) {
+        return kt.KtLambda(params=[], body=[value]);
+    }
+    return value;
 }
 
 impl ComposeNativeEmitter._emit_element(elem: ComposeElement) -> kt.KtNode {
@@ -263,7 +279,7 @@ impl ComposeNativeEmitter._emit_element(elem: ComposeElement) -> kt.KtNode {
             handler = _normalize_click_handler(attr.value);
             args.append(_named(attr.name, _as_click_lambda(handler, needs_coro)));
         } else {
-            args.append(_named(attr.name, attr.value));
+            args.append(_named(attr.name, _slot_wrap(attr.value)));
         }
     }
     if elem.children {

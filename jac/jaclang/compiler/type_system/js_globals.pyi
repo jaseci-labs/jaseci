@@ -722,27 +722,11 @@ class Dp:
     value: float
 
 class ModifierChain:
-    def fillMaxSize(self, fraction: float = ...) -> ModifierChain: ...
-    def fillMaxWidth(self, fraction: float = ...) -> ModifierChain: ...
-    def fillMaxHeight(self, fraction: float = ...) -> ModifierChain: ...
-    def wrapContentSize(self, align: object = ...) -> ModifierChain: ...
-    def width(self, w: Dp) -> ModifierChain: ...
-    def height(self, h: Dp) -> ModifierChain: ...
-    def size(self, s: Dp) -> ModifierChain: ...
-    def padding(
-        self,
-        all: object = ...,
-        horizontal: object = ...,
-        vertical: object = ...,
-        start: object = ...,
-        top: object = ...,
-        end: object = ...,
-        bottom: object = ...,
-    ) -> ModifierChain: ...
-    def clip(self, shape: object = ...) -> ModifierChain: ...
-    def background(self, color: object = ...) -> ModifierChain: ...
-    def border(self, width: Dp, color: object = ...) -> ModifierChain: ...
-    def clickable(self, enabled: bool = ..., onClick: object = ...) -> ModifierChain: ...
+    # The chainable Modifier surface. Methods are NOT hand-declared here — they
+    # are ingested from compose_modifiers.txt at TypeEvaluator init
+    # (_install_compose_modifiers), so `Modifier.padding(..).fillMaxWidth()`
+    # tracks the upstream AndroidX signatures instead of this curated subset.
+    ...
 
 class TypographyStyles:
     displayLarge: object
@@ -761,5 +745,26 @@ class TypographyStyles:
     labelMedium: object
     labelSmall: object
 
+class ArrangementNamespace:
+    # Constants (Center/Start/SpaceBetween/…) are NOT hand-declared — they are
+    # ingested from compose_consts.txt at TypeEvaluator init
+    # (_install_compose_consts), so `Arrangement.Center` type-checks and a typo
+    # is flagged, tracking the upstream AndroidX signatures.
+    ...
+
+class AlignmentNamespace:
+    # Constants (Center/CenterVertically/TopStart/…) ingested from
+    # compose_consts.txt at init (see ArrangementNamespace).
+    ...
+
+class ColorNamespace:
+    # Named colors (Red/Blue/White/…) ingested from compose_consts.txt at init.
+    # `Color(0xFF..)` — the ULong constructor — stays callable via __call__ so the
+    # numeric form keeps type-checking; a real value class is a later (A2) upgrade.
+    def __call__(self, argb: int) -> object: ...
+
 Modifier: ModifierChain
 Typography: TypographyStyles
+Arrangement: ArrangementNamespace
+Alignment: AlignmentNamespace
+Color: ColorNamespace

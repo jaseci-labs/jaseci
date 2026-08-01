@@ -88,7 +88,27 @@ impl TypeEvaluator._resolve_intrinsic_jsx_tag(part: uni.Name, tag_name: str) -> 
 impl TypeEvaluator._validate_jsx_props(
     expr: uni.JsxElement, expected_type: TypeBase | None = None
 ) -> None {
-    if not expr.name or not expr.attributes {
+    if not expr.name {
+        return;
+    }
+    # The parser stores a `<Tag ..>` opening marker and a `</Tag>` closing marker as
+    # separate JsxElement nodes inside the real element's `.kid` (parse_jsx_element).
+    # Both carry no children, and the opening one carries the attributes — so
+    # validating them would double-check attributes and, worse, spuriously flag a
+    # required content slot as "missing" (the children live only on the real node).
+    # A marker is a JsxElement whose parent is a JsxElement but which is absent from
+    # that parent's semantic `.children`; skip it and validate only the real node.
+    parent = expr.parent;
+    if isinstance(parent, uni.JsxElement) {
+        siblings = parent.children or [];
+        if not any([sib is expr for sib in siblings]) {
+            return;
+        }
+    }
+    # Proceed with either attributes or children: a component with only children
+    # (e.g. `<Text>"Hi"</Text>`) still needs its required params checked — children
+    # fill the primary content, but a missing required event must still be flagged.
+    if not expr.attributes and not expr.children {
         return;
     }
     first_part = expr.name.parts[0] if expr.name.parts else None;
@@ -247,11 +267,89 @@ impl TypeEvaluator._validate_component_jsx_props(
         }
     }
 
+    # Content-bearing JSX children fill the widget's primary-content param — Text's
+    # `text` or a widget's trailing content slot — which the emitter lowers as the
+    # trailing @Composable lambda / Text(text=..). That param is never an attribute,
+    # so treat it as satisfied when children are present (mirrors compose_native_emit).
+    children_target = self._compose_children_target(expr, component_name, param_map)
+        if self._returns_composable(func_type)
+        else None;
+
     for (pname, p) in param_map.items() {
+        if pname == children_target {
+            continue;
+        }
         if pname not in matched_params and not p.is_optional {
             self.emit_diag(E1102, expr, component=component_name, name=pname);
         }
     }
+}
+
+impl TypeEvaluator._compose_children_target(
+    expr: uni.JsxElement,
+    component_name: str,
+    param_map: dict[str, types.Parameter]
+) -> (str | None) {
+    # Which param this widget's JSX children fill, or None if there are no
+    # content-bearing children. Mirrors the emitter (compose_native_emit):
+    #   Text  -> the `text` value param (children become Text(text=..))
+    #   else  -> the trailing content slot (children become the trailing lambda,
+    #            which Kotlin binds to the last @Composable content-slot param)
+    if not self._jsx_has_content_children(expr) {
+        return None;
+    }
+    if component_name == "Text" {
+        return "text" if "text" in param_map else None;
+    }
+    target: (str | None) = None;
+    for (pname, p) in param_map.items() {
+        if self._is_compose_slot_param(p) {
+            target = pname;
+        }
+    }
+    return target;
+}
+
+impl TypeEvaluator._returns_composable(func_type: types.FunctionType) -> bool {
+    # A synthesized Compose widget is the only FunctionType that returns the
+    # nominal `Composable` type; gate children-awareness on that so React/intrinsic
+    # components (which never return Composable) keep their attribute-only checking.
+    rt = func_type.return_type;
+    if not isinstance(rt, types.ClassType) {
+        return False;
+    }
+    comp = self._get_type_from_module(self.jac_builtins_module, "Composable");
+    return isinstance(comp, types.ClassType) and rt.shared == comp.shared;
+}
+
+impl TypeEvaluator._is_compose_slot_param(p: types.Parameter) -> bool {
+    # A @Composable content slot is synthesized as a lambda returning a Composable
+    # (_map_compose_param); an event handler is a lambda returning None. Only the
+    # former is filled by children, so the return type is what distinguishes them.
+    if not isinstance(p.param_type, types.FunctionType) {
+        return False;
+    }
+    ret = p.param_type.return_type;
+    return ret is not None and not self.is_none_type(ret);
+}
+
+impl TypeEvaluator._jsx_has_content_children(expr: uni.JsxElement) -> bool {
+    # A nested element or an embedded expression is always content; raw JSX text is
+    # content only if it is not pure layout whitespace.
+    for child in (expr.children or []) {
+        if isinstance(child, uni.JsxElement) or isinstance(child, uni.JsxExpression) {
+            return True;
+        }
+        if isinstance(child, uni.JsxText) {
+            val = child.value.value
+                if isinstance(child.value, uni.Token)
+                else child.value;
+            if isinstance(val, str) and val.strip() {
+                return True;
+            }
+        }
+    }
+    return False;
 }
 
 impl TypeEvaluator._validate_intrinsic_jsx_props(
