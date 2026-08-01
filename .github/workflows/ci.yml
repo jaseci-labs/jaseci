@@ -728,15 +728,44 @@ jobs:
       - name: Set up jac (build the binary)
         uses: ./.github/actions/setup-jac
 
+      # KVM must be engaged or the emulator falls back to ~100x slower software
+      # CPU emulation, which alone causes the SystemUI ANRs. Surface it
+      # explicitly (warning only, never fatal) so a silent-software-emulation
+      # regression shows up in the log instead of looking like generic flakiness.
+      - name: Verify KVM acceleration
+        run: |
+          if [ -w /dev/kvm ]; then
+            echo "KVM present and writable (hardware acceleration engaged)"
+          else
+            echo "::warning::No usable /dev/kvm - emulator falls back to slow software CPU emulation, a prime SystemUI-ANR cause"
+            ls -l /dev/kvm 2>&1 || true
+          fi
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          [ -x "$sdk_root/emulator/emulator" ] && "$sdk_root/emulator/emulator" -accel-check || true
+
+      # Pre-build the host APK BEFORE booting the emulator so the heavy Gradle
+      # work (dependency resolution + first compile) does not contend with the
+      # running emulator's system_server. jac start --dev later reuses the warm
+      # Gradle cache for only an incremental rebuild during the emulator run.
+      - name: Pre-build host APK (warm Gradle before emulator boots)
+        working-directory: jac/examples/compose_android
+        env:
+          GRADLE_OPTS: -Dorg.gradle.daemon=false
+        run: |
+          jac build --client android --platform android
+          test -n "$(find apps/android/app/build/outputs/apk/debug -name '*.apk' -print -quit)"
+
       - name: On-device DexClassLoader + HMR e2e
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # Run the compileSdk-36 app on the mature, stable API 35 image (a
-          # targetSdk-36 app runs fine on it); the API 36 image was ANR-ing the
-          # emulator's system_server under CI resource pressure. Extra RAM keeps
-          # system_server responsive through the DexClassLoader + Compose startup.
+          # google_atd (Automated Test Device) image: Google's CI-stripped system
+          # image with no launcher / minimal SystemUI, which stops system_server
+          # from ANR-ing ("System UI isn't responding") under CI load. A
+          # targetSdk-36 app runs fine on the api-35 image, and the app launches
+          # JacDevHostActivity directly so it does not need the launcher. If
+          # google_atd is ever unavailable for api-35, fall back to api-34 google_atd.
           api-level: 35
-          target: google_apis
+          target: google_atd
           arch: x86_64
           ram-size: 4096M
           cores: 4
