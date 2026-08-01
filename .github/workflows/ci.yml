@@ -650,7 +650,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Scaffold emits compileSdk/targetSdk = 35, minSdk = 26.
+      # Scaffold emits compileSdk/targetSdk = 36, minSdk = 26.
       # setup-android@v3 misdetects the runner image's preinstalled
       # cmdline-tools/latest as "wrong version" and falls back to a
       # cmdline-tools/16.0 copy whose package repository is empty, so every
@@ -662,7 +662,7 @@ jobs:
           sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
           yes | "$sdkmanager" --licenses >/dev/null 2>&1 || true
-          "$sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
           echo "$sdk_root/platform-tools" >> "$GITHUB_PATH"
 
       - name: Set up jac (build the binary)
@@ -711,7 +711,7 @@ jobs:
           sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
           yes | "$sdkmanager" --licenses >/dev/null 2>&1 || true
-          "$sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
           echo "$sdk_root/platform-tools" >> "$GITHUB_PATH"
 
       - name: Set up jac (build the binary)
@@ -720,7 +720,7 @@ jobs:
       - name: On-device DexClassLoader + HMR e2e
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 36
           target: google_apis
           arch: x86_64
           disable-animations: true
