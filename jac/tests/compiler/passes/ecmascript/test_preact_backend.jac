@@ -46,12 +46,9 @@ def compile_fixture_with_backend(fixture_name: str, backend: object) -> str {
 test "react backend reports runtime symbols for reactive lowering" {
     backend = ReactBackend();
     init = es.Literal(value=0, raw="0");
-    assert backend.runtime_symbols(StateField(name="count", init_expr=init)) == [
-        "useState"
-    ];
-    assert backend.runtime_symbols(RefField(name="node", init_expr=init)) == [
-        "useRef"
-    ];
+    assert backend.runtime_symbols(StateField(name="count", init_expr=init))
+        == ["useState"];
+    assert backend.runtime_symbols(RefField(name="node", init_expr=init)) == ["useRef"];
     assert backend.runtime_symbols(
         Effect(body=[], deps=[], is_entry=True, is_async=False)
     )
@@ -66,18 +63,15 @@ test "react backend reports runtime symbols for reactive lowering" {
         awaiting_expr=None,
         except_exprs=[es.Identifier(name="onErr")]
     );
-    assert backend.runtime_symbols(with_except) == [
-        "JacAwaiting",
-        "JacClientErrorBoundary"
-    ];
+    assert backend.runtime_symbols(with_except)
+        == ["JacAwaiting", "JacClientErrorBoundary"];
 }
 
 test "preact backend inherits hook symbol names from react" {
     backend = PreactBackend();
     init = es.Literal(value=0, raw="0");
-    assert backend.runtime_symbols(StateField(name="count", init_expr=init)) == [
-        "useState"
-    ];
+    assert backend.runtime_symbols(StateField(name="count", init_expr=init))
+        == ["useState"];
     assert backend.runtime_symbols(
         Effect(body=[], deps=[], is_entry=True, is_async=False)
     )
@@ -172,18 +166,14 @@ test "preact runtime_symbols for async_boundary with except arms returns both" {
         awaiting_expr=None,
         except_exprs=[es.Identifier(name="onErr")]
     );
-    assert backend.runtime_symbols(with_except) == [
-        "JacAwaiting",
-        "JacClientErrorBoundary"
-    ];
+    assert backend.runtime_symbols(with_except)
+        == ["JacAwaiting", "JacClientErrorBoundary"];
 }
 
 test "preact runtime_symbols inherits useRef from react for refs" {
     backend = PreactBackend();
     init = es.Literal(value=0, raw="0");
-    assert backend.runtime_symbols(RefField(name="node", init_expr=init)) == [
-        "useRef"
-    ];
+    assert backend.runtime_symbols(RefField(name="node", init_expr=init)) == ["useRef"];
 }
 
 test "react client runtime shim imports no solid ecosystem package" {

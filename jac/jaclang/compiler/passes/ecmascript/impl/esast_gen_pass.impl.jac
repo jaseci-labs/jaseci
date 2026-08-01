@@ -9,7 +9,9 @@ import from jaclang.compiler.passes.ecmascript.intent.es_leaves {
     IntentExpr,
     IntentStmt
 }
-import from jaclang.compiler.passes.ecmascript.intent.leaf_converter { EsastLeafConverter }
+import from jaclang.compiler.passes.ecmascript.intent.leaf_converter {
+    EsastLeafConverter
+}
 import from jaclang.compiler.passes.ecmascript.intent.es_adapter { EsIntentAdapter }
 import from jaclang.compiler.passes.ecmascript.intent.session { IntentSession }
 import from jaclang.compiler.passes.ecmascript.intent.detection {
@@ -47,24 +49,24 @@ impl EsastGenPass._ensure_backend -> None {
     if self.backend is not None {
         return;
     }
-    # Select the framework backend through the single client-surface resolver so the
-    # ES pass and the type checker cannot disagree: an active target's
-    # CompileOptions.client_framework override wins, and only when there is no
-    # override do we fall back to the per-module disk config.
+
     opts = self.prog._compile_options if self.prog else None;
     override = (getattr(opts, "client_framework", "") or "") if opts else "";
     import from jaclang.compiler.passes.ecmascript.backends.registry {
-        resolve_active_backend, resolve_framework_backend
+        resolve_active_backend,
+        resolve_framework_backend
     }
     try {
         if override {
             import from jaclang.project.client_kind { resolve_client_surface }
-            mod_path = self.ir_in.loc.mod_path if (self.ir_in and self.ir_in.loc) else "";
+            mod_path = self.ir_in.loc.mod_path
+                if (self.ir_in and self.ir_in.loc)
+                else "";
             surface = resolve_client_surface(
                 mod_path,
                 override,
                 getattr(opts, "project_kind", "web") or "web",
-                getattr(opts, "project_root", None),
+                opts?.project_root,
             );
             self.backend = resolve_framework_backend(surface.framework);
         } else {
@@ -72,9 +74,7 @@ impl EsastGenPass._ensure_backend -> None {
         }
     } except ValueError {
         import from jaclang.jac0core.diagnostics { E5081 }
-        import from jaclang.compiler.passes.ecmascript.backends.react {
-            ReactBackend
-        }
+        import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
         self.emit(E5081, framework=override);
         self.backend = ReactBackend();
     }
@@ -3015,7 +3015,8 @@ impl EsastGenPass.exit_try_stmt(nd: uni.TryStmt) -> None {
             try_expr=try_iife, awaiting_expr=awaiting_iife, except_exprs=except_iifes
         );
         wrapper = self.sync_loc(
-            self.intent_session.adapter.lower_async_boundary(nd, async_boundary), jac_node=nd
+            self.intent_session.adapter.lower_async_boundary(nd, async_boundary),
+            jac_node=nd
         );
         outer = self._cur_view_acc();
         if outer is not None {
@@ -3490,7 +3491,9 @@ impl EsastGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
 
     if nd.dynamic_tag is not None {
         self._ensure_backend();
-        if self.backend is not None and self.backend.import_source("Dynamic") != self.backend.runtime_module() {
+        if self.backend is not None
+            and self.backend.import_source("Dynamic")
+                != self.backend.runtime_module() {
             self._inject_runtime_import("Dynamic", nd);
         }
     }

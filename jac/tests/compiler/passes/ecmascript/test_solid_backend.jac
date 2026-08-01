@@ -74,14 +74,14 @@ test "resolve_active_backend reads solid from project config" {
 test "solid reports signals runtime symbols for reactive lowering" {
     backend = SolidBackend();
     init = es.Literal(value=0, raw="0");
-    assert backend.runtime_symbols(StateField(name="count", init_expr=init)) == [
-        "createSignal"
-    ];
+    assert backend.runtime_symbols(StateField(name="count", init_expr=init))
+        == ["createSignal"];
     # Refs are deferred on Solid — a `let` binding needs no import.
     assert backend.runtime_symbols(RefField(name="node", init_expr=init)) == [];
     assert backend.runtime_symbols(
         Effect(body=[], deps=[], is_entry=True, is_async=False)
-    ) == ["createEffect"];
+    )
+        == ["createEffect"];
     assert backend.runtime_symbols(
         Effect(body=[], deps=[], is_entry=False, is_async=False)
     )
