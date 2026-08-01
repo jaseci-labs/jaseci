@@ -654,8 +654,6 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # Pin the newest cmdline-tools so sdkmanager resolves current packages.
-          cmdline-tools-version: latest
           packages: |
             platforms;android-35
             build-tools;35.0.0
@@ -698,8 +696,6 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # Pin the newest cmdline-tools so sdkmanager resolves current packages.
-          cmdline-tools-version: latest
           packages: |
             platforms;android-35
             build-tools;35.0.0
