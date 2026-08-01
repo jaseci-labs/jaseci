@@ -651,12 +651,19 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       # Scaffold emits compileSdk/targetSdk = 35, minSdk = 26.
+      # setup-android@v3 misdetects the runner image's preinstalled
+      # cmdline-tools/latest as "wrong version" and falls back to a
+      # cmdline-tools/16.0 copy whose package repository is empty, so every
+      # `platforms;android-*` install fails with "Failed to find package".
+      # Drive the working preinstalled sdkmanager directly instead.
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platforms;android-35
-            build-tools;35.0.0
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+          echo "$sdk_root/platform-tools" >> "$GITHUB_PATH"
 
       - name: Set up jac (build the binary)
         uses: ./.github/actions/setup-jac
@@ -693,12 +700,19 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # setup-android@v3 misdetects the runner image's preinstalled
+      # cmdline-tools/latest as "wrong version" and falls back to a
+      # cmdline-tools/16.0 copy whose package repository is empty, so every
+      # `platforms;android-*` install fails with "Failed to find package".
+      # Drive the working preinstalled sdkmanager directly instead.
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platforms;android-35
-            build-tools;35.0.0
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+          echo "$sdk_root/platform-tools" >> "$GITHUB_PATH"
 
       - name: Set up jac (build the binary)
         uses: ./.github/actions/setup-jac
