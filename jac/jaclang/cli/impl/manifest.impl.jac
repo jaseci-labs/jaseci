@@ -210,11 +210,11 @@ def _command_routes -> list[CommandMeta] {
                     short='',
                     choices=[
                         'web',
+                        'desktop',
+                        'cef',
                         'pwa',
                         'static',
                         'mobile',
-                        'desktop',
-                        'cef',
                         'react-native',
                         'android'
                     ]
@@ -1912,11 +1912,11 @@ def _command_routes -> list[CommandMeta] {
                     short='',
                     choices=[
                         'web',
+                        'desktop',
+                        'cef',
                         'pwa',
                         'static',
                         'mobile',
-                        'desktop',
-                        'cef',
                         'react-native',
                         'android'
                     ]
