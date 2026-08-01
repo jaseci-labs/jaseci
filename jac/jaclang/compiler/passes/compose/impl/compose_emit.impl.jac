@@ -1,4 +1,3 @@
-"""ComposeEmit — ComposeModule → Gradle Android project on disk."""
 import from pathlib { Path }
 import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
@@ -40,7 +39,11 @@ impl route_to_screen_name(path: str) -> str {
     if not path or path == "/" {
         return "HomeScreen";
     }
-    parts = [p for p in path.strip("/").split("/") if p];
+    parts = [
+        p
+        for p in path.strip("/").split("/")
+        if p
+    ];
     if not parts {
         return "HomeScreen";
     }
@@ -58,16 +61,6 @@ impl component_screen_name(comp_name: str) -> str {
 }
 
 def _screen_imports -> str {
-    # Open-vocabulary import surface. The emitter lowers any capitalized tag to
-    # a near-identity composable call (compose_native_emit._emit_element), so the
-    # imports must cover the whole standard Compose surface, not a hand-listed
-    # subset — otherwise off-list widgets (Slider, AlertDialog, DropdownMenu, …)
-    # emit fine but fail to compile. Wildcarding the Compose packages makes the
-    # entire Material3 + foundation vocabulary resolve with zero per-widget work.
-    #
-    # Safe against Kotlin star-import collisions: we pull material3 only (never
-    # androidx.compose.material, its twin), and the foundation/ui subpackages
-    # below have disjoint simple-name sets. Non-Compose symbols stay explicit.
     return """import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -89,12 +82,7 @@ import kotlinx.coroutines.launch
 }
 
 def _emit_kotlin_imports(model: ComposeModule) -> str {
-    # User Jac imports of JVM/AndroidX/third-party packages, translated 1:1 to
-    # Kotlin imports (collected by ComposeGenPass.exit_import). This is what makes
-    # library composables first-class: `import from com.acme.ui { FancyButton }`
-    # in Jac becomes `import com.acme.ui.FancyButton` here, so `<FancyButton/>`
-    # lowers to a resolvable call instead of needing `<Raw kotlin=..>`.
-    lines = getattr(model, "kotlin_imports", None) or [];
+    lines = model?.kotlin_imports or [];
     if not lines {
         return "";
     }
@@ -140,7 +128,9 @@ impl ComposeEmit.emit_jac_app -> str {
     for path in paths {
         screen = path_to_screen.get(path) or route_to_screen_name(path);
         when_arms.append(
-            f'                    "{escape_kotlin(path)}" -> Box(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {{ '
+            f'                    "{escape_kotlin(
+                path
+            )}" -> Box(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {{ '
             f"{screen}(viewportWidth, scrollState, sectionRegistry, ::navigate, ::goBack, ::openExternal) }}"
         );
     }
@@ -151,11 +141,6 @@ impl ComposeEmit.emit_jac_app -> str {
     );
     arms = "\n".join(when_arms);
 
-    # HMR route persistence (dev only): survive a DexClassLoader swap by restoring
-    # the last route from SharedPreferences. It lives entirely in the hot module
-    # — SharedPreferences is app storage, so it persists across dex reloads
-    # (unlike a classloader-bound static, which a new classloader would reset).
-    # Release keeps the simple startPath path.
     if self.dev {
         context_init = (
             "    val context = LocalContext.current\n"
@@ -248,11 +233,6 @@ fun {name}(viewportWidth: Dp, scrollState: ScrollState, sectionRegistry: JacSect
 }
 
 def _emit_composable_fun(name: str, prelude: str, body: str) -> str {
-    # A reusable, non-screen composable (`def:pub Card -> Composable`). Emitted
-    # under its own name with no screen plumbing so a `<Card/>` reference — which
-    # the native emitter lowers to the near-identity call `Card()` — resolves to a
-    # real @Composable. This is what makes user composables first-class alongside
-    # the standard Material vocabulary, instead of forcing a `<Raw kotlin=..>`.
     return f"""
 @Composable
 fun {name}() {{
@@ -272,7 +252,9 @@ def _merge_prelude(react_prelude: str, needs_scope: bool, body: str = "") -> str
 }
 
 def _emit_screen_body(
-    comp: (IntentComponent | None), native_em: ComposeNativeEmitter, model: ComposeModule
+    comp: (IntentComponent | None),
+    native_em: ComposeNativeEmitter,
+    model: ComposeModule
 ) -> str {
     if comp is None {
         return "    Column(modifier = Modifier.fillMaxSize()) {\n    }";
@@ -281,9 +263,7 @@ def _emit_screen_body(
     if view is not None {
         return native_em.emit_view(view);
     }
-    # P0 #2: the Compose framework has a single code path — native compose_view.
-    # DOM/Tailwind IR (comp.view) is explicitly unsupported; record a diagnostic
-    # so the fail-fast gate rejects it instead of silently emitting a lossy stub.
+
     if comp.view is not None {
         model.intent.add_diagnostic(
             f"component '{comp.name}' uses DOM IR (view), which the Compose "
@@ -314,18 +294,12 @@ impl ComposeEmit.emit_screens -> str {
         }
         prelude = react_em.emit_prelude(comp) if comp else "";
         body = _emit_screen_body(comp, native_em, self.model);
-        prelude = _merge_prelude(
-            prelude,
-            native_em.needs_coroutine_scope,
-            body
-        );
+        prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
         screens.append(_emit_screen_fun(sname, prelude, body));
     }
 
     for (cname, comp) in self.model.intent.components.items() {
-        sname: (str | None) = (
-            component_screen_name(cname) if comp.is_screen else None
-        );
+        sname: (str | None) = component_screen_name(cname) if comp.is_screen else None;
         if comp.route_path {
             sname = route_to_screen_name(comp.route_path);
         } elif comp.is_screen {
@@ -339,32 +313,25 @@ impl ComposeEmit.emit_screens -> str {
         seen.add(sname);
         prelude = react_em.emit_prelude(comp);
         body = _emit_screen_body(comp, native_em, self.model);
-        prelude = _merge_prelude(
-            prelude,
-            native_em.needs_coroutine_scope,
-            body
-        );
+        prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
         screens.append(_emit_screen_fun(sname, prelude, body));
     }
 
     if not screens {
         for (cname, comp) in self.model.intent.components.items() {
-            # Only native compose_view is a valid screen source now (P0 #2).
             if self.model.compose_view_for(cname) is None {
                 continue;
             }
-            sname = "HomeScreen" if cname in ("app", "__root__", "App") else component_screen_name(cname);
+            sname = "HomeScreen"
+                if cname in ("app", "__root__", "App")
+                else component_screen_name(cname);
             if sname in seen {
                 continue;
             }
             seen.add(sname);
             prelude = react_em.emit_prelude(comp);
             body = _emit_screen_body(comp, native_em, self.model);
-            prelude = _merge_prelude(
-                prelude,
-                native_em.needs_coroutine_scope,
-                body
-            );
+            prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
             screens.append(_emit_screen_fun(sname, prelude, body));
         }
     }
@@ -381,10 +348,6 @@ impl ComposeEmit.emit_screens -> str {
         );
     }
 
-    # Reusable (non-screen, non-routed) composables. Collected by ComposeGenPass
-    # like screens but previously dropped; emit each as a plain `@Composable fun
-    # Name()` so a `<Name/>` reference resolves. Kept out of the `if not screens`
-    # gate above so a module of only reusable pieces still gets a HomeScreen.
     reusable: list[str] = [];
     for (cname, comp) in self.model.intent.components.items() {
         if comp.is_screen or comp.route_path {
@@ -426,10 +389,6 @@ impl ComposeEmit.emit_screens -> str {
 }
 
 def _prune_stale_kotlin(out: Path, java_root: str, keep: set[str]) -> int {
-    # Delete generated .kt files under the package dir that this build no
-    # longer emits. Scoped to the generated package directory only — never
-    # touches Gradle build outputs, the wrapper, or resources. Returns the
-    # number of files removed.
     pkg_dir = out / java_root;
     if not pkg_dir.is_dir() {
         return 0;
@@ -484,18 +443,14 @@ impl ComposeEmit.write -> list[Path] {
     pkg_path = package_to_path(self.model.intent.package_name);
     base_root = f"app/src/main/java/{pkg_path}";
     hot_root = f"hot/src/main/java/{pkg_path}";
-    # In dev mode the screen/RPC sources live in the :hot module so they can be
-    # dexed separately and DexClassLoader-swapped; in release they join the base.
+
     screens_root = hot_root if self.dev else base_root;
-    # Emit the screen/RPC sources first — this runs every lowering pass and
-    # populates self.model.intent.diagnostics (native view builder, jac_to_kotlin, …).
+
     screens_src = self.emit_screens();
     client_src = emit_jac_client(
         self.model.intent.package_name, self.model.intent.interop_manifest
     );
-    # P0 #1 fail-fast gate: any diagnostic means the generated Kotlin would be
-    # broken (unsupported construct, DOM IR, …). Abort before writing the
-    # project so Gradle never assembles a broken / empty-screen APK.
+
     if self.model.intent.diagnostics {
         try {
             import from jaclang.cli.console { console }
@@ -520,11 +475,7 @@ impl ComposeEmit.write -> list[Path] {
     for (rel, content) in files.items() {
         path = out / rel;
         path.parent.mkdir(parents=True, exist_ok=True);
-        # Content-aware emit: if an identical file already exists, leave it
-        # untouched so its mtime is stable. Gradle's build cache and Kotlin's
-        # incremental compiler then skip it — the gradle-cache win. Only .kt
-        # and .kts/.xml/.properties inputs benefit from this, but comparing is
-        # cheap and harmless for all.
+
         if path.is_file() {
             try {
                 if path.read_text(encoding="utf-8") == content {
@@ -540,15 +491,11 @@ impl ComposeEmit.write -> list[Path] {
         written.append(path);
     }
 
-    # Prune stale generated Kotlin sources we no longer emit, so Gradle never
-    # sees orphan .kt files (which would force a full recompile / fail).
     keep = set(files.keys());
     pruned = _prune_stale_kotlin(out, base_root, keep);
     if self.dev {
         pruned += _prune_stale_kotlin(out, hot_root, keep);
     } else {
-        # Release builds don't use the :hot module — remove an orphan hot/ dir
-        # left from a prior `jac dev` so Gradle never sees a ghost module.
         orphan_hot = out / "hot";
         if orphan_hot.is_dir() {
             import shutil;
@@ -563,7 +510,6 @@ impl ComposeEmit.write -> list[Path] {
     try {
         ensure_gradle_wrapper(out);
     } except Exception as e {
-        # Wrapper generation is best-effort; AndroidTarget.build may retry.
         ;
     }
 
@@ -572,8 +518,8 @@ impl ComposeEmit.write -> list[Path] {
         if reused {
             console.print(
                 f"  ✔ Wrote {len(written) - reused}, reused {reused} unchanged"
-                + (f", pruned {pruned} stale" if pruned else "")
-                + " (gradle cache)",
+                    + (f", pruned {pruned} stale" if pruned else "")
+                    + " (gradle cache)",
                 style="muted"
             );
         }

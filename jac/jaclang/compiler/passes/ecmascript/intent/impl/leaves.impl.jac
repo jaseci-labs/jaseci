@@ -1,4 +1,3 @@
-"""Neutral intent leaf helpers."""
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.compose.kotlin_ast { KtNode }
 import from jaclang.compiler.passes.ecmascript.intent.semantics { IntentLeaf }
@@ -53,9 +52,7 @@ impl intent_expr_to_src(expr: (IntentExpr | None)) -> str {
     return kt_to_source(kt_node).strip();
 }
 
-impl intent_stmts_to_src(
-    stmts: list[IntentStmt], indent: str = "        "
-) -> str {
+impl intent_stmts_to_src(stmts: list[IntentStmt], indent: str = "        ") -> str {
     lines: list[str] = [];
     for stmt in stmts {
         kt_node = intent_stmt_to_kt(stmt);

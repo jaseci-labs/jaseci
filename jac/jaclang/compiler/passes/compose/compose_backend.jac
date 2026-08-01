@@ -1,4 +1,3 @@
-"""view_ir → Compose Kotlin source (used by compose_emit)."""
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
 import type from jaclang.compiler.passes.ecmascript.view_ir { ViewElement }
 

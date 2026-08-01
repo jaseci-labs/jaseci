@@ -17,9 +17,7 @@ test "list_adb_devices parses connected device lines" {
             stderr: str = "";
     }
 
-    with unittest.mock.patch(
-        "subprocess.run", return_value=_Res()
-    ) as _ {
+    with unittest.mock.patch("subprocess.run", return_value=_Res()) as _ {
         devices = list_adb_devices("/fake/adb");
     }
     assert devices == ["emulator-5554"];
@@ -82,9 +80,8 @@ test "ensure_adb_device starts the requested avd when none is connected" {
         adb = ensure_adb_device("Small_Phone");
     }
     assert adb == "/bin/adb";
-    assert popen_cmds == [
-        ["/sdk/emulator/emulator", "-avd", "Small_Phone", "-no-snapshot-load"]
-    ];
+    assert popen_cmds
+        == [["/sdk/emulator/emulator", "-avd", "Small_Phone", "-no-snapshot-load"]];
     assert ["/bin/adb", "wait-for-device"] in run_cmds;
     assert ["/bin/adb", "shell", "getprop", "sys.boot_completed"] in run_cmds;
 }
@@ -93,7 +90,7 @@ test "ensure_adb_device raises when adb and emulator are unavailable" {
     with unittest.mock.patch("shutil.which", return_value=None) as _ {
         try {
             ensure_adb_device();
-            assert False, "expected RuntimeError";
+            assert False , "expected RuntimeError";
         } except RuntimeError as e {
             assert "adb not found" in str(e).lower();
         }

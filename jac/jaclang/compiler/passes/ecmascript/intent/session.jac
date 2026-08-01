@@ -1,4 +1,3 @@
-"""IntentSession — shared detection walk state with target adapter lowering."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.ecmascript.intent.collector { IntentCollector }
 import from jaclang.compiler.passes.ecmascript.intent.detection { ArchHasScanResult }
@@ -34,6 +33,7 @@ obj IntentSession {
     def lower_state_update(
         nd: uni.Assignment, update: StateUpdate
     ) -> (IntentLeaf | None);
+
     def record_and_lower_effect(nd: uni.Ability) -> list[IntentLeaf];
     def _sync_converter_reactive_vars -> None;
 }

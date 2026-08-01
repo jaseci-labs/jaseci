@@ -27,7 +27,9 @@ def resolve_framework_backend(framework: str) -> FrameworkBackend {
         return backend;
     }
     if framework == "compose" {
-        import from jaclang.compiler.passes.ecmascript.backends.compose { ComposeBackend }
+        import from jaclang.compiler.passes.ecmascript.backends.compose {
+            ComposeBackend
+        }
         backend = ComposeBackend();
         _BACKENDS["compose"] = backend;
         return backend;

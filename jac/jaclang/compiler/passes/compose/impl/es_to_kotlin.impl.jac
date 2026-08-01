@@ -1,34 +1,29 @@
-"""estree → kotlin_ast lowering."""
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 
-glob _BINARY_INFIX_FUN: set[str] = {'and', 'or', 'xor', 'shl', 'shr'};
-
-glob _BINARY_OP_MAP: dict[str, str] = {
-    '===': '==',
-    '!==': '!=',
-    '==': '==',
-    '!=': '!=',
-    '<': '<',
-    '>': '>',
-    '<=': '<=',
-    '>=': '>=',
-    '+': '+',
-    '-': '-',
-    '*': '*',
-    '/': '/',
-    '%': '%',
-    '&': 'and',
-    '|': 'or',
-    '^': 'xor',
-    '<<': 'shl',
-    '>>': 'shr',
-    'in': 'in'
-};
-
-glob _SUPPORTED_AUG_OPS: set[str] = {
-    '=', '+=', '-=', '*=', '/=', '%='
-};
+glob _BINARY_INFIX_FUN: set[str] = {'and', 'or', 'xor', 'shl', 'shr'},
+     _BINARY_OP_MAP: dict[str, str] = {
+         '===': '==',
+         '!==': '!=',
+         '==': '==',
+         '!=': '!=',
+         '<': '<',
+         '>': '>',
+         '<=': '<=',
+         '>=': '>=',
+         '+': '+',
+         '-': '-',
+         '*': '*',
+         '/': '/',
+         '%': '%',
+         '&': 'and',
+         '|': 'or',
+         '^': 'xor',
+         '<<': 'shl',
+         '>>': 'shr',
+         'in': 'in'
+     },
+     _SUPPORTED_AUG_OPS: set[str] = {'=', '+=', '-=', '*=', '/=', '%='};
 
 def _unsupported_kt(message: str) -> kt.KtRaw {
     return kt.KtRaw(code=f"/* {message} */");
@@ -82,9 +77,7 @@ impl EsToKotlin._convert_call_args(
     return args;
 }
 
-impl EsToKotlin._convert_function_params(
-    params: list[es.Pattern]
-) -> list[kt.KtParam] {
+impl EsToKotlin._convert_function_params(params: list[es.Pattern]) -> list[kt.KtParam] {
     result: list[kt.KtParam] = [];
     for param in params {
         name = _pattern_name(param);
@@ -106,8 +99,7 @@ impl EsToKotlin._convert_lambda_params(params: list[es.Pattern]) -> list[str] {
 }
 
 impl EsToKotlin._convert_function_body(
-    body: (es.BlockStatement | es.Expression | None),
-    expression: bool = False
+    body: (es.BlockStatement | es.Expression | None), expression: bool = False
 ) -> (list[kt.KtNode], (kt.KtNode | None)) {
     if body is None {
         return ([], None);
@@ -156,15 +148,14 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
         obj_expr = self.convert_expr(nd.object);
         prop = self.convert_expr(nd.property);
         return kt.KtMemberAccess(
-            object=obj_expr,
-            property=prop,
-            computed=nd.computed,
-            safe=nd.optional
+            object=obj_expr, property=prop, computed=nd.computed, safe=nd.optional
         );
     }
     if isinstance(nd, es.CallExpression) {
-        if (isinstance(nd.callee, es.Identifier)
-            and nd.callee.name in ("__jacSpawn", "jacSpawn")) {
+        if (
+            isinstance(nd.callee, es.Identifier)
+            and nd.callee.name in ("__jacSpawn", "jacSpawn")
+        ) {
             spawn_kt = self._convert_jac_spawn(nd);
             if spawn_kt is not None {
                 return spawn_kt;
@@ -225,8 +216,7 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
         if nd.operator == '~' {
             arg = self.convert_expr(nd.argument);
             inv_access = kt.KtMemberAccess(
-                object=arg,
-                property=kt.KtIdentifier(name='inv')
+                object=arg, property=kt.KtIdentifier(name='inv')
             );
             return kt.KtCall(callee=inv_access, args=[]);
         }
@@ -238,9 +228,7 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
     }
     if isinstance(nd, es.AssignmentExpression) {
         if nd.operator not in _SUPPORTED_AUG_OPS {
-            return _unsupported_kt(
-                f"unsupported assignment operator {nd.operator}"
-            );
+            return _unsupported_kt(f"unsupported assignment operator {nd.operator}");
         }
         return kt.KtAssignment(
             operator=nd.operator,
@@ -260,13 +248,10 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
             if isinstance(el, es.SpreadElement) {
                 spread_arg = self.convert_expr(el.argument);
                 to_typed = kt.KtMemberAccess(
-                    object=spread_arg,
-                    property=kt.KtIdentifier(name='toTypedArray')
+                    object=spread_arg, property=kt.KtIdentifier(name='toTypedArray')
                 );
                 elements.append(
-                    kt.KtSpread(
-                        argument=kt.KtCall(callee=to_typed, args=[])
-                    )
+                    kt.KtSpread(argument=kt.KtCall(callee=to_typed, args=[]))
                 );
             } else {
                 converted = self.convert_expr(el);
@@ -306,20 +291,12 @@ impl EsToKotlin.convert_expr(nd: (es.Expression | None)) -> (kt.KtNode | None) {
         (body_stmts, expr_body) = self._convert_function_body(
             nd.body, expression=nd.expression
         );
-        return kt.KtLambda(
-            params=params,
-            body=body_stmts,
-            expression_body=expr_body
-        );
+        return kt.KtLambda(params=params, body=body_stmts, expression_body=expr_body);
     }
     if isinstance(nd, es.FunctionExpression) {
         params = self._convert_lambda_params(nd.params);
         (body_stmts, expr_body) = self._convert_function_body(nd.body);
-        return kt.KtLambda(
-            params=params,
-            body=body_stmts,
-            expression_body=expr_body
-        );
+        return kt.KtLambda(params=params, body=body_stmts, expression_body=expr_body);
     }
     if isinstance(nd, es.JsxElement) or isinstance(nd, es.JsxFragment) {
         return _unsupported_kt('jsx unsupported in es_to_kotlin');
@@ -368,17 +345,13 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
         test_kt = self.convert_expr(nd.test);
         consequent = self._stmt_to_nodes(nd.consequent);
         alternate = self._stmt_to_nodes(nd.alternate);
-        # Flatten `if (true) { ... }` from rewritten _jac.exc.matches.
+
         if isinstance(test_kt, kt.KtLiteral) and test_kt.value is True {
             if not alternate {
                 return kt.KtBlock(body=consequent);
             }
         }
-        return kt.KtIf(
-            test=test_kt,
-            consequent=consequent,
-            alternate=alternate
-        );
+        return kt.KtIf(test=test_kt, consequent=consequent, alternate=alternate);
     }
     if isinstance(nd, es.ForOfStatement) {
         var_name = '';
@@ -397,8 +370,7 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
     }
     if isinstance(nd, es.WhileStatement) {
         return kt.KtWhile(
-            test=self.convert_expr(nd.test),
-            body=self._stmt_to_nodes(nd.body)
+            test=self.convert_expr(nd.test), body=self._stmt_to_nodes(nd.body)
         );
     }
     if isinstance(nd, es.ForStatement) {
@@ -427,20 +399,12 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
                 while_body.append(kt.KtExprStmt(expression=update_expr));
             }
         }
-        block_body.append(
-            kt.KtWhile(
-                test=self.convert_expr(nd.test),
-                body=while_body
-            )
-        );
+        block_body.append(kt.KtWhile(test=self.convert_expr(nd.test), body=while_body));
         return kt.KtBlock(body=block_body);
     }
     if isinstance(nd, es.ReturnStatement) {
         label: (str | None) = None;
-        return kt.KtReturn(
-            argument=self.convert_expr(nd.argument),
-            label=label
-        );
+        return kt.KtReturn(argument=self.convert_expr(nd.argument), label=label);
     }
     if isinstance(nd, es.TryStatement) {
         try_body: list[kt.KtNode] = [];
@@ -485,16 +449,10 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
                 test = self.convert_expr(case.test);
             }
             entries.append(
-                kt.KtWhenEntry(
-                    test=test,
-                    body=self.convert_stmts(case.consequent)
-                )
+                kt.KtWhenEntry(test=test, body=self.convert_stmts(case.consequent))
             );
         }
-        return kt.KtWhen(
-            subject=self.convert_expr(nd.discriminant),
-            entries=entries
-        );
+        return kt.KtWhen(subject=self.convert_expr(nd.discriminant), entries=entries);
     }
     if isinstance(nd, es.FunctionDeclaration) {
         name = nd.id.name if nd.id else '';
@@ -504,10 +462,7 @@ impl EsToKotlin.convert_stmt(nd: (es.Statement | None)) -> (kt.KtNode | None) {
             body_stmts = self.convert_stmts(nd.body.body);
         }
         return kt.KtFunction(
-            name=name,
-            params=params,
-            body=body_stmts,
-            is_suspend=nd.async_
+            name=name, params=params, body=body_stmts, is_suspend=nd.async_
         );
     }
     if isinstance(nd, es.ClassDeclaration) {
@@ -580,9 +535,7 @@ impl EsToKotlin._convert_jac_spawn(nd: es.CallExpression) -> (kt.KtNode | None) 
     fields_expr = args[2] if len(args) > 2 else None;
     named = self._object_to_named_args(fields_expr);
     req_call = kt.KtCall(
-        callee=kt.KtIdentifier(name=f"{pascal}Request"),
-        args=[],
-        named_args=named
+        callee=kt.KtIdentifier(name=f"{pascal}Request"), args=[], named_args=named
     );
     node_id_arg: (kt.KtNode | None) = None;
     if len(args) > 1 {
@@ -619,8 +572,8 @@ impl EsToKotlin._member_path(nd: (es.Expression | None)) -> list[str] {
             break;
         }
         if isinstance(cur, es.MemberExpression)
-        and isinstance(cur.property, es.Identifier)
-        and not cur.computed {
+            and isinstance(cur.property, es.Identifier)
+            and not cur.computed {
             parts.append(cur.property.name);
             cur = cur.object;
             continue;
@@ -631,14 +584,12 @@ impl EsToKotlin._member_path(nd: (es.Expression | None)) -> list[str] {
     return parts;
 }
 
-impl EsToKotlin._convert_jac_runtime_call(
-    nd: es.CallExpression
-) -> (kt.KtNode | None) {
+impl EsToKotlin._convert_jac_runtime_call(nd: es.CallExpression) -> (kt.KtNode | None) {
     path = self._member_path(nd.callee);
     if not path {
         return None;
     }
-    # _jac.builtin.bool(x) → x (Kotlin truthiness / collection checks at use site)
+
     if path == ["_jac", "builtin", "bool"] and nd.arguments {
         arg = nd.arguments[0];
         if isinstance(arg, es.SpreadElement) {
@@ -648,21 +599,20 @@ impl EsToKotlin._convert_jac_runtime_call(
         if converted is None {
             return None;
         }
-        # Prefer idiomatic emptiness checks for .reports / collections.
+
         if isinstance(arg, es.MemberExpression)
-        and isinstance(arg.property, es.Identifier)
-        and arg.property.name == "reports" {
+            and isinstance(arg.property, es.Identifier)
+            and arg.property.name == "reports" {
             return kt.KtCall(
                 callee=kt.KtMemberAccess(
-                    object=converted,
-                    property=kt.KtIdentifier(name="isNotEmpty")
+                    object=converted, property=kt.KtIdentifier(name="isNotEmpty")
                 ),
                 args=[]
             );
         }
         return converted;
     }
-    # _jac.exc.matches(e, "Exception") → true (outer catch already typed)
+
     if path == ["_jac", "exc", "matches"] {
         return kt.KtLiteral(value=True);
     }

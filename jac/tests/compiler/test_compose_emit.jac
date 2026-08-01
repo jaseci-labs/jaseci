@@ -11,10 +11,7 @@ import from jaclang.compiler.passes.ecmascript.intent.model {
     IntentRoute,
     IntentComponent
 }
-import from jaclang.compiler.passes.ecmascript.view_ir {
-    ViewElement,
-    HostTag
-}
+import from jaclang.compiler.passes.ecmascript.view_ir { ViewElement, HostTag }
 import from jaclang.compiler.passes.compose.compose_emit {
     ComposeEmit,
     route_to_screen_name,
@@ -89,10 +86,7 @@ test "DOM IR (comp.view) records a diagnostic, not a silent stub" {
         model.intent.package_name = "dev.jac.t";
         comp = IntentComponent(name="app", is_screen=True, route_path="/");
         comp.view = ViewElement(
-            tag=HostTag(name="div", jac_node=None),
-            attrs=[],
-            children=[],
-            jac_node=None
+            tag=HostTag(name="div", jac_node=None), attrs=[], children=[], jac_node=None
         );
         model.intent.components["app"] = comp;
         model.intent.routes = [
@@ -113,10 +107,7 @@ test "write() raises on diagnostics and writes no Kotlin sources" {
         model.intent.package_name = "dev.jac.t";
         comp = IntentComponent(name="app", is_screen=True, route_path="/");
         comp.view = ViewElement(
-            tag=HostTag(name="div", jac_node=None),
-            attrs=[],
-            children=[],
-            jac_node=None
+            tag=HostTag(name="div", jac_node=None), attrs=[], children=[], jac_node=None
         );
         model.intent.components["app"] = comp;
         model.intent.routes = [
@@ -150,7 +141,9 @@ def:pub app -> Composable {
         path = Path(tmp) / "app.cl.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
-        import from jaclang.compiler.passes.compose.compose_gen_pass { run_compose_gen_pass }
+        import from jaclang.compiler.passes.compose.compose_gen_pass {
+            run_compose_gen_pass
+        }
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);

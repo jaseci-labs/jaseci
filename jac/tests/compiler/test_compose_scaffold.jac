@@ -5,9 +5,7 @@ DexClassLoader hot-swap possible, so the file routing it produces is a
 regression-sensitive contract. These tests assert it without touching Gradle,
 the SDK, or a device.
 """
-import from jaclang.compiler.passes.compose.gradle_scaffold {
-    build_gradle_scaffold
-}
+import from jaclang.compiler.passes.compose.gradle_scaffold { build_gradle_scaffold }
 
 test "dev scaffold splits host into :app and app code into :hot" {
     files = build_gradle_scaffold(

@@ -1,66 +1,63 @@
-"""Gradle scaffold implementation — Gradle/Manifest/MainActivity scaffold for Jac Compose Android."""
 import os;
 import shutil;
 import subprocess;
 import from pathlib { Path }
 
 glob _LIGHT_THEME: dict[str, str] = {
-    "primary": "#2563eb",
-    "onPrimary": "#ffffff",
-    "secondary": "#4f46e5",
-    "onSecondary": "#ffffff",
-    "tertiary": "#0f766e",
-    "onTertiary": "#ffffff",
-    "muted": "#64748b",
-    "onMuted": "#ffffff",
-    "background": "#ffffff",
-    "onBackground": "#111827",
-    "surface": "#f8fafc",
-    "onSurface": "#111827",
-    "success": "#16a34a",
-    "onSuccess": "#ffffff",
-    "info": "#0284c7",
-    "onInfo": "#ffffff",
-    "warning": "#d97706",
-    "onWarning": "#111827",
-    "danger": "#dc2626",
-    "onDanger": "#ffffff",
-    "softPrimary": "#dbeafe",
-    "onSoftPrimary": "#1e3a8a",
-    "softSecondary": "#e0e7ff",
-    "onSoftSecondary": "#312e81",
-    "softTertiary": "#ccfbf1",
-    "onSoftTertiary": "#134e4a",
-    "softMuted": "#e2e8f0",
-    "onSoftMuted": "#334155",
-    "softSuccess": "#dcfce7",
-    "onSoftSuccess": "#14532d",
-    "softInfo": "#e0f2fe",
-    "onSoftInfo": "#075985",
-    "softWarning": "#fef3c7",
-    "onSoftWarning": "#78350f",
-    "softDanger": "#fee2e2",
-    "onSoftDanger": "#7f1d1d"
-};
-
-glob _LIGHT_RADIUS: int = 8;
+         "primary": "#2563eb",
+         "onPrimary": "#ffffff",
+         "secondary": "#4f46e5",
+         "onSecondary": "#ffffff",
+         "tertiary": "#0f766e",
+         "onTertiary": "#ffffff",
+         "muted": "#64748b",
+         "onMuted": "#ffffff",
+         "background": "#ffffff",
+         "onBackground": "#111827",
+         "surface": "#f8fafc",
+         "onSurface": "#111827",
+         "success": "#16a34a",
+         "onSuccess": "#ffffff",
+         "info": "#0284c7",
+         "onInfo": "#ffffff",
+         "warning": "#d97706",
+         "onWarning": "#111827",
+         "danger": "#dc2626",
+         "onDanger": "#ffffff",
+         "softPrimary": "#dbeafe",
+         "onSoftPrimary": "#1e3a8a",
+         "softSecondary": "#e0e7ff",
+         "onSoftSecondary": "#312e81",
+         "softTertiary": "#ccfbf1",
+         "onSoftTertiary": "#134e4a",
+         "softMuted": "#e2e8f0",
+         "onSoftMuted": "#334155",
+         "softSuccess": "#dcfce7",
+         "onSoftSuccess": "#14532d",
+         "softInfo": "#e0f2fe",
+         "onSoftInfo": "#075985",
+         "softWarning": "#fef3c7",
+         "onSoftWarning": "#78350f",
+         "softDanger": "#fee2e2",
+         "onSoftDanger": "#7f1d1d"
+     },
+     _LIGHT_RADIUS: int = 8;
 
 impl escape_kotlin(value: str) -> str {
     return (
-        value.replace('\\', '\\\\')
-        .replace('"', '\\"')
-        .replace('\n', '\\n')
-        .replace('$', '\\$')
+        value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace(
+            '$', '\\$'
+        )
     );
 }
 
 impl escape_android_xml(value: str) -> str {
     return (
-        value.replace('&', '&amp;')
-        .replace('<', '&lt;')
-        .replace('>', '&gt;')
-        .replace('"', '&quot;')
-        .replace("'", "\\'")
+        value.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(
+            '"', '&quot;'
+        ).replace(
+            "'", "\\'"
+        )
     );
 }
 
@@ -92,21 +89,17 @@ impl emit_jac_design -> str {
         );
         lines.append("        private set");
     }
-    lines.append(
-        f"    var radius by mutableStateOf({_LIGHT_RADIUS}.dp)"
-    );
+    lines.append(f"    var radius by mutableStateOf({_LIGHT_RADIUS}.dp)");
     lines.append("        private set");
     lines.append("    fun applyTheme(themeName: String) {");
     lines.append(
         '        val theme = JacThemeModule.themes.firstOrNull { it.name == themeName } '
-        + "?: JacThemeModule.themes.first { it.name == JacThemeModule.defaultTheme }"
+            + "?: JacThemeModule.themes.first { it.name == JacThemeModule.defaultTheme }"
     );
     lines.append("        name = theme.name");
     for token in _LIGHT_THEME.keys() {
         lit = android_color_literal(_LIGHT_THEME[token]);
-        lines.append(
-            f'        {token} = theme.colors["{token}"] ?: {lit}'
-        );
+        lines.append(f'        {token} = theme.colors["{token}"] ?: {lit}');
     }
     lines.append("        radius = theme.radius");
     lines.append("    }");
@@ -127,7 +120,7 @@ def _settings_gradle(dev: bool = False) -> str {
     );
 }
 
-def _root_gradle() -> str {
+def _root_gradle -> str {
     return (
         "plugins {\n"
         '    id("com.android.application") version "8.13.1" apply false\n'
@@ -138,12 +131,7 @@ def _root_gradle() -> str {
     );
 }
 
-def _gradle_properties() -> str {
-    # Build cache + configuration cache + parallel/daemon keep repeat Gradle
-    # builds fast. Combined with content-aware emit in ComposeEmit.write()
-    # (which leaves unchanged .kt files at a stable mtime), Gradle's task-output
-    # cache and Kotlin's incremental compiler skip unchanged sources — the
-    # Jac analog of an incremental javac/d8 dex cache.
+def _gradle_properties -> str {
     return (
         "android.useAndroidX=true\n"
         "kotlin.jvm.target.validation.mode=warning\n"
@@ -254,7 +242,7 @@ dependencies {{
 """;
 }
 
-def _hot_manifest() -> str {
+def _hot_manifest -> str {
     return '<manifest xmlns:android="http://schemas.android.com/apk/res/android" />\n';
 }
 
@@ -267,16 +255,18 @@ def _android_manifest(app_name: str, dev: bool = False) -> str {
         '                <category android:name="android.intent.category.LAUNCHER" />\n'
         '            </intent-filter>\n'
         '        </activity>\n'
-    ) if dev else "";
+    )
+        if dev
+        else "";
     main_launcher = (
         ""
-        if dev
-        else (
-            '            <intent-filter>\n'
-            '                <action android:name="android.intent.action.MAIN" />\n'
-            '                <category android:name="android.intent.category.LAUNCHER" />\n'
-            '            </intent-filter>\n'
-        )
+            if dev
+            else (
+                '            <intent-filter>\n'
+                '                <action android:name="android.intent.action.MAIN" />\n'
+                '                <category android:name="android.intent.category.LAUNCHER" />\n'
+                '            </intent-filter>\n'
+            )
     );
     return f"""<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
@@ -294,7 +284,7 @@ def _android_manifest(app_name: str, dev: bool = False) -> str {
 """;
 }
 
-def _styles_xml() -> str {
+def _styles_xml -> str {
     return (
         "<resources>\n"
         '    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar" />\n'
@@ -379,18 +369,16 @@ class MainActivity : ComponentActivity() {{
 }
 
 def _jac_routing(package_name: str, routes: list[str]) -> str {
-  effective = routes if routes else ["/"];
-  route_lines = '\n'.join([f'    "{escape_kotlin(p)}",' for p in effective]);
-  initial = effective[0];
-  deep_lines = '\n'.join([
-      f'    "jac-dev://generated{"/" if p == "/" else p}",'
-      for p in effective
-  ]);
-  section_lines = '\n'.join([
-      f'    "{escape_kotlin(p)}" to listOf(),'
-      for p in effective
-  ]);
-  return f"""package {package_name}
+    effective = routes or ["/"];
+    route_lines = '\n'.join([f'    "{escape_kotlin(p)}",' for p in effective]);
+    initial = effective[0];
+    deep_lines = '\n'.join(
+        [f'    "jac-dev://generated{"/" if p == "/" else p}",' for p in effective]
+    );
+    section_lines = '\n'.join(
+        [f'    "{escape_kotlin(p)}" to listOf(),' for p in effective]
+    );
+    return f"""package {package_name}
 
 object JacRoutes {{
     const val initialPath = "{escape_kotlin(initial)}"
@@ -417,12 +405,10 @@ object JacEnvironment {{
 """;
 }
 
-def _theme_color_map_entries() -> str {
+def _theme_color_map_entries -> str {
     entries: list[str] = [];
     for (token, hex_val) in _LIGHT_THEME.items() {
-        entries.append(
-            f'            "{token}" to {android_color_literal(hex_val)},'
-        );
+        entries.append(f'            "{token}" to {android_color_literal(hex_val)},');
     }
     return '\n'.join(entries);
 }
@@ -712,11 +698,7 @@ class JacDevHostActivity : ComponentActivity() {{
 
 impl GradleScaffold.generate -> dict[str, str] {
     return build_gradle_scaffold(
-        self.package_name,
-        self.app_name,
-        self.backend_url,
-        self.routes,
-        self.dev
+        self.package_name, self.app_name, self.backend_url, self.routes, self.dev
     );
 }
 
@@ -730,7 +712,7 @@ impl build_gradle_scaffold(
     pkg_path = package_to_path(package_name);
     base_root = f"app/src/main/java/{pkg_path}";
     hot_root = f"hot/src/main/java/{pkg_path}";
-    effective_routes = routes if routes else ["/"];
+    effective_routes = routes or ["/"];
     infra_files: dict[str, str] = {
         "MainActivity.kt": _main_activity(package_name),
         "JacRouting.kt": _jac_routing(package_name, effective_routes),
@@ -748,24 +730,24 @@ impl build_gradle_scaffold(
         "app/src/main/res/values/strings.xml": _strings_xml(app_name)
     };
     if dev {
-        # 2-module HMR layout: base :app holds ONLY the host Activity (+ Compose
-        # deps, so the parent classloader provides the Compose runtime). :hot
-        # holds all app code (infra + screens + JacDevEntry) and is self-contained
-        # (no project dependency on :app, which AGP forbids anyway). Its compiled
-        # .class files get d8'd into a hot classes.dex that DexClassLoader swaps
-        # without reinstall.
         files["settings.gradle.kts"] = _settings_gradle(dev=True);
-        files["app/src/main/AndroidManifest.xml"] = _android_manifest(app_name, dev=True);
+        files["app/src/main/AndroidManifest.xml"] = _android_manifest(
+            app_name, dev=True
+        );
         files["hot/build.gradle.kts"] = _hot_gradle(package_name);
         files["hot/src/main/AndroidManifest.xml"] = _hot_manifest();
-        files[f"{base_root}/JacDevHostActivity.kt"] = _jac_dev_host_activity(package_name);
+        files[f"{base_root}/JacDevHostActivity.kt"] = _jac_dev_host_activity(
+            package_name
+        );
         for (name, content) in infra_files.items() {
             files[f"{hot_root}/{name}"] = content;
         }
         files[f"{hot_root}/JacDevEntry.kt"] = _jac_dev_entry(package_name);
     } else {
         files["settings.gradle.kts"] = _settings_gradle(dev=False);
-        files["app/src/main/AndroidManifest.xml"] = _android_manifest(app_name, dev=False);
+        files["app/src/main/AndroidManifest.xml"] = _android_manifest(
+            app_name, dev=False
+        );
         for (name, content) in infra_files.items() {
             files[f"{base_root}/{name}"] = content;
         }

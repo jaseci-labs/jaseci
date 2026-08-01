@@ -5,9 +5,7 @@ at the manifest's `path`. These tests assert the server honors that contract
 (missing dex -> 404, live state updates visible to the next poll) without a
 device or a real build.
 """
-import from jaclang.runtimelib.client.targets.android_target {
-    _jac_start_dev_server
-}
+import from jaclang.runtimelib.client.targets.android_target { _jac_start_dev_server }
 import from pathlib { Path }
 import from urllib.request { urlopen }
 import from urllib.error { HTTPError }
@@ -22,14 +20,16 @@ test "dev server serves manifest and dex with live state updates" {
 
     try {
         # Manifest reflects the live state dict.
-        m = loads(urlopen(base + "/_jac/dev/modules/manifest.json", timeout=3).read().decode());
+        m = loads(
+            urlopen(base + "/_jac/dev/modules/manifest.json", timeout=3).read().decode()
+        );
         assert m["version"] == "v1";
         assert m["path"] == "/_jac/dev/modules/android/classes.dex";
 
         # No dex staged yet -> 404.
         try {
             urlopen(base + "/_jac/dev/modules/android/classes.dex", timeout=3);
-            assert False, "expected 404 for missing dex";
+            assert False , "expected 404 for missing dex";
         } except HTTPError as e {
             assert e.code == 404;
         }
@@ -39,15 +39,19 @@ test "dev server serves manifest and dex with live state updates" {
         fake.write_bytes(b"dex\n035\0" + b"\x00" * 40);
         state["version"] = "v2";
         state["dex_path"] = str(fake);
-        m2 = loads(urlopen(base + "/_jac/dev/modules/manifest.json", timeout=3).read().decode());
+        m2 = loads(
+            urlopen(base + "/_jac/dev/modules/manifest.json", timeout=3).read().decode()
+        );
         assert m2["version"] == "v2";
-        data = urlopen(base + "/_jac/dev/modules/android/classes.dex", timeout=3).read();
+        data = urlopen(
+            base + "/_jac/dev/modules/android/classes.dex", timeout=3
+        ).read();
         assert data == fake.read_bytes();
 
         # Unknown path -> 404.
         try {
             urlopen(base + "/_jac/dev/other", timeout=3);
-            assert False, "expected 404 for unknown path";
+            assert False , "expected 404 for unknown path";
         } except HTTPError as e {
             assert e.code == 404;
         }

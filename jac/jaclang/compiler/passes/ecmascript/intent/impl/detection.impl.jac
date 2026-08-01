@@ -1,4 +1,3 @@
-"""Shared intent detection implementations."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
 import from jaclang.compiler.passes.ecmascript.intent.semantics {
@@ -52,8 +51,7 @@ impl is_ref_field(has_var: uni.HasVar) -> tuple[bool, bool] {
         and ref_head_name(has_var.value.target) == 'Ref'
     );
     ref_typed = (
-        has_var.type_tag is not None
-        and ref_head_name(has_var.type_tag.tag) == 'Ref'
+        has_var.type_tag is not None and ref_head_name(has_var.type_tag.tag) == 'Ref'
     );
     return (ref_ctor, ref_typed);
 }
@@ -72,9 +70,7 @@ impl assignment_kt_op(nd: uni.Assignment) -> str {
     return '=';
 }
 
-impl return_type_includes(
-    rt: uni.Expr, component_types: Sequence[str]
-) -> bool {
+impl return_type_includes(rt: uni.Expr, component_types: Sequence[str]) -> bool {
     if (
         isinstance(rt, uni.BinaryExpr)
         and isinstance(rt.op, uni.Token)
@@ -192,9 +188,8 @@ impl scan_arch_has(
 impl scan_state_update(
     nd: uni.Assignment,
     conv: LeafConverter,
-    convert_value: (
-        Callable[[uni.Expr | uni.YieldExpr], (IntentLeaf | None)] | None
-    ) = None
+    convert_value:
+        (Callable[[uni.Expr | uni.YieldExpr], (IntentLeaf | None)] | None) = None
 ) -> (StateUpdate | None) {
     if len(nd.target) != 1 or not isinstance(nd.target[0], uni.Name) {
         return None;
@@ -216,22 +211,16 @@ impl scan_state_update(
     if value_expr is None {
         return None;
     }
-    return StateUpdate(
-        name=name, value=value_expr, aug_op=assignment_aug_op(nd)
-    );
+    return StateUpdate(name=name, value=value_expr, aug_op=assignment_aug_op(nd));
 }
 
 impl effect_from_ability(
-    nd: uni.Ability,
-    body: list[IntentLeaf],
-    deps: list[IntentLeaf]
+    nd: uni.Ability, body: list[IntentLeaf], deps: list[IntentLeaf]
 ) -> Effect {
     is_entry = (
         isinstance(nd.signature, uni.EventSignature)
         and nd.signature.event.name == Tok.KW_ENTRY
     );
     is_async = nd.is_async;
-    return Effect(
-        body=body, deps=deps, is_entry=is_entry, is_async=is_async
-    );
+    return Effect(body=body, deps=deps, is_entry=is_entry, is_async=is_async);
 }

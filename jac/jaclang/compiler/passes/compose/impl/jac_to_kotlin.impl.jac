@@ -1,48 +1,63 @@
-"""Jac uni → kotlin_ast lowering (native Compose path — Jac semantics, not JS)."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 import from jaclang.compiler.passes.ecmascript.intent.detection { assignment_kt_op }
 
 glob _KT_KEYWORDS: set[str] = {
-    'as', 'break', 'class', 'continue', 'do', 'else', 'false', 'for', 'fun',
-    'if', 'in', 'interface', 'is', 'null', 'object', 'return', 'super',
-    'this', 'throw', 'true', 'try', 'typeof', 'val', 'var', 'when', 'while'
-};
-
-glob _JAC_BINARY_OPS: dict[str, str] = {
-    Tok.EE.name: '==',
-    Tok.NE.name: '!=',
-    Tok.LT.name: '<',
-    Tok.GT.name: '>',
-    Tok.LTE.name: '<=',
-    Tok.GTE.name: '>=',
-    Tok.PLUS.name: '+',
-    Tok.MINUS.name: '-',
-    Tok.STAR_MUL.name: '*',
-    Tok.DIV.name: '/',
-    Tok.FLOOR_DIV.name: '/',
-    Tok.MOD.name: '%',
-    Tok.BW_AND.name: 'and',
-    Tok.BW_OR.name: 'or',
-    Tok.BW_XOR.name: 'xor',
-    Tok.LSHIFT.name: 'shl',
-    Tok.RSHIFT.name: 'shr',
-    Tok.KW_IN.name: 'in'
-};
-
-glob _JAC_LOGICAL_OPS: dict[str, str] = {
-    Tok.KW_AND.name: '&&',
-    Tok.KW_OR.name: '||'
-};
-
-glob _JAC_UNARY_OPS: dict[str, str] = {
-    Tok.MINUS.name: '-',
-    Tok.PLUS.name: '+',
-    Tok.NOT.name: '!'
-};
-
-glob _BINARY_INFIX_FUN: set[str] = {'and', 'or', 'xor', 'shl', 'shr'};
+         'as',
+         'break',
+         'class',
+         'continue',
+         'do',
+         'else',
+         'false',
+         'for',
+         'fun',
+         'if',
+         'in',
+         'interface',
+         'is',
+         'null',
+         'object',
+         'return',
+         'super',
+         'this',
+         'throw',
+         'true',
+         'try',
+         'typeof',
+         'val',
+         'var',
+         'when',
+         'while'
+     },
+     _JAC_BINARY_OPS: dict[str, str] = {
+         Tok.EE.name: '==',
+         Tok.NE.name: '!=',
+         Tok.LT.name: '<',
+         Tok.GT.name: '>',
+         Tok.LTE.name: '<=',
+         Tok.GTE.name: '>=',
+         Tok.PLUS.name: '+',
+         Tok.MINUS.name: '-',
+         Tok.STAR_MUL.name: '*',
+         Tok.DIV.name: '/',
+         Tok.FLOOR_DIV.name: '/',
+         Tok.MOD.name: '%',
+         Tok.BW_AND.name: 'and',
+         Tok.BW_OR.name: 'or',
+         Tok.BW_XOR.name: 'xor',
+         Tok.LSHIFT.name: 'shl',
+         Tok.RSHIFT.name: 'shr',
+         Tok.KW_IN.name: 'in'
+     },
+     _JAC_LOGICAL_OPS: dict[str, str] = {Tok.KW_AND.name: '&&', Tok.KW_OR.name: '||'},
+     _JAC_UNARY_OPS: dict[str, str] = {
+         Tok.MINUS.name: '-',
+         Tok.PLUS.name: '+',
+         Tok.NOT.name: '!'
+     },
+     _BINARY_INFIX_FUN: set[str] = {'and', 'or', 'xor', 'shl', 'shr'};
 
 def _kt_id(name: str) -> str {
     if name in _KT_KEYWORDS {
@@ -55,7 +70,7 @@ def _op_name(nd: (uni.Token | None)) -> (str | None) {
     if nd is None {
         return None;
     }
-    return nd.name if hasattr(nd, 'name') else None;
+    return nd?.name;
 }
 
 def _unsupported(message: str) -> kt.KtRaw {
@@ -99,12 +114,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         if nd.sym_name in self.reactive_vars {
             return self.lower_state_read(nd.sym_name);
         }
-        name_map = {
-            'None': 'null',
-            'True': 'true',
-            'False': 'false',
-            'self': 'this'
-        };
+        name_map = {'None': 'null', 'True': 'true', 'False': 'false', 'self': 'this'};
         return kt.KtIdentifier(name=_kt_id(name_map.get(nd.sym_name, nd.sym_name)));
     }
     if isinstance(nd, uni.MultiString) {
@@ -172,10 +182,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         }
         body_nodes = self._lambda_body(nd);
         if len(body_nodes) == 1 and isinstance(body_nodes[0], kt.KtReturn) {
-            return kt.KtLambda(
-                params=params,
-                expression_body=body_nodes[0].argument
-            );
+            return kt.KtLambda(params=params, expression_body=body_nodes[0].argument);
         }
         return kt.KtLambda(params=params, body=body_nodes);
     }
@@ -185,7 +192,9 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         named: list[kt.KtNamedArg] = [];
         for param in (nd.params or []) {
             if isinstance(param, uni.KWPair) {
-                key = param.key.sym_name if isinstance(param.key, uni.Name) else str(param.key);
+                key = param.key.sym_name
+                    if isinstance(param.key, uni.Name)
+                    else str(param.key);
                 val = self.convert_expr(param.value);
                 if val {
                     named.append(kt.KtNamedArg(name=key, value=val));
@@ -208,20 +217,16 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
             prop_name = nd.right.sym_name;
             if prop_name == "dp" {
                 base_lit = self.convert_expr(nd.target);
-                if isinstance(base_lit, kt.KtLiteral) and isinstance(
-                    base_lit.value, (int, float)
-                ) {
+                if isinstance(base_lit, kt.KtLiteral)
+                    and isinstance(base_lit.value, (int, float)) {
                     return kt.KtMemberAccess(
-                        object=base_lit,
-                        property=kt.KtIdentifier(name="dp")
+                        object=base_lit, property=kt.KtIdentifier(name="dp")
                     );
                 }
             }
             if prop_name == "len" {
                 return kt.KtMemberAccess(
-                    object=base,
-                    property=kt.KtIdentifier(name="size"),
-                    computed=False
+                    object=base, property=kt.KtIdentifier(name="size"), computed=False
                 );
             }
             base = self.convert_expr(nd.target);
@@ -239,7 +244,9 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
             if idx_info.slices and len(idx_info.slices) > 0 {
                 first = idx_info.slices[0];
                 if idx_info.is_range {
-                    start = self.convert_expr(first.start) if first.start else kt.KtLiteral(value=0);
+                    start = self.convert_expr(first.start)
+                        if first.start
+                        else kt.KtLiteral(value=0);
                     stop = self.convert_expr(first.stop) if first.stop else None;
                     slice_args: list[kt.KtNode] = [start] if start else [];
                     if stop {
@@ -247,13 +254,14 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
                     }
                     return kt.KtCall(
                         callee=kt.KtMemberAccess(
-                            object=base,
-                            property=kt.KtIdentifier(name="slice")
+                            object=base, property=kt.KtIdentifier(name="slice")
                         ),
                         args=slice_args
                     );
                 }
-                idx = self.convert_expr(first.start) if first.start else kt.KtLiteral(value=0);
+                idx = self.convert_expr(first.start)
+                    if first.start
+                    else kt.KtLiteral(value=0);
                 return kt.KtMemberAccess(object=base, property=idx, computed=True);
             }
         }
@@ -262,7 +270,9 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
             named: list[kt.KtNamedArg] = [];
             for param in (nd.right.params or []) {
                 if isinstance(param, uni.KWPair) {
-                    key = param.key.sym_name if isinstance(param.key, uni.Name) else str(param.key);
+                    key = param.key.sym_name
+                        if isinstance(param.key, uni.Name)
+                        else str(param.key);
                     val = self.convert_expr(param.value);
                     if val {
                         named.append(kt.KtNamedArg(name=key, value=val));
@@ -274,11 +284,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
                     }
                 }
             }
-            return kt.KtCall(
-                callee=base,
-                args=args,
-                named_args=named
-            );
+            return kt.KtCall(callee=base, args=args, named_args=named);
         }
         return self.convert_expr(nd.right);
     }
@@ -295,19 +301,12 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         op_key = _op_name(nd.op);
         if op_key and op_key in _JAC_LOGICAL_OPS {
             return kt.KtBinary(
-                operator=_JAC_LOGICAL_OPS[op_key],
-                left=left,
-                right=right
+                operator=_JAC_LOGICAL_OPS[op_key], left=left, right=right
             );
         }
         op = _JAC_BINARY_OPS.get(op_key, '+') if op_key else '+';
         infix_fun = op in _BINARY_INFIX_FUN;
-        return kt.KtBinary(
-            operator=op,
-            left=left,
-            right=right,
-            infix_fun=infix_fun
-        );
+        return kt.KtBinary(operator=op, left=left, right=right, infix_fun=infix_fun);
     }
     if isinstance(nd, uni.BoolExpr) {
         result: (kt.KtNode | None) = None;
@@ -331,8 +330,7 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         if op_key == Tok.BW_NOT.name {
             return kt.KtCall(
                 callee=kt.KtMemberAccess(
-                    object=arg,
-                    property=kt.KtIdentifier(name="inv")
+                    object=arg, property=kt.KtIdentifier(name="inv")
                 ),
                 args=[]
             );
@@ -406,11 +404,7 @@ impl JacToKotlin.convert_stmt(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
                 right=self.convert_expr(nd.value)
             );
         }
-        # Non-reactive local: augmented ops or names already declared in an
-        # enclosing scope are reassignments (bare `name = value`); only the
-        # first occurrence in a scope becomes a val/var declaration. Without
-        # this, every reassignment lowered as `val name = ...` would shadow the
-        # earlier binding and silently discard the write.
+
         if nd.aug_op and nd.aug_op.name {
             return kt.KtAssignment(
                 operator='=',
@@ -439,9 +433,7 @@ impl JacToKotlin.convert_stmt(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
             alt = self.convert_stmts(list(nd.else_body.body));
         }
         return kt.KtIf(
-            `test=self.convert_expr(nd.condition),
-            consequent=cons,
-            alternate=alt
+            `test=self.convert_expr(nd.condition), consequent=cons, alternate=alt
         );
     }
     if isinstance(nd, uni.WhileStmt) {
@@ -467,11 +459,7 @@ impl JacToKotlin.convert_stmt(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         for handler in (nd.excepts or []) {
             catch_body.extend(self.convert_stmts(list(handler.body)));
         }
-        return kt.KtTry(
-            try_body=try_body,
-            catch_param='e',
-            catch_body=catch_body
-        );
+        return kt.KtTry(try_body=try_body, catch_param='e', catch_body=catch_body);
     }
     self.diagnostics.append(
         f"jac_to_kotlin: unsupported statement {type(nd).__name__}"
@@ -505,9 +493,7 @@ impl JacToKotlin.convert_stmts(body: (list[uni.UniNode] | None)) -> list[kt.KtNo
     return result;
 }
 
-impl JacToKotlin._compute_mutable_locals(
-    body: (list[uni.UniNode] | None)
-) -> set[str] {
+impl JacToKotlin._compute_mutable_locals(body: (list[uni.UniNode] | None)) -> set[str] {
     counts: dict[str, int] = {};
     for stmt in (body or []) {
         self._count_assign_targets(stmt, counts);
@@ -574,8 +560,8 @@ impl JacToKotlin._spawn_request_named_args(call: uni.FuncCall) -> list[kt.KtName
         if isinstance(param, uni.KWPair) {
             key = (
                 param.key.sym_name
-                if isinstance(param.key, uni.Name)
-                else str(param.key)
+                    if isinstance(param.key, uni.Name)
+                    else str(param.key)
             );
             val = self.convert_expr(param.value);
             if val {
@@ -639,9 +625,7 @@ impl JacToKotlin._convert_spawn(nd: uni.BinaryExpr) -> (kt.KtNode | None) {
     pascal = walker_to_pascal(walker_name);
     named = self._spawn_request_named_args(call_node);
     req_call = kt.KtCall(
-        callee=kt.KtIdentifier(name=f"{pascal}Request"),
-        args=[],
-        named_args=named
+        callee=kt.KtIdentifier(name=f"{pascal}Request"), args=[], named_args=named
     );
     call_named: list[kt.KtNamedArg] = [];
     node_id = self._resolve_spawn_target(target_expr);

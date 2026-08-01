@@ -1,4 +1,3 @@
-"""Native Compose view IR → kotlin_ast / Kotlin source."""
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
 import from jaclang.compiler.passes.compose.view_ir {
@@ -13,32 +12,24 @@ import from jaclang.compiler.passes.compose.view_ir {
 }
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
 
-# ── Shared Compose signature model (P0 #4) ───────────────────────────────────
-# The checker ingests the bundled AndroidX signatures (compose_widgets.txt) and
-# classifies every widget parameter modifier/event/slot/value. The emitter reads
-# the SAME file through the SAME classifier so slot-wrapping is driven by that
-# model, not a private heuristic — the two can no longer disagree about which
-# argument is a `@Composable () -> Unit` slot. Unknown (user/library) widgets are
-# absent from the table and fall back to the open-vocabulary heuristic below.
-# One-slot cache (mutated, never rebound — glob scalar rebinding is unavailable).
 glob _WIDGET_PARAM_KINDS_CACHE: dict[str, dict[str, dict[str, str]]] = {};
 
-def _widget_param_kinds() -> dict[str, dict[str, str]] {
-    # {widget name -> {param name -> kind}} from the bundled signature file,
-    # loaded and cached once. Empty if the file is missing (open-vocab fallback
-    # then applies to every widget).
+def _widget_param_kinds -> dict[str, dict[str, str]] {
     if "table" in _WIDGET_PARAM_KINDS_CACHE {
         return _WIDGET_PARAM_KINDS_CACHE["table"];
     }
     import os;
     import jaclang;
-    import from jaclang.compiler.passes.compose.compose_stub_gen { parse_signature_text }
+    import from jaclang.compiler.passes.compose.compose_stub_gen {
+        parse_signature_text
+    }
     table: dict[str, dict[str, str]] = {};
-    # compose_widgets.txt lives next to the type-system stubs it feeds. Anchor to
-    # the jaclang package root so the path is independent of this pass's location.
+
     path = os.path.join(
         os.path.dirname(jaclang.__file__),
-        "compiler", "type_system", "compose_widgets.txt"
+        "compiler",
+        "type_system",
+        "compose_widgets.txt"
     );
     try {
         if os.path.exists(path) {
@@ -57,8 +48,6 @@ def _widget_param_kinds() -> dict[str, dict[str, str]] {
 }
 
 def _is_slot_param(widget_name: str, attr_name: str) -> bool {
-    # Authoritative slot decision from the shared classifier. A param known to be
-    # a non-slot (value/event/modifier) is never wrapped; a declared slot is.
     kinds = _widget_param_kinds().get(widget_name);
     if kinds is None {
         return False;
@@ -120,10 +109,27 @@ def _kt_needs_coroutine(kt_node: any, depth: int = 0) -> bool {
         return False;
     }
     for attr in (
-        "body", "expression", "argument", "arguments", "left", "right",
-        "consequent", "alternate", "test", "try_body", "catch_body",
-        "elements", "entries", "named_args", "args", "content",
-        "callee", "object", "property", "expression_body", "parts"
+        "body",
+        "expression",
+        "argument",
+        "arguments",
+        "left",
+        "right",
+        "consequent",
+        "alternate",
+        "test",
+        "try_body",
+        "catch_body",
+        "elements",
+        "entries",
+        "named_args",
+        "args",
+        "content",
+        "callee",
+        "object",
+        "property",
+        "expression_body",
+        "parts"
     ) {
         child = getattr(kt_node, attr, None);
         if child is not None and _kt_needs_coroutine(child, depth + 1) {
@@ -138,9 +144,7 @@ def _as_click_lambda(handler: kt.KtNode, needs_coro: bool = False) -> kt.KtNode 
     if isinstance(handler, kt.KtLambda) {
         lam = handler;
     } else {
-        lam = kt.KtLambda(
-            params=[], body=[kt.KtExprStmt(expression=handler)]
-        );
+        lam = kt.KtLambda(params=[], body=[kt.KtExprStmt(expression=handler)]);
     }
     if not needs_coro {
         return lam;
@@ -165,9 +169,7 @@ def _normalize_click_handler(handler: kt.KtNode) -> kt.KtLambda {
     if isinstance(handler, kt.KtLambda) {
         return handler;
     }
-    return kt.KtLambda(
-        params=[], body=[kt.KtExprStmt(expression=handler)]
-    );
+    return kt.KtLambda(params=[], body=[kt.KtExprStmt(expression=handler)]);
 }
 
 impl ComposeNativeEmitter._event_needs_coroutine(attr: ComposeAttr) -> bool {
@@ -211,8 +213,7 @@ impl ComposeNativeEmitter._scan_coroutine_need(elem: ComposeElement) -> None {
 def _text_call(expr: kt.KtNode) -> kt.KtComposableCall {
     if isinstance(expr, kt.KtLiteral) and isinstance(expr.value, str) {
         return kt.KtComposableCall(
-            name="Text",
-            args=[_named("text", kt.KtLiteral(value=expr.value))]
+            name="Text", args=[_named("text", kt.KtLiteral(value=expr.value))]
         );
     }
     text_expr = expr;
@@ -222,9 +223,7 @@ def _text_call(expr: kt.KtNode) -> kt.KtComposableCall {
     return kt.KtComposableCall(name="Text", args=[_named("text", text_expr)]);
 }
 
-impl ComposeNativeEmitter._emit_children(
-    children: list
-) -> list[kt.KtNode] {
+impl ComposeNativeEmitter._emit_children(children: list) -> list[kt.KtNode] {
     nodes: list[kt.KtNode] = [];
     for child in children {
         if isinstance(child, ComposeTextChild) {
@@ -238,22 +237,14 @@ impl ComposeNativeEmitter._emit_children(
         } elif isinstance(child, ComposeIfChild) {
             cons = self._emit_child_list(child.consequent);
             alt = self._emit_child_list(child.alternate or []);
-            nodes.append(
-                kt.KtIf(
-                    `test=child.test,
-                    consequent=cons,
-                    alternate=alt
-                )
-            );
+            nodes.append(kt.KtIf(`test=child.test, consequent=cons, alternate=alt));
         } elif isinstance(child, ComposeEachChild) {
             body_nodes = self._emit_child_list(child.body);
             nodes.append(
                 kt.KtRaw(
                     code=(
                         f"{kt_to_source(child.items)}.forEach {{ {child.item_name} ->\n"
-                        + "\n".join(
-                            [f"    {kt_to_source(n)}" for n in body_nodes]
-                        )
+                        + "\n".join([f"    {kt_to_source(n)}" for n in body_nodes])
                         + "\n}"
                     )
                 )
@@ -274,12 +265,7 @@ def _placeholder_lambda(expr: kt.KtNode) -> kt.KtNode {
     }
     return kt.KtLambda(
         params=[],
-        body=[
-            kt.KtComposableCall(
-                name="Text",
-                args=[_named("text", text_arg)]
-            )
-        ]
+        body=[kt.KtComposableCall(name="Text", args=[_named("text", text_arg)])]
     );
 }
 
@@ -289,8 +275,6 @@ def _wrap_text_field_args(name: str, args: list[kt.KtNamedArg]) -> list[kt.KtNam
     }
     out: list[kt.KtNamedArg] = [];
     for a in args {
-        # A composable placeholder is already lambda-wrapped by _slot_wrap; only
-        # the string form (placeholder={"Search"}) needs the string→Text lambda.
         if a.name == "placeholder" and not isinstance(a.value, kt.KtLambda) {
             out.append(_named("placeholder", _placeholder_lambda(a.value)));
         } else {
@@ -301,15 +285,6 @@ def _wrap_text_field_args(name: str, args: list[kt.KtNamedArg]) -> list[kt.KtNam
 }
 
 def _slot_wrap(value: kt.KtNode, widget_name: str, attr_name: str) -> kt.KtNode {
-    # A composable passed as an attribute value is a Compose content slot
-    # (topBar=, bottomBar=, confirmButton=, label=, leadingIcon=, …). Slots are
-    # `@Composable () -> Unit`, so the call must be wrapped in a lambda rather
-    # than emitted as a plain value argument. Which params are slots comes from
-    # the shared signature classifier (_widget_param_kinds) — the same model the
-    # checker uses — so the emitter and checker agree. A composable passed to a
-    # KNOWN non-slot param (value/event/modifier) is left as a plain value; a
-    # declared slot, or any param of an unknown/open-vocabulary widget, is
-    # wrapped (the open-vocab fallback the old type-free heuristic always applied).
     if not isinstance(value, kt.KtComposableCall) {
         return value;
     }
@@ -323,7 +298,11 @@ impl ComposeNativeEmitter._emit_element(elem: ComposeElement) -> kt.KtNode {
     if elem.name == "Raw" {
         for attr in elem.attrs {
             if attr.name == "kotlin" {
-                return kt.KtRaw(code=kt_to_source(attr.value) if not isinstance(attr.value, kt.KtRaw) else attr.value.code);
+                return kt.KtRaw(
+                    code=kt_to_source(attr.value)
+                        if not isinstance(attr.value, kt.KtRaw)
+                        else attr.value.code
+                );
             }
         }
         if elem.children {
@@ -346,7 +325,9 @@ impl ComposeNativeEmitter._emit_element(elem: ComposeElement) -> kt.KtNode {
             handler = _normalize_click_handler(attr.value);
             args.append(_named(attr.name, _as_click_lambda(handler, needs_coro)));
         } else {
-            args.append(_named(attr.name, _slot_wrap(attr.value, elem.name, attr.name)));
+            args.append(
+                _named(attr.name, _slot_wrap(attr.value, elem.name, attr.name))
+            );
         }
     }
     if elem.children {
@@ -373,14 +354,14 @@ impl ComposeNativeEmitter._emit_element(elem: ComposeElement) -> kt.KtNode {
         if text_expr is None {
             text_args.insert(0, _named("text", kt.KtLiteral(value="")));
         } else {
-            if isinstance(text_expr, kt.KtLiteral) and isinstance(text_expr.value, str) {
+            if isinstance(text_expr, kt.KtLiteral)
+                and isinstance(text_expr.value, str) {
                 text_args.insert(0, _named("text", text_expr));
             } else {
                 text_args.insert(
                     0,
                     _named(
-                        "text",
-                        kt.KtRaw(code=f"({kt_to_source(text_expr)}).toString()")
+                        "text", kt.KtRaw(code=f"({kt_to_source(text_expr)}).toString()")
                     )
                 );
             }

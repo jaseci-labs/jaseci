@@ -1,4 +1,3 @@
-"""reactive_intent → Compose prelude source statements."""
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     IntentExpr,
@@ -27,9 +26,7 @@ impl ReactiveComposeEmitter._stmts_src(
 def _emit_state_field(field: StateField) -> str {
     emitter = ReactiveComposeEmitter();
     init = emitter._expr_src(field.init_expr);
-    return (
-        f"    var {field.name} by remember {{ mutableStateOf({init}) }}"
-    );
+    return (f"    var {field.name} by remember {{ mutableStateOf({init}) }}");
 }
 
 def _emit_ref_field(field: RefField) -> str {

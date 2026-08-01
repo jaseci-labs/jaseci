@@ -1,7 +1,8 @@
-"""EsIntentAdapter — record via collector, lower via FrameworkBackend."""
 import jaclang.compiler.passes.ecmascript.estree as es;
 import jaclang.jac0core.unitree as uni;
-import type from jaclang.compiler.passes.ecmascript.framework_backend { FrameworkBackend }
+import type from jaclang.compiler.passes.ecmascript.framework_backend {
+    FrameworkBackend
+}
 import from jaclang.compiler.passes.ecmascript.intent.semantics {
     StateField,
     RefField,
@@ -53,9 +54,7 @@ impl EsIntentAdapter.lower_state_update(
     return self.backend().lower_state_update(u);
 }
 
-impl EsIntentAdapter.lower_effect(
-    nd: uni.UniNode, e: Effect
-) -> list[es.Statement] {
+impl EsIntentAdapter.lower_effect(nd: uni.UniNode, e: Effect) -> list[es.Statement] {
     self.collector.record_effect(e);
     b = self.backend();
     for sym in b.runtime_symbols(e) {
@@ -75,18 +74,14 @@ impl EsIntentAdapter.lower_async_boundary(
     return b.lower_async_boundary(a);
 }
 
-impl EsIntentAdapter.lower_view_symbols(
-    nd: uni.UniNode, view: ViewElement
-) -> None {
+impl EsIntentAdapter.lower_view_symbols(nd: uni.UniNode, view: ViewElement) -> None {
     b = self.backend();
     for sym in b.runtime_symbols(view) {
         self.pass_ref._inject_runtime_import(sym, nd);
     }
 }
 
-impl EsIntentAdapter.lower_view(
-    view: ViewElement, sync_loc: any
-) -> es.Expression {
+impl EsIntentAdapter.lower_view(view: ViewElement, sync_loc: any) -> es.Expression {
     self.collector.record_view(view);
     return self.backend().lower_view(view, sync_loc);
 }

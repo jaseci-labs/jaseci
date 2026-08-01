@@ -1,7 +1,8 @@
-"""EsIntentAdapter — ESTree lowering for recorded intent (React/Preact/Solid)."""
 import jaclang.compiler.passes.ecmascript.estree as es;
 import jaclang.jac0core.unitree as uni;
-import type from jaclang.compiler.passes.ecmascript.framework_backend { FrameworkBackend }
+import type from jaclang.compiler.passes.ecmascript.framework_backend {
+    FrameworkBackend
+}
 import from jaclang.compiler.passes.ecmascript.intent.semantics {
     StateField,
     RefField,
@@ -24,9 +25,7 @@ obj EsIntentAdapter {
     def lower_ref_field(nd: uni.UniNode, r: RefField) -> list[es.Statement];
     def lower_state_update(nd: uni.UniNode, u: StateUpdate) -> es.Expression;
     def lower_effect(nd: uni.UniNode, e: Effect) -> list[es.Statement];
-    def lower_async_boundary(
-        nd: uni.UniNode, a: AsyncBoundary
-    ) -> es.Expression;
+    def lower_async_boundary(nd: uni.UniNode, a: AsyncBoundary) -> es.Expression;
     def lower_view_symbols(nd: uni.UniNode, view: ViewElement) -> None;
     def lower_view(view: ViewElement, sync_loc: any) -> es.Expression;
     def apply_arch_has_scan(

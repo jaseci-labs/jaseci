@@ -49,8 +49,7 @@ test "_ensure_compose_framework persists framework = compose when absent" {
     t = AndroidTarget();
     assert t._resolve_client_framework(d) is None , "framework starts unset";
     t._ensure_compose_framework(d);
-    assert t._resolve_client_framework(d) == "compose" ,
-        "selecting Android must persist [client] framework = compose";
+    assert t._resolve_client_framework(d) == "compose" , "selecting Android must persist [client] framework = compose";
     assert 'framework = "compose"' in (d / "jac.toml").read_text();
 }
 

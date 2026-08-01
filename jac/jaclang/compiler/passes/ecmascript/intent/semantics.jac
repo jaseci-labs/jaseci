@@ -1,8 +1,3 @@
-"""Target-neutral reactive intent semantics.
-
-Detection records these structs into IntentModule. Leaf payloads are opaque
-per-target expression nodes (ESTree on the JS path, kotlin_ast on Compose).
-"""
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.compose.kotlin_ast { KtNode }
 import from typing { TypeAlias }

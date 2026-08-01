@@ -1,4 +1,3 @@
-"""Orchestrator: ComposeModule → Android project directory on disk."""
 import from pathlib { Path }
 import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 

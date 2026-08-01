@@ -1,4 +1,3 @@
-"""Build native Compose view IR from uni.JsxElement trees."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 import from jaclang.compiler.passes.compose.surface {
@@ -84,19 +83,21 @@ def _jsx_expr_to_kt(
 }
 
 def _raw_kotlin_from_children(
-    children: list[
-        ComposeTextChild
-        | ComposeDynamicChild
-        | ComposeRawChild
-        | ComposeElementChild
-        | ComposeIfChild
-        | ComposeEachChild
-    ]
+    children:
+        list[
+            ComposeTextChild
+                | ComposeDynamicChild
+                | ComposeRawChild
+                | ComposeElementChild
+                | ComposeIfChild
+                | ComposeEachChild
+        ]
 ) -> (str | None) {
     parts: list[str] = [];
     for child in children {
         if isinstance(child, ComposeTextChild) {
-            if isinstance(child.value, kt.KtLiteral) and isinstance(child.value.value, str) {
+            if isinstance(child.value, kt.KtLiteral)
+                and isinstance(child.value.value, str) {
                 parts.append(child.value.value);
             }
         }
@@ -114,7 +115,9 @@ impl ComposeViewBuilder.build_element(nd: uni.JsxElement) -> (ComposeElement | N
     }
     tag = _tag_name(nd);
     if tag is None {
-        self.diagnostics.append("dynamic JSX tags are unsupported in Compose surface v1");
+        self.diagnostics.append(
+            "dynamic JSX tags are unsupported in Compose surface v1"
+        );
         return None;
     }
     if tag == "" {
@@ -122,12 +125,7 @@ impl ComposeViewBuilder.build_element(nd: uni.JsxElement) -> (ComposeElement | N
         if len(children) == 1 and isinstance(children[0], ComposeElementChild) {
             return children[0].element;
         }
-        elem = ComposeElement(
-            name="Column",
-            attrs=[],
-            children=children,
-            jac_node=nd
-        );
+        elem = ComposeElement(name="Column", attrs=[], children=children, jac_node=nd);
         self._view_by_node[id(nd)] = elem;
         return elem;
     }
@@ -157,7 +155,9 @@ impl ComposeViewBuilder.build_element(nd: uni.JsxElement) -> (ComposeElement | N
                 )
             );
         } elif isinstance(attr, uni.JsxSpreadAttribute) {
-            self.diagnostics.append("spread attributes are unsupported in Compose surface v1");
+            self.diagnostics.append(
+                "spread attributes are unsupported in Compose surface v1"
+            );
         }
     }
     children = self.build_children(list(nd.children or []));
@@ -178,12 +178,21 @@ impl ComposeViewBuilder.build_element(nd: uni.JsxElement) -> (ComposeElement | N
             raw_code = _raw_kotlin_from_children(children);
         }
         if raw_code is None {
-            self.diagnostics.append("<Raw> requires a kotlin= attribute or raw Kotlin text children");
+            self.diagnostics.append(
+                "<Raw> requires a kotlin= attribute or raw Kotlin text children"
+            );
             return None;
         }
         elem = ComposeElement(
             name="Raw",
-            attrs=[ComposeAttr(name="kotlin", value=kt.KtRaw(code=raw_code), is_event=False, jac_node=nd)],
+            attrs=[
+                ComposeAttr(
+                    name="kotlin",
+                    value=kt.KtRaw(code=raw_code),
+                    is_event=False,
+                    jac_node=nd
+                )
+            ],
             children=[ComposeRawChild(code=raw_code, jac_node=nd)],
             jac_node=nd
         );
@@ -205,19 +214,20 @@ impl ComposeViewBuilder.build_children(
     children: list[uni.UniNode]
 ) -> list[
     ComposeTextChild
-    | ComposeDynamicChild
-    | ComposeRawChild
-    | ComposeElementChild
-    | ComposeIfChild
-    | ComposeEachChild
-] {
-    result: list[
-        ComposeTextChild
         | ComposeDynamicChild
+        | ComposeRawChild
         | ComposeElementChild
         | ComposeIfChild
         | ComposeEachChild
-    ] = [];
+] {
+    result:
+        list[
+            ComposeTextChild
+                | ComposeDynamicChild
+                | ComposeElementChild
+                | ComposeIfChild
+                | ComposeEachChild
+        ] = [];
     for child in children {
         if isinstance(child, uni.JsxText) {
             text = child.get_normalized_text();
@@ -230,10 +240,7 @@ impl ComposeViewBuilder.build_children(
                 text = text[1:-1];
             }
             result.append(
-                ComposeTextChild(
-                    value=kt.KtLiteral(value=text),
-                    jac_node=child
-                )
+                ComposeTextChild(value=kt.KtLiteral(value=text), jac_node=child)
             );
         } elif isinstance(child, uni.JsxComment) {
             continue;
@@ -329,7 +336,7 @@ impl ComposeViewBuilder._lift_if(
     return ComposeIfChild(
         `test=test,
         consequent=[ComposeElementChild(element=cons, jac_node=cons_inner)],
-        alternate=alt_children if alt_children else None,
+        alternate=alt_children,
         jac_node=child
     );
 }

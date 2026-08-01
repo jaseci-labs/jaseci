@@ -156,11 +156,7 @@ def wait_for_adb_device_boot(
         } except Exception {
             r = None;
         }
-        if (
-            r is not None
-            and r.returncode == 0
-            and (r.stdout or "").strip() == "1"
-        ) {
+        if (r is not None and r.returncode == 0 and (r.stdout or "").strip() == "1") {
             return;
         }
         time.sleep(2);
@@ -170,7 +166,6 @@ def wait_for_adb_device_boot(
     );
 }
 
-"""Return adb path, starting an emulator when no device is connected."""
 def ensure_adb_device(avd: str = "") -> str {
     adb = shutil.which("adb");
     if not adb {
@@ -199,28 +194,21 @@ def ensure_adb_device(avd: str = "") -> str {
         if want in avds {
             chosen = want;
         } else {
-            console.warning(
-                f"  AVD '{want}' not found; using '{avds[0]}'."
-            );
+            console.warning(f"  AVD '{want}' not found; using '{avds[0]}'.");
             chosen = avds[0];
         }
     } else {
         chosen = avds[0];
     }
     console.print(
-        f"  No device connected — starting emulator '{chosen}'...",
-        style="muted"
+        f"  No device connected — starting emulator '{chosen}'...", style="muted"
     );
     subprocess.Popen(
         [emulator, "-avd", chosen, "-no-snapshot-load"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     );
-    subprocess.run(
-        [adb, "wait-for-device"],
-        check=True,
-        timeout=ADB_BOOT_TIMEOUT_SEC
-    );
+    subprocess.run([adb, "wait-for-device"], check=True, timeout=ADB_BOOT_TIMEOUT_SEC);
     wait_for_adb_device_boot(adb);
     console.success(f"  Emulator '{chosen}' ready.");
     return adb;

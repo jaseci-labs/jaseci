@@ -52,11 +52,6 @@ def mobui_enforced_for(
 }
 
 obj ClientSurface {
-    # Resolved-once description of a module's client rendering surface. Selected
-    # during compilation and consulted by BOTH the type checker's ambient-vocabulary
-    # gates and the ES backend selection so the two can never disagree. `framework`
-    # names the ES/codegen backend ("react" | "preact" | "solid" | "compose");
-    # `is_compose`/`is_mobui` gate target-specific checking.
     has framework: str = "react",
         kind: str = "web",
         project_root: (str | None) = None,
@@ -70,11 +65,6 @@ def resolve_client_surface(
     explicit_kind: str = "web",
     explicit_root: (str | None) = None,
 ) -> ClientSurface {
-    # Single, authoritative resolution of a module's client surface. An active
-    # target threads its framework through CompileOptions.client_framework
-    # (`framework_override`); that wins so the checker and the ES backend cannot
-    # diverge on an in-memory page compile. With no override we fall back to the
-    # per-module disk config (`[client] framework`) for standalone checking / LSP.
     (kind, proj_root) = resolve_client_kind_context(
         mod_path, explicit_kind, explicit_root
     );
@@ -84,8 +74,6 @@ def resolve_client_surface(
         is_compose = True;
     } elif override {
         framework = override;
-        # A non-compose target override still consults disk config for the compose
-        # gate, matching the checker's historical fallback behaviour.
         is_compose = compose_enforced_for(mod_path);
     } else {
         cfg = _config_for(mod_path);
@@ -103,12 +91,6 @@ def resolve_client_surface(
 }
 
 def compose_enforced_for(mod_path: str) -> bool {
-    # True when `mod_path` belongs to a project whose client framework is Compose
-    # (`[client] framework = "compose"`). This is the single, config-driven signal
-    # that a module is an Android/Compose client surface — the checker gates the
-    # Compose ambient vocabulary (widgets/modifiers/consts/.dp extensions) on it so
-    # a plain React `.cl.jac` never sees Compose names. Mirrors mobui_enforced_for:
-    # a module physically outside the project root is exempt.
     cfg = _config_for(mod_path);
     if not cfg or cfg.project_root is None {
         return False;

@@ -1,4 +1,3 @@
-"""LeafConverter — uni → opaque intent leaves at detection time."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.ecmascript.intent.semantics { IntentLeaf }
 
@@ -12,6 +11,7 @@ obj LeafConverter {
     def convert_assignment_value(
         nd: uni.Assignment, value_nd: (uni.UniNode | None)
     ) -> (IntentLeaf | None);
+
     def convert_stmts(nodes: list[uni.UniNode]) -> list[IntentLeaf];
 }
 

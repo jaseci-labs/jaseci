@@ -1,4 +1,3 @@
-"""Build native Compose view IR from uni.JsxElement trees."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.compose.view_ir {
     ComposeElement,
@@ -21,12 +20,21 @@ obj ComposeViewBuilder {
         children: list[uni.UniNode]
     ) -> list[
         ComposeTextChild
-        | ComposeDynamicChild
-        | ComposeElementChild
-        | ComposeIfChild
-        | ComposeEachChild
+            | ComposeDynamicChild
+            | ComposeElementChild
+            | ComposeIfChild
+            | ComposeEachChild
     ];
-    def _lift_control_flow(child: uni.JsxExpression) -> (ComposeIfChild | ComposeEachChild | None);
-    def _lift_each(child: uni.JsxExpression, compr: uni.ListCompr) -> (ComposeEachChild | None);
-    def _lift_if(child: uni.JsxExpression, ternary: uni.IfElseExpr) -> (ComposeIfChild | None);
+
+    def _lift_control_flow(
+        child: uni.JsxExpression
+    ) -> (ComposeIfChild | ComposeEachChild | None);
+
+    def _lift_each(
+        child: uni.JsxExpression, compr: uni.ListCompr
+    ) -> (ComposeEachChild | None);
+
+    def _lift_if(
+        child: uni.JsxExpression, ternary: uni.IfElseExpr
+    ) -> (ComposeIfChild | None);
 }

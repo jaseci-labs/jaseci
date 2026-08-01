@@ -18,9 +18,7 @@ import os;
 import tempfile;
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.compose.compose_stub_gen {
-    parse_signature_text
-}
+import from jaclang.compiler.passes.compose.compose_stub_gen { parse_signature_text }
 
 def _mk_compose_project(prefix: str) -> str {
     # A snippet dir that is a real Compose project: `[client] framework = "compose"`
@@ -29,7 +27,9 @@ def _mk_compose_project(prefix: str) -> str {
     # plain client codespace outside such a project no longer sees Compose names.
     d = tempfile.mkdtemp(prefix=prefix);
     with open(os.path.join(d, "jac.toml"), "w") as f {
-        f.write("[project]\nname = \"compose_ext_test\"\n\n[client]\nframework = \"compose\"\n");
+        f.write(
+            "[project]\nname = \"compose_ext_test\"\n\n[client]\nframework = \"compose\"\n"
+        );
     }
     return d;
 }
@@ -60,16 +60,16 @@ def _errors_in(dir_: str, code: str, suffix: str = ".cl.jac") -> list[str] {
 }
 
 glob FIXTURE: str = "package androidx.compose.material3 {\n"
-    "  public final class ButtonKt {\n"
-    "    method @androidx.compose.runtime.Composable public static void Button(kotlin.jvm.functions.Function0<kotlin.Unit> onClick, optional androidx.compose.ui.Modifier modifier, optional boolean enabled, kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.RowScope,kotlin.Unit> content);\n"
-    "  }\n"
-    "  public final class SliderKt {\n"
-    "    method @androidx.compose.runtime.Composable public static void Slider(float value, kotlin.jvm.functions.Function1<? super java.lang.Float,kotlin.Unit> onValueChange, optional androidx.compose.ui.Modifier modifier, optional boolean enabled);\n"
-    "  }\n"
-    "  public final class TextKt {\n"
-    "    method @androidx.compose.runtime.Composable public static void Text(String text, optional androidx.compose.ui.Modifier modifier, optional long color, optional androidx.compose.ui.text.TextStyle style);\n"
-    "  }\n"
-    "}\n";
+     "  public final class ButtonKt {\n"
+     "    method @androidx.compose.runtime.Composable public static void Button(kotlin.jvm.functions.Function0<kotlin.Unit> onClick, optional androidx.compose.ui.Modifier modifier, optional boolean enabled, kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.RowScope,kotlin.Unit> content);\n"
+     "  }\n"
+     "  public final class SliderKt {\n"
+     "    method @androidx.compose.runtime.Composable public static void Slider(float value, kotlin.jvm.functions.Function1<? super java.lang.Float,kotlin.Unit> onValueChange, optional androidx.compose.ui.Modifier modifier, optional boolean enabled);\n"
+     "  }\n"
+     "  public final class TextKt {\n"
+     "    method @androidx.compose.runtime.Composable public static void Text(String text, optional androidx.compose.ui.Modifier modifier, optional long color, optional androidx.compose.ui.text.TextStyle style);\n"
+     "  }\n"
+     "}\n";
 
 def _errors_for(code: str, suffix: str = ".jac") -> list[str] {
     # Unique filename per call — a fixed path lets the compiler's by-path cache
@@ -131,7 +131,11 @@ test "int .dp yields the Dp type, not bare any" {
 test "_compose_sig_to_functype carries metalava required-ness, not erasure" {
     ev = JacProgram().get_type_evaluator();
     sigs = parse_signature_text(FIXTURE);
-    button = [s for s in sigs if s.name == "Button"][0];
+    button = [
+        s
+        for s in sigs
+        if s.name == "Button"
+    ][0];
     ft = ev._compose_sig_to_functype(button);
     assert ft.func_name == "Button";
     assert len(ft.parameters) == 4;
@@ -159,18 +163,28 @@ test "value params map to real Jac prims, not bare any" {
     sigs = parse_signature_text(FIXTURE);
     byname = {s.name: s for s in sigs};
 
-    btn = {p.name: str(p.param_type) for p in ev._compose_sig_to_functype(byname["Button"]).parameters};
+    btn = {
+        p.name: str(p.param_type)
+        for p in ev._compose_sig_to_functype(byname["Button"]).parameters
+    };
     assert "bool" in btn["enabled"] , f"enabled should be bool, got {btn['enabled']}";
 
-    slider = {p.name: str(p.param_type) for p in ev._compose_sig_to_functype(byname["Slider"]).parameters};
+    slider = {
+        p.name: str(p.param_type)
+        for p in ev._compose_sig_to_functype(byname["Slider"]).parameters
+    };
     assert "float" in slider["value"] , f"value should be float, got {slider['value']}";
 
-    text = {p.name: str(p.param_type) for p in ev._compose_sig_to_functype(byname["Text"]).parameters};
+    text = {
+        p.name: str(p.param_type)
+        for p in ev._compose_sig_to_functype(byname["Text"]).parameters
+    };
     assert "str" in text["text"] , f"text should be str, got {text['text']}";
     assert "int" in text["color"] , f"color (long) should be int, got {text['color']}";
     # unmodelled Compose value class -> foreign-any (still name/arity-checked)
-    assert "Any" in text["style"] or "any" in text["style"] ,
-        f"style (TextStyle) should fall back to any, got {text['style']}";
+    assert "Any" in text["style"] or "any" in text["style"] , f"style (TextStyle) should fall back to any, got {text[
+        'style'
+    ]}";
 }
 
 test "event handlers carry their Kotlin FunctionN argument types" {
@@ -181,32 +195,51 @@ test "event handlers carry their Kotlin FunctionN argument types" {
     sigs = parse_signature_text(FIXTURE);
     byname = {s.name: s for s in sigs};
 
-    slider = {p.name: p.param_type for p in ev._compose_sig_to_functype(byname["Slider"]).parameters};
+    slider = {
+        p.name: p.param_type
+        for p in ev._compose_sig_to_functype(byname["Slider"]).parameters
+    };
     ovc = slider["onValueChange"];
-    assert len(ovc.parameters) == 1 , f"onValueChange must take 1 arg, got {len(ovc.parameters)}";
-    assert "float" in str(ovc.parameters[0].param_type) , f"arg should be float, got {ovc.parameters[0].param_type}";
+    assert len(ovc.parameters) == 1 , f"onValueChange must take 1 arg, got {len(
+        ovc.parameters
+    )}";
+    assert "float" in str(ovc.parameters[0].param_type) , f"arg should be float, got {ovc.parameters[
+        0
+    ].param_type}";
     assert "None" in str(ovc.return_type) or "none" in str(ovc.return_type);
 
     # Button.onClick is `Function0<Unit>` — a nullary handler.
-    button = {p.name: p.param_type for p in ev._compose_sig_to_functype(byname["Button"]).parameters};
+    button = {
+        p.name: p.param_type
+        for p in ev._compose_sig_to_functype(byname["Button"]).parameters
+    };
     assert len(button["onClick"].parameters) == 0 , "onClick must be nullary";
 }
 
 test "_map_kotlin_lambda parses arity, prims, and variance markers" {
     ev = JacProgram().get_type_evaluator();
     # nullary
-    assert len(ev._map_kotlin_lambda("kotlin.jvm.functions.Function0<kotlin.Unit>").parameters) == 0;
+    assert len(
+        ev._map_kotlin_lambda("kotlin.jvm.functions.Function0<kotlin.Unit>").parameters
+    )
+        == 0;
     # one float arg behind a `? super` bound
-    one = ev._map_kotlin_lambda("kotlin.jvm.functions.Function1<? super java.lang.Float,kotlin.Unit>");
+    one = ev._map_kotlin_lambda(
+        "kotlin.jvm.functions.Function1<? super java.lang.Float,kotlin.Unit>"
+    );
     assert len(one.parameters) == 1;
     assert "float" in str(one.parameters[0].param_type);
     # two args, mixed prims, `? extends` bound
-    two = ev._map_kotlin_lambda("kotlin.jvm.functions.Function2<? super java.lang.Boolean,? extends kotlin.Int,kotlin.Unit>");
+    two = ev._map_kotlin_lambda(
+        "kotlin.jvm.functions.Function2<? super java.lang.Boolean,? extends kotlin.Int,kotlin.Unit>"
+    );
     assert len(two.parameters) == 2;
     assert "bool" in str(two.parameters[0].param_type);
     assert "int" in str(two.parameters[1].param_type);
     # unmodelled arg type -> foreign-any, still one param
-    unk = ev._map_kotlin_lambda("kotlin.jvm.functions.Function1<? super androidx.compose.ui.graphics.Color,kotlin.Unit>");
+    unk = ev._map_kotlin_lambda(
+        "kotlin.jvm.functions.Function1<? super androidx.compose.ui.graphics.Color,kotlin.Unit>"
+    );
     assert len(unk.parameters) == 1;
     m = str(unk.parameters[0].param_type);
     assert "Any" in m or "any" in m;
@@ -235,11 +268,13 @@ test "a wrong-typed value arg is a Jac error; a right-typed one is not" {
     # type, passing a string is caught at Jac compile time (before Kotlin), while a
     # bool is clean. Children fill the required content slot in both cases.
     bad = _errors_for(
-        "def f -> Composable {\n    return <Button onClick={lambda -> None { }} enabled=\"yes\">\"x\"</Button>;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    return <Button onClick={lambda -> None { }} enabled=\"yes\">\"x\"</Button>;\n}\n",
+        ".cl.jac"
     );
     assert bad , "<Button enabled=\"yes\"> must be a Jac type error";
     good = _errors_for(
-        "def f -> Composable {\n    return <Button onClick={lambda -> None { }} enabled={True}>\"x\"</Button>;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    return <Button onClick={lambda -> None { }} enabled={True}>\"x\"</Button>;\n}\n",
+        ".cl.jac"
     );
     assert not good , f"<Button enabled={{True}}> must type-check, got: {good}";
 }
@@ -276,11 +311,13 @@ test "JSX children satisfy a required content slot" {
     # self-closing <Button onClick=.. /> supplies neither an attribute nor children
     # for the required content -> E1102.
     with_children = _errors_for(
-        "def f -> Composable {\n    return <Button onClick={lambda -> None { }}>\"Go\"</Button>;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    return <Button onClick={lambda -> None { }}>\"Go\"</Button>;\n}\n",
+        ".cl.jac"
     );
     assert not with_children , f"<Button>..children..</Button> must type-check, got: {with_children}";
     childless = _errors_for(
-        "def f -> Composable {\n    return <Button onClick={lambda -> None { }} />;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    return <Button onClick={lambda -> None { }} />;\n}\n",
+        ".cl.jac"
     );
     assert childless , "<Button onClick=.. /> with no content children must flag the required content slot";
     # A missing required *event* is still flagged even when children are present —
@@ -299,7 +336,8 @@ test "JSX children satisfy Text's required text value" {
     assert not with_text , f"<Text>\"Hi\"</Text> must type-check, got: {with_text}";
     # A dynamic child expression counts as content too.
     dynamic = _errors_for(
-        "def f -> Composable {\n    n = 1;\n    return <Text>{n}</Text>;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    n = 1;\n    return <Text>{n}</Text>;\n}\n",
+        ".cl.jac"
     );
     assert not dynamic , f"<Text>{{n}}</Text> must type-check, got: {dynamic}";
     # A self-closing Text supplies neither the text attribute nor children -> flagged.
@@ -351,8 +389,7 @@ test "bundled Modifier chain type-checks and chains in client context" {
         ".cl.jac"
     );
     assert not _errors_for(
-        "def f -> any {\n    return Modifier.size(24.dp).background(0);\n}\n",
-        ".cl.jac"
+        "def f -> any {\n    return Modifier.size(24.dp).background(0);\n}\n", ".cl.jac"
     );
 }
 
@@ -371,7 +408,14 @@ test "Modifier methods are ingested live at checker init" {
     );
     mc = ev._get_type_from_module(ev.js_globals_module, "ModifierChain");
     members = mc.shared.symbol_table.names_in_scope;
-    for name in ("padding", "fillMaxWidth", "clickable", "offset", "weight", "zIndex") {
+    for name in (
+        "padding",
+        "fillMaxWidth",
+        "clickable",
+        "offset",
+        "weight",
+        "zIndex"
+    ) {
         assert name in members , f"{name} should be installed from compose_modifiers.txt";
     }
 }
@@ -387,9 +431,7 @@ test "const namespaces resolve their members in client context" {
     assert not _errors_for(
         "def f -> any {\n    return Alignment.CenterVertically;\n}\n", ".cl.jac"
     );
-    assert not _errors_for(
-        "def f -> any {\n    return Color.Red;\n}\n", ".cl.jac"
-    );
+    assert not _errors_for("def f -> any {\n    return Color.Red;\n}\n", ".cl.jac");
 }
 
 test "a typo'd const member is a type error" {
@@ -398,9 +440,7 @@ test "a typo'd const member is a type error" {
     assert _errors_for(
         "def f -> any {\n    return Arrangement.Centre;\n}\n", ".cl.jac"
     );
-    assert _errors_for(
-        "def f -> any {\n    return Color.Puce;\n}\n", ".cl.jac"
-    );
+    assert _errors_for("def f -> any {\n    return Color.Puce;\n}\n", ".cl.jac");
 }
 
 test "Color stays callable — the numeric ULong constructor is not regressed" {
@@ -414,10 +454,12 @@ test "Color stays callable — the numeric ULong constructor is not regressed" {
 test "const members flow into widget props" {
     # The DX payoff: a named color / alignment passes through a real JSX prop.
     assert not _errors_for(
-        "def f -> Composable {\n    return <Text color={Color.Red}>\"hi\"</Text>;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    return <Text color={Color.Red}>\"hi\"</Text>;\n}\n",
+        ".cl.jac"
     );
     assert not _errors_for(
-        "def f -> Composable {\n    return <Box contentAlignment={Alignment.Center}>\"x\"</Box>;\n}\n", ".cl.jac"
+        "def f -> Composable {\n    return <Box contentAlignment={Alignment.Center}>\"x\"</Box>;\n}\n",
+        ".cl.jac"
     );
 }
 
@@ -444,18 +486,18 @@ test "const namespaces are ingested live at checker init" {
 
 test "a full idiomatic Compose page type-checks with no false errors" {
     page = "def HomeScreen -> Composable {\n"
-        "    items = [1, 2, 3];\n"
-        "    return <Column\n"
-        "        modifier={Modifier.padding(16.dp).fillMaxWidth()}\n"
-        "        verticalArrangement={Arrangement.Center}\n"
-        "        horizontalAlignment={Alignment.CenterHorizontally}\n"
-        "    >\n"
-        "        <Text color={Color.Red}>\"Count: \" + str(items.len)</Text>\n"
-        "        <Button onClick={lambda -> None { print(\"hi\"); }}>\n"
-        "            <Text>\"Press\"</Text>\n"
-        "        </Button>\n"
-        "    </Column>;\n"
-        "}\n";
+    "    items = [1, 2, 3];\n"
+    "    return <Column\n"
+    "        modifier={Modifier.padding(16.dp).fillMaxWidth()}\n"
+    "        verticalArrangement={Arrangement.Center}\n"
+    "        horizontalAlignment={Alignment.CenterHorizontally}\n"
+    "    >\n"
+    "        <Text color={Color.Red}>\"Count: \" + str(items.len)</Text>\n"
+    "        <Button onClick={lambda -> None { print(\"hi\"); }}>\n"
+    "            <Text>\"Press\"</Text>\n"
+    "        </Button>\n"
+    "    </Column>;\n"
+    "}\n";
     assert not _errors_for(page, ".cl.jac");
 }
 
@@ -473,46 +515,46 @@ test "a typo'd modifier in a page is still caught under default-on checking" {
 
 test "an idiomatic LazyColumn page with arrangement + comprehension children is clean" {
     page = "def Feed -> Composable {\n"
-        "    rows = [\"a\", \"b\", \"c\"];\n"
-        "    return <LazyColumn\n"
-        "        modifier={Modifier.fillMaxSize().padding(8.dp)}\n"
-        "        verticalArrangement={Arrangement.SpaceBetween}\n"
-        "        horizontalAlignment={Alignment.CenterHorizontally}\n"
-        "    >\n"
-        "        {[<Row modifier={Modifier.fillMaxWidth().weight(1.0)}>\n"
-        "            <Text color={Color.Red}>{r}</Text>\n"
-        "        </Row> for r in rows]}\n"
-        "    </LazyColumn>;\n"
-        "}\n";
+    "    rows = [\"a\", \"b\", \"c\"];\n"
+    "    return <LazyColumn\n"
+    "        modifier={Modifier.fillMaxSize().padding(8.dp)}\n"
+    "        verticalArrangement={Arrangement.SpaceBetween}\n"
+    "        horizontalAlignment={Alignment.CenterHorizontally}\n"
+    "    >\n"
+    "        {[<Row modifier={Modifier.fillMaxWidth().weight(1.0)}>\n"
+    "            <Text color={Color.Red}>{r}</Text>\n"
+    "        </Row> for r in rows]}\n"
+    "    </LazyColumn>;\n"
+    "}\n";
     assert not _errors_for(page, ".cl.jac");
 }
 
 test "LazyRow carries horizontalArrangement + verticalAlignment layout props" {
     page = "def f -> Composable {\n"
-        "    xs = [1, 2];\n"
-        "    return <LazyRow\n"
-        "        horizontalArrangement={Arrangement.SpaceEvenly}\n"
-        "        verticalAlignment={Alignment.CenterVertically}\n"
-        "    >{[<Text>{str(x)}</Text> for x in xs]}</LazyRow>;\n"
-        "}\n";
+    "    xs = [1, 2];\n"
+    "    return <LazyRow\n"
+    "        horizontalArrangement={Arrangement.SpaceEvenly}\n"
+    "        verticalAlignment={Alignment.CenterVertically}\n"
+    "    >{[<Text>{str(x)}</Text> for x in xs]}</LazyRow>;\n"
+    "}\n";
     assert not _errors_for(page, ".cl.jac");
 }
 
 test "an unknown prop on a Lazy list is still flagged" {
     page = "def f -> Composable {\n"
-        "    xs = [1];\n"
-        "    return <LazyColumn verticalArrangment={Arrangement.Center}>"
-        "{[<Text>{str(x)}</Text> for x in xs]}</LazyColumn>;\n"
-        "}\n";
+    "    xs = [1];\n"
+    "    return <LazyColumn verticalArrangment={Arrangement.Center}>"
+    "{[<Text>{str(x)}</Text> for x in xs]}</LazyColumn>;\n"
+    "}\n";
     assert _errors_for(page, ".cl.jac");
 }
 
 test "a bad primitive prop value on a Lazy list is still flagged" {
     page = "def f -> Composable {\n"
-        "    xs = [1];\n"
-        "    return <LazyColumn userScrollEnabled=\"yes\">"
-        "{[<Text>{str(x)}</Text> for x in xs]}</LazyColumn>;\n"
-        "}\n";
+    "    xs = [1];\n"
+    "    return <LazyColumn userScrollEnabled=\"yes\">"
+    "{[<Text>{str(x)}</Text> for x in xs]}</LazyColumn>;\n"
+    "}\n";
     assert _errors_for(page, ".cl.jac");
 }
 
@@ -539,10 +581,8 @@ test "Compose widgets do not leak into a plain (non-Compose) client module" {
     # (Unknown ambient names are permissive in client code, so isolation shows up
     # as the *absence* of the Compose-specific type error, not a new one.)
     snippet = "def f -> any {\n    return <Button onClick={lambda -> None { }} enabled=\"yes\">\"x\"</Button>;\n}\n";
-    assert not _errors_in(_react_tmp, snippet) ,
-        "the typed-Button error must NOT fire outside a Compose project";
-    assert _errors_in(_tmp, snippet) ,
-        "the same wrong-typed prop must be flagged inside a Compose project";
+    assert not _errors_in(_react_tmp, snippet) , "the typed-Button error must NOT fire outside a Compose project";
+    assert _errors_in(_tmp, snippet) , "the same wrong-typed prop must be flagged inside a Compose project";
 }
 
 test "Modifier namespace does not leak into a plain client module" {
@@ -552,10 +592,8 @@ test "Modifier namespace does not leak into a plain client module" {
     # Unknown") — the mirror image of the Compose case, proving Modifier is gated
     # on the target.
     chain = "def f -> any {\n    return Modifier.padding(8.dp).fillMaxWidth();\n}\n";
-    assert not _errors_in(_tmp, chain) ,
-        f"a valid Modifier chain must type-check inside a Compose project";
-    assert _errors_in(_react_tmp, chain) ,
-        "Modifier must NOT resolve to ModifierChain outside a Compose project";
+    assert not _errors_in(_tmp, chain) , f"a valid Modifier chain must type-check inside a Compose project";
+    assert _errors_in(_react_tmp, chain) , "Modifier must NOT resolve to ModifierChain outside a Compose project";
 }
 
 test ".dp / .sp extensions are Compose-target-only, permissive elsewhere" {
@@ -563,6 +601,5 @@ test ".dp / .sp extensions are Compose-target-only, permissive elsewhere" {
     # not an error — but it must not resolve to the Compose `Dp` type either.
     ev = JacProgram().get_type_evaluator();
     ext = ev.prefetch.int_class.shared.symbol_table.names_in_scope.get("dp");
-    assert ext is not None and "Dp" in str(ev.get_type_of_symbol(ext)) ,
-        "the .dp extension is still installed on int (resolution is gated, not the install)";
+    assert ext is not None and "Dp" in str(ev.get_type_of_symbol(ext)) , "the .dp extension is still installed on int (resolution is gated, not the install)";
 }

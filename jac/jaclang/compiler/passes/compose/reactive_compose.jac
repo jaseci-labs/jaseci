@@ -1,4 +1,3 @@
-"""reactive_intent → Compose kotlin source prelude."""
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     IntentExpr,

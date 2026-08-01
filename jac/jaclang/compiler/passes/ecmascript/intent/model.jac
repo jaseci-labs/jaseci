@@ -1,9 +1,3 @@
-"""IntentModule: target-neutral reactive intent artifact.
-
-Populated by IntentCollector during a client-target uni walk. JavaScript view
-IR is stored on IntentComponent.view; native Compose view IR lives on
-ComposeModule.compose_views (see compose/compose_model.jac).
-"""
 import from jaclang.compiler.passes.ecmascript.intent.semantics {
     StateField,
     RefField,
@@ -42,7 +36,7 @@ obj IntentModule {
         diagnostics: list[str] = [],
         interop_manifest: any = None;
 
-    def add_import(imp: str) -> None {
+    def add_import(imp: str) {
         if imp not in self.imports {
             self.imports.append(imp);
         }
@@ -56,11 +50,11 @@ obj IntentModule {
     }
 
     def current_component -> IntentComponent {
-        cname = self.current if self.current else "__root__";
+        cname = self.current or "__root__";
         return self.ensure_component(cname);
     }
 
-    def add_diagnostic(msg: str) -> None {
+    def add_diagnostic(msg: str) {
         self.diagnostics.append(msg);
     }
 

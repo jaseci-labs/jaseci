@@ -111,7 +111,7 @@ impl ReactBackend.runtime_symbols(intent: any) -> list[str] {
         }
         return syms;
     }
-    # ViewElement and anything else: no runtime symbols for React.
+
     return [];
 }
 

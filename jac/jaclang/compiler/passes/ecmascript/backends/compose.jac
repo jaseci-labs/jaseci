@@ -1,8 +1,3 @@
-"""Compose client framework — satisfies esast runtime resolution for Android targets.
-
-Compose consumes the shared intent model via ComposeGenPass; this backend only
-satisfies FrameworkBackend for ES runtime resolution and does not inherit React.
-"""
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.ecmascript.framework_backend { FrameworkBackend }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
@@ -29,6 +24,7 @@ obj ComposeBackend(FrameworkBackend) {
     def runtime_symbols(
         intent: StateField | RefField | Effect | AsyncBoundary | ViewElement
     ) -> list[str];
+
     def jsx_factory_name -> str;
     def import_source(symbol: str) -> str;
     def required_globals -> list[str];

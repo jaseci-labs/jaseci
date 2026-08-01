@@ -15,60 +15,58 @@ import from jaclang.compiler.passes.compose.compose_stub_gen {
 }
 
 glob CONST_FIXTURE: str = "package androidx.compose.foundation.layout {\n"
-    "  public final class Arrangement {\n"
-    "    field public static final androidx.compose.foundation.layout.Arrangement INSTANCE;\n"
-    "    property public final androidx.compose.foundation.layout.Arrangement.HorizontalOrVertical Center;\n"
-    "    property public final androidx.compose.foundation.layout.Arrangement.Horizontal Start;\n"
-    "    method public androidx.compose.foundation.layout.Arrangement.Horizontal getEnd();\n"
-    "  }\n"
-    "}\n"
-    "package androidx.compose.ui {\n"
-    "  public static final class Alignment.Companion {\n"
-    "    property public final androidx.compose.ui.Alignment Center;\n"
-    "    property public final androidx.compose.ui.Alignment.Vertical CenterVertically;\n"
-    "  }\n"
-    "}\n"
-    "package androidx.compose.ui.graphics {\n"
-    "  public static final class Color.Companion {\n"
-    "    property public final long Red;\n"
-    "    property public final long Blue;\n"
-    "  }\n"
-    "}\n";
-
-glob MOD_FIXTURE: str = "package androidx.compose.foundation.layout {\n"
-    "  public final class SizeKt {\n"
-    "    method public static androidx.compose.ui.Modifier fillMaxWidth(androidx.compose.ui.Modifier, optional float fraction);\n"
-    "    method public static androidx.compose.ui.Modifier size(androidx.compose.ui.Modifier, androidx.compose.ui.unit.Dp size);\n"
-    "    method public static androidx.compose.ui.Modifier padding(androidx.compose.ui.Modifier, optional androidx.compose.ui.unit.Dp all);\n"
-    "    method public static androidx.compose.ui.Modifier padding(androidx.compose.ui.Modifier, optional androidx.compose.ui.unit.Dp horizontal, optional androidx.compose.ui.unit.Dp vertical);\n"
-    "  }\n"
-    "  public final class ClickableKt {\n"
-    "    method public static androidx.compose.ui.Modifier clickable(androidx.compose.ui.Modifier, optional boolean enabled, kotlin.jvm.functions.Function0<kotlin.Unit> onClick);\n"
-    "  }\n"
-    "  public final class WidgetKt {\n"
-    "    method @androidx.compose.runtime.Composable public static void Button(kotlin.jvm.functions.Function0<kotlin.Unit> onClick);\n"
-    "  }\n"
-    "}\n";
-
-glob FIXTURE: str = "package androidx.compose.material3 {\n"
-    "  public final class ButtonKt {\n"
-    "    method @androidx.compose.runtime.Composable public static void Button(kotlin.jvm.functions.Function0<kotlin.Unit> onClick, optional androidx.compose.ui.Modifier modifier, optional boolean enabled, kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.RowScope,kotlin.Unit> content);\n"
-    "    method @androidx.compose.runtime.Composable public static void Button(kotlin.jvm.functions.Function0<kotlin.Unit> onClick, optional androidx.compose.ui.Modifier modifier);\n"
-    "  }\n"
-    "  public final class SliderKt {\n"
-    "    method @androidx.compose.runtime.Composable public static void Slider(float value, kotlin.jvm.functions.Function1<? super java.lang.Float,kotlin.Unit> onValueChange, optional androidx.compose.ui.Modifier modifier, optional boolean enabled);\n"
-    "  }\n"
-    "  public final class TextKt {\n"
-    "    method @androidx.compose.runtime.Composable public static void Text(String text, optional androidx.compose.ui.Modifier modifier, optional long color);\n"
-    "  }\n"
-    "  public final class ScaffoldKt {\n"
-    "    method @androidx.compose.runtime.Composable public static void Scaffold(optional androidx.compose.ui.Modifier modifier, optional kotlin.jvm.functions.Function0<kotlin.Unit> topBar, optional kotlin.jvm.functions.Function0<kotlin.Unit> bottomBar, kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.PaddingValues,kotlin.Unit> content);\n"
-    "    method @androidx.compose.runtime.Composable public static androidx.compose.material3.ScaffoldState rememberScaffoldState();\n"
-    "  }\n"
-    "  public final class AlertDialogKt {\n"
-    "    method @androidx.compose.runtime.Composable public static void AlertDialog(kotlin.jvm.functions.Function0<kotlin.Unit> onDismissRequest, kotlin.jvm.functions.Function0<kotlin.Unit> confirmButton, optional androidx.compose.ui.Modifier modifier, optional kotlin.jvm.functions.Function0<kotlin.Unit> dismissButton, optional kotlin.jvm.functions.Function0<kotlin.Unit> title, optional kotlin.jvm.functions.Function0<kotlin.Unit> text);\n"
-    "  }\n"
-    "}\n";
+     "  public final class Arrangement {\n"
+     "    field public static final androidx.compose.foundation.layout.Arrangement INSTANCE;\n"
+     "    property public final androidx.compose.foundation.layout.Arrangement.HorizontalOrVertical Center;\n"
+     "    property public final androidx.compose.foundation.layout.Arrangement.Horizontal Start;\n"
+     "    method public androidx.compose.foundation.layout.Arrangement.Horizontal getEnd();\n"
+     "  }\n"
+     "}\n"
+     "package androidx.compose.ui {\n"
+     "  public static final class Alignment.Companion {\n"
+     "    property public final androidx.compose.ui.Alignment Center;\n"
+     "    property public final androidx.compose.ui.Alignment.Vertical CenterVertically;\n"
+     "  }\n"
+     "}\n"
+     "package androidx.compose.ui.graphics {\n"
+     "  public static final class Color.Companion {\n"
+     "    property public final long Red;\n"
+     "    property public final long Blue;\n"
+     "  }\n"
+     "}\n",
+     MOD_FIXTURE: str = "package androidx.compose.foundation.layout {\n"
+     "  public final class SizeKt {\n"
+     "    method public static androidx.compose.ui.Modifier fillMaxWidth(androidx.compose.ui.Modifier, optional float fraction);\n"
+     "    method public static androidx.compose.ui.Modifier size(androidx.compose.ui.Modifier, androidx.compose.ui.unit.Dp size);\n"
+     "    method public static androidx.compose.ui.Modifier padding(androidx.compose.ui.Modifier, optional androidx.compose.ui.unit.Dp all);\n"
+     "    method public static androidx.compose.ui.Modifier padding(androidx.compose.ui.Modifier, optional androidx.compose.ui.unit.Dp horizontal, optional androidx.compose.ui.unit.Dp vertical);\n"
+     "  }\n"
+     "  public final class ClickableKt {\n"
+     "    method public static androidx.compose.ui.Modifier clickable(androidx.compose.ui.Modifier, optional boolean enabled, kotlin.jvm.functions.Function0<kotlin.Unit> onClick);\n"
+     "  }\n"
+     "  public final class WidgetKt {\n"
+     "    method @androidx.compose.runtime.Composable public static void Button(kotlin.jvm.functions.Function0<kotlin.Unit> onClick);\n"
+     "  }\n"
+     "}\n",
+     FIXTURE: str = "package androidx.compose.material3 {\n"
+     "  public final class ButtonKt {\n"
+     "    method @androidx.compose.runtime.Composable public static void Button(kotlin.jvm.functions.Function0<kotlin.Unit> onClick, optional androidx.compose.ui.Modifier modifier, optional boolean enabled, kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.RowScope,kotlin.Unit> content);\n"
+     "    method @androidx.compose.runtime.Composable public static void Button(kotlin.jvm.functions.Function0<kotlin.Unit> onClick, optional androidx.compose.ui.Modifier modifier);\n"
+     "  }\n"
+     "  public final class SliderKt {\n"
+     "    method @androidx.compose.runtime.Composable public static void Slider(float value, kotlin.jvm.functions.Function1<? super java.lang.Float,kotlin.Unit> onValueChange, optional androidx.compose.ui.Modifier modifier, optional boolean enabled);\n"
+     "  }\n"
+     "  public final class TextKt {\n"
+     "    method @androidx.compose.runtime.Composable public static void Text(String text, optional androidx.compose.ui.Modifier modifier, optional long color);\n"
+     "  }\n"
+     "  public final class ScaffoldKt {\n"
+     "    method @androidx.compose.runtime.Composable public static void Scaffold(optional androidx.compose.ui.Modifier modifier, optional kotlin.jvm.functions.Function0<kotlin.Unit> topBar, optional kotlin.jvm.functions.Function0<kotlin.Unit> bottomBar, kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.PaddingValues,kotlin.Unit> content);\n"
+     "    method @androidx.compose.runtime.Composable public static androidx.compose.material3.ScaffoldState rememberScaffoldState();\n"
+     "  }\n"
+     "  public final class AlertDialogKt {\n"
+     "    method @androidx.compose.runtime.Composable public static void AlertDialog(kotlin.jvm.functions.Function0<kotlin.Unit> onDismissRequest, kotlin.jvm.functions.Function0<kotlin.Unit> confirmButton, optional androidx.compose.ui.Modifier modifier, optional kotlin.jvm.functions.Function0<kotlin.Unit> dismissButton, optional kotlin.jvm.functions.Function0<kotlin.Unit> title, optional kotlin.jvm.functions.Function0<kotlin.Unit> text);\n"
+     "  }\n"
+     "}\n";
 
 test "parses composable widgets and skips helpers and non-Unit methods" {
     sigs = parse_signature_text(FIXTURE);
@@ -166,8 +164,9 @@ test "parse_const_text groups members by namespace, stripping .Companion" {
     ns = parse_const_text(CONST_FIXTURE);
     # keyed by the simple class name; `Alignment.Companion` / `Color.Companion`
     # collapse to `Alignment` / `Color` (Kotlin reads them off the type).
-    assert set(ns.keys()) == {"Arrangement", "Alignment", "Color"} ,
-        f"unexpected namespaces: {set(ns.keys())}";
+    assert set(ns.keys()) == {"Arrangement", "Alignment", "Color"} , f"unexpected namespaces: {set(
+        ns.keys()
+    )}";
 
     arr = {m.name for m in ns["Arrangement"]};
     assert "Center" in arr and "Start" in arr;
@@ -185,7 +184,11 @@ test "parse_const_text groups members by namespace, stripping .Companion" {
 
 test "const members carry their Kotlin type on ptype" {
     ns = parse_const_text(CONST_FIXTURE);
-    red = [m for m in ns["Color"] if m.name == "Red"][0];
+    red = [
+        m
+        for m in ns["Color"]
+        if m.name == "Red"
+    ][0];
     assert red.ptype == "long" , f"Color.Red ptype should be long, got {red.ptype}";
 }
 
@@ -193,7 +196,10 @@ test "bundled compose_consts.txt parses the shipped namespaces" {
     import os;
     path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-        "jaclang", "compiler", "type_system", "compose_consts.txt"
+        "jaclang",
+        "compiler",
+        "type_system",
+        "compose_consts.txt"
     );
     assert os.path.exists(path) , f"bundled const file must ship: {path}";
     with open(path) as f {

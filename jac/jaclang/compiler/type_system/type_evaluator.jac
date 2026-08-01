@@ -272,16 +272,14 @@ obj TypeEvaluator {
     def _compose_modifier_functype(
         sig: ComposeSig, chain_inst: TypeBase
     ) -> types.FunctionType;
+
     def _is_compose_gated_member(sym: uni.Symbol) -> bool;
     def _compose_composable_instance -> TypeBase;
     def _map_compose_param(p: SigParam) -> TypeBase;
     def _map_kotlin_type(ktype: str) -> TypeBase;
     def _map_kotlin_lambda(ktype: str) -> TypeBase;
     def _compose_sig_to_functype(sig: ComposeSig) -> types.FunctionType;
-    def _kotlin_synth_surface(
-        sigs: list[ComposeSig], scope: uni.UniScopeNode
-    ) -> None;
-
+    def _kotlin_synth_surface(sigs: list[ComposeSig], scope: uni.UniScopeNode) -> None;
     def _ts_synth_class_types(
         decls: dict[str, TsDecl]
     ) -> (dict[str, types.ClassType] | None);
@@ -573,9 +571,7 @@ obj TypeEvaluator {
 
     def _validate_intrinsic_jsx_props(expr: uni.JsxElement, tag_name: str) -> None;
     def _compose_children_target(
-        expr: uni.JsxElement,
-        component_name: str,
-        param_map: dict[str, types.Parameter]
+        expr: uni.JsxElement, component_name: str, param_map: dict[str, types.Parameter]
     ) -> str | None;
 
     def _is_compose_slot_param(p: types.Parameter) -> bool;

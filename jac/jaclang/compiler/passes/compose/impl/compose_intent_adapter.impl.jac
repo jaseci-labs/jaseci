@@ -1,10 +1,6 @@
-"""ComposeIntentAdapter — record-only lowering into IntentModule."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.ecmascript.intent.detection { ArchHasScanResult }
-import from jaclang.compiler.passes.ecmascript.intent.semantics {
-    StateUpdate,
-    Effect
-}
+import from jaclang.compiler.passes.ecmascript.intent.semantics { StateUpdate, Effect }
 
 impl ComposeIntentAdapter.apply_arch_has_scan(
     nd: uni.UniNode, scan: ArchHasScanResult
@@ -18,16 +14,12 @@ impl ComposeIntentAdapter.apply_arch_has_scan(
     return [];
 }
 
-impl ComposeIntentAdapter.lower_state_update(
-    nd: uni.UniNode, u: StateUpdate
-) -> any {
+impl ComposeIntentAdapter.lower_state_update(nd: uni.UniNode, u: StateUpdate) -> any {
     self.collector.record_state_update(u);
     return None;
 }
 
-impl ComposeIntentAdapter.lower_effect(
-    nd: uni.UniNode, e: Effect
-) -> list {
+impl ComposeIntentAdapter.lower_effect(nd: uni.UniNode, e: Effect) -> list {
     self.collector.record_effect(e);
     return [];
 }

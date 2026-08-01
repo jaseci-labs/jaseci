@@ -1,4 +1,3 @@
-"""ComposeBackend — minimal FrameworkBackend for Android Compose targets."""
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField,
@@ -61,16 +60,12 @@ impl ComposeBackend.build_pages_entry_script(
 }
 
 impl ComposeBackend.lower_state_field(s: StateField) -> list[es.Statement] {
-    declarator = es.VariableDeclarator(
-        id=es.Identifier(name=s.name), init=s.init_expr
-    );
+    declarator = es.VariableDeclarator(id=es.Identifier(name=s.name), init=s.init_expr);
     return [es.VariableDeclaration(declarations=[declarator], kind="const")];
 }
 
 impl ComposeBackend.lower_ref_field(r: RefField) -> list[es.Statement] {
-    declarator = es.VariableDeclarator(
-        id=es.Identifier(name=r.name), init=r.init_expr
-    );
+    declarator = es.VariableDeclarator(id=es.Identifier(name=r.name), init=r.init_expr);
     return [es.VariableDeclaration(declarations=[declarator], kind="const")];
 }
 
@@ -84,9 +79,7 @@ impl ComposeBackend.lower_view_expr(expr: es.Expression) -> es.Expression {
 
 impl ComposeBackend.lower_state_update(u: StateUpdate) -> es.Expression {
     return es.AssignmentExpression(
-        operator="=",
-        left=es.Identifier(name=u.name),
-        right=u.value
+        operator="=", left=es.Identifier(name=u.name), right=u.value
     );
 }
 
@@ -99,10 +92,9 @@ impl ComposeBackend.lower_async_boundary(a: AsyncBoundary) -> es.Expression {
 }
 
 impl ComposeBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression {
-    tag = view.tag.name if hasattr(view.tag, "name") else "View";
+    tag = view.tag?.name or "View";
     return es.CallExpression(
-        callee=es.Identifier(name="__jacComposeView"),
-        arguments=[es.Literal(value=tag)]
+        callee=es.Identifier(name="__jacComposeView"), arguments=[es.Literal(value=tag)]
     );
 }
 

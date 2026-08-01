@@ -1,15 +1,14 @@
-"""ComposeGenPass — walks uni directly for the native Compose/Android path.
-
-Sibling to EsastGenPass; never produces estree. Records reactive intent into
-ComposeModule (target-neutral semantics plus native Compose view IR).
-"""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 import from jaclang.compiler.passes.ecmascript.intent.collector { IntentCollector }
 import from jaclang.compiler.passes.ecmascript.intent.session { IntentSession }
-import from jaclang.compiler.passes.compose.compose_leaf_converter { ComposeLeafConverter }
-import from jaclang.compiler.passes.compose.compose_intent_adapter { ComposeIntentAdapter }
+import from jaclang.compiler.passes.compose.compose_leaf_converter {
+    ComposeLeafConverter
+}
+import from jaclang.compiler.passes.compose.compose_intent_adapter {
+    ComposeIntentAdapter
+}
 import from jaclang.compiler.passes.compose.jac_to_kotlin { JacToKotlin }
 import from jaclang.compiler.passes.compose.compose_view_builder { ComposeViewBuilder }
 

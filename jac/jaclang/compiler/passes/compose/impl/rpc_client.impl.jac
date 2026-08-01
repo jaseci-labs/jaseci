@@ -1,8 +1,11 @@
-"""RpcClientEmitter — InteropManifest → JacClient.kt."""
 import from jaclang.compiler.passes.compose.gradle_scaffold { escape_kotlin }
 
 impl walker_to_pascal(walker_name: str) -> str {
-    parts = [p for p in walker_name.split('_') if p];
+    parts = [
+        p
+        for p in walker_name.split('_')
+        if p
+    ];
     if not parts {
         return walker_name;
     }
@@ -53,8 +56,7 @@ impl RpcClientEmitter.jac_type_to_kotlin(jac_type: str) -> str {
             k = inner[0:comma].strip();
             v = inner[comma + 1:].strip();
             return (
-                f"Map<{self.jac_type_to_kotlin(k)}, "
-                f"{self.jac_type_to_kotlin(v)}>"
+                f"Map<{self.jac_type_to_kotlin(k)}, " f"{self.jac_type_to_kotlin(v)}>"
             );
         }
         return "Map<String, Any>";
@@ -74,10 +76,7 @@ impl RpcClientEmitter.jac_type_to_kotlin(jac_type: str) -> str {
 }
 
 def _emit_enum_class(info: any) -> str {
-    lines: list[str] = [
-        '@Serializable',
-        f"enum class {info.name} {{"
-    ];
+    lines: list[str] = ['@Serializable', f"enum class {info.name} {{"];
     members = getattr(info, 'enum_members', []) or [];
     for (idx, (member_name, _val)) in enumerate(members) {
         suffix = ',' if idx < len(members) - 1 else '';
@@ -87,11 +86,7 @@ def _emit_enum_class(info: any) -> str {
     return '\n'.join(lines);
 }
 
-def _emit_data_class(
-    class_name: str,
-    info: any,
-    emitter: RpcClientEmitter
-) -> str {
+def _emit_data_class(class_name: str, info: any, emitter: RpcClientEmitter) -> str {
     kind = getattr(info, 'kind', 'obj');
     if kind == 'enum' {
         return _emit_enum_class(info);
@@ -121,7 +116,7 @@ def _emit_data_class(
     return f"@Serializable\ndata class {class_name}(\n    {body}\n)\n";
 }
 
-def _collect_nested_types(info: any, boundary_types: dict, collected: set[str]) -> None {
+def _collect_nested_types(info: any, boundary_types: dict, collected: set[str]) {
     for nt in getattr(info, 'nested_types', []) or [] {
         if nt and nt not in collected and nt in boundary_types {
             collected.add(nt);
@@ -132,15 +127,11 @@ def _collect_nested_types(info: any, boundary_types: dict, collected: set[str]) 
 
 def _is_pub_walker(manifest: any, walker_name: str) -> bool {
     access = getattr(manifest, 'walker_access', {}) or {};
-    # walker_access[name] == False means :pub (no auth required).
+
     return not access.get(walker_name, True);
 }
 
-def _walker_request_info(
-    manifest: any,
-    walker_name: str,
-    pascal: str
-) -> any {
+def _walker_request_info(manifest: any, walker_name: str, pascal: str) -> any {
     import from jaclang.jac0core.codeinfo { BoundaryTypeInfo }
     boundary_types = getattr(manifest, 'boundary_types', {}) or {};
     request_name = f"{pascal}Request";
@@ -149,7 +140,7 @@ def _walker_request_info(
     }
     if walker_name in boundary_types {
         info = boundary_types[walker_name];
-        # Manifest keys walkers by name; Kotlin needs PascalCase *Request.
+
         return BoundaryTypeInfo(
             name=request_name,
             kind=getattr(info, 'kind', 'walker') or 'walker',
@@ -169,19 +160,12 @@ def _walker_request_info(
             ptype = types[idx] if idx < len(types) else 'Any';
             fields.append((pname, ptype));
         }
-        return BoundaryTypeInfo(
-            name=request_name,
-            kind='walker',
-            fields=fields
-        );
+        return BoundaryTypeInfo(name=request_name, kind='walker', fields=fields);
     }
     return BoundaryTypeInfo(name=request_name, kind='walker', fields=[]);
 }
 
-def _walker_response_info(
-    manifest: any,
-    pascal: str
-) -> any {
+def _walker_response_info(manifest: any, pascal: str) -> any {
     boundary_types = getattr(manifest, 'boundary_types', {}) or {};
     response_name = f"{pascal}Response";
     if response_name in boundary_types {
@@ -191,7 +175,7 @@ def _walker_response_info(
         return boundary_types[pascal];
     }
     import from jaclang.jac0core.codeinfo { BoundaryTypeInfo }
-    # Walker `report` values land in payload.data.reports (client runtime contract).
+
     return BoundaryTypeInfo(
         name=response_name,
         kind='obj',

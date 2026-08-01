@@ -1,85 +1,77 @@
-"""Tailwind className → Compose Modifier (v1 subset)."""
 import re;
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 
 
-glob IGNORE_CLASSES: set[str] = {
-    "btn", "card", "pane-head", "stat", "tok-chip"
-};
-
-glob _SEMANTIC_BG: dict[str, str] = {
-    "bg": "JacDesign.background",
-    "surface": "JacDesign.surface",
-    "surface-2": "JacDesign.softMuted",
-    "accent": "JacDesign.primary",
-    "muted": "JacDesign.muted",
-    "success": "JacDesign.success",
-    "warning": "JacDesign.warning",
-    "danger": "JacDesign.danger",
-    "info": "JacDesign.info",
-    "white": "Color.White"
-};
-
-glob _SEMANTIC_TEXT: dict[str, str] = {
-    "fg": "JacDesign.onBackground",
-    "muted": "JacDesign.muted",
-    "accent": "JacDesign.primary",
-    "accent-fg": "JacDesign.onPrimary",
-    "white": "Color.White"
-};
-
-# Common Tailwind palette shades used by cl components (ARGB Compose Color).
-glob _PALETTE: dict[str, str] = {
-    "slate-50": "Color(0xFFF8FAFC)",
-    "slate-100": "Color(0xFFF1F5F9)",
-    "slate-200": "Color(0xFFE2E8F0)",
-    "slate-300": "Color(0xFFCBD5E1)",
-    "slate-400": "Color(0xFF94A3B8)",
-    "slate-500": "Color(0xFF64748B)",
-    "slate-600": "Color(0xFF475569)",
-    "slate-700": "Color(0xFF334155)",
-    "slate-800": "Color(0xFF1E293B)",
-    "slate-900": "Color(0xFF0F172A)",
-    "gray-50": "Color(0xFFF9FAFB)",
-    "gray-100": "Color(0xFFF3F4F6)",
-    "gray-200": "Color(0xFFE5E7EB)",
-    "gray-300": "Color(0xFFD1D5DB)",
-    "gray-400": "Color(0xFF9CA3AF)",
-    "gray-500": "Color(0xFF6B7280)",
-    "gray-600": "Color(0xFF4B5563)",
-    "gray-700": "Color(0xFF374151)",
-    "gray-800": "Color(0xFF1F2937)",
-    "gray-900": "Color(0xFF111827)",
-    "blue-50": "Color(0xFFEFF6FF)",
-    "blue-100": "Color(0xFFDBEAFE)",
-    "blue-500": "Color(0xFF3B82F6)",
-    "blue-600": "Color(0xFF2563EB)",
-    "blue-700": "Color(0xFF1D4ED8)",
-    "teal-50": "Color(0xFFF0FDFA)",
-    "teal-500": "Color(0xFF14B8A6)",
-    "teal-600": "Color(0xFF0D9488)",
-    "teal-700": "Color(0xFF0F766E)",
-    "red-500": "Color(0xFFEF4444)",
-    "red-600": "Color(0xFFDC2626)",
-    "green-500": "Color(0xFF22C55E)",
-    "green-600": "Color(0xFF16A34A)",
-    "amber-500": "Color(0xFFF59E0B)",
-    "amber-600": "Color(0xFFD97706)",
-    "indigo-500": "Color(0xFF6366F1)",
-    "indigo-600": "Color(0xFF4F46E5)",
-    "white": "Color.White",
-    "black": "Color.Black"
-};
-
-glob _TEXT_SIZE: dict[str, str] = {
-    "text-xs": "12.sp",
-    "text-sm": "14.sp",
-    "text-base": "16.sp",
-    "text-lg": "18.sp",
-    "text-xl": "20.sp",
-    "text-2xl": "24.sp",
-    "text-3xl": "30.sp"
-};
+glob IGNORE_CLASSES: set[str] = {"btn", "card", "pane-head", "stat", "tok-chip"},
+     _SEMANTIC_BG: dict[str, str] = {
+         "bg": "JacDesign.background",
+         "surface": "JacDesign.surface",
+         "surface-2": "JacDesign.softMuted",
+         "accent": "JacDesign.primary",
+         "muted": "JacDesign.muted",
+         "success": "JacDesign.success",
+         "warning": "JacDesign.warning",
+         "danger": "JacDesign.danger",
+         "info": "JacDesign.info",
+         "white": "Color.White"
+     },
+     _SEMANTIC_TEXT: dict[str, str] = {
+         "fg": "JacDesign.onBackground",
+         "muted": "JacDesign.muted",
+         "accent": "JacDesign.primary",
+         "accent-fg": "JacDesign.onPrimary",
+         "white": "Color.White"
+     },
+     _PALETTE: dict[str, str] = {
+         "slate-50": "Color(0xFFF8FAFC)",
+         "slate-100": "Color(0xFFF1F5F9)",
+         "slate-200": "Color(0xFFE2E8F0)",
+         "slate-300": "Color(0xFFCBD5E1)",
+         "slate-400": "Color(0xFF94A3B8)",
+         "slate-500": "Color(0xFF64748B)",
+         "slate-600": "Color(0xFF475569)",
+         "slate-700": "Color(0xFF334155)",
+         "slate-800": "Color(0xFF1E293B)",
+         "slate-900": "Color(0xFF0F172A)",
+         "gray-50": "Color(0xFFF9FAFB)",
+         "gray-100": "Color(0xFFF3F4F6)",
+         "gray-200": "Color(0xFFE5E7EB)",
+         "gray-300": "Color(0xFFD1D5DB)",
+         "gray-400": "Color(0xFF9CA3AF)",
+         "gray-500": "Color(0xFF6B7280)",
+         "gray-600": "Color(0xFF4B5563)",
+         "gray-700": "Color(0xFF374151)",
+         "gray-800": "Color(0xFF1F2937)",
+         "gray-900": "Color(0xFF111827)",
+         "blue-50": "Color(0xFFEFF6FF)",
+         "blue-100": "Color(0xFFDBEAFE)",
+         "blue-500": "Color(0xFF3B82F6)",
+         "blue-600": "Color(0xFF2563EB)",
+         "blue-700": "Color(0xFF1D4ED8)",
+         "teal-50": "Color(0xFFF0FDFA)",
+         "teal-500": "Color(0xFF14B8A6)",
+         "teal-600": "Color(0xFF0D9488)",
+         "teal-700": "Color(0xFF0F766E)",
+         "red-500": "Color(0xFFEF4444)",
+         "red-600": "Color(0xFFDC2626)",
+         "green-500": "Color(0xFF22C55E)",
+         "green-600": "Color(0xFF16A34A)",
+         "amber-500": "Color(0xFFF59E0B)",
+         "amber-600": "Color(0xFFD97706)",
+         "indigo-500": "Color(0xFF6366F1)",
+         "indigo-600": "Color(0xFF4F46E5)",
+         "white": "Color.White",
+         "black": "Color.Black"
+     },
+     _TEXT_SIZE: dict[str, str] = {
+         "text-xs": "12.sp",
+         "text-sm": "14.sp",
+         "text-base": "16.sp",
+         "text-lg": "18.sp",
+         "text-xl": "20.sp",
+         "text-2xl": "24.sp",
+         "text-3xl": "30.sp"
+     };
 
 impl tw_unit_to_dp(n: float) -> str {
     px = n * 4.0;
@@ -99,7 +91,7 @@ def _resolve_color(key: str) -> (str | None) {
     if key in _PALETTE {
         return _PALETTE[key];
     }
-    # opacity suffix: slate-900/80
+
     if "/" in key {
         (base, op) = key.split("/", 1);
         color = _resolve_color(base);
@@ -111,18 +103,17 @@ def _resolve_color(key: str) -> (str | None) {
     return None;
 }
 
-def _add_mod(result: TailwindResult, name: str, arg: str) -> None {
+def _add_mod(result: TailwindResult, name: str, arg: str) {
     result.modifier.calls.append(
         kt.KtModifierCall(name=name, args=[kt.KtRaw(code=arg)])
     );
 }
 
-def _add_mod0(result: TailwindResult, name: str) -> None {
+def _add_mod0(result: TailwindResult, name: str) {
     result.modifier.calls.append(kt.KtModifierCall(name=name, args=[]));
 }
 
 def _parse_spacing(cls: str) -> (str | None, str | None) {
-    # returns (kind, dp_str) e.g. ("p", "16.dp")
     m = re.match(r"^(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml)-([\d.]+)$", cls);
     if not m {
         return (None, None);
@@ -136,9 +127,11 @@ def _apply_class(result: TailwindResult, cls: str, flags: dict[str, str]) -> Non
     if cls in IGNORE_CLASSES or cls.startswith("insp-") {
         return;
     }
-    if cls.startswith("hover:") or cls.startswith("group-hover:")
-    or cls.startswith("focus:") or cls.startswith("focus-visible:")
-    or cls.startswith("last:") {
+    if cls.startswith("hover:")
+        or cls.startswith("group-hover:")
+        or cls.startswith("focus:")
+        or cls.startswith("focus-visible:")
+        or cls.startswith("last:") {
         result.unsupported.append(f"dropped:{cls}");
         return;
     }
@@ -228,7 +221,6 @@ def _apply_class(result: TailwindResult, cls: str, flags: dict[str, str]) -> Non
         } elif kind == "pl" {
             _add_mod(result, "padding", f"start = {dp}");
         } else {
-            # margins → padding (Compose has no margin)
             _add_mod(result, "padding", dp);
         }
         return;
@@ -357,7 +349,7 @@ def _apply_class(result: TailwindResult, cls: str, flags: dict[str, str]) -> Non
     result.unsupported.append(cls);
 }
 
-def _finalize(result: TailwindResult, flags: dict[str, str]) -> None {
+def _finalize(result: TailwindResult, flags: dict[str, str]) {
     if "grid" in flags {
         result.layout = LayoutKind.LAZY_GRID;
     } elif "flex" in flags {
@@ -393,7 +385,7 @@ def _finalize(result: TailwindResult, flags: dict[str, str]) -> None {
     if justify {
         result.horizontal_arrangement = f"Arrangement.{justify}";
     }
-    # Emit border after color classes so `border border-slate-200` works in either order.
+
     if "border_w" in flags {
         width = flags["border_w"];
         color = result.border_color or "JacDesign.muted";

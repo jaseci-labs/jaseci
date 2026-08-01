@@ -1,4 +1,3 @@
-"""Jac uni expressions/statements → kotlin_ast (native Compose path)."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 
@@ -12,7 +11,10 @@ obj JacToKotlin {
     def convert_stmts(body: (list[uni.UniNode] | None)) -> list[kt.KtNode];
     def convert_stmt(nd: (uni.UniNode | None)) -> (kt.KtNode | None);
     def _compute_mutable_locals(body: (list[uni.UniNode] | None)) -> set[str];
-    def _count_assign_targets(nd: (uni.UniNode | None), counts: dict[str, int]) -> None;
+    def _count_assign_targets(
+        nd: (uni.UniNode | None), counts: dict[str, int]
+    ) -> None;
+
     def lower_state_read(name: str) -> kt.KtNode;
     def _lambda_body(nd: uni.LambdaExpr) -> list[kt.KtNode];
     def _convert_spawn(nd: uni.BinaryExpr) -> (kt.KtNode | None);

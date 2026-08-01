@@ -1,13 +1,23 @@
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 
 glob _KT_HARD_KEYWORDS: set[str] = {
-    'is', 'in', 'object', 'fun', 'val', 'var', 'when', 'class', 'this', 'typeof', 'as'
-};
+         'is',
+         'in',
+         'object',
+         'fun',
+         'val',
+         'var',
+         'when',
+         'class',
+         'this',
+         'typeof',
+         'as'
+     };
 
 impl escape_kotlin_string(value: str) -> str {
-    return value.replace('\\', '\\\\').replace('"', '\\"').replace(
-        '\n', '\\n'
-    ).replace('$', '\\$');
+    return value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace(
+        '$', '\\$'
+    );
 }
 
 impl kt_to_source(nd: (kt.KtNode | None), indent: str = '    ') -> str {
@@ -158,7 +168,6 @@ impl KotlinCodeGenerator.gen_kt_assignment(nd: kt.KtAssignment) -> str {
 }
 
 impl KotlinCodeGenerator.gen_kt_lambda(nd: kt.KtLambda) -> str {
-    # Empty-param lambdas must omit `->` (`{ stmt }` not `{  -> stmt }`).
     arrow = f"{', '.join(nd.params)} -> " if nd.params else "";
     if nd.expression_body {
         body = self.generate(nd.expression_body);
@@ -362,9 +371,7 @@ impl KotlinCodeGenerator.gen_kt_function(nd: kt.KtFunction) -> str {
     ret = f": {nd.return_type}" if nd.return_type else '';
     sig = f"{mod_str}fun {nd.name}({params}){ret}";
     if nd.is_expression_body and nd.expression_body {
-        lines.append(
-            f"{self.indent()}{sig} = {self.generate(nd.expression_body)}"
-        );
+        lines.append(f"{self.indent()}{sig} = {self.generate(nd.expression_body)}");
     } else {
         self.indent_level += 1;
         body = self._gen_body(nd.body);

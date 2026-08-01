@@ -53,7 +53,9 @@ def:pub app -> Composable {
         model.intent.routes = [];
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         assert "@Composable" in screens;
-        assert "fun HomeScreen" in screens or "fun appScreen" in screens or "Column(" in screens;
+        assert "fun HomeScreen" in screens
+            or "fun appScreen" in screens
+            or "Column(" in screens;
         assert "hello compose" in screens;
         assert "className" not in screens;
         assert "tailwind" not in screens.lower();
@@ -120,7 +122,6 @@ def:pub app -> Composable {
         assert "androidx.compose.material.icons.Icons" in model.kotlin_imports;
         # A non-JVM import (stdlib `os`) is NOT part of the Kotlin surface.
         assert all("os" != x for x in model.kotlin_imports);
-
         model.intent.package_name = "dev.jac.test";
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         assert "import com.acme.ui.FancyButton" in screens;
@@ -174,7 +175,9 @@ def:pub Counter() -> Composable {
         path = Path(tmp) / "counter.cl.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
-        import from jaclang.compiler.passes.compose.reactive_compose { ReactiveComposeEmitter }
+        import from jaclang.compiler.passes.compose.reactive_compose {
+            ReactiveComposeEmitter
+        }
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
@@ -192,7 +195,9 @@ def:pub Counter() -> Composable {
 test "jac_to_kotlin lowers walker spawn to JacClient call" {
     import from jaclang.compiler.passes.compose.jac_to_kotlin { jac_expr_to_kt }
     import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
-    import from jaclang.compiler.passes.ecmascript.intent.detection { unwrap_ability_body }
+    import from jaclang.compiler.passes.ecmascript.intent.detection {
+        unwrap_ability_body
+    }
 
     src = '''
 def test_spawn -> None {
@@ -204,7 +209,7 @@ def test_spawn -> None {
         path = Path(tmp) / "spawn.jac";
         path.write_text(
             'walker greet { has name: str; can run with Root entry { report "hi"; } }\n'
-            + src,
+                + src,
             encoding="utf-8"
         );
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
@@ -250,7 +255,7 @@ def:pub app -> Composable {
         path = Path(tmp) / "app.cl.jac";
         path.write_text(
             'walker greet { has name: str; can run with Root entry { report "hi"; } }\n'
-            + src,
+                + src,
             encoding="utf-8"
         );
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
@@ -332,7 +337,7 @@ def:pub app -> Composable {
         path = Path(tmp) / "app.cl.jac";
         path.write_text(
             'walker greet { has name: str; can run with Root entry { report "hi"; } }\n'
-            + src,
+                + src,
             encoding="utf-8"
         );
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
@@ -374,7 +379,7 @@ def:pub app -> Composable {
         path = Path(tmp) / "app.cl.jac";
         path.write_text(
             'walker greet { has name: str; can run with Root entry { report "hi"; } }\n'
-            + src,
+                + src,
             encoding="utf-8"
         );
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
@@ -386,7 +391,8 @@ def:pub app -> Composable {
         # The non-reactive local is declared exactly once (val if never
         # reassigned, var if it is) and then mutated via bare assignments —
         # never re-declared as a shadowing `val` in a nested scope.
-        next_decls = screens.count("val next_greeting =") + screens.count("var next_greeting =");
+        next_decls = screens.count("val next_greeting =")
+            + screens.count("var next_greeting =");
         assert next_decls == 1;
         assert screens.count("var next_greeting =") == 1;
         assert "next_greeting = result.reports[0]" in screens;
@@ -404,7 +410,9 @@ def:pub app -> Composable {
 test "jac_to_kotlin maps Jac == to Kotlin ==" {
     import from jaclang.compiler.passes.compose.jac_to_kotlin { jac_expr_to_kt }
     import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
-    import from jaclang.compiler.passes.ecmascript.intent.detection { unwrap_ability_body }
+    import from jaclang.compiler.passes.ecmascript.intent.detection {
+        unwrap_ability_body
+    }
 
     src = '''
 def test_eq -> int {
@@ -440,7 +448,9 @@ def test_eq -> int {
 test "jac_to_kotlin maps floor div" {
     import from jaclang.compiler.passes.compose.jac_to_kotlin { jac_expr_to_kt }
     import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
-    import from jaclang.compiler.passes.ecmascript.intent.detection { unwrap_ability_body }
+    import from jaclang.compiler.passes.ecmascript.intent.detection {
+        unwrap_ability_body
+    }
     import jaclang.jac0core.unitree as uni;
 
     src = '''

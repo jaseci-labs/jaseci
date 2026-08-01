@@ -36,6 +36,7 @@ obj SolidBackend(ReactBackend) {
     def runtime_symbols(
         intent: StateField | RefField | Effect | AsyncBoundary | ViewElement
     ) -> list[str];
+
     def _jsx_element(
         name_node: any, attrs: list, children: list, jac_node: any, sync_loc: any
     ) -> es.JsxElement;

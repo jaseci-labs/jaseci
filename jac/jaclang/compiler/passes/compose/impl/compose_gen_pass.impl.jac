@@ -1,4 +1,3 @@
-"""ComposeGenPass implementation — uni walk for native Compose codegen."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 import from jaclang.compiler.passes.ecmascript.intent.collector { IntentCollector }
@@ -7,8 +6,12 @@ import from jaclang.compiler.passes.ecmascript.intent.detection {
     COMPOSE_COMPONENT_TYPES,
     unwrap_ability_body
 }
-import from jaclang.compiler.passes.compose.compose_leaf_converter { ComposeLeafConverter }
-import from jaclang.compiler.passes.compose.compose_intent_adapter { ComposeIntentAdapter }
+import from jaclang.compiler.passes.compose.compose_leaf_converter {
+    ComposeLeafConverter
+}
+import from jaclang.compiler.passes.compose.compose_intent_adapter {
+    ComposeIntentAdapter
+}
 import from jaclang.compiler.passes.compose.jac_to_kotlin { JacToKotlin }
 import from jaclang.compiler.passes.compose.compose_view_builder { ComposeViewBuilder }
 import from jaclang.compiler.passes.compose.kotlin_ast { KtLiteral }
@@ -103,26 +106,24 @@ impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
 }
 
 impl ComposeGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
-    # Root JSX inside a component body is captured via return statement.
-    # Nested elements are built bottom-up by ComposeViewBuilder.
     return;
 }
 
-# Kotlin-namespace roots a compose module may import from. An import whose dotted
-# path starts with one of these is a genuine JVM/AndroidX/third-party package and
-# is translated 1:1 into a Kotlin `import`, so a library composable referenced as
-# `<FancyButton/>` resolves without a `<Raw kotlin=..>`. Anything else (jaclang
-# internals, stdlib, relative imports) is left alone — it is server/tooling code,
-# not part of the emitted Kotlin surface.
 glob _KOTLIN_IMPORT_ROOTS: set[str] = {
-    "androidx", "android", "kotlin", "kotlinx", "java", "javax",
-    "com", "org", "io", "dev", "net"
-};
+         "androidx",
+         "android",
+         "kotlin",
+         "kotlinx",
+         "java",
+         "javax",
+         "com",
+         "org",
+         "io",
+         "dev",
+         "net"
+     };
 
 def _kotlin_import_lines(nd: uni.Import) -> list[str] {
-    # Translate one Jac import into zero or more Kotlin import paths (no "import "
-    # prefix). `import from a.b.c { X, Y as Z }` -> ["a.b.c.X", "a.b.c.Z"];
-    # `import a.b.c.Icons` -> ["a.b.c.Icons"]. Relative imports are skipped.
     fl = nd.from_loc;
     if fl is not None {
         if getattr(fl, "level", 0) and fl.level > 0 {
@@ -135,12 +136,11 @@ def _kotlin_import_lines(nd: uni.Import) -> list[str] {
         lines: list[str] = [];
         for it in (nd.items or []) {
             if isinstance(it, uni.ModuleItem) {
-                nm = it.name.value if hasattr(it.name, "value") else str(it.name);
+                nm = it.name?.value or str(it.name);
                 if not nm {
                     continue;
                 }
-                # `X as Y` -> Kotlin `import pkg.X as Y`, so a `<Y/>` reference
-                # (the alias the user actually writes) resolves.
+
                 if it.alias is not None and getattr(it.alias, "value", "") {
                     lines.append(f"{dot}.{nm} as {it.alias.value}");
                 } else {
@@ -153,7 +153,7 @@ def _kotlin_import_lines(nd: uni.Import) -> list[str] {
         }
         return lines;
     }
-    # Plain `import a.b.c.Thing;` — items are ModulePaths.
+
     out: list[str] = [];
     for it in (nd.items or []) {
         if isinstance(it, uni.ModulePath) {
@@ -170,7 +170,6 @@ def _kotlin_import_lines(nd: uni.Import) -> list[str] {
 }
 
 impl ComposeGenPass.exit_import(nd: uni.Import) -> None {
-    # Only client-context imports contribute to the emitted Kotlin surface.
     if not nd.in_client_context() {
         return;
     }

@@ -1,4 +1,3 @@
-"""Gradle project scaffold and boilerplate Kotlin for Compose Android emit."""
 import from pathlib { Path }
 
 obj GradleScaffold {

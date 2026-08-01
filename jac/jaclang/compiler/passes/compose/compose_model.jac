@@ -1,9 +1,3 @@
-"""ComposeModule — Android Compose codegen artifact.
-
-Wraps target-neutral IntentModule semantics with native Compose view IR keyed
-by component name. ComposeGenPass and ComposeEmit use this type; the JS path
-continues to use IntentModule alone.
-"""
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentModule }
 import type from jaclang.compiler.passes.compose.view_ir { ComposeElement }
 
@@ -16,9 +10,7 @@ obj ComposeModule {
         return self.compose_views.get(name);
     }
 
-    def add_kotlin_import(line: str) -> None {
-        # Deduped, insertion-ordered. `line` is a full Kotlin import path
-        # (e.g. "com.example.ui.FancyButton"), no "import " prefix.
+    def add_kotlin_import(line: str) {
         if line and line not in self.kotlin_imports {
             self.kotlin_imports.append(line);
         }

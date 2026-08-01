@@ -1,4 +1,3 @@
-"""IntentSession walk hook implementations."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.ecmascript.intent.semantics {
     IntentLeaf,
@@ -62,9 +61,7 @@ impl IntentSession.scan_arch_has(nd: uni.ArchHas) -> (ArchHasScanResult | None) 
         return None;
     }
     scan = scan_arch_has(
-        nd,
-        skip_existing=self.arch_has_skip_existing(),
-        conv=self.converter
+        nd, skip_existing=self.arch_has_skip_existing(), conv=self.converter
     );
     if self.use_arch_has_dedup {
         self._recorded_arch_has.add(id(nd));
@@ -72,16 +69,16 @@ impl IntentSession.scan_arch_has(nd: uni.ArchHas) -> (ArchHasScanResult | None) 
     return scan;
 }
 
-impl IntentSession.scan_state_update(
-    nd: uni.Assignment
-) -> (StateUpdate | None) {
-    import from jaclang.compiler.passes.ecmascript.intent.detection { scan_state_update }
+impl IntentSession.scan_state_update(nd: uni.Assignment) -> (StateUpdate | None) {
+    import from jaclang.compiler.passes.ecmascript.intent.detection {
+        scan_state_update
+    }
     return scan_state_update(
         nd,
         self.converter,
-        convert_value=lambda (v: uni.Expr | uni.YieldExpr) {
-            self.converter.convert_assignment_value(nd, v);
-        }
+        convert_value=lambda (v: uni.Expr | uni.YieldExpr) { self.converter.convert_assignment_value(
+            nd, v
+        ); }
     );
 }
 

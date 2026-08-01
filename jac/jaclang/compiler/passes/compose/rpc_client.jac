@@ -1,4 +1,3 @@
-"""InteropManifest → typed JacClient.kt RPC emitter."""
 obj RpcClientEmitter {
     has package_name: str = "dev.jac.generated";
 

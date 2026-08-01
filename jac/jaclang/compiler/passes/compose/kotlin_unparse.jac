@@ -1,4 +1,3 @@
-"""Kotlin AST → source text (mirrors es_unparse.jac)."""
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 
 obj KotlinCodeGenerator {

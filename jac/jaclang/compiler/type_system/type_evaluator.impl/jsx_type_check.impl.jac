@@ -21,17 +21,6 @@ impl TypeEvaluator._is_mobui_module(nd: uni.UniNode) -> bool {
 }
 
 impl TypeEvaluator._is_compose_module(nd: uni.UniNode) -> bool {
-    # True when `nd` lives in an Android/Compose client project (`[client]
-    # framework = "compose"`). The Compose ambient vocabulary — widgets, the
-    # Modifier/Arrangement/Alignment/Color namespaces, and the .dp/.sp/.len
-    # extensions — resolves only in such a module, so a plain React `.cl.jac`
-    # never sees Compose names even though both are client codespaces. Mirrors
-    # _is_mobui_module: config-driven and cached per module path.
-    # The active target is the single source of truth: when a build selects the
-    # Android/Compose target it threads `client_framework = "compose"` through
-    # CompileOptions, so the checker and the ES ComposeBackend cannot disagree.
-    # The disk config (`[client] framework`) is the fallback for standalone
-    # checking / LSP where no target drives the compile.
     opts = self.program._compile_options;
     if getattr(opts, "client_framework", "") == "compose" {
         return True;
@@ -128,13 +117,7 @@ impl TypeEvaluator._validate_jsx_props(
     if not expr.name {
         return;
     }
-    # The parser stores a `<Tag ..>` opening marker and a `</Tag>` closing marker as
-    # separate JsxElement nodes inside the real element's `.kid` (parse_jsx_element).
-    # Both carry no children, and the opening one carries the attributes — so
-    # validating them would double-check attributes and, worse, spuriously flag a
-    # required content slot as "missing" (the children live only on the real node).
-    # A marker is a JsxElement whose parent is a JsxElement but which is absent from
-    # that parent's semantic `.children`; skip it and validate only the real node.
+
     parent = expr.parent;
     if isinstance(parent, uni.JsxElement) {
         siblings = parent.children or [];
@@ -142,9 +125,7 @@ impl TypeEvaluator._validate_jsx_props(
             return;
         }
     }
-    # Proceed with either attributes or children: a component with only children
-    # (e.g. `<Text>"Hi"</Text>`) still needs its required params checked — children
-    # fill the primary content, but a missing required event must still be flagged.
+
     if not expr.attributes and not expr.children {
         return;
     }
@@ -304,10 +285,6 @@ impl TypeEvaluator._validate_component_jsx_props(
         }
     }
 
-    # Content-bearing JSX children fill the widget's primary-content param — Text's
-    # `text` or a widget's trailing content slot — which the emitter lowers as the
-    # trailing @Composable lambda / Text(text=..). That param is never an attribute,
-    # so treat it as satisfied when children are present (mirrors compose_native_emit).
     children_target = self._compose_children_target(expr, component_name, param_map)
         if self._returns_composable(func_type)
         else None;
@@ -323,15 +300,8 @@ impl TypeEvaluator._validate_component_jsx_props(
 }
 
 impl TypeEvaluator._compose_children_target(
-    expr: uni.JsxElement,
-    component_name: str,
-    param_map: dict[str, types.Parameter]
+    expr: uni.JsxElement, component_name: str, param_map: dict[str, types.Parameter]
 ) -> (str | None) {
-    # Which param this widget's JSX children fill, or None if there are no
-    # content-bearing children. Mirrors the emitter (compose_native_emit):
-    #   Text  -> the `text` value param (children become Text(text=..))
-    #   else  -> the trailing content slot (children become the trailing lambda,
-    #            which Kotlin binds to the last @Composable content-slot param)
     if not self._jsx_has_content_children(expr) {
         return None;
     }
@@ -348,9 +318,6 @@ impl TypeEvaluator._compose_children_target(
 }
 
 impl TypeEvaluator._returns_composable(func_type: types.FunctionType) -> bool {
-    # A synthesized Compose widget is the only FunctionType that returns the
-    # nominal `Composable` type; gate children-awareness on that so React/intrinsic
-    # components (which never return Composable) keep their attribute-only checking.
     rt = func_type.return_type;
     if not isinstance(rt, types.ClassType) {
         return False;
@@ -360,9 +327,6 @@ impl TypeEvaluator._returns_composable(func_type: types.FunctionType) -> bool {
 }
 
 impl TypeEvaluator._is_compose_slot_param(p: types.Parameter) -> bool {
-    # A @Composable content slot is synthesized as a lambda returning a Composable
-    # (_map_compose_param); an event handler is a lambda returning None. Only the
-    # former is filled by children, so the return type is what distinguishes them.
     if not isinstance(p.param_type, types.FunctionType) {
         return False;
     }
@@ -371,8 +335,6 @@ impl TypeEvaluator._is_compose_slot_param(p: types.Parameter) -> bool {
 }
 
 impl TypeEvaluator._jsx_has_content_children(expr: uni.JsxElement) -> bool {
-    # A nested element or an embedded expression is always content; raw JSX text is
-    # content only if it is not pure layout whitespace.
     for child in (expr.children or []) {
         if isinstance(child, uni.JsxElement) or isinstance(child, uni.JsxExpression) {
             return True;

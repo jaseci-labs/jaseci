@@ -1,12 +1,9 @@
-"""Kotlin / Compose AST nodes (mirror of estree.jac for the Android emit path)."""
 import from typing { TypeAlias }
 import from typing { Literal as TypingLiteral }
 
 obj KtNode {
     has `type: str;
 }
-
-# ── Expressions ──────────────────────────────────────────────────────────────
 
 obj KtIdentifier(KtNode) {
     has name: str = "",
@@ -106,8 +103,6 @@ obj KtRaw(KtNode) {
         `type: TypingLiteral["KtRaw"] = "KtRaw";
 }
 
-# ── Statements ───────────────────────────────────────────────────────────────
-
 obj KtExprStmt(KtNode) {
     has expression: (KtNode | None) = None,
         `type: TypingLiteral["KtExprStmt"] = "KtExprStmt";
@@ -187,8 +182,6 @@ obj KtWhen(KtNode) {
         `type: TypingLiteral["KtWhen"] = "KtWhen";
 }
 
-# ── Declarations / file ──────────────────────────────────────────────────────
-
 obj KtParam {
     has name: str = "",
         type_ann: str = "",
@@ -238,8 +231,6 @@ obj KtFile(KtNode) {
         declarations: list[KtNode] = [],
         `type: TypingLiteral["KtFile"] = "KtFile";
 }
-
-# ── Compose helpers ──────────────────────────────────────────────────────────
 
 obj KtModifierCall {
     has name: str = "",

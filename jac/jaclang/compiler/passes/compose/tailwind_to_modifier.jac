@@ -1,4 +1,3 @@
-"""Tailwind className → Compose Modifier chain + layout hints."""
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 
 enum LayoutKind {

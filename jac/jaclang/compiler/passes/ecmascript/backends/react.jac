@@ -25,6 +25,7 @@ obj ReactBackend(FrameworkBackend) {
     def runtime_symbols(
         intent: StateField | RefField | Effect | AsyncBoundary | ViewElement
     ) -> list[str];
+
     def jsx_factory_name -> str;
     def import_source(symbol: str) -> str;
     def required_globals -> list[str];

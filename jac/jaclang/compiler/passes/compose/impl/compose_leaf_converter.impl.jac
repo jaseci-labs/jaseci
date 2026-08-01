@@ -1,4 +1,3 @@
-"""ComposeLeafConverter implementations."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.ecmascript.intent.semantics { IntentLeaf }
 
