@@ -182,9 +182,10 @@ conditional_jobs:
       - jac/jaclang/scale/tests/deploy/**
       - jac/jaclang/scale/tests/microservices/**
       - jac/jaclang/scale/scripts/**
-  test-precompile:
-    globs:
-      - jac/jaclang/utils/precompile_bytecode.jac
+      # Consumed by the k8s-real-e2e job (k8s_microservice_real_e2e.sh).
+      # Without this glob a fixture-only change routes to test-scale but skips
+      # k8s-real-e2e, which actually runs the fixture.
+      - jac/jaclang/scale/tests/fixtures/k8s_e2e/**
 
 # PR labels that structurally skip jobs (workflow `if:` gates). When present,
 # validate-expected-jobs.sh does not require success for these jobs even if
@@ -194,15 +195,39 @@ pr_label_skips:
     - test-scale-k8s
     - k8s-real-e2e
 
-# Test-only path → owning shard (also used when source paths are test files).
+# Test-only path → owning shard(s) (also used when source paths are test files).
+# A value may be a single job OR a list: some tests are consumed by more than
+# one CI environment (e.g. a native pass run under the Linux shard AND a macOS
+# or aarch64 lane). File-specific entries outrank their directory glob because
+# the classifier sorts longer (more-specific) patterns first.
 test_shard_globs:
   jac/tests/compiler/passes/main/**: test-compiler-passes-main
   jac/tests/compiler/passes/ecmascript/**: test-compiler-passes-ecmascript
   jac/tests/compiler/passes/native/**: test-compiler-passes-native
+  jac/tests/compiler/passes/native/test_exec_link.jac:
+    - test-compiler-passes-native
+    - test-native-macos
+  jac/tests/compiler/passes/native/test_native_gen_pass.jac:
+    - test-compiler-passes-native
+    - test-native-aarch64
+  jac/tests/compiler/passes/native/test_shared_lib.jac:
+    - test-compiler-passes-native
+    - test-native-macos
+  jac/tests/compiler/passes/native/test_wasm_build.jac:
+    - test-compiler-passes-native
+    - test-native-macos
   jac/tests/compiler/passes/tool/**: test-compiler-passes-tool
-  jac/jaclang/compiler/tests/**: test-compiler-equivalence
+  jac/jaclang/compiler/tests/test_prim_equivalence.jac:
+    - test-compiler-equivalence
+    - test-native-macos
   jac/tests/compiler/**: test-compiler-root
   jac/tests/runtimelib/client/**: test-client
+  jac/tests/runtimelib/client/test_desktop_binding.jac:
+    - test-client
+    - test-solid-and-desktop
+  jac/tests/runtimelib/test_solid_jsdom.jac:
+    - test-runtime-core
+    - test-solid-and-desktop
   jac/tests/runtimelib/**: test-runtime-core
   jac/tests/cli/test_docs_content.jac: test-docs
   jac/tests/cli/test_guide_docs.jac: test-docs
@@ -212,15 +237,21 @@ test_shard_globs:
   jac/tests/publish/**: test-runtime-project-publish-utils-langserve
   jac/tests/utils/**: test-runtime-project-publish-utils-langserve
   jac/tests/langserve/**: test-runtime-project-publish-utils-langserve
+  jac/jaclang/scale/tests/test_pod_env.jac:
+    - test-scale-k8s
+  jac/jaclang/scale/tests/test_k8s_utils.jac:
+    - test-scale-k8s
+  jac/jaclang/scale/tests/test_deploy_k8s.jac:
+    - test-scale-k8s
   jac/jaclang/scale/tests/**: test-scale
+  jac/jaclang/byllm/tests/test_byllm.jac:
+    - test-byllm
+    - test-built-byllm
   jac/jaclang/byllm/tests/**: test-byllm
   jac/jaclang/cli/docs/**: test-docs
   jac/jaclang/cli/skills/**: test-docs
   release_notes/**: contribution-checks
   scripts/install.sh: installer-test
-  scripts/integration_tests.jac: test-integration-scripts
-  scripts/check-guide.sh: test-integration-scripts
-  scripts/validate_docs_code.jac: contribution-checks
 
 cross_seam:
   - paths:

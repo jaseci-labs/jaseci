@@ -69,8 +69,12 @@ for job, info in needs.items():
     if job in metadata:
         continue
     result = info.get("result", "skipped")
+    # selected_jobs is authoritative in every mode. The router already subtracts
+    # full_ci_excluded_jobs on path-escalated PRs and applies event/label skips,
+    # so forcing every job on mode == "full" would wrongly require a job the
+    # router intentionally excluded (e.g. installer-test under full_ci).
     should_run = (
-        (mode == "full" or job in selected)
+        job in selected
         and job not in excluded
         and job not in label_excluded
     )

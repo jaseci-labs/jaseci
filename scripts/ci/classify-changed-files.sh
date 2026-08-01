@@ -22,6 +22,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+case "$MODE" in
+  pr|full) ;;
+  *) echo "::error::Invalid --mode '$MODE' (expected pr|full)" >&2; exit 2 ;;
+esac
+
 if [ ! -f "$MANIFEST" ]; then
   echo "::error::CI manifest missing: $MANIFEST" >&2
   exit 1
@@ -68,9 +73,14 @@ conditional_jobs = manifest.get("conditional_jobs", {})
 test_shard_globs = manifest.get("test_shard_globs", {})
 cross_seam = manifest.get("cross_seam", [])
 
-# Order matters: more specific test shards first.
+# Order matters: more specific test shards first. A value may be a single
+# job or a list of jobs, because some tests are consumed by more than one CI
+# environment (e.g. a native test run on both Linux and macOS lanes).
 ordered_test_shards = sorted(
-    test_shard_globs.items(),
+    [
+        (pat, jobs if isinstance(jobs, list) else [jobs])
+        for pat, jobs in test_shard_globs.items()
+    ],
     key=lambda kv: (-len(kv[0].replace("**", "")), kv[0]),
 )
 
@@ -99,9 +109,9 @@ def classify_path(path: str) -> dict:
         for cat, globs in category_globs.items():
             if any_glob(path, globs):
                 tags.add(cat)
-        for pattern, job in ordered_test_shards:
+        for pattern, shard_jobs in ordered_test_shards:
             if glob_match(path, pattern):
-                jobs.add(job)
+                jobs.update(shard_jobs)
                 break
         return {"tags": tags, "jobs": jobs, "unknown": False, "full": False}
 
@@ -114,9 +124,9 @@ def classify_path(path: str) -> dict:
             tags.add(cat)
             matched = True
 
-    for pattern, job in ordered_test_shards:
+    for pattern, shard_jobs in ordered_test_shards:
         if glob_match(path, pattern):
-            jobs.add(job)
+            jobs.update(shard_jobs)
             matched = True
             break
 
@@ -186,7 +196,7 @@ else:
     for seam in cross_seam:
         seam_paths = seam.get("paths", [])
         when_cats = seam.get("when_categories", [])
-        if any(any_glob(p, sp) for p in paths for sp in seam_paths):
+        if any(any_glob(p, seam_paths) for p in paths):
             if not when_cats or any(c in active_categories for c in when_cats):
                 selected.update(seam.get("add_jobs", []))
 

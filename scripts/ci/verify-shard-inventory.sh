@@ -75,19 +75,24 @@ for name, cfg in compiler_shards.items():
         )
     compiler_covered |= shard_files
 
-runtime_all: set[Path] = set()
-for cfg in runtime_shards.values():
-    for rel in cfg.get("paths", []):
-        runtime_all |= test_files(resolve(rel))
+# Canonical runtime universe: every test_*.jac under jac/tests/, derived from
+# the repository root rather than from the shard paths themselves. A new
+# top-level suite that no runtime shard lists appears here and is reported
+# missing, instead of being silently invisible (the old self-derived universe
+# could not detect it because it was built from those same shard paths).
+canonical_runtime = test_files(jac / "tests")
 
-# Subtract paths owned by other jobs (test-client, test-docs), declared in runtime_shards.
-inventory_exclude: set[Path] = set()
+# Files owned by non-runtime jobs: the compiler shards (tests/compiler/** and
+# jaclang/compiler/tests/**) plus the client/docs subtrees the runtime shards
+# explicitly decline via their `ignore` / `ignore_cli_docs`.
+non_runtime: set[Path] = set(compiler_all)
 for cfg in runtime_shards.values():
     for rel in cfg.get("ignore", []):
-        inventory_exclude |= test_files(resolve(rel))
+        non_runtime |= test_files(resolve(rel))
     for rel in cfg.get("ignore_cli_docs", []):
-        inventory_exclude.add(resolve(rel))
-runtime_all -= inventory_exclude
+        non_runtime.add(resolve(rel))
+
+expected_runtime = canonical_runtime - non_runtime
 
 runtime_covered: set[Path] = set()
 for name, cfg in runtime_shards.items():
@@ -109,15 +114,23 @@ if compiler_all != compiler_covered:
     if extra:
         errors.append(f"Compiler shard extra {len(extra)} tests, e.g. {extra[:3]}")
 
-if runtime_all != runtime_covered:
-    missing = sorted(runtime_all - runtime_covered)
+if expected_runtime != runtime_covered:
+    missing = sorted(expected_runtime - runtime_covered)
+    extra = sorted(runtime_covered - expected_runtime)
     if missing:
-        errors.append(f"Runtime shard missing {len(missing)} tests, e.g. {missing[:3]}")
+        errors.append(
+            f"Runtime shard missing {len(missing)} test(s) under jac/tests/, "
+            f"e.g. {missing[:3]} -- add the suite to runtime_shards"
+        )
+    if extra:
+        errors.append(
+            f"Runtime shard covers tests outside its declared universe: {extra[:3]}"
+        )
 
 print(f"Compiler inventory: {len(compiler_all)} test files across {len(compiler_shards)} shards")
 print(
-    f"Runtime inventory (excl. client, docs): {len(runtime_all)} test files "
-    f"across {len(runtime_shards)} shards"
+    f"Runtime inventory (jac/tests, excl. compiler/client/docs): "
+    f"{len(expected_runtime)} test files across {len(runtime_shards)} shards"
 )
 
 if errors:

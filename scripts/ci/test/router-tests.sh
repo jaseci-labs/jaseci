@@ -46,6 +46,14 @@ k8s=$(run_paths 'jac/jaclang/scale/tests/deploy/foo.jac')
 [ "$(selected_contains "$k8s" test-scale-k8s)" = "yes" ] || fail k8s deploy
 pass "scale k8s path"
 
+# k8s_e2e fixture is consumed by the k8s-real-e2e job (k8s_microservice_real_e2e.sh).
+# A fixture-only change must route to k8s-real-e2e, not just test-scale.
+k8sfix=$(run_paths 'jac/jaclang/scale/tests/fixtures/k8s_e2e/frontend.jac')
+assert_json "$k8sfix"
+[ "$(selected_contains "$k8sfix" k8s-real-e2e)" = "yes" ] || fail k8s_e2e fixture k8s-real-e2e
+[ "$(selected_contains "$k8sfix" test-scale)" = "yes" ] || fail k8s_e2e fixture test-scale
+pass "k8s_e2e fixture routes to k8s-real-e2e"
+
 # Launcher-only change scopes to test-launcher (leaf build-time dep), not full CI.
 launcher=$(run_paths 'jac/launcher/main.zig')
 [ "$(json_field "$launcher" full_ci)" = "False" ] || fail launcher full_ci
@@ -111,6 +119,55 @@ test_only=$(run_paths 'jac/tests/compiler/passes/main/test_foo.jac')
 [ "$(json_field "$test_only" full_ci)" = "False" ] || fail test-only full
 pass "test-only shard"
 
+# cross_seam: a test file pulls in cross-lane jobs only when a source change
+# in a related category accompanies it. Direct test for every cross_seam rule.
+# Rule 1: client source + test_inprocess_dispatch.jac -> add test-scale.
+cs1=$(run_paths 'jac/jaclang/runtimelib/client/foo.jac' 'jac/tests/runtimelib/client/test_inprocess_dispatch.jac')
+[ "$(selected_contains "$cs1" test-scale)" = "yes" ] || fail cross_seam inprocess test-scale
+[ "$(selected_contains "$cs1" test-client)" = "yes" ] || fail cross_seam inprocess test-client
+# Test-only path (no source) must NOT fire the seam.
+cs1b=$(run_paths 'jac/tests/runtimelib/client/test_inprocess_dispatch.jac')
+[ "$(selected_contains "$cs1b" test-scale)" = "no" ] || fail cross_seam fired without source
+pass "cross_seam: inprocess_dispatch -> scale"
+
+# Rule 2: scale source + test_eject.jac -> byllm/fullstack/integration lanes.
+cs2=$(run_paths 'jac/jaclang/scale/server/foo.jac' 'jac/tests/project/test_eject.jac')
+[ "$(selected_contains "$cs2" test-built-byllm)" = "yes" ] || fail cross_seam eject built-byllm
+[ "$(selected_contains "$cs2" test-fullstack-eject-smoke)" = "yes" ] || fail cross_seam eject fullstack
+[ "$(selected_contains "$cs2" test-integration-scripts)" = "yes" ] || fail cross_seam eject integration
+pass "cross_seam: eject -> byllm/fullstack"
+
+# Multi-lane test routing: a test consumed by several CI environments selects
+# every lane (the test_shard_globs value is a list of jobs).
+ml_solid=$(run_paths 'jac/tests/runtimelib/test_solid_jsdom.jac')
+[ "$(selected_contains "$ml_solid" test-runtime-core)" = "yes" ] || fail solid runtime-core
+[ "$(selected_contains "$ml_solid" test-solid-and-desktop)" = "yes" ] || fail solid-and-desktop lane
+ml_exe=$(run_paths 'jac/tests/compiler/passes/native/test_exec_link.jac')
+[ "$(selected_contains "$ml_exe" test-compiler-passes-native)" = "yes" ] || fail exec_link linux native
+[ "$(selected_contains "$ml_exe" test-native-macos)" = "yes" ] || fail exec_link macos lane
+ml_gen=$(run_paths 'jac/tests/compiler/passes/native/test_native_gen_pass.jac')
+[ "$(selected_contains "$ml_gen" test-compiler-passes-native)" = "yes" ] || fail native_gen linux native
+[ "$(selected_contains "$ml_gen" test-native-aarch64)" = "yes" ] || fail native_gen aarch64 lane
+ml_byllm=$(run_paths 'jac/jaclang/byllm/tests/test_byllm.jac')
+[ "$(selected_contains "$ml_byllm" test-byllm)" = "yes" ] || fail byllm
+[ "$(selected_contains "$ml_byllm" test-built-byllm)" = "yes" ] || fail built-byllm lane
+pass "multi-lane test routing"
+
+# K8s-only scale tests route to test-scale-k8s (the job that runs them).
+# (They also tag the scale category -> test-scale runs too; that is safe
+# over-routing. The correctness fix is that test-scale-k8s is selected.)
+for kt in test_pod_env test_k8s_utils test_deploy_k8s; do
+  ktj=$(run_paths "jac/jaclang/scale/tests/$kt.jac")
+  [ "$(selected_contains "$ktj" test-scale-k8s)" = "yes" ] || fail "$kt -> test-scale-k8s"
+done
+pass "k8s scale tests route to test-scale-k8s"
+
+# Invalid --mode must be rejected (fail-closed), not silently treated as pr.
+if scripts/ci/classify-changed-files.sh --mode bogus >/dev/null 2>&1; then
+  fail "invalid --mode should be rejected"
+fi
+pass "invalid --mode rejected"
+
 # Full mode selects every manifest job
 full=$(scripts/ci/classify-changed-files.sh --mode full 2>/dev/null | tail -1)
 count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])['selected_jobs']))" "$full")
@@ -156,12 +213,17 @@ pass "validate-expected-jobs"
 # Aggregate gate must be event-aware: jobs the workflow structurally skips on
 # a given event (declared in ci-coverage.yml) must not turn full mode red.
 python3 - "$TMPDIR_TEST" <<'PY'
-import json, os, subprocess, sys
+import json, os, subprocess, sys, yaml
+from pathlib import Path
 
 d = sys.argv[1]
 s = os.path.join(d, "s.json")
 n = os.path.join(d, "n.json")
-open(s, "w").write(json.dumps([]))  # full mode ignores `selected`
+# full mode routes every manifest job; selected_jobs is authoritative now, so
+# feed the real full-mode selection rather than an empty list.
+manifest = yaml.safe_load(Path("scripts/ci/ci-coverage.yml").read_text())
+all_jobs = manifest["jobs"]
+open(s, "w").write(json.dumps(all_jobs))
 
 base = ["test-docs", "test-scale", "k8s-real-e2e", "installer-test"]
 ok = {j: "success" for j in base}
@@ -206,6 +268,57 @@ expect_fail("full without event is strict", mode="full", event="",
 print("event-aware aggregate gate ok")
 PY
 pass "event-aware full-mode gate"
+
+# Regression for the reported P0: a PR whose paths escalate full_ci (so the
+# router runs in pr mode and drops installer-test from selected_jobs) must not
+# turn Everything Passed red, even though everything-passed invokes the
+# validator in "full" mode (it sets MODE=full whenever full_ci=true).
+python3 - "$TMPDIR_TEST" <<'PY'
+import json, os, subprocess, sys
+
+d = sys.argv[1]
+s = os.path.join(d, "s.json")
+n = os.path.join(d, "n.json")
+
+# 1. Route a full-ci-escalating path in pr mode, exactly as ci-router does.
+cls = subprocess.run(
+    ["scripts/ci/classify-changed-files.sh"],
+    input=".github/workflows/ci.yml\0", text=True, capture_output=True,
+)
+assert cls.returncode == 0, cls.stderr
+result = json.loads(cls.stdout.strip().splitlines()[-1])
+assert result["full_ci"] is True, "ci.yml change must escalate full_ci"
+selected = result["selected_jobs"]
+assert "installer-test" not in selected, (
+    "path escalation must exclude installer-test from selected_jobs"
+)
+
+# 2. everything-passed sees full_ci=true -> passes MODE=full to the validator.
+open(s, "w").write(json.dumps(selected))
+needs = {j: {"result": "success"} for j in selected}
+needs["installer-test"] = {"result": "skipped"}  # intentionally excluded
+open(n, "w").write(json.dumps(needs))
+r = subprocess.run(
+    ["scripts/ci/validate-expected-jobs.sh", s, n, "full", "pull_request"],
+    capture_output=True, text=True,
+)
+assert r.returncode == 0, (
+    "full-mode gate must tolerate the intentional installer-test skip\n"
+    f"{r.stdout}\n{r.stderr}"
+)
+
+# 3. Fail-closed: a job that IS selected must still be required.
+needs["test-docs"] = {"result": "skipped"}
+open(n, "w").write(json.dumps(needs))
+r = subprocess.run(
+    ["scripts/ci/validate-expected-jobs.sh", s, n, "full", "pull_request"],
+    capture_output=True, text=True,
+)
+assert r.returncode != 0, "a selected job skipping must still fail the gate"
+
+print("path-escalation installer-test regression ok")
+PY
+pass "P0 path-escalation excludes installer-test"
 
 # skip-k8s label: router may select k8s jobs but workflow skips them.
 python3 - "$TMPDIR_TEST" <<'PY'
@@ -259,6 +372,24 @@ if scripts/ci/check-ci-coverage.sh "$BAD_MANIFEST" .github/workflows/ci.yml >/de
 fi
 pass "coverage rejects unknown event_excluded job/event"
 
+# F6: a named `jac test <file>` run by a job its shard no longer maps to must
+# fail coverage (catches the multi-lane under-routing class).
+BAD_DIR_F6="$(mktemp -d)"
+BAD_M_F6="$BAD_DIR_F6/bad.yml"
+cp scripts/ci/ci-coverage.yml "$BAD_M_F6"
+python3 - "$BAD_M_F6" <<'PY'
+import sys, yaml
+from pathlib import Path
+p = Path(sys.argv[1]); m = yaml.safe_load(p.read_text())
+# test_exec_link.jac is run by test-native-macos; drop that lane from its shard.
+m["test_shard_globs"]["jac/tests/compiler/passes/native/test_exec_link.jac"] = ["test-compiler-passes-native"]
+p.write_text(yaml.safe_dump(m, sort_keys=False))
+PY
+if scripts/ci/check-ci-coverage.sh "$BAD_M_F6" .github/workflows/ci.yml >/dev/null 2>&1; then
+  fail "coverage accepted a named test run by a job its shard no longer maps to"
+fi
+pass "coverage rejects mis-routed named test (F6)"
+
 # event_excluded_jobs must match each job's structural `if:` gate in ci.yml.
 python3 - <<'PY'
 import re, sys, yaml
@@ -268,6 +399,19 @@ manifest = yaml.safe_load(Path("scripts/ci/ci-coverage.yml").read_text())
 workflow = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
 excluded = manifest.get("event_excluded_jobs", {}) or {}
 jobs = workflow.get("jobs", {})
+
+# eval() only ever sees our own ci.yml if: expressions reduced to a boolean
+# expression; whitelist the token set so an unexpected identifier (or any
+# injected code) can never execute.
+_BOOL_OK = re.compile(r"^(?:True|False|and|or|not|[()\s])+$")
+
+
+def _bool(expression: str) -> bool:
+    if not _BOOL_OK.match(expression):
+        raise AssertionError(
+            f"unsafe/unsupported boolean expression: {expression!r}"
+        )
+    return bool(eval(expression, {"__builtins__": {}}, {}))
 
 def normalize_if(expr: str) -> str:
     return re.sub(r"\s+", " ", expr.strip())
@@ -291,7 +435,7 @@ def structurally_excluded(if_clause: str, event: str) -> bool:
     )
     expr = expr.replace("||", " or ").replace("&&", " and ")
     try:
-        return not bool(eval(expr, {"__builtins__": {}}, {}))
+        return not _bool(expr)
     except Exception as exc:
         raise AssertionError(f"cannot parse if: {if_clause!r}: {exc}") from exc
 
@@ -329,6 +473,19 @@ manifest = yaml.safe_load(Path("scripts/ci/ci-coverage.yml").read_text())
 workflow = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
 label_skips = manifest.get("pr_label_skips", {}) or {}
 jobs = workflow.get("jobs", {})
+
+# eval() only ever sees our own ci.yml if: expressions reduced to a boolean
+# expression; whitelist the token set so an unexpected identifier (or any
+# injected code) can never execute.
+_BOOL_OK = re.compile(r"^(?:True|False|and|or|not|[()\s])+$")
+
+
+def _bool(expression: str) -> bool:
+    if not _BOOL_OK.match(expression):
+        raise AssertionError(
+            f"unsafe/unsupported boolean expression: {expression!r}"
+        )
+    return bool(eval(expression, {"__builtins__": {}}, {}))
 
 LABEL_CONTAINS = re.compile(
     r"contains\(github\.event\.pull_request\.labels\.\*\.name, '([^']+)'\)"
@@ -371,7 +528,7 @@ def structurally_label_skipped(if_clause: str, label: str) -> bool:
     )
     expr = expr.replace("||", " or ").replace("&&", " and ")
     try:
-        return not bool(eval(expr, {"__builtins__": {}}, {}))
+        return not _bool(expr)
     except Exception as exc:
         raise AssertionError(f"cannot parse if: {if_clause!r}: {exc}") from exc
 

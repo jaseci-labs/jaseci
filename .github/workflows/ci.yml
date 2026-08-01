@@ -103,7 +103,14 @@ jobs:
           set -euo pipefail
           git fetch --no-tags --quiet origin "${{ github.base_ref }}"
           BASE="$(git merge-base "origin/${{ github.base_ref }}" HEAD)"
-          git diff -z --name-only --diff-filter=ACDMR "$BASE" HEAD > changed-paths.z
+          # --no-renames: classify a rename as delete(source) + add(destination)
+          # so removing a full-CI file into an allowlisted dir cannot hide the
+          # impact of the vanished source path (name-only would emit only the
+          # destination and silently narrow the routing).
+          # --diff-filter=ACDMRT includes T (type change, e.g. file -> symlink);
+          # ACDMR would drop pure type-only changes and let CI narrow on a
+          # change that is effectively a content change to that path.
+          git diff -z --name-only --diff-filter=ACDMRT --no-renames "$BASE" HEAD > changed-paths.z
 
       - name: Classify changed paths
         id: route
@@ -1008,15 +1015,18 @@ jobs:
           exit 1
         fi
 
-    - name: Run root-level scale tests (identity password, firebase env)
+    - name: Run root-level scale tests (identity, firebase, inprocess, version pin)
       if: matrix.group == 'data'
       # Root-level test_*.jac files the matrix globs don't reach. Base scale
-      # deps only (bcrypt, config) - no firebase-admin needed here.
+      # deps only (bcrypt, config) - no firebase-admin needed here. Includes
+      # test_inprocess / test_version_pin, which previously ran under no job.
       env:
         JAC_TEST_JOBS: "0"
       run: |
         jac test jac/jaclang/scale/tests/test_identity_password.jac -x
         jac test jac/jaclang/scale/tests/test_firebase_env.jac -x
+        jac test jac/jaclang/scale/tests/test_inprocess.jac -x
+        jac test jac/jaclang/scale/tests/test_version_pin.jac -x
 
     - name: Install scale firebase deps
       if: matrix.group == 'data'
@@ -1053,9 +1063,8 @@ jobs:
         with:
           with-typeshed: "false"
           binary-path: jac/zig-out/bin
-
-      - name: Put jac on PATH
-        run: echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
+      # use-jac-binary already appends jac/zig-out/bin to GITHUB_PATH via its
+      # default add-to-path=true; no separate PATH step is needed.
 
       - name: Install scale deploy deps
         # Pins mirror jac/jaclang/project/capabilities.jac.
