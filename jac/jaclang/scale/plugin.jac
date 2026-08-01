@@ -623,7 +623,7 @@ class JacScalePlugin {
         if "KUBERNETES_SERVICE_HOST" in os.environ {
             try {
                 import from jaclang.scale.config.config_loader { get_scale_config }
-                import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
+                import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
                     k8s_safe_name
                 }
                 import from jaclang.scale.runtime.context.util {
@@ -703,7 +703,7 @@ class JacScalePlugin {
 
         try {
             import from jaclang.scale.config.config_loader { get_scale_config }
-            import from jaclang.scale.deploy.target.kubernetes.microservice.runtime_resolver {
+            import from jaclang.scale.deploy.target.kubernetes.runtime_resolver {
                 build_k8s_registry
             }
             ms_cfg = get_scale_config().get_microservices_config();

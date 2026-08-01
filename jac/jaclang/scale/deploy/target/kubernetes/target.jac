@@ -1,16 +1,11 @@
 import logging;
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
-    KubernetesTarget
+    KubernetesTargetBase
 }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.models.deployment_result { DeploymentResult }
 import from jaclang.scale.models.deploy_context { DeployContext }
-import from jaclang.scale._optdeps.kubernetes {
-    client,
-    config as k8s_cluster_config,
-    ApiException,
-    ConfigException
-}
+import from jaclang.scale._optdeps.kubernetes { client, ApiException }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     ensure_namespace_exists,
     create_k8s_secret,
@@ -21,13 +16,13 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
-    MicroserviceManifestBuilder,
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
 }
-import from jaclang.scale.deploy.target.kubernetes.microservice.database_provisioner {
-    MicroserviceDatabaseProvisioner
+import from jaclang.scale.deploy.target.kubernetes.database_provisioner {
+    DatabaseProvisioner
 }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import from jaclang.scale.deploy.autoscale.autoscaler {
@@ -43,9 +38,8 @@ import from jaclang.scale.config.config_loader { get_scale_config }
 glob logger = logging.getLogger(__name__);
 
 
-obj KubernetesMicroserviceTarget(KubernetesTarget) {
+obj KubernetesTarget(KubernetesTargetBase) {
     has _deploy_context: DeployContext = DeployContext(),
-        no_image: bool = True,
         microservices_config: dict[str, any] = {};
 
     def _ms_cfg -> dict[str, any] {
@@ -62,17 +56,24 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
 
     def deploy(app_config: AppConfig) -> DeploymentResult {
         app_name = app_config.app_name or self.k8s_config.app_name;
+        if self.k8s_config.shared_ingress and not self.k8s_config.domain {
+            return DeploymentResult(
+                success=False,
+                message="shared_ingress=True requires a domain: set 'domain' "
+                "under [scale.kubernetes] in jac.toml."
+            );
+        }
         if self.logger {
             self.logger.info(
-                f"Deploying microservice app '{app_name}' to Kubernetes",
+                f"Deploying app '{app_name}' to Kubernetes",
                 {"namespace": self.k8s_config.namespace}
             );
         }
 
         self._emit("provision", "start", "Provisioning backends");
         try {
-            self._deploy_context = MicroserviceDatabaseProvisioner(
-                k8s_target=self, logger=self.logger, enabled=self.no_image
+            self._deploy_context = DatabaseProvisioner(
+                k8s_target=self, logger=self.logger
             ).provision(
                 app_name
             );
@@ -682,12 +683,11 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         self.k8s_config.python_image = resolve_pod_base_image(
             app_config.code_folder, self.k8s_config.python_image, probe=not self.dry_run
         );
-        builder = MicroserviceManifestBuilder(
+        builder = ManifestBuilder(
             k8s_config=self.k8s_config,
             secrets=self.secrets,
             deploy_context=self._context_with_env(),
             logger=self.logger,
-            no_image=True,
             project_dir=app_config.code_folder,
             microservices_config=self.microservices_config,
             dry_run=self.dry_run
@@ -710,37 +710,6 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             }
         }
         return ctx;
-    }
-
-    def _load_cluster_config {
-        kubeconfig_failed: bool = False;
-        try {
-            k8s_cluster_config.load_kube_config(
-                context=(self.k8s_config.kube_context or None)
-            );
-        } except ConfigException {
-            kubeconfig_failed = True;
-        }
-        if not kubeconfig_failed {
-            return;
-        }
-        try {
-            k8s_cluster_config.load_incluster_config();
-        } except ConfigException as e {
-            raise ConfigException(
-                "Could not load Kubernetes config from either kubeconfig "
-                "or in-cluster ServiceAccount.\n"
-                "If you're deploying from a laptop:\n"
-                "  - Start a local cluster:  minikube start\n"
-                "  - Verify kubectl works:   kubectl get nodes\n"
-                "  - For a remote cluster:   set KUBECONFIG or run "
-                "`aws eks update-kubeconfig` / `gcloud container clusters get-credentials`\n"
-                "If you're deploying from inside a pod, the pod needs a "
-                "ServiceAccount with cluster API access (the default "
-                "ServiceAccount usually does, but a restricted one may not).\n"
-                f"Original error from in-cluster load: {e}"
-            );
-        }
     }
 
     def _resolve_service_triggers(svc_name: str, cfg: dict[str, any]) -> list[Trigger] {
