@@ -11,29 +11,36 @@ impl NaIRGenPass._emit_rc_debug_globals -> None {
     rc_debug_gv.initializer = ir.Constant(i8, 0);
     self.rc_debug_gv = rc_debug_gv;
 
+    # __rc_debug_enable / __rc_debug_disable always exist as symbols (the engine
+    # may reference them), but when RC debug logging was NOT compiled in
+    # (JAC_RC_DEBUG_CODEGEN unset) the per-op trace branches were omitted, so
+    # flipping the flag would do nothing — emit no-op bodies with no "debug ON/OFF"
+    # strings or printf. When compiled in, they toggle the flag and announce it.
     en_fnty = ir.FunctionType(ir.VoidType(), []);
     en_fn = self._define_function("__rc_debug_enable", en_fnty);
     en_fn.linkage = "weak_odr";
-    en_bb = en_fn.append_basic_block("entry");
-    _b_en = ir.IRBuilder(en_bb);
-    _b_en.store(ir.Constant(i8, 1), rc_debug_gv);
-    _fmt_on = self._get_fmt_string("--- debug ON ---");
-    _fmt_on_ptr = _b_en.gep(
-        _fmt_on, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="en.fmt"
-    );
-    _b_en.call(self._get_printf(), [_fmt_on_ptr]);
-    _b_en.ret_void();
+    _b_en = ir.IRBuilder(en_fn.append_basic_block("entry"));
 
     dis_fn = self._define_function("__rc_debug_disable", en_fnty);
     dis_fn.linkage = "weak_odr";
-    dis_bb = dis_fn.append_basic_block("entry");
-    _b_dis = ir.IRBuilder(dis_bb);
-    _b_dis.store(ir.Constant(i8, 0), rc_debug_gv);
-    _fmt_off = self._get_fmt_string("--- debug OFF ---");
-    _fmt_off_ptr = _b_dis.gep(
-        _fmt_off, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="dis.fmt"
-    );
-    _b_dis.call(self._get_printf(), [_fmt_off_ptr]);
+    _b_dis = ir.IRBuilder(dis_fn.append_basic_block("entry"));
+
+    if self._rc_debug_codegen {
+        _b_en.store(ir.Constant(i8, 1), rc_debug_gv);
+        _fmt_on = self._get_fmt_string("--- debug ON ---");
+        _fmt_on_ptr = _b_en.gep(
+            _fmt_on, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="en.fmt"
+        );
+        _b_en.call(self._get_printf(), [_fmt_on_ptr]);
+
+        _b_dis.store(ir.Constant(i8, 0), rc_debug_gv);
+        _fmt_off = self._get_fmt_string("--- debug OFF ---");
+        _fmt_off_ptr = _b_dis.gep(
+            _fmt_off, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="dis.fmt"
+        );
+        _b_dis.call(self._get_printf(), [_fmt_off_ptr]);
+    }
+    _b_en.ret_void();
     _b_dis.ret_void();
 
     ctx_op_gv = ir.GlobalVariable(self.llvm_module, i8_ptr, name="__rc_ctx_op");
@@ -204,6 +211,14 @@ impl NaIRGenPass._emit_retain_log_bb(
 impl NaIRGenPass._emit_dbl_free_log_bb(
     func: ir.Function, done_bb: ir.Block, ptr: ir.Value
 ) -> ir.Block {
+    # Debug logging is compile-time gated on JAC_RC_DEBUG_CODEGEN: in a normal
+    # build return a plain landing block that just falls through to `done_bb`,
+    # emitting no format string and no printf.
+    if not self._rc_debug_codegen {
+        _noop_bb = func.append_basic_block("dbl_free_noop");
+        ir.IRBuilder(_noop_bb).branch(done_bb);
+        return _noop_bb;
+    }
     i8_ptr = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     i64_ptr = i64.as_pointer();
@@ -234,6 +249,13 @@ impl NaIRGenPass._emit_release_log_bb(
     old_rc: ir.Value,
     new_rc: ir.Value
 ) -> ir.Block {
+    # Compile-time gated (JAC_RC_DEBUG_CODEGEN): normal builds get a plain landing
+    # block that falls through to `done_bb` — no dbg flag load, no format string.
+    if not self._rc_debug_codegen {
+        _noop_bb = func.append_basic_block("rel_noop");
+        ir.IRBuilder(_noop_bb).branch(done_bb);
+        return _noop_bb;
+    }
     i8_ptr = ir.IntType(8).as_pointer();
     i8 = ir.IntType(8);
     i64 = ir.IntType(64);
@@ -275,47 +297,57 @@ impl NaIRGenPass._emit_raw_free_bbs(
     i64_ptr = i64.as_pointer();
     i32 = ir.IntType(32);
     log_free_bb = func.append_basic_block("log_free_raw");
-    log_raw_bb = func.append_basic_block("log_raw");
     live_rm_bb = func.append_basic_block("live_rm");
     actual_free_bb = func.append_basic_block("actual_free");
 
     b = ir.IRBuilder(log_free_bb);
-    dbg_flag3 = b.load(self.rc_debug_gv, name="rc.dbg3");
-    b.cbranch(
-        b.icmp_unsigned("!=", dbg_flag3, ir.Constant(i8, 0), name="dbg.on3"),
-        log_raw_bb,
-        live_rm_bb
-    );
-
-    b = ir.IRBuilder(log_raw_bb);
-
-    _triple = str(self.llvm_module.triple or "").lower();
-    _raw_msz = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="raw.msz");
-    if "wasm" in _triple {
-        _msz = ir.Constant(i64, 0);
+    # The RC-FREE trace (dbg flag load + format string + printf) is compile-time
+    # gated on JAC_RC_DEBUG_CODEGEN. In a normal build skip straight to the actual
+    # free path — no dead format string, no branch. The live-list bookkeeping is
+    # itself already a no-op when the flag is off (see _emit_live_list_remove).
+    if not self._rc_debug_codegen {
+        b.branch(live_rm_bb);
     } else {
-        _is_darwin = ("darwin" in _triple)
-        or ("apple" in _triple)
-        or ("macos" in _triple)
-        or ("ios" in _triple);
-        _msz_sym = "malloc_size" if _is_darwin else "malloc_usable_size";
-        _msz_fn = self._get_or_declare_extern(_msz_sym, i64, [i8_ptr]);
-        _msz = b.call(_msz_fn, [_raw_msz], name="msz");
+        log_raw_bb = func.append_basic_block("log_raw");
+        dbg_flag3 = b.load(self.rc_debug_gv, name="rc.dbg3");
+        b.cbranch(
+            b.icmp_unsigned("!=", dbg_flag3, ir.Constant(i8, 0), name="dbg.on3"),
+            log_raw_bb,
+            live_rm_bb
+        );
+
+        b = ir.IRBuilder(log_raw_bb);
+
+        _triple = str(self.llvm_module.triple or "").lower();
+        _raw_msz = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="raw.msz");
+        if "wasm" in _triple {
+            _msz = ir.Constant(i64, 0);
+        } else {
+            _is_darwin = ("darwin" in _triple)
+            or ("apple" in _triple)
+            or ("macos" in _triple)
+            or ("ios" in _triple);
+            _msz_sym = "malloc_size" if _is_darwin else "malloc_usable_size";
+            _msz_fn = self._get_or_declare_extern(_msz_sym, i64, [i8_ptr]);
+            _msz = b.call(_msz_fn, [_raw_msz], name="msz");
+        }
+        _aid_slot = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="fr.aid.slot");
+        _aid_ptr = b.bitcast(_aid_slot, i64_ptr, name="fr.aid.ptr");
+        _aid_raw = b.load(_aid_ptr, name="fr.aid.raw");
+        _aid = b.and_(_aid_raw, ir.Constant(i64, 4294967295), name="fr.aid");
+        _tag_slot = b.gep(ptr, [ir.Constant(i64, HDR_TAG_OFF)], name="fr.tag.slot");
+        _tag_ptr = b.bitcast(_tag_slot, i8_ptr.as_pointer(), name="fr.tag.ptr");
+        _tag = b.load(_tag_ptr, name="fr.tag");
+        (_op, _loc) = self._emit_ctx_load(b);
+        _fmt = self._get_fmt_string(
+            "RC FREE    id=%-4lld ptr=%p  bytes=%lld  type=%-12s  op=%-12s  at=%s"
+        );
+        _fmt_ptr = b.gep(
+            _fmt, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="free.fmt"
+        );
+        b.call(self._get_printf(), [_fmt_ptr, _aid, ptr, _msz, _tag, _op, _loc]);
+        b.branch(live_rm_bb);
     }
-    _aid_slot = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="fr.aid.slot");
-    _aid_ptr = b.bitcast(_aid_slot, i64_ptr, name="fr.aid.ptr");
-    _aid_raw = b.load(_aid_ptr, name="fr.aid.raw");
-    _aid = b.and_(_aid_raw, ir.Constant(i64, 4294967295), name="fr.aid");
-    _tag_slot = b.gep(ptr, [ir.Constant(i64, HDR_TAG_OFF)], name="fr.tag.slot");
-    _tag_ptr = b.bitcast(_tag_slot, i8_ptr.as_pointer(), name="fr.tag.ptr");
-    _tag = b.load(_tag_ptr, name="fr.tag");
-    (_op, _loc) = self._emit_ctx_load(b);
-    _fmt = self._get_fmt_string(
-        "RC FREE    id=%-4lld ptr=%p  bytes=%lld  type=%-12s  op=%-12s  at=%s"
-    );
-    _fmt_ptr = b.gep(_fmt, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="free.fmt");
-    b.call(self._get_printf(), [_fmt_ptr, _aid, ptr, _msz, _tag, _op, _loc]);
-    b.branch(live_rm_bb);
 
     b = ir.IRBuilder(live_rm_bb);
     self._emit_live_list_remove(b, ptr, i8_ptr, i64_ptr, done_bb, actual_free_bb);
@@ -342,6 +374,14 @@ impl NaIRGenPass._emit_struct_free_log(
     i8_ptr = i8.as_pointer();
     i64 = ir.IntType(64);
     i32 = ir.IntType(32);
+
+    # Compile-time gated (JAC_RC_DEBUG_CODEGEN): normal builds just fall through
+    # to the actual free, emitting no dbg-flag load and no RC-FREE format string.
+    if not self._rc_debug_codegen {
+        ir.IRBuilder(log_free_struct_bb).branch(actual_free_struct_bb);
+        return;
+    }
+
     log_struct_line_bb = func.append_basic_block("log_struct_line");
 
     b = ir.IRBuilder(log_free_struct_bb);
@@ -378,7 +418,11 @@ impl NaIRGenPass._emit_struct_free_log(
 }
 
 impl NaIRGenPass._set_rc_ctx(op: str, loc: str) -> None {
-    if self._nogc_headerless() {
+    # The op/loc context is read only by the RC debug trace. When RC debug logging
+    # was not compiled in (JAC_RC_DEBUG_CODEGEN unset) there is nothing to read it,
+    # so skip the per-call-site format strings and stores entirely — this is the
+    # bulk of the RC-debug string weight in a normal binary.
+    if not self._rc_debug_codegen or self._nogc_headerless() {
         return;
     }
     if self.rc_ctx_op_gv is None {
@@ -402,7 +446,7 @@ impl NaIRGenPass._set_rc_ctx(op: str, loc: str) -> None {
 }
 
 impl NaIRGenPass._clear_rc_ctx -> None {
-    if self._nogc_headerless() or self.rc_ctx_op_gv is None {
+    if not self._rc_debug_codegen or self._nogc_headerless() or self.rc_ctx_op_gv is None {
         return;
     }
     i8_ptr = ir.IntType(8).as_pointer();
