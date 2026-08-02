@@ -354,6 +354,19 @@ impl TypeEvaluator._import_module_from_path(
 ) -> uni.Module {
     resolved_path = str(Path(path).resolve());
 
+    # Each level of the import DAG that reaches here (get_type_of_module ->
+    # _import_module_from_path -> compile -> run_schedule -> exit_import ->
+    # get_type_of_module ...) costs a fixed batch of Python frames on top of
+    # the recursive-descent parser's own depth. Engine modules such as the
+    # dispatch table have a legitimately deep (~50 level) import closure, which
+    # overruns CPython's default 1000-frame limit even though there is no
+    # cycle. Raise the ceiling (never lower it) so honest depth is not a crash.
+    import sys as _rec_sys;
+    _MIN_RECLIMIT = 12000;
+    if _rec_sys.getrecursionlimit() < _MIN_RECLIMIT {
+        _rec_sys.setrecursionlimit(_MIN_RECLIMIT);
+    }
+
     compiler = self.program._get_compiler();
     target_program = compiler._resolve_program(resolved_path, self.program);
     target_hub = target_program.mod.hub;
@@ -377,6 +390,13 @@ impl TypeEvaluator._import_module_from_path(
         mod = self.program.mod.hub[resolved_path];
     } elif resolved_path in target_hub {
         mod = target_hub[resolved_path];
+    } elif resolved_path in self._modules_in_compile {
+        _pending = self.program.find_module(resolved_path);
+        if _pending is not None {
+            mod = _pending;
+        } else {
+            return uni.Module.make_stub(inject_name=Path(resolved_path).stem);
+        }
     } else {
         jir_mod: (uni.Module | None) = None;
         if resolved_path.endswith('.jac') and not resolved_path.endswith('.na.jac') {
@@ -390,9 +410,14 @@ impl TypeEvaluator._import_module_from_path(
             target_hub[resolved_path] = mod;
             target_program.hub_cache_stamp(resolved_path);
         } else {
-            mod = self.program.compile(
-                path, no_cgen=True, type_check=False, symtab_ir_only=True
-            );
+            self._modules_in_compile.add(resolved_path);
+            try {
+                mod = self.program.compile(
+                    path, no_cgen=True, type_check=False, symtab_ir_only=True
+                );
+            } finally {
+                self._modules_in_compile.discard(resolved_path);
+            }
             if mod.parent_scope is None and mod is not self.builtins_module {
                 mod.parent_scope = self.builtins_module;
             }
@@ -507,6 +532,7 @@ impl TypeEvaluator.get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
             self.pop_symbol_resolution(symbol);
         }
     }
+    self._cyclic_resolution_depth += 1;
     return types.UnknownType();
 }
 
