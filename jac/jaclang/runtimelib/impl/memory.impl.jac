@@ -8,7 +8,17 @@ import from collections.abc { Callable, Generator, Iterable }
 import from datetime { datetime, timezone }
 import from typing { cast }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
+import from jaclang.jac0core.archetype {
+    Anchor,
+    Archetype,
+    EdgeAnchor,
+    EdgeArchetype,
+    NodeAnchor,
+    NodeArchetype,
+    Root,
+    WalkerArchetype
+}
+import from jaclang.jac0core.graph_query { QHop, QPred }
 import from jaclang.runtimelib.changeset {
     ApplyReport,
     ChangeSet,
@@ -22,7 +32,14 @@ import from jaclang.runtimelib.query_plan { QueryPlan }
 import from jaclang.runtimelib.typecache { get_field_types }
 
 glob logger = logging.getLogger(__name__),
-     SQLITE_DB_FORMAT_VERSION: int = 1;
+     SQLITE_DB_FORMAT_VERSION: int = 2,
+     _ANCESTRY_STOP: tuple[type, ...] = (
+         NodeArchetype,
+         EdgeArchetype,
+         WalkerArchetype,
+         Archetype,
+         object
+     );
 
 impl Memory.aget(id: UUID) -> (Anchor | None) {
     return await asyncio.to_thread(self.get, id);
@@ -100,6 +117,144 @@ def _is_legacy_schema(conn: sqlite3.Connection) -> bool {
     }
     cols = {row[1] for row in rows};
     return cols == {'id', 'data'};
+}
+
+def _table_exists(conn: sqlite3.Connection, name: str) -> bool {
+    cursor = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", (name, )
+    );
+    return cursor.fetchone() is not None;
+}
+
+def _graph_schema(conn: sqlite3.Connection) {
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS graph_edges (
+            edge_id    TEXT PRIMARY KEY,
+            src        TEXT NOT NULL,
+            dst        TEXT NOT NULL,
+            edge_type  TEXT NOT NULL,
+            undirected INTEGER NOT NULL DEFAULT 0
+        )
+        """
+    );
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_graph_edges_src"
+            + " ON graph_edges (src, edge_type)"
+    );
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_graph_edges_dst"
+            + " ON graph_edges (dst, edge_type)"
+    );
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS graph_types (
+            type_name TEXT NOT NULL,
+            ancestor  TEXT NOT NULL,
+            PRIMARY KEY (type_name, ancestor)
+        )
+        """
+    );
+}
+
+def _type_ancestry(cls: type) -> list[str] {
+    chain: list[str] = [];
+    for c in cls.__mro__ {
+        if c in _ANCESTRY_STOP {
+            break;
+        }
+        chain.append(c.__name__);
+    }
+    return chain;
+}
+
+def _record_type_ancestry(conn: sqlite3.Connection, cls: type) {
+    for anc in _type_ancestry(cls) {
+        conn.execute(
+            "INSERT OR IGNORE INTO graph_types (type_name, ancestor) VALUES (?, ?)",
+            (cls.__name__, anc)
+        );
+    }
+}
+
+def _graph_index_write(conn: sqlite3.Connection, anchor: Anchor) {
+    if isinstance(anchor, EdgeAnchor) and anchor.is_populated() {
+        arch = anchor.archetype;
+        if arch is None {
+            return;
+        }
+        conn.execute(
+            "INSERT OR REPLACE INTO graph_edges"
+                + " (edge_id, src, dst, edge_type, undirected) VALUES (?, ?, ?, ?, ?)",
+            (
+                str(anchor.id),
+                str(anchor.source.id),
+                str(anchor.target.id),
+                type(arch).__name__,
+                1 if anchor.is_undirected else 0
+            )
+        );
+        _record_type_ancestry(conn, type(arch));
+        return;
+    }
+    if isinstance(anchor, NodeAnchor)
+        and anchor.is_populated()
+        and anchor.archetype is not None {
+        _record_type_ancestry(conn, type(anchor.archetype));
+    }
+}
+
+def _purge_node_edges(conn: sqlite3.Connection, key: str) {
+    conn.execute("DELETE FROM graph_edges WHERE src = ? OR dst = ?", (key, key));
+}
+
+def _reindex_graph(conn: sqlite3.Connection) {
+    conn.execute("DELETE FROM graph_edges");
+    conn.execute("DELETE FROM graph_types");
+    cursor = conn.execute("SELECT id, arch_module, arch_type, data FROM anchors");
+    for row in cursor.fetchall() {
+        arch_module = cast((str | None), row[1]);
+        arch_type = cast((str | None), row[2]);
+        try {
+            data = json.loads(cast(str, row[3]));
+        } except Exception {
+            continue;
+        }
+        cls: (type | None) = None;
+        if arch_module and arch_type {
+            try {
+                found = Serializer._get_class(arch_module, arch_type);
+                cls = found if isinstance(found, type) else None;
+            } except Exception {
+                cls = None;
+            }
+        }
+        if cls is not None {
+            _record_type_ancestry(conn, cast(type, cls));
+        } elif arch_type {
+            conn.execute(
+                "INSERT OR IGNORE INTO graph_types (type_name, ancestor)"
+                    + " VALUES (?, ?)",
+                (arch_type, arch_type)
+            );
+        }
+        src = data.get('source');
+        tgt = data.get('target');
+        if src and tgt and arch_type {
+            conn.execute(
+                "INSERT OR REPLACE INTO graph_edges"
+                    + " (edge_id, src, dst, edge_type, undirected)"
+                    + " VALUES (?, ?, ?, ?, ?)",
+                (
+                    cast(str, row[0]),
+                    cast(str, src),
+                    cast(str, tgt),
+                    arch_type,
+                    1 if data.get('is_undirected') else 0
+                )
+            );
+        }
+    }
 }
 
 def _create_new_schema(conn: sqlite3.Connection) {
@@ -586,6 +741,7 @@ impl SqliteMemory._ensure_connection -> None {
     }
     self.__conn__.execute("PRAGMA synchronous=NORMAL");
 
+    had_graph_index = _table_exists(self.__conn__, 'graph_edges');
     if _is_new_schema(self.__conn__) {
         _create_new_schema(self.__conn__);
     } elif _is_legacy_schema(self.__conn__) {
@@ -593,6 +749,15 @@ impl SqliteMemory._ensure_connection -> None {
     } else {
         _create_new_schema(self.__conn__);
     }
+    _graph_schema(self.__conn__);
+    if not had_graph_index {
+        _reindex_graph(self.__conn__);
+        self.__conn__.execute(
+            "INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)",
+            ('db_format_version', str(SQLITE_DB_FORMAT_VERSION))
+        );
+    }
+    self.__conn__.commit();
 
     _load_db_aliases(self.__conn__);
 }
@@ -904,11 +1069,18 @@ impl SqliteMemory.apply(changeset: ChangeSet) -> ApplyReport {
 }
 
 impl SqliteMemory._apply_one(conn: sqlite3.Connection, intent: WriteIntent) -> None {
+    key = str(intent.anchor.id);
     if intent.is_delete() {
-        conn.execute("DELETE FROM anchors WHERE id = ?", (str(intent.anchor.id), ));
+        conn.execute("DELETE FROM anchors WHERE id = ?", (key, ));
+        if isinstance(intent.anchor, EdgeAnchor) {
+            conn.execute("DELETE FROM graph_edges WHERE edge_id = ?", (key, ));
+        } elif isinstance(intent.anchor, NodeAnchor) {
+            _purge_node_edges(conn, key);
+        }
         return;
     }
     self._merge_write(conn, intent);
+    _graph_index_write(conn, intent.anchor);
 }
 
 impl SqliteMemory._merge_write(conn: sqlite3.Connection, intent: WriteIntent) -> None {
@@ -1000,6 +1172,7 @@ impl SqliteMemory._merge_write(conn: sqlite3.Connection, intent: WriteIntent) ->
             }
             if (not stored_anchor.edges and not isinstance(anchor.archetype, Root)) {
                 conn.execute("DELETE FROM anchors WHERE id = ?", (key, ));
+                _purge_node_edges(conn, key);
                 return;
             }
             changed = True;
@@ -1060,6 +1233,146 @@ impl SqliteMemory._merge_write(conn: sqlite3.Connection, intent: WriteIntent) ->
 
 impl SqliteMemory.get_mem -> dict[UUID, Anchor] {
     return self.__mem__;
+}
+
+def _pred_sql(alias: str, p: QPred, params: list) -> str {
+    col = f"json_extract({alias}.data, ?)";
+    path = '$.archetype.' + p.field;
+    v = p.value;
+    if isinstance(v, UUID) {
+        v = str(v);
+    }
+    if p.op == '==' {
+        if v is None {
+            params.append(path);
+            return f"{col} IS NULL";
+        }
+        params.append(path);
+        params.append(v);
+        return f"{col} = ?";
+    }
+    if p.op == '!=' {
+        if v is None {
+            params.append(path);
+            return f"{col} IS NOT NULL";
+        }
+        params.append(path);
+        params.append(v);
+        params.append(path);
+        return f"({col} != ? OR {col} IS NULL)";
+    }
+    if p.op == 'in' {
+        vals = [str(x) if isinstance(x, UUID) else x for x in p.value];
+        non_null = [
+            x
+            for x in vals
+            if x is not None
+        ];
+        conds: list[str] = [];
+        if non_null {
+            params.append(path);
+            for x in non_null {
+                params.append(x);
+            }
+            marks = ', '.join('?' for _ in non_null);
+            conds.append(f"{col} IN ({marks})");
+        }
+        if len(non_null) != len(vals) {
+            params.append(path);
+            conds.append(f"{col} IS NULL");
+        }
+        if not conds {
+            return "0 = 1";
+        }
+        return '(' + ' OR '.join(conds) + ')';
+    }
+    if isinstance(v, str) {
+        type_guard = "('text')";
+    } else {
+        type_guard = "('integer', 'real', 'true', 'false')";
+    }
+    params.append(path);
+    params.append(path);
+    params.append(v);
+    return (f"(json_type({alias}.data, ?) IN {type_guard} AND {col} {p.op} ?)");
+}
+
+impl SqliteMemory.hop_ids(
+    src_ids: list[UUID], hop: QHop, ordered: bool = False
+) -> list[UUID] {
+    if not src_ids {
+        return [];
+    }
+    rows: list = [];
+    with self.__lock__ {
+        self._ensure_connection();
+        assert self.__conn__ is not None;
+        conn = self.__conn__;
+        arms: list;
+        if hop.dir == 1 {
+            arms = [('dst', 'src', False), ('src', 'dst', True)];
+        } elif hop.dir == 3 {
+            arms = [('src', 'dst', False), ('dst', 'src', False)];
+        } else {
+            arms = [('src', 'dst', False), ('dst', 'src', True)];
+        }
+        nd = hop.nd;
+        node_types = (
+            nd if isinstance(nd, tuple) else ((nd, ) if nd is not None else ())
+        );
+        keys = [str(i) for i in src_ids];
+        for start in range(0, len(keys), 400) {
+            chunk = keys[start:start + 400];
+            for (mcol, ncol, undir_only) in arms {
+                params: list = [];
+                sql = f"SELECT ge.rowid, ge.{ncol} FROM graph_edges ge";
+                if hop.epreds {
+                    sql += " JOIN anchors ea ON ea.id = ge.edge_id";
+                }
+                if node_types or hop.preds {
+                    sql += f" JOIN anchors a ON a.id = ge.{ncol}";
+                }
+                marks = ', '.join('?' for _ in chunk);
+                sql += f" WHERE ge.{mcol} IN ({marks})";
+                params.extend(chunk);
+                if undir_only {
+                    sql += " AND ge.undirected = 1";
+                }
+                if hop.`edge is not None {
+                    sql += (
+                        " AND ge.edge_type IN"
+                        + " (SELECT type_name FROM graph_types WHERE ancestor = ?)"
+                    );
+                    params.append(hop.`edge.__name__);
+                }
+                for nt in node_types {
+                    sql += (
+                        " AND a.arch_type IN"
+                        + " (SELECT type_name FROM graph_types WHERE ancestor = ?)"
+                    );
+                    params.append(nt.__name__);
+                }
+                for p in hop.epreds {
+                    sql += " AND " + _pred_sql('ea', p, params);
+                }
+                for p in hop.preds {
+                    sql += " AND " + _pred_sql('a', p, params);
+                }
+                rows.extend(conn.execute(sql, params).fetchall());
+            }
+        }
+    }
+    rows.sort();
+    seen: set[str] = set();
+    out: list[UUID] = [];
+    for r in rows {
+        nbr = cast(str, r[1]);
+        if nbr not in seen {
+            seen.add(nbr);
+            out.append(UUID(nbr));
+        }
+    }
+    return out;
 }
 
 impl SqliteMemory.commit(anchor: (Anchor | None) = None) -> None { }
@@ -1987,6 +2300,15 @@ impl TieredMemory.execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None]
             yield existing;
         }
     }
+}
+
+impl TieredMemory.hop_ids(
+    src_ids: list[UUID], hop: QHop, ordered: bool = False
+) -> (list[UUID] | None) {
+    if self.l3 is None {
+        return None;
+    }
+    return self.l3.hop_ids(src_ids, hop, ordered);
 }
 
 impl TieredMemory.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {

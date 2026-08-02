@@ -22,6 +22,12 @@ impl QPred.postinit -> None {
             f"{type(self.value).__name__}"
         );
     }
+    if self.op in ORDERED_OPS and not isinstance(self.value, (str, int, float)) {
+        raise TypeError(
+            f"QPred ordering op '{self.op}' requires a str/int/float value, "
+            f"got {type(self.value).__name__}"
+        );
+    }
 }
 
 

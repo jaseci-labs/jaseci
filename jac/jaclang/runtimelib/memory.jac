@@ -5,6 +5,7 @@ import from collections.abc { Callable, Generator, Iterable }
 import from uuid { UUID }
 
 import from jaclang.jac0core.archetype { Anchor, NodeAnchor, Root }
+import from jaclang.jac0core.graph_query { QHop }
 import from jaclang.runtimelib.changeset { ApplyReport, ChangeSet, WriteIntent }
 import from jaclang.runtimelib.query_plan { QueryPlan }
 import from jaclang.runtimelib.typecache { get_field_types }
@@ -64,6 +65,14 @@ obj CacheMemory(Memory) {
 
 obj PersistentMemory(Memory) {
     def apply(changeset: ChangeSet) -> ApplyReport abst;
+    def hop_ids(src_ids: list[UUID], hop: QHop, ordered: bool = False) -> list[UUID] {
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the graph-index "
+            "contract (hop_ids); every persistent backend must own its "
+            "graph index"
+        );
+    }
+
     def inspect_summary -> dict abst;
     def list_quarantined(limit: int = 50) -> list abst;
     def show_quarantined(id_prefix: str) -> (dict | None) abst;
@@ -127,6 +136,7 @@ obj SqliteMemory(PersistentMemory) {
     def get_roots -> Generator[Root, None, None];
     def commit(anchor: (Anchor | None) = None) -> None;
     def apply(changeset: ChangeSet) -> ApplyReport;
+    def hop_ids(src_ids: list[UUID], hop: QHop, ordered: bool = False) -> list[UUID];
     def _apply_one(conn: sqlite3.Connection, intent: WriteIntent) -> None;
     def _merge_write(conn: sqlite3.Connection, intent: WriteIntent) -> None;
     def inspect_summary -> dict;
@@ -173,4 +183,7 @@ obj TieredMemory(VolatileMemory) {
     def batch_get(ids: list[UUID]) -> dict[UUID, Anchor];
     def capabilities -> set[str];
     def execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None];
+    def hop_ids(
+        src_ids: list[UUID], hop: QHop, ordered: bool = False
+    ) -> (list[UUID] | None);
 }
