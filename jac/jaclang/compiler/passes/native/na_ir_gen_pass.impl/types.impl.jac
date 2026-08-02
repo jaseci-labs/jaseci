@@ -277,6 +277,9 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
     if cname in self.struct_types {
         return self.struct_types[cname].as_pointer();
     }
+    if t._shared is not None and t.shared.is_enum_class {
+        return ir.IntType(64);
+    }
     type_args = t.private.type_args or [];
 
     if cname in ("Iterator", "Iterable") {
@@ -1820,6 +1823,22 @@ impl NaIRGenPass._emit_comparison(
         if left.type == i8_ptr and right.type == i8_ptr {
             strcmp_fn = self._get_or_declare_extern(
                 "strcmp", ir.IntType(32), [i8_ptr, i8_ptr]
+            );
+            _strcmp_null = ir.Constant(i8_ptr, None);
+            _strcmp_empty = self.builder.bitcast(
+                self._make_global_string(""), i8_ptr, name="strcmp.empty"
+            );
+            _l_is_null = self.builder.icmp_unsigned(
+                "==", left, _strcmp_null, name="strcmp.lnull"
+            );
+            _r_is_null = self.builder.icmp_unsigned(
+                "==", right, _strcmp_null, name="strcmp.rnull"
+            );
+            left = self.builder.select(
+                _l_is_null, _strcmp_empty, left, name="strcmp.lsafe"
+            );
+            right = self.builder.select(
+                _r_is_null, _strcmp_empty, right, name="strcmp.rsafe"
             );
             cmp_result = self.builder.call(strcmp_fn, [left, right], name="strcmp");
             zero = ir.Constant(ir.IntType(32), 0);
