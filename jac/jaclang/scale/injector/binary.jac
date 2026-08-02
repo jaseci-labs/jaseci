@@ -387,7 +387,7 @@ def _fetch_verified_asset(
                 ;
             }
             if cached_bytes is not None
-            and hashlib.sha256(cached_bytes).hexdigest() == want {
+                and hashlib.sha256(cached_bytes).hexdigest() == want {
                 logger.info(f"Using the cached {what} (checksum match).");
                 return cached_bytes;
             }
@@ -492,7 +492,9 @@ def _scale_cache_root -> Path {
     if base {
         return Path(base);
     }
-    return Path(os.environ.get("XDG_CACHE_HOME", "") or (Path.home() / ".cache")) / "jac" / "scale-binaries";
+    return Path(os.environ.get("XDG_CACHE_HOME", "") or (Path.home() / ".cache"))
+        / "jac"
+        / "scale-binaries";
 }
 
 

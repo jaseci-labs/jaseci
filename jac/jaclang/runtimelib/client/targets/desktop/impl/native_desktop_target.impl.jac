@@ -74,7 +74,7 @@ def _assemble_native_host(
     lib = _ensure_libwebview(webview_dir);
     out_lib_name = libwebview_name();
     shutil.copy2(lib, output_dir / out_lib_name);
-    shutil.copy2(webview_dir / "webview.na.jac", output_dir / "webview.na.jac");
+    shutil.copy2(webview_dir / "webview.jac", output_dir / "webview.jac");
 
     sv_root = entry_file.parent;
     sv_stage = output_dir / "sv";
@@ -111,12 +111,12 @@ def _assemble_native_host(
         dispatch.debug,
         plugin_configs
     );
-    (output_dir / "host.na.jac").write_text(host_src);
+    (output_dir / "host.jac").write_text(host_src);
 
     console.print("  Compiling native host (jac nacompile)...", style="muted");
     binary = output_dir / app_name;
     res = subprocess.run(
-        [_jac_bin(), "nacompile", str(output_dir / "host.na.jac"), "-o", str(binary)],
+        [_jac_bin(), "nacompile", str(output_dir / "host.jac"), "-o", str(binary)],
         cwd=str(output_dir),
         env=_jac_subprocess_env()
     );
@@ -134,9 +134,10 @@ def _assemble_native_host(
     venv_rel = os.path.relpath(str(venv_dir), str(output_dir));
 
     launcher.write_text(
-        ("#!/bin/sh\n" "cd \"$(dirname \"$0\")\" || exit 1\n") + jac_desktop_webkit_shell_export() + jac_desktop_deps_shell_export(
-            venv_rel
-        ) + f"exec ./{app_name} \"$@\"\n"
+        ("#!/bin/sh\n" "cd \"$(dirname \"$0\")\" || exit 1\n")
+            + jac_desktop_webkit_shell_export()
+            + jac_desktop_deps_shell_export(venv_rel)
+            + f"exec ./{app_name} \"$@\"\n"
     );
     os.chmod(launcher, 0o755);
     return binary;

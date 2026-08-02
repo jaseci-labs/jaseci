@@ -283,14 +283,14 @@ test "restspec path parameters" {
         paths = spec["paths"];
         assert "/items/{item_id}" in paths and "get" in paths["/items/{item_id}"];
         assert "/users/{user_id}/orders" in paths
-        and "get" in paths["/users/{user_id}/orders"];
+            and "get" in paths["/users/{user_id}/orders"];
         assert "/orgs/{org_id}/repos/{repo_id}" in paths
-        and "get" in paths["/orgs/{org_id}/repos/{repo_id}"];
+            and "get" in paths["/orgs/{org_id}/repos/{repo_id}"];
         assert "/resources/{resource_id}/update" in paths
-        and "post" in paths["/resources/{resource_id}/update"];
+            and "post" in paths["/resources/{resource_id}/update"];
         assert "/nodes/{node_id}" in paths and "get" in paths["/nodes/{node_id}"];
         assert "/projects/{project_id}/tasks/{task_id}" in paths
-        and "get" in paths["/projects/{project_id}/tasks/{task_id}"];
+            and "get" in paths["/projects/{project_id}/tasks/{task_id}"];
 
         # OpenAPI marks the path param as in=path, required=true
         item_params = paths["/items/{item_id}"]["get"]["parameters"];
@@ -334,8 +334,8 @@ test "restspec path parameters" {
         assert r.status_code == 200;
         d = extract_data(r.json())["result"];
         assert d["resource_id"] == "res-001"
-        and d["name"] == "widget"
-        and d["value"] == 42;
+            and d["name"] == "widget"
+            and d["value"] == 42;
 
         # --- Walker: single path param (walkers are public, no auth needed) ---
         r = client.get("/nodes/node-xyz");
@@ -437,8 +437,8 @@ test "custom obj body - walker flows" {
         assert "UserBody" in schemas;
         user_schema = schemas["UserBody"];
         assert user_schema["properties"]["name"]["type"] == "string"
-        and user_schema["properties"]["age"]["type"] == "integer"
-        and set(user_schema["required"]) == {"name", "age"};
+            and user_schema["properties"]["age"]["type"] == "integer"
+            and set(user_schema["required"]) == {"name", "age"};
         body_ref = spec["paths"]["/walker/CreateUser"]["post"]["requestBody"]["content"][
             "application/json"
         ]["schema"]["$ref"];
@@ -466,9 +466,9 @@ test "custom obj body - walker flows" {
         assert r.status_code == 200 , r.text;
         d = extract_data(r.json())["reports"][0];
         assert d["name"] == "Bob"
-        and d["street"] == "1 Main"
-        and d["city"] == "Springfield"
-        and d["address_type"] == "Address";
+            and d["street"] == "1 Main"
+            and d["city"] == "Springfield"
+            and d["address_type"] == "Address";
 
         # List of objs
         r = client.post(
@@ -478,8 +478,8 @@ test "custom obj body - walker flows" {
         assert r.status_code == 200 , r.text;
         d = extract_data(r.json())["reports"][0];
         assert d["count"] == 2
-        and d["names"] == ["Alice", "Bob"]
-        and d["first_type"] == "UserBody";
+            and d["names"] == ["Alice", "Bob"]
+            and d["first_type"] == "UserBody";
 
         # Validation rejects wrong field type
         r = client.post(
@@ -521,9 +521,9 @@ test "custom obj body - function flows" {
         assert r.status_code == 200 , r.text;
         d = extract_data(r.json())["result"];
         assert d["name"] == "Bob"
-        and d["street"] == "1 Main"
-        and d["city"] == "Springfield"
-        and d["address_type"] == "Address";
+            and d["street"] == "1 Main"
+            and d["city"] == "Springfield"
+            and d["address_type"] == "Address";
 
         # List of objs
         r = client.post(
@@ -534,8 +534,8 @@ test "custom obj body - function flows" {
         assert r.status_code == 200 , r.text;
         d = extract_data(r.json())["result"];
         assert d["count"] == 2
-        and d["names"] == ["Alice", "Bob"]
-        and d["first_type"] == "UserBody";
+            and d["names"] == ["Alice", "Bob"]
+            and d["first_type"] == "UserBody";
 
         # Validation rejects wrong field type
         r = client.post(
@@ -571,10 +571,10 @@ test "recursive obj body flows" {
         assert r.status_code == 200 , r.text;
         d = extract_data(r.json())["reports"][0];
         assert d["root_name"] == "root"
-        and d["root_type"] == "TreeNode"
-        and d["child_type"] == "TreeNode"
-        and d["depth"] == 3
-        and d["node_count"] == 4;
+            and d["root_type"] == "TreeNode"
+            and d["child_type"] == "TreeNode"
+            and d["depth"] == 3
+            and d["node_count"] == 4;
 
         # Function tree (auth): 5 nodes, depth 3
         client.register_user("u_rec", "p_rec");
@@ -596,10 +596,10 @@ test "recursive obj body flows" {
         assert r.status_code == 200 , r.text;
         d = extract_data(r.json())["result"];
         assert d["root_name"] == "root"
-        and d["root_type"] == "TreeNode"
-        and d["child_type"] == "TreeNode"
-        and d["depth"] == 3
-        and d["node_count"] == 5;
+            and d["root_type"] == "TreeNode"
+            and d["child_type"] == "TreeNode"
+            and d["depth"] == 3
+            and d["node_count"] == 5;
     } finally {
         client.close();
     }

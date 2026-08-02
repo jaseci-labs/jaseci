@@ -383,7 +383,7 @@ jac-scale supports two autoscaler engines selected via `autoscaler_engine`. Both
 | `autoscaler_scale_up_stabilization` | `60` | Scale-up stabilization window in seconds (HPA `behavior.scaleUp`), applied under both engines. |
 | `autoscaler_scale_up_max_pods` | `2` | Maximum pods added per scale-up step, applied under both engines. |
 
-> **Note:** CPU-based scaling requires `cpu_request` to be set. Without a CPU request, Kubernetes cannot compute a utilization percentage. Likewise, memory triggers require `memory_request`; in single-app deployments a memory trigger configured without it is skipped with a warning (the microservice path currently applies no such guard).
+> **Note:** CPU-based scaling requires `cpu_request` to be set. Without a CPU request, Kubernetes cannot compute a utilization percentage. Likewise, memory triggers require `memory_request`; a memory trigger whose resolved request is empty is skipped with a warning under both deploy paths. In microservice deployments the request defaults to `1Gi` (`2Gi` for the gateway), so the skip only occurs when `memory_request` is explicitly set to `""`.
 
 #### HPA Engine (Default)
 
@@ -999,7 +999,7 @@ Outside Kubernetes, sv-to-sv calls find peer providers via auto-spawn (single-pr
 JAC_SV_<PEER_MODULE>_URL=http://<peer>-service.<namespace>.svc.cluster.local:<container_port>
 ```
 
-The env-var key uses the raw module name (the value to the right of `sv import from`) upper-cased and joined with `JAC_SV_..._URL`. The URL host uses the Kubernetes Service name with DNS-1123 normalization (so `jac_coder_sv` becomes `jac-coder-sv-service`). Self is skipped (no service points env at itself).
+The env-var key uses the raw module name (the peer's key in `[scale.microservices.routes]`) upper-cased and joined with `JAC_SV_..._URL`. The URL host uses the Kubernetes Service name with DNS-1123 normalization (so `jac_coder_sv` becomes `jac-coder-sv-service`). Self is skipped (no service points env at itself).
 
 Alongside the peer URLs, every pod also receives `JAC_SV_ROUTES` (the full routes map as JSON), `K8S_APP_NAME`, and `K8S_NAMESPACE`. Every pod's entrypoint (gateway included) also exports `JAC_SV_SIBLING=1` -- a shell export in the container command, not a PodSpec `env:` entry. (Sibling-only scoping of that variable exists only in local multi-process mode.)
 
@@ -1022,7 +1022,7 @@ Each microservice entry takes optional per-service overrides under `[scale.micro
 | `hpa.enabled` | bool | Set to `false` to fix replicas at the configured `replicas` count. Applies to both `"hpa"` and `"keda"` engines. |
 | `hpa.min` / `hpa.max` | int | Autoscaler replica bounds. Applies to both engines. |
 | `hpa.cpu_target` | int (percent) | Target CPU utilization percentage. Default 50%. Applies to both engines. |
-| `hpa.memory_target` | int (percent) | Target memory utilization percentage (default 80). A memory trigger is added alongside CPU unconditionally -- set `memory_request` or the utilization percentage cannot be computed. |
+| `hpa.memory_target` | int (percent) | Target memory utilization percentage (default 80). A memory trigger is added alongside CPU whenever the service resolves a memory request -- always, unless `memory_request` is explicitly set to `""`. |
 | `pdb.enabled` / `pdb.max_unavailable` | bool / int | PodDisruptionBudget controls for this service. |
 | `deployment_overlay` | table | Raw manifest fragment deep-merged onto the generated Deployment (escape hatch for fields not exposed above). |
 | `[[services.NAME.triggers]]` | list | Per-service KEDA event-driven triggers. Each entry: `type` (str), `metadata` (dict), optional `name` (str), optional `auth.secret_refs` (dict). Requires `autoscaler_engine = "keda"` in `[scale.kubernetes]`. |
@@ -1216,3 +1216,107 @@ kubectl get all
 # Check events
 kubectl get events --sort-by='.lastTimestamp'
 ```
+
+## Programmatic SDK
+
+A platform (a PaaS, a CI job, an ops daemon) can drive deploys in-process
+instead of shelling out to `jac start --scale` and parsing stdout. The SDK is
+`jaclang.scale.sdk`: a `ScaleClient` plus a `DeploySpec` that carries the whole
+deploy configuration in memory. `jac.toml` is never read, nothing prompts for
+input, and every call returns structured data. The CLI is unchanged and shares
+the same deploy engine underneath.
+
+One call deploys a folder (config keys are the `DeploySpec` fields below;
+`app_name` defaults from the folder name):
+
+```jac
+import from jaclang.scale.sdk { deploy }
+
+with entry {
+    result = deploy("apps/orders", {"namespace": "orders-prod", "replicas": 2});
+    print(result.service_url if result.success else result.message);
+}
+```
+
+The full client, for platforms that need events and lifecycle control:
+
+```jac
+import from jaclang.scale.sdk { DeploySpec, ProgressEvent, ScaleClient }
+
+def stream(event: ProgressEvent) {
+    print(f"[{event.phase}:{event.status}] {event.message}");
+}
+
+with entry {
+    client = ScaleClient(kube_context="prod-cluster");
+    result = client.deploy(
+        DeploySpec(
+            app_name="orders",
+            namespace="orders-prod",
+            source="apps/orders/main.jac",
+            secrets={"STRIPE_KEY": "sk-live-1"},
+            env={"FEATURE_CHECKOUT": "on"},
+            replicas=2,
+            labels={"paas.example/project": "orders"}
+        ),
+        on_event=stream
+    );
+    if result.success {
+        print(f"live at {result.service_url}");
+    } else {
+        print(f"failed: {result.message}");
+    }
+}
+```
+
+### DeploySpec
+
+`DeploySpec` mirrors the `[scale.*]` tables, in memory:
+
+| Field | Maps to | Notes |
+|---|---|---|
+| `app_name`, `namespace` | `[scale.kubernetes]` | required / `"default"` |
+| `source` | CLI file argument | entry `.jac` file, or a folder containing `main.jac` |
+| `target` | `--target` | `"auto"` (default), `"kubernetes"`, `"kubernetes-microservice"` |
+| `secrets` | `[scale.secrets]` | shipped as the app Secret; no `.env` file needed |
+| `env` | new | plain (non-secret) env vars injected into every service pod |
+| `domain`, `replicas`, `resources`, `autoscaler` | `[scale.kubernetes]` | `resources` takes `cpu_request`/`cpu_limit`/`memory_request`/`memory_limit`; `autoscaler` entries are raw config keys (`max_replicas`, `autoscaler_engine`, ...) |
+| `client` | `[scale.microservices.client]` | web client build: `entry` (path), or `{"entry": False}` for a headless API app |
+| `microservices` | `[scale.microservices]` | `routes`, `services`, `ingress`, ... |
+| `kube_context` | new | kubeconfig context to deploy through; empty = current context, falling back to in-cluster |
+| `labels` | new | stamped on every generated Deployment and Service (platform-owned tags) |
+| `extra` | any `[scale.kubernetes]` key | escape hatch merged last, e.g. `{"bundle_storage_class": "efs-sc"}` |
+
+With `target = "auto"` the SDK resolves exactly like the CLI: the
+microservice target when `microservices` declares routes (or sets
+`enabled = true`), the single-app `kubernetes` target otherwise. Lifecycle
+calls (`destroy`/`status`/`scale`/`service_url`) have no spec to inspect, so
+`"auto"` there probes the namespace instead: a `jac-scale.role=gateway`
+Deployment means the microservice target, anything else the plain one. Pass
+an explicit `target=` to skip the probe (e.g. when the cluster is not
+reachable at call time).
+
+### ScaleClient
+
+| Method | Returns |
+|---|---|
+| `deploy(spec, on_event=None)` | `DeploymentResult{success, service_url, message, details}` -- `details` is the applied manifest bundle |
+| `preview(spec)` | the manifest bundle, nothing applied (microservice target only, like `--dry-run`) |
+| `destroy(app_name, namespace, component="")` | removes the deployment; never prompts |
+| `status(app_name, namespace)` | full status dict (components, pod counts, URLs) |
+| `resource_status(app_name, namespace)` | `ResourceStatusInfo{status, replicas, ready_replicas}` |
+| `service_url(app_name, namespace)` | externally reachable URL or `None` |
+| `scale(app_name, namespace, replicas)` | resizes the app deployment |
+
+`ScaleClient(kube_context=..., logger=...)` sets a default cluster context for
+every call and an optional custom logger. When `deploy` is given `on_event`,
+the whole run streams typed `ProgressEvent{phase, step, status, message,
+detail}` values: one `deploy` start/ok envelope, the `provision`, `bundle`,
+`apply`, and `rollout` phases (each with `start`/`ok`, or `error` on failure;
+phase *order* is target-specific -- the plain target ships the bundle before
+provisioning backends -- so render by arrival, not a fixed sequence), and
+every engine log line as a `phase="log"` event -- enough to render live build
+output. Without `on_event`, output goes to the console exactly like the CLI.
+One caveat on quiet output: if the deploy tooling (kubernetes client et al.)
+is not installed yet, the first call installs it and prints pip progress to
+stdout.

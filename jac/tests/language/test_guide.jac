@@ -334,7 +334,7 @@ without JSX; everything else is plain Jac.
 """
 def guide_block_ext(code: str) -> str {
     if "JsxElement" in code or "/>" in code or "</" in code {
-        return ".cl.jac";
+        return ".jac";
     }
     if "def:pub" in code or "def:priv" in code or "walker:pub" in code {
         return ".sv.jac";
@@ -360,7 +360,7 @@ def check_guide_block(code: str) -> tuple[int, str] {
     set_config(JacConfig());
     try {
         # nowarn: guide examples may warn (unresolved @jac/runtime imports in
-        # standalone .cl.jac, etc.) -- only hard errors should fail a guide.
+        # standalone .jac, etc.) -- only hard errors should fail a guide.
         # no-print: examples intentionally use print() for readable output.
         rc = analysis.check(
             [path],
@@ -394,9 +394,9 @@ test "every ```jac example in a guide checks clean" {
         }
     }
     assert not failures , (
-        "guide ```jac examples must pass `jac check` -- fix the example, or " + "if it is a non-runnable fragment downgrade its fence to plain ```:\n\n" + "\n".join(
-            failures
-        )
+        "guide ```jac examples must pass `jac check` -- fix the example, or "
+        + "if it is a non-runnable fragment downgrade its fence to plain ```:\n\n"
+        + "\n".join(failures)
     );
 }
 

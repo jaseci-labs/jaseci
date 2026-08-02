@@ -44,10 +44,10 @@ property earns its name.
 
 Concretely, substrate transparency is why:
 
-- **Placement is a modifier, not an architecture.** Where code runs is
-  declared per-declaration (`cl { }`, `na { }`, a file suffix), never
-  per-repository. Moving a function across the client/server boundary is an
-  edit, not a rearchitecture. See
+- **Placement is a property, not an architecture.** Where code runs is
+  decided per-declaration (inferred from the code itself, pinned in
+  `jac.toml` when forced), never per-repository. Moving a function across
+  the client/server boundary is an edit, not a rearchitecture. See
   [codespaces](what-makes-jac-different.md#1-how-can-one-language-target-frontends-backends-and-native-binaries-at-the-same-time).
 - **Every ecosystem enters through the ordinary import.** PyPI, npm, and C
   libraries arrive via `import` with no binding generators or wrapper

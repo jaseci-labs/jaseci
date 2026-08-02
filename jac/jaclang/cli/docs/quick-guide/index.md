@@ -31,7 +31,7 @@ def:pub get_todos -> list[Todo] {
     return [root-->][?:Todo];
 }
 
-cl def:pub app -> JsxElement {
+def:pub app -> JsxElement {
     has todos: list[Todo] = [], text: str = "";
     async can with entry { todos = await get_todos(); }
     async def add {
@@ -40,14 +40,14 @@ cl def:pub app -> JsxElement {
             text = "";
         }
     }
-    return <div>
+    <div>
         <input value={text}
             onChange={lambda (e: ChangeEvent) { text = e.target.value; }}
             onKeyPress={lambda (e: KeyboardEvent) { if e.key == "Enter" { add(); } }}
             placeholder="Add a todo..." />
         <button onClick={add}>Add</button>
         {[<p key={jid(t)}>{t.title} ({t.category})</p> for t in todos]}
-    </div>;
+    </div>
 }
 ```
 
