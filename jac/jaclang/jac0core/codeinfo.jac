@@ -9,6 +9,7 @@ import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
 import type from jaclang.jac0core.unitree { CommentToken }
 import type from jaclang.compiler.passes.tool.doc_ir { Doc }
 import type from jaclang.jac0core.unitree { Source, Token }
+import type from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 import type from jaclang.jac0core.osp_model { OspModel }
 import type from jaclang.compiler.passes.native.llvm.binding {
     ModuleRef,
@@ -176,8 +177,8 @@ def native_stdlib_root -> (str | None) {
     if not jaclang?.__file__ {
         return None;
     }
-    root = os.path.join(os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib");
-    return root if os.path.isdir(root) else None;
+    stdlib_root = os.path.join(os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib");
+    return stdlib_root if os.path.isdir(stdlib_root) else None;
 }
 
 def is_native_by_location(file_path: str) -> bool {
@@ -223,12 +224,12 @@ def is_client_by_location(file_path: str) -> bool {
 
 def is_bundled_native_module(module_name: str) -> bool {
     import os;
-    root = native_stdlib_root();
-    if root is None or not module_name {
+    stdlib_root = native_stdlib_root();
+    if stdlib_root is None or not module_name {
         return False;
     }
     path_name = module_name.lstrip('.').replace('.', os.sep);
-    return _native_variant_path(os.path.join(root, path_name)) is not None;
+    return _native_variant_path(os.path.join(stdlib_root, path_name)) is not None;
 }
 
 def native_target_os -> str {
@@ -477,6 +478,7 @@ obj CodeGenTarget {
         _interop_callbacks: list[any] = field(default_factory=`list),
         native_layout: (NativeModuleLayout | None) = None,
         osp_model: (OspModel | None) = None,
+        compose_model: (ComposeModule | None) = None,
         native_viols_reported: bool = False,
         nogc_enforced: bool = False,
         nogc_provenance: str = '',

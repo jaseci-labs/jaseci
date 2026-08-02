@@ -308,7 +308,7 @@ impl AndroidTarget._compile_compose_modules(
     import from jaclang.jac0core.compiler { get_inference_sched }
     import from jaclang.jac0core.compile_options { CompileOptions }
 
-    program = Jac.program;
+    program = Jac.get_program();
 
     self._ensure_compose_framework(project_dir);
     self._type_check = self._resolve_type_check(project_dir);
@@ -320,13 +320,10 @@ impl AndroidTarget._compile_compose_modules(
         raise RuntimeError(f"Failed to compile entry module: {entry_file}");
     }
 
-    if id(mod) not in getattr(program, "_inferred_mods", set()) {
+    if id(mod) not in program._inferred_mods {
         sched = get_inference_sched();
         if sched {
             program.run_schedule(mod, sched);
-            if not hasattr(program, "_inferred_mods") {
-                program._inferred_mods = set();
-            }
             program._inferred_mods.add(id(mod));
         }
     }
