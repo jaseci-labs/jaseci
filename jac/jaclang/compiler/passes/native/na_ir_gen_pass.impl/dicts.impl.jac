@@ -85,17 +85,16 @@ impl NaIRGenPass._emit_dict_order_compact(
     _sbody = fn.append_basic_block("oc.sbody");
     _cont = fn.append_basic_block("oc.cont");
     b.branch(_scan);
-    # scan: find the position p where order[p] == removed_slot (p in 0..new_len]).
+
     bs = ir.IRBuilder(_scan);
     _i = bs.load(_idx, name="oc.iv");
-    # If we somehow reach new_len without a match, stop (defensive; a live entry
-    # always has an order slot).
+
     bs.cbranch(bs.icmp_unsigned(">=", _i, new_len, name="oc.end"), _cont, _body);
     bb = ir.IRBuilder(_body);
     _cur = bb.load(bb.gep(ord_a, [_i], name="oc.cp"), name="oc.cur");
     _hit = bb.icmp_signed("==", _cur, removed_slot, name="oc.hit");
     bb.cbranch(_hit, _shift, self._incr(bb, _idx, _i, i64, fn, _scan));
-    # shift: order[j] = order[j+1] for j in p..new_len
+
     bh = ir.IRBuilder(_shift);
     _j = bh.alloca(i64, name="oc.j");
     bh.store(_i, _j);
@@ -137,12 +136,7 @@ impl NaIRGenPass._emit_dict_helpers(
     key_size: int = 0
 ) -> None {
     dict_key = f"{key_type_name}:{val_type_name}";
-    # `dict_helpers[dict_key]` is registered only at the very end of this function,
-    # but the struct type and all `__dict_*` helper functions are created well
-    # before that. `dict_types[dict_key]` is set right after the struct is bodied
-    # (before any function is created), so it is the reliable "already emitting /
-    # emitted this K/V" guard — checking it prevents a second entry from
-    # re-creating the struct or the helper functions (DuplicatedNameError).
+
     if dict_key in self.dict_helpers or dict_key in self.dict_types {
         return;
     }
@@ -155,7 +149,6 @@ impl NaIRGenPass._emit_dict_helpers(
         }
     }
 
-    # ── Types ──────────────────────────────────────────────────────────────────
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
@@ -168,31 +161,14 @@ impl NaIRGenPass._emit_dict_helpers(
     CTRL_EMPTY: int = 0;
     CTRL_TOMBSTONE: int = 1;
     INIT_CAP: int = 8;
-    FNV_BASIS: int = -3750763034362895579;  # 14695981039346656037 unsigned
+    FNV_BASIS: int = -3750763034362895579;
     FNV_PRIME: int = 1099511628211;
-    MUL_HASH_K: int = -7046029254386353131;  # 11400714819323198485 unsigned
+    MUL_HASH_K: int = -7046029254386353131;
 
-    # ── Dict struct ──────────────────────────────────────────────────────────
-    #   base : {len, cap, K* keys, V* vals, i8* ctrl, i64 used}   (6 fields)
-    #   base : {i64 len, i64 cap, K* keys, V* vals, i8* ctrl, i64 used, i64* order}
-    #   The open-addressing hash table always needs `ctrl` (the 1-byte
-    #   fingerprint array) and `used` (occupied+tombstone count) — in every GC
-    #   mode — so they are struct fields 4 and 5. `order` (field 6) is an array of
-    #   `len` slot indices in INSERTION ORDER: order[j] is the keys/vals slot of
-    #   the j-th inserted (still-live) entry. Python dicts iterate in insertion
-    #   order (guaranteed since 3.7), so iteration / keys / values / items / repr /
-    #   json read through `order` rather than scanning ctrl in hash-slot order.
-    #   Under `--gc none` the container owns its elements, so two element-drop
-    #   function-pointer slots (key-drop, val-drop) are appended at fields 7, 8
-    #   (see #7801 container move-in for str elements).
     dict_struct = self.llvm_module.context.get_identified_type(
         f"Dict.{key_type_name}.{val_type_name}"
     );
-    # `self.dict_helpers[dict_key]` (the early-return guard at the top) is only
-    # registered at the END of this function, so a re-entrant emit for the same
-    # K/V (e.g. a `--gc none` creation site that recurses back in before the
-    # helpers finish) would reach here again — set_body twice on an identified
-    # type raises "already defined". Body the struct only if it has no body yet.
+
     _i64p_ord = i64.as_pointer();
     if not dict_struct.elements {
         if self._gc_mode() == "none" {
@@ -232,9 +208,6 @@ impl NaIRGenPass._emit_dict_helpers(
         self._emit_rc_helpers();
     }
 
-    # ── Forward-declare destructor so new_fn can store its pointer ─────────────
-    # Headerless (nogc-enforced, --gc none) containers carry no RC header/dtor
-    # slot, so no per-dict release function is emitted or stored.
     _rel_fn_decl = None;
     if not self._nogc_headerless() {
         _rel_fn_name = f"__rc_release_dict_{dict_key.replace(':', '_')}";
@@ -247,10 +220,6 @@ impl NaIRGenPass._emit_dict_helpers(
         }
     }
 
-    # =========================================================================
-    # A. __dict_hash_K_V — 64-bit hash for a key.
-    #    FNV-1a loop for i8* string keys; multiplicative hash otherwise.
-    # =========================================================================
     hash_fnty = ir.FunctionType(i64, [key_type]);
     hash_fn = ir.Function(
         self.llvm_module, hash_fnty, name=f"__dict_hash_{key_type_name}_{val_type_name}"
@@ -259,8 +228,6 @@ impl NaIRGenPass._emit_dict_helpers(
     hash_fn.args[0].name = "key";
     bhe = ir.IRBuilder(hash_fn.append_basic_block("entry"));
     if is_bytes_key {
-        # FNV-1a over the length-prefixed byte payload. jacbytes is
-        # {i64 len, [0 x i8] data}: read len from field 0, hash data[0..len).
         h_ba = bhe.alloca(i64, name="h");
         idx_ba = bhe.alloca(i64, name="idx");
         bhe.store(ir.Constant(i64, FNV_BASIS), h_ba);
@@ -330,12 +297,6 @@ impl NaIRGenPass._emit_dict_helpers(
         }
     }
 
-    # =========================================================================
-    # B. __dict_find_K_V — core probe: locate a key in the hash table.
-    #    Returns slot >= 0 when found.
-    #    Returns ~slot (always < 0) when not found; ~result = best insert pos.
-    #    Tombstones are skipped; the first tombstone seen becomes the insert pos.
-    # =========================================================================
     find_fnty = ir.FunctionType(i64, [dict_ptr_type, key_type]);
     find_fn = ir.Function(
         self.llvm_module, find_fnty, name=f"__dict_find_{key_type_name}_{val_type_name}"
@@ -348,13 +309,13 @@ impl NaIRGenPass._emit_dict_helpers(
     k_f = find_fn.args[1];
     slot_a = bf.alloca(i64, name="slot");
     itomb_a = bf.alloca(i64, name="itomb");
-    # Compute hash + fingerprint byte h2 (always 0x80..0xFF)
+
     hf = bf.call(hash_fn, [k_f], name="h");
     h2r = bf.lshr(hf, ir.Constant(i64, 57), name="h2r");
     h27 = bf.and_(h2r, ir.Constant(i64, 0x7F), name="h27");
     h2o = bf.or_(h27, ir.Constant(i64, 0x80), name="h2o");
     h2 = bf.trunc(h2o, i8, name="h2");
-    # Load cap, mask, keys, ctrl
+
     capf = bf.load(
         bf.gep(d_f, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="cp"), name="cap"
     );
@@ -368,7 +329,7 @@ impl NaIRGenPass._emit_dict_helpers(
     s0 = bf.and_(hf, maskf, name="s0");
     bf.store(s0, slot_a);
     bf.store(ir.Constant(i64, -1), itomb_a);
-    # BB layout for probe loop
+
     probe_bb = find_fn.append_basic_block("probe");
     empty_bb = find_fn.append_basic_block("empty");
     fp_bb = find_fn.append_basic_block("fp");
@@ -377,32 +338,30 @@ impl NaIRGenPass._emit_dict_helpers(
     next_bb = find_fn.append_basic_block("next");
     found_bb = find_fn.append_basic_block("found");
     bf.branch(probe_bb);
-    # probe: load ctrl[slot]
+
     bp = ir.IRBuilder(probe_bb);
     sl = bp.load(slot_a, name="sl");
     cbp = bp.gep(ctrlf, [sl], name="cbp");
     cb = bp.load(cbp, name="cb");
     emp = bp.icmp_unsigned("==", cb, ir.Constant(i8, CTRL_EMPTY), name="emp");
     bp.cbranch(emp, empty_bb, fp_bb);
-    # empty: not found — pick best insert slot and return ~slot
+
     be = ir.IRBuilder(empty_bb);
     itomb = be.load(itomb_a, name="it");
     notmb = be.icmp_signed("==", itomb, ir.Constant(i64, -1), name="nt");
     ins = be.select(notmb, sl, itomb, name="ins");
     be.ret(be.xor(ins, ir.Constant(i64, -1), name="nfr"));
-    # fp: check fingerprint match
+
     bfp = ir.IRBuilder(fp_bb);
     fpm = bfp.icmp_unsigned("==", cb, h2, name="fpm");
     bfp.cbranch(fpm, keq_bb, tomb_bb);
-    # keq: fingerprint matched — compare actual key
+
     bke = ir.IRBuilder(keq_bb);
     kpke = bke.gep(keysf, [sl], name="kp");
     kke = bke.load(kpke, name="k");
     if is_int_key {
         keq = bke.icmp_signed("==", kke, k_f, name="keq");
     } elif is_bytes_key {
-        # Length-aware byte compare: equal length AND memcmp(data)==0. Distinct
-        # byte literals are separate globals, so identity comparison never works.
         memcmp_b = self._get_or_declare_extern("memcmp", i32, [i8p, i8p, i64]);
         klen_b = bke.load(
             bke.gep(kke, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="klp"),
@@ -439,10 +398,10 @@ impl NaIRGenPass._emit_dict_helpers(
         keq = bke.icmp_unsigned("==", kke, k_f, name="keq");
     }
     bke.cbranch(keq, found_bb, next_bb);
-    # found: return slot (>= 0)
+
     bfnd = ir.IRBuilder(found_bb);
     bfnd.ret(sl);
-    # tomb: not matched fingerprint OR tombstone; save first tombstone for insert
+
     btb = ir.IRBuilder(tomb_bb);
     ist = btb.icmp_unsigned("==", cb, ir.Constant(i8, CTRL_TOMBSTONE), name="ist");
     it2 = btb.load(itomb_a, name="it2");
@@ -451,18 +410,13 @@ impl NaIRGenPass._emit_dict_helpers(
     nit = btb.select(ss, sl, it2, name="nit");
     btb.store(nit, itomb_a);
     btb.branch(next_bb);
-    # next: advance slot = (slot + 1) & mask
+
     bnx = ir.IRBuilder(next_bb);
     nsl = bnx.add(sl, ir.Constant(i64, 1), name="nsl");
     nslm = bnx.and_(nsl, maskf, name="nslm");
     bnx.store(nslm, slot_a);
     bnx.branch(probe_bb);
 
-    # =========================================================================
-    # C. __dict_new_K_V — allocate empty hash table (cap = INIT_CAP).
-    #    Uses rc_alloc for the container struct; malloc for three data arrays.
-    #    ctrl array is zeroed (CTRL_EMPTY = 0x00).
-    # =========================================================================
     new_fnty2 = ir.FunctionType(dict_ptr_type, []);
     new_fn = ir.Function(
         self.llvm_module, new_fnty2, name=f"__dict_new_{key_type_name}_{val_type_name}"
@@ -472,15 +426,13 @@ impl NaIRGenPass._emit_dict_helpers(
     if self.rc_alloc_fn is None {
         self._emit_rc_helpers();
     }
-    # Allocate container struct via rc_alloc
+
     null_p = ir.Constant(dict_ptr_type, None);
     sg = bn.gep(null_p, [ir.Constant(i32, 1)], name="sg");
     ssz = bn.ptrtoint(sg, i64, name="ssz");
     raw = bn.call(self.rc_alloc_fn, [ssz], name="raw");
     dp = bn.bitcast(raw, dict_ptr_type, name="dp");
-    # Set type tag + store destructor pointer in the RC header. Headerless
-    # (--gc none) containers have no header, so this is skipped entirely
-    # (_rel_fn_name / _rel_fn_decl are unset in that mode).
+
     if not self._nogc_headerless() {
         if self.rc_set_type_fn is not None {
             _tn = _rel_fn_name[len("__rc_release_"):]
@@ -489,7 +441,7 @@ impl NaIRGenPass._emit_dict_helpers(
             _dpi8 = bn.bitcast(dp, i8p, name="dp.i8");
             self._emit_set_type_tag(bn, _dpi8, _tn);
         }
-        # Store destructor pointer at dp - 8 (HDR_DTOR_OFF)
+
         _i64p_n = i64.as_pointer();
         _drn = bn.bitcast(dp, i8p, name="dr");
         _dsln = bn.gep(_drn, [ir.Constant(i64, -8)], name="dsl");
@@ -497,17 +449,17 @@ impl NaIRGenPass._emit_dict_helpers(
         _dti64 = bn.ptrtoint(_rel_fn_decl, i64, name="di");
         bn.store(_dti64, _dslip);
     }
-    # len = 0
+
     bn.store(
         ir.Constant(i64, 0),
         bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lp")
     );
-    # cap = INIT_CAP
+
     bn.store(
         ir.Constant(i64, INIT_CAP),
         bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="cp")
     );
-    # keys = malloc(INIT_CAP * sizeof(K))
+
     kn = ir.Constant(key_type.as_pointer(), None);
     kgn = bn.gep(kn, [ir.Constant(i32, 1)], name="ksz");
     ksn = bn.ptrtoint(kgn, i64, name="ksz");
@@ -515,7 +467,7 @@ impl NaIRGenPass._emit_dict_helpers(
     krn = bn.call(malloc_fn, [kbn], name="kr");
     kpn = bn.bitcast(krn, key_type.as_pointer(), name="kp");
     bn.store(kpn, bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="kf"));
-    # vals = malloc(INIT_CAP * sizeof(V))
+
     vn = ir.Constant(val_type.as_pointer(), None);
     vgn = bn.gep(vn, [ir.Constant(i32, 1)], name="vsz");
     vsn = bn.ptrtoint(vgn, i64, name="vsz");
@@ -523,24 +475,21 @@ impl NaIRGenPass._emit_dict_helpers(
     vrn = bn.call(malloc_fn, [vbn], name="vr");
     vpn = bn.bitcast(vrn, val_type.as_pointer(), name="vp");
     bn.store(vpn, bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vf"));
-    # ctrl = calloc(INIT_CAP, 1) — zero-initialized (CTRL_EMPTY = 0x00)
+
     cbn = ir.Constant(i64, INIT_CAP);
     crn = bn.call(calloc_fn, [cbn, ir.Constant(i64, 1)], name="cr");
     bn.store(crn, bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 4)], name="cf"));
-    # used = 0
+
     bn.store(
         ir.Constant(i64, 0),
         bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 5)], name="uf")
     );
-    # order = malloc(INIT_CAP * sizeof(i64)) — insertion-order slot-index array.
+
     _ord_bytes = ir.Constant(i64, INIT_CAP * 8);
     orn = bn.call(malloc_fn, [_ord_bytes], name="ordr");
     orpn = bn.bitcast(orn, i64.as_pointer(), name="ordp");
     bn.store(orpn, bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="ordf"));
-    # Under `--gc none` the struct carries two element-drop function-pointer slots
-    # (fields 7, 8); the raw allocation is not zeroed, so null them here. The
-    # creation site later stamps `free` into them for `str` elements via
-    # _nogc_stamp_elem_drops; a null slot means "this element is not owned".
+
     if self._gc_mode() == "none" {
         _drop_slot_ty = self._nogc_elem_drop_slot_ty();
         _drop_null = ir.Constant(_drop_slot_ty, None);
@@ -555,11 +504,6 @@ impl NaIRGenPass._emit_dict_helpers(
     }
     bn.ret(dp);
 
-    # =========================================================================
-    # D. __dict_rehash_K_V — double cap and reinsert all live entries.
-    #    No RC operations during reinsert (refs are moved, not copied).
-    #    After rehash: len = live entries, used = live entries (no tombstones).
-    # =========================================================================
     rehash_fnty = ir.FunctionType(ir.VoidType(), [dict_ptr_type]);
     rehash_fn = ir.Function(
         self.llvm_module,
@@ -570,13 +514,13 @@ impl NaIRGenPass._emit_dict_helpers(
     rehash_fn.args[0].name = "dict";
     brh = ir.IRBuilder(rehash_fn.append_basic_block("entry"));
     d_rh = rehash_fn.args[0];
-    # Allocas for inner-loop state
+
     ok_a = brh.alloca(key_type, name="ok");
     ov_a = brh.alloca(val_type, name="ov");
     nh2_a = brh.alloca(i8, name="nh2");
     rslot_a = brh.alloca(i64, name="rsl");
     si_a = brh.alloca(i64, name="si");
-    # Load old fields
+
     cap_prh = brh.gep(d_rh, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="cp");
     keys_prh = brh.gep(d_rh, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="kp");
     vals_prh = brh.gep(d_rh, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vp");
@@ -592,7 +536,7 @@ impl NaIRGenPass._emit_dict_helpers(
     old_order = brh.load(ord_prh, name="oorder");
     new_cap = brh.mul(old_cap, ir.Constant(i64, 2), name="ncap");
     new_mask = brh.sub(new_cap, ir.Constant(i64, 1), name="nmask");
-    # Allocate new arrays
+
     kgnr = brh.gep(
         ir.Constant(key_type.as_pointer(), None), [ir.Constant(i32, 1)], name="ksz"
     );
@@ -608,12 +552,11 @@ impl NaIRGenPass._emit_dict_helpers(
     nvr = brh.call(malloc_fn, [vbrh], name="nvr");
     new_vals = brh.bitcast(nvr, val_type.as_pointer(), name="nv");
     ncr = brh.call(calloc_fn, [new_cap, ir.Constant(i64, 1)], name="ncr");
-    # New insertion-order array (slot indices), grown to new_cap.
+
     _nord_bytes = brh.mul(new_cap, ir.Constant(i64, 8), name="nordb");
     nordr = brh.call(malloc_fn, [_nord_bytes], name="nordr");
     new_order = brh.bitcast(nordr, i64.as_pointer(), name="norder");
-    # Install new arrays into struct; reset len=0, used=0. (len/used are rebuilt
-    # by the reinsert loop; `order` is filled in insertion order there too.)
+
     brh.store(new_cap, cap_prh);
     brh.store(new_keys, keys_prh);
     brh.store(new_vals, vals_prh);
@@ -622,9 +565,7 @@ impl NaIRGenPass._emit_dict_helpers(
     brh.store(ir.Constant(i64, 0), len_prh);
     brh.store(ir.Constant(i64, 0), used_prh);
     brh.store(ir.Constant(i64, 0), si_a);
-    # Outer loop walks the OLD insertion order (order[0..old_len]) so entries are
-    # reinserted — and the new order array rebuilt — in insertion order, not in
-    # hash-slot order. old_order[j] is the old keys/vals slot of the j-th entry.
+
     rl_bb = rehash_fn.append_basic_block("rl");
     ri_bb = rehash_fn.append_basic_block("ri");
     rp_bb = rehash_fn.append_basic_block("rp");
@@ -632,12 +573,12 @@ impl NaIRGenPass._emit_dict_helpers(
     rd_bb = rehash_fn.append_basic_block("rd");
     rf_bb = rehash_fn.append_basic_block("rf");
     brh.branch(rl_bb);
-    # rl: check j vs old_len
+
     brl = ir.IRBuilder(rl_bb);
     si_rh = brl.load(si_a, name="j");
     rend = brl.icmp_unsigned(">=", si_rh, old_len, name="rend");
     brl.cbranch(rend, rf_bb, ri_bb);
-    # ri: source slot = old_order[j]; load old key/val, compute fingerprint
+
     bri = ir.IRBuilder(ri_bb);
     _osl = bri.load(bri.gep(old_order, [si_rh], name="osl.p"), name="osl");
     okp = bri.gep(old_keys, [_osl], name="okp");
@@ -654,19 +595,19 @@ impl NaIRGenPass._emit_dict_helpers(
     bri.store(nh2, nh2_a);
     bri.store(bri.and_(nhr, new_mask, name="rs0"), rslot_a);
     bri.branch(rp_bb);
-    # rp: probe new table for empty slot (no tombstones after fresh alloc)
+
     brp = ir.IRBuilder(rp_bb);
     rsl = brp.load(rslot_a, name="rsl");
     ncp = brp.gep(ncr, [rsl], name="ncp");
     nc = brp.load(ncp, name="nc");
     rse = brp.icmp_unsigned("==", nc, ir.Constant(i8, CTRL_EMPTY), name="rse");
     brp.cbranch(rse, rd_bb, ra_bb);
-    # ra: advance probe slot
+
     bra = ir.IRBuilder(ra_bb);
     nrsl = bra.add(rsl, ir.Constant(i64, 1), name="nrsl");
     bra.store(bra.and_(nrsl, new_mask, name="nrslm"), rslot_a);
     bra.branch(rp_bb);
-    # rd: insert at rsl (no RC retain — moving existing refs); record order.
+
     brd = ir.IRBuilder(rd_bb);
     ok_d = brd.load(ok_a, name="ok");
     ov_d = brd.load(ov_a, name="ov");
@@ -675,15 +616,14 @@ impl NaIRGenPass._emit_dict_helpers(
     brd.store(ov_d, brd.gep(new_vals, [rsl], name="nvp"));
     brd.store(nh2_d, brd.gep(ncr, [rsl], name="ncp2"));
     cl_d = brd.load(len_prh, name="cl");
-    # new_order[len] = rsl (this entry keeps its insertion position j == len)
+
     brd.store(rsl, brd.gep(new_order, [cl_d], name="nordp"));
     brd.store(brd.add(cl_d, ir.Constant(i64, 1), name="nl"), len_prh);
     cu_d = brd.load(used_prh, name="cu");
     brd.store(brd.add(cu_d, ir.Constant(i64, 1), name="nu"), used_prh);
     brd.store(brd.add(brd.load(si_a, name="j2"), ir.Constant(i64, 1), name="nj"), si_a);
     brd.branch(rl_bb);
-    # rf: free the old backing arrays and return. Headerless (--gc none) has no
-    # RC runtime, so __rc_safe_free is never emitted — use plain free there.
+
     brf = ir.IRBuilder(rf_bb);
     if self._nogc_headerless() {
         _free_rh = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
@@ -699,10 +639,6 @@ impl NaIRGenPass._emit_dict_helpers(
     }
     brf.ret_void();
 
-    # =========================================================================
-    # E. __dict_set_K_V — insert or update key→val.
-    #    Uses find_fn for the probe; calls rehash_fn if load factor >= 75%.
-    # =========================================================================
     set_fnty = ir.FunctionType(ir.VoidType(), [dict_ptr_type, key_type, val_type]);
     set_fn = ir.Function(
         self.llvm_module, set_fnty, name=f"__dict_set_{key_type_name}_{val_type_name}"
@@ -722,15 +658,13 @@ impl NaIRGenPass._emit_dict_helpers(
     reh_bb = set_fn.append_basic_block("reh");
     done_s = set_fn.append_basic_block("done");
     bs.cbranch(is_fnd, upd_bb, ins_bb);
-    # upd: update existing val at res_s (retain new, release old)
+
     bu = ir.IRBuilder(upd_bb);
     vals_as = bu.load(
         bu.gep(d_s, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vp"), name="va"
     );
     vsp = bu.gep(vals_as, [res_s], name="vsp");
-    # Under `--gc none` the RC retain/release helpers are never emitted, so an
-    # overwrite in a headerless dict must not call them (it would reference a
-    # null function). The container owns its elements via the drop slots instead.
+
     if isinstance(val_type, ir.PointerType) and not self._nogc_headerless() {
         bu.call(self.rc_retain_fn, [bu.bitcast(v_s, i8p, name="nvc")]);
         ov_u = bu.load(vsp, name="ov");
@@ -740,16 +674,16 @@ impl NaIRGenPass._emit_dict_helpers(
         bu.store(v_s, vsp);
     }
     bu.ret_void();
-    # ins: insert new entry at ~res_s
+
     bi = ir.IRBuilder(ins_bb);
     isl = bi.xor(res_s, ir.Constant(i64, -1), name="isl");
-    # Recompute fingerprint for the insert slot
+
     h_s = bi.call(hash_fn, [k_s], name="h");
     h2r_s = bi.lshr(h_s, ir.Constant(i64, 57), name="h2r");
     h27_s = bi.and_(h2r_s, ir.Constant(i64, 0x7F), name="h27");
     h2o_s = bi.or_(h27_s, ir.Constant(i64, 0x80), name="h2o");
     h2_s = bi.trunc(h2o_s, i8, name="h2");
-    # Load struct field pointers
+
     len_rp = bi.gep(d_s, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lrp");
     keys_rp = bi.gep(d_s, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="krp");
     vals_rp = bi.gep(d_s, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vrp");
@@ -759,15 +693,11 @@ impl NaIRGenPass._emit_dict_helpers(
     ka_s = bi.load(keys_rp, name="ka");
     va_s = bi.load(vals_rp, name="va");
     ca_s = bi.load(ctrl_rp, name="ca");
-    # Check if insert slot was TOMBSTONE (ctrl==1) — used stays unchanged for reuse
+
     icp = bi.gep(ca_s, [isl], name="icp");
     icb = bi.load(icp, name="icb");
     was_tb = bi.icmp_unsigned("==", icb, ir.Constant(i8, CTRL_TOMBSTONE), name="wt");
-    # Ownership of the new key/val. Under `--gc none` the container owns its
-    # elements via the drop slots and the RC helpers are never emitted, so a
-    # syntactically-fresh str key is moved in by strdup-copying it (rodata must
-    # never enter a container that frees its elements) and nothing is retained.
-    # Otherwise the new entry takes an RC reference on key and val (#7801).
+
     _k_ins = k_s;
     if self._nogc_headerless() {
         if (
@@ -790,34 +720,29 @@ impl NaIRGenPass._emit_dict_helpers(
     bi.store(_k_ins, bi.gep(ka_s, [isl], name="ksp"));
     bi.store(v_s, bi.gep(va_s, [isl], name="vsp"));
     bi.store(h2_s, icp);
-    # len++ always; record this slot at the end of the insertion-order array so
-    # iteration visits entries in the order they were first inserted (this is the
-    # `ins` path — a brand-new key, never an update, so it always appends).
+
     cl_s = bi.load(len_rp, name="cl");
     ord_ip = bi.gep(d_s, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="orp");
     ord_a = bi.load(ord_ip, name="ora");
     bi.store(isl, bi.gep(ord_a, [cl_s], name="oslp"));
     bi.store(bi.add(cl_s, ir.Constant(i64, 1), name="nl"), len_rp);
-    # used++ only when slot was EMPTY (not tombstone reuse)
+
     ntb = bi.not_(was_tb, name="ntb");
     cu_s = bi.load(used_rp, name="cu");
     nu_s = bi.add(cu_s, bi.zext(ntb, i64, name="ntbx"), name="nu");
     bi.store(nu_s, used_rp);
-    # Rehash if used*4 > cap*3  (75% load factor)
+
     cc_s = bi.load(cap_rp, name="cc");
     u4 = bi.mul(nu_s, ir.Constant(i64, 4), name="u4");
     c3 = bi.mul(cc_s, ir.Constant(i64, 3), name="c3");
     nreh = bi.icmp_unsigned(">", u4, c3, name="nreh");
     bi.cbranch(nreh, reh_bb, done_s);
-    # reh: grow the table
+
     breh = ir.IRBuilder(reh_bb);
     breh.call(rehash_fn, [d_s]);
     breh.branch(done_s);
     ir.IRBuilder(done_s).ret_void();
 
-    # =========================================================================
-    # F. __dict_get_K_V — lookup key, return value or zero/null if missing.
-    # =========================================================================
     get_fnty = ir.FunctionType(val_type, [dict_ptr_type, key_type]);
     get_fn = ir.Function(
         self.llvm_module, get_fnty, name=f"__dict_get_{key_type_name}_{val_type_name}"
@@ -846,9 +771,6 @@ impl NaIRGenPass._emit_dict_helpers(
         bmi.ret(ir.Constant(val_type, 0));
     }
 
-    # =========================================================================
-    # G. __dict_contains_K_V — return i1: 1 if key present, 0 if not.
-    # =========================================================================
     contains_fnty = ir.FunctionType(i1, [dict_ptr_type, key_type]);
     contains_fn = ir.Function(
         self.llvm_module,
@@ -862,11 +784,6 @@ impl NaIRGenPass._emit_dict_helpers(
     res_c = bc.call(find_fn, [contains_fn.args[0], contains_fn.args[1]], name="res");
     bc.ret(bc.icmp_signed(">=", res_c, ir.Constant(i64, 0), name="found"));
 
-    # =========================================================================
-    # H. __dict_remove_K_V — tombstone-delete a key (used by del/remove).
-    #    Decrements len; does NOT change used (tombstone persists until rehash).
-    #    RC-releases both key and val.  No-op when key not present.
-    # =========================================================================
     remove_fnty = ir.FunctionType(ir.VoidType(), [dict_ptr_type, key_type]);
     remove_fn = ir.Function(
         self.llvm_module,
@@ -896,9 +813,7 @@ impl NaIRGenPass._emit_dict_helpers(
         name="ca"
     );
     lp_rm = bdel.gep(d_rm, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lp");
-    # Reclaim the removed key/val. Headerless (--gc none) has no RC runtime: the
-    # container owns its elements via the drop slots, so free the strdup'd key copy
-    # directly (str keys) and leave the value (headerless never RC-references it).
+
     _hl_rm = self._nogc_headerless();
     _free_rm = self._get_or_declare_extern("free", ir.VoidType(), [i8p])
         if _hl_rm
@@ -910,7 +825,7 @@ impl NaIRGenPass._emit_dict_helpers(
         } else {
             bdel.call(self.rc_release_simple_fn, [bdel.bitcast(kv_rm, i8p, name="kc")]);
         }
-        # Null out dead key slot — prevents stale/dangling pointer in tombstone
+
         bdel.store(
             ir.Constant(key_type, None), bdel.gep(ka_rm, [res_rm], name="kclear")
         );
@@ -920,7 +835,7 @@ impl NaIRGenPass._emit_dict_helpers(
         if not _hl_rm {
             bdel.call(self.rc_release_simple_fn, [bdel.bitcast(vv_rm, i8p, name="vc")]);
         }
-        # Null out dead val slot — prevents stale/dangling pointer in tombstone
+
         bdel.store(
             ir.Constant(val_type, None), bdel.gep(va_rm, [res_rm], name="vclear")
         );
@@ -929,18 +844,13 @@ impl NaIRGenPass._emit_dict_helpers(
     cl_rm = bdel.load(lp_rm, name="cl");
     _new_len_rm = bdel.sub(cl_rm, ir.Constant(i64, 1), name="nl");
     bdel.store(_new_len_rm, lp_rm);
-    # Drop this slot from the insertion-order array (shift-compact).
+
     bdel2 = self._emit_dict_order_compact(
         bdel, remove_fn, d_rm, res_rm, _new_len_rm, i32, i64
     );
     bdel2.branch(done_rm);
     ir.IRBuilder(done_rm).ret_void();
 
-    # =========================================================================
-    # I. __dict_pop_K_V — tombstone-delete and return the value.
-    #    Caller takes ownership of the returned val (no RC release on val).
-    #    RC-releases the key.  Returns zero/null when key not present.
-    # =========================================================================
     pop_fnty = ir.FunctionType(val_type, [dict_ptr_type, key_type]);
     pop_fn = ir.Function(
         self.llvm_module, pop_fnty, name=f"__dict_pop_{key_type_name}_{val_type_name}"
@@ -968,14 +878,14 @@ impl NaIRGenPass._emit_dict_helpers(
         name="ca"
     );
     lp_p = bdp.gep(d_pop, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lp");
-    v_out = bdp.load(bdp.gep(va_p, [res_p], name="vsp"), name="v");  # save val first
-    # Ownership transfer: clear the val slot so the destructor won't double-release.
+    v_out = bdp.load(bdp.gep(va_p, [res_p], name="vsp"), name="v");
+
     if isinstance(val_type, ir.PointerType) {
         bdp.store(ir.Constant(val_type, None), bdp.gep(va_p, [res_p], name="vclear"));
     }
     if isinstance(key_type, ir.PointerType) {
         kv_p = bdp.load(bdp.gep(ka_p, [res_p], name="kvp"), name="kv");
-        # Headerless (--gc none): free the strdup'd key copy directly (no RC).
+
         if self._nogc_headerless() {
             _free_p = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
             bdp.call(_free_p, [bdp.bitcast(kv_p, i8p, name="kc")]);
@@ -988,11 +898,11 @@ impl NaIRGenPass._emit_dict_helpers(
     cl_p = bdp.load(lp_p, name="cl");
     _new_len_p = bdp.sub(cl_p, ir.Constant(i64, 1), name="nl");
     bdp.store(_new_len_p, lp_p);
-    # Drop this slot from the insertion-order array (shift-compact).
+
     bdp2 = self._emit_dict_order_compact(
         bdp, pop_fn, d_pop, res_p, _new_len_p, i32, i64
     );
-    bdp2.ret(v_out);  # caller owns the value
+    bdp2.ret(v_out);
     bmp = ir.IRBuilder(miss_p);
     if isinstance(val_type, ir.PointerType) {
         bmp.ret(ir.Constant(val_type, None));
@@ -1002,20 +912,10 @@ impl NaIRGenPass._emit_dict_helpers(
         bmp.ret(ir.Constant(val_type, 0));
     }
 
-    # =========================================================================
-    # J. __dict_len_K_V — return live entry count (field 0).
-    # =========================================================================
     len_fn = self._emit_container_len_fn(
         f"__dict_len_{key_type_name}_{val_type_name}", dict_ptr_type
     );
 
-    # =========================================================================
-    # K. __dict_get_key_K_V / __dict_get_val_K_V
-    #    Return the i-th key/val in INSERTION ORDER. order[0..len] holds the live
-    #    slots in insertion order (kept dense by set/del/rehash), so this is O(1):
-    #    slot = order[i]; return keys[slot] / vals[slot]. i is assumed 0 <= i < len
-    #    (callers iterate up to __dict_len); an out-of-range i returns null/zero.
-    # =========================================================================
     get_key_fnty = ir.FunctionType(key_type, [dict_ptr_type, i64]);
     get_key_fn = ir.Function(
         self.llvm_module,
@@ -1102,15 +1002,7 @@ impl NaIRGenPass._emit_dict_helpers(
         bvoob.ret(ir.Constant(val_type, 0));
     }
 
-    # Section L (custom RC destructor) only applies to headered
-    # (rc/cycles) containers. Headerless (--gc none) dicts get a
-    # structural drop fn instead and store no release fn.
     if not self._nogc_headerless() {
-        # =========================================================================
-        # L. __rc_release_dict_K_V — custom destructor.
-        #    Iterates ctrl bytes; RC-releases key/val for each OCCUPIED slot.
-        #    Frees keys, vals, ctrl arrays.  Then frees the container struct.
-        # =========================================================================
         rel_fnty2 = ir.FunctionType(ir.VoidType(), [dict_ptr_type]);
         try {
             _ex = self.llvm_module.get_global(_rel_fn_name);
@@ -1198,13 +1090,13 @@ impl NaIRGenPass._emit_dict_helpers(
         brra.call(self.rc_safe_free_fn, [brra.bitcast(keys_rel, i8p, name="ki8")]);
         brra.call(self.rc_safe_free_fn, [brra.bitcast(vals_rel, i8p, name="vi8")]);
         brra.call(self.rc_safe_free_fn, [ctrl_rel]);
-        # Also free the insertion-order array (struct field 6).
+
         _order_rel = brra.load(
             brra.gep(d_rel, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="orp"),
             name="order"
         );
         brra.call(self.rc_safe_free_fn, [brra.bitcast(_order_rel, i8p, name="ordi8")]);
-        # Remove from live-objects list, log, then free container struct
+
         _i8pc = i8p;
         _i64c = i64;
         _i64pc = _i64c.as_pointer();
@@ -1232,9 +1124,6 @@ impl NaIRGenPass._emit_dict_helpers(
         }
     }
 
-    # =========================================================================
-    # Store helpers — same external interface as before + new "remove"/"pop"/"find"
-    # =========================================================================
     self.dict_helpers[dict_key] = {
         "new": new_fn,
         "set": set_fn,

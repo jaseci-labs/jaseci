@@ -36,9 +36,9 @@ def _fill(n: int) -> int {
 }
 
 
-with entry {
-    n: int = 20000;
+glob n: int = 20000;
 
+with entry {
     # Warm up so first-touch/codegen effects do not skew the first measurement.
     _warm: int = _fill(1000);
 
