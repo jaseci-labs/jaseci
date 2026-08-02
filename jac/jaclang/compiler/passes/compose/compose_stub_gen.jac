@@ -258,6 +258,37 @@ def parse_const_text(text: str) -> dict[str, list[ConstMember]] {
     };
 }
 
+glob _WIDGET_PARAM_KINDS_CACHE: dict[str, dict[str, dict[str, str]]] = {};
+
+def widget_param_kind_table -> dict[str, dict[str, str]] {
+    if "table" in _WIDGET_PARAM_KINDS_CACHE {
+        return _WIDGET_PARAM_KINDS_CACHE["table"];
+    }
+    import os;
+    import jaclang;
+    table: dict[str, dict[str, str]] = {};
+    path = os.path.join(
+        os.path.dirname(jaclang.__file__),
+        "compiler",
+        "type_system",
+        "compose_widgets.txt"
+    );
+    try {
+        if os.path.exists(path) {
+            with open(path, "r", encoding="utf-8", errors="replace") as f {
+                text = f.read();
+            }
+            for sig in parse_signature_text(text) {
+                table[sig.name] = {p.name: p.kind for p in sig.params};
+            }
+        }
+    } except OSError {
+        table = {};
+    }
+    _WIDGET_PARAM_KINDS_CACHE["table"] = table;
+    return table;
+}
+
 def slot_table(sigs: list[ComposeSig]) -> dict[str, list[str]] {
     table: dict[str, list[str]] = {};
     for sig in sigs {

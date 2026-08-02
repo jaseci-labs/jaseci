@@ -5,94 +5,26 @@ import from pathlib { Path }
 import from typing { Optional }
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.runtime { JacRuntime as Jac }
-
-def _jac_dev_handler_cls(state: dict) -> any {
-    import from http.server { BaseHTTPRequestHandler }
-    import from json { dumps }
-
-    def do_get(handler: any) -> None {
-        raw_path = handler.path.split("?")[0];
-        if raw_path == "/_jac/dev/modules/manifest.json" {
-            body = dumps(
-                {
-                    "version": str(state.get("version", "")),
-                    "path": "/_jac/dev/modules/android/classes.dex"
-                }
-            ).encode(
-                "utf-8"
-            );
-            handler.send_response(200);
-            handler.send_header("Content-Type", "application/json");
-            handler.send_header("Content-Length", str(len(body)));
-            handler.send_header("Cache-Control", "no-store");
-            handler.end_headers();
-            handler.wfile.write(body);
-        } elif raw_path == "/_jac/dev/modules/android/classes.dex" {
-            dex_path = state.get("dex_path");
-            data: bytes = b"";
-            if dex_path and Path(str(dex_path)).is_file() {
-                data = Path(str(dex_path)).read_bytes();
-            }
-            if not data {
-                handler.send_response(404);
-                handler.send_header("Cache-Control", "no-store");
-                handler.end_headers();
-                return;
-            }
-            handler.send_response(200);
-            handler.send_header("Content-Type", "application/octet-stream");
-            handler.send_header("Content-Length", str(len(data)));
-            handler.send_header("Cache-Control", "no-store");
-            handler.end_headers();
-            handler.wfile.write(data);
-        } else {
-            handler.send_response(404);
-            handler.send_header("Cache-Control", "no-store");
-            handler.end_headers();
-        }
-    }
-
-    def silent_log(handler: any, fmt: any, *args: any) { }
-
-    return type(
-        "JacDevHandler",
-        (BaseHTTPRequestHandler, ),
-        {"do_GET": do_get, "protocol_version": "HTTP/1.0", "log_message": silent_log}
-    );
+import from jaclang.runtimelib.client.targets.android.config {
+    load_android_cfg,
+    load_client_cfg,
+    resolve_package_name,
+    resolve_type_check,
+    apply_android_cfg_to_model
 }
-
-def _jac_start_dev_server(port: int, state: dict) -> any {
-    import from http.server { ThreadingHTTPServer }
-    import from threading { Thread }
-
-    handler_cls = _jac_dev_handler_cls(state);
-    httpd = ThreadingHTTPServer(("0.0.0.0", port), handler_cls);
-    thread = Thread(target=httpd.serve_forever, daemon=True);
-    thread.start();
-    return httpd;
+import from jaclang.runtimelib.client.targets.android.dev_server {
+    start_jac_dev_server
 }
-
+import from jaclang.runtimelib.client.targets.android.hmr {
+    watch_android_hot_reload
+}
 
 impl AndroidTarget._android_dir(project_dir: Path) -> Path {
     return project_dir / "apps" / "android";
 }
 
 impl AndroidTarget._load_android_cfg(project_dir: Path) -> dict {
-    try {
-        import from jaclang.project.config { JacConfig }
-        cfg = JacConfig.load(project_dir / "jac.toml");
-        android_cfg = cfg.get_section("client.android");
-        if not android_cfg {
-            client = cfg.get_section("client") or {};
-            android_cfg = client.get("android") if isinstance(client, dict) else {};
-        }
-        if not isinstance(android_cfg, dict) {
-            android_cfg = {};
-        }
-        return android_cfg;
-    } except Exception {
-        return {};
-    }
+    return load_android_cfg(project_dir);
 }
 
 impl AndroidTarget._resolve_android_avd(project_dir: Path) -> str {
@@ -100,7 +32,7 @@ impl AndroidTarget._resolve_android_avd(project_dir: Path) -> str {
     if env_avd {
         return env_avd;
     }
-    avd = self._load_android_cfg(project_dir).get("avd");
+    avd = load_android_cfg(project_dir).get("avd");
     if avd {
         return str(avd).strip();
     }
@@ -113,24 +45,13 @@ impl AndroidTarget._ensure_adb(project_dir: Path) -> str {
 }
 
 impl AndroidTarget._resolve_package_name(project_dir: Path) -> str {
-    cfg = self._load_android_cfg(project_dir);
-    pkg = cfg.get("package") or cfg.get("application_id");
-    if pkg {
-        return str(pkg);
-    }
-    return "dev.jac.generated";
+    return resolve_package_name(project_dir);
 }
 
 impl AndroidTarget._resolve_client_framework(project_dir: Path) -> str | None {
-    try {
-        import from jaclang.project.config { JacConfig }
-        cfg = JacConfig.load(project_dir / "jac.toml");
-        client = cfg.get_section("client") or {};
-        if isinstance(client, dict) and "framework" in client {
-            return str(client.get("framework"));
-        }
-    } except Exception {
-        return None;
+    client = load_client_cfg(project_dir);
+    if "framework" in client {
+        return str(client.get("framework"));
     }
     return None;
 }
@@ -180,11 +101,11 @@ impl AndroidTarget._write_compose_framework(project_dir: Path) -> None {
 }
 
 impl AndroidTarget._resolve_type_check(project_dir: Path) -> bool {
-    val = self._load_android_cfg(project_dir).get("type_check");
-    if val is None {
-        return True;
-    }
-    return bool(val);
+    return resolve_type_check(project_dir);
+}
+
+impl AndroidTarget._apply_android_cfg_to_model(model: any, project_dir: Path) -> None {
+    apply_android_cfg_to_model(model, project_dir);
 }
 
 impl AndroidTarget.setup(project_dir: Path) -> None {
@@ -449,30 +370,15 @@ impl AndroidTarget.build(
     if model is None {
         model = ComposeModule();
     }
-    model.intent.package_name = self._resolve_package_name(project_dir);
-
-    android_cfg = self._load_android_cfg(project_dir);
-    if android_cfg.get("app_name") {
-        model.intent.app_name = str(android_cfg["app_name"]);
-    }
-    if android_cfg.get("backend_url") {
-        model.intent.backend_url = str(android_cfg["backend_url"]);
-    }
+    self._apply_android_cfg_to_model(model, project_dir);
 
     console.print(f"  Emitting Compose project → {android_dir}", style="muted");
     emitter = ComposeEmit(model=model, out_dir=android_dir);
     written = emitter.write();
     console.print(f"  ✔ Wrote {len(written)} files", style="success");
 
-    release = False;
-    try {
-        import from jaclang.project.config { JacConfig }
-        android_cfg = JacConfig.load(project_dir / "jac.toml").get_section(
-            "client.android"
-        )
-            or {};
-        release = bool(android_cfg.get("release", False));
-    } except Exception { }
+    android_cfg = self._load_android_cfg(project_dir);
+    release = bool(android_cfg.get("release", False));
 
     apk = self._run_gradle_assemble(android_dir, release=release);
     console.success(f"  APK ready: {apk}");
@@ -555,20 +461,7 @@ impl AndroidTarget.dev(
     if model is None {
         model = ComposeModule();
     }
-    model.intent.package_name = self._resolve_package_name(project_dir);
-    try {
-        import from jaclang.project.config { JacConfig }
-        android_cfg = JacConfig.load(project_dir / "jac.toml").get_section(
-            "client.android"
-        )
-            or {};
-        if android_cfg.get("app_name") {
-            model.intent.app_name = str(android_cfg["app_name"]);
-        }
-        if android_cfg.get("backend_url") {
-            model.intent.backend_url = str(android_cfg["backend_url"]);
-        }
-    } except Exception { }
+    self._apply_android_cfg_to_model(model, project_dir);
 
     console.print(
         "  Emitting Compose DEV project (base :app host + :hot module)...",
@@ -586,18 +479,18 @@ impl AndroidTarget.dev(
     state: dict = {"version": version, "dex_path": str(dex_path)};
     console.success(f"  Hot module v{version}: {dex_path}");
 
-    httpd = _jac_start_dev_server(port, state);
+    httpd = start_jac_dev_server(port, state);
     console.print(
         f"  Dev server on http://0.0.0.0:{port} (manifest + classes.dex)",
         style="success"
     );
     console.print(
-        "  HMR ready — editing .cl.jac hot-swaps without reinstall. Ctrl+C to stop.",
+        "  HMR ready — editing client .jac files hot-swaps without reinstall. Ctrl+C to stop.",
         style="bold"
     );
 
-    self._watch_hot_reload(
-        entry_file, project_dir, android_dir, model.intent.package_name, state
+    watch_android_hot_reload(
+        self, entry_file, project_dir, android_dir, model.intent.package_name, state
     );
 }
 
@@ -767,70 +660,6 @@ impl AndroidTarget._collect_jac_sources(project_dir: Path) -> list {
         result.append(p);
     }
     return result;
-}
-
-impl AndroidTarget._watch_hot_reload(
-    entry_file: Path,
-    project_dir: Path,
-    android_dir: Path,
-    package_name: str,
-    state: dict
-) -> None {
-    import from time { sleep }
-    import from jaclang.compiler.passes.compose.compose_emit { ComposeEmit }
-
-    sources = self._collect_jac_sources(project_dir);
-    mtimes: dict = {};
-    for s in sources {
-        try {
-            mtimes[s] = s.stat().st_mtime;
-        } except Exception { }
-    }
-    try {
-        while True {
-            sleep(0.5);
-            changed: list = [];
-            for s in self._collect_jac_sources(project_dir) {
-                try {
-                    m = s.stat().st_mtime;
-                } except Exception {
-                    continue;
-                }
-                if m != mtimes.get(s) {
-                    mtimes[s] = m;
-                    changed.append(s);
-                }
-            }
-            if changed {
-                console.print(
-                    f"  ⚡ {len(changed)} .cl.jac changed — rebuilding hot module...",
-                    style="muted"
-                );
-                try {
-                    (model, _mod) = self._compile_compose_modules(
-                        entry_file, project_dir
-                    );
-                    if model is not None {
-                        model.intent.package_name = package_name;
-                        emitter = ComposeEmit(
-                            model=model, out_dir=android_dir, dev=True
-                        );
-                        emitter.write();
-                    }
-                    (version, dex_path) = self._build_hot_dex(
-                        android_dir, package_name
-                    );
-                    state["version"] = version;
-                    state["dex_path"] = str(dex_path);
-                    console.success(f"  ⚡ Hot module swapped → v{version}");
-                } except Exception as e {
-                    console.warning(f"  hot rebuild failed: {e}");
-                }
-            }
-        }
-    } except KeyboardInterrupt {
-        console.print("  dev server stopped.", style="muted");
-    }
 }
 
 impl AndroidTarget.start(

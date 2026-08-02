@@ -42,6 +42,14 @@ test "no override on a compose project resolves compose surface" {
     assert surface.is_compose == True;
 }
 
+test "non-compose override clears is_compose even on compose project" {
+    d = _project_with_toml("[client]\nframework = \"compose\"\n");
+    mod_path = str(d / "page.jac");
+    surface = resolve_client_surface(mod_path, "solid");
+    assert surface.framework == "solid";
+    assert surface.is_compose == False;
+}
+
 test "framework defaults to react with no override and no config" {
     d = _project_with_toml("[project]\nname = \"demo\"\n");
     mod_path = str(d / "page.jac");

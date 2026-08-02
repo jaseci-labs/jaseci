@@ -24,8 +24,12 @@ def register_targets {
     try {
         import from jaclang.runtimelib.client.targets.android_target { AndroidTarget }
         registry.register(AndroidTarget());
-    } except Exception {
-        ;
+    } except ImportError as e {
+        import from jaclang.cli.console { console }
+        console.warning(
+            f"  Android (Compose) target unavailable ({e}). "
+            "Install optional Android deps or fix the import error."
+        );
     }
 }
 

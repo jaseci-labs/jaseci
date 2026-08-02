@@ -1,3 +1,5 @@
+# ES ComposeBackend runtime shim only — type-checking uses metalava-ingested
+# signatures from compose_widgets.txt, not these hand-written stubs.
 obj Composable {}
 
 obj Dp {

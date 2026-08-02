@@ -11,40 +11,10 @@ import from jaclang.compiler.passes.compose.view_ir {
     ComposeEachChild
 }
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
-
-glob _WIDGET_PARAM_KINDS_CACHE: dict[str, dict[str, dict[str, str]]] = {};
+import from jaclang.compiler.passes.compose.compose_stub_gen { widget_param_kind_table }
 
 def _widget_param_kinds -> dict[str, dict[str, str]] {
-    if "table" in _WIDGET_PARAM_KINDS_CACHE {
-        return _WIDGET_PARAM_KINDS_CACHE["table"];
-    }
-    import os;
-    import jaclang;
-    import from jaclang.compiler.passes.compose.compose_stub_gen {
-        parse_signature_text
-    }
-    table: dict[str, dict[str, str]] = {};
-
-    path = os.path.join(
-        os.path.dirname(jaclang.__file__),
-        "compiler",
-        "type_system",
-        "compose_widgets.txt"
-    );
-    try {
-        if os.path.exists(path) {
-            with open(path, "r", encoding="utf-8", errors="replace") as f {
-                text = f.read();
-            }
-            for sig in parse_signature_text(text) {
-                table[sig.name] = {p.name: p.kind for p in sig.params};
-            }
-        }
-    } except OSError {
-        table = {};
-    }
-    _WIDGET_PARAM_KINDS_CACHE["table"] = table;
-    return table;
+    return widget_param_kind_table();
 }
 
 def _is_slot_param(widget_name: str, attr_name: str) -> bool {

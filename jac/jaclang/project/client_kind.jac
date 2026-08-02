@@ -74,7 +74,7 @@ def resolve_client_surface(
         is_compose = True;
     } elif override {
         framework = override;
-        is_compose = compose_enforced_for(mod_path);
+        is_compose = False;
     } else {
         cfg = _config_for(mod_path);
         framework = (cfg.client.framework if (cfg and cfg.client) else "") or "react";
