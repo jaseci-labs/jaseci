@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/ins
 This installs the self-contained `jac` binary -- no Python, pip, or uv required.
 
 !!! tip "`jac run` is kind-aware"
-    Set `kind` under `[project]` in `jac.toml` (or let it be inferred from the entry-point's codespace), and a bare `jac run` does the right thing for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). `jac run --show` prints the resolved plan and the equivalent primitive command without running it.
+    Set `kind` under `[project]` in `jac.toml` (or let it be inferred from the entry-point's *inferred* codespace: a server entry implies `service`, a client entry implies `web-app`; `cli-native` is always set explicitly), and a bare `jac run` does the right thing for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). `jac run --show` prints the resolved plan and the equivalent primitive command without running it.
 
 ## The recipes at a glance
 
@@ -74,7 +74,7 @@ The simplest project: anything you run straight from the terminal -- scripts, au
 
 ### Native binary
 
-A `.na.jac` file compiles, through LLVM, to a **standalone, zero-dependency executable** you can ship to machines that have neither Jac nor Python installed -- like a `curl`-style single-binary tool. Same command-line territory as a [CLI tool](#cli-tool), with the trade reversed: ship-anywhere portability in exchange for the restricted native subset. To ship a *full* app as one executable instead, see [Ship it](#ship-it-one-file-or-one-executable).
+`jac nacompile` compiles a `.jac` file, through LLVM, to a **standalone, zero-dependency executable** you can ship to machines that have neither Jac nor Python installed -- like a `curl`-style single-binary tool. Same command-line territory as a [CLI tool](#cli-tool), with the trade reversed: ship-anywhere portability in exchange for the restricted native subset. To ship a *full* app as one executable instead, see [Ship it](#ship-it-one-file-or-one-executable).
 
 :octicons-arrow-right-24: Recipe & guided path: [CLI tools & native binaries](../build/cli-and-native.md#native-binary) · Full tutorial: [Build a Chess Engine](../tutorials/native/chess.md)
 
@@ -86,9 +86,9 @@ A server with no frontend. Mark a walker `walker:pub` (or a function `def:pub`) 
 
 ### Microservices
 
-The same code runs as a monolith *or* as several independently-deployed services -- the only change is the `sv import` keyword. When both modules are server-context, the compiler turns the import into an HTTP client stub: calls become RPCs, but the source still reads like a normal import.
+The same code runs as a monolith *or* as several independently-deployed services -- the only change is a `[scale.microservices.routes]` entry in `jac.toml` (written for you by `jac scale split <module>`). Imports of a routed module compile to HTTP client stubs: calls become RPCs, but the source still reads like a normal import.
 
-:octicons-arrow-right-24: Recipe & guided path: [Backend APIs & services](../build/backend-apis.md#service-mesh) · Full tutorial: [Microservices with `sv import`](../tutorials/production/microservices.md)
+:octicons-arrow-right-24: Recipe & guided path: [Backend APIs & services](../build/backend-apis.md#service-mesh) · Full tutorial: [Microservices](../tutorials/production/microservices.md)
 
 ### Python package (PyPI)
 
@@ -120,7 +120,7 @@ The headline case: backend, frontend, and data model in **one file**. The compil
 
 ### In-browser native (wasm)
 
-The `na` runtime's other target: rather than a host binary, an `na {}` block compiles to **WebAssembly** and runs *in the browser*, driven by a `cl` page -- native-speed compute (a game loop, a simulation, a hot inner loop) executing client-side with no server round-trip. It's the mirror image of a [full-stack app](#full-stack-app): there the heavy lifting runs on the server (`sv`); here it runs in the browser (`na` -> wasm), with no emscripten and no `wasm-ld` -- Jac's own WebAssembly linker does the wiring.
+The `na` runtime's other target: rather than a host binary, native-placed code compiles to **WebAssembly** and runs *in the browser*, driven by a `cl` page -- native-speed compute (a game loop, a simulation, a hot inner loop) executing client-side with no server round-trip. It's the mirror image of a [full-stack app](#full-stack-app): there the heavy lifting runs on the server (`sv`); here it runs in the browser (`na` -> wasm), with no emscripten and no `wasm-ld` -- Jac's own WebAssembly linker does the wiring.
 
 :octicons-arrow-right-24: Recipe & guided path: [Full-stack web apps](../build/fullstack-web.md#web-static) · Full example: [raylib cube shooter (web)](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/examples/raylib_shooter/web)
 
@@ -148,7 +148,7 @@ Ship a **true native** mobile app (Android + iOS) using [React Native](https://r
 
 These aren't missing "kinds" -- they're **capability combinations that aren't wired end-to-end yet**. Here's the status, stated plainly, and the closest thing you can do today.
 
-- **Full-stack package** (`sv` + `cl` + *attach*) -- An installable feature that brings its own routes, UI components, and data models into your app (think "drop in payments and get a checkout button + endpoints + models"). `sv import` composes *services* over HTTP, but there's no attachable in-process package yet. This needs a no-entry "package" artifact and conflict-resolution semantics across the three runtimes.
+- **Full-stack package** (`sv` + `cl` + *attach*) -- An installable feature that brings its own routes, UI components, and data models into your app (think "drop in payments and get a checkout button + endpoints + models"). The routes table composes *services* over HTTP, but there's no attachable in-process package yet. This needs a no-entry "package" artifact and conflict-resolution semantics across the three runtimes.
 
 !!! info "Want to follow the design?"
     The unified `jac build` verb and the sealed `.jab` artifact have shipped ([see Ship it](#ship-it-one-file-or-one-executable)). What remains for this row is the attachable *package* form: a no-entry `.jab` a host app can mount, plus its conflict-resolution semantics, tracked in the Jac repo's proposals and issues.

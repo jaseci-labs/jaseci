@@ -4,7 +4,7 @@ Compile Jac's native (`na`) subset to WebAssembly and run it in the browser at n
 
 **What you'll do:**
 
-1. Compile a `.na.jac` module to a `.wasm` binary with one command
+1. Compile a native Jac module to a `.wasm` binary with one command
 2. Load and call it from JavaScript
 3. See how `na` blocks integrate into a `web-static` app, where the compiler does steps 1-2 for you
 
@@ -14,7 +14,7 @@ Compile Jac's native (`na`) subset to WebAssembly and run it in the browser at n
 
 ## 1. Write a native module
 
-The `na` codespace is the statically-compiled subset of Jac ([native pathway reference](../../reference/language/native-pathway.md)). Create `sum.na.jac`:
+The `na` codespace is the statically-compiled subset of Jac ([native pathway reference](../../reference/language/native-pathway.md)). Create `sum.jac` (compiling it with `jac nacompile` forces it native):
 
 ```jac
 def:pub add(a: int, b: int) -> int {
@@ -25,7 +25,7 @@ def:pub add(a: int, b: int) -> int {
 ## 2. Compile to WebAssembly
 
 ```bash
-jac nacompile sum.na.jac --target wasm32 -o sum.wasm
+jac nacompile sum.jac --target wasm32 -o sum.wasm
 ```
 
 ```
@@ -62,16 +62,14 @@ Client code imports a native module the same way it imports a server one --
 with a marked import:
 
 ```jac
-na import from .sum { add }
+import from .sum { add }
 
-cl {
-    async def show_sum {
-        print(await add(2, 3));
-    }
+async def show_sum {
+    print(await add(2, 3));
 }
 ```
 
-That one import does all the wiring. The client build compiles `sum.na.jac`
+That one import does all the wiring. The client build compiles `sum.jac`
 to `/static/sum.wasm`, and `add` is bound to a generated stub that fetches
 and instantiates the module lazily on the first call -- which is why the
 call is `await`ed. On the server the import compiles to nothing: an
@@ -84,7 +82,7 @@ page must supply their JavaScript implementations before the first call:
 ```jac
 import from "@jac/wasm_host" { set_na_env }
 
-na import from .arena { init }
+import from .arena { init }
 
 async def launch(shim: any, env_fns: dict) {
     set_na_env("arena", shim, {"env": env_fns});
@@ -96,7 +94,7 @@ A pure-computation module like `sum` needs no `set_na_env` at all.
 
 For a full worked example of the pattern -- a borrow-checked, zero-GC game
 loop running as wasm, rendered through a WebGL shim -- see the shooter on
-jaclang.org's own source (`game/arena.na.jac` and `game/webgl_host.jac`):
+jaclang.org's own source (`game/arena.jac` and `game/webgl_host.jac`):
 `webgl_host.jac` reaches the game through exactly the `na import` +
 `set_na_env` pair above.
 

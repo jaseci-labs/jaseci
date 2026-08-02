@@ -42,7 +42,7 @@ Interactive API docs are served at `/docs` (Swagger) and a live graph view at `/
 
 ## Scale out to a service mesh {#service-mesh}
 
-The same code runs as a monolith *or* as several independently-deployed services -- the only change is the `sv import` keyword. When both modules are server-context, the compiler turns the import into an HTTP client stub: calls become RPCs, but the source still reads like a normal import.
+The same code runs as a monolith *or* as several independently-deployed services -- the only change is a `[scale.microservices.routes]` entry in `jac.toml` (written for you by `jac scale split <module>`). Imports of a routed module compile to HTTP client stubs: calls become RPCs, but the source still reads like a normal import.
 
 ```jac
 # math_service.jac  (the provider)
@@ -57,7 +57,7 @@ def:pub multiply(a: int, b: int) -> int {
 
 ```jac
 # calculator_service.jac  (the consumer)
-sv import from math_service { add, multiply }
+import from math_service { add, multiply }
 
 def:pub dot_product(a: list[int], b: list[int]) -> int {
     result = 0;
@@ -83,7 +83,7 @@ To split services across hosts, point each consumer at its providers with `JAC_S
 
 - **Concepts you need** → [Core Concepts](../quick-guide/what-makes-jac-different.md) -- codespaces, persistence, per-user graph isolation
 - **Learn the language** → [Jac Fundamentals](../tutorials/language/basics.md) · [Object-Spatial Programming](../tutorials/language/osp.md)
-- **Build it for real** → [Local API Server](../tutorials/production/local.md) · [Microservices with `sv import`](../tutorials/production/microservices.md)
+- **Build it for real** → [Local API Server](../tutorials/production/local.md) · [Microservices](../tutorials/production/microservices.md)
 - **Look it up** → [Walker patterns & responses](../reference/language/walker-responses.md) · [Scale reference](../reference/plugins/jac-scale.md)
 - **Ship it** → [Kubernetes deployment](../tutorials/production/kubernetes.md) -- `jac start --scale`
 

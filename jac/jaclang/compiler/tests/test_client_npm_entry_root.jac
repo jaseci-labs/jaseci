@@ -81,11 +81,11 @@ def _write_projects(
     if lib_pkg {
         _install_pkg(lib, typed=False);
     }
-    entry_file = os.path.join(app, "main.cl.jac");
+    entry_file = os.path.join(app, "main.jac");
     with open(entry_file, "w") as f {
         f.write(_ENTRY_SRC);
     }
-    with open(os.path.join(lib, "libmod.cl.jac"), "w") as f {
+    with open(os.path.join(lib, "libmod.jac"), "w") as f {
         f.write(_LIB_SRC);
     }
     return (entry_file, lib);
@@ -134,9 +134,10 @@ test "library-local installation never borrows entry declarations" {
         ];
         assert "W1100" not in codes , codes;
         assert "W1102" in codes , (
-            "library's own untyped installation must stay foreign any; typing" + " it means the entry project's declarations leaked across" + " installations: " + str(
-                codes
-            )
+            "library's own untyped installation must stay foreign any; typing"
+            + " it means the entry project's declarations leaked across"
+            + " installations: "
+            + str(codes)
         );
     } finally {
         shutil.rmtree(base_dir, ignore_errors=True);
