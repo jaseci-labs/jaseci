@@ -30,17 +30,8 @@ import from jaclang.compiler.type_system.typeshed_image {
     MANIFEST_NAME,
     MANIFEST_FORMAT,
     KIND,
-    python_tag
-}
-
-
-def stub_fullname(base_dir: str, pyi_path: str) -> str {
-    rel = Path(pyi_path).relative_to(base_dir);
-    parts = list(rel.with_suffix("").parts);
-    if parts and parts[-1] == "__init__" {
-        parts = parts[:-1];
-    }
-    return ".".join(parts);
+    python_tag,
+    stub_fullname
 }
 
 

@@ -23,6 +23,7 @@ import from jaclang.compiler.type_system { properties }
 import from jaclang.compiler.symbol_utils { int_subscript_suffix }
 import from jaclang.compiler.type_system { enum_utils }
 import from jaclang.compiler.type_system.types { TypeBase }
+import from jaclang.compiler.type_system.typeshed_image { TypeshedImage }
 import from jaclang.compiler.type_system.ts_decl_parser {
     TsDecl,
     TsType,
@@ -177,6 +178,7 @@ obj TypeEvaluator {
         symbol_resolution_stack: list[SymbolResolutionStackEntry] = [],
         prefetch: PrefetchedTypes postinit,
         _pass: object | None = None,
+        _typeshed_image: (TypeshedImage | None) = None,
         builtins_module: uni.Module | None = None,
         _flow_node_type_cache: dict[tuple, types.TypeBase | None] = {},
         _flow_pending_symbols: set[int] postinit,
@@ -199,7 +201,7 @@ obj TypeEvaluator {
         js_globals_module: uni.Module postinit;
 
     def postinit -> None;
-    def _load_stub_module(path: str) -> uni.Module;
+    def _load_stub_module(path: str, fullname: str = "") -> uni.Module;
     def _get_type_from_module(module: uni.Module, name: str) -> TypeBase;
     def _prefetch_types;
     def get_none_type -> TypeBase;
@@ -217,6 +219,8 @@ obj TypeEvaluator {
 
     def _resolve_importer_path(ast_node: uni.UniNode) -> (str | None);
     def _try_read_jir_cache(resolved_path: str) -> (uni.Module | None);
+    def _try_read_typeshed_image(resolved_path: str) -> (uni.Module | None);
+    def _find_sealed_stub(fullname: str) -> (uni.Module | None);
     def _try_write_jir_cache(resolved_path: str, mod: uni.Module) -> None;
     def forget_module(resolved_path: str) -> None;
     def _resolve_from_path(from_mod: uni.ModulePath) -> Path;

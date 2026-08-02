@@ -3429,7 +3429,7 @@ impl TypeEvaluator._prefetch_types{
     );
 }
 
-impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
+impl TypeEvaluator._load_stub_module(path: str, fullname: str = "") -> uni.Module {
     if not os.path.exists(path) {
         raise FileNotFoundError(f"Stub file not found at {path}");
     }
@@ -3443,6 +3443,23 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
     }
     if resolved_path in target_hub {
         return target_hub[resolved_path];
+    }
+
+    # Sealed typeshed image: name-keyed, no source re-hash. Falls through to
+    # the live import path on miss or when no image is present.
+    if fullname {
+        sealed = self._find_sealed_stub(fullname);
+        if sealed is not None {
+            if (
+                sealed.parent_scope is None
+                and sealed is not self.builtins_module
+            ) {
+                sealed.parent_scope = self.builtins_module;
+            }
+            self.program.mod.hub[resolved_path] = sealed;
+            target_hub[resolved_path] = sealed;
+            return sealed;
+        }
     }
     return self._import_module_from_path(path);
 }
@@ -3480,9 +3497,9 @@ impl TypeEvaluator.postinit -> None {
     self._flow_pending_symbols = set();
     self._flow_pending_keys = set();
 
-    self.typing_module = self._load_stub_module(self._TYPING_STUB_FILE_PATH);
-    self.types_module = self._load_stub_module(self._TYPES_STUB_FILE_PATH);
-    self.enum_module = self._load_stub_module(self._ENUM_STUB_FILE_PATH);
+    self.typing_module = self._load_stub_module(self._TYPING_STUB_FILE_PATH, "typing");
+    self.types_module = self._load_stub_module(self._TYPES_STUB_FILE_PATH, "types");
+    self.enum_module = self._load_stub_module(self._ENUM_STUB_FILE_PATH, "enum");
 
     self.prefetch.type_var_class = self._get_type_from_module(
         self.typing_module, "TypeVar"
@@ -3493,15 +3510,15 @@ impl TypeEvaluator.postinit -> None {
     self.prefetch.type_var_tuple_class = self._get_type_from_module(
         self.typing_module, "TypeVarTuple"
     );
-    self.builtins_module = self._load_stub_module(self._BUILTINS_STUB_FILE_PATH);
+    self.builtins_module = self._load_stub_module(self._BUILTINS_STUB_FILE_PATH, "builtins");
     self.jac_builtins_module = self._load_stub_module(
-        self._JAC_BUILTINS_STUB_FILE_PATH
+        self._JAC_BUILTINS_STUB_FILE_PATH, "jac_builtins"
     );
-    self.dom_types_module = self._load_stub_module(self._DOM_TYPES_STUB_FILE_PATH);
+    self.dom_types_module = self._load_stub_module(self._DOM_TYPES_STUB_FILE_PATH, "dom_types");
 
-    self.na_builtins_module = self._load_stub_module(self._NA_BUILTINS_STUB_FILE_PATH);
+    self.na_builtins_module = self._load_stub_module(self._NA_BUILTINS_STUB_FILE_PATH, "na_builtins");
 
-    self.js_globals_module = self._load_stub_module(self._JS_GLOBALS_STUB_FILE_PATH);
+    self.js_globals_module = self._load_stub_module(self._JS_GLOBALS_STUB_FILE_PATH, "js_globals");
 
     def read_dunder_all(path: str) -> (set[str] | None) {
         try {

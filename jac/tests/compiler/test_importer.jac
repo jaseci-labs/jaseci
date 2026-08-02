@@ -533,6 +533,46 @@ test "precompile_typeshed builds a name-keyed bundle" {
     }
 }
 
+test "type evaluator resolves a stub via the sealed image" {
+    # Builds a 1-stub bundle, then confirms the type evaluator resolves the
+    # stub by name through JAC_TYPESHED_IMAGE (the wiring in _find_sealed_stub
+    # / _load_stub_module), with a live-compile fallback on miss.
+    import from jaclang.utils.precompile_typeshed { build_typeshed_bundle };
+    import from jaclang.compiler.type_system.typeshed_image { MANIFEST_NAME };
+
+    work = tempfile.mkdtemp(prefix="jac_ts_wire_", dir=_test_tmp_dir);
+    stdlib = os.path.join(work, "stdlib");
+    os.makedirs(stdlib);
+    with open(os.path.join(stdlib, "myext.pyi"), "w") as fh {
+        fh.write("class Thing:\n    v: int\n");
+    }
+    bundle = os.path.join(work, "_sealed");
+    local_dirs: list[str] = [];
+    assert build_typeshed_bundle(stdlib, local_dirs, bundle, "p", 0) == 0 , (
+        "bundle build failed"
+    );
+
+    prev = os.environ.get("JAC_TYPESHED_IMAGE");
+    try {
+        jp = JacProgram();
+        ev = jp.get_type_evaluator();
+        os.environ["JAC_TYPESHED_IMAGE"] = bundle;
+        m = ev._find_sealed_stub("myext");
+        assert m is not None , "stub not resolved from sealed image via evaluator";
+        assert m.sym_tab.lookup("Thing") is not None , (
+            "symbol missing from sealed stub"
+        );
+        assert ev._find_sealed_stub("nope") is None , "miss should return None";
+    } finally {
+        if prev is None {
+            os.environ.pop("JAC_TYPESHED_IMAGE", None);
+        } else {
+            os.environ["JAC_TYPESHED_IMAGE"] = prev;
+        }
+        shutil.rmtree(work, ignore_errors=True);
+    }
+}
+
 test "get_bytecode busts in-memory hub when .impl.jac changes" {
     # Regression: in a persistent process, editing a .impl.jac annex left a
     # stale in-memory module in mod.hub; get_bytecode returned it with no

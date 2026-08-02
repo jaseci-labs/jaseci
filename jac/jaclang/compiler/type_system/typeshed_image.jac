@@ -51,6 +51,52 @@ def python_tag -> str {
 }
 
 
+# ---------------------------------------------------------------------------
+# fullname mapping + image discovery (shared by builder and consumer)
+# ---------------------------------------------------------------------------
+
+def stub_fullname(base_dir: str, pyi_path: str) -> str {
+    rel = Path(pyi_path).relative_to(base_dir);
+    parts = list(rel.with_suffix("").parts);
+    if parts and parts[-1] == "__init__" {
+        parts = parts[:-1];
+    }
+    return ".".join(parts);
+}
+
+
+def fullname_for_resolved_path(path: str) -> (str | None) {
+    # Map a resolved .pyi path to its bundle fullname. Only paths under a
+    # typeshed stdlib dir are name-keyed here; core stubs are resolved by the
+    # caller with their explicit fullname.
+    import from jaclang.jac0core.modresolver { get_typeshed_paths };
+    p = Path(path).resolve();
+    for d in get_typeshed_paths() {
+        base = Path(d).resolve();
+        try {
+            p.relative_to(base);
+        } except Exception {
+            continue;
+        }
+        return stub_fullname(str(base), str(p));
+    }
+    return None;
+}
+
+
+def discover_image() -> (TypeshedImage | None) {
+    # Explicit override (dev / testing / source installs without a shipped
+    # bundle). Points at the bundle directory containing MANIFEST.json.
+    env = os.environ.get("JAC_TYPESHED_IMAGE", "");
+    if env {
+        return load_typeshed_image(env);
+    }
+    # Shipped bundle lives inside the vendored typeshed tree, beside stdlib/.
+    pkg_dir = Path(__file__ as str).resolve().parent.parent.parent;
+    return load_typeshed_image(pkg_dir / "vendor" / "typeshed" / "_sealed");
+}
+
+
 obj TypeshedImage {
     has image_dir: Path,
         manifest: dict,

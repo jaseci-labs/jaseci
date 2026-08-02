@@ -373,29 +373,31 @@ impl TypeEvaluator._import_module_from_path(
     } elif resolved_path in target_hub {
         mod = target_hub[resolved_path];
     } else {
-        jir_mod: (uni.Module | None) = None;
-        import from jaclang.jac0core.jir { jir_cacheable_source_path }
-        if jir_cacheable_source_path(resolved_path) {
-            jir_mod = self._try_read_jir_cache(resolved_path);
-        }
-        if jir_mod is not None {
-            mod = jir_mod;
-            if mod.parent_scope is None and mod is not self.builtins_module {
-                mod.parent_scope = self.builtins_module;
-            }
-            target_hub[resolved_path] = mod;
-            target_program.hub_cache_stamp(resolved_path);
+        sealed_mod: (uni.Module | None) = self._try_read_typeshed_image(
+            resolved_path
+        );
+        if sealed_mod is not None {
+            mod = sealed_mod;
         } else {
-            mod = self.program.compile(
-                path, no_cgen=True, type_check=False, symtab_ir_only=True
-            );
-            if mod.parent_scope is None and mod is not self.builtins_module {
-                mod.parent_scope = self.builtins_module;
+            jir_mod: (uni.Module | None) = None;
+            import from jaclang.jac0core.jir { jir_cacheable_source_path }
+            if jir_cacheable_source_path(resolved_path) {
+                jir_mod = self._try_read_jir_cache(resolved_path);
             }
-            target_hub[resolved_path] = mod;
-            target_program.hub_cache_stamp(resolved_path);
-            self._try_write_jir_cache(resolved_path, mod);
+            if jir_mod is not None {
+                mod = jir_mod;
+            } else {
+                mod = self.program.compile(
+                    path, no_cgen=True, type_check=False, symtab_ir_only=True
+                );
+                self._try_write_jir_cache(resolved_path, mod);
+            }
         }
+        if mod.parent_scope is None and mod is not self.builtins_module {
+            mod.parent_scope = self.builtins_module;
+        }
+        target_hub[resolved_path] = mod;
+        target_program.hub_cache_stamp(resolved_path);
     }
 
     if importer_path is not None {
@@ -495,6 +497,30 @@ impl TypeEvaluator._try_read_jir_cache(resolved_path: str) -> (uni.Module | None
         }
         return None;
     }
+}
+
+impl TypeEvaluator._find_sealed_stub(fullname: str) -> (uni.Module | None) {
+    if self._typeshed_image is None {
+        import from jaclang.compiler.type_system.typeshed_image { discover_image };
+        self._typeshed_image = discover_image();
+    }
+    if self._typeshed_image is None {
+        return None;
+    }
+    return self._typeshed_image.find_stub(fullname);
+}
+
+impl TypeEvaluator._try_read_typeshed_image(
+    resolved_path: str
+) -> (uni.Module | None) {
+    import from jaclang.compiler.type_system.typeshed_image {
+        fullname_for_resolved_path
+    };
+    fn = fullname_for_resolved_path(resolved_path);
+    if fn is None {
+        return None;
+    }
+    return self._find_sealed_stub(fn);
 }
 
 impl TypeEvaluator.get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
