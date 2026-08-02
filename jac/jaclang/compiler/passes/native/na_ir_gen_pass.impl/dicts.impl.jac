@@ -64,6 +64,67 @@ impl NaIRGenPass._dict_val_spec(val_type: ir.Type) -> str {
     return "i64";
 }
 
+impl NaIRGenPass._emit_dict_order_compact(
+    b: ir.IRBuilder,
+    fn: ir.Function,
+    d_ptr: ir.Value,
+    removed_slot: ir.Value,
+    new_len: ir.Value,
+    i32: ir.Type,
+    i64: ir.Type
+) -> ir.IRBuilder {
+    ord_a = b.load(
+        b.gep(d_ptr, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="oc.orp"),
+        name="oc.ord"
+    );
+    _idx = b.alloca(i64, name="oc.i");
+    b.store(ir.Constant(i64, 0), _idx);
+    _scan = fn.append_basic_block("oc.scan");
+    _body = fn.append_basic_block("oc.body");
+    _shift = fn.append_basic_block("oc.shift");
+    _sbody = fn.append_basic_block("oc.sbody");
+    _cont = fn.append_basic_block("oc.cont");
+    b.branch(_scan);
+    # scan: find the position p where order[p] == removed_slot (p in 0..new_len]).
+    bs = ir.IRBuilder(_scan);
+    _i = bs.load(_idx, name="oc.iv");
+    # If we somehow reach new_len without a match, stop (defensive; a live entry
+    # always has an order slot).
+    bs.cbranch(bs.icmp_unsigned(">=", _i, new_len, name="oc.end"), _cont, _body);
+    bb = ir.IRBuilder(_body);
+    _cur = bb.load(bb.gep(ord_a, [_i], name="oc.cp"), name="oc.cur");
+    _hit = bb.icmp_signed("==", _cur, removed_slot, name="oc.hit");
+    bb.cbranch(_hit, _shift, self._incr(bb, _idx, _i, i64, fn, _scan));
+    # shift: order[j] = order[j+1] for j in p..new_len
+    bh = ir.IRBuilder(_shift);
+    _j = bh.alloca(i64, name="oc.j");
+    bh.store(_i, _j);
+    bh.branch(_sbody);
+    bsb = ir.IRBuilder(_sbody);
+    _jv = bsb.load(_j, name="oc.jv");
+    _more = bsb.icmp_unsigned("<", _jv, new_len, name="oc.smore");
+    _do = fn.append_basic_block("oc.do");
+    bsb.cbranch(_more, _do, _cont);
+    bd = ir.IRBuilder(_do);
+    _nx = bd.add(_jv, ir.Constant(i64, 1), name="oc.jn");
+    _nv = bd.load(bd.gep(ord_a, [_nx], name="oc.srcp"), name="oc.src");
+    bd.store(_nv, bd.gep(ord_a, [_jv], name="oc.dstp"));
+    bd.store(_nx, _j);
+    bd.branch(_sbody);
+    return ir.IRBuilder(_cont);
+}
+
+impl NaIRGenPass._incr(
+    b: ir.IRBuilder, idx_slot: ir.Value, i_cur: ir.Value, i64: ir.Type,
+    fn: ir.Function, scan_bb: ir.Block
+) -> ir.Block {
+    _blk = fn.append_basic_block("oc.incr");
+    _bi = ir.IRBuilder(_blk);
+    _bi.store(_bi.add(i_cur, ir.Constant(i64, 1), name="oc.in"), idx_slot);
+    _bi.branch(scan_bb);
+    return _blk;
+}
+
 impl NaIRGenPass._emit_dict_helpers(
     key_type_name: str,
     val_type_name: str,
@@ -108,11 +169,16 @@ impl NaIRGenPass._emit_dict_helpers(
 
     # ── Dict struct ──────────────────────────────────────────────────────────
     #   base : {len, cap, K* keys, V* vals, i8* ctrl, i64 used}   (6 fields)
+    #   base : {i64 len, i64 cap, K* keys, V* vals, i8* ctrl, i64 used, i64* order}
     #   The open-addressing hash table always needs `ctrl` (the 1-byte
     #   fingerprint array) and `used` (occupied+tombstone count) — in every GC
-    #   mode, including `--gc none` — so they are struct fields 4 and 5.
+    #   mode — so they are struct fields 4 and 5. `order` (field 6) is an array of
+    #   `len` slot indices in INSERTION ORDER: order[j] is the keys/vals slot of
+    #   the j-th inserted (still-live) entry. Python dicts iterate in insertion
+    #   order (guaranteed since 3.7), so iteration / keys / values / items / repr /
+    #   json read through `order` rather than scanning ctrl in hash-slot order.
     #   Under `--gc none` the container owns its elements, so two element-drop
-    #   function-pointer slots (key-drop, val-drop) are appended at fields 6, 7
+    #   function-pointer slots (key-drop, val-drop) are appended at fields 7, 8
     #   (see #7801 container move-in for str elements).
     dict_struct = self.llvm_module.context.get_identified_type(
         f"Dict.{key_type_name}.{val_type_name}"
@@ -122,15 +188,18 @@ impl NaIRGenPass._emit_dict_helpers(
     # K/V (e.g. a `--gc none` creation site that recurses back in before the
     # helpers finish) would reach here again — set_body twice on an identified
     # type raises "already defined". Body the struct only if it has no body yet.
+    _i64p_ord = i64.as_pointer();
     if not dict_struct.elements {
         if self._gc_mode() == "none" {
             dict_struct.set_body(
                 i64, i64, key_type.as_pointer(), val_type.as_pointer(), i8p, i64,
+                _i64p_ord,
                 self._nogc_elem_drop_slot_ty(), self._nogc_elem_drop_slot_ty()
             );
         } else {
             dict_struct.set_body(
-                i64, i64, key_type.as_pointer(), val_type.as_pointer(), i8p, i64
+                i64, i64, key_type.as_pointer(), val_type.as_pointer(), i8p, i64,
+                _i64p_ord
             );
         }
     }
@@ -383,8 +452,13 @@ impl NaIRGenPass._emit_dict_helpers(
         ir.Constant(i64, 0),
         bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 5)], name="uf")
     );
+    # order = malloc(INIT_CAP * sizeof(i64)) — insertion-order slot-index array.
+    _ord_bytes = ir.Constant(i64, INIT_CAP * 8);
+    orn = bn.call(malloc_fn, [_ord_bytes], name="ordr");
+    orpn = bn.bitcast(orn, i64.as_pointer(), name="ordp");
+    bn.store(orpn, bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="ordf"));
     # Under `--gc none` the struct carries two element-drop function-pointer slots
-    # (fields 6, 7); the raw allocation is not zeroed, so null them here. The
+    # (fields 7, 8); the raw allocation is not zeroed, so null them here. The
     # creation site later stamps `free` into them for `str` elements via
     # _nogc_stamp_elem_drops; a null slot means "this element is not owned".
     if self._gc_mode() == "none" {
@@ -392,11 +466,11 @@ impl NaIRGenPass._emit_dict_helpers(
         _drop_null = ir.Constant(_drop_slot_ty, None);
         bn.store(
             _drop_null,
-            bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="kdrop")
+            bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 7)], name="kdrop")
         );
         bn.store(
             _drop_null,
-            bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 7)], name="vdrop")
+            bn.gep(dp, [ir.Constant(i32, 0), ir.Constant(i32, 8)], name="vdrop")
         );
     }
     bn.ret(dp);
@@ -429,10 +503,13 @@ impl NaIRGenPass._emit_dict_helpers(
     ctrl_prh = brh.gep(d_rh, [ir.Constant(i32, 0), ir.Constant(i32, 4)], name="ctp");
     len_prh = brh.gep(d_rh, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lp");
     used_prh = brh.gep(d_rh, [ir.Constant(i32, 0), ir.Constant(i32, 5)], name="up");
+    ord_prh = brh.gep(d_rh, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="orp");
     old_cap = brh.load(cap_prh, name="ocap");
+    old_len = brh.load(len_prh, name="olen");
     old_keys = brh.load(keys_prh, name="okeys");
     old_vals = brh.load(vals_prh, name="ovals");
     old_ctrl = brh.load(ctrl_prh, name="octrl");
+    old_order = brh.load(ord_prh, name="oorder");
     new_cap = brh.mul(old_cap, ir.Constant(i64, 2), name="ncap");
     new_mask = brh.sub(new_cap, ir.Constant(i64, 1), name="nmask");
     # Allocate new arrays
@@ -451,43 +528,40 @@ impl NaIRGenPass._emit_dict_helpers(
     nvr = brh.call(malloc_fn, [vbrh], name="nvr");
     new_vals = brh.bitcast(nvr, val_type.as_pointer(), name="nv");
     ncr = brh.call(calloc_fn, [new_cap, ir.Constant(i64, 1)], name="ncr");
-    # Install new arrays into struct; reset len=0, used=0
+    # New insertion-order array (slot indices), grown to new_cap.
+    _nord_bytes = brh.mul(new_cap, ir.Constant(i64, 8), name="nordb");
+    nordr = brh.call(malloc_fn, [_nord_bytes], name="nordr");
+    new_order = brh.bitcast(nordr, i64.as_pointer(), name="norder");
+    # Install new arrays into struct; reset len=0, used=0. (len/used are rebuilt
+    # by the reinsert loop; `order` is filled in insertion order there too.)
     brh.store(new_cap, cap_prh);
     brh.store(new_keys, keys_prh);
     brh.store(new_vals, vals_prh);
     brh.store(ncr, ctrl_prh);
+    brh.store(new_order, ord_prh);
     brh.store(ir.Constant(i64, 0), len_prh);
     brh.store(ir.Constant(i64, 0), used_prh);
     brh.store(ir.Constant(i64, 0), si_a);
-    # Outer loop: iterate over old slots
+    # Outer loop walks the OLD insertion order (order[0..old_len]) so entries are
+    # reinserted — and the new order array rebuilt — in insertion order, not in
+    # hash-slot order. old_order[j] is the old keys/vals slot of the j-th entry.
     rl_bb = rehash_fn.append_basic_block("rl");
-    rc_bb = rehash_fn.append_basic_block("rc");
-    rn_bb = rehash_fn.append_basic_block("rn");
     ri_bb = rehash_fn.append_basic_block("ri");
     rp_bb = rehash_fn.append_basic_block("rp");
     ra_bb = rehash_fn.append_basic_block("ra");
     rd_bb = rehash_fn.append_basic_block("rd");
     rf_bb = rehash_fn.append_basic_block("rf");
     brh.branch(rl_bb);
-    # rl: check si vs old_cap
+    # rl: check j vs old_len
     brl = ir.IRBuilder(rl_bb);
-    si_rh = brl.load(si_a, name="si");
-    rend = brl.icmp_unsigned(">=", si_rh, old_cap, name="rend");
-    brl.cbranch(rend, rf_bb, rc_bb);
-    # rc: check if occupied (ctrl >= 0x80)
-    brc = ir.IRBuilder(rc_bb);
-    ocbp = brc.gep(old_ctrl, [si_rh], name="ocbp");
-    ocb = brc.load(ocbp, name="ocb");
-    is_occ = brc.icmp_unsigned(">=", ocb, ir.Constant(i8, 0x80), name="occ");
-    brc.cbranch(is_occ, ri_bb, rn_bb);
-    # rn: advance si
-    brn = ir.IRBuilder(rn_bb);
-    brn.store(brn.add(si_rh, ir.Constant(i64, 1), name="nsi"), si_a);
-    brn.branch(rl_bb);
-    # ri: load old key/val, compute fingerprint, store in allocas
+    si_rh = brl.load(si_a, name="j");
+    rend = brl.icmp_unsigned(">=", si_rh, old_len, name="rend");
+    brl.cbranch(rend, rf_bb, ri_bb);
+    # ri: source slot = old_order[j]; load old key/val, compute fingerprint
     bri = ir.IRBuilder(ri_bb);
-    okp = bri.gep(old_keys, [si_rh], name="okp");
-    ovp = bri.gep(old_vals, [si_rh], name="ovp");
+    _osl = bri.load(bri.gep(old_order, [si_rh], name="osl.p"), name="osl");
+    okp = bri.gep(old_keys, [_osl], name="okp");
+    ovp = bri.gep(old_vals, [_osl], name="ovp");
     ok_v = bri.load(okp, name="ok");
     ov_v = bri.load(ovp, name="ov");
     bri.store(ok_v, ok_a);
@@ -512,7 +586,7 @@ impl NaIRGenPass._emit_dict_helpers(
     nrsl = bra.add(rsl, ir.Constant(i64, 1), name="nrsl");
     bra.store(bra.and_(nrsl, new_mask, name="nrslm"), rslot_a);
     bra.branch(rp_bb);
-    # rd: insert at rsl (no RC retain — moving existing refs)
+    # rd: insert at rsl (no RC retain — moving existing refs); record order.
     brd = ir.IRBuilder(rd_bb);
     ok_d = brd.load(ok_a, name="ok");
     ov_d = brd.load(ov_a, name="ov");
@@ -521,11 +595,13 @@ impl NaIRGenPass._emit_dict_helpers(
     brd.store(ov_d, brd.gep(new_vals, [rsl], name="nvp"));
     brd.store(nh2_d, brd.gep(ncr, [rsl], name="ncp2"));
     cl_d = brd.load(len_prh, name="cl");
+    # new_order[len] = rsl (this entry keeps its insertion position j == len)
+    brd.store(rsl, brd.gep(new_order, [cl_d], name="nordp"));
     brd.store(brd.add(cl_d, ir.Constant(i64, 1), name="nl"), len_prh);
     cu_d = brd.load(used_prh, name="cu");
     brd.store(brd.add(cu_d, ir.Constant(i64, 1), name="nu"), used_prh);
     brd.store(
-        brd.add(brd.load(si_a, name="si2"), ir.Constant(i64, 1), name="nsi2"), si_a
+        brd.add(brd.load(si_a, name="j2"), ir.Constant(i64, 1), name="nj"), si_a
     );
     brd.branch(rl_bb);
     # rf: free old arrays and return
@@ -533,6 +609,7 @@ impl NaIRGenPass._emit_dict_helpers(
     brf.call(self.rc_safe_free_fn, [brf.bitcast(old_keys, i8p, name="oki8")]);
     brf.call(self.rc_safe_free_fn, [brf.bitcast(old_vals, i8p, name="ovi8")]);
     brf.call(self.rc_safe_free_fn, [old_ctrl]);
+    brf.call(self.rc_safe_free_fn, [brf.bitcast(old_order, i8p, name="ordi8")]);
     brf.ret_void();
 
     # =========================================================================
@@ -628,8 +705,13 @@ impl NaIRGenPass._emit_dict_helpers(
     bi.store(_k_ins, bi.gep(ka_s, [isl], name="ksp"));
     bi.store(v_s, bi.gep(va_s, [isl], name="vsp"));
     bi.store(h2_s, icp);
-    # len++ always
+    # len++ always; record this slot at the end of the insertion-order array so
+    # iteration visits entries in the order they were first inserted (this is the
+    # `ins` path — a brand-new key, never an update, so it always appends).
     cl_s = bi.load(len_rp, name="cl");
+    ord_ip = bi.gep(d_s, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="orp");
+    ord_a = bi.load(ord_ip, name="ora");
+    bi.store(isl, bi.gep(ord_a, [cl_s], name="oslp"));
     bi.store(bi.add(cl_s, ir.Constant(i64, 1), name="nl"), len_rp);
     # used++ only when slot was EMPTY (not tombstone reuse)
     ntb = bi.not_(was_tb, name="ntb");
@@ -747,8 +829,13 @@ impl NaIRGenPass._emit_dict_helpers(
     }
     bdel.store(ir.Constant(i8, CTRL_TOMBSTONE), bdel.gep(ca_rm, [res_rm], name="csp"));
     cl_rm = bdel.load(lp_rm, name="cl");
-    bdel.store(bdel.sub(cl_rm, ir.Constant(i64, 1), name="nl"), lp_rm);
-    bdel.branch(done_rm);
+    _new_len_rm = bdel.sub(cl_rm, ir.Constant(i64, 1), name="nl");
+    bdel.store(_new_len_rm, lp_rm);
+    # Drop this slot from the insertion-order array (shift-compact).
+    bdel2 = self._emit_dict_order_compact(
+        bdel, remove_fn, d_rm, res_rm, _new_len_rm, i32, i64
+    );
+    bdel2.branch(done_rm);
     ir.IRBuilder(done_rm).ret_void();
 
     # =========================================================================
@@ -795,8 +882,13 @@ impl NaIRGenPass._emit_dict_helpers(
     }
     bdp.store(ir.Constant(i8, CTRL_TOMBSTONE), bdp.gep(ca_p, [res_p], name="csp"));
     cl_p = bdp.load(lp_p, name="cl");
-    bdp.store(bdp.sub(cl_p, ir.Constant(i64, 1), name="nl"), lp_p);
-    bdp.ret(v_out);  # caller owns the value
+    _new_len_p = bdp.sub(cl_p, ir.Constant(i64, 1), name="nl");
+    bdp.store(_new_len_p, lp_p);
+    # Drop this slot from the insertion-order array (shift-compact).
+    bdp2 = self._emit_dict_order_compact(
+        bdp, pop_fn, d_pop, res_p, _new_len_p, i32, i64
+    );
+    bdp2.ret(v_out);  # caller owns the value
     bmp = ir.IRBuilder(miss_p);
     if isinstance(val_type, ir.PointerType) {
         bmp.ret(ir.Constant(val_type, None));
@@ -815,8 +907,10 @@ impl NaIRGenPass._emit_dict_helpers(
 
     # =========================================================================
     # K. __dict_get_key_K_V / __dict_get_val_K_V
-    #    Return the i-th live key/val by scanning ctrl bytes (O(cap)).
-    #    Only used for dict iteration — not the hot path.
+    #    Return the i-th key/val in INSERTION ORDER. order[0..len] holds the live
+    #    slots in insertion order (kept dense by set/del/rehash), so this is O(1):
+    #    slot = order[i]; return keys[slot] / vals[slot]. i is assumed 0 <= i < len
+    #    (callers iterate up to __dict_len); an out-of-range i returns null/zero.
     # =========================================================================
     get_key_fnty = ir.FunctionType(key_type, [dict_ptr_type, i64]);
     get_key_fn = ir.Function(
@@ -828,53 +922,30 @@ impl NaIRGenPass._emit_dict_helpers(
     get_key_fn.args[0].name = "dict";
     get_key_fn.args[1].name = "i";
     bgk = ir.IRBuilder(get_key_fn.append_basic_block("entry"));
-    cnt_a = bgk.alloca(i64, name="cnt");
-    sl_a = bgk.alloca(i64, name="sl");
-    bgk.store(ir.Constant(i64, 0), cnt_a);
-    bgk.store(ir.Constant(i64, 0), sl_a);
     d_gk = get_key_fn.args[0];
     tgt_gk = get_key_fn.args[1];
-    cap_gk = bgk.load(
-        bgk.gep(d_gk, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="cp"), name="cap"
+    len_gk = bgk.load(
+        bgk.gep(d_gk, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lp"), name="len"
     );
-    keys_gk = bgk.load(
-        bgk.gep(d_gk, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="kp"),
-        name="keys"
+    gk_ok_bb = get_key_fn.append_basic_block("ok");
+    gk_oob_bb = get_key_fn.append_basic_block("oob");
+    _gk_inb = bgk.and_(
+        bgk.icmp_signed(">=", tgt_gk, ir.Constant(i64, 0), name="gk.ge0"),
+        bgk.icmp_signed("<", tgt_gk, len_gk, name="gk.lt"),
+        name="gk.inb"
     );
-    ctrl_gk = bgk.load(
-        bgk.gep(d_gk, [ir.Constant(i32, 0), ir.Constant(i32, 4)], name="ctp"),
-        name="ctrl"
+    bgk.cbranch(_gk_inb, gk_ok_bb, gk_oob_bb);
+    bok = ir.IRBuilder(gk_ok_bb);
+    ord_gk = bok.load(
+        bok.gep(d_gk, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="orp"),
+        name="order"
     );
-    lp_bb = get_key_fn.append_basic_block("lp");
-    chk_bb = get_key_fn.append_basic_block("chk");
-    occ_bb = get_key_fn.append_basic_block("occ");
-    cnt_bb = get_key_fn.append_basic_block("cnt");
-    ret_bb = get_key_fn.append_basic_block("ret");
-    nxt_bb = get_key_fn.append_basic_block("nxt");
-    oob_bb = get_key_fn.append_basic_block("oob");
-    bgk.branch(lp_bb);
-    blp = ir.IRBuilder(lp_bb);
-    sl = blp.load(sl_a, name="sl");
-    blp.cbranch(blp.icmp_unsigned(">=", sl, cap_gk, name="end"), oob_bb, chk_bb);
-    bchk = ir.IRBuilder(chk_bb);
-    cb_gk = bchk.load(bchk.gep(ctrl_gk, [sl], name="cbp"), name="cb");
-    bchk.cbranch(
-        bchk.icmp_unsigned(">=", cb_gk, ir.Constant(i8, 0x80), name="occ"),
-        occ_bb,
-        nxt_bb
+    keys_gk = bok.load(
+        bok.gep(d_gk, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="kp"), name="keys"
     );
-    bocc = ir.IRBuilder(occ_bb);
-    cnt = bocc.load(cnt_a, name="cnt");
-    bocc.cbranch(bocc.icmp_unsigned("==", cnt, tgt_gk, name="match"), ret_bb, cnt_bb);
-    bret = ir.IRBuilder(ret_bb);
-    bret.ret(bret.load(bret.gep(keys_gk, [sl], name="kp"), name="k"));
-    bcnt = ir.IRBuilder(cnt_bb);
-    bcnt.store(bcnt.add(cnt, ir.Constant(i64, 1), name="nc"), cnt_a);
-    bcnt.branch(nxt_bb);
-    bnxt = ir.IRBuilder(nxt_bb);
-    bnxt.store(bnxt.add(sl, ir.Constant(i64, 1), name="nsl"), sl_a);
-    bnxt.branch(lp_bb);
-    boob = ir.IRBuilder(oob_bb);
+    _gk_slot = bok.load(bok.gep(ord_gk, [tgt_gk], name="gk.slp"), name="gk.slot");
+    bok.ret(bok.load(bok.gep(keys_gk, [_gk_slot], name="gk.kp"), name="k"));
+    boob = ir.IRBuilder(gk_oob_bb);
     if isinstance(key_type, ir.PointerType) {
         boob.ret(ir.Constant(key_type, None));
     } else {
@@ -891,55 +962,30 @@ impl NaIRGenPass._emit_dict_helpers(
     get_val_fn.args[0].name = "dict";
     get_val_fn.args[1].name = "i";
     bgv = ir.IRBuilder(get_val_fn.append_basic_block("entry"));
-    cnt_av = bgv.alloca(i64, name="cnt");
-    sl_av = bgv.alloca(i64, name="sl");
-    bgv.store(ir.Constant(i64, 0), cnt_av);
-    bgv.store(ir.Constant(i64, 0), sl_av);
     d_gv = get_val_fn.args[0];
     tgt_gv = get_val_fn.args[1];
-    cap_gv = bgv.load(
-        bgv.gep(d_gv, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="cp"), name="cap"
+    len_gv = bgv.load(
+        bgv.gep(d_gv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lp"), name="len"
     );
-    vals_gv = bgv.load(
-        bgv.gep(d_gv, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vp"),
-        name="vals"
+    gv_ok_bb = get_val_fn.append_basic_block("ok");
+    gv_oob_bb = get_val_fn.append_basic_block("oob");
+    _gv_inb = bgv.and_(
+        bgv.icmp_signed(">=", tgt_gv, ir.Constant(i64, 0), name="gv.ge0"),
+        bgv.icmp_signed("<", tgt_gv, len_gv, name="gv.lt"),
+        name="gv.inb"
     );
-    ctrl_gv = bgv.load(
-        bgv.gep(d_gv, [ir.Constant(i32, 0), ir.Constant(i32, 4)], name="ctp"),
-        name="ctrl"
+    bgv.cbranch(_gv_inb, gv_ok_bb, gv_oob_bb);
+    bvok = ir.IRBuilder(gv_ok_bb);
+    ord_gv = bvok.load(
+        bvok.gep(d_gv, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="orp"),
+        name="order"
     );
-    vlp_bb = get_val_fn.append_basic_block("lp");
-    vchk_bb = get_val_fn.append_basic_block("chk");
-    vocc_bb = get_val_fn.append_basic_block("occ");
-    vcnt_bb = get_val_fn.append_basic_block("cnt");
-    vret_bb = get_val_fn.append_basic_block("ret");
-    vnxt_bb = get_val_fn.append_basic_block("nxt");
-    voob_bb = get_val_fn.append_basic_block("oob");
-    bgv.branch(vlp_bb);
-    bvlp = ir.IRBuilder(vlp_bb);
-    slv = bvlp.load(sl_av, name="sl");
-    bvlp.cbranch(bvlp.icmp_unsigned(">=", slv, cap_gv, name="end"), voob_bb, vchk_bb);
-    bvchk = ir.IRBuilder(vchk_bb);
-    cb_gv = bvchk.load(bvchk.gep(ctrl_gv, [slv], name="cbp"), name="cb");
-    bvchk.cbranch(
-        bvchk.icmp_unsigned(">=", cb_gv, ir.Constant(i8, 0x80), name="occ"),
-        vocc_bb,
-        vnxt_bb
+    vals_gv = bvok.load(
+        bvok.gep(d_gv, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vp"), name="vals"
     );
-    bvocc = ir.IRBuilder(vocc_bb);
-    cntv = bvocc.load(cnt_av, name="cnt");
-    bvocc.cbranch(
-        bvocc.icmp_unsigned("==", cntv, tgt_gv, name="match"), vret_bb, vcnt_bb
-    );
-    bvret = ir.IRBuilder(vret_bb);
-    bvret.ret(bvret.load(bvret.gep(vals_gv, [slv], name="vp"), name="v"));
-    bvcnt = ir.IRBuilder(vcnt_bb);
-    bvcnt.store(bvcnt.add(cntv, ir.Constant(i64, 1), name="nc"), cnt_av);
-    bvcnt.branch(vnxt_bb);
-    bvnxt = ir.IRBuilder(vnxt_bb);
-    bvnxt.store(bvnxt.add(slv, ir.Constant(i64, 1), name="nsl"), sl_av);
-    bvnxt.branch(vlp_bb);
-    bvoob = ir.IRBuilder(voob_bb);
+    _gv_slot = bvok.load(bvok.gep(ord_gv, [tgt_gv], name="gv.slp"), name="gv.slot");
+    bvok.ret(bvok.load(bvok.gep(vals_gv, [_gv_slot], name="gv.vp"), name="v"));
+    bvoob = ir.IRBuilder(gv_oob_bb);
     if isinstance(val_type, ir.PointerType) {
         bvoob.ret(ir.Constant(val_type, None));
     } elif val_type?.elements and val_type.elements {

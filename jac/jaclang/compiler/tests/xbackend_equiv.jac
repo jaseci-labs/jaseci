@@ -143,8 +143,9 @@ def unbox_jacval(jv: JacVal) -> object {
         if jv.payload == 0 {
             return {};
         }
-        # Hash-table dict layout (see DictStruct below): occupied slots are
-        # sparse across `cap`, marked by a fingerprint ctrl byte (>= 0x80).
+        # Hash-table dict layout (see DictStruct below). `order[0..len]` holds the
+        # keys/vals slot of each entry in insertion order (Python dict semantics),
+        # so iterate order[i] -> keys[slot]/vals[slot].
         class InnerDictStruct(ctypes.Structure) {
             has _fields_: list = [
                 ("len", ctypes.c_int64),
@@ -152,17 +153,16 @@ def unbox_jacval(jv: JacVal) -> object {
                 ("keys", ctypes.POINTER(ctypes.c_char_p)),
                 ("vals", ctypes.POINTER(JacVal)),
                 ("ctrl", ctypes.POINTER(ctypes.c_uint8)),
-                ("used", ctypes.c_int64)
+                ("used", ctypes.c_int64),
+                ("order", ctypes.POINTER(ctypes.c_int64))
             ];
         }
         dct_ptr = ctypes.cast(jv.payload, ctypes.POINTER(InnerDictStruct));
         result: dict = {};
-        for i in range(dct_ptr.contents.cap) {
-            if dct_ptr.contents.ctrl[i] < 0x80 {
-                continue;
-            }
-            k = dct_ptr.contents.keys[i].decode("utf-8");
-            result[k] = unbox_jacval(dct_ptr.contents.vals[i]);
+        for i in range(dct_ptr.contents.len) {
+            slot = dct_ptr.contents.order[i];
+            k = dct_ptr.contents.keys[slot].decode("utf-8");
+            result[k] = unbox_jacval(dct_ptr.contents.vals[slot]);
         }
         return result;
     } elif jv.tag == 5 {
@@ -189,10 +189,11 @@ def unbox_jacval(jv: JacVal) -> object {
 }
 
 def run_native_function(eng: object, func_name: str, ir: object = None) -> dict {
-    # Open-addressing hash-table dict: {i64 len, i64 cap, i8** keys, JacVal* vals,
-    # i8* ctrl, i64 used}. Live entries sit at sparse hashed slots across `cap`,
-    # not packed in keys[0..len]; `ctrl[i]` is 0 (empty), 1 (tombstone), or a
-    # 0x80-0xFF fingerprint (occupied). Read occupied slots only.
+    # Open-addressing hash-table dict:
+    #   {i64 len, i64 cap, i8** keys, JacVal* vals, i8* ctrl, i64 used, i64* order}
+    # Live entries sit at sparse hashed slots across `cap`. `order[0..len]` holds
+    # the keys/vals slot index of each entry in INSERTION ORDER (Python dict
+    # semantics), so iterate order[i] -> keys[slot] / vals[slot].
     class DictStruct(ctypes.Structure) {
         has _fields_: list = [
             ("len", ctypes.c_int64),
@@ -200,7 +201,8 @@ def run_native_function(eng: object, func_name: str, ir: object = None) -> dict 
             ("keys", ctypes.POINTER(ctypes.c_char_p)),
             ("vals", ctypes.POINTER(JacVal)),
             ("ctrl", ctypes.POINTER(ctypes.c_uint8)),
-            ("used", ctypes.c_int64)
+            ("used", ctypes.c_int64),
+            ("order", ctypes.POINTER(ctypes.c_int64))
         ];
     }
     # Run the module initializer first so module-level and `static has` globals
@@ -242,13 +244,11 @@ def run_native_function(eng: object, func_name: str, ir: object = None) -> dict 
     f = get_func(eng, func_name, ctypes.POINTER(DictStruct));
     dict_ptr = f();
     result: dict = {};
-    # Scan all `cap` slots; an occupied slot has a fingerprint ctrl byte (>= 0x80).
-    for i in range(dict_ptr.contents.cap) {
-        if dict_ptr.contents.ctrl[i] < 0x80 {
-            continue;
-        }
-        key = dict_ptr.contents.keys[i].decode("utf-8");
-        jv = dict_ptr.contents.vals[i];
+    # Iterate in insertion order via order[0..len].
+    for i in range(dict_ptr.contents.len) {
+        slot = dict_ptr.contents.order[i];
+        key = dict_ptr.contents.keys[slot].decode("utf-8");
+        jv = dict_ptr.contents.vals[slot];
         result[key] = unbox_jacval(jv);
     }
     return result;

@@ -1134,9 +1134,10 @@ impl NaIRGenPass._nogc_stamp_elem_drops(
     if family == "dict" {
         if len(elem_mangles) >= 2 {
             # The hash-table dict struct is {len, cap, K*, V*, i8* ctrl, i64 used,
-            # key-drop, val-drop}: fields 4/5 are the hash table's ctrl array and
-            # used counter, so the element-drop slots are fields 6 and 7.
-            _slot_specs = [(6, elem_mangles[0]), (7, elem_mangles[1])];
+            # i64* order, key-drop, val-drop}: fields 4/5 are the hash table's ctrl
+            # array and used counter, field 6 is the insertion-order array, so the
+            # element-drop slots are fields 7 and 8.
+            _slot_specs = [(7, elem_mangles[0]), (8, elem_mangles[1])];
         }
     } elif len(elem_mangles) >= 1 {
         _slot_specs = [(3, elem_mangles[0])];

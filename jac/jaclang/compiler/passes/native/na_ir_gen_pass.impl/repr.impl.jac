@@ -581,8 +581,8 @@ impl NaIRGenPass._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     sep_g = self._make_global_string(", ", name_prefix=".repr.sep");
     colon_g = self._make_global_string(": ", name_prefix=".repr.colon");
     z32 = ir.Constant(i32, 0);
-    cap_v = b.load(
-        b.gep(d_arg, [z32, ir.Constant(i32, 1)], name="rp.d.cap.p"), name="rp.d.cap"
+    len_v = b.load(
+        b.gep(d_arg, [z32, z32], name="rp.d.len.p"), name="rp.d.len"
     );
     keys = b.load(
         b.gep(d_arg, [z32, ir.Constant(i32, 2)], name="rp.d.keys.p"), name="rp.d.keys"
@@ -590,39 +590,28 @@ impl NaIRGenPass._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     vals = b.load(
         b.gep(d_arg, [z32, ir.Constant(i32, 3)], name="rp.d.vals.p"), name="rp.d.vals"
     );
-    ctrl = b.load(
-        b.gep(d_arg, [z32, ir.Constant(i32, 4)], name="rp.d.ctrl.p"), name="rp.d.ctrl"
+    order = b.load(
+        b.gep(d_arg, [z32, ir.Constant(i32, 6)], name="rp.d.ord.p"), name="rp.d.order"
     );
     acc: any = b.alloca(i8p, name="rp.acc");
     iv = b.alloca(i64, name="rp.i");
-    emitted = b.alloca(i64, name="rp.emitted");
     b.store(self._rc_strdup(open_g, name="rp.acc0"), acc);
     b.store(ir.Constant(i64, 0), iv);
-    b.store(ir.Constant(i64, 0), emitted);
     cond_bb = fn.append_basic_block("rp.cond");
     body_bb = fn.append_basic_block("rp.body");
-    live_bb = fn.append_basic_block("rp.live");
-    next_bb = fn.append_basic_block("rp.next");
     done_bb = fn.append_basic_block("rp.done");
     b.branch(cond_bb);
     b.position_at_end(cond_bb);
     i_cur: any = b.load(iv, name="rp.iv");
-    b.cbranch(b.icmp_signed("<", i_cur, cap_v, name="rp.more"), body_bb, done_bb);
+    b.cbranch(b.icmp_signed("<", i_cur, len_v, name="rp.more"), body_bb, done_bb);
     b.position_at_end(body_bb);
-    _cb = b.load(b.gep(ctrl, [i_cur], name="rp.cb.p"), name="rp.cb");
-    _occ = b.icmp_unsigned(">=", _cb, ir.Constant(ir.IntType(8), 0x80), name="rp.occ");
-    b.cbranch(_occ, live_bb, next_bb);
-    b.position_at_end(live_bb);
-    _emit_cur: any = b.load(emitted, name="rp.emit.cur");
-    self._repr_maybe_sep(fn, _emit_cur, acc, sep_g);
-    k_el: any = b.load(b.gep(keys, [i_cur], name="rp.k.p"), name="rp.k");
+    _slot: any = b.load(b.gep(order, [i_cur], name="rp.slp"), name="rp.slot");
+    self._repr_maybe_sep(fn, i_cur, acc, sep_g);
+    k_el: any = b.load(b.gep(keys, [_slot], name="rp.k.p"), name="rp.k");
     self._repr_acc_concat(acc, self._repr_call_elem_fn(kfn, k_el), True);
     self._repr_acc_concat(acc, colon_g, False);
-    v_el: any = b.load(b.gep(vals, [i_cur], name="rp.v.p"), name="rp.v");
+    v_el: any = b.load(b.gep(vals, [_slot], name="rp.v.p"), name="rp.v");
     self._repr_acc_concat(acc, self._repr_call_elem_fn(vfn, v_el), True);
-    b.store(b.add(_emit_cur, ir.Constant(i64, 1), name="rp.emit.inc"), emitted);
-    b.branch(next_bb);
-    b.position_at_end(next_bb);
     b.store(b.add(i_cur, ir.Constant(i64, 1), name="rp.inc"), iv);
     b.branch(cond_bb);
     b.position_at_end(done_bb);
