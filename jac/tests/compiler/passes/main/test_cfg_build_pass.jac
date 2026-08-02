@@ -139,6 +139,14 @@ test "cfg boolean short circuit" {
     assert dot == expected_dot;
 }
 
+test "cfg deeply nested boolean short circuit" {
+    dot = cfg_dot_from_file(file_name=os.path.join(FIXTURES, "cfg_nested_bool.jac"));
+    expected_dot = (
+        "digraph G {\n" + '  0 [label="BB0\\ndef deep( a : int , b : int , c : int , d : int ) -> int\\nif", shape=box];\n' + '  1 [label="BB1\\na > 0", shape=box];\n' + '  2 [label="BB2\\nb > 0", shape=box];\n' + '  3 [label="BB3\\nc > 0", shape=box];\n' + '  4 [label="BB4\\nd > 0", shape=box];\n' + '  5 [label="BB5\\nreturn 1 ;", shape=box];\n' + '  6 [label="BB6\\nreturn 0 ;", shape=box];\n' + "  0 -> 1;\n" + '  1 -> 2 [label="T"];\n' + '  1 -> 6 [label="F"];\n' + '  2 -> 3 [label="T"];\n' + '  2 -> 6 [label="F"];\n' + '  3 -> 4 [label="F"];\n' + '  3 -> 5 [label="T"];\n' + '  4 -> 5 [label="T"];\n' + '  4 -> 6 [label="F"];\n' + "}\n"
+    );
+    assert dot == expected_dot;
+}
+
 test "cfg comprehension in ternary branch" {
     dot = cfg_dot_from_file(
         file_name=os.path.join(FIXTURES, "cfg_compr_in_ternary.jac")
