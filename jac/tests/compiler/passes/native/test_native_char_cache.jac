@@ -16,9 +16,8 @@ import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
-     );
-
-glob FIXTURE = "char_cache.jac";
+     ),
+     FIXTURE = "char_cache.jac";
 
 
 def _compile(fixture: str) -> tuple {

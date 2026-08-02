@@ -202,18 +202,12 @@ impl NaIRGenPass._get_char_cache_gv -> ir.Value {
     char_struct_type = ir.LiteralStructType([i64, i64, arr2_type]);
     arr256_type = ir.ArrayType(char_struct_type, 256);
     sentinel = ir.Constant(i64, RC_SENTINEL);
-    # For an immortal (RC_SENTINEL) string the "dtor" slot at data-8 doubles as the
-    # stored length: (len << 1) | 1, low bit = "has length" (see _make_global_string
-    # / __jac_str_len). Every cache entry is one code unit, so len == 1 -> (1<<1)|1 = 3.
-    # This gives len()/string ops the correct length even for the NUL char (byte 0),
-    # where strlen would otherwise report 0.
+
     dtor_len1 = ir.Constant(i64, (1 << 1) | 1);
     entries: list = [];
     for _bi in range(256) {
         c_arr = ir.Constant(arr2_type, bytearray([_bi, 0]));
-        entries.append(
-            ir.Constant(char_struct_type, [sentinel, dtor_len1, c_arr])
-        );
+        entries.append(ir.Constant(char_struct_type, [sentinel, dtor_len1, c_arr]));
     }
     cache_gv = ir.GlobalVariable(self.llvm_module, arr256_type, name=sym);
     cache_gv.linkage = "private";
