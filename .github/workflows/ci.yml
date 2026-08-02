@@ -681,21 +681,23 @@ jobs:
   # swaps classes.dex, mount() renders Compose, and a source edit hot-reloads without
   # reinstall. Runs inside a headless emulator (KVM); see scripts/android_compose_device_e2e.sh.
   #
-  # Non-blocking: the headless swiftshader emulator's system_server/SystemUI ANRs
-  # under CI load, so this job can hang even when the app is correct (verified
-  # locally on-device across api-35/36 and 4/8-vCPU). The e2e now asserts on
-  # app-process logcat render markers instead of uiautomator/accessibility, and
-  # test-android-compose still gates the APK build, so this job provides signal
-  # without blocking merge on emulator stability.
+  # Blocking: the on-CI ANRs that once forced this job non-blocking were a silent
+  # KVM-permission gap (runner user not in the kvm group) that dropped the emulator
+  # to ~100x slower software CPU emulation until system_server ANR'd - not an app
+  # or image problem. The "Enable KVM acceleration" step now grants + verifies
+  # /dev/kvm each run, so a KVM regression fails loudly instead of silently hanging.
+  # The e2e asserts on app-process logcat render markers; the APK build itself is
+  # still gated separately by test-android-compose.
   test-android-compose-device:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
-    continue-on-error: true
     # 8 vCPU: the emulator + Gradle + the jac dev server contend on one runner;
     # the extra cores keep system_server alive through the DexClassLoader + Compose
     # startup so the logcat render markers can fire.
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    timeout-minutes: 45
+    # A healthy run is ~4 min; 20 min is ~5x headroom and catches a KVM-regression
+    # hang (software-emulation crawl) far faster than the prior 45.
+    timeout-minutes: 20
     steps:
       - name: Check out code
         uses: actions/checkout@v5
