@@ -3444,15 +3444,7 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
     if resolved_path in target_hub {
         return target_hub[resolved_path];
     }
-    file_content = read_file_with_encoding(path);
-    uni_source = uni.Source(file_content, path);
-    mod = PyastBuildPass(
-        ir_in=uni.PythonModuleAst(py_ast.parse(file_content), orig_src=uni_source,),
-        prog=self.program,
-    ).ir_out;
-    SymTabBuildPass(ir_in=mod, prog=self.program);
-    target_hub[resolved_path] = mod;
-    return mod;
+    return self._import_module_from_path(path);
 }
 
 impl TypeEvaluator.postinit -> None {

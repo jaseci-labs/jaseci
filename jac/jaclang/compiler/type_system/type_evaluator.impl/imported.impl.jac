@@ -374,7 +374,8 @@ impl TypeEvaluator._import_module_from_path(
         mod = target_hub[resolved_path];
     } else {
         jir_mod: (uni.Module | None) = None;
-        if resolved_path.endswith('.jac') and not resolved_path.endswith('.na.jac') {
+        import from jaclang.jac0core.jir { jir_cacheable_source_path }
+        if jir_cacheable_source_path(resolved_path) {
             jir_mod = self._try_read_jir_cache(resolved_path);
         }
         if jir_mod is not None {
@@ -393,46 +394,7 @@ impl TypeEvaluator._import_module_from_path(
             }
             target_hub[resolved_path] = mod;
             target_program.hub_cache_stamp(resolved_path);
-            if resolved_path.endswith('.jac')
-                and not resolved_path.endswith('.na.jac') {
-                try {
-                    import from jaclang.jac0core.jir {
-                        get_module_cache_path,
-                        is_module_cache_valid,
-                        compute_module_key,
-                        SEC_BYTECODE,
-                        SEC_MODKEY
-                    }
-                    import from jaclang.jac0core.jir_passes { JirWriter }
-                    cache_path = get_module_cache_path(resolved_path);
-                    if not is_module_cache_valid(resolved_path, cache_path) {
-                        cache_path.parent.mkdir(parents=True, exist_ok=True);
-                        writer = JirWriter();
-
-                        sections: dict[int, bytes] = {
-                            SEC_MODKEY: compute_module_key(resolved_path).encode(
-                                'utf-8'
-                            )
-                        };
-                        bc = mod.gen?.py_bytecode;
-                        if bc is not None {
-                            sections[SEC_BYTECODE] = bc;
-                        }
-                        jir_bytes = writer.write_module(mod, sections=sections);
-
-                        import os as _os;
-                        tmp_path = cache_path.with_suffix(f'.{_os.getpid()}.tmp');
-                        try {
-                            tmp_path.write_bytes(jir_bytes);
-                            tmp_path.rename(cache_path);
-                        } finally {
-                            tmp_path.unlink(missing_ok=True);
-                        }
-                    }
-                } except Exception {
-                    ;
-                }
-            }
+            self._try_write_jir_cache(resolved_path, mod);
         }
     }
 
@@ -464,6 +426,50 @@ impl TypeEvaluator._resolve_importer_path(ast_node: uni.UniNode) -> (str | None)
     }
 }
 
+impl TypeEvaluator._try_write_jir_cache(resolved_path: str, mod: uni.Module) -> None {
+    import from jaclang.jac0core.jir {
+        jir_cacheable_source_path,
+        get_module_cache_path,
+        is_module_cache_valid,
+        compute_module_key,
+        SEC_BYTECODE,
+        SEC_MODKEY,
+    }
+    import from jaclang.jac0core.jir_passes { JirWriter }
+    import os as _os;
+    if not jir_cacheable_source_path(resolved_path) {
+        return;
+    }
+    if resolved_path.endswith('.pyi') and not mod.stub_only {
+        mod.stub_only = True;
+    }
+    try {
+        cache_path = get_module_cache_path(resolved_path);
+        if is_module_cache_valid(resolved_path, cache_path) {
+            return;
+        }
+        cache_path.parent.mkdir(parents=True, exist_ok=True);
+        writer = JirWriter();
+        sections: dict[int, bytes] = {
+            SEC_MODKEY: compute_module_key(resolved_path).encode('utf-8')
+        };
+        bc = mod.gen?.py_bytecode;
+        if bc is not None {
+            sections[SEC_BYTECODE] = bc;
+        }
+        jir_bytes = writer.write_module(mod, sections=sections);
+        tmp_path = cache_path.with_suffix(f'.{_os.getpid()}.tmp');
+        try {
+            tmp_path.write_bytes(jir_bytes);
+            tmp_path.rename(cache_path);
+        } finally {
+            tmp_path.unlink(missing_ok=True);
+        }
+    } except Exception {
+        ;
+    }
+}
+
 impl TypeEvaluator._try_read_jir_cache(resolved_path: str) -> (uni.Module | None) {
     import from jaclang.jac0core.jir { get_module_cache_path, is_module_cache_valid }
     import from jaclang.jac0core.jir_passes { JirReader }
@@ -476,9 +482,7 @@ impl TypeEvaluator._try_read_jir_cache(resolved_path: str) -> (uni.Module | None
         }
         data = cache_path.read_bytes();
         reader = JirReader(_source_path=resolved_path);
-        mod = reader.read_module(data);
-
-        return mod;
+        return reader.read_module(data);
     } except Exception {
         if os.environ.get("JAC_JIR_DEBUG") {
             traceback.print_exc();

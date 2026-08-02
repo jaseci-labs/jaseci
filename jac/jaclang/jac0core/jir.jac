@@ -264,6 +264,11 @@ def _get_module_cache_dir(source_path: str) -> Path {
     return resolved.parent / ".jac" / "cache";
 }
 
+def jir_cacheable_source_path(source_path: str) -> bool {
+    return source_path.endswith('.pyi')
+        or (source_path.endswith('.jac') and not source_path.endswith('.na.jac'));
+}
+
 def get_module_cache_path(source_path: str) -> Path {
     cache_dir = _get_module_cache_dir(source_path);
     source = Path(source_path).resolve();

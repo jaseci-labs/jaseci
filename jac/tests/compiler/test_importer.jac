@@ -284,6 +284,68 @@ test "get bytecode uses JIR cache on second call" {
     }
 }
 
+test "type evaluator uses JIR cache for pyi stubs" {
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".pyi", delete=False, dir=_test_tmp_dir
+    ) as tmp {
+        tmp.write("class Foo:\n    x: int\n");
+        tmp.flush();
+        stub_file = tmp.name;
+    }
+
+    past = time.time() - 2;
+    os.utime(stub_file, (past, past));
+
+    try {
+        prog1 = JacProgram();
+        ev1 = prog1.get_type_evaluator();
+        mod1 = ev1._import_module_from_path(stub_file);
+        sym1 = mod1.sym_tab.lookup("Foo");
+        assert sym1 is not None , "Foo symbol missing after first pyi import";
+
+        cache_path = get_module_cache_path(stub_file);
+        assert cache_path.exists() , "JIR cache file should exist after first pyi import";
+
+        prog2 = JacProgram();
+        ev2 = prog2.get_type_evaluator();
+        mod2 = ev2._import_module_from_path(stub_file);
+        sym2 = mod2.sym_tab.lookup("Foo");
+        assert sym2 is not None , "Foo symbol missing after JIR cache read";
+
+        # Regression: Archetype.arch_type must survive the JIR round-trip.
+        # Root cause was PyastBuildPass not attaching arch_type as a kid, so
+        # the kid-only serializer dropped it; no read-side repair is needed.
+        import from jaclang.jac0core.unitree { Archetype };
+        import from jaclang.jac0core.constant { Tokens as Tok };
+        foo2: list = [];
+        for a in mod2.get_all_sub_nodes(Archetype) {
+            if a.name is not None and a.name.value == "Foo" {
+                foo2.append(a);
+            }
+        }
+        assert len(foo2) == 1 , "Foo archetype missing after JIR cache read";
+        assert foo2[0].arch_type is not None , "arch_type lost in JIR round-trip";
+        assert foo2[0].arch_type.name == Tok.KW_CLASS , (
+            "arch_type wrong after JIR round-trip"
+        );
+
+        future = time.time() + 5;
+        os.utime(stub_file, (future, future));
+        prog3 = JacProgram();
+        ev3 = prog3.get_type_evaluator();
+        mod3 = ev3._import_module_from_path(stub_file);
+        assert mod3.sym_tab.lookup("Foo") is not None , (
+            "stale JIR cache reused after pyi edit"
+        );
+    } finally {
+        os.unlink(stub_file);
+        cache_path2 = get_module_cache_path(stub_file);
+        if cache_path2.exists() {
+            cache_path2.unlink();
+        }
+    }
+}
+
 test "get_bytecode busts in-memory hub when .impl.jac changes" {
     # Regression: in a persistent process, editing a .impl.jac annex left a
     # stale in-memory module in mod.hub; get_bytecode returned it with no

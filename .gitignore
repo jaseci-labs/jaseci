@@ -92,3 +92,4 @@ jactastic/**
 
 # Zig 0.16 project-local package cache (fetched, hash-pinned deps)
 zig-pkg/
+.pi-subagents/
