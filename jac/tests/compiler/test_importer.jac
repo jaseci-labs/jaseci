@@ -491,6 +491,48 @@ test "sealed typeshed image rejects a mismatched manifest" {
     }
 }
 
+test "precompile_typeshed builds a name-keyed bundle" {
+    import json;
+    import from jaclang.utils.precompile_typeshed { build_typeshed_bundle };
+    import from jaclang.compiler.type_system.typeshed_image {
+        load_typeshed_image, MANIFEST_NAME
+    };
+
+    work = tempfile.mkdtemp(prefix="jac_ts_build_", dir=_test_tmp_dir);
+    stdlib = os.path.join(work, "stdlib");
+    os.makedirs(os.path.join(stdlib, "pkg"));
+    with open(os.path.join(stdlib, "foo.pyi"), "w") as fh {
+        fh.write("class Foo:\n    x: int\n");
+    }
+    with open(os.path.join(stdlib, "pkg", "__init__.pyi"), "w") as fh {
+        fh.write("class PkgRoot:\n    pass\n");
+    }
+    with open(os.path.join(stdlib, "pkg", "bar.pyi"), "w") as fh {
+        fh.write("class Bar:\n    y: str\n");
+    }
+    out = os.path.join(work, "_sealed");
+    local_dirs: list[str] = [];
+    rc = build_typeshed_bundle(stdlib, local_dirs, out, "testpin", 0);
+    assert rc == 0 , "build_typeshed_bundle reported failures";
+
+    try {
+        img = load_typeshed_image(out);
+        assert img is not None , "bundle did not load";
+        # __init__.pyi collapses to the package name; module pyi -> dotted name.
+        assert img.find_stub("foo") is not None , "foo missing";
+        assert img.find_stub("pkg") is not None , (
+            "package __init__ fullname missing"
+        );
+        assert img.find_stub("pkg.bar") is not None , "pkg.bar missing";
+        assert img.find_stub("pkg.nonexist") is None , "unknown should miss";
+        m = json.loads(open(os.path.join(out, MANIFEST_NAME)).read());
+        assert m["typeshed_pin"] == "testpin" , "typeshed_pin not recorded";
+        assert "pkg.bar" in m["modules"] , "dotted fullname not in manifest";
+    } finally {
+        shutil.rmtree(work, ignore_errors=True);
+    }
+}
+
 test "get_bytecode busts in-memory hub when .impl.jac changes" {
     # Regression: in a persistent process, editing a .impl.jac annex left a
     # stale in-memory module in mod.hub; get_bytecode returned it with no
