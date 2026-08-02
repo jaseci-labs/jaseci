@@ -738,6 +738,40 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return None;
     }
 
+
+    if func_name == "__float_bits" {
+        params_l = nd.params or [];
+        if params_l {
+            arg_val = self._codegen_expr(params_l[0]);
+            if arg_val is not None {
+                if not isinstance(arg_val.type, ir.DoubleType) {
+                    arg_val = self._coerce_type(arg_val, ir.DoubleType());
+                }
+                return self.builder.bitcast(
+                    arg_val, ir.IntType(64), name="float_bits"
+                );
+            }
+        }
+        return ir.Constant(ir.IntType(64), 0);
+    }
+    if func_name == "__bits_float" {
+        params_l = nd.params or [];
+        if params_l {
+            arg_val = self._codegen_expr(params_l[0]);
+            if arg_val is not None {
+                if not isinstance(arg_val.type, ir.IntType) {
+                    arg_val = self._coerce_type(arg_val, ir.IntType(64));
+                } elif arg_val.type.width != 64 {
+                    arg_val = self._coerce_type(arg_val, ir.IntType(64));
+                }
+                return self.builder.bitcast(
+                    arg_val, ir.DoubleType(), name="bits_float"
+                );
+            }
+        }
+        return ir.Constant(ir.DoubleType(), 0.0);
+    }
+
     if _call_kind == "builtin" {
         if func_name == "print" {
             return self._emit_print(nd);
@@ -764,39 +798,6 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             if "Region" in self.struct_types {
                 return self._codegen_instantiation(nd);
             }
-        }
-
-        if func_name == "__float_bits" {
-            params_l = nd.params or [];
-            if params_l {
-                arg_val = self._codegen_expr(params_l[0]);
-                if arg_val is not None {
-                    if not isinstance(arg_val.type, ir.DoubleType) {
-                        arg_val = self._coerce_type(arg_val, ir.DoubleType());
-                    }
-                    return self.builder.bitcast(
-                        arg_val, ir.IntType(64), name="float_bits"
-                    );
-                }
-            }
-            return ir.Constant(ir.IntType(64), 0);
-        }
-        if func_name == "__bits_float" {
-            params_l = nd.params or [];
-            if params_l {
-                arg_val = self._codegen_expr(params_l[0]);
-                if arg_val is not None {
-                    if not isinstance(arg_val.type, ir.IntType) {
-                        arg_val = self._coerce_type(arg_val, ir.IntType(64));
-                    } elif arg_val.type.width != 64 {
-                        arg_val = self._coerce_type(arg_val, ir.IntType(64));
-                    }
-                    return self.builder.bitcast(
-                        arg_val, ir.DoubleType(), name="bits_float"
-                    );
-                }
-            }
-            return ir.Constant(ir.DoubleType(), 0.0);
         }
 
         if func_name == "isinstance" {
