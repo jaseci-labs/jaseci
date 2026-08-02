@@ -115,8 +115,12 @@ impl NaIRGenPass._emit_dict_order_compact(
 }
 
 impl NaIRGenPass._incr(
-    b: ir.IRBuilder, idx_slot: ir.Value, i_cur: ir.Value, i64: ir.Type,
-    fn: ir.Function, scan_bb: ir.Block
+    b: ir.IRBuilder,
+    idx_slot: ir.Value,
+    i_cur: ir.Value,
+    i64: ir.Type,
+    fn: ir.Function,
+    scan_bb: ir.Block
 ) -> ir.Block {
     _blk = fn.append_basic_block("oc.incr");
     _bi = ir.IRBuilder(_blk);
@@ -192,13 +196,24 @@ impl NaIRGenPass._emit_dict_helpers(
     if not dict_struct.elements {
         if self._gc_mode() == "none" {
             dict_struct.set_body(
-                i64, i64, key_type.as_pointer(), val_type.as_pointer(), i8p, i64,
+                i64,
+                i64,
+                key_type.as_pointer(),
+                val_type.as_pointer(),
+                i8p,
+                i64,
                 _i64p_ord,
-                self._nogc_elem_drop_slot_ty(), self._nogc_elem_drop_slot_ty()
+                self._nogc_elem_drop_slot_ty(),
+                self._nogc_elem_drop_slot_ty()
             );
         } else {
             dict_struct.set_body(
-                i64, i64, key_type.as_pointer(), val_type.as_pointer(), i8p, i64,
+                i64,
+                i64,
+                key_type.as_pointer(),
+                val_type.as_pointer(),
+                i8p,
+                i64,
                 _i64p_ord
             );
         }
@@ -600,9 +615,7 @@ impl NaIRGenPass._emit_dict_helpers(
     brd.store(brd.add(cl_d, ir.Constant(i64, 1), name="nl"), len_prh);
     cu_d = brd.load(used_prh, name="cu");
     brd.store(brd.add(cu_d, ir.Constant(i64, 1), name="nu"), used_prh);
-    brd.store(
-        brd.add(brd.load(si_a, name="j2"), ir.Constant(i64, 1), name="nj"), si_a
-    );
+    brd.store(brd.add(brd.load(si_a, name="j2"), ir.Constant(i64, 1), name="nj"), si_a);
     brd.branch(rl_bb);
     # rf: free old arrays and return
     brf = ir.IRBuilder(rf_bb);
@@ -688,9 +701,7 @@ impl NaIRGenPass._emit_dict_helpers(
             and isinstance(key_type.pointee, ir.IntType)
             and key_type.pointee.width == 8
         ) {
-            _strdup_i = self._get_or_declare_extern(
-                "strdup", i8p, [i8p]
-            );
+            _strdup_i = self._get_or_declare_extern("strdup", i8p, [i8p]);
             _k_ins = bi.call(_strdup_i, [bi.bitcast(k_s, i8p, name="dins_key_src")]);
             _k_ins = bi.bitcast(_k_ins, key_type, name="dins_key_copy");
         }
@@ -941,7 +952,8 @@ impl NaIRGenPass._emit_dict_helpers(
         name="order"
     );
     keys_gk = bok.load(
-        bok.gep(d_gk, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="kp"), name="keys"
+        bok.gep(d_gk, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="kp"),
+        name="keys"
     );
     _gk_slot = bok.load(bok.gep(ord_gk, [tgt_gk], name="gk.slp"), name="gk.slot");
     bok.ret(bok.load(bok.gep(keys_gk, [_gk_slot], name="gk.kp"), name="k"));
@@ -981,7 +993,8 @@ impl NaIRGenPass._emit_dict_helpers(
         name="order"
     );
     vals_gv = bvok.load(
-        bvok.gep(d_gv, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vp"), name="vals"
+        bvok.gep(d_gv, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vp"),
+        name="vals"
     );
     _gv_slot = bvok.load(bvok.gep(ord_gv, [tgt_gv], name="gv.slp"), name="gv.slot");
     bvok.ret(bvok.load(bvok.gep(vals_gv, [_gv_slot], name="gv.vp"), name="v"));
@@ -1012,7 +1025,9 @@ impl NaIRGenPass._emit_dict_helpers(
                 release_fn = _ex;
                 release_fn.linkage = "private";
             } else {
-                release_fn = ir.Function(self.llvm_module, rel_fnty2, name=_rel_fn_name);
+                release_fn = ir.Function(
+                    self.llvm_module, rel_fnty2, name=_rel_fn_name
+                );
                 release_fn.linkage = "private";
             }
         } except KeyError {
@@ -1020,7 +1035,9 @@ impl NaIRGenPass._emit_dict_helpers(
             release_fn.linkage = "private";
         }
         release_fn.args[0].name = "dict";
-        (brel, done_rel_bb) = self._emit_rc_destructor_preamble(release_fn, dict_ptr_type);
+        (brel, done_rel_bb) = self._emit_rc_destructor_preamble(
+            release_fn, dict_ptr_type
+        );
         d_rel = release_fn.args[0];
         cap_rel = brel.load(
             brel.gep(d_rel, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="cp"),
@@ -1065,11 +1082,15 @@ impl NaIRGenPass._emit_dict_helpers(
             brkv = ir.IRBuilder(rkv_bb);
             if isinstance(key_type, ir.PointerType) {
                 kv_r = brkv.load(brkv.gep(keys_rel, [si_r], name="kvp"), name="kv");
-                brkv.call(self.rc_release_simple_fn, [brkv.bitcast(kv_r, i8p, name="kc")]);
+                brkv.call(
+                    self.rc_release_simple_fn, [brkv.bitcast(kv_r, i8p, name="kc")]
+                );
             }
             if isinstance(val_type, ir.PointerType) {
                 vv_r = brkv.load(brkv.gep(vals_rel, [si_r], name="vvp"), name="vv");
-                brkv.call(self.rc_release_simple_fn, [brkv.bitcast(vv_r, i8p, name="vc")]);
+                brkv.call(
+                    self.rc_release_simple_fn, [brkv.bitcast(vv_r, i8p, name="vc")]
+                );
             }
             brkv.branch(rnx_bb);
             brnx = ir.IRBuilder(rnx_bb);

@@ -581,9 +581,7 @@ impl NaIRGenPass._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     sep_g = self._make_global_string(", ", name_prefix=".repr.sep");
     colon_g = self._make_global_string(": ", name_prefix=".repr.colon");
     z32 = ir.Constant(i32, 0);
-    len_v = b.load(
-        b.gep(d_arg, [z32, z32], name="rp.d.len.p"), name="rp.d.len"
-    );
+    len_v = b.load(b.gep(d_arg, [z32, z32], name="rp.d.len.p"), name="rp.d.len");
     keys = b.load(
         b.gep(d_arg, [z32, ir.Constant(i32, 2)], name="rp.d.keys.p"), name="rp.d.keys"
     );

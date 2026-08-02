@@ -946,6 +946,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         val_type: ir.Type,
         key_size: int = 0
     ) -> None;
+
     def _emit_dict_order_compact(
         b: ir.IRBuilder,
         fn: ir.Function,
@@ -955,9 +956,14 @@ obj NaIRGenPass(ModuleCodegenPass) {
         i32: ir.Type,
         i64: ir.Type
     ) -> ir.IRBuilder;
+
     def _incr(
-        b: ir.IRBuilder, idx_slot: ir.Value, i_cur: ir.Value, i64: ir.Type,
-        fn: ir.Function, scan_bb: ir.Block
+        b: ir.IRBuilder,
+        idx_slot: ir.Value,
+        i_cur: ir.Value,
+        i64: ir.Type,
+        fn: ir.Function,
+        scan_bb: ir.Block
     ) -> ir.Block;
 
     def _box_to_jacval(value: ir.Value) -> ir.Value;

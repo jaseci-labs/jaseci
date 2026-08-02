@@ -36,6 +36,8 @@ test "native dict inserts stay O(1) when N doubles (hash-table scaling guard)" {
     proc = subprocess.run([out_bin], capture_output=True, text=True, timeout=120);
     # A non-zero exit is the fixture's internal scaling assertion firing -- i.e.
     # per-insert cost blew up when N doubled (the O(n^2) regression).
-    assert proc.returncode == 0 , f"dict scaling regressed: {(proc.stderr or proc.stdout or '(empty)')[-500:]}";
+    assert proc.returncode == 0 , f"dict scaling regressed: {(
+        proc.stderr or proc.stdout or '(empty)'
+    )[-500:]}";
     assert proc.stdout.strip() == "OK dict_hash_scaling" , f"unexpected output: {proc.stdout.strip()!r}";
 }
