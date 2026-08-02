@@ -617,12 +617,21 @@ impl NaIRGenPass._emit_dict_helpers(
     brd.store(brd.add(cu_d, ir.Constant(i64, 1), name="nu"), used_prh);
     brd.store(brd.add(brd.load(si_a, name="j2"), ir.Constant(i64, 1), name="nj"), si_a);
     brd.branch(rl_bb);
-    # rf: free old arrays and return
+    # rf: free the old backing arrays and return. Headerless (--gc none) has no
+    # RC runtime, so __rc_safe_free is never emitted — use plain free there.
     brf = ir.IRBuilder(rf_bb);
-    brf.call(self.rc_safe_free_fn, [brf.bitcast(old_keys, i8p, name="oki8")]);
-    brf.call(self.rc_safe_free_fn, [brf.bitcast(old_vals, i8p, name="ovi8")]);
-    brf.call(self.rc_safe_free_fn, [old_ctrl]);
-    brf.call(self.rc_safe_free_fn, [brf.bitcast(old_order, i8p, name="ordi8")]);
+    if self._nogc_headerless() {
+        _free_rh = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+        brf.call(_free_rh, [brf.bitcast(old_keys, i8p, name="oki8")]);
+        brf.call(_free_rh, [brf.bitcast(old_vals, i8p, name="ovi8")]);
+        brf.call(_free_rh, [old_ctrl]);
+        brf.call(_free_rh, [brf.bitcast(old_order, i8p, name="ordi8")]);
+    } else {
+        brf.call(self.rc_safe_free_fn, [brf.bitcast(old_keys, i8p, name="oki8")]);
+        brf.call(self.rc_safe_free_fn, [brf.bitcast(old_vals, i8p, name="ovi8")]);
+        brf.call(self.rc_safe_free_fn, [old_ctrl]);
+        brf.call(self.rc_safe_free_fn, [brf.bitcast(old_order, i8p, name="ordi8")]);
+    }
     brf.ret_void();
 
     # =========================================================================
@@ -822,9 +831,18 @@ impl NaIRGenPass._emit_dict_helpers(
         name="ca"
     );
     lp_rm = bdel.gep(d_rm, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lp");
+    # Reclaim the removed key/val. Headerless (--gc none) has no RC runtime: the
+    # container owns its elements via the drop slots, so free the strdup'd key copy
+    # directly (str keys) and leave the value (headerless never RC-references it).
+    _hl_rm = self._nogc_headerless();
+    _free_rm = self._get_or_declare_extern("free", ir.VoidType(), [i8p]) if _hl_rm else None;
     if isinstance(key_type, ir.PointerType) {
         kv_rm = bdel.load(bdel.gep(ka_rm, [res_rm], name="kvp"), name="kv");
-        bdel.call(self.rc_release_simple_fn, [bdel.bitcast(kv_rm, i8p, name="kc")]);
+        if _hl_rm {
+            bdel.call(_free_rm, [bdel.bitcast(kv_rm, i8p, name="kc")]);
+        } else {
+            bdel.call(self.rc_release_simple_fn, [bdel.bitcast(kv_rm, i8p, name="kc")]);
+        }
         # Null out dead key slot — prevents stale/dangling pointer in tombstone
         bdel.store(
             ir.Constant(key_type, None), bdel.gep(ka_rm, [res_rm], name="kclear")
@@ -832,7 +850,9 @@ impl NaIRGenPass._emit_dict_helpers(
     }
     if isinstance(val_type, ir.PointerType) {
         vv_rm = bdel.load(bdel.gep(va_rm, [res_rm], name="vvp"), name="vv");
-        bdel.call(self.rc_release_simple_fn, [bdel.bitcast(vv_rm, i8p, name="vc")]);
+        if not _hl_rm {
+            bdel.call(self.rc_release_simple_fn, [bdel.bitcast(vv_rm, i8p, name="vc")]);
+        }
         # Null out dead val slot — prevents stale/dangling pointer in tombstone
         bdel.store(
             ir.Constant(val_type, None), bdel.gep(va_rm, [res_rm], name="vclear")
@@ -888,7 +908,13 @@ impl NaIRGenPass._emit_dict_helpers(
     }
     if isinstance(key_type, ir.PointerType) {
         kv_p = bdp.load(bdp.gep(ka_p, [res_p], name="kvp"), name="kv");
-        bdp.call(self.rc_release_simple_fn, [bdp.bitcast(kv_p, i8p, name="kc")]);
+        # Headerless (--gc none): free the strdup'd key copy directly (no RC).
+        if self._nogc_headerless() {
+            _free_p = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+            bdp.call(_free_p, [bdp.bitcast(kv_p, i8p, name="kc")]);
+        } else {
+            bdp.call(self.rc_release_simple_fn, [bdp.bitcast(kv_p, i8p, name="kc")]);
+        }
         bdp.store(ir.Constant(key_type, None), bdp.gep(ka_p, [res_p], name="kclear"));
     }
     bdp.store(ir.Constant(i8, CTRL_TOMBSTONE), bdp.gep(ca_p, [res_p], name="csp"));
@@ -1105,6 +1131,12 @@ impl NaIRGenPass._emit_dict_helpers(
         brra.call(self.rc_safe_free_fn, [brra.bitcast(keys_rel, i8p, name="ki8")]);
         brra.call(self.rc_safe_free_fn, [brra.bitcast(vals_rel, i8p, name="vi8")]);
         brra.call(self.rc_safe_free_fn, [ctrl_rel]);
+        # Also free the insertion-order array (struct field 6).
+        _order_rel = brra.load(
+            brra.gep(d_rel, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="orp"),
+            name="order"
+        );
+        brra.call(self.rc_safe_free_fn, [brra.bitcast(_order_rel, i8p, name="ordi8")]);
         # Remove from live-objects list, log, then free container struct
         _i8pc = i8p;
         _i64c = i64;

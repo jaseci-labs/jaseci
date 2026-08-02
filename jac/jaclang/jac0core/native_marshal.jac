@@ -43,7 +43,10 @@ class NativeDict(ctypes.Structure) {
         ("len", ctypes.c_int64),
         ("cap", ctypes.c_int64),
         ("keys", ctypes.c_void_p),
-        ("vals", ctypes.c_void_p)
+        ("vals", ctypes.c_void_p),
+        ("ctrl", ctypes.c_void_p),
+        ("used", ctypes.c_int64),
+        ("order", ctypes.c_void_p)
     ];
 }
 
@@ -191,6 +194,35 @@ def _decode_scalar_array(
 }
 
 
+def _decode_scalar_at(
+    addr: any, slots: list, type_name: str, as_str: bool = False
+) -> list {
+    if (not slots or not addr) {
+        return [];
+    }
+    if type_name == "i64" {
+        arr = (ctypes.c_int64 * (max(slots) + 1)).from_address(addr);
+        return [int(arr[s]) for s in slots];
+    }
+    if type_name == "f64" {
+        arr = (ctypes.c_double * (max(slots) + 1)).from_address(addr);
+        return [float(arr[s]) for s in slots];
+    }
+    ptrs = (ctypes.c_void_p * (max(slots) + 1)).from_address(addr);
+    if (type_name == "bytes" or as_str) {
+        out = [];
+        for s in slots {
+            p = ptrs[s];
+            out.append(
+                ctypes.string_at(p).decode("utf-8", errors="replace") if p else ""
+            );
+        }
+        return out;
+    }
+    return [int(ptrs[s]) if ptrs[s] is not None else 0 for s in slots];
+}
+
+
 def _marshal_dict(dict_ptr: int, spec: str, func_layout: any = None) -> any {
     parts = spec.split(".", 1);
     if len(parts) != 2 {
@@ -205,6 +237,10 @@ def _marshal_dict(dict_ptr: int, spec: str, func_layout: any = None) -> any {
     }
     nd = NativeDict.from_address(dict_ptr);
     count = int(nd.len) if nd.len > 0 else 0;
+    cap = int(nd.cap) if nd.cap > 0 else 0;
+    if (count <= 0 or cap <= 0 or not nd.order) {
+        return {};
+    }
     ret_keys = func_layout?.ret_elem_keys if func_layout is not None else None;
     key_as_str = bool(
         key_name == "ptr" and ret_keys and len(ret_keys) == 2 and ret_keys[0] == "str"
@@ -212,8 +248,10 @@ def _marshal_dict(dict_ptr: int, spec: str, func_layout: any = None) -> any {
     val_as_str = bool(
         val_name == "ptr" and ret_keys and len(ret_keys) == 2 and ret_keys[1] == "str"
     );
-    dkeys = _decode_scalar_array(nd.keys, count, key_name, as_str=key_as_str);
-    dvals = _decode_scalar_array(nd.vals, count, val_name, as_str=val_as_str);
+    order = (ctypes.c_int64 * count).from_address(nd.order);
+    slots = [int(s) for s in order if 0 <= int(s) and int(s) < cap];
+    dkeys = _decode_scalar_at(nd.keys, slots, key_name, as_str=key_as_str);
+    dvals = _decode_scalar_at(nd.vals, slots, val_name, as_str=val_as_str);
     return dict(zip(dkeys, dvals));
 }
 
