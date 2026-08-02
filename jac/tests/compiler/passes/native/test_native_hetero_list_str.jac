@@ -17,9 +17,8 @@ import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
-     );
-
-glob FIXTURE = "hetero_list_str.jac";
+     ),
+     FIXTURE = "hetero_list_str.jac";
 
 
 def _compile(fixture: str) -> object {
