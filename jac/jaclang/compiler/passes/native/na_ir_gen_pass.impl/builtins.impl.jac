@@ -583,25 +583,19 @@ impl NaIRGenPass._codegen_string_index(
     target_val: ir.Value, index_val: ir.Value
 ) -> (ir.Value | None) {
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
+    i32 = ir.IntType(32);
     i64 = ir.IntType(64);
 
     char_ptr = self.builder.gep(target_val, [index_val], name="char.ptr");
     char_val = self.builder.load(char_ptr, name="char.val");
-
-    two = ir.Constant(i64, 2);
-    _sidx_loc = getattr(target_val, 'jac_loc', '');
-    new_str = self._rc_call_with_ctx(
-        self.rc_alloc_fn, [two], op="str_index", loc=_sidx_loc, name="char.str"
+    byte_idx = self.builder.zext(char_val, i64, name="char.idx");
+    cache_gv = self._get_char_cache_gv();
+    cached_ptr = self.builder.gep(
+        cache_gv,
+        [ir.Constant(i32, 0), byte_idx, ir.Constant(i32, 2), ir.Constant(i32, 0)],
+        name="char.cached"
     );
-    self._emit_set_type_tag(self.builder, new_str, "str");
-    self.builder.store(char_val, new_str);
-
-    one_ptr = self.builder.gep(new_str, [ir.Constant(i64, 1)], name="null.ptr");
-    self.builder.store(ir.Constant(i8, 0), one_ptr);
-
-    self._mark_owned(new_str);
-    return new_str;
+    return cached_ptr;
 }
 
 impl NaIRGenPass._emit_norm_slice_bounds(
