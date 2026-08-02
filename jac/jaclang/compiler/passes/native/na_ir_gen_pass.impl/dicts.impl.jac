@@ -163,6 +163,7 @@ impl NaIRGenPass._emit_dict_helpers(
     i8p = i8.as_pointer();
     is_str_key: bool = key_type == i8p;
     is_int_key: bool = isinstance(key_type, ir.IntType);
+    is_bytes_key: bool = key_type_name == "bytes";
 
     CTRL_EMPTY: int = 0;
     CTRL_TOMBSTONE: int = 1;
@@ -257,7 +258,47 @@ impl NaIRGenPass._emit_dict_helpers(
     hash_fn.linkage = "private";
     hash_fn.args[0].name = "key";
     bhe = ir.IRBuilder(hash_fn.append_basic_block("entry"));
-    if is_str_key {
+    if is_bytes_key {
+        # FNV-1a over the length-prefixed byte payload. jacbytes is
+        # {i64 len, [0 x i8] data}: read len from field 0, hash data[0..len).
+        h_ba = bhe.alloca(i64, name="h");
+        idx_ba = bhe.alloca(i64, name="idx");
+        bhe.store(ir.Constant(i64, FNV_BASIS), h_ba);
+        bhe.store(ir.Constant(i64, 0), idx_ba);
+        blen = bhe.load(
+            bhe.gep(
+                hash_fn.args[0], [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lp"
+            ),
+            name="blen"
+        );
+        bdata = bhe.bitcast(
+            bhe.gep(
+                hash_fn.args[0], [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="dp"
+            ),
+            i8p,
+            name="bdata"
+        );
+        hblc = hash_fn.append_basic_block("blc");
+        hblb = hash_fn.append_basic_block("blb");
+        hbrt = hash_fn.append_basic_block("brt");
+        bhe.branch(hblc);
+        bblc = ir.IRBuilder(hblc);
+        bidx = bblc.load(idx_ba, name="idx");
+        bblc.cbranch(
+            bblc.icmp_unsigned("<", bidx, blen, name="more"), hblb, hbrt
+        );
+        bblb = ir.IRBuilder(hblb);
+        bch = bblb.load(bblb.gep(bdata, [bidx], name="cp"), name="ch");
+        bcur = bblb.load(h_ba, name="h");
+        bce = bblb.zext(bch, i64, name="ce");
+        bxor = bblb.xor(bcur, bce, name="hx");
+        bmul = bblb.mul(bxor, ir.Constant(i64, FNV_PRIME), name="hm");
+        bblb.store(bmul, h_ba);
+        bblb.store(bblb.add(bidx, ir.Constant(i64, 1), name="ni"), idx_ba);
+        bblb.branch(hblc);
+        bbrt = ir.IRBuilder(hbrt);
+        bbrt.ret(bbrt.load(h_ba, name="hf"));
+    } elif is_str_key {
         h_a = bhe.alloca(i64, name="h");
         idx_a = bhe.alloca(i64, name="idx");
         bhe.store(ir.Constant(i64, FNV_BASIS), h_a);
@@ -361,6 +402,32 @@ impl NaIRGenPass._emit_dict_helpers(
     kke = bke.load(kpke, name="k");
     if is_int_key {
         keq = bke.icmp_signed("==", kke, k_f, name="keq");
+    } elif is_bytes_key {
+        # Length-aware byte compare: equal length AND memcmp(data)==0. Distinct
+        # byte literals are separate globals, so identity comparison never works.
+        memcmp_b = self._get_or_declare_extern("memcmp", i32, [i8p, i8p, i64]);
+        klen_b = bke.load(
+            bke.gep(kke, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="klp"),
+            name="klen"
+        );
+        alen_b = bke.load(
+            bke.gep(k_f, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="alp"),
+            name="alen"
+        );
+        len_eq = bke.icmp_unsigned("==", klen_b, alen_b, name="leneq");
+        kdat_b = bke.bitcast(
+            bke.gep(kke, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="kdp"),
+            i8p,
+            name="kdat"
+        );
+        adat_b = bke.bitcast(
+            bke.gep(k_f, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="adp"),
+            i8p,
+            name="adat"
+        );
+        mcr_b = bke.call(memcmp_b, [kdat_b, adat_b, klen_b], name="bmcr");
+        dat_eq = bke.icmp_signed("==", mcr_b, ir.Constant(i32, 0), name="dateq");
+        keq = bke.and_(len_eq, dat_eq, name="keq");
     } elif is_str_key {
         cmpr = bke.call(strcmp_fn, [kke, k_f], name="scmp");
         keq = bke.icmp_signed("==", cmpr, ir.Constant(i32, 0), name="keq");
