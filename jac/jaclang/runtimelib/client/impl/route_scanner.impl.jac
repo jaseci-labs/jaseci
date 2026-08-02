@@ -49,7 +49,7 @@ impl RouteScanner._scan_directory(
                 child_routes = self._scan_directory(entry, url_prefix, group_auth);
                 routes.extend(child_routes);
             } else {
-                child_prefix = f"{url_prefix}/{dir_name}";
+                child_prefix = f"{url_prefix}/{self._file_to_route_path(dir_name)}";
                 child_routes = self._scan_directory(entry, child_prefix, auth_required);
                 routes.extend(child_routes);
             }

@@ -37,7 +37,7 @@ impl ViteBundler._get_client_dir(self: ViteBundler) -> Path {
         if config is not None {
             config_root = config.project_root;
             if config_root is not None
-            and config_root.resolve() == self.project_dir.resolve() {
+                and config_root.resolve() == self.project_dir.resolve() {
                 return config.get_client_dir();
             }
         }
@@ -97,13 +97,8 @@ impl ViteBundler.create_package_json(
     };
     for (key, value) in package_config.items() {
         if (
-            key not in {
-                'name',
-                'version',
-                'description',
-                'dependencies',
-                'devDependencies'
-            }
+            key
+            not in {'name', 'version', 'description', 'dependencies', 'devDependencies'}
         ) {
             package_data[key] = value;
         }
