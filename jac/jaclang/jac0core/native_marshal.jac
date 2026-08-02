@@ -249,7 +249,11 @@ def _marshal_dict(dict_ptr: int, spec: str, func_layout: any = None) -> any {
         val_name == "ptr" and ret_keys and len(ret_keys) == 2 and ret_keys[1] == "str"
     );
     order = (ctypes.c_int64 * count).from_address(nd.order);
-    slots = [int(s) for s in order if 0 <= int(s) and int(s) < cap];
+    slots = [
+        int(s)
+        for s in order
+        if 0 <= int(s) and int(s) < cap
+    ];
     dkeys = _decode_scalar_at(nd.keys, slots, key_name, as_str=key_as_str);
     dvals = _decode_scalar_at(nd.vals, slots, val_name, as_str=val_as_str);
     return dict(zip(dkeys, dvals));

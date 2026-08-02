@@ -284,9 +284,7 @@ impl NaIRGenPass._emit_dict_helpers(
         bhe.branch(hblc);
         bblc = ir.IRBuilder(hblc);
         bidx = bblc.load(idx_ba, name="idx");
-        bblc.cbranch(
-            bblc.icmp_unsigned("<", bidx, blen, name="more"), hblb, hbrt
-        );
+        bblc.cbranch(bblc.icmp_unsigned("<", bidx, blen, name="more"), hblb, hbrt);
         bblb = ir.IRBuilder(hblb);
         bch = bblb.load(bblb.gep(bdata, [bidx], name="cp"), name="ch");
         bcur = bblb.load(h_ba, name="h");
@@ -902,7 +900,9 @@ impl NaIRGenPass._emit_dict_helpers(
     # container owns its elements via the drop slots, so free the strdup'd key copy
     # directly (str keys) and leave the value (headerless never RC-references it).
     _hl_rm = self._nogc_headerless();
-    _free_rm = self._get_or_declare_extern("free", ir.VoidType(), [i8p]) if _hl_rm else None;
+    _free_rm = self._get_or_declare_extern("free", ir.VoidType(), [i8p])
+        if _hl_rm
+        else None;
     if isinstance(key_type, ir.PointerType) {
         kv_rm = bdel.load(bdel.gep(ka_rm, [res_rm], name="kvp"), name="kv");
         if _hl_rm {
