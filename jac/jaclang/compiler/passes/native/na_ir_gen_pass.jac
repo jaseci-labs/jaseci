@@ -788,8 +788,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_index_set(
         target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
     ) -> None;
-    def _list_box_ptr_into_i64(value: ir.Value, elem_type: ir.Type) -> bool;
 
+    def _list_box_ptr_into_i64(value: ir.Value, elem_type: ir.Type) -> bool;
     def _build_vtable(arch_name: str) -> None;
     def _emit_vtable_global(arch_name: str) -> None;
     def _emit_class_name_const(arch_name: str) -> ir.Value;
