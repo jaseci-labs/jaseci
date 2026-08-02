@@ -346,6 +346,151 @@ test "type evaluator uses JIR cache for pyi stubs" {
     }
 }
 
+test "sealed typeshed image resolves stubs by name" {
+    import json;
+    import hashlib;
+    import from jaclang.jac0core.jir_passes { JirWriter };
+    import from jaclang.jac0core.jir { FORMAT_VERSION };
+    import from jaclang.jac0core.unitree { Archetype };
+    import from jaclang.jac0core.constant { Tokens as Tok };
+    import from jaclang.compiler.type_system.typeshed_image {
+        load_typeshed_image, MANIFEST_NAME, MANIFEST_FORMAT, KIND, python_tag
+    };
+
+    bundle = tempfile.mkdtemp(prefix="jac_typeshed_img_", dir=_test_tmp_dir);
+    pyver = python_tag();
+    jir_dir = os.path.join(bundle, pyver);
+    os.makedirs(jir_dir, exist_ok=True);
+
+    stubs = {
+        "alpha": "class Alpha:\n    x: int\n",
+        "beta": "class Beta(Alpha):\n    y: str\n"
+    };
+    manifest_modules: dict = {};
+    for (fullname, src) in stubs.items() {
+        pyi_path = os.path.join(bundle, fullname + ".pyi");
+        with open(pyi_path, "w") as fh {
+            fh.write(src);
+        }
+        jp = JacProgram();
+        mod = jp.compile(file_path=pyi_path, symtab_ir_only=True);
+        assert mod is not None , ("stub " + fullname + " did not compile");
+        mod.stub_only = True;
+        writer = JirWriter();
+        data = writer.write_module(mod);
+        jir_rel = fullname + ".jir";
+        with open(os.path.join(jir_dir, jir_rel), "wb") as fh {
+            fh.write(data);
+        }
+        manifest_modules[fullname] = {
+            "jir": jir_rel,
+            "sha256": hashlib.sha256(data).hexdigest()
+        };
+    }
+    manifest = {
+        "format": MANIFEST_FORMAT,
+        "kind": KIND,
+        "python_tag": pyver,
+        "jir_format_version": FORMAT_VERSION,
+        "jaclang_version": "test",
+        "typeshed_pin": "testpin",
+        "modules": manifest_modules
+    };
+    with open(os.path.join(bundle, MANIFEST_NAME), "w") as fh {
+        fh.write(json.dumps(manifest));
+    }
+
+    try {
+        img = load_typeshed_image(bundle);
+        assert img is not None , "image failed to load from valid manifest";
+
+        # Name-keyed resolution: no source path is consulted.
+        alpha = img.find_stub("alpha");
+        assert alpha is not None , "alpha not resolved by name";
+        assert alpha.sym_tab.lookup("Alpha") is not None , (
+            "Alpha symbol missing from sealed stub"
+        );
+
+        # arch_type must survive the sealed round-trip (prerequisite fix).
+        alpha_archs: list = [];
+        for a in alpha.get_all_sub_nodes(Archetype) {
+            if a.name is not None and a.name.value == "Alpha" {
+                alpha_archs.append(a);
+            }
+        }
+        assert len(alpha_archs) == 1 , "Alpha archetype missing";
+        assert alpha_archs[0].arch_type is not None , (
+            "arch_type lost in sealed round-trip"
+        );
+        assert alpha_archs[0].arch_type.name == Tok.KW_CLASS , (
+            "arch_type wrong after sealed round-trip"
+        );
+
+        # A miss resolves to None so the caller can fall back to live compile.
+        assert img.find_stub("nope") is None , "unknown name must return None";
+    } finally {
+        shutil.rmtree(bundle, ignore_errors=True);
+    }
+}
+
+test "sealed typeshed image rejects a mismatched manifest" {
+    import json;
+    import from jaclang.jac0core.jir { FORMAT_VERSION };
+    import from jaclang.compiler.type_system.typeshed_image {
+        load_typeshed_image, MANIFEST_NAME, MANIFEST_FORMAT, KIND, python_tag
+    };
+
+    bundle = tempfile.mkdtemp(prefix="jac_typeshed_img2_", dir=_test_tmp_dir);
+    pyver = python_tag();
+    os.makedirs(os.path.join(bundle, pyver), exist_ok=True);
+    mpath = os.path.join(bundle, MANIFEST_NAME);
+
+    def dump(m: dict) -> None {
+        with open(mpath, "w") as fh {
+            fh.write(json.dumps(m));
+        }
+    }
+
+    try {
+        good = {
+            "format": MANIFEST_FORMAT,
+            "kind": KIND,
+            "python_tag": pyver,
+            "jir_format_version": FORMAT_VERSION,
+            "jaclang_version": "t",
+            "typeshed_pin": "p",
+            "modules": {}
+        };
+        dump(good);
+        assert load_typeshed_image(bundle) is not None , (
+            "baseline manifest should load"
+        );
+
+        bad_tag = dict(good);
+        bad_tag["python_tag"] = "cpython-999";
+        dump(bad_tag);
+        assert load_typeshed_image(bundle) is None , (
+            "wrong python_tag must be rejected"
+        );
+
+        bad_jir = dict(good);
+        bad_jir["jir_format_version"] = FORMAT_VERSION + 1;
+        dump(bad_jir);
+        assert load_typeshed_image(bundle) is None , (
+            "jir format drift must be rejected"
+        );
+
+        bad_fmt = dict(good);
+        bad_fmt["format"] = 999;
+        dump(bad_fmt);
+        assert load_typeshed_image(bundle) is None , (
+            "unknown manifest format must be rejected"
+        );
+    } finally {
+        shutil.rmtree(bundle, ignore_errors=True);
+    }
+}
+
 test "get_bytecode busts in-memory hub when .impl.jac changes" {
     # Regression: in a persistent process, editing a .impl.jac annex left a
     # stale in-memory module in mod.hub; get_bytecode returned it with no
