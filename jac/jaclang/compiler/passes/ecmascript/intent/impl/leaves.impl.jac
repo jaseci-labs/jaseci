@@ -1,4 +1,3 @@
-import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.compose.kotlin_ast { KtNode }
 import from jaclang.compiler.passes.ecmascript.intent.semantics { IntentLeaf }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
@@ -18,16 +17,18 @@ impl intent_expr_to_kt(expr: (IntentExpr | None)) -> (KtNode | None) {
     if isinstance(expr, KtNode) {
         return expr;
     }
-    import from jaclang.compiler.passes.compose.es_to_kotlin { es_expr_to_kt }
-    return es_expr_to_kt(expr);
+    raise RuntimeError(
+        "Compose emit expected kotlin_ast KtNode intent leaf, not estree Expression"
+    );
 }
 
 impl intent_stmt_to_kt(stmt: IntentStmt) -> (KtNode | None) {
     if isinstance(stmt, KtNode) {
         return stmt;
     }
-    import from jaclang.compiler.passes.compose.es_to_kotlin { es_stmt_to_kt }
-    return es_stmt_to_kt(stmt);
+    raise RuntimeError(
+        "Compose emit expected kotlin_ast KtNode intent leaf, not estree Statement"
+    );
 }
 
 impl intent_stmts_to_kt(stmts: list[IntentStmt]) -> list[KtNode] {
