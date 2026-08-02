@@ -41,7 +41,7 @@ impl JacClientCompiler._native_variant(self: JacClientCompiler, path: Path) -> P
         return path;
     }
     stem = base_stem(name);
-    for suffix in (".native.cl.jac", ".native.jac") {
+    for suffix in (".native.jac", ) {
         candidate = path.with_name(stem + suffix);
         if candidate.exists() {
             return candidate.resolve();
@@ -57,7 +57,7 @@ impl JacClientCompiler.compile(
     target_name: str = "web"
 ) -> tuple[list[str], list[str]] {
     (module_js, mod, module_manifest) = self.jac_compiler.compile_module(module_path);
-    self._collect_na_modules(module_manifest);
+    self._collect_na_modules(mod);
     collected_exports: set[str] = set(
         self.jac_compiler.extract_exports(module_manifest)
     );
@@ -212,7 +212,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         source_root = module_path.parent.resolve();
     }
     (module_js, mod, manifest) = self.jac_compiler.compile_module(module_path);
-    self._collect_na_modules(manifest);
+    self._collect_na_modules(mod);
     exports_list = self.jac_compiler.extract_exports(manifest);
     collected_exports.update(exports_list);
     non_root_globals: dict[(str, Any)] = {};
@@ -250,7 +250,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         }
         if (path_obj.suffix == '.jac') {
             if skip_existing
-            and self._output_path_for(path_obj, source_root).exists() {
+                and self._output_path_for(path_obj, source_root).exists() {
                 continue;
             }
             self.compile_dependencies_recursively(
@@ -392,17 +392,17 @@ impl JacClientCompiler.compile_runtime_utils(
     self: JacClientCompiler, runtime_filename: str
 ) -> tuple[str, list[str]] {
     plugin_dir = _jac_client_plugin_dir();
-    core_path = plugin_dir / 'client_runtime_core.cl.jac';
+    core_path = plugin_dir / 'client_runtime_core.jac';
     runtime_utils_path = plugin_dir / runtime_filename;
     if not core_path.exists() {
         raise ClientBundleError(
-            f'Runtime core not found: {core_path}. Expected client_runtime_core.cl.jac.'
+            f'Runtime core not found: {core_path}. Expected client_runtime_core.jac.'
         );
     }
     if not runtime_utils_path.exists() {
         raise ClientBundleError(
             f'Runtime file not found: {runtime_utils_path}. '
-            'Expected a platform runtime beside client_runtime_core.cl.jac.'
+            'Expected a platform runtime beside client_runtime_core.jac.'
         );
     }
     (core_js, _core_mod, core_manifest) = self.jac_compiler.compile_module(core_path);
@@ -463,7 +463,7 @@ impl JacClientCompiler.compile_pwa_runtime(
 ) -> tuple[str, list[str]] {
     import jaclang;
     pwa_runtime_path: Path = (
-        Path(jaclang.__file__).parent / "runtimelib" / "pwa_runtime.cl.jac"
+        Path(jaclang.__file__).parent / "runtimelib" / "pwa_runtime.jac"
     );
     if not pwa_runtime_path.exists() {
         return ('', []);
@@ -525,7 +525,7 @@ impl JacClientCompiler.compile_mobui_utils(
     self: JacClientCompiler
 ) -> tuple[str, list[str]] {
     plugin_dir = _jac_client_plugin_dir();
-    ui_path = plugin_dir / 'client_mobui.cl.jac';
+    ui_path = plugin_dir / 'client_mobui.jac';
     if not ui_path.exists() {
         return ('', []);
     }
@@ -669,7 +669,7 @@ impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> Non
 
     try {
         if manifest_path.exists()
-        and manifest_path.read_text(encoding='utf-8') == new_content {
+            and manifest_path.read_text(encoding='utf-8') == new_content {
             return;
         }
     } except OSError { }
@@ -700,10 +700,15 @@ impl JacClientCompiler.init(
     self.na_wasm_modules = set();
 }
 
-impl JacClientCompiler._collect_na_modules(
-    self: JacClientCompiler, manifest: any
-) -> None {
-    for p in (getattr(manifest, 'na_modules', []) or []) {
-        self.na_wasm_modules.add(str(p));
+impl JacClientCompiler._collect_na_modules(self: JacClientCompiler, mod: any) -> None {
+    import from jaclang.jac0core.codeinfo { InteropManifest }
+    manifest = mod?.gen?.interop_manifest;
+    if not isinstance(manifest, InteropManifest) {
+        return;
+    }
+    for binding in manifest.client_native_imports {
+        if binding.source_module {
+            self.na_wasm_modules.add(str(binding.source_module));
+        }
     }
 }

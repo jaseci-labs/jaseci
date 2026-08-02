@@ -7,9 +7,7 @@ import from jaclang.scale.deploy.target.kubernetes { ingress as ingress_mod }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
-    MicroserviceManifestBuilder
-}
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
 import from jaclang.scale.runtime.realizer.kubernetes_realizer { KubernetesRealizer }
 import jaclang.scale.injector.binary as binary_mod;
 import jaclang.scale.injector.binary_injector as binary_injector_mod;
@@ -156,8 +154,7 @@ test "--dry-run reads no cluster state, downloads nothing, and builds nothing" {
         ), unittest.mock.patch(
             "jaclang.scale.config.config_loader.get_scale_config", return_value=cfg
         ), unittest.mock.patch(
-            "jaclang.scale.runtime.discovery.discovery.resolve_routes",
-            return_value={"svc": "/svc"}
+            "jaclang.scale.runtime.routing.resolve_routes", return_value={"svc": "/svc"}
         ), unittest.mock.patch(
             "jaclang.scale.injector.binary_injector.node_arch"
         ) as mock_cluster, unittest.mock.patch(
@@ -225,7 +222,7 @@ test "a dry run injector refuses to seed placeholder bytes" {
 test "a dry run skips the host client bundle build" {
     with tempfile.TemporaryDirectory() as tmpdir {
         _write_app(tmpdir);
-        builder = MicroserviceManifestBuilder(
+        builder = ManifestBuilder(
             k8s_config=KubernetesConfig.from_dict(
                 KubernetesConfig, {"app_name": "test-app", "namespace": "default"}
             ),

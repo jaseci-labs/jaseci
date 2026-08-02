@@ -157,7 +157,7 @@ def create(
     args=[
         Arg.create(
             "packages",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_POSITIONAL,
             default=[],
             help="Package(s) to add to jac.toml and install into the project's venv (.jac/venv)"
         ),
@@ -178,7 +178,7 @@ def create(
         ),
         Arg.create(
             "extras",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_OPTION,
             default=[],
             help="Optional dependency groups to install (e.g. data monitoring)",
             short="x"
@@ -359,7 +359,10 @@ def install(
     help="Remove a dependency from the project",
     args=[
         Arg.create(
-            "packages", kind=ArgKind.MULTI, default=[], help="Packages to remove"
+            "packages",
+            kind=ArgKind.MULTI_POSITIONAL,
+            default=[],
+            help="Packages to remove"
         ),
         Arg.create(
             "dev",
@@ -395,7 +398,7 @@ def remove(
     args=[
         Arg.create(
             "packages",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_POSITIONAL,
             default=[],
             help="Packages to update (all if empty)"
         ),
