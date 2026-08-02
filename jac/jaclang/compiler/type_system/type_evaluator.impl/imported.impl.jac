@@ -354,13 +354,6 @@ impl TypeEvaluator._import_module_from_path(
 ) -> uni.Module {
     resolved_path = str(Path(path).resolve());
 
-    # Each level of the import DAG that reaches here (get_type_of_module ->
-    # _import_module_from_path -> compile -> run_schedule -> exit_import ->
-    # get_type_of_module ...) costs a fixed batch of Python frames on top of
-    # the recursive-descent parser's own depth. Engine modules such as the
-    # dispatch table have a legitimately deep (~50 level) import closure, which
-    # overruns CPython's default 1000-frame limit even though there is no
-    # cycle. Raise the ceiling (never lower it) so honest depth is not a crash.
     import sys as _rec_sys;
     _MIN_RECLIMIT = 12000;
     if _rec_sys.getrecursionlimit() < _MIN_RECLIMIT {

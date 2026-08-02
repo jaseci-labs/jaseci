@@ -651,9 +651,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                         isinstance(expr.target.type, types.UnknownType)
                         and isinstance(expr.target, (uni.AtomTrailer, uni.FuncCall))
                     );
-                    # Skip the diagnostic when the base is only Unknown because it
-                    # sat inside a symbol-resolution cycle; the type settles once
-                    # the cycle unwinds.
+
                     if not target_already_unknown and not _base_cycle_tainted {
                         self.emit_diag(E1032, expr.right, attr=expr.right.value);
                     }
