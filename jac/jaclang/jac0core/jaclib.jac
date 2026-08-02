@@ -7,8 +7,12 @@ import from jaclang.jac0core.constructs { EdgeArchetype as Edge }
 import from jaclang.jac0core.constructs { JsxElement }
 import from jaclang.jac0core.constructs { NodeArchetype as Node }
 import from jaclang.jac0core.constructs { WalkerArchetype as Walker }
+import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
 import from jaclang.jac0core.runtime { JacRuntimeInterface }
 glob __all__ = [
+         'GraphQuery',
+         'QHop',
+         'QPred',
          'Node',
          'Edge',
          'Walker',
