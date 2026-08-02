@@ -611,10 +611,6 @@ impl NaIRGenPass._register_imported_struct_types -> None {
 }
 
 impl NaIRGenPass._ensure_imported_module_inferred(imported_mod: uni.Module) -> None {
-    mod_path = imported_mod.loc.mod_path if imported_mod?.loc else '';
-    if mod_path.endswith('.na.jac') {
-        return;
-    }
     if id(imported_mod) in self.prog._inferred_mods {
         return;
     }
@@ -742,12 +738,10 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
     _wl_internal = False;
     if _imp_layout is None and imported_mod?.loc and imported_mod.loc.mod_path {
         import os as _wl_os2;
-        import from jaclang.jac0core.ext_registry { is_native_module as _wl_is_na }
 
-        _wl_internal = not _wl_is_na(imported_mod.loc.mod_path)
-        and (_wl_os2.sep + "jaclang" + _wl_os2.sep) in _wl_os2.path.abspath(
-            imported_mod.loc.mod_path
-        );
+        _wl_internal = imported_mod.decided_codespace != 'native'
+            and (_wl_os2.sep + "jaclang" + _wl_os2.sep)
+                in _wl_os2.path.abspath(imported_mod.loc.mod_path);
         if _wl_internal {
             try {
                 import from jaclang.jac0core { sealed as _wl_sealed }
@@ -759,8 +753,8 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
     }
     for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if not isinstance(_imp_arch, uni.Archetype)
-        or _imp_arch.body is None
-        or _imp_arch.name is None {
+            or _imp_arch.body is None
+            or _imp_arch.name is None {
             continue;
         }
         _ia_name = _imp_arch.name.value;
@@ -772,7 +766,7 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
             ) {
                 _im_full = f"{_ia_name}.{_imp_stmt.name_ref.sym_name}";
                 if (_imp_layout is not None and _im_full not in _imp_layout.methods)
-                or (_imp_layout is None and _wl_internal) {
+                    or (_imp_layout is None and _wl_internal) {
                     self._native_skipped_methods.add(_im_full);
                 }
             }
@@ -811,10 +805,10 @@ impl NaIRGenPass._forward_declare_archetype_methods(arch: uni.Archetype) -> None
     for stmt in arch.body {
         if isinstance(stmt, uni.Ability) {
             if stmt.signature is not None
-            and isinstance(stmt.signature, uni.FuncSignature) {
+                and isinstance(stmt.signature, uni.FuncSignature) {
                 self._forward_declare_method(aname, stmt);
             } elif isinstance(stmt.signature, uni.EventSignature)
-            and (arch.arch_kind is not None) {
+                and (arch.arch_kind is not None) {
                 self._forward_declare_event_method(aname, stmt);
                 self._emit_osp_thunk(aname, stmt);
             }
@@ -951,7 +945,7 @@ impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
                     if _supported {
                         self._native_stdlib_modules.add(mod_name);
                     } elif mod_name is not None
-                    and is_bundled_native_module(mod_name) {
+                        and is_bundled_native_module(mod_name) {
                         self._native_module_imports.add(mod_name);
                     } elif (
                         mod_name is not None
@@ -1077,16 +1071,16 @@ impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
 impl NaIRGenPass._resolve_clib_lib_name(components: list[str], level: int) -> str {
     triple = str(self.llvm_module.triple or "").lower();
     if ("darwin" in triple)
-    or ("apple" in triple)
-    or ("macos" in triple)
-    or ("ios" in triple) {
+        or ("apple" in triple)
+        or ("macos" in triple)
+        or ("ios" in triple) {
         prefix = "lib";
         ext = ".dylib";
         origin_token = "@loader_path";
     } elif ("windows" in triple)
-    or ("win32" in triple)
-    or ("mingw" in triple)
-    or ("msvc" in triple) {
+        or ("win32" in triple)
+        or ("mingw" in triple)
+        or ("msvc" in triple) {
         prefix = "";
         ext = ".dll";
         origin_token = ".";

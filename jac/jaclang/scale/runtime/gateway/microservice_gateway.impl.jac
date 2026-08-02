@@ -83,7 +83,7 @@ impl MicroserviceGateway.serve_static(file_path: str) -> Response | None {
     }
 
     if content_type.startswith("text/")
-    or content_type in ("application/javascript", "application/json") {
+        or content_type in ("application/javascript", "application/json") {
         return Response(
             content=target.read_text(encoding="utf-8"), media_type=content_type
         );
@@ -147,7 +147,7 @@ impl MicroserviceGateway.serve_extra_static(
     }
 
     if content_type.startswith("text/")
-    or content_type in ("application/javascript", "application/json") {
+        or content_type in ("application/javascript", "application/json") {
         return Response(
             content=target.read_text(encoding="utf-8"), media_type=content_type
         );
@@ -211,7 +211,7 @@ impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
     }
 
     if content_type.startswith("text/")
-    or content_type in ("application/javascript", "application/json") {
+        or content_type in ("application/javascript", "application/json") {
         return Response(
             content=target.read_text(encoding="utf-8"), media_type=content_type
         );
@@ -294,7 +294,7 @@ impl MicroserviceGateway.aggregate_graph_data(request: Request) -> Response | No
 
     for (svc_name, svc_entry) in self.registry.entries.items() {
         if svc_entry.status not in (ServiceStatus.HEALTHY, ServiceStatus.STARTING)
-        or not svc_entry.url {
+            or not svc_entry.url {
             continue;
         }
         target_url = f"{svc_entry.url}/graph/data";
@@ -373,7 +373,7 @@ impl MicroserviceGateway.handle_builtin_passthrough(
 
     for (svc_name, svc_entry) in self.registry.entries.items() {
         if svc_entry.status in (ServiceStatus.HEALTHY, ServiceStatus.STARTING)
-        and svc_entry.url {
+            and svc_entry.url {
             target_url = f"{svc_entry.url}{path}";
             if query {
                 target_url = f"{target_url}?{query}";

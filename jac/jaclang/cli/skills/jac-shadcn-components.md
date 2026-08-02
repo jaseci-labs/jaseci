@@ -60,7 +60,7 @@ import from "@hugeicons/core-free-icons" { Search01Icon, Add01Icon, Cancel01Icon
 
 **A `pages/` file is not inside `components/`.** From within `components/`, `ui/` is a subfolder, so the prefix is `.ui.X`. From a sibling directory like `pages/`, you go up to the project root and back down into `components/`, so the prefix is `..components.ui.X` - and one MORE dot for each `pages/` subfolder (a route group like `(auth)/` counts as a folder). Undercounting (e.g. `.components.ui.card` from `pages/login.jac`) silently fails the client bundle with `Could not resolve`, not `jac check`.
 
-Client placement is inferred - a module with an npm import or JSX compiles client, so a plain `import` needs no `cl` marker, whether in a component file or a top-level entry file like `main.jac`.
+Client placement is inferred - a module with an npm import or JSX compiles client, so a plain `import` needs no annotation, whether in a component file or a top-level entry file like `main.jac`.
 
 Do **not** check a `components/ui/*.jac` primitive with `jac check` directly - they use a `...lib.utils` relative import that only resolves as part of the build. Validate your work by checking your composite or the entry file instead.
 
@@ -181,21 +181,21 @@ import from "@hugeicons/core-free-icons" { Add01Icon, Search01Icon, MoreVertical
 
 # Inline icon
 def:pub InlineIconExample() -> JsxElement {
-    return <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-4" />;
+    <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-4" />
 }
 
 # Icon-only button
 def:pub IconButtonExample() -> JsxElement {
-    return <Button size="icon">
+    <Button size="icon">
         <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-    </Button>;
+    </Button>
 }
 
 # Radix trigger styled directly with buttonVariants() - simplest icon-trigger form
 def:pub RadixTriggerExample() -> JsxElement {
-    return <DropdownMenuTrigger className={buttonVariants().call(None, {"variant": "ghost", "size": "icon"})}>
+    <DropdownMenuTrigger className={buttonVariants().call(None, {"variant": "ghost", "size": "icon"})}>
         <HugeiconsIcon icon={MoreVerticalIcon} strokeWidth={2} className="size-4" />
-    </DropdownMenuTrigger>;
+    </DropdownMenuTrigger>
 }
 ```
 
@@ -206,7 +206,7 @@ def:pub RadixTriggerExample() -> JsxElement {
 ```jac
 # Usable as an asChild trigger child - the trailing ref param forwards the anchor
 def:pub MyMenuButton(label: str, ref: Ref[HTMLButtonElement]) -> JsxElement {
-    return <button ref={ref} className="...">{label}</button>;
+    <button ref={ref} className="...">{label}</button>
 }
 ```
 
@@ -341,7 +341,7 @@ To add a custom color the generator doesn't emit, define it in `:root`/`.dark` a
 
 ```jac
 def:pub WarningAlert() -> JsxElement {
-    return <div className="bg-warning text-warning-foreground">Warning</div>;
+    <div className="bg-warning text-warning-foreground">Warning</div>
 }
 ```
 
@@ -361,11 +361,11 @@ import from "@hugeicons/react" { HugeiconsIcon }
 import from "@hugeicons/core-free-icons" { Add01Icon }
 
 def:pub EventListPage() -> JsxElement {
-    has events: list[dict] = [];   # type the element (use the sv import-ed view type); a bare `list` loses element typing -> E1032 on field access
+    has events: list[dict] = [];   # type the element (use the imported server view type); a bare `list` loses element typing -> E1032 on field access
     has loading: bool = True;
 
     async can with entry {
-        # sv import RPC call goes here
+        # server RPC call goes here
         loading = False;
     }
 
@@ -373,7 +373,7 @@ def:pub EventListPage() -> JsxElement {
         return <div className="flex items-center justify-center p-8"><Spinner /></div>;
     }
 
-    return <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6">
         <div className="flex items-center justify-between">
             <h1 className="text-2xl font-semibold">Events</h1>
             <Dialog>
@@ -408,7 +408,7 @@ def:pub EventListPage() -> JsxElement {
                 </Table>
             </CardContent>
         </Card>
-    </div>;
+    </div>
 }
 ```
 

@@ -1732,7 +1732,7 @@ jac build --as npm
 **Building a native binary or editable source tree:**
 
 ```bash
-# Standalone native binary (project-level; see `jac nacompile` for file-level .na.jac)
+# Standalone native binary (project-level; see `jac nacompile` for a single file)
 jac build --as native
 
 # Editable FastAPI + JavaScript source tree (formerly `jac eject`)
@@ -1857,9 +1857,9 @@ Editors normally launch this for you; configure your editor's LSP client to run 
 
 *Hidden from `jac --help` (still functional).*
 
-Compile a `.na.jac` file to a standalone native ELF executable. No external compiler, assembler, or linker is required. The entire pipeline runs in pure Python using llvmlite and a built-in ELF linker.
+Compile a `.jac` file to a standalone native ELF executable, forcing the whole module into the native codespace (so anything that cannot lower is a loud error rather than a demotion to the server codespace). No external compiler, assembler, or linker is required. The entire pipeline runs in pure Python using llvmlite and a built-in ELF linker.
 
-> **Project-level vs. file-level.** For a whole-project native build, use [`jac build --as native`](#jac-build) (or `--as binary`), which runs the type-check gate first. `jac nacompile` remains the file-level tool for compiling an individual `.na.jac` file, building `--shared` C-ABI libraries, and cross-compiling with `--target wasm32`.
+> **Project-level vs. file-level.** For a whole-project native build, use [`jac build --as native`](#jac-build) (or `--as binary`), which runs the type-check gate first. `jac nacompile` remains the file-level tool for compiling an individual `.jac` file, building `--shared` C-ABI libraries, and cross-compiling with `--target wasm32`.
 
 ```bash
 jac nacompile filename [-o OUTPUT] [--gc MODE] [--enforce-nogc] [--assert-no-rc] [--shared] [-t TARGET] [-g] [--scrub]
@@ -1867,8 +1867,8 @@ jac nacompile filename [-o OUTPUT] [--gc MODE] [--enforce-nogc] [--assert-no-rc]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `filename` | Path to the `.jac` or `.na.jac` file (must have `with entry {}` block) | *required* |
-| `-o, --output` | Output binary path | filename without `.na.jac` |
+| `filename` | Path to the `.jac` file (must have `with entry {}` block) | *required* |
+| `-o, --output` | Output binary path | filename without `.jac` |
 | `-t, --target` | Code target: native host, or `wasm32` for a browser `.wasm` module | host |
 | `--shared` | Build a C-ABI shared library (`.so`/`.dylib`/`.dll`) exporting `:pub` symbols instead of an executable | `False` |
 | `-g, --debug` | Emit DWARF debug info + symbol table so the binary is debuggable with gdb/lldb | `False` |
@@ -1881,7 +1881,7 @@ The file must contain a `with entry { }` block (which defines the `jac_entry()` 
 
 **What happens under the hood:**
 
-1. Compiles the `.na.jac` through the Jac pipeline to get LLVM IR
+1. Compiles the `.jac` file through the Jac pipeline (native codespace forced) to get LLVM IR
 2. Injects `main()` and `_start` as pure LLVM IR (zero inline assembly)
 3. Emits native object code via llvmlite's `emit_object()`
 4. Links into an ELF executable via the built-in pure-Python ELF linker
@@ -1892,14 +1892,14 @@ The resulting binary dynamically links against `libc.so.6`. Memory management us
 
 ```bash
 # Compile to ./chess
-jac nacompile chess.na.jac
+jac nacompile chess.jac
 
 # Compile with custom output name
-jac nacompile chess.na.jac -o mychess
+jac nacompile chess.jac -o mychess
 
 # Compile an ownership-covered module and prove the artifact
 # contains no RC/collector machinery
-jac nacompile service.na.jac --gc none --enforce-nogc --assert-no-rc
+jac nacompile service.jac --gc none --enforce-nogc --assert-no-rc
 
 # Run the binary
 ./mychess

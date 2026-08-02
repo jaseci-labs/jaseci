@@ -147,7 +147,9 @@ def _start_loopback(
             pinned = int(pinned_raw);
         } except ValueError {
             raise RuntimeError(
-                "JAC_DESKTOP_BROKER_PORT must be a port number, got '" + pinned_raw + "'"
+                "JAC_DESKTOP_BROKER_PORT must be a port number, got '"
+                    + pinned_raw
+                    + "'"
             );
         }
         try {
@@ -155,9 +157,10 @@ def _start_loopback(
             port = pinned;
         } except OSError as bind_err {
             raise RuntimeError(
-                "JAC_DESKTOP_BROKER_PORT " + str(pinned) + " could not be bound: " + str(
-                    bind_err
-                )
+                "JAC_DESKTOP_BROKER_PORT "
+                    + str(pinned)
+                    + " could not be bound: "
+                    + str(bind_err)
             );
         }
     } else {

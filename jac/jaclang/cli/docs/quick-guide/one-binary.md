@@ -38,7 +38,7 @@ maintain: they are compiler output, owned and re-derived on every build.
 | Capability | What it replaces | How you use it |
 |---|---|---|
 | **CPython 3.14** | System Python, pyenv, venvs | Bundled -- runs your `.jac` files and PyPI imports |
-| **Bun** | Node.js, npm, npx | Bundled -- compiles `.cl.jac` to JS, manages npm deps |
+| **Bun** | Node.js, npm, npx | Bundled -- compiles `.jac` to JS, manages npm deps |
 | **LLVM + Zig linker** | gcc, clang, make, cmake | Bundled -- `jac build --as native` produces native binaries |
 | **Package manager** | pip, npm, pipx | `jac install` for PyPI and npm |
 | **REST server** | Flask, FastAPI, Express | `jac start` -- walkers become API endpoints |
