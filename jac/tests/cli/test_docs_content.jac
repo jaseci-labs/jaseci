@@ -31,7 +31,7 @@ def get_current_md_files -> list[str] {
         f
         for f in get_md_files()
         if "release_notes" not in Path(f).parts
-        and Path(f).name != "breaking-changes.md"
+            and Path(f).name != "breaking-changes.md"
     ];
 }
 
@@ -217,8 +217,7 @@ test "docs do not describe the removed image-build pipeline" {
     }
 
     assert not stale , (
-        "docs reference an image-build pipeline that no longer exists:\n" + "\n".join(
-            stale
-        )
+        "docs reference an image-build pipeline that no longer exists:\n"
+        + "\n".join(stale)
     );
 }

@@ -228,8 +228,8 @@ impl NaIRGenPass._emit_struct_pack_into(
 
     buf_val = self._codegen_expr(params[1]);
     if buf_val is None
-    or "u8" not in self.list_types
-    or buf_val.type != self.list_types["u8"].as_pointer() {
+        or "u8" not in self.list_types
+        or buf_val.type != self.list_types["u8"].as_pointer() {
         self.emit(
             E5092,
             node_override=nd,

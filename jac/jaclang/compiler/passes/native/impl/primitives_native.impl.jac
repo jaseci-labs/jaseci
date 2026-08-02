@@ -2649,7 +2649,9 @@ impl NativeListEmitter.emit_append(
     _append_loc = getattr(args[0], 'jac_loc', "");
     p._rc_call_with_ctx(helpers["append"], [target, val], op="append", loc=_append_loc);
 
-    if isinstance(_boxed_val.type, ir.PointerType) and p._is_owned(_boxed_val) {
+    if isinstance(_boxed_val.type, ir.PointerType)
+        and p._is_owned(_boxed_val)
+        and not p._nogc_headerless() {
         p._emit_rc_release_simple(_boxed_val, op="append", loc=_append_loc);
     }
     return ir.Constant(ir.IntType(64), 0);
@@ -3985,7 +3987,9 @@ impl NativeSetEmitter.emit_add(
     val = p._coerce_type(args[0], helpers["elem_type"]);
     get_builder(p).call(helpers["add"], [target, val]);
 
-    if isinstance(val.type, ir.PointerType) and p._is_owned(val) {
+    if isinstance(val.type, ir.PointerType)
+        and p._is_owned(val)
+        and not p._nogc_headerless() {
         _b_sa = get_builder(p);
         _i8p_sa = ir.IntType(8).as_pointer();
         _rc_sa = _b_sa.bitcast(val, _i8p_sa, name="sadd_own_rel_cast");
@@ -4925,7 +4929,7 @@ impl NativeTupleEmitter._get_struct_info(
     self, ctx: NativeEmitCtx, target: ir.Value
 ) -> (object | None) {
     if isinstance(target.type, ir.PointerType)
-    and isinstance(target.type.pointee, ir.LiteralStructType) {
+        and isinstance(target.type.pointee, ir.LiteralStructType) {
         return target.type.pointee;
     }
 

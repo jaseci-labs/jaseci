@@ -264,7 +264,7 @@ Emitted by the type checker and type evaluator.
 
 ### mobUI-Project JSX Host Tags
 
-Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native target](plugins/jac-client.md#react-native-target-beta)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.cl.jac` web-boundary files (but not `.native.cl.jac` files, which target React Native) and modules outside the project root are exempt; the client kind is discovered from each module's own project `jac.toml`, never the process cwd.
+Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native target](plugins/jac-client.md#react-native-target-beta)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.jac` web-boundary files (but not `.native.jac` files, which target React Native) and modules outside the project root are exempt; the client kind is discovered from each module's own project `jac.toml`, never the process cwd.
 
 | Code | Message |
 |------|---------|
@@ -325,6 +325,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `E1120` | Import of '{name}' from untyped external module '{module}' (no type declarations found) |
 | `W1103` | '{name}' is ambient and does not need to be imported from '{module}' |
 | `W1104` | Use the lowercase `any` keyword instead of importing `Any` from typing |
+| `W1105` | Local module '{name}' shadows the npm package of the same name |
 
 ---
 
@@ -393,6 +394,7 @@ Emitted by `ViewLowerPass` when a `{...}` JSX slot's statement-template body vio
 | `E2024` | 'has' is not allowed inside a JSX slot body. A slot body is a statement template that re-runs on every render; declaring reactive state there would compile to a conditional 'useState' and violate React's rules of hooks. Declare 'has'-fields at the component scope (the enclosing 'def -> JsxElement' body). |
 | `E2025` | A 'has'-field of type 'Ref[...]' must be constructed with an initializer: write '= Ref()' for a DOM ref, or '= Ref(initial)' for a value ref. It lowers to React's 'useRef', so a bare declaration has no ref object to hold -- '.current' would never be defined. This mirrors how every other 'has'-field carries a value. |
 | `E2027` | Endpoint clause ': Src --> Tgt' is only valid on an 'edge' archetype, not on {arch_type} '{name}' |
+| `E2084` | An expression without a trailing ';' is only treated as an implicit return when it is the final statement of a function, ability, or lambda body. |
 | `W2019` | 'while' loop in a JSX slot renders JSX without a 'key' attribute -- add 'key=' so siblings keep their identity across re-renders. |
 | `W2020` | 'awaiting' is not yet implemented on the '{target}' target -- the 'awaiting' clause body will be ignored at runtime. Only the 'cl' (react/preact) target currently lowers 'awaiting' to a Suspense fallback. |
 | `W2021` | 'for' loop in a JSX slot renders JSX without a 'key' attribute -- annotate one child element with 'key=' so iteration siblings keep their identity across re-renders. |
@@ -447,8 +449,8 @@ Emitted during code generation, formatting, and native compilation.
 
 | Code | Message |
 |------|---------|
-| `E5001` | String literal imports are only supported in client (cl) imports |
-| `E5002` | {import_type} imports are only supported in client (cl) imports |
+| `E5001` | String literal imports are only supported in client-placed imports |
+| `E5002` | {import_type} imports are only supported in client-placed imports |
 | `E5003` | Archetype has no body. Perhaps an impl must be imported. |
 | `E5004` | Abstract ability {name} should not have a body |
 | `E5005` | Ability has no body. Perhaps an impl must be imported. |
@@ -508,8 +510,11 @@ Emitted during code generation, formatting, and native compilation.
 | `E5080` | Argument '{name}' for server function '{func}' is given both positionally and by keyword |
 | `E5081` | Unknown client framework '{framework}' |
 | `E5082` | Client code imports '{name}' from '{module}', but '{name}' has no client-side presence |
+| `E5084` | Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module |
 
-`E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, mark it (or its module) client, or move it into client code.
+`E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, pin it (or its module) `"client"` via `[placement.pins]`, or move it into client code.
+
+`E5084` is the bare-import sibling. A bare name resolves across the module universe -- local Jac module first, then Python, then the client npm world (jac.toml `[dependencies.npm]`, the active framework's own packages, and whatever is installed under `.jac/client/node_modules`), so `import from react { useRef }` works unquoted. When the name resolves to none of those client-reachable worlds, placement pins the import server-side, the bundle never binds the symbol, and the page would fail at runtime with a ReferenceError -- so client use fails the build instead. Install or declare the package in `[dependencies.npm]` (or quote the module to pin the npm form), or keep the use server-side behind a `def:pub` endpoint. Annotation-only uses do not fire it, since ES output erases type annotations; imports whose uses are all server-side prune silently as before.
 
 ---
 
@@ -533,6 +538,17 @@ Emitted by `CapabilityCheckPass` when code uses JS-specific surface instead of J
 | `W6005` | Client call to server endpoint '{func}' passes function-typed parameter '{param}' -- functions cannot cross the RPC boundary |
 
 A `def:pub` function in a server-placed module is an HTTP endpoint whose arguments serialize over the wire, so a function-typed argument cannot cross it. Shared client-side logic should drop `:pub` so it is placed in the browser with its callers.
+
+### Placement Boundary
+
+| Code | Message |
+|------|---------|
+| `W6006` | Mutable glob '{name}' is emitted into both the server and the client -- each side gets an independent copy (state fork) |
+| `W6007` | Client code uses server-placed function '{name}' as a value -- function values cannot cross the placement boundary |
+
+`W6006`: dual emission duplicates *state*, not just code -- server writes and client writes land in different copies of the glob. Home the glob with its writers by pinning it (or its module) in `jac.toml` -- `[placement.pins] "mod.the_glob" = "server"` (or `"client"`) -- or bridge reads through a `def:pub` accessor.
+
+`W6007`: the value-flow generalization of `W6005`. A function reference that flows into client-side data (stored in a container, returned, or passed along as an argument) needs client presence; only *calls* to `def:pub` endpoints bridge over RPC. Drop `:pub` so the function is pulled client-side, or restructure so the client stores data instead of the function. See [Placement](placement.md) for the full model.
 
 ---
 

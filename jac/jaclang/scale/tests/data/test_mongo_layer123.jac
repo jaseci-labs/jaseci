@@ -684,7 +684,7 @@ test "_put_node_atomic written document round-trips correctly after fix (issue #
     reloaded_edges = cast(NodeAnchor, reloaded).edges;
     edge_ids = [str(e.id) if e?.id else str(e) for e in reloaded_edges];
     assert fake_edge_id in edge_ids
-    or any(fake_edge_id in str(e) for e in reloaded_edges) , (
+        or any(fake_edge_id in str(e) for e in reloaded_edges) , (
         f"added edge must appear in reloaded anchor's edges; got: {reloaded_edges}"
     );
 

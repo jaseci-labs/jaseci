@@ -1,38 +1,25 @@
 import from typing { Any }
-import from jaclang.runtimelib.client { BUN_VERSION }
 import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
-import from jaclang.scale.config.app_config { AppConfig }
-import from jaclang.scale.models.deployment_result { DeploymentResult }
 import from jaclang.scale.models.resource_status { ResourceStatus, ResourceStatusInfo }
+import from jaclang.scale.models.progress { EventSink, NoopSink, ProgressEvent }
 import from jaclang.scale.observability.logger { Logger }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.injector.pvc_injector { PvcInjector, bundle_pvc_name }
-import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
-    build_bootstrap_init_container,
-    runtime_container_env
-}
+import from jaclang.scale.injector.pvc_injector { bundle_pvc_name }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     COMPANION_DEFS,
-    check_deployment_status,
-    check_pods_restarted,
     create_k8s_secret,
     delete_k8s_secret,
     delete_if_exists,
     delete_namespace,
     check_K8s_status,
     ensure_namespace_exists,
-    ensure_pvc_exists,
     get_cluster_provider,
-    load_env_variables,
-    validate_resource_limits,
     resize_pvc_if_needed
 }
-import from jaclang.scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
 import from jaclang.scale.deploy.database.kubernetes_mongo { KubernetesMongoProvider }
 import from jaclang.scale.deploy.database.kubernetes_redis { KubernetesRedisProvider }
-import from jaclang.scale._optdeps.optional_deps { require_optional }
 import from jaclang.scale._optdeps.kubernetes {
     client,
     config as k8s_cluster_config,
@@ -43,23 +30,71 @@ import from jaclang.scale.deploy.database.factory { DatabaseProviderFactory }
 import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
 import from jaclang.scale.deploy.target.kubernetes.ingress { IngressDeployer }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
-import from jaclang.scale.deploy.autoscale.autoscaler {
-    AutoscalerSpec,
-    Trigger,
-    TriggerAuth
-}
 import time;
 
-obj KubernetesTarget(DeploymentTarget) {
+obj KubernetesTargetBase(DeploymentTarget) {
     has config: KubernetesConfig,
         logger: (Logger | None) = None,
         k8s_config: KubernetesConfig postinit,
         env_list: list = [],
         secrets: dict[str, str] = {},
+        env: dict[str, str] = {},
+        events: EventSink = NoopSink(),
         dry_run: bool = False;
 
     def postinit {
         self.k8s_config = self.config;
+    }
+
+    def _emit(
+        phase: str,
+        status: str,
+        message: str,
+        step: str = "",
+        detail: dict[str, any] = {}
+    ) {
+        self.events.emit(
+            ProgressEvent(
+                phase=phase, step=step, status=status, message=message, detail=detail
+            )
+        );
+    }
+
+    def _owner_labels -> dict[str, str] {
+        return {
+            str(k): str(v) for (k, v) in dict(self.k8s_config.labels or {}).items()
+        };
+    }
+
+    def _load_cluster_config {
+        kubeconfig_failed: bool = False;
+        try {
+            k8s_cluster_config.load_kube_config(
+                context=(self.k8s_config.kube_context or None)
+            );
+        } except ConfigException {
+            kubeconfig_failed = True;
+        }
+        if not kubeconfig_failed {
+            return;
+        }
+        try {
+            k8s_cluster_config.load_incluster_config();
+        } except ConfigException as e {
+            raise ConfigException(
+                "Could not load Kubernetes config from either kubeconfig "
+                "or in-cluster ServiceAccount.\n"
+                "If you're deploying from a laptop:\n"
+                "  - Start a local cluster:  minikube start\n"
+                "  - Verify kubectl works:   kubectl get nodes\n"
+                "  - For a remote cluster:   set KUBECONFIG or run "
+                "`aws eks update-kubeconfig` / `gcloud container clusters get-credentials`\n"
+                "If you're deploying from inside a pod, the pod needs a "
+                "ServiceAccount with cluster API access (the default "
+                "ServiceAccount usually does, but a restricted one may not).\n"
+                f"Original error from in-cluster load: {e}"
+            );
+        }
     }
 
     def _get_database_init_containers(app_name: str) -> list[dict[(str, Any)]] {
@@ -87,176 +122,6 @@ obj KubernetesTarget(DeploymentTarget) {
         }
 
         return init_containers;
-    }
-
-    def _build_resource_config -> dict[(str, Any)] {
-        resource_requests: dict[(str, str)] = {};
-        if self.k8s_config.cpu_request {
-            resource_requests['cpu'] = self.k8s_config.cpu_request;
-        }
-        if self.k8s_config.memory_request {
-            resource_requests['memory'] = self.k8s_config.memory_request;
-        }
-
-        resource_limits: dict[(str, str)] = {};
-        if self.k8s_config.cpu_limit {
-            resource_limits['cpu'] = self.k8s_config.cpu_limit;
-        }
-        if self.k8s_config.memory_limit {
-            resource_limits['memory'] = self.k8s_config.memory_limit;
-        }
-
-        resources: dict[(str, dict)] = {};
-        if resource_requests {
-            resources['requests'] = resource_requests;
-        }
-        if resource_limits {
-            resources['limits'] = resource_limits;
-        }
-
-        return resources;
-    }
-
-    def _build_probe_config(health_check_path: str) -> dict[(str, Any)] {
-        probe_config = {
-            'httpGet': {
-                'path': health_check_path,
-                'port': self.k8s_config.container_port,
-                'scheme': 'HTTP'
-            },
-            'initialDelaySeconds': self.k8s_config.readiness_initial_delay,
-            'periodSeconds': self.k8s_config.readiness_period
-        };
-
-        liveness_probe = dict(probe_config);
-        liveness_probe['initialDelaySeconds'] = self.k8s_config.liveness_initial_delay;
-        liveness_probe['periodSeconds'] = self.k8s_config.liveness_period;
-        liveness_probe['failureThreshold'] = self.k8s_config.liveness_failure_threshold;
-
-        startup_probe = {
-            'httpGet': {
-                'path': health_check_path,
-                'port': self.k8s_config.container_port,
-                'scheme': 'HTTP'
-            },
-            'initialDelaySeconds': 10,
-            'periodSeconds': 10,
-            'failureThreshold': 90
-        };
-
-        return {
-            'readiness': probe_config,
-            'liveness': liveness_probe,
-            'startup': startup_probe
-        };
-    }
-
-    def _build_service_config(
-        app_name: str, health_check_path: str
-    ) -> dict[(str, Any)] {
-        service = {
-            'apiVersion': 'v1',
-            'kind': 'Service',
-            'metadata': {
-                'name': f"{app_name}-service",
-                'namespace': self.k8s_config.namespace,
-                'labels': {'app': app_name, 'managed': 'jac-scale'}
-            },
-            'spec': {
-                'type': 'ClusterIP',
-                'ports': [
-                    {
-                        'protocol': 'TCP',
-                        'port': self.k8s_config.container_port,
-                        'targetPort': self.k8s_config.container_port
-                    }
-                ],
-                'selector': {'app': app_name}
-            }
-        };
-
-        return service;
-    }
-
-    def _build_runtime_setup_command(app_config: AppConfig) -> list[str] {
-        import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
-            build_service_apt_prefix
-        }
-        apt_prefix = build_service_apt_prefix(self.k8s_config);
-        commands = [
-            f"cd {self.k8s_config.app_mount_path}",
-            f"jac start {app_config.file_name}"
-        ];
-        script = ' && '.join(commands);
-        return ['bash', '-c', apt_prefix + script];
-    }
-
-    def _build_container_config(
-        app_name: str,
-        image: str,
-        probe_configs: dict[(str, Any)],
-        resources_config: dict[(str, Any)],
-        command: (list[str] | None) = None,
-        working_dir: (str | None) = None,
-        volume_mounts: (list[dict[(str, Any)]] | None) = None,
-        secret_ref_name: (str | None) = None,
-        needs_root: bool = False
-    ) -> dict[(str, Any)] {
-        if needs_root {
-            security_context = {
-                'readOnlyRootFilesystem': False,
-                'allowPrivilegeEscalation': False,
-                'capabilities': {
-                    'drop': ['ALL'],
-                    'add': [
-                        'CHOWN',
-                        'DAC_OVERRIDE',
-                        'FOWNER',
-                        'FSETID',
-                        'SETUID',
-                        'SETGID'
-                    ]
-                },
-                'seccompProfile': {'type': 'RuntimeDefault'}
-            };
-        } else {
-            security_context = {
-                'runAsNonRoot': True,
-                'runAsUser': 1000,
-                'readOnlyRootFilesystem': True,
-                'allowPrivilegeEscalation': False,
-                'capabilities': {'drop': ['ALL']},
-                'seccompProfile': {'type': 'RuntimeDefault'}
-            };
-        }
-        container_config = {
-            'name': app_name,
-            'image': image,
-            'securityContext': security_context,
-            'ports': [{'containerPort': self.k8s_config.container_port}],
-            'env': self.env_list,
-            'readinessProbe': probe_configs['readiness'],
-            'livenessProbe': probe_configs['liveness'],
-            'startupProbe': probe_configs['startup']
-        };
-
-        if secret_ref_name {
-            container_config['envFrom'] = [{'secretRef': {'name': secret_ref_name}}];
-        }
-        if command {
-            container_config['command'] = command;
-        }
-        if working_dir {
-            container_config['workingDir'] = working_dir;
-        }
-        if volume_mounts {
-            container_config['volumeMounts'] = volume_mounts;
-        }
-        if resources_config {
-            container_config['resources'] = resources_config;
-        }
-
-        return container_config;
     }
 
     def _deploy_databases(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
@@ -520,6 +385,19 @@ obj KubernetesTarget(DeploymentTarget) {
                 core_v1.read_namespaced_service(
                     name=redis_service_name, namespace=namespace
                 );
+
+                core_v1.patch_namespaced_service(
+                    name=redis_service_name,
+                    namespace=namespace,
+                    body={
+                        'metadata': {
+                            'labels': {
+                                ** redis_result['service']['metadata']['labels'],
+                                'managed-by': None
+                            }
+                        }
+                    }
+                );
             } except ApiException as e {
                 if (e.status == 404) {
                     core_v1.create_namespaced_service(
@@ -573,37 +451,6 @@ obj KubernetesTarget(DeploymentTarget) {
         }
     }
 
-    def _create_service_account(
-        sa_name: str, app_label: str, namespace: str, core_v1: any
-    ) {
-        sa_body = {
-            'apiVersion': 'v1',
-            'kind': 'ServiceAccount',
-            'metadata': {
-                'name': sa_name,
-                'namespace': namespace,
-                'labels': {'app': app_label, 'managed': 'jac-scale'}
-            },
-            'automountServiceAccountToken': False
-        };
-        try {
-            core_v1.read_namespaced_service_account(name=sa_name, namespace=namespace);
-        } except ApiException as e {
-            if e.status == 404 {
-                core_v1.create_namespaced_service_account(
-                    namespace=namespace, body=sa_body
-                );
-                if self.logger {
-                    self.logger.info(
-                        f"Created ServiceAccount '{sa_name}' in namespace '{namespace}'"
-                    );
-                }
-            } else {
-                raise;
-            }
-        }
-    }
-
     def _apply_provider_service_account(
         sa_spec: dict[str, any], namespace: str, core_v1: any
     ) {
@@ -624,660 +471,6 @@ obj KubernetesTarget(DeploymentTarget) {
             } else {
                 raise;
             }
-        }
-    }
-
-    def _deploy_network_policy(app_name: str, namespace: str, networking_v1: any) {
-        common_egress_rules = [
-            {
-                'to': [
-                    {
-                        'namespaceSelector': {
-                            'matchLabels': {
-                                'kubernetes.io/metadata.name': 'kube-system'
-                            }
-                        }
-                    }
-                ],
-                'ports': [
-                    {'protocol': 'UDP', 'port': 53},
-                    {'protocol': 'TCP', 'port': 53}
-                ]
-            },
-            {'to': [{'podSelector': {}}]},
-            {
-                'ports': [
-                    {'protocol': 'TCP', 'port': 443},
-                    {'protocol': 'TCP', 'port': 80}
-                ]
-            }
-        ];
-
-        policies = [
-            {
-                'name': f"{app_name}-network-policy",
-                'pod_selector': {'matchLabels': {'app': app_name}},
-                'ingress_rules': [
-                    {
-                        'ports': [
-                            {'protocol': 'TCP', 'port': self.k8s_config.container_port}
-                        ]
-                    }
-                ]
-            },
-            {
-                'name': f"{app_name}-mongodb-network-policy",
-                'pod_selector': {'matchLabels': {'app': f"{app_name}-mongodb"}},
-                'ingress_rules': [
-                    {
-                        'from': [
-                            {'podSelector': {'matchLabels': {'app': app_name}}},
-                            {
-                                'podSelector': {
-                                    'matchLabels': {'app': f"{app_name}-mongo-express"}
-                                }
-                            }
-                        ],
-                        'ports': [{'protocol': 'TCP', 'port': 27017}]
-                    }
-                ]
-            },
-            {
-                'name': f"{app_name}-redis-network-policy",
-                'pod_selector': {'matchLabels': {'app': f"{app_name}-redis"}},
-                'ingress_rules': [
-                    {
-                        'from': [
-                            {'podSelector': {'matchLabels': {'app': app_name}}},
-                            {
-                                'podSelector': {
-                                    'matchLabels': {'app': f"{app_name}-redis-insight"}
-                                }
-                            }
-                        ],
-                        'ports': [{'protocol': 'TCP', 'port': 6379}]
-                    }
-                ]
-            },
-            {
-                'name': f"{app_name}-prometheus-network-policy",
-                'pod_selector': {'matchLabels': {'app': f"{app_name}-prometheus"}},
-                'ingress_rules': [
-                    {
-                        'from': [
-                            {
-                                'podSelector': {
-                                    'matchLabels': {'app': f"{app_name}-grafana"}
-                                }
-                            },
-                            {'podSelector': {'matchLabels': {'app': app_name}}}
-                        ],
-                        'ports': [{'protocol': 'TCP', 'port': 9090}]
-                    }
-                ]
-            },
-            {
-                'name': f"{app_name}-grafana-network-policy",
-                'pod_selector': {'matchLabels': {'app': f"{app_name}-grafana"}},
-                'ingress_rules': [{'ports': [{'protocol': 'TCP', 'port': 3000}]}]
-            },
-            {
-                'name': f"{app_name}-kube-state-metrics-network-policy",
-                'pod_selector': {
-                    'matchLabels': {'app': f"{app_name}-kube-state-metrics"}
-                },
-                'ingress_rules': [
-                    {
-                        'from': [
-                            {
-                                'podSelector': {
-                                    'matchLabels': {'app': f"{app_name}-prometheus"}
-                                }
-                            }
-                        ],
-                        'ports': [{'protocol': 'TCP', 'port': 8080}]
-                    }
-                ]
-            },
-            {
-                'name': f"{app_name}-node-exporter-network-policy",
-                'pod_selector': {'matchLabels': {'app': f"{app_name}-node-exporter"}},
-                'ingress_rules': [
-                    {
-                        'from': [
-                            {
-                                'podSelector': {
-                                    'matchLabels': {'app': f"{app_name}-prometheus"}
-                                }
-                            }
-                        ],
-                        'ports': [{'protocol': 'TCP', 'port': 9100}]
-                    }
-                ]
-            },
-            {
-                'name': f"{app_name}-mongo-express-network-policy",
-                'pod_selector': {'matchLabels': {'app': f"{app_name}-mongo-express"}},
-                'ingress_rules': [{'ports': [{'protocol': 'TCP', 'port': 8081}]}]
-            },
-            {
-                'name': f"{app_name}-redis-insight-network-policy",
-                'pod_selector': {'matchLabels': {'app': f"{app_name}-redis-insight"}},
-                'ingress_rules': [{'ports': [{'protocol': 'TCP', 'port': 5540}]}]
-            }
-        ];
-
-        for policy_config in policies {
-            network_policy = {
-                'apiVersion': 'networking.k8s.io/v1',
-                'kind': 'NetworkPolicy',
-                'metadata': {
-                    'name': policy_config['name'],
-                    'namespace': namespace,
-                    'labels': {'app': app_name, 'managed': 'jac-scale'}
-                },
-                'spec': {
-                    'podSelector': policy_config['pod_selector'],
-                    'policyTypes': ['Ingress', 'Egress'],
-                    'ingress': policy_config['ingress_rules'],
-                    'egress': common_egress_rules
-                }
-            };
-
-            try {
-                networking_v1.read_namespaced_network_policy(
-                    name=policy_config['name'], namespace=namespace
-                );
-                networking_v1.replace_namespaced_network_policy(
-                    name=policy_config['name'], namespace=namespace, body=network_policy
-                );
-            } except ApiException as e {
-                if e.status == 404 {
-                    networking_v1.create_namespaced_network_policy(
-                        namespace=namespace, body=network_policy
-                    );
-                    if self.logger {
-                        self.logger.info(
-                            f"Created NetworkPolicy '{policy_config[
-                                'name'
-                            ]}' in namespace '{namespace}'"
-                        );
-                    }
-                } else {
-                    raise;
-                }
-            }
-        }
-    }
-
-    def _wait_for_deployment(
-        app_name: str, namespace: str, health_check_path: str, provider: ClusterProvider
-    ) -> str {
-        path = health_check_path;
-        deployment_details = "";
-
-        if self.k8s_config.shared_ingress {
-            if self.k8s_config.shared_ingress_skip_reachability {
-                if self.logger {
-                    self.logger.info(
-                        f"Shared ingress mode: skipping reachability probe for "
-                        f"'{self.k8s_config.domain}' (DNS is pointed post-deploy)."
-                    );
-                }
-
-                if check_pods_restarted(namespace, app_name) {
-                    raise Exception(
-                        "Deployment failed: application pods are restarting "
-                        "(crash loop / bad image); not marking the deploy ready."
-                    );
-                }
-                return (
-                    "Shared ingress: reachability probe skipped (pods healthy); "
-                    "point DNS at the shared controller to finish DNS/TLS."
-                );
-            }
-            domain_url = f"http://{self.k8s_config.domain}";
-            if self.logger {
-                self.logger.info(
-                    f"Shared ingress mode: checking reachability at {domain_url}{path}"
-                );
-            }
-            (domain_status, domain_details) = check_deployment_status(
-                self.k8s_config.ingress_node_port,
-                path,
-                max_retries=48,
-                nlb_url=domain_url,
-                namespace=namespace,
-                app_name=app_name
-            );
-            if not domain_status {
-                if provider.needs_nlb_wait() {
-                    dns_hint = (
-                        f"Add a CNAME record for '{self.k8s_config.domain}' "
-                        "pointing to the shared ingress controller's NLB hostname."
-                    );
-                } else {
-                    dns_hint = (
-                        f"Add an A record for '{self.k8s_config.domain}' "
-                        "pointing to the shared ingress controller's node IP."
-                    );
-                }
-                if self.logger {
-                    self.logger.warn(
-                        f"Health check against '{domain_url}{path}' did not succeed. "
-                        "This is expected if DNS has not propagated yet. "
-                        f"The application pods are healthy. {dns_hint}"
-                    );
-                }
-
-                return (
-                    f"Warning: DNS not propagated yet - health check skipped. {dns_hint}"
-                );
-            }
-            return domain_details;
-        }
-
-        if provider.needs_nlb_wait() {
-            time.sleep(self.k8s_config.aws_nlb_wait);
-            nlb_url = None;
-            try {
-                try {
-                    k8s_cluster_config.load_kube_config();
-                } except ConfigException {
-                    k8s_cluster_config.load_incluster_config();
-                }
-                core_v1 = client.CoreV1Api();
-
-                ingress_svc_name = f"{app_name}-ingress-nginx-service";
-                service_obj = core_v1.read_namespaced_service(
-                    ingress_svc_name, namespace
-                );
-                nlb_ingress = service_obj.status.load_balancer.ingress;
-                if (nlb_ingress and (len(nlb_ingress) > 0)) {
-                    endpoint = nlb_ingress[0].hostname or nlb_ingress[0].ip;
-                    nlb_url = f"http://{endpoint}";
-                } else {
-                    if self.logger {
-                        self.logger.info(
-                            f"NLB is being provisioned. Run 'kubectl get svc {ingress_svc_name} -n {namespace}' to get the endpoint."
-                        );
-                    }
-                }
-            } except Exception as e {
-                if self.logger {
-                    self.logger.warn(f"Could not retrieve NLB endpoint: {e}");
-                }
-            }
-            if (nlb_url) {
-                (deployment_status, deployment_details) = check_deployment_status(
-                    self.k8s_config.ingress_node_port,
-                    path,
-                    max_retries=48,
-                    nlb_url=nlb_url,
-                    namespace=namespace,
-                    app_name=app_name
-                );
-                if not (deployment_status) {
-                    raise Exception("Deployment failed: Application failed to deploy.");
-                }
-            }
-        } else {
-            (deployment_status, deployment_details) = check_deployment_status(
-                self.k8s_config.ingress_node_port,
-                path,
-                namespace=namespace,
-                app_name=app_name
-            );
-            if deployment_status is False {
-                raise Exception(f"Deployment failed: {deployment_details}");
-            }
-        }
-        return deployment_details;
-    }
-
-    def deploy(app_config: AppConfig) -> DeploymentResult {
-        app_name = app_config.app_name or self.k8s_config.app_name;
-        namespace = self.k8s_config.namespace;
-        success_status = False;
-        details = {};
-
-        if self.logger {
-            self.logger.info(
-                f"Deploying application '{app_name}' to Kubernetes",
-                {'namespace': namespace}
-            );
-        }
-        import from jaclang.scale.injector.binary { resolve_pod_base_image }
-        self.k8s_config.python_image = resolve_pod_base_image(
-            app_config.code_folder, self.k8s_config.python_image
-        );
-
-        try {
-            validate_resource_limits(
-                self.k8s_config.cpu_request,
-                self.k8s_config.cpu_limit,
-                self.k8s_config.memory_request,
-                self.k8s_config.memory_limit
-            );
-            details["validate_resource_limits"] = "Successful";
-            if self.k8s_config.shared_ingress and not self.k8s_config.domain {
-                raise Exception(
-                    "shared_ingress=True requires 'domain' to be set so the shared controller "
-                    "can route requests by host. Set 'domain' in KubernetesConfig "
-                    "(e.g. myapp.example.com)."
-                );
-            }
-            details["validate_shared_ingress"] = "Successful";
-
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
-            apps_v1 = client.AppsV1Api();
-            core_v1 = client.CoreV1Api();
-            networking_v1 = client.NetworkingV1Api();
-            check_K8s_status();
-            ensure_namespace_exists(namespace);
-
-            self.env_list = load_env_variables(app_config.code_folder);
-
-            self.env_list.append({"name": "K8S_APP_NAME", "value": app_name});
-            self.env_list.append({"name": "K8S_NAMESPACE", "value": namespace});
-            details["load_env_variables"] = "Successful";
-
-            secret_ref_name: str | None = None;
-            if self.secrets {
-                secret_ref_name = f"{app_name}-secrets";
-                if create_k8s_secret(
-                    core_v1, namespace, secret_ref_name, self.secrets
-                ) {
-                    if self.logger {
-                        self.logger.info(f"Created K8s Secret '{secret_ref_name}'");
-                    }
-                } else {
-                    secret_ref_name = None;
-                }
-            }
-
-            provider = get_cluster_provider();
-
-            if not self.k8s_config.shared_ingress {
-                provider.validate_ports(
-                    node_port=self.k8s_config.ingress_node_port,
-                    current_namespace=namespace
-                );
-            }
-
-            health_check_path = self.k8s_config.health_check_path;
-
-            init_containers = self._get_database_init_containers(app_name);
-
-            resources_config = self._build_resource_config();
-            probe_configs = self._build_probe_config(health_check_path);
-
-            import from jaclang.scale.injector.binary_injector { select_injector }
-            (injector, _tc_key) = select_injector(
-                self.k8s_config.bundle_storage_class,
-                app_name,
-                namespace,
-                app_config.code_folder,
-                provisioned_database=(
-                    "mongo" if self.k8s_config.mongodb_enabled else ""
-                )
-            );
-            ensure_pvc_exists(
-                core_v1,
-                namespace,
-                bundle_pvc_name(app_name),
-                injector.size,
-                storage_class=injector.storage_class or None,
-                access_mode='ReadWriteMany'
-            );
-            injector.seed(app_name, namespace);
-            details["ship_source_bundle"] = "Successful";
-
-            command = self._build_runtime_setup_command(app_config);
-            container_config = self._build_container_config(
-                app_name,
-                self.k8s_config.python_image,
-                probe_configs,
-                resources_config,
-                command=command,
-                working_dir=self.k8s_config.app_mount_path,
-                secret_ref_name=secret_ref_name,
-                needs_root=True
-            );
-            container_config['env'] = container_config['env'] + runtime_container_env();
-            import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
-                image_pull_policy
-            }
-            pull_policy = image_pull_policy(self.k8s_config.python_image);
-            if pull_policy {
-                container_config['imagePullPolicy'] = pull_policy;
-            }
-
-            app_sa_name = f"{app_name}-sa";
-            self._create_service_account(app_sa_name, app_name, namespace, core_v1);
-            details["create_service_account"] = "Successful";
-
-            service = self._build_service_config(app_name, health_check_path);
-            deployment = {
-                'apiVersion': 'apps/v1',
-                'kind': 'Deployment',
-                'metadata': {
-                    'name': app_name,
-                    'namespace': namespace,
-                    'labels': {'app': app_name, 'managed': 'jac-scale'}
-                },
-                'spec': {
-                    'replicas': 1,
-                    'selector': {'matchLabels': {'app': app_name}},
-                    'template': {
-                        'metadata': {'labels': {'app': app_name}},
-                        'spec': {
-                            'automountServiceAccountToken': False,
-                            'serviceAccountName': app_sa_name,
-                            'securityContext': {
-                                'seccompProfile': {'type': 'RuntimeDefault'}
-                            },
-                            'initContainers': init_containers,
-                            'containers': [container_config],
-                            'volumes': []
-                        }
-                    }
-                }
-            };
-
-            template_spec = deployment['spec']['template']['spec'];
-            template_spec['_jac_meta'] = {'app_name': app_name, 'namespace': namespace};
-            template_spec = injector.mutate_pod_spec(
-                template_spec, self.k8s_config.python_image
-            );
-            template_spec.pop('_jac_meta', None);
-
-            template_spec['initContainers'].append(
-                build_bootstrap_init_container(
-                    self.k8s_config, self.k8s_config.python_image
-                )
-            );
-            deployment['spec']['template']['spec'] = template_spec;
-
-            delete_if_exists(
-                apps_v1.delete_namespaced_deployment, app_name, namespace, 'Deployment'
-            );
-            details["delete_previous_existing_resources"] = "Successful";
-            time.sleep(self.k8s_config.resource_deletion_wait);
-
-            rbac_v1 = client.RbacAuthorizationV1Api();
-            networking_v1 = client.NetworkingV1Api();
-            ingress_deployer = IngressDeployer(self.k8s_config, self.logger);
-            ingress_deployer.start_controller(
-                app_name, namespace, provider, apps_v1, core_v1, rbac_v1, networking_v1
-            );
-
-            self._deploy_databases(app_name, namespace, apps_v1, core_v1);
-            details["deploy_databases"] = "Successful";
-
-            self._deploy_network_policy(app_name, namespace, networking_v1);
-            details["deploy_network_policy"] = "Successful";
-
-            if self.logger {
-                self.logger.info(f'Deploying Jaseci-app app...');
-            }
-            apps_v1.create_namespaced_deployment(namespace=namespace, body=deployment);
-            details["create_jaseci_application_deployment"] = "Successful";
-            try {
-                core_v1.read_namespaced_service(
-                    name=f"{app_name}-service", namespace=namespace
-                );
-            } except ApiException as e {
-                if (e.status == 404) {
-                    core_v1.create_namespaced_service(
-                        namespace=namespace, body=service
-                    );
-                } else {
-                    raise;
-                }
-            }
-            details["create_jaseci_application_service"] = "Successful";
-
-            triggers = [];
-            if not self.k8s_config.extra_triggers {
-                triggers = [
-                    Trigger(
-                        type="cpu",
-                        metadata={
-                            "averageUtilization": str(
-                                self.k8s_config.cpu_utilization_target
-                            )
-                        }
-                    )
-                ];
-
-                if self.k8s_config.memory_request {
-                    triggers.append(
-                        Trigger(
-                            type="memory",
-                            metadata={
-                                "averageUtilization": str(
-                                    self.k8s_config.memory_utilization_target
-                                )
-                            }
-                        )
-                    );
-                }
-            }
-            for raw in self.k8s_config.extra_triggers {
-                t = Trigger(
-                    type=str(raw.get("type", "")),
-                    metadata=dict(raw.get("metadata", {})),
-                    name=raw.get("name")
-                );
-                if t.type == "memory" and not self.k8s_config.memory_request {
-                    if self.logger {
-                        self.logger.warn(
-                            "Skipping 'memory' trigger: memory_request is unset; "
-                            "HPA cannot compute memory utilization without a "
-                            "request baseline"
-                        );
-                    }
-                    continue;
-                }
-                raw_auth = raw.get("auth");
-                if raw_auth {
-                    t.auth = TriggerAuth(
-                        secret_refs=dict(raw_auth.get("secret_refs", {}))
-                    );
-                }
-                triggers.append(t);
-            }
-            autoscaler_applied = AutoscalerFactory.create(
-                self.k8s_config.autoscaler_engine,
-                self.k8s_config.to_dict(),
-                self.logger
-            ).apply(
-                AutoscalerSpec(
-                    scale_target_name=app_name,
-                    namespace=namespace,
-                    min_replicas=self.k8s_config.min_replicas,
-                    max_replicas=self.k8s_config.max_replicas,
-                    idle_replicas=self.k8s_config.idle_replicas,
-                    polling_interval=self.k8s_config.autoscaler_polling_interval,
-                    cooldown_period=self.k8s_config.autoscaler_cooldown,
-                    initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
-                    scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
-                    scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
-                    triggers=triggers
-                )
-            );
-
-            details["create_horizontal_auto_scaler"] = "Successful"
-                if autoscaler_applied
-                else "Skipped: autoscaler engine not available on cluster";
-
-            monitoring = MonitoringDeployer(self.k8s_config, self.logger);
-            monitoring.deploy(app_name, namespace, apps_v1, core_v1, provider);
-            details["deploy_monitoring"] = "Successful";
-
-            ingress_deployer.finish_ingress(
-                app_name,
-                namespace,
-                self.k8s_config.container_port,
-                self.k8s_config.monitoring_enabled,
-                self.k8s_config.redis_dashboard,
-                self.k8s_config.mongodb_dashboard,
-                apps_v1,
-                core_v1,
-                networking_v1
-            );
-            details["deploy_ingress"] = "Successful";
-
-            deployment_details = self._wait_for_deployment(
-                app_name, namespace, health_check_path, provider
-            );
-            details["health_check_of_deployment"] = deployment_details;
-            service_url = self.get_service_url(app_name);
-
-            if self.k8s_config.domain {
-                lb_endpoint = self._get_lb_endpoint(app_name);
-                if lb_endpoint and self.logger {
-                    import re;
-                    is_ip = bool(re.match(r'^\d+\.\d+\.\d+\.\d+$', lb_endpoint));
-                    record_type = "A" if is_ip else "CNAME";
-                    self.logger.info(f"\n{'=' * 62}");
-                    self.logger.info(
-                        f"ACTION REQUIRED - add a {record_type} record in your DNS provider:"
-                    );
-                    self.logger.info(f"  Type   : {record_type}");
-                    self.logger.info(f"  Name   : {self.k8s_config.domain}");
-                    self.logger.info(f"  Value  : {lb_endpoint}");
-                    self.logger.info(
-                        f"\nAfter the record propagates, enable HTTPS with:"
-                    );
-                    self.logger.info(
-                        f"  jac start <your-app.jac> --scale --enable-tls"
-                    );
-                    self.logger.info(f"{'=' * 62}\n");
-                }
-            }
-
-            success_status = True;
-            return DeploymentResult(
-                success=success_status,
-                service_url=service_url,
-                message=f"Application '{app_name}' deployed successfully",
-                details=details
-            );
-        } except Exception as e {
-            if self.logger {
-                self.logger.error(f"Error deploying application '{app_name}': {e}");
-            }
-            return DeploymentResult(
-                success=success_status,
-                message=f"Deployment failed for application '{app_name}': {e}",
-                details=details
-            );
         }
     }
 
@@ -1648,11 +841,7 @@ obj KubernetesTarget(DeploymentTarget) {
         }
 
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             apps_v1 = client.AppsV1Api();
             core_v1 = client.CoreV1Api();
             namespace = self.k8s_config.namespace;
@@ -1750,11 +939,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     def get_status(app_name: str) -> ResourceStatusInfo {
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             apps_v1 = client.AppsV1Api();
             core_v1 = client.CoreV1Api();
             namespace = self.k8s_config.namespace;
@@ -1793,11 +978,7 @@ obj KubernetesTarget(DeploymentTarget) {
         }
 
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             apps_v1 = client.AppsV1Api();
             namespace = self.k8s_config.namespace;
 
@@ -1825,11 +1006,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     def _get_lb_endpoint(app_name: str) -> (str | None) {
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             namespace = self.k8s_config.namespace;
 
             if self.k8s_config.shared_ingress {
@@ -1864,11 +1041,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     def get_service_url(app_name: str) -> (str | None) {
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             namespace = self.k8s_config.namespace;
 
             if self.k8s_config.domain {
@@ -1912,11 +1085,7 @@ obj KubernetesTarget(DeploymentTarget) {
             self.logger.info(f"Enabling TLS for '{app_name}'...");
         }
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             namespace = self.k8s_config.namespace;
             networking_v1 = client.NetworkingV1Api();
             custom_api = client.CustomObjectsApi();
@@ -2004,11 +1173,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     def get_full_status(app_name: str) -> dict {
         try {
-            try {
-                k8s_cluster_config.load_kube_config();
-            } except ConfigException {
-                k8s_cluster_config.load_incluster_config();
-            }
+            self._load_cluster_config();
             apps_v1 = client.AppsV1Api();
             core_v1 = client.CoreV1Api();
         } except Exception as e {
