@@ -332,7 +332,7 @@ impl CFGBuildPass._connect_tails(parent: uni.UniNode, target: uni.UniCFGNode) ->
         if isinstance(
             k, (uni.WhileStmt, uni.ForeverStmt, uni.InForStmt, uni.IterForStmt)
         ) {
-            if not k.bb_out and not self._is_terminal(k) {
+            if not self._is_terminal(k) and not isinstance(k, uni.ForeverStmt) {
                 self.link_bbs(k, target);
             }
             continue;
@@ -428,29 +428,27 @@ impl CFGBuildPass._patch_inner_bool(
     my_false: (uni.UniCFGNode | None)
 ) -> None {
     inner_is_and = _bool_is_and(nested);
-    last = nested.values[-1];
-    for iv in nested.values {
-        if inner_is_and {
-            iv.sc_false_target = my_false;
-            if my_false {
-                self.link_bbs(iv, my_false);
-            }
-        } else {
-            iv.sc_true_target = my_true;
-            if my_true {
-                self.link_bbs(iv, my_true);
-            }
-        }
+    n = len(nested.values);
+
+    entries: list[uni.CfgExpr] = [];
+    for cfg in nested.values {
+        deeper = _unwrap_to_bool(cfg);
+        entries.append(
+            deeper.values[0] if (deeper and len(deeper.values) >= 2) else cfg
+        );
     }
-    if inner_is_and {
-        last.sc_true_target = my_true;
-        if my_true {
-            self.link_bbs(last, my_true);
-        }
-    } else {
-        last.sc_false_target = my_false;
-        if my_false {
-            self.link_bbs(last, my_false);
+
+    for i in range(n) {
+        iv = nested.values[i];
+        next_entry = entries[i + 1] if i < n - 1 else None;
+        iv_true = (next_entry or my_true) if inner_is_and else my_true;
+        iv_false = my_false if inner_is_and else (next_entry or my_false);
+        deeper = _unwrap_to_bool(iv);
+        if deeper and len(deeper.values) >= 2 {
+            self._patch_inner_bool(deeper, iv_true, iv_false);
+            self.link_bbs(iv, entries[i]);
+        } else {
+            self._set_and_link(iv, iv_true, iv_false);
         }
     }
 }
