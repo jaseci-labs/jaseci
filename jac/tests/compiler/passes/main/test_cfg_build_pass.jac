@@ -312,12 +312,12 @@ test "cfg boolean short circuit" {
         + "  0 -> 1;\n"
         + '  1 -> 2 [label="T"];\n'
         + '  1 -> 3 [label="F"];\n'
-        + '  2 -> 3 [label="F"];\n'
         + '  2 -> 5 [label="T"];\n'
+        + '  2 -> 3 [label="F"];\n'
         + '  3 -> 4 [label="T"];\n'
         + '  3 -> 6 [label="F"];\n'
-        + '  4 -> 6 [label="F"];\n'
         + '  4 -> 5 [label="T"];\n'
+        + '  4 -> 6 [label="F"];\n'
         + "  5 -> 6;\n"
         + "  6 -> 7;\n"
         + '  7 -> 8 [label="F"];\n'
