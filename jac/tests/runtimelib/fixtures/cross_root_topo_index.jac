@@ -31,8 +31,8 @@ edge Member {}
 
 
 walker:priv setup_profile_only {
-    has username: str = "";
-    has reports: list = [];
+    has username: str = "",
+        reports: list = [];
 
     can run with Root entry {
         existing = [-->[?:Profile]];
@@ -40,7 +40,7 @@ walker:priv setup_profile_only {
             visit existing;
         } else {
             fresh = here ++> Profile(username=self.username);
-            grant(fresh, level=ConnectPerm);
+            grant(fresh, level=AccessLevel.CONNECT);
             visit fresh;
         }
     }
@@ -54,8 +54,8 @@ walker:priv setup_profile_only {
 }
 
 walker:priv post_tweet {
-    has content: str = "";
-    has reports: list = [];
+    has content: str = "",
+        reports: list = [];
 
     can run with Root entry {
         visit [-->[?:Profile]];
@@ -63,15 +63,15 @@ walker:priv post_tweet {
 
     can make with Profile entry {
         tweet = Tweet(content=self.content);
-        here +>: Post() :+> tweet;
-        grant(tweet, level=ConnectPerm);
+        here +>:Post():+> tweet;
+        grant(tweet, level=AccessLevel.CONNECT);
         report jid(tweet);
     }
 }
 
 walker:priv create_channel {
-    has name: str = "";
-    has reports: list = [];
+    has name: str = "",
+        reports: list = [];
 
     can run with Root entry {
         visit [-->[?:Profile]];
@@ -79,38 +79,38 @@ walker:priv create_channel {
 
     can make with Profile entry {
         chan = Channel(name=self.name);
-        here +>: Member() :+> chan;
-        grant(chan, level=ConnectPerm);
+        here +>:Member():+> chan;
+        grant(chan, level=AccessLevel.CONNECT);
         report jid(chan);
     }
 }
 
 walker:priv follow_target {
-    has target_id: str = "";
-    has reports: list = [];
+    has target_id: str = "",
+        reports: list = [];
 
     can run with Root entry {
         visit [-->[?:Profile]];
     }
 
     can act with Profile entry {
-        target_profile = & (self.target_id);
-        here +>: Follow() :+> target_profile;
+        target_profile = &(self.target_id);
+        here +>:Follow():+> target_profile;
         report "ok";
     }
 }
 
 walker:priv join_channel {
-    has channel_id: str = "";
-    has reports: list = [];
+    has channel_id: str = "",
+        reports: list = [];
 
     can run with Root entry {
         visit [-->[?:Profile]];
     }
 
     can act with Profile entry {
-        chan = & (self.channel_id);
-        here +>: Member() :+> chan;
+        chan = &(self.channel_id);
+        here +>:Member():+> chan;
         report "ok";
     }
 }
@@ -132,11 +132,11 @@ walker:priv query_follow_chain {
 }
 
 walker:priv query_channel_members {
-    has channel_id: str = "";
-    has reports: list = [];
+    has channel_id: str = "",
+        reports: list = [];
 
     can run with Root entry {
-        chan = & (self.channel_id);
+        chan = &(self.channel_id);
         members = [chan<-:Member:<-[?:Profile]];
         report len(members);
     }

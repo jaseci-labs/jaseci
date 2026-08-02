@@ -34,11 +34,11 @@ def _make_broker(
         "url": REDIS_URI,
         "consumer_group": group,
         "retry": retry
-        or {
-            "max_attempts": 3,
-            "backoff_seconds": [0.01, 0.01, 0.01],
-            "dead_letter_suffix": ".dlq"
-        }
+            or {
+                "max_attempts": 3,
+                "backoff_seconds": [0.01, 0.01, 0.01],
+                "dead_letter_suffix": ".dlq"
+            }
     };
     b = RedisEventStream(config=cfg);
     b.start();

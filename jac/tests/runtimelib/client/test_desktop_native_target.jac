@@ -313,7 +313,7 @@ test "host bootstrap modules import + run from the fused runtime" {
         # oauth_broker + inprocess_dispatch resolve from the runtime too (no staging).
         assert hasattr(oauth_broker, "make_handler") , "oauth_broker must import from the runtime";
         assert hasattr(inprocess_dispatch, "boot")
-        and hasattr(inprocess_dispatch, "forward") , "inprocess_dispatch must import from the runtime";
+            and hasattr(inprocess_dispatch, "forward") , "inprocess_dispatch must import from the runtime";
     } finally {
         sys.path[:] = _saved_path;
         for _k in list(sys.modules.keys()) {

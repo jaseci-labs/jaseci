@@ -27,28 +27,27 @@ def environ_py -> dict {
     };
 }
 
-cl def environ_cl -> dict {
+def environ_cl -> dict {
     return {};
 }
 
-na {
-    def environ_na -> dict[str, any] {
-        os.environ["JAC_ENVFIX_A"] = "alpha";
-        got = os.environ.get("JAC_ENVFIX_A", "");
-        missing = os.environ.get("JAC_ENVFIX_MISSING", "fallback");
-        nested = os.environ.get(
-            "JAC_ENVFIX_MISSING", os.environ.get("JAC_ENVFIX_A", "inner")
-        );
-        os.environ.pop("JAC_ENVFIX_A", None);
-        after_pop = os.environ.get("JAC_ENVFIX_A", "gone");
-        popped_missing = os.environ.pop("JAC_ENVFIX_MISSING", None);
-        return {
-            "got": got,
-            "missing": missing,
-            "nested": nested,
-            "after_pop": after_pop,
-            "popped_missing_none": popped_missing is None,
 
-        };
-    }
+def environ_na -> dict[str, any] {
+    os.environ["JAC_ENVFIX_A"] = "alpha";
+    got = os.environ.get("JAC_ENVFIX_A", "");
+    missing = os.environ.get("JAC_ENVFIX_MISSING", "fallback");
+    nested = os.environ.get(
+        "JAC_ENVFIX_MISSING", os.environ.get("JAC_ENVFIX_A", "inner")
+    );
+    os.environ.pop("JAC_ENVFIX_A", None);
+    after_pop = os.environ.get("JAC_ENVFIX_A", "gone");
+    popped_missing = os.environ.pop("JAC_ENVFIX_MISSING", None);
+    return {
+        "got": got,
+        "missing": missing,
+        "nested": nested,
+        "after_pop": after_pop,
+        "popped_missing_none": popped_missing is None,
+
+    };
 }

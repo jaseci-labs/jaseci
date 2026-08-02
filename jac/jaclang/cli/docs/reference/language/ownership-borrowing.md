@@ -30,7 +30,7 @@ with entry {
 }
 ```
 
-Assigning an `own` binding elsewhere, or passing it into a function call, a `return`, or a field, **moves** the value. After a move the source binding is considered dead; reading it again is a use-after-move ([`E1301`](../diagnostics.md#ownership-borrow-errors)). Reassigning the binding revives it:
+Assigning an `own` binding elsewhere, or passing it into a function call, a `return`, or a field, **moves** the value. After a move the source binding is considered dead; reading it again is a use-after-move ([`E1301`](../diagnostics.md#ownership-borrow-errors)). Reassigning the binding revives it. Read-only builtin methods (`find`, `startswith`, `split`, `join`, `replace`, `get`, `write`, ...) and native stdlib calls (`os`/`sys`/`time`/`math`/`random`/`struct`) are the exception: they borrow their owned receivers and arguments, so `i = hay.find(pat)` leaves both `hay` and `pat` live, and a str slice (`piece = hay[0:2]`) is a fresh copy that does not consume `hay`:
 
 ```jac
 with entry {
