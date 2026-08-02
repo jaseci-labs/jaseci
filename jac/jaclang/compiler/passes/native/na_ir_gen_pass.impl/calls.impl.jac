@@ -738,7 +738,6 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return None;
     }
 
-
     if func_name == "__float_bits" {
         params_l = nd.params or [];
         if params_l {
@@ -747,9 +746,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 if not isinstance(arg_val.type, ir.DoubleType) {
                     arg_val = self._coerce_type(arg_val, ir.DoubleType());
                 }
-                return self.builder.bitcast(
-                    arg_val, ir.IntType(64), name="float_bits"
-                );
+                return self.builder.bitcast(arg_val, ir.IntType(64), name="float_bits");
             }
         }
         return ir.Constant(ir.IntType(64), 0);
