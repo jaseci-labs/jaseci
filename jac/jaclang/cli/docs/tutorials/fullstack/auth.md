@@ -69,7 +69,7 @@ def:pub LoginPage() -> JsxElement {
         }
     }
 
-    return <div style={{"maxWidth": "400px", "margin": "0 auto", "padding": "2rem"}}>
+    <div style={{"maxWidth": "400px", "margin": "0 auto", "padding": "2rem"}}>
         <h2>Login</h2>
         <form onSubmit={handleLogin}>
             {error and <div style={{"color": "red", "marginBottom": "1rem"}}>{error}</div>}
@@ -98,7 +98,7 @@ def:pub LoginPage() -> JsxElement {
                 {loading and "Logging in..." or "Login"}
             </button>
         </form>
-    </div>;
+    </div>
 }
 ```
 
@@ -170,13 +170,13 @@ import from "@jac/runtime" { jacIsLoggedIn }
 def:pub NavBar() -> JsxElement {
     isLoggedIn = jacIsLoggedIn();
 
-    return <nav>
+    <nav>
         {isLoggedIn and (
             <button onClick={lambda -> None { handleLogout(); }}>Logout</button>
         ) or (
             <a href="/login">Login</a>
         )}
-    </nav>;
+    </nav>
 }
 ```
 
@@ -233,7 +233,7 @@ def:pub LoginPage() -> JsxElement {
         }
     }
 
-    return <div style={{"maxWidth": "400px", "margin": "2rem auto", "padding": "2rem"}}>
+    <div style={{"maxWidth": "400px", "margin": "2rem auto", "padding": "2rem"}}>
         <h2>Login</h2>
         <form onSubmit={handleLogin}>
             {error and <div style={{"color": "#dc2626", "marginBottom": "1rem"}}>{error}</div>}
@@ -278,7 +278,7 @@ def:pub LoginPage() -> JsxElement {
                 Need an account? <Link to="/signup">Sign up</Link>
             </p>
         </form>
-    </div>;
+    </div>
 }
 
 # === Signup Page ===
@@ -321,7 +321,7 @@ def:pub SignupPage() -> JsxElement {
         }
     }
 
-    return <div style={{"maxWidth": "400px", "margin": "2rem auto", "padding": "2rem"}}>
+    <div style={{"maxWidth": "400px", "margin": "2rem auto", "padding": "2rem"}}>
         <h2>Create Account</h2>
         <form onSubmit={handleSignup}>
             {error and <div style={{"color": "#dc2626", "marginBottom": "1rem"}}>{error}</div>}
@@ -376,7 +376,7 @@ def:pub SignupPage() -> JsxElement {
                 Already have an account? <Link to="/login">Login</Link>
             </p>
         </form>
-    </div>;
+    </div>
 }
 
 # === Protected Dashboard ===
@@ -399,7 +399,7 @@ def:pub Dashboard() -> JsxElement {
         return <p>Redirecting...</p>;
     }
 
-    return <div style={{"padding": "2rem"}}>
+    <div style={{"padding": "2rem"}}>
         <h1>Dashboard</h1>
         <p>Welcome! You are logged in.</p>
         <button
@@ -415,18 +415,18 @@ def:pub Dashboard() -> JsxElement {
         >
             Logout
         </button>
-    </div>;
+    </div>
 }
 
 # === Main App ===
 def:pub app() -> JsxElement {
-    return <Router>
+    <Router>
         <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
         </Routes>
-    </Router>;
+    </Router>
 }
 ```
 
@@ -441,9 +441,9 @@ import from "@jac/runtime" { AuthGuard, Outlet }
 
 # pages/(auth)/layout.jac - Protects all routes in (auth) group
 def:pub AuthShell() -> JsxLayout {
-    return <AuthGuard redirect="/login">
+    <AuthGuard redirect="/login">
         <Outlet />
-    </AuthGuard>;
+    </AuthGuard>
 }
 ```
 
@@ -501,9 +501,9 @@ def:pub AuthProvider(children: any = None) -> JsxElement {
         "logout": logout
     };
 
-    return <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={value}>
         {children}
-    </AuthContext.Provider>;
+    </AuthContext.Provider>
 }
 
 def useAuth() -> dict {

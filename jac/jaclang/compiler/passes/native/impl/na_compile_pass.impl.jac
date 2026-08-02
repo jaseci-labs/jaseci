@@ -117,7 +117,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         }
 
         _needs_osp_kernel = (manifest is not None)
-        and ("osp_kernel" in manifest.native_transitive_sources);
+            and ("osp_kernel" in manifest.native_transitive_sources);
         if (not _needs_osp_kernel) and self._references_undefined_osp_kernel(mod) {
             _needs_osp_kernel = True;
         }
@@ -127,7 +127,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         }
 
         _needs_fmt_kernel = (manifest is not None)
-        and ("fmt_kernel" in manifest.native_transitive_sources);
+            and ("fmt_kernel" in manifest.native_transitive_sources);
         if (not _needs_fmt_kernel) and self._references_undefined_fmt_kernel(mod) {
             _needs_fmt_kernel = True;
         }
@@ -405,33 +405,18 @@ impl NativeCompilePass._compile_and_link_native_imports(
             continue;
         }
 
-        if source_mod_path.endswith(".na") {
-            full_path = os.path.join(cur_base_dir, source_mod_path + ".jac");
-            if not os.path.exists(full_path) {
-                full_path = os.path.join(
-                    cur_base_dir, source_mod_path.replace(".na", ".na.jac")
-                );
-            }
-        } else {
+        if source_mod_path.endswith(".jac") {
             full_path = os.path.join(cur_base_dir, source_mod_path);
-            if not os.path.exists(full_path) {
-                na_path = os.path.join(cur_base_dir, source_mod_path + ".na.jac");
-                if os.path.exists(na_path) {
-                    full_path = na_path;
-                }
+        } else {
+            import from jaclang.jac0core.codeinfo {
+                resolve_native_module as _resolve_na
             }
-        }
-
-        if (not os.path.exists(full_path)) and _bundled_stdlib_root is not None {
-            _bundled_rel = source_mod_path + ".jac"
-                if source_mod_path.endswith(".na")
-                else source_mod_path
-                    if source_mod_path.endswith(".jac")
-                    else source_mod_path + ".na.jac";
-            _bundled_cand = os.path.join(_bundled_stdlib_root, _bundled_rel);
-            if os.path.exists(_bundled_cand) {
-                full_path = _bundled_cand;
-            }
+            (_rn, _rp) = _resolve_na(
+                source_mod_path.replace(os.sep, "."), cur_base_dir
+            );
+            full_path = _rp
+                if _rp is not None
+                else os.path.join(cur_base_dir, source_mod_path + ".jac");
         }
 
         if not os.path.exists(full_path) {
@@ -447,9 +432,6 @@ impl NativeCompilePass._compile_and_link_native_imports(
 
         import from jaclang.jac0core.jir { get_native_cache_dir }
         _src_stem = os.path.splitext(os.path.basename(real_path))[0];
-        if _src_stem.endswith(".na") {
-            _src_stem = _src_stem[:-3];
-        }
         _ir_cache_dir = str(get_native_cache_dir(real_path));
 
         _source_hash = "";
@@ -494,6 +476,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
             import_options = CompileOptions(
                 skip_native_engine=True,
                 type_check=False,
+                aot_mode=True,
+                default_codespace='native',
+                force_target_program=True,
                 na_gc_mode=(
                     getattr(_parent_opts, "na_gc_mode", "cycles")
                         if _parent_opts
@@ -646,9 +631,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     continue;
                 }
                 if func.linkage == _INTERNAL_LINKAGE
-                or func.linkage == _PRIVATE_LINKAGE
-                or func.linkage == _WEAK_LINKAGE
-                or func.linkage == _WEAK_ODR_LINKAGE {
+                    or func.linkage == _PRIVATE_LINKAGE
+                    or func.linkage == _WEAK_LINKAGE
+                    or func.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
                 exported_funcs.append(func.name);
@@ -674,10 +659,10 @@ impl NativeCompilePass._compile_and_link_native_imports(
             exported_globals: list[str] = [];
             for gv in imported_mod.global_variables {
                 if gv.is_declaration
-                or gv.linkage == _INTERNAL_LINKAGE
-                or gv.linkage == _PRIVATE_LINKAGE
-                or gv.linkage == _WEAK_LINKAGE
-                or gv.linkage == _WEAK_ODR_LINKAGE {
+                    or gv.linkage == _INTERNAL_LINKAGE
+                    or gv.linkage == _PRIVATE_LINKAGE
+                    or gv.linkage == _WEAK_LINKAGE
+                    or gv.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
                 exported_globals.append(gv.name);
@@ -775,12 +760,18 @@ def _compile_osp_kernel_ir -> (str | None) {
 
     _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
     tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "osp_kernel.na.jac");
+    na_copy = os.path.join(tmp_dir, "osp_kernel.jac");
     ir_str = None;
     try {
+        import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
         _write_native_osp_source(_core, na_copy);
         prog = JacProgram();
-        m = prog.compile(na_copy);
+        m = prog.compile(
+            na_copy,
+            options=_KernelOpts(
+                aot_mode=True, type_check=False, default_codespace='native'
+            )
+        );
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
             ir_str = str(m.gen.llvm_ir);
         }
@@ -845,12 +836,18 @@ def _compile_fmt_kernel_ir -> (str | None) {
 
     _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
     tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "fmt_kernel.na.jac");
+    na_copy = os.path.join(tmp_dir, "fmt_kernel.jac");
     ir_str = None;
     try {
+        import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
         _write_native_fmt_source(_core, na_copy);
         prog = JacProgram();
-        m = prog.compile(na_copy);
+        m = prog.compile(
+            na_copy,
+            options=_KernelOpts(
+                aot_mode=True, type_check=False, default_codespace='native'
+            )
+        );
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
             ir_str = str(m.gen.llvm_ir);
         }
@@ -869,11 +866,11 @@ impl NativeCompilePass._references_undefined_fmt_kernel(main_mod: object) -> boo
     try {
         for _fn in main_mod.functions {
             if _fn.is_declaration
-            and (
-                _fn.name.startswith("jac_fmt_")
-                or _fn.name.startswith("_jac_fmt_")
-                or _fn.name == "__jac_glob_init_fmt_kernel"
-            ) {
+                and (
+                    _fn.name.startswith("jac_fmt_")
+                    or _fn.name.startswith("_jac_fmt_")
+                    or _fn.name == "__jac_glob_init_fmt_kernel"
+                ) {
                 return True;
             }
         }

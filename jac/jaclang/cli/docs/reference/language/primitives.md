@@ -20,9 +20,9 @@ The key insight is that Jac's compiler does not simply transpile syntax; it impl
 ```mermaid
 graph TD
     SRC["Jac Source Code"] --> COMPILER["Jac Compiler"]
-    COMPILER --> PY["Python / Server Backend<br/><code>sv { }</code>"]
-    COMPILER --> ES["ECMAScript / Client Backend<br/><code>cl { }</code>"]
-    COMPILER --> NA["Native / LLVM Backend<br/><code>na { }</code>"]
+    COMPILER --> PY["Python / Server Backend"]
+    COMPILER --> ES["ECMAScript / Client Backend"]
+    COMPILER --> NA["Native / LLVM Backend"]
 
     PY --> PRIM["Shared Primitive Semantics<br/>int, float, str, list, dict, ..."]
     ES --> PRIM
@@ -33,23 +33,23 @@ graph TD
 
 ## Codespace Model
 
-A **codespace** determines *where* your code runs. By default you do not have to say where: the compiler **infers** each declaration's codespace from the code itself. Explicit markers (blocks, statement prefixes, file extensions) exist as overrides for when you want to pin placement by hand.
+A **codespace** determines *where* your code runs. You do not say where: the compiler **infers** each declaration's codespace from the code itself. When a decision must be forced, the override is a `[placement.pins]` entry in `jac.toml` (see [Placement](../placement.md)), never syntax in the source.
 
 The rules are:
 
-- **Server is the default.** Unmarked code compiles to the Python backend, exactly as before.
+- **Server is the default.** Python imports, graph archetypes, and similar constructs anchor a module server, and unreferenced pure code in such a module compiles to the Python backend, exactly as before.
 - **Client is inferred.** Declarations whose syntax is structurally client-only -- JSX, or a string-path import from the npm ecosystem (`import from "react" { ... }`) -- are placed in the client codespace automatically. From those seeds, placement propagates through symbol references: a helper, `glob`, or import that client code uses joins the client bundle too. Propagation is scope-aware (a local variable that shadows a module-level name does not count) and never relocates things the compiler already bridges across the boundary -- `def:pub` endpoints and walkers stay on the server behind auto-generated RPC calls, and top-level objects referenced from both sides are shared into the bundle.
-- **Native is inferred from FFI surfaces.** An import whose braces contain C-ABI function *declarations* (`import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) declares an extern surface only the native backend can satisfy, so it seeds native placement, and code using those extern names follows. Consuming a native *module* (`import from mymod { fast_fn }` where `mymod` is native) is NOT a native signal -- that is the server-to-native interop crossing. Native-*compatible* pure code still defaults to server: compatibility is not intent, and the build decision stays with `na` markers or `nacompile` targeting.
-- **Explicit markers always win.** Inference never overrides an `sv`/`cl`/`na` block, prefix, or file extension.
+- **Native is inferred from FFI surfaces -- and at module granularity.** An import whose braces contain C-ABI function *declarations* (`import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) declares an extern surface only the native backend can satisfy, so it seeds native placement, and code using those extern names follows. Consuming a native *module* (`import from mymod { fast_fn }` where `mymod` is native) is NOT a native signal -- that is the server-to-native interop crossing. Whole anchor-free modules are placed at module granularity: under `[build] default_codespace = "native"` (the default), the placement solver compiles a module native when its import closure can lower, and a module that prefers native but cannot lower demotes to the server codespace with a note. Inside a server-anchored module, native-*compatible* pure code stays server: there, compatibility is not intent, and the decision stays with `"native"` pins or the forced path (`jac nacompile` / `jac build --as native` / `CompileOptions(force_codespace='native')`).
+- **Pins always win.** Inference never overrides a `[placement.pins]` entry.
 
 ### Inferred placement (the default)
 
-A full-stack module needs no markers at all:
+A full-stack module carries no placement annotations at all:
 
 ```jac
 import from "clsx" { clsx }             # npm import: seeds client
 
-def:pub fetch_items() -> list[dict] {   # unmarked: server endpoint
+def:pub fetch_items() -> list[dict] {   # server endpoint (def:pub contract)
     return [{"id": 1, "name": "Item A"}];
 }
 
@@ -62,61 +62,54 @@ def:pub app() -> JsxElement {           # JSX: seeds client
     async def load() -> None {
         items = await fetch_items();    # compiler generates the HTTP call
     }
-    return <ul>{[<li class={row_class(i)}>{it}</li> for (i, it) in enumerate(items)]}</ul>;
+    <ul>{[<li class={row_class(i)}>{it}</li> for (i, it) in enumerate(items)]}</ul>
 }
 ```
 
 Here `app` and the `clsx` import are client (JSX and npm are client-only syntax), `row_class` is pulled into the client bundle because client code calls it, and `fetch_items` remains a server endpoint -- the client call site compiles to an authenticated HTTP request, not a relocation.
 
-### Explicit markers (when you want them)
+### Codespaces at a glance
 
-You can pin a codespace with a file extension or, within a file, a **braced block** or a **single-statement prefix**:
+| Codespace | How code gets there | Compiles To | Ecosystem |
+|-----------|--------------------|-------------|-----------|
+| Server    | inferred (the default; python imports and graph archetypes anchor); `[placement.pins]` -> `"server"` | Python | PyPI |
+| Client    | inferred (JSX, browser globals, npm imports); `[placement.pins]` -> `"client"` | JavaScript / TypeScript | npm |
+| Native    | inferred (extern C declarations, whole-module verdict); `[placement.pins]` -> `"native"`; forced via `jac nacompile` / `jac build --as native` | LLVM IR → machine code | C ABI |
 
-| Codespace | Braced Block | Statement Prefix | File Extension | Compiles To | Ecosystem |
-|-----------|--------------|-----------------|----------------|-------------|-----------|
-| Server    | `sv { }` | `sv stmt` | `.sv.jac` or `.jac` (default) | Python | PyPI |
-| Client    | `cl { }` | `cl stmt` | `.cl.jac` | JavaScript / TypeScript | npm |
-| Native    | `na { }` | `na stmt` | `.na.jac` | LLVM IR → machine code | C ABI |
+When inference would put a declaration somewhere it must not go -- most usefully, when something must stay on the server even though client code references it -- pin it in `jac.toml`:
 
-A `cl { ... }` / `sv { ... }` / `na { ... }` block tags every element inside it for that codespace:
-
-```jac
-cl {
-    def:pub Greeting(props: dict) -> JsxElement {
-        return <h1>Hello, {props.name}!</h1>;
-    }
-}
+```toml
+[placement.pins]
+"mymod.audit_log" = "server"
 ```
-
-The single-statement prefix is ideal for a one-off pin -- most usefully `sv`, to keep something on the server that inference would otherwise pull client:
 
 ```jac
 def add(a: int, b: int) -> int { return a + b; }   # server (default)
 
-sv def audit_log(msg: str) -> None {                # pinned server, even if
-    print("audit:", msg);                           # client code references it
+def audit_log(msg: str) -> None {   # pinned server via [placement.pins];
+    print("audit:", msg);           # client callers bridge over RPC
 }
 ```
 
-Reach for explicit markers when you want a declaration somewhere inference would not put it, when a file with no client-only syntax should still ship to the browser, or simply when you prefer the boundary to be visible in the source.
+A pin also serves when a file with no client-only syntax should still ship to the browser (a module-level `"client"` pin). Review the outcome with `jac check <entry> --placements`.
 
 ### Cross-Codespace Interop
 
-When code in one codespace calls a function in another, the compiler generates the interop layer automatically -- HTTP calls between server and client, FFI bridges between Python and native, serialization and deserialization at boundaries. The one boundary you declare yourself is a **server import across files**: `sv import` marks that the imported module stays on the server and calls to it should become RPC:
+When code in one codespace calls a function in another, the compiler generates the interop layer automatically -- HTTP calls between server and client, FFI bridges between Python and native, serialization and deserialization at boundaries. A server module's `def:pub` surface never relocates, so a client-side import of it is a boundary import, not a relocation:
 
 ```jac
-sv import from .backend { fetch_items }   # target stays server-side
+import from .backend { fetch_items }      # target's endpoints stay server-side
 
 def:pub app() -> JsxElement {
     has items: list = [];
     async def load() -> None {
         items = await fetch_items();      # compiler generates the HTTP call
     }
-    return <ul>{items}</ul>;
+    <ul>{items}</ul>
 }
 ```
 
-The `sv` on an import is a *boundary fact*, not a placement pin: the import itself lives wherever its consumers live (here, the client bundle, as an RPC stub), while its target remains on the server. The same marker used from server code declares a server-to-server microservice boundary.
+The import itself lives wherever its consumers live (here, the client bundle, as an RPC stub), while its target remains on the server. Between two server modules, the same import becomes a server-to-server microservice boundary when the target is listed in `[scale.microservices.routes]` (or its module is pinned `"server"`).
 
 ### What Is Shared
 

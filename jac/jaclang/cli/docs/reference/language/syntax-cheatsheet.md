@@ -112,9 +112,9 @@ import from ..parent.mod { SomeClass }
 # Include merges a module's namespace into the current scope
 include random;
 
-# Cross-codespace imports (see Full-Stack section below)
-# sv import from ...main { MyWalker }       # Server import in client
-# cl import from "@jac/runtime" { Link }    # npm runtime import
+# Cross-codespace imports are plain imports (see Full-Stack section below)
+# import from ...main { MyWalker }          # server import in client -> RPC bridge
+# import from "@jac/runtime" { Link }       # npm runtime import (client-only syntax)
 
 # Type-only import: opt-in, lowers to `if typing.TYPE_CHECKING: ...`
 # Use to break circular imports between modules that reference each other
@@ -130,6 +130,12 @@ import type from billing { Invoice }
 # Functions use `def`, braces for body, and semicolons
 def greet(name: str) -> str {
     return f"Hello, {name}!";
+}
+
+# Implicit return: the final expression without ';' is the return value
+# (Rust-style tail expression; early returns stay explicit)
+def double(n: int) -> int {
+    n * 2
 }
 
 # Default parameters and multiple return values
@@ -1296,28 +1302,28 @@ obj Res {
 # FULL-STACK DEVELOPMENT (Codespaces)
 # ============================================================
 # Jac code can target different execution environments.
-# The codespace is INFERRED by default:
+# The codespace is INFERRED -- there is no placement syntax:
 #   JSX / "npm" string import => declaration placed client; placement
-#                                propagates (scope-aware) to helpers,
-#                                globs, and imports the client code uses
-#   unmarked code             => server (the default, as always)
+#                                propagates (scope-aware, across
+#                                modules) to helpers, globs, and
+#                                imports the client code uses
+#   python imports, node/edge/walker archetypes, ::py:: blocks,
+#   typed context blocks      => server anchors (server is also the
+#                                default for unreferenced pure code)
 #   def:pub / walkers         => stay server endpoints (client calls
 #                                become RPC bridges automatically)
 #   C extern-decl import      => declaration placed native; consumers
 #                                follow (importing a native module is
 #                                NOT a signal; pure code stays server)
-#   explicit markers          => always win over inference
-# Explicit override markers:
-#   sv { } = server (Python/PyPI)
-#   cl { } = client (JavaScript/npm)
-#   na { } = native (C ABI)
+# Overrides live in jac.toml, not in source:
+#   [placement.pins] "mod.elem" = "server" | "client" | "native"
+# Review with `jac check <entry> --placements` (evidence per element).
+# (The old sv/cl/na markers no longer parse -- `jac fix placement`
+# migrates marker-era code.)
 
+# A mixed module -- every placement below is inferred:
 
-# ============================================================
-# Codespace Sections (explicit markers -- optional overrides)
-# ============================================================
-
-# Server code (default -- code before any header is server)
+# Server code (a node archetype anchors the module server)
 node Todo {
     has title: str, done: bool = False;
 }
@@ -1326,125 +1332,131 @@ def:pub get_todos() -> list {
     return [{"title": t.title} for t in [root -->][?:Todo]];
 }
 
-# Client code in a braced block (compiles to JavaScript/React).
-# The braces bracket exactly the client region. The block is optional
-# here -- the JSX return would infer client placement on its own.
-cl {
-    def:pub app() -> JsxElement {
-        has items: list = [];
+# Client code (compiles to JavaScript/React): the JSX return places
+# app() client; its call to get_todos() bridges over RPC.
+def:pub app() -> JsxElement {
+    has items: list = [];
 
-        async can with entry {
-            items = await get_todos();
-        }
-
-        return <div>
-            {[<p key={i.title}>{i.title}</p> for i in items]}
-        </div>;
+    async can with entry {
+        items = await get_todos();
     }
+
+    return <div>
+        {[<p key={i.title}>{i.title}</p> for i in items]}
+    </div>;
 }
 
-# Code after the block is back in the server codespace
+# Still server -- placement is per-element, not positional
 node Secret { has value: str; }
 
-# Single-statement form (no block, no braces) -- tags exactly one statement
-sv import from .database { connect_db }
-cl import from react { useState }
+
+# ============================================================
+# jac.toml placement + service tables
+# ============================================================
+# (TOML, shown here for adjacency)
+#
+#   [placement.pins]              # override inference (fnmatch keys)
+#   "main.API_KEY" = "server"     #   keep a glob out of the JS bundle
+#   "kernels.*"    = "native"     #   whole-module performance mandate
+#
+#   [scale.microservices.routes]  # the service cut -- each key runs as
+#   orders_app = "/api/orders"    #   its own service; imports of it
+#   math_service = ""             #   lower to RPC stubs ("" derives
+#                                 #   the route prefix)
+#   (written by `jac scale split <module>`)
 
 
 # ============================================================
 # File Extension Conventions
 # ============================================================
-# Extensions pin a file's default codespace explicitly -- an
-# override, not a requirement (a plain .jac file infers placement):
-# .jac           Default (server; client/native parts inferred from
-#                JSX/npm and C extern-decl imports)
-# .sv.jac        Server-only variant (explicit)
-# .cl.jac        Client-only variant (explicit client codespace)
-# .na.jac        Native variant (explicit native codespace)
+# .jac           The only placement story: inference (whole-module
+#                native when the module can lower, else server; client
+#                parts from JSX/npm, native parts from C extern decls)
+# .jac        Client implementation variant of a logical module
+# (native)       No native extension - a module infers native, is pinned
+#                native in jac.toml, or is forced via jac nacompile /
+#                jac build --as native
 # .impl.jac      Implementation annex (method bodies)
 # .test.jac      Test annex
-# .style.css     Scoped CSS annex (auto-scopes classes for the matching .cl.jac)
+# .style.css     Scoped CSS annex (auto-scopes classes for the matching component file)
 
 
 # ============================================================
 # Client Components (JSX)
 # ============================================================
 
-cl {
-    def:pub Counter() -> JsxElement {
-        # `has` in client components becomes React useState
-        has count: int = 0;
+# Placement inferred from the JSX -- no wrapper needed anywhere.
+def:pub Counter() -> JsxElement {
+    # `has` in client components becomes React useState
+    has count: int = 0;
 
-        return <div>
-            <p>Count: {count}</p>
-            <button onClick={lambda -> None { count = count + 1; }}>
-                Increment
-            </button>
-        </div>;
-    }
-
-    # JSX `{...}` slots accept statement-form control flow as children.
-    # Inside the slot, JSX statements push into the enclosing element's
-    # children list; `skip;` ends the slot with whatever was emitted.
-    def:pub Greeting(name: str) -> JsxElement {
-        return <div>
-            {if name == "" {
-                <p>(no name given)</p>
-                skip;                     # skip; = slot early-exit guard
-            }}
-            <h1>Hello, {name}!</h1>
-        </div>;
-    }
-
-    # Raw HTML opt-in (the name is the security review hint):
-    #   <div>{unsafe_html(trusted_html_blob)}</div>
-
-    # JSX syntax reference:
-    # <div>text</div>               HTML elements
-    # <Component prop="val" />      Component with props
-    # {expression}                  Expression slot (one value)
-    # {if .. for ..}                Statement slot (control flow as children)
-    # {#* comment *#}               JSX comment (renders nothing)
-    # {unsafe_html(x)}              Raw HTML opt-in (escapes off)
-    # <@expr />                     Dynamic tag (resolves expr at runtime)
-    # <div {**props}>               Spread props ({...props} also works but warns W0063)
-    # <Box {title} {count} />       Attribute shorthand ({title} -> title={title})
-    # <div className="cls">         Class name (not "class")
-    # <div style={{"color": "red"}} Inline styles
-    #   (classes declared in a same-base-name <Comp>.style.css are auto-scoped)
-    # <@expr>...</@expr>            Dynamic tag (tag chosen by expression)
+    <div>
+        <p>Count: {count}</p>
+        <button onClick={lambda -> None { count = count + 1; }}>
+            Increment
+        </button>
+    </div>
 }
+
+# JSX `{...}` slots accept statement-form control flow as children.
+# Inside the slot, JSX statements push into the enclosing element's
+# children list; `skip;` ends the slot with whatever was emitted.
+def:pub Greeting(name: str) -> JsxElement {
+    return <div>
+        {if name == "" {
+            <p>(no name given)</p>
+            skip;                     # skip; = slot early-exit guard
+        }}
+        <h1>Hello, {name}!</h1>
+    </div>;
+}
+
+# Raw HTML opt-in (the name is the security review hint):
+#   <div>{unsafe_html(trusted_html_blob)}</div>
+
+# JSX syntax reference:
+# <div>text</div>               HTML elements
+# <Component prop="val" />      Component with props
+# {expression}                  Expression slot (one value)
+# {if .. for ..}                Statement slot (control flow as children)
+# {#* comment *#}               JSX comment (renders nothing)
+# {unsafe_html(x)}              Raw HTML opt-in (escapes off)
+# <@expr />                     Dynamic tag (resolves expr at runtime)
+# <div {**props}>               Spread props ({...props} also works but warns W0063)
+# <Box {title} {count} />       Attribute shorthand ({title} -> title={title})
+# <div className="cls">         Class name (not "class")
+# <div style={{"color": "red"}} Inline styles
+#   (classes declared in a same-base-name <Comp>.style.css are auto-scoped)
+# <@expr>...</@expr>            Dynamic tag (tag chosen by expression)
 
 
 # ============================================================
 # Client State & Lifecycle
 # ============================================================
 
-cl {
-    def:pub DataView() -> JsxElement {
-        has data: list = [];
-        has loading: bool = True;
+def:pub DataView() -> JsxElement {
+    has data: list = [];
+    has loading: bool = True;
 
-        # Mount effect (runs once on component mount)
-        async can with entry {
-            data = await fetch("/api/data").then(
-                lambda (r: any) -> any { return r.json(); }
-            );
-            loading = False;
-        }
-
-        # Dependency effect (runs when userId changes)
-        # async can with [userId] entry { ... }
-
-        # Multiple dependencies
-        # can with (a, b) entry { ... }
-
-        # Cleanup on unmount
-        # can with exit { unsubscribe(); }
-
-        if loading { return <p>Loading...</p>; }
-        return <div>{data}</div>;
+    # Mount effect (runs once on component mount)
+    async can with entry {
+        data = await fetch("/api/data").then(
+            lambda (r: any) -> any { return r.json(); }
+        );
+        loading = False;
     }
+
+    # Dependency effect (runs when userId changes)
+    # async can with [userId] entry { ... }
+
+    # Multiple dependencies
+    # can with (a, b) entry { ... }
+
+    # Cleanup on unmount
+    # can with exit { unsubscribe(); }
+
+    if loading { return <p>Loading...</p>; }
+    return <div>{data}</div>;
 }
 
 
@@ -1452,29 +1464,28 @@ cl {
 # Server-Client Communication
 # ============================================================
 
-# Import server walkers in client code
-sv import from ...main { AddTodo, GetTodos }
+# Import server walkers in client code -- a plain import; the compiler
+# generates the RPC bridge because the walkers are server-placed
+import from ...main { AddTodo, GetTodos }
 
-cl {
-    def:pub TodoApp() -> JsxElement {
-        has todos: list = [];
+def:pub TodoApp() -> JsxElement {
+    has todos: list = [];
 
-        async can with entry {
-            result = root spawn GetTodos();
-            if result.reports {
-                todos = result.reports[0];
-            }
+    async can with entry {
+        result = root spawn GetTodos();
+        if result.reports {
+            todos = result.reports[0];
         }
-
-        async def add_todo(text: str) -> None {
-            result = root spawn AddTodo(title=text);
-            if result.reports {
-                todos = todos + [result.reports[0]];
-            }
-        }
-
-        return <div>...</div>;
     }
+
+    async def add_todo(text: str) -> None {
+        result = root spawn AddTodo(title=text);
+        if result.reports {
+            todos = todos + [result.reports[0]];
+        }
+    }
+
+    return <div>...</div>;
 }
 
 
@@ -1506,7 +1517,7 @@ cl {
 # Authentication (Client)
 # ============================================================
 
-# cl import from "@jac/runtime" {
+# import from "@jac/runtime" {
 #     jacLogin,       # (email, pass) -> bool
 #     jacSignup,      # (email, pass) -> dict
 #     jacLogout,      # () -> void
