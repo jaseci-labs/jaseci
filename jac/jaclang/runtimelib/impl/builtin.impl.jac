@@ -60,14 +60,18 @@ impl printgraph(
 }
 
 impl __getattr__(name: str) -> object {
-    if (name == 'NoPerm') {
-        return _get_access_level().NO_ACCESS;
-    } elif (name == 'ReadPerm') {
-        return _get_access_level().READ;
-    } elif (name == 'ConnectPerm') {
-        return _get_access_level().CONNECT;
-    } elif (name == 'WritePerm') {
-        return _get_access_level().WRITE;
+    if (name == 'AccessLevel') {
+        return _get_access_level();
+    } elif (name in ('NoPerm', 'ReadPerm', 'ConnectPerm', 'WritePerm')) {
+        _member = {
+            'NoPerm': 'NO_ACCESS',
+            'ReadPerm': 'READ',
+            'ConnectPerm': 'CONNECT',
+            'WritePerm': 'WRITE'
+        }[name];
+        raise AttributeError(
+            f"'{name}' was removed; use AccessLevel.{_member} (ambient, no import)"
+        );
     } elif (name == 'jid') {
         return _get_jid();
     } elif (name == 'jobj') {
