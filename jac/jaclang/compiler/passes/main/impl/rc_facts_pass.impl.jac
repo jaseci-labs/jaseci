@@ -57,7 +57,7 @@ impl RcFactsPass._use_ok_for_stack(nm: uni.NameAtom) -> bool {
     return False;
 }
 
-impl RcFactsPass._is_container_element_store(nm: uni.Name) -> bool {
+impl RcFactsPass._is_container_element_store(nm: uni.NameAtom) -> bool {
     asn = nm.find_parent_of_type(uni.Assignment);
     if asn is None or asn.aug_op is not None or asn.value is not nm {
         return False;
