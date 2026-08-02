@@ -46,7 +46,7 @@ def resolve_type_check(project_dir: Path) -> bool {
     return bool(val);
 }
 
-def apply_android_cfg_to_model(model: any, project_dir: Path) -> None {
+def apply_android_cfg_to_model(model: any, project_dir: Path) {
     model.intent.package_name = resolve_package_name(project_dir);
     android_cfg = load_android_cfg(project_dir);
     if android_cfg.get("app_name") {

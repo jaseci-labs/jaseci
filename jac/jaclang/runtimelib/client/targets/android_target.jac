@@ -45,7 +45,6 @@ obj AndroidTarget(ClientTarget) {
     def:priv _build_hot_dex(android_dir: Path, package_name: str) -> tuple[(str, any)];
     def:priv _locate_android_tools -> tuple[(any, any)];
     def:priv _collect_jac_sources(project_dir: Path) -> list;
-
     def:priv _attach_interop_manifest(model: any, mod: any) -> None;
     def:priv _merge_interop_manifest(into: any, src: any) -> None;
     def:priv _populate_compose_routes(

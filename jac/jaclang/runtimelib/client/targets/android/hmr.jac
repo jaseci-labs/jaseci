@@ -26,15 +26,14 @@ obj AndroidHotReloadHandler {
         return True;
     }
 
-    def on_event(evt: FileChangeEvent) -> None {
+    def on_event(evt: FileChangeEvent) {
         if self._busy or not self._is_watched_jac(evt.path or "") {
             return;
         }
         self._busy = True;
         try {
             console.print(
-                f"  ⚡ client .jac changed — rebuilding hot module...",
-                style="muted"
+                f"  ⚡ client .jac changed — rebuilding hot module...", style="muted"
             );
             (model, _mod) = self.target._compile_compose_modules(
                 self.entry_file, self.project_dir
@@ -42,9 +41,7 @@ obj AndroidHotReloadHandler {
             if model is not None {
                 import from jaclang.compiler.passes.compose.compose_emit { ComposeEmit }
                 model.intent.package_name = self.package_name;
-                emitter = ComposeEmit(
-                    model=model, out_dir=self.android_dir, dev=True
-                );
+                emitter = ComposeEmit(model=model, out_dir=self.android_dir, dev=True);
                 emitter.write();
             }
             (version, dex_path) = self.target._build_hot_dex(
@@ -68,7 +65,7 @@ def watch_android_hot_reload(
     android_dir: Path,
     package_name: str,
     state: dict
-) -> None {
+) {
     import from time { sleep }
     import from jaclang.runtimelib.client.targets.client_dev_common {
         ensure_watchdog_common,
@@ -113,7 +110,7 @@ def _watch_android_hot_reload_poll(
     android_dir: Path,
     package_name: str,
     state: dict
-) -> None {
+) {
     import from time { sleep }
 
     sources = target._collect_jac_sources(project_dir);

@@ -4,7 +4,7 @@ import subprocess;
 import from pathlib { Path }
 import from typing { Optional }
 import from jaclang.cli.console { console }
-import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.client.targets.android.config {
     load_android_cfg,
     load_client_cfg,
@@ -15,9 +15,7 @@ import from jaclang.runtimelib.client.targets.android.config {
 import from jaclang.runtimelib.client.targets.android.dev_server {
     start_jac_dev_server
 }
-import from jaclang.runtimelib.client.targets.android.hmr {
-    watch_android_hot_reload
-}
+import from jaclang.runtimelib.client.targets.android.hmr { watch_android_hot_reload }
 
 impl AndroidTarget._android_dir(project_dir: Path) -> Path {
     return project_dir / "apps" / "android";
