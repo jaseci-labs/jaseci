@@ -226,6 +226,7 @@ impl AndroidTarget._compile_page_into_model(
     page_mod = program.compile(
         str(page_file),
         options=CompileOptions(
+            no_cgen=True,
             type_check=getattr(self, "_type_check", False), client_framework="compose"
         )
     );
@@ -314,7 +315,7 @@ impl AndroidTarget._compile_compose_modules(
     self._type_check = self._resolve_type_check(project_dir);
     mod = program.compile(
         str(entry_file),
-        options=CompileOptions(type_check=self._type_check, client_framework="compose")
+        options=CompileOptions(no_cgen=True, type_check=self._type_check, client_framework="compose")
     );
     if not mod {
         raise RuntimeError(f"Failed to compile entry module: {entry_file}");

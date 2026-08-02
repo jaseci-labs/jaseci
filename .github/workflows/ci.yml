@@ -1638,6 +1638,7 @@ jobs:
       - test-solid-and-desktop
       - test-client
       - test-android-compose
+      - test-android-compose-device
       - test-packages-and-docs
       - test-native-macos
       - test-launcher

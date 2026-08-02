@@ -11,7 +11,7 @@ Two halves, both pinned here:
   2. Widget surface — `parse_signature_text` (metalava) -> `_kotlin_synth_surface`
      installs each @Composable as a typed module-scope symbol, so `Button(...)`
      type-checks as a call returning `Composable`, replacing the hand-written
-     compose_runtime.jac / stub-gen output with ingested types.
+     ingested metalava/stub-gen types (no hand-written runtime shim).
 """
 
 import os;

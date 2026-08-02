@@ -26,14 +26,6 @@ def resolve_framework_backend(framework: str) -> FrameworkBackend {
         _BACKENDS["solid"] = backend;
         return backend;
     }
-    if framework == "compose" {
-        import from jaclang.compiler.passes.ecmascript.backends.compose {
-            ComposeBackend
-        }
-        backend = ComposeBackend();
-        _BACKENDS["compose"] = backend;
-        return backend;
-    }
     raise ValueError(f"[{E5081.code}] {E5081.format_message(framework=framework)}");
 }
 

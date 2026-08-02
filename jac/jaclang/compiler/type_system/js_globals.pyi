@@ -710,7 +710,8 @@ def prompt(message: object = ..., default: object = ...) -> str | None: ...
 
 # ── Jetpack Compose typed surface (P0 #3) ───────────────────────────────────
 # Client-context value globals for the Android native Compose target. These
-# mirror jaclang/runtimelib/compose_runtime.jac. The ComposeGenPass lowers
+# typed globals for compose type-checking (ingested widget/modifier surface).
+# ComposeGenPass lowers
 # JSX near-identity to Kotlin and never calls these; they exist so a project
 # opting into `[client.android] type_check = true` catches typo'd modifier
 # names / non-existent Typography styles before Gradle. `Modifier` and
