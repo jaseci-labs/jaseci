@@ -96,8 +96,7 @@ def _create_body(
     import from jaclang.project.config { find_project_root }
     import from jaclang.project.template_registry {
         TemplateRegistry,
-        get_template_registry,
-        initialize_template_registry
+        get_template_registry
     }
     import from jaclang.project.template_loader {
         load_template_from_json,
@@ -105,10 +104,6 @@ def _create_body(
     }
     import from jaclang.project.kinds { is_valid_kind, VALID_KINDS }
     registry: TemplateRegistry = get_template_registry();
-
-    if registry.is_empty() {
-        initialize_template_registry();
-    }
 
     if list_kinds {
         kinds = registry.list_kinds();
@@ -1424,8 +1419,8 @@ def _bundle_wheel(config: any, output: str) -> int {
     }
     if builder.skipped_codespace {
         console.print(
-            f"  ⚠ skipped {len(builder.skipped_codespace)} client/native "
-            "codespace file(s) (.cl.jac/.na.jac) — not part of a Python wheel",
+            f"  ⚠ skipped {len(builder.skipped_codespace)} client "
+            "client codespace file(s) — not part of a Python wheel",
             style="warning"
         );
     }
@@ -1486,9 +1481,11 @@ def _run_precompiler(src_dir: str, flags: list[str]) -> int {
 
     code = (
         "import _jac_finder as _jf; _jf.apply_dev_source_override(); _jf.install(); "
-        "import sys; sys.argv = ['precompile', " + repr(src_dir) + "] + " + repr(
-            list(flags)
-        ) + "; from jaclang.utils.precompile_bytecode import main; main()"
+        "import sys; sys.argv = ['precompile', "
+        + repr(src_dir)
+        + "] + "
+        + repr(list(flags))
+        + "; from jaclang.utils.precompile_bytecode import main; main()"
     );
     return subprocess.call([sys.executable, "-c", code]);
 }
@@ -1703,11 +1700,12 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
 
 def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
     import os;
-    import from jaclang.jac0core.ext_registry { is_native_module, base_stem }
+    import from jaclang.jac0core.ext_registry { base_stem }
+    import from jaclang.jac0core.placement_solver { native_default_path_ok }
     import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
 
     entry_file = _resolve_entry_file(config);
-    if entry_file is None or not is_native_module(str(entry_file)) {
+    if entry_file is None or not native_default_path_ok(str(entry_file)) {
         return True;
     }
     try {
@@ -1796,11 +1794,12 @@ def _make_sealed_image(
         skipped = _seal_copy_ignore(d, items);
         if out_names and Path(d).resolve() == Path(proj_root).resolve() {
             skipped = list(
-                set(skipped) | {
-                    it
-                    for it in items
-                    if it in out_names
-                }
+                set(skipped)
+                    | {
+                        it
+                        for it in items
+                        if it in out_names
+                    }
             );
         }
         return skipped;

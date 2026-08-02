@@ -1,6 +1,6 @@
 # NPM Packages & UI Libraries
 
-Jac's client-side compiler gives you full access to the npm ecosystem. You can import React hooks, UI component libraries, utility packages, and any other npm module directly into your `.cl.jac` files. This tutorial covers how to add npm dependencies, import them, and integrate popular UI libraries like Tailwind CSS and shadcn/ui.
+Jac's client-side compiler gives you full access to the npm ecosystem. You can import React hooks, UI component libraries, utility packages, and any other npm module directly into your `.jac` files. This tutorial covers how to add npm dependencies, import them, and integrate popular UI libraries like Tailwind CSS and shadcn/ui.
 
 > **Prerequisites**
 >
@@ -117,10 +117,10 @@ def:pub TextInput() -> JsxElement {
         }
     }
 
-    return <div>
+    <div>
         <input ref={inputRef} type="text" />
         <button onClick={lambda -> None { focusInput(); }}>Focus</button>
-    </div>;
+    </div>
 }
 ```
 
@@ -164,10 +164,10 @@ def:pub FileUploader() -> JsxElement {
         }
     }, []);
 
-    return <div>
+    <div>
         <input ref={fileInputRef} type="file" style={{"display": "none"}} />
         <button onClick={triggerPicker}>Upload File</button>
-    </div>;
+    </div>
 }
 ```
 
@@ -197,14 +197,14 @@ def:pub SearchBox() -> JsxElement {
         }
     }, []);
 
-    return <div>
+    <div>
         <input
             ref={inputRef}
             value={query}
             onChange={lambda (e: ChangeEvent) { query = e.target.value; }}
         />
         <ul>{[<li key={r.id}>{r.title}</li> for r in results]}</ul>
-    </div>;
+    </div>
 }
 ```
 
@@ -244,10 +244,10 @@ lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 import "./assets/main.css";
 
 def:pub app() -> JsxElement {
-    return <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-100 p-8">
         <h1 className="text-3xl font-bold text-gray-900">Hello from Jac</h1>
         <p className="mt-4 text-gray-600">Tailwind CSS is working.</p>
-    </div>;
+    </div>
 }
 ```
 
@@ -260,13 +260,13 @@ def:pub Tab(props: any) -> JsxElement {
     activeCls = "border-primary text-foreground";
     inactiveCls = "border-transparent text-muted-foreground hover:text-foreground";
 
-    return <button
+    <button
         className={"px-2.5 py-1.5 text-sm font-medium border-b-2 " +
             (activeCls if props.active else inactiveCls)}
         onClick={props.onClick}
     >
         {props.children}
-    </button>;
+    </button>
 }
 ```
 
@@ -286,7 +286,7 @@ cd myapp
 jac install
 ```
 
-This scaffolds a themed starter: a generated `global.css` (theme colors + font + radius), `lib/utils.cl.jac`, and `button`/`card` components for the chosen style, plus a `main.jac` that demos them. All theme flags are optional and default to `nova`/`neutral`/`figtree`:
+This scaffolds a themed starter: a generated `global.css` (theme colors + font + radius), `lib/utils.jac`, and `button`/`card` components for the chosen style, plus a `main.jac` that demos them. All theme flags are optional and default to `nova`/`neutral`/`figtree`:
 
 | Flag | Values | Default |
 |------|--------|---------|
@@ -315,33 +315,31 @@ jac retheme                                  # regenerate from the current jac.t
 jac install --shadcn button card dialog
 ```
 
-This resolves the chosen style's `.cl.jac` components into `components/ui/`, installs peer dependencies automatically, and creates the `cn()` utility if needed -- all from the bundled component set, no network required.
+This resolves the chosen style's `.jac` components into `components/ui/`, installs peer dependencies automatically, and creates the `cn()` utility if needed -- all from the bundled component set, no network required.
 
 ### Adding Components to Your Code
 
-Components install as `components/ui/<name>.cl.jac` with the name **underscored** -- `jac install --shadcn dropdown-menu` writes `dropdown_menu.cl.jac`, because a hyphen is the minus operator and cannot appear in a Jac module name. Import the underscored name (no quoting needed, since `_` is a valid identifier character) and make the leading dots relative to the importing file's folder: `.components.ui.<name>` from a root file like `main.jac`, `.ui.<name>` from a file in `components/`. Never write the hyphen: unquoted it is a parse error, and quoted it compiles to `./ui/dropdown-menu.js`, which no installed file matches.
+Components install as `components/ui/<name>.jac` with the name **underscored** -- `jac install --shadcn dropdown-menu` writes `dropdown_menu.jac`, because a hyphen is the minus operator and cannot appear in a Jac module name. Import the underscored name (no quoting needed, since `_` is a valid identifier character) and make the leading dots relative to the importing file's folder: `.components.ui.<name>` from a root file like `main.jac`, `.ui.<name>` from a file in `components/`. Never write the hyphen: unquoted it is a parse error, and quoted it compiles to `./ui/dropdown-menu.js`, which no installed file matches.
 
 ```jac
-cl {
-    import from .components.ui.button { Button }
-    import from .components.ui.dropdown_menu { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent }
+import from .components.ui.button { Button }
+import from .components.ui.dropdown_menu { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent }
 
     def:pub MyPage() -> JsxElement {
-        return <div>
+        <div>
             <Button variant="outline">Click me</Button>
-        </div>;
+        </div>
     }
-}
 ```
 
 ### The cn() Utility in Jac
 
-`jac install --shadcn` and `jac create --use jac-shadcn` generate `lib/utils.cl.jac` for you, so you rarely write this by hand. For reference, the standard shadcn `cn()` utility is written entirely in Jac (no TypeScript needed) using a variadic parameter:
+`jac install --shadcn` and `jac create --use jac-shadcn` generate `lib/utils.jac` for you, so you rarely write this by hand. For reference, the standard shadcn `cn()` utility is written entirely in Jac (no TypeScript needed) using a variadic parameter:
 
 ```jac
-# lib/utils.cl.jac
-cl import from "clsx" { clsx }
-cl import from "tailwind-merge" { twMerge }
+# lib/utils.jac
+import from "clsx" { clsx }
+import from "tailwind-merge" { twMerge }
 
 def:pub cn(*inputs: any) -> str {
     return twMerge(clsx(inputs));
@@ -363,7 +361,7 @@ tailwind-merge = "*"
 Here's how the shadcn Button component looks in Jac, using Class Variance Authority (CVA) for variant management:
 
 ```jac
-# components/ui/button.cl.jac
+# components/ui/button.jac
 import from "class-variance-authority" { cva }
 import from ...lib.utils { cn }
 
@@ -399,9 +397,9 @@ def:pub Button(props: any, ref: Ref[HTMLButtonElement]) -> JsxElement {
         props.className
     );
 
-    return <button ref={ref} className={computedClass} {**props}>
+    <button ref={ref} className={computedClass} {**props}>
         {props.children}
-    </button>;
+    </button>
 }
 ```
 
@@ -419,25 +417,25 @@ Required dependencies:
 shadcn components wrap Radix UI primitives. Each wrapper that renders a DOM node **forwards a ref** to it (via a trailing `ref: Ref` parameter) so the primitive stays a valid `asChild` / positioning target -- exactly as upstream shadcn does with `React.forwardRef`. The exception is a wrapper around a context-only primitive like `Dialog.Root`, which renders no element and takes no ref. Here's a Dialog example in Jac:
 
 ```jac
-# components/ui/dialog.cl.jac
+# components/ui/dialog.jac
 import from "radix-ui" { Dialog as DialogPrimitive }
 import from ...lib.utils { cn }
 
 # Root is a context provider -- it renders no DOM node, so it takes no ref.
 def:pub Dialog(props: any) -> JsxElement {
-    return <DialogPrimitive.Root {**props}>
+    <DialogPrimitive.Root {**props}>
         {props.children}
-    </DialogPrimitive.Root>;
+    </DialogPrimitive.Root>
 }
 
 def:pub DialogTrigger(props: any, ref: Ref[HTMLButtonElement]) -> JsxElement {
-    return <DialogPrimitive.Trigger ref={ref} {**props}>
+    <DialogPrimitive.Trigger ref={ref} {**props}>
         {props.children}
-    </DialogPrimitive.Trigger>;
+    </DialogPrimitive.Trigger>
 }
 
 def:pub DialogContent(props: any, ref: Ref[HTMLElement]) -> JsxElement {
-    return <DialogPrimitive.Portal>
+    <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
             className={cn("fixed inset-0 z-50 bg-black/50", props.overlayClassName)}
         />
@@ -451,7 +449,7 @@ def:pub DialogContent(props: any, ref: Ref[HTMLElement]) -> JsxElement {
         >
             {props.children}
         </DialogPrimitive.Content>
-    </DialogPrimitive.Portal>;
+    </DialogPrimitive.Portal>
 }
 ```
 
@@ -495,10 +493,10 @@ import from "@hugeicons/core-free-icons" {
 }
 
 def:pub IconDemo() -> JsxElement {
-    return <div>
+    <div>
         <HugeiconsIcon icon={File02Icon} strokeWidth={2} />
         <HugeiconsIcon icon={Cancel01Icon} size={20} />
-    </div>;
+    </div>
 }
 ```
 
@@ -508,10 +506,10 @@ def:pub IconDemo() -> JsxElement {
 import from "lucide-react" { Search, X, Menu, ChevronDown }
 
 def:pub NavBar() -> JsxElement {
-    return <nav>
+    <nav>
         <button><Menu size={24} /></button>
         <button><Search size={20} /></button>
-    </nav>;
+    </nav>
 }
 ```
 
@@ -527,13 +525,13 @@ import from "@monaco-editor/react" { Editor }
 def:pub CodeEditor() -> JsxElement {
     has code: str = "print('hello')";
 
-    return <Editor
+    <Editor
         height="400px"
         language="python"
         theme="vs-dark"
         value={code}
         onChange={lambda (value: any) -> None { code = value; }}
-    />;
+    />
 }
 ```
 
@@ -552,10 +550,10 @@ def:pub app() -> JsxElement {
         sonnerToast.success("Changes saved!");
     }
 
-    return <div>
+    <div>
         <Toaster position="top-right" />
         <button onClick={lambda -> None { showToast(); }}>Save</button>
-    </div>;
+    </div>
 }
 ```
 
@@ -572,7 +570,7 @@ import from "react-resizable-panels" {
 }
 
 def:pub SplitView() -> JsxElement {
-    return <PanelGroup direction="horizontal">
+    <PanelGroup direction="horizontal">
         <Panel defaultSize={30} minSize={20}>
             <Sidebar />
         </Panel>
@@ -580,7 +578,7 @@ def:pub SplitView() -> JsxElement {
         <Panel>
             <MainContent />
         </Panel>
-    </PanelGroup>;
+    </PanelGroup>
 }
 ```
 

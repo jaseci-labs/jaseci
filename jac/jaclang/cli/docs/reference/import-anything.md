@@ -2,11 +2,11 @@
 
 Jac compiles one source file to **three targets** -- Python bytecode, JavaScript, and native machine code. Each target is a *codespace*, and each codespace brings its own ecosystem:
 
-| Codespace | Keyword | Compiles to | Ecosystem you can import |
-|-----------|---------|-------------|--------------------------|
-| **Server** | `sv` | Python bytecode | The entire **PyPI** ecosystem + any `.py` / `.jac` module |
-| **Client** | `cl` | JavaScript | The entire **npm** ecosystem + any `.jac` client module |
-| **Native** | `na` | Machine code (LLVM) | Any **C-ABI** shared library + native `.jac` modules |
+| Codespace | Compiles to | Ecosystem you can import |
+|-----------|-------------|--------------------------|
+| **Server** | Python bytecode | The entire **PyPI** ecosystem + any `.py` / `.jac` module |
+| **Client** | JavaScript | The entire **npm** ecosystem + any `.jac` client module |
+| **Native** | Machine code (LLVM) | Any **C-ABI** shared library + native `.jac` modules |
 
 There is exactly **one `import` statement**. Its shape never changes -- the *codespace it lands in* decides which ecosystem the name resolves against. This page walks through every import form, contextualized for each codespace.
 
@@ -17,10 +17,9 @@ There is exactly **one `import` statement**. Its shape never changes -- the *cod
 Every import follows the same template. Square brackets mark optional parts:
 
 ```text
-[sv|cl|na]  [import|include]  [type]  [from <path>]  [{ items }]  [;]
+[import|include]  [type]  [from <path>]  [{ items }]  [;]
 ```
 
-- **Codespace prefix** (`sv` / `cl` / `na`) -- optional; covered in the next section.
 - **`import`** brings names in; **`include`** absorbs *all* of a module's names into the current namespace (like Python's `from x import *`).
 - **`type`** marks the import as annotation-only -- it is erased at runtime (lowers to `TYPING.TYPE_CHECKING`). Use it to break circular imports.
 - **`from <path>`** selects the source module. A `<path>` is either a dotted name (`os.path`), a leading-dot relative path (`.utils`, `..lib`), or a quoted string (`"react-dom"`, `"libm.so"`).
@@ -37,15 +36,15 @@ Most of the time the codespace is chosen *for* you. An import inherits the codes
 - A **quoted npm path** (`import from "react-dom" { render }`) is client-only by construction, so it lands in the client codespace automatically -- and the declarations that use it become client too.
 - A **bare-name npm import** (`import from react { useState }`) is placed through its consumers: when JSX components use the imported names, the import joins the client bundle with them.
 - **Python / PyPI imports** are server code -- the default for anything unmarked.
-- An **extern-decl C import** -- braces containing C-ABI function declarations (`import from "libm.so" { def sqrt(x: f64) -> f64; }`) -- can only be satisfied by the native backend, so it lands in the native codespace automatically, and the declarations that use it become native too. Merely importing *from* a native module is not a native signal, and pure native-compatible code stays on the server -- without an FFI seed, `na` takes an explicit marker.
+- An **extern-decl C import** -- braces containing C-ABI function declarations (`import from "libm.so" { def sqrt(x: f64) -> f64; }`) -- can only be satisfied by the native backend, so it lands in the native codespace automatically, and the declarations that use it become native too. Merely importing *from* a native module is not a native signal for the importer. (Whole markerless modules are a separate question: under the default native codespace, the placement solver compiles a module native whenever its import closure can lower -- see the codespace model.)
 
-Explicit markers override inference: a braced block (`cl { ... }`), a single-statement prefix (`cl import from react { useEffect }`), or a file extension (`.sv.jac` / `.cl.jac` / `.na.jac`). The full marker system, the inference rules, and their precedence are specified once in [Primitives & Codespace Semantics](language/primitives.md#codespace-model); this page assumes them and covers what is specific to imports.
+When inference must be overridden, the mechanism is a `[placement.pins]` entry in `jac.toml` -- placement has no spelling in the source. The inference rules and their precedence are specified once in [Primitives & Codespace Semantics](language/primitives.md#codespace-model); this page assumes them and covers what is specific to imports.
 
 ---
 
 ## Server imports -- full PyPI compatibility
 
-Server code compiles to standard Python bytecode and runs on the Python runtime, so **every package on PyPI works unmodified** -- no wrappers, no interop layer. The server codespace is the default, so the examples below need no `sv` block or prefix at the top of a file.
+Server code compiles to standard Python bytecode and runs on the Python runtime, so **every package on PyPI works unmodified** -- no wrappers, no interop layer. The server codespace is the default, so the examples below need no annotation of any kind.
 
 ```jac
 """Server imports -- the default codespace."""
@@ -112,54 +111,48 @@ include math_helpers;
 
 ## Client imports -- full npm compatibility
 
-Client code compiles to JavaScript, so the import list maps directly onto ECMAScript `import` declarations -- giving you **the entire npm ecosystem**. Client imports live in the client codespace, but that rarely needs marking: a quoted npm path is client by construction, and a bare-name npm import is inferred client through the JSX components that use it. The examples below use explicit `cl { }` blocks -- the unambiguous style for a mixed file -- but every form also works markerless.
+Client code compiles to JavaScript, so the import list maps directly onto ECMAScript `import` declarations -- giving you **the entire npm ecosystem**. Client imports live in the client codespace, but that rarely needs marking: a quoted npm path is client by construction, and a bare-name npm import is inferred client through the JSX components that use it. The examples below are plain `.jac` -- in a mixed file, the components that use these names carry them into the client bundle.
 
 ```jac
-cl {
-    # Named imports -- the most common form
-    import from react { useState, useEffect }
+# Named imports -- the most common form
+import from react { useState, useEffect }
 
-    # Named imports with aliases
-    import from lodash { map as mapArray, filter }
+# Named imports with aliases
+import from lodash { map as mapArray, filter }
 
-    # Default import -- "default as Name". Requires the client codespace,
-    # because Python has no concept of a default export.
-    import from react { default as React }
+# Default import -- "default as Name". Requires the client codespace,
+# because Python has no concept of a default export.
+import from react { default as React }
 
-    # Namespace import -- "* as Name"
-    import from react { * as React }
+# Namespace import -- "* as Name"
+import from react { * as React }
 
-    # Mixed: default + named in one statement (default listed first)
-    import from react { default as React, useRef }
-}
+# Mixed: default + named in one statement (default listed first)
+import from react { default as React, useRef }
 ```
 
 npm package names often contain hyphens or `@scope/` prefixes that are not valid Jac identifiers. Quote them as **string literals** -- this works for every import form:
 
 ```jac
-cl {
-    import from "react-dom" { render, hydrate }
-    import from "react-router-dom" { BrowserRouter, Route }
-    import from "styled-components" { default as styled }
-    import from "date-fns" { * as DateFns }
+import from "react-dom" { render, hydrate }
+import from "react-router-dom" { BrowserRouter, Route }
+import from "styled-components" { default as styled }
+import from "date-fns" { * as DateFns }
 
-    # @jac/runtime -- built-in client runtime helpers
-    import from "@jac/runtime" { Link, useNavigate, JacForm }
-}
+# @jac/runtime -- built-in client runtime helpers
+import from "@jac/runtime" { Link, useNavigate, JacForm }
 ```
 
 Relative client modules and configured path aliases:
 
 ```jac
-cl {
-    # Relative imports between .jac client modules
-    import from .components.Button { default as Button }
-    import from ..lib.helpers { formatDate }
+# Relative imports between .jac client modules
+import from .components.Button { default as Button }
+import from ..lib.helpers { formatDate }
 
-    # Path aliases -- prefixes defined in jac.toml under [client.paths]
-    import from "@components/Button" { default as Button }
-    import from "@shared" { constants }
-}
+# Path aliases -- prefixes defined in jac.toml under [client.paths]
+import from "@components/Button" { default as Button }
+import from "@shared" { constants }
 ```
 
 A path alias is declared once in `jac.toml`:
@@ -175,17 +168,15 @@ A path alias is declared once in `jac.toml`:
 Some imports bind no names -- they exist purely for their side effects. **Stylesheets are the most common case:** importing a `.css` or `.scss` file applies its styles to the bundle. Drop the `{ items }` list entirely and import the path as a bare string literal:
 
 ```jac
-cl {
-    # Stylesheets -- applied to the bundle, no names bound
-    import "./styles.css";
-    import "./theme.scss";
+# Stylesheets -- applied to the bundle, no names bound
+import "./styles.css";
+import "./theme.scss";
 
-    # A font package whose CSS you want applied globally
-    import "@fontsource/roboto/400.css";
+# A font package whose CSS you want applied globally
+import "@fontsource/roboto/400.css";
 
-    # A polyfill or any import-for-its-effects-only package
-    import "core-js/stable";
-}
+# A polyfill or any import-for-its-effects-only package
+import "core-js/stable";
 ```
 
 Each lowers to a side-effect-only ECMAScript import -- `import "./styles.css";` stays `import "./styles.css";` in the generated JavaScript. Asset files (`.css`, `.scss`, `.sass`, `.less`, `.svg`, images, fonts) are detected by the client bundler and emitted into the built `styles.css` / asset output automatically.
@@ -197,41 +188,35 @@ Each lowers to a side-effect-only ECMAScript import -- `import "./styles.css";` 
 Native code compiles to machine code through LLVM. It has no Python interpreter, so PyPI packages are unavailable -- instead, the native codespace can call into **any C-ABI shared library** and import other native Jac modules.
 
 ```jac
-na {
-    # Import from another native Jac module
-    import from math_utils { square, cube }
+# Import from another native Jac module
+import from math_utils { square, cube }
 
-    # A small slice of the standard library is available natively
-    import sys;   # sys.argv, sys.exit()
-}
+# A small slice of the standard library is available natively
+import sys;   # sys.argv, sys.exit()
 ```
 
-The headline native feature is **C library interop**. Point `import from` at a shared library path and declare the foreign functions you need right inside the braces -- the compiler generates the C-ABI bridge. An extern-decl import like this is also a *native signal*: in a markerless file it seeds native placement for itself and the declarations that use it, so the `na { }` blocks below are the explicit style, not a requirement:
+The headline native feature is **C library interop**. Point `import from` at a shared library path and declare the foreign functions you need right inside the braces -- the compiler generates the C-ABI bridge. An extern-decl import like this is also the *native signal*: it seeds native placement for itself and the declarations that use it -- nothing else marks the boundary:
 
 ```jac
-na {
-    # Pull a math function out of libm
-    import from "/usr/lib/libm.so.6" {
-        def sqrt(x: f64) -> f64;
-    }
+# Pull a math function out of libm
+import from "/usr/lib/libm.so.6" {
+    def sqrt(x: f64) -> f64;
+}
 
-    # C signatures use fixed-width types -- carry those types through code
-    # that feeds values into the C call.
-    def hypotenuse(a: f64, b: f64) -> f64 {
-        return sqrt(a * a + b * b);
-    }
+# C signatures use fixed-width types -- carry those types through code
+# that feeds values into the C call.
+def hypotenuse(a: f64, b: f64) -> f64 {
+    return sqrt(a * a + b * b);
 }
 ```
 
 The same mechanism works for any third-party C library, and a C `import from` block can declare structs (as `obj`) alongside functions:
 
 ```jac
-na {
-    import from "libgeometry.so" {
-        obj Point { has x: f64; has y: f64; }
-        def make_point(x: f64, y: f64) -> Point;
-        def distance(a: Point, b: Point) -> f64;
-    }
+import from "libgeometry.so" {
+    obj Point { has x: f64; has y: f64; }
+    def make_point(x: f64, y: f64) -> Point;
+    def distance(a: Point, b: Point) -> f64;
 }
 ```
 
@@ -242,25 +227,23 @@ na {
 
 ## Crossing codespaces
 
-A single file can mix all three codespaces, and imports can reach *across* the boundary. The most important cross-codespace import is **`sv import`**: it declares a boundary fact, not a placement -- the imported module's target stays on the server, while the import itself lives with its consumers. Inside client code it pulls in a server walker or `def:pub` function, and the compiler rewrites each call into an HTTP request automatically; used between two server modules, it declares a server-to-server microservice boundary instead.
+A single file can mix all three codespaces, and imports can reach *across* the boundary. Placement is inferred: importing a server walker or `def:pub` function into client code is just a plain import, and the compiler rewrites each call into an HTTP request automatically. A server-to-server microservice boundary is declared in config instead -- list the provider module in `[scale.microservices.routes]` and imports of it lower to service RPC stubs.
 
 ```jac
-cl {
-    # Import a server walker into client code -- calls become HTTP requests.
-    sv import from .main { create_task }
+# Import a server walker into client code -- calls become HTTP requests.
+import from .main { create_task }
 
-    import from react { useState }
+import from react { useState }
 
     def TaskForm() -> JsxElement {
         has title: str = "";
-        return <button onClick={lambda (e: ChangeEvent) {
+        <button onClick={lambda (e: ChangeEvent) {
             create_task(title=title);
-        }}>Add</button>;
+        }}>Add</button>
     }
-}
 ```
 
-Server and native code interoperate the same way -- a native function (in a `na { }` block) can be called directly from server code in the same file, with the compiler generating the interop stubs:
+Server and native code interoperate the same way -- a native-placed function can be called directly from server code in the same file, with the compiler generating the interop stubs:
 
 ```jac
 """One file, three codespaces."""
@@ -272,11 +255,9 @@ def now_iso() -> str {
     return datetime.now().isoformat();
 }
 
-na {
-    def fib(n: int) -> int {
-        if n <= 1 { return n; }
-        return fib(n - 1) + fib(n - 2);
-    }
+def fib(n: int) -> int {
+    if n <= 1 { return n; }
+    return fib(n - 1) + fib(n - 2);
 }
 
 with entry {
@@ -305,7 +286,7 @@ with entry {
 | Hyphenated package | `import from "react-dom" { render }` | cl |
 | Path alias | `import from "@shared" { c }` | cl |
 | C library function | `import from "libm.so" { def sqrt(x: f64) -> f64; }` | na |
-| Server walker into client | `sv import from .main { walker }` | cl |
+| Server walker into client | `import from .main { walker }` (bridged over HTTP) | cl |
 
 ---
 
@@ -318,7 +299,7 @@ jac check --parse-only myfile.jac   # syntax only -- works for sv, cl, and na
 jac check myfile.jac                # full type-check (server / client code)
 ```
 
-`--parse-only` is the universally safe check for all three codespaces. For **native (`na`) code that calls C libraries**, the most reliable verification is to compile it -- `jac run myfile.na.jac` or `jac nacompile myfile.na.jac` -- since the native backend, not the general type checker, owns C-ABI coercion.
+`--parse-only` is the universally safe check for all three codespaces. For **native (`na`) code that calls C libraries**, the most reliable verification is to compile it -- `jac run myfile.jac` or `jac nacompile myfile.jac` -- since the native backend, not the general type checker, owns C-ABI coercion.
 
 If you have the [`jac mcp`](mcp.md) server connected, the `check_syntax` and `validate_jac` tools do the same thing from your AI assistant.
 

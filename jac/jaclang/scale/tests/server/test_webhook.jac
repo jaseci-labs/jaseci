@@ -17,7 +17,7 @@ import shutil;
 import requests;
 import from logging.handlers { MemoryHandler }
 import from pathlib { Path }
-import from typing { cast }
+import from typing { Any, cast }
 
 import from testcontainers.community.mongodb { MongoDbContainer }
 import from pymongo { MongoClient }

@@ -7,6 +7,71 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ---
 
+### The ambient permission constants are now one ambient `AccessLevel` enum (unreleased)
+
+The four ambient access-level constants - `NoPerm`, `ReadPerm`, `ConnectPerm`, `WritePerm` - are removed. The `AccessLevel` enum they aliased is now itself ambient (no import needed), and its members are the one spelling of access levels everywhere a level is taken:
+
+| Old | New |
+|---|---|
+| `grant(node, level=ReadPerm)` | `grant(node, level=AccessLevel.READ)` |
+| `Jac.allow_root(node, rid, WritePerm)` | `Jac.allow_root(node, rid, AccessLevel.WRITE)` |
+| `return WritePerm;` in `__jac_access__` | `return AccessLevel.WRITE;` |
+| `NoPerm` / `ConnectPerm` | `AccessLevel.NO_ACCESS` / `AccessLevel.CONNECT` |
+
+This also unifies the vocabulary with the Scale reference's `perm_grant` / `allow_root` API, which already spoke in `NO_ACCESS` / `READ` / `CONNECT` / `WRITE` levels, and it makes the honest hook signature type-check: `def __jac_access__ -> AccessLevel { return AccessLevel.WRITE; }` (the constants were stub-typed `int`, so the checker rejected exactly that form). String (`"WRITE"`) and int returns remain accepted at runtime for policies stored in data, but enum members are the canonical spelling - a typo'd string literal raises `KeyError` at access-check time.
+
+**Impact:** a mechanical 1:1 rename. A bare removed name is now an unresolved-name error at compile time; importing one from `jaclang.runtimelib.builtin` raises an `AttributeError` that names the replacement member.
+
+---
+
+### All placement spellings removed: `sv`/`cl`/`na` markers, the `.sv.jac`/`.cl.jac` suffixes, and the `variant` directive ([#7772](https://github.com/jaseci-labs/jac/issues/7772), jaclang 0.35)
+
+Placement no longer has any spelling in source code or filenames. The `sv { }` / `cl { }` / `na { }` blocks, the single-statement prefixes (`cl import ...`, `sv def ...`), the `.sv.jac` and `.cl.jac` file suffixes, and the short-lived `variant client;` / `variant native;` module directive are all removed -- marker code is a syntax error, and a leftover suffixed file fails loudly:
+
+```text
+the .cl.jac marker was retired -- rename the file to .jac; client placement
+is inferred from JSX/npm imports (override via [placement.pins] in jac.toml).
+Run 'jac fix placement' to migrate the project.
+```
+
+What replaces them:
+
+- **Inference** places every declaration: JSX, browser globals, and npm imports seed client; extern C declarations seed native; python imports and graph archetypes anchor server (the default). Placement propagates from those seeds through symbol references.
+- **`[placement.pins]` in `jac.toml`** is the override when a decision must be forced. A module-level `"client"` / `"native"` pin coerces the whole module the way the old suffix did; an element-level pin (`"mod.helper" = "server"`) forces one declaration.
+- **`[scale.microservices.routes]`** is the authoritative microservice cut (`jac scale split <module>` writes an entry); imports of cut members lower to service RPC automatically -- this replaces the `sv import` boundary marker.
+
+| Old | New |
+|---|---|
+| `cl { ... }` block / `cl` prefix | plain code (inferred client) or a `"client"` pin |
+| `sv { ... }` block / `sv` prefix | plain code (server is the default) or a `"server"` pin |
+| `mod.cl.jac` / `mod.sv.jac` | `mod.jac` (placement inferred; pin the module to coerce it whole) |
+| `sv import from .svc { f }` | plain import + `[scale.microservices.routes]` entry (or a `"server"` module pin) |
+| `variant client;` / `variant native;` | nothing -- placement has no per-file spelling |
+
+**Impact:** run `jac fix placement` -- it strips markers, renames retired suffixed files, preserves service topology into the routes table, and pins any element whose inferred placement differs from its old marker. Review the result with `jac check <entry> --placements`. The placement lockfile briefly introduced alongside this work (`jac.placements.lock`, `jac check --update-placements-lock`) was removed before release: placement is the compiler's business, reviewed on demand, never snapshotted.
+
+---
+
+### The `.na.jac` filename marker retired ([#7770](https://github.com/jaseci-labs/jac/pull/7770), jaclang 0.35)
+
+Native placement is no longer spelled in the filename. A plain `.jac` module becomes native by **inference**: under `[build] default_codespace = "native"` (the default), the placement solver's verdict (`scan_native_blockers` plus an import-closure fixpoint) decides, and a module that prefers native but cannot lower demotes to the server codespace with a note. Native is **forced** per-invocation rather than per-file: `jac nacompile file.jac` and `jac build --as native` coerce the module native outright -- lowering problems stay loud errors instead of demoting -- and `CompileOptions(force_codespace='native')` is the marker's programmatic successor.
+
+This is a **clean break** -- a leftover `.na.jac` file fails loudly everywhere (the compiler, the importer, and `jac nacompile`) with:
+
+```text
+the .na.jac marker was retired in 0.35 -- rename the file to .jac
+```
+
+| Old | New |
+|---|---|
+| `mod.na.jac` | `mod.jac` (placement inferred) |
+| `jac nacompile mod.na.jac` | `jac nacompile mod.jac` (forces native) |
+| `mod.na.impl.jac` | `mod.impl.jac` (the `.na.impl.jac` annex variant no longer exists) |
+
+**Impact:** rename every `*.na.jac` to `*.jac` and rely on inference; where native must be mandatory (AOT binaries, `--shared` libraries, wasm), use `jac nacompile` / `jac build --as native` / `force_codespace='native'`. The `.sv.jac` and `.cl.jac` variants were unchanged by this PR (they were retired separately -- see the entry above); the `.impl.jac` / `.test.jac` annexes are unchanged. One clarification makes the old native-library idiom carry over unchanged: `pub` elements anchor a *standalone* module to the server (endpoint semantics), but a module pulled in as a **native dependency** may freely use `pub` as its C-ABI export marker. The bundled native stdlib (`jaclang/runtimelib/na_stdlib/`) is native **by location**; its files are plain `.jac`, with per-OS variants as `<name>.<os>.jac` (e.g. `_dirent_native.darwin.jac`).
+
+---
+
 ### Legacy syntax removed in one clean break ([#7514](https://github.com/jaseci-labs/jac/issues/7514))
 
 A set of long-deprecated or redundant forms is removed with no deprecation window -- the old spellings are now hard errors:
@@ -93,7 +158,7 @@ Use the braced block form instead. It compiles to the same node and is now the c
 | `to sv:` <br> `<server stmts>` | `sv { <server stmts> }` (or leave at module top level -- server is the default context) |
 | `to na:` <br> `<native stmts>` | `na { <native stmts> }` |
 
-**Impact:** rewrite any `to cl:` / `to sv:` / `to na:` section into the matching braced block, wrapping exactly the statements that belonged to that section. Single-statement prefixes (`cl def:pub foo() {...}`, `sv ...`, `na ...`) and file-extension contexts (`.cl.jac`, `.na.jac`) are unaffected. (At the time, `to` still drove the iter-for loop; `to` has since been removed as a keyword entirely -- see [the clean-break entry above](#legacy-syntax-removed-in-one-clean-break-7514).)
+**Impact:** rewrite any `to cl:` / `to sv:` / `to na:` section into the matching braced block, wrapping exactly the statements that belonged to that section. Single-statement prefixes (`cl def:pub foo() {...}`, `sv ...`, `na ...`) and file-extension contexts (`.jac`, `.na.jac`) are unaffected. (At the time, `to` still drove the iter-for loop; `to` has since been removed as a keyword entirely -- see [the clean-break entry above](#legacy-syntax-removed-in-one-clean-break-7514).)
 
 ---
 

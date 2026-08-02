@@ -31,6 +31,37 @@ def log(message: str) {
 }
 ```
 
+#### Implicit Returns
+
+The final expression of a function body, written *without* a trailing `;`,
+is the function's return value -- the same tail-expression rule as Rust.
+The semicolon is the switch: `expr;` is an ordinary discarded statement,
+while a trailing `expr` right before the closing `}` returns its value.
+
+```jac
+def add(a: int, b: int) -> int {
+    a + b
+}
+
+def classify(n: int) -> str {
+    if n > 0 {
+        return "pos";  # early returns stay explicit
+    }
+    "non-pos"
+}
+```
+
+The tail expression is type-checked exactly like an explicit `return`
+(`E1002` on mismatch), and it satisfies the all-paths-return analysis
+(`E1004`). Two guardrails keep the rule unambiguous:
+
+- An expression without `;` anywhere *other* than the end of a function,
+  ability, or lambda body is an error (`E2084`) -- blocks such as `if`
+  bodies do not produce values.
+- Falling off the end of a body whose last statement kept its `;` still
+  returns `None`, so `def f -> int { 42; }` remains the `E1004`
+  missing-return error, never a silent implicit return.
+
 ### 2 Docstrings
 
 Docstrings appear *before* declarations (not inside like Python):
@@ -310,6 +341,11 @@ zero-parameter lambda may omit the parens entirely (`lambda { 42; }`). A body
 that is a single expression statement is the **implicit return**
 (`lambda (x: int) { x + 1; }` returns `x + 1`); a multi-statement body uses an
 explicit `return` (with no `return`, it returns `None`).
+
+Lambdas also follow the function-body tail-expression rule: the final
+expression without a trailing `;` is the return value, even in a
+multi-statement body (`lambda (x: int) { y = x + 1; y * 10 }` returns
+`y * 10`).
 
 ```jac
 # Simple lambda -- single expression statement is the implicit return
@@ -918,89 +954,23 @@ impl Calculator.multiply {
 }
 ```
 
-### 4 Variant Modules
+### 4 One Module, Three Codespaces
 
-A single logical module can be split across *variant files* that target different execution contexts. Variant suffixes are `.sv.jac` (server), `.cl.jac` (client), and `.na.jac` (native). All files sharing the same base name are automatically discovered and compiled together.
+A single `.jac` module can span all three codespaces -- server, client, and native. There is no per-file spelling for placement: the compiler infers each declaration's codespace from the code itself (JSX and npm imports seed client, extern C declarations seed native, everything else defaults to server), and `[placement.pins]` in `jac.toml` is the override when a decision must be forced. The only compound filename suffixes are the annexes: `.impl.jac` for implementations and `.test.jac` for tests. See [Codespace Model](primitives.md#codespace-model) for the inference rules and [Placement](../placement.md) for pins.
 
-Variant files are an *explicit* placement mechanism, and for the client side they are optional: the compiler infers client placement from client-only syntax (JSX, npm imports) in plain `.jac` files, so splitting a module into `.cl.jac` variants is a style choice rather than a requirement. Native placement is likewise inferred when code uses an extern C surface: an import whose braces declare C-ABI functions (e.g. `import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) seeds native placement for itself and the declarations that use it. For pure native-compatible code with no such FFI seed, the `.na.jac` variant (or an `na {}` block) remains how native code is declared.
+Under `[build] default_codespace = "native"` (the default), the placement solver decides whether a whole anchor-free module can lower natively; a module that prefers native but cannot lower demotes to the server codespace with a note. To force a whole module native, use `jac nacompile`, `jac build --as native`, or `CompileOptions(force_codespace='native')`.
 
-**Head module precedence:** `.jac` > `.sv.jac` > `.cl.jac` > `.na.jac`. The highest-precedence file that exists on disk becomes the *head module*; all lower-precedence variants are attached as variant annexes. If no plain `.jac` file exists, the next available variant acts as head.
+#### Native Modules
 
-```
-mymod/
-├── mymod.jac            # Head module (declarations + entry)
-├── mymod.sv.jac         # Server variant (extra server-only declarations)
-├── mymod.cl.jac         # Client variant (extra client-only declarations)
-├── mymod.impl.jac       # Head implementations (can also impl variant decls)
-├── impl/
-│   └── mymod.sv.impl.jac   # Server variant impl (from shared folder)
-└── mymod.test.jac       # Tests
-```
-
-Each variant gets its own symbol table during parsing. The compiler then connects declarations and implementations across all variants:
-
-- Impl files match their variant automatically (e.g., `mymod.sv.impl.jac` provides bodies for declarations in `mymod.sv.jac`).
-- A head impl file (`mymod.impl.jac`) can provide implementations for declarations in *any* variant (cross-variant matching).
-- Impl files can live in the same directory or in an `impl/` subdirectory.
-
-**mymod.jac:**
-
-```jac
-obj Circle {
-    has radius: float;
-    def area -> float;
-}
-```
-
-**mymod.sv.jac:**
-
-```jac
-obj CircleService {
-    has name: str;
-    def describe -> str;
-}
-```
-
-**mymod.cl.jac:**
-
-```jac
-obj Display {
-    has label: str;
-    def render -> str;
-}
-```
-
-**mymod.impl.jac** (cross-variant -- provides impls for both head and client variant):
-
-```jac
-impl Circle.area -> float {
-    return 3.14159 * self.radius * self.radius;
-}
-
-impl Display.render -> str {
-    return "Displaying: " + self.label;
-}
-```
-
-**impl/mymod.sv.impl.jac** (server variant impl from shared folder):
-
-```jac
-impl CircleService.describe -> str {
-    return "Service: " + self.name;
-}
-```
-
-#### Native Variant Files (`.na.jac`)
-
-Native variant files compile to LLVM IR and execute via JIT (MCJIT). Code in `.na.jac` files runs as native machine code, bypassing the Python runtime entirely. This is useful for performance-critical code and for calling C libraries directly. The same functionality is available in `na { }` blocks (or `na` statement prefixes) within regular `.jac` files.
+Native-placed modules compile to LLVM IR and execute via JIT (MCJIT). Native code runs as machine code, bypassing the Python runtime entirely. This is useful for performance-critical code and for calling C libraries directly.
 
 **C Library Imports:**
 
-Native code can import C shared libraries using the `import from` syntax with extern function declarations, either at the top level of a `.na.jac` file or inside a `na { }` block in a regular `.jac` file. The library is named either by an explicit path string (used verbatim, for a pinned or versioned file) or by a logical name (dotted and extensionless, resolved to the platform's filename):
+Native code can import C shared libraries using the `import from` syntax with extern function declarations. The extern declarations are themselves the native seed: the import and the declarations that use its names place native, even in an otherwise mixed module. The library is named either by an explicit path string (used verbatim, for a pinned or versioned file) or by a logical name (dotted and extensionless, resolved to the platform's filename):
 
 <!-- jac-skip -->
 ```jac
-# math_native.na.jac
+# math_native.jac
 import from "/usr/lib/libm.so.6" {
     def sqrt(x: f64) -> f64;
     def pow(base: f64, exp: f64) -> f64;
@@ -1021,7 +991,7 @@ Here the library is named by its logical name `raylib`, which the backend resolv
 
 <!-- jac-skip -->
 ```jac
-# game.na.jac
+# game.jac
 import from raylib {
     def InitWindow(width: i32, height: i32, title: str) -> None;
     def CloseWindow() -> None;
@@ -1048,11 +1018,10 @@ with entry {
 
 - **Circular dependencies**: Forward declare to break cycles
 - **Code organization**: Keep interfaces clean
-- **UI components**: Separate render tree from method logic (`.cl.jac` + `.impl.jac`)
+- **UI components**: Separate render tree from method logic (`.jac` + `.impl.jac`)
 - **Plugin architectures**: Define interfaces that plugins implement
 - **Large codebases**: Separate concerns across files
-- **Variant modules**: Split server, client, and native code into separate files while keeping them as one logical module
-- **C interop**: Use `.na.jac` files to call C libraries directly from JIT-compiled native code
+- **C interop**: Declare an extern C surface with `import from` to call C libraries directly from JIT-compiled native code
 
 ---
 

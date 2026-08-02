@@ -95,7 +95,7 @@ def select_injector(
         logger.warning(f"[{channel.value}] binary prep failed: {exc}");
         raise RuntimeError(
             f"Could not prepare the '{channel.value}' jac runtime: {exc}. Check "
-            "network access to github.com/jaseci-labs/jaseci releases (and "
+            "network access to github.com/jaseci-labs/jac releases (and "
             "JAC_NODE_ARCH for cross-arch nodes)."
         );
     }

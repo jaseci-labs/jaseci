@@ -26,7 +26,7 @@ impl ScaleTieredMemory.postinit -> None {
                     cast(
                         str,
                         db_config.get('redis_l1_invalidation_channel')
-                        or DEFAULT_INVALIDATION_CHANNEL
+                            or DEFAULT_INVALIDATION_CHANNEL
                     )
                 );
             }
@@ -242,8 +242,8 @@ impl ScaleTieredMemory._refresh_if_stale(id: UUID) -> None {
     if consume_stale(self._l1_id, id) {
         existing = self.__mem__.get(id);
         if existing is not None
-        and existing.persistent
-        and Serializer._compute_hash(existing) == existing.hash {
+            and existing.persistent
+            and Serializer._compute_hash(existing) == existing.hash {
             self.__mem__.pop(id, None);
         }
     }
