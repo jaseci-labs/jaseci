@@ -1,6 +1,14 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.diagnostics { E1301, E1302, E1303, E1304, E1306, E1311 }
+import from jaclang.jac0core.diagnostics {
+    E1301,
+    E1302,
+    E1303,
+    E1304,
+    E1306,
+    E1311,
+    W1312
+}
 
 glob _MOVE_EXEMPT_CALLS: tuple = (
          "len",
@@ -105,6 +113,7 @@ impl OwnershipCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     self._emit_sendability_diagnostics();
     self._emit_marker_diagnostics();
     self._emit_freeze_diagnostics();
+    self._emit_seal_warnings();
     self._emit_enforcement_diagnostics();
     return ir_in;
 }
@@ -293,6 +302,38 @@ impl OwnershipCheckPass._stamp_ownership -> None {
                     else ""
             );
             self.borrow_created_at[borrow_id] = nd;
+        }
+    }
+}
+
+impl OwnershipCheckPass._emit_seal_warnings -> None {
+    for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
+        _cd = call.callee_decl;
+        if _cd is None
+            or _cd.signature is None
+            or not isinstance(_cd.signature, uni.FuncSignature) {
+            continue;
+        }
+        if isinstance(call.target, uni.Name)
+            and call.target.sym_name in ("managed", "freeze") {
+            continue;
+        }
+        _params = _cd.signature.get_parameters();
+        for (i, a) in enumerate(call.params or []) {
+            if isinstance(a, uni.KWPair) or not isinstance(a, uni.Name) {
+                continue;
+            }
+            if a.sym is None or a.sym.ownership != OwnershipKind.OWN {
+                continue;
+            }
+            if i >= len(_params) {
+                continue;
+            }
+            _ptag = _params[i].type_tag;
+            if _ptag is not None and _ptag.ownership != OwnershipKind.NONE {
+                continue;
+            }
+            self.emit(W1312, node_override=a, name=a.sym_name);
         }
     }
 }

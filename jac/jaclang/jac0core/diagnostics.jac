@@ -660,6 +660,16 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " be reassigned, have a field written, or be borrowed `&mut`. Take an `imm` as"
          " read-only, or use an `own`/managed binding if you need to mutate."
      ),
+     W1312 = _warn(
+         "W1312",
+         Category.LINT,
+         "Owned value '{name}' silently seals into managed storage",
+         help="Passing an owned binding to an unannotated parameter moves it across"
+         " the membrane: the callee receives a managed value and '{name}' is"
+         " consumed at a distance. Write managed({name}) at the call site to make"
+         " the seal explicit, or annotate the callee parameter `own` to take"
+         " ownership intentionally."
+     ),
      E1311 = _err(
          "E1311",
          Category.SEMANTIC,

@@ -313,6 +313,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `W1051` | Expression type could not be resolved (Unknown) |
 | `W1052` | JSX component '{component}' uses an untyped props bag (`props: any`); its JSX props cannot be type-checked |
 | `W1310` | Region open on '{name}' has an empty body |
+| `W1312` | Owned value '{name}' silently seals into managed storage |
 
 ---
 
