@@ -33,6 +33,7 @@ glob OWNBENCH = str(Path(__file__).resolve().parents[4] / "examples" / "ownbench
          "own_vm": ["200", "50"],
          "own_rbtree": ["1000", "2"],
          "own_deriv": ["20", "3"],
+         "own_aos": ["300", "3"],
 
      };
 
@@ -126,6 +127,10 @@ test "ownbench differential identity: rbtree" {
 
 test "ownbench differential identity: deriv (own-param transfer stress)" {
     _assert_differential_identity("own_deriv");
+}
+
+test "ownbench differential identity: aos (own fields + archetype lists)" {
+    _assert_differential_identity("own_aos");
 }
 
 test "ownbench erasure round-trip: deriv reproduces annotated digest" {
