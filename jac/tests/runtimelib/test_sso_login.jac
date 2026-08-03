@@ -51,8 +51,8 @@ test "desktop SSO hands off to the broker, polls the session, stores jac_token" 
     # The broker open was requested with the right platform + operation...
     assert any(
         c.includes("oauth/start")
-        and c.includes("platform=google")
-        and c.includes("operation=login") for c in calls
+            and c.includes("platform=google")
+            and c.includes("operation=login") for c in calls
     );
     # ...and the session store was polled on the broker prefix.
     assert any(c.includes("/__jac/session") for c in calls);

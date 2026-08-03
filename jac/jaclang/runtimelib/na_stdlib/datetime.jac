@@ -57,11 +57,18 @@ obj datetime {
 
     def isoformat -> str {
         return (
-            _pad4(self.year) + "-" + _pad2(self.month) + "-" + _pad2(self.day) + "T" + _pad2(
-                self.hour
-            ) + ":" + _pad2(self.minute) + ":" + _pad2(self.second) + _offset_str(
-                self.tz_offset_min
-            )
+            _pad4(self.year)
+            + "-"
+            + _pad2(self.month)
+            + "-"
+            + _pad2(self.day)
+            + "T"
+            + _pad2(self.hour)
+            + ":"
+            + _pad2(self.minute)
+            + ":"
+            + _pad2(self.second)
+            + _offset_str(self.tz_offset_min)
         );
     }
 }

@@ -288,7 +288,7 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
             reader_info = effects[endpoint_name];
             if reader_info and not reader_info["is_writer"] {
                 if writer_touches.includes("*")
-                or __overlaps(reader_info["touches"], writer_touches) {
+                    or __overlaps(reader_info["touches"], writer_touches) {
                     __invalidateEndpoint(endpoint_name);
                 }
             }
@@ -301,9 +301,9 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
 
 impl __jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
     if left == "login"
-    or left == "signup"
-    or left == "logout"
-    or left == "refresh_token" {
+        or left == "signup"
+        or left == "logout"
+        or left == "refresh_token" {
         return await __doWalkerFetch(left, right, fields);
     }
     endpoint_key = f"walker:{left}";
@@ -509,9 +509,9 @@ impl jacSsoLogin(platform: str, api_base: str = "", operation: str = "login") ->
     broker = __jacDesktopBroker();
     if broker {
         start_url = (
-            f"{broker}/oauth/start?platform={encodeURIComponent(platform)}" + f"&operation={encodeURIComponent(
-                operation
-            )}" + f"&api_base={encodeURIComponent(base)}"
+            f"{broker}/oauth/start?platform={encodeURIComponent(platform)}"
+            + f"&operation={encodeURIComponent(operation)}"
+            + f"&api_base={encodeURIComponent(base)}"
         );
         started = await fetch(start_url);
         if not started.ok {

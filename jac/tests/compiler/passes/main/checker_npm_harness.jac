@@ -42,9 +42,13 @@ def write_client_jac_project(
 ) -> Path {
     strict_block = '\n[check]\nuntyped-external = "error"\n' if strict else '';
     (proj_dir / "jac.toml").write_text(
-        '[project]\nname = "' + project_name + '"\nversion = "0.1.0"\n'
-        'entry-point = "' + entry_point + '"\n\n'
-        '[dependencies.npm]\n' + npm_dep_lines + strict_block
+        '[project]\nname = "'
+            + project_name
+            + '"\nversion = "0.1.0"\n' 'entry-point = "'
+            + entry_point
+            + '"\n\n' '[dependencies.npm]\n'
+            + npm_dep_lines
+            + strict_block
     );
     (proj_dir / "lib").mkdir(parents=True, exist_ok=True);
     return proj_dir;

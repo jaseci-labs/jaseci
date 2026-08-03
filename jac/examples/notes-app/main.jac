@@ -387,9 +387,9 @@ def:pub app -> JsxElement {
                         }}
                     >
                         {str(len(notes))
-                        + " note"
-                        + ("s" if len(notes) != 1 else "")
-                        + "  ·  saved locally"}
+                            + " note"
+                            + ("s" if len(notes) != 1 else "")
+                            + "  ·  saved locally"}
                     </div>
                 </aside>
                 # ---------- editor ----------
@@ -449,9 +449,9 @@ def:pub app -> JsxElement {
                                     <span>{"Edited " + relTime(cur["updatedAt"])}</span>
                                     <span>
                                         {str(wordCount(cur["body"]))
-                                        + " words  ·  "
-                                        + str(len(str(cur["body"])))
-                                        + " chars"}
+                                            + " words  ·  "
+                                            + str(len(str(cur["body"])))
+                                            + " chars"}
                                     </span>
                                 </div>
                             </div>

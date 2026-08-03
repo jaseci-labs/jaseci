@@ -46,15 +46,14 @@ def compile_fixture_with_backend(fixture_name: str, backend: object) -> str {
 test "react backend reports runtime symbols for reactive lowering" {
     backend = ReactBackend();
     init = es.Literal(value=0, raw="0");
-    assert backend.state_field_symbols(StateField(name="count", init_expr=init)) == [
-        "useState"
-    ];
-    assert backend.ref_field_symbols(RefField(name="node", init_expr=init)) == [
-        "useRef"
-    ];
+    assert backend.state_field_symbols(StateField(name="count", init_expr=init))
+        == ["useState"];
+    assert backend.ref_field_symbols(RefField(name="node", init_expr=init))
+        == ["useRef"];
     assert backend.effect_symbols(
         Effect(body=[], deps=[], is_entry=True, is_async=False)
-    ) == ["useEffect"];
+    )
+        == ["useEffect"];
     try_expr = es.Identifier(name="tryFn");
     awaiting_only = AsyncBoundary(
         try_expr=try_expr, awaiting_expr=None, except_exprs=[]
@@ -65,21 +64,19 @@ test "react backend reports runtime symbols for reactive lowering" {
         awaiting_expr=None,
         except_exprs=[es.Identifier(name="onErr")]
     );
-    assert backend.async_boundary_symbols(with_except) == [
-        "JacAwaiting",
-        "JacClientErrorBoundary"
-    ];
+    assert backend.async_boundary_symbols(with_except)
+        == ["JacAwaiting", "JacClientErrorBoundary"];
 }
 
 test "preact backend inherits hook symbol names from react" {
     backend = PreactBackend();
     init = es.Literal(value=0, raw="0");
-    assert backend.state_field_symbols(StateField(name="count", init_expr=init)) == [
-        "useState"
-    ];
+    assert backend.state_field_symbols(StateField(name="count", init_expr=init))
+        == ["useState"];
     assert backend.effect_symbols(
         Effect(body=[], deps=[], is_entry=True, is_async=False)
-    ) == ["useEffect"];
+    )
+        == ["useEffect"];
 }
 
 test "registry resolves preact backend" {
@@ -170,18 +167,15 @@ test "preact async_boundary_symbols with except arms returns both symbols" {
         awaiting_expr=None,
         except_exprs=[es.Identifier(name="onErr")]
     );
-    assert backend.async_boundary_symbols(with_except) == [
-        "JacAwaiting",
-        "JacClientErrorBoundary"
-    ];
+    assert backend.async_boundary_symbols(with_except)
+        == ["JacAwaiting", "JacClientErrorBoundary"];
 }
 
 test "preact ref_field_symbols inherits useRef from react" {
     backend = PreactBackend();
     init = es.Literal(value=0, raw="0");
-    assert backend.ref_field_symbols(RefField(name="node", init_expr=init)) == [
-        "useRef"
-    ];
+    assert backend.ref_field_symbols(RefField(name="node", init_expr=init))
+        == ["useRef"];
 }
 
 test "react client runtime shim imports no solid ecosystem package" {

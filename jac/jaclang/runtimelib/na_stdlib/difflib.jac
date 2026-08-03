@@ -90,8 +90,8 @@ def _find_longest_match(
         bestsize += 1;
     }
     while besti + bestsize < ahi
-    and bestj + bestsize < bhi
-    and ord(a[besti + bestsize]) == ord(b[bestj + bestsize]) {
+        and bestj + bestsize < bhi
+        and ord(a[besti + bestsize]) == ord(b[bestj + bestsize]) {
         bestsize += 1;
     }
     return [besti, bestj, bestsize];

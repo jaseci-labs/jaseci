@@ -193,7 +193,7 @@ def:pub TweetCard(
                             <Avatar className="size-7 shrink-0">
                                 <AvatarImage
                                     src={"https://i.pravatar.cc/150?u=fake@"
-                                    + c["username"]}
+                                        + c["username"]}
                                     alt={c["username"]}
                                 />
                                 <AvatarFallback className="text-[0.6rem]">
@@ -218,7 +218,7 @@ def:pub TweetCard(
                             value={commentText}
                             onChange={lambda (e: ChangeEvent) { commentText = e.target.value; }}
                             onKeyDown={lambda (e: KeyboardEvent) { if e.key == "Enter"
-                            and commentText.strip() {
+                                and commentText.strip() {
                                 onComment(jid(tweet), commentText);
                                 commentText = "";
                             }}}

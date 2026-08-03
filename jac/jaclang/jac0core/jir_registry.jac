@@ -1318,7 +1318,7 @@ glob NODE_SPECS: tuple = (
              is_scope=False,
              is_cfg=False,
              is_name_atom=False,
-             fields=(FieldDesc(name="ast", kind=10), FieldDesc(name="orig_src", kind=4))
+             fields=(FieldDesc(name="ast", kind=4), FieldDesc(name="orig_src", kind=4))
          ),
          NodeSpec(
              type_idx=116,

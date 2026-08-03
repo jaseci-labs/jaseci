@@ -83,8 +83,8 @@ delegates to `JacRuntimeInterface`.
 
 The `__all__` in `builtin.jac` also exports adjacent names that fall outside
 the blog post's nine but follow the same registration pattern: `llm`,
-`archetype_alias`, the access-level singletons (`NoPerm`, `ReadPerm`,
-`ConnectPerm`, `WritePerm`), and the decorators `restspec` and `schedule`.
+`archetype_alias`, the ambient `AccessLevel` enum, and the decorators
+`restspec` and `schedule`.
 
 ---
 

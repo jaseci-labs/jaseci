@@ -327,8 +327,8 @@ jac/jaclang/scale/deploy/autoscale/keda_autoscaler.impl.jac
 jac/jaclang/scale/deploy/autoscale/keda_autoscaler.jac
 jac/jaclang/scale/deploy/target/kubernetes/cluster_provider.jac
 jac/jaclang/scale/deploy/target/kubernetes/ingress.jac
-jac/jaclang/scale/deploy/target/kubernetes/microservice/database_provisioner.jac
-jac/jaclang/scale/deploy/target/kubernetes/microservice/target.jac
+jac/jaclang/scale/deploy/target/kubernetes/database_provisioner.jac
+jac/jaclang/scale/deploy/target/kubernetes/target.jac
 jac/jaclang/scale/emailer/emailers.jac
 jac/jaclang/scale/emailer/factory.jac
 jac/jaclang/scale/emailer/impl/emailers.impl.jac
@@ -358,6 +358,7 @@ jac/jaclang/scale/runtime/gateway/microservice_gateway.jac
 jac/jaclang/scale/runtime/gateway/openapi_agg.jac
 jac/jaclang/scale/runtime/gateway/process_gateway.jac
 jac/jaclang/scale/runtime/middleware/ws_forward.jac
+jac/jaclang/scale/runtime/orchestrator/orchestrator.jac
 jac/jaclang/scale/runtime/orchestrator/process_manager.impl.jac
 jac/jaclang/scale/runtime/orchestrator/process_manager.jac
 jac/jaclang/scale/runtime/realizer/kubernetes_realizer.jac

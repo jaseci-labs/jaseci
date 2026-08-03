@@ -44,17 +44,21 @@ def:pub SSOPage -> JsxElement {
                     </TableCell>
                     <TableCell>
                         {p["configured"]
-                        and <span className="text-xs text-emerald-400">Configured</span>
-                        or <span className="text-xs text-faint">Not configured</span>}
+                            and <span className="text-xs text-emerald-400">
+                                Configured
+                            </span>
+                            or <span className="text-xs text-faint">
+                                Not configured
+                            </span>}
                     </TableCell>
                     <TableCell>
                         <span
                             className={"text-xs "
-                            + (
-                                p["client_id_set"]
-                                and "text-emerald-400"
-                                or "text-faint"
-                            )}
+                                + (
+                                    p["client_id_set"]
+                                    and "text-emerald-400"
+                                    or "text-faint"
+                                )}
                         >
                             {p["client_id_set"] and "Set" or "Not set"}
                         </span>
@@ -62,11 +66,11 @@ def:pub SSOPage -> JsxElement {
                     <TableCell>
                         <span
                             className={"text-xs "
-                            + (
-                                p["client_secret_set"]
-                                and "text-emerald-400"
-                                or "text-faint"
-                            )}
+                                + (
+                                    p["client_secret_set"]
+                                    and "text-emerald-400"
+                                    or "text-faint"
+                                )}
                         >
                             {p["client_secret_set"] and "Set" or "Not set"}
                         </span>

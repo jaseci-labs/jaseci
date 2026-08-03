@@ -457,9 +457,10 @@ impl DocIRGenPass.exit_sub_tag(nd: uni.SubTag) -> None {
             seen_colon = True;
         } elif seen_colon {
             if after_colon
-            and not (
-                isinstance(prev_after, uni.Token) and (prev_after.name == Tok.BW_AND)
-            ) {
+                and not (
+                    isinstance(prev_after, uni.Token)
+                    and (prev_after.name == Tok.BW_AND)
+                ) {
                 after_colon.append(self.space());
             }
             after_colon.append(i.gen.doc_ir);
@@ -2383,16 +2384,27 @@ impl DocIRGenPass._assign_space_group(nd: uni.UniNode) -> None {
 impl DocIRGenPass._assign_operator_chain(
     nd: uni.UniNode, operands: list, ops: list
 ) -> None {
-    parts: list[doc.DocType] = [operands[0].gen.doc_ir];
+    rest: list[doc.DocType] = [];
     for i in range(len(ops)) {
-        parts += [
+        rest += [
             self.line(),
             ops[i].gen.doc_ir,
             self.space(),
             operands[(i + 1)].gen.doc_ir
         ];
     }
-    nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
+
+    tail: doc.DocType = self.concat(rest);
+    parent = nd.parent;
+    if isinstance(parent, uni.CfgExpr) {
+        parent = parent.parent;
+    }
+    if not isinstance(parent, uni.AtomUnit) {
+        tail = self.indent(tail);
+    }
+    nd.gen.doc_ir = self.group(
+        self.concat([operands[0].gen.doc_ir, tail], ast_node=nd), ast_node=nd
+    );
 }
 
 impl DocIRGenPass._assign_group_concat(nd: uni.UniNode) -> None {

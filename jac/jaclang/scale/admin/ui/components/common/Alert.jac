@@ -12,9 +12,8 @@ def:pub Alert(message: str, type: str = "success") -> JsxElement {
         "info": "bg-surface-2 text-fg border border-line"
     };
 
-    classes = "fixed top-4 right-4 z-50 px-4 py-2 rounded-md text-sm font-medium shadow-md " + (
-        typeClasses[type] or typeClasses["success"]
-    );
+    classes = "fixed top-4 right-4 z-50 px-4 py-2 rounded-md text-sm font-medium shadow-md "
+        + (typeClasses[type] or typeClasses["success"]);
 
     <div className={classes}>{message}</div>
 }
@@ -30,9 +29,8 @@ def:pub InlineAlert(message: str, type: str = "error") -> JsxElement {
         "warning": "bg-warning-weak border border-line text-warning"
     };
 
-    classes = "px-3 py-2 rounded-md text-sm mb-4 " + (
-        typeClasses[type] or typeClasses["error"]
-    );
+    classes = "px-3 py-2 rounded-md text-sm mb-4 "
+        + (typeClasses[type] or typeClasses["error"]);
 
     <div className={classes}>{message}</div>
 }

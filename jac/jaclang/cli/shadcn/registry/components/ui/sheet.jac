@@ -43,12 +43,12 @@ def:pub SheetContent(props: any) -> JsxElement {
             className={cn("cn-sheet-content", props["className"])}
         >
             {props["children"]}{showCloseButton
-            and <SheetPrimitive.Close data-slot="sheet-close" asChild={True}>
-                <Button variant="ghost" className="cn-sheet-close" size="icon-sm">
-                    <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2}/>
-                    <span className="sr-only">Close</span>
-                </Button>
-            </SheetPrimitive.Close>}
+                and <SheetPrimitive.Close data-slot="sheet-close" asChild={True}>
+                    <Button variant="ghost" className="cn-sheet-close" size="icon-sm">
+                        <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2}/>
+                        <span className="sr-only">Close</span>
+                    </Button>
+                </SheetPrimitive.Close>}
         </SheetPrimitive.Content>
     </SheetPortal>
 }

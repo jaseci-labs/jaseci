@@ -35,7 +35,7 @@ def inject_shared_init(
         extra_exports.append("jac_retain");
     }
     if ("@__rc_release_simple(" in llvm_ir_str)
-    or ('@"__rc_release_simple"(' in llvm_ir_str) {
+        or ('@"__rc_release_simple"(' in llvm_ir_str) {
         parts.append(
             "define void @jac_release(ptr %p) {\nentry:\n"
             "  call void @__rc_release_simple(ptr %p)\n  ret void\n}"
