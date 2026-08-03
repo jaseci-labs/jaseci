@@ -54,9 +54,7 @@ obj KubernetesRealizer {
                     f"gateway{label}{hint}.",
                     style="cyan"
                 );
-                for line in format_route_origin_lines(
-                    merged_routes, explicit_routes
-                ) {
+                for line in format_route_origin_lines(merged_routes, explicit_routes) {
                     console.print(f"  {line}", style="muted");
                 }
             } else {
