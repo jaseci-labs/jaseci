@@ -65,9 +65,15 @@ impl _page_rows(
         nd_names = tuple(t.__name__ for t in types);
     }
     out: list[tuple[UUID, UUID]] = [];
-    nbr = page.get('nbr') or {};
-    for row in page.get('adj') or [] {
-        (eid, e_anc, undir, is_out, other, e_cols) = row;
+    nbr = cast(dict, page.get('nbr') or {});
+    for row in cast(list, page.get('adj') or []) {
+        row_t = cast(tuple, row);
+        eid = cast(UUID, row_t[0]);
+        e_anc = cast(tuple, row_t[1]);
+        undir = bool(row_t[2]);
+        is_out = bool(row_t[3]);
+        other = cast(UUID, row_t[4]);
+        e_cols = cast(dict, row_t[5]);
         if hop.dir == 2 {
             if not (is_out or undir) {
                 continue;
@@ -84,11 +90,11 @@ impl _page_rows(
             continue;
         }
         if nd_names is not None {
-            summ = view.proj.summary_of(other) or nbr.get(other);
-            if summ is None {
+            raw = view.proj.summary_of(other) or nbr.get(other);
+            if raw is None {
                 return None;
             }
-            (o_anc, _) = summ;
+            o_anc = cast(tuple, cast(tuple, raw)[0]);
             miss = False;
             for n in nd_names {
                 if n not in o_anc {
@@ -198,7 +204,7 @@ impl _node_pred_keep(
                 continue;
             }
             summary_known.add(i);
-            (_, cols) = summ;
+            cols = cast(dict, cast(tuple, summ)[1]);
             if all(p.matches(cols.get(p.field)) for p in preds) {
                 summary_pass.add(i);
             }
