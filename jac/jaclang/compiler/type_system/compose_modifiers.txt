@@ -1,5 +1,5 @@
 // AndroidX Compose Modifier extension signatures (metalava shape), bundled for
-// the Jac type-checker. Ingested at TypeEvaluator init via compose_stub_gen
+// the Jac type-checker. Ingested at TypeEvaluator init via compose_signatures
 // (parse_modifier_text) -> _install_compose_modifiers, which installs each
 // Modifier extension as a chainable method on `ModifierChain`, so
 // `Modifier.padding(8.dp).fillMaxWidth().clickable(onClick=..)` type-checks and

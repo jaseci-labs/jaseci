@@ -11,7 +11,7 @@ import from jaclang.compiler.passes.compose.view_ir {
     ComposeEachChild
 }
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
-import from jaclang.compiler.passes.compose.compose_stub_gen { widget_param_kind_table }
+import from jaclang.compiler.type_system.compose_signatures { widget_param_kind_table }
 
 def _widget_param_kinds -> dict[str, dict[str, str]] {
     return widget_param_kind_table();

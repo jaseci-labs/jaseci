@@ -1,5 +1,5 @@
 // AndroidX Compose widget signatures (metalava shape), bundled for the Jac
-// type-checker. Ingested at TypeEvaluator init via compose_stub_gen
+// type-checker. Ingested at TypeEvaluator init via compose_signatures
 // (parse_signature_text) -> _kotlin_synth_surface, which installs each
 // @Composable UI method as a typed client-scope symbol so `Button(onClick=..)`
 // type-checks. Regenerate/extend from the upstream signature files:

@@ -1,5 +1,5 @@
 // AndroidX Compose constant namespaces (metalava shape), bundled for the Jac
-// type-checker. Ingested at TypeEvaluator init via compose_stub_gen
+// type-checker. Ingested at TypeEvaluator init via compose_signatures
 // (parse_const_text) -> _install_compose_consts, which installs each named
 // constant as a member on the matching `<Name>Namespace` class in js_globals.pyi,
 // so `Arrangement.Center`, `Alignment.CenterVertically`, `Color.Red` type-check

@@ -19,7 +19,7 @@ import tempfile;
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.compiler.passes.compose.compose_stub_gen { parse_signature_text }
+import from jaclang.compiler.type_system.compose_signatures { parse_signature_text }
 
 def _mk_compose_project(prefix: str) -> str {
     # A snippet dir that is a real Compose project: `[client] framework = "compose"`

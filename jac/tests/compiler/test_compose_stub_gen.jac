@@ -6,13 +6,13 @@ defaulted params, `Function0/1<...,kotlin.Unit>` for lambdas). Real material3
 current.txt is wired in at build time; this pins the parse + classification.
 """
 
-import from jaclang.compiler.passes.compose.compose_stub_gen {
+import from jaclang.compiler.type_system.compose_signatures {
     parse_signature_text,
     parse_modifier_text,
     parse_const_text,
-    slot_table,
-    generate
+    slot_table
 }
+import from jaclang.compiler.passes.compose.compose_stub_gen { generate }
 
 glob CONST_FIXTURE: str = "package androidx.compose.foundation.layout {\n"
      "  public final class Arrangement {\n"

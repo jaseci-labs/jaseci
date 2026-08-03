@@ -31,7 +31,7 @@ import from jaclang.compiler.type_system.ts_decl_parser {
     TsAccess,
     TsMember
 }
-import from jaclang.compiler.passes.compose.compose_stub_gen {
+import from jaclang.compiler.type_system.compose_signatures {
     ComposeSig,
     SigParam,
     parse_signature_text,
