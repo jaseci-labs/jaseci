@@ -4,7 +4,7 @@ The E1401/E1404 param sweep used to treat every parameter of an
 `import from lib { def ... }` extern block as an unannotated heap contract
 position, and the native width types (i32/f32/u8/...) were missing from the
 scalar set -- so a nogc-enforced module could not declare FFI at all (found
-moving jaclang.org's shooter to an enforced `game/arena.na.jac`). Extern
+moving jaclang.org's shooter to an enforced `game/arena.jac`). Extern
 decls are FFI contracts outside the ownership world: params under a
 `uni.Import` parent are skipped, width types are scalars, and the fence
 must still fire on regular defs.
@@ -38,9 +38,9 @@ def enforced_codes(fixture: str) -> list[str] {
 }
 
 test "clib extern decls with width and str params are exempt from the fence" {
-    assert enforced_codes("clib_externs.na.jac") == [];
+    assert enforced_codes("clib_externs.jac") == [];
 }
 
 test "str param on a regular def still trips E1401" {
-    assert enforced_codes("plain_str_param.na.jac") == ["E1401"];
+    assert enforced_codes("plain_str_param.jac") == ["E1401"];
 }

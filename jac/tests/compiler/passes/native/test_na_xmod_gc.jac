@@ -8,8 +8,11 @@ Both paths must yield RC-free IR for a gc-none multi-module program.
 
 import os;
 import shutil;
+import subprocess;
+import sys;
 import tempfile;
-import from tests.support { TESTS_DIR }
+import jaclang;
+import from tests.support { TESTS_DIR, native_force_opts }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 
@@ -45,16 +48,52 @@ def _compile_ir(entry_path: str, gc_mode: str, enforce: list) -> str {
 }
 
 def _staged_entry(tmp: str) -> str {
-    for name in ("xmod_gc_entry.na.jac", "xmod_gc_lib.na.jac") {
+    for name in ("xmod_gc_entry.jac", "xmod_gc_lib.jac") {
         shutil.copy(os.path.join(FIXTURES, name), os.path.join(tmp, name));
     }
-    return os.path.join(tmp, "xmod_gc_entry.na.jac");
+    return os.path.join(tmp, "xmod_gc_entry.jac");
 }
 
 test "imported na modules inherit gc none: no RC in multi-module IR" {
     with tempfile.TemporaryDirectory() as tmp {
         ir = _compile_ir(_staged_entry(tmp), "none", ENFORCE);
         assert "__rc_" not in ir , "imported module re-entered the RC world";
+    }
+}
+
+test "host-path multi-module gc none build passes assert-no-rc" {
+    with tempfile.TemporaryDirectory() as tmp {
+        entry = _staged_entry(tmp);
+        src_root = os.path.dirname(os.path.dirname(os.path.abspath(jaclang.__file__)));
+        with open(os.path.join(tmp, "jac.toml"), "w") as f {
+            f.write(
+                "[project]\nname = \"xmodgc\"\n\n[gc]\ndefault = \"none\"\n\n[gc.enforce]\nmodules = [\"xmod_gc*\"]\n\n"
+            );
+            f.write(f"[dev]\njaclang_source = \"{src_root}\"\n");
+        }
+        out_bin = os.path.join(tmp, "xmod.bin");
+        comp = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "nacompile",
+                entry,
+                "--scrub",
+                "--gc",
+                "none",
+                "--enforce-nogc",
+                "--assert-no-rc",
+                "-o",
+                out_bin
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=tmp
+        );
+        combined = (comp.stdout or "") + (comp.stderr or "");
+        assert comp.returncode == 0 , f"multi-module host build kept RC machinery: {combined[-900:]}";
     }
 }
 

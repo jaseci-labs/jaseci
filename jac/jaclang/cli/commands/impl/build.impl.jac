@@ -80,7 +80,7 @@ impl build(
         if not entry_path or not os.path.isfile(entry_path) {
             console.error(
                 "No entry file for the native projection.",
-                hint="Set [project] entry-point or pass one: jac build main.na.jac --as native"
+                hint="Set [project] entry-point or pass one: jac build main.jac --as native"
             );
             return 1;
         }

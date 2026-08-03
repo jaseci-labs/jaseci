@@ -35,7 +35,16 @@ consumption are facts about names, not about heap objects:
   path-sensitive state: you cannot move `a.b` while keeping `a.c` live.
 - There is no interprocedural analysis. A call is handled by its signature
   only: passing an `own`/`linear` value to a call is a consuming move; what the
-  callee does internally is checked separately, in the callee.
+  callee does internally is checked separately, in the callee. Two
+  contract-known exceptions borrow instead of consuming: read-only builtin
+  methods (`find`, `startswith`, `split`, `join`, `replace`, `get`, `write`,
+  ...) and calls into the native stdlib surface (`os`/`sys`/`time`/`math`/
+  `random`/`struct`), whose C-backed shims copy or read transiently and never
+  retain. str-typed subscript/slice results are fresh copies and likewise do
+  not consume their base. Container grow methods (`append`/`add`/`insert` on
+  a list/set/dict receiver) also do not consume their arguments: under the
+  headerless contract fresh strings move into the container and named
+  bindings are copied in at codegen, so the source binding stays live.
 - There is no alias analysis through managed storage. Once a value is moved
   into a field, container, or graph object (sealed across the membrane), the
   checker's knowledge of it ends; reading it back yields an ordinary managed

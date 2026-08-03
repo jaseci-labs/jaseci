@@ -315,23 +315,23 @@ impl NaIRGenPass._emit_raw_free_bbs(
             log_raw_bb,
             live_rm_bb
         );
-
         b = ir.IRBuilder(log_raw_bb);
-
         _triple = str(self.llvm_module.triple or "").lower();
         _raw_msz = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="raw.msz");
         if "wasm" in _triple {
             _msz = ir.Constant(i64, 0);
         } else {
             _is_darwin = ("darwin" in _triple)
-            or ("apple" in _triple)
-            or ("macos" in _triple)
-            or ("ios" in _triple);
+                or ("apple" in _triple)
+                or ("macos" in _triple)
+                or ("ios" in _triple);
             _msz_sym = "malloc_size" if _is_darwin else "malloc_usable_size";
             _msz_fn = self._get_or_declare_extern(_msz_sym, i64, [i8_ptr]);
             _msz = b.call(_msz_fn, [_raw_msz], name="msz");
         }
-        _aid_slot = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="fr.aid.slot");
+        _aid_slot = b.gep(
+            ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="fr.aid.slot"
+        );
         _aid_ptr = b.bitcast(_aid_slot, i64_ptr, name="fr.aid.ptr");
         _aid_raw = b.load(_aid_ptr, name="fr.aid.raw");
         _aid = b.and_(_aid_raw, ir.Constant(i64, 4294967295), name="fr.aid");
@@ -399,9 +399,9 @@ impl NaIRGenPass._emit_struct_free_log(
         _msz2 = ir.Constant(i64, 0);
     } else {
         _is_darwin = ("darwin" in _triple)
-        or ("apple" in _triple)
-        or ("macos" in _triple)
-        or ("ios" in _triple);
+            or ("apple" in _triple)
+            or ("macos" in _triple)
+            or ("ios" in _triple);
         _msz_sym = "malloc_size" if _is_darwin else "malloc_usable_size";
         _msz_fn = self._get_or_declare_extern(_msz_sym, i64, [i8_ptr]);
         _msz2 = b.call(_msz_fn, [obj_raw], name="msz2");
@@ -446,7 +446,9 @@ impl NaIRGenPass._set_rc_ctx(op: str, loc: str) -> None {
 }
 
 impl NaIRGenPass._clear_rc_ctx -> None {
-    if not self._rc_debug_codegen or self._nogc_headerless() or self.rc_ctx_op_gv is None {
+    if not self._rc_debug_codegen
+        or self._nogc_headerless()
+        or self.rc_ctx_op_gv is None {
         return;
     }
     i8_ptr = ir.IntType(8).as_pointer();

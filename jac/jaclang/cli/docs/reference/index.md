@@ -56,6 +56,7 @@ AI, deployment, and the full-stack frameworks. byLLM and Scale are **built into 
 - **[Configuration](config/index.md)** -- `jac.toml`, profiles, environments
 - **[Publishing Packages](publishing.md)** -- building wheels and npm tarballs
 - **[Persistence & Schema Migration](persistence.md)** -- the `root` graph, schema drift, migrations
+- **[Placement](placement.md)** -- how the solver assigns server / client / native, and when to still write `sv` / `na`
 - **[Errors & Warnings](diagnostics.md)** -- diagnostic codes
 - **[Code Organization](code-organization.md)** · **[Testing](testing.md)**
 

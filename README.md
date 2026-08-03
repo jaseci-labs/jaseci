@@ -65,16 +65,16 @@ Install the self-contained `jac` binary. No Python, pip, Node, or C toolchain re
 curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install.sh | bash
 ```
 
-Then clone and run [**this_is_jac**](https://github.com/jaseci-labs/this_is_jac), a showcase technology demo built entirely in Jac:
+Then clone and run [**jac_site**](https://github.com/jaseci-labs/jac_site) -- the official jaclang.org website, built end to end in Jac (naturally):
 
 ```bash
-git clone https://github.com/jaseci-labs/this_is_jac
-cd this_is_jac
-jac install   # first run: pulls python + npm deps
+git clone https://github.com/jaseci-labs/jac_site
+cd jac_site
+jac install   # first run: pulls npm deps
 jac start     # builds the frontend + wasm, serves on http://localhost:8000
 ```
 
-This one application demonstrates every claim above: a guestbook served by walkers and persisted to a real graph with no database, a walker traversing that graph live on screen, one module importing PyPI, npm, and C-ABI libraries at once, a function body delegated to an LLM with `by llm()`, an analytics microservice pulled in by `sv import`, one native shooter compiled both to machine code and to in-browser WebAssembly, and the whole littleX social app embedded as a single component writing to the same graph. All in one typechecked, contiguous, synechic codebase.
+One language spans all three codespaces in this single codebase: the pages and components compile to JavaScript, the endpoints compile to Python and serve over RPC, and the arcade game in `game/arena.jac` compiles through LLVM to in-browser WebAssembly -- fully borrow-checked, with zero reference counting in the artifact. The docs reader serves the language corpus straight from a real graph, the Ninja Leaderboard persists scores through walkers with no database, and the whole thing is one typechecked, contiguous, synechic codebase.
 
 > Prebuilt binaries ship for **macOS and Linux**; on Windows, use WSL (a native PowerShell installer is coming soon). See the [installation guide](https://www.jaclang.org/docs/latest/quick-guide/install) for versions, upgrading, and IDE setup.
 
