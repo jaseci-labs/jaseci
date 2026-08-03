@@ -185,9 +185,13 @@ impl _heal_sweep(
     if not suspects {
         return;
     }
+    present = mem.existing_ids([st.id for st in suspects]);
+    if present is None {
+        return;
+    }
     alive: list[EdgeAnchor] = [];
     for st in suspects {
-        if mem.`has(st.id) {
+        if st.id in present {
             alive.append(st);
         } else {
             mem.quarantine_ref(nanch, st);
@@ -201,6 +205,8 @@ impl _heal_sweep(
         return;
     }
     pool = mem.get_mem();
+    other_of: dict[UUID, UUID] = {};
+    to_check: list[UUID] = [];
     for st in alive {
         ends = endpoints.get(st.id);
         if ends is None {
@@ -212,7 +218,19 @@ impl _heal_sweep(
         if resident is not None and resident.is_populated() {
             continue;
         }
-        if mem.`has(other_id) {
+        other_of[st.id] = other_id;
+        to_check.append(other_id);
+    }
+    if not to_check {
+        return;
+    }
+    ok_nodes = mem.existing_ids(to_check);
+    if ok_nodes is None {
+        return;
+    }
+    for st in alive {
+        other_id = other_of.get(st.id);
+        if other_id is None or other_id in ok_nodes {
             continue;
         }
         mem.quarantine_ref(nanch, st);

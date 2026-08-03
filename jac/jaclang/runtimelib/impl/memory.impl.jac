@@ -1391,6 +1391,28 @@ impl SqliteMemory.edge_endpoints(
     return out;
 }
 
+impl SqliteMemory.existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
+    if not ids {
+        return set();
+    }
+    out: set[UUID] = set();
+    with self.__lock__ {
+        self._ensure_connection();
+        assert self.__conn__ is not None;
+        keys = [str(i) for i in ids];
+        for start in range(0, len(keys), 400) {
+            chunk = keys[start:start + 400];
+            marks = ', '.join('?' for _ in chunk);
+            for r in self.__conn__.execute(
+                f"SELECT id FROM anchors WHERE id IN ({marks})", chunk
+            ).fetchall() {
+                out.add(UUID(cast(str, r[0])));
+            }
+        }
+    }
+    return out;
+}
+
 impl SqliteMemory.commit(anchor: (Anchor | None) = None) -> None { }
 
 def _sqlite_attempt_recover(conn: sqlite3.Connection, row: tuple) -> tuple {
@@ -2327,6 +2349,13 @@ impl TieredMemory.edge_endpoints(
         return None;
     }
     return self.l3.edge_endpoints(ids);
+}
+
+impl TieredMemory.existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
+    if self.l3 is None {
+        return None;
+    }
+    return self.l3.existing_ids(ids);
 }
 
 impl TieredMemory.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {

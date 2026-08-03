@@ -171,6 +171,7 @@ obj SqliteMemory(PersistentMemory) {
 
     def filter_ids(ids: list[UUID], preds: list[QPred]) -> (set[UUID] | None);
     def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None);
+    def existing_ids(ids: list[UUID]) -> (set[UUID] | None);
     def _apply_one(conn: sqlite3.Connection, intent: WriteIntent) -> None;
     def _merge_write(conn: sqlite3.Connection, intent: WriteIntent) -> None;
     def inspect_summary -> dict;
@@ -221,4 +222,5 @@ obj TieredMemory(VolatileMemory) {
 
     def filter_ids(ids: list[UUID], preds: list[QPred]) -> (set[UUID] | None);
     def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None);
+    def existing_ids(ids: list[UUID]) -> (set[UUID] | None);
 }

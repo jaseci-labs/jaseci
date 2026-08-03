@@ -662,6 +662,23 @@ impl MongoBackend.edge_endpoints(
 }
 
 
+impl MongoBackend.existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
+    if not ids or self.client is None {
+        return set();
+    }
+    out: set[UUID] = set();
+    try {
+        filt = {'_id': {'$in': [str(i) for i in ids]}};
+        for doc in self.collection.find(filt, {'_id': 1}) {
+            out.add(UUID(str(doc['_id'])));
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB existing_ids failed: {e}");
+    }
+    return out;
+}
+
+
 impl MongoBackend.filter_ids(
     ids: list[UUID], preds: list[QPred]
 ) -> (set[UUID] | None) {
