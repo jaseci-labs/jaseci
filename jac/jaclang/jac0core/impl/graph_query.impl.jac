@@ -80,6 +80,22 @@ impl QHop.add_node_constraint(node_type: (type | None)) -> None {
 }
 
 
+impl QHop.only_ids -> (set | None) {
+    if self.only is None {
+        return None;
+    }
+    sel = self.only if isinstance(self.only, (list, tuple, set)) else [self.only];
+    out: set = set();
+    for item in sel {
+        anch = item?.__jac__;
+        if anch is not None {
+            out.add(anch.id);
+        }
+    }
+    return out;
+}
+
+
 impl QHop.repr -> str {
     dir_mark = {1: '<--', 2: '-->', 3: '<->'}.get(self.dir, '?');
     et = self.`edge.__name__ if self.`edge is not None else '*';
@@ -117,6 +133,24 @@ impl GraphQuery.init(
 
 impl GraphQuery.`visit -> GraphQuery {
     self.from_visit = True;
+    return self;
+}
+
+
+impl GraphQuery.narrow(
+    nd: (type | None) = None, preds: (list[QPred] | None) = None, only: any = None
+) -> GraphQuery {
+    if not self.hops {
+        self.hops.append(QHop(dir=2));
+    }
+    last = self.hops[-1];
+    last.add_node_constraint(nd);
+    if preds {
+        last.preds.extend(preds);
+    }
+    if only is not None {
+        last.only = only;
+    }
     return self;
 }
 

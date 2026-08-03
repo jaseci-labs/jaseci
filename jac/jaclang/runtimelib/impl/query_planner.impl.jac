@@ -201,6 +201,14 @@ impl _hop_once(
         }
     }
     ids = _node_pred_keep(mem, ids, hop.preds);
+    want = hop.only_ids();
+    if want is not None {
+        ids = [
+            i
+            for i in ids
+            if i in want
+        ];
+    }
     if _trace_enabled() {
         logger.info(
             f"[gquery] hop[{hop_idx}] {hop.repr()} in={len(cur)} "
@@ -334,8 +342,12 @@ impl resolve_query_edges(mem: Memory, q: GraphQuery) -> list[Anchor] {
             ) {
             continue;
         }
+        other = tgt if src.id in cur_set else src;
+        ewant = hop.only_ids();
+        if ewant is not None and other.id not in ewant {
+            continue;
+        }
         if hop.nd is not None or hop.preds {
-            other = tgt if src.id in cur_set else src;
             other_l = _materialize(mem, [other.id]);
             if not other_l {
                 continue;

@@ -23,9 +23,11 @@ obj QHop {
         `edge: (type | None) = None,
         nd: (type | tuple | None) = None,
         epreds: list[QPred] = [],
-        preds: list[QPred] = [];
+        preds: list[QPred] = [],
+        only: any = None;
 
     def add_node_constraint(node_type: (type | None)) -> None;
+    def only_ids -> (set | None);
     def repr -> str;
 }
 
@@ -47,5 +49,9 @@ obj GraphQuery {
     ) -> None;
 
     def `visit -> GraphQuery;
+    def narrow(
+        nd: (type | None) = None, preds: (list[QPred] | None) = None, only: any = None
+    ) -> GraphQuery;
+
     def repr -> str;
 }

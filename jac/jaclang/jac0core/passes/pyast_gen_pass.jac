@@ -23,7 +23,8 @@ import from jaclang.jac0core.diagnostics {
     E5005,
     E5006,
     E5007,
-    E5008
+    E5008,
+    E5094
 }
 
 glob T = TypeVar('T', bound=ast3.AST),
@@ -129,6 +130,9 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
     def jaclib_obj(obj_name: str) -> ast3.Name;
     def builtin_name(name: str) -> ast3.Name;
     def _is_edge_ref_target(target: uni.UniNode) -> bool;
+    def _cmp_op_str(op: object) -> (str | None);
+    def _query_filter_kws(fc: uni.FilterCompr, type_arg: str, preds_arg: str) -> list;
+
     def _add_preamble_once(key: str, nd: ast3.AST) -> None;
     def needs_enum_kind(kind: str) -> None;
     def _next_temp_name(prefix: str) -> str;
