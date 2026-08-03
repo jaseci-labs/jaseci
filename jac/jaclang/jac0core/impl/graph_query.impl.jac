@@ -32,32 +32,45 @@ impl QPred.postinit -> None {
 
 
 impl QPred.matches(subject: any) -> bool {
+    val = self.value;
     if self.op == '==' {
-        return subject == self.value;
+        return subject == val;
     }
     if self.op == '!=' {
-        return subject != self.value;
+        return subject != val;
     }
     if self.op == 'in' {
-        return subject in self.value;
-    }
-    if subject is None or self.value is None {
+        if isinstance(val, (list, tuple, set, frozenset)) {
+            return subject in val;
+        }
         return False;
     }
-    try {
+
+    if isinstance(subject, (int, float)) and isinstance(val, (int, float)) {
         if self.op == '<' {
-            return subject < self.value;
+            return subject < val;
         }
         if self.op == '<=' {
-            return subject <= self.value;
+            return subject <= val;
         }
         if self.op == '>' {
-            return subject > self.value;
+            return subject > val;
         }
-        return subject >= self.value;
-    } except TypeError {
-        return False;
+        return subject >= val;
     }
+    if isinstance(subject, str) and isinstance(val, str) {
+        if self.op == '<' {
+            return subject < val;
+        }
+        if self.op == '<=' {
+            return subject <= val;
+        }
+        if self.op == '>' {
+            return subject > val;
+        }
+        return subject >= val;
+    }
+    return False;
 }
 
 
@@ -88,7 +101,7 @@ impl QHop.only_ids -> (set | None) {
     out: set = set();
     for item in sel {
         anch = item?.__jac__;
-        if anch is not None {
+        if isinstance(anch, Anchor) {
             out.add(anch.id);
         }
     }
@@ -98,13 +111,14 @@ impl QHop.only_ids -> (set | None) {
 
 impl QHop.repr -> str {
     dir_mark = {1: '<--', 2: '-->', 3: '<->'}.get(self.dir, '?');
-    et = self.`edge.__name__ if self.`edge is not None else '*';
+    et: str = self.`edge.__name__ if self.`edge is not None else '*';
+    nt: str;
     if isinstance(self.nd, tuple) {
         nt = '&'.join(t.__name__ for t in self.nd);
     } else {
         nt = self.nd.__name__ if self.nd is not None else '*';
     }
-    parts = [f"{dir_mark}:{et}:{nt}"];
+    parts: list[str] = [f"{dir_mark}:{et}:{nt}"];
     if self.epreds {
         parts.append('e[' + ', '.join(p.repr() for p in self.epreds) + ']');
     }

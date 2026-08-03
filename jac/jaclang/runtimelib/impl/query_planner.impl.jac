@@ -18,9 +18,9 @@ impl _build_view(mem: Memory, q: GraphQuery) -> _View {
         }
     }
     for arch in q.origin {
-        oanch = arch.__jac__;
-        if isinstance(oanch, NodeAnchor) and oanch.is_populated() {
-            view.live_nodes[oanch.id] = oanch;
+        vanch = arch?.__jac__;
+        if isinstance(vanch, NodeAnchor) and vanch.is_populated() {
+            view.live_nodes[vanch.id] = vanch;
         }
     }
     return view;
@@ -174,7 +174,7 @@ impl _edge_pred_keep(
 impl _heal_sweep(
     mem: Memory, view: _View, nanch: NodeAnchor, engine_eids: set[UUID]
 ) -> None {
-    suspects: list = [];
+    suspects: list[EdgeAnchor] = [];
     for stub in list(nanch.edges) {
         if stub.id in engine_eids or stub.id in view.probed or stub.is_populated() {
             continue;
@@ -185,7 +185,7 @@ impl _heal_sweep(
     if not suspects {
         return;
     }
-    alive: list = [];
+    alive: list[EdgeAnchor] = [];
     for st in suspects {
         if mem.`has(st.id) {
             alive.append(st);
@@ -324,7 +324,11 @@ impl _resolve_ids(mem: Memory, view: _View, q: GraphQuery, upto: int) -> list[UU
     seen: set[UUID] = set();
     cur: list[UUID] = [];
     for arch in q.origin {
-        aid = arch.__jac__.id;
+        oanch = arch?.__jac__;
+        if not isinstance(oanch, Anchor) {
+            continue;
+        }
+        aid = oanch.id;
         if aid not in seen {
             seen.add(aid);
             cur.append(aid);
