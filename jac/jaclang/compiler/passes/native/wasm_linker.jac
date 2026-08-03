@@ -403,8 +403,22 @@ impl WasmLinker.link(
             if host_abi is not None and fld in host_abi {
                 im = [im[0], host_module, fld, im[3]];
             } elif app_imports is not None and fld not in app_imports {
+                if fld.startswith("__jac64_") {
+                    raise RuntimeError(
+                        f"wasm import '{fld}' is a wasm_rt floor adapter, not "
+                            + "an app symbol: the vendored libc bitcode is stale and does "
+                            + f"not define it. Rebuild the floor (`zig build "
+                            + "vendor-wasm-libc`) rather than adding it to "
+                            + "wasm_host_abi.jac -- the host ABI is syscalls only, and a "
+                            + "host-side allocator cannot return a linear-memory pointer."
+                    );
+                }
                 raise RuntimeError(
-                    f"wasm import '{fld}' is neither part of the " + f"{host_module} host ABI nor declared by the app; " + "the native floor references a symbol missing from the " + "vendored wasm_rt libc (compiler drift) — add it to " + "wasm_rt or to wasm_host_abi.jac"
+                    f"wasm import '{fld}' is neither part of the "
+                        + f"{host_module} host ABI nor declared by the app; "
+                        + "the native floor references a symbol missing from the "
+                        + "vendored wasm_rt libc (compiler drift) — add it to "
+                        + "wasm_rt or to wasm_host_abi.jac"
                 );
             }
             old2new[oi] = len(kept);

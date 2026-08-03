@@ -34,9 +34,10 @@ impl JacLangServer.type_check(file_uri: str) -> None {
                 self.dirty_files[self.last_task.file_uri] = True;
             }
             self.debug(
-                " Cancelling id: " + str(self.last_task.task_id) + " " + str(
-                    time.time()
-                )
+                " Cancelling id: "
+                    + str(self.last_task.task_id)
+                    + " "
+                    + str(time.time())
             );
         }
         self._debounce_timer = threading.Timer(
@@ -318,7 +319,7 @@ impl JacLangServer.get_definition(
     }
     node_selected = self.get_token_at_position(file_path, position);
     if not node_selected {
-        return None;
+        return self._string_import_definition(file_path, position);
     }
     node_type = node_selected.type;
     parent = node_selected.parent;
@@ -384,6 +385,13 @@ impl JacLangServer.get_definition(
 
                     return make_module_location(mod_path);
                 }
+
+                npm_loc = self._npm_item_location(
+                    import_node.from_loc, parent.name.value
+                );
+                if npm_loc {
+                    return npm_loc;
+                }
             } except Exception as e {
                 self.log_py(f"Error resolving imported item: {e}");
             }
@@ -396,7 +404,7 @@ impl JacLangServer.get_definition(
         } elif isinstance(node_type, ClassType) and node_selected.sym {
             return make_location(node_selected.sym.decl);
         } elif isinstance(node_type, (FunctionType, OverloadedType))
-        and node_selected.sym {
+            and node_selected.sym {
             return make_location(node_selected.sym.decl);
         }
     }
@@ -409,11 +417,120 @@ impl JacLangServer.get_definition(
     }
 
     if node_selected.sym and node_selected.sym.defn {
+        defn0 = node_selected.sym.defn[0];
+
+        if defn0 is node_selected
+            or (
+                defn0.loc.mod_path == node_selected.loc.mod_path
+                and defn0.loc.first_line == node_selected.loc.first_line
+                and defn0.loc.col_start == node_selected.loc.col_start
+            ) {
+            return None;
+        }
         try {
-            return make_location(node_selected.sym.defn[0]);
+            return make_location(defn0);
         } except Exception as e {
             self.log_py(f"Error navigating to definition: {e}");
         }
+    }
+    return None;
+}
+
+impl JacLangServer._string_import_definition(
+    file_path: str, position: lspt.Position
+) -> Optional[lspt.Location] {
+    fs_path = uris.to_fs_path(file_path);
+    if fs_path is None {
+        return None;
+    }
+    tok = self.get_node_at_position(fs_path, position.line, position.character);
+    if not isinstance(tok, uni.String) or not isinstance(tok.parent, uni.ModulePath) {
+        return None;
+    }
+    target = self._module_spec_target(tok.parent);
+    if target is None {
+        return None;
+    }
+    target_uri = uris.from_fs_path(target);
+    if target_uri is None {
+        return None;
+    }
+    return lspt.Location(
+        uri=target_uri,
+        range=lspt.Range(
+            start=lspt.Position(line=0, character=0),
+            end=lspt.Position(line=0, character=0)
+        )
+    );
+}
+
+impl JacLangServer._module_spec_target(mp: uni.ModulePath) -> Optional[str] {
+    import os;
+    import from jaclang.jac0core.modresolver {
+        is_client_npm_import,
+        resolve_client_npm_declarations,
+        resolve_client_npm_package
+    }
+    try {
+        resolved = mp.resolve_relative_path();
+        if os.path.isfile(resolved) {
+            return resolved;
+        }
+    } except Exception as e {
+        self.log_py(f"Error resolving module path: {e}");
+    }
+    spec = mp.string_path_value or mp.dot_path_str;
+    src_path = mp.loc.mod_path if mp.loc else None;
+    if not spec or not src_path {
+        return None;
+    }
+    try {
+        if is_client_npm_import(spec, src_path) {
+            return (
+                resolve_client_npm_declarations(spec, src_path)
+                or resolve_client_npm_package(spec, src_path)
+            );
+        }
+    } except Exception as e {
+        self.log_py(f"Error resolving npm module path: {e}");
+    }
+    return None;
+}
+
+impl JacLangServer._npm_item_location(
+    from_loc: uni.ModulePath, item_name: str
+) -> Optional[lspt.Location] {
+    import from jaclang.jac0core.modresolver {
+        is_client_npm_import,
+        resolve_client_npm_declarations,
+        resolve_client_npm_package
+    }
+    def at_file(path_: str, rng: Optional[lspt.Range]) -> Optional[lspt.Location] {
+        path_uri = uris.from_fs_path(path_);
+        if path_uri is None {
+            return None;
+        }
+        return lspt.Location(
+            uri=path_uri,
+            range=rng
+                or lspt.Range(
+                    start=lspt.Position(line=0, character=0),
+                    end=lspt.Position(line=0, character=0)
+                )
+        );
+    }
+    spec = from_loc.string_path_value or from_loc.dot_path_str;
+    src_path = from_loc.loc.mod_path if from_loc.loc else None;
+    if not spec or not src_path or not is_client_npm_import(spec, src_path) {
+        return None;
+    }
+    dts = resolve_client_npm_declarations(spec, src_path);
+    if dts {
+        return at_file(dts, utils.find_dts_decl_range(dts, item_name));
+    }
+    entry = resolve_client_npm_package(spec, src_path);
+    if entry {
+        return at_file(entry, None);
     }
     return None;
 }
@@ -457,6 +574,27 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
         }
         if isinstance(sym_node, uni.Ability) and sym_node.signature {
             node_info += f"'\n'{sym_node.signature.unparse()}";
+        }
+        try {
+            top: (uni.UniNode | None) = sym_node;
+            while (
+                top is not None
+                and not isinstance(top.parent, uni.Module)
+                and top.parent is not None
+            ) {
+                top = top.parent;
+            }
+            if isinstance(top, uni.ContextAwareNode) {
+                space = sym_node.codespace().value;
+                tags: list[str] = [];
+                if top.codespace_dual {
+                    tags.append('dual');
+                }
+                tags.append('inferred');
+                node_info += f"'\n'placement: {space} ({', '.join(tags)})";
+            }
+        } except Exception {
+            ;
         }
     } except AttributeError as e {
         self.log_warning(f"'Attribute error when accessing node attributes: '{e}");
@@ -809,9 +947,10 @@ impl JacLangServer.get_completion(
             }
         }
 
-        if scope_node := self.get_scope_at_position(
-            file_path, position.line, position.character
-        ) {
+        if scope_node
+            := self.get_scope_at_position(
+                file_path, position.line, position.character
+            ) {
             self.debug("fallback scope completion " + str(scope_node));
             return self.get_scope_completion(scope_node);
         }

@@ -2,7 +2,14 @@ import from collections.abc { Sequence }
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok, SymbolType }
-import from jaclang.jac0core.diagnostics { E5082 }
+import from jaclang.jac0core.diagnostics { E5082, E5084, W6006, W6007 }
+import from jaclang.jac0core.compiler {
+    ClientImportVerdict,
+    ability_of_symbol,
+    classify_client_import_item,
+    is_client_boundary_import,
+    symbol_linked_source_module
+}
 
 enum CallKind {
     METHOD = "method",
@@ -71,65 +78,39 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
     sym = resolve_expr_symbol(nd.target);
 
     if sym is not None
-    and sym.decl is not None
-    and sym.sym_type not in (
-        SymbolType.OBJECT_ARCH,
-        SymbolType.NODE_ARCH,
-        SymbolType.EDGE_ARCH,
-        SymbolType.WALKER_ARCH,
-        SymbolType.ENUM_ARCH
-    ) {
+        and sym.decl is not None
+        and sym.sym_type
+            not in (
+                SymbolType.OBJECT_ARCH,
+                SymbolType.NODE_ARCH,
+                SymbolType.EDGE_ARCH,
+                SymbolType.WALKER_ARCH,
+                SymbolType.ENUM_ARCH
+            ) {
         _imp = sym.decl.find_parent_of_type(uni.Import);
         if _imp is not None and _imp.clib_decls {
             return CallKind.CLIB;
         }
     }
     if sym is not None and _is_user_symbol(sym) {
-        if sym.sym_type in (
-            SymbolType.OBJECT_ARCH,
-            SymbolType.NODE_ARCH,
-            SymbolType.EDGE_ARCH,
-            SymbolType.WALKER_ARCH,
-            SymbolType.ENUM_ARCH
-        ) {
+        if sym.sym_type
+            in (
+                SymbolType.OBJECT_ARCH,
+                SymbolType.NODE_ARCH,
+                SymbolType.EDGE_ARCH,
+                SymbolType.WALKER_ARCH,
+                SymbolType.ENUM_ARCH
+            ) {
             return CallKind.INSTANTIATION;
         }
         return CallKind.FUNCTION;
     }
 
     if isinstance(nd.target, uni.Name)
-    and JAC_TYPE_REGISTRY.is_builtin(nd.target.sym_name) {
+        and JAC_TYPE_REGISTRY.is_builtin(nd.target.sym_name) {
         return CallKind.BUILTIN;
     }
     return CallKind.FUNCTION;
-}
-
-def _ability_of_defn(defn_node: uni.UniNode) -> (uni.Ability | None) {
-    if isinstance(defn_node, uni.Ability) {
-        return defn_node;
-    }
-    if isinstance(defn_node.parent, uni.Ability) {
-        return defn_node.parent;
-    }
-    return None;
-}
-
-def ability_of_symbol(sym: (uni.Symbol | None)) -> (uni.Ability | None) {
-    if sym is None or not sym.defn {
-        return None;
-    }
-    decl = _ability_of_defn(sym.defn[0]);
-
-    if decl is not None and str(decl.loc.mod_path).endswith(".pyi") {
-        for alt in sym.defn {
-            alt_decl = _ability_of_defn(alt);
-            if alt_decl is not None
-            and not str(alt_decl.loc.mod_path).endswith(".pyi") {
-                return alt_decl;
-            }
-        }
-    }
-    return decl;
 }
 
 def symbol_owner_archetype(sym: uni.Symbol) -> (uni.Archetype | None) {
@@ -180,8 +161,8 @@ def int_subscript_suffix(right: uni.IndexSlice) -> str | None {
             }
 
             if isinstance(start, uni.MultiString)
-            and len(start.strings) == 1
-            and isinstance(start.strings[0], uni.String) {
+                and len(start.strings) == 1
+                and isinstance(start.strings[0], uni.String) {
                 return f'[{start.strings[0].lit_value!r}]';
             }
 
@@ -336,7 +317,7 @@ def collect_narrowing_symbols(condition: uni.Expr) -> set[str] {
     if isinstance(condition, uni.CfgExpr) {
         symbols.update(collect_narrowing_symbols(condition.expr));
     } elif isinstance(condition, uni.AtomUnit)
-    and isinstance(condition.value, uni.Expr) {
+        and isinstance(condition.value, uni.Expr) {
         symbols.update(collect_narrowing_symbols(condition.value));
     } elif isinstance(condition, uni.UnaryExpr) {
         symbols.update(collect_narrowing_symbols(condition.operand));
@@ -448,25 +429,6 @@ def collect_method_names(arch: uni.Archetype) -> set[str] {
     return names;
 }
 
-enum ClientImportVerdict {
-    CLIENT = "client",
-    BRIDGED = "bridged",
-    DEAD = "dead",
-    UNKNOWN = "unknown"
-}
-
-def is_client_boundary_import(nd: uni.Import) -> bool {
-    return (
-        nd.code_context == CodeContext.CLIENT
-        and not nd.is_sv_marked
-        and not nd.is_typed
-        and not nd.is_virtual_jac
-        and nd.from_loc is not None
-        and bool(nd.items)
-        and nd.from_loc.resolve_relative_path().endswith('.jac')
-    );
-}
-
 def resolve_import_source_module(prog: any, nd: uni.Import) -> (uni.Module | None) {
     if not nd.from_loc {
         return None;
@@ -478,62 +440,50 @@ def resolve_import_source_module(prog: any, nd: uni.Import) -> (uni.Module | Non
         return source_mod;
     }
     if Path(resolved_path).exists() {
-        source_mod = prog.compile(
-            resolved_path, no_cgen=True, type_check=False, symtab_ir_only=True
-        );
+        saved_opts = prog?._compile_options;
+        try {
+            source_mod = prog.compile(
+                resolved_path, no_cgen=True, type_check=False, symtab_ir_only=True
+            );
+        } finally {
+            if saved_opts is not None {
+                prog._compile_options = saved_opts;
+            }
+        }
         prog.mod.hub[abs_path] = source_mod;
         return source_mod;
     }
     return None;
 }
 
-def _import_item_owner_decl(
-    source_mod: uni.Module, item: uni.ModuleItem
-) -> (uni.ContextAwareNode | None) {
-    if not isinstance(item.name, uni.Name) {
-        return None;
+def import_target_pinned_server(nd: uni.Import) -> bool {
+    if nd.from_loc is None {
+        return False;
     }
-    sym = source_mod.lookup(item.name.sym_name);
-    if sym is None or sym.decl is None {
-        return None;
-    }
-    cur: (uni.UniNode | None) = sym.decl;
-    while cur is not None and not isinstance(cur, uni.Module) {
-        if isinstance(cur, uni.ContextAwareNode) {
-            return cur;
+    try {
+        target = nd.from_loc.resolve_relative_path();
+        if isinstance(target, str) and target.endswith('.jac') {
+            import from jaclang.jac0core.placement_pins { config_module_pin }
+            return config_module_pin(target) == 'server';
         }
-        cur = cur.parent;
+    } except Exception {
+        return False;
     }
-    return None;
+    return False;
 }
 
-def classify_client_import_item(
-    source_mod: uni.Module, item: object
-) -> ClientImportVerdict {
-    if not isinstance(item, uni.ModuleItem) {
-        return ClientImportVerdict.UNKNOWN;
+def decl_has_access(source_mod: uni.Module, item: uni.ModuleItem) -> bool {
+    nm = item.name.value if isinstance(item.name, uni.Name) else '';
+    if not nm or source_mod.sym_tab is None {
+        return False;
     }
-    owner = _import_item_owner_decl(source_mod, item);
-    if owner is None or isinstance(owner, uni.Import) {
-        return ClientImportVerdict.UNKNOWN;
+    sym = source_mod.sym_tab.lookup(nm, deep=True);
+    if not (sym and sym.defn) {
+        return False;
     }
-    if owner.code_context == CodeContext.CLIENT {
-        return ClientImportVerdict.CLIENT;
-    }
-    if isinstance(owner, uni.Ability) {
-        if (
-            not owner.is_method
-            and owner.access is not None
-            and owner.access.tag.name == Tok.KW_PUB
-        ) {
-            return ClientImportVerdict.BRIDGED;
-        }
-        return ClientImportVerdict.DEAD;
-    }
-    if isinstance(owner, (uni.Archetype, uni.Enum, uni.TypeAlias)) {
-        return ClientImportVerdict.BRIDGED;
-    }
-    return ClientImportVerdict.DEAD;
+    decl = sym.defn[0];
+    owner = decl.parent if (isinstance(decl, uni.NameAtom) and decl.parent) else decl;
+    return owner?.access is not None;
 }
 
 def report_dead_client_import(
@@ -554,4 +504,209 @@ def report_dead_client_import(
         }
     }
     reporter.emit(E5082, node_override=item, name=name, module=module_name);
+}
+
+
+def report_client_bare_import_uses(reporter: any, mod: uni.Module) {
+    for stmt in mod.body {
+        if (
+            isinstance(stmt, uni.ContextAwareNode)
+            and stmt.code_context == CodeContext.CLIENT
+            and not stmt.codespace_dual
+        ) {
+            _report_client_bare_import_uses(reporter, mod, stmt);
+        }
+    }
+}
+
+def _already_warned(reporter: any, diag: any, nd: uni.UniNode) -> bool {
+    for w in reporter.prog.warnings_had {
+        if (
+            w.code is diag
+            and w.loc.mod_path == nd.loc.mod_path
+            and w.loc.first_line == nd.loc.first_line
+            and w.loc.col_start == nd.loc.col_start
+        ) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def _in_annotation_position(nm: uni.Name, stop: uni.UniNode) -> bool {
+    cur = nm.parent;
+    while cur is not None and cur is not stop {
+        if isinstance(cur, uni.SubTag) {
+            return True;
+        }
+        if isinstance(cur, uni.ParamVar) {
+            return False;
+        }
+        if isinstance(cur, uni.FuncSignature) {
+            return True;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+def _bare_py_import_bindings(mod: uni.Module) -> dict[str, tuple] {
+    out: dict[str, tuple] = {};
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if imp.is_service_import or imp.is_typed {
+            continue;
+        }
+        if imp.ecosystem != 'py' {
+            continue;
+        }
+        if imp.from_loc is None or imp.from_loc.level > 0 {
+            continue;
+        }
+        if imp.code_context == CodeContext.CLIENT {
+            continue;
+        }
+        for item in imp.items {
+            if not isinstance(item, uni.ModuleItem) {
+                continue;
+            }
+            if item.alias is not None {
+                binding = item.alias.sym_name;
+            } elif isinstance(item.name, uni.Name) {
+                binding = item.name.sym_name;
+            } else {
+                binding = str(item.name.value);
+            }
+            out[binding] = (item, imp);
+        }
+    }
+    return out;
+}
+
+
+def _shadows_bare_import(nm: uni.Name) -> bool {
+    sym = nm.sym;
+    if sym is None or sym.decl is None {
+        return False;
+    }
+    decl = sym.decl;
+    if isinstance(decl, uni.ModuleItem) or isinstance(decl.parent, uni.ModuleItem) {
+        return False;
+    }
+    cur = decl.parent;
+    while cur is not None {
+        if isinstance(cur, (uni.ParamVar, uni.HasVar)) {
+            return True;
+        }
+        if isinstance(cur, uni.Assignment) {
+            return decl in cur.target
+                or any([decl in t.get_all_sub_nodes(uni.Name) for t in cur.target]);
+        }
+        if isinstance(cur, uni.ElementStmt) {
+            return False;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+
+def _report_client_bare_import_uses(reporter: any, mod: uni.Module, stmt: uni.UniNode) {
+    bindings = _bare_py_import_bindings(mod);
+    if not bindings {
+        return;
+    }
+    for nm in stmt.get_all_sub_nodes(uni.Name) {
+        par = nm.parent;
+        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+            continue;
+        }
+        hit = bindings.get(nm.value);
+        if hit is None {
+            continue;
+        }
+        if _shadows_bare_import(nm) {
+            continue;
+        }
+        if _in_annotation_position(nm, stmt) {
+            continue;
+        }
+        (item, imp) = hit;
+        module_name = imp.from_loc.dot_path_str if imp.from_loc is not None else '';
+        already = False;
+        for e in reporter.prog.errors_had {
+            if (
+                e.code is E5084
+                and e.loc.mod_path == item.loc.mod_path
+                and e.loc.first_line == item.loc.first_line
+                and e.loc.col_start == item.loc.col_start
+            ) {
+                already = True;
+                break;
+            }
+        }
+        if not already {
+            reporter.emit(
+                E5084,
+                node_override=item,
+                name=item.name.sym_name
+                    if isinstance(item.name, uni.Name)
+                    else str(item.name.value),
+                module=module_name
+            );
+        }
+    }
+}
+
+def report_placement_warnings(reporter: any, mod: uni.Module) {
+    import from jaclang.jac0core.placement { get_module_summary }
+    import from jaclang.jac0core.constant { CodeContext }
+    ps = get_module_summary(mod, reporter.prog);
+    written_glob_idxs: set[int] = set();
+    for es in ps.elements {
+        for widx in es.glob_writes {
+            written_glob_idxs.add(widx);
+        }
+    }
+    for (idx, stmt) in enumerate(mod.body) {
+        if not isinstance(stmt, uni.ContextAwareNode) {
+            continue;
+        }
+        if (
+            isinstance(stmt, uni.GlobalVars)
+            and stmt.codespace_dual
+            and idx in written_glob_idxs
+        ) {
+            es = ps.elements[idx] if idx < len(ps.elements) else None;
+            gname = es.name if es is not None else 'glob';
+            if not _already_warned(reporter, W6006, stmt) {
+                reporter.emit(W6006, node_override=stmt, name=gname);
+            }
+        }
+        if stmt.code_context == CodeContext.CLIENT and not stmt.codespace_dual {
+            _report_client_bare_import_uses(reporter, mod, stmt);
+        }
+        is_clientish = stmt.code_context == CodeContext.CLIENT or stmt.codespace_dual;
+        if not is_clientish or idx >= len(ps.elements) {
+            continue;
+        }
+        for esc in ps.elements[idx].escapes {
+            tidx = esc[0];
+            if tidx >= len(mod.body) {
+                continue;
+            }
+            target = mod.body[tidx];
+            if (
+                isinstance(target, uni.ContextAwareNode)
+                and isinstance(target, uni.Ability)
+                and target.code_context == CodeContext.SERVER
+                and not target.codespace_dual
+            ) {
+                tes = ps.elements[tidx] if tidx < len(ps.elements) else None;
+                tname = tes.name if tes is not None else 'function';
+                if not _already_warned(reporter, W6007, stmt) {
+                    reporter.emit(W6007, node_override=stmt, name=tname);
+                }
+            }
+        }
+    }
 }
