@@ -253,7 +253,6 @@ impl NaIRGenPass._str_iter_next_fn -> ir.Function {
     b.cbranch(ok, cont, stop);
     b.position_at_end(cont);
 
-    i8 = ir.IntType(8);
     char_ptr = b.gep(s_ptr, [idx], name="sit.char.ptr");
     char_val = b.load(char_ptr, name="sit.char");
     byte_idx = b.zext(char_val, i64, name="sit.char.idx");
