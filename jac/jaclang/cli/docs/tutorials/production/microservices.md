@@ -1,8 +1,8 @@
-# Microservices with `sv import`
+# Microservices with the Routes Table
 
 > **Concept:** [Scale invariance](../../reference/plugins/jac-scale.md#the-scale-invariance-contract): monolith and service mesh are deployment shapes of the same program text.
 
-A Jac codebase can run as a single monolith or as several independently-deployed microservices, with no source changes between the two. The trick is the `sv import` keyword: when both the importer and the importee are server-context modules, the compiler generates an HTTP client stub for the imported symbol instead of pulling the provider into the consumer's process. Calls become RPCs over the wire, but the source still reads like a normal import. Both `def:pub` functions and `walker:pub` archetypes are supported -- functions translate to `POST /function/<name>`, walkers to `POST /walker/<name>` plus a return-side rehydration that hands the consumer back a real walker instance with `reports` populated.
+A Jac codebase can run as a single monolith or as several independently-deployed microservices, with no source changes between the two. The trick is the `[scale.microservices.routes]` table in `jac.toml` -- the **service cut**: when a module is listed there, the compiler generates HTTP client stubs for every import of it instead of pulling the provider into the consumer's process. Calls become RPCs over the wire, but the source still reads like a normal import -- because it *is* a normal import. Both `def:pub` functions and `walker:pub` archetypes are supported -- functions translate to `POST /function/<name>`, walkers to `POST /walker/<name>` plus a return-side rehydration that hands the consumer back a real walker instance with `reports` populated.
 
 This tutorial walks through splitting a tiny app into two services, running the whole thing from one command, watching the round-trip happen over real HTTP, and then covers testing and multi-host production deployment.
 
@@ -16,7 +16,7 @@ This tutorial walks through splitting a tiny app into two services, running the 
 
 ## Overview
 
-Two services, one HTTP boundary between them. The consumer's `sv import` looks identical to a regular import, but every call out to the provider is a `POST /function/<name>` over the wire. The consumer never loads the provider's code into its own memory.
+Two services, one HTTP boundary between them. The consumer imports the provider with a regular import, but because the provider is in the routes table, every call out to it is a `POST /function/<name>` over the wire. The consumer never loads the provider's code into its own memory.
 
 The default single-host deployment runs the whole app from one `jac start` command: the consumer brings the provider up automatically before serving the first request.
 
@@ -32,7 +32,7 @@ graph LR
 
 ## 1. Set Up the Project
 
-Create a working directory with a `jac.toml` so `jac start` recognizes it as a project. The two services live side by side in the same directory.
+Create a working directory with a `jac.toml` so `jac start` recognizes it as a project, and declare the provider in `[scale.microservices.routes]` -- that entry is what makes `math_service` a separate service. The two services live side by side in the same directory.
 
 ```bash
 mkdir microservices-demo && cd microservices-demo
@@ -40,10 +40,15 @@ cat > jac.toml <<'EOF'
 [project]
 name = "microservices-demo"
 version = "0.1.0"
+
+[scale.microservices.routes]
+math_service = ""
 EOF
 ```
 
-> **Why `jac.toml`?** `jac start <relative-path>` requires a `jac.toml` in the current directory. Without one, you get `Error: No jac.toml found`. The services also need to live in the same directory so the consumer can find and auto-start the provider at runtime, so a shared project layout is the simplest path.
+(`jac scale split math_service` writes the routes entry for you; `""` derives the route prefix from the module name.)
+
+> **Why `jac.toml`?** `jac start <relative-path>` requires a `jac.toml` in the current directory. Without one, you get `Error: No jac.toml found`. The routes table also lives here -- it is the single authoritative declaration of which modules run as their own services. And the services need to live in the same directory so the consumer can find and auto-start the provider at runtime, so a shared project layout is the simplest path.
 
 ---
 
@@ -80,11 +85,11 @@ The `def:pub` modifier is required: only public functions get registered as `/fu
 
 ## 3. Create the Consumer
 
-`calculator_service.jac` imports from the provider with `sv import` and uses the imported functions like ordinary local calls.
+`calculator_service.jac` imports from the provider with a plain import and uses the imported functions like ordinary local calls. Because `math_service` is in the routes table, the import lowers to HTTP stubs.
 
 ```jac
 # calculator_service.jac
-sv import from math_service { add, multiply, divide, DivResult }
+import from math_service { add, multiply, divide, DivResult }
 
 def:pub sum_list(numbers: list[int]) -> int {
     result = 0;
@@ -119,7 +124,7 @@ From the `microservices-demo` directory, start the consumer:
 jac start calculator_service.jac --port 8002
 ```
 
-That is all. The consumer finds every service it `sv import`s from (`math_service`, in this case) and brings them up automatically inside the same process before serving the first request. Transitive dependencies come along for free: if `math_service` itself had an `sv import`, that provider would also be auto-started. One command, whole cluster.
+That is all. The consumer finds every routes-table service it imports (`math_service`, in this case) and brings them up automatically inside the same process before serving the first request. Transitive dependencies come along for free: if `math_service` itself imported another service in the cut, that provider would also be auto-started. One command, whole cluster.
 
 Startup is **fail-fast**: if any service fails to come up (missing source file, syntax error, port in use), the consumer crashes at startup with the underlying error. You find out at deploy time, not at first request.
 
@@ -187,7 +192,7 @@ Both error and success cases survive the boundary intact. The `_jac_type` metada
 
 ### Walker Imports
 
-`def:pub` is one of two shapes that can cross the sv boundary; the other is `walker:pub`. A walker imported through `sv import` becomes a remote spawn: the consumer-side stub class accepts the walker's `has` fields as keyword arguments, fires off a `POST /walker/<name>` over the wire, and returns the executed walker with its fields and `reports` populated -- the same shape you'd get from a local spawn.
+`def:pub` is one of two shapes that can cross the service boundary; the other is `walker:pub`. A walker imported from a routes-table service becomes a remote spawn: the consumer-side stub class accepts the walker's `has` fields as keyword arguments, fires off a `POST /walker/<name>` over the wire, and returns the executed walker with its fields and `reports` populated -- the same shape you'd get from a local spawn.
 
 Add a walker to `math_service.jac`:
 
@@ -203,7 +208,7 @@ walker:pub Greet {
 Then in `calculator_service.jac`, list `Greet` alongside the functions and use it from one of the consumer's own walkers:
 
 ```jac
-sv import from math_service { add, multiply, divide, Greet, DivResult }
+import from math_service { add, multiply, divide, Greet, DivResult }
 
 walker:pub TriggerGreet {
     has who: str;
@@ -230,9 +235,9 @@ The provider log shows the cross-service hop: `POST /walker/Greet 200`. The cons
 
 A few things to know:
 
-- **Spawn semantics, not construction.** Locally, `Greet(name="x")` only constructs a walker; you still need `spawn` to run it. Across the boundary there's no useful concept of an unexecuted remote walker, so instantiating a sv-imported walker is **spawn-and-execute** and always returns a post-execution instance.
+- **Spawn semantics, not construction.** Locally, `Greet(name="x")` only constructs a walker; you still need `spawn` to run it. Across the boundary there's no useful concept of an unexecuted remote walker, so instantiating a service-imported walker is **spawn-and-execute** and always returns a post-execution instance.
 - **`walker:pub` only.** Private walkers don't get an endpoint. The same 404 you'd see for non-public functions also fires for non-public walkers.
-- **Boundary types still flow through.** A walker that emits an `obj` value via `report` comes back as that type, not as a raw dict, as long as the type is also listed in the `sv import`.
+- **Boundary types still flow through.** A walker that emits an `obj` value via `report` comes back as that type, not as a raw dict, as long as the type is also listed in the import.
 - **Same observability as functions.** Walker calls share the per-provider circuit breaker, retries, and `X-Trace-Id` propagation with function calls. See the [Scale reference](../../reference/plugins/jac-scale-http.md#walker-imports) for the full contract.
 
 ---
@@ -249,7 +254,7 @@ import from jaclang.runtimelib { sv_client }
 with entry {
     sv_client.clear_test_clients();
     sv_client.register_test_client("math_service", math_test_client);
-    # ...the consumer's sv-imported calls into math_service now go through math_test_client
+    # ...the consumer's service-stub calls into math_service now go through math_test_client
 }
 ```
 
@@ -261,7 +266,7 @@ The pieces left unshown here -- building a `TestClient` over a consumer and prov
 
 ## 7. Going to Production
 
-Single-command mode is great for a single host, but once your services live on **different hosts** you need to tell each consumer where its providers actually are. The mechanism is the `JAC_SV_<UPPERCASED_MODULE>_URL` environment variable: when set, it takes precedence over auto-start and points the consumer at the URL you provide. The module name is exactly what you wrote after `sv import from`, upper-cased.
+Single-command mode is great for a single host, but once your services live on **different hosts** you need to tell each consumer where its providers actually are. The mechanism is the `JAC_SV_<UPPERCASED_MODULE>_URL` environment variable: when set, it takes precedence over auto-start and points the consumer at the URL you provide. The module name is exactly the routes-table key, upper-cased.
 
 ### Local Multi-Process
 
@@ -335,7 +340,7 @@ For the full Kubernetes deployment story (image building, ingress, autoscaling),
 
 For projects with more than a handful of services, the built-in `scale` subsystem ships a microservice mode that puts a single API gateway in front of all of them. `jac setup microservice` writes the plumbing into `jac.toml` and `jac start` on the project root brings the whole stack up -- one public port, one unified `/docs`, one `/metrics` endpoint, one shared anchor store. The same source still runs as a monolith when microservice mode is disabled.
 
-The gateway exposes a standard error envelope (`{ok, error: {code, message, service?, trace_id}, meta}`) across every failure path (proxy, passthrough, aggregation). Drop-in observability: `X-Trace-Id` is minted if absent and threaded through every `sv` RPC hop. The following knobs all live under `[scale.microservices]` and are emitted as commented reference blocks by `jac setup microservice`:
+The gateway exposes a standard error envelope (`{ok, error: {code, message, service?, trace_id}, meta}`) across every failure path (proxy, passthrough, aggregation). Drop-in observability: `X-Trace-Id` is minted if absent and threaded through every service RPC hop. The following knobs all live under `[scale.microservices]` and are emitted as commented reference blocks by `jac setup microservice`:
 
 | Concern | Config | Default |
 |---------|--------|---------|
@@ -360,7 +365,7 @@ When `[scale.microservices].enabled = true`, `jac start --scale` deploys every s
 JAC_SV_INVENTORY_SERVICE_URL=http://inventory-service.<namespace>.svc.cluster.local:<port>
 ```
 
-The env-var name follows the same convention as the manual setup above (raw module name from `sv import from <name>`, upper-cased, joined with `JAC_SV_…_URL`); the URL host uses the Kubernetes Service's DNS-1123 form (`jac_coder_sv` becomes `jac-coder-sv-service`). Per-service env overrides under `[scale.microservices.services.<name>.env]` cannot shadow these keys -- a stale override would silently route sv-to-sv calls to the wrong backend.
+The env-var name follows the same convention as the manual setup above (the raw routes-table key, upper-cased, joined with `JAC_SV_…_URL`); the URL host uses the Kubernetes Service's DNS-1123 form (`jac_coder_sv` becomes `jac-coder-sv-service`). Per-service env overrides under `[scale.microservices.services.<name>.env]` cannot shadow these keys -- a stale override would silently route sv-to-sv calls to the wrong backend.
 
 If you need a sibling sv-to-sv call to leave the cluster (e.g. point at a vendor SaaS), wire it like the [Kubernetes section](#kubernetes) above by editing the Deployment's env spec directly; the value you set wins for that one service. Most apps never need to.
 
@@ -456,4 +461,4 @@ Two services that read like a single program. The split happens at deploy time, 
 
 - [Microservice Interop reference](../../reference/plugins/jac-scale-http.md#microservice-interop-sv-to-sv) for the resolution chain, `sv_client` API, and plugin hook details.
 - [Kubernetes tutorial](kubernetes.md) for the full deployment pipeline that packages each service into its own image.
-- [Backend Integration](../fullstack/backend.md) for the cl-to-sv flavor of `sv import`, where a browser client calls a server.
+- [Backend Integration](../fullstack/backend.md) for the client-to-server flavor of the RPC bridge, where a browser client calls a server.

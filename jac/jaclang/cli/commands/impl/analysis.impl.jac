@@ -27,8 +27,7 @@ impl check(
     lint_only: bool = False,
     fix: bool = False,
     native_census: bool = False,
-    placements: bool = False,
-    update_placements_lock: bool = False
+    placements: bool = False
 ) -> int {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
@@ -46,9 +45,8 @@ impl check(
     );
     if unknown_codes {
         console.warning(
-            "Ignoring unknown diagnostic codes in --disable-error-code: " + ", ".join(
-                unknown_codes
-            )
+            "Ignoring unknown diagnostic codes in --disable-error-code: "
+                + ", ".join(unknown_codes)
         );
     }
     if native_census {
@@ -111,7 +109,7 @@ impl check(
                 )
             );
 
-            if placements or update_placements_lock {
+            if placements {
                 import from jaclang.jac0core.placement { collect_placement_rows }
                 placement_report.update(collect_placement_rows(prog));
             }
@@ -127,9 +125,9 @@ impl check(
                     i
                     for i in issues
                     if i.loc
-                    and i.loc.mod_path
-                    and i.loc.mod_path.endswith(".jac")
-                    and not _should_ignore(i.loc.mod_path, ignore_list)
+                        and i.loc.mod_path
+                        and i.loc.mod_path.endswith(".jac")
+                        and not _should_ignore(i.loc.mod_path, ignore_list)
                 ];
             }
             filtered_errors = filter_issues(new_errors);
@@ -179,17 +177,6 @@ impl check(
     }
     if placements {
         print_placement_report(placement_report);
-    }
-    if update_placements_lock and placement_report {
-        import from jaclang.jac0core.placement {
-            placement_lock_file_for,
-            write_placement_lock
-        }
-        lock_target = placement_lock_file_for(all_files[0]) if all_files else '';
-        if lock_target {
-            write_placement_lock(lock_target, placement_report);
-            console.print(f"wrote {lock_target}");
-        }
     }
     if print_errs and len(failed_results) > 0 {
         print_failures(failed_results, nowarn);
@@ -287,9 +274,8 @@ impl lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int {
             import from jaclang.jac0core.bccache { discover_annex_files }
             import os;
             annex_paths = (
-                discover_annex_files(str(path_obj), '.impl.jac') + discover_annex_files(
-                    str(path_obj), '.test.jac'
-                )
+                discover_annex_files(str(path_obj), '.impl.jac')
+                + discover_annex_files(str(path_obj), '.test.jac')
             );
             for annex_path in annex_paths {
                 if os.path.realpath(annex_path) in covered {
@@ -415,9 +401,8 @@ def _format_single_file_worker(
         import from jaclang.jac0core.bccache { discover_annex_files }
 
         annex_paths = (
-            discover_annex_files(file_path, '.impl.jac') + discover_annex_files(
-                file_path, '.test.jac'
-            )
+            discover_annex_files(file_path, '.impl.jac')
+            + discover_annex_files(file_path, '.test.jac')
         );
         if logical_path {
             phys_parent = str(Path(file_path).resolve().parent);
@@ -528,7 +513,7 @@ def _format_single_file_worker(
             if lintfix {
                 for annex_path in annex_paths {
                     if covered is not None
-                    and (os.path.realpath(annex_path) in covered) {
+                        and (os.path.realpath(annex_path) in covered) {
                         continue;
                     }
                     annex_logical = annex_logical_map.get(annex_path, annex_path);
@@ -982,9 +967,8 @@ impl precommit(
                             continue;
                         }
                         for ap in (
-                            discover_annex_files(abs_t, '.impl.jac') + discover_annex_files(
-                                abs_t, '.test.jac'
-                            )
+                            discover_annex_files(abs_t, '.impl.jac')
+                            + discover_annex_files(abs_t, '.test.jac')
                         ) {
                             ap_rel = os.path.relpath(ap, git_root).replace(os.sep, "/");
                             if ap_rel not in rel_set {
@@ -1016,7 +1000,8 @@ impl precommit(
                         "-f",
                         f"--prefix={tmp_root}{os.sep}",
                         "--"
-                    ] + checkout_paths,
+                    ]
+                        + checkout_paths,
                     check=True,
                     cwd=git_root
                 );
@@ -1067,10 +1052,10 @@ impl precommit(
         check_ret = 0;
     }
     if not verify
-    and check_ret == 0
-    and fmt_ret == 0
-    and staged
-    and _staged_dirty_files(git_root, rel_targets) {
+        and check_ret == 0
+        and fmt_ret == 0
+        and staged
+        and _staged_dirty_files(git_root, rel_targets) {
         fmt_ret = 1;
     }
     if not verify and check_ret == 0 and fmt_ret != 0 {

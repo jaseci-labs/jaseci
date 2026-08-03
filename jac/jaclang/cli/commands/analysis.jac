@@ -9,7 +9,9 @@ glob registry = get_registry();
     tier="core",
     args=[
         Arg.create(
-            "paths", kind=ArgKind.MULTI, help="Paths to .jac files or directories"
+            "paths",
+            kind=ArgKind.MULTI_POSITIONAL,
+            help="Paths to .jac files or directories"
         ),
         Arg.create(
             "print_errs",
@@ -20,13 +22,13 @@ glob registry = get_registry();
         ),
         Arg.create(
             "ignore",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_OPTION,
             default=[],
             help="Directories or files to ignore (space separated)"
         ),
         Arg.create(
             "disable-error-code",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_OPTION,
             default=[],
             help="Diagnostic codes or lint kebab aliases to suppress (same as [check].suppress in jac.toml; e.g. E1030 no-print)"
         ),
@@ -72,13 +74,6 @@ glob registry = get_registry();
             short="",
             help="Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision"
         ),
-        Arg.create(
-            "update-placements-lock",
-            typ=bool,
-            default=False,
-            short="",
-            help="Write jac.placements.lock (next to jac.toml) from the computed placements; committed, it makes placement flips reviewable like dependency bumps"
-        ),
 
     ],
     examples=[
@@ -113,8 +108,7 @@ def check(
     lint_only: bool = False,
     fix: bool = False,
     native_census: bool = False,
-    placements: bool = False,
-    update_placements_lock: bool = False
+    placements: bool = False
 ) -> int;
 
 def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;
@@ -125,7 +119,9 @@ def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;
     tier="core",
     args=[
         Arg.create(
-            "paths", kind=ArgKind.MULTI, help="Paths to .jac files or directories"
+            "paths",
+            kind=ArgKind.MULTI_POSITIONAL,
+            help="Paths to .jac files or directories"
         ),
         Arg.create(
             "to_screen",
@@ -185,7 +181,7 @@ def format(
     args=[
         Arg.create(
             "paths",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_POSITIONAL,
             default=[],
             help="Paths to .jac files or directories (default: project root)"
         ),
@@ -241,7 +237,7 @@ def precommit(
     args=[
         Arg.create(
             "paths",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_POSITIONAL,
             help="Paths to test files or directories",
             default=[]
         ),
@@ -262,7 +258,12 @@ def precommit(
         ),
         Arg.create("directory", default="", help="Test directory", short="d"),
         Arg.create(
-            "verbose", typ=bool, default=False, help="Verbose output", short="v"
+            "verbose",
+            typ=bool,
+            default=False,
+            help="Verbose output",
+            short="v",
+            config_key="test.verbose"
         ),
         Arg.create(
             "ignore",

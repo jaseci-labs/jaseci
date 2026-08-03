@@ -47,7 +47,7 @@ jac start main.jac --client react-native --dev    # Metro Fast Refresh on device
 jac build --client react-native --platform android  # → APK (iOS: .app via xcodebuild, .ipa via EAS)
 ```
 
-Start from [`examples/mobui/hello`](https://github.com/jaseci-labs/jaseci/tree/main/jac/examples/mobui/hello); [`examples/mobui/littlex`](https://github.com/jaseci-labs/jaseci/tree/main/jac/examples/mobui/littlex) shows the full-stack picture including `.native.cl.jac` platform-split modules.
+Start from [`examples/mobui/hello`](https://github.com/jaseci-labs/jaseci/tree/main/jac/examples/mobui/hello); [`examples/mobui/littlex`](https://github.com/jaseci-labs/jaseci/tree/main/jac/examples/mobui/littlex) shows the full-stack picture including `.native.jac` platform-split modules.
 
 ## Your learning path
 
