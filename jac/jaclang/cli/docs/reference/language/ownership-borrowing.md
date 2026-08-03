@@ -318,6 +318,8 @@ On the native backend, full ownership coverage is what lets the memory-managemen
 
 On every backend the ownership annotations are compile-time-only. On the Python backend, `&x` and `&mut x` are **erased**: the expression compiles to exactly `x`, the same object reference an unannotated binding would produce. There is no runtime borrow object, no copy, and no indirection -- the annotation exists solely for `OwnershipCheckPass` to check. (Before the borrow-checker work, a prefix `&x` lowered to the archetype-lookup call `jobj(id=x)`; that legacy meaning is gone -- call `jobj(id=...)` explicitly if you want an id lookup.) The native backend likewise erases borrows; its reference-count optimizations consume the core-stamped move-elision and param-rebinding facts (`RcFactsPass`), computed once on the shared dataflow framework.
 
+The native backend does hand the checked facts to the optimizer: heap-typed parameters in ownership contract positions carry LLVM parameter attributes -- `own` and `&mut` are exclusive (`noalias`), `&` is exclusive-read (`noalias readonly`), and `imm` is deep-frozen (`readonly`, no `noalias` since immutable handles may alias). These attributes never change semantics -- a checked-clean module means they are true by construction -- but they license load hoisting and vectorization the optimizer could not otherwise prove. Unannotated parameters carry nothing.
+
 ## See also
 
 - [Ownership Checker Specification](../../internals/ownership-checker-spec.md) -- the authoritative statement of what each `E13xx` code guarantees, the checker's symbol-level granularity, and the facts contract backends consume.

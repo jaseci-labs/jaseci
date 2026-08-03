@@ -451,6 +451,7 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     for (i, p) in enumerate(_m_params) {
         func.args[i + _base].name = p.name.value if p.name else f"arg{i}";
     }
+    self._apply_ownership_param_attrs(func, _m_params, _base);
     self.method_funcs[full_name] = func;
     self.func_symtab[full_name] = func;
     if _is_static {

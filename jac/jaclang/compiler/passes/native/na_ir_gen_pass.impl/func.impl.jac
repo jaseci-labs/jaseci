@@ -1,4 +1,5 @@
 import from jaclang.compiler.targets.abi { classify_foreign_fn }
+import from jaclang.jac0core.constant { OwnershipKind }
 
 impl NaIRGenPass.builder.getter -> ir.IRBuilder {
     if self._builder is None {
@@ -13,6 +14,31 @@ impl NaIRGenPass.builder.getter -> ir.IRBuilder {
 impl NaIRGenPass._forward_declare_functions(module: uni.Module) -> None {
     for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
         self._maybe_declare_ability(stmt);
+    }
+}
+
+impl NaIRGenPass._apply_ownership_param_attrs(
+    func: ir.Function, params: list[uni.ParamVar], base: int
+) -> None {
+    for (i, p) in enumerate(params) {
+        if p.type_tag is None {
+            continue;
+        }
+        kind = p.type_tag.ownership;
+        if kind == OwnershipKind.NONE {
+            continue;
+        }
+        arg = func.args[i + base];
+        if not isinstance(arg.type, ir.PointerType) {
+            continue;
+        }
+        if kind
+            in (OwnershipKind.OWN, OwnershipKind.MUT_BORROW, OwnershipKind.BORROW) {
+            arg.add_attribute("noalias");
+        }
+        if kind in (OwnershipKind.BORROW, OwnershipKind.IMM) {
+            arg.add_attribute("readonly");
+        }
     }
 }
 
@@ -79,6 +105,7 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     for (i, p) in enumerate(sig.get_parameters()) {
         func.args[i].name = p.name.value if p.name else f"arg{i}";
     }
+    self._apply_ownership_param_attrs(func, sig.get_parameters(), 0);
     self.func_symtab[name] = func;
 
     self._func_loc[name] = nd.loc.first_line if nd.loc else 0;
