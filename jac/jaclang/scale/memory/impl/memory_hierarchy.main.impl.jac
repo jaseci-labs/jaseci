@@ -1,4 +1,3 @@
-
 impl ScaleTieredMemory.postinit -> None {
     self.__mem__ = {};
 

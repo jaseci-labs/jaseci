@@ -118,7 +118,6 @@ impl Serializer._serialize_value(
             result['edges'] = [str(e.id) for e in val.edges];
 
             result['version'] = val.version;
-
         }
         if isinstance(val, EdgeAnchor) {
             result |= {

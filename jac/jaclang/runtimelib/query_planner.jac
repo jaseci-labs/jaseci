@@ -9,17 +9,18 @@ glob logger = logging.getLogger(__name__),
      __all__ = ['resolve_query', 'resolve_query_edges', 'resolve_query_prefix'];
 
 
-obj _Overlay {
+obj _View {
     has fresh: list[EdgeAnchor] = [],
-        fresh_ids: set[UUID] = set(),
-        detached: set[UUID] = set();
+        detached: set[UUID] = set(),
+        live_nodes: dict[UUID, NodeAnchor] = {},
+        live_edges: dict[UUID, EdgeAnchor] = {};
 }
 
 
 def _trace_enabled -> bool;
 
 
-def _build_overlay(mem: Memory) -> _Overlay;
+def _build_view(mem: Memory, q: GraphQuery) -> _View;
 
 
 def _edge_alive(ea: EdgeAnchor) -> bool;
@@ -28,20 +29,25 @@ def _edge_alive(ea: EdgeAnchor) -> bool;
 def _live_row(ea: EdgeAnchor, cur: set[UUID], hop: QHop) -> (tuple[UUID, UUID] | None);
 
 
-def _node_pred_keep(mem: Memory, ids: list[UUID], preds: list[QPred]) -> list[UUID];
+def _node_pred_keep(
+    mem: Memory, view: _View, ids: list[UUID], preds: list[QPred]
+) -> list[UUID];
 
 
 def _edge_pred_keep(
-    mem: Memory, rows: list[tuple[UUID, UUID]], overlay: _Overlay, epreds: list[QPred]
+    mem: Memory, view: _View, rows: list[tuple[UUID, UUID]], epreds: list[QPred]
 ) -> list[tuple[UUID, UUID]];
 
 
 def _hop_once(
-    mem: Memory, overlay: _Overlay, cur: list[UUID], hop: QHop, hop_idx: int
+    mem: Memory, view: _View, cur: list[UUID], hop: QHop, hop_idx: int
 ) -> list[UUID];
 
 
-def _materialize(mem: Memory, ids: list[UUID]) -> list[Anchor];
+def _resolve_ids(mem: Memory, view: _View, q: GraphQuery, upto: int) -> list[UUID];
+
+
+def _materialize(mem: Memory, view: _View, ids: list[UUID]) -> list[Anchor];
 
 
 def _verify_last_hop(anchor: Anchor, hop: QHop) -> bool;

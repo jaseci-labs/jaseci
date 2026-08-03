@@ -881,16 +881,12 @@ impl JacBuiltin.log_report(expr: any, custom: bool = False) -> None {
 }
 
 impl JacGraph.refs(
-    path: GraphQuery | NodeArchetype | list[NodeArchetype],
-    slc: (slice | None) = None
+    path: GraphQuery | NodeArchetype | list[NodeArchetype], slc: (slice | None) = None
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
     if not isinstance(path, GraphQuery) {
         path = GraphQuery(path, hops=[QHop(dir=EdgeDir.OUT.value)]);
     }
-    import from jaclang.runtimelib.query_planner {
-        resolve_query,
-        resolve_query_edges
-    }
+    import from jaclang.runtimelib.query_planner { resolve_query, resolve_query_edges }
     ctx = JacRuntimeInterface.get_context();
     ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
     if slc is not None and path.slc is None {
@@ -908,9 +904,7 @@ impl JacGraph.refs(
     ];
 }
 
-impl JacGraph.arefs(
-    path: GraphQuery | NodeArchetype | list[NodeArchetype]
-) -> None {
+impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {
     ;
 }
 

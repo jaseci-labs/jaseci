@@ -480,18 +480,12 @@ impl MongoBackend.get_roots -> Generator[Root, None, None] {
 }
 
 
-"""Mongo side of the graph-index contract. Edge docs already carry
-data.source/data.target, so the edge relation needs no extra table; type
-ancestry lives in a small graph_types collection maintained on write and
-rebuildable by scanning arch types. Mongo comparisons are type-bracketed
-(BSON), which matches QPred.matches exactness for ordering ops the same
-way the SQLite json_type guard does."""
 def _mongo_types_col(backend: MongoBackend) -> any {
     return backend.collection.database['graph_types'];
 }
 
 
-def _mongo_record_ancestry(backend: MongoBackend, cls: type) -> None {
+def _mongo_record_ancestry(backend: MongoBackend, cls: type) {
     import from jaclang.jac0core.archetype {
         Archetype,
         EdgeArchetype,
@@ -572,11 +566,20 @@ impl MongoBackend.hop_rows(
     keys = [str(i) for i in src_ids];
     arms: list;
     if hop.dir == 1 {
-        arms = [('data.target', 'data.source', False), ('data.source', 'data.target', True)];
+        arms = [
+            ('data.target', 'data.source', False),
+            ('data.source', 'data.target', True)
+        ];
     } elif hop.dir == 3 {
-        arms = [('data.source', 'data.target', False), ('data.target', 'data.source', False)];
+        arms = [
+            ('data.source', 'data.target', False),
+            ('data.target', 'data.source', False)
+        ];
     } else {
-        arms = [('data.source', 'data.target', False), ('data.target', 'data.source', True)];
+        arms = [
+            ('data.source', 'data.target', False),
+            ('data.target', 'data.source', True)
+        ];
     }
     base: dict = {'type': 'EdgeAnchor'};
     if hop.`edge is not None {
@@ -608,16 +611,23 @@ impl MongoBackend.hop_rows(
             keep: set = set(nbr_ids);
             for nt in node_types {
                 nfilt = {
-                    '_id': {'$in': [k for k in nbr_ids if k in keep]},
+                    '_id': {
+                        '$in': [
+                            k
+                            for k in nbr_ids
+                            if k in keep
+                        ]
+                    },
                     'arch_type': {'$in': _mongo_type_names(self, nt)}
                 };
-                got = {
-                    str(d['_id'])
-                    for d in self.collection.find(nfilt, {'_id': 1})
-                };
+                got = {str(d['_id']) for d in self.collection.find(nfilt, {'_id': 1})};
                 keep = keep & got;
             }
-            rows = [r for r in rows if r[1] in keep];
+            rows = [
+                r
+                for r in rows
+                if r[1] in keep
+            ];
         }
     } except Exception as e {
         logger.debug(f"MongoDB hop_rows failed: {e}");

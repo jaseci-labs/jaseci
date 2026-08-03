@@ -4,24 +4,26 @@ impl _trace_enabled -> bool {
 }
 
 
-impl _build_overlay(mem: Memory) -> _Overlay {
-    ov = _Overlay();
+impl _build_view(mem: Memory, q: GraphQuery) -> _View {
+    view = _View();
     for anchor in list(mem.get_mem().values()) {
         if not isinstance(anchor, EdgeAnchor) or not anchor.is_populated() {
             continue;
         }
-        if anchor.hash == 0 {
-            if _edge_alive(anchor) {
-                ov.fresh.append(anchor);
-                ov.fresh_ids.add(anchor.id);
-            } else {
-                ov.detached.add(anchor.id);
-            }
-        } elif not _edge_alive(anchor) {
-            ov.detached.add(anchor.id);
+        if not _edge_alive(anchor) {
+            view.detached.add(anchor.id);
+        } elif anchor.hash == 0 {
+            view.fresh.append(anchor);
+            view.live_edges[anchor.id] = anchor;
         }
     }
-    return ov;
+    for arch in q.origin {
+        oanch = arch.__jac__;
+        if isinstance(oanch, NodeAnchor) and oanch.is_populated() {
+            view.live_nodes[oanch.id] = oanch;
+        }
+    }
+    return view;
 }
 
 
@@ -89,7 +91,9 @@ impl _live_row(
 }
 
 
-impl _node_pred_keep(mem: Memory, ids: list[UUID], preds: list[QPred]) -> list[UUID] {
+impl _node_pred_keep(
+    mem: Memory, view: _View, ids: list[UUID], preds: list[QPred]
+) -> list[UUID] {
     if not preds or not ids {
         return ids;
     }
@@ -97,7 +101,7 @@ impl _node_pred_keep(mem: Memory, ids: list[UUID], preds: list[QPred]) -> list[U
     remote: list[UUID] = [];
     pool = mem.get_mem();
     for i in ids {
-        a = pool.get(i);
+        a = pool.get(i) or view.live_nodes.get(i);
         if a is not None and a.is_populated() and a.archetype is not None {
             resident[i] = a;
         } else {
@@ -128,7 +132,7 @@ impl _node_pred_keep(mem: Memory, ids: list[UUID], preds: list[QPred]) -> list[U
 
 
 impl _edge_pred_keep(
-    mem: Memory, rows: list[tuple[UUID, UUID]], overlay: _Overlay, epreds: list[QPred]
+    mem: Memory, view: _View, rows: list[tuple[UUID, UUID]], epreds: list[QPred]
 ) -> list[tuple[UUID, UUID]] {
     if not epreds or not rows {
         return rows;
@@ -137,7 +141,7 @@ impl _edge_pred_keep(
     resident: dict[UUID, Anchor] = {};
     remote: list[UUID] = [];
     for (eid, _) in rows {
-        a = pool.get(eid);
+        a = pool.get(eid) or view.live_edges.get(eid);
         if a is not None and a.is_populated() and a.archetype is not None {
             resident[eid] = a;
         } else {
@@ -168,30 +172,65 @@ impl _edge_pred_keep(
 
 
 impl _hop_once(
-    mem: Memory, overlay: _Overlay, cur: list[UUID], hop: QHop, hop_idx: int
+    mem: Memory, view: _View, cur: list[UUID], hop: QHop, hop_idx: int
 ) -> list[UUID] {
     cur_set = set(cur);
     engine_rows = mem.hop_rows(cur, hop, ordered=True);
     rows: list[tuple[UUID, UUID]] = [];
     n_engine = 0;
+    seen_eids: set[UUID] = set();
     if engine_rows is not None {
         for (eid, nid) in engine_rows {
-            if eid in overlay.detached or eid in overlay.fresh_ids {
+            if eid in view.detached or eid in view.live_edges {
                 continue;
             }
+            seen_eids.add(eid);
             rows.append((eid, nid));
             n_engine += 1;
         }
     }
+    live_edges: list[EdgeAnchor] = [];
+    for ea in view.fresh {
+        if ea.id not in seen_eids {
+            seen_eids.add(ea.id);
+            live_edges.append(ea);
+        }
+    }
+    pool = mem.get_mem();
+    for nid in cur {
+        nanch = pool.get(nid) or view.live_nodes.get(nid);
+        if not isinstance(nanch, NodeAnchor) or not nanch.is_populated() {
+            continue;
+        }
+        for stub in nanch.edges {
+            if stub.id in seen_eids
+                or not stub.is_populated()
+                or stub.id in view.detached
+                or stub.hash != 0 {
+                continue;
+            }
+            seen_eids.add(stub.id);
+            live_edges.append(stub);
+        }
+    }
     n_live = 0;
-    for ea in overlay.fresh {
+    for ea in live_edges {
         r = _live_row(ea, cur_set, hop);
         if r is not None {
             rows.append(r);
             n_live += 1;
+            view.live_edges[ea.id] = ea;
+            src = ea.source;
+            tgt = ea.target;
+            if src is not None and src.is_populated() {
+                view.live_nodes[src.id] = src;
+            }
+            if tgt is not None and tgt.is_populated() {
+                view.live_nodes[tgt.id] = tgt;
+            }
         }
     }
-    rows = _edge_pred_keep(mem, rows, overlay, hop.epreds);
+    rows = _edge_pred_keep(mem, view, rows, hop.epreds);
     seen: set[UUID] = set();
     ids: list[UUID] = [];
     for (_, nid) in rows {
@@ -200,7 +239,7 @@ impl _hop_once(
             ids.append(nid);
         }
     }
-    ids = _node_pred_keep(mem, ids, hop.preds);
+    ids = _node_pred_keep(mem, view, ids, hop.preds);
     want = hop.only_ids();
     if want is not None {
         ids = [
@@ -212,27 +251,61 @@ impl _hop_once(
     if _trace_enabled() {
         logger.info(
             f"[gquery] hop[{hop_idx}] {hop.repr()} in={len(cur)} "
-            f"engine_rows={n_engine} overlay_rows={n_live} out={len(ids)}"
+            f"engine_rows={n_engine} live_rows={n_live} out={len(ids)}"
         );
     }
     return ids;
 }
 
 
-impl _materialize(mem: Memory, ids: list[UUID]) -> list[Anchor] {
+impl _resolve_ids(mem: Memory, view: _View, q: GraphQuery, upto: int) -> list[UUID] {
+    seen: set[UUID] = set();
+    cur: list[UUID] = [];
+    for arch in q.origin {
+        aid = arch.__jac__.id;
+        if aid not in seen {
+            seen.add(aid);
+            cur.append(aid);
+        }
+    }
+    if upto <= 0 or not cur {
+        return cur;
+    }
+    for (i, hop) in enumerate(q.hops[:upto]) {
+        cur = _hop_once(mem, view, cur, hop, i);
+        if not cur {
+            break;
+        }
+    }
+    return cur;
+}
+
+
+impl _materialize(mem: Memory, view: _View, ids: list[UUID]) -> list[Anchor] {
     if not ids {
         return [];
     }
     import from jaclang.runtimelib.memory { TieredMemory }
-    loaded: dict[UUID, Anchor];
-    if isinstance(mem, TieredMemory) {
-        loaded = mem.batch_get(ids);
-    } else {
-        loaded = {
-            i: a
-            for i in ids
-            if (a := mem.get(i)) is not None
-        };
+    loaded: dict[UUID, Anchor] = {};
+    missing: list[UUID] = [];
+    for i in ids {
+        live = view.live_nodes.get(i);
+        if live is not None and live.is_populated() and live.archetype is not None {
+            loaded[i] = live;
+        } else {
+            missing.append(i);
+        }
+    }
+    if missing {
+        if isinstance(mem, TieredMemory) {
+            loaded.update(mem.batch_get(missing));
+        } else {
+            for i in missing {
+                if (a := mem.get(i)) is not None {
+                    loaded[i] = a;
+                }
+            }
+        }
     }
     return [
         loaded[i]
@@ -256,31 +329,46 @@ impl _verify_last_hop(anchor: Anchor, hop: QHop) -> bool {
             }
         }
     }
-    return all(p.matches(getattr(arch, p.field, None)) for p in hop.preds);
+    if not all(p.matches(getattr(arch, p.field, None)) for p in hop.preds) {
+        return False;
+    }
+    want = hop.only_ids();
+    return want is None or anchor.id in want;
 }
 
 
 impl resolve_query_prefix(mem: Memory, q: GraphQuery, upto: int) -> list[UUID] {
-    seen: set[UUID] = set();
-    cur: list[UUID] = [];
-    for arch in q.origin {
-        aid = arch.__jac__.id;
-        if aid not in seen {
-            seen.add(aid);
-            cur.append(aid);
-        }
+    view = _build_view(mem, q);
+    return _resolve_ids(mem, view, q, upto);
+}
+
+
+impl resolve_query(mem: Memory, q: GraphQuery) -> list[Anchor] {
+    if not q.origin {
+        return [];
     }
-    if upto <= 0 or not cur {
-        return cur;
+    view = _build_view(mem, q);
+    ids = _resolve_ids(mem, view, q, len(q.hops));
+    if q.slc is not None {
+        ids = ids[q.slc];
     }
-    overlay = _build_overlay(mem);
-    for (i, hop) in enumerate(q.hops[:upto]) {
-        cur = _hop_once(mem, overlay, cur, hop, i);
-        if not cur {
-            break;
-        }
+    winners = _materialize(mem, view, ids);
+    if not q.hops {
+        return winners;
     }
-    return cur;
+    last = q.hops[-1];
+    verified = [
+        w
+        for w in winners
+        if _verify_last_hop(w, last)
+    ];
+    if _trace_enabled() {
+        logger.info(
+            f"[gquery] final materialized={len(winners)} "
+            f"verified={len(verified)} slc={q.slc}"
+        );
+    }
+    return verified;
 }
 
 
@@ -288,33 +376,62 @@ impl resolve_query_edges(mem: Memory, q: GraphQuery) -> list[Anchor] {
     if not q.origin or not q.hops {
         return [];
     }
-    prefix_ids = resolve_query_prefix(mem, q, len(q.hops) - 1);
+    view = _build_view(mem, q);
+    prefix_ids = _resolve_ids(mem, view, q, len(q.hops) - 1);
     if not prefix_ids {
         return [];
     }
     hop = q.hops[-1];
-    frontier = _materialize(mem, prefix_ids);
+    frontier = _materialize(mem, view, prefix_ids);
     cur_set = {a.id for a in frontier};
-    edge_ids: list[UUID] = [];
+    pool = mem.get_mem();
+    candidates: list[EdgeAnchor] = [];
     seen: set[UUID] = set();
+    pending: list[UUID] = [];
     for n in frontier {
         if not isinstance(n, NodeAnchor) or not n.is_populated() {
             continue;
         }
         for stub in n.edges {
-            if stub.id not in seen {
-                seen.add(stub.id);
-                edge_ids.append(stub.id);
+            if stub.id in seen {
+                continue;
+            }
+            seen.add(stub.id);
+            found = pool.get(stub.id) or view.live_edges.get(stub.id);
+            if found is None and stub.is_populated() {
+                found = stub;
+            }
+            if isinstance(found, EdgeAnchor) and found.is_populated() {
+                candidates.append(found);
+            } else {
+                pending.append(stub.id);
             }
         }
     }
-    candidates = _materialize(mem, edge_ids);
-    out: list[Anchor] = [];
-    for ea in candidates {
-        if not isinstance(ea, EdgeAnchor) or not ea.is_populated() {
-            continue;
+    if pending {
+        import from jaclang.runtimelib.memory { TieredMemory }
+        fetched: dict[UUID, Anchor];
+        if isinstance(mem, TieredMemory) {
+            fetched = mem.batch_get(pending);
+        } else {
+            fetched = {
+                i: a
+                for i in pending
+                if (a := mem.get(i)) is not None
+            };
         }
-        if ea.archetype is None {
+        for i in pending {
+            fa = fetched.get(i);
+            if isinstance(fa, EdgeAnchor) and fa.is_populated() {
+                candidates.append(fa);
+            }
+        }
+    }
+    out: list[Anchor] = [];
+    seen_nodes: set[UUID] = set();
+    ewant = hop.only_ids();
+    for ea in candidates {
+        if ea.archetype is None or ea.id in view.detached {
             continue;
         }
         src = ea.source;
@@ -343,54 +460,28 @@ impl resolve_query_edges(mem: Memory, q: GraphQuery) -> list[Anchor] {
             continue;
         }
         other = tgt if src.id in cur_set else src;
-        ewant = hop.only_ids();
         if ewant is not None and other.id not in ewant {
             continue;
         }
-        if hop.nd is not None or hop.preds {
-            other_l = _materialize(mem, [other.id]);
+        if hop.nd is not None or hop.preds or q.from_visit {
+            other_l = _materialize(mem, view, [other.id]);
             if not other_l {
                 continue;
             }
             if not _verify_last_hop(other_l[0], hop) {
                 continue;
             }
+            out.append(ea);
+            if q.from_visit and other.id not in seen_nodes {
+                seen_nodes.add(other.id);
+                out.append(other_l[0]);
+            }
+        } else {
+            out.append(ea);
         }
-        out.append(ea);
     }
     if q.slc is not None {
         out = out[q.slc];
     }
     return out;
-}
-
-
-impl resolve_query(mem: Memory, q: GraphQuery) -> list[Anchor] {
-    if not q.origin {
-        return [];
-    }
-    ids = resolve_query_prefix(mem, q, len(q.hops));
-    if not q.hops {
-        if q.slc is not None {
-            ids = ids[q.slc];
-        }
-        return _materialize(mem, ids);
-    }
-    if q.slc is not None {
-        ids = ids[q.slc];
-    }
-    winners = _materialize(mem, ids);
-    last = q.hops[-1];
-    verified = [
-        w
-        for w in winners
-        if _verify_last_hop(w, last)
-    ];
-    if _trace_enabled() {
-        logger.info(
-            f"[gquery] final materialized={len(winners)} "
-            f"verified={len(verified)} slc={q.slc}"
-        );
-    }
-    return verified;
 }
