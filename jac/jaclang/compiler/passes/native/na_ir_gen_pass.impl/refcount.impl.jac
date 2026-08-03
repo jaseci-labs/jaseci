@@ -939,6 +939,22 @@ impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
     opaque_fields = self.struct_field_opaque.get(type_name, set());
     i32 = ir.IntType(32);
     for (fname, ftype) in field_types.items() {
+        if fname in self.struct_field_inline.get(type_name, set()) {
+            _in_idx = field_indices.get(fname, -1);
+            _in_name = getattr(ftype, "name", "") or "";
+            _in_dropf = self._emit_struct_drop_fields_fn(_in_name)
+                if _in_name
+                else None;
+            if _in_dropf is not None and _in_idx >= 0 {
+                _in_fp = b.gep(
+                    _dobj,
+                    [ir.Constant(i32, 0), ir.Constant(i32, _in_idx)],
+                    name=f"drop.{fname}.p"
+                );
+                b.call(_in_dropf, [b.bitcast(_in_fp, i8p, name=f"drop.{fname}.i8")]);
+            }
+            continue;
+        }
         if fname in opaque_fields or not isinstance(ftype, ir.PointerType) {
             continue;
         }

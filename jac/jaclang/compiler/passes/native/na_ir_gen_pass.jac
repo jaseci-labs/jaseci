@@ -133,6 +133,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_field_types: dict[str, dict] = {},
         struct_field_defaults: dict[str, object] = {},
         struct_field_opaque: dict[str, set] = {},
+        struct_field_inline: dict[str, set] = {},
         method_funcs: dict[str, ir.Function] = {},
         static_methods: dict[str, bool] = {},
         static_fields: dict[str, object] = {},
@@ -1167,6 +1168,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _arch_is_walker_name(arch_name: str) -> bool;
     def _emit_struct_drop_fn(type_name: str) -> (ir.Function | None);
     def _emit_struct_drop_fields_fn(type_name: str) -> (ir.Function | None);
+    def _hasvar_is_own(var: uni.UniNode) -> bool;
+    def _store_inline_field(
+        type_name: str,
+        fname: str,
+        field_ptr: ir.Value,
+        value: (ir.Value | None),
+        drop_old: bool
+    ) -> None;
+
     def _emit_container_drop_fn(cont_name: str) -> (ir.Function | None);
     def _nogc_elem_drop_slot_ty -> ir.Type;
     def _nogc_stamp_elem_drops(
