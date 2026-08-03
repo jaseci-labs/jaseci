@@ -48,6 +48,10 @@ with entry {
 
 **Async walkers** work too: declare `async walker W { async can step with Item entry { data = await fetch(...); } }`, then `await (root spawn W())` from an async context - the traversal yields at each `await` instead of blocking.
 
+## `flow for` - the disjoint-partition loop
+
+`flow for x in &xs { }` / `flow for m in &mut xs { }` applies the `flow` modifier to a loop: the body is declared per-element over a lent collection and the closing brace is the join. The checker proves the shape race-free (lent collection required, no `break`/`return` across the join, no shared mutation in the body - E1313/E1308; write through the `&mut` element instead). Execution currently runs sequentially on both backends; the checked semantics are what parallel execution will honor when the runtimes gain it. Full rules live in the `jac-native-memory` guide.
+
 ## Choosing
 
 | | `flow`/`wait` | `async`/`await` |
