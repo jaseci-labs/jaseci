@@ -679,6 +679,17 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " binding (it is consumed) or to a fresh expression. Copy the value first,"
          " or take ownership of it, before freezing."
      ),
+     E1313 = _err(
+         "E1313",
+         Category.SEMANTIC,
+         "`flow for` does not allow {name}",
+         help="the body of a `flow for` runs as independent tasks over disjoint"
+         " elements, and the loop's closing brace is the join: control flow may not"
+         " cross it (`continue` skips one element; `break`/`return` cannot), the"
+         " collection must be lent (`&xs` or `&mut xs`) so disjointness is checkable,"
+         " and nesting `flow for` is not supported yet. Restructure the loop, or use"
+         " a plain `for` when sequential semantics are what you want."
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,

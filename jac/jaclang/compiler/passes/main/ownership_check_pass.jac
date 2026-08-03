@@ -118,6 +118,8 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _stamp_region_borrows -> None;
     def _open_handle_name(region: uni.OpenStmt) -> (uni.Name | None);
     def _seal_connect_handle(bx: uni.BinaryExpr) -> (uni.Name | None);
+    def _flow_for_stmts -> list[uni.InForStmt];
+    def _emit_flow_for_diagnostics -> None;
     def _seal_arch_ctor(fc: uni.FuncCall) -> bool;
     def _emit_post_seal_diagnostics(region: uni.OpenStmt) -> None;
     def _region_handle_sid(region: uni.OpenStmt) -> (SymId | None);

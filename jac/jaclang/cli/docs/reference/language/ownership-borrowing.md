@@ -462,6 +462,42 @@ with entry {
 }
 ```
 
+## `flow for`: the disjoint-partition loop
+
+The existing `flow` modifier applied to the existing loop -- no new
+keyword. `flow for x in &xs { }` declares a parallel read-only map;
+`flow for m in &mut xs { }` fans out disjoint exclusive lends, one per
+element; the loop's closing brace is the implicit join and the borrow's
+extent. The checker enforces the shape that makes that meaning true:
+
+- the collection must be lent (`&xs` or `&mut xs`) so disjointness is
+  checkable ([`E1313`](../diagnostics.md#ownership-borrow-errors));
+- control flow may not cross the join: `break` out of the body,
+  `return`, `disengage`, and `yield` are `E1313`; `continue` (skip one
+  element) is fine;
+- body captures follow the sendability rule: reads of outer state must
+  be scalar/immutable, and any write to an outer name -- an accumulator,
+  an outer container -- is
+  [`E1308`](../diagnostics.md#ownership-borrow-errors) (write through
+  the `&mut` element instead);
+- nesting `flow for` is rejected for now, and the element-space loan
+  algebra already covers structural mutation of the collection during
+  the loop.
+
+```jac
+flow for m in &mut ps {
+    m.x = m.x * 10;    # disjoint per-element writes: race-free by construction
+}
+# join: every element write is visible here
+```
+
+Execution note: both backends currently lower `flow for` to the same
+degenerate sequential execution as native `flow` calls, so erasure is
+byte-exact by construction; parallel execution arrives with the shared
+concurrency runtime, with the semantics already pinned. Two named
+follow-ups: a reduction idiom (index-disjoint partial results), and the
+chunked form (`&mut xs.chunks(n)`) which waits on container views.
+
 ## The `drop` hook
 
 An archetype may declare a reserved ability named `drop` (undunderscored, like `postinit`). On the native backend it runs exactly once, when the object is destroyed, and before the object's own fields are torn down:

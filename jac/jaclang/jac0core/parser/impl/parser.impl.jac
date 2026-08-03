@@ -3705,6 +3705,9 @@ impl Parser.parse_statement{
     if self.check(TokenKind.KW_ASYNC) and self.check_peek(TokenKind.KW_FOR) {
         return self.parse_for_stmt();
     }
+    if self.check(TokenKind.KW_FLOW) and self.check_peek(TokenKind.KW_FOR) {
+        return self.parse_for_stmt();
+    }
     if self.check(TokenKind.KW_ASYNC) and self.check_peek(TokenKind.KW_WITH) {
         return self.parse_with_stmt();
     }
@@ -3995,15 +3998,22 @@ impl Parser.parse_forever_stmt -> ForeverStmt {
 impl Parser.parse_for_stmt{
     is_async = False;
     async_uni = None;
+    flow_uni = None;
     if self.match_tok(TokenKind.KW_ASYNC) {
         is_async = True;
         async_uni = self.make_uni_token(self.previous());
+    }
+    if self.match_tok(TokenKind.KW_FLOW) {
+        flow_uni = self.make_uni_token(self.previous());
     }
     for_uni = self.consume_uni(TokenKind.KW_FOR);
 
     target = self.parse_atomic_chain();
 
     if self.check(TokenKind.EQ) {
+        if flow_uni is not None {
+            self.error("`flow for` requires the `for <x> in <collection>` form");
+        }
         eq_tok = self.expect(TokenKind.EQ);
         eq_uni = self.make_uni_token(eq_tok);
         start_val = self.parse_expression();
@@ -4089,6 +4099,9 @@ impl Parser.parse_for_stmt{
     kid: list = [];
     if is_async {
         kid.append(async_uni);
+    }
+    if flow_uni is not None {
+        kid.append(flow_uni);
     }
     kid.extend([for_uni, target, in_uni, iter_expr]);
     kid.append(lb_uni);

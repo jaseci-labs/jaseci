@@ -289,6 +289,7 @@ Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and
 | `E1308` | '{name}' is not sendable across a concurrency boundary |
 | `E1309` | Cannot mutate '{name}' through a deep-immutable `imm` binding |
 | `E1311` | Cannot freeze '{name}': the value may be aliased |
+| `E1313` | `flow for` does not allow {name} |
 
 ### Zero-RC Enforcement Errors
 

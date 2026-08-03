@@ -19,6 +19,7 @@ glob _CODE_GUIDE_MAP: dict[str, str] = {
          "E1309": "jac-native-memory",
          "E1311": "jac-native-memory",
          "W1312": "jac-native-memory",
+         "E1313": "jac-native-memory",
          "E1401": "jac-native-memory",
          "E1402": "jac-native-memory",
          "E1403": "jac-native-memory",

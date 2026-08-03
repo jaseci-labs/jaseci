@@ -91,6 +91,7 @@ impl OwnershipCheckPass.transform(ir_in: uni.Module) -> uni.Module {
         and not self.imm_decl
         and not self._has_region_blocks()
         and not self.idx_concurrent
+        and not self._flow_for_stmts()
         and self.nogc_prov is None {
         return ir_in;
     }
@@ -112,6 +113,7 @@ impl OwnershipCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     self._emit_escape_diagnostics();
     self._emit_region_escape_diagnostics();
     self._emit_sendability_diagnostics();
+    self._emit_flow_for_diagnostics();
     self._emit_marker_diagnostics();
     self._emit_freeze_diagnostics();
     self._emit_seal_warnings();
