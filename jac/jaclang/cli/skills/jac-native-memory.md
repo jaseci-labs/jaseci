@@ -94,7 +94,7 @@ jac nacompile service.jac --gc none --enforce-nogc --assert-no-rc
 
 3. **Verify**: `--assert-no-rc` fails the build if the emitted IR contains any `__rc_*` helper, trace function, roots-buffer global, or entry-point GC env probe; on success it prints `assert-no-rc ok`.
 
-Under `--gc none` an enforced module compiles **headerless**: owned payloads are bare `malloc` allocations (no RC header) and each free is a direct statically-placed `__drop_<T>` call, which also runs the user `def drop` hook. Note: an unhandled `raise` in an enforced module prints a line and calls `abort()` instead of unwinding.
+Under `--gc none` an enforced module compiles **headerless**: owned payloads are bare `malloc` allocations (no RC header) and each free is a direct statically-placed `__drop_<T>` call, which also runs the user `def drop` hook. Note: an unhandled `raise` in an enforced module runs the current frame's drop obligations (each exactly once -- eager-dropped locals are already nulled), prints a line, and calls `abort()` instead of unwinding.
 
 ## Enforced-module idioms (what real programs look like)
 

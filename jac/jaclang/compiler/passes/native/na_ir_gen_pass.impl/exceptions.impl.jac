@@ -245,6 +245,7 @@ impl NaIRGenPass._codegen_raise(nd: uni.RaiseStmt) -> None {
 
     if getattr(self.ir_in.gen, "nogc_enforced", False)
         and not self._raise_has_frame_handler(nd) {
+        self._emit_scope_cleanup(loc="nogc.abort");
         _abort_fn = self._get_or_declare_extern("abort", ir.VoidType(), []);
         _msg = self._make_global_string(
             "jac: unhandled exception in nogc-enforced module (abort)",
