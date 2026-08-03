@@ -76,7 +76,7 @@ impl RcFactsPass._stamp_escapes(ir_in: uni.Module) -> None {
         _def_scope = self._enclosing_fn_scope(sym.defn[0]) if sym.defn else None;
         for u in (list(sym.defn) + list(sym.uses)) {
             if u.find_parent_of_type(uni.ReturnStmt) is not None {
-                if sym.ownership == OwnershipKind.OWN and self._scalar_attr_read(u) {
+                if self._scalar_attr_read(u) {
                     continue;
                 }
                 escapes = True;
@@ -105,9 +105,6 @@ impl RcFactsPass._stamp_escapes(ir_in: uni.Module) -> None {
 }
 
 impl RcFactsPass._call_use_stack_safe(nm: uni.NameAtom, sym: uni.Symbol) -> bool {
-    if sym.ownership != OwnershipKind.OWN {
-        return False;
-    }
     p = nm.parent;
     if isinstance(p, uni.AtomTrailer) and p.target is nm {
         gp = p.parent;
@@ -115,6 +112,9 @@ impl RcFactsPass._call_use_stack_safe(nm: uni.NameAtom, sym: uni.Symbol) -> bool
             return False;
         }
         return self._scalar_attr_read(nm);
+    }
+    if sym.ownership != OwnershipKind.OWN {
+        return False;
     }
     if isinstance(p, uni.UnaryExpr) and is_borrow_kind(p.ownership) {
         return self._borrow_arg_callee_ok(p);

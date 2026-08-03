@@ -126,7 +126,10 @@ The analysis stamps documented facts; consumers read them:
   (and cannot passthrough-return it), and scalar-typed field reads
   (`b.n` under a call or return), do not count as escapes -- the borrow is
   frame-local by E1306 and a scalar copy never carries the object's storage.
-  The facts are gc-mode-independent.
+  Scalar-field-read safety is ownership-independent, so it also applies to
+  *unannotated* locals (droppless affine inference): the codegen gate
+  excludes any type with a `drop` hook from stack placement, which is what
+  keeps hook timing unobservable. The facts are gc-mode-independent.
 
 Requirements on the native pathway:
 
