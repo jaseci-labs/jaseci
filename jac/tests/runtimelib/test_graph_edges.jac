@@ -27,6 +27,39 @@ edge Rel {
 }
 
 
+"""Engine-only hop: hop_rows for types/direction, filter_ids for preds --
+the same composition the planner performs for non-resident ids."""
+def _hop(mem: SqliteMemory, src: list, hop: QHop) -> list {
+    rows = mem.hop_rows(src, hop, ordered=True);
+    assert rows is not None;
+    if hop.epreds {
+        keep_edges = mem.filter_ids([r[0] for r in rows], hop.epreds);
+        rows = [
+            r
+            for r in rows
+            if r[0] in keep_edges
+        ];
+    }
+    seen: set = set();
+    ids: list = [];
+    for (eid, nid) in rows {
+        if nid not in seen {
+            seen.add(nid);
+            ids.append(nid);
+        }
+    }
+    if hop.preds {
+        keep = mem.filter_ids(ids, hop.preds);
+        ids = [
+            i
+            for i in ids
+            if i in keep
+        ];
+    }
+    return ids;
+}
+
+
 """root --Rel(w)--> each payload node; returns (root_anchor, node_anchors)."""
 def _build(payloads: list) -> tuple {
     ranch = Root().__jac__;
@@ -120,32 +153,34 @@ test "hop_ids narrows by type, subtype, and predicates in id space" {
         _apply_all(db, ranch, anchors);
         mem = SqliteMemory(path=db);
         src = [ranch.id];
-        assert len(mem.hop_ids(src, QHop(dir=2))) == 4;
-        assert len(mem.hop_ids(src, QHop(dir=2, nd=GA))) == 3;
-        assert len(mem.hop_ids(src, QHop(dir=2, nd=GA2))) == 1;
-        assert len(mem.hop_ids(src, QHop(dir=2, nd=GB))) == 1;
-        hit = mem.hop_ids(
-            src, QHop(dir=2, nd=GA, preds=[QPred(field="val", op="==", value=2)])
+        assert len(_hop(mem, src, QHop(dir=2))) == 4;
+        assert len(_hop(mem, src, QHop(dir=2, nd=GA))) == 3;
+        assert len(_hop(mem, src, QHop(dir=2, nd=GA2))) == 1;
+        assert len(_hop(mem, src, QHop(dir=2, nd=GB))) == 1;
+        hit = _hop(
+            mem, src, QHop(dir=2, nd=GA, preds=[QPred(field="val", op="==", value=2)])
         );
         assert hit == [anchors[1][0].id];
-        le = mem.hop_ids(
-            src, QHop(dir=2, nd=GA, preds=[QPred(field="val", op="<=", value=2)])
+        le = _hop(
+            mem, src, QHop(dir=2, nd=GA, preds=[QPred(field="val", op="<=", value=2)])
         );
         assert len(le) == 2;
-        inn = mem.hop_ids(
-            src, QHop(dir=2, nd=GA, preds=[QPred(field="val", op="in", value=(1, 3))])
+        inn = _hop(
+            mem,
+            src,
+            QHop(dir=2, nd=GA, preds=[QPred(field="val", op="in", value=(1, 3))])
         );
         assert len(inn) == 2;
-        epred = mem.hop_ids(
-            src, QHop(dir=2, epreds=[QPred(field="w", op=">", value=25)])
+        epred = _hop(
+            mem, src, QHop(dir=2, epreds=[QPred(field="w", op=">", value=25)])
         );
         assert len(epred) == 2;
-        ordered = mem.hop_ids(src, QHop(dir=2), ordered=True);
+        ordered = _hop(mem, src, QHop(dir=2));
         assert ordered == [a[0].id for a in anchors];
-        rev = mem.hop_ids([anchors[0][0].id], QHop(dir=1));
+        rev = _hop(mem, [anchors[0][0].id], QHop(dir=1));
         assert rev == [ranch.id];
-        assert mem.hop_ids([anchors[0][0].id], QHop(dir=2)) == [];
-        assert mem.hop_ids([anchors[0][0].id], QHop(dir=3)) == [ranch.id];
+        assert _hop(mem, [anchors[0][0].id], QHop(dir=2)) == [];
+        assert _hop(mem, [anchors[0][0].id], QHop(dir=3)) == [ranch.id];
         mem.close();
     }
 }
@@ -159,12 +194,12 @@ test "type-drifted ordering predicate is exact, never cross-type" {
         mem = SqliteMemory(path=db);
         # tag is text; a numeric ordering comparison must exclude it exactly
         # as Python's TypeError -> False would, not by SQLite type ordering.
-        drift = mem.hop_ids(
-            [ranch.id], QHop(dir=2, preds=[QPred(field="tag", op=">", value=5)])
+        drift = _hop(
+            mem, [ranch.id], QHop(dir=2, preds=[QPred(field="tag", op=">", value=5)])
         );
         assert drift == [];
-        txt = mem.hop_ids(
-            [ranch.id], QHop(dir=2, preds=[QPred(field="tag", op=">", value="aa")])
+        txt = _hop(
+            mem, [ranch.id], QHop(dir=2, preds=[QPred(field="tag", op=">", value="aa")])
         );
         assert len(txt) == 1;
         mem.close();
@@ -191,8 +226,8 @@ test "undirected edges traverse both ways" {
         mem = SqliteMemory(path=db);
         assert mem.apply(cs).ok();
         # OUT from the *target* side crosses an undirected edge.
-        assert mem.hop_ids([nanch.id], QHop(dir=2)) == [ranch.id];
-        assert mem.hop_ids([ranch.id], QHop(dir=2)) == [nanch.id];
+        assert _hop(mem, [nanch.id], QHop(dir=2)) == [ranch.id];
+        assert _hop(mem, [ranch.id], QHop(dir=2)) == [nanch.id];
         mem.close();
     }
 }
@@ -213,7 +248,7 @@ test "auto-reindex rebuilds graph_edges from committed anchors" {
         raw.commit();
         raw.close();
         mem = SqliteMemory(path=db);
-        got = mem.hop_ids([ranch.id], QHop(dir=2, nd=GA));
+        got = _hop(mem, [ranch.id], QHop(dir=2, nd=GA));
         assert len(got) == 2 , f"reindex should restore subtype rows, got {got}";
         mem.close();
         raw2 = sqlite3.connect(db);

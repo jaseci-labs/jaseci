@@ -1297,9 +1297,9 @@ def _pred_sql(alias: str, p: QPred, params: list) -> str {
     return (f"(json_type({alias}.data, ?) IN {type_guard} AND {col} {p.op} ?)");
 }
 
-impl SqliteMemory.hop_ids(
+impl SqliteMemory.hop_rows(
     src_ids: list[UUID], hop: QHop, ordered: bool = False
-) -> list[UUID] {
+) -> (list[tuple[UUID, UUID]] | None) {
     if not src_ids {
         return [];
     }
@@ -1325,11 +1325,8 @@ impl SqliteMemory.hop_ids(
             chunk = keys[start:start + 400];
             for (mcol, ncol, undir_only) in arms {
                 params: list = [];
-                sql = f"SELECT ge.rowid, ge.{ncol} FROM graph_edges ge";
-                if hop.epreds {
-                    sql += " JOIN anchors ea ON ea.id = ge.edge_id";
-                }
-                if node_types or hop.preds {
+                sql = f"SELECT ge.rowid, ge.edge_id, ge.{ncol} FROM graph_edges ge";
+                if node_types {
                     sql += f" JOIN anchors a ON a.id = ge.{ncol}";
                 }
                 marks = ', '.join('?' for _ in chunk);
@@ -1352,24 +1349,38 @@ impl SqliteMemory.hop_ids(
                     );
                     params.append(nt.__name__);
                 }
-                for p in hop.epreds {
-                    sql += " AND " + _pred_sql('ea', p, params);
-                }
-                for p in hop.preds {
-                    sql += " AND " + _pred_sql('a', p, params);
-                }
                 rows.extend(conn.execute(sql, params).fetchall());
             }
         }
     }
     rows.sort();
-    seen: set[str] = set();
-    out: list[UUID] = [];
-    for r in rows {
-        nbr = cast(str, r[1]);
-        if nbr not in seen {
-            seen.add(nbr);
-            out.append(UUID(nbr));
+    return [(UUID(cast(str, r[1])), UUID(cast(str, r[2]))) for r in rows];
+}
+
+impl SqliteMemory.filter_ids(
+    ids: list[UUID], preds: list[QPred]
+) -> (set[UUID] | None) {
+    if not ids or not preds {
+        return set(ids);
+    }
+    out: set[UUID] = set();
+    with self.__lock__ {
+        self._ensure_connection();
+        assert self.__conn__ is not None;
+        conn = self.__conn__;
+        keys = [str(i) for i in ids];
+        for start in range(0, len(keys), 400) {
+            chunk = keys[start:start + 400];
+            params: list = [];
+            marks = ', '.join('?' for _ in chunk);
+            sql = f"SELECT a.id FROM anchors a WHERE a.id IN ({marks})";
+            params.extend(chunk);
+            for p in preds {
+                sql += " AND " + _pred_sql('a', p, params);
+            }
+            for r in conn.execute(sql, params).fetchall() {
+                out.add(UUID(cast(str, r[0])));
+            }
         }
     }
     return out;
@@ -2302,13 +2313,22 @@ impl TieredMemory.execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None]
     }
 }
 
-impl TieredMemory.hop_ids(
+impl TieredMemory.hop_rows(
     src_ids: list[UUID], hop: QHop, ordered: bool = False
-) -> (list[UUID] | None) {
+) -> (list[tuple[UUID, UUID]] | None) {
     if self.l3 is None {
         return None;
     }
-    return self.l3.hop_ids(src_ids, hop, ordered);
+    return self.l3.hop_rows(src_ids, hop, ordered);
+}
+
+impl TieredMemory.filter_ids(
+    ids: list[UUID], preds: list[QPred]
+) -> (set[UUID] | None) {
+    if self.l3 is None {
+        return None;
+    }
+    return self.l3.filter_ids(ids, preds);
 }
 
 impl TieredMemory.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
