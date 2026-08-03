@@ -72,6 +72,8 @@ with entry {
 
 Reading `h.ref` back yields an ordinary managed value, not an `own` binding -- there is no way to take an `own`/`&` of a graph node or a managed field. Ownership is a property of the *binding*, and the membrane is one-way: values flow out of `own` into management by moving, and come back only as managed values. (This is why the borrow rules never need to reason about the graph; `node`/`edge`/`walker` stay fully managed.)
 
+**Own-typed fields are not the membrane.** A field declared `has ref: own Buffer` keeps its value in the owned world, owned by the parent object: storing into it still consumes the source binding (it is a move, `E1301` applies to later reads), but under [nogc enforcement](native-pathway.md#zero-rc-ownership-compilation) it is *not* an `E1402` seal -- the parent frees the field at its own drop point, and overwriting the field drops the old value first, at the same program points under every gc mode. Only stores into *unannotated* fields (and subscripts, graph objects, or module `glob` state) cross the membrane into managed storage. This is what lets ownership extend from stack frames into heap aggregates: an owned struct of owned fields is a single ownership tree with one statically placed drop for the whole shape.
+
 ## Borrowing
 
 `&` takes a shared (read-only) borrow of an owner; `&mut` takes a mutable borrow. Both are declared with the `borrow` type tag, most commonly written inline as `& expr` / `&mut expr`:

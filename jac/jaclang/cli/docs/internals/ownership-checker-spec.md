@@ -42,6 +42,12 @@ about heap objects:
   one level, and region-synthesized borrows collapse to the owner, and a
   field borrow still pins the whole owner for destruction (E1304), escape
   (E1306), and sendability (E1308).
+- Stores into a field whose `has` declaration is `own`-annotated are moves
+  *within* the owned world, not membrane seals: the source binding is
+  consumed as usual, but the enforcement rule (E1402) exempts them when the
+  root object is itself an `own` binding outside `glob` state. The ownership
+  annotation on a `has` var rides on the inner tag expression
+  (`UnaryExpr.ownership` under `SubTag.tag`), not on `SubTag.ownership`.
 - There is no interprocedural analysis. A call is handled by its signature
   only: passing an `own`/`linear` value to a call is a consuming move; what the
   callee does internally is checked separately, in the callee. Two
