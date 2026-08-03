@@ -11,11 +11,6 @@ impl NaIRGenPass._emit_rc_debug_globals -> None {
     rc_debug_gv.initializer = ir.Constant(i8, 0);
     self.rc_debug_gv = rc_debug_gv;
 
-    # __rc_debug_enable / __rc_debug_disable always exist as symbols (the engine
-    # may reference them), but when RC debug logging was NOT compiled in
-    # (JAC_RC_DEBUG_CODEGEN unset) the per-op trace branches were omitted, so
-    # flipping the flag would do nothing — emit no-op bodies with no "debug ON/OFF"
-    # strings or printf. When compiled in, they toggle the flag and announce it.
     en_fnty = ir.FunctionType(ir.VoidType(), []);
     en_fn = self._define_function("__rc_debug_enable", en_fnty);
     en_fn.linkage = "weak_odr";
@@ -211,9 +206,6 @@ impl NaIRGenPass._emit_retain_log_bb(
 impl NaIRGenPass._emit_dbl_free_log_bb(
     func: ir.Function, done_bb: ir.Block, ptr: ir.Value
 ) -> ir.Block {
-    # Debug logging is compile-time gated on JAC_RC_DEBUG_CODEGEN: in a normal
-    # build return a plain landing block that just falls through to `done_bb`,
-    # emitting no format string and no printf.
     if not self._rc_debug_codegen {
         _noop_bb = func.append_basic_block("dbl_free_noop");
         ir.IRBuilder(_noop_bb).branch(done_bb);
@@ -249,8 +241,6 @@ impl NaIRGenPass._emit_release_log_bb(
     old_rc: ir.Value,
     new_rc: ir.Value
 ) -> ir.Block {
-    # Compile-time gated (JAC_RC_DEBUG_CODEGEN): normal builds get a plain landing
-    # block that falls through to `done_bb` — no dbg flag load, no format string.
     if not self._rc_debug_codegen {
         _noop_bb = func.append_basic_block("rel_noop");
         ir.IRBuilder(_noop_bb).branch(done_bb);
@@ -301,10 +291,7 @@ impl NaIRGenPass._emit_raw_free_bbs(
     actual_free_bb = func.append_basic_block("actual_free");
 
     b = ir.IRBuilder(log_free_bb);
-    # The RC-FREE trace (dbg flag load + format string + printf) is compile-time
-    # gated on JAC_RC_DEBUG_CODEGEN. In a normal build skip straight to the actual
-    # free path — no dead format string, no branch. The live-list bookkeeping is
-    # itself already a no-op when the flag is off (see _emit_live_list_remove).
+
     if not self._rc_debug_codegen {
         b.branch(live_rm_bb);
     } else {
@@ -375,8 +362,6 @@ impl NaIRGenPass._emit_struct_free_log(
     i64 = ir.IntType(64);
     i32 = ir.IntType(32);
 
-    # Compile-time gated (JAC_RC_DEBUG_CODEGEN): normal builds just fall through
-    # to the actual free, emitting no dbg-flag load and no RC-FREE format string.
     if not self._rc_debug_codegen {
         ir.IRBuilder(log_free_struct_bb).branch(actual_free_struct_bb);
         return;
@@ -418,10 +403,6 @@ impl NaIRGenPass._emit_struct_free_log(
 }
 
 impl NaIRGenPass._set_rc_ctx(op: str, loc: str) -> None {
-    # The op/loc context is read only by the RC debug trace. When RC debug logging
-    # was not compiled in (JAC_RC_DEBUG_CODEGEN unset) there is nothing to read it,
-    # so skip the per-call-site format strings and stores entirely — this is the
-    # bulk of the RC-debug string weight in a normal binary.
     if not self._rc_debug_codegen or self._nogc_headerless() {
         return;
     }
