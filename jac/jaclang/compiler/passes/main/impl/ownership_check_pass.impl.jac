@@ -75,6 +75,7 @@ impl OwnershipCheckPass.transform(ir_in: uni.Module) -> uni.Module {
 
     self._build_index(ir_in);
     self._stamp_ownership();
+    self._stamp_loop_borrows();
     self._stamp_region_borrows();
     self._nogc_setup();
     if not self.owned_decl
@@ -292,6 +293,34 @@ impl OwnershipCheckPass._stamp_ownership -> None {
             );
             self.borrow_created_at[borrow_id] = nd;
         }
+    }
+}
+
+impl OwnershipCheckPass._stamp_loop_borrows -> None {
+    for st in self.ir_in.get_all_sub_nodes(uni.InForStmt) {
+        coll = st.collection;
+        if not (isinstance(coll, uni.UnaryExpr) and is_borrow_kind(coll.ownership)) {
+            continue;
+        }
+        owner = self._place_of(coll.operand);
+        if owner is None
+            or owner.sym is None
+            or owner.sym.ownership != OwnershipKind.OWN {
+            continue;
+        }
+        tgt = st.target;
+        if not (isinstance(tgt, uni.Name) and tgt.sym is not None) {
+            continue;
+        }
+        borrow_id = self._name_sym_id(tgt);
+        is_mut = is_mut_kind(coll.ownership);
+        tgt.sym.ownership = OwnershipKind.MUT_BORROW
+            if is_mut
+            else OwnershipKind.BORROW;
+        self.borrow_meta[borrow_id] = BorrowMeta(
+            name=tgt.sym_name, owner=self._name_sym_id(owner), is_mut=is_mut
+        );
+        self.borrow_created_at[borrow_id] = st;
     }
 }
 

@@ -162,6 +162,29 @@ with entry {
 }
 ```
 
+## Reference-yielding loops
+
+`for x in &xs` iterates shared per-element borrows of an owned container and `for m in &mut xs` iterates exclusive ones. The loop is lowered as an index loop -- no reified iterator object ever holds a borrow, so the loop itself is the borrow's extent, and no lifetime is needed to name it:
+
+```jac
+obj Res { has tag: int = 0; }
+
+def work -> int {
+    xs: own list[Res] = [];
+    xs.append(Res(tag=1));
+    t = 0;
+    for x in &xs {
+        t = t + x.tag;      # read through a shared element borrow
+    }
+    for m in &mut xs {
+        m.tag = m.tag * 2;  # mutate in place through an exclusive borrow
+    }
+    return t + len(xs);     # owner fully usable after each loop
+}
+```
+
+The loop variable is checked as a borrow of the iterated owner: storing it into a field or otherwise escaping the loop is `E1306`. Element mutation through the `&mut` form is visible after the loop at identical program points under every gc mode, including enforced headerless builds.
+
 ## `imm` and `linear` markers
 
 Two further binding markers refine `own` at either end of the strictness spectrum.

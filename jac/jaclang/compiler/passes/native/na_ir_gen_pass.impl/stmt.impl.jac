@@ -2883,12 +2883,21 @@ impl NaIRGenPass._codegen_for_indexed(
                     self.builder.position_at_end(_saved_block);
                 }
                 if rc_vars {
-                    _pre_old = self.builder.load(alloca, name="for.pre.old");
-                    self._emit_rc_release_simple(_pre_old, op="for_reset", loc=_rc_loc);
+                    if self._gc_mode() != "none" {
+                        _pre_old = self.builder.load(alloca, name="for.pre.old");
+                        self._emit_rc_release_simple(
+                            _pre_old, op="for_reset", loc=_rc_loc
+                        );
+                    }
                     self.builder.store(null_const, alloca);
                 }
             }
             self.local_vars[vname] = alloca;
+            if rc_vars
+                and isinstance(vtype, ir.PointerType)
+                and self._gc_mode() == "none" {
+                self.nogc_stack_vars.add(vname);
+            }
             allocas.append(alloca);
         }
     }
@@ -2990,7 +2999,9 @@ impl NaIRGenPass._codegen_for_indexed(
                     );
                 }
             } else {
-                if rc_vars and isinstance(var_types[0], ir.PointerType) {
+                if rc_vars
+                    and isinstance(var_types[0], ir.PointerType)
+                    and self._gc_mode() != "none" {
                     old_val = self.builder.load(allocas[0], name="for.old");
                     self._emit_rc_release_simple(old_val, op="for_elem", loc=_rc_loc);
                     self._emit_rc_retain(elem_val, op="for_elem", loc=_rc_loc);
