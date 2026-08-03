@@ -1,6 +1,5 @@
 glob SYSTEM_PERSONA = """\
-    This is a task you must complete by returning only the output.
-    Do not include explanations, code, or extra text—only the result.
+    This is a task you must complete by returning only the output. The task will be expressed in the form of function call with arguments. Do not include explanations, code, or extra text—only the result.
     """,
      INSTRUCTION_TOOL = """
     Use the tools provided to reach the goal. Call one tool at a time with \
@@ -81,13 +80,87 @@ def _describe_input_type(value: object, _depth: int = 0) -> str {
     return "";
 }
 
+"""Render a type annotation compactly for signature and schema lines."""
+def _type_name(t: object) -> str {
+    # Generic aliases (dict[str, str], list[int]) report a bare `__name__`
+    # ('dict') in 3.10+ -- str() keeps the full parameterization.
+    if getattr(t, "__args__", None) is not None {
+        return str(t).replace("typing.", "");
+    }
+    return getattr(t, "__name__", None) or str(t).replace("typing.", "");
+}
+
+"""Split a `_describe_input_type` block into its header and dedented body.
+
+The header ("Ticket (obj) -- <type sem>") merges into the owning schema line;
+the body (field/member rows) shifts left to align under that line's `----`
+description row.
+"""
+def _type_desc_parts(value: object) -> tuple {
+    desc = _describe_input_type(value);
+    if not desc {
+        return ("", "");
+    }
+    lines = desc.split("\n");
+    head = lines[0].strip();
+    body = "\n".join(
+        [line[2:] if line.startswith("  ") else line for line in lines[1:]]
+    );
+    return (head, body);
+}
+
+"""Build the typed call signature for the prompt header, e.g.
+`handle(task: str, ticket: Ticket) -> str`.
+
+Bound methods already exclude `self`; the archetype qualifier is prepended by
+the caller. This is the only place the signature appears in the prompt.
+"""
+def _render_signature(caller: object, hints: dict) -> str {
+    parts: list[str] = [];
+    try {
+        for pname in inspect.signature(caller).parameters.keys() {
+            t = hints.get(pname);
+            parts.append(f"{pname}: {_type_name(t)}" if t is not None else pname);
+        }
+    } except Exception {}
+    joined = ", ".join(parts);
+    sig = f"{caller.__name__}({joined})";
+    ret = hints.get("return");
+    if ret is not None {
+        sig = f"{sig} -> {_type_name(ret)}";
+    }
+    return sig;
+}
+
+"""Build one schema-zone entry: the param's type line with its `----`
+description inline when an author wrote one, and the expanded field/member
+rows for obj/enum values. The description rides the param line itself -- on
+its own row it shared an indent with the field rows and read as part of the
+type definition rather than as the param's meaning. Returns "" for a param
+nobody described -- a sem-less primitive appears in the bindings zone but
+earns no schema entry.
+"""
+def _schema_entry(pname: str, value: object, psem: str, hints: dict) -> str {
+    (head, body) = _type_desc_parts(value);
+    if not psem and not body {
+        return "";
+    }
+    if not head {
+        head = _type_name(hints[pname]) if pname in hints else type(value).__name__;
+    }
+    rows = [f"{pname}: {head}" + (f" ---- {psem}" if psem else "")];
+    if body {
+        rows.append(body);
+    }
+    return "\n".join(rows);
+}
+
 """Create an MTRuntime instance from a callable and its arguments.
 
 Builds the message history with system persona, user input, and any media.
 Prepares tools including the finish_tool for ReAct-style interactions.
 """
 impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
-    # Prepare the tools for the LLM call.
     caller = mtir.caller;
     args = mtir.args;
     call_params = mtir.call_params;
@@ -124,112 +197,103 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         local_idx += 1;
     }
 
-    # Construct the input information from the arguments.
-    inputs_detail: list[str] = [];
-    media_inputs: list = [];  # Can be list[Media] or list[tuple[Media, str]] depending on mode
+    # Construct the prompt zones from the arguments. The user message has four
+    # zones, each with one job:
+    #   1. header   -- qualified typed signature + the authored sem
+    #   2. bindings -- the call frame: one `name = repr(value)` per argument
+    #   3. schema   -- only names an author described (param sem, or an
+    #                  obj/enum type whose definition expands)
+    #   4. identity -- `self`, only when it carries authored content
+    bindings: list[str] = [];
+    schema_rows: list[str] = [];
+    media_inputs: list = [];  # list[tuple[Media, str]]; semstr is "" when absent
+    try {
+        hints = get_type_hints(caller);
+    } except Exception {
+        hints = getattr(caller, "__annotations__", {}) or {};
+    }
 
-    if has_mtir {
-        # MTIR mode: use compile-time extracted param info with semantic strings
-        params = [param for param in ir_info.params];
-        arg_keys = list(args.keys());
-        # The parameter's own `sem fn.arg` lives on the callable at runtime,
-        # keyed by name. Prefer it over the MTIR param semstr, which is
-        # shadowed by the type-level sem for enum/obj params.
-        caller_psems = getattr(caller, "_jac_semstr_inner", {}) or {};
-        for (key, value) in args.items() {
-            idx = arg_keys.index(key);
-            # Resolve the parameter name for this argument.
-            if isinstance(key, str) {
-                pname = key;
-            } elif key < len(params) {
-                # TODO: Handle *args, **kwargs properly.
-                pname = params[key].name;
-            } else {
-                pname = "arg";
-            }
-            mtir_sem = params[idx].semstr if idx < len(params) else "";
-            psem = caller_psems.get(pname) or mtir_sem or "";
-            if isinstance(value, Media) {
-                media_inputs.append((value, psem));
-                continue;
-            }
-            # The semstring is a LABEL for the argument, not a second element of
-            # it. Interpolating the `(value, psem)` tuple rendered it as
-            # `spec = ('<the spec>', 'The problem to solve.')` -- indistinguishable
-            # from a real 2-tuple value, so the model had to guess which half was
-            # data. Emit the description on its own annotation line, ahead of the
-            # value so a large payload cannot bury it.
-            if psem {
-                inputs_detail.append(f"# {pname}: {psem}");
-            }
-            inputs_detail.append(f"{pname} = {value!r}");
-            desc = _describe_input_type(value);
-            if desc {
-                inputs_detail.append(desc);
-            }
+    params = [param for param in ir_info.params] if has_mtir and ir_info.params else [];
+    arg_keys = list(args.keys());
+    sig_names: list[str] = [];
+    try {
+        sig_names = list(inspect.signature(caller).parameters.keys());
+    } except Exception {}
+    # The parameter's own `sem fn.arg` lives on the callable at runtime,
+    # keyed by name. Prefer it over the MTIR param semstr, which is
+    # shadowed by the type-level sem for enum/obj params.
+    caller_psems = getattr(caller, "_jac_semstr_inner", {}) or {};
+    for (key, value) in args.items() {
+        idx = arg_keys.index(key);
+        # Resolve the parameter name for this argument.
+        if isinstance(key, str) {
+            pname = key;
+        } elif has_mtir and key < len(params) {
+            # TODO: Handle *args, **kwargs properly.
+            pname = params[key].name;
+        } elif not has_mtir and key < len(sig_names) {
+            pname = sig_names[key];
+        } else {
+            pname = "arg";
         }
-    } else {
-        # Python library mode: use runtime introspection (old behavior)
-        param_names = list(inspect.signature(caller).parameters.keys());
-        for (key, value) in args.items() {
-            if isinstance(value, Media) {
-                # Use tuple format for consistency, but without semantic strings
-                media_inputs.append((value, ""));
-                continue;
-            }
-
-            if isinstance(key, str) {
-                inputs_detail.append(f"{key} = {value}");
-            } else {
-                # TODO: Handle *args, **kwargs properly.
-                if key < len(param_names) {
-                    inputs_detail.append(f"{param_names[key]} = {value}");
-                } else {
-                    inputs_detail.append(f"arg = {value}");
-                }
-            }
+        mtir_sem = (params[idx].semstr if idx < len(params) else "") or "";
+        psem = caller_psems.get(pname) or mtir_sem or "";
+        if isinstance(value, Media) {
+            media_inputs.append((value, psem));
+            continue;
+        }
+        bindings.append(f"{pname} = {value!r}");
+        entry = _schema_entry(pname, value, psem, hints);
+        if entry {
+            schema_rows.append(entry);
         }
     }
     incl_info = call_params.get("incl_info");
     if incl_info and isinstance(incl_info, dict) {
         for (key, value) in incl_info.items() {
             if isinstance(value, Media) {
-                # Always use tuple format for consistency
                 media_inputs.append((value, ""));
             } else {
-                # No semstring exists for incl_info entries, so the old
-                # `(value, "")` tuple only ever added a dangling empty string.
-                inputs_detail.append(
-                    f"{key} = {value!r}" if has_mtir else f"{key} = {value}"
-                );
+                # incl_info entries are extra bindings; they carry no authored
+                # sem, so they never earn a schema entry.
+                bindings.append(f"{key} = {value!r}");
             }
         }
     }
+    # Identity zone: `self` earns a block only when it carries authored
+    # content -- fields to show, or a sem somewhere in its class chain. A bare
+    # archetype leaves no trace beyond the qualified name in the header;
+    # a synthesized type sentence would be structure, not meaning.
+    self_block: list[str] = [];
     if isinstance(caller, MethodType) {
-        if has_mtir {
-            # `or ""` matters: parent_class.semstr is None when the archetype
-            # has neither a sem nor a docstring, and it would otherwise put a
-            # literal `None` in the prompt.
+        self_sem = "";
+        if has_mtir and ir_info.parent_class is not None {
+            # Resolve through base_classes: a base's sem is inherited
+            # intention, expressed without naming the hierarchy in the prompt.
+            queue = [ir_info.parent_class];
+            while queue and not self_sem {
+                cls_info = queue.pop(0);
+                self_sem = cls_info.semstr or "";
+                queue.extend(cls_info.base_classes or []);
+            }
+        }
+        if not self_sem {
+            # Runtime fallback: class attribute lookup walks the MRO for free.
             self_sem = (
-                ir_info.parent_class.semstr if ir_info.parent_class else ""
-            ) or "";
-            # Same annotation form as the other arguments -- see the comment on
-            # the `psem` line above for why the semstring is not tupled in.
-            self_rows: list[str] = [];
-            if self_sem {
-                self_rows.append(f"# self: {self_sem}");
+                getattr(type(caller.__self__), "_jac_semstr", "") or ""
+            ).strip();
+        }
+        (self_head, self_body) = _type_desc_parts(caller.__self__);
+        if self_sem or self_body {
+            # Same rule as the schema zone: the `----` description rides the
+            # owner's line; indented rows are always type members.
+            self_block.append(
+                f"self = {caller.__self__!r}"
+                + (f" ---- {self_sem}" if self_sem else "")
+            );
+            if self_body {
+                self_block.append(self_body);
             }
-            self_rows.append(f"self = {caller.__self__!r}");
-            # `self` is an input like any other. Skipping it here meant an
-            # archetype's field semstrings never reached the model, even though
-            # every other obj-valued argument gets described.
-            self_desc = _describe_input_type(caller.__self__);
-            if self_desc {
-                self_rows.append(self_desc);
-            }
-            inputs_detail = self_rows + inputs_detail;
-        } else {
-            inputs_detail.insert(0, f"self = {caller.__self__}");
         }
     }
     # System prompt: Config from jac.toml or default SYSTEM_PERSONA
@@ -283,6 +347,29 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         }
     }
 
+    # Header zone: qualified typed signature + the authored sem. The
+    # qualifier is the instance's actual class, so ownership survives even
+    # when `self` earns no identity block.
+    sem_text = ((getattr(caller, "_jac_semstr", "") or caller.__doc__) or "").strip();
+    qualifier = "";
+    if isinstance(caller, MethodType) {
+        qualifier = type(caller.__self__).__name__ + ".";
+    }
+    header = qualifier + _render_signature(caller, hints);
+    if sem_text {
+        header = f"{header} --- {sem_text}";
+    }
+    zones: list[str] = [header];
+    if bindings {
+        zones.append("\n".join(bindings));
+    }
+    if schema_rows {
+        zones.append("\n".join(schema_rows));
+    }
+    if self_block {
+        zones.append("\n".join(self_block));
+    }
+
     # Prepare the messages for the LLM call.
     sys_msg = Message(
         role=MessageRole.SYSTEM,
@@ -291,7 +378,7 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
     user_msg = Message(
         role=MessageRole.USER,
         content=[
-            Text(Tool.get_func_description(caller) + "\n\n" + "\n".join(inputs_detail)),
+            Text("\n\n".join(zones)),
             *media_inputs,
 
         ],
@@ -299,7 +386,7 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
     messages: list[MessageType] = [sys_msg, *conv_msgs, user_msg];
 
     # Prepare return type.
-    return_type = get_type_hints(caller).get("return");
+    return_type = hints.get("return");
     is_streaming = bool(call_params.get("stream", False));
     if is_streaming
     and return_type is not str

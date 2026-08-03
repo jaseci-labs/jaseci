@@ -310,7 +310,10 @@ test "with llm image" {
     stdout_value = captured_output.getvalue();
     assert "'role': 'system'" in stdout_value;
     assert "{'type': 'text', 'text': 'solve_math_question" in stdout_value;
-    assert "data:image/jpeg;base64," in stdout_value[:500];
+    # The data URI must sit in the FIRST user message, right after its text
+    # part -- the window just needs headroom for the persona and typed
+    # signature that precede it.
+    assert "data:image/jpeg;base64," in stdout_value[:800];
 }
 
 test "webp image support" {
