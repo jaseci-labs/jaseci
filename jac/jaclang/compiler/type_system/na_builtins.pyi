@@ -24,15 +24,12 @@ __all__ = [
     "iter",
     "next",
     "managed",
-    "freeze",
     "Region",
 ]
 
 _T = TypeVar("_T")
 
 def managed(__x: _T) -> _T: ...
-
-def freeze(__x: _T) -> _T: ...
 
 # First-class region handle: an ownable, sendable, escape-checked allocation
 # extent opened by `in <handle> { ... }`. Native codegen lowers it to an arena.

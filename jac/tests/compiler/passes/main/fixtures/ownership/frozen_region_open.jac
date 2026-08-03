@@ -10,7 +10,7 @@ with entry {
         c = Cell(v=4);
         print(c.v);
     }
-    fr: imm Region = freeze(r);
+    fr = imm r;
     in fr {
         d = Cell(v=9);
         print(d.v);

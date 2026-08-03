@@ -1,4 +1,4 @@
-"""freeze consumes its argument: reading it afterwards is E1301."""
+"""the imm operator consumes its operand: reading it afterwards is E1301."""
 
 obj Buffer {
     has n: int = 0;
@@ -6,6 +6,6 @@ obj Buffer {
 
 with entry {
     a: own Buffer = Buffer(n=7);
-    d: imm Buffer = freeze(a);
+    d: imm Buffer = imm a;
     print(a.n);
 }

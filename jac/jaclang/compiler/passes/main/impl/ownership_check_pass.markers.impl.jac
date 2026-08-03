@@ -10,6 +10,10 @@ impl OwnershipCheckPass._emit_marker_diagnostics -> None {
         if nd.type_tag is not None and nd.type_tag.ownership == OwnershipKind.IMM {
             continue;
         }
+        if isinstance(nd.value, uni.UnaryExpr)
+            and nd.value.ownership == OwnershipKind.IMM {
+            continue;
+        }
         for tgt in nd.target {
             base: uni.Expr = tgt;
             while isinstance(base, uni.AtomTrailer) {

@@ -1177,6 +1177,9 @@ impl NaIRGenPass._codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None) {
     if is_borrow_kind(nd.ownership) {
         return operand;
     }
+    if nd.ownership == OwnershipKind.IMM {
+        return operand;
+    }
     if nd.ownership == OwnershipKind.OWN {
         if isinstance(operand.type, ir.PointerType)
             and operand.type == ir.IntType(8).as_pointer() {

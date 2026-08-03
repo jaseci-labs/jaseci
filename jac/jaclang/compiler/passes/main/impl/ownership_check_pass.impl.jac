@@ -242,11 +242,16 @@ impl OwnershipCheckPass._stamp_ownership -> None {
             self.borrow_created_at[sid] = nd;
         }
         tag = nd.type_tag;
-        if tag is not None and len(nd.target) == 1 {
+        _rhs_imm = (
+            isinstance(nd.value, uni.UnaryExpr)
+            and nd.value.ownership == OwnershipKind.IMM
+        );
+        if (tag is not None or _rhs_imm) and len(nd.target) == 1 {
             target = nd.target[0];
             if isinstance(target, uni.Name) and target.sym {
                 sid = self._name_sym_id(target);
-                if tag.ownership == OwnershipKind.IMM {
+                if (tag is not None and tag.ownership == OwnershipKind.IMM)
+                    or _rhs_imm {
                     target.sym.ownership = OwnershipKind.IMM;
                     self.imm_decl[sid] = target;
                 }
@@ -314,8 +319,7 @@ impl OwnershipCheckPass._emit_seal_warnings -> None {
             or not isinstance(_cd.signature, uni.FuncSignature) {
             continue;
         }
-        if isinstance(call.target, uni.Name)
-            and call.target.sym_name in ("managed", "freeze") {
+        if isinstance(call.target, uni.Name) and call.target.sym_name == "managed" {
             continue;
         }
         _params = _cd.signature.get_parameters();
@@ -339,31 +343,21 @@ impl OwnershipCheckPass._emit_seal_warnings -> None {
 }
 
 impl OwnershipCheckPass._emit_freeze_diagnostics -> None {
-    for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
-        if not (
-            isinstance(call.target, uni.Name) and call.target.sym_name == "freeze"
-        ) {
+    for ux in self.ir_in.get_all_sub_nodes(uni.UnaryExpr) {
+        if ux.ownership != OwnershipKind.IMM {
             continue;
         }
-        _cd = call.callee_decl;
-        if _cd is not None and _cd.find_parent_of_type(uni.Module) is self.ir_in {
+        if ux.find_parent_of_type(uni.SubTag) is not None
+            or ux.find_parent_of_type(uni.FuncSignature) is not None {
             continue;
         }
-        args = [
-            a
-            for a in (call.params or [])
-            if not isinstance(a, uni.KWPair)
-        ];
-        if len(args) != 1 {
-            continue;
-        }
-        arg = args[0];
+        arg = ux.operand;
         if isinstance(arg, uni.Name) {
             s = arg.sym;
             if s is not None and s.ownership == OwnershipKind.OWN {
                 continue;
             }
-            self.emit(E1311, node_override=call, name=arg.sym_name);
+            self.emit(E1311, node_override=ux, name=arg.sym_name);
             continue;
         }
         if isinstance(
@@ -380,7 +374,7 @@ impl OwnershipCheckPass._emit_freeze_diagnostics -> None {
         ) {
             continue;
         }
-        self.emit(E1311, node_override=call, name="<expression>");
+        self.emit(E1311, node_override=ux, name="<expression>");
     }
 }
 
@@ -396,6 +390,10 @@ impl OwnershipCheckPass._spawn_move_gen(nd: uni.UniCFGNode) -> set[SymId] {
     }
     for ux in nd.get_all_sub_nodes(uni.UnaryExpr) {
         if ux.op?.name == Tok.KW_SPAWN {
+            operands.append(ux.operand);
+        }
+        if ux.ownership == OwnershipKind.IMM
+            and ux.find_parent_of_type(uni.SubTag) is None {
             operands.append(ux.operand);
         }
     }

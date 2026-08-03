@@ -230,14 +230,8 @@ impl OwnershipCheckPass._stamp_region_borrows -> None {
             if tsid == hsid or tsid in self.borrow_meta or tsid in self.owned_decl {
                 continue;
             }
-            if isinstance(asn.value, uni.FuncCall)
-                and isinstance(asn.value.target, uni.Name)
-                and asn.value.target.sym_name == "freeze"
-                and (
-                    asn.value.callee_decl is None
-                    or asn.value.callee_decl.find_parent_of_type(uni.Module)
-                        is not self.ir_in
-                ) {
+            if isinstance(asn.value, uni.UnaryExpr)
+                and asn.value.ownership == OwnershipKind.IMM {
                 continue;
             }
             if self._region_expr_is_scalar(asn.value) {

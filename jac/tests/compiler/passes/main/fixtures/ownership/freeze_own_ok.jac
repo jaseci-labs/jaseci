@@ -1,4 +1,4 @@
-"""freeze of an owned binding: consumed source, deep-immutable result."""
+"""imm of an owned binding: consumed source, deep-immutable result."""
 
 obj Buffer {
     has n: int = 0;
@@ -6,6 +6,6 @@ obj Buffer {
 
 with entry {
     a: own Buffer = Buffer(n=7);
-    d: imm Buffer = freeze(a);
+    d: imm Buffer = imm a;
     print(d.n);
 }

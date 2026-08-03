@@ -674,10 +674,10 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E1311",
          Category.SEMANTIC,
          "Cannot freeze '{name}': the value may be aliased",
-         help="freeze() needs a statically unique argument so the frozen value can"
-         " never be written through another handle: pass an `own` binding (it is"
-         " consumed) or a fresh expression. Copy the value first, or take ownership"
-         " of it, before freezing."
+         help="the `imm` operator needs a statically unique operand so the frozen"
+         " value can never be written through another handle: apply it to an `own`"
+         " binding (it is consumed) or to a fresh expression. Copy the value first,"
+         " or take ownership of it, before freezing."
      ),
      W1310 = _warn(
          "W1310",

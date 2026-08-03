@@ -74,8 +74,6 @@ def unsafe_html(html: any) -> dict;
 
 def managed(x: any) -> any;
 
-def freeze(x: any) -> any;
-
 
 glob __all__ = [
          'printgraph',
@@ -103,7 +101,6 @@ glob __all__ = [
          'schema_upgrade',
          'unsafe_html',
          'managed',
-         'freeze',
          'Region',
          '_jac_region_open',
          '_jac_region_close',

@@ -1,4 +1,4 @@
-"""freeze transfers the region handle: the imm result crosses flow freely."""
+"""the imm operator transfers the region handle: the result crosses flow freely."""
 
 obj Cell {
     has v: int = 0;
@@ -14,7 +14,7 @@ with entry {
         c = Cell(v=4);
         print(c.v);
     }
-    fr: imm Region = freeze(r);
+    fr = imm r;
     h = flow reader(fr) ;
     print(wait h );
 }

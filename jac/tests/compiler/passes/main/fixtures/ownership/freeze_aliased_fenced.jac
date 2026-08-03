@@ -1,4 +1,4 @@
-"""freeze of a possibly-aliased managed binding is fenced (E1311)."""
+"""imm of a possibly-aliased managed binding is fenced (E1311)."""
 
 obj Buffer {
     has n: int = 0;
@@ -7,6 +7,6 @@ obj Buffer {
 with entry {
     m = Buffer(n=7);
     alias = m;
-    d: imm Buffer = freeze(m);
+    d: imm Buffer = imm m;
     print(d.n + alias.n);
 }

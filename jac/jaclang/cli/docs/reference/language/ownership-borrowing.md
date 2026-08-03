@@ -194,21 +194,23 @@ with entry {
 
 Unannotated walkers keep the managed reuse semantics unchanged.
 
-## `freeze`: promoting into the immutable world
+## The `imm` operator: promoting into the immutable world
 
-`freeze(x)` moves a value across the membrane into the deep-immutable world. Its argument must be **statically unique** -- an `own` binding (which the call consumes, `E1301` afterwards) or a fresh expression -- so no other handle can ever write the frozen value. That proof is what makes `freeze` the identity function at runtime on every backend:
+The ownership surface follows one rule: **states are annotations, transitions are operators, and the exit is a call.** `own`/`imm`/`&`/`&mut` describe bindings; the prefix operators `&x`, `&mut x`, `own x` (the region rebox), and `imm x` perform transitions within the checked world; `managed(x)` is the single, loud way out of it.
+
+`imm x` is the freeze transition: it moves a value across the membrane into the deep-immutable world. Its operand must be **statically unique** -- an `own` binding (which the operator consumes, `E1301` afterwards) or a fresh expression -- so no other handle can ever write the frozen value. That proof is what makes the operator erase to its operand on every backend:
 
 ```jac
 obj Buffer { has n: int = 0; }
 
 with entry {
     a: own Buffer = Buffer(n=7);
-    d: imm Buffer = freeze(a);   # `a` is consumed; `d` is deep-immutable
-    print(d.n);                  # reads fine; `d.n = 9` would be E1309
+    d = imm a;        # `a` is consumed; `d` binds as deep-immutable (no annotation needed)
+    print(d.n);       # reads fine; `d.n = 9` would be E1309
 }
 ```
 
-Freezing a possibly-aliased managed binding is rejected ([`E1311`](../diagnostics.md#ownership-borrow-errors)) -- copy the value first or take ownership of it. The frozen result is the natural payload for `flow` boundaries: `imm` values cross freely under the sendability rule. This composes with regions: `fr: imm Region = freeze(r)` consumes the owned handle and transfers handle-ness, so one frozen subgraph can be shared with any number of parallel readers -- statically race-free from two existing rules -- while opening the frozen handle for allocation is `E1309` and reopening the consumed source is `E1301`.
+The binding infers `imm` from the operator, so `cfg = imm load_config();` is the whole idiom. Freezing a possibly-aliased managed binding is rejected ([`E1311`](../diagnostics.md#ownership-borrow-errors)) -- copy the value first or take ownership of it. The frozen result is the natural payload for `flow` boundaries: `imm` values cross freely under the sendability rule. This composes with regions: `fr = imm r` consumes the owned handle and transfers handle-ness, so one frozen subgraph can be shared with any number of parallel readers -- statically race-free from two existing rules -- while opening the frozen handle for allocation is `E1309` and reopening the consumed source is `E1301`.
 
 ## Reference-yielding loops
 

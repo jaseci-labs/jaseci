@@ -6,7 +6,7 @@ obj Buffer {
 
 with entry {
     a: own Buffer = Buffer(n=7);
-    d: imm Buffer = freeze(a);
+    d: imm Buffer = imm a;
     d.n = 9;
     print(d.n);
 }

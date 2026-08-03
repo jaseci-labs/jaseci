@@ -1300,6 +1300,16 @@ impl Parser.parse_ref -> Expr {
             kid=[own_op, own_target]
         );
     }
+    if self.match_tok(TokenKind.KW_IMM) {
+        imm_op = self.make_uni_token(self.previous());
+        imm_target = self.parse_await_expr();
+        return UnaryExpr(
+            operand=imm_target,
+            op=imm_op,
+            ownership=OwnershipKind.IMM,
+            kid=[imm_op, imm_target]
+        );
+    }
     if self.match_tok(TokenKind.BW_AND) {
         raw_tok = self.previous();
         op = self.make_uni_token(raw_tok);
