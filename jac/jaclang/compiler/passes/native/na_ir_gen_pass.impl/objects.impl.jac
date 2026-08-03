@@ -972,6 +972,7 @@ impl NaIRGenPass._codegen_instantiation(
     _headerless = self._nogc_headerless() and not self._arch_is_osp_name(type_name);
     if _stack_ok and _headerless {
         obj_ptr = self._entry_alloca(struct_type, f"stk.{type_name}");
+        self.rc_stack_promotions += 1;
         _tgt_asgn = nd.find_parent_of_type(uni.Assignment);
         if _tgt_asgn is not None
             and len(_tgt_asgn.target) == 1
@@ -979,6 +980,7 @@ impl NaIRGenPass._codegen_instantiation(
             self.nogc_stack_vars.add(_tgt_asgn.target[0].sym_name);
         }
     } elif _stack_ok {
+        self.rc_stack_promotions += 1;
         _i8 = ir.IntType(8);
         _i32s = ir.IntType(32);
         _i64s = ir.IntType(64);

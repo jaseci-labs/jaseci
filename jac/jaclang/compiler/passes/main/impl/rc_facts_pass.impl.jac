@@ -76,6 +76,9 @@ impl RcFactsPass._stamp_escapes(ir_in: uni.Module) -> None {
         _def_scope = self._enclosing_fn_scope(sym.defn[0]) if sym.defn else None;
         for u in (list(sym.defn) + list(sym.uses)) {
             if u.find_parent_of_type(uni.ReturnStmt) is not None {
+                if sym.ownership == OwnershipKind.OWN and self._scalar_attr_read(u) {
+                    continue;
+                }
                 escapes = True;
                 stack_ok = False;
                 break;
@@ -86,7 +89,8 @@ impl RcFactsPass._stamp_escapes(ir_in: uni.Module) -> None {
                 break;
             }
 
-            if u.find_parent_of_type(uni.FuncCall) is not None {
+            if u.find_parent_of_type(uni.FuncCall) is not None
+                and not self._call_use_stack_safe(u, sym) {
                 escapes = True;
                 stack_ok = False;
                 break;
@@ -98,6 +102,74 @@ impl RcFactsPass._stamp_escapes(ir_in: uni.Module) -> None {
         sym.na_escapes = escapes;
         sym.na_stack_ok = stack_ok and not escapes;
     }
+}
+
+impl RcFactsPass._call_use_stack_safe(nm: uni.NameAtom, sym: uni.Symbol) -> bool {
+    if sym.ownership != OwnershipKind.OWN {
+        return False;
+    }
+    p = nm.parent;
+    if isinstance(p, uni.AtomTrailer) and p.target is nm {
+        gp = p.parent;
+        if isinstance(gp, uni.FuncCall) and gp.target is p {
+            return False;
+        }
+        return self._scalar_attr_read(nm);
+    }
+    if isinstance(p, uni.UnaryExpr) and is_borrow_kind(p.ownership) {
+        return self._borrow_arg_callee_ok(p);
+    }
+    return False;
+}
+
+impl RcFactsPass._scalar_attr_read(nm: uni.NameAtom) -> bool {
+    p = nm.parent;
+    if not (isinstance(p, uni.AtomTrailer) and p.target is nm and p.is_attr) {
+        return False;
+    }
+    ty = p?.type;
+    if ty is None {
+        return False;
+    }
+    try {
+        m = str(ty.mangle());
+    } except Exception {
+        return False;
+    }
+    return m in ("int", "float", "bool");
+}
+
+impl RcFactsPass._borrow_arg_callee_ok(bx: uni.UnaryExpr) -> bool {
+    call = bx.parent if isinstance(bx.parent, uni.FuncCall) else None;
+    if call is None or call.callee_decl is None {
+        return False;
+    }
+    sig = call.callee_decl.signature;
+    if sig is None or not isinstance(sig, uni.FuncSignature) {
+        return False;
+    }
+    idx = -1;
+    for (i, a) in enumerate(call.params or []) {
+        if isinstance(a, uni.KWPair) {
+            return False;
+        }
+        if a is bx {
+            idx = i;
+        }
+    }
+    params = sig.get_parameters();
+    if idx < 0 or idx >= len(params) {
+        return False;
+    }
+    ptag = params[idx].type_tag;
+    if ptag is None or not is_borrow_kind(ptag.ownership) {
+        return False;
+    }
+    ret = sig.return_type;
+    if ret is None {
+        return True;
+    }
+    return isinstance(ret, uni.Name) and ret.value in ("int", "float", "bool", "None");
 }
 
 impl RcFactsPass._asn_makes_region_handle(nd: uni.Assignment) -> bool {

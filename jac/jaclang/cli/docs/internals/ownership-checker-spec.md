@@ -110,6 +110,16 @@ The analysis stamps documented facts; consumers read them:
   this fact; the former backend-private `RcElisionProofPass` solver is deleted.
 - **`Symbol.param_rebound`**: stamped by `RcFactsPass`; drives the backend's
   param-promotion retain decision (formerly an emit-time def-use rescan).
+- **`Symbol.na_escapes` / `Symbol.na_stack_ok`**: stamped by
+  `RcFactsPass._stamp_escapes`; the backend stack-allocates an eligible
+  instantiation when the target symbol has `na_stack_ok`. For unannotated
+  locals any use under a call or return disqualifies. For `own`-annotated
+  locals the analysis consumes the checker's guarantees: a `&`/`&mut`
+  argument whose resolved callee receives it in a borrow-annotated position
+  (and cannot passthrough-return it), and scalar-typed field reads
+  (`b.n` under a call or return), do not count as escapes -- the borrow is
+  frame-local by E1306 and a scalar copy never carries the object's storage.
+  The facts are gc-mode-independent.
 
 Requirements on the native pathway:
 

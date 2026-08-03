@@ -232,6 +232,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         rc_retains_emitted: int = 0,
         rc_releases_emitted: int = 0,
         rc_ops_elided: int = 0,
+        rc_stack_promotions: int = 0,
         struct_trace_fns: dict[str, ir.Function] = {},
         struct_release_fns: dict[str, ir.Function] = {},
         struct_drop_fns: dict[str, ir.Function] = {},

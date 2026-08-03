@@ -829,6 +829,8 @@ rc-stats [mod.jac] gc=cycles retains=1 releases=10 elided=3 coverage=21.4%
 
 A module with zero emitted retains and releases is tagged `rc-free` at the end of the line -- the same condition `--assert-no-rc` checks structurally in the IR.
 
+When any owned locals were stack-promoted (an `own` local whose only escaping-looking uses are checked frame-local borrows or scalar field reads allocates on the stack instead of the heap, under every gc mode), the line also reports `promoted=N`.
+
 ### Reserved `__rc_*` runtime hooks
 
 Five names are **reserved intrinsics** on the native pathway: `__rc_debug_enable()`, `__rc_debug_disable()`, `__rc_gc_disable()`, `__rc_gc_enable()`, and `__rc_collect_cycles()`. A call to any of them is dispatched by name to the corresponding runtime helper *before* normal call classification and symbol resolution -- ahead of builtins, module functions, and locals. You therefore cannot define or import your own function under one of these names in native code and expect it to be called; the name is claimed by the RC runtime (defining one would also collide with the runtime's own emitted symbol). The dispatch lives in a single table in the native code generator (`_codegen_rc_intrinsic`).

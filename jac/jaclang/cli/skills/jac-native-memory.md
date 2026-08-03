@@ -125,7 +125,7 @@ Under `--gc none` an enforced module compiles **headerless**: owned payloads are
 
 ## Measuring and debugging
 
-- `JAC_RC_STATS=1 jac nacompile mod.jac` prints per-module RC coverage to stderr: `rc-stats [mod.jac] gc=cycles retains=1 releases=10 elided=3 coverage=21.4%` - a fully covered module shows `retains=0 releases=0 ... rc-free`. Move elision is proven automatically (core `RcFactsPass` backward-liveness), annotated or not.
+- `JAC_RC_STATS=1 jac nacompile mod.jac` prints per-module RC coverage to stderr: `rc-stats [mod.jac] gc=cycles retains=1 releases=10 elided=3 coverage=21.4%` - a fully covered module shows `retains=0 releases=0 ... rc-free`, and `promoted=N` counts owned locals allocated on the stack instead of the heap. Move elision is proven automatically (core `RcFactsPass` backward-liveness), annotated or not; stack promotion additionally consumes the `own` annotation (frame-local borrows and scalar field reads do not force a heap allocation).
 - `JAC_NO_GC=1 ./binary` disables reclamation at run time in managed-mode binaries - useful to bisect whether a crash is RC-related (memory is then never freed).
 - Reserved intrinsics callable from native code: `__rc_debug_enable()` / `__rc_debug_disable()` (log retain/release traffic), `__rc_gc_disable()` / `__rc_gc_enable()`, `__rc_collect_cycles()`. These names are claimed by the runtime - never define your own.
 

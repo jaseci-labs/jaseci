@@ -79,6 +79,9 @@ obj RcFactsPass(Transform[uni.Module, uni.Module]) {
     def transform(ir_in: uni.Module) -> uni.Module;
     def _stamp_param_rebound(ir_in: uni.Module) -> None;
     def _stamp_escapes(ir_in: uni.Module) -> None;
+    def _call_use_stack_safe(nm: uni.NameAtom, sym: uni.Symbol) -> bool;
+    def _borrow_arg_callee_ok(bx: uni.UnaryExpr) -> bool;
+    def _scalar_attr_read(nm: uni.NameAtom) -> bool;
     def _stamp_region_handles(ir_in: uni.Module) -> None;
     def _asn_makes_region_handle(nd: uni.Assignment) -> bool;
     def _use_ok_for_stack(nm: uni.NameAtom) -> bool;
