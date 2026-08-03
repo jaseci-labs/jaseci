@@ -34,6 +34,7 @@ import from jaclang.jac0core.archetype {
     Root
 }
 import from jaclang.jac0core.constant { EdgeDir, colors }
+import from jaclang.jac0core.graph_query { GraphQuery }
 import from jaclang.jac0core.constructs {
     AccessLevel,
     access_level_cast,
@@ -277,7 +278,7 @@ class JacGraph {
     ) -> list[NodeArchetype];
 
     static def refs(
-        path: ObjectSpatialPath | NodeArchetype | list[NodeArchetype],
+        path: GraphQuery | ObjectSpatialPath | NodeArchetype | list[NodeArchetype],
         post_filter: (Callable[([Archetype], bool)] | None) = None,
         slc: (slice | None) = None
     ) -> list[NodeArchetype]
@@ -285,7 +286,7 @@ class JacGraph {
         | list[(NodeArchetype | EdgeArchetype)];
 
     static async def arefs(
-        path: ObjectSpatialPath | NodeArchetype | list[NodeArchetype]
+        path: GraphQuery | ObjectSpatialPath | NodeArchetype | list[NodeArchetype]
     ) -> None;
 
     static def filter_on(
@@ -332,6 +333,7 @@ class JacWalker {
                 | NodeArchetype
                 | EdgeArchetype
                 | ObjectSpatialPath
+                | GraphQuery
             ),
         insert_loc: int = -1
     ) -> bool;

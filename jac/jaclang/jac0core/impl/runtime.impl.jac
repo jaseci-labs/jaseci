@@ -362,11 +362,12 @@ impl JacWalker.`visit(
             | NodeArchetype
             | EdgeArchetype
             | ObjectSpatialPath
+            | GraphQuery
         ),
     insert_loc: int = -1
 ) -> bool {
     import from jaclang.jac0core.osp_kernel { osp_visit }
-    if isinstance(expr, ObjectSpatialPath) {
+    if isinstance(expr, (ObjectSpatialPath, GraphQuery)) {
         expr.from_visit = True;
         expr = JacRuntimeInterface.refs(expr);
     }
@@ -1076,10 +1077,31 @@ impl JacBuiltin.log_report(expr: any, custom: bool = False) -> None {
 }
 
 impl JacGraph.refs(
-    path: ObjectSpatialPath | NodeArchetype | list[NodeArchetype],
+    path: GraphQuery | ObjectSpatialPath | NodeArchetype | list[NodeArchetype],
     post_filter: (Callable[([Archetype], bool)] | None) = None,
     slc: (slice | None) = None
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
+    if isinstance(path, GraphQuery) {
+        import from jaclang.runtimelib.query_planner {
+            resolve_query,
+            resolve_query_edges
+        }
+        gctx = JacRuntimeInterface.get_context();
+        gctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
+        if slc is not None and path.slc is None {
+            path.slc = slc;
+        }
+        planned = (
+            resolve_query_edges(gctx.mem, path)
+                if path.edges_only
+                else resolve_query(gctx.mem, path)
+        );
+        return [
+            a.archetype
+            for a in planned
+            if a.archetype is not None
+        ];
+    }
     if not isinstance(path, ObjectSpatialPath) {
         path = ObjectSpatialPath(path, [ObjectSpatialDestination(EdgeDir.OUT)]);
     }
