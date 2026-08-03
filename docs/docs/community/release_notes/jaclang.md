@@ -2,7 +2,14 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.8 (Latest Release)
+## jaclang 0.34.9 (Latest Release)
+
+### New Features
+
+- **Programmatic deploy SDK (`jaclang.scale.sdk`)**: platforms can now drive jac-scale deploys in-process instead of shelling out to `jac start --scale`. `ScaleClient.deploy(DeploySpec(...), on_event=...)` takes the whole configuration in memory (secrets, a new non-secret `env` map, resources, microservice routes, platform `labels`, `kube_context`), never reads `jac.toml`, never prompts, and returns the engine's `DeploymentResult` with the applied manifest bundle and service URL. Deploys stream typed `ProgressEvent`s (`provision` -> `bundle` -> `apply` -> `rollout`, plus every log line) for live build output; `preview` returns the manifest bundle without applying, and `destroy`/`status`/`service_url`/`scale` round out the lifecycle. `kube_context` also lands as a `[scale.kubernetes]` config key so one process can target a chosen cluster context, and `labels` are stamped on every generated Deployment/Service. The CLI is unchanged and shares the same deploy engine.
+- **Unified Kubernetes deploy - one pipeline for monoliths and microservices**: `jac start --scale` now realizes every app through the same route-table-driven target. An app with no `[scale.microservices.routes]` deploys as the N=1 case - one service (named after the entry module) behind the gateway - instead of falling back to a separate monolith code path. This gives every deployment, monoliths included, rolling updates (`maxSurge: 1, maxUnavailable: 0`), PodDisruptionBudgets, HPA support, `--dry-run` manifest preview, and the crash-loop-aware rollout wait; the old monolith path's delete-then-recreate redeploy (guaranteed downtime) is gone, along with its Deployment/Service/NetworkPolicy construction (~900 lines). `KubernetesMicroserviceTarget` is now `KubernetesTarget` (the previous shared base lives on as `KubernetesTargetBase`); the `kubernetes-microservice` target name remains a working alias, and the SDK's `ScaleClient` builds the one target for every spec. Behavior changes for former monolith deploys: the app is served behind the gateway at member subpaths (`/walker/*`, `/function/*`, ... fan out as before), the dedicated per-app nginx ingress controller is no longer auto-installed (declare `[scale.microservices.ingress]` or `shared_ingress` instead), and the auto-generated NetworkPolicies are no longer emitted.
+
+## jaclang 0.34.8
 
 ### Bug Fixes
 
