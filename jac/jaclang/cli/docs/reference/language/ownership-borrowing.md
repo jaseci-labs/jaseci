@@ -333,7 +333,36 @@ def seed(r: &Region) -> Cand {
 }
 ```
 
-## Sendability across concurrency boundaries
+### Inferred anonymous regions for unrooted spawns
+
+A graph that never touches managed state does not need an explicit open to
+get region semantics. When a code block builds a graph from fresh node
+locals, connects them only among themselves, and consumes it with
+expression-statement spawns, the compiler proves the component unrooted (a
+conservative may-reach-root scan over the connect operations) and anchors
+it to an implicit anonymous region: the nodes, their edges, and an inline
+walker are arena-allocated, `drop` hooks fire LIFO right after the last
+spawn, and teardown is one bulk free -- the ephemeral-OSP fast path at zero
+annotation.
+
+```jac
+with entry {
+    a = Item(v=1);
+    b = Item(v=2);
+    a ++> b;
+    Sum() spawn a;    # implicit region closes here: drop 2, drop 1, bulk free
+    print("done");
+}
+```
+
+Any contact with `root` or `here` in the extent, a member passed to a call
+or read after the spawn, a spawn whose result is consumed, or control flow
+that could jump the close point declines the inference and the graph stays
+managed -- conservative-only is the contract, so a declined graph is never
+wrong, just unoptimized. The inference is native-backend-only: the Python
+backend erases it, which is observable solely through `drop`-hook timing
+(already scoped as native-reliable above). Traversals under `--enforce-nogc`
+still wait on the walker engine's zero-RC factoring.
 
 Only payloads that are statically race-free may cross a `flow`/`wait`/`thread_run` boundary: a deep-immutable `imm` value, or an `own` value that is *moved* into the boundary (a planned `linear` value will cross the same way). Sending a live `&`/`&mut` borrow is [`E1308`](../diagnostics.md#ownership-borrow-errors):
 

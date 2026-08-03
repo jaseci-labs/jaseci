@@ -66,6 +66,7 @@ with entry {
 - Moving an `own Region` across `flow` transfers the whole subgraph zero-copy; legal only while no borrows of the handle are live. `fr = imm r` consumes the owned handle and transfers handle-ness: the frozen result deep-freezes the subgraph and crosses `flow` freely under the imm sendability rule (share one frozen graph with N parallel readers); opening a frozen handle for allocation is E1309.
 - Python backend: memory stays GC-managed, but `drop` hooks fire at portable points - LIFO at the closing brace for an anonymous open, at handle death for a named one.
 - `W1310` lints an open with an empty body. Region opens are fully supported inside nogc-enforced modules: the arena core (bump alloc, dtor log, bulk free) needs no RC, so build-traverse-discard region code compiles headerless with `--assert-no-rc` passing and the same LIFO teardown as the managed modes.
+- **Inferred anonymous regions**: a block that builds a graph from fresh node locals, connects them only among themselves, and consumes it with expression-statement spawns gets an implicit `in Region() { }` at zero annotation - arena allocation, `drop` hooks LIFO right after the last spawn, one bulk free, identical in every gc mode. Touching `root`/`here`, passing a member to a call, consuming the spawn result, or control flow through the extent declines the inference (graph stays managed, never wrong). Native-only; the Python backend erases it. Enforced-mode traversals still wait on the walker engine's zero-RC factoring.
 
 ## Zero-RC enforced builds - the workflow
 

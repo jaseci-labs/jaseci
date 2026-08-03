@@ -463,6 +463,38 @@ impl NaIRGenPass._region_log_dtor_if_needed(obj_i8: ir.Value, type_name: str) ->
     self.builder.call(self.region_log_dtor_fn, [self.region_stack[-1], obj_i8, _fn_i8]);
 }
 
+impl NaIRGenPass._open_anon_region(gidx: int) -> None {
+    self._emit_arena_helpers();
+    if self.region_new_fn is None {
+        return;
+    }
+    _i8p = ir.IntType(8).as_pointer();
+    _arena = self.builder.call(self.region_new_fn, [], name="region.anon");
+    _synth = f".region.anon.{gidx}";
+    _slot = self._entry_alloca(_i8p, _synth);
+    self.builder.store(_arena, _slot);
+    self.local_vars[_synth] = _slot;
+    self.region_handle_vars.add(_synth);
+    self.region_stack.append(_arena);
+    self.anon_region_active[gidx] = _synth;
+}
+
+impl NaIRGenPass._close_anon_region(gidx: int) -> None {
+    _synth = self.anon_region_active.pop(gidx, None);
+    if _synth is None {
+        return;
+    }
+    if self.region_stack {
+        self.region_stack.pop();
+    }
+    if self.builder.block.is_terminated {
+        return;
+    }
+    _names = list(self.ir_in.gen.anon_region_locals.get(gidx, []));
+    self._emit_loop_iter_cleanup(_names, loc=f"anon.region.{gidx}");
+    self._emit_region_handle_drop(self.local_vars[_synth], _synth);
+}
+
 impl NaIRGenPass._emit_region_handle_drop(alloca: object, var_name: str) -> None {
     self._emit_arena_helpers();
     _val = self.builder.load(alloca, name=f"region.drop.{var_name}");

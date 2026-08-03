@@ -9,6 +9,7 @@ impl RcFactsPass.transform(ir_in: uni.Module) -> uni.Module {
     self._stamp_region_handles(ir_in);
     self._stamp_last_use(ir_in);
     self._stamp_move_in(ir_in);
+    self._stamp_anon_regions(ir_in);
     return ir_in;
 }
 
@@ -327,6 +328,291 @@ impl RcFactsPass._stamp_move_in(ir_in: uni.Module) -> None {
         out.add(id(use));
     }
     ir_in.gen.rc_move_in = out;
+}
+
+impl RcFactsPass._stamp_anon_regions(ir_in: uni.Module) -> None {
+    open_map: dict[int, int] = {};
+    close_map: dict[int, int] = {};
+    locals_map: dict[int, list[str]] = {};
+    gidx = 0;
+    blocks: list = [];
+    for ab in ir_in.get_all_sub_nodes(uni.Ability) {
+        if isinstance(ab.signature, uni.FuncSignature)
+            and isinstance(ab.body, (list, tuple)) {
+            blocks.append(ab.body);
+        }
+    }
+    for mc in ir_in.get_all_sub_nodes(uni.ModuleCode) {
+        if isinstance(mc.body, (list, tuple)) {
+            blocks.append(mc.body);
+        }
+    }
+    for body in blocks {
+        for grp in self._scan_anon_region_block(body) {
+            (o, c, names) = grp;
+            open_map[id(body[o])] = gidx;
+            close_map[id(body[c])] = gidx;
+            locals_map[gidx] = names;
+            gidx += 1;
+        }
+    }
+    ir_in.gen.anon_region_open = open_map;
+    ir_in.gen.anon_region_close = close_map;
+    ir_in.gen.anon_region_locals = locals_map;
+}
+
+impl RcFactsPass._arch_of_call(expr: (uni.UniNode | None)) -> (uni.Archetype | None) {
+    if not isinstance(expr, uni.FuncCall) or not isinstance(expr.target, uni.Name) {
+        return None;
+    }
+    sym = expr.target.sym;
+    if sym is None or sym.decl is None {
+        return None;
+    }
+    decl = sym.decl;
+    arch = decl
+        if isinstance(decl, uni.Archetype)
+        else decl.find_parent_of_type(uni.Archetype);
+    if arch is not None and arch.name.value == expr.target.sym_name {
+        return arch;
+    }
+    return None;
+}
+
+impl RcFactsPass._connect_chain_leaves(expr: uni.UniNode) -> (list[uni.Name] | None) {
+    if isinstance(expr, uni.BinaryExpr) and isinstance(expr.op, uni.ConnectOp) {
+        l = self._connect_chain_leaves(expr.left);
+        r = self._connect_chain_leaves(expr.right);
+        if l is None or r is None {
+            return None;
+        }
+        return l + r;
+    }
+    if isinstance(expr, uni.Name) {
+        return [expr];
+    }
+    return None;
+}
+
+impl RcFactsPass._blessed_arch_call(fc: uni.FuncCall, member_sids: set[int]) -> bool {
+    par = fc.parent;
+    if isinstance(par, uni.Assignment) and par.value is fc {
+        tgts = par.target if isinstance(par.target, (list, tuple)) else [(par.target)];
+        if len(tgts) == 1
+            and isinstance(tgts[0], uni.Name)
+            and tgts[0].sym is not None
+            and id(tgts[0].sym) in member_sids {
+            return True;
+        }
+    }
+    if isinstance(par, uni.BinaryExpr)
+        and isinstance(par.op, uni.Token)
+        and par.op.name == Tok.KW_SPAWN
+        and (par.left is fc or par.right is fc) {
+        arch = self._arch_of_call(fc);
+        return arch is not None and arch.arch_type.name == Tok.KW_WALKER;
+    }
+    if isinstance(par, uni.ConnectOp) and par.conn_type is fc {
+        return True;
+    }
+    return False;
+}
+
+impl RcFactsPass._anon_extent_poisoned(
+    body: Sequence[uni.UniNode], open_idx: int, close_idx: int, member_sids: set[int]
+) -> bool {
+    for s2 in body[open_idx:close_idx + 1] {
+        if isinstance(
+            s2, (uni.OpenStmt, uni.ReturnStmt, uni.CtrlStmt, uni.RaiseStmt)
+        ) {
+            return True;
+        }
+        if s2.get_all_sub_nodes(uni.ReturnStmt)
+            or s2.get_all_sub_nodes(uni.CtrlStmt)
+            or s2.get_all_sub_nodes(uni.RaiseStmt)
+            or s2.get_all_sub_nodes(uni.YieldExpr)
+            or s2.get_all_sub_nodes(uni.OpenStmt) {
+            return True;
+        }
+        for sub in s2.get_all_sub_nodes(uni.Name) {
+            if sub.sym_name in ("root", "here") {
+                return True;
+            }
+        }
+        for sub in s2.get_all_sub_nodes(uni.FuncCall) {
+            if self._arch_of_call(sub) is not None
+                and not self._blessed_arch_call(sub, member_sids) {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+impl RcFactsPass._scan_anon_region_block(body: Sequence[uni.UniNode]) -> list[tuple] {
+    stmt_idx: dict[int, int] = {};
+    for (i, s) in enumerate(body) {
+        stmt_idx[id(s)] = i;
+    }
+    members: dict[int, tuple] = {};
+    order: list[int] = [];
+    bad: set[int] = set();
+    for (i, s) in enumerate(body) {
+        if not isinstance(s, uni.Assignment) {
+            continue;
+        }
+        tgts = s.target if isinstance(s.target, (list, tuple)) else [(s.target)];
+        if len(tgts) != 1 or not isinstance(tgts[0], uni.Name) {
+            continue;
+        }
+        tsym = tgts[0].sym;
+        if tsym is None
+            or tsym.storage not in (SymbolStorage.LOCAL, SymbolStorage.MODULE_GLOBAL) {
+            continue;
+        }
+        arch = self._arch_of_call(s.value);
+        if arch is None or arch.arch_type.name != Tok.KW_NODE {
+            continue;
+        }
+        sid = id(tsym);
+        if sid in members {
+            bad.add(sid);
+            continue;
+        }
+        for d in tsym.defn {
+            _dc: (uni.UniNode | None) = d;
+            while _dc is not None and id(_dc) not in stmt_idx {
+                _dc = _dc.parent;
+            }
+            if _dc is None {
+                bad.add(sid);
+            }
+        }
+        members[sid] = (tsym, i, tgts[0].sym_name);
+        order.append(sid);
+    }
+    if not members {
+        return [];
+    }
+    label: dict[int, int] = {};
+    for (k, sid) in enumerate(order) {
+        label[sid] = k;
+    }
+    spawned: set[int] = set();
+    last_idx: dict[int, int] = {sid: members[sid][1] for sid in order};
+    for sid in order {
+        (sym, didx, name) = members[sid];
+        uses = list(
+            {
+                id(u): u
+                for u in sym.uses
+                if not self._is_def_name(u)
+            }.values()
+        );
+        for u in uses {
+            _cur: (uni.UniNode | None) = u;
+            top: (uni.UniNode | None) = None;
+            while _cur is not None {
+                if id(_cur) in stmt_idx {
+                    top = _cur;
+                    break;
+                }
+                _cur = _cur.parent;
+            }
+            if top is None {
+                bad.add(sid);
+                continue;
+            }
+            ti = stmt_idx[id(top)];
+            expr = top.expr if isinstance(top, uni.ExprStmt) else top;
+            ok = False;
+            if isinstance(expr, uni.BinaryExpr)
+                and isinstance(expr.op, uni.ConnectOp) {
+                leaves = self._connect_chain_leaves(expr);
+                if leaves is not None {
+                    good = True;
+                    seen_u = False;
+                    lsids: list[int] = [];
+                    for lf in leaves {
+                        if lf is u {
+                            seen_u = True;
+                        }
+                        if lf.sym is None or id(lf.sym) not in members {
+                            good = False;
+                        } else {
+                            lsids.append(id(lf.sym));
+                        }
+                    }
+                    if good and seen_u {
+                        ok = True;
+                        for l2 in lsids {
+                            if label[l2] != label[sid] {
+                                _from = label[l2];
+                                for s3 in order {
+                                    if label[s3] == _from {
+                                        label[s3] = label[sid];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } elif isinstance(expr, uni.BinaryExpr)
+                and isinstance(expr.op, uni.Token)
+                and expr.op.name == Tok.KW_SPAWN
+                and isinstance(top, uni.ExprStmt)
+                and (expr.left is u or expr.right is u) {
+                ok = True;
+                spawned.add(sid);
+            }
+            if not ok {
+                bad.add(sid);
+            } elif ti > last_idx[sid] {
+                last_idx[sid] = ti;
+            }
+        }
+    }
+    groups: dict[int, list[int]] = {};
+    for sid in order {
+        lb = label[sid];
+        if lb not in groups {
+            groups[lb] = [];
+        }
+        groups[lb].append(sid);
+    }
+    out: list[tuple] = [];
+    used_ranges: list[tuple] = [];
+    for (lb, sids) in groups.items() {
+        if any([(s in bad) for s in sids]) {
+            continue;
+        }
+        if not any([(s in spawned) for s in sids]) {
+            continue;
+        }
+        open_idx = min([members[s][1] for s in sids]);
+        close_idx = max([last_idx[s] for s in sids]);
+        if close_idx <= open_idx {
+            continue;
+        }
+        member_sids = set(sids);
+        if self._anon_extent_poisoned(body, open_idx, close_idx, member_sids) {
+            continue;
+        }
+        overlap = False;
+        for rng in used_ranges {
+            (ro, rc) = rng;
+            if not (close_idx < ro or rc < open_idx) {
+                overlap = True;
+            }
+        }
+        if overlap {
+            continue;
+        }
+        used_ranges.append((open_idx, close_idx));
+        pairs = sorted([(members[s][1], members[s][2]) for s in sids]);
+        out.append((open_idx, close_idx, [p[1] for p in pairs]));
+    }
+    return out;
 }
 
 impl RcFactsPass._stamp_param_rebound(ir_in: uni.Module) -> None {

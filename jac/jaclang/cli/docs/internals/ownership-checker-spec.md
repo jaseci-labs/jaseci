@@ -127,7 +127,20 @@ The analysis stamps documented facts; consumers read them:
   a LOCAL binding in its own function. The native backend's container
   element preparation consumes it: a grow argument in the set moves in
   (no copy) and its slot is nulled so the binding's release is a no-op.
-- **`Symbol.na_escapes` / `Symbol.na_stack_ok`**: stamped by
+- **`Module.gen.anon_region_open` / `anon_region_close` / `anon_region_locals`**:
+  stamped by `RcFactsPass._stamp_anon_regions`; the conservative may-reach-root
+  scan over connect operations. Within one code block, fresh node-archetype
+  locals connected only among themselves and consumed by expression-statement
+  spawns form an unrooted component; any contact with `root`/`here`, any use
+  outside the block or outside the connect/spawn forms, any unblessed archetype
+  instantiation in the extent, or any control-flow exit through it poisons the
+  component. Survivors stamp an open anchor (first constructor statement id),
+  a close anchor (last member-use statement id), and the member names. The
+  native backend consumes them in `_codegen_body`: it wraps the extent in an
+  implicit anonymous region (same machinery as an explicit `in Region() { }`
+  open), so the graph is arena-allocated, drop hooks fire LIFO from the dtor
+  log at the close anchor, and teardown is a bulk free -- identically in every
+  gc mode. The Python backend erases the facts.
   `RcFactsPass._stamp_escapes`; the backend stack-allocates an eligible
   instantiation when the target symbol has `na_stack_ok`. For unannotated
   locals any use under a call or return disqualifies. For `own`-annotated

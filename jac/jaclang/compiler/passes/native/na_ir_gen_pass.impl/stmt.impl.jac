@@ -1,7 +1,12 @@
 impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
+    _ar_open = self.ir_in.gen?.anon_region_open or {};
+    _ar_close = self.ir_in.gen?.anon_region_close or {};
     for stmt in stmts {
         if self.builder.block.is_terminated {
             break;
+        }
+        if id(stmt) in _ar_open {
+            self._open_anon_region(_ar_open[id(stmt)]);
         }
 
         _di_blk_count_snap = 0;
@@ -22,6 +27,9 @@ impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
         }
         self._codegen_stmt(stmt);
         self._emit_last_use_releases(stmt);
+        if id(stmt) in _ar_close {
+            self._close_anon_region(_ar_close[id(stmt)]);
+        }
 
         if _di_blk_snap is not None and _di_line_snap > 0 {
             try {
