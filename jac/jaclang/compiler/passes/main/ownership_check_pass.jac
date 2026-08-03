@@ -83,6 +83,7 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _stamp_loop_borrows -> None;
     def _emit_freeze_diagnostics -> None;
     def _emit_seal_warnings -> None;
+    def _flow_lend_joined(cexpr: uni.ConcurrentExpr, owner_sid: SymId) -> bool;
     def _emit_enforcement_diagnostics -> None;
     def _build_index(tree: uni.UniNode) -> None;
     def _stamp_ownership -> None;

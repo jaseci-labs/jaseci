@@ -303,6 +303,26 @@ def seed(r: &Region) -> Cand {
 
 Only payloads that are statically race-free may cross a `flow`/`wait`/`thread_run` boundary: a deep-immutable `imm` value, or an `own` value that is *moved* into the boundary (a planned `linear` value will cross the same way). Sending a live `&`/`&mut` borrow is [`E1308`](../diagnostics.md#ownership-borrow-errors):
 
+**Scoped lending is the exception.** An inline borrow may cross when the checker can see the matching `wait` barrier in the same block before any other use of the owner -- the join is the borrow's extent, and no annotation names it:
+
+```jac
+obj Buffer { has n: int = 0; }
+
+def read_it(x: &Buffer) -> int {
+    return x.n;
+}
+
+with entry {
+    a: own Buffer = Buffer(n=5);
+    h = flow read_it(&a);   # lend: the task borrows `a`...
+    r = wait h;             # ...and the join ends the lend
+    a.n = 7;                # owner fully usable after the barrier
+    print(r + a.n);
+}
+```
+
+The lend is rejected (E1308 stays) when the flow result is not bound and joined in the same block, or when the owner is touched anywhere between the spawn and the `wait` -- the barrier must provably come first.
+
 ```jac
 obj Buffer { has n: int = 0; }
 

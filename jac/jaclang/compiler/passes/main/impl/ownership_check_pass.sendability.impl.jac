@@ -47,6 +47,12 @@ impl OwnershipCheckPass._emit_sendability_diagnostics -> None {
             if ownership == OwnershipKind.OWN and self._is_move_producing_use(nm) {
                 continue;
             }
+            if ownership == OwnershipKind.OWN
+                and isinstance(nm.parent, uni.UnaryExpr)
+                and is_borrow_kind(nm.parent.ownership)
+                and self._flow_lend_joined(cexpr, sid) {
+                continue;
+            }
             if nm.find_parent_of_type(uni.OpenStmt) is not None {
                 continue;
             }
@@ -65,6 +71,53 @@ impl OwnershipCheckPass._emit_sendability_diagnostics -> None {
             break;
         }
     }
+}
+
+impl OwnershipCheckPass._flow_lend_joined(
+    cexpr: uni.ConcurrentExpr, owner_sid: SymId
+) -> bool {
+    import from jaclang.jac0core.constant { Tokens as Tok }
+    asgn = cexpr.find_parent_of_type(uni.Assignment);
+    if asgn is None
+        or asgn.value is not cexpr
+        or len(asgn.target) != 1
+        or not isinstance(asgn.target[0], uni.Name)
+        or asgn.target[0].sym is None {
+        return False;
+    }
+    handle_sid = self._name_sym_id(asgn.target[0]);
+    container = asgn.parent;
+    body = container?.body;
+    if not isinstance(body, (list, tuple)) or asgn not in body {
+        return False;
+    }
+    idx = list(body).index(asgn);
+    for st in list(body)[idx + 1:] {
+        _wait_found = False;
+        for wc in st.get_all_sub_nodes(uni.ConcurrentExpr) {
+            if wc.tok is not None and wc.tok.name == Tok.KW_WAIT {
+                for wn in ([wc.target] if isinstance(wc.target, uni.Name) else [])
+                    + list(wc.target.get_all_sub_nodes(uni.Name)) {
+                    if self._sym_id(wn) == handle_sid {
+                        _wait_found = True;
+                    }
+                }
+            }
+        }
+        _owner_touched = False;
+        for on in st.get_all_sub_nodes(uni.Name) {
+            if self._sym_id(on) == owner_sid {
+                _owner_touched = True;
+            }
+        }
+        if _wait_found {
+            return not _owner_touched;
+        }
+        if _owner_touched {
+            return False;
+        }
+    }
+    return False;
 }
 
 impl OwnershipCheckPass._is_deep_immutable_scalar(nm: uni.Name) -> bool {
