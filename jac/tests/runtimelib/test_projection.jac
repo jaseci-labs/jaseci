@@ -98,7 +98,6 @@ test "warm parity: pages answer the second request, invariant intact" {
             JacRuntime.exec_ctx = old;
             ctx1.close();
         }
-
         # Request 1: cold -- engine resolves, projection warms.
         ctx2 = _make_ctx(td);
         JacRuntime.exec_ctx = ctx2;
@@ -114,7 +113,6 @@ test "warm parity: pages answer the second request, invariant intact" {
         proj = _proj_for(td);
         assert proj is not None , "projection must exist after a cold query";
         assert len(proj.pages) > 0 , "cold query must warm the frontier";
-
         # Request 2: fresh context, pages resolve locally, same answer,
         # exactly |result| deserializations.
         ctx3 = _make_ctx(td);
@@ -151,7 +149,6 @@ test "read-your-writes beats warm pages; own writes evict" {
             JacRuntime.exec_ctx = old;
             ctx1.close();
         }
-
         ctx2 = _make_ctx(td);
         JacRuntime.exec_ctx = ctx2;
         try {
@@ -169,10 +166,7 @@ test "read-your-writes beats warm pages; own writes evict" {
             fresh = VA(val=77).__jac__;
             fresh.persistent = True;
             fe = EdgeAnchor(
-                archetype=VRel(w=1),
-                source=ranch,
-                target=fresh,
-                is_undirected=False
+                archetype=VRel(w=1), source=ranch, target=fresh, is_undirected=False
             );
             fe.persistent = True;
             ranch.edges.append(fe);
@@ -186,7 +180,6 @@ test "read-your-writes beats warm pages; own writes evict" {
         }
         proj = _proj_for(td);
         assert root_id not in proj.pages , "own write must evict the page";
-
         ctx3 = _make_ctx(td);
         JacRuntime.exec_ctx = ctx3;
         try {
@@ -215,7 +208,6 @@ test "cross-pod staleness window: stale visible, bus heals, fresh bypasses" {
             JacRuntime.exec_ctx = old;
             ctx1.close();
         }
-
         # Warm "pod B", snapshot its pages, then write on "pod A".
         ctx2 = _make_ctx(td);
         JacRuntime.exec_ctx = ctx2;
@@ -228,7 +220,6 @@ test "cross-pod staleness window: stale visible, bus heals, fresh bypasses" {
         }
         proj = _proj_for(td);
         saved_pages = dict(proj.pages);
-
         ctx3 = _make_ctx(td);
         JacRuntime.exec_ctx = ctx3;
         try {
@@ -240,11 +231,9 @@ test "cross-pod staleness window: stale visible, bus heals, fresh bypasses" {
             JacRuntime.exec_ctx = old;
             ctx3.close();
         }
-
         # Pod B missed the bus: restore its pre-write pages (the real
         # deployment shape -- separate processes, undelivered eviction).
         proj.absorb(saved_pages);
-
         ctx4 = _make_ctx(td);
         JacRuntime.exec_ctx = ctx4;
         try {
@@ -292,9 +281,7 @@ test "ttl backstop expires completeness marks" {
             assert root_id in proj.pages;
             proj.ttl_s = 0.05;
             time.sleep(0.1);
-            assert proj.fresh_page(root_id) is None , (
-                "expired mark must not serve"
-            );
+            assert proj.fresh_page(root_id) is None , ("expired mark must not serve");
         } finally {
             JacRuntime.exec_ctx = old;
             ctx2.close();

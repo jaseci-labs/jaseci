@@ -853,7 +853,12 @@ test "batch_get reduces MongoDB queries for edge traversals" {
     base_url = f"http://localhost:{port}";
     server = start_server(FIXTURES_DIR, JAC_FILE, port);
 
-    num_tasks = 10;
+    # The projection warm path adds a small CONSTANT number of id-space
+    # queries on a cold process (node_pages + ancestry + heal probes); the
+    # invariant under test is that traversal I/O stays O(1) in edge count,
+    # so the workload is sized to keep per-edge behavior failing while
+    # constant overhead passes.
+    num_tasks = 40;
 
     try {
         db = mongo_client["jac_db"];
