@@ -107,7 +107,7 @@ test "test_impl_stay_connected" {
         pos = lspt.Position(8, 11);
         assert (
             "ability) calculate_area\n( radius : float ) -> float"
-            in lsp.get_hover_info(circle_impl_file, pos).contents.value.replace("'", "")
+            in lsp.get_hover_info(circle_impl_file, pos).contents.value
         );
     } finally {
         teardown_test();
@@ -123,7 +123,7 @@ test "test_impl_auto_discover" {
         pos = lspt.Position(8, 11);
         assert (
             "(public ability) calculate_area\n( radius : float ) -> float"
-            in lsp.get_hover_info(circle_impl_file, pos).contents.value.replace("'", "")
+            in lsp.get_hover_info(circle_impl_file, pos).contents.value
         );
     } finally {
         teardown_test();
