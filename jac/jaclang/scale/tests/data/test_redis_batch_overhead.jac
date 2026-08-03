@@ -3,104 +3,22 @@
 import contextlib;
 import gc;
 import os;
-import socket;
-import subprocess;
-import sys;
 import time;
 import from pathlib { Path }
 import from typing { cast }
 
 import redis;
-import requests;
 import from testcontainers.community.mongodb { MongoDbContainer }
 import from testcontainers.community.redis { RedisContainer }
+import from jaclang.scale.tests.server_support {
+    call_walker,
+    get_free_port,
+    register_user,
+    start_server
+}
 
 glob FIXTURES_DIR = Path(__file__).parent.parent / "fixtures",
      JAC_FILE = FIXTURES_DIR / "race_app.jac";
-
-def get_free_port -> int {
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
-        s.bind(("", 0));
-        return s.getsockname()[1];
-    }
-}
-
-def extract(resp: object) -> object {
-    if isinstance(resp, list) and len(resp) == 2 {
-        resp = resp[1];
-    }
-    if isinstance(resp, dict) and "data" in resp {
-        return resp["data"];
-    }
-    return resp;
-}
-
-def register_user(base_url: str, username: str) -> str {
-    res = requests.post(
-        f"{base_url}/user/register",
-        json={
-            "identities": [{"type": "username", "value": username}],
-            "credential": {"type": "password", "password": "pass123"}
-        },
-        timeout=5
-    );
-    assert res.status_code == 201 , f"register failed: {res.status_code} {res.text}";
-    login = requests.post(
-        f"{base_url}/user/login",
-        json={
-            "identity": {"type": "username", "value": username},
-            "credential": {"type": "password", "password": "pass123"}
-        },
-        timeout=5
-    );
-    assert login.status_code == 200 , f"login failed: {login.status_code} {login.text}";
-    return cast(dict, extract(login.json()))["token"];
-}
-
-def call_walker(
-    base_url: str, walker_name: str, token: str, payload: dict | None = None
-) -> object {
-    res = requests.post(
-        f"{base_url}/walker/{walker_name}",
-        json=payload or {},
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=15
-    );
-    return res.json();
-}
-
-def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Popen {
-    import shutil;
-    jac_executable = shutil.which("jac") or str(Path(sys.executable).parent / "jac");
-    cmd = [str(jac_executable), "start", str(jac_file.name), "--port", str(port)];
-    env = os.environ.copy();
-    server = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=str(fixtures_dir),
-        env=env
-    );
-    base_url = f"http://localhost:{port}";
-    for _ in range(30) {
-        try {
-            r = requests.get(f"{base_url}/healthz", timeout=1);
-            if r.status_code == 200 {
-                return server;
-            }
-        } except Exception {
-            time.sleep(1);
-        }
-    }
-    try {
-        (stdout, stderr) = server.communicate(timeout=2);
-    } except subprocess.TimeoutExpired {
-        server.kill();
-        (stdout, stderr) = server.communicate();
-    }
-    raise RuntimeError(f"server failed to start\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
-}
 
 """Total call count for the given Redis commands from INFO commandstats."""
 def redis_cmd_calls(r: redis.Redis, commands: list[str]) -> int {
