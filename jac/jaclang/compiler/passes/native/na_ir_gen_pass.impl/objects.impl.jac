@@ -1504,6 +1504,24 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if method_name is None {
         return None;
     }
+    if method_name == "partition"
+        and (
+            self._type_key_of(trailer.target) == "Region"
+            or (target_name is not None and target_name in self.region_handle_vars)
+        ) {
+        self._emit_arena_helpers();
+        _pt_recv = self._codegen_expr(trailer.target);
+        if _pt_recv is None or self.region_partition_fn is None {
+            return None;
+        }
+        _pt_i8p = ir.IntType(8).as_pointer();
+        if _pt_recv.type != _pt_i8p {
+            _pt_recv = self.builder.bitcast(_pt_recv, _pt_i8p, name="part.hdl");
+        }
+        return self.builder.call(
+            self.region_partition_fn, [_pt_recv], name="region.part"
+        );
+    }
     if (
         method_name in ("get", "keys", "values", "items", "setdefault", "update", "pop")
         and self._type_key_of(trailer.target) in ("any", "Any")

@@ -369,6 +369,34 @@ region-allocated objects already carry region-marked headers whose
 releases no-op, so retiring the handle without teardown *is* the
 promotion.
 
+### Sub-arenas: `partition()` and reabsorb
+
+`r.partition()` on an owned handle yields a fresh **owned child handle**.
+A child is a region in its own right -- open it, allocate under it, move
+it across `flow` under the owned-handle sendability rule -- and ownership
+of the children is the isolation proof for data-parallel building over
+disjoint subgraphs. What makes a child a *sub*-arena is its death: a
+child handle dropping **reabsorbs** into the parent -- its memory and its
+`drop` log splice into the parent's, so every hook fires exactly once,
+at the parent's death, child entries first. A parent dying before its
+children defers its entire teardown to the last reabsorb (the runtime
+zombie-counts live children), so no code shape can free pages a child
+still draws on.
+
+```jac
+r: own Region = Region();
+c1: own Region = r.partition();
+c2: own Region = r.partition();
+in c1 { build_left(); }      # or: h = flow build(c1); ... wait h;
+in c2 { build_right(); }
+# c1, c2 drop -> reabsorbed; r drops -> one teardown for everything
+```
+
+Call `partition()` once per child (`partition(n)` sugar can layer on
+later); the per-child bump-pointer page sharing is the regions-lane
+allocator work -- the contract here (isolation while live, reabsorb on
+death, single teardown) is what that work slots into.
+
 ### Inferred anonymous regions for unrooted spawns
 
 A graph that never touches managed state does not need an explicit open to

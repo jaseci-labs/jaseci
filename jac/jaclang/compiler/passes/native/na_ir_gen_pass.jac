@@ -242,6 +242,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_drop_fields_fns: dict[str, ir.Function] = {},
         arena_helpers_emitted: bool = False,
         region_new_fn: (ir.Function | None) = None,
+        region_partition_fn: (ir.Function | None) = None,
         region_alloc_fn: (ir.Function | None) = None,
         region_log_dtor_fn: (ir.Function | None) = None,
         region_drop_fn: (ir.Function | None) = None,

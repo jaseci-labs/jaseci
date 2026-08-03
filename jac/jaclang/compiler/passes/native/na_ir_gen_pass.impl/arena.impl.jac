@@ -1,4 +1,4 @@
-glob ARENA_CTRL_SIZE: int = 40,
+glob ARENA_CTRL_SIZE: int = 80,
      ARENA_CHUNK_HDR: int = 16,
      ARENA_CHUNK_DEFAULT: int = 32768,
      ARENA_DTOR_ENTRY: int = 24;
@@ -55,7 +55,23 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     );
     hdl = b.gep(raw, [ir.Constant(i64, HDR_TOTAL)], name="hdl");
     b.store(ir.Constant(i8p, None), b.bitcast(hdl, i8pp, name="rgn.chunk.p"));
-    for (_off, _nm) in ((8, "off"), (16, "cap"), (32, "cnt")) {
+    for _poff in (40, 56, 64) {
+        b.store(
+            ir.Constant(i8p, None),
+            b.bitcast(
+                b.gep(hdl, [ir.Constant(i64, _poff)], name=f"rgn.p{_poff}.s"),
+                i8pp,
+                name=f"rgn.p{_poff}.p"
+            )
+        );
+    }
+    for (_off, _nm) in (
+        (8, "off"),
+        (16, "cap"),
+        (32, "cnt"),
+        (48, "kids"),
+        (72, "flags")
+    ) {
         b.store(
             ir.Constant(i64, 0),
             b.bitcast(
@@ -219,19 +235,253 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     _drop_fn.linkage = "private";
     _drop_fn.args[0].name = "hdl";
     _d_entry = _drop_fn.append_basic_block("entry");
+    _d_route = _drop_fn.append_basic_block("route");
+    _d_defer = _drop_fn.append_basic_block("defer");
+    _d_route2 = _drop_fn.append_basic_block("route2");
+    _mg_entry = _drop_fn.append_basic_block("merge");
+    _mg_ck_walk = _drop_fn.append_basic_block("merge.ck.walk");
+    _mg_ck_next = _drop_fn.append_basic_block("merge.ck.next");
+    _mg_ck_done = _drop_fn.append_basic_block("merge.ck.done");
+    _mg_ck_first = _drop_fn.append_basic_block("merge.ck.first");
+    _mg_ck_ins = _drop_fn.append_basic_block("merge.ck.insert");
+    _mg_dl = _drop_fn.append_basic_block("merge.dtl");
+    _mg_dl_walk = _drop_fn.append_basic_block("merge.dtl.walk");
+    _mg_dl_next = _drop_fn.append_basic_block("merge.dtl.next");
+    _mg_dl_done = _drop_fn.append_basic_block("merge.dtl.done");
+    _mg_ml = _drop_fn.append_basic_block("merge.mlist");
+    _mg_ml_walk = _drop_fn.append_basic_block("merge.mlist.walk");
+    _mg_ml_next = _drop_fn.append_basic_block("merge.mlist.next");
+    _mg_ml_done = _drop_fn.append_basic_block("merge.mlist.done");
+    _mg_fin = _drop_fn.append_basic_block("merge.fin");
+    _mg_casc = _drop_fn.append_basic_block("merge.cascade");
+    _mg_ret = _drop_fn.append_basic_block("merge.ret");
     _d_body = _drop_fn.append_basic_block("body");
     _dt_head = _drop_fn.append_basic_block("dtor.head");
     _dt_body = _drop_fn.append_basic_block("dtor.body");
     _ck_head = _drop_fn.append_basic_block("chunk.head");
     _ck_body = _drop_fn.append_basic_block("chunk.body");
+    _md_head = _drop_fn.append_basic_block("merged.head");
+    _md_body = _drop_fn.append_basic_block("merged.body");
     _d_done = _drop_fn.append_basic_block("done");
     b = ir.IRBuilder(_d_entry);
     _dhdl = _drop_fn.args[0];
     b.cbranch(
         b.icmp_unsigned("==", _dhdl, ir.Constant(i8p, None), name="hdl.null"),
         _d_done,
-        _d_body
+        _d_route
     );
+
+    b = ir.IRBuilder(_d_route);
+    _kids_slot = b.bitcast(
+        b.gep(_dhdl, [ir.Constant(i64, 48)], name="kids.s"), i64p, name="kids.p"
+    );
+    _flags_slot = b.bitcast(
+        b.gep(_dhdl, [ir.Constant(i64, 72)], name="flags.s"), i64p, name="flags.p"
+    );
+    _kids = b.load(_kids_slot, name="kids");
+    b.cbranch(
+        b.icmp_signed(">", _kids, ir.Constant(i64, 0), name="has.kids"),
+        _d_defer,
+        _d_route2
+    );
+
+    b = ir.IRBuilder(_d_defer);
+    b.store(
+        b.or_(b.load(_flags_slot, name="flags"), ir.Constant(i64, 1), name="flags.z"),
+        _flags_slot
+    );
+    b.ret_void();
+
+    b = ir.IRBuilder(_d_route2);
+    _par = b.load(
+        b.bitcast(
+            b.gep(_dhdl, [ir.Constant(i64, 40)], name="par.s"), i8pp, name="par.p"
+        ),
+        name="par"
+    );
+    b.cbranch(
+        b.icmp_unsigned("==", _par, ir.Constant(i8p, None), name="par.null"),
+        _d_body,
+        _mg_entry
+    );
+
+    b = ir.IRBuilder(_mg_entry);
+    _mg_t = b.alloca(i8p, name="mg.t");
+    _mg_ch = b.load(b.bitcast(_dhdl, i8pp, name="mg.ch.p"), name="mg.ch");
+    b.store(_mg_ch, _mg_t);
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_ch, ir.Constant(i8p, None), name="mg.ch.null"),
+        _mg_dl,
+        _mg_ck_walk
+    );
+    b = ir.IRBuilder(_mg_ck_walk);
+    _mg_tv = b.load(_mg_t, name="mg.tv");
+    _mg_tn = b.load(b.bitcast(_mg_tv, i8pp, name="mg.tn.p"), name="mg.tn");
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_tn, ir.Constant(i8p, None), name="mg.tail"),
+        _mg_ck_done,
+        _mg_ck_next
+    );
+    b = ir.IRBuilder(_mg_ck_next);
+    b.store(_mg_tn, _mg_t);
+    b.branch(_mg_ck_walk);
+    b = ir.IRBuilder(_mg_ck_done);
+    _mg_ph = b.load(b.bitcast(_par, i8pp, name="mg.ph.p"), name="mg.ph");
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_ph, ir.Constant(i8p, None), name="mg.ph.null"),
+        _mg_ck_first,
+        _mg_ck_ins
+    );
+    b = ir.IRBuilder(_mg_ck_first);
+    b.store(_mg_ch, b.bitcast(_par, i8pp, name="mg.ph.set"));
+    b.branch(_mg_dl);
+    b = ir.IRBuilder(_mg_ck_ins);
+    _mg_old = b.load(b.bitcast(_mg_ph, i8pp, name="mg.old.p"), name="mg.old");
+    _mg_tail = b.load(_mg_t, name="mg.tail.v");
+    b.store(_mg_old, b.bitcast(_mg_tail, i8pp, name="mg.tail.link"));
+    b.store(_mg_ch, b.bitcast(_mg_ph, i8pp, name="mg.ph.link"));
+    b.branch(_mg_dl);
+
+    b = ir.IRBuilder(_mg_dl);
+    _mg_d = b.alloca(i8p, name="mg.d");
+    _mg_dh = b.load(
+        b.bitcast(
+            b.gep(_dhdl, [ir.Constant(i64, 24)], name="mg.dl.s"), i8pp, name="mg.dl.p"
+        ),
+        name="mg.dh"
+    );
+    b.store(_mg_dh, _mg_d);
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_dh, ir.Constant(i8p, None), name="mg.dl.null"),
+        _mg_ml,
+        _mg_dl_walk
+    );
+    b = ir.IRBuilder(_mg_dl_walk);
+    _mg_dv = b.load(_mg_d, name="mg.dv");
+    _mg_dn = b.load(b.bitcast(_mg_dv, i8pp, name="mg.dn.p"), name="mg.dn");
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_dn, ir.Constant(i8p, None), name="mg.dtail"),
+        _mg_dl_done,
+        _mg_dl_next
+    );
+    b = ir.IRBuilder(_mg_dl_next);
+    b.store(_mg_dn, _mg_d);
+    b.branch(_mg_dl_walk);
+    b = ir.IRBuilder(_mg_dl_done);
+    _mg_pdl_slot = b.bitcast(
+        b.gep(_par, [ir.Constant(i64, 24)], name="mg.pdl.s"), i8pp, name="mg.pdl.p"
+    );
+    _mg_dtail = b.load(_mg_d, name="mg.dtail.v");
+    b.store(
+        b.load(_mg_pdl_slot, name="mg.pdl"),
+        b.bitcast(_mg_dtail, i8pp, name="mg.dtail.link")
+    );
+    b.store(_mg_dh, _mg_pdl_slot);
+    b.branch(_mg_ml);
+
+    b = ir.IRBuilder(_mg_ml);
+    _mg_pcnt_slot = b.bitcast(
+        b.gep(_par, [ir.Constant(i64, 32)], name="mg.pcnt.s"), i64p, name="mg.pcnt.p"
+    );
+    _mg_ccnt = b.load(
+        b.bitcast(
+            b.gep(_dhdl, [ir.Constant(i64, 32)], name="mg.ccnt.s"),
+            i64p,
+            name="mg.ccnt.p"
+        ),
+        name="mg.ccnt"
+    );
+    b.store(
+        b.add(b.load(_mg_pcnt_slot, name="mg.pcnt"), _mg_ccnt, name="mg.cnt.sum"),
+        _mg_pcnt_slot
+    );
+    _mg_m = b.alloca(i8p, name="mg.m");
+    _mg_cml_slot = b.bitcast(
+        b.gep(_dhdl, [ir.Constant(i64, 56)], name="mg.cml.s"), i8pp, name="mg.cml.p"
+    );
+    _mg_pml_slot = b.bitcast(
+        b.gep(_par, [ir.Constant(i64, 56)], name="mg.pml.s"), i8pp, name="mg.pml.p"
+    );
+    _mg_cm = b.load(_mg_cml_slot, name="mg.cm");
+    b.store(_mg_cm, _mg_m);
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_cm, ir.Constant(i8p, None), name="mg.cml.null"),
+        _mg_fin,
+        _mg_ml_walk
+    );
+    b = ir.IRBuilder(_mg_ml_walk);
+    _mg_mv = b.load(_mg_m, name="mg.mv");
+    _mg_mn = b.load(
+        b.bitcast(
+            b.gep(_mg_mv, [ir.Constant(i64, 64)], name="mg.mn.s"), i8pp, name="mg.mn.p"
+        ),
+        name="mg.mn"
+    );
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_mn, ir.Constant(i8p, None), name="mg.mtail"),
+        _mg_ml_done,
+        _mg_ml_next
+    );
+    b = ir.IRBuilder(_mg_ml_next);
+    b.store(_mg_mn, _mg_m);
+    b.branch(_mg_ml_walk);
+    b = ir.IRBuilder(_mg_ml_done);
+    _mg_mtail = b.load(_mg_m, name="mg.mtail.v");
+    b.store(
+        b.load(_mg_pml_slot, name="mg.pml"),
+        b.bitcast(
+            b.gep(_mg_mtail, [ir.Constant(i64, 64)], name="mg.mtail.s"),
+            i8pp,
+            name="mg.mtail.link"
+        )
+    );
+    b.store(_mg_cm, _mg_pml_slot);
+    b.store(ir.Constant(i8p, None), _mg_cml_slot);
+    b.branch(_mg_fin);
+
+    b = ir.IRBuilder(_mg_fin);
+    b.store(
+        b.load(_mg_pml_slot, name="mg.pml2"),
+        b.bitcast(
+            b.gep(_dhdl, [ir.Constant(i64, 64)], name="mg.sib.s"), i8pp, name="mg.sib.p"
+        )
+    );
+    b.store(_dhdl, _mg_pml_slot);
+    _mg_pk_slot = b.bitcast(
+        b.gep(_par, [ir.Constant(i64, 48)], name="mg.pk.s"), i64p, name="mg.pk.p"
+    );
+    _mg_pk1 = b.sub(
+        b.load(_mg_pk_slot, name="mg.pk"), ir.Constant(i64, 1), name="mg.pk1"
+    );
+    b.store(_mg_pk1, _mg_pk_slot);
+    _mg_pfl = b.load(
+        b.bitcast(
+            b.gep(_par, [ir.Constant(i64, 72)], name="mg.pfl.s"), i64p, name="mg.pfl.p"
+        ),
+        name="mg.pfl"
+    );
+    _mg_zomb = b.icmp_unsigned(
+        "!=",
+        b.and_(_mg_pfl, ir.Constant(i64, 1), name="mg.pfl.z"),
+        ir.Constant(i64, 0),
+        name="mg.is.z"
+    );
+    _mg_last = b.icmp_signed("==", _mg_pk1, ir.Constant(i64, 0), name="mg.last.kid");
+    b.cbranch(b.and_(_mg_zomb, _mg_last, name="mg.casc"), _mg_casc, _mg_ret);
+    b = ir.IRBuilder(_mg_casc);
+    b.store(
+        ir.Constant(i64, 0),
+        b.bitcast(
+            b.gep(_par, [ir.Constant(i64, 72)], name="mg.pfl.clr.s"),
+            i64p,
+            name="mg.pfl.clr.p"
+        )
+    );
+    b.call(_drop_fn, [_par]);
+    b.branch(_mg_ret);
+    b = ir.IRBuilder(_mg_ret);
+    b.ret_void();
+
     b = ir.IRBuilder(_d_body);
     _died_fn = self.func_symtab.get("osp_region_died");
     if (_died_fn is not None) and (self._osp_ensure_fn is not None) {
@@ -244,6 +494,16 @@ impl NaIRGenPass._emit_arena_helpers -> None {
         b.call(_died_fn, [_rgn_i64]);
     }
     _cur = b.alloca(i8p, name="cur");
+    _mrg = b.alloca(i8p, name="mrg");
+    b.store(
+        b.load(
+            b.bitcast(
+                b.gep(_dhdl, [ir.Constant(i64, 56)], name="ml.s"), i8pp, name="ml.p"
+            ),
+            name="ml.head"
+        ),
+        _mrg
+    );
     b.store(
         b.load(
             b.bitcast(
@@ -279,7 +539,7 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     _ck = b.load(_cur, name="ck");
     b.cbranch(
         b.icmp_unsigned("==", _ck, ir.Constant(i8p, None), name="ck.end"),
-        _d_done,
+        _md_head,
         _ck_loop
     );
     b = ir.IRBuilder(_ck_loop);
@@ -287,6 +547,31 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     b.call(_free, [_ck]);
     b.store(_prev, _cur);
     b.branch(_ck_body);
+    b = ir.IRBuilder(_md_head);
+    _md_m = b.load(_mrg, name="md.m");
+    b.cbranch(
+        b.icmp_unsigned("==", _md_m, ir.Constant(i8p, None), name="md.end"),
+        _d_done,
+        _md_body
+    );
+    b = ir.IRBuilder(_md_body);
+    _md_next = b.load(
+        b.bitcast(
+            b.gep(_md_m, [ir.Constant(i64, 64)], name="md.nx.s"), i8pp, name="md.nx.p"
+        ),
+        name="md.nx"
+    );
+    if (_died_fn is not None) and (self._osp_ensure_fn is not None) {
+        _md_argty = _died_fn.function_type.args[0];
+        _md_i64 = b.ptrtoint(_md_m, i64, name="md.died.i64");
+        if _md_argty != i64 {
+            _md_i64 = b.bitcast(_md_i64, _md_argty, name="md.died.arg");
+        }
+        b.call(_died_fn, [_md_i64]);
+    }
+    b.call(_free, [b.gep(_md_m, [ir.Constant(i64, -HDR_TOTAL)], name="md.base")]);
+    b.store(_md_next, _mrg);
+    b.branch(_md_head);
     b = ir.IRBuilder(_d_done);
     _base_bb = _drop_fn.append_basic_block("free.base");
     _end_bb = _drop_fn.append_basic_block("end");
@@ -301,6 +586,33 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     b = ir.IRBuilder(_end_bb);
     b.ret_void();
     self.region_drop_fn = _drop_fn;
+
+    _part_fn = self._define_function(
+        "__jac_region_partition", ir.FunctionType(i8p, [i8p])
+    );
+    _part_fn.linkage = "private";
+    _part_fn.args[0].name = "parent";
+    b = ir.IRBuilder(_part_fn.append_basic_block("entry"));
+    _pt_child = b.call(_new_fn, [], name="pt.child");
+    b.store(
+        _part_fn.args[0],
+        b.bitcast(
+            b.gep(_pt_child, [ir.Constant(i64, 40)], name="pt.par.s"),
+            i8pp,
+            name="pt.par.p"
+        )
+    );
+    _pt_k_slot = b.bitcast(
+        b.gep(_part_fn.args[0], [ir.Constant(i64, 48)], name="pt.k.s"),
+        i64p,
+        name="pt.k.p"
+    );
+    b.store(
+        b.add(b.load(_pt_k_slot, name="pt.k"), ir.Constant(i64, 1), name="pt.k1"),
+        _pt_k_slot
+    );
+    b.ret(_pt_child);
+    self.region_partition_fn = _part_fn;
 
     if self.rc_alloc_fn is None {
         self._emit_rc_helpers();
