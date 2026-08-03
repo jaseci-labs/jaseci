@@ -260,6 +260,14 @@ def parse_const_text(text: str) -> dict[str, list[ConstMember]] {
 
 glob _WIDGET_PARAM_KINDS_CACHE: dict[str, dict[str, dict[str, str]]] = {};
 
+def widget_attr_param_kind(widget_name: str, attr_name: str) -> str {
+    kinds = widget_param_kind_table().get(widget_name);
+    if kinds is None {
+        return "";
+    }
+    return kinds.get(attr_name, "");
+}
+
 def widget_param_kind_table -> dict[str, dict[str, str]] {
     if "table" in _WIDGET_PARAM_KINDS_CACHE {
         return _WIDGET_PARAM_KINDS_CACHE["table"];

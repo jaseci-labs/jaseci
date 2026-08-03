@@ -66,6 +66,38 @@ def:pub app -> Composable {
 # party Jac imports are translated to Kotlin imports so library composables are
 # first-class instead of needing <Raw kotlin=..>.
 
+test "parameterized reusable composables preserve function signature" {
+    src = '''
+def:pub Badge(text: str) -> Composable {
+    return <Text>{text}</Text>;
+}
+
+def:pub app -> Composable {
+    return <Column>
+        <Badge text="New" />
+    </Column>;
+}
+''';
+    with tempfile.TemporaryDirectory() as tmp {
+        path = Path(tmp) / "app.jac";
+        path.write_text(src, encoding="utf-8");
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        program = Jac.program;
+        mod = program.compile(str(path));
+        model = run_compose_gen_pass(mod, program);
+        assert "Badge" in model.intent.components;
+        badge = model.intent.components["Badge"];
+        assert len(badge.params) == 1;
+        assert badge.params[0].name == "text";
+        assert badge.params[0].jac_type == "str";
+        model.intent.package_name = "dev.jac.test";
+        screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
+        assert "fun Badge(text: String)" in screens;
+        assert 'Badge(text = "New")' in screens;
+        assert "fun Badge()" not in screens;
+    }
+}
+
 test "non-screen composables are emitted as reusable @Composable funs" {
     src = '''
 def:pub Card -> Composable {
@@ -356,6 +388,71 @@ def:pub app -> Composable {
         assert "JacClient.greet" in screens;
         assert "val greeting = result" not in screens;
         assert "greeting = result.reports[0]" in screens;
+    }
+}
+
+test "signature table classifies onCheckedChange as event in view IR" {
+    src = '''
+def:pub app -> Composable {
+    has checked: bool = False;
+
+    return <Checkbox
+        checked={checked}
+        onCheckedChange={lambda (v: bool) { checked = v; }}
+    />;
+}
+''';
+    with tempfile.TemporaryDirectory() as tmp {
+        path = Path(tmp) / "app.jac";
+        path.write_text(src, encoding="utf-8");
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        program = Jac.program;
+        mod = program.compile(str(path));
+        model = run_compose_gen_pass(mod, program);
+        view = model.compose_view_for("app");
+        assert view is not None;
+        on_checked: any = None;
+        for attr in view.attrs {
+            if attr.name == "onCheckedChange" {
+                on_checked = attr;
+            }
+        }
+        assert on_checked is not None;
+        assert on_checked.param_kind == "event";
+        assert on_checked.is_event;
+    }
+}
+
+test "ComposeEmit wraps JacClient onCheckedChange in coroutine scope" {
+    src = '''
+def:pub app -> Composable {
+    has checked: bool = False;
+
+    return <Checkbox
+        checked={checked}
+        onCheckedChange={lambda (v: bool) {
+            result = root spawn greet(name="world");
+            checked = v;
+        }}
+    />;
+}
+''';
+    with tempfile.TemporaryDirectory() as tmp {
+        path = Path(tmp) / "app.jac";
+        path.write_text(
+            'walker greet { has name: str; can run with Root entry { report "hi"; } }\n'
+                + src,
+            encoding="utf-8"
+        );
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        program = Jac.program;
+        mod = program.compile(str(path));
+        model = run_compose_gen_pass(mod, program);
+        model.intent.package_name = "dev.jac.test";
+        screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
+        assert "rememberCoroutineScope()" in screens;
+        assert "scope.launch" in screens;
+        assert "JacClient.greet" in screens;
     }
 }
 

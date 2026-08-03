@@ -15,6 +15,12 @@ import from jaclang.compiler.passes.compose.compose_intent_adapter {
 import from jaclang.compiler.passes.compose.jac_to_kotlin { JacToKotlin }
 import from jaclang.compiler.passes.compose.compose_view_builder { ComposeViewBuilder }
 import from jaclang.compiler.passes.compose.kotlin_ast { KtLiteral }
+import from jaclang.compiler.passes.ecmascript.intent.model { IntentParam }
+import from jaclang.compiler.passes.ecmascript.intent.detection {
+    component_name_from_ability,
+    COMPOSE_COMPONENT_TYPES
+}
+import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
 
 impl ComposeGenPass.before_pass -> None {
     self.reactive_vars = set();
@@ -55,8 +61,54 @@ impl ComposeGenPass._session -> IntentSession {
     return self.intent_session;
 }
 
+def _jac_type_text(type_expr: (uni.Expr | None)) -> str {
+    if type_expr is None {
+        return "";
+    }
+    if hasattr(type_expr, 'unparse') {
+        return type_expr.unparse();
+    }
+    if isinstance(type_expr, uni.Name) {
+        return type_expr.value;
+    }
+    return str(type_expr);
+}
+
+def _intent_params_from_signature(
+    sig: uni.FuncSignature, lowerer: JacToKotlin
+) -> list[IntentParam] {
+    out: list[IntentParam] = [];
+    for p in (sig.get_parameters() if sig else []) {
+        if not isinstance(p, uni.ParamVar) {
+            continue;
+        }
+        pname = p.name.sym_name if p.name else "";
+        if not pname {
+            continue;
+        }
+        jac_type = "";
+        if p.type_tag and p.type_tag.tag {
+            jac_type = _jac_type_text(p.type_tag.tag);
+        }
+        default_kt: (str | None) = None;
+        if p.value {
+            kt_val = lowerer.convert_expr(p.value);
+            if kt_val {
+                default_kt = kt_to_source(kt_val);
+            }
+        }
+        out.append(IntentParam(name=pname, jac_type=jac_type, default_kt=default_kt));
+    }
+    return out;
+}
+
 impl ComposeGenPass.enter_ability(nd: uni.Ability) -> None {
     self._session().enter_ability(nd);
+    name = component_name_from_ability(nd, COMPOSE_COMPONENT_TYPES);
+    if name is not None and isinstance(nd.signature, uni.FuncSignature) {
+        comp = self.model.intent.ensure_component(name);
+        comp.params = _intent_params_from_signature(nd.signature, self.lowerer);
+    }
 }
 
 impl ComposeGenPass.exit_arch_has(nd: uni.ArchHas) -> None {

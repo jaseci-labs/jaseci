@@ -13,8 +13,15 @@ obj IntentRoute {
         component: (str | None) = None;
 }
 
+obj IntentParam {
+    has name: str = "",
+        jac_type: str = "",
+        default_kt: (str | None) = None;
+}
+
 obj IntentComponent {
     has name: str = "",
+        params: list[IntentParam] = [],
         state: list[StateField] = [],
         refs: list[RefField] = [],
         effects: list[Effect] = [],
@@ -77,6 +84,9 @@ obj IntentModule {
             }
             if comp.route_path {
                 dst.route_path = comp.route_path;
+            }
+            if comp.params {
+                dst.params = list(comp.params);
             }
         }
         for imp in other.imports {

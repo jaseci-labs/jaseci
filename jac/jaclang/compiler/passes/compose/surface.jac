@@ -21,13 +21,8 @@ glob COMPOSE_PRIMITIVES: set[str] = {
          "Spacer",
          "Surface",
          "Raw"
-     },
-     COMPOSE_EVENT_ATTRS: set[str] = {"onClick", "onChange", "onValueChange"};
+     };
 
 def is_compose_primitive(name: str) -> bool {
     return name in COMPOSE_PRIMITIVES;
-}
-
-def is_compose_event_attr(name: str) -> bool {
-    return name in COMPOSE_EVENT_ATTRS;
 }

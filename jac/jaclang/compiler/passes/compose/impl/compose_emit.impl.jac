@@ -1,11 +1,12 @@
 import from pathlib { Path }
 import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
-import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
+import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent, IntentParam }
+import from jaclang.compiler.passes.ecmascript.intent.detection { COMPOSE_COMPONENT_TYPES }
+import from jaclang.compiler.passes.compose.rpc_client { RpcClientEmitter }
 import from jaclang.compiler.passes.compose.gradle_scaffold {
     build_gradle_scaffold,
     package_to_path,
     emit_jac_design,
-    ensure_gradle_wrapper,
     escape_kotlin
 }
 import from jaclang.compiler.passes.compose.rpc_client { emit_jac_client }
@@ -232,10 +233,29 @@ fun {name}(viewportWidth: Dp, scrollState: ScrollState, sectionRegistry: JacSect
 """;
 }
 
-def _emit_composable_fun(name: str, prelude: str, body: str) -> str {
+def _kt_param_type(jac_type: str) -> str {
+    raw = jac_type.strip();
+    if raw in COMPOSE_COMPONENT_TYPES {
+        return "@Composable () -> Unit";
+    }
+    return RpcClientEmitter().jac_type_to_kotlin(raw);
+}
+
+def _emit_composable_param(p: IntentParam) -> str {
+    kt_type = _kt_param_type(p.jac_type);
+    if p.default_kt {
+        return f"{p.name}: {kt_type} = {p.default_kt}";
+    }
+    return f"{p.name}: {kt_type}";
+}
+
+def _emit_composable_fun(
+    name: str, prelude: str, body: str, params: list[IntentParam] = []
+) -> str {
+    sig = ", ".join([_emit_composable_param(p) for p in params]);
     return f"""
 @Composable
-fun {name}() {{
+fun {name}({sig}) {{
 {prelude}{body}
 }}
 """;
@@ -274,32 +294,31 @@ def _emit_screen_body(
     return "    Column(modifier = Modifier.fillMaxSize()) {\n    }";
 }
 
-impl ComposeEmit.emit_screens -> str {
-    pkg = self.model.intent.package_name;
-    native_em = ComposeNativeEmitter();
-    react_em = ReactiveComposeEmitter();
+obj _ScreenPlanEntry {
+    has name: str,
+        comp: (IntentComponent | None) = None,
+        body_override: str = "";
+}
 
-    screens: list[str] = [];
+def _collect_screen_plan(model: ComposeModule) -> list[_ScreenPlanEntry] {
+    entries: list[_ScreenPlanEntry] = [];
     seen: set[str] = set();
 
-    for route in self.model.intent.routes {
+    for route in model.intent.routes {
         sname = route.screen_name or route_to_screen_name(route.path);
         if sname in seen {
             continue;
         }
         seen.add(sname);
         comp = None;
-        if route.component and route.component in self.model.intent.components {
-            comp = self.model.intent.components[route.component];
+        if route.component and route.component in model.intent.components {
+            comp = model.intent.components[route.component];
         }
-        prelude = react_em.emit_prelude(comp) if comp else "";
-        body = _emit_screen_body(comp, native_em, self.model);
-        prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
-        screens.append(_emit_screen_fun(sname, prelude, body));
+        entries.append(_ScreenPlanEntry(name=sname, comp=comp));
     }
 
-    for (cname, comp) in self.model.intent.components.items() {
-        sname: (str | None) = component_screen_name(cname) if comp.is_screen else None;
+    for (cname, comp) in model.intent.components.items() {
+        sname: (str | None) = None;
         if comp.route_path {
             sname = route_to_screen_name(comp.route_path);
         } elif comp.is_screen {
@@ -311,15 +330,12 @@ impl ComposeEmit.emit_screens -> str {
             continue;
         }
         seen.add(sname);
-        prelude = react_em.emit_prelude(comp);
-        body = _emit_screen_body(comp, native_em, self.model);
-        prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
-        screens.append(_emit_screen_fun(sname, prelude, body));
+        entries.append(_ScreenPlanEntry(name=sname, comp=comp));
     }
 
-    if not screens {
-        for (cname, comp) in self.model.intent.components.items() {
-            if self.model.compose_view_for(cname) is None {
+    if not entries {
+        for (cname, comp) in model.intent.components.items() {
+            if model.compose_view_for(cname) is None {
                 continue;
             }
             sname = "HomeScreen"
@@ -329,41 +345,101 @@ impl ComposeEmit.emit_screens -> str {
                 continue;
             }
             seen.add(sname);
-            prelude = react_em.emit_prelude(comp);
-            body = _emit_screen_body(comp, native_em, self.model);
-            prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
-            screens.append(_emit_screen_fun(sname, prelude, body));
+            entries.append(_ScreenPlanEntry(name=sname, comp=comp));
         }
     }
 
-    if not screens {
-        screens.append(
-            _emit_screen_fun(
-                "HomeScreen",
-                "",
-                "    Column(modifier = Modifier.fillMaxSize()) {\n"
-                "        Text(text = \"Jac Compose\")\n"
-                "    }"
+    if not entries {
+        entries.append(
+            _ScreenPlanEntry(
+                name="HomeScreen",
+                body_override=(
+                    "    Column(modifier = Modifier.fillMaxSize()) {\n"
+                    "        Text(text = \"Jac Compose\")\n"
+                    "    }"
+                )
             )
         );
     }
 
-    reusable: list[str] = [];
-    for (cname, comp) in self.model.intent.components.items() {
+    return entries;
+}
+
+def _collect_reusable_plan(
+    model: ComposeModule, seen: set[str]
+) -> list[_ScreenPlanEntry] {
+    entries: list[_ScreenPlanEntry] = [];
+    for (cname, comp) in model.intent.components.items() {
         if comp.is_screen or comp.route_path {
             continue;
         }
-        if self.model.compose_view_for(cname) is None {
+        if model.compose_view_for(cname) is None {
             continue;
         }
         if cname in seen {
             continue;
         }
         seen.add(cname);
-        prelude = react_em.emit_prelude(comp);
-        body = _emit_screen_body(comp, native_em, self.model);
-        prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
-        reusable.append(_emit_composable_fun(cname, prelude, body));
+        entries.append(_ScreenPlanEntry(name=cname, comp=comp));
+    }
+    return entries;
+}
+
+def _emit_planned_screen(
+    plan_entry: _ScreenPlanEntry,
+    native_em: ComposeNativeEmitter,
+    react_em: ReactiveComposeEmitter,
+    model: ComposeModule
+) -> str {
+    if plan_entry.body_override {
+        return _emit_screen_fun(plan_entry.name, "", plan_entry.body_override);
+    }
+    prelude = react_em.emit_prelude(plan_entry.comp) if plan_entry.comp else "";
+    body = _emit_screen_body(plan_entry.comp, native_em, model);
+    prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
+    return _emit_screen_fun(plan_entry.name, prelude, body);
+}
+
+def _emit_planned_reusable(
+    plan_entry: _ScreenPlanEntry,
+    native_em: ComposeNativeEmitter,
+    react_em: ReactiveComposeEmitter,
+    model: ComposeModule
+) -> str {
+    prelude = react_em.emit_prelude(plan_entry.comp) if plan_entry.comp else "";
+    body = _emit_screen_body(plan_entry.comp, native_em, model);
+    prelude = _merge_prelude(prelude, native_em.needs_coroutine_scope, body);
+    return _emit_composable_fun(
+        plan_entry.name,
+        prelude,
+        body,
+        plan_entry.comp.params if plan_entry.comp else []
+    );
+}
+
+impl ComposeEmit.emit_screens -> str {
+    pkg = self.model.intent.package_name;
+    native_em = ComposeNativeEmitter();
+    react_em = ReactiveComposeEmitter();
+
+    screen_plan = _collect_screen_plan(self.model);
+    seen: set[str] = set();
+    for plan_entry in screen_plan {
+        seen.add(plan_entry.name);
+    }
+    screens: list[str] = [];
+    for plan_entry in screen_plan {
+        screens.append(
+            _emit_planned_screen(plan_entry, native_em, react_em, self.model)
+        );
+    }
+
+    reusable_plan = _collect_reusable_plan(self.model, seen);
+    reusable: list[str] = [];
+    for plan_entry in reusable_plan {
+        reusable.append(
+            _emit_planned_reusable(plan_entry, native_em, react_em, self.model)
+        );
     }
 
     for diag in native_em.diagnostics {
@@ -505,12 +581,6 @@ impl ComposeEmit.write -> list[Path] {
                 ;
             }
         }
-    }
-
-    try {
-        ensure_gradle_wrapper(out);
-    } except Exception as e {
-        ;
     }
 
     try {

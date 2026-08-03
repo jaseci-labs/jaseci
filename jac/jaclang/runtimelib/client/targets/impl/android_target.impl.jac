@@ -13,9 +13,19 @@ import from jaclang.runtimelib.client.targets.android.config {
     apply_android_cfg_to_model
 }
 import from jaclang.runtimelib.client.targets.android.dev_server {
+    publish_hot_module,
     start_jac_dev_server
 }
 import from jaclang.runtimelib.client.targets.android.hmr { watch_android_hot_reload }
+import from jaclang.runtimelib.client.targets.build_common {
+    ensure_gradle_wrapper,
+    select_newest_artifact
+}
+import from jaclang.runtimelib.client.targets.client_dev_common {
+    adb_install_apk,
+    adb_launch_activity,
+    setup_android_port_reverse_common
+}
 
 impl AndroidTarget._android_dir(project_dir: Path) -> Path {
     return project_dir / "apps" / "android";
@@ -384,18 +394,12 @@ impl AndroidTarget.build(
 impl AndroidTarget._run_gradle_assemble(
     android_dir: Path, release: bool = False, task: str = ""
 ) -> Path {
+    ensure_gradle_wrapper(android_dir);
     gradlew = android_dir / ("gradlew.bat" if os.name == "nt" else "gradlew");
     if not gradlew.exists() {
-        gradle = shutil.which("gradle");
-        if not gradle {
-            raise RuntimeError(
-                f"gradlew not found at {gradlew} and `gradle` is not on PATH. "
-                "Install Gradle or run `gradle wrapper` inside apps/android/."
-            );
-        }
-        console.print("  Generating Gradle wrapper...", style="muted");
-        subprocess.run(
-            [gradle, "wrapper", "--gradle-version", "8.13"], cwd=android_dir, check=True
+        raise RuntimeError(
+            f"gradlew not found at {gradlew} and `gradle` is not on PATH. "
+            "Install Gradle or run `gradle wrapper` inside apps/android/."
         );
     }
     if os.name != "nt" {
@@ -411,7 +415,7 @@ impl AndroidTarget._run_gradle_assemble(
 
     variant = "release" if release else "debug";
     preferred = android_dir / "app" / "build" / "outputs" / "apk" / variant;
-    candidates = [];
+    candidates: list[Path] = [];
     if preferred.exists() {
         candidates = [
             f
@@ -435,13 +439,7 @@ impl AndroidTarget._run_gradle_assemble(
             f"{android_dir / 'app' / 'build' / 'outputs'}"
         );
     }
-    best = candidates[0];
-    for cand in candidates {
-        if cand.stat().st_mtime > best.stat().st_mtime {
-            best = cand;
-        }
-    }
-    return best;
+    return select_newest_artifact(candidates);
 }
 
 impl AndroidTarget.dev(
@@ -472,22 +470,36 @@ impl AndroidTarget.dev(
     self._adb_reverse_launch(base_apk, project_dir, port);
 
     (version, dex_path) = self._build_hot_dex(android_dir, model.intent.package_name);
-    state: dict = {"version": version, "dex_path": str(dex_path)};
+    state: dict = {
+        "modules_root": str(android_dir / "build" / "jac-dev")
+    };
+    publish_hot_module(state, version, str(dex_path));
     console.success(f"  Hot module v{version}: {dex_path}");
 
-    httpd = start_jac_dev_server(port, state);
-    console.print(
-        f"  Dev server on http://0.0.0.0:{port} (manifest + classes.dex)",
-        style="success"
-    );
-    console.print(
-        "  HMR ready — editing client .jac files hot-swaps without reinstall. Ctrl+C to stop.",
-        style="bold"
-    );
+    httpd: any = None;
+    try {
+        httpd = start_jac_dev_server(port, state);
+        console.print(
+            f"  Dev server on http://0.0.0.0:{port} (manifest + classes.dex)",
+            style="success"
+        );
+        console.print(
+            "  HMR ready — editing client .jac files hot-swaps without reinstall. Ctrl+C to stop.",
+            style="bold"
+        );
 
-    watch_android_hot_reload(
-        self, entry_file, project_dir, android_dir, model.intent.package_name, state
-    );
+        watch_android_hot_reload(
+            self, entry_file, project_dir, android_dir, model.intent.package_name, state
+        );
+    } except KeyboardInterrupt {
+        console.print("\n  Interrupted.", style="muted");
+    } finally {
+        if httpd is not None {
+            console.print("  Stopping dev server…", style="muted");
+            httpd.shutdown();
+            httpd.server_close();
+        }
+    }
 }
 
 impl AndroidTarget._adb_reverse_launch(
@@ -506,25 +518,13 @@ impl AndroidTarget._adb_reverse_launch(
         return;
     }
     pkg = self._resolve_package_name(project_dir);
-    console.print(f"  adb install -r {apk_path}", style="muted");
-    subprocess.run([adb, "install", "-r", str(apk_path)], check=True);
-    console.print(f"  adb reverse tcp:{port} tcp:{port}", style="muted");
-    subprocess.run([adb, "reverse", f"tcp:{port}", f"tcp:{port}"], check=True);
-    console.print(f"  Launching {pkg}/.JacDevHostActivity", style="muted");
-    subprocess.run(
-        [
-            adb,
-            "shell",
-            "am",
-            "start",
-            "-n",
-            f"{pkg}/.JacDevHostActivity",
-            "--es",
-            "jacDevServer",
-            f"http://localhost:{port}"
-        ],
-        check=False,
-        capture_output=True
+    adb_install_apk(adb, apk_path);
+    setup_android_port_reverse_common([port]);
+    adb_launch_activity(
+        adb,
+        pkg,
+        ".JacDevHostActivity",
+        extras={"jacDevServer": f"http://localhost:{port}"}
     );
 }
 
@@ -674,22 +674,5 @@ impl AndroidTarget._adb_install_launch(apk_path: Path, project_dir: Path) -> Non
         return;
     }
     pkg = self._resolve_package_name(project_dir);
-    console.print(f"  adb install -r {apk_path}", style="muted");
-    subprocess.run([adb, "install", "-r", str(apk_path)], check=True);
-    console.print(f"  Launching {pkg}", style="muted");
-    subprocess.run(
-        [
-            adb,
-            "shell",
-            "monkey",
-            "-p",
-            pkg,
-            "-c",
-            "android.intent.category.LAUNCHER",
-            "1"
-        ],
-        check=False,
-        capture_output=True
-    );
-    console.success("App installed and launched.");
+    adb_install_and_launch(apk_path, pkg, adb=adb);
 }

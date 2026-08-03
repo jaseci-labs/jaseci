@@ -1,6 +1,3 @@
-import os;
-import shutil;
-import subprocess;
 import from pathlib { Path }
 
 glob _LIGHT_THEME: dict[str, str] = {
@@ -154,92 +151,82 @@ def _gradle_properties -> str {
     );
 }
 
-def _app_gradle(package_name: str) -> str {
-    pkg = escape_kotlin(package_name);
-    return f"""plugins {{
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.plugin.serialization")
-}}
+def _gradle_kotlin_plugins -> str {
+    return (
+        '    id("org.jetbrains.kotlin.android")\n'
+        '    id("org.jetbrains.kotlin.plugin.compose")\n'
+        '    id("org.jetbrains.kotlin.plugin.serialization")\n'
+    );
+}
 
-android {{
+def _gradle_android_sdk_block(package_name: str, default_config: str) -> str {
+    pkg = escape_kotlin(package_name);
+    return f"""android {{
     namespace = "{pkg}"
     compileSdk = 36
+{default_config}
+    compileOptions {{
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }}
+}}""";
+}
 
-    defaultConfig {{
+def _gradle_kotlin_jvm_block -> str {
+    return """kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}""";
+}
+
+def _gradle_compose_dependencies -> str {
+    return """dependencies {
+    implementation("androidx.activity:activity-compose:1.11.0")
+    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.ui:ui")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+}""";
+}
+
+def _module_gradle(
+    android_plugin: str, package_name: str, default_config: str
+) -> str {
+    return (
+        f"plugins {{\n"
+        f'    id("{android_plugin}")\n'
+        + _gradle_kotlin_plugins()
+        + "}\n\n"
+        + _gradle_android_sdk_block(package_name, default_config)
+        + "\n\n"
+        + _gradle_kotlin_jvm_block()
+        + "\n\n"
+        + _gradle_compose_dependencies()
+        + "\n"
+    );
+}
+
+def _app_gradle(package_name: str) -> str {
+    pkg = escape_kotlin(package_name);
+    default_config = f"""    defaultConfig {{
         applicationId = "{pkg}"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-    }}
-
-    compileOptions {{
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }}
-}}
-
-kotlin {{
-    compilerOptions {{
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-    }}
-}}
-
-dependencies {{
-    implementation("androidx.activity:activity-compose:1.11.0")
-    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.compose.ui:ui")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-}}
-""";
+    }}""";
+    return _module_gradle("com.android.application", package_name, default_config);
 }
 
 def _hot_gradle(package_name: str) -> str {
-    pkg = escape_kotlin(package_name);
-    return f"""plugins {{
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.plugin.serialization")
-}}
-
-android {{
-    namespace = "{pkg}"
-    compileSdk = 36
-
-    defaultConfig {{
+    default_config = """    defaultConfig {
         minSdk = 26
-    }}
-
-    compileOptions {{
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }}
-}}
-
-kotlin {{
-    compilerOptions {{
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-    }}
-}}
-
-dependencies {{
-    implementation("androidx.activity:activity-compose:1.11.0")
-    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.compose.ui:ui")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-}}
-""";
+    }""";
+    return _module_gradle("com.android.library", package_name, default_config);
 }
 
 def _hot_manifest -> str {
@@ -440,31 +427,6 @@ object JacThemeModule {{
     )
 }}
 """;
-}
-
-def _jac_layouts(package_name: str) -> str {
-    return f"""package {package_name}
-
-import androidx.compose.runtime.Composable
-
-@Composable
-fun JacLayoutBoundary(content: @Composable () -> Unit) {{
-    content()
-}}
-""";
-}
-
-def _jac_responsive(package_name: str) -> str {
-    return f"""package {package_name}
-
-object JacResponsiveModule {{
-    const val generated = true
-}}
-""";
-}
-
-def _generated_views_index(package_name: str) -> str {
-    return f"package {package_name}\n";
 }
 
 def _jac_dev_entry(package_name: str) -> str {
@@ -708,12 +670,6 @@ class JacDevHostActivity : ComponentActivity() {{
 """;
 }
 
-impl GradleScaffold.generate -> dict[str, str] {
-    return build_gradle_scaffold(
-        self.package_name, self.app_name, self.backend_url, self.routes, self.dev
-    );
-}
-
 impl build_gradle_scaffold(
     package_name: str,
     app_name: str,
@@ -729,10 +685,7 @@ impl build_gradle_scaffold(
         "MainActivity.kt": _main_activity(package_name),
         "JacRouting.kt": _jac_routing(package_name, effective_routes),
         "JacEnvironment.kt": _jac_environment(package_name, backend_url),
-        "JacTheme.kt": _jac_theme(package_name),
-        "JacLayouts.kt": _jac_layouts(package_name),
-        "JacResponsive.kt": _jac_responsive(package_name),
-        "GeneratedViews.kt": _generated_views_index(package_name)
+        "JacTheme.kt": _jac_theme(package_name)
     };
     files: dict[str, str] = {
         "build.gradle.kts": _root_gradle(),
@@ -765,25 +718,4 @@ impl build_gradle_scaffold(
         }
     }
     return files;
-}
-
-impl ensure_gradle_wrapper(android_dir: Path) -> None {
-    gradlew = android_dir / ("gradlew.bat" if os.name == "nt" else "gradlew");
-    if gradlew.exists() {
-        return;
-    }
-    gradle = shutil.which("gradle");
-    if not gradle {
-        return;
-    }
-    subprocess.run(
-        [gradle, "wrapper", "--gradle-version", "8.13"],
-        cwd=str(android_dir),
-        check=False
-    );
-    if os.name != "nt" and gradlew.exists() {
-        try {
-            os.chmod(gradlew, 0o755);
-        } except Exception { }
-    }
 }

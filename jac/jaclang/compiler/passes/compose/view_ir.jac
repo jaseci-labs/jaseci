@@ -4,6 +4,7 @@ import type from jaclang.compiler.passes.compose.kotlin_ast { KtNode }
 obj ComposeAttr {
     has name: str,
         value: KtNode,
+        param_kind: str = "",
         is_event: bool = False,
         jac_node: (uni.UniNode | None) = None;
 }
@@ -71,7 +72,6 @@ obj ComposeEachChild {
 
 obj ComposeElement {
     has name: str,
-        is_user_component: bool = False,
         attrs: list[ComposeAttr] = [],
         children:
             list[

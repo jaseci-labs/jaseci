@@ -1,9 +1,6 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
-import from jaclang.compiler.passes.compose.surface {
-    is_compose_primitive,
-    is_compose_event_attr
-}
+import from jaclang.compiler.passes.compose.compose_stub_gen { widget_attr_param_kind }
 import from jaclang.compiler.passes.compose.view_ir {
     ComposeElement,
     ComposeAttr,
@@ -29,13 +26,6 @@ def _tag_name(nd: uni.JsxElement) -> (str | None) {
         return None;
     }
     return parts[0].value;
-}
-
-def _is_user_component(name: str) -> bool {
-    if not name {
-        return False;
-    }
-    return name[0].isupper() and not is_compose_primitive(name);
 }
 
 def _jsx_attr_name(name_nd: any) -> str {
@@ -146,11 +136,13 @@ impl ComposeViewBuilder.build_element(nd: uni.JsxElement) -> (ComposeElement | N
             if kt_val is None {
                 continue;
             }
+            param_kind = widget_attr_param_kind(tag, aname);
             attrs.append(
                 ComposeAttr(
                     name=aname,
                     value=kt_val,
-                    is_event=is_compose_event_attr(aname),
+                    param_kind=param_kind,
+                    is_event=param_kind == "event",
                     jac_node=attr
                 )
             );
@@ -201,7 +193,6 @@ impl ComposeViewBuilder.build_element(nd: uni.JsxElement) -> (ComposeElement | N
     }
     elem = ComposeElement(
         name=tag,
-        is_user_component=_is_user_component(tag),
         attrs=attrs,
         children=children,
         jac_node=nd

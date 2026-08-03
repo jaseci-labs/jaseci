@@ -1,5 +1,6 @@
 import from pathlib { Path }
 import from jaclang.cli.console { console }
+import from jaclang.runtimelib.client.targets.android.dev_server { publish_hot_module }
 import from jaclang.runtimelib.watcher { FileChangeEvent, ChangeType }
 
 obj AndroidHotReloadHandler {
@@ -47,8 +48,7 @@ obj AndroidHotReloadHandler {
             (version, dex_path) = self.target._build_hot_dex(
                 self.android_dir, self.package_name
             );
-            self.state["version"] = version;
-            self.state["dex_path"] = str(dex_path);
+            publish_hot_module(self.state, version, str(dex_path));
             console.success(f"  ⚡ Hot module swapped → v{version}");
         } except Exception as e {
             console.warning(f"  hot rebuild failed: {e}");
