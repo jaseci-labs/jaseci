@@ -240,27 +240,21 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     );
     self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd), "list");
 
-    _linit_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-        if nd.loc
-        else 0}";
     first_val = self._nogc_elem_prep(nd.values[0], first_val);
     append_val = first_val;
     if elem_type_name == "ptr" and isinstance(first_val.type, ir.PointerType) {
         append_val = self.builder.bitcast(first_val, i8p, name="elem.cast");
     } else {
-        if self._list_box_ptr_into_i64(first_val, helpers["elem_type"])
-            and not self._is_owned(first_val) {
-            self._emit_rc_retain(first_val, op="list_init_box", loc=_linit_loc);
-        }
         append_val = self._coerce_type(append_val, helpers["elem_type"]);
     }
+    _linit_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+        if nd.loc
+        else 0}";
     self._rc_call_with_ctx(
         helpers["append"], [list_val, append_val], op="list_init", loc=_linit_loc
     );
 
-    if isinstance(first_val.type, ir.PointerType)
-        and self._is_owned(first_val)
-        and not self._list_box_ptr_into_i64(first_val, helpers["elem_type"]) {
+    if isinstance(first_val.type, ir.PointerType) and self._is_owned(first_val) {
         self._emit_rc_release_simple(first_val, op="list_init", loc=_linit_loc);
     }
 
