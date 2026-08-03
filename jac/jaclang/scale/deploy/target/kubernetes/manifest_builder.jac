@@ -73,12 +73,11 @@ def merge_manifest_overlay(base: any, overlay: any) -> any {
 }
 
 
-obj MicroserviceManifestBuilder {
+obj ManifestBuilder {
     has k8s_config: KubernetesConfig,
         secrets: dict[str, str] = {},
         deploy_context: DeployContext = DeployContext(),
         logger: any = None,
-        no_image: bool = True,
         project_dir: str = "",
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
@@ -226,7 +225,7 @@ obj MicroserviceManifestBuilder {
         }
 
         if getattr(self.k8s_config, "ops_console", False) {
-            import from jaclang.scale.deploy.target.kubernetes.microservice.ops_rbac {
+            import from jaclang.scale.deploy.target.kubernetes.ops_rbac {
                 build_ops_rbac
             }
             bundle["ops_rbac"] = build_ops_rbac(
@@ -259,11 +258,15 @@ obj MicroserviceManifestBuilder {
         self.microservices_config = ms_cfg;
 
         if not routes {
-            raise ValueError(
-                "No microservices to deploy: declare them in "
-                "[scale.microservices.routes] in jac.toml "
-                "(`jac scale split <module>` adds one)."
-            );
+            routes = self._solo_route(app_config);
+            services = dict(ms_cfg.get("services", {}));
+            solo_name = list(routes.keys())[0];
+            solo_cfg = dict(services.get(solo_name, {}));
+            solo_cfg["file"] = app_config.file_name;
+            services[solo_name] = solo_cfg;
+            ms_cfg["services"] = services;
+            ms_cfg["routes"] = routes;
+            self.microservices_config = ms_cfg;
         }
 
         specs: dict[str, dict[str, any]] = {};
@@ -280,6 +283,23 @@ obj MicroserviceManifestBuilder {
             );
         }
         return specs;
+    }
+
+    def _solo_route(app_config: AppConfig) -> dict[str, str] {
+        import from jaclang.scale.runtime.routing {
+            derive_route_prefix,
+            guard_route_name
+        }
+        name = app_config.app_name or self.k8s_config.app_name;
+        if not name {
+            raise ValueError(
+                "Cannot name the app's service: no app_name is set. Set "
+                "[project].name in jac.toml, or declare "
+                "[scale.microservices.routes] to cut the app into services."
+            );
+        }
+        guard_route_name(name);
+        return {name: derive_route_prefix(name)};
     }
 
     def _drain_timeout -> int {
@@ -331,7 +351,15 @@ obj MicroserviceManifestBuilder {
                 return True;
             }
         }
-        return False;
+
+        import tomllib;
+        try {
+            with open(os.path.join(root_dir, "jac.toml"), "rb") as fh {
+                return isinstance(tomllib.load(fh).get("client"), dict);
+            }
+        } except Exception {
+            return False;
+        }
     }
 
     def _shared_volumes_config -> list[dict[str, any]] {
@@ -471,6 +499,12 @@ obj MicroserviceManifestBuilder {
         return f"{self.k8s_config.app_name}-secrets";
     }
 
+    def _owner_labels -> dict[str, str] {
+        return {
+            str(k): str(v) for (k, v) in dict(self.k8s_config.labels or {}).items()
+        };
+    }
+
     def _service_account_name -> str {
         return str(getattr(self.k8s_config, "service_account_name", "") or "").strip();
     }
@@ -499,6 +533,10 @@ obj MicroserviceManifestBuilder {
             {"name": "K8S_APP_NAME", "value": self.k8s_config.app_name},
             {"name": "K8S_NAMESPACE", "value": self.k8s_config.namespace}
         ];
+        svc_file: str = str(svc_cfg.get("file") or "");
+        if svc_file {
+            env.append({"name": "JAC_SV_FILE", "value": svc_file});
+        }
 
         ms_trace_cfg: dict = dict(self._ms_cfg().get("tracing", {}));
         if ms_trace_cfg.get("enabled", False) {
@@ -651,6 +689,7 @@ obj MicroserviceManifestBuilder {
         k8s_name = k8s_safe_name(svc_name);
         role: str = "gateway" if svc_name == GATEWAY_NAME else "microservice";
         labels: dict[str, str] = {
+            ** self._owner_labels(),
             "app": k8s_name,
             "managed": "jac-scale",
             "jac-scale.role": role
@@ -711,7 +750,11 @@ obj MicroserviceManifestBuilder {
             "metadata": {
                 "name": f"{k8s_name}-service",
                 "namespace": self.k8s_config.namespace,
-                "labels": {"app": k8s_name, "managed": "jac-scale"}
+                "labels": {
+                    ** self._owner_labels(),
+                    "app": k8s_name,
+                    "managed": "jac-scale"
+                }
             },
             "spec": spec
         };
@@ -874,7 +917,10 @@ obj MicroserviceManifestBuilder {
                 f"  {gw_prefix}"
                 "  exec jac scale gateway; "
                 "else "
-                '  SV_FILE="$(find . -name "${JAC_SV_NAME}.jac" -not -path "*/.*" -print 2>/dev/null | head -n1)"; '
+                '  SV_FILE="${JAC_SV_FILE:-}"; '
+                '  if [ -z "$SV_FILE" ]; then '
+                '    SV_FILE="$(find . -name "${JAC_SV_NAME}.jac" -not -path "*/.*" -print 2>/dev/null | head -n1)"; '
+                '  fi; '
                 '  exec jac start "${SV_FILE:-${JAC_SV_NAME}.jac}"; '
                 "fi"
             ]

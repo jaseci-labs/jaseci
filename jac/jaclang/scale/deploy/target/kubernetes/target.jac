@@ -1,16 +1,11 @@
 import logging;
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
-    KubernetesTarget
+    KubernetesTargetBase
 }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.models.deployment_result { DeploymentResult }
 import from jaclang.scale.models.deploy_context { DeployContext }
-import from jaclang.scale._optdeps.kubernetes {
-    client,
-    config as k8s_cluster_config,
-    ApiException,
-    ConfigException
-}
+import from jaclang.scale._optdeps.kubernetes { client, ApiException }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     ensure_namespace_exists,
     create_k8s_secret,
@@ -21,13 +16,13 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
-    MicroserviceManifestBuilder,
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
 }
-import from jaclang.scale.deploy.target.kubernetes.microservice.database_provisioner {
-    MicroserviceDatabaseProvisioner
+import from jaclang.scale.deploy.target.kubernetes.database_provisioner {
+    DatabaseProvisioner
 }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import from jaclang.scale.deploy.autoscale.autoscaler {
@@ -43,9 +38,8 @@ import from jaclang.scale.config.config_loader { get_scale_config }
 glob logger = logging.getLogger(__name__);
 
 
-obj KubernetesMicroserviceTarget(KubernetesTarget) {
+obj KubernetesTarget(KubernetesTargetBase) {
     has _deploy_context: DeployContext = DeployContext(),
-        no_image: bool = True,
         microservices_config: dict[str, any] = {};
 
     def _ms_cfg -> dict[str, any] {
@@ -62,40 +56,61 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
 
     def deploy(app_config: AppConfig) -> DeploymentResult {
         app_name = app_config.app_name or self.k8s_config.app_name;
+        if self.k8s_config.shared_ingress and not self.k8s_config.domain {
+            return DeploymentResult(
+                success=False,
+                message="shared_ingress=True requires a domain: set 'domain' "
+                "under [scale.kubernetes] in jac.toml."
+            );
+        }
         if self.logger {
             self.logger.info(
-                f"Deploying microservice app '{app_name}' to Kubernetes",
+                f"Deploying app '{app_name}' to Kubernetes",
                 {"namespace": self.k8s_config.namespace}
             );
         }
 
+        self._emit("provision", "start", "Provisioning backends");
         try {
-            self._deploy_context = MicroserviceDatabaseProvisioner(
-                k8s_target=self, logger=self.logger, enabled=self.no_image
+            self._deploy_context = DatabaseProvisioner(
+                k8s_target=self, logger=self.logger
             ).provision(
                 app_name
             );
         } except Exception as e {
+            self._emit("provision", "error", f"database provisioning failed: {e}");
             return DeploymentResult(
                 success=False, message=f"database provisioning failed: {e}"
             );
         }
+        self._emit("provision", "ok", "Backends provisioned");
 
+        self._emit("bundle", "start", "Generating manifests");
         try {
             bundle = self.generate_manifests(app_config);
         } except Exception as e {
+            self._emit("bundle", "error", f"manifest generation failed: {e}");
             return DeploymentResult(
                 success=False, message=f"manifest generation failed: {e}"
             );
         }
+        self._emit(
+            "bundle",
+            "ok",
+            "Manifests generated",
+            detail={"services": len(bundle.get("pod_specs", {}))}
+        );
 
+        self._emit("apply", "start", "Applying manifests to the cluster");
         try {
             self.apply_manifests(bundle);
         } except Exception as e {
+            self._emit("apply", "error", f"manifest apply failed: {e}");
             return DeploymentResult(
                 success=False, message=f"manifest apply failed: {e}", details=bundle
             );
         }
+        self._emit("apply", "ok", "Manifests applied");
 
         observability_err: str = "";
         try {
@@ -103,6 +118,9 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         } except Exception as e {
             observability_err = str(e);
             bundle["observability_error"] = observability_err;
+            self._emit(
+                "observability", "warn", f"observability stack deploy failed: {e}"
+            );
             if self.logger {
                 self.logger.warn(
                     f"Observability stack deploy reported a non-fatal error: {e}",
@@ -111,15 +129,18 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             }
         }
 
+        self._emit("rollout", "start", "Waiting for the fleet to become ready");
         try {
             self._wait_for_fleet_rollout(bundle);
         } except Exception as e {
+            self._emit("rollout", "error", f"fleet did not become ready: {e}");
             return DeploymentResult(
                 success=False,
                 message=f"fleet did not become ready: {e}",
                 details=bundle
             );
         }
+        self._emit("rollout", "ok", "Fleet is ready");
 
         svc_count = len(bundle["pod_specs"]) - 1;
         success_msg = (
@@ -328,7 +349,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         if not names {
             return;
         }
-        self._load_kube_config();
+        self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
         ns = self.k8s_config.namespace;
@@ -542,7 +563,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             return;
         }
 
-        self._load_kube_config();
+        self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
 
@@ -662,12 +683,11 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         self.k8s_config.python_image = resolve_pod_base_image(
             app_config.code_folder, self.k8s_config.python_image, probe=not self.dry_run
         );
-        builder = MicroserviceManifestBuilder(
+        builder = ManifestBuilder(
             k8s_config=self.k8s_config,
             secrets=self.secrets,
-            deploy_context=self._deploy_context,
+            deploy_context=self._context_with_env(),
             logger=self.logger,
-            no_image=True,
             project_dir=app_config.code_folder,
             microservices_config=self.microservices_config,
             dry_run=self.dry_run
@@ -675,33 +695,21 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         return builder.generate_manifests(app_config, self.k8s_config.python_image);
     }
 
-    def _load_kube_config {
-        kubeconfig_failed: bool = False;
-        try {
-            k8s_cluster_config.load_kube_config();
-        } except ConfigException {
-            kubeconfig_failed = True;
+    def _context_with_env -> DeployContext {
+        if not self.env {
+            return self._deploy_context;
         }
-        if not kubeconfig_failed {
-            return;
+        ctx = DeployContext(
+            env_list=list(self._deploy_context.env_list),
+            init_containers=self._deploy_context.init_containers
+        );
+        present = {entry.get("name") for entry in ctx.env_list};
+        for (env_name, env_value) in self.env.items() {
+            if env_name not in present {
+                ctx.env_list.append({"name": env_name, "value": str(env_value)});
+            }
         }
-        try {
-            k8s_cluster_config.load_incluster_config();
-        } except ConfigException as e {
-            raise ConfigException(
-                "Could not load Kubernetes config from either kubeconfig "
-                "or in-cluster ServiceAccount.\n"
-                "If you're deploying from a laptop:\n"
-                "  - Start a local cluster:  minikube start\n"
-                "  - Verify kubectl works:   kubectl get nodes\n"
-                "  - For a remote cluster:   set KUBECONFIG or run "
-                "`aws eks update-kubeconfig` / `gcloud container clusters get-credentials`\n"
-                "If you're deploying from inside a pod, the pod needs a "
-                "ServiceAccount with cluster API access (the default "
-                "ServiceAccount usually does, but a restricted one may not).\n"
-                f"Original error from in-cluster load: {e}"
-            );
-        }
+        return ctx;
     }
 
     def _resolve_service_triggers(svc_name: str, cfg: dict[str, any]) -> list[Trigger] {
@@ -762,7 +770,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
     }
 
     def apply_manifests(bundle: dict[str, any]) {
-        self._load_kube_config();
+        self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
         policy_v1 = client.PolicyV1Api();
@@ -1042,7 +1050,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
             );
         }
 
-        self._load_kube_config();
+        self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
         policy_v1 = client.PolicyV1Api();

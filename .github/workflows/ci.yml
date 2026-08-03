@@ -1346,6 +1346,16 @@ jobs:
           bash jac/jaclang/scale/scripts/k8s_microservice_real_e2e.sh \
               jac/jaclang/scale/tests/fixtures/k8s_e2e
 
+      # Same cluster, separate namespace: deploy examples/sdk-deploy through
+      # the programmatic SDK (ScaleClient) instead of the target-level path
+      # above. official-image leg only - its baked runtime keeps the extra
+      # boot inside the job timeout, and the SDK path is base-image agnostic.
+      - name: Run SDK programmatic deploy e2e (ScaleClient)
+        if: matrix.base == 'official-image'
+        env:
+          CLUSTER_TYPE: kind
+        run: bash jac/jaclang/scale/tests/deploy/sdk_deploy_real_e2e.sh
+
       - name: Dump kubectl state on failure
         if: failure()
         env:

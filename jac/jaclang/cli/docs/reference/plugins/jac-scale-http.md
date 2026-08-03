@@ -1275,12 +1275,14 @@ See [Roles](#roles) in the Authentication section for details on protected accou
 
 ### Access Levels
 
+Levels are members of the ambient `AccessLevel` enum (no import needed):
+
 | Level | Value | Description |
 |-------|-------|-------------|
-| `NO_ACCESS` | `-1` | No access to the object |
-| `READ` | `0` | Read-only access |
-| `CONNECT` | `1` | Can traverse edges to/from this object |
-| `WRITE` | `2` | Full read/write access |
+| `AccessLevel.NO_ACCESS` | `-1` | No access to the object |
+| `AccessLevel.READ` | `0` | Read-only access |
+| `AccessLevel.CONNECT` | `1` | Can traverse edges to/from this object |
+| `AccessLevel.WRITE` | `2` | Full read/write access |
 
 ### Granting Permissions
 
@@ -1291,10 +1293,10 @@ Use `perm_grant` to allow all users to access an object at a given level:
 ```jac
 with entry {
     # Allow everyone to read this node
-    perm_grant(node, READ);
+    perm_grant(node, AccessLevel.READ);
 
     # Allow everyone to write
-    perm_grant(node, WRITE);
+    perm_grant(node, AccessLevel.WRITE);
 }
 ```
 
@@ -1305,10 +1307,10 @@ Use `allow_root` to grant access to a specific user's root graph:
 ```jac
 with entry {
     # Allow a specific user to read this node
-    allow_root(node, target_root_id, READ);
+    allow_root(node, target_root_id, AccessLevel.READ);
 
     # Allow write access
-    allow_root(node, target_root_id, WRITE);
+    allow_root(node, target_root_id, AccessLevel.WRITE);
 }
 ```
 
@@ -1328,7 +1330,7 @@ with entry {
 ```jac
 with entry {
     # Revoke a specific user's access
-    disallow_root(node, target_root_id, READ);
+    disallow_root(node, target_root_id, AccessLevel.READ);
 }
 ```
 
