@@ -93,7 +93,9 @@ impl NaIRGenPass._emit_dict_order_compact(
     bb = ir.IRBuilder(_body);
     _cur = bb.load(bb.gep(ord_a, [_i], name="oc.cp"), name="oc.cur");
     _hit = bb.icmp_signed("==", _cur, removed_slot, name="oc.hit");
-    bb.cbranch(_hit, _shift, self._incr(bb, _idx, _i, i64, fn, _scan));
+    bb.cbranch(
+        _hit, _shift, self._emit_order_scan_incr_block(bb, _idx, _i, i64, fn, _scan)
+    );
 
     bh = ir.IRBuilder(_shift);
     _j = bh.alloca(i64, name="oc.j");
@@ -113,7 +115,7 @@ impl NaIRGenPass._emit_dict_order_compact(
     return ir.IRBuilder(_cont);
 }
 
-impl NaIRGenPass._incr(
+impl NaIRGenPass._emit_order_scan_incr_block(
     b: ir.IRBuilder,
     idx_slot: ir.Value,
     i_cur: ir.Value,
@@ -128,6 +130,87 @@ impl NaIRGenPass._incr(
     return _blk;
 }
 
+impl NaIRGenPass._emit_dict_trace_fn(
+    trace_fn_name: str, dict_ptr_type: ir.Type, key_type: ir.Type, val_type: ir.Type
+) -> ir.Function {
+    i8 = ir.IntType(8);
+    i8p = i8.as_pointer();
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    visitor_ptype = ir.FunctionType(ir.VoidType(), [i8p]).as_pointer();
+    trace_fnty = ir.FunctionType(ir.VoidType(), [i8p, i8p]);
+    try {
+        _existing = self.llvm_module.get_global(trace_fn_name);
+        if isinstance(_existing, ir.Function) and not _existing.blocks {
+            trace_fn = _existing;
+            trace_fn.linkage = "private";
+        } else {
+            trace_fn = ir.Function(self.llvm_module, trace_fnty, name=trace_fn_name);
+            trace_fn.linkage = "private";
+        }
+    } except KeyError {
+        trace_fn = ir.Function(self.llvm_module, trace_fnty, name=trace_fn_name);
+        trace_fn.linkage = "private";
+    }
+    trace_fn.args[0].name = "obj";
+    trace_fn.args[1].name = "vis";
+
+    b = ir.IRBuilder(trace_fn.append_basic_block("entry"));
+    _vis = b.bitcast(trace_fn.args[1], visitor_ptype, name="vis.fn");
+    d_t = b.bitcast(trace_fn.args[0], dict_ptr_type, name="dict.typed");
+    cap_t = b.load(
+        b.gep(d_t, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="cp"), name="cap"
+    );
+    keys_t = b.load(
+        b.gep(d_t, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="kp"), name="keys"
+    );
+    vals_t = b.load(
+        b.gep(d_t, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vp"), name="vals"
+    );
+    ctrl_t = b.load(
+        b.gep(d_t, [ir.Constant(i32, 0), ir.Constant(i32, 4)], name="ctp"), name="ctrl"
+    );
+    si_t = b.alloca(i64, name="si");
+    b.store(ir.Constant(i64, 0), si_t);
+
+    loop_bb = trace_fn.append_basic_block("loop");
+    chk_bb = trace_fn.append_basic_block("chk");
+    live_bb = trace_fn.append_basic_block("live");
+    next_bb = trace_fn.append_basic_block("next");
+    done_bb = trace_fn.append_basic_block("done");
+    b.branch(loop_bb);
+
+    bl = ir.IRBuilder(loop_bb);
+    si_v = bl.load(si_t, name="si");
+    bl.cbranch(bl.icmp_unsigned(">=", si_v, cap_t, name="end"), done_bb, chk_bb);
+
+    bck = ir.IRBuilder(chk_bb);
+    cb_t = bck.load(bck.gep(ctrl_t, [si_v], name="cbp"), name="cb");
+    bck.cbranch(
+        bck.icmp_unsigned(">=", cb_t, ir.Constant(i8, 0x80), name="occ"),
+        live_bb,
+        next_bb
+    );
+
+    blv = ir.IRBuilder(live_bb);
+    if isinstance(key_type, ir.PointerType) {
+        kv_t = blv.load(blv.gep(keys_t, [si_v], name="kvp"), name="kv");
+        blv.call(_vis, [blv.bitcast(kv_t, i8p, name="ki8")]);
+    }
+    if isinstance(val_type, ir.PointerType) {
+        vv_t = blv.load(blv.gep(vals_t, [si_v], name="vvp"), name="vv");
+        blv.call(_vis, [blv.bitcast(vv_t, i8p, name="vi8")]);
+    }
+    blv.branch(next_bb);
+
+    bnx = ir.IRBuilder(next_bb);
+    bnx.store(bnx.add(si_v, ir.Constant(i64, 1), name="nsi"), si_t);
+    bnx.branch(loop_bb);
+
+    ir.IRBuilder(done_bb).ret_void();
+    return trace_fn;
+}
+
 impl NaIRGenPass._emit_dict_helpers(
     key_type_name: str,
     val_type_name: str,
@@ -137,7 +220,7 @@ impl NaIRGenPass._emit_dict_helpers(
 ) -> None {
     dict_key = f"{key_type_name}:{val_type_name}";
 
-    if dict_key in self.dict_helpers or dict_key in self.dict_types {
+    if dict_key in self.dict_helpers {
         return;
     }
 
@@ -218,6 +301,19 @@ impl NaIRGenPass._emit_dict_helpers(
             _rel_fn_decl = ir.Function(self.llvm_module, _rel_fnty, name=_rel_fn_name);
             _rel_fn_decl.linkage = "private";
         }
+
+        _dict_type_name = _rel_fn_name[len("__rc_release_"):];
+        _dict_has_ptr_kv = (
+            isinstance(key_type, ir.PointerType) or isinstance(val_type, ir.PointerType)
+        );
+        _dict_has_trace = False;
+        if _dict_has_ptr_kv and self._gc_mode() == "cycles" {
+            _dict_trace_fn = self._emit_dict_trace_fn(
+                f"__rc_trace_{_dict_type_name}", dict_ptr_type, key_type, val_type
+            );
+            _dict_has_trace = self._register_trace_pair(_rel_fn_decl, _dict_trace_fn);
+        }
+        self._require_trace_fn(_dict_type_name, _dict_has_ptr_kv, _dict_has_trace);
     }
 
     hash_fnty = ir.FunctionType(i64, [key_type]);
@@ -292,6 +388,9 @@ impl NaIRGenPass._emit_dict_helpers(
         if isinstance(key_type, ir.PointerType) {
             ki = bhe.ptrtoint(hash_fn.args[0], i64, name="ki");
             bhe.ret(bhe.mul(ki, ir.Constant(i64, MUL_HASH_K), name="h"));
+        } elif isinstance(key_type, ir.DoubleType) {
+            kbits = bhe.bitcast(hash_fn.args[0], i64, name="kbits");
+            bhe.ret(bhe.mul(kbits, ir.Constant(i64, MUL_HASH_K), name="h"));
         } else {
             bhe.ret(bhe.mul(hash_fn.args[0], ir.Constant(i64, MUL_HASH_K), name="h"));
         }
@@ -394,6 +493,8 @@ impl NaIRGenPass._emit_dict_helpers(
         ai = bke.bitcast(k_f, i8p, name="ai");
         cr = bke.call(memcmp_fn, [ki, ai, ir.Constant(i64, _key_sz)], name="mcr");
         keq = bke.icmp_signed("==", cr, ir.Constant(i32, 0), name="keq");
+    } elif isinstance(key_type, ir.DoubleType) {
+        keq = bke.fcmp_ordered("==", kke, k_f, name="keq");
     } else {
         keq = bke.icmp_unsigned("==", kke, k_f, name="keq");
     }
@@ -444,7 +545,7 @@ impl NaIRGenPass._emit_dict_helpers(
 
         _i64p_n = i64.as_pointer();
         _drn = bn.bitcast(dp, i8p, name="dr");
-        _dsln = bn.gep(_drn, [ir.Constant(i64, -8)], name="dsl");
+        _dsln = bn.gep(_drn, [ir.Constant(i64, HDR_DTOR_OFF)], name="dsl");
         _dslip = bn.bitcast(_dsln, _i64p_n, name="dsli");
         _dti64 = bn.ptrtoint(_rel_fn_decl, i64, name="di");
         bn.store(_dti64, _dslip);
@@ -912,6 +1013,99 @@ impl NaIRGenPass._emit_dict_helpers(
         bmp.ret(ir.Constant(val_type, 0));
     }
 
+    clear_fnty = ir.FunctionType(ir.VoidType(), [dict_ptr_type]);
+    clear_fn = ir.Function(
+        self.llvm_module,
+        clear_fnty,
+        name=f"__dict_clear_{key_type_name}_{val_type_name}"
+    );
+    clear_fn.linkage = "private";
+    clear_fn.args[0].name = "dict";
+    bcl = ir.IRBuilder(clear_fn.append_basic_block("entry"));
+    d_cl = clear_fn.args[0];
+    cap_cl = bcl.load(
+        bcl.gep(d_cl, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="cp"), name="cap"
+    );
+    ka_cl = bcl.load(
+        bcl.gep(d_cl, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="kp"), name="ka"
+    );
+    va_cl = bcl.load(
+        bcl.gep(d_cl, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="vp"), name="va"
+    );
+    ca_cl = bcl.load(
+        bcl.gep(d_cl, [ir.Constant(i32, 0), ir.Constant(i32, 4)], name="ctp"), name="ca"
+    );
+    si_cl = bcl.alloca(i64, name="si");
+    bcl.store(ir.Constant(i64, 0), si_cl);
+
+    cl_loop = clear_fn.append_basic_block("loop");
+    cl_chk = clear_fn.append_basic_block("chk");
+    cl_live = clear_fn.append_basic_block("live");
+    cl_zero = clear_fn.append_basic_block("zero");
+    cl_done = clear_fn.append_basic_block("done");
+    bcl.branch(cl_loop);
+
+    blc_cl = ir.IRBuilder(cl_loop);
+    si_v_cl = blc_cl.load(si_cl, name="si");
+    blc_cl.cbranch(
+        blc_cl.icmp_unsigned(">=", si_v_cl, cap_cl, name="end"), cl_done, cl_chk
+    );
+
+    bch_cl = ir.IRBuilder(cl_chk);
+    cb_cl = bch_cl.load(bch_cl.gep(ca_cl, [si_v_cl], name="cbp"), name="cb");
+    bch_cl.cbranch(
+        bch_cl.icmp_unsigned(">=", cb_cl, ir.Constant(i8, 0x80), name="occ"),
+        cl_live,
+        cl_zero
+    );
+
+    blv_cl = ir.IRBuilder(cl_live);
+    _hl_cl = self._nogc_headerless();
+    _free_cl = self._get_or_declare_extern("free", ir.VoidType(), [i8p])
+        if _hl_cl
+        else None;
+    if isinstance(key_type, ir.PointerType) {
+        kv_cl = blv_cl.load(blv_cl.gep(ka_cl, [si_v_cl], name="kvp"), name="kv");
+        if _hl_cl {
+            blv_cl.call(_free_cl, [blv_cl.bitcast(kv_cl, i8p, name="kc")]);
+        } else {
+            blv_cl.call(
+                self.rc_release_simple_fn, [blv_cl.bitcast(kv_cl, i8p, name="kc")]
+            );
+        }
+        blv_cl.store(
+            ir.Constant(key_type, None), blv_cl.gep(ka_cl, [si_v_cl], name="kclear")
+        );
+    }
+    if isinstance(val_type, ir.PointerType) {
+        vv_cl = blv_cl.load(blv_cl.gep(va_cl, [si_v_cl], name="vvp"), name="vv");
+        if not _hl_cl {
+            blv_cl.call(
+                self.rc_release_simple_fn, [blv_cl.bitcast(vv_cl, i8p, name="vc")]
+            );
+        }
+        blv_cl.store(
+            ir.Constant(val_type, None), blv_cl.gep(va_cl, [si_v_cl], name="vclear")
+        );
+    }
+    blv_cl.branch(cl_zero);
+
+    bz_cl = ir.IRBuilder(cl_zero);
+    bz_cl.store(ir.Constant(i8, CTRL_EMPTY), bz_cl.gep(ca_cl, [si_v_cl], name="czp"));
+    bz_cl.store(bz_cl.add(si_v_cl, ir.Constant(i64, 1), name="nsi"), si_cl);
+    bz_cl.branch(cl_loop);
+
+    bdn_cl = ir.IRBuilder(cl_done);
+    bdn_cl.store(
+        ir.Constant(i64, 0),
+        bdn_cl.gep(d_cl, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="lp")
+    );
+    bdn_cl.store(
+        ir.Constant(i64, 0),
+        bdn_cl.gep(d_cl, [ir.Constant(i32, 0), ir.Constant(i32, 5)], name="up")
+    );
+    bdn_cl.ret_void();
+
     len_fn = self._emit_container_len_fn(
         f"__dict_len_{key_type_name}_{val_type_name}", dict_ptr_type
     );
@@ -1044,6 +1238,10 @@ impl NaIRGenPass._emit_dict_helpers(
             isinstance(key_type, ir.PointerType) or isinstance(val_type, ir.PointerType)
         );
         if need_kv {
+            _cycles_on_d = self._gc_mode() == "cycles";
+            if _cycles_on_d and self.rc_collecting_gv is None {
+                self._emit_rc_helpers();
+            }
             si_ra = brel.alloca(i64, name="si");
             brel.store(ir.Constant(i64, 0), si_ra);
             rlp_bb = release_fn.append_basic_block("rlp");
@@ -1051,7 +1249,18 @@ impl NaIRGenPass._emit_dict_helpers(
             rkv_bb = release_fn.append_basic_block("rkv");
             rnx_bb = release_fn.append_basic_block("rnx");
             rarr_bb = release_fn.append_basic_block("rarr");
-            brel.branch(rlp_bb);
+            if _cycles_on_d {
+                _dict_coll = brel.load(self.rc_collecting_gv, name="dict.collecting");
+                brel.cbranch(
+                    brel.icmp_unsigned(
+                        "!=", _dict_coll, ir.Constant(i8, 0), name="dict.mid.coll"
+                    ),
+                    rarr_bb,
+                    rlp_bb
+                );
+            } else {
+                brel.branch(rlp_bb);
+            }
             brlp = ir.IRBuilder(rlp_bb);
             si_r = brlp.load(si_ra, name="si");
             brlp.cbranch(
@@ -1097,25 +1306,7 @@ impl NaIRGenPass._emit_dict_helpers(
         );
         brra.call(self.rc_safe_free_fn, [brra.bitcast(_order_rel, i8p, name="ordi8")]);
 
-        _i8pc = i8p;
-        _i64c = i64;
-        _i64pc = _i64c.as_pointer();
-        _ci8 = brra.bitcast(d_rel, _i8pc, name="ci8");
-        _craw = brra.gep(_ci8, [ir.Constant(_i64c, -32)], name="cr");
-        _captr = brra.bitcast(_craw, _i64pc, name="cap");
-        _car = brra.load(_captr, name="car");
-        _ca = brra.and_(_car, ir.Constant(_i64c, 4294967295), name="ca");
-        _ctr = brra.gep(_ci8, [ir.Constant(_i64c, -24)], name="ctr");
-        _ctpp = brra.bitcast(_ctr, _i8pc.as_pointer(), name="ctpp");
-        _ct = brra.load(_ctpp, name="ct");
-        lfb = release_fn.append_basic_block("lfb");
-        afb = release_fn.append_basic_block("afb");
-        self._emit_live_list_remove(brra, _ci8, _i8pc, _i64pc, lfb, lfb);
-        self._emit_struct_free_log(release_fn, lfb, afb, _ci8, _craw, _ca, _ct);
-        baf = ir.IRBuilder(afb);
-        baf.call(self.rc_safe_free_fn, [_craw]);
-        baf.branch(done_rel_bb);
-        ir.IRBuilder(done_rel_bb).ret_void();
+        self._emit_release_header_free(release_fn, brra, done_rel_bb);
         self.dict_release_fns[dict_key] = release_fn;
     } else {
         _dstruct_name_hl = getattr(dict_ptr_type.pointee, "name", "");
@@ -1135,6 +1326,7 @@ impl NaIRGenPass._emit_dict_helpers(
         "remove": remove_fn,
         "pop": pop_fn,
         "find": find_fn,
+        "clear": clear_fn,
         "key_type": key_type,
         "val_type": val_type
     };

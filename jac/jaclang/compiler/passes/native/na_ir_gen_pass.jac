@@ -757,6 +757,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         fn_name: str, container_ptr_type: ir.Type, data_fields: list
     ) -> ir.Function;
 
+    def _emit_release_header_free(
+        release_fn: ir.Function, b: ir.IRBuilder, done_bb: ir.Block
+    ) -> None;
+
     def _emit_linear_search_loop(
         func: ir.Function,
         entry_builder: ir.IRBuilder,
@@ -957,7 +961,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         i64: ir.Type
     ) -> ir.IRBuilder;
 
-    def _incr(
+    def _emit_order_scan_incr_block(
         b: ir.IRBuilder,
         idx_slot: ir.Value,
         i_cur: ir.Value,
@@ -965,6 +969,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         fn: ir.Function,
         scan_bb: ir.Block
     ) -> ir.Block;
+
+    def _emit_dict_trace_fn(
+        trace_fn_name: str, dict_ptr_type: ir.Type, key_type: ir.Type, val_type: ir.Type
+    ) -> ir.Function;
 
     def _box_to_jacval(value: ir.Value) -> ir.Value;
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value;
@@ -1182,6 +1190,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_struct_drop_fn(type_name: str) -> (ir.Function | None);
     def _emit_struct_drop_fields_fn(type_name: str) -> (ir.Function | None);
     def _emit_container_drop_fn(cont_name: str) -> (ir.Function | None);
+    def _emit_dict_drop_fn(
+        cont_name: str, dict_struct: ir.Type
+    ) -> (ir.Function | None);
+
     def _nogc_elem_drop_slot_ty -> ir.Type;
     def _nogc_stamp_elem_drops(
         cont: ir.Value | None, elem_mangles: list, family: str

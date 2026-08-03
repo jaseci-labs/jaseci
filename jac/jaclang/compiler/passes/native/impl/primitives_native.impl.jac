@@ -3613,9 +3613,31 @@ impl NativeDictEmitter.emit_popitem(
 
     last_idx = b.sub(dict_len, ir.Constant(i64, 1), name="dpi.last");
     last_key = b.call(helpers["get_key"], [target, last_idx], name="dpi.key");
-    last_val = b.call(helpers["get"], [target, last_key], name="dpi.val");
 
-    b.call(helpers["pop"], [target, last_key]);
+    last_key_out = last_key;
+    if isinstance(key_type, ir.PointerType) {
+        _i8p_pi = ir.IntType(8).as_pointer();
+        if p._nogc_headerless() {
+            if (
+                isinstance(key_type.pointee, ir.IntType) and key_type.pointee.width == 8
+            ) {
+                _strdup_pi = p._get_or_declare_extern("strdup", _i8p_pi, [_i8p_pi]);
+                _key_copy = b.call(
+                    _strdup_pi,
+                    [b.bitcast(last_key, _i8p_pi, name="dpi.k.src")],
+                    name="dpi.k.copy"
+                );
+                last_key_out = b.bitcast(_key_copy, key_type, name="dpi.k.out");
+            }
+        } else {
+            if p.rc_retain_fn is None {
+                p._emit_rc_helpers();
+            }
+            b.call(p.rc_retain_fn, [b.bitcast(last_key, _i8p_pi, name="dpi.k.ret")]);
+        }
+    }
+
+    last_val = b.call(helpers["pop"], [target, last_key], name="dpi.val");
 
     tuple_type = ir.LiteralStructType([key_type, val_type]);
     null_ptr = ir.Constant(tuple_type.as_pointer(), None);
@@ -3629,7 +3651,7 @@ impl NativeDictEmitter.emit_popitem(
     v_ptr = b.gep(
         tuple_ptr, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="dpi.v.ptr"
     );
-    b.store(last_key, k_ptr);
+    b.store(last_key_out, k_ptr);
     b.store(last_val, v_ptr);
 
     kt_str = "i8p"
@@ -3734,13 +3756,9 @@ impl NativeDictEmitter.emit_clear(
         return None;
     }
     b = get_builder(p);
-    i32 = ir.IntType(32);
-    i64 = ir.IntType(64);
-    len_ptr = b.gep(
-        target, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="dclear.len.ptr"
-    );
-    b.store(ir.Constant(i64, 0), len_ptr);
-    return ir.Constant(i64, 0);
+
+    b.call(helpers["clear"], [target]);
+    return ir.Constant(ir.IntType(64), 0);
 }
 
 impl NativeDictEmitter.emit_copy(
