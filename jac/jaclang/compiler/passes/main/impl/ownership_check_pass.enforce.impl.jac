@@ -373,6 +373,18 @@ impl OwnershipCheckPass._nogc_module_enforced(mod_name: str) -> bool {
     return False;
 }
 
+impl OwnershipCheckPass._nogc_fresh_scalar_list(expr: uni.Expr | None) -> bool {
+    if not isinstance(expr, uni.ListVal) {
+        return False;
+    }
+    for _v in (expr.values or []) {
+        if not self._expr_scalar_typed(_v) {
+            return False;
+        }
+    }
+    return True;
+}
+
 impl OwnershipCheckPass._nogc_fresh_arch_elem(expr: uni.Expr | None) -> bool {
     if not isinstance(expr, uni.FuncCall) {
         return False;
@@ -530,7 +542,13 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
             _idx_ctx = _lv.find_parent_of_type(uni.IndexSlice) is not None;
             for _le in (_lv.values or []) {
                 if self._nogc_str_elem_ok(_le, idx_ctx=_idx_ctx)
-                    or (not _idx_ctx and self._nogc_fresh_arch_elem(_le)) {
+                    or (
+                        not _idx_ctx
+                        and (
+                            self._nogc_fresh_arch_elem(_le)
+                            or self._nogc_fresh_scalar_list(_le)
+                        )
+                    ) {
                     continue;
                 }
                 if self._nogc_local_shape_expr_heap(_le) {
@@ -620,7 +638,11 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                     }
                     continue;
                 }
-                if _grow in ("append", "insert") and self._nogc_fresh_arch_elem(_gav) {
+                if _grow in ("append", "insert")
+                    and (
+                        self._nogc_fresh_arch_elem(_gav)
+                        or self._nogc_fresh_scalar_list(_gav)
+                    ) {
                     continue;
                 }
                 if self._nogc_local_shape_expr_heap(_gav) {

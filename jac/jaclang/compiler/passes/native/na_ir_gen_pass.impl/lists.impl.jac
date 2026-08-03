@@ -254,7 +254,9 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         helpers["append"], [list_val, append_val], op="list_init", loc=_linit_loc
     );
 
-    if isinstance(first_val.type, ir.PointerType) and self._is_owned(first_val) {
+    if isinstance(first_val.type, ir.PointerType)
+        and self._is_owned(first_val)
+        and self._gc_mode() != "none" {
         self._emit_rc_release_simple(first_val, op="list_init", loc=_linit_loc);
     }
 
@@ -287,7 +289,8 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             );
 
             if isinstance(_boxed_val.type, ir.PointerType)
-                and self._is_owned(_boxed_val) {
+                and self._is_owned(_boxed_val)
+                and self._gc_mode() != "none" {
                 self._emit_rc_release_simple(
                     _boxed_val, op="list_init", loc=_linit_loc
                 );

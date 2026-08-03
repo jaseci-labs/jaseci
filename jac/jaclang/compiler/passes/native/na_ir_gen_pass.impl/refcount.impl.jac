@@ -1165,6 +1165,15 @@ impl NaIRGenPass._nogc_stamp_elem_drops(
             _drop_target = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
         } elif _em in self.struct_types {
             _drop_target = self._emit_struct_drop_fn(_em);
+        } elif _em.startswith("list[") and _em.endswith("]") {
+            _ik = _em[5:-1];
+            if _ik == "int" {
+                self._emit_list_helpers("i64", ir.IntType(64));
+                _drop_target = self._emit_container_drop_fn("List.i64");
+            } elif _ik == "float" {
+                self._emit_list_helpers("f64", ir.DoubleType());
+                _drop_target = self._emit_container_drop_fn("List.f64");
+            }
         }
         if _drop_target is None {
             continue;
