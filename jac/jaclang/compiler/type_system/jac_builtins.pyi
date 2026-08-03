@@ -71,6 +71,7 @@ __all__ = [
     "restspec",
     "schedule",
     "unsafe_html",
+    "freeze",
     # Ambient values and constants
     "llm",
     # Builtin enums
@@ -198,6 +199,11 @@ def schedule(**kwargs: object) -> Callable[..., Any]: ...
 _ManagedT = TypeVar("_ManagedT")
 
 def managed(x: _ManagedT) -> _ManagedT: ...
+
+# Promotes a statically unique value (an `own` binding, consumed, or a fresh
+# expression) into the deep-immutable world; identity at runtime, checked by
+# the ownership pass (E1311 when uniqueness cannot be proven).
+def freeze(x: _ManagedT) -> _ManagedT: ...
 
 # Returns a sentinel object that the JSX flattener turns into raw HTML
 # (`dangerouslySetInnerHTML` on jac-client, `innerHTML` on bare-serve).

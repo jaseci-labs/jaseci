@@ -288,6 +288,7 @@ Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and
 | `E1307` | Reference to '{name}' escapes its region |
 | `E1308` | '{name}' is not sendable across a concurrency boundary |
 | `E1309` | Cannot mutate '{name}' through a deep-immutable `imm` binding |
+| `E1311` | Cannot freeze '{name}': the value may be aliased |
 
 ### Zero-RC Enforcement Errors
 

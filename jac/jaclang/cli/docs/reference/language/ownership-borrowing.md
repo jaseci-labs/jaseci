@@ -162,6 +162,22 @@ with entry {
 }
 ```
 
+## `freeze`: promoting into the immutable world
+
+`freeze(x)` moves a value across the membrane into the deep-immutable world. Its argument must be **statically unique** -- an `own` binding (which the call consumes, `E1301` afterwards) or a fresh expression -- so no other handle can ever write the frozen value. That proof is what makes `freeze` the identity function at runtime on every backend:
+
+```jac
+obj Buffer { has n: int = 0; }
+
+with entry {
+    a: own Buffer = Buffer(n=7);
+    d: imm Buffer = freeze(a);   # `a` is consumed; `d` is deep-immutable
+    print(d.n);                  # reads fine; `d.n = 9` would be E1309
+}
+```
+
+Freezing a possibly-aliased managed binding is rejected ([`E1311`](../diagnostics.md#ownership-borrow-errors)) -- copy the value first or take ownership of it. The frozen result is the natural payload for `flow` boundaries: `imm` values cross freely under the sendability rule.
+
 ## Reference-yielding loops
 
 `for x in &xs` iterates shared per-element borrows of an owned container and `for m in &mut xs` iterates exclusive ones. The loop is lowered as an index loop -- no reified iterator object ever holds a borrow, so the loop itself is the borrow's extent, and no lifetime is needed to name it:

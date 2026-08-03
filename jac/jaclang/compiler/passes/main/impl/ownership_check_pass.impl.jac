@@ -1,6 +1,6 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.diagnostics { E1301, E1302, E1303, E1304, E1306 }
+import from jaclang.jac0core.diagnostics { E1301, E1302, E1303, E1304, E1306, E1311 }
 
 glob _MOVE_EXEMPT_CALLS: tuple = (
          "len",
@@ -104,6 +104,7 @@ impl OwnershipCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     self._emit_region_escape_diagnostics();
     self._emit_sendability_diagnostics();
     self._emit_marker_diagnostics();
+    self._emit_freeze_diagnostics();
     self._emit_enforcement_diagnostics();
     return ir_in;
 }
@@ -293,6 +294,52 @@ impl OwnershipCheckPass._stamp_ownership -> None {
             );
             self.borrow_created_at[borrow_id] = nd;
         }
+    }
+}
+
+impl OwnershipCheckPass._emit_freeze_diagnostics -> None {
+    for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
+        if not (
+            isinstance(call.target, uni.Name) and call.target.sym_name == "freeze"
+        ) {
+            continue;
+        }
+        _cd = call.callee_decl;
+        if _cd is not None and _cd.find_parent_of_type(uni.Module) is self.ir_in {
+            continue;
+        }
+        args = [
+            a
+            for a in (call.params or [])
+            if not isinstance(a, uni.KWPair)
+        ];
+        if len(args) != 1 {
+            continue;
+        }
+        arg = args[0];
+        if isinstance(arg, uni.Name) {
+            s = arg.sym;
+            if s is not None and s.ownership == OwnershipKind.OWN {
+                continue;
+            }
+            self.emit(E1311, node_override=call, name=arg.sym_name);
+            continue;
+        }
+        if isinstance(
+            arg,
+            (
+                uni.FuncCall,
+                uni.ListVal,
+                uni.SetVal,
+                uni.DictVal,
+                uni.String,
+                uni.MultiString,
+                uni.FString
+            )
+        ) {
+            continue;
+        }
+        self.emit(E1311, node_override=call, name="<expression>");
     }
 }
 

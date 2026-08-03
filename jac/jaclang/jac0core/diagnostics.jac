@@ -660,6 +660,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " be reassigned, have a field written, or be borrowed `&mut`. Take an `imm` as"
          " read-only, or use an `own`/managed binding if you need to mutate."
      ),
+     E1311 = _err(
+         "E1311",
+         Category.SEMANTIC,
+         "Cannot freeze '{name}': the value may be aliased",
+         help="freeze() needs a statically unique argument so the frozen value can"
+         " never be written through another handle: pass an `own` binding (it is"
+         " consumed) or a fresh expression. Copy the value first, or take ownership"
+         " of it, before freezing."
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,
