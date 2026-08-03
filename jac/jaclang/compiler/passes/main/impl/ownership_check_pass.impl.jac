@@ -384,6 +384,32 @@ impl OwnershipCheckPass._emit_freeze_diagnostics -> None {
     }
 }
 
+impl OwnershipCheckPass._spawn_move_gen(nd: uni.UniCFGNode) -> set[SymId] {
+    import from jaclang.jac0core.constant { Tokens as Tok }
+    gen: set[SymId] = set();
+    operands: list[uni.Expr] = [];
+    for bx in nd.get_all_sub_nodes(uni.BinaryExpr) {
+        if bx.op?.name == Tok.KW_SPAWN {
+            operands.append(bx.left);
+            operands.append(bx.right);
+        }
+    }
+    for ux in nd.get_all_sub_nodes(uni.UnaryExpr) {
+        if ux.op?.name == Tok.KW_SPAWN {
+            operands.append(ux.operand);
+        }
+    }
+    for opnd in operands {
+        if isinstance(opnd, uni.Name)
+            and opnd.sym is not None
+            and opnd.sym.ownership == OwnershipKind.OWN {
+            sid = self._name_sym_id(opnd);
+            gen.add(sid);
+        }
+    }
+    return gen;
+}
+
 impl OwnershipCheckPass._stamp_loop_borrows -> None {
     for st in self.ir_in.get_all_sub_nodes(uni.InForStmt) {
         coll = st.collection;
@@ -582,6 +608,12 @@ impl OwnershipCheckPass._transfer(
         }
     }
     for g in self._return_move_gen(nd) {
+        out.add(g);
+        if g not in self.consumed_at {
+            self.consumed_at[g] = nd;
+        }
+    }
+    for g in self._spawn_move_gen(nd) {
         out.add(g);
         if g not in self.consumed_at {
             self.consumed_at[g] = nd;

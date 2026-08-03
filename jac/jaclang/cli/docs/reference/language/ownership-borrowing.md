@@ -162,6 +162,32 @@ with entry {
 }
 ```
 
+## Affine walkers
+
+A walker bound `own` is use-once computation: `spawn` moves it into the traversal, so a second spawn of the same binding is `E1301` and double-accumulation bugs become compile errors instead of subtle state carryover:
+
+```jac
+node Spot { has v: int = 0; }
+
+walker Visitor {
+    has total: int = 0;
+
+    can tally with Spot entry {
+        self.total += here.v;
+    }
+}
+
+with entry {
+    s = Spot(v=5);
+    w: own Visitor = Visitor();
+    res = w spawn s;      # `w` moves into the traversal
+    print(res.total);
+    # res2 = w spawn s;   # error[E1301]: use of 'w' after it was moved
+}
+```
+
+Unannotated walkers keep the managed reuse semantics unchanged.
+
 ## `freeze`: promoting into the immutable world
 
 `freeze(x)` moves a value across the membrane into the deep-immutable world. Its argument must be **statically unique** -- an `own` binding (which the call consumes, `E1301` afterwards) or a fresh expression -- so no other handle can ever write the frozen value. That proof is what makes `freeze` the identity function at runtime on every backend:
