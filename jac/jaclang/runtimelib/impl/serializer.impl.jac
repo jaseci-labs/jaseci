@@ -118,16 +118,6 @@ impl Serializer._serialize_value(
             result['edges'] = [str(e.id) for e in val.edges];
 
             result['version'] = val.version;
-
-            if val.topology_index_data is not None
-                and isinstance(val.archetype, Root) {
-                import from base64 { b64encode }
-                result['topology_index_data'] = b64encode(
-                    val.topology_index_data
-                ).decode(
-                    'ascii'
-                );
-            }
         }
         if isinstance(val, EdgeAnchor) {
             result |= {
@@ -649,14 +639,6 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
             );
 
             anchor.version = data.get('version', 0);
-
-            anchor.topology_index_data = None;
-            if isinstance(anchor.__dict__.get('archetype'), Root) {
-                if (topo_b64 := data.get('topology_index_data')) {
-                    import from base64 { b64decode }
-                    anchor.topology_index_data = b64decode(topo_b64);
-                }
-            }
         }
         if isinstance(anchor, EdgeAnchor) {
             anchor.is_undirected = data.get('is_undirected', False);
