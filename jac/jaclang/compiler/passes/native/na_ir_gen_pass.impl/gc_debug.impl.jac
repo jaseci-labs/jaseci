@@ -34,6 +34,40 @@ impl NaIRGenPass._emit_rc_debug_globals -> None {
             _fmt_off, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="dis.fmt"
         );
         _b_dis.call(self._get_printf(), [_fmt_off_ptr]);
+    } else {
+        # Tracing is compiled out: __rc_debug_enable prints a one-line stderr
+        # notice so a caller flipping the runtime switch learns why nothing is
+        # traced. __rc_debug_disable stays a pure no-op.
+        _triple = str(self.llvm_module.triple or "").lower();
+        if "wasm" not in _triple {
+            _is_darwin = ("darwin" in _triple)
+                or ("apple" in _triple)
+                or ("macos" in _triple)
+                or ("ios" in _triple);
+            _stderr_name = "__stderrp" if _is_darwin else "stderr";
+            if _stderr_name not in self.extern_funcs {
+                _stderr_gv = ir.GlobalVariable(
+                    self.llvm_module, i8_ptr, name=_stderr_name
+                );
+                _stderr_gv.linkage = "external";
+                if "windows" in _triple {
+                    _stderr_gv.storage_class = "dllimport";
+                }
+                self.extern_funcs[_stderr_name] = _stderr_gv;
+            }
+            _fprintf_fn = self._get_or_declare_extern(
+                "fprintf", i32, [i8_ptr, i8_ptr], var_arg=True
+            );
+            _notice = self._get_fmt_string(
+                "jac: RC debug tracing not compiled in"
+                    + " (build with JAC_RC_DEBUG_CODEGEN=1)"
+            );
+            _notice_ptr = _b_en.gep(
+                _notice, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="en.notice"
+            );
+            _stderr_val = _b_en.load(self.extern_funcs[_stderr_name], name="en.stderr");
+            _b_en.call(_fprintf_fn, [_stderr_val, _notice_ptr]);
+        }
     }
     _b_en.ret_void();
     _b_dis.ret_void();
