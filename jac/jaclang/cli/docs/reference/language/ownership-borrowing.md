@@ -102,6 +102,23 @@ with entry {
 }
 ```
 
+Borrows split at field granularity: a borrow of exactly one field (`&p.name`, `&mut p.left`) records a loan on that field alone, so borrows and writes touching provably disjoint fields of one owner coexist:
+
+```jac
+obj Player { has name: str = "", score: int = 0; }
+
+def use_name(x: str) {}
+
+with entry {
+    p: own Player = Player();
+    v: &str = &p.name;
+    p.score = 1;      # OK: disjoint field -- `v` only borrows `p.name`
+    use_name(v);
+}
+```
+
+Writing the *same* field (`p.name = ...`) or borrowing the whole object (`&p`) still conflicts, and anything deeper than one attribute level (`&p.left.n`) or through a subscript conservatively borrows the whole object. A field borrow also still pins the whole owner for destruction, escape, and sendability checks.
+
 A borrow must not outlive the owner it points to -- if the owner's scope ends while the borrow is still live, that's [`E1304`](../diagnostics.md#ownership-borrow-errors):
 
 ```jac

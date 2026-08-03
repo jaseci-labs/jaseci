@@ -26,13 +26,22 @@ no annotations and no region opens produces no E13xx diagnostics, ever.
 Unannotated code keeps the managed RC/GC floor exactly as before: gradual
 adoption is unchanged.
 
-**2. Symbol-level granularity.** The unit of tracking is the *binding* -- a
-declared local or parameter, identified by its symbol id. Moves, borrows, and
-consumption are facts about names, not about heap objects:
+**2. Symbol-level granularity, with single-field borrow splitting.** The unit
+of tracking is the *binding* -- a declared local or parameter, identified by
+its symbol id. Moves, borrows, and consumption are facts about names, not
+about heap objects:
 
 - Field- and index-projections are tracked only back to their base symbol
-  (`a.b.c` and `a[i]` are accesses *of `a`*). There is no field-sensitive or
-  path-sensitive state: you cannot move `a.b` while keeping `a.c` live.
+  (`a.b.c` and `a[i]` are accesses *of `a`*). There is no path-sensitive
+  *move* state: you cannot move `a.b` while keeping `a.c` live.
+- Borrow *conflicts* (E1302, E1303) carry one extra fact: a borrow taken as
+  exactly one attribute level on a root name (`&a.b`, `&mut a.b`) records the
+  field it covers, and two loans on the same owner conflict only when their
+  fields overlap (either names the whole object, or both name the same
+  field). Everything else stays whole-object: subscripts, paths deeper than
+  one level, and region-synthesized borrows collapse to the owner, and a
+  field borrow still pins the whole owner for destruction (E1304), escape
+  (E1306), and sendability (E1308).
 - There is no interprocedural analysis. A call is handled by its signature
   only: passing an `own`/`linear` value to a call is a consuming move; what the
   callee does internally is checked separately, in the callee. Two

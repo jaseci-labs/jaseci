@@ -36,7 +36,7 @@ with entry {
 }
 ```
 
-`&mut x` takes the exclusive mutable borrow: any number of live `&`, or exactly one live `&mut`, never both (violations are E1302).
+`&mut x` takes the exclusive mutable borrow: any number of live `&`, or exactly one live `&mut`, never both (violations are E1302). Borrows split at single-field granularity: `&p.name` loans only that field, so a write to `p.score` (or a `&mut p.score`) under it is legal; same-field overlaps, whole-object borrows, subscripts, and deeper paths conflict as before.
 
 - `own` is **affine**: dropping without consuming is fine, not an error. Passing an owned local to a jac-defined call, `return`, or field store consumes it; read-only builtin methods and native stdlib calls borrow instead (see the idioms section below).
 - Storing an owned value into a field/subscript/graph object seals it into managed storage (**the membrane**): the source binding dies, and reading it back yields a plain managed value. `node`/`edge`/`walker` stay fully managed - no `own`/`&` of graph state.

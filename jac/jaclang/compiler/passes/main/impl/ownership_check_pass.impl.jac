@@ -285,7 +285,10 @@ impl OwnershipCheckPass._stamp_ownership -> None {
                         is_mut_kind(nd.value.ownership)
                             if isinstance(nd.value, uni.UnaryExpr)
                             else False
-                    )
+                    ),
+                field=self._single_field_of(nd.value.operand)
+                    if isinstance(nd.value, uni.UnaryExpr)
+                    else ""
             );
             self.borrow_created_at[borrow_id] = nd;
         }
@@ -737,6 +740,28 @@ impl OwnershipCheckPass._borrow_is_mut_of(borrow_id: SymId) -> bool {
     return False;
 }
 
+impl OwnershipCheckPass._borrow_field_of(borrow_id: SymId) -> str {
+    meta = self.borrow_meta.get(borrow_id);
+    if meta is not None {
+        return meta.field;
+    }
+    return "";
+}
+
+impl OwnershipCheckPass._single_field_of(nd: uni.Expr | None) -> str {
+    if isinstance(nd, uni.AtomTrailer)
+        and nd.is_attr
+        and isinstance(nd.target, uni.Name)
+        and isinstance(nd.right, uni.Name) {
+        return nd.right.sym_name;
+    }
+    return "";
+}
+
+impl OwnershipCheckPass._fields_overlap(a: str, b: str) -> bool {
+    return a == "" or b == "" or a == b;
+}
+
 impl OwnershipCheckPass._borrow_display_name(borrow_id: SymId, fallback: str) -> str {
     meta = self.borrow_meta.get(borrow_id);
     if meta is not None {
@@ -948,6 +973,11 @@ impl OwnershipCheckPass._emit_borrow_diagnostics -> None {
                 if self._borrow_owner_of(other) != owner_id {
                     continue;
                 }
+                if not self._fields_overlap(
+                    self._borrow_field_of(borrow_id), self._borrow_field_of(other)
+                ) {
+                    continue;
+                }
                 if nd.value
                     and isinstance(nd.value, uni.UnaryExpr)
                     and (
@@ -1006,6 +1036,9 @@ impl OwnershipCheckPass._emit_borrow_diagnostics -> None {
                 if (
                     self._borrow_owner_of(borrow_id) == tgt_owner_id
                     and not self._borrow_is_mut_of(borrow_id)
+                    and self._fields_overlap(
+                        self._borrow_field_of(borrow_id), self._single_field_of(tgt)
+                    )
                 ) {
                     borrow_site = self.borrow_created_at.get(borrow_id);
                     borrow_name = self._borrow_display_name(borrow_id, "");

@@ -31,7 +31,8 @@ def _stdlib_attr_call_root(call: uni.FuncCall) -> (str | None);
 obj BorrowMeta {
     has name: str,
         owner: (SymId | None) = None,
-        is_mut: bool = False;
+        is_mut: bool = False,
+        field: str = "";
 }
 
 obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
@@ -159,6 +160,9 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _owned_name(sym_id: SymId, fallback: str) -> str;
     def _borrow_owner_of(borrow_id: SymId) -> (SymId | None);
     def _borrow_is_mut_of(borrow_id: SymId) -> bool;
+    def _borrow_field_of(borrow_id: SymId) -> str;
+    def _single_field_of(nd: uni.Expr | None) -> str;
+    def _fields_overlap(a: str, b: str) -> bool;
     def _borrow_display_name(borrow_id: SymId, fallback: str) -> str;
     def _classify_access(nd: uni.Name) -> AccessKind;
     def _is_write_target(nd: uni.Name) -> bool;
