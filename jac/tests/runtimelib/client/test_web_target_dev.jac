@@ -148,7 +148,7 @@ test "configured scripts reach the dev server index.html" {
     import tempfile;
     import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
 
-    def _fake_get_config() -> any {
+    def _fake_get_config -> any {
         return _FakeConfig(
             meta_data={
                 "title": "ignored in dev",

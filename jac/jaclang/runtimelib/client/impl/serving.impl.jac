@@ -200,7 +200,7 @@ impl HeaderBuilder._script_tag(spec: dict) -> str {
     if src {
         return f"{opening}></script>";
     }
-    # an unescaped </script> in the body would close the tag early
+
     safe_body = re.sub(r"</(?=script)", r"<\\/", body, flags=re.IGNORECASE);
     return f"{opening}>{safe_body}</script>";
 }
