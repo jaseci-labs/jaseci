@@ -162,6 +162,12 @@ with entry {
 }
 ```
 
+## Views and zero-copy: current state and direction
+
+Two pieces of the immutable-view design (#7857 Phase C) are live today: a function may return a borrow it received as a parameter (the passthrough rule above -- the single-input case of Rust's lifetime elision, with no lifetime syntax), and `str` slices never consume their source. Slices are currently *owned copies* on every backend: the native string representation is a NUL-terminated buffer whose length-carrying variant (a fat `(data, len)` pointer that `print`, `len`, and the str runtime all honor) is the prerequisite for representing a mid-string view, so zero-copy slices of `imm`/borrowed receivers are deliberately fenced until that representation lands. The semantic direction is fixed and documented here so the fence is a representation gap, not a design gap: views of deep-frozen data need only extent-keeping (RC on the managed floor, owner-outlives under enforcement), never a named lifetime.
+
+Ownership states also compose through higher-order signatures: `Callable[[own Buffer], None]` declares that the callable consumes its argument, and passing an owned binding through such a call consumes it under the ordinary rules.
+
 ## Affine walkers
 
 A walker bound `own` is use-once computation: `spawn` moves it into the traversal, so a second spawn of the same binding is `E1301` and double-accumulation bugs become compile errors instead of subtle state carryover:
