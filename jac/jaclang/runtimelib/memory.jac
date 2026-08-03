@@ -61,6 +61,10 @@ obj Memory {
         return None;
     }
 
+    def existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
+        return None;
+    }
+
     async def aget(id: UUID) -> (Anchor | None);
     async def aput(anchor: Anchor) -> None;
     async def adelete(id: UUID) -> None;
@@ -98,6 +102,14 @@ obj PersistentMemory(Memory) {
         raise NotImplementedError(
             f"{type(self).__name__} does not implement the graph-index "
             "contract (edge_endpoints); every persistent backend must own "
+            "its graph index"
+        );
+    }
+
+    def existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the graph-index "
+            "contract (existing_ids); every persistent backend must own "
             "its graph index"
         );
     }

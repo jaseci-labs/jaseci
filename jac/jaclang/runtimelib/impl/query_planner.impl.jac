@@ -229,8 +229,12 @@ impl _heal_sweep(
         return;
     }
     for st in alive {
-        other_id = other_of.get(st.id);
-        if other_id is None or other_id in ok_nodes {
+        oid = other_of.get(st.id);
+        if oid is None {
+            continue;
+        }
+        other_id: UUID = oid;
+        if other_id in ok_nodes {
             continue;
         }
         mem.quarantine_ref(nanch, st);
