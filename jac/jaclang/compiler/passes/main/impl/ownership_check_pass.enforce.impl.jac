@@ -373,6 +373,18 @@ impl OwnershipCheckPass._nogc_module_enforced(mod_name: str) -> bool {
     return False;
 }
 
+impl OwnershipCheckPass._nogc_fresh_arch_elem(expr: uni.Expr | None) -> bool {
+    if not isinstance(expr, uni.FuncCall) {
+        return False;
+    }
+    _t = expr.target;
+    if not isinstance(_t, uni.Name) or _t.sym is None or _t.sym.decl is None {
+        return False;
+    }
+    _arch = _t.sym.decl.find_parent_of_type(uni.Archetype);
+    return _arch is not None and _arch.arch_type.name == Tok.KW_OBJECT;
+}
+
 impl OwnershipCheckPass._own_field_target(tgt: uni.AtomTrailer) -> bool {
     if not (tgt.is_attr and isinstance(tgt.right, uni.Name)) {
         return False;
@@ -517,7 +529,8 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
             }
             _idx_ctx = _lv.find_parent_of_type(uni.IndexSlice) is not None;
             for _le in (_lv.values or []) {
-                if self._nogc_str_elem_ok(_le, idx_ctx=_idx_ctx) {
+                if self._nogc_str_elem_ok(_le, idx_ctx=_idx_ctx)
+                    or (not _idx_ctx and self._nogc_fresh_arch_elem(_le)) {
                     continue;
                 }
                 if self._nogc_local_shape_expr_heap(_le) {
@@ -605,6 +618,9 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                         );
                         break;
                     }
+                    continue;
+                }
+                if _grow in ("append", "insert") and self._nogc_fresh_arch_elem(_gav) {
                     continue;
                 }
                 if self._nogc_local_shape_expr_heap(_gav) {

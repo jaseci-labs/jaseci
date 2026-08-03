@@ -1157,11 +1157,19 @@ impl NaIRGenPass._nogc_stamp_elem_drops(
     _cont_struct = cont.type?.pointee;
     _n_fields = len(list(getattr(_cont_struct, "elements", []) or []));
     for (_idx, _em) in _slot_specs {
-        if _em != "str" or _idx >= _n_fields {
+        if _idx >= _n_fields {
             continue;
         }
-        free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
-        _fn_cast = self.builder.bitcast(free_fn, _slot_ty, name="edrop.stamp.fn");
+        _drop_target: (ir.Value | None) = None;
+        if _em == "str" {
+            _drop_target = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+        } elif _em in self.struct_types {
+            _drop_target = self._emit_struct_drop_fn(_em);
+        }
+        if _drop_target is None {
+            continue;
+        }
+        _fn_cast = self.builder.bitcast(_drop_target, _slot_ty, name="edrop.stamp.fn");
         _sp = self.builder.gep(
             cont, [ir.Constant(i32, 0), ir.Constant(i32, _idx)], name="edrop.stamp.p"
         );

@@ -78,6 +78,7 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _nogc_module_enforced(mod_name: str) -> bool;
     def _nogc_check_call(call: uni.FuncCall, prov: str) -> None;
     def _own_field_target(tgt: uni.AtomTrailer) -> bool;
+    def _nogc_fresh_arch_elem(expr: uni.Expr | None) -> bool;
     def _emit_enforcement_diagnostics -> None;
     def _build_index(tree: uni.UniNode) -> None;
     def _stamp_ownership -> None;

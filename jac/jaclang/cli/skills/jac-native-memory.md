@@ -113,9 +113,15 @@ Under `--gc none` an enforced module compiles **headerless**: owned payloads are
   bindings and string literals are copied in, so the source stays live
   (`xs.append(s); print(s);` is legal). The container owns its elements and
   frees them when it drops. A borrowed (`&str`) or field-read string must be
-  laundered through an explicit copy first (`xs.append(f"{p}")`). Containers
-  of archetypes or nested containers are still E1406 until their element-drop
-  monomorphization lands.
+  laundered through an explicit copy first (`xs.append(f"{p}")`).
+- Lists of archetype elements are supported for **fresh** values: a
+  constructor result moves into `append`/`insert` (`xs.append(Res(tag=i))`)
+  and into list literals, the container stamps the element type's drop in
+  its element-drop slot, and every element is freed exactly once when the
+  list drops. Named archetype bindings stay fenced (E1406) - there is no
+  copy-in idiom for archetypes - and sets, dict keys/values of archetypes,
+  and nested containers remain E1406 until their hashing and element-drop
+  monomorphization land.
 - Typed-base int enum members are scalar constants; string globs are not
   expressible under the contract - use a `def` returning `own str` for
   string constants.
