@@ -3172,7 +3172,7 @@ impl TypeEvaluator.get_type_of_expression(
     _cyc_before = self._cyclic_resolution_depth;
     result = self._get_type_of_expression_core(node_, expected_type);
     if isinstance(result, types.UnknownType)
-    and self._cyclic_resolution_depth != _cyc_before {
+        and self._cyclic_resolution_depth != _cyc_before {
         return result;
     }
     if isinstance(result, types.UnknownType) {

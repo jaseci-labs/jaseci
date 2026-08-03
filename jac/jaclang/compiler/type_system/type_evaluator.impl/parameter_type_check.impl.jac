@@ -29,7 +29,7 @@ impl TypeEvaluator.validate_arg_types(
         _cyc_before_arg = self._cyclic_resolution_depth;
         arg_type = self.get_type_of_expression(value, expected_type=expected);
         if isinstance(arg_type, types.UnknownType)
-        and self._cyclic_resolution_depth != _cyc_before_arg {
+            and self._cyclic_resolution_depth != _cyc_before_arg {
             continue;
         }
 
