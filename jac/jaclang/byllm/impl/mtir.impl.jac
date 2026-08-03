@@ -48,10 +48,10 @@ def _describe_input_type(value: object, _depth: int = 0) -> str {
         ty = type(value);
         tsem = getattr(ty, "_jac_semstr", "") or "";
         msem = getattr(ty, "_jac_semstr_inner", {}) or {};
-        rows = [f"{pad}{ty.__name__} (enum)" + (f" -- {tsem}" if tsem else "")];
+        rows = [f"{pad}{ty.__name__}" + (f" -- {tsem}" if tsem else "")];
         for m in ty {
             d = msem.get(m.name, "");
-            rows.append(f"{pad}  - {m.name} = {m.value!r}" + (f": {d}" if d else ""));
+            rows.append(f"{pad}  - {m.name} = {m.value!r}" + (f" ---- {d}" if d else ""));
         }
         return "\n".join(rows);
     }
@@ -59,14 +59,14 @@ def _describe_input_type(value: object, _depth: int = 0) -> str {
         ty = type(value);
         tsem = getattr(ty, "_jac_semstr", "") or "";
         fsem = getattr(ty, "_jac_semstr_inner", {}) or {};
-        rows = [f"{pad}{ty.__name__} (obj)" + (f" -- {tsem}" if tsem else "")];
+        rows = [f"{pad}{ty.__name__}" + (f" -- {tsem}" if tsem else "")];
         for f in _dc_fields(ty) {
             if f.name.startswith("_") {
                 continue;
             }
             d = fsem.get(f.name, "");
             tyname = f.type?.__name__ or str(f.type);
-            rows.append(f"{pad}  - {f.name} ({tyname})" + (f": {d}" if d else ""));
+            rows.append(f"{pad}  - {f.name}: {tyname}" + (f" ---- {d}" if d else ""));
             fval = getattr(value, f.name, None);
             # Let the callee decide what is describable -- it now sees through
             # containers, so a `list[Step]` field expands like a bare one.
@@ -92,7 +92,7 @@ def _type_name(t: object) -> str {
 
 """Split a `_describe_input_type` block into its header and dedented body.
 
-The header ("Ticket (obj) -- <type sem>") merges into the owning schema line;
+The header ("Ticket -- <type sem>") merges into the owning schema line;
 the body (field/member rows) shifts left to align under that line's `----`
 description row.
 """
@@ -197,13 +197,13 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         local_idx += 1;
     }
 
-    # Construct the prompt zones from the arguments. The user message has four
-    # zones, each with one job:
-    #   1. header   -- qualified typed signature + the authored sem
+    # Construct the prompt zones from the arguments. The user message reads
+    # top-down as one call frame:
+    #   1. header   -- qualified typed signature + the authored sem, with the
+    #                  schema rows (params an author described) indented
+    #                  directly beneath it
     #   2. bindings -- the call frame: one `name = repr(value)` per argument
-    #   3. schema   -- only names an author described (param sem, or an
-    #                  obj/enum type whose definition expands)
-    #   4. identity -- `self`, only when it carries authored content
+    #   3. identity -- `self`, only when it carries authored content
     bindings: list[str] = [];
     schema_rows: list[str] = [];
     media_inputs: list = [];  # list[tuple[Media, str]]; semstr is "" when absent
@@ -359,13 +359,14 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
     if sem_text {
         header = f"{header} --- {sem_text}";
     }
-    zones: list[str] = [header];
-    if bindings {
-        zones.append("\n".join(bindings));
+    head_lines: list[str] = [header];
+    for row in schema_rows {
+        for line in row.split("\n") {
+            head_lines.append("      " + line);
+        }
     }
-    if schema_rows {
-        zones.append("\n".join(schema_rows));
-    }
+    head_lines.extend(bindings);
+    zones: list[str] = ["\n".join(head_lines)];
     if self_block {
         zones.append("\n".join(self_block));
     }
