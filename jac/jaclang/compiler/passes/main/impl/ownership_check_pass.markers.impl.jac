@@ -35,6 +35,17 @@ impl OwnershipCheckPass._emit_marker_diagnostics -> None {
             }
         }
     }
+
+    for region in self.ir_in.get_all_sub_nodes(uni.OpenStmt) {
+        hnm = self._open_handle_name(region);
+        if hnm is None {
+            continue;
+        }
+        hsid = self._sym_id(hnm);
+        if hsid is not None and hsid in self.imm_decl {
+            self._emit_imm_mutation(hsid, region, self.imm_decl.get(hsid));
+        }
+    }
 }
 
 impl OwnershipCheckPass._emit_imm_mutation(

@@ -63,7 +63,7 @@ with entry {
 - Escape hatches: scalars copy out freely; `own <expr>` **reboxes** a scalar/string copy out; helpers taking `&Region` legally carry region-rooted values, and a function with exactly ONE `&Region` param may return region-rooted results (single-region elision - two region params stay rejected).
 - Handles have dynamic extent: return one from a helper, grow it through a `Region`-typed param, drop it remotely. `Region` lowers to a pointer in native signatures.
 - Graph-native: nodes/edges created under an open allocate in the arena; a walker ability grows the region automatically - its allocations anchor to the region of the visited node (`here`), no `&Region` field needed. Wiring region topology to managed topology (either direction) is E1307. Walkers themselves are now RC-managed and reclaimed (`def drop` fires once per instance), not immortal.
-- Moving an `own Region` across `flow` transfers the whole subgraph zero-copy; legal only while no borrows of the handle are live.
+- Moving an `own Region` across `flow` transfers the whole subgraph zero-copy; legal only while no borrows of the handle are live. `freeze(r)` consumes the owned handle and transfers handle-ness: the `imm Region` result deep-freezes the subgraph and crosses `flow` freely under the imm sendability rule (share one frozen graph with N parallel readers); opening a frozen handle for allocation is E1309.
 - Python backend: memory stays GC-managed, but `drop` hooks fire at portable points - LIFO at the closing brace for an anonymous open, at handle death for a named one.
 - `W1310` lints an open with an empty body. Region opens are rejected (E1406) inside nogc-enforced modules for now.
 

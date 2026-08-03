@@ -176,7 +176,7 @@ with entry {
 }
 ```
 
-Freezing a possibly-aliased managed binding is rejected ([`E1311`](../diagnostics.md#ownership-borrow-errors)) -- copy the value first or take ownership of it. The frozen result is the natural payload for `flow` boundaries: `imm` values cross freely under the sendability rule.
+Freezing a possibly-aliased managed binding is rejected ([`E1311`](../diagnostics.md#ownership-borrow-errors)) -- copy the value first or take ownership of it. The frozen result is the natural payload for `flow` boundaries: `imm` values cross freely under the sendability rule. This composes with regions: `fr: imm Region = freeze(r)` consumes the owned handle and transfers handle-ness, so one frozen subgraph can be shared with any number of parallel readers -- statically race-free from two existing rules -- while opening the frozen handle for allocation is `E1309` and reopening the consumed source is `E1301`.
 
 ## Reference-yielding loops
 

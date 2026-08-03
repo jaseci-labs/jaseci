@@ -210,6 +210,17 @@ impl RcFactsPass._asn_makes_region_handle(nd: uni.Assignment) -> bool {
         and nd.value.sym.na_region_handle {
         return True;
     }
+    if isinstance(nd.value, uni.FuncCall)
+        and isinstance(nd.value.target, uni.Name)
+        and nd.value.target.sym_name == "freeze" {
+        for a in (nd.value.params or []) {
+            if isinstance(a, uni.Name)
+                and a.sym is not None
+                and a.sym.na_region_handle {
+                return True;
+            }
+        }
+    }
     return False;
 }
 
