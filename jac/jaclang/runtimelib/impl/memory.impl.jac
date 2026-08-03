@@ -28,7 +28,6 @@ import from jaclang.runtimelib.changeset {
 }
 import from jaclang.runtimelib.exceptions { WriteConflict }
 import from jaclang.runtimelib.serializer { Serializer }
-import from jaclang.runtimelib.query_plan { QueryPlan }
 import from jaclang.runtimelib.typecache { get_field_types }
 
 glob logger = logging.getLogger(__name__),
@@ -59,22 +58,6 @@ impl Memory.ahas(id: UUID) -> bool {
 
 impl Memory.acommit(anchor: (Anchor | None) = None) -> None {
     await asyncio.to_thread(self.commit, anchor);
-}
-
-impl Memory.capabilities -> set[str] {
-    return set();
-}
-
-impl Memory.execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None] {
-    if self.capabilities() {
-        logger.debug(
-            f"{type(self).__name__} declares capabilities "
-            f"{self.capabilities()} but did not override execute_plan; "
-            "falling back to empty result"
-        );
-    }
-    return;
-    yield ;
 }
 
 def _anchor_to_row(anchor: Anchor) -> tuple {
@@ -1178,14 +1161,6 @@ impl SqliteMemory._merge_write(conn: sqlite3.Connection, intent: WriteIntent) ->
             changed = True;
         }
 
-        if (
-            isinstance(stored_anchor, NodeAnchor)
-            and isinstance(anchor, NodeAnchor)
-            and anchor.topology_index_data != stored_anchor.topology_index_data
-        ) {
-            stored_anchor.topology_index_data = anchor.topology_index_data;
-            changed = True;
-        }
         if _canonical_json(stored_anchor.access) != _canonical_json(anchor.access) {
             stored_anchor.access = anchor.access;
             changed = True;
@@ -2285,31 +2260,6 @@ impl TieredMemory.is_recoverable_quarantine(id: UUID) -> bool {
         return self.l3.is_recoverable_quarantine(id);
     } except Exception {
         return False;
-    }
-}
-
-impl TieredMemory.capabilities -> set[str] {
-    if self.l3 is not None {
-        return self.l3.capabilities();
-    }
-    return set();
-}
-
-impl TieredMemory.execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None] {
-    if self.l3 is None {
-        return;
-    }
-    for anchor in self.l3.execute_plan(plan) {
-        existing = self.__mem__.get(anchor.id);
-        if existing is None {
-            self.__mem__[anchor.id] = anchor;
-            if self.l2 {
-                self.l2.put(anchor);
-            }
-            yield anchor;
-        } else {
-            yield existing;
-        }
     }
 }
 

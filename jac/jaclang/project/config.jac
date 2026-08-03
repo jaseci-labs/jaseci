@@ -40,7 +40,6 @@ obj RunConfig {
     has session: str = "",
         main: bool = True,
         cache: bool = True,
-        topology_index: bool = True,
         diagnostics: str = "error";
 }
 

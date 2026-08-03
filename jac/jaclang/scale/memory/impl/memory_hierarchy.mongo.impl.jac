@@ -480,66 +480,173 @@ impl MongoBackend.get_roots -> Generator[Root, None, None] {
 }
 
 
-impl MongoBackend.capabilities -> set[str] {
-    return {'type_pushdown', 'field_pushdown', 'id_in', 'slice'};
+"""Mongo side of the graph-index contract. Edge docs already carry
+data.source/data.target, so the edge relation needs no extra table; type
+ancestry lives in a small graph_types collection maintained on write and
+rebuildable by scanning arch types. Mongo comparisons are type-bracketed
+(BSON), which matches QPred.matches exactness for ordering ops the same
+way the SQLite json_type guard does."""
+def _mongo_types_col(backend: MongoBackend) -> any {
+    return backend.collection.database['graph_types'];
 }
 
 
-def _plan_to_mongo_filter(plan: QueryPlan) -> tuple[dict, int, (int | None)] {
-    filt: dict = {};
-
-    type_name = plan.node_type_final;
-    if type_name is None and plan.chain {
-        type_name = plan.chain[-1].node_type;
+def _mongo_record_ancestry(backend: MongoBackend, cls: type) -> None {
+    import from jaclang.jac0core.archetype {
+        Archetype,
+        EdgeArchetype,
+        NodeArchetype,
+        WalkerArchetype
     }
-    if type_name {
-        filt['arch_type'] = type_name;
-        filt['type'] = 'NodeAnchor';
-    }
-    if plan.id_in is not None {
-        filt['_id'] = {'$in': [str(u) for u in plan.id_in]};
-    }
-    for (k, v) in plan.field_predicates.items() {
-        filt[f'data.archetype.{k}'] = v;
-    }
-    skip_n: int = 0;
-    limit_n: (int | None) = None;
-    if plan.slc is not None {
-        step = plan.slc.step;
-        if step is None or step == 1 {
-            start = plan.slc.start or 0;
-            stop = plan.slc.stop;
-            skip_n = start;
-            if stop is not None {
-                limit_n = max(0, stop - start);
-            }
-        }
-    }
-    return (filt, skip_n, limit_n);
-}
-
-
-impl MongoBackend.execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None] {
-    if self.client is None {
-        return;
-    }
-    (filt, skip_n, limit_n) = _plan_to_mongo_filter(plan);
+    stops = (NodeArchetype, EdgeArchetype, WalkerArchetype, Archetype, object);
     try {
-        cursor = self.collection.find(filt).sort('_id', 1);
-        if skip_n {
-            cursor = cursor.skip(skip_n);
+        col = _mongo_types_col(backend);
+        for c in type(cls).__mro__ if not isinstance(cls, type) else cls.__mro__ {
+            if c in stops {
+                break;
+            }
+            col.update_one(
+                {'_id': f"{cls.__name__}::{c.__name__}"},
+                {'$set': {'type_name': cls.__name__, 'ancestor': c.__name__}},
+                upsert=True
+            );
         }
-        if limit_n is not None {
-            cursor = cursor.limit(limit_n);
-        }
-        for doc in cursor {
-            if (anchor := self._load_anchor(doc)) {
-                yield anchor;
+    } except Exception as e {
+        logger.debug(f"MongoDB ancestry record failed: {e}");
+    }
+}
+
+
+def _mongo_type_names(backend: MongoBackend, cls: type) -> list[str] {
+    names: list[str] = [cls.__name__];
+    try {
+        col = _mongo_types_col(backend);
+        for doc in col.find({'ancestor': cls.__name__}, {'type_name': 1}) {
+            tn = doc.get('type_name');
+            if tn and tn not in names {
+                names.append(tn);
             }
         }
     } except Exception as e {
-        logger.debug(f"MongoDB execute_plan failed ({filt}): {e}");
+        logger.debug(f"MongoDB ancestry lookup failed: {e}");
     }
+    return names;
+}
+
+
+def _mongo_pred_filter(preds: list[QPred]) -> dict {
+    filt: dict = {};
+    for p in preds {
+        v = p.value;
+        if isinstance(v, UUID) {
+            v = str(v);
+        }
+        key = f"data.archetype.{p.field}";
+        if p.op == '==' {
+            filt[key] = {'$eq': v};
+        } elif p.op == '!=' {
+            filt[key] = {'$ne': v};
+        } elif p.op == 'in' {
+            vals = [str(x) if isinstance(x, UUID) else x for x in p.value];
+            filt[key] = {'$in': vals};
+        } elif p.op == '<' {
+            filt[key] = {'$lt': v};
+        } elif p.op == '<=' {
+            filt[key] = {'$lte': v};
+        } elif p.op == '>' {
+            filt[key] = {'$gt': v};
+        } else {
+            filt[key] = {'$gte': v};
+        }
+    }
+    return filt;
+}
+
+
+impl MongoBackend.hop_rows(
+    src_ids: list[UUID], hop: QHop, ordered: bool = False
+) -> (list[tuple[UUID, UUID]] | None) {
+    if self.client is None or not src_ids {
+        return [];
+    }
+    keys = [str(i) for i in src_ids];
+    arms: list;
+    if hop.dir == 1 {
+        arms = [('data.target', 'data.source', False), ('data.source', 'data.target', True)];
+    } elif hop.dir == 3 {
+        arms = [('data.source', 'data.target', False), ('data.target', 'data.source', False)];
+    } else {
+        arms = [('data.source', 'data.target', False), ('data.target', 'data.source', True)];
+    }
+    base: dict = {'type': 'EdgeAnchor'};
+    if hop.`edge is not None {
+        base['arch_type'] = {'$in': _mongo_type_names(self, hop.`edge)};
+    }
+    rows: list = [];
+    try {
+        for (mkey, nkey, undir_only) in arms {
+            filt = dict(base);
+            filt[mkey] = {'$in': keys};
+            if undir_only {
+                filt['data.is_undirected'] = True;
+            }
+            proj = {'_id': 1, 'data.source': 1, 'data.target': 1};
+            for doc in self.collection.find(filt, proj).sort('_id', 1) {
+                data = doc.get('data') or {};
+                nbr = data.get(nkey.split('.')[-1]);
+                if nbr {
+                    rows.append((str(doc['_id']), str(nbr)));
+                }
+            }
+        }
+        nd = hop.nd;
+        node_types = (
+            nd if isinstance(nd, tuple) else ((nd, ) if nd is not None else ())
+        );
+        if node_types {
+            nbr_ids = list({r[1] for r in rows});
+            keep: set = set(nbr_ids);
+            for nt in node_types {
+                nfilt = {
+                    '_id': {'$in': [k for k in nbr_ids if k in keep]},
+                    'arch_type': {'$in': _mongo_type_names(self, nt)}
+                };
+                got = {
+                    str(d['_id'])
+                    for d in self.collection.find(nfilt, {'_id': 1})
+                };
+                keep = keep & got;
+            }
+            rows = [r for r in rows if r[1] in keep];
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB hop_rows failed: {e}");
+        return [];
+    }
+    return [(UUID(a), UUID(b)) for (a, b) in rows];
+}
+
+
+impl MongoBackend.filter_ids(
+    ids: list[UUID], preds: list[QPred]
+) -> (set[UUID] | None) {
+    if not ids or not preds {
+        return set(ids);
+    }
+    if self.client is None {
+        return set();
+    }
+    filt = _mongo_pred_filter(preds);
+    filt['_id'] = {'$in': [str(i) for i in ids]};
+    out: set[UUID] = set();
+    try {
+        for doc in self.collection.find(filt, {'_id': 1}) {
+            out.add(UUID(str(doc['_id'])));
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB filter_ids failed: {e}");
+    }
+    return out;
 }
 
 impl MongoBackend.commit(anchor: (Anchor | None) = None) -> None { }

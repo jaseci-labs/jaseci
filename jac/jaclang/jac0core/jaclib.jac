@@ -1,6 +1,5 @@
 import from jaclang.jac0core.archetype { GenericEdge, Root }
 import from jaclang.jac0core.archetype { ObjectSpatialFunction as DSFunc }
-import from jaclang.jac0core.archetype { ObjectSpatialPath as OPath }
 import from jaclang.jac0core.constant { EdgeDir }
 import from jaclang.jac0core.constructs { Archetype as Obj }
 import from jaclang.jac0core.constructs { EdgeArchetype as Edge }
@@ -20,7 +19,6 @@ glob __all__ = [
          'Root',
          'GenericEdge',
          'JsxElement',
-         'OPath',
          'DSFunc',
          'EdgeDir',
          'root',

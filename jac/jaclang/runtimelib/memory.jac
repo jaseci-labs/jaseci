@@ -7,7 +7,6 @@ import from uuid { UUID }
 import from jaclang.jac0core.archetype { Anchor, NodeAnchor, Root }
 import from jaclang.jac0core.graph_query { QHop, QPred }
 import from jaclang.runtimelib.changeset { ApplyReport, ChangeSet, WriteIntent }
-import from jaclang.runtimelib.query_plan { QueryPlan }
 import from jaclang.runtimelib.typecache { get_field_types }
 
 glob logger = logging.getLogger(__name__),
@@ -48,8 +47,6 @@ obj Memory {
     def quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None;
     def is_recoverable_quarantine(id: UUID) -> bool;
     def get_mem -> dict[UUID, Anchor] abst;
-    def capabilities -> set[str];
-    def execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None];
     def hop_rows(
         src_ids: list[UUID], hop: QHop, ordered: bool = False
     ) -> (list[tuple[UUID, UUID]] | None) {
@@ -205,8 +202,6 @@ obj TieredMemory(VolatileMemory) {
     def _collect_into(changes: ChangeSet) -> None;
     def _post_apply(apply_report: ApplyReport) -> None;
     def batch_get(ids: list[UUID]) -> dict[UUID, Anchor];
-    def capabilities -> set[str];
-    def execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None];
     def hop_rows(
         src_ids: list[UUID], hop: QHop, ordered: bool = False
     ) -> (list[tuple[UUID, UUID]] | None);

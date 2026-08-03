@@ -1,7 +1,7 @@
 """Visit target validation.
 
 `visit` accepts (per `JacWalker.visit` in jac0core/runtime.jac):
-    Node | Edge | ObjectSpatialPath
+    Node | Edge | GraphQuery
     | list/tuple/set/frozenset of (Node | Edge)
 
 The element type of a parameterized collection must itself be a valid
