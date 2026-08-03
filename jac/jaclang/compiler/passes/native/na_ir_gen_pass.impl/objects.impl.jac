@@ -988,6 +988,7 @@ impl NaIRGenPass._codegen_instantiation(
         and not self._arch_is_osp_name(type_name)
         and f"{type_name}.drop" not in self.func_symtab
         and not self.struct_field_inline.get(type_name, None)
+        and not self.region_stack
     );
     _headerless = self._nogc_headerless() and not self._arch_is_osp_name(type_name);
     if _stack_ok and _headerless {
@@ -1037,7 +1038,7 @@ impl NaIRGenPass._codegen_instantiation(
         }
     } elif _vt_struct {
         obj_ptr = self._clib_alloc_vtable(type_name);
-    } elif _headerless {
+    } elif _headerless and not self.region_stack {
         null_ptr = ir.Constant(struct_ptr_type, None);
         size_gep = self.builder.gep(
             null_ptr, [ir.Constant(ir.IntType(32), 1)], name="sizeof.gep"
@@ -1057,6 +1058,14 @@ impl NaIRGenPass._codegen_instantiation(
         size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="sizeof");
         raw_ptr = self._region_alloc(size, name="region.obj");
         obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
+        if self._gc_mode() == "none" {
+            _rg_asgn = nd.find_parent_of_type(uni.Assignment);
+            if _rg_asgn is not None
+                and len(_rg_asgn.target) == 1
+                and isinstance(_rg_asgn.target[0], uni.Name) {
+                self.nogc_stack_vars.add(_rg_asgn.target[0].sym_name);
+            }
+        }
         if self.rc_set_type_fn is not None {
             _obj_i8_r = self.builder.bitcast(
                 obj_ptr, ir.IntType(8).as_pointer(), name="obj.i8.rtag"

@@ -2123,7 +2123,11 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     if not (
                         self._nogc_headerless()
                         and getattr(nd, 'na_overwrite_consumed', False)
-                    ) {
+                    )
+                        and not (
+                            self._gc_mode() == "none"
+                            and var_name in self.nogc_stack_vars
+                        ) {
                         old_val = self.builder.load(alloca, name=f"{var_name}.old");
                         self._emit_rc_release_typed(
                             old_val,
@@ -2463,7 +2467,11 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     if not (
                         self._nogc_headerless()
                         and getattr(nd, 'na_overwrite_consumed', False)
-                    ) {
+                    )
+                        and not (
+                            self._gc_mode() == "none"
+                            and var_name in self.nogc_stack_vars
+                        ) {
                         old_val = self.builder.load(alloca, name=f"{var_name}.old");
                         self._emit_rc_release_typed(
                             old_val,

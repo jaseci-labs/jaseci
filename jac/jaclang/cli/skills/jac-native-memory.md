@@ -65,7 +65,7 @@ with entry {
 - Graph-native: nodes/edges created under an open allocate in the arena; a walker ability grows the region automatically - its allocations anchor to the region of the visited node (`here`), no `&Region` field needed. Wiring region topology to managed topology (either direction) is E1307. Walkers themselves are now RC-managed and reclaimed (`def drop` fires once per instance), not immortal.
 - Moving an `own Region` across `flow` transfers the whole subgraph zero-copy; legal only while no borrows of the handle are live. `fr = imm r` consumes the owned handle and transfers handle-ness: the frozen result deep-freezes the subgraph and crosses `flow` freely under the imm sendability rule (share one frozen graph with N parallel readers); opening a frozen handle for allocation is E1309.
 - Python backend: memory stays GC-managed, but `drop` hooks fire at portable points - LIFO at the closing brace for an anonymous open, at handle death for a named one.
-- `W1310` lints an open with an empty body. Region opens are rejected (E1406) inside nogc-enforced modules for now.
+- `W1310` lints an open with an empty body. Region opens are fully supported inside nogc-enforced modules: the arena core (bump alloc, dtor log, bulk free) needs no RC, so build-traverse-discard region code compiles headerless with `--assert-no-rc` passing and the same LIFO teardown as the managed modes.
 
 ## Zero-RC enforced builds - the workflow
 
@@ -90,7 +90,7 @@ jac nacompile service.jac --gc none --enforce-nogc --assert-no-rc
    | E1403 | Heap value crosses out of the module implicitly | Wrap the argument in `managed(x)`; scalars and `imm` cross freely |
    | E1404 | `any`-typed value could be heap | Give it a concrete type, or confine `any` to scalars |
    | E1405 | Escaping closure capture | Pass the value as an explicit parameter or keep the closure local |
-   | E1406 | Retaining/aliasing construct (`iter`/`globals`/`locals`, `managed()` of a heap value under `--gc none`, or an `in { }` region open) | Use an owned-compatible alternative or move the code out of the enforced module |
+   | E1406 | Retaining/aliasing construct (`iter`/`globals`/`locals`, or `managed()` of a heap value under `--gc none`) | Use an owned-compatible alternative or move the code out of the enforced module |
 
 3. **Verify**: `--assert-no-rc` fails the build if the emitted IR contains any `__rc_*` helper, trace function, roots-buffer global, or entry-point GC env probe; on success it prints `assert-no-rc ok`.
 
