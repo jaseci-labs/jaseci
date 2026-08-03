@@ -62,3 +62,13 @@ test "storing a ref-loop variable into a field is E1306" {
     prog = compile_fixture("ref_loop_owner_write.jac");
     expect_ownership_codes(prog, ["E1306"]);
 }
+
+test "growing the iterated container inside the loop is E1303" {
+    prog = compile_fixture("ref_loop_grow_conflict.jac");
+    expect_ownership_codes(prog, ["E1303"]);
+}
+
+test "growing the container after the loop is clean" {
+    prog = compile_fixture("ref_loop_grow_after_ok.jac");
+    expect_ownership_codes(prog, []);
+}

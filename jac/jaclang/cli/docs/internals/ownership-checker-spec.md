@@ -41,7 +41,12 @@ about heap objects:
   field). Everything else stays whole-object: subscripts, paths deeper than
   one level, and region-synthesized borrows collapse to the owner, and a
   field borrow still pins the whole owner for destruction (E1304), escape
-  (E1306), and sendability (E1308).
+  (E1306), and sendability (E1308). The element space is a pseudo-field
+  `"[]"`: reference-yielding loop variables record loans on it, container
+  element-writing methods (`append`/`insert`/`add`/`remove`/`pop`/`clear`/
+  `extend`/`update`) conflict with any overlapping loan (E1303 for shared,
+  E1302 for exclusive), and a loop-created loan's extent is the loop
+  statement itself, structurally.
 - Stores into a field whose `has` declaration is `own`-annotated are moves
   *within* the owned world, not membrane seals: the source binding is
   consumed as usual, but the enforcement rule (E1402) exempts them when the
