@@ -1413,6 +1413,162 @@ impl SqliteMemory.existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
     return out;
 }
 
+def _scalar_cols(arch: dict) -> dict {
+    out: dict = {};
+    for (k, v) in arch.items() {
+        if isinstance(k, str) and not k.startswith('$') and not k.startswith('_') {
+            if v is None or isinstance(v, (str, int, float, bool)) {
+                out[k] = v;
+            }
+        }
+    }
+    return out;
+}
+
+def _ancestry_map(conn: sqlite3.Connection, names: set[str]) -> dict[str, tuple] {
+    out: dict[str, tuple] = {};
+    if not names {
+        return out;
+    }
+    keys = list(names);
+    for start in range(0, len(keys), 400) {
+        chunk = keys[start:start + 400];
+        marks = ', '.join('?' for _ in chunk);
+        for r in conn.execute(
+            f"SELECT type_name, ancestor FROM graph_types"
+                + f" WHERE type_name IN ({marks})",
+            chunk
+        ).fetchall() {
+            tn = cast(str, r[0]);
+            out[tn] = out.get(tn, ()) + (cast(str, r[1]), );
+        }
+    }
+    for n in names {
+        if n not in out {
+            out[n] = (n, );
+        }
+    }
+    return out;
+}
+
+def _row_facts(
+    conn: sqlite3.Connection, ids: list[str]
+) -> dict[str, tuple[str, dict]] {
+    out: dict[str, tuple[str, dict]] = {};
+    for start in range(0, len(ids), 400) {
+        chunk = ids[start:start + 400];
+        marks = ', '.join('?' for _ in chunk);
+        for r in conn.execute(
+            f"SELECT id, arch_type, data FROM anchors WHERE id IN ({marks})", chunk
+        ).fetchall() {
+            try {
+                data = json.loads(cast(str, r[2]));
+            } except Exception {
+                continue;
+            }
+            arch = data.get('archetype');
+            cols = _scalar_cols(arch) if isinstance(arch, dict) else {};
+            out[cast(str, r[0])] = (cast((str | None), r[1]) or '', cols);
+        }
+    }
+    return out;
+}
+
+impl SqliteMemory.node_pages(ids: list[UUID]) -> (dict[UUID, dict] | None) {
+    if not ids {
+        return {};
+    }
+    out: dict[UUID, dict] = {};
+    with self.__lock__ {
+        self._ensure_connection();
+        assert self.__conn__ is not None;
+        conn = self.__conn__;
+        keys = [str(i) for i in ids];
+        key_set = set(keys);
+        adj_rows: list = [];
+        for start in range(0, len(keys), 400) {
+            chunk = keys[start:start + 400];
+            marks = ', '.join('?' for _ in chunk);
+            adj_rows.extend(
+                conn.execute(
+                    f"SELECT ge.rowid, ge.edge_id, ge.src, ge.dst,"
+                        + f" ge.edge_type, ge.undirected FROM graph_edges ge"
+                        + f" JOIN anchors ea ON ea.id = ge.edge_id"
+                        + f" WHERE ge.src IN ({marks}) OR ge.dst IN ({marks})",
+                    chunk + chunk
+                ).fetchall()
+            );
+        }
+        adj_rows.sort();
+        edge_ids = list({cast(str, r[1]) for r in adj_rows});
+        nbr_ids = list(
+            {
+                (cast(str, r[3]) if cast(str, r[2]) in key_set else cast(str, r[2]))
+                for r in adj_rows
+            }
+                - key_set
+        );
+        node_facts = _row_facts(conn, keys);
+        edge_facts = _row_facts(conn, edge_ids);
+        nbr_facts = _row_facts(conn, nbr_ids);
+        tnames: set[str] = set();
+        for (tn, _) in node_facts.values() {
+            tnames.add(tn);
+        }
+        for (tn, _) in edge_facts.values() {
+            tnames.add(tn);
+        }
+        for (tn, _) in nbr_facts.values() {
+            tnames.add(tn);
+        }
+        anc = _ancestry_map(conn, tnames);
+        for k in keys {
+            facts = node_facts.get(k);
+            if facts is None {
+                continue;
+            }
+            (tn, cols) = facts;
+            out[UUID(k)] = {
+                'ancestors': list(anc.get(tn, (tn, ))),
+                'cols': cols,
+                'adj': [],
+                'nbr': {}
+            };
+        }
+        for r in adj_rows {
+            eid = cast(str, r[1]);
+            src = cast(str, r[2]);
+            dst = cast(str, r[3]);
+            etype = cast(str, r[4]);
+            undir = bool(r[5]);
+            e_facts = edge_facts.get(eid);
+            e_cols = e_facts[1] if e_facts is not None else {};
+            e_anc = anc.get(etype, (etype, ));
+            for (owner, other, is_out) in (
+                [(src, dst, True), (dst, src, False)]
+                    if src != dst
+                    else [(src, dst, True)]
+            ) {
+                page = out.get(UUID(owner)) if owner in key_set else None;
+                if page is None {
+                    continue;
+                }
+                page['adj'].append(
+                    (UUID(eid), e_anc, undir, is_out, UUID(other), e_cols)
+                );
+                if other not in key_set {
+                    o_facts = nbr_facts.get(other);
+                    if o_facts is not None {
+                        (otn, ocols) = o_facts;
+                        page['nbr'][UUID(other)] = (anc.get(otn, (otn, )), ocols);
+                    }
+                }
+            }
+        }
+    }
+    return out;
+}
+
 impl SqliteMemory.commit(anchor: (Anchor | None) = None) -> None { }
 
 def _sqlite_attempt_recover(conn: sqlite3.Connection, row: tuple) -> tuple {
@@ -2245,6 +2401,27 @@ impl TieredMemory._post_apply(apply_report: ApplyReport) -> None {
             logger.debug(f"post-apply re-baseline failed for {anchor.id}: {e}");
         }
     }
+
+    try {
+        import from jaclang.runtimelib.projection { evict_everywhere }
+        for intent in self.changes.intents.values() {
+            if intent.anchor.id not in applied and not intent.is_delete() {
+                continue;
+            }
+            evict_everywhere(intent.anchor.id);
+            ea = intent.anchor;
+            if isinstance(ea, EdgeAnchor) and ea.is_populated() {
+                if ea.source is not None {
+                    evict_everywhere(ea.source.id);
+                }
+                if ea.target is not None {
+                    evict_everywhere(ea.target.id);
+                }
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"projection eviction failed: {e}");
+    }
 }
 
 impl TieredMemory.abort -> None {
@@ -2356,6 +2533,13 @@ impl TieredMemory.existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
         return None;
     }
     return self.l3.existing_ids(ids);
+}
+
+impl TieredMemory.node_pages(ids: list[UUID]) -> (dict[UUID, dict] | None) {
+    if self.l3 is None {
+        return None;
+    }
+    return self.l3.node_pages(ids);
 }
 
 impl TieredMemory.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {

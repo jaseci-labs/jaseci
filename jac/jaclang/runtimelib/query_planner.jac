@@ -14,8 +14,18 @@ obj _View {
         detached: set[UUID] = set(),
         live_nodes: dict[UUID, NodeAnchor] = {},
         live_edges: dict[UUID, EdgeAnchor] = {},
-        probed: set[UUID] = set();
+        probed: set[UUID] = set(),
+        proj: any = None,
+        epred_ok: set[UUID] = set();
 }
+
+
+def _projection_for(mem: Memory) -> any;
+
+
+def _page_rows(
+    view: _View, nid: UUID, page: dict, hop: QHop
+) -> (list[tuple[UUID, UUID]] | None);
 
 
 def _heal_sweep(
