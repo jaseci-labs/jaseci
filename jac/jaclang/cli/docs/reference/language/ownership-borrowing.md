@@ -333,6 +333,42 @@ def seed(r: &Region) -> Cand {
 }
 ```
 
+### Connect-as-seal: promoting a subgraph into the managed world
+
+Root is to graphs what sealing is to values: the far side of the membrane.
+Attaching region topology to a managed node -- a *directed* connect from a
+managed anchor into a region-local node, under an open on an **owned
+named** handle -- is therefore not an escape but the membrane **seal for
+subgraphs**. It consumes the handle's ownership and promotes the topology:
+the arena pages stay live, teardown never runs, `drop` hooks never fire
+(managed graph nodes are immortal, and the promoted ones behave
+identically), and the subgraph is traversable from the anchor after the
+open closes.
+
+```jac
+anchor = City();
+r: own Region = Region();
+in r {
+    a = City(name="a");
+    b = City(name="b");
+    a ++> b;
+    anchor ++> a;    # the seal: consumes `r`, promotes {a, b} and their edges
+}
+# `r` is dead here (E1301 on reuse); the graph lives on under `anchor`
+```
+
+The seal closes the region for graph operations: instantiating an
+archetype or wiring a connect after it inside the open is
+[`E1307`](../diagnostics.md#ownership-borrow-errors). And every non-seal
+shape keeps the `E1307` rejection: a region edge wired *out* to a managed
+node, undirected wiring, a seal attempt inside an anonymous open, or one
+through a borrowed `&Region` parameter (consuming what you do not own is
+never licensed). Adoption is O(objects) worth of bookkeeping in
+principle and zero copies always; in the current runtime it is free --
+region-allocated objects already carry region-marked headers whose
+releases no-op, so retiring the handle without teardown *is* the
+promotion.
+
 ### Inferred anonymous regions for unrooted spawns
 
 A graph that never touches managed state does not need an explicit open to

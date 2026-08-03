@@ -384,7 +384,12 @@ impl OwnershipCheckPass._spawn_move_gen(nd: uni.UniCFGNode) -> set[SymId] {
     gen: set[SymId] = set();
     operands: list[uni.Expr] = [];
     for bx in nd.get_all_sub_nodes(uni.BinaryExpr) {
-        if bx.op?.name == Tok.KW_SPAWN {
+        if isinstance(bx.op, uni.ConnectOp) {
+            _seal_h = self._seal_connect_handle(bx);
+            if _seal_h is not None {
+                operands.append(_seal_h);
+            }
+        } elif bx.op?.name == Tok.KW_SPAWN {
             operands.append(bx.left);
             operands.append(bx.right);
         }
