@@ -107,9 +107,15 @@ Under `--gc none` an enforced module compiles **headerless**: owned payloads are
   receivers and arguments - `i = hay.find(pat)` leaves both live, and
   `os.system(cmd)` does not seal `cmd`. Passing an owned value to a
   jac-defined function with an `own` param still moves it.
-- Growable collections of heap values: build them with a comprehension
-  (`[f(x) for x in xs]`); `xs.append(heap_value)` is E1406 until container
-  move-in lands.
+- Containers of `str` elements are fully supported: `xs.append(f"x{i}")`,
+  set `add`, dict literals, and `d[k] = v` all work. Fresh strings
+  (f-strings, concats, slices, call results) move into the container; named
+  bindings and string literals are copied in, so the source stays live
+  (`xs.append(s); print(s);` is legal). The container owns its elements and
+  frees them when it drops. A borrowed (`&str`) or field-read string must be
+  laundered through an explicit copy first (`xs.append(f"{p}")`). Containers
+  of archetypes or nested containers are still E1406 until their element-drop
+  monomorphization lands.
 - Typed-base int enum members are scalar constants; string globs are not
   expressible under the contract - use a `def` returning `own str` for
   string constants.

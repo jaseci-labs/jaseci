@@ -110,9 +110,9 @@ impl Serializer._serialize_value(
         if val.is_populated() {
             arch = val.archetype;
             result['archetype'] = Serializer._type_info(arch, include_type)
-            | Serializer._serialize_attrs(
-                arch, include_type, api_mode, ref_mode, _seen
-            );
+                | Serializer._serialize_attrs(
+                    arch, include_type, api_mode, ref_mode, _seen
+                );
         }
         if isinstance(val, NodeAnchor) {
             result['edges'] = [str(e.id) for e in val.edges];
@@ -120,7 +120,7 @@ impl Serializer._serialize_value(
             result['version'] = val.version;
 
             if val.topology_index_data is not None
-            and isinstance(val.archetype, Root) {
+                and isinstance(val.archetype, Root) {
                 import from base64 { b64encode }
                 result['topology_index_data'] = b64encode(
                     val.topology_index_data
@@ -180,7 +180,7 @@ impl Serializer._serialize_value(
             };
         }
         return result
-        | Serializer._serialize_attrs(val, include_type, api_mode, ref_mode, _seen);
+            | Serializer._serialize_attrs(val, include_type, api_mode, ref_mode, _seen);
     }
 
     if val?.__dict__ {
@@ -297,7 +297,7 @@ impl Serializer.deserialize(data: dict[str, object]) -> (object | None) {
             ) {
                 logger.error(
                     f"Failed to deserialize {type_name}: {e}"
-                    + Serializer._occurrence_note(n)
+                        + Serializer._occurrence_note(n)
                 );
             }
         }
@@ -380,7 +380,7 @@ impl Serializer.repair(data: dict[str, object], cls: type) -> tuple {
             logger.info(
                 f"Serializer: drift detected on {cls_key} "
                 f"(JAC_SCHEMA_REPAIR=detect; steps not applied: {steps})"
-                + Serializer._occurrence_note(n)
+                    + Serializer._occurrence_note(n)
             );
         }
         return (data, []);
@@ -528,7 +528,7 @@ impl Serializer._get_class(module_name: str, class_name: str) -> (type | None) {
             if (n := Serializer._warn_occurrence("alias-resolved", key)) {
                 logger.info(
                     f"Serializer: resolving aliased class {key} -> {aliased_key}"
-                    + Serializer._occurrence_note(n)
+                        + Serializer._occurrence_note(n)
                 );
             }
             return cls;
@@ -538,7 +538,7 @@ impl Serializer._get_class(module_name: str, class_name: str) -> (type | None) {
             logger.warning(
                 f"Serializer: alias {key} -> {aliased_key} has no registered "
                 "target; cannot resolve."
-                + Serializer._occurrence_note(n)
+                    + Serializer._occurrence_note(n)
             );
         }
         return None;
@@ -546,7 +546,7 @@ impl Serializer._get_class(module_name: str, class_name: str) -> (type | None) {
     if (n := Serializer._warn_occurrence("unregistered", key)) {
         logger.warning(
             f"Refused to deserialize unregistered class: {key}"
-            + Serializer._occurrence_note(n)
+                + Serializer._occurrence_note(n)
         );
     }
     return None;
@@ -649,7 +649,7 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
                     logger.warning(
                         "Serializer: archetype field is not a dict "
                         f"({type(arch_data).__name__}); dropping anchor."
-                        + Serializer._occurrence_note(n)
+                            + Serializer._occurrence_note(n)
                     );
                 }
                 return None;
@@ -661,7 +661,7 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
                     logger.warning(
                         "Serializer: archetype reconstruction failed for "
                         f"{arch_key}; dropping anchor (caller should quarantine)."
-                        + Serializer._occurrence_note(n)
+                            + Serializer._occurrence_note(n)
                     );
                 }
                 return None;
@@ -832,7 +832,7 @@ impl Serializer._deserialize_archetype(
                                 f"Serializer: {module_name}.{type_name}.{k}: stored None "
                                 f"on non-Optional field {target} and no class default "
                                 "available; cannot recover."
-                                + Serializer._occurrence_note(n)
+                                    + Serializer._occurrence_note(n)
                             );
                         }
                         return None;
@@ -846,7 +846,7 @@ impl Serializer._deserialize_archetype(
                         logger.warning(
                             f"Serializer: {module_name}.{type_name}.{k}: stored None "
                             f"on non-Optional field {target}; restored class default."
-                            + Serializer._occurrence_note(n)
+                                + Serializer._occurrence_note(n)
                         );
                     }
                     setattr(arch, k, recovered);
@@ -858,7 +858,7 @@ impl Serializer._deserialize_archetype(
                         f"Serializer: coercion fallback on {module_name}."
                         f"{type_name}.{k}: stored={type(deser_v).__name__}, "
                         f"target={target}; stored value kept as-is."
-                        + Serializer._occurrence_note(n)
+                            + Serializer._occurrence_note(n)
                     );
                 }
             }
@@ -876,7 +876,7 @@ impl Serializer._deserialize_archetype(
                     logger.info(
                         f"Serializer: preserved unknown fields in attic on "
                         f"{module_name}.{type_name}: {sorted(dropped)}"
-                        + Serializer._occurrence_note(n)
+                            + Serializer._occurrence_note(n)
                     );
                 }
             } else {
@@ -904,7 +904,7 @@ impl Serializer._deserialize_archetype(
                         f"Serializer: {module_name}.{type_name}.{fd.name}: "
                         "required field missing from stored data and no default "
                         "available; attribute left unset."
-                        + Serializer._occurrence_note(n)
+                            + Serializer._occurrence_note(n)
                     );
                 }
             }
@@ -926,7 +926,7 @@ impl Serializer._deserialize_archetype(
         ) {
             logger.error(
                 f"Failed to deserialize archetype {type_name}: {e}"
-                + Serializer._occurrence_note(n)
+                    + Serializer._occurrence_note(n)
             );
         }
         return None;

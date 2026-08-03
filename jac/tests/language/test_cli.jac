@@ -491,7 +491,10 @@ test "cfg printgraph" {
     }
     stdout_value = captured.getvalue();
     correct_graph = (
-        "digraph G {\n" + '  0 [label="BB0\\ndef still_there\\nprint ( \\"im still here\\" ) ;", shape=box];\n' + '  1 [label="BB1\\n\\"Hello World!\\" |> print ;", shape=box];\n' + "}\n\n"
+        "digraph G {\n"
+        + '  0 [label="BB0\\ndef still_there\\nprint ( \\"im still here\\" ) ;", shape=box];\n'
+        + '  1 [label="BB1\\n\\"Hello World!\\" |> print ;", shape=box];\n'
+        + "}\n\n"
     );
     assert correct_graph == stdout_value;
 }
@@ -2201,9 +2204,11 @@ def _check_captured(
 }
 
 test "jac check disable_error_code maps to check arg" {
-    parser = get_registry().finalize();
+    import from jaclang.cli.manifest { get_command_meta }
+    import from jaclang.cli.manifest_parse { build_command_parser }
+    parser = build_command_parser(get_command_meta("check"));
     (args, _) = parser.parse_known_args(
-        ["check", fixture_path("warnings_only.jac"), "--disable-error-code", "E1030"]
+        [fixture_path("warnings_only.jac"), "--disable-error-code", "E1030"]
     );
     assert args.disable_error_code == ["E1030"] , (
         "kebab-case CLI flag should map to disable_error_code arg"
@@ -2251,9 +2256,11 @@ test "jac check disable_error_code warns on unknown diagnostics" {
 }
 
 test "jac check native-census flag maps to check arg" {
-    parser = get_registry().finalize();
+    import from jaclang.cli.manifest { get_command_meta }
+    import from jaclang.cli.manifest_parse { build_command_parser }
+    parser = build_command_parser(get_command_meta("check"));
     (args, _) = parser.parse_known_args(
-        ["check", fixture_path("warnings_only.jac"), "--native-census"]
+        [fixture_path("warnings_only.jac"), "--native-census"]
     );
     assert getattr(args, "native_census", False) == True , (
         "kebab flag should map to native_census dest"
@@ -2267,12 +2274,16 @@ test "jac check native census ranks module outcomes" {
         }
         with open(os.path.join(td, "demote.jac"), "w") as f {
             f.write(
-                "obj Widget {\n    has size: int = 0;\n\n    def render -> str {\n" + "        return \"ok\";\n    }\n}\n\ndef build -> str {\n" + "    w: any = Widget();\n    return w.render();\n}\n"
+                "obj Widget {\n    has size: int = 0;\n\n    def render -> str {\n"
+                    + "        return \"ok\";\n    }\n}\n\ndef build -> str {\n"
+                    + "    w: any = Widget();\n    return w.render();\n}\n"
             );
         }
         with open(os.path.join(td, "blocked.jac"), "w") as f {
             f.write(
-                "node Item {\n    has label: str = \"\";\n}\n\n" + "def pin(label: str) -> int {\n    root ++> Item(label=label);\n" + "    return 1;\n}\n"
+                "node Item {\n    has label: str = \"\";\n}\n\n"
+                    + "def pin(label: str) -> int {\n    root ++> Item(label=label);\n"
+                    + "    return 1;\n}\n"
             );
         }
         (captured_stdout, captured_stderr, old_stdout, old_stderr) = _capture_output();

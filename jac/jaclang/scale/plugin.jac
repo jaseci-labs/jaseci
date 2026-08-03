@@ -623,7 +623,7 @@ class JacScalePlugin {
         if "KUBERNETES_SERVICE_HOST" in os.environ {
             try {
                 import from jaclang.scale.config.config_loader { get_scale_config }
-                import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
+                import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
                     k8s_safe_name
                 }
                 import from jaclang.scale.runtime.context.util {
@@ -656,9 +656,8 @@ class JacScalePlugin {
         child_env = dict(os.environ);
         child_env["JAC_SV_SIBLING"] = "1";
 
-        cmd = [jac_executable()] + sv_client.headless_start_args(
-            str(module_file), port
-        );
+        cmd = [jac_executable()]
+            + sv_client.headless_start_args(str(module_file), port);
 
         log_dir = base_dir / '.jac' / 'logs';
         log_dir.mkdir(parents=True, exist_ok=True);
@@ -704,7 +703,7 @@ class JacScalePlugin {
 
         try {
             import from jaclang.scale.config.config_loader { get_scale_config }
-            import from jaclang.scale.deploy.target.kubernetes.microservice.runtime_resolver {
+            import from jaclang.scale.deploy.target.kubernetes.runtime_resolver {
                 build_k8s_registry
             }
             ms_cfg = get_scale_config().get_microservices_config();

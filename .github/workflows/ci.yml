@@ -343,7 +343,7 @@ jobs:
               echo "No .jac files changed in this PR; skipping format check."
               exit 0
             fi
-            FILES="$(grep -vE '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$)' changed-jac.txt || true)"
+            FILES="$(grep -vE '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$|/manifest\.impl\.jac$)' changed-jac.txt || true)"
             if [ -z "$FILES" ]; then
               echo "No formattable .jac files changed (all excluded); skipping."
               exit 0
@@ -354,7 +354,7 @@ jobs:
             # Sweep only git-tracked files: the build materializes generated
             # trees in-place (e.g. jac/zig-pkg/ zig package fetches with their
             # own sample .jac files), and a bare `find .` walks those too.
-            git ls-files -z '*.jac' | grep -zv -E '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$|_syntax_err\.jac$)' | xargs -0 --no-run-if-empty jac fmt --check --lintfix
+            git ls-files -z '*.jac' | grep -zv -E '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$|_syntax_err\.jac$|/manifest\.impl\.jac$)' | xargs -0 --no-run-if-empty jac fmt --check --lintfix
           fi
 
       # When the format check fails on a same-repo PR, run the fixer on the PR
@@ -385,7 +385,7 @@ jobs:
             exit 0
           fi
           git checkout -B "$HEAD_REF" FETCH_HEAD
-          FILES="$(grep -vE '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$)' changed-jac.txt || true)"
+          FILES="$(grep -vE '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$|/manifest\.impl\.jac$)' changed-jac.txt || true)"
           if [ -z "$FILES" ]; then
             echo "No formattable .jac files to fix."
             exit 0
@@ -415,6 +415,20 @@ jobs:
       - name: Verify jir_registry.jac is up to date
         run: |
           jac gen-jir-registry --verify
+
+      - name: Verify manifest route table is up to date
+        run: |
+          jac gen-cli-manifest --verify
+
+      - name: Run CLI startup regression tests
+        env:
+          JAC_TEST_JOBS: "0"
+        run: |
+          jac test \
+            jac/tests/cli/test_command_isolation.jac \
+            jac/tests/cli/test_config_key_bridge.jac \
+            jac/tests/cli/test_manifest_parity.jac \
+            jac/tests/cli/test_startup_isolation.jac
 
       - name: Run jac check (using .jacignore)
         run: |
@@ -853,6 +867,16 @@ jobs:
           exit 1
         fi
 
+    - name: Run root-level scale tests (identity password, firebase env)
+      if: matrix.group == 'data'
+      # Root-level test_*.jac files the matrix globs don't reach. Base scale
+      # deps only (bcrypt, config) - no firebase-admin needed here.
+      env:
+        JAC_TEST_JOBS: "0"
+      run: |
+        jac test jac/jaclang/scale/tests/test_identity_password.jac -x
+        jac test jac/jaclang/scale/tests/test_firebase_env.jac -x
+
     - name: Install scale firebase deps
       if: matrix.group == 'data'
       run: jac install "google-cloud-firestore>=2.21.0,<3.0.0" "google-cloud-storage>=2.19.0,<3.0.0" "firebase-admin>=6.0.0,<8.0.0" --global
@@ -1184,7 +1208,7 @@ jobs:
     needs: [changes, build-jac]
     if: >-
       github.event_name != 'push' &&
-      (github.event_name != 'pull_request' || needs.changes.outputs.core == 'true') &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.scale == 'true') &&
       !contains(github.event.pull_request.labels.*.name, 'skip-k8s')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 40
@@ -1321,6 +1345,16 @@ jobs:
         run: |
           bash jac/jaclang/scale/scripts/k8s_microservice_real_e2e.sh \
               jac/jaclang/scale/tests/fixtures/k8s_e2e
+
+      # Same cluster, separate namespace: deploy examples/sdk-deploy through
+      # the programmatic SDK (ScaleClient) instead of the target-level path
+      # above. official-image leg only - its baked runtime keeps the extra
+      # boot inside the job timeout, and the SDK path is base-image agnostic.
+      - name: Run SDK programmatic deploy e2e (ScaleClient)
+        if: matrix.base == 'official-image'
+        env:
+          CLUSTER_TYPE: kind
+        run: bash jac/jaclang/scale/tests/deploy/sdk_deploy_real_e2e.sh
 
       - name: Dump kubectl state on failure
         if: failure()

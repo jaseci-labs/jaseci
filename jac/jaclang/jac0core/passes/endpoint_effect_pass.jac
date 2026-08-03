@@ -91,7 +91,7 @@ class EndpointEffectPass(UniPass) {
         if isinstance(nd, uni.FuncCall) {
             arch_sym = self._call_target_symbol(nd);
             if arch_sym
-            and arch_sym.sym_type in [SymbolType.NODE_ARCH, SymbolType.EDGE_ARCH] {
+                and arch_sym.sym_type in [SymbolType.NODE_ARCH, SymbolType.EDGE_ARCH] {
                 self._is_writer = True;
                 self._touches.add(arch_sym.sym_name);
             }

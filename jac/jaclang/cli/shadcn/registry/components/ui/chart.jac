@@ -78,34 +78,34 @@ def:pub ChartTooltipContent(props: any) -> JsxElement {
                 itemKey = props["nameKey"] or item.name or item.dataKey or "value";
                 itemConfig = getPayloadConfig(config, item, itemKey);
                 indicatorColor = props["color"]
-                or (item.payload.fill if item.payload else None)
-                or item.color;
+                    or (item.payload.fill if item.payload else None)
+                    or item.color;
                 <div
                     key={item.dataKey}
                     className="flex w-full flex-wrap items-center gap-2"
                 >
                     {not hideIndicator
-                    and (
-                        <div
-                            className={cn(
-                                "shrink-0 rounded-[2px]",
-                                "size-2.5" if indicator == "dot" else "w-1"
-                            )}
-                            style={{"backgroundColor": indicatorColor}}
-                        />
-                    )}
+                        and (
+                            <div
+                                className={cn(
+                                    "shrink-0 rounded-[2px]",
+                                    "size-2.5" if indicator == "dot" else "w-1"
+                                )}
+                                style={{"backgroundColor": indicatorColor}}
+                            />
+                        )}
                     <div className="flex flex-1 justify-between leading-none">
                         <span className="text-muted-foreground">
                             {itemConfig and itemConfig.label or itemKey}
                         </span>
                         {item.value is not None
-                        and (
-                            <span
-                                className="font-mono font-medium tabular-nums text-foreground"
-                            >
-                                {item.value.toLocaleString()}
-                            </span>
-                        )}
+                            and (
+                                <span
+                                    className="font-mono font-medium tabular-nums text-foreground"
+                                >
+                                    {item.value.toLocaleString()}
+                                </span>
+                            )}
                     </div>
                 </div>
             }
@@ -131,12 +131,12 @@ def:pub ChartLegendContent(props: any) -> JsxElement {
             itemConfig = getPayloadConfig(config, item, k);
             <div key={item.value} className="flex items-center gap-1.5">
                 {not hideIcon
-                and (
-                    <div
-                        className="size-2 shrink-0 rounded-[2px]"
-                        style={{"backgroundColor": item.color}}
-                    />
-                )}
+                    and (
+                        <div
+                            className="size-2 shrink-0 rounded-[2px]"
+                            style={{"backgroundColor": item.color}}
+                        />
+                    )}
                 <span className="text-muted-foreground text-xs">
                     {itemConfig and itemConfig.label or item.value}
                 </span>

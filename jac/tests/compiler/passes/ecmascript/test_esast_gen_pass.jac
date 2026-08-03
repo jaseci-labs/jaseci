@@ -673,9 +673,8 @@ test "stale has read emits W3041" {
         if w.code and w.code.code == "W3041"
     ];
     assert len(w3041_hits) >= 1 , (
-        "Expected W3041 diagnostic for stale `has` field read, got: " + str(
-            [(w.code.code if w.code else "?") for w in prog.warnings_had]
-        )
+        "Expected W3041 diagnostic for stale `has` field read, got: "
+        + str([(w.code.code if w.code else "?") for w in prog.warnings_had])
     );
 }
 
@@ -920,9 +919,9 @@ test "components with JSX slots compile to function declarations" {
     assert "export {" in js_code , "components should be exported";
     export_line = js_code.strip().split("\n")[-1];
     assert "Badge" in export_line
-    and "ItemRow" in export_line
-    and "ItemList" in export_line
-    and "Divider" in export_line , "all four components should be exported";
+        and "ItemRow" in export_line
+        and "ItemList" in export_line
+        and "Divider" in export_line , "all four components should be exported";
 }
 
 test "JSX slot statement-position control flow lowers to statements" {
@@ -955,14 +954,15 @@ test "try/awaiting in JSX slot lowers to <JacAwaiting> wrapper on cl" {
         if isinstance(nd, es.FunctionDeclaration) and nd.id
     };
     assert "UserCardSkeleton" in func_names
-    and "UserCardView" in func_names
-    and "UserPanel" in func_names;
+        and "UserCardView" in func_names
+        and "UserPanel" in func_names;
 
     # The wrapper component is referenced as a JSX tag (the cl lowering
     # synthesizes the element with `JacAwaiting` as the identifier).
     assert "__jacJsx(JacAwaiting," in js_code , (
         "the cl-target try/awaiting lowering should emit a "
-        "<JacAwaiting> wrapper element:\n" + js_code
+        "<JacAwaiting> wrapper element:\n"
+        + js_code
     );
     # The wrapper must be auto-imported from @jac/runtime so user code
     # doesn't have to know the runtime export name.
@@ -1012,9 +1012,9 @@ test "dynamic JSX tags resolve at runtime" {
         if isinstance(nd, es.FunctionDeclaration) and nd.id
     };
     assert "Box" in func_names
-    and "Icon" in func_names
-    and "Panel" in func_names
-    and "Demo" in func_names;
+        and "Icon" in func_names
+        and "Panel" in func_names
+        and "Demo" in func_names;
 
     # A dynamic tag lowers to `__jacJsx(<expr>, ...)` — the tag is the value
     # of the expression, never a quoted string of the identifier itself.
@@ -1059,7 +1059,8 @@ test "unsafe_html builtin emits a raw-HTML marker call" {
     # is not defined` in the browser).
     assert "_jac.builtin.unsafe_html(" in js_code , (
         "unsafe_html(x) should lower to `_jac.builtin.unsafe_html(x)` "
-        "(matching the `jid` and other ambient-builtin lowerings):\n" + js_code
+        "(matching the `jid` and other ambient-builtin lowerings):\n"
+        + js_code
     );
     # The bare-global form must not appear -- it would be undefined.
     # Both call sites in the fixture must be routed.
@@ -1089,7 +1090,8 @@ test "unsafe_html builtin emits a raw-HTML marker call" {
     parent_window = js_code[parent_idx:parent_idx + 250];
     assert "_jac.builtin.unsafe_html(c.body_html)" in parent_window , (
         "the unsafe_html() result must be passed as a normal child of "
-        "its enclosing element, unmodified at compile time:\n" + parent_window
+        "its enclosing element, unmodified at compile time:\n"
+        + parent_window
     );
 
     # The static JSX siblings (article / section / footer) keep their
@@ -1125,7 +1127,8 @@ test "JSX child position accepts statement-form control flow" {
     has_for_loop = ("for (" in js_code) or ("for(" in js_code);
     assert has_for_loop , (
         "ItemList's statement-position `for` should lower to a JS `for` "
-        "loop driving the children accumulator (not a `.map()`):\n" + js_code
+        "loop driving the children accumulator (not a `.map()`):\n"
+        + js_code
     );
 
     # ItemList: the <ul> element's children come from the loop, so the
@@ -1169,7 +1172,8 @@ test "unsafe_html marker has the correct shape" {
     assert "unsafe_html(html)" in js_code;
     assert "__jacUnsafeHtml: String(html" in js_code , (
         "runtime must coerce the argument with String() so non-string\n"
-        "values (e.g. numbers from a walker) don't blow up:\n" + js_code
+        "values (e.g. numbers from a walker) don't blow up:\n"
+        + js_code
     );
 }
 
@@ -1190,7 +1194,8 @@ test "skip in a plain function body lowers to an early return" {
     ];
     assert len(continues) == 0 , (
         "skip in a function body must not emit `continue;` (illegal JS "
-        "outside a loop):\n" + js_code
+        "outside a loop):\n"
+        + js_code
     );
     assert "continue;" not in js_code , js_code;
     assert "return;" in js_code , (
@@ -1204,14 +1209,15 @@ test "user function shadowing a builtin name is called, not the builtin" {
         nd
         for nd in walk_es_nodes(es_ast)
         if isinstance(nd, es.CallExpression)
-        and isinstance(nd.callee, es.Identifier)
-        and nd.callee.name == "len"
+            and isinstance(nd.callee, es.Identifier)
+            and nd.callee.name == "len"
     ];
     # The builtin path would emit a raw primitive-emitter expression instead of
     # a CallExpression to the user-defined `len`.
     assert len(user_len_calls) >= 1 , (
         "expected a call to the user-defined len(), but the builtin emitter "
-        "was used instead:\n" + es_to_js(es_ast)
+        "was used instead:\n"
+        + es_to_js(es_ast)
     );
 }
 

@@ -7,9 +7,9 @@ def:pub Select(
 
     <div className={className}>
         {label
-        and <label className="block text-xs font-medium text-muted mb-1.5">
-            {label}
-        </label>}
+            and <label className="block text-xs font-medium text-muted mb-1.5">
+                {label}
+            </label>}
         <select value={value} onChange={onChange} className={selectClass}>
             {[
                 <option key={opt["value"]} value={opt["value"]}>{opt["label"]}</option>

@@ -90,7 +90,8 @@ test "type to typeof and spawn operator" {
     mod2 = compile_inline(spawn_code, prog, client=True);
     js = mod2.gen.js;
     assert '__jacSpawn("MixedWalker", node_id, {"label": "First", "count": 3})' in js;
-    assert '__jacSpawn("MixedWalker", "", {"label": "Second", "count": 1, ...extra})' in js;
+    assert '__jacSpawn("MixedWalker", "", {"label": "Second", "count": 1, ...extra})'
+        in js;
 }
 
 test "client import local jac module gets relative path" {
@@ -170,7 +171,10 @@ test "jac call function sends params directly" {
     # The framework-agnostic surface (incl. __jacCallFunction) now lives in the
     # shared core runtime; the per-framework shim re-exports it.
     runtime_path = (
-        Path(jaclang.__file__).resolve().parent / "runtimelib" / "impl" / "client_runtime_core.impl.jac"
+        Path(jaclang.__file__).resolve().parent
+        / "runtimelib"
+        / "impl"
+        / "client_runtime_core.impl.jac"
     );
 
     if not runtime_path.exists() {
