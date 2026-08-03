@@ -662,6 +662,163 @@ impl MongoBackend.edge_endpoints(
 }
 
 
+def _mongo_scalar_cols(arch: any) -> dict {
+    out: dict = {};
+    if isinstance(arch, dict) {
+        for (k, v) in arch.items() {
+            if isinstance(k, str) and not k.startswith('$') and not k.startswith('_') {
+                if v is None or isinstance(v, (str, int, float, bool)) {
+                    out[k] = v;
+                }
+            }
+        }
+    }
+    return out;
+}
+
+
+def _mongo_ancestry_map(backend: MongoBackend, names: set[str]) -> dict[str, tuple] {
+    out: dict[str, tuple] = {};
+    if names {
+        try {
+            col = _mongo_types_col(backend);
+            for doc in col.find(
+                {'type_name': {'$in': list(names)}}, {'type_name': 1, 'ancestor': 1}
+            ) {
+                tn = doc.get('type_name');
+                if tn {
+                    out[tn] = out.get(tn, ()) + (doc.get('ancestor'), );
+                }
+            }
+        } except Exception as e {
+            logger.debug(f"MongoDB ancestry map failed: {e}");
+        }
+    }
+    for n in names {
+        if n not in out {
+            out[n] = (n, );
+        }
+    }
+    return out;
+}
+
+
+impl MongoBackend.node_pages(ids: list[UUID]) -> (dict[UUID, dict] | None) {
+    if not ids or self.client is None {
+        return {};
+    }
+    out: dict[UUID, dict] = {};
+    try {
+        keys = [str(i) for i in ids];
+        key_set = set(keys);
+        proj_n = {'_id': 1, 'arch_type': 1, 'data.archetype': 1};
+        node_facts: dict[str, tuple] = {};
+        for doc in self.collection.find({'_id': {'$in': keys}}, proj_n) {
+            data = doc.get('data') or {};
+            node_facts[str(doc['_id'])] = (
+                doc.get('arch_type') or '',
+                _mongo_scalar_cols(data.get('archetype'))
+            );
+        }
+        proj_e = {
+            '_id': 1,
+            'arch_type': 1,
+            'data.source': 1,
+            'data.target': 1,
+            'data.is_undirected': 1,
+            'data.archetype': 1
+        };
+        adj_rows: list = [];
+        efilt = {
+            'type': 'EdgeAnchor',
+            '$or': [{'data.source': {'$in': keys}}, {'data.target': {'$in': keys}}]
+        };
+        for doc in self.collection.find(efilt, proj_e).sort('_id', 1) {
+            data = doc.get('data') or {};
+            src = data.get('source');
+            tgt = data.get('target');
+            if src and tgt {
+                adj_rows.append(
+                    (
+                        str(doc['_id']),
+                        str(src),
+                        str(tgt),
+                        doc.get('arch_type') or '',
+                        bool(data.get('is_undirected')),
+                        _mongo_scalar_cols(data.get('archetype'))
+                    )
+                );
+            }
+        }
+        nbr_ids = list(
+            {(r[2] if r[1] in key_set else r[1]) for r in adj_rows} - key_set
+        );
+        nbr_facts: dict[str, tuple] = {};
+        if nbr_ids {
+            for doc in self.collection.find({'_id': {'$in': nbr_ids}}, proj_n) {
+                data = doc.get('data') or {};
+                nbr_facts[str(doc['_id'])] = (
+                    doc.get('arch_type') or '',
+                    _mongo_scalar_cols(data.get('archetype'))
+                );
+            }
+        }
+        tnames: set[str] = set();
+        for (tn, _) in node_facts.values() {
+            tnames.add(tn);
+        }
+        for r in adj_rows {
+            tnames.add(r[3]);
+        }
+        for (tn, _) in nbr_facts.values() {
+            tnames.add(tn);
+        }
+        anc = _mongo_ancestry_map(self, tnames);
+        for k in keys {
+            facts = node_facts.get(k);
+            if facts is None {
+                continue;
+            }
+            (tn, cols) = facts;
+            out[UUID(k)] = {
+                'ancestors': list(anc.get(tn, (tn, ))),
+                'cols': cols,
+                'adj': [],
+                'nbr': {}
+            };
+        }
+        for (eid, src, tgt, etype, undir, e_cols) in adj_rows {
+            e_anc = anc.get(etype, (etype, ));
+            arms = (
+                [(src, tgt, True), (tgt, src, False)]
+                    if src != tgt
+                    else [(src, tgt, True)]
+            );
+            for (owner, other, is_out) in arms {
+                page = out.get(UUID(owner)) if owner in key_set else None;
+                if page is None {
+                    continue;
+                }
+                page['adj'].append(
+                    (UUID(eid), e_anc, undir, is_out, UUID(other), e_cols)
+                );
+                if other not in key_set {
+                    o_facts = nbr_facts.get(other);
+                    if o_facts is not None {
+                        (otn, ocols) = o_facts;
+                        page['nbr'][UUID(other)] = (anc.get(otn, (otn, )), ocols);
+                    }
+                }
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB node_pages failed: {e}");
+        return {};
+    }
+    return out;
+}
+
+
 impl MongoBackend.existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
     if not ids or self.client is None {
         return set();

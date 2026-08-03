@@ -23,7 +23,92 @@ impl _build_view(mem: Memory, q: GraphQuery) -> _View {
             view.live_nodes[vanch.id] = vanch;
         }
     }
+    if q.level != 'fresh' {
+        view.proj = _projection_for(mem);
+    }
     return view;
+}
+
+
+impl _projection_for(mem: Memory) -> any {
+    import from jaclang.runtimelib.projection { get_projection, projection_enabled }
+    if not projection_enabled() {
+        return None;
+    }
+    l3 = mem?.l3;
+    if l3 is None {
+        return None;
+    }
+    key = (
+        f"{type(l3).__name__}:"
+        + str(getattr(l3, 'path', '') or '')
+        + str(getattr(l3, 'mongo_url', '') or '')
+        + ':'
+        + str(getattr(l3, 'db_name', '') or '')
+        + ':'
+        + str(getattr(l3, 'collection_name', '') or '')
+        + '|'
+        + os.environ.get('JAC_PROJECTION_POD', '')
+    );
+    return get_projection(key);
+}
+
+
+impl _page_rows(
+    view: _View, nid: UUID, page: dict, hop: QHop
+) -> (list[tuple[UUID, UUID]] | None) {
+    ename = hop.`edge.__name__ if hop.`edge is not None else None;
+    nd = hop.nd;
+    nd_names: (tuple | None) = None;
+    if nd is not None {
+        types = nd if isinstance(nd, tuple) else (nd, );
+        nd_names = tuple(t.__name__ for t in types);
+    }
+    out: list[tuple[UUID, UUID]] = [];
+    nbr = cast(dict, page.get('nbr') or {});
+    for row in cast(list, page.get('adj') or []) {
+        row_t = cast(tuple, row);
+        eid = cast(UUID, row_t[0]);
+        e_anc = cast(tuple, row_t[1]);
+        undir = bool(row_t[2]);
+        is_out = bool(row_t[3]);
+        other = cast(UUID, row_t[4]);
+        e_cols = cast(dict, row_t[5]);
+        if hop.dir == 2 {
+            if not (is_out or undir) {
+                continue;
+            }
+        } elif hop.dir == 1 {
+            if is_out and not undir {
+                continue;
+            }
+        }
+        if ename is not None and ename not in e_anc {
+            continue;
+        }
+        if hop.epreds and not all(p.matches(e_cols.get(p.field)) for p in hop.epreds) {
+            continue;
+        }
+        if nd_names is not None {
+            raw = view.proj.summary_of(other) or nbr.get(other);
+            if raw is None {
+                return None;
+            }
+            o_anc = cast(tuple, cast(tuple, raw)[0]);
+            miss = False;
+            for n in nd_names {
+                if n not in o_anc {
+                    miss = True;
+                    break;
+                }
+            }
+            if miss {
+                continue;
+            }
+        }
+        out.append((eid, other));
+    }
+    return out;
 }
 
 
@@ -108,6 +193,24 @@ impl _node_pred_keep(
             remote.append(i);
         }
     }
+    summary_pass: set[UUID] = set();
+    summary_known: set[UUID] = set();
+    if view.proj is not None {
+        still: list[UUID] = [];
+        for i in remote {
+            summ = view.proj.summary_of(i);
+            if summ is None {
+                still.append(i);
+                continue;
+            }
+            summary_known.add(i);
+            cols = cast(dict, cast(tuple, summ)[1]);
+            if all(p.matches(cols.get(p.field)) for p in preds) {
+                summary_pass.add(i);
+            }
+        }
+        remote = still;
+    }
     remote_keep: set[UUID] = set();
     if remote {
         engine_keep = mem.filter_ids(remote, preds);
@@ -123,7 +226,7 @@ impl _node_pred_keep(
             if all(p.matches(getattr(arch, p.field, None)) for p in preds) {
                 out.append(i);
             }
-        } elif i in remote_keep {
+        } elif i in summary_pass or i in remote_keep {
             out.append(i);
         }
     }
@@ -144,7 +247,7 @@ impl _edge_pred_keep(
         a = pool.get(eid) or view.live_edges.get(eid);
         if a is not None and a.is_populated() and a.archetype is not None {
             resident[eid] = a;
-        } else {
+        } elif eid not in view.epred_ok {
             remote.append(eid);
         }
     }
@@ -163,7 +266,7 @@ impl _edge_pred_keep(
             if all(p.matches(getattr(arch, p.field, None)) for p in epreds) {
                 out.append((eid, nid));
             }
-        } elif eid in remote_keep {
+        } elif eid in view.epred_ok or eid in remote_keep {
             out.append((eid, nid));
         }
     }
@@ -255,7 +358,24 @@ impl _hop_once(
     mem: Memory, view: _View, cur: list[UUID], hop: QHop, hop_idx: int
 ) -> list[UUID] {
     cur_set = set(cur);
-    engine_rows = mem.hop_rows(cur, hop, ordered=True);
+    view.epred_ok = set();
+    local_pairs: list[tuple[UUID, UUID]] = [];
+    engine_cur: list[UUID] = [];
+    proj = view.proj;
+    if proj is not None {
+        for nid in cur {
+            page = proj.fresh_page(nid);
+            rows_l = _page_rows(view, nid, page, hop) if page is not None else None;
+            if rows_l is None {
+                engine_cur.append(nid);
+            } else {
+                local_pairs.extend(rows_l);
+            }
+        }
+    } else {
+        engine_cur = list(cur);
+    }
+    engine_rows = mem.hop_rows(engine_cur, hop, ordered=True);
     rows: list[tuple[UUID, UUID]] = [];
     n_engine = 0;
     seen_eids: set[UUID] = set();
@@ -268,6 +388,16 @@ impl _hop_once(
             rows.append((eid, nid));
             n_engine += 1;
         }
+    }
+    n_local = 0;
+    for (eid, nid) in local_pairs {
+        if eid in seen_eids or eid in view.detached or eid in view.live_edges {
+            continue;
+        }
+        seen_eids.add(eid);
+        view.epred_ok.add(eid);
+        rows.append((eid, nid));
+        n_local += 1;
     }
     live_edges: list[EdgeAnchor] = [];
     for ea in view.fresh {
@@ -332,10 +462,18 @@ impl _hop_once(
             if i in want
         ];
     }
+    if proj is not None and engine_rows is not None and engine_cur {
+        to_warm = engine_cur[:proj.warm_cap];
+        pages = mem.node_pages(to_warm);
+        if pages {
+            proj.absorb(pages);
+        }
+    }
     if _trace_enabled() {
         logger.info(
             f"[gquery] hop[{hop_idx}] {hop.repr()} in={len(cur)} "
-            f"engine_rows={n_engine} live_rows={n_live} out={len(ids)}"
+            f"engine_rows={n_engine} proj_rows={n_local} live_rows={n_live} "
+            f"out={len(ids)}"
         );
     }
     return ids;
