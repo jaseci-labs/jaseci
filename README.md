@@ -1,5 +1,5 @@
 <div align="center">
-  <img alt="Jac logo" src="docs/docs/assets/logo.png" width="80px">
+  <img alt="Jac logo" src=".github/assets/logo.png" width="80px">
 
   <h1>The Jac Programming Language</h1>
   <h3>One language, one compiler, the whole stack. No glue.</h3>
@@ -31,16 +31,16 @@
   </p>
 
   <p>
-    <a href="https://docs.jaseci.org"><b>Docs</b></a> ·
+    <a href="https://www.jaclang.org/docs"><b>Docs</b></a> ·
     <a href="https://playground.jaseci.org"><b>Playground</b></a> ·
-    <a href="https://docs.jaseci.org/tutorials/first-app/build-ai-day-planner/"><b>Tutorial</b></a> ·
+    <a href="https://www.jaclang.org/docs/latest/tutorials/first-app/build-ai-day-planner"><b>Tutorial</b></a> ·
     <a href="https://discord.gg/6j3QNdtcN6"><b>Discord</b></a>
   </p>
 
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/demo-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/demo-light.svg">
-    <img alt="Install jac, create a web app, and serve it in three commands" src="docs/docs/assets/readme/demo-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/demo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/demo-light.svg">
+    <img alt="Install jac, create a web app, and serve it in three commands" src=".github/assets/readme/demo-light.svg" width="880">
   </picture>
 </div>
 
@@ -65,18 +65,18 @@ Install the self-contained `jac` binary. No Python, pip, Node, or C toolchain re
 curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install.sh | bash
 ```
 
-Then clone and run [**this_is_jac**](https://github.com/jaseci-labs/this_is_jac), a showcase technology demo built entirely in Jac:
+Then clone and run [**jac_site**](https://github.com/jaseci-labs/jac_site) -- the official jaclang.org website, built end to end in Jac (naturally):
 
 ```bash
-git clone https://github.com/jaseci-labs/this_is_jac
-cd this_is_jac
-jac install   # first run: pulls python + npm deps
+git clone https://github.com/jaseci-labs/jac_site
+cd jac_site
+jac install   # first run: pulls npm deps
 jac start     # builds the frontend + wasm, serves on http://localhost:8000
 ```
 
-This one application demonstrates every claim above: a guestbook served by walkers and persisted to a real graph with no database, a walker traversing that graph live on screen, one module importing PyPI, npm, and C-ABI libraries at once, a function body delegated to an LLM with `by llm()`, an analytics microservice pulled in by `sv import`, one native shooter compiled both to machine code and to in-browser WebAssembly, and the whole littleX social app embedded as a single component writing to the same graph. All in one typechecked, contiguous, synechic codebase.
+One language spans all three codespaces in this single codebase: the pages and components compile to JavaScript, the endpoints compile to Python and serve over RPC, and the arcade game in `game/arena.jac` compiles through LLVM to in-browser WebAssembly -- fully borrow-checked, with zero reference counting in the artifact. The docs reader serves the language corpus straight from a real graph, the Ninja Leaderboard persists scores through walkers with no database, and the whole thing is one typechecked, contiguous, synechic codebase.
 
-> Prebuilt binaries ship for **macOS and Linux**; on Windows, use WSL (a native PowerShell installer is coming soon). See the [installation guide](https://docs.jaseci.org/quick-guide/install/) for versions, upgrading, and IDE setup.
+> Prebuilt binaries ship for **macOS and Linux**; on Windows, use WSL (a native PowerShell installer is coming soon). See the [installation guide](https://www.jaclang.org/docs/latest/quick-guide/install) for versions, upgrading, and IDE setup.
 
 ## Why Jac exists
 
@@ -128,25 +128,25 @@ None of this is required by computation. The pattern traces to two silent assump
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/synechic-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/synechic-light.svg">
-    <img alt="A conventional stack is three separate programs (TypeScript frontend, Python backend, C native) joined by hand across unchecked JSON and FFI boundaries, so renaming a field ships a stale copy that fails in production; Jac is one continuous checked medium spanning cl, sv, and na tiers, importing npm, PyPI, and the C world directly, with one compiler seeing both sides of every call, so the same rename is a compile error" src="docs/docs/assets/readme/synechic-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/synechic-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/synechic-light.svg">
+    <img alt="A conventional stack is three separate programs (TypeScript frontend, Python backend, C native) joined by hand across unchecked JSON and FFI boundaries, so renaming a field ships a stale copy that fails in production; Jac is one continuous checked medium spanning cl, sv, and na tiers, importing npm, PyPI, and the C world directly, with one compiler seeing both sides of every call, so the same rename is a compile error" src=".github/assets/readme/synechic-light.svg" width="880">
   </picture>
 </div>
 
 **Against the second assumption, Jac is synechic** (from the Greek *synecheia*, continuity): one continuous, checked medium across ecosystems, tiers, and toolchains. One language spans frontend, backend, and native code, and inherits each one's ecosystem (PyPI, npm, the C world) through a plain `import`, so one compiler sees both sides of every call. Rename a field and every stale use (server, client, or native) is a **compile error**, not a production incident. Building the first production synechic language is the whole point of Jac.
 
-Hand-written glue (serializers, route tables, ORM models, API clients) is most of a conventional codebase, and it is where bugs pool, because it is the code no compiler sees. A continuous medium attacks both facts: the compiler generates that layer instead of a human writing it, so it cannot drift, and what is no longer written is the ~5x reduction claimed above. [One App, Two Stacks](https://docs.jaseci.org/quick-guide/jac-vs-traditional-stack/) records the side-by-side count.
+Hand-written glue (serializers, route tables, ORM models, API clients) is most of a conventional codebase, and it is where bugs pool, because it is the code no compiler sees. A continuous medium attacks both facts: the compiler generates that layer instead of a human writing it, so it cannot drift, and what is no longer written is the ~5x reduction claimed above. [One App, Two Stacks](https://www.jaclang.org/docs/latest/quick-guide/jac-vs-traditional-stack) records the side-by-side count.
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/gradual-borrow-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/gradual-borrow-light.svg">
-    <img alt="In a conventional stack, outgrowing the garbage collector means rewriting the hot path in Rust or C++ across an FFI boundary; Jac's gradual borrow checking is one continuum in one language, from fully managed code through own and borrow annotations to enforced zero-RC native artifacts, with a checked membrane mediating every value that crosses between the regimes" src="docs/docs/assets/readme/gradual-borrow-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/gradual-borrow-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/gradual-borrow-light.svg">
+    <img alt="In a conventional stack, outgrowing the garbage collector means rewriting the hot path in Rust or C++ across an FFI boundary; Jac's gradual borrow checking is one continuum in one language, from fully managed code through own and borrow annotations to enforced zero-RC native artifacts, with a checked membrane mediating every value that crosses between the regimes" src=".github/assets/readme/gradual-borrow-light.svg" width="880">
   </picture>
 </div>
 
-The same continuity extends to the deepest discontinuity in computing, the divide between managed and systems languages. Today, when the hot path outgrows the garbage collector, the answer is a second language, an FFI boundary, and a rewrite. Jac replaces that divide with **gradual borrow checking**: unannotated code keeps fully managed semantics, and `own` and `&`/`&mut` opt individual declarations into moves, borrows, and deterministic destruction. A checked boundary (the **membrane**) mediates every value that crosses between the regimes, and full adoption reaches native artifacts with **no reference counting and no collector**. The divide is a gradient walked by degrees, never crossed. [Gradual borrow checking →](https://docs.jaseci.org/reference/language/ownership-borrowing/)
+The same continuity extends to the deepest discontinuity in computing, the divide between managed and systems languages. Today, when the hot path outgrows the garbage collector, the answer is a second language, an FFI boundary, and a rewrite. Jac replaces that divide with **gradual borrow checking**: unannotated code keeps fully managed semantics, and `own` and `&`/`&mut` opt individual declarations into moves, borrows, and deterministic destruction. A checked boundary (the **membrane**) mediates every value that crosses between the regimes, and full adoption reaches native artifacts with **no reference counting and no collector**. The divide is a gradient walked by degrees, never crossed. [Gradual borrow checking →](https://www.jaclang.org/docs/latest/reference/language/ownership-borrowing)
 
 <details>
 <summary><strong>The gradient in code (opt in one declaration at a time)</strong></summary>
@@ -173,9 +173,9 @@ The checker tracks only what you tag, so `node`, `edge`, and `walker` stay fully
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/topokinetic-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/topokinetic-light.svg">
-    <img alt="A conventional stack keeps the program stationary while data commutes to it over query and write-back round trips, and persistence is a commit call you must remember to fire; in Jac data lives as a persistent topology of nodes and edges, a walker carries computation through the graph dispatched by arrival, everything reachable from root persists while unreachable nodes do not, and the database dissolves into the language" src="docs/docs/assets/readme/topokinetic-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/topokinetic-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/topokinetic-light.svg">
+    <img alt="A conventional stack keeps the program stationary while data commutes to it over query and write-back round trips, and persistence is a commit call you must remember to fire; in Jac data lives as a persistent topology of nodes and edges, a walker carries computation through the graph dispatched by arrival, everything reachable from root persists while unreachable nodes do not, and the database dissolves into the language" src=".github/assets/readme/topokinetic-light.svg" width="880">
   </picture>
 </div>
 
@@ -241,9 +241,9 @@ One download replaces the interpreter, the JS runtime, the compilers and linker,
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/one-binary-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/one-binary-light.svg">
-    <img alt="The jac binary links in CPython, Bun, LLVM and a Zig linker, a package manager, a REST server, and a Kubernetes deployer, and builds every kind of artifact" src="docs/docs/assets/readme/one-binary-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/one-binary-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/one-binary-light.svg">
+    <img alt="The jac binary links in CPython, Bun, LLVM and a Zig linker, a package manager, a REST server, and a Kubernetes deployer, and builds every kind of artifact" src=".github/assets/readme/one-binary-light.svg" width="880">
   </picture>
 </div>
 
@@ -256,9 +256,9 @@ Here is the actual anatomy. The `jac` you download is a small native **launcher 
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/binary-anatomy-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/binary-anatomy-light.svg">
-    <img alt="Anatomy of the jac binary: a native launcher stub plus a runtime payload carrying a private CPython, the precompiled Jac compiler and runtime, a statically linked LLVM, the Bun executable, vendored typeshed stubs, and static libc archives" src="docs/docs/assets/readme/binary-anatomy-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/binary-anatomy-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/binary-anatomy-light.svg">
+    <img alt="Anatomy of the jac binary: a native launcher stub plus a runtime payload carrying a private CPython, the precompiled Jac compiler and runtime, a statically linked LLVM, the Bun executable, vendored typeshed stubs, and static libc archives" src=".github/assets/readme/binary-anatomy-light.svg" width="880">
   </picture>
 </div>
 
@@ -275,7 +275,7 @@ Here is the actual anatomy. The `jac` you download is a small native **launcher 
 | **Dev tooling** | Formatter, test runner, language server, and MCP server are modules of the same site (`jac fmt` / `jac test` / `jac lsp` / `jac mcp`) | black, ruff, pytest, jest |
 | **special easter egg** | Only for those with strong jac ninja chi | you will know when you're ready... |
 
-Full story: [One Binary, Build Anything](https://docs.jaseci.org/quick-guide/one-binary/).
+Full story: [One Binary, Build Anything](https://www.jaclang.org/docs/latest/quick-guide/one-binary).
 
 </details>
 
@@ -283,9 +283,9 @@ The anatomy records a design position. The components written in Jac (the compil
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/self-hosting-frontier-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/self-hosting-frontier-light.svg">
-    <img alt="The self-hosting frontier through the jac binary's payload: above the line, written in Jac, sit the compiler and runtime sealed as JIR, the type checker and dev tooling, and the linkers; below the line, carried in binary form for feature completeness, sit CPython, Bun, LLVM, and the C runtime archives; the frontier moves in one direction only, toward the operating system, the floor the artifact concedes" src="docs/docs/assets/readme/self-hosting-frontier-light.svg" width="880">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/self-hosting-frontier-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/self-hosting-frontier-light.svg">
+    <img alt="The self-hosting frontier through the jac binary's payload: above the line, written in Jac, sit the compiler and runtime sealed as JIR, the type checker and dev tooling, and the linkers; below the line, carried in binary form for feature completeness, sit CPython, Bun, LLVM, and the C runtime archives; the frontier moves in one direction only, toward the operating system, the floor the artifact concedes" src=".github/assets/readme/self-hosting-frontier-light.svg" width="880">
   </picture>
 </div>
 
@@ -308,23 +308,23 @@ One language and one skill set produce every kind of software. Each row is one c
 
 | What you're building | The command | Guide |
 |---|---|---|
-| Script / CLI tool | `jac run app.jac` | [CLI & native](https://docs.jaseci.org/build/cli-and-native/) |
-| Zero-dependency native executable | `jac build --as native` | [CLI & native](https://docs.jaseci.org/build/cli-and-native/) |
-| Single-file app bundle (`.jab`) | `jac build` | [CLI reference](https://docs.jaseci.org/reference/cli/#jac-build) |
-| Self-contained app executable | `jac build --as binary` | [CLI reference](https://docs.jaseci.org/reference/cli/#jac-build) |
-| REST API (+ Swagger, auth, persistence) | `jac start api.jac` | [Backend APIs](https://docs.jaseci.org/build/backend-apis/) |
-| Microservices | `sv import` + `jac start` | [Backend APIs](https://docs.jaseci.org/build/backend-apis/) |
-| Full-stack web app | `jac start` | [Full-stack web](https://docs.jaseci.org/build/fullstack-web/) |
-| Desktop app (native webview) | `jac build --client desktop` | [Desktop & mobile](https://docs.jaseci.org/build/desktop-mobile/) |
-| Mobile app (Android / iOS) | `jac build --client mobile` | [Desktop & mobile](https://docs.jaseci.org/build/desktop-mobile/) |
-| AI agents & LLM apps | `by llm()` | [AI agents](https://docs.jaseci.org/build/ai-agents/) |
-| Python package (PyPI wheel) | `jac build --as wheel` | [Libraries](https://docs.jaseci.org/build/libraries/) |
-| npm package | `jac build --as npm` | [Libraries](https://docs.jaseci.org/build/libraries/) |
-| C-ABI shared library (`.so`/`.dylib`/`.dll`) | `jac nacompile lib.na.jac --shared` | [Libraries](https://docs.jaseci.org/build/libraries/) |
-| WebAssembly in the browser | `jac build` in a `web-static` project | [Native pathway](https://docs.jaseci.org/reference/language/native-pathway/) |
-| Kubernetes deployment | `jac start --scale` | [Deploy & scale](https://docs.jaseci.org/reference/plugins/jac-scale/) |
+| Script / CLI tool | `jac run app.jac` | [CLI & native](https://www.jaclang.org/docs/latest/build/cli-and-native) |
+| Zero-dependency native executable | `jac build --as native` | [CLI & native](https://www.jaclang.org/docs/latest/build/cli-and-native) |
+| Single-file app bundle (`.jab`) | `jac build` | [CLI reference](https://www.jaclang.org/docs/latest/reference/cli/#jac-build) |
+| Self-contained app executable | `jac build --as binary` | [CLI reference](https://www.jaclang.org/docs/latest/reference/cli/#jac-build) |
+| REST API (+ Swagger, auth, persistence) | `jac start api.jac` | [Backend APIs](https://www.jaclang.org/docs/latest/build/backend-apis) |
+| Microservices | `sv import` + `jac start` | [Backend APIs](https://www.jaclang.org/docs/latest/build/backend-apis) |
+| Full-stack web app | `jac start` | [Full-stack web](https://www.jaclang.org/docs/latest/build/fullstack-web) |
+| Desktop app (native webview) | `jac build --client desktop` | [Desktop & mobile](https://www.jaclang.org/docs/latest/build/desktop-mobile) |
+| Mobile app (Android / iOS) | `jac build --client mobile` | [Desktop & mobile](https://www.jaclang.org/docs/latest/build/desktop-mobile) |
+| AI agents & LLM apps | `by llm()` | [AI agents](https://www.jaclang.org/docs/latest/build/ai-agents) |
+| Python package (PyPI wheel) | `jac build --as wheel` | [Libraries](https://www.jaclang.org/docs/latest/build/libraries) |
+| npm package | `jac build --as npm` | [Libraries](https://www.jaclang.org/docs/latest/build/libraries) |
+| C-ABI shared library (`.so`/`.dylib`/`.dll`) | `jac nacompile lib.na.jac --shared` | [Libraries](https://www.jaclang.org/docs/latest/build/libraries) |
+| WebAssembly in the browser | `jac build` in a `web-static` project | [Native pathway](https://www.jaclang.org/docs/latest/reference/language/native-pathway) |
+| Kubernetes deployment | `jac start --scale` | [Deploy & scale](https://www.jaclang.org/docs/latest/reference/plugins/jac-scale) |
 
-Three working examples carry the claim: a [playable chess engine](https://docs.jaseci.org/tutorials/native/chess/) compiled to a standalone binary, a [raylib game running as WebAssembly](jac/examples/raylib_shooter/web) in the browser, and [littleX](jac/examples/littleX), a full Twitter-style social app. littleX's entire backend (4 node types, 4 edge types, and 20 walkers that serve as business logic, REST endpoints, persistence, and authorization at once) is **2 files and 475 lines**. The whole app, frontend included, is 37 Jac files with exactly one 65-line config file and **zero glue artifacts**: no route tables, no ORM models, no migrations, no serializers, no auth middleware. A `wc -l` over the tree confirms the counts.
+Three working examples carry the claim: a [playable chess engine](https://www.jaclang.org/docs/latest/tutorials/native/chess) compiled to a standalone binary, a [raylib game running as WebAssembly](jac/examples/raylib_shooter/web) in the browser, and [littleX](jac/examples/littleX), a full Twitter-style social app. littleX's entire backend (4 node types, 4 edge types, and 20 walkers that serve as business logic, REST endpoints, persistence, and authorization at once) is **2 files and 475 lines**. The whole app, frontend included, is 37 Jac files with exactly one 65-line config file and **zero glue artifacts**: no route tables, no ORM models, no migrations, no serializers, no auth middleware. A `wc -l` over the tree confirms the counts.
 
 ## And build it better
 
@@ -345,7 +345,7 @@ Each of those deliverables is a **project kind**: `jac create myapp --kind <kind
 | `desktop`  | Native desktop binary | The same app wrapped in the **OS webview** as one compiled binary: no Electron, no Rust, no PyInstaller |
 | `mobile`  | Android / iOS app | The same `cl` bundle wrapped by Capacitor, or true-native React Native via mobUI: JS tooling runs on the bundled Bun, no Node.js |
 
-The full matrix, with a working recipe and guided track for each: [What You Can Build](https://docs.jaseci.org/quick-guide/project-kinds/).
+The full matrix, with a working recipe and guided track for each: [What You Can Build](https://www.jaclang.org/docs/latest/quick-guide/project-kinds).
 
 ## AI, graphs, and UIs are language features
 
@@ -362,7 +362,7 @@ with entry {
 }
 ```
 
-There is no prompt, no parsing, and no API glue to write. The compiler constructs the prompt from your function's name, argument names, and types (plus optional `sem` annotations), and the return type is an enforced output schema. These are **meaning types**, the constructs of [Meaning-Typed Programming](https://arxiv.org/abs/2405.08965). Declare your model once in `jac.toml`, run `jac install byllm`, and use any [LiteLLM-compatible provider](https://docs.litellm.ai/docs/providers), or go fully local with `jac install 'byllm[local]'`. [Learn more →](https://docs.jaseci.org/reference/plugins/byllm/)
+There is no prompt, no parsing, and no API glue to write. The compiler constructs the prompt from your function's name, argument names, and types (plus optional `sem` annotations), and the return type is an enforced output schema. These are **meaning types**, the constructs of [Meaning-Typed Programming](https://arxiv.org/abs/2405.08965). Declare your model once in `jac.toml`, run `jac install byllm`, and use any [LiteLLM-compatible provider](https://docs.litellm.ai/docs/providers), or go fully local with `jac install 'byllm[local]'`. [Learn more →](https://www.jaclang.org/docs/latest/reference/plugins/byllm)
 
 ### Your data is a graph, and walkers are your API
 
@@ -393,7 +393,7 @@ walker:pub list_tasks {
 jac start api.jac --no-client   # POST /walker/add_task · /walker/list_tasks
 ```
 
-Model your domain as nodes and edges, and send **walkers** (mobile computation, dispatched by arrival) to traverse it: this is **Object-Spatial Programming**. Mark a walker `:pub` and `jac start` serves it as a REST endpoint: request bodies map onto its fields, `report` becomes the JSON response, Swagger docs are served at `/docs`, and every user gets their own isolated, persistent graph. Whatever is reachable from `root` persists. No ORM, no schema migrations, no session plumbing. [Object-Spatial Programming →](https://docs.jaseci.org/tutorials/language/osp/)
+Model your domain as nodes and edges, and send **walkers** (mobile computation, dispatched by arrival) to traverse it: this is **Object-Spatial Programming**. Mark a walker `:pub` and `jac start` serves it as a REST endpoint: request bodies map onto its fields, `report` becomes the JSON response, Swagger docs are served at `/docs`, and every user gets their own isolated, persistent graph. Whatever is reachable from `root` persists. No ORM, no schema migrations, no session plumbing. [Object-Spatial Programming →](https://www.jaclang.org/docs/latest/tutorials/language/osp)
 
 ### Frontend and backend in one file
 
@@ -431,7 +431,7 @@ cl def:pub app -> JsxElement {
 }
 ```
 
-Code in `cl` (the client **codespace**) compiles to a React/JSX bundle for the browser. Everything else compiles to Python for the server. That `await add_todo(...)` in the click handler is a real RPC: the compiler generates the HTTP call, serialization, and shared types across the boundary. `jac start` serves it, and `jac start --dev` adds hot reload. [Full-stack tutorial →](https://docs.jaseci.org/build/fullstack-web/)
+Code in `cl` (the client **codespace**) compiles to a React/JSX bundle for the browser. Everything else compiles to Python for the server. That `await add_todo(...)` in the click handler is a real RPC: the compiler generates the HTTP call, serialization, and shared types across the boundary. `jac start` serves it, and `jac start --dev` adds hot reload. [Full-stack tutorial →](https://www.jaclang.org/docs/latest/build/fullstack-web)
 
 For all three ideas in one file (an AI categorizer, a native-compiled scoring function, a persistent graph, and a React UI), see [`jac/examples/mini_todo`](jac/examples/mini_todo).
 
@@ -442,7 +442,7 @@ jac start main.jac           # local: REST API + auth + Swagger + persistence
 jac start main.jac --scale   # cloud: Kubernetes with Redis, MongoDB, load balancing
 ```
 
-Your program text does not change with the shape of its deployment: this is **scale invariance**, and the `scale` subsystem that delivers it ships inside the binary. `--scale` builds the images, provisions Redis and MongoDB, and deploys to Kubernetes with health checks. You write no Dockerfile and no YAML, and what stays in your code is only the physics: latency, failure, and cost surface as typed semantics. [Deploy & scale →](https://docs.jaseci.org/reference/plugins/jac-scale/)
+Your program text does not change with the shape of its deployment: this is **scale invariance**, and the `scale` subsystem that delivers it ships inside the binary. `--scale` builds the images, provisions Redis and MongoDB, and deploys to Kubernetes with health checks. You write no Dockerfile and no YAML, and what stays in your code is only the physics: latency, failure, and cost surface as typed semantics. [Deploy & scale →](https://www.jaclang.org/docs/latest/reference/plugins/jac-scale)
 
 ## What's in this repo
 
@@ -452,7 +452,7 @@ This is the Jaseci monorepo, home to everything that makes Jac work:
 |---|---|
 | [`jac/`](jac/) | **jaclang** -- the compiler, runtime, and everything inside the `jac` binary: the language, the full-stack client framework, the `scale` deployment subsystem, the MCP server, and the LLVM native pathway |
 | [`jac-byllm/`](jac-byllm/) | **byllm** -- AI/LLM integration via Meaning-Typed Programming (`jac install byllm`) |
-| [`docs/`](docs/) | The documentation site at [docs.jaseci.org](https://docs.jaseci.org) |
+| [`jac/jaclang/cli/docs/`](jac/jaclang/cli/docs/) | The full documentation set -- bundled into the `jac` binary (`jac guide`), served as MCP resources, and rendered at [jaclang.org/docs](https://www.jaclang.org/docs) |
 | [`scripts/`](scripts/) | The installer and release tooling |
 
 The official VS Code extension lives at [jaseci-labs/jac-vscode](https://github.com/jaseci-labs/jac-vscode).
@@ -465,7 +465,7 @@ Jac's core ideas are peer-reviewed research, not just design taste:
 - **MTP: A Meaning-Typed Language Abstraction for AI-Integrated Programming** -- `by llm()` and `sem`, evaluated against hand-built prompt pipelines: comparable-or-better accuracy with substantially less code and lower token cost (OOPSLA 2025, [arXiv:2405.08965](https://arxiv.org/abs/2405.08965))
 - **The Jaseci Programming Paradigm and Runtime Stack** -- the production lineage: walkers served as scale-out endpoints in commercial products (IEEE Computer Architecture Letters, 2023)
 
-The book-length treatment is published: [*A Synechic and Topokinetic Programming Language*](https://zenodo.org/records/21498692) develops the synechic and topokinetic language classes and the theory beneath Jac's design ([DOI: 10.5281/zenodo.21498692](https://doi.org/10.5281/zenodo.21498692)). The project grew out of research at the University of Michigan and is now developed in the open by a global community. To cite Jac in your own work, GitHub's "Cite this repository" button (powered by [CITATION.cff](CITATION.cff)) gives a ready-made reference. More on [docs.jaseci.org: Research & Papers](https://docs.jaseci.org/community/research/).
+The book-length treatment is published: [*A Synechic and Topokinetic Programming Language*](https://zenodo.org/records/21498692) develops the synechic and topokinetic language classes and the theory beneath Jac's design ([DOI: 10.5281/zenodo.21498692](https://doi.org/10.5281/zenodo.21498692)). The project grew out of research at the University of Michigan and is now developed in the open by a global community. To cite Jac in your own work, GitHub's "Cite this repository" button (powered by [CITATION.cff](CITATION.cff)) gives a ready-made reference. More on the docs site: [Research & Papers](https://www.jaclang.org/docs/latest/community/research).
 
 ## Built with Jac
 
@@ -485,7 +485,7 @@ We welcome contributions of every size, from typo fixes to compiler passes.
 
 - **Ask questions & share ideas** on our [Discord server](https://discord.gg/6j3QNdtcN6)
 - **Report bugs** via [GitHub issues](https://github.com/jaseci-labs/jaseci/issues)
-- **Send PRs**: start with the [contributing guide](https://docs.jaseci.org/community/contributing/) and [CONTRIBUTING.md](CONTRIBUTING.md); `bash scripts/fresh_env.sh` sets up a dev environment
+- **Send PRs**: start with the [contributing guide](https://www.jaclang.org/docs/latest/community/contributing) and [CONTRIBUTING.md](CONTRIBUTING.md); `bash scripts/fresh_env.sh` sets up a dev environment
 
 If Jac looks useful to you, [**star the repo**](https://github.com/jaseci-labs/jaseci/stargazers). It helps other developers discover the project.
 
