@@ -6,7 +6,7 @@ obj HotModule {
         url_path: str;
 }
 
-def publish_hot_module(state: dict, version: str, dex_path: str) -> None {
+def publish_hot_module(state: dict, version: str, dex_path: str) {
     state["module"] = HotModule(
         version=version,
         dex_path=str(dex_path),
@@ -24,7 +24,7 @@ def _resolve_versioned_dex(state: dict, raw_path: str) -> (Path | None) {
     if not raw_path.startswith(prefix) or not raw_path.endswith(suffix) {
         return None;
     }
-    version = raw_path[len(prefix) : -len(suffix)];
+    version = raw_path[len(prefix):-len(suffix)];
     if not version {
         return None;
     }

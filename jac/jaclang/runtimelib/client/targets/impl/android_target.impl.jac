@@ -237,7 +237,8 @@ impl AndroidTarget._compile_page_into_model(
         str(page_file),
         options=CompileOptions(
             no_cgen=True,
-            type_check=getattr(self, "_type_check", False), client_framework="compose"
+            type_check=getattr(self, "_type_check", False),
+            client_framework="compose"
         )
     );
     if not page_mod {
@@ -325,7 +326,9 @@ impl AndroidTarget._compile_compose_modules(
     self._type_check = self._resolve_type_check(project_dir);
     mod = program.compile(
         str(entry_file),
-        options=CompileOptions(no_cgen=True, type_check=self._type_check, client_framework="compose")
+        options=CompileOptions(
+            no_cgen=True, type_check=self._type_check, client_framework="compose"
+        )
     );
     if not mod {
         raise RuntimeError(f"Failed to compile entry module: {entry_file}");
@@ -470,9 +473,7 @@ impl AndroidTarget.dev(
     self._adb_reverse_launch(base_apk, project_dir, port);
 
     (version, dex_path) = self._build_hot_dex(android_dir, model.intent.package_name);
-    state: dict = {
-        "modules_root": str(android_dir / "build" / "jac-dev")
-    };
+    state: dict = {"modules_root": str(android_dir / "build" / "jac-dev")};
     publish_hot_module(state, version, str(dex_path));
     console.success(f"  Hot module v{version}: {dex_path}");
 

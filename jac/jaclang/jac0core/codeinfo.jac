@@ -177,7 +177,9 @@ def native_stdlib_root -> (str | None) {
     if not jaclang?.__file__ {
         return None;
     }
-    stdlib_root = os.path.join(os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib");
+    stdlib_root = os.path.join(
+        os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib"
+    );
     return stdlib_root if os.path.isdir(stdlib_root) else None;
 }
 

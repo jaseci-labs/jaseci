@@ -1,6 +1,8 @@
 import from pathlib { Path }
 import from typing { Optional }
-import from jaclang.runtimelib.client.targets.android.dev_server { _jac_start_dev_server }
+import from jaclang.runtimelib.client.targets.android.dev_server {
+    _jac_start_dev_server
+}
 import from jaclang.runtimelib.client.targets.registry { ClientTarget }
 
 obj AndroidTarget(ClientTarget) {

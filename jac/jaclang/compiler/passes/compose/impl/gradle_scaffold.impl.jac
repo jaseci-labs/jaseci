@@ -193,12 +193,9 @@ def _gradle_compose_dependencies -> str {
 }""";
 }
 
-def _module_gradle(
-    android_plugin: str, package_name: str, default_config: str
-) -> str {
+def _module_gradle(android_plugin: str, package_name: str, default_config: str) -> str {
     return (
-        f"plugins {{\n"
-        f'    id("{android_plugin}")\n'
+        f"plugins {{\n" f'    id("{android_plugin}")\n'
         + _gradle_kotlin_plugins()
         + "}\n\n"
         + _gradle_android_sdk_block(package_name, default_config)

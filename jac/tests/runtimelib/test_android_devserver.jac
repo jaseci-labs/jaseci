@@ -5,9 +5,7 @@ at the manifest's `path`. These tests assert the server honors that contract
 (missing dex -> 404, live state updates visible to the next poll) without a
 device or a real build.
 """
-import from jaclang.runtimelib.client.targets.android.dev_server {
-    publish_hot_module
-}
+import from jaclang.runtimelib.client.targets.android.dev_server { publish_hot_module }
 import from jaclang.runtimelib.client.targets.android_target { _jac_start_dev_server }
 import from pathlib { Path }
 import from urllib.request { urlopen }

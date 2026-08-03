@@ -403,7 +403,7 @@ impl _RNHmrHandler.on_event(evt: FileChangeEvent) -> None {
     );
 }
 
-def _start_android(apk_path: Path, project_dir: Path) -> None {
+def _start_android(apk_path: Path, project_dir: Path) {
     import json;
 
     rn_dir = resolve_rn_project_dir(project_dir);

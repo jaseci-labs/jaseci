@@ -109,12 +109,12 @@ def resolve_adb_path -> str {
     return shutil.which("adb") or "";
 }
 
-def adb_install_apk(adb: str, apk_path: Path) -> None {
+def adb_install_apk(adb: str, apk_path: Path) {
     console.print(f"  adb install -r {apk_path}", style="muted");
     subprocess.run([adb, "install", "-r", str(apk_path)], check=True);
 }
 
-def adb_launch_package(adb: str, package_name: str) -> None {
+def adb_launch_package(adb: str, package_name: str) {
     console.print(f"  Launching {package_name}", style="muted");
     subprocess.run(
         [
@@ -134,17 +134,10 @@ def adb_launch_package(adb: str, package_name: str) -> None {
 
 def adb_launch_activity(
     adb: str, package_name: str, activity: str, extras: (dict[str, str] | None) = None
-) -> None {
+) {
     extras = extras or {};
     console.print(f"  Launching {package_name}/{activity}", style="muted");
-    cmd: list[str] = [
-        adb,
-        "shell",
-        "am",
-        "start",
-        "-n",
-        f"{package_name}/{activity}"
-    ];
+    cmd: list[str] = [adb, "shell", "am", "start", "-n", f"{package_name}/{activity}"];
     for (key, value) in extras.items() {
         cmd.extend(["--es", key, value]);
     }

@@ -191,12 +191,7 @@ impl ComposeViewBuilder.build_element(nd: uni.JsxElement) -> (ComposeElement | N
         self._view_by_node[id(nd)] = elem;
         return elem;
     }
-    elem = ComposeElement(
-        name=tag,
-        attrs=attrs,
-        children=children,
-        jac_node=nd
-    );
+    elem = ComposeElement(name=tag, attrs=attrs, children=children, jac_node=nd);
     self._view_by_node[id(nd)] = elem;
     return elem;
 }

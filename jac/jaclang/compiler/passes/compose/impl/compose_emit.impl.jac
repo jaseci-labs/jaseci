@@ -1,7 +1,12 @@
 import from pathlib { Path }
 import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
-import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent, IntentParam }
-import from jaclang.compiler.passes.ecmascript.intent.detection { COMPOSE_COMPONENT_TYPES }
+import from jaclang.compiler.passes.ecmascript.intent.model {
+    IntentComponent,
+    IntentParam
+}
+import from jaclang.compiler.passes.ecmascript.intent.detection {
+    COMPOSE_COMPONENT_TYPES
+}
 import from jaclang.compiler.passes.compose.rpc_client { RpcClientEmitter }
 import from jaclang.compiler.passes.compose.gradle_scaffold {
     build_gradle_scaffold,
@@ -250,9 +255,10 @@ def _emit_composable_param(p: IntentParam) -> str {
 }
 
 def _emit_composable_fun(
-    name: str, prelude: str, body: str, params: list[IntentParam] = []
+    name: str, prelude: str, body: str, params: (list[IntentParam] | None) = None
 ) -> str {
-    sig = ", ".join([_emit_composable_param(p) for p in params]);
+    resolved = params if params is not None else [];
+    sig = ", ".join([_emit_composable_param(p) for p in resolved]);
     return f"""
 @Composable
 fun {name}({sig}) {{
