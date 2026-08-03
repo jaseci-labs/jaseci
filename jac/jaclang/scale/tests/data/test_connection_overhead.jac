@@ -14,6 +14,7 @@ import os;
 import time;
 import from pathlib { Path }
 import from typing { cast }
+import from uuid { UUID }
 
 import from pymongo { MongoClient }
 import from testcontainers.community.mongodb { MongoDbContainer }
@@ -35,15 +36,39 @@ def mongo_total_created(client: MongoClient) -> int {
     return int(status["connections"]["totalCreated"]);
 }
 
+"""Return the _id values a profiled query filtered on, as canonical strings."""
+def profiled_filter_ids(doc: dict) -> set {
+    raw = (doc.get("command") or {}).get("filter", {}).get("_id");
+    if isinstance(raw, dict) {
+        return {str(v) for v in (raw.get("$in") or [])};
+    }
+    return {str(raw)} if raw is not None else set();
+}
+
 """Count profiled _anchors finds since `since`, optionally for one _id."""
 def count_profiled_anchor_finds(
     client: MongoClient, since: any, id_filter: (str | None) = None
 ) -> int {
     query: dict = {"ts": {"$gte": since}, "ns": "jac_db._anchors", "op": "query"};
-    if id_filter is not None {
-        query["command.filter._id"] = id_filter;
+    docs = list(client["jac_db"]["system.profile"].find(query));
+    if id_filter is None {
+        return len(docs);
     }
-    return client["jac_db"]["system.profile"].count_documents(query);
+    matched = [
+        d
+        for d in docs
+        if id_filter in profiled_filter_ids(d)
+    ];
+    return len(matched);
+}
+
+"""Return a registered user's root anchor _id in its stored MongoDB form."""
+def user_root_anchor_id(client: MongoClient, username: str) -> str {
+    user = client["jac_db"]["users"].find_one(
+        {"identities.value_normalized": username}
+    );
+    assert user is not None , f"user {username} not found in jac_db.users";
+    return str(UUID(cast(str, user["root_id"])));
 }
 
 """N requests open ~0 new MongoDB connections (shared client, cached probe)."""
@@ -59,15 +84,23 @@ test "authenticated requests reuse the pooled MongoDB connection" {
         shutil.rmtree(data_dir);
     }
 
+    # Hermetic per test: a shared container would skew totalCreated counting.
     mongo_container = MongoDbContainer("mongo:latest");
     admin_client = None;
     server = None;
+
+    env_backup = {};
+    for key in ["MONGODB_URI", "REDIS_URL"] {
+        if key in os.environ {
+            env_backup[key] = os.environ[key];
+            del os.environ[key];
+        }
+    }
 
     try {
         mongo_container.start();
         mongo_uri = mongo_container.get_connection_url();
         os.environ["MONGODB_URI"] = mongo_uri;
-        os.environ.pop("REDIS_URL", None);
 
         admin_client = MongoClient(mongo_uri);
         port = get_free_port();
@@ -122,6 +155,9 @@ test "authenticated requests reuse the pooled MongoDB connection" {
             }
         }
         os.environ.pop("MONGODB_URI", None);
+        for (key, value) in env_backup.items() {
+            os.environ[key] = value;
+        }
         with contextlib.suppress(Exception) {
             mongo_container.stop();
         }
@@ -144,16 +180,24 @@ test "system root is served from process cache, never re-fetched from MongoDB" {
         shutil.rmtree(data_dir);
     }
 
+    # Hermetic per test: db-wide profiling would capture a shared container's noise.
     mongo_container = MongoDbContainer("mongo:latest");
     admin_client = None;
     server = None;
     profiling_on = False;
 
+    env_backup = {};
+    for key in ["MONGODB_URI", "REDIS_URL"] {
+        if key in os.environ {
+            env_backup[key] = os.environ[key];
+            del os.environ[key];
+        }
+    }
+
     try {
         mongo_container.start();
         mongo_uri = mongo_container.get_connection_url();
         os.environ["MONGODB_URI"] = mongo_uri;
-        os.environ.pop("REDIS_URL", None);
 
         admin_client = MongoClient(mongo_uri);
         port = get_free_port();
@@ -176,6 +220,9 @@ test "system root is served from process cache, never re-fetched from MongoDB" {
         time.sleep(0.4);
 
         total_anchor_finds = count_profiled_anchor_finds(admin_client, since);
+        user_root_finds = count_profiled_anchor_finds(
+            admin_client, since, user_root_anchor_id(admin_client, "sysroot_tester")
+        );
         super_root_finds = count_profiled_anchor_finds(
             admin_client, since, Con.SUPER_ROOT_UUID
         );
@@ -187,6 +234,15 @@ test "system root is served from process cache, never re-fetched from MongoDB" {
             f"for {REQUEST_COUNT} requests; expected >= {REQUEST_COUNT}. "
             f"The system-root assertion below would be meaningless without a live "
             f"profiler."
+        );
+
+        # Sanity: the same _id filter must match live traffic, else a 0 system-root
+        # count could just mean anchor _ids are no longer stored as uuid strings.
+        assert user_root_finds >= REQUEST_COUNT , (
+            f"ID FILTER MISMATCH: only {user_root_finds} profiled finds matched the "
+            f"user root _id across {REQUEST_COUNT} requests (expected >= "
+            f"{REQUEST_COUNT}). The _id matching itself is broken, so the "
+            f"system-root count below would be vacuously 0."
         );
 
         assert super_root_finds == 0 , (
@@ -214,6 +270,9 @@ test "system root is served from process cache, never re-fetched from MongoDB" {
             }
         }
         os.environ.pop("MONGODB_URI", None);
+        for (key, value) in env_backup.items() {
+            os.environ[key] = value;
+        }
         with contextlib.suppress(Exception) {
             mongo_container.stop();
         }
