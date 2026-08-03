@@ -57,6 +57,10 @@ obj Memory {
         return None;
     }
 
+    def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None) {
+        return None;
+    }
+
     async def aget(id: UUID) -> (Anchor | None);
     async def aput(anchor: Anchor) -> None;
     async def adelete(id: UUID) -> None;
@@ -87,6 +91,14 @@ obj PersistentMemory(Memory) {
             f"{type(self).__name__} does not implement the graph-index "
             "contract (hop_rows/filter_ids); every persistent backend must "
             "own its graph index"
+        );
+    }
+
+    def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None) {
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the graph-index "
+            "contract (edge_endpoints); every persistent backend must own "
+            "its graph index"
         );
     }
 
@@ -158,6 +170,7 @@ obj SqliteMemory(PersistentMemory) {
     ) -> (list[tuple[UUID, UUID]] | None);
 
     def filter_ids(ids: list[UUID], preds: list[QPred]) -> (set[UUID] | None);
+    def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None);
     def _apply_one(conn: sqlite3.Connection, intent: WriteIntent) -> None;
     def _merge_write(conn: sqlite3.Connection, intent: WriteIntent) -> None;
     def inspect_summary -> dict;
@@ -207,4 +220,5 @@ obj TieredMemory(VolatileMemory) {
     ) -> (list[tuple[UUID, UUID]] | None);
 
     def filter_ids(ids: list[UUID], preds: list[QPred]) -> (set[UUID] | None);
+    def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None);
 }

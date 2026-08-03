@@ -1300,10 +1300,11 @@ impl SqliteMemory.hop_rows(
             chunk = keys[start:start + 400];
             for (mcol, ncol, undir_only) in arms {
                 params: list = [];
-                sql = f"SELECT ge.rowid, ge.edge_id, ge.{ncol} FROM graph_edges ge";
-                if node_types {
-                    sql += f" JOIN anchors a ON a.id = ge.{ncol}";
-                }
+                sql = (
+                    f"SELECT ge.rowid, ge.edge_id, ge.{ncol} FROM graph_edges ge"
+                    + " JOIN anchors ea ON ea.id = ge.edge_id"
+                    + f" JOIN anchors a ON a.id = ge.{ncol}"
+                );
                 marks = ', '.join('?' for _ in chunk);
                 sql += f" WHERE ge.{mcol} IN ({marks})";
                 params.extend(chunk);
@@ -1355,6 +1356,35 @@ impl SqliteMemory.filter_ids(
             }
             for r in conn.execute(sql, params).fetchall() {
                 out.add(UUID(cast(str, r[0])));
+            }
+        }
+    }
+    return out;
+}
+
+impl SqliteMemory.edge_endpoints(
+    ids: list[UUID]
+) -> (dict[UUID, tuple[UUID, UUID]] | None) {
+    if not ids {
+        return {};
+    }
+    out: dict[UUID, tuple[UUID, UUID]] = {};
+    with self.__lock__ {
+        self._ensure_connection();
+        assert self.__conn__ is not None;
+        keys = [str(i) for i in ids];
+        for start in range(0, len(keys), 400) {
+            chunk = keys[start:start + 400];
+            marks = ', '.join('?' for _ in chunk);
+            for r in self.__conn__.execute(
+                f"SELECT edge_id, src, dst FROM graph_edges"
+                    + f" WHERE edge_id IN ({marks})",
+                chunk
+            ).fetchall() {
+                out[UUID(cast(str, r[0]))] = (
+                    UUID(cast(str, r[1])),
+                    UUID(cast(str, r[2]))
+                );
             }
         }
     }
@@ -1666,6 +1696,15 @@ impl SqliteMemory.quarantine_dangling(
         self._ensure_connection();
         if self.__conn__ is not None {
             _record_dangling(self.__conn__, missing_id, referrer_id, kind);
+            key = str(missing_id);
+            if kind == 'edge' {
+                self.__conn__.execute(
+                    "DELETE FROM graph_edges WHERE edge_id = ?", (key, )
+                );
+            } else {
+                _purge_node_edges(self.__conn__, key);
+            }
+            self.__conn__.commit();
         }
     }
 }
@@ -2279,6 +2318,15 @@ impl TieredMemory.filter_ids(
         return None;
     }
     return self.l3.filter_ids(ids, preds);
+}
+
+impl TieredMemory.edge_endpoints(
+    ids: list[UUID]
+) -> (dict[UUID, tuple[UUID, UUID]] | None) {
+    if self.l3 is None {
+        return None;
+    }
+    return self.l3.edge_endpoints(ids);
 }
 
 impl TieredMemory.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {

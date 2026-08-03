@@ -171,6 +171,64 @@ impl _edge_pred_keep(
 }
 
 
+impl _heal_sweep(
+    mem: Memory, view: _View, nanch: NodeAnchor, engine_eids: set[UUID]
+) -> None {
+    suspects: list = [];
+    for stub in list(nanch.edges) {
+        if stub.id in engine_eids or stub.id in view.probed or stub.is_populated() {
+            continue;
+        }
+        view.probed.add(stub.id);
+        suspects.append(stub);
+    }
+    if not suspects {
+        return;
+    }
+    alive: list = [];
+    for st in suspects {
+        if mem.`has(st.id) {
+            alive.append(st);
+        } else {
+            mem.quarantine_ref(nanch, st);
+        }
+    }
+    if not alive {
+        return;
+    }
+    endpoints = mem.edge_endpoints([st.id for st in alive]);
+    if endpoints is None {
+        return;
+    }
+    pool = mem.get_mem();
+    for st in alive {
+        ends = endpoints.get(st.id);
+        if ends is None {
+            continue;
+        }
+        (src_id, dst_id) = ends;
+        other_id = dst_id if src_id == nanch.id else src_id;
+        resident = pool.get(other_id) or view.live_nodes.get(other_id);
+        if resident is not None and resident.is_populated() {
+            continue;
+        }
+        if mem.`has(other_id) {
+            continue;
+        }
+        mem.quarantine_ref(nanch, st);
+        try {
+            import from jaclang.runtimelib.memory { TieredMemory }
+            if isinstance(mem, TieredMemory) and mem.l3 is not None {
+                mem.l3.quarantine_dangling(other_id, st.id, 'node');
+            }
+        } except Exception {
+            ;
+        }
+        view.detached.add(st.id);
+    }
+}
+
+
 impl _hop_once(
     mem: Memory, view: _View, cur: list[UUID], hop: QHop, hop_idx: int
 ) -> list[UUID] {
@@ -197,10 +255,14 @@ impl _hop_once(
         }
     }
     pool = mem.get_mem();
+    all_eids: set[UUID] = set(seen_eids);
     for nid in cur {
         nanch = pool.get(nid) or view.live_nodes.get(nid);
         if not isinstance(nanch, NodeAnchor) or not nanch.is_populated() {
             continue;
+        }
+        if engine_rows is not None {
+            _heal_sweep(mem, view, nanch, all_eids);
         }
         for stub in nanch.edges {
             if stub.id in seen_eids

@@ -114,6 +114,7 @@ obj MongoBackend(PersistentMemory) {
     ) -> (list[tuple[UUID, UUID]] | None);
 
     def filter_ids(ids: list[UUID], preds: list[QPred]) -> (set[UUID] | None);
+    def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None);
     def _apply_one(intent: WriteIntent) -> None;
     def inspect_summary -> dict;
     def list_quarantined(limit: int = 50) -> list;

@@ -13,8 +13,14 @@ obj _View {
     has fresh: list[EdgeAnchor] = [],
         detached: set[UUID] = set(),
         live_nodes: dict[UUID, NodeAnchor] = {},
-        live_edges: dict[UUID, EdgeAnchor] = {};
+        live_edges: dict[UUID, EdgeAnchor] = {},
+        probed: set[UUID] = set();
 }
+
+
+def _heal_sweep(
+    mem: Memory, view: _View, nanch: NodeAnchor, engine_eids: set[UUID]
+) -> None;
 
 
 def _trace_enabled -> bool;

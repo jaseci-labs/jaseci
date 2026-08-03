@@ -637,6 +637,31 @@ impl MongoBackend.hop_rows(
 }
 
 
+impl MongoBackend.edge_endpoints(
+    ids: list[UUID]
+) -> (dict[UUID, tuple[UUID, UUID]] | None) {
+    if not ids or self.client is None {
+        return {};
+    }
+    out: dict[UUID, tuple[UUID, UUID]] = {};
+    try {
+        filt = {'_id': {'$in': [str(i) for i in ids]}, 'type': 'EdgeAnchor'};
+        proj = {'_id': 1, 'data.source': 1, 'data.target': 1};
+        for doc in self.collection.find(filt, proj) {
+            data = doc.get('data') or {};
+            s_id = data.get('source');
+            t_id = data.get('target');
+            if s_id and t_id {
+                out[UUID(str(doc['_id']))] = (UUID(str(s_id)), UUID(str(t_id)));
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB edge_endpoints failed: {e}");
+    }
+    return out;
+}
+
+
 impl MongoBackend.filter_ids(
     ids: list[UUID], preds: list[QPred]
 ) -> (set[UUID] | None) {
