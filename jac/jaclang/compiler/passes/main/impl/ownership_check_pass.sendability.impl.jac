@@ -229,12 +229,14 @@ impl OwnershipCheckPass._flow_lend_joined(
     idx = list(body).index(asgn);
     for st in list(body)[idx + 1:] {
         _wait_found = False;
+        _wait_nodes: list[uni.ConcurrentExpr] = [];
         for wc in st.get_all_sub_nodes(uni.ConcurrentExpr) {
             if wc.tok is not None and wc.tok.name == Tok.KW_WAIT {
                 for wn in ([wc.target] if isinstance(wc.target, uni.Name) else [])
                     + list(wc.target.get_all_sub_nodes(uni.Name)) {
                     if self._sym_id(wn) == handle_sid {
                         _wait_found = True;
+                        _wait_nodes.append(wc);
                     }
                 }
             }
@@ -245,10 +247,33 @@ impl OwnershipCheckPass._flow_lend_joined(
                 _owner_touched = True;
             }
         }
-        if _wait_found {
+        _exits: list[uni.UniNode] = (
+            (
+                [st]
+                    if isinstance(st, (uni.ReturnStmt, uni.RaiseStmt, uni.CtrlStmt))
+                    else []
+            )
+            + list(st.get_all_sub_nodes(uni.ReturnStmt))
+            + list(st.get_all_sub_nodes(uni.RaiseStmt))
+            + list(st.get_all_sub_nodes(uni.CtrlStmt))
+            + list(st.get_all_sub_nodes(uni.YieldExpr))
+        );
+        _side_exit = False;
+        for ex in _exits {
+            _joins_first = False;
+            for w in _wait_nodes {
+                if ex is w or self._is_ancestor(ex, w) {
+                    _joins_first = True;
+                }
+            }
+            if not _joins_first {
+                _side_exit = True;
+            }
+        }
+        if _wait_found and not _side_exit {
             return not _owner_touched;
         }
-        if _owner_touched {
+        if _side_exit or _owner_touched {
             return False;
         }
     }

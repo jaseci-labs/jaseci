@@ -71,7 +71,7 @@ impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
         if name == "self" or name in self.param_vars {
             continue;
         }
-        if name in self.nogc_stack_vars {
+        if name in self.nogc_no_free_vars {
             continue;
         }
         alloca = self.local_vars.get(name);
@@ -2134,7 +2134,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     )
                         and not (
                             self._gc_mode() == "none"
-                            and var_name in self.nogc_stack_vars
+                            and var_name in self.nogc_no_free_vars
                         ) {
                         old_val = self.builder.load(alloca, name=f"{var_name}.old");
                         self._emit_rc_release_typed(
@@ -2478,7 +2478,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     )
                         and not (
                             self._gc_mode() == "none"
-                            and var_name in self.nogc_stack_vars
+                            and var_name in self.nogc_no_free_vars
                         ) {
                         old_val = self.builder.load(alloca, name=f"{var_name}.old");
                         self._emit_rc_release_typed(
@@ -2912,7 +2912,7 @@ impl NaIRGenPass._codegen_for_indexed(
             if rc_vars
                 and isinstance(vtype, ir.PointerType)
                 and self._gc_mode() == "none" {
-                self.nogc_stack_vars.add(vname);
+                self.nogc_no_free_vars.add(vname);
             }
             allocas.append(alloca);
         }

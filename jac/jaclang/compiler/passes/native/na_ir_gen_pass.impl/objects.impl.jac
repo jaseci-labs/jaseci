@@ -998,7 +998,7 @@ impl NaIRGenPass._codegen_instantiation(
         if _tgt_asgn is not None
             and len(_tgt_asgn.target) == 1
             and isinstance(_tgt_asgn.target[0], uni.Name) {
-            self.nogc_stack_vars.add(_tgt_asgn.target[0].sym_name);
+            self.nogc_no_free_vars.add(_tgt_asgn.target[0].sym_name);
         }
     } elif _stack_ok {
         self.rc_stack_promotions += 1;
@@ -1063,7 +1063,7 @@ impl NaIRGenPass._codegen_instantiation(
             if _rg_asgn is not None
                 and len(_rg_asgn.target) == 1
                 and isinstance(_rg_asgn.target[0], uni.Name) {
-                self.nogc_stack_vars.add(_rg_asgn.target[0].sym_name);
+                self.nogc_no_free_vars.add(_rg_asgn.target[0].sym_name);
             }
         }
         if self.rc_set_type_fn is not None {

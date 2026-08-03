@@ -23,3 +23,8 @@ test "owner touched between flow and wait stays E1308" {
     prog = compile_fixture("flow_lend_use_before_wait.jac");
     expect_ownership_codes(prog, ["E1308"]);
 }
+
+test "side exit between spawn and wait stays E1308" {
+    prog = compile_fixture("flow_lend_early_exit.jac");
+    expect_ownership_codes(prog, ["E1308"]);
+}

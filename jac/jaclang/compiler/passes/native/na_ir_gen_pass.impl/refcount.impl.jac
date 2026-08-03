@@ -1299,7 +1299,7 @@ impl NaIRGenPass._emit_scope_cleanup(
         if var_name in self.param_vars {
             continue;
         }
-        if var_name in self.nogc_stack_vars {
+        if var_name in self.nogc_no_free_vars {
             continue;
         }
         if var_name in self.closure_cell_handles {
@@ -1342,7 +1342,7 @@ impl NaIRGenPass._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -> No
         if var_name == "self" or var_name in self.param_vars {
             continue;
         }
-        if var_name in self.nogc_stack_vars {
+        if var_name in self.nogc_no_free_vars {
             continue;
         }
         if var_name in self.closure_cell_handles {
