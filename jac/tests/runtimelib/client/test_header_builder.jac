@@ -198,3 +198,68 @@ test "a missing or malformed scripts key emits nothing" {
         assert "<script" not in hb.build_head();
     }
 }
+
+
+test "a single table entry works without the array wrapper" {
+    hb = HeaderBuilder(
+        meta_data={"scripts": {"src": "/one.js", "defer": True}}, function_name="app"
+    );
+    assert '<script src="/one.js" defer></script>' in hb.build_head();
+}
+
+
+test "src wins when both src and content are given" {
+    hb = HeaderBuilder(
+        meta_data={"scripts": [{"src": "/a.js", "content": "ignored()"}]},
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert '<script src="/a.js"></script>' in head;
+    assert "ignored()" not in head;
+}
+
+
+test "uppercase closing tags are neutralized too" {
+    hb = HeaderBuilder(
+        meta_data={"scripts": [{"content": 'var a = "</SCRIPT ><b>";'}]},
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert '<\\/SCRIPT' in head;
+    assert "</SCRIPT" not in head;
+    assert head.count("</script>") == 1;
+}
+
+
+test "unrelated closing tags in inline content are left alone" {
+    hb = HeaderBuilder(
+        meta_data={"scripts": [{"content": 'var a = "</div></span>";'}]},
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert '</div></span>' in head;
+    assert "<\\/" not in head;
+}
+
+
+test "a data key cannot smuggle extra attribute names" {
+    hb = HeaderBuilder(
+        meta_data={
+            "scripts": [
+                {
+                    "src": "/a.js",
+                    "data_x onmouseover": "alert(1)",
+                    'data_y" onclick="alert(1)': "v",
+                    "data_UPPER": "v",
+                    "data_ok": "1"
+                }
+            ]
+        },
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert 'data-ok="1"' in head;
+    assert "onmouseover" not in head;
+    assert "onclick" not in head;
+    assert "data-UPPER" not in head;
+}

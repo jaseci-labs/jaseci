@@ -191,9 +191,10 @@ impl HeaderBuilder._script_tag(spec: dict) -> str {
         }
         if key in self.script_flag_attrs {
             attrs.append(key);
-        } elif key in self.script_value_attrs or key.startswith("data_") {
-            name = key.replace("_", "-");
-            attrs.append(f'{name}="{html.escape(str(val))}"');
+        } elif key in self.script_value_attrs {
+            attrs.append(f'{key}="{html.escape(str(val))}"');
+        } elif re.fullmatch(r"data_[a-z0-9_]+", key) {
+            attrs.append(f'{key.replace("_", "-")}="{html.escape(str(val))}"');
         }
     }
     opening = " ".join(["<script"] + attrs);

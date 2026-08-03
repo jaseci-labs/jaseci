@@ -1582,7 +1582,7 @@ Supported attributes, all optional:
 |-----------|-------|
 | `async`, `defer`, `nomodule` | Booleans. Rendered as bare attributes when `true`, omitted when `false`. |
 | `type`, `crossorigin`, `integrity`, `referrerpolicy`, `nonce`, `id`, `fetchpriority` | Rendered as `name="value"`. |
-| `data_*` | Rendered as `data-*`, e.g. `data_site_id = "abc"` becomes `data-site-id="abc"`. |
+| `data_*` | Rendered as `data-*`, e.g. `data_site_id = "abc"` becomes `data-site-id="abc"`. Keys must use only lowercase letters, digits, and underscores. |
 
 Anything else is ignored, so event-handler attributes such as `onload` cannot be
 set this way. Attribute values are HTML-escaped, and a literal `</script>` inside
