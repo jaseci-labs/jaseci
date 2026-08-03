@@ -88,6 +88,7 @@ obj RcFactsPass(Transform[uni.Module, uni.Module]) {
     def _enclosing_fn_scope(nd: uni.UniNode) -> (uni.UniNode | None);
     def _is_param_sym(sym: uni.Symbol) -> bool;
     def _stamp_last_use(ir_in: uni.Module) -> None;
+    def _stamp_move_in(ir_in: uni.Module) -> None;
     def _collect_last_use(
         owner: uni.UniNode, body: Sequence[uni.UniNode], out: dict[int, list[str]]
     ) -> None;

@@ -8,6 +8,7 @@ impl RcFactsPass.transform(ir_in: uni.Module) -> uni.Module {
     self._stamp_escapes(ir_in);
     self._stamp_region_handles(ir_in);
     self._stamp_last_use(ir_in);
+    self._stamp_move_in(ir_in);
     return ir_in;
 }
 
@@ -286,6 +287,46 @@ impl RcFactsPass._collect_last_use(
             out[key].append(name);
         }
     }
+}
+
+impl RcFactsPass._stamp_move_in(ir_in: uni.Module) -> None {
+    out: set[int] = set();
+    seen: set[int] = set();
+    for nm in ir_in.get_all_sub_nodes(uni.Name) {
+        sym = nm.sym;
+        if sym is None or id(sym) in seen {
+            continue;
+        }
+        if sym.storage != SymbolStorage.LOCAL
+            or self._is_param_sym(sym)
+            or nm.sym_name == "self" {
+            continue;
+        }
+        seen.add(id(sym));
+        uses = list(
+            {
+                id(u): u
+                for u in sym.uses
+                if not self._is_def_name(u)
+            }.values()
+        );
+        if len(uses) != 1 {
+            continue;
+        }
+        use = uses[0];
+        if use.find_parent_of_type(uni.WhileStmt) is not None
+            or use.find_parent_of_type(uni.InForStmt) is not None
+            or use.find_parent_of_type(uni.IterForStmt) is not None {
+            continue;
+        }
+        if sym.defn
+            and self._enclosing_fn_scope(sym.defn[0])
+                is not self._enclosing_fn_scope(use) {
+            continue;
+        }
+        out.add(id(use));
+    }
+    ir_in.gen.rc_move_in = out;
 }
 
 impl RcFactsPass._stamp_param_rebound(ir_in: uni.Module) -> None {

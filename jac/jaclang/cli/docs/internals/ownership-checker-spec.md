@@ -122,6 +122,11 @@ The analysis stamps documented facts; consumers read them:
   this fact; the former backend-private `RcElisionProofPass` solver is deleted.
 - **`Symbol.param_rebound`**: stamped by `RcFactsPass`; drives the backend's
   param-promotion retain decision (formerly an emit-time def-use rescan).
+- **`Module.gen.rc_move_in`**: stamped by `RcFactsPass._stamp_move_in`; the
+  set of Name-node ids that are the single non-definition, loop-free use of
+  a LOCAL binding in its own function. The native backend's container
+  element preparation consumes it: a grow argument in the set moves in
+  (no copy) and its slot is nulled so the binding's release is a no-op.
 - **`Symbol.na_escapes` / `Symbol.na_stack_ok`**: stamped by
   `RcFactsPass._stamp_escapes`; the backend stack-allocates an eligible
   instantiation when the target symbol has `na_stack_ok`. For unannotated

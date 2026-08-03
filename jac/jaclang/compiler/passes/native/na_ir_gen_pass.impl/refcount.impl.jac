@@ -1213,6 +1213,14 @@ impl NaIRGenPass._nogc_elem_prep(
             return val;
         }
     }
+    if isinstance(expr, uni.Name) and expr.sym_name in self.local_vars {
+        _mi = self.ir_in.gen?.rc_move_in or set();
+        if id(expr) in _mi {
+            _slot = self.local_vars[expr.sym_name];
+            self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
+            return val;
+        }
+    }
     return self._rc_strdup(val, name="elem.copy");
 }
 
