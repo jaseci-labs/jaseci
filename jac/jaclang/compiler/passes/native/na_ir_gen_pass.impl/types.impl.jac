@@ -78,7 +78,6 @@ impl NaIRGenPass._enum_name_of(expr: (uni.UniNode | None)) -> (str | None) {
     }
     try {
         import from jaclang.compiler.type_system.types {
-            ClassType as _ClassType,
             EnumMemberType as _EnumMemberType
         }
     } except ImportError {
@@ -88,10 +87,21 @@ impl NaIRGenPass._enum_name_of(expr: (uni.UniNode | None)) -> (str | None) {
     if isinstance(t, _EnumMemberType) and t.enum_class is not None {
         return t.enum_class.shared.class_name;
     }
-    if isinstance(t, _ClassType) and t._shared is not None and t.shared.is_enum_class {
+    if self._is_enum_class_type(t) {
         return t.shared.class_name;
     }
     return None;
+}
+
+impl NaIRGenPass._is_enum_class_type(t: any) -> bool {
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _ClassType }
+    } except ImportError {
+        return False;
+    }
+    return isinstance(t, _ClassType)
+        and t._shared is not None
+        and t.shared.is_enum_class;
 }
 
 impl NaIRGenPass._tuple_key_of(expr: (uni.UniNode | None)) -> (str | None) {
@@ -277,7 +287,7 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
     if cname in self.struct_types {
         return self.struct_types[cname].as_pointer();
     }
-    if t._shared is not None and t.shared.is_enum_class {
+    if self._is_enum_class_type(t) {
         return ir.IntType(64);
     }
     type_args = t.private.type_args or [];
@@ -1832,19 +1842,34 @@ impl NaIRGenPass._emit_comparison(
             _r_is_null = self.builder.icmp_unsigned(
                 "==", right, _strcmp_null, name="strcmp.rnull"
             );
-            left = self.builder.select(
+            _either_null = self.builder.or_(
+                _l_is_null, _r_is_null, name="strcmp.anynull"
+            );
+            _safe_left = self.builder.select(
                 _l_is_null, _strcmp_empty, left, name="strcmp.lsafe"
             );
-            right = self.builder.select(
+            _safe_right = self.builder.select(
                 _r_is_null, _strcmp_empty, right, name="strcmp.rsafe"
             );
-            cmp_result = self.builder.call(strcmp_fn, [left, right], name="strcmp");
+            cmp_result = self.builder.call(
+                strcmp_fn, [_safe_left, _safe_right], name="strcmp"
+            );
             zero = ir.Constant(ir.IntType(32), 0);
-            if op == Tok.EE {
-                return self.builder.icmp_signed("==", cmp_result, zero, name="streq");
-            } elif op == Tok.NE {
-                return self.builder.icmp_signed("!=", cmp_result, zero, name="strne");
-            } elif op == Tok.LT {
+            if op == Tok.EE or op == Tok.NE {
+                # Python parity: None == "" is False and None == None is True,
+                # so with a NULL operand equality is pointer identity, never
+                # strcmp on the coalesced empty string.
+                _sym = "==" if op == Tok.EE else "!=";
+                _nm = "streq" if op == Tok.EE else "strne";
+                _ptr_cmp = self.builder.icmp_unsigned(
+                    _sym, left, right, name=f"{_nm}.ptr"
+                );
+                _val_cmp = self.builder.icmp_signed(
+                    _sym, cmp_result, zero, name=f"{_nm}.val"
+                );
+                return self.builder.select(_either_null, _ptr_cmp, _val_cmp, name=_nm);
+            }
+            if op == Tok.LT {
                 return self.builder.icmp_signed("<", cmp_result, zero, name="strlt");
             } elif op == Tok.GT {
                 return self.builder.icmp_signed(">", cmp_result, zero, name="strgt");
