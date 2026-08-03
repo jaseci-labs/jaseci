@@ -5,7 +5,8 @@ import from jaclang.compiler.passes.ecmascript.intent.model {
     IntentParam
 }
 import from jaclang.compiler.passes.ecmascript.intent.detection {
-    COMPOSE_COMPONENT_TYPES
+    COMPOSE_COMPONENT_TYPES,
+    HOME_COMPONENT_NAMES
 }
 import from jaclang.compiler.passes.compose.rpc_client { RpcClientEmitter }
 import from jaclang.compiler.passes.compose.gradle_scaffold {
@@ -43,7 +44,7 @@ impl normalize_route_segment(segment: str) -> str {
 
 impl route_to_screen_name(path: str) -> str {
     if not path or path == "/" {
-        return "HomeScreen";
+        return HOME_SCREEN_NAME;
     }
     parts = [
         p
@@ -51,19 +52,36 @@ impl route_to_screen_name(path: str) -> str {
         if p
     ];
     if not parts {
-        return "HomeScreen";
+        return HOME_SCREEN_NAME;
     }
     return "".join([normalize_route_segment(p) for p in parts]) + "Screen";
 }
 
 impl component_screen_name(comp_name: str) -> str {
     if not comp_name {
-        return "HomeScreen";
+        return HOME_SCREEN_NAME;
     }
     if comp_name.endswith("Screen") {
         return comp_name;
     }
     return f"{comp_name}Screen";
+}
+
+impl screen_name_for(
+    path: (str | None),
+    comp_name: (str | None),
+    is_home: bool = False
+) -> str {
+    if is_home or path == "/" {
+        return HOME_SCREEN_NAME;
+    }
+    if path {
+        return route_to_screen_name(path);
+    }
+    if comp_name {
+        return component_screen_name(comp_name);
+    }
+    return HOME_SCREEN_NAME;
 }
 
 def _screen_imports -> str {
@@ -324,15 +342,11 @@ def _collect_screen_plan(model: ComposeModule) -> list[_ScreenPlanEntry] {
     }
 
     for (cname, comp) in model.intent.components.items() {
-        sname: (str | None) = None;
-        if comp.route_path {
-            sname = route_to_screen_name(comp.route_path);
-        } elif comp.is_screen {
-            sname = component_screen_name(cname);
-        } else {
+        if not comp.route_path and not comp.is_screen {
             continue;
         }
-        if sname is None or sname in seen {
+        sname = screen_name_for(comp.route_path, cname);
+        if sname in seen {
             continue;
         }
         seen.add(sname);
@@ -344,9 +358,9 @@ def _collect_screen_plan(model: ComposeModule) -> list[_ScreenPlanEntry] {
             if model.compose_view_for(cname) is None {
                 continue;
             }
-            sname = "HomeScreen"
-                if cname in ("app", "__root__", "App")
-                else component_screen_name(cname);
+            sname = screen_name_for(
+                None, cname, is_home=(cname in HOME_COMPONENT_NAMES)
+            );
             if sname in seen {
                 continue;
             }
@@ -358,7 +372,7 @@ def _collect_screen_plan(model: ComposeModule) -> list[_ScreenPlanEntry] {
     if not entries {
         entries.append(
             _ScreenPlanEntry(
-                name="HomeScreen",
+                name=HOME_SCREEN_NAME,
                 body_override=(
                     "    Column(modifier = Modifier.fillMaxSize()) {\n"
                     "        Text(text = \"Jac Compose\")\n"

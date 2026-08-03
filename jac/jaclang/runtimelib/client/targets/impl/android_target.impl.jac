@@ -186,10 +186,10 @@ impl AndroidTarget._merge_interop_manifest(into: any, src: any) -> None {
 
 impl AndroidTarget._synthesize_routes_from_screens(model: any) -> None {
     import from jaclang.compiler.passes.ecmascript.intent.model { IntentRoute }
-    import from jaclang.compiler.passes.compose.compose_emit {
-        route_to_screen_name,
-        component_screen_name
+    import from jaclang.compiler.passes.ecmascript.intent.detection {
+        HOME_COMPONENT_NAMES
     }
+    import from jaclang.compiler.passes.compose.compose_emit { screen_name_for }
 
     if model.intent.routes {
         return;
@@ -198,7 +198,7 @@ impl AndroidTarget._synthesize_routes_from_screens(model: any) -> None {
     for cname in model.intent.components {
         comp = model.intent.components[cname];
         path = comp.route_path;
-        is_home = cname in ("app", "App", "__root__");
+        is_home = cname in HOME_COMPONENT_NAMES;
         if not (
             comp.is_screen
             or path
@@ -213,10 +213,7 @@ impl AndroidTarget._synthesize_routes_from_screens(model: any) -> None {
             continue;
         }
         seen_paths.add(path);
-        sname = "HomeScreen" if path == "/" or is_home else route_to_screen_name(path);
-        if not sname {
-            sname = component_screen_name(cname);
-        }
+        sname = screen_name_for(path, cname, is_home=is_home);
         model.intent.routes.append(
             IntentRoute(path=path, screen_name=sname, component=cname)
         );
@@ -255,7 +252,7 @@ impl AndroidTarget._populate_compose_routes(
     model: any, project_dir: Path, program: any
 ) -> None {
     import from jaclang.compiler.passes.ecmascript.intent.model { IntentRoute }
-    import from jaclang.compiler.passes.compose.compose_emit { route_to_screen_name }
+    import from jaclang.compiler.passes.compose.compose_emit { screen_name_for }
     import from jaclang.runtimelib.client.route_scanner {
         RouteScanner,
         resolve_route_exports
@@ -296,7 +293,7 @@ impl AndroidTarget._populate_compose_routes(
             continue;
         }
         seen_paths.add(route.path);
-        sname = "HomeScreen" if route.path == "/" else route_to_screen_name(route.path);
+        sname = screen_name_for(route.path, None);
         model.intent.routes.append(
             IntentRoute(path=route.path, screen_name=sname, component=export_name)
         );

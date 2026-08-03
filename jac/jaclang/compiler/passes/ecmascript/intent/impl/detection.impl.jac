@@ -107,7 +107,7 @@ impl return_type_route_role(rt: uni.Expr) -> (str | None) {
 impl screen_meta_for_component(
     name: str, return_type: (uni.Expr | None)
 ) -> tuple[bool, (str | None)] {
-    if name in ("app", "App") {
+    if name in HOME_COMPONENT_NAMES {
         return (True, "/");
     }
     if return_type is not None and return_type_route_role(return_type) == "page" {

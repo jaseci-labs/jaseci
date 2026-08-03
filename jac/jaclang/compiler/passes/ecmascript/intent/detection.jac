@@ -16,6 +16,7 @@ glob JSX_COMPONENT_TYPES: Sequence[str] = ('JsxElement', 'JsxPage', 'JsxLayout')
          'JsxPage',
          'JsxLayout'
      ),
+     HOME_COMPONENT_NAMES: Sequence[str] = ("app", "App", "__root__"),
      ASSIGNMENT_AUG_OPS: dict[str, str] = {
          Tok.ADD_EQ.name: '+',
          Tok.SUB_EQ.name: '-',
