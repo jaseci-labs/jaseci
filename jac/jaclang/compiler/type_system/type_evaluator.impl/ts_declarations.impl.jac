@@ -232,7 +232,7 @@ impl TypeEvaluator._map_ts_type(
             return self._map_ts_type(target.ty, decls, seen, shells);
         }
         if target is not None
-        and target.kind in (TsDeclKind.INTERFACE, TsDeclKind.CLASS) {
+            and target.kind in (TsDeclKind.INTERFACE, TsDeclKind.CLASS) {
             if shells is not None and ts.name in shells {
                 return self._convert_to_instance(shells[ts.name]);
             }

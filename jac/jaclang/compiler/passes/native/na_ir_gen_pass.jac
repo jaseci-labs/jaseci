@@ -1163,6 +1163,16 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_struct_drop_fn(type_name: str) -> (ir.Function | None);
     def _emit_struct_drop_fields_fn(type_name: str) -> (ir.Function | None);
     def _emit_container_drop_fn(cont_name: str) -> (ir.Function | None);
+    def _nogc_elem_drop_slot_ty -> ir.Type;
+    def _nogc_stamp_elem_drops(
+        cont: ir.Value | None, elem_mangles: list, family: str
+    ) -> None;
+
+    def _nogc_elem_prep(
+        expr: uni.UniNode | None, val: ir.Value | None
+    ) -> (ir.Value | None);
+
+    def _nogc_type_arg_mangles(expr: uni.UniNode | None) -> list;
     def _emit_arena_helpers -> None;
     def _register_region_handle_var(nd: uni.Assignment, var_name: str) -> None;
     def _region_alloc(size: ir.Value, name: str = "region.alloc") -> ir.Value;

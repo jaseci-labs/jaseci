@@ -104,7 +104,7 @@ def:pub ActivityFeed(events: list[UiEvent], status: str) -> JsxElement {
                                     </span>
                                     <span className="think-label">
                                         {"thinking"
-                                        + ("…" if r["block"]["live"] else "")}
+                                            + ("…" if r["block"]["live"] else "")}
                                     </span>
                                     {<span className="think-dot live"/>
                                         if r["block"]["live"]
@@ -138,7 +138,7 @@ def:pub ActivityFeed(events: list[UiEvent], status: str) -> JsxElement {
                                                 if not r["row"]["done"]
                                                 else <span className="think-count">
                                                     {str(len(r["row"]["result"]))
-                                                    + " chars"}
+                                                        + " chars"}
                                                 </span>}
                                         </button>
                                         {<div className="tool-body">

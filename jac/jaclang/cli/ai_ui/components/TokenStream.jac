@@ -51,7 +51,7 @@ def:pub TokenStream(
                         (
                             <div
                                 className={"tokrow clickable"
-                                + (" sel" if e.id == selected else "")}
+                                    + (" sel" if e.id == selected else "")}
                                 key={e.id}
                                 onClick={lambda { onSelect(e.id); }}
                             >
@@ -63,7 +63,7 @@ def:pub TokenStream(
                                         className="tokbar"
                                         style={{
                                             "width": str(int(e.tokens_in * 100 / maxIn))
-                                            + "%"
+                                                + "%"
                                         }}
                                     />
                                     <span className="tok-in">

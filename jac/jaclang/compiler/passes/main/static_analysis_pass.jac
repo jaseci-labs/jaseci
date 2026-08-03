@@ -1,8 +1,7 @@
-import ast as ast3;
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.constant { SymbolType }
+import from jaclang.jac0core.constant { ExprCtx, SymbolType }
 import from jaclang.jac0core.diagnostics {
     W1103,
     W1104,

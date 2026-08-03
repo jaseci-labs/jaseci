@@ -2,7 +2,7 @@
 
 Exercises the exact pipeline the seal runs (utils/precompile_bytecode.jac
 `seal_native_artifacts`) and the exact pipeline the sealed runtime runs
-(parser.jac `_native_scan` via jac0core/native_dylib.jac): AOT-compile the
+(frontend.jac `_native_scan` via jac0core/native_dylib.jac): AOT-compile the
 compiler's own lexer, emit a shared library + layout JSON with the in-house
 linkers, dlopen it with plain ctypes (no LLVM engine), and assert
 token-for-token parity against the bytecode lexer.
@@ -226,7 +226,7 @@ test "parse() binds the sealed native lexer through the registered image" {
     import sys;
     import from jaclang.jac0core.sealed { register_image }
     import from jaclang.jac0core.jir { FORMAT_VERSION }
-    import jaclang.jac0core.parser.parser as rd_parser;
+    import jaclang.jac0core.parser.frontend as rd_parser;
 
     (lib_path, layout_dict, tmp_dir) = _build_artifact();
     pkg_root = Path(tmp_dir) / "bindroot";

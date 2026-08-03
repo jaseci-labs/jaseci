@@ -117,9 +117,13 @@ impl _build_harness(
     entries = [];
     for t in tests {
         entries.append(
-            "  [" + json.dumps(t["name"]) + ", " + json.dumps(
-                t.get("description", t["name"])
-            ) + ", " + t["name"] + "]"
+            "  ["
+                + json.dumps(t["name"])
+                + ", "
+                + json.dumps(t.get("description", t["name"]))
+                + ", "
+                + t["name"]
+                + "]"
         );
     }
     fn_entries = ",\n".join(entries);
@@ -432,7 +436,7 @@ impl module_is_client(filepath: str) -> bool {
             path, options=CompileOptions(symtab_ir_only=True, type_check=False)
         );
         result = mod is not None
-        and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
+            and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
     } except Exception {
         result = False;
     }

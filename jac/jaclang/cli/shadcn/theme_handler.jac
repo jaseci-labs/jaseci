@@ -351,7 +351,8 @@ def _ensure_vite_tailwind(toml_path: any) -> None {
     if "[client.vite]" in content {
         return;
     }
-    block = '[client.vite]\nplugins = ["tailwindcss()"]\n' + 'lib_imports = ["import tailwindcss from \'@tailwindcss/vite\'"]\n';
+    block = '[client.vite]\nplugins = ["tailwindcss()"]\n'
+        + 'lib_imports = ["import tailwindcss from \'@tailwindcss/vite\'"]\n';
     path.write_text(content.rstrip() + "\n\n" + block);
 }
 
@@ -416,9 +417,13 @@ def materialize_themed_starter(
 
     console.print("");
     console.print(
-        "  Themed starter ready (style: " + style + ", theme: " + shadcn_config.get(
-            "theme", "neutral"
-        ) + ", font: " + font + ")",
+        "  Themed starter ready (style: "
+            + style
+            + ", theme: "
+            + shadcn_config.get("theme", "neutral")
+            + ", font: "
+            + font
+            + ")",
         style="bold green"
     );
     console.print(
@@ -472,9 +477,13 @@ def retheme_project(config: any, overrides: dict) -> bool {
     _ensure_vite_tailwind(toml_path);
 
     console.print(
-        "  Retheme (base: " + merged.get("baseColor", "neutral") + ", theme: " + merged.get(
-            "theme", "neutral"
-        ) + ", font: " + merged.get("font", "figtree") + ")",
+        "  Retheme (base: "
+            + merged.get("baseColor", "neutral")
+            + ", theme: "
+            + merged.get("theme", "neutral")
+            + ", font: "
+            + merged.get("font", "figtree")
+            + ")",
         style="bold cyan"
     );
     console.print("  + styles/global.css", style="green");

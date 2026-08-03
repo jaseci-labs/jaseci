@@ -21,16 +21,22 @@ def _cef_dir -> Path {
     here = Path(os.path.abspath(__file__)).parent;
     probe = here;
     for _ in range(8) {
-        cand = probe / "jaclang" / "runtimelib" / "client" / "targets" / "desktop" / "native" / "cef";
+        cand = probe
+            / "jaclang"
+            / "runtimelib"
+            / "client"
+            / "targets"
+            / "desktop"
+            / "native"
+            / "cef";
         if (cand / "cef.jac").exists() {
             return cand;
         }
         probe = probe.parent;
     }
     raise RuntimeError(
-        "jaclang/runtimelib/client/targets/desktop/native/cef/cef.jac not found from " + str(
-            here
-        )
+        "jaclang/runtimelib/client/targets/desktop/native/cef/cef.jac not found from "
+            + str(here)
     );
 }
 

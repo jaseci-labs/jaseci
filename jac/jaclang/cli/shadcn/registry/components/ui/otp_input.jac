@@ -49,13 +49,13 @@ def:pub InputOTPSlot(props: any) -> JsxElement {
         )}
     >
         {char}{hasFakeCaret
-        and (
-            <div
-                className="cn-input-otp-caret pointer-events-none absolute inset-0 flex items-center justify-center"
-            >
-                <div className="cn-input-otp-caret-line"/>
-            </div>
-        )}
+            and (
+                <div
+                    className="cn-input-otp-caret pointer-events-none absolute inset-0 flex items-center justify-center"
+                >
+                    <div className="cn-input-otp-caret-line"/>
+                </div>
+            )}
     </div>
 }
 

@@ -280,11 +280,11 @@ def:pub TracesPage -> JsxElement {
                     <div
                         key={t["trace_id"]}
                         className={"p-2 rounded border cursor-pointer "
-                        + (
-                            "border-accent-line bg-accent-weak"
-                                if (t["trace_id"] == selectedTraceId)
-                                else "border-line bg-surface hover:bg-surface-2"
-                        )}
+                            + (
+                                "border-accent-line bg-accent-weak"
+                                    if (t["trace_id"] == selectedTraceId)
+                                    else "border-line bg-surface hover:bg-surface-2"
+                            )}
                         onClick={lambda { openTrace(t["trace_id"]); }}
                     >
                         <div className="flex items-center justify-between">
@@ -329,7 +329,7 @@ def:pub TracesPage -> JsxElement {
                                 className="w-1/3 truncate text-muted"
                                 style={{
                                     "paddingLeft": String(spanDepth(sp, byIdMap) * 12)
-                                    + "px"
+                                        + "px"
                                 }}
                             >
                                 <span className="text-faint">{sp["service"]}</span>{" "}
@@ -338,15 +338,15 @@ def:pub TracesPage -> JsxElement {
                             <div className="flex-1 relative h-4 bg-surface rounded">
                                 <div
                                     className={"absolute h-4 rounded "
-                                    + (serviceColorBar(sp["service"]))
-                                    + (
-                                        " ring-1 ring-danger"
-                                            if (
-                                                sp["status"] == "STATUS_CODE_ERROR"
-                                                or sp["status"] == "2"
-                                            )
-                                            else ""
-                                    )}
+                                        + (serviceColorBar(sp["service"]))
+                                        + (
+                                            " ring-1 ring-danger"
+                                                if (
+                                                    sp["status"] == "STATUS_CODE_ERROR"
+                                                    or sp["status"] == "2"
+                                                )
+                                                else ""
+                                        )}
                                     style={{
                                         "left": String(barLeft(sp)) + "%",
                                         "width": String(barWidth(sp)) + "%"

@@ -118,9 +118,8 @@ test "urllib.request.urlopen follows redirects over the libcurl floor (sv<->na)"
         assert _call_na_int(eng, "urlopen_redirect_status_na") == py["status"] , (
             "redirect status"
         );
-        assert _call_na_int(eng, "urlopen_redirect_body_length_na") == (
-            py["body_length"]
-        ) , "redirect body_length";
+        assert _call_na_int(eng, "urlopen_redirect_body_length_na")
+            == (py["body_length"]) , "redirect body_length";
     } finally {
         srv.shutdown();
         os.environ.pop("JAC_URLLIB_TEST_PORT", None);

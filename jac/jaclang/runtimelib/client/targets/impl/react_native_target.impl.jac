@@ -4,7 +4,7 @@ import subprocess;
 import platform as platform_mod;
 import from typing { Optional }
 import from jaclang.cli.console { console }
-import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.watcher { FileChangeEvent }
 import from jaclang.runtimelib.client.targets.react_native.common {
     DEFAULT_APP_ID,
@@ -224,12 +224,12 @@ impl ReactNativeTarget.build(
         console.print("\nInstall with: adb install -r " + str(artifact), style="muted");
     } else {
         console.print(
-            "\nInstall on a booted simulator with: " "xcrun simctl install booted " + str(
-                artifact
-            ) + "\n"
-            "For signing/provisioning and real-device distribution, follow "
-            "Expo iOS build docs:\n"
-            "  https://docs.expo.dev/build-reference/ios-builds/",
+            "\nInstall on a booted simulator with: " "xcrun simctl install booted "
+                + str(artifact)
+                + "\n"
+                "For signing/provisioning and real-device distribution, follow "
+                "Expo iOS build docs:\n"
+                "  https://docs.expo.dev/build-reference/ios-builds/",
             style="muted"
         );
     }

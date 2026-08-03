@@ -2,11 +2,12 @@
 
 def:pub Spinner(size: str = "md") -> JsxElement {
     sizeClass = size == "sm"
-    and "w-4 h-4"
-    or (size == "lg" and "w-12 h-12" or "w-8 h-8");
+        and "w-4 h-4"
+        or (size == "lg" and "w-12 h-12" or "w-8 h-8");
 
     <div
-        className={"border-2 border-accent border-t-transparent rounded-full animate-spin " + sizeClass}
+        className={"border-2 border-accent border-t-transparent rounded-full animate-spin "
+            + sizeClass}
     ></div>
 }
 

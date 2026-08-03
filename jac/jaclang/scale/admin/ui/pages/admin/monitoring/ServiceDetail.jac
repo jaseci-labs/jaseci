@@ -161,14 +161,14 @@ def:pub ServiceDetail(
                 <h1 className="text-lg font-semibold text-fg">{name}</h1>
             </div>
             <span
-                className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border " + str(
-                    statusClasses[status] or "bg-surface-2 text-muted border-line"
-                )}
+                className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border "
+                    + str(
+                        statusClasses[status] or "bg-surface-2 text-muted border-line"
+                    )}
             >
                 <span
-                    className={"w-1.5 h-1.5 rounded-full " + str(
-                        statusDotClasses[status] or "bg-faint"
-                    )}
+                    className={"w-1.5 h-1.5 rounded-full "
+                        + str(statusDotClasses[status] or "bg-faint")}
                 ></span>
                 {status}
             </span>
@@ -205,9 +205,8 @@ def:pub ServiceDetail(
                             {t["label"]}
                         </p>
                         <p
-                            className={"text-2xl font-semibold mt-1 tabular-nums " + (
-                                "text-fg" if isRouted else "text-faint"
-                            )}
+                            className={"text-2xl font-semibold mt-1 tabular-nums "
+                                + ("text-fg" if isRouted else "text-faint")}
                         >
                             {t["value"]}
                         </p>
@@ -217,13 +216,13 @@ def:pub ServiceDetail(
             </div>
         </div>
         {sparse
-        and <div
-            className="bg-warning-weak border border-warning/30 rounded-lg px-4 py-3"
-        >
-            <p className="text-xs text-warning">
-                Collecting data. CPU and memory history fills in over the next several minutes.
-            </p>
-        </div>}
+            and <div
+                className="bg-warning-weak border border-warning/30 rounded-lg px-4 py-3"
+            >
+                <p className="text-xs text-warning">
+                    Collecting data. CPU and memory history fills in over the next several minutes.
+                </p>
+            </div>}
         <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
@@ -381,70 +380,81 @@ def:pub ServiceDetail(
                 <span className="text-xs text-faint">({len(pods)})</span>
             </div>
             {len(pods) == 0
-            and <div className="p-6 text-center text-sm text-faint">
-                No pods for this service.
-            </div>}
+                and <div className="p-6 text-center text-sm text-faint">
+                    No pods for this service.
+                </div>}
             {len(pods) > 0
-            and <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                    <thead
-                        className="text-xs text-faint uppercase tracking-wider bg-surface-2"
-                    >
-                        <tr>
-                            <th className="text-left px-4 py-2 font-medium">Pod</th>
-                            <th className="text-left px-4 py-2 font-medium">Phase</th>
-                            <th className="text-left px-4 py-2 font-medium">Node</th>
-                            <th className="text-left px-4 py-2 font-medium">CPU</th>
-                            <th className="text-left px-4 py-2 font-medium">Memory</th>
-                            <th className="text-left px-4 py-2 font-medium">
-                                Restarts (1h)
-                            </th>
-                            <th className="text-left px-4 py-2 font-medium">Age</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {[
-                            <tr key={p["name"]} className="border-t border-line">
-                                <td className="px-4 py-2 text-fg">{p["name"]}</td>
-                                <td className="px-4 py-2">
-                                    <span
-                                        className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border " + str(
-                                            statusClasses[
-                                                phaseToStatus[p["phase"]] or p["phase"]
-                                            ]
-                                            or "bg-surface-2 text-muted border-line"
-                                        )}
-                                    >
+                and <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead
+                            className="text-xs text-faint uppercase tracking-wider bg-surface-2"
+                        >
+                            <tr>
+                                <th className="text-left px-4 py-2 font-medium">Pod</th>
+                                <th className="text-left px-4 py-2 font-medium">
+                                    Phase
+                                </th>
+                                <th className="text-left px-4 py-2 font-medium">
+                                    Node
+                                </th>
+                                <th className="text-left px-4 py-2 font-medium">CPU</th>
+                                <th className="text-left px-4 py-2 font-medium">
+                                    Memory
+                                </th>
+                                <th className="text-left px-4 py-2 font-medium">
+                                    Restarts (1h)
+                                </th>
+                                <th className="text-left px-4 py-2 font-medium">Age</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {[
+                                <tr key={p["name"]} className="border-t border-line">
+                                    <td className="px-4 py-2 text-fg">{p["name"]}</td>
+                                    <td className="px-4 py-2">
                                         <span
-                                            className={"w-1.5 h-1.5 rounded-full " + str(
-                                                statusDotClasses[
-                                                    phaseToStatus[p["phase"]]
-                                                    or p["phase"]
-                                                ]
-                                                or "bg-faint"
-                                            )}
-                                        ></span>
-                                        {phaseToStatus[p["phase"]] or p["phase"]}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-2 text-muted">{p["node"]}</td>
-                                <td className="px-4 py-2 text-muted tabular-nums">
-                                    {formatCores(p["cpu_cores"] or 0)}
-                                </td>
-                                <td className="px-4 py-2 text-muted tabular-nums">
-                                    {formatBytes(p["memory_bytes"] or 0)}
-                                </td>
-                                <td className="px-4 py-2 text-muted tabular-nums">
-                                    {p["restarts_last_hour"]}
-                                </td>
-                                <td className="px-4 py-2 text-muted tabular-nums">
-                                    {formatAge(p["created"] or 0)}
-                                </td>
-                            </tr> for p in pods
-                        ]}
-                    </tbody>
-                </table>
-            </div>}
+                                            className={"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border "
+                                                + str(
+                                                    statusClasses[
+                                                        phaseToStatus[p["phase"]]
+                                                            or p["phase"]
+                                                    ]
+                                                        or "bg-surface-2 text-muted border-line"
+                                                )}
+                                        >
+                                            <span
+                                                className={"w-1.5 h-1.5 rounded-full "
+                                                    + str(
+                                                        statusDotClasses[
+                                                            phaseToStatus[p["phase"]]
+                                                                or p["phase"]
+                                                        ]
+                                                            or "bg-faint"
+                                                    )}
+                                            ></span>
+                                            {phaseToStatus[p["phase"]] or p["phase"]}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-muted">
+                                        {p["node"]}
+                                    </td>
+                                    <td className="px-4 py-2 text-muted tabular-nums">
+                                        {formatCores(p["cpu_cores"] or 0)}
+                                    </td>
+                                    <td className="px-4 py-2 text-muted tabular-nums">
+                                        {formatBytes(p["memory_bytes"] or 0)}
+                                    </td>
+                                    <td className="px-4 py-2 text-muted tabular-nums">
+                                        {p["restarts_last_hour"]}
+                                    </td>
+                                    <td className="px-4 py-2 text-muted tabular-nums">
+                                        {formatAge(p["created"] or 0)}
+                                    </td>
+                                </tr> for p in pods
+                            ]}
+                        </tbody>
+                    </table>
+                </div>}
         </div>
     </div>
 }
