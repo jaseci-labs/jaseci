@@ -1275,12 +1275,14 @@ See [Roles](#roles) in the Authentication section for details on protected accou
 
 ### Access Levels
 
+Levels are members of the ambient `AccessLevel` enum (no import needed):
+
 | Level | Value | Description |
 |-------|-------|-------------|
-| `NO_ACCESS` | `-1` | No access to the object |
-| `READ` | `0` | Read-only access |
-| `CONNECT` | `1` | Can traverse edges to/from this object |
-| `WRITE` | `2` | Full read/write access |
+| `AccessLevel.NO_ACCESS` | `-1` | No access to the object |
+| `AccessLevel.READ` | `0` | Read-only access |
+| `AccessLevel.CONNECT` | `1` | Can traverse edges to/from this object |
+| `AccessLevel.WRITE` | `2` | Full read/write access |
 
 ### Granting Permissions
 
@@ -1291,10 +1293,10 @@ Use `perm_grant` to allow all users to access an object at a given level:
 ```jac
 with entry {
     # Allow everyone to read this node
-    perm_grant(node, READ);
+    perm_grant(node, AccessLevel.READ);
 
     # Allow everyone to write
-    perm_grant(node, WRITE);
+    perm_grant(node, AccessLevel.WRITE);
 }
 ```
 
@@ -1305,10 +1307,10 @@ Use `allow_root` to grant access to a specific user's root graph:
 ```jac
 with entry {
     # Allow a specific user to read this node
-    allow_root(node, target_root_id, READ);
+    allow_root(node, target_root_id, AccessLevel.READ);
 
     # Allow write access
-    allow_root(node, target_root_id, WRITE);
+    allow_root(node, target_root_id, AccessLevel.WRITE);
 }
 ```
 
@@ -1328,7 +1330,7 @@ with entry {
 ```jac
 with entry {
     # Revoke a specific user's access
-    disallow_root(node, target_root_id, READ);
+    disallow_root(node, target_root_id, AccessLevel.READ);
 }
 ```
 
@@ -1628,16 +1630,16 @@ To create a private broadcasting walker, remove `: pub` from the walker definiti
 
 ## Microservice Interop (sv-to-sv)
 
-Jac Scale lets you split a server-side codebase into multiple independently-deployed microservices without changing call sites. When two `sv` (server) modules each run as their own server process, an `sv import` from one to the other generates HTTP client stubs at compile time, so calls become RPCs over the wire instead of in-process imports.
+Jac Scale lets you split a server-side codebase into multiple independently-deployed microservices without changing call sites. The service cut is declared in `[scale.microservices.routes]` in `jac.toml`: when a provider module is listed there, every import of it generates HTTP client stubs at compile time, so calls become RPCs over the wire instead of in-process imports.
 
 ### Overview
 
-The `sv import` keyword has two flavors depending on where the importer and the importee live:
+A plain import bridges the boundary in two flavors depending on where the importer lives:
 
-- **cl-to-sv**: client code calls server functions. Calls go over HTTP from browser to server.
-- **sv-to-sv**: one server module calls another server module that runs as a separate microservice. Calls go over HTTP from one server process to another.
+- **client-to-server**: client code calls server functions. Calls go over HTTP from browser to server.
+- **sv-to-sv (server-to-server)**: one server module calls another server module that runs as a separate microservice. Calls go over HTTP from one server process to another.
 
-In the sv-to-sv flavor, `order_service.jac` doing `sv import from inventory_service { check_stock }` does not load `inventory_service` into the consumer's process. Calling `check_stock(sku)` issues a `POST /function/check_stock` against the inventory service's URL and returns the result. The same source runs unchanged whether `inventory_service` is a separate microservice, a sibling process started by the same `jac start` command, or (when `sv import` is absent) a normal in-process import.
+In the sv-to-sv flavor, `order_service.jac` doing `import from inventory_service { check_stock }` -- with `inventory_service` in the routes table -- does not load `inventory_service` into the consumer's process. Calling `check_stock(sku)` issues a `POST /function/check_stock` against the inventory service's URL and returns the result. The same source runs unchanged whether `inventory_service` is a separate microservice, a sibling process started by the same `jac start` command, or (when the routes entry is removed) a normal in-process import.
 
 Both `def:pub` functions and `walker:pub` archetypes can cross the boundary. Function imports POST to `/function/<name>` and return the function's value. Walker imports POST to `/walker/<name>` and return the rehydrated walker instance with its `has` fields populated and `reports` attached, so call sites read the result the same way they would after a local spawn. See [Walker Imports](#walker-imports) for the wire shape and ergonomics.
 
@@ -1645,16 +1647,17 @@ For a step-by-step walkthrough that covers project setup, running both services,
 
 ### Requirements
 
-A few preconditions for `sv import` to work:
+A few preconditions for cross-service calls to work:
 
-- **Public functions only.** Provider functions reached through `sv import` must be declared `def:pub`; non-public functions are not exposed as endpoints, and calls into them return 404. Walkers similarly need `walker:pub`.
+- **Routes-table membership.** The provider module must be a key in `[scale.microservices.routes]` (`jac scale split <module>` writes the entry). Without it, the import is an ordinary in-process import.
+- **Public functions only.** Provider functions reached across the boundary must be declared `def:pub`; non-public functions are not exposed as endpoints, and calls into them return 404. Walkers similarly need `walker:pub`. `def:pub` / `walker:pub` is the cross-service contract.
 - **jac-scale on the consumer.** Explicit URLs and env vars work with any jaclang install. Automatic spawning of siblings is provided by jac-scale; a bare jaclang install can still call providers registered by URL.
 - **Project layout.** `jac start <relative-path>` requires a `jac.toml` in the current directory. Run `jac create` first, or pass an absolute path.
 - **Services in the same directory when auto-spawning.** If the consumer auto-spawns a provider, it loads the provider source from the directory you ran `jac start` in. Keep all services in the same project directory, or point the consumer at a provider URL explicitly so auto-spawning never runs.
 
 ### Boundary Types
 
-Types that cross the service boundary use the same wire contract as cl-to-sv interop. The compiler emits a matching wrapper on the consumer side for every type referenced in an `sv import`, so values serialize transparently into JSON on the way out and deserialize back into the declared type on the way in.
+Types that cross the service boundary use the same wire contract as client-to-server interop. The compiler emits a matching wrapper on the consumer side for every type referenced in a service import, so values serialize transparently into JSON on the way out and deserialize back into the declared type on the way in.
 
 What works:
 
@@ -1676,7 +1679,7 @@ Failures (network errors, missing service, error envelope from the provider) rai
 
 ### Walker Imports
 
-A consumer can `sv import` a `walker:pub` archetype the same way it imports a function. The compiler generates a stub class on the consumer side whose name and `has` field shape mirror the provider's walker, so type identity is preserved and the call site reads like a local construction.
+A consumer can import a `walker:pub` archetype from a routes-table service the same way it imports a function. The compiler generates a stub class on the consumer side whose name and `has` field shape mirror the provider's walker, so type identity is preserved and the call site reads like a local construction.
 
 ```jac
 # notify_service.jac (provider)
@@ -1688,7 +1691,7 @@ walker:pub Greet {
 }
 
 # dispatcher_service.jac (consumer)
-sv import from notify_service { Greet }
+import from notify_service { Greet }     # notify_service is in [scale.microservices.routes]
 
 walker:pub TriggerGreet {
     has who: str;
@@ -1710,23 +1713,23 @@ The result is a normal walker instance on the consumer: `rg.name`, `rg.reports[0
 
 A few notes:
 
-- **Spawn semantics, not construction.** Locally, `Greet(name="x")` only constructs a walker; you still need `spawn` to run it. Across the boundary, instantiating a sv-imported walker is **spawn-and-execute** -- there is no useful concept of an unexecuted remote walker. The consumer-side class accepts only the `has` fields as keyword arguments and always returns a post-execution instance.
-- **`walker:pub` only.** Private walkers are not exposed as endpoints, so calls into them return 404. Boundary types from a walker's signature (used in `has` fields or referenced in `report` arguments) need to be `sv import`ed alongside the walker.
+- **Spawn semantics, not construction.** Locally, `Greet(name="x")` only constructs a walker; you still need `spawn` to run it. Across the boundary, instantiating a service-imported walker is **spawn-and-execute** -- there is no useful concept of an unexecuted remote walker. The consumer-side class accepts only the `has` fields as keyword arguments and always returns a post-execution instance.
+- **`walker:pub` only.** Private walkers are not exposed as endpoints, so calls into them return 404. Boundary types from a walker's signature (used in `has` fields or referenced in `report` arguments) need to be imported alongside the walker.
 - **Same retry, breaker, auth, and tracing as functions.** The plugin override surface is `sv_walker_call`, not `sv_service_call`, but they share the per-provider circuit breaker and `rpc_timeout` config -- a tripped breaker protects either RPC kind. See [Plugin Override: Custom Service Spawning](#plugin-override-custom-service-spawning).
 
-This applies to **sv-to-sv** imports. Walker imports across the **cl-to-sv** boundary (browser calling a server walker) are not currently generated; for cl-to-sv use a `def:pub` wrapper that spawns the walker server-side.
+This applies to **sv-to-sv** (server-to-server) imports. Walker imports across the **client-to-server** boundary (browser calling a server walker) are not currently generated; for that case use a `def:pub` wrapper that spawns the walker server-side.
 
 ### Automatic Startup
 
-When you run `jac start consumer.jac`, the consumer finds every service it `sv import`s from and brings them all up **before** it starts accepting requests. Transitive dependencies are included: if A imports B and B imports C, starting A brings up all three.
+When you run `jac start consumer.jac`, the consumer finds every routes-table service it imports and brings them all up **before** it starts accepting requests. Transitive dependencies are included: if A imports B and B imports C (all in the cut), starting A brings up all three.
 
 Startup is **fail-fast**: if any service fails to come up (missing source file, syntax error, port in use), the consumer crashes at startup with the underlying error. You find out at deploy time, not at first request.
 
-Automatic startup only applies to `jac start`. `jac run` is for one-shot scripts and does not bring up long-running sibling services; if it calls an `sv import`-ed function it will try to discover the provider lazily using the rules in [Service Discovery](#service-discovery) below.
+Automatic startup only applies to `jac start`. `jac run` is for one-shot scripts and does not bring up long-running sibling services; if it calls a service-stub function it will try to discover the provider lazily using the rules in [Service Discovery](#service-discovery) below.
 
 ### Service Discovery
 
-For each `sv import`-ed provider, the consumer resolves it in this order. The first match wins:
+For each imported routes-table provider, the consumer resolves it in this order. The first match wins:
 
 1. **Test client** -- if tests have wired up an in-process `TestClient` for the provider, calls go through it with no HTTP. See [Testing](#testing).
 2. **Explicit URL** -- a URL the consumer was handed programmatically (e.g. by a custom orchestrator). See the [sv_client API](#sv_client-api-reference).
@@ -1760,7 +1763,7 @@ spec:
           value: "http://inventory-service.default.svc.cluster.local:8000"
 ```
 
-The convention is `JAC_SV_<UPPERCASED_MODULE_NAME>_URL`. Module name is the value used in `sv import from <module_name>`.
+The convention is `JAC_SV_<UPPERCASED_MODULE_NAME>_URL`. Module name is the provider's key in `[scale.microservices.routes]`.
 
 #### Local Development
 
@@ -1772,7 +1775,7 @@ export JAC_SV_MATH_SERVICE_URL=http://localhost:8002
 jac start order_service.jac --port 8000
 ```
 
-Alternatively, omit the env vars entirely and run `jac start order_service.jac` on its own. The consumer will find every service it `sv import`s from and bring them all up automatically (including transitive dependencies) before serving the first request. This is a supported deployment mode for **single-host** setups -- one process, many logical services. For **multi-host** deployments use the `JAC_SV_*_URL` path instead: automatically-started services bind `127.0.0.1` only and cannot serve traffic to other hosts.
+Alternatively, omit the env vars entirely and run `jac start order_service.jac` on its own. The consumer will find every routes-table service it imports and bring them all up automatically (including transitive dependencies) before serving the first request. This is a supported deployment mode for **single-host** setups -- one process, many logical services. For **multi-host** deployments use the `JAC_SV_*_URL` path instead: automatically-started services bind `127.0.0.1` only and cannot serve traffic to other hosts.
 
 #### Troubleshooting
 
@@ -1835,8 +1838,8 @@ Two parallel hooks let a plugin own the wire-level transport for sv-to-sv calls:
 
 | Hook | Used by | Default transport |
 |---|---|---|
-| `JacAPIServer.sv_service_call(module_name, func_name, args)` | sv-imported `def:pub` functions | `POST /function/<name>` |
-| `JacAPIServer.sv_walker_call(module_name, walker_name, args, stub_cls)` | sv-imported `walker:pub` archetypes | `POST /walker/<name>` + `stub_cls._from_wire` rehydration |
+| `JacAPIServer.sv_service_call(module_name, func_name, args)` | service-imported `def:pub` functions | `POST /function/<name>` |
+| `JacAPIServer.sv_walker_call(module_name, walker_name, args, stub_cls)` | service-imported `walker:pub` archetypes | `POST /walker/<name>` + `stub_cls._from_wire` rehydration |
 
 Plugins typically override both with the same auth-forwarding, tracing, retry, and circuit-breaker policy. The jac-scale plugin does exactly that: walker calls share the per-provider circuit breaker with function calls (both express provider liveness, so a tripped breaker should protect either kind), forward the inbound `Authorization` header, propagate `X-Trace-Id` across the hop, retry transport-level failures with exponential backoff, and respect the per-service `rpc_timeout` config.
 

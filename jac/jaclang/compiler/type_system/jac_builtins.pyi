@@ -73,11 +73,8 @@ __all__ = [
     "unsafe_html",
     # Ambient values and constants
     "llm",
-    "NoPerm",
-    "ReadPerm",
-    "ConnectPerm",
-    "WritePerm",
     # Builtin enums
+    "AccessLevel",
     "ScheduleTrigger",
     "APIProtocol",
 ]
@@ -213,13 +210,13 @@ def unsafe_html(html: object) -> object: ...
 
 def destroy(objs: object) -> None: ...
 
-# ── Permission constants ───────────────────────────────────────────
-NoPerm: int
-ReadPerm: int
-ConnectPerm: int
-WritePerm: int
-
 # ── Builtin enums ──────────────────────────────────────────────────
+class AccessLevel:
+    NO_ACCESS: AccessLevel
+    READ: AccessLevel
+    CONNECT: AccessLevel
+    WRITE: AccessLevel
+
 class ScheduleTrigger:
     STATIC: str
     DYNAMIC: str

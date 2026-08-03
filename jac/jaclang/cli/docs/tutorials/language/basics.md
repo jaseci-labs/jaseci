@@ -103,6 +103,32 @@ with entry {
 }
 </div>
 
+### Implicit Returns
+
+The final expression of a function body, written without a trailing `;`, is
+the function's return value -- the same tail-expression rule as Rust. The
+semicolon is the switch: `expr;` is an ordinary discarded statement, while a
+bare trailing `expr` before the closing `}` returns its value. Early returns
+in the middle of a body still use explicit `return`.
+
+```jac
+def double(n: int) -> int {
+    n * 2
+}
+
+def classify(n: int) -> str {
+    if n > 0 {
+        return "pos";
+    }
+    "non-pos"
+}
+
+with entry {
+    print(double(21));       # 42
+    print(classify(-1));     # non-pos
+}
+```
+
 ### Default Parameters
 
 ```jac

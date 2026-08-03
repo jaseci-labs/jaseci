@@ -143,13 +143,13 @@ jac build --as wheel           # build the wheel; run both commands for wheel + 
 
 What goes in the package:
 
-- **Compiled JavaScript.** Every `.cl.jac` (and plain `.jac`) client module under `[project.include]` compiles to a sibling `.js`, preserving the import structure. `def:pub` / `glob:pub` symbols become ESM exports.
+- **Compiled JavaScript.** Every `.jac` (and plain `.jac`) client module under `[project.include]` compiles to a sibling `.js`, preserving the import structure. `def:pub` / `glob:pub` symbols become ESM exports.
 - **`package.json`.** Built from `[project]` (`name`, `version`, `description`, `license`, `keywords`, `repository`) plus `[dependencies.npm]`. Override npm-specific fields under `[npm]`:
 
     ```toml
     [npm]
     name = "@yourscope/mylib"   # scoped npm name (defaults to the normalized project name)
-    entry = "mylib/index.cl.jac" # entry module (defaults to an index.* module)
+    entry = "mylib/index.jac" # entry module (defaults to an index.* module)
     ```
 
 - **TypeScript declarations.** A `.d.ts` is generated for each module and `package.json` `types`/`exports` point at the entry's declarations, so TypeScript consumers get full type-checking. Function signatures, `obj`/`node` classes, and globals are all typed; JSDoc is also embedded in the `.js`.

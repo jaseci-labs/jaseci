@@ -36,13 +36,15 @@ Every interop edge is one of two fundamentally different things:
 The compiler decides which is which automatically. One analysis pass does
 the discovery:
 
-- **`BoundaryAnalysisPass`** detects a cross-runtime import (`sv import`
-  in client-placed code -- whether that placement is inferred or comes from
-  a `.cl.jac` extension -- a `clib` import in native code, etc.) and
-  re-reads the *provider* module's AST to extract the public surface --
-  walker `has`-fields, `def` signatures, struct layouts -- into an
-  `InteropBinding`. On an import, the `sv` marker is a boundary fact (the
-  target stays server-side); the import's own `code_context` is its
+- **`BoundaryAnalysisPass`** detects a cross-runtime import (a
+  server-module import in client-placed code -- whether that placement is
+  inferred or comes from a `.jac` variant file -- a `clib` import in
+  native code, etc.) and re-reads the *provider* module's AST to extract
+  the public surface -- walker `has`-fields, `def` signatures, struct
+  layouts -- into an `InteropBinding`. On an import, service-boundary
+  status is a config fact (the target module is in
+  `[scale.microservices.routes]` or pinned `"server"` in
+  `[placement.pins]`); the import's own `code_context` is its
   placement, which determines the caller side of the binding. The same pass
   walks call sites, records the caller's and callee's `CodeContext` plus
   the boundary types, and accumulates every binding into an
@@ -66,8 +68,8 @@ remaining rows.
 | # | Direction | Boundary kind | Mechanism | What crosses | Synthesised by |
 |---|-----------|---------------|-----------|--------------|----------------|
 | 1 | **`sv → sv`** (in-process) | Free | Direct Python call | Live CPython objects (by ref) | -- (plain `import`) |
-| 2 | **`sv → sv`** (microservice) | Marshalled | HTTP `POST` between deployments | JSON (`_to_wire`/`_from_wire`) | `PyastGenPass` (`sv import` stub) + `jaclang.scale` |
-| 3 | **`cl → cl`** | Free | Direct JS call | JS values (by ref) | -- (`cl import`) |
+| 2 | **`sv → sv`** (microservice) | Marshalled | HTTP `POST` between deployments | JSON (`_to_wire`/`_from_wire`) | `PyastGenPass` (service RPC stub for routes-table imports) + `jaclang.scale` |
+| 3 | **`cl → cl`** | Free | Direct JS call | JS values (by ref) | -- (plain client-side `import`) |
 | 4 | **`na → na`** | Free | Linker symbol reference | Native values / pointers | `NativeCompilePass` relocation |
 | 5 | **`cl → sv`** | Marshalled | HTTP `POST /walker/*` or `/function/*` | JSON envelope | `EsastGenPass` (`__jacSpawn`/`__jacCallFunction`) + `jaclang.scale` |
 | 6 | **`sv → cl`** | Marshalled (one-shot) | Static bundle + bootstrap JSON (CSR) | The compiled JS bundle + init payload | `PyastGenPass` static route + Vite/Bun bundler |
@@ -119,16 +121,16 @@ JavaScript calling server-side walkers and functions over HTTP.
 
 ### Declaring the contract
 
-A `.cl.jac` component imports its server contract with `sv import`:
+A client component imports its server contract with a plain import:
 
 ```jac
-sv import from endpoints { Message, PostMessage, ListMessages }
+import from endpoints { Message, PostMessage, ListMessages }
 ```
 
-Inside a client file, the `sv` prefix is the one carve-out that survives
-client coercion: `_coerce_client_module` passes `skip_token=Tok.KW_SERVER`,
-so an `sv`-tagged statement keeps `CodeContext.SERVER` instead of being
-re-stamped `CLIENT`. The server side defines these as **public walkers**
+The placement solver leaves the endpoints module's API surface
+server-placed (`def:pub` endpoints and walkers never relocate), so the
+client-consumed import is recognized as a boundary import rather than a
+relocation. The server side defines these as **public walkers**
 (`walker:pub`) and **boundary types** (`node`/`obj`) with typed
 `reports`/return signatures, e.g.:
 
@@ -144,8 +146,8 @@ walker:pub PostMessage {
 }
 ```
 
-`BoundaryAnalysisPass` sees the `KW_SERVER` import, re-reads
-`endpoints.sv.jac`, and records each walker's fields and each function's
+`BoundaryAnalysisPass` sees the boundary import, re-reads
+`endpoints.jac`, and records each walker's fields and each function's
 signature into an `InteropBinding`. The client gets full type information
 by reading the server's source directly -- there is no shared type-checker
 round-trip.
@@ -246,7 +248,7 @@ mounts React; **the server never renders DOM.**
 
 ## `sv ↔ na`: the Python ⇄ native JIT bridge (rows 7, 8)
 
-When one program mixes server (`sv`/default) and native (`na {}`) code, the
+When one program mixes server (the default) and native-placed code, the
 compiler auto-generates a **bidirectional ctypes bridge** -- there is no
 manual FFI. The two directions are derived from the `InteropManifest`:
 `native_exports` (native function, Python caller) and `native_imports`
@@ -284,7 +286,7 @@ a separate shared object loaded across a process boundary.
 
 ### Crossing whole Jac values
 
-For full `.na.jac` modules, `native_marshal.jac`'s `install_native_wrappers`
+For fully native-placed modules, `native_marshal.jac`'s `install_native_wrappers`
 replaces each exported name with a wrapper, and `marshal_value` crosses Jac
 `obj`/`list` values as **zero-copy views**: `NativeStructView` /
 `NativeListView` read fields directly from native memory via ctypes
@@ -300,6 +302,15 @@ to the Python path when it cannot lower). The
 *ahead-of-time* counterpart is the **`na → C host`** native-lib export
 path (below), where the native side is packaged as a real `.so` and a host (Python via `ctypes`, or C) loads
 it across the process boundary.
+
+The compiler itself ships this way: sealing a release AOT-compiles
+`jac0core/parser/lexer.jac` (plus its `tokens.jac` closure) into a
+per-platform shared library (`_precompiled/native/<triple>/libjac_lexer.*`)
+with a persisted `NativeModuleLayout` JSON, recorded in `MANIFEST.json`
+format 4 under `native_artifacts` (sha256-verified, fail-closed). The
+sealed runtime binds it with plain ctypes via `jac0core/native_dylib.jac` --
+no LLVM on the boot path -- and `parse()` uses it when present; unsealed
+dev trees fall back to the bytecode lexer.
 
 ---
 
@@ -373,7 +384,7 @@ the C runtime owns their lifetime.
 
 ## `na → C host`: shared libraries (row 13)
 
-The inverse of FFI-in. `jac nacompile mathlib.na.jac --shared` packages a
+The inverse of FFI-in. `jac nacompile mathlib.jac --shared` packages a
 native module as a C-ABI `.so` / `.dylib` / `.dll` that any host (a C
 program, or Python via `ctypes`) can load across a process/module boundary.
 
@@ -404,25 +415,29 @@ builds headerless and audits the IR for `__rc_*` machinery), runs `opt2`
 **without** `internalize` (so defined functions stay exported), and links
 with the pure-Jac `WasmLinker` (no wasm-ld/emscripten).
 
-The language-level spelling of the crossing is a marked import in client
-code:
+The language-level spelling of the crossing is a plain import of a
+native-placed module (inferred from its extern-decl surface, or pinned
+`"native"`) from client code:
 
 ```jac
-na import from .arena { init, frame }
+import from .arena { init, frame }    # arena.jac places native
 ```
 
-`na import` is the cl → na twin of `sv import`. It is the discovery signal
-(the client build compiles the target module to `/static/<stem>.wasm`; the
-module never has to be imported anywhere else), and it binds each name to a
-generated stub: `exit_import` in `EsastGenPass` emits
-`const { init, frame } = __na_bind("arena", ["init", "frame"])`, where
+This is the cl → na twin of the client-to-server RPC bridge. The interop
+manifest records the target as NATIVE with a CLIENT caller
+(`import_binds_client_native` in `jac0core/compiler.jac`), which is the
+discovery signal (the client build compiles the target module to
+`/static/<stem>.wasm`; the module never has to be imported anywhere else),
+and it binds each name to a generated stub: `exit_import` in `EsastGenPass`
+emits `const { init, frame } = __na_bind("arena", ["init", "frame"])`, where
 `__na_bind` (in `@jac/wasm_host`) lazily instantiates the module on first
 call and dispatches to its exports. Calls to the bound names type-check as
-async in client code (the same coroutine-wrapping `sv import` calls get),
-so `await init()` is the natural call shape. On the Python side the import
-compiles to **nothing** -- an `na import` never executes the native module
-under CPython, which is what distinguishes it from a plain import of a
-native module (row 7's ctypes crossing). A module that declares app FFI
+async in client code (the same coroutine-wrapping that client calls to
+server endpoints get), so `await init()` is the natural call shape. On the
+Python side the client-consumed import compiles to **nothing** -- it never
+executes the native module under CPython, which is what distinguishes it
+from a server-consumed import of the same native module (row 7's ctypes
+crossing). A module that declares app FFI
 registers its host implementations before the first call with
 `set_na_env("<stem>", shim, {"env": {...}})`; an FFI-free module needs no
 setup at all.
@@ -444,17 +459,20 @@ Underneath, the interop model is the standard wasm import/export contract:
 
 ## `sv → sv` microservice split (row 2)
 
-By default an `sv import` between two server modules is a free, in-process
-Python import. Prefixing it with `sv` **explicitly** turns it into an HTTP
-boundary even between two server deployments:
+By default an import between two server modules is a free, in-process
+Python import. Listing the provider in `[scale.microservices.routes]` (or
+pinning it `"server"` at module level in `[placement.pins]`) turns the same
+import into an HTTP boundary even between two server deployments:
 
 ```jac
-sv import from billing { ChargeCard }   # billing may be a different process
+import from billing { ChargeCard }   # billing is in the routes table
 ```
 
-`exit_import` detects the literal `KW_SERVER` source token (not
-`code_context`, which is `SERVER` for everything by default) and calls
-`_generate_sv_to_sv_stubs`, replacing the import with generated Python:
+`exit_import` checks `Import.is_service_import` (routes-table membership /
+module-level server pin via `jac0core/service_cut.jac` and
+`jac0core/placement_pins.jac` -- not `code_context`, which is `SERVER` for
+everything by default) and calls `_generate_sv_to_sv_stubs`, replacing the
+import with generated Python:
 
 - functions → a stub whose body is
   `__jac_sv_client.call('<module>', '<func>', {args})`, with boundary types
@@ -496,7 +514,7 @@ _jac_finder.install()` at interpreter startup (see `launcher/launcher.zig`
 `BOOT_SRC`); on the first `.jac` import the lazy finder bootstraps jaclang and
 installs `JacMetaImporter`
 ([`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py)).
-Its `find_spec` probes for `__init__.jac` / `<name>.jac` / `<name>.sv.jac`,
+Its `find_spec` probes for `__init__.jac` / `<name>.jac`,
 and `exec_module` runs `exec(codeobj, module.__dict__)` -- so a compiled Jac
 module becomes an ordinary Python module object in `sys.modules`, with Jac
 archetypes appearing as plain Python classes (`obj → class X(Obj)`). Pure
@@ -623,7 +641,7 @@ core `build`/`start` commands delegate to the target.
 | Layer | Codespace / tech | Role |
 |-------|------------------|------|
 | UI | `cl` (Vite/React bundle) | `NativeDesktopTarget` subclasses `WebTarget`; reuses the standard `.jac/client/dist/` bundle |
-| Host binary | `na` (LLVM, pure-Jac linker) | A generated `host.na.jac`, compiled by `jac nacompile`; records `libwebview.so` as `DT_NEEDED` with an `$ORIGIN` runpath |
+| Host binary | `na` (LLVM, pure-Jac linker) | A generated `host.jac`, compiled by `jac nacompile`; records `libwebview.so` as `DT_NEEDED` with an `$ORIGIN` runpath |
 | Window | C FFI → `libwebview` | OS-native webview: WebKitGTK (Linux), WKWebView (macOS), WebView2 (Windows) |
 | Local runtime | C FFI → `libpython` | Embedded CPython runs `inprocess_dispatch` (walker/function invokes) **and** a stdlib loopback HTTP broker (bundle + SSO/session) |
 | Backend | `sv` in-process | Walker/function calls route through the embedded runtime via `__jac_invoke`; a remote `api_base` is optional for external backends |
@@ -687,13 +705,13 @@ RPC to the backend). It is the matrix in miniature.
 | Python interop | [`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py); `_jac_finder.py` (launcher `BOOT_SRC`); `passes/impl/pyast_gen_pass.impl.jac` (`exit_import`, `exit_py_inline_code`) |
 | Marshalling | `runtimelib/impl/{serializer,server,transport}.impl.jac` |
 | Capability boundary | `compiler/passes/main/capability_check_pass.jac`; [`diagnostics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/diagnostics.jac) (`E5090`) |
-| Desktop | `runtimelib/client/targets/desktop/native_desktop_target.jac` (+ impl); `runtimelib/client/targets/desktop/native/webview/webview.na.jac`; `runtimelib/client/targets/registry.jac` |
+| Desktop | `runtimelib/client/targets/desktop/native_desktop_target.jac` (+ impl); `runtimelib/client/targets/desktop/native/webview/webview.jac`; `runtimelib/client/targets/registry.jac` |
 
 ---
 
 ## See also
 
 - [Compiler Architecture: Three Codespaces](compiler_architecture.md) -- the codespace model and pipeline.
-- [Jac Client Import Patterns](jac_import_patterns.md) -- the `cl import` surface.
+- [Jac Client Import Patterns](jac_import_patterns.md) -- the client-side import surface.
 - [Native Compilation](../reference/language/native-pathway.md) -- the `na` pathway and the capability roadmap.
 - [Python Integration](../reference/language/python-integration.md) -- the five Jac/Python adoption patterns.

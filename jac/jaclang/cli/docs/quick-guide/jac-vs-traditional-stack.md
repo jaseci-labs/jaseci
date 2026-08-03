@@ -1,6 +1,6 @@
 # One App, Two Stacks
 
-This page makes the argument of [Why Jac Exists](why-jac.md) by counting. We build the same Todo app twice: once on a traditional stack (a Python backend, a React frontend, an ORM, API route definitions, and serialization logic, spread across separate projects), and once in Jac, where nodes are the data model, walkers and `def:pub` functions are the API, and a `cl { }` block holds the UI. Every artifact the traditional stack needs and Jac does not is *glue*: code whose sole purpose is to carry meaning across a *discontinuity*. The totals are at the bottom.
+This page makes the argument of [Why Jac Exists](why-jac.md) by counting. We build the same Todo app twice: once on a traditional stack (a Python backend, a React frontend, an ORM, API route definitions, and serialization logic, spread across separate projects), and once in Jac, where nodes are the data model, walkers and `def:pub` functions are the API, and JSX components hold the UI. Every artifact the traditional stack needs and Jac does not is *glue*: code whose sole purpose is to carry meaning across a *discontinuity*. The totals are at the bottom.
 
 ---
 
@@ -22,7 +22,7 @@ def:pub get_todos -> list {
     return [{"title": t.title, "done": t.done} for t in [root-->][?:Todo]];
 }
 
-cl def:pub app() -> JsxElement {
+def:pub app() -> JsxElement {
     has items: list = [];
 
     async can with entry {

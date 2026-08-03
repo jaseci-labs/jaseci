@@ -28,12 +28,12 @@ def _nacompile_run(fixture: str) -> str {
 }
 
 test "os path isfile and isdir report real file kinds natively" {
-    out = _nacompile_run("os_path_probe.na.jac").strip().split("\n");
+    out = _nacompile_run("os_path_probe.jac").strip().split("\n");
     assert out == ["1", "0", "1", "0", "1", "0", "5", "-1"] , f"os.path probe mismatch: {out}";
 }
 
 test "unsupported os path members fail the native compile loudly" {
-    src = os.path.join(FIXTURES, "os_path_unsupported.na.jac");
+    src = os.path.join(FIXTURES, "os_path_unsupported.jac");
     out_bin = os.path.join(tempfile.mkdtemp(), "nope.bin");
     comp = subprocess.run(
         [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
