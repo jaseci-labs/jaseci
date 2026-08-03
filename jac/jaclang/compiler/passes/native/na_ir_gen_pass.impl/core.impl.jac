@@ -1,12 +1,6 @@
 impl NaIRGenPass.postinit -> None {
     import os as _ni_os;
 
-    # Compile-time switch for the RC debug/leak-trace machinery. When unset (the
-    # default) the RC helpers (__rc_alloc / retain / release / free) emit NO trace
-    # branches, NO per-call-site op/loc context strings, and NO "RC MALLOC/…"
-    # format strings — zero size and runtime overhead. Set JAC_RC_DEBUG_CODEGEN=1
-    # at compile time to bake in the tracing; then __rc_debug_enable() at runtime
-    # turns it on. (Everything gated on self._rc_debug_codegen — see gc_debug.impl.)
     self._rc_debug_codegen = bool(_ni_os.environ.get("JAC_RC_DEBUG_CODEGEN", ""));
     _ni_src: str = self.ir_in.loc.mod_path if self.ir_in.loc else "";
     _ni_mod_name: str = _ni_os.path.basename(_ni_src) if _ni_src else "jac_native";

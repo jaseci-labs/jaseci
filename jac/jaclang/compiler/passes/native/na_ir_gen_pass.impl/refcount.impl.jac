@@ -170,10 +170,7 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     self._emit_live_node_insert(b, _aid_old, user, _tag_raw);
 
     ret_bb = alloc_fn.append_basic_block("ret");
-    # The per-op debug logging (format strings + printf branch) is emitted only
-    # when JAC_RC_DEBUG_CODEGEN is set at compile time. In a normal build it is
-    # omitted entirely, so the hot RC helpers carry no dead format strings and no
-    # extra load/branch. (See NaIRGenPass.postinit for the flag.)
+
     if self._rc_debug_codegen {
         log_alloc_bb = self._emit_alloc_log_bb(
             alloc_fn, ret_bb, _aid_old, user, alloc_fn.args[0], _tag_raw
