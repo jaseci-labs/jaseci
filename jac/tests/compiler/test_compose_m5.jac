@@ -153,8 +153,8 @@ def:pub app -> Composable {
 }
 
 test "off-whitelist widgets emit near-identity and resolve via wildcard imports" {
-    # Slider / LinearProgressIndicator / AssistChip are NOT in COMPOSE_PRIMITIVES.
-    # The emitter lowers them as ordinary composable calls and the wildcard
+    # Slider / LinearProgressIndicator / AssistChip are not hand-curated
+    # primitives. The emitter lowers them as ordinary composable calls and the wildcard
     # material3 import makes them resolve with zero per-widget scaffolding —
     # this is the open-vocabulary contract.
     src = '''
