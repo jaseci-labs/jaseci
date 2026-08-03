@@ -5,19 +5,14 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
 }
 
 
-obj MicroserviceDatabaseProvisioner {
+obj DatabaseProvisioner {
     has k8s_target: any,
-        logger: any = None,
-        enabled: bool = False;
+        logger: any = None;
 
     def provision(app_name: str) -> DeployContext {
         ctx = DeployContext();
 
         self.k8s_target.env_list = [];
-
-        if not self.enabled {
-            return ctx;
-        }
 
         cfg = self.k8s_target.k8s_config;
         mongo_on = cfg.mongodb_enabled;
@@ -33,7 +28,7 @@ obj MicroserviceDatabaseProvisioner {
             return ctx;
         }
 
-        self.k8s_target._load_kube_config();
+        self.k8s_target._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
         namespace: str = cfg.namespace;

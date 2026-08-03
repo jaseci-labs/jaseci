@@ -843,12 +843,17 @@ impl TypeEvaluator.resolve_imported_symbols(sym: uni.Symbol) -> uni.Symbol {
 impl TypeEvaluator._set_module_item_symbol_and_type(
     node_: uni.ModuleItem, sym: uni.Symbol
 ) -> TypeBase {
-    node_.name.sym = sym;
+    if isinstance(node_.name, uni.Name) {
+        node_.name.sym = sym;
+    }
     if node_.alias {
         node_.alias.sym = sym;
     }
-    node_.name.type = self.get_type_of_symbol(sym);
-    return node_.name.type;
+    sym_type = self.get_type_of_symbol(sym);
+    if binding := node_.binding_name {
+        binding.type = sym_type;
+    }
+    return sym_type;
 }
 
 impl TypeEvaluator._extract_type_params(

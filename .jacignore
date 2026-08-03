@@ -384,9 +384,9 @@ jac/jaclang/scale/deploy/database/kubernetes_mongo.jac
 jac/jaclang/scale/deploy/target/kubernetes/cluster_provider.jac
 jac/jaclang/scale/deploy/target/kubernetes/ingress.jac
 jac/jaclang/scale/deploy/target/kubernetes/kubernetes_config.jac
-jac/jaclang/scale/deploy/target/kubernetes/microservice/database_provisioner.jac
-jac/jaclang/scale/deploy/target/kubernetes/microservice/manifest_builder.jac
-jac/jaclang/scale/deploy/target/kubernetes/microservice/target.jac
+jac/jaclang/scale/deploy/target/kubernetes/database_provisioner.jac
+jac/jaclang/scale/deploy/target/kubernetes/manifest_builder.jac
+jac/jaclang/scale/deploy/target/kubernetes/target.jac
 jac/jaclang/scale/emailer/emailers.jac
 jac/jaclang/scale/emailer/factory.jac
 jac/jaclang/scale/emailer/impl/emailers.impl.jac
