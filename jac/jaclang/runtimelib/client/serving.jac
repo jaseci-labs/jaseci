@@ -2,6 +2,7 @@ import hashlib;
 import html;
 import json;
 import mimetypes;
+import re;
 import types;
 import from http.server { BaseHTTPRequestHandler }
 import from pathlib { Path }
@@ -31,9 +32,21 @@ obj HeaderBuilder {
             "author",
             "robots",
             "theme_color"
+        ],
+        script_flag_attrs: list = ["async", "defer", "nomodule"],
+        script_value_attrs: list = [
+            "type",
+            "crossorigin",
+            "integrity",
+            "referrerpolicy",
+            "nonce",
+            "id",
+            "fetchpriority"
         ];
 
     def build_head -> str;
+    def build_scripts -> list[str];
+    def _script_tag(spec: dict) -> str;
     def _get_value(key: str) -> str;
     def _og_property(suffix: str) -> str;
     def _build_special_tags -> list[str];

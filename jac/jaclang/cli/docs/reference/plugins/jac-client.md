@@ -1539,6 +1539,58 @@ og_description = "App description"
 og_image = "/assets/og-image.png"
 ```
 
+#### Head Scripts
+
+Add `<script>` tags to the generated `<head>` with the `scripts` key. Use it for
+analytics snippets, third-party SDKs, and preloaded libraries that must be
+available before the app bundle boots:
+
+```toml
+[client.app_meta_data]
+scripts = [
+  { src = "https://js.stripe.com/v3", defer = true },
+]
+```
+
+The array-of-tables form is equivalent and reads better for several entries:
+
+```toml
+[[client.app_meta_data.scripts]]
+src = "https://cdn.example.com/maps.js"
+async = true
+crossorigin = "anonymous"
+
+[[client.app_meta_data.scripts]]
+content = """
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+"""
+```
+
+Each entry takes either `src` (external script) or `content` (inline body); when
+both are given `src` wins, matching how browsers treat a script element with a
+`src` attribute. A bare string is shorthand for `src`:
+
+```toml
+scripts = ["https://cdn.example.com/sdk.js"]
+```
+
+Supported attributes, all optional:
+
+| Attribute | Notes |
+|-----------|-------|
+| `async`, `defer`, `nomodule` | Booleans. Rendered as bare attributes when `true`, omitted when `false`. |
+| `type`, `crossorigin`, `integrity`, `referrerpolicy`, `nonce`, `id`, `fetchpriority` | Rendered as `name="value"`. |
+| `data_*` | Rendered as `data-*`, e.g. `data_site_id = "abc"` becomes `data-site-id="abc"`. |
+
+Anything else is ignored, so event-handler attributes such as `onload` cannot be
+set this way. Attribute values are HTML-escaped, and a literal `</script>` inside
+an inline `content` body is escaped so it cannot close the tag early.
+
+Scripts are emitted last in the `<head>`, after the title, meta, and link tags,
+and appear in `jac build` output, `jac start`, and `jac start --dev` alike.
+
 ### API Base URL
 
 Set the backend API base URL used by client-side requests:

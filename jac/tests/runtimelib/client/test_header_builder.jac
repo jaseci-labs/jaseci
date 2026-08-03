@@ -76,3 +76,125 @@ test "values are escaped inside their quotes" {
     head = hb.build_head();
     assert 'content="A &quot;B&quot; &amp; &lt;C&gt;"' in head;
 }
+
+
+test "external scripts render src plus boolean flags" {
+    hb = HeaderBuilder(
+        meta_data={
+            "scripts": [
+                {"src": "https://js.stripe.com/v3", "defer": True},
+                {"src": "/legacy.js", "nomodule": True, "async": True},
+                {"src": "/mod.js", "type": "module", "defer": False}
+            ]
+        },
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert '<script src="https://js.stripe.com/v3" defer></script>' in head;
+    assert '<script src="/legacy.js" nomodule async></script>' in head;
+    assert '<script src="/mod.js" type="module"></script>' in head;
+}
+
+
+test "a bare string entry is shorthand for src" {
+    hb = HeaderBuilder(
+        meta_data={"scripts": ["https://cdn.example.com/sdk.js"]}, function_name="app"
+    );
+    assert '<script src="https://cdn.example.com/sdk.js"></script>' in hb.build_head();
+}
+
+
+test "attribute values are escaped inside their quotes" {
+    hb = HeaderBuilder(
+        meta_data={
+            "scripts": [
+                {
+                    "src": "https://cdn.example.com/a.js?x=1&y=2",
+                    "integrity": "sha384-abc\"def",
+                    "crossorigin": "anonymous",
+                    "data_site_id": "jac-1"
+                }
+            ]
+        },
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert 'src="https://cdn.example.com/a.js?x=1&amp;y=2"' in head;
+    assert 'integrity="sha384-abc&quot;def"' in head;
+    assert 'crossorigin="anonymous"' in head;
+    assert 'data-site-id="jac-1"' in head;
+}
+
+
+test "attributes outside the whitelist are dropped" {
+    hb = HeaderBuilder(
+        meta_data={
+            "scripts": [{"src": "/a.js", "onload": "alert(1)", "onerror": "alert(2)"}]
+        },
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert '<script src="/a.js"></script>' in head;
+    assert "onload" not in head;
+    assert "alert" not in head;
+}
+
+
+test "inline content renders as a script body" {
+    hb = HeaderBuilder(
+        meta_data={"scripts": [{"content": "window.dataLayer=window.dataLayer||[];"}]},
+        function_name="app"
+    );
+    assert '<script>window.dataLayer=window.dataLayer||[];</script>' in hb.build_head();
+}
+
+
+test "a closing script tag inside inline content cannot break out" {
+    hb = HeaderBuilder(
+        meta_data={
+            "scripts": [{"content": 'var a = "</script><img src=x onerror=alert(1)>";'}]
+        },
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert '<\\/script>' in head;
+    assert '"</script>' not in head;
+    assert head.count("</script>") == 1;
+}
+
+
+test "entries with neither src nor content are skipped" {
+    hb = HeaderBuilder(
+        meta_data={
+            "scripts": [{"defer": True}, {"src": "   "}, {}, "", {"src": "/real.js"}]
+        },
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert head.count("<script") == 1;
+    assert '<script src="/real.js"></script>' in head;
+}
+
+
+test "scripts come last so crawler tags stay at the top of the head" {
+    hb = HeaderBuilder(
+        meta_data={
+            "title": "My App",
+            "og_title": "My App",
+            "icon": "/favicon.png",
+            "scripts": [{"src": "/a.js"}]
+        },
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert head.index("<script") > head.index('<link rel="icon"');
+    assert head.index("<script") > head.index("<meta property=\"og:title\"");
+}
+
+
+test "a missing or malformed scripts key emits nothing" {
+    for value in [None, "", [], {}, "not-a-list", 42] {
+        hb = HeaderBuilder(meta_data={"scripts": value}, function_name="app");
+        assert "<script" not in hb.build_head();
+    }
+}
