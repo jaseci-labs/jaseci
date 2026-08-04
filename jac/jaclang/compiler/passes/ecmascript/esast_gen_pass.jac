@@ -177,6 +177,10 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         _view_used_base: bool = False,
         _view_acc_counter: int = 0,
         _view_awaiting_tries: set[int] = set(),
+        _view_dynamic_accs: set[str] = set(),
+        _view_acc_marks: dict[(str, int)] = {},
+        _view_slot_branches: set[int] = set(),
+        _view_slot_loops: set[int] = set(),
         sv_import_stubs: list[es.Statement] = [],
         na_import_stubs: list[es.Statement] = [],
         needs_jac_runtime: bool = False,
@@ -327,7 +331,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     ) -> es.ExpressionStatement;
 
     def _jsx_fragment(
-        children: list[es.Expression], anchor: uni.UniNode
+        children: es.Expression, anchor: uni.UniNode
     ) -> es.CallExpression;
 
     def _view_fragment_return(
@@ -338,6 +342,32 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         body_nodes: (Sequence[uni.UniNode] | None), acc_name: str, anchor: uni.UniNode
     ) -> es.CallExpression;
 
+    def _view_iife_from_stmts(
+        stmts: list[es.Statement], acc_name: str, anchor: uni.UniNode
+    ) -> es.CallExpression;
+
+    def _view_child_expr(
+        scope_node: uni.UniScopeNode,
+        body_nodes: (Sequence[uni.UniNode] | None),
+        acc_name: str,
+        anchor: uni.UniNode
+    ) -> es.Expression;
+
+    def _view_branch_expr(
+        nd: (uni.IfStmt | uni.ElseIf), `test: es.Expression, acc_name: str
+    ) -> es.Expression;
+
+    def _view_loop_stmt(nd: uni.UniNode, loop_stmt: es.Statement) -> es.Statement;
+    def _view_release_acc(name: str) -> None;
+    def _view_open_child_acc(nd: uni.UniNode, dynamic: bool = False) -> None;
+    def _view_close_child_acc(nd: uni.UniNode) -> (str | None);
+    def enter_if_stmt(nd: uni.IfStmt) -> None;
+    def enter_else_if(nd: uni.ElseIf) -> None;
+    def enter_else_stmt(nd: uni.ElseStmt) -> None;
+    def enter_in_for_stmt(nd: uni.InForStmt) -> None;
+    def enter_iter_for_stmt(nd: uni.IterForStmt) -> None;
+    def enter_while_stmt(nd: uni.WhileStmt) -> None;
+    def enter_forever_stmt(nd: uni.ForeverStmt) -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
     def exit_else_if(nd: uni.ElseIf) -> None;
     def exit_else_stmt(nd: uni.ElseStmt) -> None;
