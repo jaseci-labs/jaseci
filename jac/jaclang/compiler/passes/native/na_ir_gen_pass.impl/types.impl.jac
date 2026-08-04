@@ -45,6 +45,9 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
         _had_none = len(_members) < len(t.types or []);
         if _members {
             _mlow = self._lower_type(_members[0]);
+            if self._str_desc_ty is not None and _mlow == self._str_desc_ty {
+                _mlow = ir.IntType(8).as_pointer();
+            }
             if (
                 _had_none
                 and len(_members) == 1
@@ -242,6 +245,9 @@ impl NaIRGenPass._elem_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
     if et is None {
         return None;
     }
+    if self._str_desc_ty is not None and et == self._str_desc_ty {
+        return "ptr";
+    }
     if isinstance(et, ir.DoubleType) {
         return "f64";
     }
@@ -306,6 +312,9 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
             }
             elem_llvm = _e;
         }
+        if self._str_desc_ty is not None and elem_llvm == self._str_desc_ty {
+            elem_llvm = ir.IntType(8).as_pointer();
+        }
         spec = "i64";
         if isinstance(elem_llvm, ir.DoubleType) {
             spec = "f64";
@@ -330,6 +339,14 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
             k_llvm = _k;
             v_llvm = _v;
         }
+        if self._str_desc_ty is not None {
+            if k_llvm == self._str_desc_ty {
+                k_llvm = ir.IntType(8).as_pointer();
+            }
+            if v_llvm == self._str_desc_ty {
+                v_llvm = ir.IntType(8).as_pointer();
+            }
+        }
 
         (k_spec, k_size) = self._dict_key_spec(k_llvm);
         v_spec = self._dict_val_spec(v_llvm);
@@ -345,6 +362,9 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
                 return None;
             }
             elem_llvm = _e;
+        }
+        if self._str_desc_ty is not None and elem_llvm == self._str_desc_ty {
+            elem_llvm = ir.IntType(8).as_pointer();
         }
         spec = "i64";
         esize = 0;
@@ -370,6 +390,9 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
             _et = self._lower_type(a);
             if _et is None {
                 return None;
+            }
+            if self._str_desc_ty is not None and _et == self._str_desc_ty {
+                _et = ir.IntType(8).as_pointer();
             }
             elem_types.append(_et);
         }
@@ -505,6 +528,9 @@ impl NaIRGenPass._try_resolve_field_type(var: uni.UniNode) -> tuple {
         } except ImportError { }
         lowered = self._lower_type(_ptb);
         if lowered is not None {
+            if self._str_desc_ty is not None and lowered == self._str_desc_ty {
+                lowered = ir.IntType(8).as_pointer();
+            }
             return (lowered, False);
         }
 
@@ -549,6 +575,9 @@ impl NaIRGenPass._resolve_clib_type(type_expr: (uni.UniNode | None)) -> ir.Type 
     }
 
     type_name: (str | None) = None;
+    if isinstance(type_expr, uni.Name) and type_expr.value == "str" {
+        return ir.IntType(8).as_pointer();
+    }
     if isinstance(type_expr, uni.Name) {
         type_name = type_expr.value;
     } elif type_expr?.value and isinstance(type_expr?.value, str) {
@@ -670,6 +699,16 @@ impl NaIRGenPass._abi_sizeof(t: ir.Type) -> int {
 }
 
 impl NaIRGenPass._to_bool(val: ir.Value) -> ir.Value {
+    if self._str_desc_ty is not None and val.type == self._str_desc_ty {
+        return self.builder.icmp_signed(
+            "!=",
+            self.builder.extract_value(
+                val, len(list(self._str_desc_ty.elements)) - 1, name="s.tlen"
+            ),
+            ir.Constant(ir.IntType(64), 0),
+            name="s.truthy"
+        );
+    }
     if isinstance(val.type, ir.IntType) and val.type.width == 1 {
         return val;
     }
@@ -862,6 +901,58 @@ impl NaIRGenPass._opt_payload_of(t: ir.Type) -> (ir.Type | None) {
 impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.Value {
     if val.type == target_type {
         return val;
+    }
+
+    _sd = self._str_desc_ty;
+    if _sd is not None {
+        _i8p_sd = ir.IntType(8).as_pointer();
+        if target_type == _sd and val.type == _i8p_sd {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+
+            return self.builder.call(self.str_wrap_raw_fn, [val], name="s.desc");
+        }
+        if val.type == _sd and target_type == _i8p_sd {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+            return self.builder.call(self.str_unwrap_fn, [val], name="s.raw");
+        }
+        if target_type == _sd and self?.jacval_type and val.type == self.jacval_type {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+            return self.builder.call(
+                self.str_wrap_raw_fn,
+                [self._unbox_from_jacval(val, _i8p_sd)],
+                name="s.desc"
+            );
+        }
+        if target_type == _sd
+            and isinstance(val.type, ir.IntType)
+            and val.type.width == 64 {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+            return self.builder.call(
+                self.str_wrap_raw_fn,
+                [self.builder.inttoptr(val, _i8p_sd, name="s.unbox")],
+                name="s.desc"
+            );
+        }
+        if val.type == _sd
+            and isinstance(target_type, ir.IntType)
+            and target_type.width == 64 {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+            return self.builder.ptrtoint(
+                self.builder.call(self.str_unwrap_fn, [val], name="s.raw"),
+                target_type,
+                name="s.box"
+            );
+        }
     }
 
     _opt_tgt = self._opt_payload_of(target_type);
@@ -1152,6 +1243,8 @@ impl NaIRGenPass._promote_to_float(
 impl NaIRGenPass._emit_binary_op(
     op: str, left: ir.Value, right: ir.Value
 ) -> (ir.Value | None) {
+    left = self._str_norm(left);
+    right = self._str_norm(right);
     if isinstance(left.type, ir.PointerType)
         or isinstance(right.type, ir.PointerType) {
         _dunder_res = self._emit_arch_dunder_binop(op, left, right);
@@ -1689,6 +1782,8 @@ impl NaIRGenPass._emit_arch_dunder_binop(
 impl NaIRGenPass._emit_comparison(
     op: str, left: ir.Value, right: ir.Value, is_float: bool
 ) -> (ir.Value | None) {
+    left = self._str_norm(left);
+    right = self._str_norm(right);
     _l_is_tval = isinstance(left.type, ir.LiteralStructType);
     _r_is_tval = isinstance(right.type, ir.LiteralStructType);
     _l_is_tptr = isinstance(left.type, ir.PointerType)

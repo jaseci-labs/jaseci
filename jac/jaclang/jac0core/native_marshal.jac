@@ -16,18 +16,43 @@ glob logger = logging.getLogger(__name__),
      };
 
 def _build_cfunctype(finfo: any) -> type {
-    ret_ct = LLVM_TO_CTYPES.get(finfo.func_ret_type);
-    if ret_ct is None {
-        ret_ct = ctypes.c_void_p if finfo.func_ret_type != "void" else None;
+    if finfo.func_ret_type == "jacstr3" {
+        ret_ct = JacStrRet3;
+    } elif finfo.func_ret_type == "jacstr2" {
+        ret_ct = JacStrRet2;
+    } else {
+        ret_ct = LLVM_TO_CTYPES.get(finfo.func_ret_type);
+        if ret_ct is None {
+            ret_ct = ctypes.c_void_p if finfo.func_ret_type != "void" else None;
+        }
     }
     param_cts: list = [];
     for pt in (finfo.func_param_types or []) {
-        pct = LLVM_TO_CTYPES.get(pt, ctypes.c_void_p);
-        param_cts.append(pct);
+        if pt == "jacstr3" {
+            param_cts.extend([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64]);
+        } elif pt == "jacstr2" {
+            param_cts.extend([ctypes.c_void_p, ctypes.c_int64]);
+        } else {
+            param_cts.append(LLVM_TO_CTYPES.get(pt, ctypes.c_void_p));
+        }
     }
     return ctypes.CFUNCTYPE(ret_ct, *param_cts);
 }
 
+
+class JacStrRet3(ctypes.Structure) {
+    has _fields_: list[tuple[str, type]] = [
+        ("root", ctypes.c_void_p),
+        ("data", ctypes.c_void_p)
+    ];
+}
+
+class JacStrRet2(ctypes.Structure) {
+    has _fields_: list[tuple[str, type]] = [
+        ("data", ctypes.c_void_p),
+        ("slen", ctypes.c_int64)
+    ];
+}
 
 class NativeList(ctypes.Structure) {
     has _fields_: list[tuple[str, type]] = [
@@ -363,6 +388,20 @@ def marshal_value(
     if llvm_type in ("f64", "f32") {
         return float(raw);
     }
+    if llvm_type == "jacstr3" {
+        _d = raw?.data;
+        if not _d {
+            return "";
+        }
+        return ctypes.string_at(_d).decode("utf-8", errors="replace");
+    }
+    if llvm_type == "jacstr2" {
+        _d = raw?.data;
+        if not _d {
+            return "";
+        }
+        return ctypes.string_at(_d, int(raw.slen)).decode("utf-8", errors="replace");
+    }
     if llvm_type == "i8*" {
         if (raw is None or raw == 0) {
             return "";
@@ -532,6 +571,14 @@ def wrap_native_function(
 
     c_arg_types: list = [];
     for pt in func_layout.param_types {
+        if pt == "jacstr3" {
+            c_arg_types.extend([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64]);
+            continue;
+        }
+        if pt == "jacstr2" {
+            c_arg_types.extend([ctypes.c_void_p, ctypes.c_int64]);
+            continue;
+        }
         ct = LLVM_TO_CTYPES.get(pt);
         if ct is None {
             ct = ctypes.c_void_p;
@@ -540,7 +587,13 @@ def wrap_native_function(
     }
 
     ret_type = func_layout.ret_type;
-    c_ret = LLVM_TO_CTYPES.get(ret_type);
+    if ret_type == "jacstr3" {
+        c_ret = JacStrRet3;
+    } elif ret_type == "jacstr2" {
+        c_ret = JacStrRet2;
+    } else {
+        c_ret = LLVM_TO_CTYPES.get(ret_type);
+    }
     if c_ret is None {
         if ret_type == "void" {
             c_ret = None;
@@ -556,7 +609,7 @@ def wrap_native_function(
     fl = func_layout;
 
     str_new_fn: any = None;
-    if any(pt == "i8*" for pt in param_types) {
+    if any(pt in ("i8*", "jacstr3", "jacstr2") for pt in param_types) {
         _sn_addr = 0;
         for _sn_name in ("jac_str_new", "__jac_str_new") {
             try {
@@ -578,8 +631,23 @@ def wrap_native_function(
 
     def wrapper(*args: any) -> any {
         c_args: list = [];
+        _keepalive: list = [];
         for (arg, pt) in zip(args, param_types) {
-            if (pt == "i8*" and isinstance(arg, str)) {
+            if pt in ("jacstr3", "jacstr2") and isinstance(arg, (str, bytes)) {
+                _b = arg.encode("utf-8") if isinstance(arg, str) else arg;
+                if str_new_fn is not None {
+                    _sp = str_new_fn(_b, len(_b));
+                } else {
+                    _keep = ctypes.create_string_buffer(_b);
+                    _keepalive.append(_keep);
+                    _sp = ctypes.cast(_keep, ctypes.c_void_p).value;
+                }
+                if pt == "jacstr3" {
+                    c_args.extend([_sp, _sp, len(_b)]);
+                } else {
+                    c_args.extend([_sp, len(_b)]);
+                }
+            } elif (pt == "i8*" and isinstance(arg, str)) {
                 _b = arg.encode("utf-8");
                 if str_new_fn is not None {
                     _sp = str_new_fn(_b, len(_b));

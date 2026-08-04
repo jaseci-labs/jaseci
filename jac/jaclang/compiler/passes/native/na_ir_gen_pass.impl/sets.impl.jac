@@ -175,7 +175,7 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
         return None;
     }
 
-    first_val = self._codegen_expr(nd.values[0]);
+    first_val = self._str_norm(self._codegen_expr(nd.values[0]));
     if first_val is None {
         return None;
     }
@@ -213,7 +213,7 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
     );
 
     for i in range(1, len(nd.values)) {
-        val = self._codegen_expr(nd.values[i]);
+        val = self._str_norm(self._codegen_expr(nd.values[i]));
         if val is not None {
             val = self._nogc_elem_prep(nd.values[i], val);
             _orig_sv = val;

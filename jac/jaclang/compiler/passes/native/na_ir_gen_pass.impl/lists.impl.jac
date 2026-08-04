@@ -199,7 +199,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         if _decl_elem is not None
         else None;
 
-    first_val = self._codegen_expr(nd.values[0]);
+    first_val = self._str_norm(self._codegen_expr(nd.values[0]));
     if first_val is None {
         return None;
     }
@@ -261,7 +261,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     }
 
     for i in range(1, len(nd.values)) {
-        val = self._codegen_expr(nd.values[i]);
+        val = self._str_norm(self._codegen_expr(nd.values[i]));
         if val is not None {
             if self._pending_list_elem_struct is not None
                 and isinstance(self._pending_list_elem_struct, ir.PointerType)
@@ -396,6 +396,7 @@ impl NaIRGenPass._list_box_ptr_into_i64(value: ir.Value, elem_type: ir.Type) -> 
 impl NaIRGenPass._codegen_index_set(
     target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
 ) -> None {
+    value = self._str_norm(value);
     helpers = self.list_helpers.get(elem_type_name);
     if helpers is None {
         return;

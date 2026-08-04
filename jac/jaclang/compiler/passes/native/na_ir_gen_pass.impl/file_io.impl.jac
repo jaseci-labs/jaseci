@@ -292,7 +292,7 @@ impl NaIRGenPass._emit_open(nd: uni.FuncCall) -> (ir.Value | None) {
     if not params {
         return None;
     }
-    path_val = self._codegen_expr(params[0]);
+    path_val = self._str_norm(self._codegen_expr(params[0]));
     if path_val is None {
         return None;
     }
@@ -313,7 +313,7 @@ impl NaIRGenPass._emit_open(nd: uni.FuncCall) -> (ir.Value | None) {
 
     mode_val: (ir.Value | None) = None;
     if len(params) >= 2 {
-        mode_val = self._codegen_expr(params[1]);
+        mode_val = self._str_norm(self._codegen_expr(params[1]));
         if mode_val is not None and mode_val.type != i8p {
             return None;
         }

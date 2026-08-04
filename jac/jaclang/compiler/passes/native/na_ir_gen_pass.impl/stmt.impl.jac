@@ -269,6 +269,29 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
         val = self._codegen_required(nd.expr);
         if val is not None {
             val = self._coerce_type(val, func_ret_type);
+            _ret_root_local = False;
+            if isinstance(nd.expr, uni.AtomTrailer)
+                and isinstance(nd.expr.right, uni.IndexSlice) {
+                _rr = nd.expr.target;
+                while isinstance(_rr, uni.AtomTrailer) {
+                    _rr = _rr.target;
+                }
+                if isinstance(_rr, uni.Name)
+                    and _rr.sym_name in self.local_vars
+                    and _rr.sym_name not in self.param_vars {
+                    _ret_root_local = True;
+                }
+            }
+            if _ret_root_local
+                and (
+                    isinstance(val.type, ir.PointerType)
+                    or (self._str_desc_ty is not None and val.type == self._str_desc_ty)
+                )
+                and not self._is_owned(val)
+                and self._gc_mode() != "none" {
+                self._emit_rc_retain(val, op="ret_borrowed", loc="");
+                self._mark_owned(val);
+            }
 
             skip_var: (str | None) = None;
             if isinstance(nd.expr, uni.Name)
@@ -391,7 +414,7 @@ impl NaIRGenPass._codegen_if(nd: uni.IfStmt) -> None {
 }
 
 impl NaIRGenPass._codegen_switch(nd: uni.SwitchStmt) -> None {
-    target_val = self._codegen_expr(nd.target);
+    target_val = self._str_norm(self._codegen_expr(nd.target));
     if target_val is None {
         return;
     }
@@ -1422,6 +1445,8 @@ impl NaIRGenPass._bind_match_arch(
 impl NaIRGenPass._apply_scalar_aug_op(
     current: ir.Value, rhs: ir.Value, aug_op: str
 ) -> (ir.Value | None) {
+    current = self._str_norm(current);
+    rhs = self._str_norm(rhs);
     if not isinstance(current.type, (ir.IntType, ir.DoubleType, ir.FloatType)) {
         return None;
     }
@@ -1772,7 +1797,10 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
 
             if nd.aug_op is not None {
                 aug_op_val = nd.aug_op.value;
-                current = self.builder.load(alloca, name=f"{var_name}.cur");
+                current = self._str_norm(
+                    self.builder.load(alloca, name=f"{var_name}.cur")
+                );
+                value = self._str_norm(value);
                 coerced = self._coerce_type(value, current.type);
                 if aug_op_val == "+=" {
                     if isinstance(current.type, ir.IntType) {
@@ -2185,7 +2213,10 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             global_var = self.global_vars[var_name];
             if nd.aug_op is not None {
                 aug_op_val = nd.aug_op.value;
-                current = self.builder.load(global_var, name=f"glob.{var_name}.cur");
+                current = self._str_norm(
+                    self.builder.load(global_var, name=f"glob.{var_name}.cur")
+                );
+                value = self._str_norm(value);
                 coerced = self._coerce_type(value, current.type);
                 if aug_op_val == "+=" {
                     if isinstance(current.type, ir.IntType) {
@@ -2326,7 +2357,13 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             }
             coerced = self._coerce_type(value, global_var.type.pointee);
             _is_raw_int_ptr_g = getattr(coerced, 'opname', '') == 'inttoptr';
-            if isinstance(global_var.type.pointee, ir.PointerType)
+            if (
+                isinstance(global_var.type.pointee, ir.PointerType)
+                or (
+                    self._str_desc_ty is not None
+                    and global_var.type.pointee == self._str_desc_ty
+                )
+            )
                 and not _is_raw_int_ptr_g {
                 if not self._is_owned(value) {
                     self._emit_rc_retain(
@@ -2442,7 +2479,10 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 self._gen_ctx is not None
                 and self.builder.function is self._gen_ctx["resume_fn"]
             );
-            if isinstance(var_type, ir.PointerType)
+            if (
+                isinstance(var_type, ir.PointerType)
+                or (self._str_desc_ty is not None and var_type == self._str_desc_ty)
+            )
                 and not _mk_cell
                 and not _in_gen_frame {
                 _func_e = self.builder.function;
@@ -2468,7 +2508,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             if isinstance(var_type, ir.PointerType)
                 and var_name in self.region_handle_vars {
                 ;
-            } elif isinstance(var_type, ir.PointerType) {
+            } elif isinstance(var_type, ir.PointerType)
+                or (self._str_desc_ty is not None and var_type == self._str_desc_ty) {
                 if getattr(value, 'opname', '') == 'inttoptr' {
                     self.param_vars.add(var_name);
                 } else {
@@ -2679,7 +2720,7 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     }
 
     coll_name = self._get_name(nd.collection);
-    _coll_memo: (ir.Value | None) = self._codegen_expr(nd.collection);
+    _coll_memo: (ir.Value | None) = self._str_norm(self._codegen_expr(nd.collection));
 
     dict_type_key: (str | None) = self._dict_key_of(nd.collection);
     if dict_type_key is None and _coll_memo is not None {
@@ -3553,7 +3594,9 @@ impl NaIRGenPass._codegen_for_indexed(
         range_step = self.builder.load(_gen_step_slot, name="for.step");
     }
     if _gen_coll_slot is not None {
-        collection_val = self.builder.load(_gen_coll_slot, name="for.coll");
+        collection_val = self._str_norm(
+            self.builder.load(_gen_coll_slot, name="for.coll")
+        );
         if kind == "str" {
             len_val = self._call_str_len(self.builder, collection_val, name="for.len");
         } elif kind == "bytes" {
@@ -3581,7 +3624,9 @@ impl NaIRGenPass._codegen_for_indexed(
 
     if kind != "range" {
         if _gen_coll_slot is not None {
-            collection_val = self.builder.load(_gen_coll_slot, name="for.coll.body");
+            collection_val = self._str_norm(
+                self.builder.load(_gen_coll_slot, name="for.coll.body")
+            );
         }
         body_idx = self.builder.load(idx_alloca, name="for.body.idx");
         if kind == "items" {

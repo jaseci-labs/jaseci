@@ -36,7 +36,7 @@ impl NaIRGenPass._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
     fmt_parts = [];
     args = [];
     for (i, param) in enumerate(params) {
-        val = self._codegen_expr(param);
+        val = self._str_norm(self._codegen_expr(param));
         if val is None {
             continue;
         }
@@ -357,7 +357,7 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
             text = text.replace("%", "%%");
             fmt_parts.append(text);
         } elif isinstance(part, uni.FormattedValue) {
-            val = self._codegen_expr(part.format_part);
+            val = self._str_norm(self._codegen_expr(part.format_part));
             if val is None {
                 continue;
             }

@@ -1260,7 +1260,7 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
     op_name = nd.op.name if isinstance(nd.op, uni.Token) else str(nd.op);
     is_and = op_name == Tok.KW_AND;
 
-    result = self._codegen_expr(nd.values[0]);
+    result = self._str_norm(self._codegen_expr(nd.values[0]));
     if result is None {
         return None;
     }
@@ -1278,7 +1278,7 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
         }
 
         self.builder.position_at_end(rhs_bb);
-        rhs_val = self._codegen_expr(nd.values[i]);
+        rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
         if rhs_val is None {
             rhs_val = ir.Constant(result.type, None)
                 if isinstance(result.type, ir.PointerType)
@@ -1548,6 +1548,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             _slice_list_spec = self._list_spec_of(nd.target);
             if _slice_list_spec is not None {
                 target_val = self._codegen_expr(nd.target);
+                target_val = self._str_norm(target_val);
                 if target_val is not None {
                     _shape = self._infer_list_elem_type(target_val);
                     elem_type_name = _shape if _shape is not None else _slice_list_spec;
@@ -1558,6 +1559,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
             } else {
                 target_val = self._codegen_expr(nd.target);
+                target_val = self._str_norm(target_val);
                 if target_val is not None {
                     i8p = ir.IntType(8).as_pointer();
                     if self._is_bytes_value(target_val) {
@@ -1594,6 +1596,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             else None;
         if _idx_list_spec is not None {
             target_val = self._codegen_expr(nd.target);
+            target_val = self._str_norm(target_val);
             if target_val is not None {
                 _shape = self._infer_list_elem_type(target_val);
                 elem_type_name = _shape if _shape is not None else _idx_list_spec;
@@ -1626,6 +1629,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             }
         } else {
             target_val = self._codegen_expr(nd.target);
+            target_val = self._str_norm(target_val);
             if target_val is not None {
                 if self?.jacval_type and target_val.type == self.jacval_type {
                     _any_slices = nd.right.slices or [];
@@ -1772,6 +1776,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             if len(parts) == 2 {
                 (key_type_name, val_type_name) = (parts[0], parts[1]);
                 target_val = self._codegen_expr(nd.target);
+                target_val = self._str_norm(target_val);
                 if target_val is not None {
                     slices = nd.right.slices or [];
                     if slices {

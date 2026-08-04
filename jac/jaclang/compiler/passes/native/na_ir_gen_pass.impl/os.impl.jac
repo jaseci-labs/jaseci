@@ -13,7 +13,7 @@ impl NaIRGenPass._emit_os_environ_call(
         if not params {
             return None;
         }
-        nameval = self._codegen_expr(params[0]);
+        nameval = self._str_norm(self._codegen_expr(params[0]));
         if nameval is None {
             return None;
         }
@@ -31,7 +31,7 @@ impl NaIRGenPass._emit_os_environ_call(
         self.builder.position_at_end(null_bb);
         null_res: ir.Value = ir.Constant(i8p, None);
         if len(params) >= 2 {
-            _default_val = self._codegen_expr(params[1]);
+            _default_val = self._str_norm(self._codegen_expr(params[1]));
             if _default_val is not None
                 and isinstance(_default_val.type, ir.PointerType) {
                 null_res = self._coerce_type(_default_val, i8p);
@@ -86,7 +86,7 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
         if not params {
             return None;
         }
-        nameval = self._codegen_expr(params[0]);
+        nameval = self._str_norm(self._codegen_expr(params[0]));
         if nameval is None {
             return None;
         }
@@ -105,7 +105,7 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
 
         null_res: ir.Value = ir.Constant(i8p, None);
         if len(params) >= 2 {
-            _default_val = self._codegen_expr(params[1]);
+            _default_val = self._str_norm(self._codegen_expr(params[1]));
             if _default_val is not None
                 and isinstance(_default_val.type, ir.PointerType) {
                 null_res = self._coerce_type(_default_val, i8p);
@@ -130,7 +130,7 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
         if not params {
             return None;
         }
-        cmd = self._codegen_expr(params[0]);
+        cmd = self._str_norm(self._codegen_expr(params[0]));
         if cmd is None {
             return None;
         }
@@ -147,7 +147,7 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
 
     };
     if name in _single and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_norm(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -157,13 +157,13 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
     }
 
     if name == "mkdir" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_norm(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
         mode = ir.Constant(i32, 0o777);
         if len(params) >= 2 {
-            mv = self._codegen_expr(params[1]);
+            mv = self._str_norm(self._codegen_expr(params[1]));
             if mv is not None {
                 mode = self._coerce_type(mv, i32);
             }
@@ -174,13 +174,13 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
     }
 
     if name == "makedirs" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_norm(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
         mode = ir.Constant(i32, 0o777);
         if len(params) >= 2 {
-            mv = self._codegen_expr(params[1]);
+            mv = self._str_norm(self._codegen_expr(params[1]));
             if mv is not None {
                 mode = self._coerce_type(mv, i32);
             }
@@ -232,8 +232,8 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
     }
 
     if name == "rename" and len(params) >= 2 {
-        src = self._codegen_expr(params[0]);
-        dst = self._codegen_expr(params[1]);
+        src = self._str_norm(self._codegen_expr(params[0]));
+        dst = self._str_norm(self._codegen_expr(params[1]));
         if src is None or dst is None {
             return None;
         }
@@ -253,13 +253,13 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     params = nd.params or [];
 
     if name == "join" and params {
-        acc = self._codegen_expr(params[0]);
+        acc = self._str_norm(self._codegen_expr(params[0]));
         if acc is None {
             return None;
         }
         sep = self._make_global_string("/", name_prefix=".ospath.sep");
         for idx in range(1, len(params)) {
-            b = self._codegen_expr(params[idx]);
+            b = self._str_norm(self._codegen_expr(params[idx]));
             if b is None {
                 return None;
             }
@@ -295,7 +295,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if name == "basename" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_norm(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -311,7 +311,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if name == "dirname" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_norm(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -352,7 +352,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if name == "realpath" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_norm(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -386,7 +386,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if name == "exists" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_norm(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -398,7 +398,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if (name == "isfile" or name == "isdir") and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_norm(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -445,7 +445,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if name == "getsize" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_norm(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }

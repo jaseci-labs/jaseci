@@ -809,7 +809,18 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 if arg_val is not None {
                     _len_result: (ir.Value | None) = None;
 
-                    if self?.jacval_type and arg_val.type == self.jacval_type {
+                    if self._str_desc_ty is not None
+                        and arg_val.type == self._str_desc_ty {
+                        _len_result = self.builder.extract_value(
+                            arg_val,
+                            len(list(self._str_desc_ty.elements)) - 1,
+                            name="s.len.o1"
+                        );
+                    }
+
+                    if _len_result is None
+                        and self?.jacval_type
+                        and arg_val.type == self.jacval_type {
                         _len_result = self._codegen_any_len(arg_val);
                     }
 

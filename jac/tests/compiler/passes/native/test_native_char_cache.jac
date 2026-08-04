@@ -11,7 +11,7 @@ concatenate correctly, and a cached character still reports length 1).
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
 import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(
@@ -65,15 +65,17 @@ test "single-character access uses the __jac_chars cache, not per-char rc_alloc"
 test "cached characters behave as real strings at runtime" {
     (eng, _) = _compile(FIXTURE);
 
-    scan = _get(eng, "char_scan", ctypes.c_int64, ctypes.c_char_p);
+    scan = native_str_func(eng, "char_scan", ctypes.c_int64, ctypes.c_char_p);
     assert scan(b"foobar") == 2;  # two 'o'
     assert scan(b"banana") == 0;
 
-    idx = _get(eng, "char_index", ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int64);
+    idx = native_str_func(
+        eng, "char_index", ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int64
+    );
     assert idx(b"Hello", 0).decode("utf-8") == "H";
     assert idx(b"Hello", 4).decode("utf-8") == "o";
 
-    combine = _get(eng, "combine", ctypes.c_int64, ctypes.c_char_p);
+    combine = native_str_func(eng, "combine", ctypes.c_int64, ctypes.c_char_p);
     assert combine(b"Hello") == 5;  # concat of 5 cached chars
     assert combine(b"") == 0;
 }

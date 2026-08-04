@@ -996,6 +996,20 @@ impl NaIRGenPass._emit_str_desc_helpers -> None {
     self.str_unwrap_fn = uf;
 }
 
+impl NaIRGenPass._str_norm(val: ir.Value | None) -> (ir.Value | None) {
+    if val is None or self._str_desc_ty is None or val.type != self._str_desc_ty {
+        return val;
+    }
+    if self.str_unwrap_fn is None {
+        self._emit_str_desc_helpers();
+    }
+    _normed = self.builder.call(self.str_unwrap_fn, [val], name="s.norm");
+    if self._is_owned(val) {
+        self._mark_owned(_normed);
+    }
+    return _normed;
+}
+
 impl NaIRGenPass._membrane_str_out(b: ir.IRBuilder, val: ir.Value) -> ir.Value {
     if self.str_unwrap_fn is None {
         self._emit_str_desc_helpers();
@@ -1063,6 +1077,9 @@ impl NaIRGenPass._emit_rc_retain(ptr: ir.Value, op: str = "", loc: str = "") -> 
     if self.rc_retain_fn is None {
         self._emit_rc_helpers();
     }
+    if self._str_desc_ty is not None and ptr.type == self._str_desc_ty {
+        ptr = self.builder.extract_value(ptr, 0, name="rc.desc.root");
+    }
     if not isinstance(ptr.type, ir.PointerType) {
         return;
     }
@@ -1083,6 +1100,9 @@ impl NaIRGenPass._emit_rc_retain(ptr: ir.Value, op: str = "", loc: str = "") -> 
 impl NaIRGenPass._emit_rc_release_simple(
     ptr: ir.Value, op: str = "", loc: str = ""
 ) -> None {
+    if self._str_desc_ty is not None and ptr.type == self._str_desc_ty {
+        ptr = self.builder.extract_value(ptr, 0, name="rc.desc.root");
+    }
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(ptr)
             and not self._nogc_emit_drop(ptr, op=op, loc=loc) {
@@ -1120,6 +1140,9 @@ impl NaIRGenPass._emit_rc_release_simple(
 impl NaIRGenPass._emit_rc_release_typed(
     val: ir.Value, op: str = "", loc: str = ""
 ) -> None {
+    if self._str_desc_ty is not None and val.type == self._str_desc_ty {
+        val = self.builder.extract_value(val, 0, name="rc.desc.root");
+    }
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(val)
             and not self._nogc_emit_drop(val, op=op, loc=loc) {
