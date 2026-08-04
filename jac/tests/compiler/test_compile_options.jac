@@ -355,3 +355,164 @@ test "native type identity never reads walk-time registration maps" {
         "(layout_pass.is_enum_class_type), not in the native pass"
     );
 }
+
+test "container lifecycle emission lives only in the shared emitters" {
+    import jaclang;
+    impl_dir = os.path.join(
+        os.path.dirname(os.path.abspath(jaclang.__file__)),
+        "compiler",
+        "passes",
+        "native",
+        "na_ir_gen_pass.impl"
+    );
+    per_container = [
+        "dicts.impl.jac",
+        "sets.impl.jac",
+        "lists.impl.jac",
+        "hash_core.impl.jac",
+        "tuples.impl.jac",
+        "comprehensions.impl.jac"
+    ];
+    forbidden = [
+        "__rc_trace_",
+        "_register_trace_pair",
+        "_require_trace_fn",
+        "rc_collecting",
+        "_emit_rc_destructor_preamble",
+        "_emit_release_header_free",
+        "_emit_container_trace_fn"
+    ];
+    offenders: list[str] = [];
+    for fname in per_container {
+        fpath = os.path.join(impl_dir, fname);
+        assert os.path.isfile(fpath) , f"expected impl file missing: {fpath}";
+        with open(fpath, "r", encoding="utf-8") as f {
+            for (lineno, line) in enumerate(f, 1) {
+                for token in forbidden {
+                    if token in line {
+                        offenders.append(f"{fname}:{lineno}: {line.strip()}");
+                    }
+                }
+            }
+        }
+    }
+    assert not offenders , (
+        "container lifecycle machinery found in a per-container emitter file "
+        "(trace registration, the rc_collecting guard, and release/drop "
+        "emission live only in the shared slot-iteration emitters):\n"
+        + "\n".join(offenders)
+    );
+}
+
+test "no numeric header offsets outside the HDR_* constants" {
+    import jaclang;
+    native_dir = os.path.join(
+        os.path.dirname(os.path.abspath(jaclang.__file__)),
+        "compiler",
+        "passes",
+        "native"
+    );
+    hdr_pat = re.compile(r"Constant\([^,()]*i64[^,()]*,\s*-(8|16|24|32)\)\s*\]");
+    offenders: list[str] = [];
+    for (dirpath, _dirs, files) in os.walk(native_dir) {
+        for fname in files {
+            if not fname.endswith(".jac") {
+                continue;
+            }
+            fpath = os.path.join(dirpath, fname);
+            with open(fpath, "r", encoding="utf-8", errors="replace") as f {
+                for (lineno, line) in enumerate(f, 1) {
+                    if hdr_pat.search(line) {
+                        rel = os.path.relpath(fpath, native_dir);
+                        offenders.append(f"{rel}:{lineno}: {line.strip()}");
+                    }
+                }
+            }
+        }
+    }
+    assert not offenders , (
+        "numeric RC-header offset used as a gep index (header geometry is "
+        "defined once by the HDR_* constants):\n"
+        + "\n".join(offenders)
+    );
+}
+
+test "one static-string constructor" {
+    import jaclang;
+    native_dir = os.path.join(
+        os.path.dirname(os.path.abspath(jaclang.__file__)),
+        "compiler",
+        "passes",
+        "native"
+    );
+    marker = "LiteralStructType([i64,i64,arr_type])";
+    hits: list[str] = [];
+    for (dirpath, _dirs, files) in os.walk(native_dir) {
+        for fname in files {
+            if not fname.endswith(".jac") {
+                continue;
+            }
+            fpath = os.path.join(dirpath, fname);
+            with open(fpath, "r", encoding="utf-8", errors="replace") as f {
+                for (lineno, line) in enumerate(f, 1) {
+                    if marker in line.replace(" ", "") {
+                        rel = os.path.relpath(fpath, native_dir);
+                        hits.append(f"{rel}:{lineno}");
+                    }
+                }
+            }
+        }
+    }
+    assert len(hits) == 1 , (
+        "the static-string struct {i64 sentinel, i64 tagged_len, [N x i8]} "
+        "must be built by exactly one constructor "
+        "(_static_str_struct_const in builtins.impl.jac); found: "
+        + ", ".join(hits)
+    );
+    assert hits[0].startswith(
+        os.path.join("na_ir_gen_pass.impl", "builtins.impl.jac")
+    ) , f"static-string constructor moved: {hits[0]}";
+}
+
+test "set shares the dict hash core with no linear-scan sibling" {
+    import jaclang;
+    native_dir = os.path.join(
+        os.path.dirname(os.path.abspath(jaclang.__file__)),
+        "compiler",
+        "passes",
+        "native"
+    );
+    impl_dir = os.path.join(native_dir, "na_ir_gen_pass.impl");
+    core_callers: list[str] = [];
+    for (dirpath, _dirs, files) in os.walk(native_dir) {
+        for fname in files {
+            if not fname.endswith(".jac") {
+                continue;
+            }
+            fpath = os.path.join(dirpath, fname);
+            with open(fpath, "r", encoding="utf-8", errors="replace") as f {
+                src = f.read();
+            }
+            rel = os.path.relpath(fpath, native_dir);
+            assert "_emit_linear_search_loop" not in src , (
+                f"linear-scan container search survives in {rel}"
+            );
+            if "self._emit_hash_core_helpers(" in src {
+                core_callers.append(os.path.basename(fpath));
+            }
+        }
+    }
+    assert sorted(core_callers) == ["dicts.impl.jac", "sets.impl.jac"] , (
+        "the hash core must be consumed by exactly the dict and set emitters; "
+        f"found callers: {sorted(core_callers)}"
+    );
+    with open(os.path.join(impl_dir, "sets.impl.jac"), "r", encoding="utf-8") as f {
+        sets_src = f.read();
+    }
+    for token in ["TOMBSTONE", "probe", "rehash", "strcmp", "FNV"] {
+        assert token not in sets_src , (
+            f"hash-table machinery ('{token}') found in sets.impl.jac; the "
+            "set emitter must be (layout facts + hash core) only"
+        );
+    }
+}
