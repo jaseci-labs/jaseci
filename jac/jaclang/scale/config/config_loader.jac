@@ -29,7 +29,9 @@ class JacScaleConfig(PluginConfigBase) {
     def microservices_declared(self: JacScaleConfig) -> bool;
 }
 
-def normalize_microservices_config(ms_config: dict[str, any]) -> dict[str, any];
+def normalize_microservices_config(
+    ms_config: dict[str, any], env_routes_fallback: bool = True
+) -> dict[str, any];
 
 glob _scale_config_instance: JacScaleConfig | None = None;
 
