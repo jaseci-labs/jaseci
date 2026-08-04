@@ -1197,6 +1197,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_region_handle_drop(alloca: object, var_name: str) -> None;
     def _open_anon_region(gidx: int) -> None;
     def _close_anon_region(gidx: int) -> None;
+    def _try_flow_for_parallel(nd: uni.InForStmt) -> bool;
     def _nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> bool;
     def _nogc_free_scratch(val: ir.Value, op: str) -> None;
     def _emit_last_use_releases(stmt: uni.UniNode) -> None;

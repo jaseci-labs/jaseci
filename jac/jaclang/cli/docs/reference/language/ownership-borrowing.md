@@ -491,12 +491,20 @@ flow for m in &mut ps {
 # join: every element write is visible here
 ```
 
-Execution note: both backends currently lower `flow for` to the same
-degenerate sequential execution as native `flow` calls, so erasure is
-byte-exact by construction; parallel execution arrives with the shared
-concurrency runtime, with the semantics already pinned. Two named
-follow-ups: a reduction idiom (index-disjoint partial results), and the
-chunked form (`&mut xs.chunks(n)`) which waits on container views.
+Execution: in a **zero-RC enforced native build** (`--enforce-nogc --gc
+none`), `flow for` runs genuinely parallel -- the body is outlined and
+element ranges fan out over pthreads, joining at the closing brace
+(`JAC_FLOW_THREADS` sets the width, default 4). This placement is the
+point, not a limitation: an `--assert-no-rc` binary provably contains no
+refcount operations and no shared runtime kernel, and the checker bans
+every unsound capture, so threads are unconditionally safe --
+parallelism arrives exactly where machinery absence is proven. Managed
+modes and the Python backend keep sequential execution (non-atomic
+refcounts are the blocker; atomic-RC crossing is the named follow-up),
+so post-join state is byte-identical everywhere by the disjointness
+rule. Also named follow-ups: a reduction idiom (index-disjoint partial
+results), and the chunked form (`&mut xs.chunks(n)`) which waits on
+container views.
 
 ## The `drop` hook
 

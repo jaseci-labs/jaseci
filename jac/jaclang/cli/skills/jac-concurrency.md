@@ -50,7 +50,7 @@ with entry {
 
 ## `flow for` - the disjoint-partition loop
 
-`flow for x in &xs { }` / `flow for m in &mut xs { }` applies the `flow` modifier to a loop: the body is declared per-element over a lent collection and the closing brace is the join. The checker proves the shape race-free (lent collection required, no `break`/`return` across the join, no shared mutation in the body - E1313/E1308; write through the `&mut` element instead). Execution currently runs sequentially on both backends; the checked semantics are what parallel execution will honor when the runtimes gain it. Full rules live in the `jac-native-memory` guide.
+`flow for x in &xs { }` / `flow for m in &mut xs { }` applies the `flow` modifier to a loop: the body is declared per-element over a lent collection and the closing brace is the join. The checker proves the shape race-free (lent collection required, no `break`/`return` across the join, no shared mutation in the body - E1313/E1308; write through the `&mut` element instead). In a zero-RC enforced native build (`jac nacompile --enforce-nogc --gc none`) it runs genuinely parallel - element ranges fan out over pthreads and join at the brace (`JAC_FLOW_THREADS` sets the width, default 4); managed modes and Python run it sequentially with identical results. Full rules live in the `jac-native-memory` guide.
 
 ## Choosing
 
