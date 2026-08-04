@@ -743,11 +743,11 @@ impl NativeCompilePass._compile_and_link_native_imports(
     }
 }
 
-glob _OSP_KERNEL_IR_CACHE: list = [];
+glob _OSP_KERNEL_IR_CACHE: dict[str, str] = {};
 
-def _compile_osp_kernel_ir -> (str | None) {
-    if _OSP_KERNEL_IR_CACHE {
-        return _OSP_KERNEL_IR_CACHE[0];
+def _compile_osp_kernel_ir(gc_mode: str = "cycles") -> (str | None) {
+    if gc_mode in _OSP_KERNEL_IR_CACHE {
+        return _OSP_KERNEL_IR_CACHE[gc_mode];
     }
     import os;
     import shutil;
@@ -769,7 +769,10 @@ def _compile_osp_kernel_ir -> (str | None) {
         m = prog.compile(
             na_copy,
             options=_KernelOpts(
-                aot_mode=True, type_check=False, default_codespace='native'
+                aot_mode=True,
+                type_check=False,
+                default_codespace='native',
+                na_gc_mode=gc_mode
             )
         );
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
@@ -781,7 +784,7 @@ def _compile_osp_kernel_ir -> (str | None) {
         shutil.rmtree(tmp_dir, ignore_errors=True);
     }
     if ir_str is not None {
-        _OSP_KERNEL_IR_CACHE.append(ir_str);
+        _OSP_KERNEL_IR_CACHE[gc_mode] = ir_str;
     }
     return ir_str;
 }
@@ -800,7 +803,8 @@ impl NativeCompilePass._references_undefined_osp_kernel(main_mod: object) -> boo
 }
 
 impl NativeCompilePass._link_osp_kernel(main_mod: object) -> None {
-    ir_str = _compile_osp_kernel_ir();
+    _gc = str(getattr(self.prog?._compile_options, "na_gc_mode", "cycles") or "cycles");
+    ir_str = _compile_osp_kernel_ir(_gc);
     if ir_str is None {
         return;
     }
