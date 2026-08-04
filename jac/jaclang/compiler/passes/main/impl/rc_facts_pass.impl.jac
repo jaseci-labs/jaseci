@@ -57,6 +57,20 @@ impl RcFactsPass._use_ok_for_stack(nm: uni.NameAtom) -> bool {
     return False;
 }
 
+impl RcFactsPass._is_container_element_store(nm: uni.NameAtom) -> bool {
+    asn = nm.find_parent_of_type(uni.Assignment);
+    if asn is None or asn.aug_op is not None or asn.value is not nm {
+        return False;
+    }
+    targets = asn.target if isinstance(asn.target, (list, tuple)) else [(asn.target)];
+    for t in targets {
+        if isinstance(t, uni.AtomTrailer) {
+            return True;
+        }
+    }
+    return False;
+}
+
 impl RcFactsPass._stamp_escapes(ir_in: uni.Module) -> None {
     seen: set[int] = set();
     for nm in ir_in.get_all_sub_nodes(uni.Name) {
@@ -87,6 +101,11 @@ impl RcFactsPass._stamp_escapes(ir_in: uni.Module) -> None {
             }
 
             if u.find_parent_of_type(uni.FuncCall) is not None {
+                escapes = True;
+                stack_ok = False;
+                break;
+            }
+            if self._is_container_element_store(u) {
                 escapes = True;
                 stack_ok = False;
                 break;
