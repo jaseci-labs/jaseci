@@ -138,6 +138,35 @@ test "ownbench differential identity: strops (string-representation oracle)" {
     _assert_differential_identity("own_strops");
 }
 
+test "ownbench erasure round-trip: aos reproduces annotated digest" {
+    src = os.path.join(OWNBENCH, "kernels", "own_aos.jac");
+    eraser = os.path.join(OWNBENCH, "harness", "erase.jac");
+    args = SMALL_ARGS["own_aos"];
+    with tempfile.TemporaryDirectory() as tmp {
+        erased = subprocess.run(
+            [sys.executable, "-m", "jaclang", "run", eraser, src],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        );
+        assert erased.returncode == 0 , f"erase.jac failed: {erased.stderr}";
+        bare_src = os.path.join(tmp, "own_aos_bare.jac");
+        with open(bare_src, "w") as f {
+            f.write(erased.stdout);
+        }
+        annotated_bin = os.path.join(tmp, "own_aos_rc");
+        bare_bin = os.path.join(tmp, "own_aos_bare_rc");
+        _nacompile(src, "rc", annotated_bin);
+        _nacompile(bare_src, "rc", bare_bin);
+        annotated = _digest(annotated_bin, args);
+        bare = _digest(bare_bin, args);
+        assert annotated == bare , (
+            f"erased build diverges from annotated build:\n"
+            f"--- annotated ---\n{annotated}\n--- bare ---\n{bare}"
+        );
+    }
+}
+
 test "ownbench erasure round-trip: deriv reproduces annotated digest" {
     src = os.path.join(OWNBENCH, "kernels", "own_deriv.jac");
     eraser = os.path.join(OWNBENCH, "harness", "erase.jac");

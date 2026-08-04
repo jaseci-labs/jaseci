@@ -1487,6 +1487,34 @@ impl NaIRGenPass._nogc_elem_drop_slot_ty -> ir.Type {
     return ir.FunctionType(ir.VoidType(), [ir.IntType(8).as_pointer()]).as_pointer();
 }
 
+impl NaIRGenPass._nogc_type_arg_mangles_of_str(m: str) -> list {
+    _open = m.find("[");
+    if _open < 0 or not m.endswith("]") {
+        return [];
+    }
+    _inner = m[_open + 1:-1];
+    _args: list = [];
+    _depth = 0;
+    _cur = "";
+    for _ch in _inner {
+        if _ch == "[" {
+            _depth += 1;
+        } elif _ch == "]" {
+            _depth -= 1;
+        }
+        if _ch == "," and _depth == 0 {
+            _args.append(_cur.strip());
+            _cur = "";
+        } else {
+            _cur += _ch;
+        }
+    }
+    if _cur.strip() {
+        _args.append(_cur.strip());
+    }
+    return _args;
+}
+
 impl NaIRGenPass._nogc_type_arg_mangles(expr: uni.UniNode | None) -> list {
     _m = "";
     try {
@@ -1521,13 +1549,66 @@ impl NaIRGenPass._nogc_type_arg_mangles(expr: uni.UniNode | None) -> list {
     return _args;
 }
 
+impl NaIRGenPass._drop_spec_for_mangle(mangle: str) -> (tuple | None) {
+    if mangle == "int" or mangle == "bool" {
+        return ("i64", ir.IntType(64));
+    }
+    if mangle == "float" {
+        return ("f64", ir.DoubleType());
+    }
+    if mangle == "str"
+        or mangle in self.struct_types
+        or mangle.startswith("list[")
+        or mangle.startswith("dict[")
+        or mangle.startswith("set[") {
+        return ("ptr", ir.IntType(8).as_pointer());
+    }
+    return None;
+}
+
+impl NaIRGenPass._drop_fn_for(mangle: str) -> (ir.Function | None) {
+    if mangle in self.drop_fn_registry {
+        return self.drop_fn_registry[mangle];
+    }
+    i8p = ir.IntType(8).as_pointer();
+    _fn: (ir.Function | None) = None;
+    if mangle == "str" {
+        _fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+    } elif mangle in self.struct_types {
+        _fn = self._emit_struct_drop_fn(mangle);
+    } elif mangle.startswith("list[") and mangle.endswith("]") {
+        _inner = self._drop_spec_for_mangle(mangle[5:-1]);
+        if _inner is not None {
+            self._emit_list_helpers(_inner[0], _inner[1]);
+            _fn = self._emit_container_drop_fn(f"List.{_inner[0]}");
+        }
+    } elif mangle.startswith("set[") and mangle.endswith("]") {
+        _inner = self._drop_spec_for_mangle(mangle[4:-1]);
+        if _inner is not None {
+            _fn = self._emit_container_drop_fn(f"Set.{_inner[0]}");
+        }
+    } elif mangle.startswith("dict[") and mangle.endswith("]") {
+        _kv = self._nogc_type_arg_mangles_of_str(mangle);
+        if len(_kv) == 2 {
+            _ks = self._drop_spec_for_mangle(_kv[0]);
+            _vs = self._drop_spec_for_mangle(_kv[1]);
+            if _ks is not None and _vs is not None {
+                _fn = self._emit_container_drop_fn(f"Dict.{_ks[0]}.{_vs[0]}");
+            }
+        }
+    }
+    if _fn is not None {
+        self.drop_fn_registry[mangle] = _fn;
+    }
+    return _fn;
+}
+
 impl NaIRGenPass._nogc_stamp_elem_drops(
     cont: ir.Value | None, elem_mangles: list, family: str
 ) -> None {
     if cont is None or self._gc_mode() != "none" {
         return;
     }
-    i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     _slot_ty = self._nogc_elem_drop_slot_ty();
     _slot_specs: list = [];
@@ -1544,21 +1625,7 @@ impl NaIRGenPass._nogc_stamp_elem_drops(
         if _idx >= _n_fields {
             continue;
         }
-        _drop_target: (ir.Value | None) = None;
-        if _em == "str" {
-            _drop_target = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
-        } elif _em in self.struct_types {
-            _drop_target = self._emit_struct_drop_fn(_em);
-        } elif _em.startswith("list[") and _em.endswith("]") {
-            _ik = _em[5:-1];
-            if _ik == "int" {
-                self._emit_list_helpers("i64", ir.IntType(64));
-                _drop_target = self._emit_container_drop_fn("List.i64");
-            } elif _ik == "float" {
-                self._emit_list_helpers("f64", ir.DoubleType());
-                _drop_target = self._emit_container_drop_fn("List.f64");
-            }
-        }
+        _drop_target = self._drop_fn_for(_em);
         if _drop_target is None {
             continue;
         }

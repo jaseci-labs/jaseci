@@ -409,9 +409,58 @@ impl NaIRGenPass._lower_function_type_raw(t: any) -> ir.Type {
     return ir.FunctionType(ret_type, param_types).as_pointer();
 }
 
+impl NaIRGenPass._aos_elem_of(type_expr: (uni.UniNode | None)) -> (str | None) {
+    if not self._nogc_headerless() {
+        return None;
+    }
+    nd = type_expr;
+    if isinstance(nd, uni.SubTag) {
+        nd = nd.tag;
+    }
+    if isinstance(nd, uni.ParamVar) {
+        return self._aos_elem_of(nd.type_tag);
+    }
+    if isinstance(nd, uni.UnaryExpr) {
+        nd = nd.operand;
+    }
+    if not (
+        isinstance(nd, uni.AtomTrailer)
+        and isinstance(nd.target, uni.Name)
+        and nd.target.sym_name == "list"
+        and isinstance(nd.right, uni.IndexSlice)
+        and len(nd.right.slices) == 1
+    ) {
+        return None;
+    }
+    _arg = nd.right.slices[0].start;
+    if not (
+        isinstance(_arg, uni.UnaryExpr)
+        and _arg.ownership == OwnershipKind.OWN
+        and isinstance(_arg.operand, uni.Name)
+    ) {
+        return None;
+    }
+    _tn = _arg.operand.sym_name;
+    if _tn not in self.struct_types {
+        return None;
+    }
+
+    _fields = self.struct_field_types.get(_tn) or {};
+    for (_fname, _fty) in _fields.items() {
+        if isinstance(_fty, ir.PointerType) {
+            return None;
+        }
+    }
+    return _tn;
+}
+
 impl NaIRGenPass._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
     if type_expr is None {
         return ir.IntType(64);
+    }
+    _aos_t = self._aos_elem_of(type_expr);
+    if _aos_t is not None {
+        return self._emit_aos_list_helpers(_aos_t).as_pointer();
     }
 
     if isinstance(type_expr, uni.SubTag) and type_expr?.tag is not None {
