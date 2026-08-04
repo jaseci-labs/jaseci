@@ -40,10 +40,10 @@ glob logger = logging.getLogger(__name__);
 
 obj KubernetesTarget(KubernetesTargetBase) {
     has _deploy_context: DeployContext = DeployContext(),
-        microservices_config: dict[str, any] = {};
+        microservices_config: (dict[str, any] | None) = None;
 
     def _ms_cfg -> dict[str, any] {
-        if self.microservices_config {
+        if self.microservices_config is not None {
             return self.microservices_config;
         }
         try {
