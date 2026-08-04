@@ -6,7 +6,7 @@ fixture doubles as an AOT smoke binary for the GC-mode matrix (rc / cycles /
 none / headerless none). Prints "OK dict_hash_ops" on success.
 """
 
-def del_pop_str_keys() -> int {
+def del_pop_str_keys -> int {
     d: dict[str, int] = {"a": 1, "b": 2, "c": 3};
     del d["b"];
     if "b" in d {
@@ -26,7 +26,7 @@ def del_pop_str_keys() -> int {
     return len(d);
 }
 
-def tombstone_reuse() -> int {
+def tombstone_reuse -> int {
     d: dict[str, int] = {};
     d["k1"] = 10;
     d["k2"] = 20;
@@ -47,7 +47,7 @@ def tombstone_reuse() -> int {
     return len(d);
 }
 
-def rehash_with_deletes() -> int {
+def rehash_with_deletes -> int {
     d: dict[str, int] = {};
     i: int = 0;
     while i < 8 {
@@ -89,7 +89,7 @@ def rehash_with_deletes() -> int {
     return 1;
 }
 
-def clear_then_reuse() -> int {
+def clear_then_reuse -> int {
     d: dict[str, int] = {"x": 1, "y": 2, "z": 3};
     d.clear();
     if len(d) != 0 {
@@ -110,7 +110,7 @@ def clear_then_reuse() -> int {
     return 1;
 }
 
-def order_after_deletes() -> str {
+def order_after_deletes -> str {
     d: dict[str, int] = {};
     d["one"] = 1;
     d["two"] = 2;
@@ -125,7 +125,7 @@ def order_after_deletes() -> str {
     return out;
 }
 
-def popitem_last_str() -> str {
+def popitem_last_str -> str {
     d: dict[str, str] = {};
     d["alpha"] = "A";
     d["beta"] = "B";
@@ -142,7 +142,7 @@ def popitem_last_str() -> str {
     return k + "=" + v;
 }
 
-def popitem_drain() -> int {
+def popitem_drain -> int {
     d: dict[str, int] = {"p": 1, "q": 2, "r": 3};
     it1 = d.popitem();
     it2 = d.popitem();
@@ -159,7 +159,7 @@ def popitem_drain() -> int {
     return len(d);
 }
 
-def f64_keys() -> int {
+def f64_keys -> int {
     d: dict[float, int] = {};
     d[1.5] = 10;
     d[2.25] = 20;

@@ -948,6 +948,22 @@ impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
     opaque_fields = self.struct_field_opaque.get(type_name, set());
     i32 = ir.IntType(32);
     for (fname, ftype) in field_types.items() {
+        if fname in self.struct_field_inline.get(type_name, set()) {
+            _in_idx = field_indices.get(fname, -1);
+            _in_name = getattr(ftype, "name", "") or "";
+            _in_dropf = self._emit_struct_drop_fields_fn(_in_name)
+                if _in_name
+                else None;
+            if _in_dropf is not None and _in_idx >= 0 {
+                _in_fp = b.gep(
+                    _dobj,
+                    [ir.Constant(i32, 0), ir.Constant(i32, _in_idx)],
+                    name=f"drop.{fname}.p"
+                );
+                b.call(_in_dropf, [b.bitcast(_in_fp, i8p, name=f"drop.{fname}.i8")]);
+            }
+            continue;
+        }
         if fname in opaque_fields or not isinstance(ftype, ir.PointerType) {
             continue;
         }
@@ -1260,11 +1276,28 @@ impl NaIRGenPass._nogc_stamp_elem_drops(
     _cont_struct = cont.type?.pointee;
     _n_fields = len(list(getattr(_cont_struct, "elements", []) or []));
     for (_idx, _em) in _slot_specs {
-        if _em != "str" or _idx >= _n_fields {
+        if _idx >= _n_fields {
             continue;
         }
-        free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
-        _fn_cast = self.builder.bitcast(free_fn, _slot_ty, name="edrop.stamp.fn");
+        _drop_target: (ir.Value | None) = None;
+        if _em == "str" {
+            _drop_target = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+        } elif _em in self.struct_types {
+            _drop_target = self._emit_struct_drop_fn(_em);
+        } elif _em.startswith("list[") and _em.endswith("]") {
+            _ik = _em[5:-1];
+            if _ik == "int" {
+                self._emit_list_helpers("i64", ir.IntType(64));
+                _drop_target = self._emit_container_drop_fn("List.i64");
+            } elif _ik == "float" {
+                self._emit_list_helpers("f64", ir.DoubleType());
+                _drop_target = self._emit_container_drop_fn("List.f64");
+            }
+        }
+        if _drop_target is None {
+            continue;
+        }
+        _fn_cast = self.builder.bitcast(_drop_target, _slot_ty, name="edrop.stamp.fn");
         _sp = self.builder.gep(
             cont, [ir.Constant(i32, 0), ir.Constant(i32, _idx)], name="edrop.stamp.p"
         );
@@ -1296,6 +1329,14 @@ impl NaIRGenPass._nogc_elem_prep(
             _bm = "";
         }
         if _bm == "str" {
+            return val;
+        }
+    }
+    if isinstance(expr, uni.Name) and expr.sym_name in self.local_vars {
+        _mi = self.ir_in.gen?.rc_move_in or set();
+        if id(expr) in _mi {
+            _slot = self.local_vars[expr.sym_name];
+            self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
             return val;
         }
     }
@@ -1377,7 +1418,7 @@ impl NaIRGenPass._emit_scope_cleanup(
         if var_name in self.param_vars {
             continue;
         }
-        if var_name in self.nogc_stack_vars {
+        if var_name in self.nogc_no_free_vars {
             continue;
         }
         if var_name in self.closure_cell_handles {
@@ -1420,7 +1461,7 @@ impl NaIRGenPass._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -> No
         if var_name == "self" or var_name in self.param_vars {
             continue;
         }
-        if var_name in self.nogc_stack_vars {
+        if var_name in self.nogc_no_free_vars {
             continue;
         }
         if var_name in self.closure_cell_handles {

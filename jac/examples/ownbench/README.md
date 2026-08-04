@@ -34,6 +34,13 @@ witness of the erasure/monotonicity theorems (RQ1 in the paper).
   under whole-binding affine moves; the arena is the design-intended idiom.
 - `own_deriv`: symbolic differentiation: borrow-read input, fresh-build output,
   explicit `clone` where RC systems share subtrees.
+- `own_aos`: the Phase B owned-heap kernel (#7857): a `list[Particle]` of
+  fresh archetype elements (per-type element-drop monomorphization) scanned
+  through a borrowed param, plus a `Sim` object whose `own Particle` field
+  is inline-flattened under headerless codegen (one allocation for the
+  parent+field shape, whole-field overwrites drop the old payload in
+  place). Managed modes keep pointer fields; the digest is the identity
+  witness that layout divergence never becomes behavior divergence.
 
 Kernel style constraints (load-bearing): no comments/docstrings (repo fmt
 strips them), annotations only in the shapes `x: own T`, `p: &T`,

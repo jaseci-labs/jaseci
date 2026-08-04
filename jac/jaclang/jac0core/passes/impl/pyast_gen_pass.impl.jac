@@ -2962,7 +2962,7 @@ impl PyastGenPass._emit_jobj_ref(nd: uni.UnaryExpr) -> None {
 }
 
 impl PyastGenPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
-    if nd.ownership == OwnershipKind.OWN {
+    if nd.ownership in (OwnershipKind.OWN, OwnershipKind.IMM) {
         nd.gen.py_ast = [self.py_ast_val(nd.operand)];
         return;
     }

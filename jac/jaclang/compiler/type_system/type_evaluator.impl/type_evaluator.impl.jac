@@ -1700,7 +1700,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                 if expr.op.name == Tok.BW_AND {
                     return self.get_type_of_expression(expr.operand);
                 }
-                if expr.ownership == OwnershipKind.OWN {
+                if expr.ownership in (OwnershipKind.OWN, OwnershipKind.IMM) {
                     return self.get_type_of_expression(expr.operand);
                 }
                 if expr.op.name == Tok.NOT {
