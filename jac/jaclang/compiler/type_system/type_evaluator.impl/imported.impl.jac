@@ -339,12 +339,6 @@ impl TypeEvaluator._import_module_from_path(
 ) -> uni.Module {
     resolved_path = str(Path(path).resolve());
 
-    import sys as _rec_sys;
-    _MIN_RECLIMIT = 12000;
-    if _rec_sys.getrecursionlimit() < _MIN_RECLIMIT {
-        _rec_sys.setrecursionlimit(_MIN_RECLIMIT);
-    }
-
     compiler = self.program._get_compiler();
     target_program = compiler._resolve_program(resolved_path, self.program);
     target_hub = target_program.mod.hub;
