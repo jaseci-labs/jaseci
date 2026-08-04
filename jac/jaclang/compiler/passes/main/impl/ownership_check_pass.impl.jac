@@ -118,6 +118,7 @@ impl OwnershipCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     self._emit_region_escape_diagnostics();
     self._emit_sendability_diagnostics();
     self._emit_flow_for_diagnostics();
+    self._emit_chunk_view_diagnostics();
     self._emit_marker_diagnostics();
     self._emit_freeze_diagnostics();
     self._emit_seal_warnings();
@@ -487,6 +488,12 @@ impl OwnershipCheckPass._stamp_loop_borrows -> None {
             continue;
         }
         owner = self._place_of(coll.operand);
+        if owner is None {
+            _chk = self._chunks_shape_of(coll.operand);
+            if _chk is not None {
+                owner = self._place_of(_chk[0]);
+            }
+        }
         if owner is None
             or owner.sym is None
             or owner.sym.ownership != OwnershipKind.OWN {

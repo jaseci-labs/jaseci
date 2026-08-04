@@ -21,3 +21,13 @@ test "container, own-binding, and global smuggles are each rejected" {
     prog = compile_fixture("view_smuggle_bad.jac", enforce=True);
     expect_ownership_codes(prog, ["E1315", "E1315", "E1315"]);
 }
+
+test "chunked flow for licenses the lent shape only" {
+    prog = compile_fixture("chunk_ok.jac", enforce=True);
+    expect_ownership_codes(prog, []);
+}
+
+test "bound, bare, or grown chunks are rejected" {
+    prog = compile_fixture("chunk_bad.jac", enforce=True);
+    expect_ownership_codes(prog, ["E1313", "E1313"]);
+}

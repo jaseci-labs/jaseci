@@ -130,6 +130,8 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _seal_connect_handle(bx: uni.BinaryExpr) -> (uni.Name | None);
     def _flow_for_stmts -> list[uni.InForStmt];
     def _emit_flow_for_diagnostics -> None;
+    def _chunks_shape_of(expr: uni.Expr | None) -> (tuple | None);
+    def _emit_chunk_view_diagnostics -> None;
     def _flow_reduce_shape(asgn: uni.Assignment, sid: SymId) -> str;
     def _collect_flow_reductions(lp: uni.InForStmt) -> dict[SymId, str];
     def _process_partition_sugar -> None;

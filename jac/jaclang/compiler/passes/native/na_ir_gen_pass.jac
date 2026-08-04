@@ -1282,6 +1282,16 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _open_anon_region(gidx: int) -> None;
     def _close_anon_region(gidx: int) -> None;
     def _try_flow_for_parallel(nd: uni.InForStmt) -> bool;
+    def _na_chunks_shape(expr: object) -> (tuple | None);
+    def _try_chunked_for(nd: uni.InForStmt) -> bool;
+    def _emit_chunk_header(
+        coll: ir.Value,
+        n_val: ir.Value,
+        ci: ir.Value,
+        hdr: ir.Value,
+        len_fn: ir.Function
+    ) -> None;
+
     def _nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> bool;
     def _nogc_str_free_owned(val: ir.Value) -> None;
     def _nogc_free_scratch(val: ir.Value, op: str) -> None;

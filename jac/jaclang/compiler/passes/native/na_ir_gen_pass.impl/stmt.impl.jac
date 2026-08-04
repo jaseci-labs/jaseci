@@ -2760,6 +2760,9 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     if self._try_flow_for_parallel(nd) {
         return;
     }
+    if self._try_chunked_for(nd) {
+        return;
+    }
 
     _for_errs0 = len(self.errors_had);
     _unpack_target = nd.target if isinstance(nd.target, uni.TupleVal) else None;
@@ -3058,13 +3061,20 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         "min": 9223372036854775807,
         "max": (-9223372036854775808)
     };
-    coll = self._codegen_expr(nd.collection);
+    _chk = self._na_chunks_shape(nd.collection.operand);
+    if _chk is not None {
+        coll = self._str_norm(self._codegen_expr(_chk[0]));
+    } else {
+        coll = self._codegen_expr(nd.collection);
+    }
     if coll is None {
         return False;
     }
     elem_type_name: (str | None) = self._infer_list_elem_type(coll);
     if elem_type_name is None {
-        elem_type_name = self._elem_spec_of(nd.collection);
+        elem_type_name = self._elem_spec_of(
+            _chk[0] if _chk is not None else nd.collection
+        );
     }
     if elem_type_name is None and isinstance(coll.type, ir.PointerType) {
         elem_type_name = "ptr";
@@ -3119,7 +3129,26 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         );
     }
 
-    _ctx_field_types = [coll.type] + [v.type for v in _cap_vals];
+    _chk_n: (ir.Value | None) = None;
+    if _chk is not None {
+        _chk_n = self._codegen_expr(_chk[1]);
+        if _chk_n is None {
+            return False;
+        }
+        _chk_n = self._coerce_type(_chk_n, i64);
+        _chk_n = self.builder.select(
+            self.builder.icmp_signed(
+                "<", _chk_n, ir.Constant(i64, 1), name="ffor.ck.lo"
+            ),
+            ir.Constant(i64, 1),
+            _chk_n,
+            name="ffor.ck.n"
+        );
+    }
+    _cap_off = 2 if _chk is not None else 1;
+    _ctx_field_types = [coll.type]
+        + ([i64] if _chk is not None else [])
+        + [v.type for v in _cap_vals];
     _ctx_ty = ir.LiteralStructType(_ctx_field_types);
     _ctx_slot = self.builder.alloca(_ctx_ty, name="ffor.ctx");
     self.builder.store(
@@ -3128,12 +3157,20 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
             _ctx_slot, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ffor.ctx.coll"
         )
     );
+    if _chk_n is not None {
+        self.builder.store(
+            _chk_n,
+            self.builder.gep(
+                _ctx_slot, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="ffor.ctx.n"
+            )
+        );
+    }
     for (_ci, _cv) in enumerate(_cap_vals) {
         self.builder.store(
             _cv,
             self.builder.gep(
                 _ctx_slot,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ci + 1)],
+                [ir.Constant(i32, 0), ir.Constant(i32, _ci + _cap_off)],
                 name=f"ffor.ctx.{_caps[_ci]}"
             )
         );
@@ -3183,11 +3220,20 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         ),
         name="ctx.coll"
     );
+    _b_chk_n: (ir.Value | None) = None;
+    if _chk is not None {
+        _b_chk_n = self.builder.load(
+            self.builder.gep(
+                _bctx, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="ctx.n.p"
+            ),
+            name="ctx.n"
+        );
+    }
     for (_ci, _cn) in enumerate(_caps) {
         _cval = self.builder.load(
             self.builder.gep(
                 _bctx,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ci + 1)],
+                [ir.Constant(i32, 0), ir.Constant(i32, _ci + _cap_off)],
                 name=f"ctx.{_cn}.p"
             ),
             name=f"ctx.{_cn}"
@@ -3196,11 +3242,18 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         self.builder.store(_cval, _calloca);
         self.local_vars[_cn] = _calloca;
     }
-    _lv_alloca = self._entry_alloca(actual_elem_type, loop_var);
-    self.local_vars[loop_var] = _lv_alloca;
-    if isinstance(actual_elem_type, ir.PointerType) {
+    _b_hdr: (ir.Value | None) = None;
+    if _chk is not None {
+        _lv_alloca = self._entry_alloca(coll.type, loop_var);
+        _b_hdr = self._entry_alloca(coll.type.pointee, f"{loop_var}.chunk.hdr");
         self.nogc_no_free_vars.add(loop_var);
+    } else {
+        _lv_alloca = self._entry_alloca(actual_elem_type, loop_var);
+        if isinstance(actual_elem_type, ir.PointerType) {
+            self.nogc_no_free_vars.add(loop_var);
+        }
     }
+    self.local_vars[loop_var] = _lv_alloca;
     _red_slots: list = [];
     for (_ri, _red) in enumerate(_reds) {
         _rslot = self._entry_alloca(i64, _red[0]);
@@ -3225,11 +3278,16 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     );
     self.builder.position_at_end(_c_body);
     _bidx = self.builder.load(_idx_alloca, name="ffor.bidx");
-    _elem = self.builder.call(helpers["get"], [_bcoll, _bidx], name="ffor.elem");
-    if _elem_cast is not None {
-        _elem = self.builder.bitcast(_elem, _elem_cast, name="ffor.elem.cast");
+    if _chk is not None {
+        self._emit_chunk_header(_bcoll, _b_chk_n, _bidx, _b_hdr, helpers["len"]);
+        self.builder.store(_b_hdr, _lv_alloca);
+    } else {
+        _elem = self.builder.call(helpers["get"], [_bcoll, _bidx], name="ffor.elem");
+        if _elem_cast is not None {
+            _elem = self.builder.bitcast(_elem, _elem_cast, name="ffor.elem.cast");
+        }
+        self.builder.store(_elem, _lv_alloca);
     }
-    self.builder.store(_elem, _lv_alloca);
 
     import from jaclang.compiler.passes.main.rc_facts_pass { loop_body_locals }
     _ff_saved = loop_body_locals(
@@ -3318,6 +3376,17 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     self._di_current_sp = saved_di;
 
     _len_val = self.builder.call(helpers["len"], [coll], name="ffor.len");
+    if _chk_n is not None {
+        _len_val = self.builder.sdiv(
+            self.builder.sub(
+                self.builder.add(_len_val, _chk_n, name="ffor.ck.t"),
+                ir.Constant(i64, 1),
+                name="ffor.ck.t1"
+            ),
+            _chk_n,
+            name="ffor.ck.ntasks"
+        );
+    }
     _getenv_fn = self._get_or_declare_extern("getenv", i8p, [i8p]);
     _atoi_fn = self._get_or_declare_extern("atoi", i32, [i8p]);
     _thr_fnty_p = ir.FunctionType(i8p, [i8p]).as_pointer();
@@ -3888,4 +3957,170 @@ impl NaIRGenPass._codegen_for_indexed(
         and self._is_owned(collection_val) {
         self._emit_rc_release_simple(collection_val, op=coll_release_op, loc=_for_loc);
     }
+}
+
+impl NaIRGenPass._na_chunks_shape(expr: object) -> (tuple | None) {
+    if not isinstance(expr, uni.FuncCall) {
+        return None;
+    }
+    _t = expr.target;
+    if not (
+        isinstance(_t, uni.AtomTrailer)
+        and _t.is_attr
+        and isinstance(_t.right, uni.Name)
+        and _t.right.sym_name == "chunks"
+    ) {
+        return None;
+    }
+    _params = [
+        (p.value if isinstance(p, uni.KWPair) else p) for p in (expr.params or [])
+    ];
+    if len(_params) != 1 {
+        return None;
+    }
+    return (_t.target, _params[0]);
+}
+
+impl NaIRGenPass._emit_chunk_header(
+    coll: ir.Value, n_val: ir.Value, ci: ir.Value, hdr: ir.Value, len_fn: ir.Function
+) -> None {
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    _z = ir.Constant(i32, 0);
+    _start = self.builder.mul(ci, n_val, name="chunk.start");
+    _total = self.builder.call(len_fn, [coll], name="chunk.total");
+    _rem = self.builder.sub(_total, _start, name="chunk.rem");
+    _clen = self.builder.select(
+        self.builder.icmp_signed("<", n_val, _rem, name="chunk.fit"),
+        n_val,
+        _rem,
+        name="chunk.len"
+    );
+    _clen = self.builder.select(
+        self.builder.icmp_signed("<", _clen, ir.Constant(i64, 0), name="chunk.neg"),
+        ir.Constant(i64, 0),
+        _clen,
+        name="chunk.len.c"
+    );
+    _ebase = self.builder.load(
+        self.builder.gep(coll, [_z, ir.Constant(i32, 2)], name="chunk.eb.p"),
+        name="chunk.eb"
+    );
+    _ep = self.builder.gep(_ebase, [_start], name="chunk.ep");
+    self.builder.store(
+        _clen, self.builder.gep(hdr, [_z, ir.Constant(i32, 0)], name="chunk.hl")
+    );
+    self.builder.store(
+        _clen, self.builder.gep(hdr, [_z, ir.Constant(i32, 1)], name="chunk.hc")
+    );
+    self.builder.store(
+        _ep, self.builder.gep(hdr, [_z, ir.Constant(i32, 2)], name="chunk.he")
+    );
+}
+
+impl NaIRGenPass._try_chunked_for(nd: uni.InForStmt) -> bool {
+    if not isinstance(nd.collection, uni.UnaryExpr) {
+        return False;
+    }
+    _chk = self._na_chunks_shape(nd.collection.operand);
+    if _chk is None {
+        return False;
+    }
+    loop_var = self._get_name(nd.target);
+    if loop_var is None {
+        return False;
+    }
+    coll = self._codegen_expr(_chk[0]);
+    coll = self._str_norm(coll);
+    if coll is None {
+        return False;
+    }
+    elem_type_name: (str | None) = self._infer_list_elem_type(coll);
+    if elem_type_name is None {
+        elem_type_name = self._elem_spec_of(_chk[0]);
+    }
+    if elem_type_name is None and isinstance(coll.type, ir.PointerType) {
+        elem_type_name = "ptr";
+    }
+    helpers = self.list_helpers.get(elem_type_name) if elem_type_name else None;
+    if helpers is None {
+        return False;
+    }
+    i64 = ir.IntType(64);
+    _nv = self._codegen_expr(_chk[1]);
+    if _nv is None {
+        return False;
+    }
+    _nv = self._coerce_type(_nv, i64);
+    _nv = self.builder.select(
+        self.builder.icmp_signed("<", _nv, ir.Constant(i64, 1), name="chunk.n.lo"),
+        ir.Constant(i64, 1),
+        _nv,
+        name="chunk.n"
+    );
+    _total0 = self.builder.call(helpers["len"], [coll], name="chunk.n.total");
+    _ntasks = self.builder.sdiv(
+        self.builder.sub(
+            self.builder.add(_total0, _nv, name="chunk.tn"),
+            ir.Constant(i64, 1),
+            name="chunk.tn1"
+        ),
+        _nv,
+        name="chunk.ntasks"
+    );
+    _hdr = self._entry_alloca(coll.type.pointee, f"{loop_var}.chunk.hdr");
+    _lv_alloca = self._entry_alloca(coll.type, loop_var);
+    self.local_vars[loop_var] = _lv_alloca;
+    self.nogc_no_free_vars.add(loop_var);
+    _ci_slot = self._entry_alloca(i64, "chunk.ci");
+    self.builder.store(ir.Constant(i64, 0), _ci_slot);
+
+    func = self.builder.function;
+    _c_cond = func.append_basic_block("chunk.cond");
+    _c_body = func.append_basic_block("chunk.body");
+    _c_incr = func.append_basic_block("chunk.incr");
+    _c_end = func.append_basic_block("chunk.end");
+    self.builder.branch(_c_cond);
+    self.builder.position_at_end(_c_cond);
+    _ci = self.builder.load(_ci_slot, name="chunk.ci.cur");
+    self.builder.cbranch(
+        self.builder.icmp_signed("<", _ci, _ntasks, name="chunk.ci.lt"), _c_body, _c_end
+    );
+    self.builder.position_at_end(_c_body);
+    self._emit_chunk_header(coll, _nv, _ci, _hdr, helpers["len"]);
+    self.builder.store(_hdr, _lv_alloca);
+
+    import from jaclang.compiler.passes.main.rc_facts_pass { loop_body_locals }
+    _ch_saved = loop_body_locals(
+        nd.body if isinstance(nd.body, (list, tuple)) else None
+    );
+    _ch_prebody = set(self.local_vars.keys());
+    self.loop_stack.append((_c_incr, _c_end));
+    if isinstance(nd.body, (list, tuple)) {
+        self._codegen_body(nd.body);
+    }
+    self.loop_stack.pop();
+    if not self.builder.block.is_terminated {
+        self._emit_loop_iter_cleanup(
+            [
+                _v
+                for _v in _ch_saved
+                if _v not in _ch_prebody
+            ],
+            loc="chunk.iter"
+        );
+        self.builder.branch(_c_incr);
+    }
+    self.builder.position_at_end(_c_incr);
+    self.builder.store(
+        self.builder.add(
+            self.builder.load(_ci_slot, name="chunk.ci.i"),
+            ir.Constant(i64, 1),
+            name="chunk.ci.n"
+        ),
+        _ci_slot
+    );
+    self.builder.branch(_c_cond);
+    self.builder.position_at_end(_c_end);
+    return True;
 }

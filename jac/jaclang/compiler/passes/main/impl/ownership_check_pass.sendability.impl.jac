@@ -465,3 +465,87 @@ impl OwnershipCheckPass._is_deep_immutable_scalar(nm: uni.Name) -> bool {
     }
     return _mangled in ("int", "float", "bool", "str", "bytes");
 }
+
+impl OwnershipCheckPass._chunks_shape_of(expr: uni.Expr | None) -> (tuple | None) {
+    if not isinstance(expr, uni.FuncCall) {
+        return None;
+    }
+    _t = expr.target;
+    if not (
+        isinstance(_t, uni.AtomTrailer)
+        and _t.is_attr
+        and isinstance(_t.right, uni.Name)
+        and _t.right.sym_name == "chunks"
+    ) {
+        return None;
+    }
+    _m = "";
+    try {
+        _m = _t.target.type.mangle() if _t.target.type is not None else "";
+    } except Exception {
+        return None;
+    }
+    if _m != "list" and not _m.startswith("list[") {
+        return None;
+    }
+    _params = [
+        (p.value if isinstance(p, uni.KWPair) else p) for p in (expr.params or [])
+    ];
+    if len(_params) != 1 {
+        return None;
+    }
+    return (_t.target, _params[0]);
+}
+
+impl OwnershipCheckPass._emit_chunk_view_diagnostics -> None {
+    _licensed: set[int] = set();
+    _chunk_vars: dict[SymId, uni.InForStmt] = {};
+    for st in self.ir_in.get_all_sub_nodes(uni.InForStmt) {
+        coll = st.collection;
+        if isinstance(coll, uni.UnaryExpr)
+            and is_borrow_kind(coll.ownership)
+            and self._chunks_shape_of(coll.operand) is not None {
+            _licensed.add(id(coll.operand));
+            tgt = st.target;
+            if isinstance(tgt, uni.Name) and tgt.sym is not None {
+                _chunk_vars[self._name_sym_id(tgt)] = st;
+            }
+        }
+    }
+    for fc in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
+        if self._chunks_shape_of(fc) is not None and id(fc) not in _licensed {
+            self.emit(
+                E1313,
+                node_override=fc,
+                name="`chunks()` outside a lent `for` collection"
+            );
+        }
+    }
+    for (sid, st) in _chunk_vars.items() {
+        for use in self.name_uses_by_sym.get(sid, []) {
+            _p = use.parent;
+            if isinstance(_p, uni.AtomTrailer)
+                and _p.target is use
+                and _p.is_attr
+                and isinstance(_p.right, uni.Name)
+                and _p.right.sym_name
+                    in (
+                        "append",
+                        "insert",
+                        "extend",
+                        "pop",
+                        "remove",
+                        "clear",
+                        "sort",
+                        "reverse"
+                    ) {
+                self.emit(
+                    E1313,
+                    node_override=_p,
+                    name=f"structural mutation of a chunk view"
+                    f" ({_p.right.sym_name}())"
+                );
+            }
+        }
+    }
+}
