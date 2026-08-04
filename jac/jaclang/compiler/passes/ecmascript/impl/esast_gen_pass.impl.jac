@@ -3600,16 +3600,13 @@ impl EsastGenPass._view_child_expr(
 }
 
 impl EsastGenPass._view_branch_blocked(nd: uni.UniNode) -> bool {
-    if isinstance(nd, uni.IfStmt) {
-        if isinstance(nd, (uni.CtrlStmt, uni.ReturnStmt)) {
-            return True;
-        }
-        return bool(
-            nd.get_all_sub_nodes(uni.CtrlStmt) or nd.get_all_sub_nodes(uni.ReturnStmt)
-        );
+    if isinstance(nd, (uni.ElseIf, uni.ElseStmt)) {
+        parent = nd.parent;
+        return (parent is None) or (id(parent) not in self._view_slot_branches);
     }
-    parent = nd.parent;
-    return (parent is None) or (id(parent) not in self._view_slot_branches);
+    return bool(
+        nd.get_all_sub_nodes(uni.CtrlStmt) or nd.get_all_sub_nodes(uni.ReturnStmt)
+    );
 }
 
 impl EsastGenPass._view_open_child_acc(nd: uni.UniNode, dynamic: bool = False) -> None {

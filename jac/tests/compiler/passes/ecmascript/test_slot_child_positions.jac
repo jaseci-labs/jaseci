@@ -149,3 +149,36 @@ test "control flow in a branch keeps the statement lowering" {
         "the branch must not be lifted into a conditional expression:\n" + js_code
     );
 }
+
+test "a blocked `if` keeps its whole elif chain on the statement path" {
+    # `ElseIf` subclasses `IfStmt`, so a chain arm that is scanned as a fresh
+    # `if` can lift while its blocked parent does not, stranding the arm's
+    # conditional expression as a discarded `else` clause that ASI accepts.
+    js_code = compile_fixture("elif_chain_blocked.jac");
+
+    assert re.search(r"\} else if \(", js_code) , (
+        "the elif must stay an `else if` statement when its parent is blocked "
+        "by control flow:\n"
+        + js_code
+    );
+    stranded = re.search(r"\} else \(", js_code);
+    assert stranded is None , (
+        "an `else` clause holding a bare conditional expression discards the "
+        "children it builds and renders nothing:\n"
+        + js_code
+    );
+    assert push_count(js_code, "__jac_view_kids_1") == 2 , (
+        "both non-escaping arms must still push their child:\n" + js_code
+    );
+}
+
+test "a control-flow-free elif chain lifts as one child" {
+    js_code = compile_fixture("elif_chain_clean.jac");
+
+    assert push_count(js_code, "__jac_view_kids") == 1 , (
+        "an if/elif/else chain is one statement and so one child position:\n" + js_code
+    );
+    assert " else if (" not in js_code , (
+        "a chain with no control flow should lift to nested conditionals:\n" + js_code
+    );
+}
