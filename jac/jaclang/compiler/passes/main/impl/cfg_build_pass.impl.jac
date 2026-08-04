@@ -335,7 +335,11 @@ impl CFGBuildPass._connect_tails(parent: uni.UniNode, target: uni.UniCFGNode) ->
         if isinstance(
             k, (uni.WhileStmt, uni.ForeverStmt, uni.InForStmt, uni.IterForStmt)
         ) {
-            if not self._is_terminal(k) and not isinstance(k, uni.ForeverStmt) {
+            body_entry = k.body[0] if k.body else None;
+            exit_wired = any([o is not body_entry for o in k.bb_out]);
+            if not exit_wired
+                and not self._is_terminal(k)
+                and not isinstance(k, uni.ForeverStmt) {
                 self.link_bbs(k, target);
             }
             continue;
