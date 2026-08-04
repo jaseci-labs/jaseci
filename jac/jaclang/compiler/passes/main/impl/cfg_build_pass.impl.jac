@@ -387,31 +387,10 @@ impl CFGBuildPass._wire_bool_operands(
     false_target: (uni.UniCFGNode | None)
 ) -> uni.CfgExpr {
     import from jaclang.compiler.symbol_utils { collect_narrowing_symbols }
-    n = len(values);
-
-    entries: list[uni.CfgExpr] = [];
     for cfg in values {
         cfg.affected_symbols.update(collect_narrowing_symbols(cfg.expr));
-        nested = _unwrap_to_bool(cfg);
-        entries.append(
-            nested.values[0] if (nested and len(nested.values) >= 2) else cfg
-        );
     }
-
-    for i in range(n) {
-        next_entry = entries[i + 1] if i < n - 1 else None;
-        my_true = (next_entry or true_target) if op_is_and else true_target;
-        my_false = false_target if op_is_and else (next_entry or false_target);
-        cfg = values[i];
-        nested = _unwrap_to_bool(cfg);
-        if nested and len(nested.values) >= 2 {
-            self._patch_inner_bool(nested, my_true, my_false);
-            self.link_bbs(cfg, entries[i]);
-        } else {
-            self._set_and_link(cfg, my_true, my_false);
-        }
-    }
-    return entries[0];
+    return self._wire_bool_chain(values, op_is_and, true_target, false_target);
 }
 
 impl CFGBuildPass._set_and_link(
@@ -429,35 +408,38 @@ impl CFGBuildPass._set_and_link(
     }
 }
 
-impl CFGBuildPass._patch_inner_bool(
-    nested: uni.BoolExpr,
-    my_true: (uni.UniCFGNode | None),
-    my_false: (uni.UniCFGNode | None)
-) -> None {
-    inner_is_and = _bool_is_and(nested);
-    n = len(nested.values);
+impl CFGBuildPass._wire_bool_chain(
+    values: list[uni.CfgExpr],
+    op_is_and: bool,
+    true_target: (uni.UniCFGNode | None),
+    false_target: (uni.UniCFGNode | None)
+) -> uni.CfgExpr {
+    n = len(values);
 
     entries: list[uni.CfgExpr] = [];
-    for cfg in nested.values {
-        deeper = _unwrap_to_bool(cfg);
+    for cfg in values {
+        nested = _unwrap_to_bool(cfg);
         entries.append(
-            deeper.values[0] if (deeper and len(deeper.values) >= 2) else cfg
+            nested.values[0] if (nested and len(nested.values) >= 2) else cfg
         );
     }
 
     for i in range(n) {
-        iv = nested.values[i];
         next_entry = entries[i + 1] if i < n - 1 else None;
-        iv_true = (next_entry or my_true) if inner_is_and else my_true;
-        iv_false = my_false if inner_is_and else (next_entry or my_false);
-        deeper = _unwrap_to_bool(iv);
-        if deeper and len(deeper.values) >= 2 {
-            self._patch_inner_bool(deeper, iv_true, iv_false);
-            self.link_bbs(iv, entries[i]);
+        my_true = (next_entry or true_target) if op_is_and else true_target;
+        my_false = false_target if op_is_and else (next_entry or false_target);
+        cfg = values[i];
+        nested = _unwrap_to_bool(cfg);
+        if nested and len(nested.values) >= 2 {
+            self._wire_bool_chain(
+                nested.values, _bool_is_and(nested), my_true, my_false
+            );
+            self.link_bbs(cfg, entries[i]);
         } else {
-            self._set_and_link(iv, iv_true, iv_false);
+            self._set_and_link(cfg, my_true, my_false);
         }
     }
+    return entries[0];
 }
 
 impl CFGBuildPass.exit_bool_expr(nd: uni.BoolExpr) -> None {
