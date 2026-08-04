@@ -1,12 +1,12 @@
-"""Regression tests (#7850): the __float_bits / __bits_float bitcast
-intrinsics must fire BEFORE the call-kind gate in NaIRGenPass._codegen_call.
+"""Regression tests (#7850, re-pointed by #7871 D): __float_bits /
+__bits_float lower through the intrinsic registry, never through user stubs.
 
-classify_call tags these names FUNCTION (a user stub is a user symbol, and
-the no-symbol fallback is FUNCTION too), so intrinsic handling trapped inside
-the `_call_kind == "builtin"` branch was dead code: calls silently executed
-the stub bodies and __float_bits(1.5) returned 0.  The fixture's stubs return
+INTRINSIC_REGISTRY is the single authority for the reserved intrinsic set:
+classify_call tags these calls INTRINSIC before any user symbol can claim
+them, and NaIRGenPass._codegen_call dispatches through the registry entry.
+The fixture's stub definitions draw the W6008 collision warning and return
 deliberately wrong values (0 / 0.0), so every assertion here distinguishes
-the real bitcast from the stub fallthrough.
+the real bitcast from a stub fallthrough.
 """
 
 import ctypes;

@@ -1,16 +1,5 @@
 import from jaclang.jac0core.constant { OwnershipKind }
 
-glob RC_INTRINSIC_NAMES: frozenset[str] = frozenset(
-         {
-             "__rc_debug_enable",
-             "__rc_debug_disable",
-             "__rc_gc_disable",
-             "__rc_gc_enable",
-             "__rc_collect_cycles",
-
-         }
-     );
-
 impl NaIRGenPass._callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None) {
     decl = nd.callee_decl;
     sig = decl.signature if decl is not None else None;
@@ -704,21 +693,129 @@ impl NaIRGenPass._native_module_call_target(nd: uni.FuncCall) -> (str | None) {
     return None;
 }
 
-impl NaIRGenPass._codegen_rc_intrinsic(func_name: str) -> bool {
-    if func_name not in RC_INTRINSIC_NAMES {
-        return False;
+impl NaIRGenPass._codegen_intrinsic(
+    nd: uni.FuncCall, intr: object
+) -> (ir.Value | None) {
+    import from jaclang.compiler.intrinsic_registry { IntrinsicDispatch }
+
+    positional: list = [];
+    _has_kw = False;
+    for p in (nd.params or []) {
+        if isinstance(p, uni.KWPair) {
+            _has_kw = True;
+        } else {
+            positional.append(p);
+        }
     }
-    if func_name == "__rc_collect_cycles" and self._gc_mode() != "cycles" {
-        return True;
+    if _has_kw {
+        self._emit_intrinsic_misuse(nd, intr, "keyword arguments are not accepted");
+        return None;
+    }
+    if len(positional) != intr.arity() {
+        self._emit_intrinsic_misuse(
+            nd, intr, f"expected {intr.arity()} argument(s), got {len(positional)}"
+        );
+        return None;
+    }
+    handler = {
+        IntrinsicDispatch.RC_RUNTIME: self._emit_intrinsic_rc_runtime,
+        IntrinsicDispatch.FLOAT_BITS: self._emit_intrinsic_float_bits,
+        IntrinsicDispatch.BITS_FLOAT: self._emit_intrinsic_bits_float
+    }.get(
+        intr.dispatch
+    );
+    if handler is None {
+        self.emit(
+            E9001,
+            node_override=nd,
+            pass_name="NaIRGenPass",
+            details=f"intrinsic '{intr.name}' registers dispatch key {intr.dispatch.value} with no mapped emitter"
+        );
+        return None;
+    }
+    return handler(nd, intr, positional);
+}
+
+impl NaIRGenPass._emit_intrinsic_misuse(
+    nd: uni.FuncCall, intr: object, reason: str
+) -> None {
+    for e in self.prog.errors_had {
+        if (
+            e.code is E5095
+            and e.loc.mod_path == nd.loc.mod_path
+            and e.loc.first_line == nd.loc.first_line
+            and e.loc.col_start == nd.loc.col_start
+        ) {
+            return;
+        }
+    }
+    self.emit(E5095, node_override=nd, name=intr.name, reason=reason);
+}
+
+impl NaIRGenPass._intrinsic_operand(
+    nd: uni.FuncCall, intr: object, arg: uni.Expr, spec: str
+) -> (ir.Value | None) {
+    arg_val = self._codegen_expr(arg);
+    if arg_val is None {
+        self._emit_intrinsic_misuse(nd, intr, "operand did not lower to a value");
+        return None;
+    }
+    if not isinstance(arg_val.type, (ir.IntType, ir.FloatType, ir.DoubleType)) {
+        self._emit_intrinsic_misuse(
+            nd,
+            intr,
+            f"operand of type {arg_val.type} does not fit registered parameter type {spec}"
+        );
+        return None;
+    }
+    if spec == "f64" {
+        if not isinstance(arg_val.type, ir.DoubleType) {
+            arg_val = self._coerce_type(arg_val, ir.DoubleType());
+        }
+        return arg_val;
+    }
+    if not isinstance(arg_val.type, ir.IntType) or arg_val.type.width != 64 {
+        arg_val = self._coerce_type(arg_val, ir.IntType(64));
+    }
+    return arg_val;
+}
+
+impl NaIRGenPass._emit_intrinsic_rc_runtime(
+    nd: uni.FuncCall, intr: object, args: list
+) -> (ir.Value | None) {
+    if intr.gc_mode_gate is not None and self._gc_mode() != intr.gc_mode_gate {
+        return None;
     }
     if self.rc_alloc_fn is None {
         self._emit_rc_helpers();
     }
-    self.builder.call(self.llvm_module.get_global(func_name), []);
-    return True;
+    self.builder.call(self.llvm_module.get_global(intr.name), []);
+    return None;
+}
+
+impl NaIRGenPass._emit_intrinsic_float_bits(
+    nd: uni.FuncCall, intr: object, args: list
+) -> (ir.Value | None) {
+    arg_val = self._intrinsic_operand(nd, intr, args[0], intr.param_specs[0]);
+    if arg_val is None {
+        return None;
+    }
+    return self.builder.bitcast(arg_val, ir.IntType(64), name="float_bits");
+}
+
+impl NaIRGenPass._emit_intrinsic_bits_float(
+    nd: uni.FuncCall, intr: object, args: list
+) -> (ir.Value | None) {
+    arg_val = self._intrinsic_operand(nd, intr, args[0], intr.param_specs[0]);
+    if arg_val is None {
+        return None;
+    }
+    return self.builder.bitcast(arg_val, ir.DoubleType(), name="bits_float");
 }
 
 impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
+    import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
+
     _call_kind = nd.call_kind;
 
     if _call_kind == "method" {
@@ -734,39 +831,9 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
     }
 
-    if self._codegen_rc_intrinsic(func_name) {
-        return None;
-    }
-
-    if func_name == "__float_bits" {
-        params_l = nd.params or [];
-        if params_l {
-            arg_val = self._codegen_expr(params_l[0]);
-            if arg_val is not None {
-                if not isinstance(arg_val.type, ir.DoubleType) {
-                    arg_val = self._coerce_type(arg_val, ir.DoubleType());
-                }
-                return self.builder.bitcast(arg_val, ir.IntType(64), name="float_bits");
-            }
-        }
-        return ir.Constant(ir.IntType(64), 0);
-    }
-    if func_name == "__bits_float" {
-        params_l = nd.params or [];
-        if params_l {
-            arg_val = self._codegen_expr(params_l[0]);
-            if arg_val is not None {
-                if not isinstance(arg_val.type, ir.IntType) {
-                    arg_val = self._coerce_type(arg_val, ir.IntType(64));
-                } elif arg_val.type.width != 64 {
-                    arg_val = self._coerce_type(arg_val, ir.IntType(64));
-                }
-                return self.builder.bitcast(
-                    arg_val, ir.DoubleType(), name="bits_float"
-                );
-            }
-        }
-        return ir.Constant(ir.DoubleType(), 0.0);
+    _intrinsic_entry = INTRINSIC_REGISTRY.get(func_name);
+    if _intrinsic_entry is not None {
+        return self._codegen_intrinsic(nd, _intrinsic_entry);
     }
 
     if _call_kind == "builtin" {

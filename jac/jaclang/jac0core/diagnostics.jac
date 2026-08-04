@@ -1424,6 +1424,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "the query result, where its object-space cost is visible.",
          blocks_codegen=True
      ),
+     E5095 = _err(
+         "E5095",
+         Category.CODEGEN,
+         "Invalid call to reserved intrinsic '{name}': {reason}",
+         help="Double-underscore names in the compiler's intrinsic registry are reserved: every call lowers to the registered intrinsic, whose signature is fixed by the registry. Match the registered arity and operand types; an invalid intrinsic call never falls back to a user definition or a default value."
+     ),
      E5093 = _err(
          "E5093",
          Category.CODEGEN,
@@ -1495,6 +1501,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client code uses server-placed function '{name}' as a value — function values cannot cross the placement boundary",
          help="A function reference that flows into client-side data (stored, returned, or passed along) needs client presence; only calls to def:pub endpoints bridge over RPC. Drop ':pub' so the function is pulled client-side, or restructure so the client stores data instead of the function."
+     ),
+     W6008 = _warn(
+         "W6008",
+         Category.CODEGEN,
+         "Definition of '{name}' collides with the reserved native intrinsic of the same name",
+         help="'{name}' is in the compiler's intrinsic registry, so native code always lowers calls to the registered intrinsic — this definition is never called from a native context. It stays callable as an ordinary function from non-native (Python/JS) contexts; rename it if that shadowing is not intended."
      ),
      E9001 = _err("E9001", Category.ICE, "ICE: Pass {pass_name} -- {details}"),
      E9002 = _err(

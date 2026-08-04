@@ -200,3 +200,50 @@ test "no compiler pass reads the environment directly" {
         + "\n".join(offenders)
     );
 }
+
+test "no positional intrinsic name matching inside _codegen_call" {
+    import jaclang;
+    calls_impl = os.path.join(
+        os.path.dirname(os.path.abspath(jaclang.__file__)),
+        "compiler",
+        "passes",
+        "native",
+        "na_ir_gen_pass.impl",
+        "calls.impl.jac"
+    );
+    assert os.path.isfile(calls_impl) , f"calls impl missing: {calls_impl}";
+    with open(calls_impl, "r", encoding="utf-8") as f {
+        source = f.read();
+    }
+    assert "RC_INTRINSIC_NAMES" not in source , (
+        "the RC intrinsic pre-classification name set must stay deleted; "
+        "INTRINSIC_REGISTRY is the sole authority"
+    );
+    marker = "impl NaIRGenPass._codegen_call(";
+    start = source.find(marker);
+    assert start >= 0 , "_codegen_call impl not found";
+    nxt = source.find("\nimpl ", start + len(marker));
+    block = source[start:nxt] if nxt >= 0 else source[start:];
+    assert block.count("INTRINSIC_REGISTRY.get(") == 1 , (
+        "_codegen_call must consult the intrinsic registry through exactly "
+        "one lookup"
+    );
+    cmp_pats = [
+        re.compile(r"(==|!=|\bnot\s+in\b|\bin\b)\s*\(?\s*[\"']__"),
+        re.compile(r"[\"']__\w+[\"']\s*(==|!=|\bnot\s+in\b|\bin\b)")
+    ];
+    offenders: list[str] = [];
+    for (lineno, line) in enumerate(block.splitlines(), 1) {
+        for pat in cmp_pats {
+            if pat.search(line) {
+                offenders.append(f"_codegen_call+{lineno}: {line.strip()}");
+            }
+        }
+    }
+    assert not offenders , (
+        "string comparison against a reserved __ intrinsic name inside "
+        "_codegen_call (intrinsics must dispatch through "
+        "INTRINSIC_REGISTRY):\n"
+        + "\n".join(offenders)
+    );
+}

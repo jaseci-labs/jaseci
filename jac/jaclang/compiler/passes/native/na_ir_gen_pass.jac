@@ -9,6 +9,8 @@ import from jaclang.jac0core.diagnostics {
     E5090,
     E5091,
     E5092,
+    E5095,
+    E9001,
     E9002
 }
 import from jaclang.jac0core.osp_model { OspAnalysis, OspModel, stable_osp_tag }
@@ -325,7 +327,24 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None);
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
-    def _codegen_rc_intrinsic(func_name: str) -> bool;
+    def _codegen_intrinsic(nd: uni.FuncCall, intr: object) -> (ir.Value | None);
+    def _emit_intrinsic_misuse(nd: uni.FuncCall, intr: object, reason: str) -> None;
+    def _intrinsic_operand(
+        nd: uni.FuncCall, intr: object, arg: uni.Expr, spec: str
+    ) -> (ir.Value | None);
+
+    def _emit_intrinsic_rc_runtime(
+        nd: uni.FuncCall, intr: object, args: list
+    ) -> (ir.Value | None);
+
+    def _emit_intrinsic_float_bits(
+        nd: uni.FuncCall, intr: object, args: list
+    ) -> (ir.Value | None);
+
+    def _emit_intrinsic_bits_float(
+        nd: uni.FuncCall, intr: object, args: list
+    ) -> (ir.Value | None);
+
     def _native_module_call_target(nd: uni.FuncCall) -> (str | None);
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);

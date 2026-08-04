@@ -16,7 +16,8 @@ enum CallKind {
     INSTANTIATION = "instantiation",
     BUILTIN = "builtin",
     CLIB = "clib",
-    FUNCTION = "function"
+    FUNCTION = "function",
+    INTRINSIC = "intrinsic"
 }
 
 def is_builtin_region_name(nm: object) -> bool {
@@ -68,11 +69,28 @@ def _is_user_symbol(sym: uni.Symbol) -> bool {
     return False;
 }
 
+def intrinsic_registry_if_ready -> object | None {
+    import sys;
+    _mod = sys.modules.get("jaclang.compiler.intrinsic_registry");
+    if _mod is not None and _mod?.INTRINSIC_REGISTRY is None {
+        return None;
+    }
+    import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
+    return INTRINSIC_REGISTRY;
+}
+
 def classify_call(nd: uni.FuncCall) -> CallKind {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
     if isinstance(nd.target, uni.AtomTrailer) and nd.target.is_attr {
         return CallKind.METHOD;
+    }
+
+    intrinsics = intrinsic_registry_if_ready();
+    if intrinsics is not None
+        and isinstance(nd.target, uni.Name)
+        and intrinsics.is_intrinsic(nd.target.sym_name) {
+        return CallKind.INTRINSIC;
     }
 
     sym = resolve_expr_symbol(nd.target);
