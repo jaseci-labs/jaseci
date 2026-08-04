@@ -165,12 +165,13 @@ impl OwnershipCheckPass._emit_post_seal_diagnostics(region: uni.OpenStmt) -> Non
     if not isinstance(region.body, (list, tuple)) {
         return;
     }
+    _stmts: list[uni.UniNode] = [s for s in getattr(region, "body", [])];
     _ridx: dict[int, int] = {};
-    for (i2, s2) in enumerate(region.body) {
+    for (i2, s2) in enumerate(_stmts) {
         _ridx[id(s2)] = i2;
     }
-    _seal_idx: (int | None) = None;
-    _seal_bx: (uni.BinaryExpr | None) = None;
+    _seal_idx = -1;
+    _seal_site: uni.UniNode = region;
     for bx in region.get_all_sub_nodes(uni.BinaryExpr) {
         if self._seal_connect_handle(bx) is None {
             continue;
@@ -183,15 +184,32 @@ impl OwnershipCheckPass._emit_post_seal_diagnostics(region: uni.OpenStmt) -> Non
             continue;
         }
         _bi = _ridx[id(_cur)];
-        if _seal_idx is None or _bi < _seal_idx {
+        if _seal_idx < 0 or _bi < _seal_idx {
             _seal_idx = _bi;
-            _seal_bx = bx;
+            _seal_site = bx;
         }
     }
-    if _seal_idx is None or _seal_bx is None {
+    if _seal_idx < 0 {
         return;
     }
-    for s3 in region.body[_seal_idx + 1:] {
+    for (_si3, s3) in enumerate(_stmts) {
+        if _si3 == _seal_idx {
+            for bx3 in s3.get_all_sub_nodes(uni.BinaryExpr) {
+                if isinstance(bx3.op, uni.ConnectOp)
+                    and bx3 is not _seal_site
+                    and self._seal_connect_handle(bx3) is not None {
+                    self.emit(
+                        E1307,
+                        node_override=bx3,
+                        name="connect",
+                        related=[("second seal of this region", _seal_site)]
+                    );
+                }
+            }
+        }
+        if _si3 <= _seal_idx {
+            continue;
+        }
         for fc in s3.get_all_sub_nodes(uni.FuncCall) {
             if self._seal_arch_ctor(fc) {
                 self.emit(
@@ -200,7 +218,9 @@ impl OwnershipCheckPass._emit_post_seal_diagnostics(region: uni.OpenStmt) -> Non
                     name=fc.target.sym_name
                         if isinstance(fc.target, uni.Name)
                         else "<expression>",
-                    related=[("allocated after this seal closed the region", _seal_bx)]
+                    related=[
+                        ("allocated after this seal closed the region", _seal_site)
+                    ]
                 );
             }
         }
@@ -210,22 +230,9 @@ impl OwnershipCheckPass._emit_post_seal_diagnostics(region: uni.OpenStmt) -> Non
                     E1307,
                     node_override=bx2,
                     name="connect",
-                    related=[("wired after this seal closed the region", _seal_bx)]
+                    related=[("wired after this seal closed the region", _seal_site)]
                 );
             }
-        }
-    }
-    _seal_stmt = region.body[_seal_idx];
-    for bx3 in _seal_stmt.get_all_sub_nodes(uni.BinaryExpr) {
-        if isinstance(bx3.op, uni.ConnectOp)
-            and bx3 is not _seal_bx
-            and self._seal_connect_handle(bx3) is not None {
-            self.emit(
-                E1307,
-                node_override=bx3,
-                name="connect",
-                related=[("second seal of this region", _seal_bx)]
-            );
         }
     }
 }

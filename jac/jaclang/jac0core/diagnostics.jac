@@ -1405,6 +1405,17 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Native lowering failed for {kind} '{name}'",
          help="The construct is within the native capability set, but this specific shape (its types, values, or runtime bindings) could not be lowered by NaIRGenPass. Adjust the shape, add type annotations, or move the code to a non-native context. Statically-known unsupported constructs are reported as E5090 by the capability check instead."
      ),
+     E5094 = _err(
+         "E5094",
+         Category.CODEGEN,
+         "Graph query filter outside the closed sublanguage: {reason}",
+         help="Predicates inside [?...] on a graph reference must be "
+         "`field <op> value` with op one of ==, !=, <, <=, >, >=, in, "
+         "where the value is a scalar expression evaluated once at query "
+         "construction. Move anything else to a list comprehension over "
+         "the query result, where its object-space cost is visible.",
+         blocks_codegen=True
+     ),
      E5093 = _err(
          "E5093",
          Category.CODEGEN,

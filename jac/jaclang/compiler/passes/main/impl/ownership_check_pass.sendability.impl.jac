@@ -222,12 +222,13 @@ impl OwnershipCheckPass._flow_lend_joined(
     }
     handle_sid = self._name_sym_id(asgn.target[0]);
     container = asgn.parent;
-    body = container?.body;
-    if not isinstance(body, (list, tuple)) or asgn not in body {
+    _cbody = container?.body;
+    if not isinstance(_cbody, (list, tuple)) or asgn not in _cbody {
         return False;
     }
-    idx = list(body).index(asgn);
-    for st in list(body)[idx + 1:] {
+    body: list[uni.UniNode] = [s for s in _cbody];
+    idx = body.index(asgn);
+    for st in body[idx + 1:] {
         _wait_found = False;
         _wait_nodes: list[uni.ConcurrentExpr] = [];
         for wc in st.get_all_sub_nodes(uni.ConcurrentExpr) {

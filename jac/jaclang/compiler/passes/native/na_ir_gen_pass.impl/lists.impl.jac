@@ -282,6 +282,12 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             if elem_type_name == "ptr" and isinstance(val.type, ir.PointerType) {
                 val = self.builder.bitcast(val, i8p, name="elem.cast");
             } else {
+                if self._list_box_ptr_into_i64(_boxed_val, helpers["elem_type"])
+                    and not self._is_owned(_boxed_val) {
+                    self._emit_rc_retain(
+                        _boxed_val, op="list_init_box", loc=_linit_loc
+                    );
+                }
                 val = self._coerce_type(val, helpers["elem_type"]);
             }
             self._rc_call_with_ctx(
@@ -290,7 +296,8 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
 
             if isinstance(_boxed_val.type, ir.PointerType)
                 and self._is_owned(_boxed_val)
-                and self._gc_mode() != "none" {
+                and self._gc_mode() != "none"
+                and not self._list_box_ptr_into_i64(_boxed_val, helpers["elem_type"]) {
                 self._emit_rc_release_simple(
                     _boxed_val, op="list_init", loc=_linit_loc
                 );
@@ -378,6 +385,14 @@ impl NaIRGenPass._codegen_any_len(jacval: ir.Value) -> ir.Value {
     return phi;
 }
 
+impl NaIRGenPass._list_box_ptr_into_i64(value: ir.Value, elem_type: ir.Type) -> bool {
+    return (
+        isinstance(value.type, ir.PointerType)
+        and isinstance(elem_type, ir.IntType)
+        and elem_type.width == 64
+    );
+}
+
 impl NaIRGenPass._codegen_index_set(
     target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
 ) -> None {
@@ -407,12 +422,19 @@ impl NaIRGenPass._codegen_index_set(
     _lset_ctx_loc = getattr(
         value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
     );
+
+    _box_into_i64 = self._list_box_ptr_into_i64(value, elem_type);
+    if _box_into_i64 and not self._is_owned(value) {
+        self._emit_rc_retain(value, op="list_set_box", loc=_lset_ctx_loc);
+    }
+
+    _val_was_owned = self._is_owned(value);
     value = self._coerce_type(value, elem_type);
     self._rc_call_with_ctx(
         helpers["set"], [target_val, index_val, value], op="list_set", loc=_lset_ctx_loc
     );
 
-    if isinstance(elem_type, ir.PointerType) and self._is_owned(value) {
+    if isinstance(elem_type, ir.PointerType) and _val_was_owned {
         self._emit_rc_release_simple(value, op="list_set", loc=_lset_ctx_loc);
     }
 }

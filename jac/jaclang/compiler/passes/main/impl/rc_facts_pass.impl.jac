@@ -59,6 +59,20 @@ impl RcFactsPass._use_ok_for_stack(nm: uni.NameAtom) -> bool {
     return False;
 }
 
+impl RcFactsPass._is_container_element_store(nm: uni.NameAtom) -> bool {
+    asn = nm.find_parent_of_type(uni.Assignment);
+    if asn is None or asn.aug_op is not None or asn.value is not nm {
+        return False;
+    }
+    targets = asn.target if isinstance(asn.target, (list, tuple)) else [(asn.target)];
+    for t in targets {
+        if isinstance(t, uni.AtomTrailer) {
+            return True;
+        }
+    }
+    return False;
+}
+
 impl RcFactsPass._stamp_escapes(ir_in: uni.Module) -> None {
     seen: set[int] = set();
     for nm in ir_in.get_all_sub_nodes(uni.Name) {
@@ -93,6 +107,11 @@ impl RcFactsPass._stamp_escapes(ir_in: uni.Module) -> None {
 
             if u.find_parent_of_type(uni.FuncCall) is not None
                 and not self._call_use_stack_safe(u, sym) {
+                escapes = True;
+                stack_ok = False;
+                break;
+            }
+            if self._is_container_element_store(u) {
                 escapes = True;
                 stack_ok = False;
                 break;
@@ -295,7 +314,10 @@ impl RcFactsPass._stamp_move_in(ir_in: uni.Module) -> None {
     seen: set[int] = set();
     for nm in ir_in.get_all_sub_nodes(uni.Name) {
         sym = nm.sym;
-        if sym is None or id(sym) in seen {
+        if sym is None {
+            continue;
+        }
+        if id(sym) in seen {
             continue;
         }
         if sym.storage != SymbolStorage.LOCAL
@@ -304,13 +326,13 @@ impl RcFactsPass._stamp_move_in(ir_in: uni.Module) -> None {
             continue;
         }
         seen.add(id(sym));
-        uses = list(
-            {
-                id(u): u
-                for u in sym.uses
-                if not self._is_def_name(u)
-            }.values()
-        );
+        _use_map: dict[int, uni.NameAtom] = {};
+        for u in sym.uses {
+            if not self._is_def_name(u) {
+                _use_map[id(u)] = u;
+            }
+        }
+        uses = list(_use_map.values());
         if len(uses) != 1 {
             continue;
         }
@@ -501,15 +523,15 @@ impl RcFactsPass._scan_anon_region_block(body: Sequence[uni.UniNode]) -> list[tu
     spawned: set[int] = set();
     last_idx: dict[int, int] = {sid: members[sid][1] for sid in order};
     for sid in order {
-        (sym, didx, name) = members[sid];
-        uses = list(
-            {
-                id(u): u
-                for u in sym.uses
-                if not self._is_def_name(u)
-            }.values()
-        );
-        for u in uses {
+        _mrec = members[sid];
+        sym: uni.Symbol = _mrec[0];
+        _use_map2: dict[int, uni.NameAtom] = {};
+        for u0 in sym.uses {
+            if not self._is_def_name(u0) {
+                _use_map2[id(u0)] = u0;
+            }
+        }
+        for u in _use_map2.values() {
             _cur: (uni.UniNode | None) = u;
             top: (uni.UniNode | None) = None;
             while _cur is not None {
@@ -718,7 +740,7 @@ impl RcFactsPass._cfg_owner(sub: uni.UniNode) -> (uni.UniCFGNode | None) {
     return sub.find_parent_of_type(uni.UniCFGNode);
 }
 
-impl RcFactsPass._is_def_name(nm: uni.Name) -> bool {
+impl RcFactsPass._is_def_name(nm: uni.NameAtom) -> bool {
     p = nm.parent;
     if isinstance(p, uni.Assignment) and p.aug_op is None {
         for tgt in p.target {

@@ -765,6 +765,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         fn_name: str, container_ptr_type: ir.Type, data_fields: list
     ) -> ir.Function;
 
+    def _emit_release_header_free(
+        release_fn: ir.Function, b: ir.IRBuilder, done_bb: ir.Block
+    ) -> None;
+
     def _emit_linear_search_loop(
         func: ir.Function,
         entry_builder: ir.IRBuilder,
@@ -797,6 +801,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
     ) -> None;
 
+    def _list_box_ptr_into_i64(value: ir.Value, elem_type: ir.Type) -> bool;
     def _build_vtable(arch_name: str) -> None;
     def _emit_vtable_global(arch_name: str) -> None;
     def _emit_class_name_const(arch_name: str) -> ir.Value;
@@ -955,6 +960,29 @@ obj NaIRGenPass(ModuleCodegenPass) {
         key_size: int = 0
     ) -> None;
 
+    def _emit_dict_order_compact(
+        b: ir.IRBuilder,
+        fn: ir.Function,
+        d_ptr: ir.Value,
+        removed_slot: ir.Value,
+        new_len: ir.Value,
+        i32: ir.Type,
+        i64: ir.Type
+    ) -> ir.IRBuilder;
+
+    def _emit_order_scan_incr_block(
+        b: ir.IRBuilder,
+        idx_slot: ir.Value,
+        i_cur: ir.Value,
+        i64: ir.Type,
+        fn: ir.Function,
+        scan_bb: ir.Block
+    ) -> ir.Block;
+
+    def _emit_dict_trace_fn(
+        trace_fn_name: str, dict_ptr_type: ir.Type, key_type: ir.Type, val_type: ir.Type
+    ) -> ir.Function;
+
     def _box_to_jacval(value: ir.Value) -> ir.Value;
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value;
     def _codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None);
@@ -1010,6 +1038,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _list_iter_next_fn(elem_type_name: str, elem_type: ir.Type) -> ir.Function;
     def _str_iter_next_fn -> ir.Function;
+    def _get_char_cache_gv -> ir.Value;
     def _make_list_iter(
         list_val: ir.Value, elem_type_name: str, elem_type: ir.Type
     ) -> ir.Value;
@@ -1180,6 +1209,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _emit_container_drop_fn(cont_name: str) -> (ir.Function | None);
+    def _emit_dict_drop_fn(
+        cont_name: str, dict_struct: ir.Type
+    ) -> (ir.Function | None);
+
     def _nogc_elem_drop_slot_ty -> ir.Type;
     def _nogc_stamp_elem_drops(
         cont: ir.Value | None, elem_mangles: list, family: str

@@ -346,13 +346,15 @@ identically), and the subgraph is traversable from the anchor after the
 open closes.
 
 ```jac
-anchor = City();
-r: own Region = Region();
-in r {
-    a = City(name="a");
-    b = City(name="b");
-    a ++> b;
-    anchor ++> a;    # the seal: consumes `r`, promotes {a, b} and their edges
+with entry {
+    anchor = City();
+    r: own Region = Region();
+    in r {
+        a = City(name="a");
+        b = City(name="b");
+        a ++> b;
+        anchor ++> a;    # the seal: consumes `r`, promotes {a, b} and their edges
+    }
 }
 # `r` is dead here (E1301 on reuse); the graph lives on under `anchor`
 ```
@@ -384,12 +386,14 @@ zombie-counts live children), so no code shape can free pages a child
 still draws on.
 
 ```jac
-r: own Region = Region();
-c1: own Region = r.partition();
-c2: own Region = r.partition();
-in c1 { build_left(); }      # or: h = flow build(c1); ... wait h;
-in c2 { build_right(); }
-# c1, c2 drop -> reabsorbed; r drops -> one teardown for everything
+with entry {
+    r: own Region = Region();
+    c1: own Region = r.partition();
+    c2: own Region = r.partition();
+    in c1 { build_left(); }      # or: h = flow build(c1); ... wait h;
+    in c2 { build_right(); }
+    # c1, c2 drop -> reabsorbed; r drops -> one teardown for everything
+}
 ```
 
 Call `partition()` once per child (`partition(n)` sugar can layer on
@@ -485,10 +489,12 @@ extent. The checker enforces the shape that makes that meaning true:
   the loop.
 
 ```jac
-flow for m in &mut ps {
-    m.x = m.x * 10;    # disjoint per-element writes: race-free by construction
+with entry {
+    flow for m in &mut ps {
+        m.x = m.x * 10;    # disjoint per-element writes: race-free by construction
+    }
+    # join: every element write is visible here
 }
-# join: every element write is visible here
 ```
 
 Execution: in a **zero-RC enforced native build** (`--enforce-nogc --gc

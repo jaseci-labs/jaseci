@@ -254,6 +254,8 @@ impl NaIRGenPass._codegen_raise(nd: uni.RaiseStmt) -> None {
         _puts_fn = self._get_or_declare_extern("puts", i32, [i8p]);
         _msg_i8 = self.builder.bitcast(_msg, i8p, name="nogc.abort.msg");
         self.builder.call(_puts_fn, [_msg_i8]);
+        _fflush_fn = self._get_or_declare_extern("fflush", i32, [i8p]);
+        self.builder.call(_fflush_fn, [ir.Constant(i8p, None)]);
         self.builder.call(_abort_fn, []);
         self.builder.unreachable();
         return;
