@@ -76,15 +76,7 @@ impl NaIRGenPass._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> 
     cur_data = b.load(data_p_s, name="data");
     slot = b.gep(cur_data, [cur_len], name="slot");
 
-    if isinstance(elem_type, ir.PointerType) and not self._nogc_headerless() {
-        if self.rc_retain_fn is None {
-            self._emit_rc_helpers();
-        }
-        v_cast = b.bitcast(
-            v_arg, ir.IntType(8).as_pointer(), name="append.retain.cast"
-        );
-        b.call(self.rc_retain_fn, [v_cast]);
-    }
+    self._emit_elem_retain(b, elem_type, v_arg);
     b.store(v_arg, slot);
     new_len = b.add(cur_len, ir.Constant(i64, 1), name="new.len");
     b.store(new_len, len_p2);
@@ -110,17 +102,11 @@ impl NaIRGenPass._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> 
     d2 = b.load(dp2, name="data");
     ep2 = b.gep(d2, [set_fn.args[1]], name="elem.ptr");
 
-    if isinstance(elem_type, ir.PointerType) and not self._nogc_headerless() {
-        if self.rc_retain_fn is None {
-            self._emit_rc_helpers();
-        }
-        _i8p_s = ir.IntType(8).as_pointer();
-        _new_c_s = b.bitcast(set_fn.args[2], _i8p_s, name="lset_retain_cast");
-        b.call(self.rc_retain_fn, [_new_c_s]);
+    if self._elem_kind(elem_type) != "raw" and not self._nogc_headerless() {
+        self._emit_elem_retain(b, elem_type, set_fn.args[2]);
         _old_v_s = b.load(ep2, name="lset_old_val");
         b.store(set_fn.args[2], ep2);
-        _old_c_s = b.bitcast(_old_v_s, _i8p_s, name="lset_old_cast");
-        b.call(self.rc_release_simple_fn, [_old_c_s]);
+        self._emit_elem_release(b, elem_type, _old_v_s);
     } else {
         b.store(set_fn.args[2], ep2);
     }
@@ -209,14 +195,20 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     if _clos_elem is not None and first_val.type != _decl_elem {
         first_val = self._coerce_type(first_val, _decl_elem);
     }
-    elem_type = first_val.type;
-    elem_type_name = "i64";
-    if isinstance(elem_type, ir.DoubleType) {
-        elem_type_name = "f64";
-    } elif isinstance(elem_type, ir.PointerType) {
-        elem_type_name = "ptr";
-    } elif self?.jacval_type and elem_type == self.jacval_type {
+    _lit_spec = self._elem_spec_of(nd);
+    if _lit_spec == "jacval" and self?.jacval_type {
+        elem_type = self.jacval_type;
         elem_type_name = "jacval";
+    } else {
+        elem_type = first_val.type;
+        elem_type_name = "i64";
+        if isinstance(elem_type, ir.DoubleType) {
+            elem_type_name = "f64";
+        } elif isinstance(elem_type, ir.PointerType) {
+            elem_type_name = "ptr";
+        } elif self?.jacval_type and elem_type == self.jacval_type {
+            elem_type_name = "jacval";
+        }
     }
 
     if isinstance(elem_type, ir.PointerType)
@@ -237,6 +229,11 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd));
 
     first_val = self._nogc_elem_prep(nd.values[0], first_val);
+    if self._reject_ptr_into_raw_slot(
+        nd, first_val, helpers["elem_type"], "list element"
+    ) {
+        return list_val;
+    }
     append_val = first_val;
     if elem_type_name == "ptr" and isinstance(first_val.type, ir.PointerType) {
         append_val = self.builder.bitcast(first_val, i8p, name="elem.cast");
@@ -275,15 +272,14 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             }
             val = self._nogc_elem_prep(nd.values[i], val);
             _boxed_val = val;
+            if self._reject_ptr_into_raw_slot(
+                nd, val, helpers["elem_type"], "list element"
+            ) {
+                return list_val;
+            }
             if elem_type_name == "ptr" and isinstance(val.type, ir.PointerType) {
                 val = self.builder.bitcast(val, i8p, name="elem.cast");
             } else {
-                if self._list_box_ptr_into_i64(_boxed_val, helpers["elem_type"])
-                    and not self._is_owned(_boxed_val) {
-                    self._emit_rc_retain(
-                        _boxed_val, op="list_init_box", loc=_linit_loc
-                    );
-                }
                 val = self._coerce_type(val, helpers["elem_type"]);
             }
             self._rc_call_with_ctx(
@@ -292,8 +288,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
 
             if isinstance(_boxed_val.type, ir.PointerType)
                 and self._is_owned(_boxed_val)
-                and self._gc_mode() != "none"
-                and not self._list_box_ptr_into_i64(_boxed_val, helpers["elem_type"]) {
+                and self._gc_mode() != "none" {
                 self._emit_rc_release_simple(
                     _boxed_val, op="list_init", loc=_linit_loc
                 );
@@ -381,14 +376,6 @@ impl NaIRGenPass._codegen_any_len(jacval: ir.Value) -> ir.Value {
     return phi;
 }
 
-impl NaIRGenPass._list_box_ptr_into_i64(value: ir.Value, elem_type: ir.Type) -> bool {
-    return (
-        isinstance(value.type, ir.PointerType)
-        and isinstance(elem_type, ir.IntType)
-        and elem_type.width == 64
-    );
-}
-
 impl NaIRGenPass._codegen_index_set(
     target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
 ) -> None {
@@ -419,18 +406,23 @@ impl NaIRGenPass._codegen_index_set(
         value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
     );
 
-    _box_into_i64 = self._list_box_ptr_into_i64(value, elem_type);
-    if _box_into_i64 and not self._is_owned(value) {
-        self._emit_rc_retain(value, op="list_set_box", loc=_lset_ctx_loc);
+    if self._reject_ptr_into_raw_slot(
+        None, value, elem_type, "list element assignment"
+    ) {
+        return;
     }
-
+    _orig_value = value;
     _val_was_owned = self._is_owned(value);
     value = self._coerce_type(value, elem_type);
     self._rc_call_with_ctx(
         helpers["set"], [target_val, index_val, value], op="list_set", loc=_lset_ctx_loc
     );
 
-    if isinstance(elem_type, ir.PointerType) and _val_was_owned {
-        self._emit_rc_release_simple(value, op="list_set", loc=_lset_ctx_loc);
+    if (
+        isinstance(_orig_value.type, ir.PointerType)
+        and _val_was_owned
+        and self._elem_kind(elem_type) != "raw"
+    ) {
+        self._emit_rc_release_simple(_orig_value, op="list_set", loc=_lset_ctx_loc);
     }
 }

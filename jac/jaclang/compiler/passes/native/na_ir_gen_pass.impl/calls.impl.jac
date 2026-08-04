@@ -520,9 +520,6 @@ impl NaIRGenPass._codegen_varargs_list(
         _orig = v;
         v2 = self._coerce_type(v, helpers["elem_type"]);
         self._rc_call_with_ctx(helpers["append"], [lv, v2], op="list_init", loc=_loc);
-        if spec == "jacval" and isinstance(_orig.type, ir.PointerType) {
-            self._emit_rc_retain(_orig, op="list_init", loc=_loc);
-        }
         if isinstance(_orig.type, ir.PointerType) and self._is_owned(_orig) {
             self._emit_rc_release_simple(_orig, op="list_init", loc=_loc);
         }
@@ -556,7 +553,6 @@ impl NaIRGenPass._codegen_kwargs_dict(
         );
         return None;
     }
-    _vspec = dict_key.split(":")[1];
     _loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
@@ -578,9 +574,6 @@ impl NaIRGenPass._codegen_kwargs_dict(
         _orig = v;
         v2 = self._coerce_type(v, helpers["val_type"]);
         self._rc_call_with_ctx(helpers["set"], [dv, k, v2], op="dict_init", loc=_loc);
-        if _vspec == "jacval" and isinstance(_orig.type, ir.PointerType) {
-            self._emit_rc_retain(_orig, op="dict_init", loc=_loc);
-        }
         if isinstance(_orig.type, ir.PointerType) and self._is_owned(_orig) {
             self._emit_rc_release_simple(_orig, op="dict_init", loc=_loc);
         }

@@ -700,6 +700,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _repr_fn_for_type_key(type_key: str) -> (ir.Function | None);
     def _repr_str_fn -> ir.Function;
     def _repr_leaf_fn(kind: str) -> (ir.Function | None);
+    def _repr_jacval_fn -> (ir.Function | None);
+    def _runtime_repr_key(val: ir.Value) -> (str | None);
     def _repr_obj_fn(arch_name: str) -> ir.Function;
     def _repr_list_fn(type_key: str) -> (ir.Function | None);
     def _repr_dict_fn(type_key: str) -> (ir.Function | None);
@@ -748,6 +750,19 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _dict_key_spec(key_type: ir.Type) -> tuple;
     def _dict_val_spec(val_type: ir.Type) -> str;
+    def _elem_kind(elem_type: ir.Type) -> str;
+    def _elem_storage_llvm(t: any) -> (ir.Type | None);
+    def _emit_jacval_retain_fn -> ir.Function;
+    def _emit_jacval_release_fn -> ir.Function;
+    def _emit_jacval_rc_fn(fn_name: str, is_retain: bool) -> ir.Function;
+    def _container_managed_fields(layout: dict) -> list;
+    def _reject_ptr_into_raw_slot(
+        nd: (uni.UniNode | None), value: ir.Value, elem_type: ir.Type, what: str
+    ) -> bool;
+
+    def _emit_elem_retain(b: ir.IRBuilder, elem_type: ir.Type, val: ir.Value) -> None;
+    def _emit_elem_release(b: ir.IRBuilder, elem_type: ir.Type, val: ir.Value) -> None;
+    def _emit_jacval_slot_drop_fn(elem_mangle: str) -> (ir.Function | None);
     def _container_layout_dense(data_types: list) -> dict;
     def _container_layout_hash(key_type: ir.Type, val_type: (ir.Type | None)) -> dict;
     def _container_struct_fields(layout: dict) -> list;
@@ -819,7 +834,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
     ) -> None;
 
-    def _list_box_ptr_into_i64(value: ir.Value, elem_type: ir.Type) -> bool;
     def _build_vtable(arch_name: str) -> None;
     def _emit_vtable_global(arch_name: str) -> None;
     def _emit_class_name_const(arch_name: str) -> ir.Value;
@@ -1025,6 +1039,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _infer_dict_type(val: ir.Value) -> (tuple | None);
+    def _dict_key_reconcile(dk: (str | None), val: (ir.Value | None)) -> (str | None);
     def _emit_set_helpers(
         elem_type_name: str, elem_type: ir.Type, elem_size: int = 0
     ) -> None;

@@ -1042,11 +1042,12 @@ impl NaIRGenPass._emit_container_drop_fn(cont_name: str) -> (ir.Function | None)
     _has_slots = layout["drop_base"] < len(_elems);
     for (_bk, _fpair) in enumerate(layout["data_fields"]) {
         (_fi, _fty) = _fpair;
+        _fkind = layout["elem_kinds"][_bk];
         dp = b.gep(
             cont, [ir.Constant(i32, 0), ir.Constant(i32, _fi)], name=f"drop.data{_fi}.p"
         );
         dv = b.load(dp, name=f"drop.data{_fi}");
-        if _has_slots and isinstance(_fty, ir.PointerType) {
+        if _has_slots and _fkind != "raw" {
             _si = layout["drop_base"] + _bk;
             _sp = b.gep(
                 cont,
@@ -1065,8 +1066,15 @@ impl NaIRGenPass._emit_container_drop_fn(cont_name: str) -> (ir.Function | None)
             def _drop_slot(
                 bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list
             ) -> ir.IRBuilder {
-                _ev = bl.load(elem_ptrs[0], name=f"edrop{_fi}.elem");
-                bl.call(_sfn, [bl.bitcast(_ev, i8p, name=f"edrop{_fi}.elem.i8")]);
+                if _fkind == "jacval" {
+                    bl.call(
+                        _sfn,
+                        [bl.bitcast(elem_ptrs[0], i8p, name=f"edrop{_fi}.slot.i8")]
+                    );
+                } else {
+                    _ev = bl.load(elem_ptrs[0], name=f"edrop{_fi}.elem");
+                    bl.call(_sfn, [bl.bitcast(_ev, i8p, name=f"edrop{_fi}.elem.i8")]);
+                }
                 return bl;
             }
             bw = self._emit_live_slot_loop(
@@ -1168,6 +1176,8 @@ impl NaIRGenPass._nogc_stamp_elem_drops(
         _drop_target: (ir.Value | None) = None;
         if _em == "str" {
             _drop_target = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+        } elif "|" in _em or _em == "any" {
+            _drop_target = self._emit_jacval_slot_drop_fn(_em);
         } elif _em in self.struct_types {
             _drop_target = self._emit_struct_drop_fn(_em);
         } elif _em.startswith("list[") and _em.endswith("]") {
@@ -1189,6 +1199,110 @@ impl NaIRGenPass._nogc_stamp_elem_drops(
         );
         self.builder.store(_fn_cast, _sp);
     }
+}
+
+impl NaIRGenPass._emit_jacval_slot_drop_fn(elem_mangle: str) -> (ir.Function | None) {
+    _key = f"jacval:{elem_mangle}";
+    if _key in self.container_drop_fns {
+        return self.container_drop_fns[_key];
+    }
+    import from jaclang.jac0core.codeinfo { native_safe_sym }
+    i8 = ir.IntType(8);
+    i8p = i8.as_pointer();
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    _members = [_m.strip() for _m in elem_mangle.split("|")];
+    _list_drops: list = [];
+    _struct_drops: list = [];
+    for _m in _members {
+        if _m == "list[int]" {
+            self._emit_list_helpers("i64", i64);
+            _cand = self._emit_container_drop_fn("List.i64");
+            if _cand is not None and _cand not in _list_drops {
+                _list_drops.append(_cand);
+            }
+        } elif _m == "list[float]" {
+            self._emit_list_helpers("f64", ir.DoubleType());
+            _cand = self._emit_container_drop_fn("List.f64");
+            if _cand is not None and _cand not in _list_drops {
+                _list_drops.append(_cand);
+            }
+        } elif _m in self.struct_types {
+            _cand = self._emit_struct_drop_fn(_m);
+            if _cand is not None and _cand not in _struct_drops {
+                _struct_drops.append(_cand);
+            }
+        }
+    }
+    _list_drop = _list_drops[0] if len(_list_drops) == 1 else None;
+    _struct_drop = _struct_drops[0] if len(_struct_drops) == 1 else None;
+    fnty = ir.FunctionType(ir.VoidType(), [i8p]);
+    fn = ir.Function(
+        self.llvm_module, fnty, name=f"__jacval_drop_{native_safe_sym(elem_mangle)}"
+    );
+    fn.linkage = "private";
+    fn.args[0].name = "slot";
+    self.container_drop_fns[_key] = fn;
+    entry_bb = fn.append_basic_block("entry");
+    done_bb = fn.append_basic_block("done");
+    b = ir.IRBuilder(entry_bb);
+    slot = b.bitcast(fn.args[0], self.jacval_type.as_pointer(), name="jvd.slot");
+    tag = b.load(
+        b.gep(slot, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="jvd.tag.p"),
+        name="jvd.tag"
+    );
+    payload = b.load(
+        b.gep(slot, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="jvd.pl.p"),
+        name="jvd.pl"
+    );
+    live_bb = fn.append_basic_block("live");
+    b.cbranch(
+        b.icmp_unsigned("!=", payload, ir.Constant(i64, 0), name="jvd.nn"),
+        live_bb,
+        done_bb
+    );
+    b = ir.IRBuilder(live_bb);
+    free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+    str_bb = fn.append_basic_block("str");
+    chk_list_bb = fn.append_basic_block("chk.list");
+    b.cbranch(
+        b.icmp_unsigned("==", tag, ir.Constant(i8, 2), name="jvd.isstr"),
+        str_bb,
+        chk_list_bb
+    );
+    bs = ir.IRBuilder(str_bb);
+    bs.call(free_fn, [bs.inttoptr(payload, i8p, name="jvd.str")]);
+    bs.branch(done_bb);
+    b = ir.IRBuilder(chk_list_bb);
+    if _list_drop is not None {
+        list_bb = fn.append_basic_block("list");
+        chk_obj_bb = fn.append_basic_block("chk.obj");
+        b.cbranch(
+            b.icmp_unsigned("==", tag, ir.Constant(i8, 3), name="jvd.islist"),
+            list_bb,
+            chk_obj_bb
+        );
+        bl = ir.IRBuilder(list_bb);
+        bl.call(_list_drop, [bl.inttoptr(payload, i8p, name="jvd.list")]);
+        bl.branch(done_bb);
+        b = ir.IRBuilder(chk_obj_bb);
+    }
+    if _struct_drop is not None {
+        obj_bb = fn.append_basic_block("obj");
+        fall_bb = fn.append_basic_block("fall");
+        b.cbranch(
+            b.icmp_unsigned("==", tag, ir.Constant(i8, 6), name="jvd.isobj"),
+            obj_bb,
+            fall_bb
+        );
+        bo = ir.IRBuilder(obj_bb);
+        bo.call(_struct_drop, [bo.inttoptr(payload, i8p, name="jvd.obj")]);
+        bo.branch(done_bb);
+        b = ir.IRBuilder(fall_bb);
+    }
+    b.branch(done_bb);
+    ir.IRBuilder(done_bb).ret_void();
+    return fn;
 }
 
 impl NaIRGenPass._nogc_elem_prep(

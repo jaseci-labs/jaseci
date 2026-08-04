@@ -73,12 +73,12 @@ impl NaIRGenPass._repr_elem_spec_of_key(elem_key: str) -> (tuple | None) {
         _other = _parts[0] if _parts[1] in ("NoneType", "None") else _parts[1];
         _inner = self._repr_elem_spec_of_key(_other);
         if _inner is None or _inner[0] != "ptr" {
-            return None;
+            return ("jacval", self.jacval_type) if self?.jacval_type else None;
         }
         return ("ptr", i8p);
     }
-    if len(_parts) > 1 {
-        return None;
+    if len(_parts) > 1 or elem_key == "any" {
+        return ("jacval", self.jacval_type) if self?.jacval_type else None;
     }
     if elem_key in ("int", "bool") {
         return ("i64", i64);
@@ -128,6 +128,11 @@ impl NaIRGenPass._repr_fn_for_type_key(type_key: str) -> (ir.Function | None) {
                 fn = _ofn;
             }
         }
+        if fn is None {
+            fn = self._repr_jacval_fn();
+        }
+    } elif type_key == "any" {
+        fn = self._repr_jacval_fn();
     } elif type_key == "int" {
         fn = self._repr_leaf_fn("int");
     } elif type_key == "bool" {
@@ -703,21 +708,54 @@ impl NaIRGenPass._repr_tuple_fn(type_key: str) -> (ir.Function | None) {
     return fn;
 }
 
+impl NaIRGenPass._runtime_repr_key(val: ir.Value) -> (str | None) {
+    if not isinstance(val.type, ir.PointerType) {
+        return None;
+    }
+    _pname = getattr(val.type.pointee, "name", "") or "";
+    _elem_names = {"i64": "int", "f64": "float", "jacval": "any", "ptr": "str"};
+    if _pname.startswith("List.") {
+        _spec = _pname[5:];
+        if _spec in ("i64", "f64", "jacval") {
+            return f"list[{_elem_names[_spec]}]";
+        }
+        return None;
+    }
+    if _pname.startswith("Dict.") {
+        _kv = _pname[5:].split(".");
+        if len(_kv) == 2 and _kv[0] in _elem_names and _kv[1] in _elem_names {
+            return f"dict[{_elem_names[_kv[0]]},{_elem_names[_kv[1]]}]";
+        }
+        return None;
+    }
+    return None;
+}
+
 impl NaIRGenPass._emit_container_repr(
     val: ir.Value, type_key: (str | None)
 ) -> (ir.Value | None) {
+    _rt_key = self._runtime_repr_key(val);
     if not type_key {
-        return None;
+        if _rt_key is None {
+            return None;
+        }
+        type_key = _rt_key;
     }
     base = type_key;
     _parts = self._split_type_args(type_key, "|");
     if len(_parts) == 2 and ("NoneType" in _parts or "None" in _parts) {
         base = _parts[0] if _parts[1] in ("NoneType", "None") else _parts[1];
     } elif len(_parts) > 1 {
-        return None;
+        if _rt_key is None {
+            return None;
+        }
+        base = _rt_key;
     }
     if not base.endswith("]") {
-        return None;
+        if _rt_key is None {
+            return None;
+        }
+        base = _rt_key;
     }
     if self.rc_alloc_fn is None {
         self._emit_rc_helpers();
@@ -770,4 +808,99 @@ impl NaIRGenPass._emit_container_repr(
     );
     res: any = self.builder.call(fn, [arg], name="cont.repr");
     return self._mark_owned(res);
+}
+
+impl NaIRGenPass._repr_jacval_fn -> (ir.Function | None) {
+    if not self?.jacval_type {
+        return None;
+    }
+    _cached = self._repr_fns.get("jacval");
+    if _cached is not None {
+        return _cached;
+    }
+    _int_fn = self._repr_leaf_fn("int");
+    _bool_fn = self._repr_leaf_fn("bool");
+    _float_fn = self._float_repr_fn();
+    _str_fn = self._repr_str_fn();
+    if _int_fn is None or _bool_fn is None {
+        return None;
+    }
+    i8 = ir.IntType(8);
+    i8p = i8.as_pointer();
+    i64 = ir.IntType(64);
+    f64 = ir.DoubleType();
+    fnty = ir.FunctionType(i8p, [self.jacval_type]);
+    fn: any = ir.Function(self.llvm_module, fnty, name="__jac_repr_jacval");
+    fn.linkage = "private";
+    fn.args[0].name = "jv";
+    self._repr_fns["jacval"] = fn;
+    saved_builder = self._builder;
+    entry_bb = fn.append_basic_block("entry");
+    b = ir.IRBuilder(entry_bb);
+    self._builder = b;
+    tag = b.extract_value(fn.args[0], 0, name="rp.jv.tag");
+    payload = b.extract_value(fn.args[0], 1, name="rp.jv.payload");
+    _strdup = self._get_or_declare_extern("strdup", i8p, [i8p]);
+
+    def _ret_const(bl: ir.IRBuilder, text: str, label: str) {
+        _prev = self._builder;
+        self._builder = bl;
+        _g = self._make_global_string(text, name_prefix=f".repr.jv.{label}");
+        if self._nogc_headerless() {
+            _g = bl.call(_strdup, [_g], name=f"rp.jv.{label}.dup");
+        }
+        self._builder = _prev;
+        bl.ret(_g);
+    }
+    _cases = [
+        (1, "float"),
+        (2, "str"),
+        (3, "list"),
+        (4, "dict"),
+        (5, "set"),
+        (6, "obj"),
+        (7, "bool"),
+        (8, "none")
+    ];
+    for (_t, _label) in _cases {
+        _hit_bb = fn.append_basic_block(f"jv.{_label}");
+        _next_bb = fn.append_basic_block(f"jv.chk.{_label}");
+        b.cbranch(
+            b.icmp_unsigned("==", tag, ir.Constant(i8, _t), name=f"rp.is.{_label}"),
+            _hit_bb,
+            _next_bb
+        );
+        bh = ir.IRBuilder(_hit_bb);
+        if _label == "float" {
+            bh.ret(
+                bh.call(
+                    _float_fn,
+                    [bh.bitcast(payload, f64, name="rp.jv.f64")],
+                    name="rp.jv.float"
+                )
+            );
+        } elif _label == "str" {
+            bh.ret(
+                bh.call(
+                    _str_fn,
+                    [bh.inttoptr(payload, i8p, name="rp.jv.sp")],
+                    name="rp.jv.str"
+                )
+            );
+        } elif _label == "bool" {
+            bh.ret(bh.call(_bool_fn, [payload], name="rp.jv.bool"));
+        } elif _label == "none" {
+            _ret_const(bh, "None", "none");
+        } elif _label == "list" {
+            _ret_const(bh, "[...]", "list");
+        } elif _label in ("dict", "set") {
+            _ret_const(bh, "{...}", _label);
+        } else {
+            _ret_const(bh, "<object>", "obj");
+        }
+        b = ir.IRBuilder(_next_bb);
+    }
+    b.ret(b.call(_int_fn, [payload], name="rp.jv.int"));
+    self._builder = saved_builder;
+    return fn;
 }

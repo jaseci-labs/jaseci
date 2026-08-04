@@ -184,6 +184,8 @@ impl NativeListView.postinit -> None {
             self._arr = (ctypes.c_int64 * self._count).from_address(nl.data);
         } elif self.elem_key == "f64" {
             self._arr = (ctypes.c_double * self._count).from_address(nl.data);
+        } elif self.elem_key == "jacval" {
+            self._arr = (NativeJacVal * self._count).from_address(nl.data);
         } else {
             self._arr = (ctypes.c_void_p * self._count).from_address(nl.data);
         }
@@ -210,6 +212,9 @@ impl NativeListView.__getitem__(index: any) -> any {
     }
     if self.elem_key == "f64" {
         return float(raw);
+    }
+    if self.elem_key == "jacval" {
+        return decode_jacval(int(raw.tag), int(raw.payload));
     }
 
     if (self._ct_cls and raw and raw != 0) {

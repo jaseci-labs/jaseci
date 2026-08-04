@@ -38,6 +38,44 @@ class NativeList(ctypes.Structure) {
 }
 
 
+class NativeJacVal(ctypes.Structure) {
+    has _fields_: list[tuple[str, type]] = [
+        ("tag", ctypes.c_uint8),
+        ("payload", ctypes.c_int64)
+    ];
+}
+
+
+def decode_jacval(tag: int, payload: int) -> any {
+    if tag == 1 {
+        import struct as _struct;
+        return _struct.unpack("<d", _struct.pack("<q", payload))[0];
+    }
+    if tag == 2 {
+        if not payload {
+            return "";
+        }
+        return ctypes.string_at(payload).decode("utf-8", errors="replace");
+    }
+    if tag == 7 {
+        return payload != 0;
+    }
+    if tag == 8 {
+        return None;
+    }
+    return int(payload);
+}
+
+
+def _decode_jacval_at(addr: any, slots: list) -> list {
+    if (not slots or not addr) {
+        return [];
+    }
+    arr = (NativeJacVal * (max(slots) + 1)).from_address(addr);
+    return [decode_jacval(int(arr[s].tag), int(arr[s].payload)) for s in slots];
+}
+
+
 class NativeDict(ctypes.Structure) {
     has _fields_: list[tuple[str, type]] = [
         ("len", ctypes.c_int64),
@@ -243,7 +281,7 @@ def _marshal_dict(dict_ptr: int, spec: str, func_layout: any = None) -> any {
     (key_name, val_name) = (parts[0], parts[1]);
     if (
         key_name not in ("i64", "f64", "bytes", "ptr")
-        or val_name not in ("i64", "f64", "ptr")
+        or val_name not in ("i64", "f64", "ptr", "jacval")
     ) {
         return dict_ptr;
     }
@@ -267,7 +305,11 @@ def _marshal_dict(dict_ptr: int, spec: str, func_layout: any = None) -> any {
         if 0 <= int(s) and int(s) < cap
     ];
     dkeys = _decode_scalar_at(nd.keys, slots, key_name, as_str=key_as_str);
-    dvals = _decode_scalar_at(nd.vals, slots, val_name, as_str=val_as_str);
+    if val_name == "jacval" {
+        dvals = _decode_jacval_at(nd.vals, slots);
+    } else {
+        dvals = _decode_scalar_at(nd.vals, slots, val_name, as_str=val_as_str);
+    }
     return dict(zip(dkeys, dvals));
 }
 

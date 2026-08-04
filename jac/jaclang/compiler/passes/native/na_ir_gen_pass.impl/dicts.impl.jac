@@ -331,6 +331,25 @@ impl NaIRGenPass._unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Va
     return ir.Constant(target_type, None);
 }
 
+impl NaIRGenPass._dict_key_reconcile(
+    dk: (str | None), val: (ir.Value | None)
+) -> (str | None) {
+    if val is None {
+        return dk;
+    }
+    if dk is not None {
+        _st = self.dict_types.get(dk);
+        if _st is not None and val.type == _st.as_pointer() {
+            return dk;
+        }
+    }
+    _info = self._infer_dict_type(val);
+    if _info is not None {
+        return f"{_info[0]}:{_info[1]}";
+    }
+    return dk;
+}
+
 impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
     if not nd.kv_pairs {
         _dk = self._dict_key_of(nd);
@@ -340,6 +359,21 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
             self._nogc_stamp_elem_drops(_empty_dv, self._nogc_type_arg_mangles(nd));
             return _empty_dv;
         }
+        return None;
+    }
+
+    _dk_args = nd.type.private.type_args
+        if (isinstance(nd, uni.Expr) and nd.type is not None)
+        else [];
+    _k_store = self._elem_storage_llvm(_dk_args[0]) if len(_dk_args) >= 2 else None;
+    if _k_store is not None and self?.jacval_type and _k_store == self.jacval_type {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name="dict with mixed key types",
+            help_text="Native dicts hash a single concrete key type; a dict whose keys mix representations has no native storage. Use one key type (for example str) and keep the mixing on the value side."
+        );
         return None;
     }
 
@@ -387,6 +421,10 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
         else 0}";
 
     first_val = self._nogc_elem_prep(first_pair.value, first_val);
+    if not use_jacval
+        and self._reject_ptr_into_raw_slot(nd, first_val, val_type, "dict value") {
+        return dict_val;
+    }
     first_store_val = (
         self._box_to_jacval(first_val)
             if use_jacval
@@ -398,10 +436,6 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
         op="dict_init",
         loc=_dinit_loc
     );
-
-    if use_jacval and isinstance(first_val.type, ir.PointerType) {
-        self._emit_rc_retain(first_val, op="dict_init", loc=_dinit_loc);
-    }
 
     if isinstance(first_key.type, ir.PointerType) and self._is_owned(first_key) {
         self._emit_rc_release_simple(first_key, op="dict_init", loc=_dinit_loc);
@@ -416,6 +450,10 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
         v = self._codegen_expr(pair.value);
         if k is not None and v is not None {
             v = self._nogc_elem_prep(pair.value, v);
+            if not use_jacval
+                and self._reject_ptr_into_raw_slot(nd, v, val_type, "dict value") {
+                return dict_val;
+            }
             _orig_k = k;
             _orig_v = v;
             k = self._coerce_type(k, key_type);
@@ -427,10 +465,6 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
             self._rc_call_with_ctx(
                 helpers["set"], [dict_val, k, v], op="dict_init", loc=_dinit_loc
             );
-
-            if use_jacval and isinstance(_orig_v.type, ir.PointerType) {
-                self._emit_rc_retain(_orig_v, op="dict_init", loc=_dinit_loc);
-            }
 
             if isinstance(_orig_k.type, ir.PointerType) and self._is_owned(_orig_k) {
                 self._emit_rc_release_simple(_orig_k, op="dict_init", loc=_dinit_loc);
@@ -477,6 +511,10 @@ impl NaIRGenPass._codegen_dict_set(
     }
     key_type = helpers["key_type"];
     val_type = helpers["val_type"];
+    if self._reject_ptr_into_raw_slot(None, value, val_type, "dict value assignment") {
+        return;
+    }
+    _orig_key = key_val;
     _orig_value = value;
     key_val = self._coerce_type(key_val, key_type);
     value = self._coerce_type(value, val_type);
@@ -487,7 +525,19 @@ impl NaIRGenPass._codegen_dict_set(
         helpers["set"], [target_val, key_val, value], op="dict_set", loc=_dset_ctx_loc
     );
 
-    if isinstance(val_type, ir.PointerType) and self._is_owned(_orig_value) {
+    if (
+        isinstance(_orig_key.type, ir.PointerType)
+        and isinstance(key_type, ir.PointerType)
+        and self._is_owned(_orig_key)
+    ) {
+        self._emit_rc_release_simple(_orig_key, op="dict_set", loc=_dset_ctx_loc);
+    }
+
+    if (
+        isinstance(_orig_value.type, ir.PointerType)
+        and self._elem_kind(val_type) != "raw"
+        and self._is_owned(_orig_value)
+    ) {
         _dset_loc = getattr(
             _orig_value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
         );

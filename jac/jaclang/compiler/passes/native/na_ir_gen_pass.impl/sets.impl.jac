@@ -79,6 +79,23 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
         return None;
     }
 
+    _decl_args = nd.type.private.type_args
+        if (isinstance(nd, uni.Expr) and nd.type is not None)
+        else [];
+    _decl_elem = self._elem_storage_llvm(_decl_args[0]) if _decl_args else None;
+    if _decl_elem is not None
+        and self?.jacval_type
+        and _decl_elem == self.jacval_type {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name="set of mixed element types",
+            help_text="Native sets hash a single concrete element type; a set whose elements mix representations has no native storage. Use a homogeneous element type, or a list for mixed values."
+        );
+        return None;
+    }
+
     first_val = self._codegen_expr(nd.values[0]);
     if first_val is None {
         return None;
@@ -120,6 +137,9 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
         val = self._codegen_expr(nd.values[i]);
         if val is not None {
             val = self._nogc_elem_prep(nd.values[i], val);
+            if self._reject_ptr_into_raw_slot(nd, val, elem_type, "set element") {
+                return set_val;
+            }
             _orig_sv = val;
             val = self._coerce_type(val, elem_type);
             self._rc_call_with_ctx(

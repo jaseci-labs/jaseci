@@ -2644,6 +2644,11 @@ impl NativeListEmitter.emit_append(
     }
 
     _boxed_val = p._box_value_tuple(args[0]);
+    if p._reject_ptr_into_raw_slot(
+        None, _boxed_val, helpers["elem_type"], "list append"
+    ) {
+        return ir.Constant(ir.IntType(64), 0);
+    }
     val = p._coerce_type(_boxed_val, helpers["elem_type"]);
 
     _append_loc = getattr(args[0], 'jac_loc', "");
@@ -2712,6 +2717,11 @@ impl NativeListEmitter.emit_insert(
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     insert_idx = args[0];
+    if p._reject_ptr_into_raw_slot(
+        None, args[1], helpers["elem_type"], "list insert"
+    ) {
+        return ir.Constant(i64, 0);
+    }
     insert_val = p._coerce_type(args[1], helpers["elem_type"]);
 
     b.call(helpers["append"], [target, insert_val]);
@@ -2753,7 +2763,7 @@ impl NativeListEmitter.emit_remove(
     }
     p = ctx.pass_ref;
     helpers = p.list_helpers.get(ctx.type_key);
-    if helpers is None {
+    if helpers is None or p._elem_kind(helpers["elem_type"]) == "jacval" {
         return None;
     }
     b = get_builder(p);
@@ -2863,7 +2873,7 @@ impl NativeListEmitter.emit_pop(
     }
     popped = b.call(helpers["get"], [target, pop_idx], name="pop.val");
 
-    is_ptr = isinstance(helpers["elem_type"], ir.PointerType);
+    is_ptr = p._elem_kind(helpers["elem_type"]) != "raw";
     func = b.basic_block.function;
     shift_start = b.add(pop_idx, ir.Constant(i64, 1), name="pop.shstart");
     shift_bb = func.append_basic_block(name="pop.shift");
@@ -2914,11 +2924,9 @@ impl NativeListEmitter.emit_clear(
         target, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="clear.len.ptr"
     );
 
-    if helpers is not None and isinstance(helpers["elem_type"], ir.PointerType) {
-        if p.rc_release_simple_fn is None {
-            p._emit_rc_helpers();
-        }
-        _i8pc = ir.IntType(8).as_pointer();
+    if helpers is not None
+        and p._elem_kind(helpers["elem_type"]) != "raw"
+        and not p._nogc_headerless() {
         _cur_len_c = b.load(len_ptr, name="clr_len");
         _data_pp_c = b.gep(
             target, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="clr_data_pp"
@@ -2943,8 +2951,7 @@ impl NativeListEmitter.emit_clear(
         _li2_c = b.load(_clr_i_a, name="clr_li2");
         _ep_c = b.gep(_data_arr_c, [_li2_c], name="clr_ep");
         _ev_c = b.load(_ep_c, name="clr_ev");
-        _evc_c = b.bitcast(_ev_c, _i8pc, name="clr_ev_cast");
-        b.call(p.rc_release_simple_fn, [_evc_c]);
+        p._emit_elem_release(b, helpers["elem_type"], _ev_c);
         _li3_c = b.load(_clr_i_a, name="clr_li3");
         _ni_c = b.add(_li3_c, ir.Constant(i64, 1), name="clr_ni");
         b.store(_ni_c, _clr_i_a);
@@ -2965,7 +2972,7 @@ impl NativeListEmitter.emit_index(
     }
     p = ctx.pass_ref;
     helpers = p.list_helpers.get(ctx.type_key);
-    if helpers is None {
+    if helpers is None or p._elem_kind(helpers["elem_type"]) == "jacval" {
         return None;
     }
     b = get_builder(p);
@@ -3011,7 +3018,7 @@ impl NativeListEmitter.emit_count(
     }
     p = ctx.pass_ref;
     helpers = p.list_helpers.get(ctx.type_key);
-    if helpers is None {
+    if helpers is None or p._elem_kind(helpers["elem_type"]) == "jacval" {
         return None;
     }
     b = get_builder(p);
@@ -3058,7 +3065,7 @@ impl NativeListEmitter.emit_sort(
 ) -> (ir.Value | None) {
     p = ctx.pass_ref;
     helpers = p.list_helpers.get(ctx.type_key);
-    if helpers is None {
+    if helpers is None or p._elem_kind(helpers["elem_type"]) == "jacval" {
         return None;
     }
     b = get_builder(p);
@@ -3553,7 +3560,7 @@ impl NativeDictEmitter.emit_pop(
         p._emit_runtime_raise(
             ir.Constant(ir.IntType(1), 1), "KeyError", "key not found"
         );
-        if isinstance(val_type, ir.PointerType) {
+        if p._elem_kind(val_type) != "raw" {
             default_val = ir.Constant(val_type, None);
         } else {
             default_val = ir.Constant(val_type, 0);
@@ -3682,7 +3689,15 @@ impl NativeDictEmitter.emit_setdefault(
     i64 = ir.IntType(64);
     key = args[0];
     val_type = helpers["val_type"];
-    default_val = args[1] if len(args) >= 2 else ir.Constant(val_type, 0);
+    default_val = (
+        args[1]
+            if len(args) >= 2
+            else (
+                ir.Constant(val_type, None)
+                    if p._elem_kind(val_type) != "raw"
+                    else ir.Constant(val_type, 0)
+            )
+    );
 
     found = b.call(helpers["contains"], [target, key], name="sdef.found");
     func = b.basic_block.function;
@@ -3812,6 +3827,9 @@ impl NativeSetEmitter.emit_add(
     helpers = p.set_helpers.get(ctx.type_key);
     if helpers is None or not args {
         return None;
+    }
+    if p._reject_ptr_into_raw_slot(None, args[0], helpers["elem_type"], "set add") {
+        return ir.Constant(ir.IntType(64), 0);
     }
     val = p._coerce_type(args[0], helpers["elem_type"]);
     get_builder(p).call(helpers["add"], [target, val]);

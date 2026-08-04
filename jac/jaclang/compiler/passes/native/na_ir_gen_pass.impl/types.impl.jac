@@ -222,11 +222,55 @@ impl NaIRGenPass._typed_elem_llvm_of(
     if not args {
         return None;
     }
-    lowered = self._lower_type(args[0]);
+    lowered = self._elem_storage_llvm(args[0]);
     if lowered is not None and isinstance(lowered, ir.VoidType) {
         return ir.IntType(64);
     }
     return lowered;
+}
+
+impl NaIRGenPass._elem_storage_llvm(t: any) -> (ir.Type | None) {
+    if t is None {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _EsClassType,
+            UnionType as _EsUnionType
+        }
+    } except ImportError {
+        return self._lower_type(t);
+    }
+    if not isinstance(t, _EsUnionType) {
+        return self._lower_type(t);
+    }
+    _members = [
+        m
+        for m in (t.types or [])
+        if not (
+            isinstance(m, _EsClassType)
+            and m._shared is not None
+            and m.shared.class_name in ("NoneType", "None")
+        )
+    ];
+    if len(_members) < 2 {
+        return self._lower_type(t);
+    }
+    _lowered: list = [];
+    for m in _members {
+        _ml = self._lower_type(m);
+        if _ml is None {
+            return self.jacval_type;
+        }
+        _lowered.append(_ml);
+    }
+    _first = _lowered[0];
+    for _ml in _lowered[1:] {
+        if _ml != _first {
+            return self.jacval_type;
+        }
+    }
+    return _first;
 }
 
 impl NaIRGenPass._elem_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
@@ -292,7 +336,7 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
     if cname == "list" {
         elem_llvm: ir.Type = ir.IntType(64);
         if type_args {
-            _e = self._lower_type(type_args[0]);
+            _e = self._elem_storage_llvm(type_args[0]);
             if _e is None {
                 return None;
             }
@@ -314,9 +358,12 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
         k_llvm: ir.Type = ir.IntType(64);
         v_llvm: ir.Type = ir.IntType(64);
         if len(type_args) >= 2 {
-            _k = self._lower_type(type_args[0]);
-            _v = self._lower_type(type_args[1]);
+            _k = self._elem_storage_llvm(type_args[0]);
+            _v = self._elem_storage_llvm(type_args[1]);
             if _k is None or _v is None {
+                return None;
+            }
+            if self?.jacval_type and _k == self.jacval_type {
                 return None;
             }
             k_llvm = _k;
@@ -332,8 +379,11 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
     if cname in ("set", "frozenset") {
         elem_llvm: ir.Type = ir.IntType(64);
         if type_args {
-            _e = self._lower_type(type_args[0]);
+            _e = self._elem_storage_llvm(type_args[0]);
             if _e is None {
+                return None;
+            }
+            if self?.jacval_type and _e == self.jacval_type {
                 return None;
             }
             elem_llvm = _e;

@@ -391,11 +391,11 @@ impl NaIRGenPass._emit_hash_core_helpers(
             name="va"
         );
         vsp = bu.gep(vals_as, [res_s], name="vsp");
-        if isinstance(val_type, ir.PointerType) and not _hl {
-            bu.call(self.rc_retain_fn, [bu.bitcast(v_s, i8p, name="nvc")]);
+        if self._elem_kind(val_type) != "raw" and not _hl {
+            self._emit_elem_retain(bu, val_type, v_s);
             ov_u = bu.load(vsp, name="ov");
             bu.store(v_s, vsp);
-            bu.call(self.rc_release_simple_fn, [bu.bitcast(ov_u, i8p, name="ovc")]);
+            self._emit_elem_release(bu, val_type, ov_u);
         } else {
             bu.store(v_s, vsp);
         }
@@ -467,8 +467,8 @@ impl NaIRGenPass._emit_hash_core_helpers(
         if isinstance(key_type, ir.PointerType) {
             bi.call(self.rc_retain_fn, [bi.bitcast(k_s, i8p, name="kc")]);
         }
-        if has_vals and isinstance(val_type, ir.PointerType) {
-            bi.call(self.rc_retain_fn, [bi.bitcast(v_s, i8p, name="vc")]);
+        if has_vals {
+            self._emit_elem_retain(bi, val_type, v_s);
         }
     }
     bi.store(_k_ins, bi.gep(ka_s, [isl], name="ksp"));
@@ -549,14 +549,14 @@ impl NaIRGenPass._emit_hash_core_helpers(
             ir.Constant(key_type, None), bdel.gep(ka_rm, [res_rm], name="kclear")
         );
     }
-    if has_vals and isinstance(val_type, ir.PointerType) {
+    if has_vals and self._elem_kind(val_type) != "raw" {
         va_rm = bdel.load(
             bdel.gep(d_rm, [ir.Constant(i32, 0), ir.Constant(i32, VALS_F)], name="vp"),
             name="va"
         );
         vv_rm = bdel.load(bdel.gep(va_rm, [res_rm], name="vvp"), name="vv");
         if not _hl {
-            bdel.call(self.rc_release_simple_fn, [bdel.bitcast(vv_rm, i8p, name="vc")]);
+            self._emit_elem_release(bdel, val_type, vv_rm);
         }
         bdel.store(
             ir.Constant(val_type, None), bdel.gep(va_rm, [res_rm], name="vclear")
@@ -606,7 +606,7 @@ impl NaIRGenPass._emit_hash_core_helpers(
             d_pop, [ir.Constant(i32, 0), ir.Constant(i32, LEN_F)], name="lp"
         );
         v_out = bdp.load(bdp.gep(va_p, [res_p], name="vsp"), name="v");
-        if isinstance(val_type, ir.PointerType) {
+        if self._elem_kind(val_type) != "raw" {
             bdp.store(
                 ir.Constant(val_type, None), bdp.gep(va_p, [res_p], name="vclear")
             );
@@ -709,12 +709,10 @@ impl NaIRGenPass._emit_hash_core_helpers(
             ir.Constant(key_type, None), blv_cl.gep(ka_cl, [si_v_cl], name="kclear")
         );
     }
-    if has_vals and isinstance(val_type, ir.PointerType) {
+    if has_vals and self._elem_kind(val_type) != "raw" {
         vv_cl = blv_cl.load(blv_cl.gep(va_cl, [si_v_cl], name="vvp"), name="vv");
         if not _hl {
-            blv_cl.call(
-                self.rc_release_simple_fn, [blv_cl.bitcast(vv_cl, i8p, name="vc")]
-            );
+            self._emit_elem_release(blv_cl, val_type, vv_cl);
         }
         blv_cl.store(
             ir.Constant(val_type, None), blv_cl.gep(va_cl, [si_v_cl], name="vclear")
