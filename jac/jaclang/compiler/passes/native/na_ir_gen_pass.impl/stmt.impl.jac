@@ -1455,6 +1455,9 @@ impl NaIRGenPass._apply_scalar_aug_op(
 
 impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
     _rhs_errs_before = len(self.errors_had);
+    if self._try_partition_sugar_assign(nd) {
+        return;
+    }
     value: (ir.Value | None) = None;
     if (
         isinstance(nd.value, uni.Name)

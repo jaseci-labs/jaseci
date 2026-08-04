@@ -690,6 +690,17 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " and nesting `flow for` is not supported yet. Restructure the loop, or use"
          " a plain `for` when sequential semantics are what you want."
      ),
+     E1314 = _err(
+         "E1314",
+         Category.SEMANTIC,
+         "`partition(n)` does not allow {name}",
+         help="`partition(n)` is sugar for n per-child `partition()` calls: the"
+         " count must be an integer literal, the call must be unpacked as"
+         " `(a, b, ...) = r.partition(n)` with exactly n plain names, and the"
+         " receiver must be an owned `Region` handle. Each unpacked child is an"
+         " independently affine owned handle riding the same reabsorb/zombie"
+         " contract. Use the per-child call form for dynamic counts."
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,

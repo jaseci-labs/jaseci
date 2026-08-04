@@ -1153,6 +1153,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         b: ir.IRBuilder, ptr: ir.Value, name: str = "s.rlen"
     ) -> ir.Value;
 
+    def _try_partition_sugar_assign(nd: uni.Assignment) -> bool;
     def _str_desc_type -> ir.Type;
     def _emit_str_desc_helpers -> None;
     def _membrane_str_out(b: ir.IRBuilder, val: ir.Value) -> ir.Value;

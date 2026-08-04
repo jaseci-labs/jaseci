@@ -736,6 +736,58 @@ impl NaIRGenPass._emit_arena_helpers -> None {
 }
 
 
+impl NaIRGenPass._try_partition_sugar_assign(nd: uni.Assignment) -> bool {
+    if len(nd.target) != 1 or not isinstance(nd.target[0], uni.TupleVal) {
+        return False;
+    }
+    _call = nd.value;
+    if not isinstance(_call, uni.FuncCall) {
+        return False;
+    }
+    _tr = _call.target;
+    if not (
+        isinstance(_tr, uni.AtomTrailer)
+        and isinstance(_tr.right, uni.Name)
+        and _tr.right.sym_name == "partition"
+        and (_call.params or [])
+    ) {
+        return False;
+    }
+    _recv_nm = _tr.target;
+    _recv_name = _recv_nm.sym_name if isinstance(_recv_nm, uni.Name) else None;
+    if not (
+        self._type_key_of(_tr.target) == "Region"
+        or (_recv_name is not None and _recv_name in self.region_handle_vars)
+    ) {
+        return False;
+    }
+    self._emit_arena_helpers();
+    _recv = self._codegen_expr(_tr.target);
+    if _recv is None or self.region_partition_fn is None {
+        return False;
+    }
+    _i8p = ir.IntType(8).as_pointer();
+    if _recv.type != _i8p {
+        _recv = self.builder.bitcast(_recv, _i8p, name="partn.hdl");
+    }
+    for tgt in nd.target[0].values {
+        if not isinstance(tgt, uni.Name) {
+            continue;
+        }
+        _child = self.builder.call(
+            self.region_partition_fn, [_recv], name="region.partn"
+        );
+        _slot = self.local_vars.get(tgt.sym_name);
+        if _slot is None {
+            _slot = self._entry_alloca(_i8p, tgt.sym_name);
+            self.local_vars[tgt.sym_name] = _slot;
+        }
+        self.builder.store(_child, _slot);
+        self.region_handle_vars.add(tgt.sym_name);
+    }
+    return True;
+}
+
 impl NaIRGenPass._register_region_handle_var(
     nd: uni.Assignment, var_name: str
 ) -> None {

@@ -85,6 +85,7 @@ impl OwnershipCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     self._stamp_ownership();
     self._stamp_loop_borrows();
     self._stamp_region_borrows();
+    self._process_partition_sugar();
     self._nogc_setup();
     if not self.owned_decl
         and not self.borrow_meta

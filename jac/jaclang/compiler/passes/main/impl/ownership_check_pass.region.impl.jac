@@ -1,5 +1,68 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.diagnostics { E1307, W1310 }
+import from jaclang.jac0core.diagnostics { E1307, E1314, W1310 }
+
+impl OwnershipCheckPass._partition_sugar_reason(call: uni.FuncCall) -> str {
+    _params = [p for p in (call.params or [])];
+    if len(_params) != 1 or not isinstance(_params[0], uni.Int) {
+        return "a non-literal child count";
+    }
+    _n = int(_params[0].value);
+    asgn = call.parent;
+    if not (isinstance(asgn, uni.Assignment) and asgn.value is call) {
+        return "use outside a direct tuple-unpack assignment";
+    }
+    if len(asgn.target) != 1 or not isinstance(asgn.target[0], uni.TupleVal) {
+        return "a non-tuple unpack target";
+    }
+    _names = [v for v in asgn.target[0].values];
+    for v in _names {
+        if not isinstance(v, uni.Name) {
+            return "a non-name unpack target";
+        }
+    }
+    if len(_names) != _n {
+        return f"an unpack arity of {len(_names)} for n={_n}";
+    }
+    _recv = call.target.target if isinstance(call.target, uni.AtomTrailer) else None;
+    if not isinstance(_recv, uni.Name) {
+        return "a receiver that is not an owned `Region` handle";
+    }
+    _rsid = self._sym_id(_recv);
+    if _rsid is None or _rsid not in self.owned_decl {
+        return "a receiver that is not an owned `Region` handle";
+    }
+    return "";
+}
+
+impl OwnershipCheckPass._process_partition_sugar -> None {
+    for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
+        _tr = call.target;
+        if not (
+            isinstance(_tr, uni.AtomTrailer)
+            and isinstance(_tr.right, uni.Name)
+            and _tr.right.sym_name == "partition"
+        ) {
+            continue;
+        }
+        if not (call.params or []) {
+            continue;
+        }
+        reason = self._partition_sugar_reason(call);
+        if reason != "" {
+            self.emit(E1314, node_override=call, name=reason);
+            continue;
+        }
+        for nmv in call.parent.target[0].values {
+            _sid = self._sym_id(nmv);
+            if _sid is None or nmv.sym is None {
+                continue;
+            }
+            nmv.sym.ownership = OwnershipKind.OWN;
+            nmv.sym.na_region_handle = True;
+            self.owned_decl[_sid] = nmv;
+        }
+    }
+}
 
 glob _REGION_SCALARS: tuple = ("int", "float", "bool", "None", "NoneType"),
      _REGION_SAFE_CALLEES: frozenset[str] = frozenset(
