@@ -2187,6 +2187,60 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     }
                 }
             } elif (
+                self._str_desc_ty is not None
+                and alloca.type.pointee == self._str_desc_ty
+                and not is_inplace_set_op
+                and not _is_raw_int_ptr
+            ) {
+                import from jaclang.jac0core.constant { OwnershipKind }
+                _own_str_re = (
+                    self._nogc_headerless()
+                    and len(nd.target) == 1
+                    and isinstance(nd.target[0], uni.Name)
+                    and nd.target[0].sym is not None
+                    and nd.target[0].sym.ownership == OwnershipKind.OWN
+                );
+                _re_moved = False;
+                if not self._is_owned(value) {
+                    _re_moved = self._can_native_move_lower(nd);
+                }
+                if _own_str_re {
+                    self.nogc_owned_str_vars.add(var_name);
+                    if not self._is_owned(value) and not _re_moved {
+                        if self.str_new_fn is None {
+                            self._emit_str_len_helpers();
+                        }
+                        _osr_data = self.builder.extract_value(
+                            coerced, 0, name="own.re.data"
+                        );
+                        _osr_len = self.builder.extract_value(
+                            coerced, 1, name="own.re.len"
+                        );
+                        _osr_new = self.builder.call(
+                            self.str_new_fn, [_osr_data, _osr_len], name="own.re.copy"
+                        );
+                        coerced = self.builder.insert_value(
+                            self.builder.insert_value(
+                                ir.Constant(alloca.type.pointee, None),
+                                _osr_new,
+                                0,
+                                name="own.re.d0"
+                            ),
+                            _osr_len,
+                            1,
+                            name="own.re.d1"
+                        );
+                    }
+                    if not (
+                        self._nogc_headerless()
+                        and getattr(nd, 'na_overwrite_consumed', False)
+                    )
+                        and var_name not in self.nogc_no_free_vars {
+                        _osr_old = self.builder.load(alloca, name=f"{var_name}.old");
+                        self._nogc_str_free_owned(_osr_old);
+                    }
+                }
+            } elif (
                 self?.jacval_type
                 and alloca.type.pointee == self.jacval_type
                 and isinstance(value.type, ir.PointerType)
@@ -2376,7 +2430,45 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 } else {
                     self.rc_ops_elided += 1;
                 }
+                import from jaclang.jac0core.constant { OwnershipKind }
+                _own_str_glob = (
+                    self._nogc_headerless()
+                    and self._str_desc_ty is not None
+                    and global_var.type.pointee == self._str_desc_ty
+                    and len(nd.target) == 1
+                    and isinstance(nd.target[0], uni.Name)
+                    and nd.target[0].sym is not None
+                    and nd.target[0].sym.ownership == OwnershipKind.OWN
+                );
+                if _own_str_glob and not self._is_owned(value) {
+                    if self.str_new_fn is None {
+                        self._emit_str_len_helpers();
+                    }
+                    _osg_data = self.builder.extract_value(
+                        coerced, 0, name="own.glit.data"
+                    );
+                    _osg_len = self.builder.extract_value(
+                        coerced, 1, name="own.glit.len"
+                    );
+                    _osg_new = self.builder.call(
+                        self.str_new_fn, [_osg_data, _osg_len], name="own.glit.copy"
+                    );
+                    coerced = self.builder.insert_value(
+                        self.builder.insert_value(
+                            ir.Constant(global_var.type.pointee, None),
+                            _osg_new,
+                            0,
+                            name="own.glit.d0"
+                        ),
+                        _osg_len,
+                        1,
+                        name="own.glit.d1"
+                    );
+                }
                 old_glob = self.builder.load(global_var, name=f"glob.{var_name}.old");
+                if _own_str_glob {
+                    self._nogc_str_free_owned(old_glob);
+                }
                 self._emit_rc_release_typed(
                     old_glob,
                     op="overwrite",
@@ -2513,17 +2605,62 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 if getattr(value, 'opname', '') == 'inttoptr' {
                     self.param_vars.add(var_name);
                 } else {
-                    if not self._is_owned(value)
-                        and not self._can_native_move_lower(nd) {
-                        self._emit_rc_retain(
-                            value,
-                            op="assign",
-                            loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-                                if nd.loc
-                                else 0}"
-                        );
-                    } elif self._is_owned(value) {
+                    import from jaclang.jac0core.constant { OwnershipKind }
+                    _own_str_tgt = (
+                        self._nogc_headerless()
+                        and self._str_desc_ty is not None
+                        and var_type == self._str_desc_ty
+                        and not _mk_cell
+                        and not _in_gen_frame
+                        and len(nd.target) == 1
+                        and isinstance(nd.target[0], uni.Name)
+                        and nd.target[0].sym is not None
+                        and nd.target[0].sym.ownership == OwnershipKind.OWN
+                    );
+                    _moved_here = False;
+                    if not self._is_owned(value) {
+                        _moved_here = self._can_native_move_lower(nd);
+                        if not _moved_here {
+                            self._emit_rc_retain(
+                                value,
+                                op="assign",
+                                loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                                    if nd.loc
+                                    else 0}"
+                            );
+                        }
+                    } else {
                         self.rc_ops_elided += 1;
+                    }
+                    if _own_str_tgt {
+                        self.nogc_owned_str_vars.add(var_name);
+                        if not self._is_owned(value) and not _moved_here {
+                            if self.str_new_fn is None {
+                                self._emit_str_len_helpers();
+                            }
+                            _osf_data = self.builder.extract_value(
+                                value, 0, name="own.lit.data"
+                            );
+                            _osf_len = self.builder.extract_value(
+                                value, 1, name="own.lit.len"
+                            );
+                            _osf_new = self.builder.call(
+                                self.str_new_fn,
+                                [_osf_data, _osf_len],
+                                name="own.lit.copy"
+                            );
+                            value = self.builder.insert_value(
+                                self.builder.insert_value(
+                                    ir.Constant(var_type, None),
+                                    _osf_new,
+                                    0,
+                                    name="own.lit.d0"
+                                ),
+                                _osf_len,
+                                1,
+                                name="own.lit.d1"
+                            );
+                        }
                     }
                     if not (
                         self._nogc_headerless()
@@ -2534,6 +2671,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                             and var_name in self.nogc_no_free_vars
                         ) {
                         old_val = self.builder.load(alloca, name=f"{var_name}.old");
+                        if _own_str_tgt {
+                            self._nogc_str_free_owned(old_val);
+                        }
                         self._emit_rc_release_typed(
                             old_val,
                             op="overwrite",
@@ -3016,6 +3156,7 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     saved_builder = self._builder;
     saved_locals = self.local_vars;
     saved_nogc = self.nogc_no_free_vars;
+    saved_nogc_owned = self.nogc_owned_str_vars;
     saved_region_handles = self.region_handle_vars;
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
@@ -3027,6 +3168,7 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     self._builder = ir.IRBuilder(_b_entry);
     self.local_vars = {};
     self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
@@ -3167,6 +3309,7 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     self._builder = saved_builder;
     self.local_vars = saved_locals;
     self.nogc_no_free_vars = saved_nogc;
+    self.nogc_owned_str_vars = saved_nogc_owned;
     self.region_handle_vars = saved_region_handles;
     self.closure_cell_vars = saved_cell_vars;
     self.closure_cell_handles = saved_cell_handles;

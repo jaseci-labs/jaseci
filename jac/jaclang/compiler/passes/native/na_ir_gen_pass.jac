@@ -264,6 +264,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         anon_region_active: dict[int, str] = {},
         rc_region_allocs: int = 0,
         nogc_no_free_vars: set[str] = set(),
+        nogc_owned_str_vars: set[str] = set(),
         list_release_fns: dict[str, ir.Function] = {},
         dict_release_fns: dict[str, ir.Function] = {},
         set_release_fns: dict[str, ir.Function] = {},
@@ -1282,6 +1283,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _close_anon_region(gidx: int) -> None;
     def _try_flow_for_parallel(nd: uni.InForStmt) -> bool;
     def _nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> bool;
+    def _nogc_str_free_owned(val: ir.Value) -> None;
     def _nogc_free_scratch(val: ir.Value, op: str) -> None;
     def _emit_last_use_releases(stmt: uni.UniNode) -> None;
     def _stack_alloc_target_ok(nd: uni.UniNode) -> bool;

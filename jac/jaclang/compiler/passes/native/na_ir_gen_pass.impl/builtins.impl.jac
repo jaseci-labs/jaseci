@@ -689,6 +689,9 @@ impl NaIRGenPass._codegen_list_slice(
 
     self.builder.position_at_end(loop_body);
     elem = self.builder.call(helpers["get"], [target_val, cur_i], name="sl.elem");
+    if self._nogc_headerless() and elem_type_name == "ptr" {
+        elem = self._rc_strdup(elem, name="sl.elem.copy");
+    }
     self._rc_call_with_ctx(helpers["append"], [new_list, elem], op="list_slice");
 
     next_i = self.builder.add(cur_i, step_val, name="sl.next");

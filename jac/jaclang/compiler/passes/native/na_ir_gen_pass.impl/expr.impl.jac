@@ -323,6 +323,7 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     self._builder = ir.IRBuilder(entry_bb);
     self.local_vars = {};
     self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
@@ -533,7 +534,10 @@ impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
 
     if result is not None {
         i8p = ir.IntType(8).as_pointer();
-        if op == Tok.PLUS and left.type == i8p and right.type == i8p {
+        _sdt = self._str_desc_ty;
+        _l_strish = left.type == i8p or (_sdt is not None and left.type == _sdt);
+        _r_strish = right.type == i8p or (_sdt is not None and right.type == _sdt);
+        if op == Tok.PLUS and _l_strish and _r_strish {
             if self._is_owned(left) {
                 self._emit_rc_release_typed(
                     left, op="binop_lhs", loc=getattr(left, 'jac_loc', '')

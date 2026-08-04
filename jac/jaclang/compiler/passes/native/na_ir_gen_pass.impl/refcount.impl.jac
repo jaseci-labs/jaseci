@@ -1,3 +1,13 @@
+glob _NOGC_TEMP_FREE_OPS: tuple = (
+         "binop_lhs",
+         "binop_rhs",
+         "binop_list",
+         "call_arg",
+         "list_method_arg",
+         "str_rhs",
+         "ba_aug"
+     );
+
 impl NaIRGenPass._gc_mode -> str {
     _mode = getattr(self.prog._compile_options, "na_gc_mode", "cycles");
     if _mode not in ("cycles", "rc", "none") {
@@ -538,10 +548,17 @@ impl NaIRGenPass._can_native_move_lower(nd: object) -> bool {
     if src_alloca is None {
         return False;
     }
+    _mv_desc_slot = (
+        self._nogc_headerless()
+        and self._str_desc_ty is not None
+        and isinstance(src_alloca.type, ir.PointerType)
+        and src_alloca.type.pointee == self._str_desc_ty
+    );
     if not (
         isinstance(src_alloca.type, ir.PointerType)
         and isinstance(src_alloca.type.pointee, ir.PointerType)
-    ) {
+    )
+        and not _mv_desc_slot {
         return False;
     }
     self.builder.store(ir.Constant(src_alloca.type.pointee, None), src_alloca);
@@ -1100,13 +1117,20 @@ impl NaIRGenPass._emit_rc_retain(ptr: ir.Value, op: str = "", loc: str = "") -> 
 impl NaIRGenPass._emit_rc_release_simple(
     ptr: ir.Value, op: str = "", loc: str = ""
 ) -> None {
+    _rls_owned = self._is_owned(ptr);
     if self._str_desc_ty is not None and ptr.type == self._str_desc_ty {
         ptr = self.builder.extract_value(ptr, 0, name="rc.desc.root");
     }
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(ptr)
             and not self._nogc_emit_drop(ptr, op=op, loc=loc) {
-            self._nogc_free_scratch(ptr, op);
+            if _rls_owned
+                and op in _NOGC_TEMP_FREE_OPS
+                and isinstance(ptr.type, ir.PointerType) {
+                self._nogc_str_free_owned(ptr);
+            } else {
+                self._nogc_free_scratch(ptr, op);
+            }
         }
         return;
     }
@@ -1140,13 +1164,20 @@ impl NaIRGenPass._emit_rc_release_simple(
 impl NaIRGenPass._emit_rc_release_typed(
     val: ir.Value, op: str = "", loc: str = ""
 ) -> None {
+    _rlt_owned = self._is_owned(val);
     if self._str_desc_ty is not None and val.type == self._str_desc_ty {
         val = self.builder.extract_value(val, 0, name="rc.desc.root");
     }
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(val)
             and not self._nogc_emit_drop(val, op=op, loc=loc) {
-            self._nogc_free_scratch(val, op);
+            if _rlt_owned
+                and op in _NOGC_TEMP_FREE_OPS
+                and isinstance(val.type, ir.PointerType) {
+                self._nogc_str_free_owned(val);
+            } else {
+                self._nogc_free_scratch(val, op);
+            }
         }
         return;
     }
@@ -1666,6 +1697,34 @@ impl NaIRGenPass._nogc_elem_prep(
     if val is None or self._gc_mode() != "none" {
         return val;
     }
+    if self._str_desc_ty is not None and val.type == self._str_desc_ty {
+        if self._is_owned(val) or isinstance(expr, uni.FString) {
+            return val;
+        }
+        if isinstance(expr, uni.Name) and expr.sym_name in self.local_vars {
+            _mi = self.ir_in.gen?.rc_move_in or set();
+            if id(expr) in _mi {
+                _slot = self.local_vars[expr.sym_name];
+                self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
+                return val;
+            }
+        }
+        if self.str_new_fn is None {
+            self._emit_str_len_helpers();
+        }
+        _ep_hl = self._nogc_headerless();
+        _ep_data = self.builder.extract_value(
+            val, 0 if _ep_hl else 1, name="elem.prep.data"
+        );
+        _ep_len = self.builder.extract_value(
+            val, 1 if _ep_hl else 2, name="elem.prep.len"
+        );
+        _ep_copy = self.builder.call(
+            self.str_new_fn, [_ep_data, _ep_len], name="elem.prep.copy"
+        );
+        self._mark_owned(_ep_copy);
+        return _ep_copy;
+    }
     if not (
         isinstance(val.type, ir.PointerType)
         and isinstance(val.type.pointee, ir.IntType)
@@ -1780,6 +1839,19 @@ impl NaIRGenPass._emit_scope_cleanup(
             continue;
         }
 
+        if self._nogc_headerless()
+            and self._str_desc_ty is not None
+            and isinstance(alloca.type, ir.PointerType)
+            and alloca.type.pointee == self._str_desc_ty {
+            if var_name == skip_var {
+                self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
+            } elif var_name in self.nogc_owned_str_vars {
+                val = self.builder.load(alloca, name=f"cleanup.{var_name}");
+                self._nogc_str_free_owned(val);
+                self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
+            }
+            continue;
+        }
         if isinstance(alloca.type, ir.PointerType)
             and isinstance(alloca.type.pointee, ir.PointerType) {
             if var_name in self.region_handle_vars {
@@ -1824,6 +1896,17 @@ impl NaIRGenPass._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -> No
         }
         alloca = self.local_vars.get(var_name);
         if alloca is None {
+            continue;
+        }
+        if self._nogc_headerless()
+            and self._str_desc_ty is not None
+            and isinstance(alloca.type, ir.PointerType)
+            and alloca.type.pointee == self._str_desc_ty {
+            if var_name in self.nogc_owned_str_vars {
+                val = self.builder.load(alloca, name=f"iter.cleanup.{var_name}");
+                self._nogc_str_free_owned(val);
+                self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
+            }
             continue;
         }
         if (
@@ -2052,4 +2135,17 @@ impl NaIRGenPass._str_cmp_parts_of(val: ir.Value) -> (tuple | None) {
         return (val, self._call_str_len(self.builder, val, name="scmp.rawlen"));
     }
     return None;
+}
+
+impl NaIRGenPass._nogc_str_free_owned(val: ir.Value) -> None {
+    _d = val;
+    if self._str_desc_ty is not None and val.type == self._str_desc_ty {
+        _d = self.builder.extract_value(val, 0, name="osf.data");
+    }
+    if not isinstance(_d.type, ir.PointerType) {
+        return;
+    }
+    i8p = ir.IntType(8).as_pointer();
+    _free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+    self.builder.call(_free_fn, [self.builder.bitcast(_d, i8p, name="osf.cast")]);
 }
