@@ -379,6 +379,14 @@ Collections are represented as LLVM struct types:
 | `set[T]` | `{ T* data, i64 len }` |
 | `tuple[T, ...]` | LLVM literal struct (fields packed by type) |
 
+### Type Identity and Layout Authority
+
+The single authority for native type identity and layout is the layout registry (`LayoutRegistry` in `jaclang/compiler/passes/main/layout_pass.jac`), keyed by defining module + symbol. Archetype field order, inheritance topology, vtable shape, enum identity, and enum member value tables all resolve through it: native lowering asks the authority which module defines a type and reads that module's registry, so the order in which the native pass walks imported modules never changes the answer. A walk-order fuzz gate compiles the cross-module fixtures under forward, reversed, and shuffled module walk orders and requires identical IR.
+
+Enum classes lower to their backing `i64` through one path: the authority predicate (`is_enum_class_type`) plus a defining-module lookup (`enum_decl_of`) that materializes the member value tables on demand. The native pass's `type_map` is a static primitive-name table seeded once from the type registry at pass construction; nothing registers into it during module walks, and a source-scan test enforces this.
+
+A type the native backend cannot lower is a stable `E5092` diagnostic naming the type, at field declarations as everywhere else; there is no rescue path that substitutes an opaque slot for a failed lowering, so a lowering bug in a modeled type can never flow into layout as defined-behavior-by-accident. One field shape is lowered to an opaque slot by rule rather than by failure: a field declared as an optional foreign type (a `X | None` whose non-`None` resolution the checker cannot model, such as a Python class in a native archetype) lowers to a nullable `i8*` slot that native construction leaves null and that refcounting, tracing, and destructors never touch. The rule is keyed on the checker's verdict about the declared type, never on the outcome of lowering, so it cannot mask a failure elsewhere.
+
 ---
 
 ## Supported Language Features

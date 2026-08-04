@@ -945,7 +945,7 @@ impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
     }
     field_types = self.struct_field_types.get(type_name, {});
     field_indices = self.struct_field_indices.get(type_name, {});
-    opaque_fields = self.struct_field_opaque.get(type_name, set());
+    foreign_fields = self.struct_field_foreign.get(type_name, set());
     i32 = ir.IntType(32);
     for (fname, ftype) in field_types.items() {
         if fname in self.struct_field_inline.get(type_name, set()) {
@@ -964,7 +964,7 @@ impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
             }
             continue;
         }
-        if fname in opaque_fields or not isinstance(ftype, ir.PointerType) {
+        if fname in foreign_fields or not isinstance(ftype, ir.PointerType) {
             continue;
         }
         idx = field_indices.get(fname, -1);
@@ -1524,7 +1524,7 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
     }
     field_types = self.struct_field_types.get(arch_name, {});
     field_indices = self.struct_field_indices.get(arch_name, {});
-    opaque_fields = self.struct_field_opaque.get(arch_name, set());
+    foreign_fields = self.struct_field_foreign.get(arch_name, set());
     struct_ptr_type = struct_type.as_pointer();
     i8_ptr = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
@@ -1550,7 +1550,7 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
 
     _has_ref_fields = any(
         isinstance(_ft, ir.PointerType)
-            and _fn not in opaque_fields
+            and _fn not in foreign_fields
             and field_indices.get(_fn, -1) >= 0 for (_fn, _ft) in field_types.items()
     );
     if _has_ref_fields {
@@ -1574,7 +1574,7 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
         }
         b = ir.IRBuilder(rel_fields_bb);
         for (fname, ftype) in field_types.items() {
-            if fname in opaque_fields {
+            if fname in foreign_fields {
                 continue;
             }
             if isinstance(ftype, ir.PointerType) {

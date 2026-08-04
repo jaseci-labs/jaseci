@@ -83,25 +83,17 @@ impl NaIRGenPass._enum_name_of(expr: (uni.UniNode | None)) -> (str | None) {
     } except ImportError {
         return None;
     }
+    import from jaclang.compiler.passes.main.layout_pass {
+        is_enum_class_type as _is_enum_type
+    }
     t = expr.type;
     if isinstance(t, _EnumMemberType) and t.enum_class is not None {
         return t.enum_class.shared.class_name;
     }
-    if self._is_enum_class_type(t) {
+    if _is_enum_type(t) {
         return t.shared.class_name;
     }
     return None;
-}
-
-impl NaIRGenPass._is_enum_class_type(t: any) -> bool {
-    try {
-        import from jaclang.compiler.type_system.types { ClassType as _ClassType }
-    } except ImportError {
-        return False;
-    }
-    return isinstance(t, _ClassType)
-        and t._shared is not None
-        and t.shared.is_enum_class;
 }
 
 impl NaIRGenPass._tuple_key_of(expr: (uni.UniNode | None)) -> (str | None) {
@@ -287,7 +279,7 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
     if cname in self.struct_types {
         return self.struct_types[cname].as_pointer();
     }
-    if self._is_enum_class_type(t) {
+    if self._ensure_enum_lowered(t) {
         return ir.IntType(64);
     }
     type_args = t.private.type_args or [];
@@ -443,7 +435,7 @@ impl NaIRGenPass._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
     return ir.IntType(64);
 }
 
-impl NaIRGenPass._try_resolve_field_type(var: uni.UniNode) -> tuple {
+impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
     _ptb = var?.type;
     if _ptb is not None {
         try {
@@ -451,19 +443,50 @@ impl NaIRGenPass._try_resolve_field_type(var: uni.UniNode) -> tuple {
                 FunctionType as _FieldFnType
             }
             if isinstance(_ptb, _FieldFnType) {
-                return (self._lower_function_type_raw(_ptb), False);
+                return self._lower_function_type_raw(_ptb);
             }
         } except ImportError { }
         lowered = self._lower_type(_ptb);
         if lowered is not None {
-            return (lowered, False);
+            return lowered;
         }
-
+        if self._foreign_optional_field(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
         if not self._type_base_is_unknown(_ptb) {
-            return (ir.IntType(8).as_pointer(), True);
+            return self._emit_unlowerable_type(var, _ptb);
         }
     }
-    return (self._resolve_jac_type(var), False);
+    return self._resolve_jac_type(var);
+}
+
+impl NaIRGenPass._foreign_optional_field(tb: any) -> bool {
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _FofClassType,
+            UnionType as _FofUnionType,
+            UnknownType as _FofUnknownType
+        }
+    } except ImportError {
+        return False;
+    }
+    if not isinstance(tb, _FofUnionType) {
+        return False;
+    }
+    _members = tb.types or [];
+    _non_none = [
+        m
+        for m in _members
+        if not (
+            isinstance(m, _FofClassType)
+            and m._shared is not None
+            and m.shared.class_name in ("NoneType", "None")
+        )
+    ];
+    if len(_non_none) == len(_members) or not _non_none {
+        return False;
+    }
+    return all(isinstance(m, _FofUnknownType) for m in _non_none);
 }
 
 impl NaIRGenPass._type_base_is_unknown(tb: any) -> bool {

@@ -134,7 +134,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_field_order: dict[str, list] = {},
         struct_field_types: dict[str, dict] = {},
         struct_field_defaults: dict[str, object] = {},
-        struct_field_opaque: dict[str, set] = {},
+        struct_field_foreign: dict[str, set] = {},
         struct_field_inline: dict[str, set] = {},
         method_funcs: dict[str, ir.Function] = {},
         static_methods: dict[str, bool] = {},
@@ -453,7 +453,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_fmt_string(fmt: str) -> ir.GlobalVariable;
     def _get_snprintf_fmt(fmt: str) -> ir.GlobalVariable;
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;
-    def _try_resolve_field_type(var: uni.UniNode) -> tuple;
+    def _resolve_field_type(var: uni.UniNode) -> ir.Type;
+    def _foreign_optional_field(tb: any) -> bool;
     def _type_base_is_unknown(tb: any) -> bool;
     def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type;
     def _lower_type(t: any) -> (ir.Type | None);
@@ -461,7 +462,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _lower_function_type(t: any) -> ir.Type;
     def _type_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _enum_name_of(expr: (uni.UniNode | None)) -> (str | None);
-    def _is_enum_class_type(t: any) -> bool;
+    def _ensure_enum_lowered(t: any) -> bool;
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
@@ -613,6 +614,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _forward_declare_archetype_names(module: uni.Module) -> None;
     def _native_archetypes(module: uni.Module) -> list[uni.Archetype];
     def _register_imported_struct_types -> None;
+    def _permuted_walk_order(mods: list) -> list;
     def _ensure_imported_module_inferred(imported_mod: uni.Module) -> None;
     def _extract_import_module_name(imp: uni.Import) -> (str | None);
     def _walk_imported_module_types(imported_mod: uni.Module) -> None;

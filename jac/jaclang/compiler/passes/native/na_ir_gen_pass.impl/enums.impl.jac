@@ -1,3 +1,18 @@
+impl NaIRGenPass._ensure_enum_lowered(t: any) -> bool {
+    import from jaclang.compiler.passes.main.layout_pass {
+        is_enum_class_type,
+        enum_decl_of
+    }
+    if not is_enum_class_type(t) {
+        return False;
+    }
+    _decl = enum_decl_of(t);
+    if _decl is not None {
+        self._codegen_enum(_decl);
+    }
+    return True;
+}
+
 impl NaIRGenPass._codegen_enum(nd: uni.Enum) -> None {
     enum_name = (nd).name.value if (nd).name else "unknown_enum";
 
@@ -5,7 +20,6 @@ impl NaIRGenPass._codegen_enum(nd: uni.Enum) -> None {
         return;
     }
     self.enum_types[enum_name] = ir.IntType(64);
-    self.type_map[enum_name] = ir.IntType(64);
     self.has_native_code = True;
 
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }

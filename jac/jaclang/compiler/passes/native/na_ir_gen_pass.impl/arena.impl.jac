@@ -828,11 +828,11 @@ impl NaIRGenPass._emit_struct_drop_fields_fn(type_name: str) -> (ir.Function | N
         or self.func_symtab.get(f"{type_name}.drop");
     field_types = self.struct_field_types.get(type_name, {});
     field_indices = self.struct_field_indices.get(type_name, {});
-    opaque_fields = self.struct_field_opaque.get(type_name, set());
+    foreign_fields = self.struct_field_foreign.get(type_name, set());
     _ptr_fields = [
         (fname, ftype)
         for (fname, ftype) in field_types.items()
-        if fname not in opaque_fields
+        if fname not in foreign_fields
             and isinstance(ftype, ir.PointerType)
             and field_indices.get(fname, -1) >= 0
     ];

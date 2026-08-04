@@ -24,10 +24,10 @@ impl NaIRGenPass._require_trace_fn(
 impl NaIRGenPass._struct_has_ref_fields(arch_name: str) -> bool {
     field_types = self.struct_field_types.get(arch_name, {});
     field_indices = self.struct_field_indices.get(arch_name, {});
-    opaque_fields = self.struct_field_opaque.get(arch_name, set());
+    foreign_fields = self.struct_field_foreign.get(arch_name, set());
     for (fname, ftype) in field_types.items() {
         if isinstance(ftype, ir.PointerType)
-            and fname not in opaque_fields
+            and fname not in foreign_fields
             and field_indices.get(fname, -1) >= 0 {
             return True;
         }
@@ -52,11 +52,11 @@ impl NaIRGenPass._emit_trace_fn(arch_name: str) -> None {
     }
     field_types = self.struct_field_types.get(arch_name, {});
     field_indices = self.struct_field_indices.get(arch_name, {});
-    opaque_fields = self.struct_field_opaque.get(arch_name, set());
+    foreign_fields = self.struct_field_foreign.get(arch_name, set());
 
     ptr_fields = [];
     for (fname, ftype) in field_types.items() {
-        if fname not in opaque_fields and isinstance(ftype, ir.PointerType) {
+        if fname not in foreign_fields and isinstance(ftype, ir.PointerType) {
             idx = field_indices.get(fname, -1);
             if idx >= 0 {
                 ptr_fields.append((fname, idx));

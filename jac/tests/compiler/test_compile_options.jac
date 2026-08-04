@@ -286,3 +286,72 @@ test "no cycle counter or stack validity channel in the type system" {
         + "\n".join(offenders)
     );
 }
+
+test "native type identity never reads walk-time registration maps" {
+    import jaclang;
+    native_dir = os.path.join(
+        os.path.dirname(os.path.abspath(jaclang.__file__)),
+        "compiler",
+        "passes",
+        "native"
+    );
+    assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";
+    impl_dir = os.path.join(native_dir, "na_ir_gen_pass.impl");
+    dead_tokens = ["_try_resolve_field_type", "struct_field_opaque"];
+    write_pat = re.compile(r"self\.type_map\s*\[[^\]]*\]\s*=");
+    offenders: list[str] = [];
+    for (dirpath, _dirs, files) in os.walk(native_dir) {
+        for fname in files {
+            if not fname.endswith(".jac") {
+                continue;
+            }
+            fpath = os.path.join(dirpath, fname);
+            rel = os.path.relpath(fpath, native_dir);
+            with open(fpath, "r", encoding="utf-8", errors="replace") as f {
+                for (lineno, line) in enumerate(f, 1) {
+                    for token in dead_tokens {
+                        if token in line {
+                            offenders.append(f"{rel}:{lineno}: {line.strip()}");
+                        }
+                    }
+                    if write_pat.search(line)
+                        and rel
+                            != os.path.join("na_ir_gen_pass.impl", "core.impl.jac") {
+                        offenders.append(f"{rel}:{lineno}: {line.strip()}");
+                    }
+                }
+            }
+        }
+    }
+    assert not offenders , (
+        "walk-time type registration found in the native pass (type identity "
+        "and layout must resolve through the layout authority; type_map is a "
+        "static primitive table seeded once in postinit):\n"
+        + "\n".join(offenders)
+    );
+    enums_impl = os.path.join(impl_dir, "enums.impl.jac");
+    with open(enums_impl, "r", encoding="utf-8") as f {
+        enums_src = f.read();
+    }
+    assert "type_map" not in enums_src , (
+        "enum codegen must not register into type_map; enum identity comes "
+        "from the layout authority (is_enum_class_type / enum_decl_of)"
+    );
+    types_impl = os.path.join(impl_dir, "types.impl.jac");
+    with open(types_impl, "r", encoding="utf-8") as f {
+        types_src = f.read();
+    }
+    marker = "impl NaIRGenPass._lower_class_type(";
+    start = types_src.find(marker);
+    assert start >= 0 , "_lower_class_type impl not found";
+    nxt = types_src.find("\nimpl ", start + len(marker));
+    block = types_src[start:nxt] if nxt >= 0 else types_src[start:];
+    assert block.count("_ensure_enum_lowered") == 1 , (
+        "_lower_class_type must resolve enum identity through exactly one "
+        "authority-backed path"
+    );
+    assert "_is_enum_class_type" not in types_src , (
+        "the enum predicate lives in the layout authority module "
+        "(layout_pass.is_enum_class_type), not in the native pass"
+    );
+}

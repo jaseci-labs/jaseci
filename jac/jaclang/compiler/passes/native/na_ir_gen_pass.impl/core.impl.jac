@@ -595,6 +595,8 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         }
     }
 
+    imported_mods = self._permuted_walk_order(imported_mods);
+
     for (_, imported_mod) in imported_mods {
         self._process_clib_imports(imported_mod);
     }
@@ -614,6 +616,23 @@ impl NaIRGenPass._register_imported_struct_types -> None {
     for (_, imported_mod) in imported_mods {
         self._walk_imported_module_abilities(imported_mod);
     }
+}
+
+impl NaIRGenPass._permuted_walk_order(mods: list) -> list {
+    _spec = self.prog._compile_options.native_module_walk_order or "";
+    if not _spec {
+        return mods;
+    }
+    if _spec == "reverse" {
+        return list(reversed(mods));
+    }
+    if _spec.startswith("shuffle:") {
+        import random as _wo_random;
+        _out = list(mods);
+        _wo_random.Random(int(_spec.split(":", 1)[1])).shuffle(_out);
+        return _out;
+    }
+    raise ValueError(f"unknown native_module_walk_order: {_spec!r}");
 }
 
 impl NaIRGenPass._ensure_imported_module_inferred(imported_mod: uni.Module) -> None {

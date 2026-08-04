@@ -269,8 +269,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     field_index_map: dict[(str, int)] = {};
     field_type_map: dict[(str, ir.Type)] = {};
     field_default_map: dict[(str, object)] = {};
-
-    opaque_fields: set = set();
+    foreign_fields: set = set();
 
     if layout.vtable_ptr_slot is not None {
         field_types.append(ir.IntType(8).as_pointer().as_pointer());
@@ -296,7 +295,6 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         fname = finfo.name;
         var = finfo.decl_node;
         ftype = ir.IntType(64);
-        _is_opaque = False;
         if var is not None and var.type_tag is not None {
             if finfo.owner in self.clib_struct_names {
                 _cf_fnty = False;
@@ -312,12 +310,11 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
                     ftype = self._resolve_jac_type(var.type_tag);
                 }
             } else {
-                (ftype, _is_opaque) = self._try_resolve_field_type(var);
-                if _is_opaque {
-                    opaque_fields.add(fname);
+                ftype = self._resolve_field_type(var);
+                if self._foreign_optional_field(var?.type) {
+                    foreign_fields.add(fname);
                 }
                 if self._nogc_headerless()
-                    and not _is_opaque
                     and self._hasvar_is_own(var)
                     and isinstance(ftype, ir.PointerType) {
                     _fpn = getattr(ftype.pointee, "name", "") or "";
@@ -349,7 +346,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         field_index_map[fname] = finfo.index;
         field_type_map[fname] = ftype;
 
-        if var is not None and var.value is not None and not _is_opaque {
+        if var is not None and var.value is not None and fname not in foreign_fields {
             field_default_map[fname] = var.value;
         }
     }
@@ -367,7 +364,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     self.struct_field_order[arch_name] = [f.name for f in layout.fields];
     self.struct_field_types[arch_name] = field_type_map;
     self.struct_field_defaults[arch_name] = field_default_map;
-    self.struct_field_opaque[arch_name] = opaque_fields;
+    self.struct_field_foreign[arch_name] = foreign_fields;
 }
 
 impl NaIRGenPass._register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None {
@@ -1206,7 +1203,7 @@ impl NaIRGenPass._codegen_instantiation(
     field_indices = self.struct_field_indices.get(type_name, {});
     field_types = self.struct_field_types.get(type_name, {});
     field_defaults = self.struct_field_defaults.get(type_name, {});
-    opaque_fields = self.struct_field_opaque.get(type_name, set());
+    foreign_fields = self.struct_field_foreign.get(type_name, set());
 
     set_fields: set[str] = set();
     _field_inits: list = list(_pos_field_pairs);
@@ -1222,8 +1219,7 @@ impl NaIRGenPass._codegen_instantiation(
         if key_name not in field_indices or key_name in set_fields {
             continue;
         }
-
-        if key_name in opaque_fields {
+        if key_name in foreign_fields {
             continue;
         }
         val = self._codegen_expr(init_expr);
@@ -1303,9 +1299,6 @@ impl NaIRGenPass._codegen_instantiation(
     }
 
     for (fname, default_expr) in field_defaults.items() {
-        if fname in opaque_fields {
-            continue;
-        }
         if fname not in set_fields {
             val = self._codegen_expr(default_expr);
 
