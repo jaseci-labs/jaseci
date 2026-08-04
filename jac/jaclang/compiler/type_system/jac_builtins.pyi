@@ -78,6 +78,7 @@ __all__ = [
     "ConnectPerm",
     "WritePerm",
     # Builtin enums
+    "AccessLevel",
     "ScheduleTrigger",
     "APIProtocol",
 ]
@@ -224,6 +225,12 @@ ConnectPerm: int
 WritePerm: int
 
 # ── Builtin enums ──────────────────────────────────────────────────
+class AccessLevel:
+    NO_ACCESS: AccessLevel
+    READ: AccessLevel
+    CONNECT: AccessLevel
+    WRITE: AccessLevel
+
 class ScheduleTrigger:
     STATIC: str
     DYNAMIC: str

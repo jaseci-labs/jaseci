@@ -2051,8 +2051,15 @@ Authors choose per project -- or ship both targets from one repo while keeping s
 | `TextInput` | `input`, `textarea` | `TextInput` | RNW `TextInput` |
 | `Image` | `img` | `Image` | RNW `Image` |
 | `ScrollView` | `ul`, `ol`, scroll areas | `ScrollView` | RNW `ScrollView` |
+| `FlatList` / `SectionList` | long/grouped lists (virtualized) | `FlatList` / `SectionList` | RNW `FlatList` / `SectionList` |
+| `RefreshControl` | (pull-to-refresh) | `RefreshControl` | RNW `RefreshControl` |
+| `Modal` | `dialog` | `Modal` | RNW `Modal` |
+| `Switch` | `input type="checkbox"` | `Switch` | RNW `Switch` |
 | `Animated` / `Easing` | (CSS transitions) | `Animated` / `Easing` | RNW `Animated` / `Easing` |
-| `useWindowDimensions` | (media queries) | `useWindowDimensions` | RNW `useWindowDimensions` |
+| `useWindowDimensions` / `Dimensions` | (media queries) | `useWindowDimensions` / `Dimensions` | RNW equivalents |
+| `StatusBar` | (`theme-color` meta) | `StatusBar` | RNW `StatusBar` |
+| `Alert` | `window.alert` | `Alert` | RNW `Alert` |
+| `Linking` | `window.open` | `Linking` | RNW `Linking` |
 | `StyleSheet` | CSS / `className` | `StyleSheet.create` | RNW `StyleSheet` |
 
 Styling is React Native's model only: `style={{...}}` objects over a flexbox subset, plus an optional design-token/theme object. HTML tags are rejected at compile time (E1105); CSS imports are warned about and stripped from native builds (`.css` files never reach Metro).
@@ -2103,7 +2110,7 @@ See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics 
 Platform differences are handled in priority order:
 
 1. **The vocabulary absorbs divergence** (primary). Components own their platform differences internally -- `ScrollView`, `Image`, and future additions present one API and branch inside `@jac/mobui`. Authors see a single component.
-2. **`.native.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `examples/mobui/littlex`'s `icon.jac` / `icon.native.jac` split. The compiler picks the `.native.jac` variant when `--client react-native` is selected and falls back to `.jac` when not found. (A `Platform.os` / `Platform.select` one-liner API is planned but not yet part of `@jac/mobui`.)
+2. **`.native.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `examples/mobui/littlex`'s `icon.jac` / `icon.native.jac` split. The compiler picks the `.native.jac` variant when `--client react-native` is selected and falls back to `.jac` when not found. Reach for a file pair only when the two platforms need *different imports*; for branching on values, `Platform` is already part of the vocabulary, so `Platform.OS` and `Platform.select({ios: ..., android: ..., default: ...})` work inline.
 
 #### What carries over from web
 
