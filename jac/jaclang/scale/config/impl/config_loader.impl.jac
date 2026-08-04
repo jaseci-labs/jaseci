@@ -536,13 +536,15 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
 }
 
 
-impl normalize_microservices_config(ms_config: dict[str, any]) -> dict[str, any] {
+impl normalize_microservices_config(
+    ms_config: dict[str, any], env_routes_fallback: bool = True
+) -> dict[str, any] {
     client_config = ms_config.get('client', {});
     cors_config = ms_config.get('cors', {});
     rl_config = ms_config.get('rate_limit', {});
 
     routes: dict[str, any] = dict(ms_config.get('routes', {}));
-    if not routes {
+    if not routes and env_routes_fallback {
         import json;
         env_routes: str = os.environ.get('JAC_SV_ROUTES', '');
         if env_routes {
