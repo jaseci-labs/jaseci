@@ -1,4 +1,5 @@
 import from jaclang.compiler.targets.abi { classify_foreign_fn }
+import from jaclang.jac0core.constant { OwnershipKind }
 
 impl NaIRGenPass.builder.getter -> ir.IRBuilder {
     if self._builder is None {
@@ -13,6 +14,31 @@ impl NaIRGenPass.builder.getter -> ir.IRBuilder {
 impl NaIRGenPass._forward_declare_functions(module: uni.Module) -> None {
     for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
         self._maybe_declare_ability(stmt);
+    }
+}
+
+impl NaIRGenPass._apply_ownership_param_attrs(
+    func: ir.Function, params: list[uni.ParamVar], base: int
+) -> None {
+    for (i, p) in enumerate(params) {
+        if p.type_tag is None {
+            continue;
+        }
+        kind = p.type_tag.ownership;
+        if kind == OwnershipKind.NONE {
+            continue;
+        }
+        arg = func.args[i + base];
+        if not isinstance(arg.type, ir.PointerType) {
+            continue;
+        }
+        if kind
+            in (OwnershipKind.OWN, OwnershipKind.MUT_BORROW, OwnershipKind.BORROW) {
+            arg.add_attribute("noalias");
+        }
+        if kind in (OwnershipKind.BORROW, OwnershipKind.IMM) {
+            arg.add_attribute("readonly");
+        }
     }
 }
 
@@ -79,6 +105,7 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     for (i, p) in enumerate(sig.get_parameters()) {
         func.args[i].name = p.name.value if p.name else f"arg{i}";
     }
+    self._apply_ownership_param_attrs(func, sig.get_parameters(), 0);
     self.func_symtab[name] = func;
 
     self._func_loc[name] = nd.loc.first_line if nd.loc else 0;
@@ -329,7 +356,7 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.nogc_stack_vars = set();
+    self.nogc_no_free_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
@@ -430,7 +457,7 @@ impl NaIRGenPass._codegen_test(nd: uni.Test) -> None {
     fail_bb = func.append_basic_block(name="test.fail");
     self._builder = ir.IRBuilder(entry_bb);
     self.local_vars = {};
-    self.nogc_stack_vars = set();
+    self.nogc_no_free_vars = set();
     self.region_handle_vars = set();
     saved_param_vars = self.param_vars;
     self.param_vars = set();
@@ -601,7 +628,7 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     saved_cell_handles = self.closure_cell_handles;
     self._builder = ir.IRBuilder(fn.append_basic_block("entry"));
     self.local_vars = {};
-    self.nogc_stack_vars = set();
+    self.nogc_no_free_vars = set();
     self.region_handle_vars = set();
     self.param_vars = set();
     self.var_list_elem_struct = {};
@@ -931,7 +958,7 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     saved_builder = self._builder;
     saved_locals = self.local_vars if self?.local_vars else {};
     saved_params = self.param_vars;
-    saved_nogc = self.nogc_stack_vars;
+    saved_nogc = self.nogc_no_free_vars;
     saved_region = self.region_handle_vars;
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
@@ -941,7 +968,7 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self._builder = ir.IRBuilder(entry_bb);
     self.local_vars = {};
     self.param_vars = set();
-    self.nogc_stack_vars = set();
+    self.nogc_no_free_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
@@ -1030,7 +1057,7 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self._builder = saved_builder;
     self.local_vars = saved_locals;
     self.param_vars = saved_params;
-    self.nogc_stack_vars = saved_nogc;
+    self.nogc_no_free_vars = saved_nogc;
     self.region_handle_vars = saved_region;
     self.closure_cell_vars = saved_cell_vars;
     self.closure_cell_handles = saved_cell_handles;
@@ -1042,7 +1069,7 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.nogc_stack_vars = set();
+    self.nogc_no_free_vars = set();
     self.region_handle_vars = set();
 
     if self.rc_alloc_fn is None {
@@ -1179,7 +1206,7 @@ impl NaIRGenPass._emit_glob_init_func -> None {
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.nogc_stack_vars = set();
+    self.nogc_no_free_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
@@ -1357,7 +1384,7 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.nogc_stack_vars = set();
+    self.nogc_no_free_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};

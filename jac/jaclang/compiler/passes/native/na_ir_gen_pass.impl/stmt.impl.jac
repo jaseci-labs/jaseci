@@ -1,7 +1,12 @@
 impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
+    _ar_open = self.ir_in.gen?.anon_region_open or {};
+    _ar_close = self.ir_in.gen?.anon_region_close or {};
     for stmt in stmts {
         if self.builder.block.is_terminated {
             break;
+        }
+        if id(stmt) in _ar_open {
+            self._open_anon_region(_ar_open[id(stmt)]);
         }
 
         _di_blk_count_snap = 0;
@@ -22,6 +27,9 @@ impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
         }
         self._codegen_stmt(stmt);
         self._emit_last_use_releases(stmt);
+        if id(stmt) in _ar_close {
+            self._close_anon_region(_ar_close[id(stmt)]);
+        }
 
         if _di_blk_snap is not None and _di_line_snap > 0 {
             try {
@@ -63,7 +71,7 @@ impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
         if name == "self" or name in self.param_vars {
             continue;
         }
-        if name in self.nogc_stack_vars {
+        if name in self.nogc_no_free_vars {
             continue;
         }
         alloca = self.local_vars.get(name);
@@ -2123,7 +2131,11 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     if not (
                         self._nogc_headerless()
                         and getattr(nd, 'na_overwrite_consumed', False)
-                    ) {
+                    )
+                        and not (
+                            self._gc_mode() == "none"
+                            and var_name in self.nogc_no_free_vars
+                        ) {
                         old_val = self.builder.load(alloca, name=f"{var_name}.old");
                         self._emit_rc_release_typed(
                             old_val,
@@ -2463,7 +2475,11 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     if not (
                         self._nogc_headerless()
                         and getattr(nd, 'na_overwrite_consumed', False)
-                    ) {
+                    )
+                        and not (
+                            self._gc_mode() == "none"
+                            and var_name in self.nogc_no_free_vars
+                        ) {
                         old_val = self.builder.load(alloca, name=f"{var_name}.old");
                         self._emit_rc_release_typed(
                             old_val,
@@ -2546,6 +2562,9 @@ impl NaIRGenPass._codegen_ctrl(nd: uni.CtrlStmt) -> None {
 
 impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     if self._try_iter_protocol_for(nd) {
+        return;
+    }
+    if self._try_flow_for_parallel(nd) {
         return;
     }
 
@@ -2794,6 +2813,441 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     );
 }
 
+impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
+    import from jaclang.jac0core.constant { Tokens as Tok }
+    _is_flow = False;
+    for k in nd.kid {
+        if isinstance(k, uni.Token) and k.name == Tok.KW_FLOW {
+            _is_flow = True;
+            break;
+        }
+    }
+    if not _is_flow {
+        return False;
+    }
+    if not (self.ir_in.gen.nogc_enforced and self._gc_mode() == "none") {
+        return False;
+    }
+    if "wasm" in str(self.llvm_module.triple) {
+        return False;
+    }
+    if self._gen_ctx is not None {
+        return False;
+    }
+    if isinstance(nd.target, uni.TupleVal) {
+        return False;
+    }
+    loop_var = self._get_name(nd.target);
+    if loop_var is None or not isinstance(nd.collection, uni.UnaryExpr) {
+        return False;
+    }
+    coll = self._codegen_expr(nd.collection);
+    if coll is None {
+        return False;
+    }
+    elem_type_name: (str | None) = self._infer_list_elem_type(coll);
+    if elem_type_name is None {
+        elem_type_name = self._elem_spec_of(nd.collection);
+    }
+    if elem_type_name is None and isinstance(coll.type, ir.PointerType) {
+        elem_type_name = "ptr";
+    }
+    helpers = self.list_helpers.get(elem_type_name) if elem_type_name else None;
+    if helpers is None {
+        return False;
+    }
+    actual_elem_type = helpers["elem_type"];
+    _elem_cast: (ir.Type | None) = None;
+    if elem_type_name == "ptr" {
+        _inner = self._list_elem_llvm_of(nd.collection);
+        if _inner is not None and isinstance(_inner, ir.PointerType) {
+            _elem_cast = _inner;
+            actual_elem_type = _inner;
+        }
+    }
+
+    i64 = ir.IntType(64);
+    i32 = ir.IntType(32);
+    i8p = ir.IntType(8).as_pointer();
+
+    _caps: list[str] = [];
+    for st in (nd.body or []) {
+        for anm in st.get_all_sub_nodes(uni.Name) {
+            _nmn = anm.sym_name;
+            if _nmn == loop_var or _nmn in _caps or _nmn not in self.local_vars {
+                continue;
+            }
+            _decl = anm.sym.decl if anm.sym is not None else None;
+            _inside = False;
+            _cur: (uni.UniNode | None) = _decl;
+            while _cur is not None {
+                if _cur is nd {
+                    _inside = True;
+                    break;
+                }
+                _cur = _cur.parent;
+            }
+            if not _inside {
+                _caps.append(_nmn);
+            }
+        }
+    }
+    _cap_vals: list = [];
+    for _cn in _caps {
+        _cap_vals.append(
+            self.builder.load(self.local_vars[_cn], name=f"ffor.cap.{_cn}")
+        );
+    }
+
+    _ctx_field_types = [coll.type] + [v.type for v in _cap_vals];
+    _ctx_ty = ir.LiteralStructType(_ctx_field_types);
+    _ctx_slot = self.builder.alloca(_ctx_ty, name="ffor.ctx");
+    self.builder.store(
+        coll,
+        self.builder.gep(
+            _ctx_slot, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ffor.ctx.coll"
+        )
+    );
+    for (_ci, _cv) in enumerate(_cap_vals) {
+        self.builder.store(
+            _cv,
+            self.builder.gep(
+                _ctx_slot,
+                [ir.Constant(i32, 0), ir.Constant(i32, _ci + 1)],
+                name=f"ffor.ctx.{_caps[_ci]}"
+            )
+        );
+    }
+    _ctx8 = self.builder.bitcast(_ctx_slot, i8p, name="ffor.ctx8");
+
+    self._str_count += 1;
+    _fid = self._str_count;
+    _body_fn = ir.Function(
+        self.llvm_module,
+        ir.FunctionType(ir.VoidType(), [i8p, i64, i64]),
+        name=f"__jac_ffor_body_{_fid}"
+    );
+    _body_fn.linkage = "private";
+    _body_fn.args[0].name = "ctx";
+    _body_fn.args[1].name = "lo";
+    _body_fn.args[2].name = "hi";
+
+    saved_builder = self._builder;
+    saved_locals = self.local_vars;
+    saved_nogc = self.nogc_no_free_vars;
+    saved_region_handles = self.region_handle_vars;
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
+    saved_loop_stack = self.loop_stack;
+    saved_region_stack = self.region_stack;
+    saved_di = self._di_current_sp;
+
+    _b_entry = _body_fn.append_basic_block("entry");
+    self._builder = ir.IRBuilder(_b_entry);
+    self.local_vars = {};
+    self.nogc_no_free_vars = set();
+    self.region_handle_vars = set();
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
+    self.loop_stack = [];
+    self.region_stack = [];
+    self._di_current_sp = None;
+
+    _bctx = self.builder.bitcast(_body_fn.args[0], _ctx_ty.as_pointer(), name="ctx.t");
+    _bcoll = self.builder.load(
+        self.builder.gep(
+            _bctx, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ctx.coll.p"
+        ),
+        name="ctx.coll"
+    );
+    for (_ci, _cn) in enumerate(_caps) {
+        _cval = self.builder.load(
+            self.builder.gep(
+                _bctx,
+                [ir.Constant(i32, 0), ir.Constant(i32, _ci + 1)],
+                name=f"ctx.{_cn}.p"
+            ),
+            name=f"ctx.{_cn}"
+        );
+        _calloca = self._entry_alloca(_cval.type, _cn);
+        self.builder.store(_cval, _calloca);
+        self.local_vars[_cn] = _calloca;
+    }
+    _lv_alloca = self._entry_alloca(actual_elem_type, loop_var);
+    self.local_vars[loop_var] = _lv_alloca;
+    if isinstance(actual_elem_type, ir.PointerType) {
+        self.nogc_no_free_vars.add(loop_var);
+    }
+    _idx_alloca = self._entry_alloca(i64, "ffor.idx");
+    self.builder.store(_body_fn.args[1], _idx_alloca);
+
+    _c_cond = _body_fn.append_basic_block("ffor.cond");
+    _c_body = _body_fn.append_basic_block("ffor.body");
+    _c_incr = _body_fn.append_basic_block("ffor.incr");
+    _c_end = _body_fn.append_basic_block("ffor.end");
+    self.builder.branch(_c_cond);
+    self.builder.position_at_end(_c_cond);
+    _ci_cur = self.builder.load(_idx_alloca, name="ffor.cur");
+    self.builder.cbranch(
+        self.builder.icmp_signed("<", _ci_cur, _body_fn.args[2], name="ffor.cmp"),
+        _c_body,
+        _c_end
+    );
+    self.builder.position_at_end(_c_body);
+    _bidx = self.builder.load(_idx_alloca, name="ffor.bidx");
+    _elem = self.builder.call(helpers["get"], [_bcoll, _bidx], name="ffor.elem");
+    if _elem_cast is not None {
+        _elem = self.builder.bitcast(_elem, _elem_cast, name="ffor.elem.cast");
+    }
+    self.builder.store(_elem, _lv_alloca);
+
+    import from jaclang.compiler.passes.main.rc_facts_pass { loop_body_locals }
+    _ff_saved = loop_body_locals(
+        nd.body if isinstance(nd.body, (list, tuple)) else None
+    );
+    _ff_prebody = set(self.local_vars.keys());
+    self.loop_stack.append((_c_incr, _c_end));
+    if isinstance(nd.body, (list, tuple)) {
+        self._codegen_body(nd.body);
+    }
+    self.loop_stack.pop();
+    if not self.builder.block.is_terminated {
+        self._emit_loop_iter_cleanup(
+            [
+                _v
+                for _v in _ff_saved
+                if _v not in _ff_prebody
+            ],
+            loc="ffor.iter"
+        );
+        self.builder.branch(_c_incr);
+    }
+    self.builder.position_at_end(_c_incr);
+    self.builder.store(
+        self.builder.add(
+            self.builder.load(_idx_alloca, name="ffor.inc"),
+            ir.Constant(i64, 1),
+            name="ffor.next"
+        ),
+        _idx_alloca
+    );
+    self.builder.branch(_c_cond);
+    self.builder.position_at_end(_c_end);
+    self.builder.ret_void();
+    for bb in _body_fn.basic_blocks {
+        if not bb.is_terminated {
+            ir.IRBuilder(bb).ret_void();
+        }
+    }
+
+    _arg_ty = ir.LiteralStructType([i8p, i64, i64]);
+    _thunk_fn = ir.Function(
+        self.llvm_module, ir.FunctionType(i8p, [i8p]), name=f"__jac_ffor_thunk_{_fid}"
+    );
+    _thunk_fn.linkage = "private";
+    _tb = ir.IRBuilder(_thunk_fn.append_basic_block("entry"));
+    _ta = _tb.bitcast(_thunk_fn.args[0], _arg_ty.as_pointer(), name="arg.t");
+    _t_ctx = _tb.load(
+        _tb.gep(_ta, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="a.ctx.p"),
+        name="a.ctx"
+    );
+    _t_lo = _tb.load(
+        _tb.gep(_ta, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="a.lo.p"),
+        name="a.lo"
+    );
+    _t_hi = _tb.load(
+        _tb.gep(_ta, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="a.hi.p"),
+        name="a.hi"
+    );
+    _tb.call(_body_fn, [_t_ctx, _t_lo, _t_hi]);
+    _tb.ret(ir.Constant(i8p, None));
+
+    self._builder = saved_builder;
+    self.local_vars = saved_locals;
+    self.nogc_no_free_vars = saved_nogc;
+    self.region_handle_vars = saved_region_handles;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
+    self.loop_stack = saved_loop_stack;
+    self.region_stack = saved_region_stack;
+    self._di_current_sp = saved_di;
+
+    _len_val = self.builder.call(helpers["len"], [coll], name="ffor.len");
+    _getenv_fn = self._get_or_declare_extern("getenv", i8p, [i8p]);
+    _atoi_fn = self._get_or_declare_extern("atoi", i32, [i8p]);
+    _thr_fnty_p = ir.FunctionType(i8p, [i8p]).as_pointer();
+    _pcreate = self._get_or_declare_extern(
+        "pthread_create", i32, [i64.as_pointer(), i8p, _thr_fnty_p, i8p]
+    );
+    _pjoin = self._get_or_declare_extern("pthread_join", i32, [i64, i8p]);
+
+    _env_key_gv = self._get_snprintf_fmt("JAC_FLOW_THREADS");
+    _env_key = self.builder.gep(
+        _env_key_gv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ffor.env.key"
+    );
+    _env_val = self.builder.call(_getenv_fn, [_env_key], name="ffor.env");
+    _env_null = self.builder.icmp_unsigned(
+        "==", _env_val, ir.Constant(i8p, None), name="ffor.env.null"
+    );
+    _nt_slot = self.builder.alloca(i32, name="ffor.nt.slot");
+    self.builder.store(ir.Constant(i32, 4), _nt_slot);
+    _envfunc = self.builder.function;
+    _env_parse = _envfunc.append_basic_block("ffor.env.parse");
+    _env_done = _envfunc.append_basic_block("ffor.env.done");
+    self.builder.cbranch(_env_null, _env_done, _env_parse);
+    self.builder.position_at_end(_env_parse);
+    self.builder.store(
+        self.builder.call(_atoi_fn, [_env_val], name="ffor.env.nt"), _nt_slot
+    );
+    self.builder.branch(_env_done);
+    self.builder.position_at_end(_env_done);
+    _nt = self.builder.sext(
+        self.builder.load(_nt_slot, name="ffor.nt.raw"), i64, name="ffor.nt64"
+    );
+    _nt = self.builder.select(
+        self.builder.icmp_signed("<", _nt, ir.Constant(i64, 1), name="ffor.nt.lo"),
+        ir.Constant(i64, 1),
+        _nt,
+        name="ffor.nt.min"
+    );
+    _nt = self.builder.select(
+        self.builder.icmp_signed(">", _nt, _len_val, name="ffor.nt.hi"),
+        _len_val,
+        _nt,
+        name="ffor.nt.cap"
+    );
+    _nt = self.builder.select(
+        self.builder.icmp_signed("<", _nt, ir.Constant(i64, 1), name="ffor.nt.lo2"),
+        ir.Constant(i64, 1),
+        _nt,
+        name="ffor.nt"
+    );
+    _chunk = self.builder.sdiv(
+        self.builder.sub(
+            self.builder.add(_len_val, _nt, name="ffor.ln"),
+            ir.Constant(i64, 1),
+            name="ffor.ln1"
+        ),
+        _nt,
+        name="ffor.chunk"
+    );
+    _tid_arr = self.builder.alloca(i64, size=_nt, name="ffor.tids");
+    _arg_arr = self.builder.alloca(_arg_ty, size=_nt, name="ffor.args");
+
+    func = self.builder.function;
+    _s_cond = func.append_basic_block("ffor.spawn.cond");
+    _s_body = func.append_basic_block("ffor.spawn.body");
+    _s_seq = func.append_basic_block("ffor.spawn.seq");
+    _s_next = func.append_basic_block("ffor.spawn.next");
+    _j_cond = func.append_basic_block("ffor.join.cond");
+    _j_body = func.append_basic_block("ffor.join.body");
+    _j_do = func.append_basic_block("ffor.join.do");
+    _j_next = func.append_basic_block("ffor.join.next");
+    _done_bb = func.append_basic_block("ffor.done");
+
+    _t_slot = self.builder.alloca(i64, name="ffor.t");
+    self.builder.store(ir.Constant(i64, 0), _t_slot);
+    self.builder.branch(_s_cond);
+
+    self.builder.position_at_end(_s_cond);
+    _t_cur = self.builder.load(_t_slot, name="ffor.t.cur");
+    _t_lo2 = self.builder.mul(_t_cur, _chunk, name="ffor.t.lo");
+    _t_in = self.builder.and_(
+        self.builder.icmp_signed("<", _t_cur, _nt, name="ffor.t.lt"),
+        self.builder.icmp_signed("<", _t_lo2, _len_val, name="ffor.lo.lt"),
+        name="ffor.t.in"
+    );
+    self.builder.cbranch(_t_in, _s_body, _j_cond);
+
+    self.builder.position_at_end(_s_body);
+    _hi_raw = self.builder.add(_t_lo2, _chunk, name="ffor.hi.raw");
+    _t_hi2 = self.builder.select(
+        self.builder.icmp_signed(">", _hi_raw, _len_val, name="ffor.hi.over"),
+        _len_val,
+        _hi_raw,
+        name="ffor.t.hi"
+    );
+    _ap = self.builder.gep(_arg_arr, [_t_cur], name="ffor.a.p");
+    self.builder.store(
+        _ctx8,
+        self.builder.gep(
+            _ap, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ffor.a.ctx"
+        )
+    );
+    self.builder.store(
+        _t_lo2,
+        self.builder.gep(
+            _ap, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="ffor.a.lo"
+        )
+    );
+    self.builder.store(
+        _t_hi2,
+        self.builder.gep(
+            _ap, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="ffor.a.hi"
+        )
+    );
+    _tp = self.builder.gep(_tid_arr, [_t_cur], name="ffor.tid.p");
+    self.builder.store(ir.Constant(i64, 0), _tp);
+    _crc = self.builder.call(
+        _pcreate,
+        [
+            _tp,
+            ir.Constant(i8p, None),
+            _thunk_fn,
+            self.builder.bitcast(_ap, i8p, name="ffor.a8")
+        ],
+        name="ffor.crc"
+    );
+    self.builder.cbranch(
+        self.builder.icmp_signed("!=", _crc, ir.Constant(i32, 0), name="ffor.crc.bad"),
+        _s_seq,
+        _s_next
+    );
+    self.builder.position_at_end(_s_seq);
+    self.builder.store(ir.Constant(i64, 0), _tp);
+    self.builder.call(_body_fn, [_ctx8, _t_lo2, _t_hi2]);
+    self.builder.branch(_s_next);
+
+    self.builder.position_at_end(_s_next);
+    self.builder.store(
+        self.builder.add(_t_cur, ir.Constant(i64, 1), name="ffor.t.next"), _t_slot
+    );
+    self.builder.branch(_s_cond);
+
+    self.builder.position_at_end(_j_cond);
+    self.builder.store(ir.Constant(i64, 0), _t_slot);
+    self.builder.branch(_j_body);
+    self.builder.position_at_end(_j_body);
+    _jt = self.builder.load(_t_slot, name="ffor.j.t");
+    _j_lo = self.builder.mul(_jt, _chunk, name="ffor.j.lo");
+    _j_in = self.builder.and_(
+        self.builder.icmp_signed("<", _jt, _nt, name="ffor.j.lt"),
+        self.builder.icmp_signed("<", _j_lo, _len_val, name="ffor.j.lo.lt"),
+        name="ffor.j.in"
+    );
+    self.builder.cbranch(_j_in, _j_do, _done_bb);
+    self.builder.position_at_end(_j_do);
+    _jtid = self.builder.load(
+        self.builder.gep(_tid_arr, [_jt], name="ffor.j.tid.p"), name="ffor.j.tid"
+    );
+    _j_live = self.builder.icmp_signed(
+        "!=", _jtid, ir.Constant(i64, 0), name="ffor.j.live"
+    );
+    _j_wait = func.append_basic_block("ffor.join.wait");
+    self.builder.cbranch(_j_live, _j_wait, _j_next);
+    self.builder.position_at_end(_j_wait);
+    self.builder.call(_pjoin, [_jtid, ir.Constant(i8p, None)]);
+    self.builder.branch(_j_next);
+    self.builder.position_at_end(_j_next);
+    self.builder.store(
+        self.builder.add(_jt, ir.Constant(i64, 1), name="ffor.j.next"), _t_slot
+    );
+    self.builder.branch(_j_body);
+
+    self.builder.position_at_end(_done_bb);
+    return True;
+}
+
 impl NaIRGenPass._codegen_for_indexed(
     nd: uni.InForStmt,
     kind: str,
@@ -2883,12 +3337,21 @@ impl NaIRGenPass._codegen_for_indexed(
                     self.builder.position_at_end(_saved_block);
                 }
                 if rc_vars {
-                    _pre_old = self.builder.load(alloca, name="for.pre.old");
-                    self._emit_rc_release_simple(_pre_old, op="for_reset", loc=_rc_loc);
+                    if self._gc_mode() != "none" {
+                        _pre_old = self.builder.load(alloca, name="for.pre.old");
+                        self._emit_rc_release_simple(
+                            _pre_old, op="for_reset", loc=_rc_loc
+                        );
+                    }
                     self.builder.store(null_const, alloca);
                 }
             }
             self.local_vars[vname] = alloca;
+            if rc_vars
+                and isinstance(vtype, ir.PointerType)
+                and self._gc_mode() == "none" {
+                self.nogc_no_free_vars.add(vname);
+            }
             allocas.append(alloca);
         }
     }
@@ -2990,7 +3453,9 @@ impl NaIRGenPass._codegen_for_indexed(
                     );
                 }
             } else {
-                if rc_vars and isinstance(var_types[0], ir.PointerType) {
+                if rc_vars
+                    and isinstance(var_types[0], ir.PointerType)
+                    and self._gc_mode() != "none" {
                     old_val = self.builder.load(allocas[0], name="for.old");
                     self._emit_rc_release_simple(old_val, op="for_elem", loc=_rc_loc);
                     self._emit_rc_retain(elem_val, op="for_elem", loc=_rc_loc);

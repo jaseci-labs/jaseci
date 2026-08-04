@@ -12,7 +12,14 @@ def _stack -> list {
 }
 
 obj JacRegion {
-    has _drops: list[any] = [];
+    has _drops: list[any] = [],
+        _parent: any = None;
+
+    def partition -> JacRegion {
+        c = JacRegion();
+        c._parent = self;
+        return c;
+    }
 
     def _jac_open {
         _stack().append(self);
@@ -37,6 +44,12 @@ obj JacRegion {
     def _jac_drop {
         _pending = self._drops;
         self._drops = [];
+        _p = self._parent;
+        if _p is not None {
+            self._parent = None;
+            _p._drops.extend(_pending);
+            return;
+        }
         for o in reversed(_pending) {
             try {
                 o.drop();
