@@ -6,6 +6,7 @@ import from jaclang.compiler.passes.ecmascript.reactive_intent {
     Effect,
     AsyncBoundary
 }
+import type from jaclang.compiler.passes.ecmascript.view_ir { ViewElement }
 
 impl ReactBackend.name -> str {
     return "react";
@@ -94,7 +95,9 @@ impl ReactBackend._jsx_fragment(children: list[es.Expression]) -> es.CallExpress
     );
 }
 
-impl ReactBackend.runtime_symbols(intent: any) -> list[str] {
+impl ReactBackend.runtime_symbols(
+    intent: StateField | RefField | Effect | AsyncBoundary | ViewElement
+) -> list[str] {
     if isinstance(intent, StateField) {
         return ["useState"];
     }

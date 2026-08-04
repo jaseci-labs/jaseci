@@ -1,7 +1,10 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 import from jaclang.compiler.passes.ecmascript.intent.collector { IntentCollector }
-import from jaclang.compiler.passes.ecmascript.intent.session { IntentSession }
+import from jaclang.compiler.passes.ecmascript.intent.session {
+    IntentSession,
+    SkipExistingPolicy
+}
 import from jaclang.compiler.passes.ecmascript.intent.detection {
     COMPOSE_COMPONENT_TYPES,
     unwrap_ability_body
@@ -42,7 +45,7 @@ impl ComposeGenPass.before_pass -> None {
         component_types=COMPOSE_COMPONENT_TYPES,
         strict_arch_has=False,
         use_arch_has_dedup=True,
-        skip_existing_policy="module",
+        skip_existing_policy=SkipExistingPolicy.MODULE,
         reactive_vars=self.reactive_vars
     );
 }
@@ -141,6 +144,15 @@ impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
         self._session().record_and_lower_effect(nd);
     }
 
+    # KNOWN LIMITATION (JSX-only-on-return): a component's view is captured
+    # only when the JSX is the direct expression of a top-level ReturnStmt in
+    # the ability body. exit_jsx_element is a no-op below, so JSX that is (a)
+    # nested inside an if/when/match branch, (b) bound to a variable then
+    # returned, or (c) used as a non-return expression is not lowered into the
+    # Compose view IR today. Multiple top-level returns overwrite, so only the
+    # last one wins. Generalizing this needs recursive statement traversal;
+    # see test_compose_gen_pass "JSX ... not yet captured" cases which pin the
+    # current behavior.
     inner = unwrap_ability_body(nd);
     if inner {
         self._sync_lowerer_reactive_vars();

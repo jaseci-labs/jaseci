@@ -583,19 +583,19 @@ impl TypeEvaluator._compose_composable_instance -> TypeBase {
 
 impl TypeEvaluator._map_compose_param(p: SigParam) -> TypeBase {
     foreign_any = types.AnyType(is_foreign=True);
-    if p.kind == "modifier" {
+    if p.kind == ComposeParamKind.MODIFIER {
         mc = self._get_type_from_module(self.js_globals_module, "ModifierChain");
         if isinstance(mc, types.ClassType) {
             return self._convert_to_instance(mc);
         }
         return foreign_any;
     }
-    if p.kind == "slot" {
+    if p.kind == ComposeParamKind.SLOT {
         return types.FunctionType(
             func_name='', return_type=self._compose_composable_instance(), parameters=[]
         );
     }
-    if p.kind == "event" {
+    if p.kind == ComposeParamKind.EVENT {
         return self._map_kotlin_lambda(p.ptype);
     }
     return self._map_kotlin_type(p.ptype);

@@ -1,10 +1,11 @@
 import jaclang.jac0core.unitree as uni;
 import type from jaclang.compiler.passes.compose.kotlin_ast { KtNode }
+import from jaclang.compiler.type_system.compose_signatures { ComposeParamKind }
 
 obj ComposeAttr {
     has name: str,
         value: KtNode,
-        param_kind: str = "",
+        param_kind: (ComposeParamKind | None) = None,
         is_event: bool = False,
         jac_node: (uni.UniNode | None) = None;
 }

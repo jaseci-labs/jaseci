@@ -484,7 +484,9 @@ impl SolidBackend.lower_async_boundary(a: AsyncBoundary) -> es.Expression {
     return self.lower_view(error_view, self._noloc);
 }
 
-impl SolidBackend.runtime_symbols(intent: any) -> list[str] {
+impl SolidBackend.runtime_symbols(
+    intent: StateField | RefField | Effect | AsyncBoundary | ViewElement
+) -> list[str] {
     if isinstance(intent, StateField) {
         return ["createSignal"];
     }

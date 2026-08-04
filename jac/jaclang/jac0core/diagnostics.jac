@@ -1387,6 +1387,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Argument '{name}' for server function '{func}' is given both positionally and by keyword"
      ),
      E5081 = _err("E5081", Category.CODEGEN, "Unknown client framework '{framework}'"),
+     E5082 = _err(
+         "E5082",
+         Category.CODEGEN,
+         "Client framework 'compose' is the Android (Jetpack Compose) surface and cannot be lowered through the web/ES client",
+         help="Compose codegen only runs under the Android target. To build for the web, remove `[client] framework = \"compose\"` (or the --client-framework compose override); to build the Compose app, use `jac start --client android`."
+     ),
      E5083 = _err(
          "E5083",
          Category.CODEGEN,

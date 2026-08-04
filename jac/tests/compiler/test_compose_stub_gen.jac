@@ -7,6 +7,7 @@ current.txt is wired in at build time; this pins the parse + classification.
 """
 
 import from jaclang.compiler.type_system.compose_signatures {
+    ComposeParamKind,
     parse_signature_text,
     parse_modifier_text,
     parse_const_text,
@@ -92,19 +93,19 @@ test "parameters classify as modifier / event / slot / value" {
     sigs = parse_signature_text(FIXTURE);
     byname = {s.name: s for s in sigs};
     btn = {p.name: p.kind for p in byname["Button"].params};
-    assert btn["onClick"] == "event";
-    assert btn["modifier"] == "modifier";
-    assert btn["enabled"] == "value";
-    assert btn["content"] == "slot";
+    assert btn["onClick"] == ComposeParamKind.EVENT;
+    assert btn["modifier"] == ComposeParamKind.MODIFIER;
+    assert btn["enabled"] == ComposeParamKind.VALUE;
+    assert btn["content"] == ComposeParamKind.SLOT;
 
     slider = {p.name: p.kind for p in byname["Slider"].params};
-    assert slider["value"] == "value";
-    assert slider["onValueChange"] == "event";
+    assert slider["value"] == ComposeParamKind.VALUE;
+    assert slider["onValueChange"] == ComposeParamKind.EVENT;
 
     dialog = {p.name: p.kind for p in byname["AlertDialog"].params};
-    assert dialog["onDismissRequest"] == "event";
-    assert dialog["confirmButton"] == "slot";
-    assert dialog["title"] == "slot";
+    assert dialog["onDismissRequest"] == ComposeParamKind.EVENT;
+    assert dialog["confirmButton"] == ComposeParamKind.SLOT;
+    assert dialog["title"] == ComposeParamKind.SLOT;
 }
 
 test "slot_table surfaces content slots per widget" {
@@ -141,8 +142,8 @@ test "modifier overloads collapse to the richest signature" {
 test "modifier params classify value vs event lambda" {
     byname = {s.name: s for s in parse_modifier_text(MOD_FIXTURE)};
     clk = {p.name: p.kind for p in byname["clickable"].params};
-    assert clk["enabled"] == "value";
-    assert clk["onClick"] == "event";
+    assert clk["enabled"] == ComposeParamKind.VALUE;
+    assert clk["onClick"] == ComposeParamKind.EVENT;
 }
 
 test "emits valid def:pub stub declarations with typed params" {

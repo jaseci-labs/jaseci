@@ -9,7 +9,10 @@ import from jaclang.compiler.passes.ecmascript.intent.leaf_converter {
     EsastLeafConverter
 }
 import from jaclang.compiler.passes.ecmascript.intent.es_adapter { EsIntentAdapter }
-import from jaclang.compiler.passes.ecmascript.intent.session { IntentSession }
+import from jaclang.compiler.passes.ecmascript.intent.session {
+    IntentSession,
+    SkipExistingPolicy
+}
 import from jaclang.compiler.passes.ecmascript.intent.detection {
     JSX_COMPONENT_TYPES,
     arch_has_applicable,
@@ -29,6 +32,30 @@ impl EsastGenPass._ensure_backend -> None {
         resolve_active_backend,
         resolve_framework_backend
     }
+
+    # Compose is the Android (Jetpack Compose) surface and has no web/ES
+    # lowering. It only reaches this pass under a web/codegen compile, which is
+    # a misconfiguration: Android builds lower via ComposeGenPass under no_cgen
+    # and never enter EsastGenPass. Reject it up front with E5082 instead of
+    # falling through to an opaque 'unknown framework'. effective_fw mirrors the
+    # override-then-config precedence used below so react/preact/solid resolve
+    # exactly as before.
+    if override {
+        effective_fw = override;
+    } else {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        effective_fw = (cfg.client.framework if (cfg and cfg.client) else "")
+            or "react";
+    }
+    if effective_fw == "compose" {
+        import from jaclang.jac0core.diagnostics { E5082 }
+        import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
+        self.emit(E5082);
+        self.backend = ReactBackend();
+        return;
+    }
+
     try {
         if override {
             import from jaclang.project.client_kind { resolve_client_surface }
@@ -48,7 +75,7 @@ impl EsastGenPass._ensure_backend -> None {
     } except ValueError {
         import from jaclang.jac0core.diagnostics { E5081 }
         import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-        self.emit(E5081, framework=override);
+        self.emit(E5081, framework=effective_fw);
         self.backend = ReactBackend();
     }
 }
@@ -6304,7 +6331,7 @@ impl EsastGenPass.before_pass -> None {
         component_types=JSX_COMPONENT_TYPES,
         strict_arch_has=True,
         use_arch_has_dedup=False,
-        skip_existing_policy="none",
+        skip_existing_policy=SkipExistingPolicy.NONE,
         reactive_vars=self.reactive_vars
     );
 

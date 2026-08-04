@@ -10,6 +10,8 @@ import from jaclang.compiler.passes.ecmascript.intent.semantics {
     StateUpdate
 }
 
+enum SkipExistingPolicy { NONE = "none", MODULE = "module" }
+
 obj IntentSession {
     has collector: IntentCollector,
         adapter: IntentTargetAdapter,
@@ -18,7 +20,7 @@ obj IntentSession {
         component_types: Sequence[str] = (),
         strict_arch_has: bool = False,
         use_arch_has_dedup: bool = True,
-        skip_existing_policy: str = "none",
+        skip_existing_policy: SkipExistingPolicy = SkipExistingPolicy.NONE,
         reactive_vars: set[str] = set(),
         reactive_vars_stack: list[set[str]] = [],
         _recorded_arch_has: set[int] = set();

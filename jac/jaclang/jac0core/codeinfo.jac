@@ -9,7 +9,6 @@ import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
 import type from jaclang.jac0core.unitree { CommentToken }
 import type from jaclang.compiler.passes.tool.doc_ir { Doc }
 import type from jaclang.jac0core.unitree { Source, Token }
-import type from jaclang.compiler.passes.compose.compose_model { ComposeModule }
 import type from jaclang.jac0core.osp_model { OspModel }
 import type from jaclang.compiler.passes.native.llvm.binding {
     ModuleRef,
@@ -480,7 +479,6 @@ obj CodeGenTarget {
         _interop_callbacks: list[any] = field(default_factory=`list),
         native_layout: (NativeModuleLayout | None) = None,
         osp_model: (OspModel | None) = None,
-        compose_model: (ComposeModule | None) = None,
         native_viols_reported: bool = False,
         nogc_enforced: bool = False,
         nogc_provenance: str = '',

@@ -1,6 +1,9 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
-import from jaclang.compiler.type_system.compose_signatures { widget_attr_param_kind }
+import from jaclang.compiler.type_system.compose_signatures {
+    ComposeParamKind,
+    widget_attr_param_kind
+}
 import from jaclang.compiler.passes.compose.view_ir {
     ComposeElement,
     ComposeAttr,
@@ -142,7 +145,7 @@ impl ComposeViewBuilder.build_element(nd: uni.JsxElement) -> (ComposeElement | N
                     name=aname,
                     value=kt_val,
                     param_kind=param_kind,
-                    is_event=param_kind == "event",
+                    is_event=param_kind == ComposeParamKind.EVENT,
                     jac_node=attr
                 )
             );

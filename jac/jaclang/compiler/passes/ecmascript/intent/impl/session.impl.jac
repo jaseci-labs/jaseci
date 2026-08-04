@@ -43,7 +43,7 @@ impl IntentSession.pop_ability_scope -> None {
 }
 
 impl IntentSession.arch_has_skip_existing -> set[str] {
-    if self.skip_existing_policy == "module" {
+    if self.skip_existing_policy == SkipExistingPolicy.MODULE {
         return self.collector.existing_reactive_names();
     }
     return set();

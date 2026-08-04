@@ -1,6 +1,13 @@
+enum ComposeParamKind {
+    VALUE = "value",
+    MODIFIER = "modifier",
+    EVENT = "event",
+    SLOT = "slot"
+}
+
 obj SigParam {
     has name: str = "",
-        kind: str = "value",
+        kind: ComposeParamKind = ComposeParamKind.VALUE,
         ptype: str = "",
         has_default: bool = True;
 }
@@ -64,7 +71,10 @@ def _classify_param(raw: str) -> (SigParam | None) {
     }
     if ptype == "androidx.compose.ui.Modifier" {
         return SigParam(
-            name=pname, kind="modifier", ptype=ptype, has_default=has_default
+            name=pname,
+            kind=ComposeParamKind.MODIFIER,
+            ptype=ptype,
+            has_default=has_default
         );
     }
     is_lambda = "kotlin.jvm.functions.Function" in ptype;
@@ -77,12 +87,19 @@ def _classify_param(raw: str) -> (SigParam | None) {
             and pname[2] != pname[2].lower()
         ) {
             return SigParam(
-                name=pname, kind="event", ptype=ptype, has_default=has_default
+                name=pname,
+                kind=ComposeParamKind.EVENT,
+                ptype=ptype,
+                has_default=has_default
             );
         }
-        return SigParam(name=pname, kind="slot", ptype=ptype, has_default=has_default);
+        return SigParam(
+            name=pname, kind=ComposeParamKind.SLOT, ptype=ptype, has_default=has_default
+        );
     }
-    return SigParam(name=pname, kind="value", ptype=ptype, has_default=has_default);
+    return SigParam(
+        name=pname, kind=ComposeParamKind.VALUE, ptype=ptype, has_default=has_default
+    );
 }
 
 def _parse_line(line: str) -> (ComposeSig | None) {
@@ -258,7 +275,8 @@ def parse_const_text(text: str) -> dict[str, list[ConstMember]] {
     };
 }
 
-glob _WIDGET_PARAM_KINDS_CACHE: dict[str, dict[str, dict[str, str]]] = {};
+glob _WIDGET_PARAM_KINDS_CACHE:
+         dict[str, dict[str, dict[str, ComposeParamKind]]] = {};
 
 def _compose_widgets_path -> str {
     import os;
@@ -271,20 +289,22 @@ def _compose_widgets_path -> str {
     );
 }
 
-def widget_attr_param_kind(widget_name: str, attr_name: str) -> str {
+def widget_attr_param_kind(
+    widget_name: str, attr_name: str
+) -> (ComposeParamKind | None) {
     kinds = widget_param_kind_table().get(widget_name);
     if kinds is None {
-        return "";
+        return None;
     }
-    return kinds.get(attr_name, "");
+    return kinds.get(attr_name);
 }
 
-def widget_param_kind_table -> dict[str, dict[str, str]] {
+def widget_param_kind_table -> dict[str, dict[str, ComposeParamKind]] {
     if "table" in _WIDGET_PARAM_KINDS_CACHE {
         return _WIDGET_PARAM_KINDS_CACHE["table"];
     }
     import os;
-    table: dict[str, dict[str, str]] = {};
+    table: dict[str, dict[str, ComposeParamKind]] = {};
     path = _compose_widgets_path();
     try {
         if os.path.exists(path) {
@@ -308,7 +328,7 @@ def slot_table(sigs: list[ComposeSig]) -> dict[str, list[str]] {
         slots = [
             p.name
             for p in sig.params
-            if p.kind == "slot"
+            if p.kind == ComposeParamKind.SLOT
         ];
         if slots {
             table[sig.name] = slots;

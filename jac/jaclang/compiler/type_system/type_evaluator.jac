@@ -33,6 +33,7 @@ import from jaclang.compiler.type_system.ts_decl_parser {
 }
 import from jaclang.compiler.type_system.compose_signatures {
     ComposeSig,
+    ComposeParamKind,
     SigParam,
     parse_signature_text,
     parse_modifier_text,

@@ -11,9 +11,12 @@ import from jaclang.compiler.passes.compose.view_ir {
     ComposeEachChild
 }
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
-import from jaclang.compiler.type_system.compose_signatures { widget_param_kind_table }
+import from jaclang.compiler.type_system.compose_signatures {
+    ComposeParamKind,
+    widget_param_kind_table
+}
 
-def _widget_param_kinds -> dict[str, dict[str, str]] {
+def _widget_param_kinds -> dict[str, dict[str, ComposeParamKind]] {
     return widget_param_kind_table();
 }
 
@@ -22,7 +25,7 @@ def _is_slot_param(widget_name: str, attr_name: str) -> bool {
     if kinds is None {
         return False;
     }
-    return kinds.get(attr_name) == "slot";
+    return kinds.get(attr_name) == ComposeParamKind.SLOT;
 }
 
 def _is_known_nonslot_param(widget_name: str, attr_name: str) -> bool {
@@ -31,7 +34,7 @@ def _is_known_nonslot_param(widget_name: str, attr_name: str) -> bool {
         return False;
     }
     kind = kinds.get(attr_name);
-    return kind is not None and kind != "slot";
+    return kind is not None and kind != ComposeParamKind.SLOT;
 }
 
 def _named(name: str, value: kt.KtNode) -> kt.KtNamedArg {

@@ -1,5 +1,6 @@
 """Tests for ComposeGenPass — native Compose surface (M0 gate)."""
 import from jaclang.compiler.passes.compose.compose_gen_pass { run_compose_gen_pass }
+import from jaclang.compiler.type_system.compose_signatures { ComposeParamKind }
 import from jaclang.compiler.passes.compose.compose_emit { ComposeEmit }
 import from jaclang.compiler.passes.compose.compose_native_emit { ComposeNativeEmitter }
 import from pathlib { Path }
@@ -418,7 +419,7 @@ def:pub app -> Composable {
             }
         }
         assert on_checked is not None;
-        assert on_checked.param_kind == "event";
+        assert on_checked.param_kind == ComposeParamKind.EVENT;
         assert on_checked.is_event;
     }
 }
@@ -630,4 +631,58 @@ def:pub app -> Composable {
 ''';
     assert _err_count(clean) == 0;
     assert _err_count(typo) >= 2;
+}
+
+# JSX-only-on-return limitation (see ComposeGenPass.exit_ability): a component's
+# view is captured only when the JSX is the direct expression of a top-level
+# ReturnStmt. The next two cases pin the current behavior so the gap is
+# explicit; flip the assertions when return-position lowering is generalized.
+
+test "JSX nested in an if/else return is not yet captured (known limitation)" {
+    src = '''
+def:pub app(flag: bool) -> Composable {
+    if (flag) {
+        return <Column>
+            <Text>"a"</Text>
+        </Column>;
+    } else {
+        return <Text>"b"</Text>;
+    }
+}
+''';
+    with tempfile.TemporaryDirectory() as tmp {
+        path = Path(tmp) / "app.jac";
+        path.write_text(src, encoding="utf-8");
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        program = Jac.program;
+        mod = program.compile(str(path));
+        model = run_compose_gen_pass(mod, program);
+        assert "app" in model.intent.components;
+        # Both returns live inside the IfStmt, not at the top level of the body,
+        # so no view is captured today.
+        assert model.compose_view_for("app") is None;
+    }
+}
+
+test "JSX returned via a variable is not yet captured (known limitation)" {
+    src = '''
+def:pub app -> Composable {
+    node = <Column>
+        <Text>"hi"</Text>
+    </Column>;
+    return node;
+}
+''';
+    with tempfile.TemporaryDirectory() as tmp {
+        path = Path(tmp) / "app.jac";
+        path.write_text(src, encoding="utf-8");
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        program = Jac.program;
+        mod = program.compile(str(path));
+        model = run_compose_gen_pass(mod, program);
+        assert "app" in model.intent.components;
+        # The return expression is a Name, not a JsxElement, so the view is not
+        # captured today.
+        assert model.compose_view_for("app") is None;
+    }
 }

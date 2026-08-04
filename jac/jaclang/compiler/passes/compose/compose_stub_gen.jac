@@ -1,15 +1,16 @@
 import from jaclang.compiler.type_system.compose_signatures {
     ComposeSig,
+    ComposeParamKind,
     SigParam,
     parse_signature_text,
     slot_table
 }
 
 def _param_decl(p: SigParam) -> str {
-    if p.kind == "modifier" {
+    if p.kind == ComposeParamKind.MODIFIER {
         return f"{p.name}: (ModifierChain | None) = None";
     }
-    if p.kind == "event" or p.kind == "slot" {
+    if p.kind == ComposeParamKind.EVENT or p.kind == ComposeParamKind.SLOT {
         return f"{p.name}: (any | None) = None";
     }
     return f"{p.name}: any = None";

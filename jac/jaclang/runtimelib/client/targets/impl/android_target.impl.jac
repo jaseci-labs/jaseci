@@ -340,9 +340,6 @@ impl AndroidTarget._compile_compose_modules(
     }
 
     model = run_compose_gen_pass(mod, program);
-    if hasattr(mod, "gen") {
-        mod.gen.compose_model = model;
-    }
 
     self._attach_interop_manifest(model, mod);
     self._populate_compose_routes(model, project_dir, program);
