@@ -1,7 +1,12 @@
-glob ARENA_CTRL_SIZE: int = 80,
+glob ARENA_CTRL_SIZE: int = 112,
      ARENA_CHUNK_HDR: int = 16,
      ARENA_CHUNK_DEFAULT: int = 32768,
-     ARENA_DTOR_ENTRY: int = 24;
+     ARENA_DTOR_ENTRY: int = 24,
+     ARENA_RUN_HDR: int = 16,
+     ARENA_RUN_PAGES: int = 4,
+     ARENA_RUNS_OFF: int = 80,
+     ARENA_FREEPG_OFF: int = 88,
+     ARENA_LOCK_OFF: int = 96;
 
 impl NaIRGenPass._emit_arena_helpers -> None {
     if self.arena_helpers_emitted {
@@ -55,7 +60,7 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     );
     hdl = b.gep(raw, [ir.Constant(i64, HDR_TOTAL)], name="hdl");
     b.store(ir.Constant(i8p, None), b.bitcast(hdl, i8pp, name="rgn.chunk.p"));
-    for _poff in (40, 56, 64) {
+    for _poff in (40, 56, 64, ARENA_RUNS_OFF, ARENA_FREEPG_OFF) {
         b.store(
             ir.Constant(i8p, None),
             b.bitcast(
@@ -70,7 +75,8 @@ impl NaIRGenPass._emit_arena_helpers -> None {
         (16, "cap"),
         (32, "cnt"),
         (48, "kids"),
-        (72, "flags")
+        (72, "flags"),
+        (ARENA_LOCK_OFF, "lock")
     ) {
         b.store(
             ir.Constant(i64, 0),
@@ -120,6 +126,12 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     _over = b.icmp_unsigned(">", _need, _cap0, name="over");
     b.cbranch(b.or_(_no_chunk, _over, name="must.grow"), _grow, _ready);
 
+    _draw_lock = _raw_fn.append_basic_block("raw.draw.lock");
+    _draw_pop = _raw_fn.append_basic_block("raw.draw.pop");
+    _draw_take = _raw_fn.append_basic_block("raw.draw.take");
+    _draw_fill = _raw_fn.append_basic_block("raw.draw.fill");
+    _grow_malloc = _raw_fn.append_basic_block("raw.grow.malloc");
+    _grow_init = _raw_fn.append_basic_block("raw.grow.init");
     b = ir.IRBuilder(_grow);
     _want = b.add(_size, ir.Constant(i64, ARENA_CHUNK_HDR + 15), name="want.pad");
     _want = b.and_(_want, ir.Constant(i64, -16), name="want");
@@ -129,10 +141,113 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     _csize = b.select(
         _small, ir.Constant(i64, ARENA_CHUNK_DEFAULT), _want, name="csize"
     );
-    _chunk = b.call(_malloc, [_csize], name="chunk");
-    b.store(_chunk0, b.bitcast(_chunk, i8pp, name="chunk.prev.p"));
+    _chunk_tmp = b.alloca(i8p, name="chunk.tmp");
+    _cap_tmp = b.alloca(i64, name="cap.tmp");
+    _flag_tmp = b.alloca(i64, name="flag.tmp");
+    b.store(_csize, _cap_tmp);
+    b.store(ir.Constant(i64, 0), _flag_tmp);
+    _parent = b.load(
+        b.bitcast(
+            b.gep(_hdl, [ir.Constant(i64, 40)], name="raw.par.s"),
+            i8pp,
+            name="raw.par.p"
+        ),
+        name="raw.par"
+    );
+    _has_par = b.icmp_unsigned(
+        "!=", _parent, ir.Constant(i8p, None), name="raw.haspar"
+    );
+    b.cbranch(b.and_(_small, _has_par, name="raw.candraw"), _draw_lock, _grow_malloc);
+
+    b = ir.IRBuilder(_draw_lock);
+    _lk_slot = b.bitcast(
+        b.gep(_parent, [ir.Constant(i64, ARENA_LOCK_OFF)], name="raw.lk.s"),
+        i64p,
+        name="raw.lk.p"
+    );
+    _lk_old = b.atomic_rmw(
+        "xchg", _lk_slot, ir.Constant(i64, 1), ordering="acquire", name="raw.lk.old"
+    );
+    b.cbranch(
+        b.icmp_unsigned("!=", _lk_old, ir.Constant(i64, 0), name="raw.lk.busy"),
+        _draw_lock,
+        _draw_pop
+    );
+    b = ir.IRBuilder(_draw_pop);
+    _fp_slot = b.bitcast(
+        b.gep(_parent, [ir.Constant(i64, ARENA_FREEPG_OFF)], name="raw.fp.s"),
+        i8pp,
+        name="raw.fp.p"
+    );
+    _fp_head = b.load(_fp_slot, name="raw.fp.head");
+    b.cbranch(
+        b.icmp_unsigned("==", _fp_head, ir.Constant(i8p, None), name="raw.fp.empty"),
+        _draw_fill,
+        _draw_take
+    );
+    b = ir.IRBuilder(_draw_take);
     b.store(
-        _hdl,
+        b.load(b.bitcast(_fp_head, i8pp, name="raw.fp.nx.p"), name="raw.fp.nx"),
+        _fp_slot
+    );
+    b.atomic_rmw(
+        "xchg", _lk_slot, ir.Constant(i64, 0), ordering="release", name="raw.lk.rel"
+    );
+    b.store(_fp_head, _chunk_tmp);
+    b.store(ir.Constant(i64, ARENA_CHUNK_DEFAULT), _cap_tmp);
+    b.store(ir.Constant(i64, 1), _flag_tmp);
+    b.branch(_grow_init);
+
+    b = ir.IRBuilder(_draw_fill);
+    _run = b.call(
+        _malloc,
+        [ir.Constant(i64, ARENA_RUN_HDR + ARENA_RUN_PAGES * ARENA_CHUNK_DEFAULT)],
+        name="raw.run"
+    );
+    _rl_slot = b.bitcast(
+        b.gep(_parent, [ir.Constant(i64, ARENA_RUNS_OFF)], name="raw.rl.s"),
+        i8pp,
+        name="raw.rl.p"
+    );
+    b.store(
+        b.load(_rl_slot, name="raw.rl.head"), b.bitcast(_run, i8pp, name="raw.run.nx")
+    );
+    b.store(_run, _rl_slot);
+    for _pg in range(1, ARENA_RUN_PAGES) {
+        _pg_ptr = b.gep(
+            _run,
+            [ir.Constant(i64, ARENA_RUN_HDR + _pg * ARENA_CHUNK_DEFAULT)],
+            name=f"raw.pg{_pg}"
+        );
+        b.store(
+            b.load(_fp_slot, name=f"raw.pg{_pg}.old"),
+            b.bitcast(_pg_ptr, i8pp, name=f"raw.pg{_pg}.nx")
+        );
+        b.store(_pg_ptr, _fp_slot);
+    }
+    b.atomic_rmw(
+        "xchg", _lk_slot, ir.Constant(i64, 0), ordering="release", name="raw.lk.rel2"
+    );
+    b.store(b.gep(_run, [ir.Constant(i64, ARENA_RUN_HDR)], name="raw.pg0"), _chunk_tmp);
+    b.store(ir.Constant(i64, ARENA_CHUNK_DEFAULT), _cap_tmp);
+    b.store(ir.Constant(i64, 1), _flag_tmp);
+    b.branch(_grow_init);
+
+    b = ir.IRBuilder(_grow_malloc);
+    b.store(b.call(_malloc, [_csize], name="chunk"), _chunk_tmp);
+    b.branch(_grow_init);
+
+    b = ir.IRBuilder(_grow_init);
+    _chunk = b.load(_chunk_tmp, name="chunk.new");
+    b.store(_chunk0, b.bitcast(_chunk, i8pp, name="chunk.prev.p"));
+
+    _rgn_word = b.or_(
+        b.ptrtoint(_hdl, i64, name="chunk.rgn.i"),
+        b.load(_flag_tmp, name="chunk.flag"),
+        name="chunk.rgn.w"
+    );
+    b.store(
+        b.inttoptr(_rgn_word, i8p, name="chunk.rgn.v"),
         b.bitcast(
             b.gep(_chunk, [ir.Constant(i64, 8)], name="chunk.rgn.s"),
             i8pp,
@@ -141,7 +256,7 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     );
     b.store(_chunk, _chunk_slot);
     b.store(ir.Constant(i64, ARENA_CHUNK_HDR), _off_slot);
-    b.store(_csize, _cap_slot);
+    b.store(b.load(_cap_tmp, name="cap.new"), _cap_slot);
     b.branch(_ready);
 
     b = ir.IRBuilder(_ready);
@@ -380,6 +495,112 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     b.branch(_mg_ml);
 
     b = ir.IRBuilder(_mg_ml);
+    _mg_lk = _drop_fn.append_basic_block("merge.lock");
+    _mg_rn_walk = _drop_fn.append_basic_block("merge.run.walk");
+    _mg_rn_done = _drop_fn.append_basic_block("merge.run.done");
+    _mg_fp_chk = _drop_fn.append_basic_block("merge.fp.check");
+    _mg_fp_walk = _drop_fn.append_basic_block("merge.fp.walk");
+    _mg_fp_done = _drop_fn.append_basic_block("merge.fp.done");
+    _mg_ml_cont = _drop_fn.append_basic_block("merge.mlist.cont");
+    _mg_r = b.alloca(i8p, name="mg.rn");
+    _mg_f = b.alloca(i8p, name="mg.fp");
+    _mg_crn_slot = b.bitcast(
+        b.gep(_dhdl, [ir.Constant(i64, ARENA_RUNS_OFF)], name="mg.crn.s"),
+        i8pp,
+        name="mg.crn.p"
+    );
+    _mg_prn_slot = b.bitcast(
+        b.gep(_par, [ir.Constant(i64, ARENA_RUNS_OFF)], name="mg.prn.s"),
+        i8pp,
+        name="mg.prn.p"
+    );
+    _mg_cfp_slot = b.bitcast(
+        b.gep(_dhdl, [ir.Constant(i64, ARENA_FREEPG_OFF)], name="mg.cfp.s"),
+        i8pp,
+        name="mg.cfp.p"
+    );
+    _mg_pfp_slot = b.bitcast(
+        b.gep(_par, [ir.Constant(i64, ARENA_FREEPG_OFF)], name="mg.pfp.s"),
+        i8pp,
+        name="mg.pfp.p"
+    );
+    _mg_plk_slot = b.bitcast(
+        b.gep(_par, [ir.Constant(i64, ARENA_LOCK_OFF)], name="mg.plk.s"),
+        i64p,
+        name="mg.plk.p"
+    );
+    b.branch(_mg_lk);
+
+    b = ir.IRBuilder(_mg_lk);
+    _mg_lko = b.atomic_rmw(
+        "xchg", _mg_plk_slot, ir.Constant(i64, 1), ordering="acquire", name="mg.lk.old"
+    );
+    _mg_rn_ck = _drop_fn.append_basic_block("merge.run.check");
+    b.cbranch(
+        b.icmp_unsigned("!=", _mg_lko, ir.Constant(i64, 0), name="mg.lk.busy"),
+        _mg_lk,
+        _mg_rn_ck
+    );
+    b = ir.IRBuilder(_mg_rn_ck);
+    _mg_crn = b.load(_mg_crn_slot, name="mg.crn");
+    b.store(_mg_crn, _mg_r);
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_crn, ir.Constant(i8p, None), name="mg.crn.null"),
+        _mg_fp_chk,
+        _mg_rn_walk
+    );
+    b = ir.IRBuilder(_mg_rn_walk);
+    _mg_rv = b.load(_mg_r, name="mg.rv");
+    _mg_rn2 = b.load(b.bitcast(_mg_rv, i8pp, name="mg.rn.nx.p"), name="mg.rn.nx");
+    _mg_rn_step = _drop_fn.append_basic_block("merge.run.step");
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_rn2, ir.Constant(i8p, None), name="mg.rn.tail"),
+        _mg_rn_done,
+        _mg_rn_step
+    );
+    b = ir.IRBuilder(_mg_rn_step);
+    b.store(_mg_rn2, _mg_r);
+    b.branch(_mg_rn_walk);
+    b = ir.IRBuilder(_mg_rn_done);
+    _mg_rtail = b.load(_mg_r, name="mg.rtail");
+    b.store(
+        b.load(_mg_prn_slot, name="mg.prn"),
+        b.bitcast(_mg_rtail, i8pp, name="mg.rtail.link")
+    );
+    b.store(_mg_crn, _mg_prn_slot);
+    b.branch(_mg_fp_chk);
+    b = ir.IRBuilder(_mg_fp_chk);
+    _mg_cfp = b.load(_mg_cfp_slot, name="mg.cfp");
+    b.store(_mg_cfp, _mg_f);
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_cfp, ir.Constant(i8p, None), name="mg.cfp.null"),
+        _mg_ml_cont,
+        _mg_fp_walk
+    );
+    b = ir.IRBuilder(_mg_fp_walk);
+    _mg_fv = b.load(_mg_f, name="mg.fv");
+    _mg_fn2 = b.load(b.bitcast(_mg_fv, i8pp, name="mg.fp.nx.p"), name="mg.fp.nx");
+    _mg_fp_step = _drop_fn.append_basic_block("merge.fp.step");
+    b.cbranch(
+        b.icmp_unsigned("==", _mg_fn2, ir.Constant(i8p, None), name="mg.fp.tail"),
+        _mg_fp_done,
+        _mg_fp_step
+    );
+    b = ir.IRBuilder(_mg_fp_step);
+    b.store(_mg_fn2, _mg_f);
+    b.branch(_mg_fp_walk);
+    b = ir.IRBuilder(_mg_fp_done);
+    _mg_ftail = b.load(_mg_f, name="mg.ftail");
+    b.store(
+        b.load(_mg_pfp_slot, name="mg.pfp"),
+        b.bitcast(_mg_ftail, i8pp, name="mg.ftail.link")
+    );
+    b.store(_mg_cfp, _mg_pfp_slot);
+    b.branch(_mg_ml_cont);
+    b = ir.IRBuilder(_mg_ml_cont);
+    b.atomic_rmw(
+        "xchg", _mg_plk_slot, ir.Constant(i64, 0), ordering="release", name="mg.lk.rel"
+    );
     _mg_pcnt_slot = b.bitcast(
         b.gep(_par, [ir.Constant(i64, 32)], name="mg.pcnt.s"), i64p, name="mg.pcnt.p"
     );
@@ -535,18 +756,68 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     b.store(b.load(b.bitcast(_dhdl, i8pp, name="ck.head.p"), name="ck.head"), _cur);
     b.branch(_ck_body);
     _ck_loop = _drop_fn.append_basic_block("chunk.loop");
+    _ck_free = _drop_fn.append_basic_block("chunk.free");
+    _ck_next = _drop_fn.append_basic_block("chunk.next");
+    _run_head = _drop_fn.append_basic_block("run.head");
+    _run_body = _drop_fn.append_basic_block("run.body");
     b = ir.IRBuilder(_ck_body);
     _ck = b.load(_cur, name="ck");
     b.cbranch(
         b.icmp_unsigned("==", _ck, ir.Constant(i8p, None), name="ck.end"),
-        _md_head,
+        _run_head,
         _ck_loop
     );
     b = ir.IRBuilder(_ck_loop);
     _prev = b.load(b.bitcast(_ck, i8pp, name="ck.prev.p"), name="ck.prev");
+    _ck_rgn = b.ptrtoint(
+        b.load(
+            b.bitcast(
+                b.gep(_ck, [ir.Constant(i64, 8)], name="ck.rgn.s"),
+                i8pp,
+                name="ck.rgn.p"
+            ),
+            name="ck.rgn"
+        ),
+        i64,
+        name="ck.rgn.w"
+    );
+    _ck_runres = b.and_(_ck_rgn, ir.Constant(i64, 1), name="ck.runres");
+    b.cbranch(
+        b.icmp_unsigned("!=", _ck_runres, ir.Constant(i64, 0), name="ck.inrun"),
+        _ck_next,
+        _ck_free
+    );
+    b = ir.IRBuilder(_ck_free);
     b.call(_free, [_ck]);
+    b.branch(_ck_next);
+    b = ir.IRBuilder(_ck_next);
     b.store(_prev, _cur);
     b.branch(_ck_body);
+    b = ir.IRBuilder(_run_head);
+    _rn = b.load(
+        b.bitcast(
+            b.gep(_dhdl, [ir.Constant(i64, ARENA_RUNS_OFF)], name="run.s"),
+            i8pp,
+            name="run.p"
+        ),
+        name="run.h"
+    );
+    _rn_cur = b.alloca(i8p, name="run.cur");
+    b.store(_rn, _rn_cur);
+    _run_loop = _drop_fn.append_basic_block("run.loop");
+    b.branch(_run_loop);
+    b = ir.IRBuilder(_run_loop);
+    _rn_c = b.load(_rn_cur, name="run.c");
+    b.cbranch(
+        b.icmp_unsigned("==", _rn_c, ir.Constant(i8p, None), name="run.end"),
+        _md_head,
+        _run_body
+    );
+    b = ir.IRBuilder(_run_body);
+    _rn_nx = b.load(b.bitcast(_rn_c, i8pp, name="run.nx.p"), name="run.nx");
+    b.call(_free, [_rn_c]);
+    b.store(_rn_nx, _rn_cur);
+    b.branch(_run_loop);
     b = ir.IRBuilder(_md_head);
     _md_m = b.load(_mrg, name="md.m");
     b.cbranch(
