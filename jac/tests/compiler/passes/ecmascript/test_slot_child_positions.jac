@@ -133,3 +133,19 @@ test "a loop does not shift the position of its slot siblings" {
         "the loop needs its own accumulator rather than sharing the slot's:\n" + js_code
     );
 }
+
+test "control flow in a branch keeps the statement lowering" {
+    # Wrapping a branch in a conditional expression would trap `skip` inside a
+    # closure, making it a no-op and letting the rest of the body still run.
+    js_code = compile_fixture("skip_in_slot.jac");
+
+    guarded = re.search(r'if \(\(t === "x"\)\) \{\s*return ', js_code);
+    assert guarded is not None , (
+        "a branch containing `skip` must stay a real `if` statement so the "
+        "early return still leaves the enclosing loop:\n"
+        + js_code
+    );
+    assert "? (() =>" not in js_code , (
+        "the branch must not be lifted into a conditional expression:\n" + js_code
+    );
+}

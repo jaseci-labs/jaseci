@@ -359,6 +359,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
 
     def _view_loop_stmt(nd: uni.UniNode, loop_stmt: es.Statement) -> es.Statement;
     def _view_release_acc(name: str) -> None;
+    def _view_branch_blocked(nd: uni.UniNode) -> bool;
     def _view_open_child_acc(nd: uni.UniNode, dynamic: bool = False) -> None;
     def _view_close_child_acc(nd: uni.UniNode) -> (str | None);
     def enter_if_stmt(nd: uni.IfStmt) -> None;

@@ -3599,8 +3599,24 @@ impl EsastGenPass._view_child_expr(
     return self._view_iife_from_stmts(stmts, acc_name, anchor);
 }
 
+impl EsastGenPass._view_branch_blocked(nd: uni.UniNode) -> bool {
+    if isinstance(nd, uni.IfStmt) {
+        if isinstance(nd, (uni.CtrlStmt, uni.ReturnStmt)) {
+            return True;
+        }
+        return bool(
+            nd.get_all_sub_nodes(uni.CtrlStmt) or nd.get_all_sub_nodes(uni.ReturnStmt)
+        );
+    }
+    parent = nd.parent;
+    return (parent is None) or (id(parent) not in self._view_slot_branches);
+}
+
 impl EsastGenPass._view_open_child_acc(nd: uni.UniNode, dynamic: bool = False) -> None {
     if self._cur_view_acc() is None {
+        return;
+    }
+    if (not dynamic) and self._view_branch_blocked(nd) {
         return;
     }
     name = self._push_view_acc();
