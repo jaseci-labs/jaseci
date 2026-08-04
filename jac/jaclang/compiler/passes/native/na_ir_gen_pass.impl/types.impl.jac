@@ -1131,20 +1131,13 @@ impl NaIRGenPass._emit_binary_op(
             total, ir.Constant(ir.IntType(64), 1), name="buf_size"
         );
         _concat_loc = getattr(left, 'jac_loc', getattr(right, 'jac_loc', ''));
-        buf = self._rc_call_with_ctx(
-            self.rc_alloc_fn,
-            [buf_size],
-            op="str_concat",
-            loc=_concat_loc,
-            name="concat.buf"
-        );
+        self._set_rc_ctx("str_concat", _concat_loc);
+        buf = self._str_alloc(self.builder, buf_size, name="concat.buf");
+        self._clear_rc_ctx();
         self.builder.call(memcpy_cc, [buf, left, len1]);
         _cc_dst2 = self.builder.gep(buf, [len1], name="concat.dst2");
         self.builder.call(memcpy_cc, [_cc_dst2, right, len2]);
-        _cc_end = self.builder.gep(buf, [total], name="concat.end");
-        self.builder.store(ir.Constant(ir.IntType(8), 0), _cc_end);
-        self._emit_set_type_tag(self.builder, buf, "str");
-        self._stamp_str_len(self.builder, buf, total);
+        self._str_finish(self.builder, buf, total);
 
         self._mark_owned(buf);
         return buf;
@@ -1206,7 +1199,7 @@ impl NaIRGenPass._emit_binary_op(
             total = self.builder.mul(slen, int_val, name="rep.total");
             alloc = self.builder.add(total, ir.Constant(i64, 1), name="rep.alloc");
             self._set_rc_ctx("str_repeat", "");
-            buf = self.builder.call(self.rc_alloc_fn, [alloc], name="rep.buf");
+            buf = self._str_alloc(self.builder, alloc, name="rep.buf");
             self._clear_rc_ctx();
             func = self.builder.basic_block.function;
             entry_bb = self.builder.basic_block;
@@ -1230,10 +1223,7 @@ impl NaIRGenPass._emit_binary_op(
             count.add_incoming(new_cnt, body_bb);
             self.builder.branch(loop_bb);
             self.builder.position_at_start(done_bb);
-            null_ptr = self.builder.gep(buf, [total], name="rep.null");
-            self.builder.store(ir.Constant(i8, 0), null_ptr);
-            self._emit_set_type_tag(self.builder, buf, "str");
-            self._stamp_str_len(self.builder, buf, total);
+            self._str_finish(self.builder, buf, total);
             return buf;
         }
     }
@@ -1660,7 +1650,6 @@ impl NaIRGenPass._emit_comparison(
         tcmp_struct: (ir.LiteralStructType | None) = None;
         tcmp_left_val: (ir.Value | None) = None;
         tcmp_right_val: (ir.Value | None) = None;
-        i8_ptr = ir.IntType(8).as_pointer();
         if _l_is_tval and _r_is_tval and str(left.type) == str(right.type) {
             tcmp_struct = left.type;
             tcmp_left_val = left;
@@ -1707,11 +1696,8 @@ impl NaIRGenPass._emit_comparison(
                             "==", ea, eb, name=f"tcmp.eq.{i}"
                         );
                     } else {
-                        tcmp_strcmp = self._get_or_declare_extern(
-                            "strcmp", ir.IntType(32), [i8_ptr, i8_ptr]
-                        );
-                        tcmp_sc = self.builder.call(
-                            tcmp_strcmp, [ea, eb], name=f"tcmp.sc.{i}"
+                        tcmp_sc = self._call_str_cmp(
+                            self.builder, ea, eb, name=f"tcmp.sc.{i}"
                         );
                         eq_i = self.builder.icmp_signed(
                             "==",
@@ -1754,11 +1740,8 @@ impl NaIRGenPass._emit_comparison(
                             ">", ea, eb, name=f"tcmp.gt.{i}"
                         );
                     } else {
-                        tcmp_strcmp2 = self._get_or_declare_extern(
-                            "strcmp", ir.IntType(32), [i8_ptr, i8_ptr]
-                        );
-                        tcmp_sc2 = self.builder.call(
-                            tcmp_strcmp2, [ea, eb], name=f"tcmp.lex.sc.{i}"
+                        tcmp_sc2 = self._call_str_cmp(
+                            self.builder, ea, eb, name=f"tcmp.lex.sc.{i}"
                         );
                         tcmp_z32 = ir.Constant(ir.IntType(32), 0);
                         lt_i = self.builder.icmp_signed(
@@ -1829,9 +1812,16 @@ impl NaIRGenPass._emit_comparison(
         }
 
         if left.type == i8_ptr and right.type == i8_ptr {
-            strcmp_fn = self._get_or_declare_extern(
-                "strcmp", ir.IntType(32), [i8_ptr, i8_ptr]
-            );
+            zero = ir.Constant(ir.IntType(32), 0);
+            if op == Tok.EE or op == Tok.NE {
+                _sym = "==" if op == Tok.EE else "!=";
+                _nm = "streq" if op == Tok.EE else "strne";
+                cmp_result = self._call_str_cmp(
+                    self.builder, left, right, name="strcmp"
+                );
+                return self.builder.icmp_signed(_sym, cmp_result, zero, name=_nm);
+            }
+
             _strcmp_null = ir.Constant(i8_ptr, None);
             _strcmp_empty = self.builder.bitcast(
                 self._make_global_string(""), i8_ptr, name="strcmp.empty"
@@ -1842,30 +1832,15 @@ impl NaIRGenPass._emit_comparison(
             _r_is_null = self.builder.icmp_unsigned(
                 "==", right, _strcmp_null, name="strcmp.rnull"
             );
-            _either_null = self.builder.or_(
-                _l_is_null, _r_is_null, name="strcmp.anynull"
-            );
             _safe_left = self.builder.select(
                 _l_is_null, _strcmp_empty, left, name="strcmp.lsafe"
             );
             _safe_right = self.builder.select(
                 _r_is_null, _strcmp_empty, right, name="strcmp.rsafe"
             );
-            cmp_result = self.builder.call(
-                strcmp_fn, [_safe_left, _safe_right], name="strcmp"
+            cmp_result = self._call_str_cmp(
+                self.builder, _safe_left, _safe_right, name="strcmp"
             );
-            zero = ir.Constant(ir.IntType(32), 0);
-            if op == Tok.EE or op == Tok.NE {
-                _sym = "==" if op == Tok.EE else "!=";
-                _nm = "streq" if op == Tok.EE else "strne";
-                _ptr_cmp = self.builder.icmp_unsigned(
-                    _sym, left, right, name=f"{_nm}.ptr"
-                );
-                _val_cmp = self.builder.icmp_signed(
-                    _sym, cmp_result, zero, name=f"{_nm}.val"
-                );
-                return self.builder.select(_either_null, _ptr_cmp, _val_cmp, name=_nm);
-            }
             if op == Tok.LT {
                 return self.builder.icmp_signed("<", cmp_result, zero, name="strlt");
             } elif op == Tok.GT {
@@ -1929,11 +1904,8 @@ impl NaIRGenPass._emit_comparison(
                             "!=", lcmp_ea, lcmp_eb, name="lcmp.ene"
                         );
                     } else {
-                        lcmp_strcmp = self._get_or_declare_extern(
-                            "strcmp", ir.IntType(32), [i8_ptr, i8_ptr]
-                        );
-                        lcmp_scmp = self.builder.call(
-                            lcmp_strcmp, [lcmp_ea, lcmp_eb], name="lcmp.scmp"
+                        lcmp_scmp = self._call_str_cmp(
+                            self.builder, lcmp_ea, lcmp_eb, name="lcmp.scmp"
                         );
                         lcmp_elem_ne = self.builder.icmp_signed(
                             "!=",
@@ -2008,11 +1980,8 @@ impl NaIRGenPass._emit_comparison(
                             ">", lcmp_lea, lcmp_leb, name="lcmp.lex.gt"
                         );
                     } else {
-                        lcmp_strcmp2 = self._get_or_declare_extern(
-                            "strcmp", ir.IntType(32), [i8_ptr, i8_ptr]
-                        );
-                        lcmp_scmp2 = self.builder.call(
-                            lcmp_strcmp2, [lcmp_lea, lcmp_leb], name="lcmp.lex.sc"
+                        lcmp_scmp2 = self._call_str_cmp(
+                            self.builder, lcmp_lea, lcmp_leb, name="lcmp.lex.sc"
                         );
                         lcmp_zero32 = ir.Constant(ir.IntType(32), 0);
                         lcmp_lex_lt = self.builder.icmp_signed(

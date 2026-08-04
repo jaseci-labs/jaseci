@@ -840,17 +840,12 @@ impl NaIRGenPass._codegen_compare_link(
                     and isinstance(left_coerced.type, ir.PointerType)
                 ) {
                     _lin_i8p = ir.IntType(8).as_pointer();
-                    _lin_strcmp = self._get_or_declare_extern(
-                        "strcmp", ir.IntType(32), [_lin_i8p, _lin_i8p]
-                    );
-                    _lin_cmp = self.builder.call(
-                        _lin_strcmp,
-                        [
-                            self.builder.bitcast(
-                                left_coerced, _lin_i8p, name="list.in.l.i8"
-                            ),
-                            self.builder.bitcast(elem, _lin_i8p, name="list.in.e.i8")
-                        ],
+                    _lin_cmp = self._call_str_cmp(
+                        self.builder,
+                        self.builder.bitcast(
+                            left_coerced, _lin_i8p, name="list.in.l.i8"
+                        ),
+                        self.builder.bitcast(elem, _lin_i8p, name="list.in.e.i8"),
                         name="list.in.strcmp"
                     );
                     eq = self.builder.icmp_signed(
@@ -919,12 +914,8 @@ impl NaIRGenPass._codegen_compare_link(
                             "==", left_c, elem, name=f"tuple.in.{i}.eq"
                         );
                     } else {
-                        i8p = ir.IntType(8).as_pointer();
-                        strcmp_fn = self._get_or_declare_extern(
-                            "strcmp", ir.IntType(32), [i8p, i8p]
-                        );
-                        cmp = self.builder.call(
-                            strcmp_fn, [left_c, elem], name=f"tuple.in.{i}.cmp"
+                        cmp = self._call_str_cmp(
+                            self.builder, left_c, elem, name=f"tuple.in.{i}.cmp"
                         );
                         eq = self.builder.icmp_signed(
                             "==",

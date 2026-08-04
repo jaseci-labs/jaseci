@@ -561,10 +561,9 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
     need32 = self.builder.call(snprintf_fn, measure_args, name="fstr.need");
     need = self.builder.sext(need32, i64, name="fstr.need64");
     buf_size = self.builder.add(need, ir.Constant(i64, 1), name="fstr.size");
-    buf = self._rc_call_with_ctx(
-        self.rc_alloc_fn, [buf_size], op="fstring", loc=_fstr_loc, name="fstr.buf"
-    );
-    self._emit_set_type_tag(self.builder, buf, "str");
+    self._set_rc_ctx("fstring", _fstr_loc);
+    buf = self._str_alloc(self.builder, buf_size, name="fstr.buf");
+    self._clear_rc_ctx();
     self._stamp_str_len(self.builder, buf, need);
     call_args: list[ir.Value] = [buf, buf_size, fmt_global];
     for a in args {
@@ -704,8 +703,6 @@ impl NaIRGenPass._codegen_list_slice(
 impl NaIRGenPass._codegen_string_slice(
     target_val: ir.Value, slice_node: object
 ) -> (ir.Value | None) {
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i64 = ir.IntType(64);
     zero = ir.Constant(i64, 0);
     one = ir.Constant(i64, 1);
@@ -739,10 +736,8 @@ impl NaIRGenPass._codegen_string_slice(
 
     alloc_size = self.builder.add(n_val, one, name="ss.alloc");
     self._set_rc_ctx("str_substr", "");
-    new_str = self.builder.call(self.rc_alloc_fn, [alloc_size], name="ss.new");
+    new_str = self._str_alloc(self.builder, alloc_size, name="ss.new");
     self._clear_rc_ctx();
-    self._emit_set_type_tag(self.builder, new_str, "str");
-    self._stamp_str_len(self.builder, new_str, n_val);
 
     i_alloca = self.builder.alloca(i64, name="ss.i");
     k_alloca = self.builder.alloca(i64, name="ss.k");
@@ -771,8 +766,7 @@ impl NaIRGenPass._codegen_string_slice(
     self.builder.branch(loop_check);
 
     self.builder.position_at_end(loop_done);
-    null_ptr = self.builder.gep(new_str, [n_val], name="ss.null");
-    self.builder.store(ir.Constant(i8, 0), null_ptr);
+    self._str_finish(self.builder, new_str, n_val);
     self._mark_owned(new_str);
     return new_str;
 }
@@ -870,17 +864,14 @@ impl NaIRGenPass._codegen_str_strip_chars(
     result_len = self.builder.sub(final_end, final_start, name="result.len");
     alloc_size = self.builder.add(result_len, ir.Constant(i64, 1), name="alloc.size");
     self._set_rc_ctx("str_strip", "");
-    result_ptr = self.builder.call(self.rc_alloc_fn, [alloc_size], name="strip.result");
+    result_ptr = self._str_alloc(self.builder, alloc_size, name="strip.result");
     self._clear_rc_ctx();
-    self._emit_set_type_tag(self.builder, result_ptr, "str");
 
     src_ptr = self.builder.gep(str_val, [final_start], name="src.ptr");
     memcpy = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     self.builder.call(memcpy, [result_ptr, src_ptr, result_len]);
 
-    null_ptr = self.builder.gep(result_ptr, [result_len], name="null.ptr");
-    self.builder.store(ir.Constant(i8, 0), null_ptr);
-    self._stamp_str_len(self.builder, result_ptr, result_len);
+    self._str_finish(self.builder, result_ptr, result_len);
     return result_ptr;
 }
 
@@ -943,14 +934,12 @@ impl NaIRGenPass._codegen_str_split(
     token_len = self.builder.sub(cur_i, ts, name="token.len");
     alloc_len = self.builder.add(token_len, ir.Constant(i64, 1), name="token.alloc");
     self._set_rc_ctx("str_split", "");
-    token_ptr = self.builder.call(self.rc_alloc_fn, [alloc_len], name="token.ptr");
+    token_ptr = self._str_alloc(self.builder, alloc_len, name="token.ptr");
     self._clear_rc_ctx();
     self._mark_owned(token_ptr);
     src = self.builder.gep(str_val, [ts], name="token.src");
     self.builder.call(memcpy, [token_ptr, src, token_len]);
-    null_pos = self.builder.gep(token_ptr, [token_len], name="token.null");
-    self.builder.store(ir.Constant(i8, 0), null_pos);
-    self._stamp_str_len(self.builder, token_ptr, token_len);
+    self._str_finish(self.builder, token_ptr, token_len);
     self._rc_call_with_ctx(helpers["append"], [new_list, token_ptr], op="str_split");
     if isinstance(token_ptr.type, ir.PointerType) and self._is_owned(token_ptr) {
         self._emit_rc_release_simple(token_ptr, op="str_split");
@@ -970,14 +959,12 @@ impl NaIRGenPass._codegen_str_split(
     last_len = self.builder.sub(str_len, final_ts, name="last.len");
     last_alloc = self.builder.add(last_len, ir.Constant(i64, 1), name="last.alloc");
     self._set_rc_ctx("str_split", "");
-    last_ptr = self.builder.call(self.rc_alloc_fn, [last_alloc], name="last.ptr");
+    last_ptr = self._str_alloc(self.builder, last_alloc, name="last.ptr");
     self._clear_rc_ctx();
     self._mark_owned(last_ptr);
     last_src = self.builder.gep(str_val, [final_ts], name="last.src");
     self.builder.call(memcpy, [last_ptr, last_src, last_len]);
-    last_null = self.builder.gep(last_ptr, [last_len], name="last.null");
-    self.builder.store(ir.Constant(i8, 0), last_null);
-    self._stamp_str_len(self.builder, last_ptr, last_len);
+    self._str_finish(self.builder, last_ptr, last_len);
     self._rc_call_with_ctx(helpers["append"], [new_list, last_ptr], op="str_split");
     if isinstance(last_ptr.type, ir.PointerType) and self._is_owned(last_ptr) {
         self._emit_rc_release_simple(last_ptr, op="str_split");
@@ -1020,7 +1007,6 @@ impl NaIRGenPass._emit_sys_argv -> (ir.Value | None) {
 
     new_list = self.builder.call(helpers["new"], [], name="sys.argv.list");
 
-    strlen_fn = self._get_or_declare_extern("strlen", i64, [i8p]);
     memcpy_fn = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
 
     i_alloca = self.builder.alloca(i64, name="argv.i");
@@ -1042,13 +1028,13 @@ impl NaIRGenPass._emit_sys_argv -> (ir.Value | None) {
     arg_ptr_ptr = self.builder.gep(argv, [cur_i], name="argv.ptr.ptr");
     arg_ptr = self.builder.load(arg_ptr_ptr, name="argv.ptr");
 
-    slen = self.builder.call(strlen_fn, [arg_ptr], name="arg.len");
+    slen = self._call_str_len_raw(self.builder, arg_ptr, name="arg.len");
     alloc_size = self.builder.add(slen, ir.Constant(i64, 1), name="arg.alloc");
     self._set_rc_ctx("argv", "");
-    rc_str = self.builder.call(self.rc_alloc_fn, [alloc_size], name="arg.str");
+    rc_str = self._str_alloc(self.builder, alloc_size, name="arg.str");
     self._clear_rc_ctx();
-    self._emit_set_type_tag(self.builder, rc_str, "str");
-    self.builder.call(memcpy_fn, [rc_str, arg_ptr, alloc_size]);
+    self.builder.call(memcpy_fn, [rc_str, arg_ptr, slen]);
+    self._str_finish(self.builder, rc_str, slen);
 
     self._rc_call_with_ctx(helpers["append"], [new_list, rc_str], op="argv");
 
@@ -1290,7 +1276,6 @@ impl NaIRGenPass._float_repr_fn -> ir.Function {
     );
     strtod = self._get_or_declare_extern("strtod", f64, [i8p, i8p.as_pointer()]);
     strtol = self._get_or_declare_extern("strtol", i64, [i8p, i8p.as_pointer(), i32]);
-    strlen = self._get_or_declare_extern("strlen", i64, [i8p]);
     strchr = self._get_or_declare_extern("strchr", i8p, [i8p, i32]);
 
     fmt_e = self._make_global_string("%.*e", name_prefix=".frepr.e");
@@ -1305,8 +1290,7 @@ impl NaIRGenPass._float_repr_fn -> ir.Function {
     b.cbranch(is_nan, nan_bb, chk_pinf);
     b.position_at_end(nan_bb);
     if self._nogc_headerless() {
-        _strdup_hl = self._get_or_declare_extern("strdup", i8p, [i8p]);
-        b.ret(b.call(_strdup_hl, [s_nan], name="fr.nan.dup"));
+        b.ret(self._call_str_dup(b, s_nan, name="fr.nan.dup"));
     } else {
         b.ret(s_nan);
     }
@@ -1319,8 +1303,7 @@ impl NaIRGenPass._float_repr_fn -> ir.Function {
     b.cbranch(is_pinf, pinf_bb, chk_ninf);
     b.position_at_end(pinf_bb);
     if self._nogc_headerless() {
-        _strdup_hl2 = self._get_or_declare_extern("strdup", i8p, [i8p]);
-        b.ret(b.call(_strdup_hl2, [s_inf], name="fr.inf.dup"));
+        b.ret(self._call_str_dup(b, s_inf, name="fr.inf.dup"));
     } else {
         b.ret(s_inf);
     }
@@ -1331,15 +1314,14 @@ impl NaIRGenPass._float_repr_fn -> ir.Function {
     b.cbranch(is_ninf, ninf_bb, setup_bb);
     b.position_at_end(ninf_bb);
     if self._nogc_headerless() {
-        _strdup_hl3 = self._get_or_declare_extern("strdup", i8p, [i8p]);
-        b.ret(b.call(_strdup_hl3, [s_ninf], name="fr.ninf.dup"));
+        b.ret(self._call_str_dup(b, s_ninf, name="fr.ninf.dup"));
     } else {
         b.ret(s_ninf);
     }
 
     b.position_at_end(setup_bb);
     cap = ir.Constant(i64, 64);
-    tmp = b.call(self.rc_alloc_fn, [cap], name="fr.tmp");
+    tmp = self._str_alloc(b, cap, name="fr.tmp");
     endptr = b.alloca(i8p, name="fr.endptr");
     pvar = b.alloca(i32, name="fr.p");
     b.store(ir.Constant(i32, 0), pvar);
@@ -1349,7 +1331,7 @@ impl NaIRGenPass._float_repr_fn -> ir.Function {
     b.branch(loop_cond);
     b.position_at_end(loop_cond);
     pv = b.load(pvar, name="fr.pv");
-    b.call(snprintf, [tmp, cap, fmt_e, pv, d]);
+    elen32 = b.call(snprintf, [tmp, cap, fmt_e, pv, d], name="fr.elen32");
     parsed = b.call(strtod, [tmp, endptr], name="fr.parsed");
     eq = b.fcmp_ordered("==", parsed, d, name="fr.eq");
     at_max = b.icmp_signed(">=", pv, ir.Constant(i32, 17), name="fr.atmax");
@@ -1373,6 +1355,7 @@ impl NaIRGenPass._float_repr_fn -> ir.Function {
     b.cbranch(use_exp, exp_bb, fixed_bb);
 
     b.position_at_end(exp_bb);
+    self._str_finish(b, tmp, b.sext(elen32, i64, name="fr.elen"));
     b.ret(tmp);
 
     b.position_at_end(fixed_bb);
@@ -1383,20 +1366,21 @@ impl NaIRGenPass._float_repr_fn -> ir.Function {
         _free_hl = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
         b.call(_free_hl, [tmp]);
     }
-    fbuf = b.call(self.rc_alloc_fn, [cap], name="fr.fbuf");
+    fbuf = self._str_alloc(b, cap, name="fr.fbuf");
     frac32 = b.trunc(frac, i32, name="fr.frac32");
-    b.call(snprintf, [fbuf, cap, fmt_f, frac32, d]);
+    flen32 = b.call(snprintf, [fbuf, cap, fmt_f, frac32, d], name="fr.flen32");
+    self._str_finish(b, fbuf, b.sext(flen32, i64, name="fr.flen0"));
     is_int = b.icmp_signed("==", frac, ir.Constant(i64, 0), name="fr.isint");
     dot_bb = fn.append_basic_block("fr.adddot");
     ret_bb = fn.append_basic_block("fr.fixed.ret");
     b.cbranch(is_int, dot_bb, ret_bb);
     b.position_at_end(dot_bb);
-    flen = b.call(strlen, [fbuf], name="fr.flen");
+    flen = self._call_str_len(b, fbuf, name="fr.flen");
     b.store(ir.Constant(i8, 46), b.gep(fbuf, [flen], name="fr.dotp"));
     f1 = b.add(flen, ir.Constant(i64, 1), name="fr.f1");
     b.store(ir.Constant(i8, 48), b.gep(fbuf, [f1], name="fr.zerop"));
     f2 = b.add(flen, ir.Constant(i64, 2), name="fr.f2");
-    b.store(ir.Constant(i8, 0), b.gep(fbuf, [f2], name="fr.nulp"));
+    self._str_finish(b, fbuf, f2);
     b.branch(ret_bb);
     b.position_at_end(ret_bb);
     b.ret(fbuf);

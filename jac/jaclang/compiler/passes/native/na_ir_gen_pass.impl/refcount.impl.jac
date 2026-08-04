@@ -766,6 +766,159 @@ impl NaIRGenPass._stamp_str_len(
     b.call(self.str_stamp_fn, [ptr, len_val]);
 }
 
+impl NaIRGenPass._emit_str_cmp_helper -> None {
+    if self.str_cmp_fn is not None {
+        return;
+    }
+    i8_ptr = ir.IntType(8).as_pointer();
+    i32 = ir.IntType(32);
+    strcmp_fn = self._get_or_declare_extern("strcmp", i32, [i8_ptr, i8_ptr]);
+    cmp_fn = self._define_function(
+        "__jac_str_cmp", ir.FunctionType(i32, [i8_ptr, i8_ptr])
+    );
+    cmp_fn.linkage = "private";
+    cmp_fn.args[0].name = "a";
+    cmp_fn.args[1].name = "b";
+    _c_entry = cmp_fn.append_basic_block("entry");
+    _c_same = cmp_fn.append_basic_block("same");
+    _c_anull = cmp_fn.append_basic_block("check.a");
+    _c_alt = cmp_fn.append_basic_block("a.null");
+    _c_bnull = cmp_fn.append_basic_block("check.b");
+    _c_bgt = cmp_fn.append_basic_block("b.null");
+    _c_body = cmp_fn.append_basic_block("body");
+    b = ir.IRBuilder(_c_entry);
+    b.cbranch(
+        b.icmp_unsigned("==", cmp_fn.args[0], cmp_fn.args[1], name="sc.same"),
+        _c_same,
+        _c_anull
+    );
+    b = ir.IRBuilder(_c_same);
+    b.ret(ir.Constant(i32, 0));
+    b = ir.IRBuilder(_c_anull);
+    b.cbranch(
+        b.icmp_unsigned("==", cmp_fn.args[0], ir.Constant(i8_ptr, None), name="sc.an"),
+        _c_alt,
+        _c_bnull
+    );
+    b = ir.IRBuilder(_c_alt);
+    b.ret(ir.Constant(i32, -1));
+    b = ir.IRBuilder(_c_bnull);
+    b.cbranch(
+        b.icmp_unsigned("==", cmp_fn.args[1], ir.Constant(i8_ptr, None), name="sc.bn"),
+        _c_bgt,
+        _c_body
+    );
+    b = ir.IRBuilder(_c_bgt);
+    b.ret(ir.Constant(i32, 1));
+    b = ir.IRBuilder(_c_body);
+    b.ret(b.call(strcmp_fn, [cmp_fn.args[0], cmp_fn.args[1]], name="sc.cmp"));
+    self.str_cmp_fn = cmp_fn;
+}
+
+impl NaIRGenPass._call_str_cmp(
+    b: ir.IRBuilder, lhs: ir.Value, rhs: ir.Value, name: str = "s.cmp"
+) -> ir.Value {
+    if self.str_cmp_fn is None {
+        self._emit_str_cmp_helper();
+    }
+    return b.call(self.str_cmp_fn, [lhs, rhs], name=name);
+}
+
+impl NaIRGenPass._emit_str_dup_helper -> None {
+    if self.str_dup_fn is not None {
+        return;
+    }
+    if self.str_len_fn is None {
+        self._emit_str_len_helpers();
+    }
+    i8_ptr = ir.IntType(8).as_pointer();
+    dup_fn = self._define_function("__jac_str_dup", ir.FunctionType(i8_ptr, [i8_ptr]));
+    dup_fn.linkage = "private";
+    dup_fn.args[0].name = "s";
+    _d_entry = dup_fn.append_basic_block("entry");
+    _d_null = dup_fn.append_basic_block("null");
+    _d_copy = dup_fn.append_basic_block("copy");
+    b = ir.IRBuilder(_d_entry);
+    b.cbranch(
+        b.icmp_unsigned(
+            "==", dup_fn.args[0], ir.Constant(i8_ptr, None), name="sd.null"
+        ),
+        _d_null,
+        _d_copy
+    );
+    b = ir.IRBuilder(_d_null);
+    b.ret(ir.Constant(i8_ptr, None));
+    b = ir.IRBuilder(_d_copy);
+    _d_len = b.call(self.str_len_fn, [dup_fn.args[0]], name="sd.len");
+    b.ret(b.call(self.str_new_fn, [dup_fn.args[0], _d_len], name="sd.new"));
+    self.str_dup_fn = dup_fn;
+}
+
+impl NaIRGenPass._call_str_dup(
+    b: ir.IRBuilder, ptr: ir.Value, name: str = "s.dup"
+) -> ir.Value {
+    if self.str_dup_fn is None {
+        self._emit_str_dup_helper();
+    }
+    return b.call(self.str_dup_fn, [ptr], name=name);
+}
+
+impl NaIRGenPass._emit_str_len_raw_helper -> None {
+    if self.str_len_raw_fn is not None {
+        return;
+    }
+    i8_ptr = ir.IntType(8).as_pointer();
+    i64 = ir.IntType(64);
+    strlen_fn = self._get_or_declare_extern("strlen", i64, [i8_ptr]);
+    raw_fn = self._define_function("__jac_str_len_raw", ir.FunctionType(i64, [i8_ptr]));
+    raw_fn.linkage = "private";
+    raw_fn.args[0].name = "p";
+    _r_entry = raw_fn.append_basic_block("entry");
+    _r_zero = raw_fn.append_basic_block("zero");
+    _r_scan = raw_fn.append_basic_block("scan");
+    b = ir.IRBuilder(_r_entry);
+    b.cbranch(
+        b.icmp_unsigned(
+            "==", raw_fn.args[0], ir.Constant(i8_ptr, None), name="sr.null"
+        ),
+        _r_zero,
+        _r_scan
+    );
+    b = ir.IRBuilder(_r_zero);
+    b.ret(ir.Constant(i64, 0));
+    b = ir.IRBuilder(_r_scan);
+    b.ret(b.call(strlen_fn, [raw_fn.args[0]], name="sr.strlen"));
+    self.str_len_raw_fn = raw_fn;
+}
+
+impl NaIRGenPass._call_str_len_raw(
+    b: ir.IRBuilder, ptr: ir.Value, name: str = "s.rlen"
+) -> ir.Value {
+    if self.str_len_raw_fn is None {
+        self._emit_str_len_raw_helper();
+    }
+    return b.call(self.str_len_raw_fn, [ptr], name=name);
+}
+
+impl NaIRGenPass._str_alloc(
+    b: ir.IRBuilder, size: ir.Value, name: str = "s.buf"
+) -> ir.Value {
+    _saved = self._builder;
+    self._builder = b;
+    _buf = self._rc_alloc(size, name=name);
+    self._emit_set_type_tag(b, _buf, "str");
+    self._builder = _saved;
+    return _buf;
+}
+
+impl NaIRGenPass._str_finish(
+    b: ir.IRBuilder, buf: ir.Value, len_val: ir.Value
+) -> None {
+    _end = b.gep(buf, [len_val], name="s.end");
+    b.store(ir.Constant(ir.IntType(8), 0), _end);
+    self._stamp_str_len(b, buf, len_val);
+}
+
 impl NaIRGenPass._emit_set_type_tag(
     b: ir.IRBuilder, ptr_i8: ir.Value, type_name: str
 ) -> None {

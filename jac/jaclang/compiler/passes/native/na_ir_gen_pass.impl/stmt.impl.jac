@@ -409,10 +409,6 @@ impl NaIRGenPass._codegen_switch(nd: uni.SwitchStmt) -> None {
     }
     i8p = ir.IntType(8).as_pointer();
     is_str = target_val.type == i8p;
-    strcmp_fn = None;
-    if is_str {
-        strcmp_fn = self._get_or_declare_extern("strcmp", ir.IntType(32), [i8p, i8p]);
-    }
 
     for (i, sc) in enumerate(value_cases) {
         pattern_val = None;
@@ -423,10 +419,10 @@ impl NaIRGenPass._codegen_switch(nd: uni.SwitchStmt) -> None {
             continue;
         }
 
-        if is_str and strcmp_fn is not None {
+        if is_str {
             pattern_coerced = self._coerce_type(pattern_val, i8p);
-            cmp_result = self.builder.call(
-                strcmp_fn, [target_val, pattern_coerced], name="switch.strcmp"
+            cmp_result = self._call_str_cmp(
+                self.builder, target_val, pattern_coerced, name="switch.strcmp"
             );
             cond = self.builder.icmp_signed(
                 "==", cmp_result, ir.Constant(ir.IntType(32), 0), name="switch.eq"

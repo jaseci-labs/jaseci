@@ -1183,24 +1183,21 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             self.builder.cbranch(is_eof, eof_bb, ok_bb);
 
             self.builder.position_at_start(eof_bb);
-            eof_str = self.builder.call(
-                self.rc_alloc_fn, [ir.Constant(ir.IntType(64), 1)], name="eof.str"
+            eof_str = self._str_alloc(
+                self.builder, ir.Constant(ir.IntType(64), 1), name="eof.str"
             );
-            self.builder.store(ir.Constant(ir.IntType(8), 0), eof_str);
+            self._str_finish(self.builder, eof_str, ir.Constant(ir.IntType(64), 0));
             self.builder.branch(merge_bb);
             eof_bb_end = self.builder.block;
 
             self.builder.position_at_start(ok_bb);
 
-            strlen_fn = self._get_or_declare_extern("strlen", ir.IntType(64), [i8p]);
-            slen = self.builder.call(strlen_fn, [buf_ptr], name="input.len");
+            slen = self._call_str_len_raw(self.builder, buf_ptr, name="input.len");
 
             alloc_size = self.builder.add(
                 slen, ir.Constant(ir.IntType(64), 1), name="alloc.size"
             );
-            result_ptr = self.builder.call(
-                self.rc_alloc_fn, [alloc_size], name="input.result"
-            );
+            result_ptr = self._str_alloc(self.builder, alloc_size, name="input.result");
             memcpy = self._get_or_declare_extern(
                 "memcpy", i8p, [i8p, i8p, ir.IntType(64)]
             );
@@ -1254,6 +1251,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             self.builder.store(store_cr_val, cr_ptr);
             self.builder.branch(nostrip_bb);
             self.builder.position_at_start(nostrip_bb);
+            final_len = self._call_str_len(
+                self.builder, result_ptr, name="input.final.len"
+            );
+            self._str_finish(self.builder, result_ptr, final_len);
             self.builder.branch(merge_bb);
             ok_bb_end = self.builder.block;
 

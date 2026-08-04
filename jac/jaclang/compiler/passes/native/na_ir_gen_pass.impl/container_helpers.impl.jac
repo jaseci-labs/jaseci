@@ -381,10 +381,7 @@ impl NaIRGenPass._emit_key_comparison(
         data_eq = b.icmp_signed("==", cmpr, _z0, name="key.by.dataeq");
         return b.and_(len_eq, data_eq, name="key.by.eq");
     } elif key_type == i8_ptr {
-        strcmp_fn = self._get_or_declare_extern(
-            "strcmp", ir.IntType(32), [i8_ptr, i8_ptr]
-        );
-        cmp_result = b.call(strcmp_fn, [stored_val, search_val], name="strcmp");
+        cmp_result = self._call_str_cmp(b, stored_val, search_val, name="strcmp");
         return b.icmp_signed(
             "==", cmp_result, ir.Constant(ir.IntType(32), 0), name="key.eq"
         );
