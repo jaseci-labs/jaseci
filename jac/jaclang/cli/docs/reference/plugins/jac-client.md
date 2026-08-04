@@ -1584,13 +1584,22 @@ rendering:
 | Rule | Example |
 |------|---------|
 | Underscores in keys fold to hyphens. | `data_site_id = "abc"` renders `data-site-id="abc"`. |
-| `true` renders a bare flag; `false` or an empty value omits the attribute. | `defer = true` renders `defer`. |
-| Any other value renders as `name="value"`, HTML-escaped. | `crossorigin = "anonymous"` |
+| `true` renders a bare flag; `false` omits the attribute entirely. | `defer = true` renders `defer`. |
+| Any other value renders as `name="value"`, HTML-escaped, including `0` and `""`. | `tabindex = 0` renders `tabindex="0"`. |
 
-Keys that do not fold to a well-formed lowercase attribute name are dropped, and
-event-handler attributes (`on*`) are never emitted, so an entry cannot attach
-script logic to the tag itself; use `content` for that. A literal `</script>`
-inside an inline `content` body is escaped so it cannot close the tag early.
+Event handlers work like any other attribute, which is what the CDN fallback
+pattern needs:
+
+```toml
+[[client.app_meta_data.scripts]]
+src = "https://cdn.example.com/lib.js"
+onerror = "loadLocalFallback()"
+```
+
+Keys that do not fold to a well-formed lowercase attribute name are dropped, so
+a stray space or quote in a key cannot forge extra attributes on the tag. A
+literal `</script>` inside an inline `content` body is escaped so it cannot
+close the tag early.
 
 Scripts are emitted last in the `<head>`, after the title, meta, and link tags,
 and appear in `jac build` output, `jac start`, and `jac start --dev` alike.

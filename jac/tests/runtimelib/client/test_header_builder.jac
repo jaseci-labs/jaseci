@@ -80,9 +80,10 @@ test "values are escaped inside their quotes" {
 
 """One entry carries every rendering rule, asserted as a single exact string:
 src escaping, bare flag from `true`, valued attrs, quote escaping, underscore
-folding, a name no whitelist ever knew (`blocking`), int values, `false`
-omission (no `async` in the output), and insertion order. The surrounding
-asserts pin that scripts land after the crawler tags."""
+folding, a name no whitelist ever knew (`blocking`), and insertion order.
+Only a boolean `false` omits an attribute: `tabindex = 0` and an empty string
+are real HTML values and must survive. The surrounding asserts pin that
+scripts land after the crawler tags."""
 test "an external script renders every attribute rule, placed last in the head" {
     hb = HeaderBuilder(
         meta_data={
@@ -97,7 +98,8 @@ test "an external script renders every attribute rule, placed last in the head" 
                     "integrity": "sha384-abc\"def",
                     "data_site_id": "jac & co",
                     "blocking": "render",
-                    "tabindex": 3,
+                    "tabindex": 0,
+                    "data_empty": "",
                     "async": False
                 }
             ]
@@ -108,7 +110,8 @@ test "an external script renders every attribute rule, placed last in the head" 
     assert (
         '<script src="https://cdn.example.com/a.js?x=1&amp;y=2" defer'
         ' type="module" integrity="sha384-abc&quot;def"'
-        ' data-site-id="jac &amp; co" blocking="render" tabindex="3"></script>'
+        ' data-site-id="jac &amp; co" blocking="render" tabindex="0"'
+        ' data-empty=""></script>'
     )
         in head;
     assert head.index("<script") > head.index('<link rel="icon"');
@@ -137,32 +140,58 @@ test "every input shape reaches the same renderer" {
 }
 
 
-"""Event handlers by the `on*` class rule; hostile or malformed names by the
-attribute-name grammar. The exact-string assert proves only `data_ok` survived."""
-test "unsafe or malformed attribute keys are dropped" {
+"""A key that cannot fold to a well-formed attribute name is dropped, so it
+cannot break out of the tag and forge extra attributes. The exact-string assert
+proves nothing but the two legitimate keys survived."""
+test "malformed attribute keys cannot forge extra attributes" {
     hb = HeaderBuilder(
         meta_data={
             "scripts": [
                 {
                     "src": "/a.js",
-                    "onload": "alert(1)",
-                    "onerror": "alert(2)",
-                    "data_x onmouseover": "alert(3)",
-                    'data_y" onclick="alert(4)': "v",
-                    "data_z><img src=x onerror=alert(5)><span data_q": "v",
+                    "data_x onmouseover": "alert(1)",
+                    'data_y" onclick="alert(2)': "v",
+                    "data_z><img src=x onerror=alert(3)><span data_q": "v",
                     "data_UPPER": "v",
                     "data_": "v",
                     "data__x": "v",
                     "9data_lead": "v",
-                    "data_ok": "1"
+                    "data_ok": "1",
+                    "onerror": "loadFallback()"
                 }
             ]
         },
         function_name="app"
     );
     head = hb.build_head();
-    assert '<script src="/a.js" data-ok="1"></script>' in head;
+    assert '<script src="/a.js" data-ok="1" onerror="loadFallback()"></script>' in head;
     assert "alert" not in head;
+}
+
+
+"""`onload`/`onerror` on a script tag are standard HTML, and the CDN fallback
+pattern depends on them. jac.toml is developer authored and can already run
+arbitrary code through `content`, so there is nothing to protect by dropping
+them; the value is escaped like any other attribute."""
+test "event handler attributes are supported and escaped" {
+    hb = HeaderBuilder(
+        meta_data={
+            "scripts": [
+                {
+                    "src": "https://cdn.example.com/lib.js",
+                    "onerror": 'load("local.js") & retry()',
+                    "onload": "ready()"
+                }
+            ]
+        },
+        function_name="app"
+    );
+    assert (
+        '<script src="https://cdn.example.com/lib.js"'
+        ' onerror="load(&quot;local.js&quot;) &amp; retry()"'
+        ' onload="ready()"></script>'
+    )
+        in hb.build_head();
 }
 
 

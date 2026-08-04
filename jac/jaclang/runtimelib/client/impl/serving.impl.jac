@@ -186,16 +186,18 @@ impl HeaderBuilder._script_tag(spec: dict) -> str {
     }
     attrs: list = [f'src="{html.escape(src)}"'] if src else [];
     for (key, val) in spec.items() {
-        if key in ("src", "content") or not val {
+        if key in ("src", "content") or val is None {
             continue;
         }
         name = str(key).replace("_", "-");
-        if not re.fullmatch(r"[a-z][a-z0-9]*(-[a-z0-9]+)*", name)
-            or name.startswith("on") {
+        if not re.fullmatch(r"[a-z][a-z0-9]*(-[a-z0-9]+)*", name) {
             continue;
         }
-        if val is True {
-            attrs.append(name);
+
+        if isinstance(val, bool) {
+            if val {
+                attrs.append(name);
+            }
         } else {
             attrs.append(f'{name}="{html.escape(str(val))}"');
         }
