@@ -118,12 +118,6 @@ obj PrefetchedTypes {
         set_class: types.ClassType | None = None;
 }
 
-obj SymbolResolutionStackEntry {
-    has symbol: uni.Symbol,
-        is_result_valid: bool = True,
-        partial_type: TypeBase | None = None;
-}
-
 obj MatchArgsToParamsResult {
     has arg_params: dict[(uni.Expr | uni.KWPair, types.Parameter | None)],
         overload: types.FunctionType | None = None,
@@ -174,7 +168,7 @@ obj TypeEvaluator {
         _TYPING_AMBIENT_STUB_FILE_PATH: str postinit,
         ambient_typing_names_by_module: dict[str, set[str]] = {},
         _ENUM_STUB_FILE_PATH: str postinit,
-        symbol_resolution_stack: list[SymbolResolutionStackEntry] = [],
+        symbol_resolution_stack: list[uni.Symbol] = [],
         prefetch: PrefetchedTypes postinit,
         _pass: object | None = None,
         builtins_module: uni.Module | None = None,
@@ -183,7 +177,6 @@ obj TypeEvaluator {
         _flow_pending_keys: set[str] postinit,
         _module_type_cache: dict[str, types.ModuleType] = {},
         _modules_in_compile: set[str] postinit,
-        _cyclic_resolution_depth: int = 0,
         _mobui_module_cache: dict[str, bool] = {},
         _strict_site_cache: dict[int, bool] = {},
         _sv_async_syms_cache: dict[int, set[int]] = {},
@@ -209,7 +202,7 @@ obj TypeEvaluator {
     def _invalidate_expr_type_cache(node_: uni.UniNode) -> None;
     def get_index_of_symbol_resolution(symbol: uni.Symbol) -> int | None;
     def push_symbol_resolution(symbol: uni.Symbol) -> bool;
-    def pop_symbol_resolution(symbol: uni.Symbol) -> bool;
+    def pop_symbol_resolution(symbol: uni.Symbol) -> None;
     def get_type_of_symbol(symbol: uni.Symbol) -> TypeBase;
     def resolve_to_definition_symbol(symbol: uni.Symbol) -> uni.Symbol;
     def _widen_literal_for_declaration(ty: TypeBase) -> TypeBase;

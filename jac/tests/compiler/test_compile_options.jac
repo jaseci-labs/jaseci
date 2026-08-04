@@ -247,3 +247,42 @@ test "no positional intrinsic name matching inside _codegen_call" {
         + "\n".join(offenders)
     );
 }
+
+test "no cycle counter or stack validity channel in the type system" {
+    import jaclang;
+    compiler_dir = os.path.join(
+        os.path.dirname(os.path.abspath(jaclang.__file__)), "compiler"
+    );
+    scan_dirs = [
+        os.path.join(compiler_dir, "type_system"),
+        os.path.join(compiler_dir, "passes")
+    ];
+    tokens = ["_cyclic_resolution_depth", "is_result_valid"];
+    offenders: list[str] = [];
+    for scan_dir in scan_dirs {
+        assert os.path.isdir(scan_dir) , f"scan dir missing: {scan_dir}";
+        for (dirpath, _dirs, files) in os.walk(scan_dir) {
+            for fname in files {
+                if not (fname.endswith(".jac") or fname.endswith(".py")) {
+                    continue;
+                }
+                fpath = os.path.join(dirpath, fname);
+                with open(fpath, "r", encoding="utf-8", errors="replace") as f {
+                    for (lineno, line) in enumerate(f, 1) {
+                        for token in tokens {
+                            if token in line {
+                                rel = os.path.relpath(fpath, compiler_dir);
+                                offenders.append(f"{rel}:{lineno}: {line.strip()}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert not offenders , (
+        "cycle-window counter or stack validity channel found (completeness "
+        "must travel on the type value via UnknownType.is_incomplete):\n"
+        + "\n".join(offenders)
+    );
+}
