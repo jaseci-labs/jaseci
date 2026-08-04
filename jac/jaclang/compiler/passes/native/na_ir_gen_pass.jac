@@ -225,6 +225,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         str_cmp_fn: (ir.Function | None) = None,
         str_dup_fn: (ir.Function | None) = None,
         str_len_raw_fn: (ir.Function | None) = None,
+        str_wrap_fn: (ir.Function | None) = None,
+        str_wrap_raw_fn: (ir.Function | None) = None,
+        str_unwrap_fn: (ir.Function | None) = None,
+        _str_desc_ty: object = None,
         rc_roots_buf_gv: object = None,
         rc_roots_cap_gv: object = None,
         rc_roots_count_gv: object = None,
@@ -1149,6 +1153,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         b: ir.IRBuilder, ptr: ir.Value, name: str = "s.rlen"
     ) -> ir.Value;
 
+    def _str_desc_type -> ir.Type;
+    def _emit_str_desc_helpers -> None;
+    def _membrane_str_out(b: ir.IRBuilder, val: ir.Value) -> ir.Value;
+    def _membrane_str_in(b: ir.IRBuilder, val: ir.Value) -> ir.Value;
     def _str_alloc(b: ir.IRBuilder, size: ir.Value, name: str = "s.buf") -> ir.Value;
     def _str_finish(b: ir.IRBuilder, buf: ir.Value, len_val: ir.Value) -> None;
     def _emit_rc_roots_globals -> None;

@@ -900,6 +900,113 @@ impl NaIRGenPass._call_str_len_raw(
     return b.call(self.str_len_raw_fn, [ptr], name=name);
 }
 
+impl NaIRGenPass._str_desc_type -> ir.Type {
+    if self._str_desc_ty is not None {
+        return self._str_desc_ty;
+    }
+    i8p = ir.IntType(8).as_pointer();
+    i64 = ir.IntType(64);
+    st = self.llvm_module.context.get_identified_type("JacStr");
+    if self._nogc_headerless() {
+        st.set_body(i8p, i64);
+    } else {
+        st.set_body(i8p, i8p, i64);
+    }
+    self._str_desc_ty = st;
+    return st;
+}
+
+impl NaIRGenPass._emit_str_desc_helpers -> None {
+    if self.str_wrap_fn is not None {
+        return;
+    }
+    if self.str_len_fn is None {
+        self._emit_str_len_helpers();
+    }
+    if self.str_len_raw_fn is None {
+        self._emit_str_len_raw_helper();
+    }
+    i8 = ir.IntType(8);
+    i8p = i8.as_pointer();
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    desc = self._str_desc_type();
+    _hl = self._nogc_headerless();
+    _di = 0 if _hl else 1;
+    _li = 1 if _hl else 2;
+    _z = ir.Constant(i32, 0);
+    for (fname, len_fn) in (
+        ("__jac_str_wrap", self.str_len_fn),
+        ("__jac_str_wrap_raw", self.str_len_raw_fn)
+    ) {
+        wf = self._define_function(fname, ir.FunctionType(desc, [i8p]));
+        wf.linkage = "private";
+        wf.args[0].name = "s";
+        wb = ir.IRBuilder(wf.append_basic_block("entry"));
+        wlen = wb.call(len_fn, [wf.args[0]], name="w.len");
+        slot = wb.alloca(desc, name="w.slot");
+        if not _hl {
+            wb.store(
+                wf.args[0], wb.gep(slot, [_z, ir.Constant(i32, 0)], name="w.root")
+            );
+        }
+        wb.store(wf.args[0], wb.gep(slot, [_z, ir.Constant(i32, _di)], name="w.data"));
+        wb.store(wlen, wb.gep(slot, [_z, ir.Constant(i32, _li)], name="w.lenp"));
+        wb.ret(wb.load(slot, name="w.desc"));
+        if fname == "__jac_str_wrap" {
+            self.str_wrap_fn = wf;
+        } else {
+            self.str_wrap_raw_fn = wf;
+        }
+    }
+    uf = self._define_function("__jac_str_unwrap", ir.FunctionType(i8p, [desc]));
+    uf.linkage = "private";
+    uf.args[0].name = "d";
+    _u_entry = uf.append_basic_block("entry");
+    _u_null = uf.append_basic_block("null");
+    _u_probe = uf.append_basic_block("probe");
+    _u_pass = uf.append_basic_block("pass");
+    _u_copy = uf.append_basic_block("copy");
+    ub = ir.IRBuilder(_u_entry);
+    _u_data = ub.extract_value(uf.args[0], _di, name="u.data");
+    _u_len = ub.extract_value(uf.args[0], _li, name="u.len");
+    ub.cbranch(
+        ub.icmp_unsigned("==", _u_data, ir.Constant(i8p, None), name="u.isnull"),
+        _u_null,
+        _u_probe
+    );
+    ub = ir.IRBuilder(_u_null);
+    ub.ret(ir.Constant(i8p, None));
+    ub = ir.IRBuilder(_u_probe);
+    _u_end = ub.load(ub.gep(_u_data, [_u_len], name="u.endp"), name="u.end");
+    ub.cbranch(
+        ub.icmp_unsigned("==", _u_end, ir.Constant(i8, 0), name="u.hasnul"),
+        _u_pass,
+        _u_copy
+    );
+    ub = ir.IRBuilder(_u_pass);
+    ub.ret(_u_data);
+    ub = ir.IRBuilder(_u_copy);
+    ub.ret(ub.call(self.str_new_fn, [_u_data, _u_len], name="u.copy"));
+    self.str_unwrap_fn = uf;
+}
+
+impl NaIRGenPass._membrane_str_out(b: ir.IRBuilder, val: ir.Value) -> ir.Value {
+    if self.str_unwrap_fn is None {
+        self._emit_str_desc_helpers();
+    }
+    d = b.call(self.str_wrap_fn, [val], name="mem.out.wrap");
+    return b.call(self.str_unwrap_fn, [d], name="mem.out");
+}
+
+impl NaIRGenPass._membrane_str_in(b: ir.IRBuilder, val: ir.Value) -> ir.Value {
+    if self.str_unwrap_fn is None {
+        self._emit_str_desc_helpers();
+    }
+    d = b.call(self.str_wrap_raw_fn, [val], name="mem.in.wrap");
+    return b.call(self.str_unwrap_fn, [d], name="mem.in");
+}
+
 impl NaIRGenPass._str_alloc(
     b: ir.IRBuilder, size: ir.Value, name: str = "s.buf"
 ) -> ir.Value {

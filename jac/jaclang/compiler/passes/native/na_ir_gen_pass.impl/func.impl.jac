@@ -224,6 +224,7 @@ impl NaIRGenPass._declare_clib_ability(nd: uni.Ability) -> None {
         for pp in param_plan {
             if pp["kind"] == "scalar" {
                 pp["type"] = sysv_param_types[pp["argpos"]];
+                pp["is_str"] = pp.get("tname") == "str";
             }
         }
         sysv_sret = plan["sret"];
@@ -284,6 +285,7 @@ impl NaIRGenPass._declare_clib_ability(nd: uni.Ability) -> None {
                 }
             }
         }
+        sysv_ret_plan["is_str"] = _fdecl["ret"] == "str";
         self.clib_fn_abi[name] = {
             "params": param_plan,
             "ret": sysv_ret_plan,

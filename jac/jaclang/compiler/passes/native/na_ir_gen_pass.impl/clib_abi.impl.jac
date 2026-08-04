@@ -203,7 +203,11 @@ impl NaIRGenPass._codegen_clib_call(
             if jac_val is None {
                 call_args.append(ir.Constant(pp["type"], 0));
             } else {
-                call_args.append(self._coerce_type(jac_val, pp["type"]));
+                _cv = jac_val;
+                if pp.get("is_str") and isinstance(_cv.type, ir.PointerType) {
+                    _cv = self._membrane_str_out(self.builder, _cv);
+                }
+                call_args.append(self._coerce_type(_cv, pp["type"]));
             }
         } elif kind == "struct_mem" {
             c_ptr = self._clib_materialize_c_ptr(jac_val, pp["sname"]);
@@ -291,6 +295,9 @@ impl NaIRGenPass._codegen_clib_call(
     }
 
     if isinstance(result.type, ir.PointerType) {
+        if ret_plan.get("is_str") {
+            result = self._membrane_str_in(self.builder, result);
+        }
         self._mark_owned(result);
     }
     return self._clib_sext_ret(func_name, result);

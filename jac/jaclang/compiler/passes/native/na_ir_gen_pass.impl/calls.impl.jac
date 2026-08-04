@@ -1423,6 +1423,21 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     _is_foreign = func_name in self.clib_extern_names;
     coerced: list[ir.Value] = [];
 
+    _clib_str_args: set = set();
+    _clib_str_ret = False;
+    if _is_foreign {
+        import from jaclang.compiler.targets.foreign { declared_type_name }
+        _clib_sig = self._callee_sig_of(nd);
+        if _clib_sig is not None {
+            for (_ci, _cp) in enumerate(_clib_sig.get_parameters()) {
+                if _cp.type_tag is not None
+                    and declared_type_name(_cp.type_tag.tag) == "str" {
+                    _clib_str_args.add(_ci);
+                }
+            }
+            _clib_str_ret = declared_type_name(_clib_sig.return_type) == "str";
+        }
+    }
     release_args: list[ir.Value] = [];
     _i8ptr = ir.IntType(8).as_pointer();
     for (i, arg) in enumerate(args) {
@@ -1435,6 +1450,15 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             coerced.append(
                 self._bytes_data_ptr(arg) if func.args[i].type == _i8ptr else arg
             );
+            release_args.append(arg);
+        } elif (
+            _is_foreign
+            and i in _clib_str_args
+            and i < len(func.args)
+            and func.args[i].type == _i8ptr
+            and isinstance(arg.type, ir.PointerType)
+        ) {
+            coerced.append(self._membrane_str_out(self.builder, arg));
             release_args.append(arg);
         } elif i < len(func.args) {
             _c = self._coerce_type(arg, func.args[i].type);
@@ -1510,6 +1534,9 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     result = self.builder.call(func, coerced, name=f"call.{func_name}");
     if func_name in self.clib_extern_names {
         result = self._clib_sext_ret(func_name, result);
+        if _clib_str_ret and isinstance(result.type, ir.PointerType) {
+            result = self._membrane_str_in(self.builder, result);
+        }
     }
 
     self._release_owned_args(release_args, op="call_arg");
