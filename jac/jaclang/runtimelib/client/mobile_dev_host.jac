@@ -153,12 +153,10 @@ def wait_for_adb_device_boot(
                 timeout=ADB_PROPS_TIMEOUT_SEC,
                 check=False
             );
-        } except Exception {
-            r = None;
-        }
-        if (r is not None and r.returncode == 0 and (r.stdout or "").strip() == "1") {
-            return;
-        }
+            if r.returncode == 0 and (r.stdout or "").strip() == "1" {
+                return;
+            }
+        } except Exception { }
         time.sleep(2);
     }
     raise RuntimeError(
