@@ -715,6 +715,41 @@ impl NaIRGenPass._codegen_string_slice(
     }
     (start_val, stop_val, step_val, step_pos) = bounds;
 
+    _sl_ast = slice_node;
+    if isinstance(_sl_ast, uni.IndexSlice) and len(_sl_ast.slices) == 1 {
+        _sl_ast = _sl_ast.slices[0];
+    }
+    _static_step1 = isinstance(_sl_ast, uni.Slice) and _sl_ast.step is None;
+    if _static_step1 and self._gc_mode() != "none" and self._str_desc_ty is not None {
+        _v_raw = self.builder.sub(stop_val, start_val, name="s.view.raw");
+        _v_len = self.builder.select(
+            self.builder.icmp_signed("<", _v_raw, zero, name="s.view.neg"),
+            zero,
+            _v_raw,
+            name="s.view.len"
+        );
+        _v_data = self.builder.gep(target_val, [start_val], name="s.view.data");
+        self._emit_rc_retain(target_val, op="str_view", loc="");
+        _i32v = ir.IntType(32);
+        _zv = ir.Constant(_i32v, 0);
+        _v_slot = self._entry_alloca(self._str_desc_ty, "s.view.slot");
+        self.builder.store(
+            target_val,
+            self.builder.gep(_v_slot, [_zv, ir.Constant(_i32v, 0)], name="s.view.root")
+        );
+        self.builder.store(
+            _v_data,
+            self.builder.gep(_v_slot, [_zv, ir.Constant(_i32v, 1)], name="s.view.dslot")
+        );
+        self.builder.store(
+            _v_len,
+            self.builder.gep(_v_slot, [_zv, ir.Constant(_i32v, 2)], name="s.view.lslot")
+        );
+        _view = self.builder.load(_v_slot, name="s.view");
+        self._mark_owned(_view);
+        return _view;
+    }
+
     diff = self.builder.select(
         step_pos,
         self.builder.sub(stop_val, start_val, name="ss.d.fwd"),
