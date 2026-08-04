@@ -144,11 +144,6 @@ impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
         self._session().record_and_lower_effect(nd);
     }
 
-    # Lower the component's view from its body. A direct `return <Jsx>`, a
-    # variable-bound JSX return, and an if/else of JSX returns are all lowered
-    # (the latter to a Kotlin `if/else`); any JSX the lowering cannot cover is
-    # reported as a diagnostic via the view builder so a broken or empty screen
-    # is never produced silently.
     inner = unwrap_ability_body(nd);
     if inner {
         self._sync_lowerer_reactive_vars();

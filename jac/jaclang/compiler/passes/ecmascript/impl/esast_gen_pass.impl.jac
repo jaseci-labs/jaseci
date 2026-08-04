@@ -33,13 +33,6 @@ impl EsastGenPass._ensure_backend -> None {
         resolve_framework_backend
     }
 
-    # Compose is the Android (Jetpack Compose) surface and has no web/ES
-    # lowering. It only reaches this pass under a web/codegen compile, which is
-    # a misconfiguration: Android builds lower via ComposeGenPass under no_cgen
-    # and never enter EsastGenPass. Reject it up front with E5082 instead of
-    # falling through to an opaque 'unknown framework'. effective_fw mirrors the
-    # override-then-config precedence used below so react/preact/solid resolve
-    # exactly as before.
     if override {
         effective_fw = override;
     } else {

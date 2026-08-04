@@ -330,12 +330,7 @@ impl ComposeViewBuilder._lift_if(
     );
 }
 
-# --- root-level (return-position) lowering ---------------------------------
-
 def _is_real_jsx(nd: uni.JsxElement) -> bool {
-    # The parser stashes the <Tag>/</Tag> markers as JsxElements inside the real
-    # element's .kid; a real element is either top-level or present in its
-    # JsxElement parent's .children (same guard as the JSX prop validator).
     parent = nd.parent;
     if isinstance(parent, uni.JsxElement) {
         siblings = parent.children or [];
@@ -346,14 +341,11 @@ def _is_real_jsx(nd: uni.JsxElement) -> bool {
     return True;
 }
 
-def _collect_real_jsx(nd: uni.UniNode, out: list) -> None {
+def _collect_real_jsx(nd: uni.UniNode, out: list) {
     if isinstance(nd, uni.JsxElement) and _is_real_jsx(nd) {
         out.append(nd);
     }
     for child in (nd.kid or []) {
-        # Lambda/closure bodies are their own composable scopes (slot or click
-        # handlers), not the component's top-level view — don't count their JSX
-        # toward the component-body coverage check.
         if isinstance(child, uni.LambdaExpr) {
             continue;
         }
@@ -394,16 +386,13 @@ def _if_returns_on_all_paths(stmt: uni.IfStmt) -> bool {
 impl ComposeViewBuilder.lower_component_view(
     stmts: list[uni.UniNode]
 ) -> (ComposeElement | None) {
-    # Only count JsxElements built for *this* component toward coverage.
     before = set(self._view_by_node.keys());
     items = self._lower_stmts(stmts);
     self._guard_coverage(stmts, before, items);
     if items is None or len(items) == 0 {
         return None;
     }
-    # A single direct element return lowers to that element verbatim (the common
-    # case); a conditional or multi-item root becomes a nameless fragment whose
-    # body items ComposeNativeEmitter.emit_view emits inline (no wrapper).
+
     first = items[0];
     if len(items) == 1 and isinstance(first, ComposeElementChild) {
         return first.element;
@@ -426,8 +415,6 @@ impl ComposeViewBuilder._lower_stmts(stmts: list[uni.UniNode]) -> (list | None) 
             break;
         }
         if isinstance(stmt, uni.IfStmt) {
-            # An if with no JSX anywhere is not a view construct (e.g. a local
-            # mutation); skip it and let the state/effect machinery handle it.
             if not _contains_real_jsx(stmt) {
                 continue;
             }
@@ -441,8 +428,6 @@ impl ComposeViewBuilder._lower_stmts(stmts: list[uni.UniNode]) -> (list | None) 
             }
             continue;
         }
-        # Assignments, declarations, effect/state setup, and plain expressions
-        # are not part of the view tree.
     }
     return items;
 }
@@ -460,9 +445,7 @@ impl ComposeViewBuilder._lower_jsx_value(
     return ComposeElementChild(element=built, jac_node=expr);
 }
 
-impl ComposeViewBuilder._lower_if_stmt(
-    stmt: uni.IfStmt
-) -> (ComposeIfChild | None) {
+impl ComposeViewBuilder._lower_if_stmt(stmt: uni.IfStmt) -> (ComposeIfChild | None) {
     test = self.lowerer.convert_expr(stmt.condition);
     if test is None {
         return None;
@@ -481,10 +464,7 @@ impl ComposeViewBuilder._lower_if_stmt(
         alternate = alt_items;
     }
     return ComposeIfChild(
-        `test=test,
-        consequent=cons,
-        alternate=alternate,
-        jac_node=stmt
+        `test=test, consequent=cons, alternate=alternate, jac_node=stmt
     );
 }
 
@@ -508,7 +488,11 @@ impl ComposeViewBuilder._guard_coverage(
         return;
     }
     built = set(self._view_by_node.keys()) - before;
-    uncovered = [j for j in all_jsx if id(j) not in built];
+    uncovered = [
+        j
+        for j in all_jsx
+        if id(j) not in built
+    ];
     if len(uncovered) > 0 {
         self.diagnostics.append(
             "Compose view: some JSX was not lowered (found JSX in a branch not "

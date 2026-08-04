@@ -3,13 +3,6 @@ import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 import from jaclang.compiler.passes.ecmascript.intent.detection { assignment_kt_op }
 
-# Jac division semantics differ from Kotlin's and cannot be lowered to a bare
-# Kotlin operator: `/` always yields a float (Kotlin `Int / Int` truncates),
-# `//` floors toward -infinity (Kotlin integer division truncates toward
-# zero), and `%` takes the divisor's sign (Kotlin `%` takes the dividend's).
-# These lower to `JacMath` helpers (see compose_emit's JacMath.kt) so the
-# operands stay call-delimited and Kotlin overload resolution preserves the
-# Jac result type (Int operands -> Int, a float operand -> Double).
 glob _JAC_ARITH_RT: dict[str, str] = {
          Tok.DIV.name: 'truediv',
          Tok.FLOOR_DIV.name: 'floorDiv',
@@ -161,8 +154,6 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         return kt.KtIdentifier(name=_kt_id(name_map.get(nd.sym_name, nd.sym_name)));
     }
     if isinstance(nd, uni.AtomUnit) {
-        # A bare atom wrapper (e.g. the name in `if (flag)`); lower its inner
-        # token/node via the matching case below.
         return self.convert_expr(nd.value);
     }
     if isinstance(nd, uni.MultiString) {
@@ -446,9 +437,7 @@ impl JacToKotlin.convert_stmt(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
             return _unsupported("multi-target assignment");
         }
         name = nd.target[0].sym_name;
-        # Reactive variables and augmented assignments share one path: the
-        # operator helper maps `=` to '=' and `+=`/`-=`/… to their Kotlin
-        # compound forms (see ASSIGNMENT_KT_OPS in detection.jac).
+
         if (name in self.reactive_vars) or (nd.aug_op and nd.aug_op.name) {
             return kt.KtAssignment(
                 operator=assignment_kt_op(nd),

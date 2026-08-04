@@ -82,9 +82,6 @@ impl screen_name_for(
     return HOME_SCREEN_NAME;
 }
 
-# A resolved route: one route path bound to exactly one Kotlin screen
-# function name, plus the component (if any) that backs it. `body_override`
-# carries verbatim Kotlin for the synthesized home fallback.
 obj _RouteEntry {
     has path: str,
         screen_name: str,
@@ -92,16 +89,6 @@ obj _RouteEntry {
         body_override: str = "";
 }
 
-# Single source of truth for the route -> screen mapping. Every consumer of
-# routes (emit_jac_app's `when` arms, emit_screens' screen functions,
-# and write()'s scaffold route table) reads from this list, so they can never
-# disagree on a path's screen name.
-#
-# Collision detection: distinct paths that normalize to the same Kotlin screen
-# name (e.g. `/a-b` and `/a_b` both -> `ABScreen`) would otherwise produce a
-# duplicate `fun` or a `when` arm pointing at a screen that was silently
-# dropped by a `seen` set. Instead we record a diagnostic, and write()
-# already refuses to emit while any diagnostic is present.
 def _resolve_route_plan(model: ComposeModule) -> list[_RouteEntry] {
     entries: list[_RouteEntry] = [];
     name_to_path: dict[str, str] = {};
@@ -213,11 +200,6 @@ def _emit_kotlin_imports(model: ComposeModule) -> str {
     return "".join([f"import {line}\n" for line in lines]);
 }
 
-# Jac arithmetic semantics runtime. `jac_to_kotlin` lowers `/`, `//`, and `%`
-# onto `JacMath` members so the result follows Jac (not Kotlin) semantics;
-# Kotlin overload resolution keeps Int operands Int and widens to Double
-# when a float is involved. Always emitted (same package as Screens.kt, so
-# the top-level object needs no import).
 def _emit_jac_math(pkg: str) -> str {
     return (
         f"package {pkg}\n\n"
@@ -363,7 +345,7 @@ fun JacApp(startPath: String = JacRoutes.initialPath, startFragment: String? = n
 def _emit_screen_fun(name: str, prelude: str, body: str) -> str {
     return f"""
 @Composable
-fun {name}(viewportWidth: Dp, scrollState: ScrollState, sectionRegistry: JacSectionRegistry, navigate: (String, String, String?) -> Unit, goBack: () -> Unit, openExternal: (String, String) -> Unit) {{
+fun {name}(viewportWidth: Dp, scrollState: ScrollState, sectionRegistry: JacSectionRegistry, navigate: (JacNavOperation, String, String?) -> Unit, goBack: () -> Unit, openExternal: (JacExternalMode, String) -> Unit) {{
 {prelude}{body}
 }}
 """;
@@ -437,10 +419,6 @@ obj _ScreenPlanEntry {
         body_override: str = "";
 }
 
-# Projects the cached route plan into the (name, comp, body_override) shape
-# the screen emitter consumes. Route gathering, dedup, and collision
-# diagnostics all live in _resolve_route_plan - this adds no resolution of
-# its own, so it must be fed the already-resolved plan (not a fresh model).
 def _screen_plan_from_entries(entries: list[_RouteEntry]) -> list[_ScreenPlanEntry] {
     return [
         _ScreenPlanEntry(
@@ -616,7 +594,9 @@ impl ComposeEmit.write -> list[Path] {
     }
     files[f"{screens_root}/Screens.kt"] = screens_src;
     files[f"{screens_root}/JacClient.kt"] = client_src;
-    files[f"{screens_root}/JacMath.kt"] = _emit_jac_math(self.model.intent.package_name);
+    files[f"{screens_root}/JacMath.kt"] = _emit_jac_math(
+        self.model.intent.package_name
+    );
 
     written: list[Path] = [];
     reused = 0;

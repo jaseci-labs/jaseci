@@ -279,9 +279,7 @@ test "JacMath runtime encodes Jac division/floor/mod semantics" {
 # `View`); the path-derived component_import is the unique identity, so each
 # page's component is re-keyed to it before merging into the aggregate model.
 test "repeated export names merge to distinct components by component_import" {
-    import from jaclang.compiler.passes.ecmascript.intent.model {
-        IntentComponent
-    }
+    import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
     import from jaclang.compiler.passes.compose.view_ir { ComposeElement }
 
     def _page(export_name: str) -> ComposeModule {
@@ -306,7 +304,6 @@ test "repeated export names merge to distinct components by component_import" {
     assert "View" not in model.intent.components;
     assert model.compose_view_for("PagesIndex") is not None;
     assert model.compose_view_for("PagesAbout") is not None;
-    assert model.compose_view_for("PagesIndex") is not model.compose_view_for(
-        "PagesAbout"
-    );
+    assert model.compose_view_for("PagesIndex")
+        is not model.compose_view_for("PagesAbout");
 }

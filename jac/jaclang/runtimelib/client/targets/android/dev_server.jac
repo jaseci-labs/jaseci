@@ -37,9 +37,7 @@ def _resolve_versioned_dex(state: dict, raw_path: str) -> (Path | None) {
         return None;
     }
     version = raw_path[len(prefix):-len(suffix)];
-    # Module versions are the first 16 hex digits of a sha256 digest (see
-    # AndroidTarget._build_hot_dex). Requiring that exact shape rejects every
-    # traversal vector (`..`, `.`, separators) and any foreign/stale path.
+
     if not _is_hex_version(version) {
         return None;
     }
@@ -49,7 +47,7 @@ def _resolve_versioned_dex(state: dict, raw_path: str) -> (Path | None) {
     }
     base_dir = Path(str(modules_root)).resolve();
     dex_path = (base_dir / version / "classes.dex").resolve();
-    # Defense in depth: the resolved file must remain under the modules root.
+
     try {
         dex_path.relative_to(base_dir);
     } except Exception {
@@ -134,9 +132,7 @@ def start_jac_dev_server(port: int, state: dict) -> any {
     import from threading { Thread }
 
     handler_cls = jac_dev_handler_cls(state);
-    # Loopback only: the dev server hands the merged classes.dex to the device
-    # over `adb reverse` (http://localhost:<port>), so it never needs to be
-    # reachable off-host. Binding 0.0.0.0 exposed the dex to the local network.
+
     httpd = ThreadingHTTPServer(("127.0.0.1", port), handler_cls);
     thread = Thread(target=httpd.serve_forever, daemon=True);
     thread.start();

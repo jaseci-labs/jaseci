@@ -12,9 +12,6 @@ obj ComposeEmit {
     def write -> list[Path];
     def emit_screens -> str;
     def emit_jac_app -> str;
-    # Lazily-resolved, cached route plan — the single source of truth shared by
-    # emit_jac_app, emit_screens, and write. Resolving once also means route
-    # collisions record each diagnostic exactly once.
     def route_plan -> any;
 }
 

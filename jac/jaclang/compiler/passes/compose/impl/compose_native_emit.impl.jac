@@ -351,9 +351,7 @@ impl ComposeNativeEmitter.emit_view(view: (ComposeElement | None)) -> str {
     if view is None {
         return f"{self.indent}Column(modifier = Modifier.fillMaxSize()) {{\n{self.indent}}}";
     }
-    # A nameless fragment root holds the view's top-level body items — e.g. a
-    # conditional or loop return — and emits them inline with no wrapper
-    # container; any other root is a single Composable element.
+
     if view.name == "" {
         nodes = self._emit_children(view.children or []);
     } else {

@@ -34,7 +34,10 @@ test "dev server serves manifest and dex with live state updates" {
 
         # No dex staged yet -> 404.
         try {
-            urlopen(base + "/_jac/dev/modules/android/0123456789abcdef/classes.dex", timeout=3);
+            urlopen(
+                base + "/_jac/dev/modules/android/0123456789abcdef/classes.dex",
+                timeout=3
+            );
             assert False , "expected 404 for missing dex";
         } except HTTPError as e {
             assert e.code == 404;
@@ -137,6 +140,8 @@ test "_resolve_versioned_dex rejects traversal and malformed versions" {
         is None;
     # Wrong prefix / suffix are rejected before any filesystem touch.
     assert _resolve_versioned_dex(state, "/etc/passwd") is None;
-    assert _resolve_versioned_dex(state, "/_jac/dev/modules/android/0123456789abcdef/notdex")
+    assert _resolve_versioned_dex(
+        state, "/_jac/dev/modules/android/0123456789abcdef/notdex"
+    )
         is None;
 }

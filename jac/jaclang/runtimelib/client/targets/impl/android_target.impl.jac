@@ -280,12 +280,6 @@ impl AndroidTarget._populate_compose_routes(
             route.file_path, program
         );
 
-        # The router allows different files to export the same name (e.g. every
-        # page exporting `View`); the path-derived `component_import` is the
-        # unique identity (see test_route_scanner's same-name cases). Re-key the
-        # page's component to it BEFORE merging so repeated export names don't
-        # clobber each other in the aggregate model, and use it as the route's
-        # component binding.
         key_name = route.component_import or route.source_export;
         if (
             page_model is not None
@@ -300,8 +294,6 @@ impl AndroidTarget._populate_compose_routes(
         }
         self._attach_interop_manifest(model, page_mod);
 
-        # Mark the screen after merge; the component now lives under `key_name`
-        # whether it was re-keyed to component_import or kept its native name.
         if key_name and key_name in model.intent.components {
             comp = model.intent.components[key_name];
             comp.is_screen = True;
@@ -586,8 +578,7 @@ impl AndroidTarget._locate_android_tools -> tuple {
             }
         }
     }
-    # NB: `Path("")` normalizes to `.` (truthy), so an empty-string sentinel
-    # would never trip a truthiness check — use an explicit None sentinel.
+
     if d8 is None {
         raise RuntimeError(f"d8 not found under {build_tools}");
     }
