@@ -1559,6 +1559,14 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
             } else {
                 target_val = self._codegen_expr(nd.target);
+                if target_val is not None
+                    and self._str_desc_ty is not None
+                    and target_val.type == self._str_desc_ty {
+                    result = self._codegen_string_slice(target_val, s, nd.target);
+                    if result is not None {
+                        return result;
+                    }
+                }
                 target_val = self._str_norm(target_val);
                 if target_val is not None {
                     i8p = ir.IntType(8).as_pointer();
@@ -1568,7 +1576,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             return result;
                         }
                     } elif target_val.type == i8p {
-                        result = self._codegen_string_slice(target_val, s);
+                        result = self._codegen_string_slice(target_val, s, nd.target);
                         if result is not None {
                             return result;
                         }

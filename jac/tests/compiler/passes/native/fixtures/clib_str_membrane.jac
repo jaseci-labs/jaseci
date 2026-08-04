@@ -10,7 +10,7 @@ import from c { def strchr(s: str, c: i32) -> str;  }
 def mk(k: int) -> str {
     base: own str = "alphabeta";
     if k == 0 {
-        return base[0:5];
+        return base[0:5:1];
     }
     return base[0:3] + "ha";
 }

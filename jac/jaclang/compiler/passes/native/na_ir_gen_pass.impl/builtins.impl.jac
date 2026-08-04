@@ -701,14 +701,26 @@ impl NaIRGenPass._codegen_list_slice(
 }
 
 impl NaIRGenPass._codegen_string_slice(
-    target_val: ir.Value, slice_node: object
+    target_val: ir.Value, slice_node: object, base_node: object = None
 ) -> (ir.Value | None) {
     i64 = ir.IntType(64);
     zero = ir.Constant(i64, 0);
     one = ir.Constant(i64, 1);
     func = self.builder.function;
 
-    src_len = self._call_str_len(self.builder, target_val, name="ss.len");
+    _hl = self._nogc_headerless();
+    _desc_in = self._str_desc_ty is not None and target_val.type == self._str_desc_ty;
+    if _desc_in {
+        _root = self.builder.extract_value(target_val, 0, name="ss.root");
+        _data = self.builder.extract_value(target_val, 0 if _hl else 1, name="ss.data");
+        src_len = self.builder.extract_value(
+            target_val, 1 if _hl else 2, name="ss.srclen"
+        );
+    } else {
+        _root = target_val;
+        _data = target_val;
+        src_len = self._call_str_len(self.builder, target_val, name="ss.len");
+    }
     bounds = self._emit_norm_slice_bounds(slice_node, src_len);
     if bounds is None {
         return None;
@@ -720,7 +732,13 @@ impl NaIRGenPass._codegen_string_slice(
         _sl_ast = _sl_ast.slices[0];
     }
     _static_step1 = isinstance(_sl_ast, uni.Slice) and _sl_ast.step is None;
-    if _static_step1 and self._gc_mode() != "none" and self._str_desc_ty is not None {
+    _view_ok = _static_step1
+        and self._str_desc_ty is not None
+        and (
+            self._gc_mode() != "none"
+            or (_hl and self._hl_view_base_licensed(base_node))
+        );
+    if _view_ok {
         _v_raw = self.builder.sub(stop_val, start_val, name="s.view.raw");
         _v_len = self.builder.select(
             self.builder.icmp_signed("<", _v_raw, zero, name="s.view.neg"),
@@ -728,25 +746,48 @@ impl NaIRGenPass._codegen_string_slice(
             _v_raw,
             name="s.view.len"
         );
-        _v_data = self.builder.gep(target_val, [start_val], name="s.view.data");
-        self._emit_rc_retain(target_val, op="str_view", loc="");
+        _v_data = self.builder.gep(_data, [start_val], name="s.view.data");
         _i32v = ir.IntType(32);
         _zv = ir.Constant(_i32v, 0);
         _v_slot = self._entry_alloca(self._str_desc_ty, "s.view.slot");
-        self.builder.store(
-            target_val,
-            self.builder.gep(_v_slot, [_zv, ir.Constant(_i32v, 0)], name="s.view.root")
-        );
-        self.builder.store(
-            _v_data,
-            self.builder.gep(_v_slot, [_zv, ir.Constant(_i32v, 1)], name="s.view.dslot")
-        );
-        self.builder.store(
-            _v_len,
-            self.builder.gep(_v_slot, [_zv, ir.Constant(_i32v, 2)], name="s.view.lslot")
-        );
+        if _hl {
+            self.builder.store(
+                _v_data,
+                self.builder.gep(
+                    _v_slot, [_zv, ir.Constant(_i32v, 0)], name="s.view.dslot"
+                )
+            );
+            self.builder.store(
+                _v_len,
+                self.builder.gep(
+                    _v_slot, [_zv, ir.Constant(_i32v, 1)], name="s.view.lslot"
+                )
+            );
+        } else {
+            self._emit_rc_retain(_root, op="str_view", loc="");
+            self.builder.store(
+                _root,
+                self.builder.gep(
+                    _v_slot, [_zv, ir.Constant(_i32v, 0)], name="s.view.root"
+                )
+            );
+            self.builder.store(
+                _v_data,
+                self.builder.gep(
+                    _v_slot, [_zv, ir.Constant(_i32v, 1)], name="s.view.dslot"
+                )
+            );
+            self.builder.store(
+                _v_len,
+                self.builder.gep(
+                    _v_slot, [_zv, ir.Constant(_i32v, 2)], name="s.view.lslot"
+                )
+            );
+        }
         _view = self.builder.load(_v_slot, name="s.view");
-        self._mark_owned(_view);
+        if not _hl {
+            self._mark_owned(_view);
+        }
         return _view;
     }
 
@@ -791,7 +832,7 @@ impl NaIRGenPass._codegen_string_slice(
     self.builder.cbranch(in_range, loop_body, loop_done);
 
     self.builder.position_at_end(loop_body);
-    ch_ptr = self.builder.gep(target_val, [cur_i], name="ss.src.ch");
+    ch_ptr = self.builder.gep(_data, [cur_i], name="ss.src.ch");
     ch = self.builder.load(ch_ptr, name="ss.ch");
     cur_k = self.builder.load(k_alloca, name="ss.curk");
     out_ptr = self.builder.gep(new_str, [cur_k], name="ss.out.ch");
@@ -804,6 +845,27 @@ impl NaIRGenPass._codegen_string_slice(
     self._str_finish(self.builder, new_str, n_val);
     self._mark_owned(new_str);
     return new_str;
+}
+
+impl NaIRGenPass._hl_view_base_licensed(base_node: object) -> bool {
+    import from jaclang.jac0core.constant { OwnershipKind }
+    _x = base_node;
+    while isinstance(_x, uni.AtomTrailer) {
+        _x = _x.target;
+    }
+    if not isinstance(_x, uni.Name) or _x.sym is None {
+        return False;
+    }
+    return (
+        _x.sym_name == "self"
+        or _x.sym.ownership
+            in (
+                OwnershipKind.OWN,
+                OwnershipKind.BORROW,
+                OwnershipKind.MUT_BORROW,
+                OwnershipKind.IMM
+            )
+    );
 }
 
 impl NaIRGenPass._emit_is_strip_char(

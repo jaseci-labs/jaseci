@@ -851,9 +851,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_string_slice(
-        target_val: ir.Value, slice_node: object
+        target_val: ir.Value, slice_node: object, base_node: object = None
     ) -> (ir.Value | None);
 
+    def _hl_view_base_licensed(base_node: object) -> bool;
     def _emit_sys_argv -> (ir.Value | None);
     def _emit_sys_stream(stream: str) -> (ir.Value | None);
     def _emit_sys_exit(args: list[ir.Value]) -> (ir.Value | None);

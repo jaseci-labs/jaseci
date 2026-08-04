@@ -56,6 +56,8 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
         idx_concurrent: list[uni.ConcurrentExpr] = [],
         name_uses_by_sym: dict[SymId, list[uni.Name]] = {},
         imm_decl: dict[SymId, uni.Name] = {},
+        view_syms: set[SymId] = set(),
+        view_elision_fns: dict[int, int] = {},
         nogc_prov: (str | None) = None;
 
     static has PROVIDES: tuple = ('ownership', ),
@@ -67,6 +69,14 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _nogc_resolve_provenance -> (str | None);
     def _nogc_infer_locals -> None;
     def _nogc_str_slice_value(expr: uni.Expr | None) -> bool;
+    def _view_base_place(expr: uni.Expr | None) -> (uni.Name | None);
+    def _view_root_owner(sym_id: SymId) -> SymId;
+    def _sym_is_param(sym_id: SymId) -> bool;
+    def _view_of_expr(expr: uni.Expr | None) -> (SymId | None);
+    def _stamp_view_borrows -> None;
+    def _stamp_view_call_results(scope: uni.UniNode, seen_ids: set[int]) -> None;
+    def _view_call_owner(call: uni.FuncCall) -> (SymId | None);
+    def _emit_view_diagnostics -> None;
     def _nogc_str_elem_ok(expr: uni.Expr | None, idx_ctx: bool = False) -> bool;
     def _nogc_tag_shape(tag: uni.SubTag | None) -> str;
     def _nogc_local_shape(nm: uni.Name) -> str;

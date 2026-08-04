@@ -1,8 +1,8 @@
-"""Step-4 gate of the fat-descriptor migration (#7870): under managed
-modes a string slice is a zero-copy view -- a descriptor whose data
-points into the parent with the root retained -- with no per-slice
-allocation; headerless builds keep the copying slice until the
-derivation-subset rules land. Behavior byte-identical across modes."""
+"""Zero-copy gate of the fat-descriptor migration (#7870): a step-free
+string slice is a view with no per-slice allocation -- root-retained
+under managed modes, rootless and derivation-bounded (item 2's checker
+rules) under the enforced headerless build. Behavior byte-identical
+across modes."""
 
 import os;
 import re;
@@ -41,6 +41,14 @@ test "managed slices are allocation-free views" {
     body = _probe_fn_ir("rc", False);
     assert "s.view" in body , "no view construction in managed slice";
     assert "__rc_alloc" not in body , "managed slice still allocates";
+}
+
+test "enforced headerless slices are rootless allocation-free views" {
+    body = _probe_fn_ir("none", True);
+    assert "s.view" in body , "no view construction in enforced slice";
+    assert "__jac_halloc" not in body , "enforced slice still allocates";
+    assert "s.view.root" not in body , "headerless view carries a root store";
+    assert "__jac_rc_retain" not in body , "enforced slice emits rc traffic";
 }
 
 test "slice-view output is byte-identical across gc modes" {

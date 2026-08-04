@@ -1,8 +1,8 @@
 """Slice-heavy string surface: substrings taken in a loop and consumed
 by length, truthiness, and pass-through -- the zero-copy view gate.
-Output must stay byte-identical across gc modes whether slices are
-views (managed) or copies (headerless, until the derivation rules
-land)."""
+Output must stay byte-identical across gc modes: root-retained views
+under managed modes, rootless derivation-bounded views under the
+enforced headerless build."""
 
 def probe(s: &str, n: int) -> int {
     t = 0;

@@ -701,6 +701,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " independently affine owned handle riding the same reabsorb/zombie"
          " contract. Use the per-child call form for dynamic counts."
      ),
+     E1315 = _err(
+         "E1315",
+         Category.SEMANTIC,
+         "A string view does not allow {name}",
+         help="in a nogc-enforced module a step-free string slice is a zero-copy"
+         " view into its base: it is usable locally and returnable only when it"
+         " derives from the function's single `&`/`imm` parameter (or a method's"
+         " `self`), so every caller knows which argument the result borrows."
+         " Views may not be stored into containers, fields, or module globals,"
+         " may not be bound `own`, and a function with two or more borrowable"
+         " parameters may not return one. Materialize an owned copy with a"
+         " stepped slice (`s[a:b:1]`) where the value must escape.",
+         blocks_codegen=True
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,
