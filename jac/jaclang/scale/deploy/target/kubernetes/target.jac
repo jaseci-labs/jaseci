@@ -9,6 +9,7 @@ import from jaclang.scale._optdeps.kubernetes { client, ApiException }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     ensure_namespace_exists,
     create_k8s_secret,
+    delete_if_exists,
     get_cluster_provider,
     _resolve_current_rs_hashes,
     _refresh_rs_hashes
@@ -815,6 +816,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
+        self.reap_superseded_deployments(apps_v1, namespace, bundle);
+
         for svc_name in bundle.get("autoscalers", {}).keys() {
             k8s_name = k8s_safe_name(svc_name);
             cfg = dict(bundle.get("autoscalers", {}).get(svc_name, {}));
@@ -990,6 +993,68 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     f"Ops Console RBAC not applied ({e}); the in-admin "
                     f"deploy-health pages will render a 403 until the Role is "
                     f"bound to the gateway ServiceAccount."
+                );
+            }
+        }
+    }
+
+    def reap_superseded_deployments(
+        apps_v1: any, namespace: str, bundle: dict[str, any]
+    ) {
+        applied: dict[str, str] = {};
+        for dep in bundle.get("deployments", {}).values() {
+            try {
+                selector = str(dep["spec"]["selector"]["matchLabels"]["app"]);
+                applied[selector] = str(dep["metadata"]["name"]);
+            } except Exception {
+                continue;
+            }
+        }
+        if not applied {
+            return;
+        }
+
+        try {
+            existing = apps_v1.list_namespaced_deployment(namespace=namespace).items;
+        } except Exception as e {
+            if self.logger {
+                self.logger.warn(
+                    f"Could not list Deployments to reap superseded ones: {e}",
+                    {"namespace": namespace}
+                );
+            }
+            return;
+        }
+
+        for dep in existing {
+            try {
+                name = str(dep.metadata.name);
+                labels = dict(dep.metadata.labels or {});
+                selector = str((dep.spec.selector.match_labels or {}).get("app", ""));
+            } except Exception {
+                continue;
+            }
+            if labels.get("managed") != "jac-scale" {
+                continue;
+            }
+            current = applied.get(selector);
+            if current is None or current == name {
+                continue;
+            }
+            delete_if_exists(
+                apps_v1.delete_namespaced_deployment, name, namespace, "Deployment"
+            );
+            self._emit(
+                "apply",
+                "ok",
+                f"Removed superseded Deployment '{name}'",
+                detail={"superseded_by": current, "selector": selector}
+            );
+            if self.logger {
+                self.logger.info(
+                    f"Removed superseded Deployment '{name}'; '{current}' now "
+                    f"solely backs the 'app={selector}' Service",
+                    {"namespace": namespace}
                 );
             }
         }
