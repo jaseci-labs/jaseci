@@ -321,6 +321,7 @@ impl nacompile(
             default_codespace=('native' if auto_promote else ''),
             force_target_program=True,
             na_gc_mode=gc,
+            no_ir_cache=scrub,
             nogc_cli_target=(base_stem(filename) if enforce_nogc else ""),
             nogc_enforce_modules=(_gc_cfg.enforce.modules if _gc_cfg else []),
             nogc_grandfathered=(_gc_cfg.enforce.grandfathered if _gc_cfg else [])

@@ -453,7 +453,14 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 _ir_cache_dir, f"{_src_stem}.{_source_hash}.{_compiler_fp}.ir_meta"
             );
 
-            if os.path.exists(_cache_ir_path) and os.path.exists(_cache_meta_path) {
+            _no_ir_cache = bool(getattr(_gc_opts, "no_ir_cache", False))
+                if _gc_opts
+                else False;
+            if (
+                not _no_ir_cache
+                and os.path.exists(_cache_ir_path)
+                and os.path.exists(_cache_meta_path)
+            ) {
                 with open(_cache_ir_path, "r") as _cf {
                     imported_llvm_str_raw = _cf.read();
                 }
