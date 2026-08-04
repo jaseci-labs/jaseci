@@ -2821,7 +2821,9 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     if not _is_flow {
         return False;
     }
-    if not (self.ir_in.gen.nogc_enforced and self._gc_mode() == "none") {
+    _par_ok = (self.ir_in.gen.nogc_enforced and self._gc_mode() == "none")
+        or (self._gc_mode() == "rc" and not self._rc_debug_codegen);
+    if not _par_ok {
         return False;
     }
     if "wasm" in str(self.llvm_module.triple) {

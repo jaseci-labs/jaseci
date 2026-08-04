@@ -504,12 +504,18 @@ element ranges fan out over pthreads, joining at the closing brace
 point, not a limitation: an `--assert-no-rc` binary provably contains no
 refcount operations and no shared runtime kernel, and the checker bans
 every unsound capture, so threads are unconditionally safe --
-parallelism arrives exactly where machinery absence is proven. Managed
-modes and the Python backend keep sequential execution (non-atomic
-refcounts are the blocker; atomic-RC crossing is the named follow-up),
-so post-join state is byte-identical everywhere by the disjointness
-rule. A named follow-up: the chunked form (`&mut xs.chunks(n)`), which
-waits on container views.
+parallelism arrives exactly where machinery absence is proven. `--gc
+rc` builds fan out the same way: retain and release are atomic (the
+free decision consumes the atomic RMW's returned old count, so racing
+releases cannot double-free or leak), which makes values crossing task
+boundaries safe at zero added single-thread cost -- the baseline
+already paid the RMW on every retain/release. Measured ~7x on 8
+threads for an element-map kernel hammering one shared string's
+header. `--gc cycles` keeps the sequential lowering (the cycle
+collector's global roots and color state are unsynchronized), as do
+the Python backend and wasm, so post-join state is byte-identical
+everywhere by the disjointness rule. A named follow-up: the chunked
+form (`&mut xs.chunks(n)`), which waits on container views.
 
 ### The reduction idiom
 

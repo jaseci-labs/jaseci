@@ -303,8 +303,10 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     b.cbranch(_mc_ok_r, do_bb, done_bb);
     b = ir.IRBuilder(do_bb);
 
-    b.atomic_rmw("add", rc_ptr, ir.Constant(i64, 1), ordering="monotonic");
-    new_rc = b.add(old_rc, ir.Constant(i64, 1), name="new.rc");
+    _rmw_old_r = b.atomic_rmw(
+        "add", rc_ptr, ir.Constant(i64, 1), ordering="monotonic", name="rmw.old"
+    );
+    new_rc = b.add(_rmw_old_r, ir.Constant(i64, 1), name="new.rc");
     if self._rc_debug_codegen {
         log_retain_bb = self._emit_retain_log_bb(
             retain_fn, done_bb, retain_fn.args[0], old_rc, new_rc
@@ -376,9 +378,12 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     );
     b.cbranch(is_dbl, log_dbl_free_bb, do_bb);
     b = ir.IRBuilder(do_bb);
-    b.atomic_rmw("sub", rc_ptr, ir.Constant(i64, 1), ordering="acq_rel");
-    new_rc = b.sub(old_rc, ir.Constant(i64, 1), name="new.rc");
-    is_zero = b.icmp_unsigned("==", old_rc, ir.Constant(i64, 1), name="is.zero");
+
+    _rmw_old = b.atomic_rmw(
+        "sub", rc_ptr, ir.Constant(i64, 1), ordering="acq_rel", name="rmw.old"
+    );
+    new_rc = b.sub(_rmw_old, ir.Constant(i64, 1), name="new.rc");
+    is_zero = b.icmp_unsigned("==", _rmw_old, ir.Constant(i64, 1), name="is.zero");
     dbg_rel_bb = self._emit_release_log_bb(
         release_fn, done_bb, release_fn.args[0], old_rc, new_rc
     );
