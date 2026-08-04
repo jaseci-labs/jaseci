@@ -516,3 +516,51 @@ test "set shares the dict hash core with no linear-scan sibling" {
         );
     }
 }
+
+test "hetero container band-aids are deleted; one element-storage authority" {
+    import jaclang;
+    pkg_root = os.path.dirname(os.path.abspath(jaclang.__file__));
+    banned = [
+        "_list_box_ptr_into_i64",
+        "_is_container_element_store",
+        "list_init_box",
+        "list_set_box"
+    ];
+    offenders: list[str] = [];
+    authority_defs: list[str] = [];
+    for (dirpath, _dirs, files) in os.walk(pkg_root) {
+        for fname in files {
+            if not fname.endswith(".jac") {
+                continue;
+            }
+            fpath = os.path.join(dirpath, fname);
+            with open(fpath, "r", encoding="utf-8", errors="replace") as f {
+                for (lineno, line) in enumerate(f, 1) {
+                    for token in banned {
+                        if token in line {
+                            rel = os.path.relpath(fpath, pkg_root);
+                            offenders.append(f"{rel}:{lineno}: {line.strip()}");
+                        }
+                    }
+                    if "impl NaIRGenPass._elem_storage_llvm(" in line {
+                        authority_defs.append(os.path.relpath(fpath, pkg_root));
+                    }
+                }
+            }
+        }
+    }
+    assert not offenders , (
+        "a deleted hetero-container band-aid symbol survives (pointers boxed "
+        "into integer container slots were replaced by tagged jacval storage):\n"
+        + "\n".join(offenders)
+    );
+    assert authority_defs
+        == [
+            os.path.join(
+                "compiler", "passes", "native", "na_ir_gen_pass.impl", "types.impl.jac"
+            )
+        ] , (
+        "container element storage must be decided by exactly one authority "
+        f"(_elem_storage_llvm in types.impl.jac); found: {authority_defs}"
+    );
+}

@@ -153,3 +153,7 @@ test "cycle collector reclaims cycles routed through a container (JIT, in-use he
 test "cycle collector reclaims cycles routed through a dict (JIT, in-use heap)" {
     _assert_reclaims("cycle_collect_dict.jac");
 }
+
+test "cycle collector reclaims cycles routed through a hetero container (JIT, in-use heap)" {
+    _assert_reclaims("cycle_collect_hetero.jac");
+}

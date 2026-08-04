@@ -124,7 +124,9 @@ def unbox_jacval(jv: JacVal) -> object {
         }
         return ctypes.cast(jv.payload, ctypes.c_char_p).value.decode("utf-8");
     } elif jv.tag == 3 {
-        # List pointer: struct { i64 len, i64 cap, i64* data } (List.i64 layout)
+        # List pointer: {i64 len, i64 cap, T* data}. The RC header's type-tag
+        # string (at payload - 24) names the concrete storage (list_i64,
+        # list_f64, list_jacval, ...) so hetero payloads decode by element tag.
         if jv.payload == 0 {
             return [];
         }
@@ -132,12 +134,35 @@ def unbox_jacval(jv: JacVal) -> object {
             has _fields_: list = [
                 ("len", ctypes.c_int64),
                 ("cap", ctypes.c_int64),
-                ("data", ctypes.POINTER(ctypes.c_int64))
+                ("data", ctypes.c_void_p)
             ];
+        }
+        tname = "";
+        try {
+            _tslot = ctypes.cast(jv.payload - 24, ctypes.POINTER(ctypes.c_void_p));
+            _tp = _tslot.contents.value;
+            if _tp {
+                tname = ctypes.string_at(_tp).decode("utf-8", errors="replace");
+            }
+        } except Exception {
+            tname = "";
         }
         lst_ptr = ctypes.cast(jv.payload, ctypes.POINTER(ListStruct));
         n = lst_ptr.contents.len;
-        return [lst_ptr.contents.data[i] for i in range(n)];
+        data = lst_ptr.contents.data;
+        if (n == 0 or not data) {
+            return [];
+        }
+        if tname == "list_jacval" {
+            jarr = (JacVal * n).from_address(data);
+            return [unbox_jacval(jarr[i]) for i in range(n)];
+        }
+        if tname == "list_f64" {
+            farr = (ctypes.c_double * n).from_address(data);
+            return [float(farr[i]) for i in range(n)];
+        }
+        iarr = (ctypes.c_int64 * n).from_address(data);
+        return [int(iarr[i]) for i in range(n)];
     } elif jv.tag == 4 {
         # Dict pointer: struct { i64 len, i64 cap, i8** keys, JacVal* vals }
         if jv.payload == 0 {
