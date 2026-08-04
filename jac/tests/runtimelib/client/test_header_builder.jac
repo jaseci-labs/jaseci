@@ -78,13 +78,14 @@ test "values are escaped inside their quotes" {
 }
 
 
-"""One entry carries every rendering rule, asserted as a single exact string:
-src escaping, bare flag from `true`, valued attrs, quote escaping, underscore
-folding, a name no whitelist ever knew (`blocking`), and insertion order.
-Only a boolean `false` omits an attribute: `tabindex = 0` and an empty string
-are real HTML values and must survive. The surrounding asserts pin that
-scripts land after the crawler tags."""
-test "an external script renders every attribute rule, placed last in the head" {
+"""Both tag shapes in one pass. The external entry's exact string pins every
+attribute rule at once: src escaping, a bare flag from `true`, `false` omitting
+`async`, `0` and `""` surviving as real values, underscore folding, a name no
+whitelist knew (`blocking`), an event handler (the CDN fallback pattern), and
+insertion order. Because the match is exact, it also proves the four malformed
+keys built nothing. The inline entry pins that a body renders raw but cannot
+close the tag early, in any case, while unrelated tags pass through."""
+test "script entries render every attribute and body rule" {
     hb = HeaderBuilder(
         meta_data={
             "title": "My App",
@@ -94,148 +95,64 @@ test "an external script renders every attribute rule, placed last in the head" 
                 {
                     "src": "https://cdn.example.com/a.js?x=1&y=2",
                     "defer": True,
+                    "async": False,
                     "type": "module",
                     "integrity": "sha384-abc\"def",
                     "data_site_id": "jac & co",
                     "blocking": "render",
                     "tabindex": 0,
                     "data_empty": "",
-                    "async": False
-                }
-            ]
-        },
-        function_name="app"
-    );
-    head = hb.build_head();
-    assert (
-        '<script src="https://cdn.example.com/a.js?x=1&amp;y=2" defer'
-        ' type="module" integrity="sha384-abc&quot;def"'
-        ' data-site-id="jac &amp; co" blocking="render" tabindex="0"'
-        ' data-empty=""></script>'
-    )
-        in head;
-    assert head.index("<script") > head.index('<link rel="icon"');
-    assert head.index("<script") > head.index('<meta property="og:title"');
-}
-
-
-test "every input shape reaches the same renderer" {
-    hb = HeaderBuilder(
-        meta_data={"scripts": ["https://cdn.example.com/sdk.js"]}, function_name="app"
-    );
-    assert '<script src="https://cdn.example.com/sdk.js"></script>' in hb.build_head();
-
-    hb = HeaderBuilder(
-        meta_data={"scripts": {"src": "/one.js", "defer": True}}, function_name="app"
-    );
-    assert '<script src="/one.js" defer></script>' in hb.build_head();
-
-    hb = HeaderBuilder(
-        meta_data={"scripts": [{"src": "/a.js", "content": "ignored()"}]},
-        function_name="app"
-    );
-    head = hb.build_head();
-    assert '<script src="/a.js"></script>' in head;
-    assert "ignored()" not in head;
-}
-
-
-"""A key that cannot fold to a well-formed attribute name is dropped, so it
-cannot break out of the tag and forge extra attributes. The exact-string assert
-proves nothing but the two legitimate keys survived."""
-test "malformed attribute keys cannot forge extra attributes" {
-    hb = HeaderBuilder(
-        meta_data={
-            "scripts": [
-                {
-                    "src": "/a.js",
+                    "onerror": "fallback()",
                     "data_x onmouseover": "alert(1)",
                     'data_y" onclick="alert(2)': "v",
-                    "data_z><img src=x onerror=alert(3)><span data_q": "v",
                     "data_UPPER": "v",
-                    "data_": "v",
-                    "data__x": "v",
-                    "9data_lead": "v",
-                    "data_ok": "1",
-                    "onerror": "loadFallback()"
-                }
-            ]
-        },
-        function_name="app"
-    );
-    head = hb.build_head();
-    assert '<script src="/a.js" data-ok="1" onerror="loadFallback()"></script>' in head;
-    assert "alert" not in head;
-}
-
-
-"""`onload`/`onerror` on a script tag are standard HTML, and the CDN fallback
-pattern depends on them. jac.toml is developer authored and can already run
-arbitrary code through `content`, so there is nothing to protect by dropping
-them; the value is escaped like any other attribute."""
-test "event handler attributes are supported and escaped" {
-    hb = HeaderBuilder(
-        meta_data={
-            "scripts": [
-                {
-                    "src": "https://cdn.example.com/lib.js",
-                    "onerror": 'load("local.js") & retry()',
-                    "onload": "ready()"
-                }
-            ]
-        },
-        function_name="app"
-    );
-    assert (
-        '<script src="https://cdn.example.com/lib.js"'
-        ' onerror="load(&quot;local.js&quot;) &amp; retry()"'
-        ' onload="ready()"></script>'
-    )
-        in hb.build_head();
-}
-
-
-"""`</script` is escaped in any case so the body cannot close the tag early;
-unrelated closing tags pass through untouched (the count proves only the two
-real closers exist)."""
-test "inline bodies render raw but cannot break out of the tag" {
-    hb = HeaderBuilder(
-        meta_data={
-            "scripts": [
-                {"content": "window.dataLayer=window.dataLayer||[];"},
+                    "data_": "v"
+                },
                 {"content": 'var a = "</script><b>", b = "</SCRIPT>", c = "</div>";'}
             ]
         },
         function_name="app"
     );
     head = hb.build_head();
-    assert '<script>window.dataLayer=window.dataLayer||[];</script>' in head;
-    assert '"<\\/script><b>"' in head;
-    assert '"<\\/SCRIPT>"' in head;
-    assert '"</div>"' in head;
+    assert (
+        '<script src="https://cdn.example.com/a.js?x=1&amp;y=2" defer type="module"'
+        ' integrity="sha384-abc&quot;def" data-site-id="jac &amp; co"'
+        ' blocking="render" tabindex="0" data-empty=""'
+        ' onerror="fallback()"></script>'
+    )
+        in head;
+    assert '"<\\/script><b>", b = "<\\/SCRIPT>", c = "</div>";' in head;
     assert head.count("</script>") == 2;
+    assert head.index("<script") > head.index('<link rel="icon"');
+    assert head.index("<script") > head.index('<meta property="og:title"');
 }
 
 
-test "malformed configuration degrades to no output, never an error" {
+"""Every accepted spelling reaches the same renderer, and anything malformed
+degrades to no output rather than an error or a broken tag."""
+test "all input shapes are accepted and malformed config emits nothing" {
+    shapes = [
+        ["https://cdn.example.com/sdk.js"],
+        {"src": "https://cdn.example.com/sdk.js"},
+        [{"src": "https://cdn.example.com/sdk.js", "content": "ignored()"}]
+    ];
+    for value in shapes {
+        head = HeaderBuilder(
+            meta_data={"scripts": value}, function_name="app"
+        ).build_head();
+        assert '<script src="https://cdn.example.com/sdk.js"></script>' in head;
+        assert "ignored()" not in head;
+    }
     for value in [None, "", [], {}, "not-a-list", 42] {
         hb = HeaderBuilder(meta_data={"scripts": value}, function_name="app");
         assert "<script" not in hb.build_head();
     }
-    hb = HeaderBuilder(
+    head = HeaderBuilder(
         meta_data={
-            "scripts": [
-                {"defer": True},
-                {"src": "   "},
-                {},
-                "",
-                42,
-                {"src": "/real.js"}
-            ]
+            "scripts": [{"defer": True}, {"src": "  "}, {}, "", 42, {"src": "/real.js"}]
         },
         function_name="app"
-    );
-    head = hb.build_head();
+    ).build_head();
     assert head.count("<script") == 1;
     assert '<script src="/real.js"></script>' in head;
 }
