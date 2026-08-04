@@ -170,15 +170,20 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     self._emit_live_node_insert(b, _aid_old, user, _tag_raw);
 
     ret_bb = alloc_fn.append_basic_block("ret");
-    log_alloc_bb = self._emit_alloc_log_bb(
-        alloc_fn, ret_bb, _aid_old, user, alloc_fn.args[0], _tag_raw
-    );
-    dbg_flag_a = b.load(self.rc_debug_gv, name="rc.dbg.a");
-    b.cbranch(
-        b.icmp_unsigned("!=", dbg_flag_a, ir.Constant(i8, 0), name="dbg.on.a"),
-        log_alloc_bb,
-        ret_bb
-    );
+
+    if self._rc_debug_codegen {
+        log_alloc_bb = self._emit_alloc_log_bb(
+            alloc_fn, ret_bb, _aid_old, user, alloc_fn.args[0], _tag_raw
+        );
+        dbg_flag_a = b.load(self.rc_debug_gv, name="rc.dbg.a");
+        b.cbranch(
+            b.icmp_unsigned("!=", dbg_flag_a, ir.Constant(i8, 0), name="dbg.on.a"),
+            log_alloc_bb,
+            ret_bb
+        );
+    } else {
+        b.branch(ret_bb);
+    }
     b = ir.IRBuilder(ret_bb);
     b.ret(user);
     self.rc_alloc_fn = alloc_fn;
@@ -300,15 +305,19 @@ impl NaIRGenPass._emit_rc_helpers -> None {
 
     b.atomic_rmw("add", rc_ptr, ir.Constant(i64, 1), ordering="monotonic");
     new_rc = b.add(old_rc, ir.Constant(i64, 1), name="new.rc");
-    log_retain_bb = self._emit_retain_log_bb(
-        retain_fn, done_bb, retain_fn.args[0], old_rc, new_rc
-    );
-    dbg_flag = b.load(self.rc_debug_gv, name="rc.dbg");
-    b.cbranch(
-        b.icmp_unsigned("!=", dbg_flag, ir.Constant(i8, 0), name="dbg.on"),
-        log_retain_bb,
-        done_bb
-    );
+    if self._rc_debug_codegen {
+        log_retain_bb = self._emit_retain_log_bb(
+            retain_fn, done_bb, retain_fn.args[0], old_rc, new_rc
+        );
+        dbg_flag = b.load(self.rc_debug_gv, name="rc.dbg");
+        b.cbranch(
+            b.icmp_unsigned("!=", dbg_flag, ir.Constant(i8, 0), name="dbg.on"),
+            log_retain_bb,
+            done_bb
+        );
+    } else {
+        b.branch(done_bb);
+    }
     b = ir.IRBuilder(done_bb);
     b.ret_void();
     self.rc_retain_fn = retain_fn;
