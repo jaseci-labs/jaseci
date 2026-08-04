@@ -658,6 +658,10 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
         }
         for _gv in self.ir_in.get_all_sub_nodes(uni.GlobalVars) {
             for _ga in _gv.get_all_sub_nodes(uni.Assignment) {
+                if _ga.type_tag is not None
+                    and _ga.type_tag.ownership == OwnershipKind.OWN {
+                    continue;
+                }
                 for _gt in _ga.target {
                     if isinstance(_gt, uni.Name)
                         and self._nogc_local_shape(_gt) == "heap" {
