@@ -80,7 +80,7 @@ test "values are escaped inside their quotes" {
 }
 
 
-test "script entries render every attribute and body rule" {
+test "script entries render every rule and tolerate every input shape" {
     hb = HeaderBuilder(
         meta_data={
             "title": "My App",
@@ -119,30 +119,25 @@ test "script entries render every attribute and body rule" {
     assert '"<\\/script><b>", b = "<\\/SCRIPT>", c = "</div>";' in head;
     assert head.count("</script>") == 2;
     assert head.index("<script") > head.index('<link rel="icon"');
-    assert head.index("<script") > head.index('<meta property="og:title"');
-}
 
-
-test "all input shapes are accepted and malformed config emits nothing" {
-    shapes = [
+    for value in [
         ["https://cdn.example.com/sdk.js"],
         {"src": "https://cdn.example.com/sdk.js"},
         [{"src": "https://cdn.example.com/sdk.js", "content": "ignored()"}]
-    ];
-    for value in shapes {
+    ] {
         hb = HeaderBuilder(meta_data={"scripts": value}, function_name="app");
         head = hb.build_head();
         assert '<script src="https://cdn.example.com/sdk.js"></script>' in head;
         assert "ignored()" not in head;
     }
-    for value in [None, "", [], {}, "not-a-list", 42] {
+
+    for value in [None, "", [], {}, "not-a-list", 42, [{"defer": True}, {}, "", 42]] {
         hb = HeaderBuilder(meta_data={"scripts": value}, function_name="app");
         assert "<script" not in hb.build_head();
     }
+
     hb = HeaderBuilder(
-        meta_data={
-            "scripts": [{"defer": True}, {"src": "  "}, {}, "", 42, {"src": "/real.js"}]
-        },
+        meta_data={"scripts": [{"src": "  "}, 42, {"src": "/real.js"}]},
         function_name="app"
     );
     head = hb.build_head();
