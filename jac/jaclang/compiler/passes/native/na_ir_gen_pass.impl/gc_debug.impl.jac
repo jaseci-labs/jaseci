@@ -35,9 +35,6 @@ impl NaIRGenPass._emit_rc_debug_globals -> None {
         );
         _b_dis.call(self._get_printf(), [_fmt_off_ptr]);
     } else {
-        # Tracing is compiled out: __rc_debug_enable prints a one-line stderr
-        # notice so a caller flipping the runtime switch learns why nothing is
-        # traced. __rc_debug_disable stays a pure no-op.
         _triple = str(self.llvm_module.triple or "").lower();
         if "wasm" not in _triple {
             _is_darwin = ("darwin" in _triple)
