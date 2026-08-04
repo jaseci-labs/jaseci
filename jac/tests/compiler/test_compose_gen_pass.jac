@@ -510,6 +510,40 @@ def:pub app -> Composable {
     }
 }
 
+test "non-reactive augmented assignment preserves the operator in Kotlin" {
+    # Regression: a `+=`/`-=`/`*=` on a non-reactive local previously dropped
+    # the operator and emitted `total = 5` instead of `total += 5`.
+    src = '''
+def:pub app -> Composable {
+    return <Button onClick={lambda -> None {
+        total = 0;
+        total += 5;
+        total -= 2;
+        total *= 3;
+    }}>
+        <Text>"x"</Text>
+    </Button>;
+}
+''';
+    with tempfile.TemporaryDirectory() as tmp {
+        path = Path(tmp) / "app.jac";
+        path.write_text(src, encoding="utf-8");
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        program = Jac.program;
+        mod = program.compile(str(path));
+        model = run_compose_gen_pass(mod, program);
+        model.intent.package_name = "dev.jac.test";
+        screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
+        assert "total += 5" in screens;
+        assert "total -= 2" in screens;
+        assert "total *= 3" in screens;
+        assert "total = 5" not in screens;
+        assert "total = 2" not in screens;
+        assert "total = 3" not in screens;
+        assert "var total = 0" in screens;
+    }
+}
+
 test "jac_to_kotlin maps Jac == to Kotlin ==" {
     import from jaclang.compiler.passes.compose.jac_to_kotlin { jac_expr_to_kt }
     import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }

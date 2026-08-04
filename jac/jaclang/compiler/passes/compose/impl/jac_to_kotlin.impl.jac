@@ -421,7 +421,7 @@ impl JacToKotlin.convert_stmt(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
 
         if nd.aug_op and nd.aug_op.name {
             return kt.KtAssignment(
-                operator='=',
+                operator=assignment_kt_op(nd),
                 left=kt.KtIdentifier(name=_kt_id(name)),
                 right=self.convert_expr(nd.value)
             );
