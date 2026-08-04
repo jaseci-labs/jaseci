@@ -9,11 +9,6 @@ import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 import type from jaclang.jac0core.compiler { JacCompiler }
 import type from jaclang.jac0core.passes { Transform }
 
-# Symbol resolution recurses once per module hop, so a large import closure
-# (the compiler's own self-hosted sources reach ~50 levels) overruns CPython's
-# default 1000-frame recursion limit mid-compile. 12000 gives such closures
-# ample headroom. Raise-only: an embedder that configured a higher limit
-# keeps it. Runs once per process, when the compiler program machinery loads.
 with entry {
     if sys.getrecursionlimit() < 12000 {
         sys.setrecursionlimit(12000);
