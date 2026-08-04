@@ -2156,6 +2156,12 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     );
                     self.builder.call(self.region_drop_fn, [_old_i8]);
                 } else {
+                    if self._nogc_headerless()
+                        and isinstance(nd.value, uni.Name)
+                        and nd.value.sym is not None
+                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
+                        self.nogc_no_free_vars.add(var_name);
+                    }
                     if not self._is_owned(value)
                         and not self._can_native_move_lower(nd) {
                         self._emit_rc_retain(
@@ -2469,15 +2475,29 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 if _own_str_glob {
                     self._nogc_str_free_owned(old_glob);
                 }
-                self._emit_rc_release_typed(
-                    old_glob,
-                    op="overwrite",
-                    loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-                        if nd.loc
-                        else 0}"
-                );
+                if not self._nogc_headerless() {
+                    self._emit_rc_release_typed(
+                        old_glob,
+                        op="overwrite",
+                        loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                            if nd.loc
+                            else 0}"
+                    );
+                }
             }
             self.builder.store(coerced, global_var);
+            if self._nogc_headerless()
+                and isinstance(nd.value, uni.Name)
+                and nd.value.sym_name in self.local_vars
+                and nd.value.sym_name not in self.param_vars {
+                _gxfer_slot = self.local_vars[nd.value.sym_name];
+                if isinstance(_gxfer_slot.type, ir.PointerType)
+                    and isinstance(_gxfer_slot.type.pointee, ir.PointerType) {
+                    self.builder.store(
+                        ir.Constant(_gxfer_slot.type.pointee, None), _gxfer_slot
+                    );
+                }
+            }
         } else {
             var_type = value.type;
             _pre_box_val = value;
@@ -2617,6 +2637,12 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         and nd.target[0].sym is not None
                         and nd.target[0].sym.ownership == OwnershipKind.OWN
                     );
+                    if self._nogc_headerless()
+                        and isinstance(nd.value, uni.Name)
+                        and nd.value.sym is not None
+                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
+                        self.nogc_no_free_vars.add(var_name);
+                    }
                     _moved_here = False;
                     if not self._is_owned(value) {
                         _moved_here = self._can_native_move_lower(nd);

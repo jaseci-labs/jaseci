@@ -1,9 +1,28 @@
-glob _NOGC_TEMP_FREE_OPS: tuple = (
+glob _NOGC_OSP_ENGINE_STRUCTS: tuple = (
+         "Slot",
+         "WalkerDesc",
+         "NodeDesc",
+         "WalkScope",
+         "OspRuntime"
+     ),
+     _NOGC_CONTAINER_DROP_OPS: tuple = (
+         "scope_exit",
+         "iter_end",
+         "overwrite",
+         "fori_coll",
          "binop_lhs",
          "binop_rhs",
          "binop_list",
+         "for_reset",
          "call_arg",
          "list_method_arg",
+         "last_use",
+         "del_stmt"
+     ),
+     _NOGC_TEMP_FREE_OPS: tuple = (
+         "binop_lhs",
+         "binop_rhs",
+         "binop_list",
          "str_rhs",
          "ba_aug"
      );
@@ -1123,7 +1142,10 @@ impl NaIRGenPass._emit_rc_release_simple(
     }
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(ptr)
-            and not self._nogc_emit_drop(ptr, op=op, loc=loc) {
+            and not (
+                op in _NOGC_CONTAINER_DROP_OPS
+                and self._nogc_emit_drop(ptr, op=op, loc=loc)
+            ) {
             if _rls_owned
                 and op in _NOGC_TEMP_FREE_OPS
                 and isinstance(ptr.type, ir.PointerType) {
@@ -1170,7 +1192,10 @@ impl NaIRGenPass._emit_rc_release_typed(
     }
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(val)
-            and not self._nogc_emit_drop(val, op=op, loc=loc) {
+            and not (
+                op in _NOGC_CONTAINER_DROP_OPS
+                and self._nogc_emit_drop(val, op=op, loc=loc)
+            ) {
             if _rlt_owned
                 and op in _NOGC_TEMP_FREE_OPS
                 and isinstance(val.type, ir.PointerType) {
@@ -1626,6 +1651,9 @@ impl NaIRGenPass._drop_fn_for(mangle: str) -> (ir.Function | None) {
     }
     i8p = ir.IntType(8).as_pointer();
     _fn: (ir.Function | None) = None;
+    if mangle in _NOGC_OSP_ENGINE_STRUCTS {
+        return None;
+    }
     if mangle in self.struct_types and self._arch_is_osp_name(mangle) {
         return None;
     }
@@ -1733,6 +1761,23 @@ impl NaIRGenPass._nogc_elem_prep(
         and isinstance(val.type.pointee, ir.IntType)
         and val.type.pointee.width == 8
     ) {
+        if isinstance(val.type, ir.PointerType)
+            and isinstance(expr, uni.Name)
+            and expr.sym_name in self.local_vars
+            and expr.sym_name not in self.param_vars {
+            _epm = self.ir_in.gen?.rc_move_in or set();
+            if id(expr) in _epm {
+                _ep_slot = self.local_vars[expr.sym_name];
+                if isinstance(_ep_slot.type, ir.PointerType)
+                    and isinstance(_ep_slot.type.pointee, ir.PointerType) {
+                    self.builder.store(
+                        ir.Constant(_ep_slot.type.pointee, None), _ep_slot
+                    );
+                }
+            } else {
+                self.nogc_no_free_vars.add(expr.sym_name);
+            }
+        }
         return val;
     }
     if isinstance(expr, uni.FString) {
@@ -1765,6 +1810,9 @@ impl NaIRGenPass._nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> 
         return False;
     }
     _tn = self._struct_ptr_pointee_name(val);
+    if _tn is not None and _tn in _NOGC_OSP_ENGINE_STRUCTS {
+        return True;
+    }
     _fn: (ir.Function | None) = None;
     if _tn is not None and _tn in self.struct_types {
         _fn = self._emit_struct_drop_fn(_tn);
