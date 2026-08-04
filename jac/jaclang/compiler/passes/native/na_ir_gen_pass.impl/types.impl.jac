@@ -1856,9 +1856,6 @@ impl NaIRGenPass._emit_comparison(
             );
             zero = ir.Constant(ir.IntType(32), 0);
             if op == Tok.EE or op == Tok.NE {
-                # Python parity: None == "" is False and None == None is True,
-                # so with a NULL operand equality is pointer identity, never
-                # strcmp on the coalesced empty string.
                 _sym = "==" if op == Tok.EE else "!=";
                 _nm = "streq" if op == Tok.EE else "strne";
                 _ptr_cmp = self.builder.icmp_unsigned(
