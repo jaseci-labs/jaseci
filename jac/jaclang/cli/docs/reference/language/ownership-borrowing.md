@@ -508,9 +508,36 @@ parallelism arrives exactly where machinery absence is proven. Managed
 modes and the Python backend keep sequential execution (non-atomic
 refcounts are the blocker; atomic-RC crossing is the named follow-up),
 so post-join state is byte-identical everywhere by the disjointness
-rule. Also named follow-ups: a reduction idiom (index-disjoint partial
-results), and the chunked form (`&mut xs.chunks(n)`) which waits on
-container views.
+rule. A named follow-up: the chunked form (`&mut xs.chunks(n)`), which
+waits on container views.
+
+### The reduction idiom
+
+An accumulator write in a `flow for` body is E1308 -- except in the
+licensed reduction shapes. An outer `int` binding whose *only* uses in
+the body are `acc += expr`, `acc = min(acc, expr)`, or `acc = max(acc,
+expr)` (one consistent operation per accumulator, `expr` never
+mentioning `acc`) is a reduction: each task folds its element range
+into a private partial starting from the operation's identity, and the
+join combines the partials with the accumulator's pre-loop value. The
+result is exactly the sequential fold -- integer `+`, `min`, and `max`
+are associative and commutative, so output is byte-identical across gc
+modes and any thread width. Any other accumulator shape (the plain
+`acc = acc + x` form, a float accumulator, a mid-loop read of the
+accumulator, mixed operations) keeps E1308:
+
+```jac
+with entry {
+    xs = [3, 1, 4, 1, 5];
+    total = 0;
+    lo = 1000000;
+    flow for v in &xs {
+        total += v;        # licensed: per-task partial + combine
+        lo = min(lo, v);   # licensed
+    }
+    print(total);          # identical to the sequential fold
+}
+```
 
 ## The `drop` hook
 

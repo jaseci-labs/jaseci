@@ -2841,6 +2841,28 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     if loop_var is None or not isinstance(nd.collection, uni.UnaryExpr) {
         return False;
     }
+    _reds: list = [];
+    _red_names: set[str] = set();
+    for st in (nd.body or []) {
+        _r_asgns = ([st] if isinstance(st, uni.Assignment) else [])
+            + list(st.get_all_sub_nodes(uni.Assignment));
+        for _ra in _r_asgns {
+            if _ra.na_flow_reduce
+                and len(_ra.target) == 1
+                and isinstance(_ra.target[0], uni.Name) {
+                _rn = _ra.target[0].sym_name;
+                if _rn not in _red_names and _rn in self.local_vars {
+                    _red_names.add(_rn);
+                    _reds.append((_rn, _ra.na_flow_reduce));
+                }
+            }
+        }
+    }
+    _red_identity = {
+        "add": 0,
+        "min": 9223372036854775807,
+        "max": (-9223372036854775808)
+    };
     coll = self._codegen_expr(nd.collection);
     if coll is None {
         return False;
@@ -2874,7 +2896,10 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     for st in (nd.body or []) {
         for anm in st.get_all_sub_nodes(uni.Name) {
             _nmn = anm.sym_name;
-            if _nmn == loop_var or _nmn in _caps or _nmn not in self.local_vars {
+            if _nmn == loop_var
+                or _nmn in _caps
+                or _nmn in _red_names
+                or _nmn not in self.local_vars {
                 continue;
             }
             _decl = anm.sym.decl if anm.sym is not None else None;
@@ -2924,13 +2949,14 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     _fid = self._str_count;
     _body_fn = ir.Function(
         self.llvm_module,
-        ir.FunctionType(ir.VoidType(), [i8p, i64, i64]),
+        ir.FunctionType(ir.VoidType(), [i8p, i64, i64, i64.as_pointer()]),
         name=f"__jac_ffor_body_{_fid}"
     );
     _body_fn.linkage = "private";
     _body_fn.args[0].name = "ctx";
     _body_fn.args[1].name = "lo";
     _body_fn.args[2].name = "hi";
+    _body_fn.args[3].name = "red";
 
     saved_builder = self._builder;
     saved_locals = self.local_vars;
@@ -2977,6 +3003,13 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     self.local_vars[loop_var] = _lv_alloca;
     if isinstance(actual_elem_type, ir.PointerType) {
         self.nogc_no_free_vars.add(loop_var);
+    }
+    _red_slots: list = [];
+    for (_ri, _red) in enumerate(_reds) {
+        _rslot = self._entry_alloca(i64, _red[0]);
+        self.builder.store(ir.Constant(i64, _red_identity[_red[1]]), _rslot);
+        self.local_vars[_red[0]] = _rslot;
+        _red_slots.append(_rslot);
     }
     _idx_alloca = self._entry_alloca(i64, "ffor.idx");
     self.builder.store(_body_fn.args[1], _idx_alloca);
@@ -3033,6 +3066,16 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     );
     self.builder.branch(_c_cond);
     self.builder.position_at_end(_c_end);
+    for (_ri, _red) in enumerate(_reds) {
+        self.builder.store(
+            self.builder.load(_red_slots[_ri], name=f"ffor.red.{_red[0]}"),
+            self.builder.gep(
+                _body_fn.args[3],
+                [ir.Constant(i64, _ri)],
+                name=f"ffor.red.{_red[0]}.out"
+            )
+        );
+    }
     self.builder.ret_void();
     for bb in _body_fn.basic_blocks {
         if not bb.is_terminated {
@@ -3040,7 +3083,7 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         }
     }
 
-    _arg_ty = ir.LiteralStructType([i8p, i64, i64]);
+    _arg_ty = ir.LiteralStructType([i8p, i64, i64, i64.as_pointer()]);
     _thunk_fn = ir.Function(
         self.llvm_module, ir.FunctionType(i8p, [i8p]), name=f"__jac_ffor_thunk_{_fid}"
     );
@@ -3059,7 +3102,11 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         _tb.gep(_ta, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="a.hi.p"),
         name="a.hi"
     );
-    _tb.call(_body_fn, [_t_ctx, _t_lo, _t_hi]);
+    _t_red = _tb.load(
+        _tb.gep(_ta, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="a.red.p"),
+        name="a.red"
+    );
+    _tb.call(_body_fn, [_t_ctx, _t_lo, _t_hi, _t_red]);
     _tb.ret(ir.Constant(i8p, None));
 
     self._builder = saved_builder;
@@ -3135,6 +3182,51 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     _arg_arr = self.builder.alloca(_arg_ty, size=_nt, name="ffor.args");
 
     func = self.builder.function;
+    _nred = len(_reds);
+    _red_arr = ir.Constant(i64.as_pointer(), None);
+    if _reds {
+        _red_arr = self.builder.alloca(
+            i64,
+            size=self.builder.mul(_nt, ir.Constant(i64, _nred), name="ffor.red.n"),
+            name="ffor.reds"
+        );
+        _ri_cond = func.append_basic_block("ffor.red.init.cond");
+        _ri_body = func.append_basic_block("ffor.red.init.body");
+        _ri_done = func.append_basic_block("ffor.red.init.done");
+        _ri_slot = self.builder.alloca(i64, name="ffor.red.init.t");
+        self.builder.store(ir.Constant(i64, 0), _ri_slot);
+        self.builder.branch(_ri_cond);
+        self.builder.position_at_end(_ri_cond);
+        _ri_t = self.builder.load(_ri_slot, name="ffor.ri.t");
+        self.builder.cbranch(
+            self.builder.icmp_signed("<", _ri_t, _nt, name="ffor.ri.lt"),
+            _ri_body,
+            _ri_done
+        );
+        self.builder.position_at_end(_ri_body);
+        _ri_base = self.builder.mul(
+            _ri_t, ir.Constant(i64, _nred), name="ffor.ri.base"
+        );
+        for (_ri, _red) in enumerate(_reds) {
+            self.builder.store(
+                ir.Constant(i64, _red_identity[_red[1]]),
+                self.builder.gep(
+                    _red_arr,
+                    [
+                        self.builder.add(
+                            _ri_base, ir.Constant(i64, _ri), name=f"ffor.ri.{_red[0]}"
+                        )
+                    ],
+                    name=f"ffor.ri.{_red[0]}.p"
+                )
+            );
+        }
+        self.builder.store(
+            self.builder.add(_ri_t, ir.Constant(i64, 1), name="ffor.ri.next"), _ri_slot
+        );
+        self.builder.branch(_ri_cond);
+        self.builder.position_at_end(_ri_done);
+    }
     _s_cond = func.append_basic_block("ffor.spawn.cond");
     _s_body = func.append_basic_block("ffor.spawn.body");
     _s_seq = func.append_basic_block("ffor.spawn.seq");
@@ -3186,6 +3278,20 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
             _ap, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="ffor.a.hi"
         )
     );
+    _t_row = _red_arr;
+    if _reds {
+        _t_row = self.builder.gep(
+            _red_arr,
+            [self.builder.mul(_t_cur, ir.Constant(i64, _nred), name="ffor.row.o")],
+            name="ffor.row"
+        );
+    }
+    self.builder.store(
+        _t_row,
+        self.builder.gep(
+            _ap, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="ffor.a.red"
+        )
+    );
     _tp = self.builder.gep(_tid_arr, [_t_cur], name="ffor.tid.p");
     self.builder.store(ir.Constant(i64, 0), _tp);
     _crc = self.builder.call(
@@ -3205,7 +3311,7 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     );
     self.builder.position_at_end(_s_seq);
     self.builder.store(ir.Constant(i64, 0), _tp);
-    self.builder.call(_body_fn, [_ctx8, _t_lo2, _t_hi2]);
+    self.builder.call(_body_fn, [_ctx8, _t_lo2, _t_hi2, _t_row]);
     self.builder.branch(_s_next);
 
     self.builder.position_at_end(_s_next);
@@ -3245,6 +3351,70 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     self.builder.branch(_j_body);
 
     self.builder.position_at_end(_done_bb);
+    for (_ri, _red) in enumerate(_reds) {
+        _acc_slot = self.local_vars[_red[0]];
+        _cur_slot = self.builder.alloca(i64, name=f"ffor.comb.{_red[0]}");
+        self.builder.store(
+            self.builder.load(_acc_slot, name=f"ffor.comb.{_red[0]}.0"), _cur_slot
+        );
+        _ct_slot = self.builder.alloca(i64, name=f"ffor.comb.{_red[0]}.t");
+        self.builder.store(ir.Constant(i64, 0), _ct_slot);
+        _cb_cond = func.append_basic_block(f"ffor.comb.cond.{_ri}");
+        _cb_body = func.append_basic_block(f"ffor.comb.body.{_ri}");
+        _cb_done = func.append_basic_block(f"ffor.comb.done.{_ri}");
+        self.builder.branch(_cb_cond);
+        self.builder.position_at_end(_cb_cond);
+        _cb_t = self.builder.load(_ct_slot, name="ffor.cb.t");
+        self.builder.cbranch(
+            self.builder.icmp_signed("<", _cb_t, _nt, name="ffor.cb.lt"),
+            _cb_body,
+            _cb_done
+        );
+        self.builder.position_at_end(_cb_body);
+        _cb_v = self.builder.load(
+            self.builder.gep(
+                _red_arr,
+                [
+                    self.builder.add(
+                        self.builder.mul(
+                            _cb_t, ir.Constant(i64, _nred), name="ffor.cb.base"
+                        ),
+                        ir.Constant(i64, _ri),
+                        name="ffor.cb.idx"
+                    )
+                ],
+                name="ffor.cb.p"
+            ),
+            name="ffor.cb.v"
+        );
+        _cb_cur = self.builder.load(_cur_slot, name="ffor.cb.cur");
+        if _red[1] == "add" {
+            _cb_new = self.builder.add(_cb_cur, _cb_v, name="ffor.cb.add");
+        } elif _red[1] == "min" {
+            _cb_new = self.builder.select(
+                self.builder.icmp_signed("<", _cb_v, _cb_cur, name="ffor.cb.sl"),
+                _cb_v,
+                _cb_cur,
+                name="ffor.cb.min"
+            );
+        } else {
+            _cb_new = self.builder.select(
+                self.builder.icmp_signed(">", _cb_v, _cb_cur, name="ffor.cb.sg"),
+                _cb_v,
+                _cb_cur,
+                name="ffor.cb.max"
+            );
+        }
+        self.builder.store(_cb_new, _cur_slot);
+        self.builder.store(
+            self.builder.add(_cb_t, ir.Constant(i64, 1), name="ffor.cb.next"), _ct_slot
+        );
+        self.builder.branch(_cb_cond);
+        self.builder.position_at_end(_cb_done);
+        self.builder.store(
+            self.builder.load(_cur_slot, name=f"ffor.comb.{_red[0]}.fin"), _acc_slot
+        );
+    }
     return True;
 }
 

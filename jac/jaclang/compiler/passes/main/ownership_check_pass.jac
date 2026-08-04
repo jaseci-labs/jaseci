@@ -120,6 +120,8 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _seal_connect_handle(bx: uni.BinaryExpr) -> (uni.Name | None);
     def _flow_for_stmts -> list[uni.InForStmt];
     def _emit_flow_for_diagnostics -> None;
+    def _flow_reduce_shape(asgn: uni.Assignment, sid: SymId) -> str;
+    def _collect_flow_reductions(lp: uni.InForStmt) -> dict[SymId, str];
     def _seal_arch_ctor(fc: uni.FuncCall) -> bool;
     def _emit_post_seal_diagnostics(region: uni.OpenStmt) -> None;
     def _region_handle_sid(region: uni.OpenStmt) -> (SymId | None);
