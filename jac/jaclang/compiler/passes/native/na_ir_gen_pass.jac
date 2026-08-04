@@ -434,6 +434,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _lower_function_type(t: any) -> ir.Type;
     def _type_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _enum_name_of(expr: (uni.UniNode | None)) -> (str | None);
+    def _is_enum_class_type(t: any) -> bool;
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
