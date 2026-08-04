@@ -154,10 +154,12 @@ jac/jaclang/cli/commands/impl/build.impl.jac
 jac/jaclang/cli/commands/impl/db.impl.jac
 jac/jaclang/cli/commands/impl/eject.impl.jac
 jac/jaclang/cli/commands/tools.jac
+jac/jaclang/cli/executor.jac
 jac/jaclang/cli/impl/ai_agent.impl.jac
 jac/jaclang/cli/impl/browser_engine.impl.jac
 jac/jaclang/cli/impl/cli.impl.jac
 jac/jaclang/cli/impl/console.impl.jac
+jac/jaclang/cli/impl/executor.impl.jac
 jac/jaclang/cli/mcp/impl/protocol.impl.jac
 jac/jaclang/cli/mcp/protocol.jac
 jac/jaclang/cli/shadcn/cli.jac
@@ -190,6 +192,7 @@ jac/jaclang/compiler/symbol_utils.jac
 jac/jaclang/compiler/targets/abi.jac
 jac/jaclang/compiler/targets/foreign.jac
 jac/jaclang/compiler/type_system/impl/type_utils.impl.jac
+jac/jaclang/compiler/type_system/operations.jac
 jac/jaclang/compiler/type_system/type_evaluator.impl/jsx_type_check.impl.jac
 jac/jaclang/compiler/type_system/type_evaluator.impl/ts_declarations.impl.jac
 jac/jaclang/jac0core/archetype.jac
@@ -197,6 +200,7 @@ jac/jaclang/jac0core/gen_uni_dispatch.jac
 jac/jaclang/jac0core/impl/archetype.impl.jac
 jac/jaclang/jac0core/impl/helpers.impl.jac
 jac/jaclang/jac0core/impl/native_marshal.impl.jac
+jac/jaclang/jac0core/impl/program.impl.jac
 jac/jaclang/jac0core/impl/runtime.impl.jac
 jac/jaclang/jac0core/jaclib.jac
 jac/jaclang/jac0core/log.jac
@@ -209,11 +213,14 @@ jac/jaclang/jac0core/passes/impl/boundary_analysis_pass.impl.jac
 jac/jaclang/jac0core/passes/impl/transform.impl.jac
 jac/jaclang/jac0core/passes/impl/uni_pass.impl.jac
 jac/jaclang/jac0core/passes/transform.jac
+jac/jaclang/jac0core/program.jac
 jac/jaclang/jac0core/unitree.impl/accept.impl.jac
 jac/jaclang/jac0core/unitree.impl/dispatch.impl.jac
 jac/jaclang/langserve/utils.jac
 jac/jaclang/lib.jac
 jac/jaclang/project/config.jac
+jac/jaclang/project/impl/template_registry.impl.jac
+jac/jaclang/project/template_registry.jac
 jac/jaclang/publish/dts.jac
 jac/jaclang/publish/impl/dts.impl.jac
 jac/jaclang/publish/impl/jsdoc.impl.jac

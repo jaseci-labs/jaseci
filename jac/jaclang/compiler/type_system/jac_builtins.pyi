@@ -133,7 +133,8 @@ class DSFunc: ...
 # First-class region handle: an ownable, sendable, escape-checked allocation
 # extent opened by `in <handle> { ... }`. On managed backends the handle is a
 # no-op; native codegen gives it arena semantics.
-class Region: ...
+class Region:
+    def partition(self) -> Region: ...
 
 class EdgeDir:
     OUT: int

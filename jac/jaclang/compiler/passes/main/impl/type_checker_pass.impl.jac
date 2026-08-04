@@ -207,7 +207,12 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
         is_unannotated_reassign = False;
 
         if isinstance(target, uni.Name) and target.sym {
+            _cyc_before_lhs = self.evaluator._cyclic_resolution_depth;
             left_type = self.evaluator.get_type_of_symbol(target.sym);
+            _lhs_cycle_tainted = (
+                isinstance(left_type, types.UnknownType)
+                and self.evaluator._cyclic_resolution_depth != _cyc_before_lhs
+            );
 
             if (
                 target.sym.decl.name_of is not target
@@ -217,6 +222,10 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
                 is_unannotated_reassign = True;
 
                 left_type = self.evaluator._widen_literal_for_declaration(left_type);
+            }
+
+            if _lhs_cycle_tainted {
+                return;
             }
 
             if hover_type := self.evaluator._get_type_of_lhs_assignment(target) {
@@ -287,8 +296,13 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
             }
         }
 
+        _cyc_before_rhs = self.evaluator._cyclic_resolution_depth;
         right_type = self.evaluator.get_type_of_expression(
             nd.value, expected_type=left_type
+        );
+        _rhs_cycle_tainted = (
+            isinstance(right_type, types.UnknownType)
+            and self.evaluator._cyclic_resolution_depth != _cyc_before_rhs
         );
 
         if isinstance(right_type, types.TypeVarType)
@@ -369,6 +383,7 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
             if (
                 nd.aug_op is None
                 and not is_evolving_reassign
+                and not _rhs_cycle_tainted
                 and not self.evaluator.assign_type(
                     right_type, left_type, strict=self.evaluator._is_strict_site(nd)
                 )

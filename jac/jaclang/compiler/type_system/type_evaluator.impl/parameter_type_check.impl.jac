@@ -26,7 +26,12 @@ impl TypeEvaluator.validate_arg_types(
             expected = type_utils.apply_solved_type_vars(expected, bindings);
         }
         value = arg.value if isinstance(arg, uni.KWPair) else arg;
+        _cyc_before_arg = self._cyclic_resolution_depth;
         arg_type = self.get_type_of_expression(value, expected_type=expected);
+        if isinstance(arg_type, types.UnknownType)
+            and self._cyclic_resolution_depth != _cyc_before_arg {
+            continue;
+        }
 
         if not self.assign_type(arg_type, expected, strict=self._is_strict_site(arg)) {
             has_errors = True;

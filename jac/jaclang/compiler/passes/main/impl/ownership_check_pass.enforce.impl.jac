@@ -373,6 +373,49 @@ impl OwnershipCheckPass._nogc_module_enforced(mod_name: str) -> bool {
     return False;
 }
 
+impl OwnershipCheckPass._nogc_fresh_scalar_list(expr: uni.Expr | None) -> bool {
+    if not isinstance(expr, uni.ListVal) {
+        return False;
+    }
+    for _v in (expr.values or []) {
+        if not self._expr_scalar_typed(_v) {
+            return False;
+        }
+    }
+    return True;
+}
+
+impl OwnershipCheckPass._nogc_fresh_arch_elem(expr: uni.Expr | None) -> bool {
+    if not isinstance(expr, uni.FuncCall) {
+        return False;
+    }
+    _t = expr.target;
+    if not isinstance(_t, uni.Name) or _t.sym is None or _t.sym.decl is None {
+        return False;
+    }
+    _arch = _t.sym.decl.find_parent_of_type(uni.Archetype);
+    return _arch is not None and _arch.arch_type.name == Tok.KW_OBJECT;
+}
+
+impl OwnershipCheckPass._own_field_target(tgt: uni.AtomTrailer) -> bool {
+    if not (tgt.is_attr and isinstance(tgt.right, uni.Name)) {
+        return False;
+    }
+    fsym = tgt.right.sym;
+    if fsym is None or not fsym.defn {
+        return False;
+    }
+    hv = fsym.defn[0].find_parent_of_type(uni.HasVar);
+    if hv is None or hv.type_tag is None {
+        return False;
+    }
+    if hv.type_tag.ownership == OwnershipKind.OWN {
+        return True;
+    }
+    inner = hv.type_tag.tag;
+    return isinstance(inner, uni.UnaryExpr) and inner.ownership == OwnershipKind.OWN;
+}
+
 impl OwnershipCheckPass._nogc_check_call(call: uni.FuncCall, prov: str) -> None {
     _stdlib_root = _stdlib_attr_call_root(call);
     if _stdlib_root is not None and _stdlib_root in _NONRETAINING_STDLIB_MODULES {
@@ -498,7 +541,14 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
             }
             _idx_ctx = _lv.find_parent_of_type(uni.IndexSlice) is not None;
             for _le in (_lv.values or []) {
-                if self._nogc_str_elem_ok(_le, idx_ctx=_idx_ctx) {
+                if self._nogc_str_elem_ok(_le, idx_ctx=_idx_ctx)
+                    or (
+                        not _idx_ctx
+                        and (
+                            self._nogc_fresh_arch_elem(_le)
+                            or self._nogc_fresh_scalar_list(_le)
+                        )
+                    ) {
                     continue;
                 }
                 if self._nogc_local_shape_expr_heap(_le) {
@@ -586,6 +636,13 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                         );
                         break;
                     }
+                    continue;
+                }
+                if _grow in ("append", "insert")
+                    and (
+                        self._nogc_fresh_arch_elem(_gav)
+                        or self._nogc_fresh_scalar_list(_gav)
+                    ) {
                     continue;
                 }
                 if self._nogc_local_shape_expr_heap(_gav) {
@@ -676,10 +733,18 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 _is_owned_val = _val_root is not None
                     and _val_root.sym is not None
                     and _val_root.sym.ownership == OwnershipKind.OWN;
-                if _is_owned_val
-                    or (
-                        nd.value is not None
-                        and self._nogc_local_shape_expr_heap(nd.value)
+                _own_world_store = (
+                    self._own_field_target(_tgt)
+                    and _root.sym.ownership == OwnershipKind.OWN
+                    and _root.find_parent_of_type(uni.GlobalVars) is None
+                );
+                if not _own_world_store
+                    and (
+                        _is_owned_val
+                        or (
+                            nd.value is not None
+                            and self._nogc_local_shape_expr_heap(nd.value)
+                        )
                     ) {
                     _val_name = (
                         _val_root.sym_name
@@ -727,11 +792,5 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 }
             }
         }
-    }
-
-    for _reg in self.ir_in.get_all_sub_nodes(uni.OpenStmt) {
-        self.emit(
-            E1406, node_override=_reg, name="`in { }` region open", provenance=_prov
-        );
     }
 }

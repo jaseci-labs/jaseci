@@ -1,6 +1,7 @@
 import json;
 import logging;
 import threading;
+import time;
 import weakref;
 import from typing { cast }
 import from uuid { UUID, uuid4 }
@@ -100,10 +101,28 @@ def _handle_message(data: (bytes | str)) {
         origin = cast((str | None), payload.get("o"));
         if anchor_id {
             evict_local_l1(anchor_id, origin);
+            evict_process_projection(anchor_id);
         }
     } except Exception as e {
         logger.debug(f"L1 invalidation: dropping malformed message: {e}");
     }
+}
+
+
+def evict_process_projection(anchor_id: str) {
+    try {
+        import from uuid { UUID as _UUID }
+        import from jaclang.runtimelib.projection { evict_everywhere }
+        evict_everywhere(_UUID(anchor_id));
+    } except Exception { }
+}
+
+
+def flush_process_projection {
+    try {
+        import from jaclang.runtimelib.projection { clear_all }
+        clear_all();
+    } except Exception { }
 }
 
 
@@ -152,11 +171,18 @@ obj L1InvalidationListener {
                 client = r.from_url(self.redis_url);
                 pubsub = client.pubsub(ignore_subscribe_messages=True);
                 pubsub.subscribe(self.channel);
+                flush_process_projection();
                 backoff = 0.5;
+                last_ping = time.monotonic();
                 while not self._stop.is_set() {
                     msg = pubsub.get_message(timeout=1.0);
                     if msg is not None and msg.get("type") == "message" {
                         _handle_message(cast((bytes | str), msg.get("data")));
+                    }
+                    now = time.monotonic();
+                    if now - last_ping > 15.0 {
+                        client.ping();
+                        last_ping = now;
                     }
                 }
             } except Exception as e {
