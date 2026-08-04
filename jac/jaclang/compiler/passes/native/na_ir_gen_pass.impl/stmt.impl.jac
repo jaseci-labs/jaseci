@@ -1488,7 +1488,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                 helpers["new"], [], name="set.new"
                             );
                             self._nogc_stamp_elem_drops(
-                                value, self._nogc_type_arg_mangles(_set_t0), "set"
+                                value, self._nogc_type_arg_mangles(_set_t0)
                             );
 
                             self._mark_owned(value);
@@ -1964,28 +1964,14 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                 shelpers = self.set_helpers.get(set_elem_name);
                                 if shelpers is not None {
                                     i64 = ir.IntType(64);
-                                    i32 = ir.IntType(32);
 
                                     rhs_cast = self.builder.bitcast(
                                         rhs_set,
                                         self.set_types[set_elem_name].as_pointer(),
                                         name="rhs.set.cast"
                                     );
-                                    rhs_len_ptr = self.builder.gep(
-                                        rhs_cast,
-                                        [ir.Constant(i32, 0), ir.Constant(i32, 0)],
-                                        name="rhs.len.ptr"
-                                    );
-                                    rhs_len = self.builder.load(
-                                        rhs_len_ptr, name="rhs.len"
-                                    );
-                                    rhs_elems_ptr = self.builder.gep(
-                                        rhs_cast,
-                                        [ir.Constant(i32, 0), ir.Constant(i32, 2)],
-                                        name="rhs.elems.ptr"
-                                    );
-                                    rhs_elems = self.builder.load(
-                                        rhs_elems_ptr, name="rhs.elems"
+                                    rhs_len = self.builder.call(
+                                        shelpers["len"], [rhs_cast], name="rhs.len"
                                     );
 
                                     loop_idx = self._entry_alloca(i64, "union.idx");
@@ -2009,11 +1995,10 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                     elem_i = self.builder.load(
                                         loop_idx, name="union.elem.i"
                                     );
-                                    elem_ptr = self.builder.gep(
-                                        rhs_elems, [elem_i], name="union.elem.ptr"
-                                    );
-                                    elem_val = self.builder.load(
-                                        elem_ptr, name="union.elem.val"
+                                    elem_val = self.builder.call(
+                                        shelpers["get"],
+                                        [rhs_cast, elem_i],
+                                        name="union.elem.val"
                                     );
                                     lhs_cast = self.builder.bitcast(
                                         lhs_set,

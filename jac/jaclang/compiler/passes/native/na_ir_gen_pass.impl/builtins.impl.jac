@@ -189,20 +189,25 @@ impl NaIRGenPass._codegen_multistring(nd: uni.MultiString) -> (ir.Value | None) 
     return result;
 }
 
-impl NaIRGenPass._make_global_string(text: str, name_prefix: str = ".str") -> ir.Value {
+impl NaIRGenPass._static_str_struct_const(data: bytes) -> tuple {
     i64 = ir.IntType(64);
     i8 = ir.IntType(8);
+    arr_type = ir.ArrayType(i8, len(data));
+    struct_type = ir.LiteralStructType([i64, i64, arr_type]);
+    sentinel_val = ir.Constant(i64, RC_SENTINEL);
+    tagged_len = ir.Constant(i64, ((len(data) - 1) << 1) | 1);
+    c_str = ir.Constant(arr_type, bytearray(data));
+    return (struct_type, ir.Constant(struct_type, [sentinel_val, tagged_len, c_str]), );
+}
+
+impl NaIRGenPass._make_global_string(text: str, name_prefix: str = ".str") -> ir.Value {
     i32 = ir.IntType(32);
     _key = f"{name_prefix}\x00{text}";
     global_str = self._interned_strs.get(_key);
     if global_str is None {
-        str_bytes = bytearray((text + "\0").encode("utf8"));
-        arr_type = ir.ArrayType(i8, len(str_bytes));
-        struct_type = ir.LiteralStructType([i64, i64, arr_type]);
-        sentinel_val = ir.Constant(i64, 0x7FFFFFFFFFFFFFFF);
-        dtor_val = ir.Constant(i64, ((len(str_bytes) - 1) << 1) | 1);
-        c_str = ir.Constant(arr_type, str_bytes);
-        struct_val = ir.Constant(struct_type, [sentinel_val, dtor_val, c_str]);
+        (struct_type, struct_val) = self._static_str_struct_const(
+            (text + "\0").encode("utf8")
+        );
         global_str = ir.GlobalVariable(
             self.llvm_module, struct_type, name=f"{name_prefix}.{self._str_count}"
         );
@@ -901,7 +906,7 @@ impl NaIRGenPass._codegen_str_split(
     self._set_rc_ctx("str_split", "");
     new_list = self.builder.call(helpers["new"], [], name="split.list");
     self._clear_rc_ctx();
-    self._nogc_stamp_elem_drops(new_list, ["str"], "list");
+    self._nogc_stamp_elem_drops(new_list, ["str"]);
 
     str_len = self._call_str_len(self.builder, str_val, name="str.len");
     sep_len = self._call_str_len(self.builder, sep_val, name="sep.len");

@@ -1120,7 +1120,7 @@ impl NaIRGenPass._codegen_instantiation(
             _i64p_s = _i64_s.as_pointer();
             _raw_s = self.builder.bitcast(obj_ptr, _i8p_s, name="obj_raw_s");
             _dtor_slot_s = self.builder.gep(
-                _raw_s, [ir.Constant(_i64_s, -8)], name="obj_dtor_slot"
+                _raw_s, [ir.Constant(_i64_s, HDR_DTOR_OFF)], name="obj_dtor_slot"
             );
             _dtor_slot_i64_s = self.builder.bitcast(
                 _dtor_slot_s, _i64p_s, name="obj_dtor_i64p"

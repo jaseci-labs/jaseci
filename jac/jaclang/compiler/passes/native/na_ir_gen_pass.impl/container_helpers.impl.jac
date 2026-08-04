@@ -1,23 +1,158 @@
+impl NaIRGenPass._container_layout_dense(data_types: list) -> dict {
+    _fields = [(_i + 2, _dt) for (_i, _dt) in enumerate(data_types)];
+    return {
+        "kind": "dense",
+        "data_fields": _fields,
+        "ctrl_idx": -1,
+        "used_idx": -1,
+        "order_idx": -1,
+        "drop_base": 2 + len(data_types)
+    };
+}
+
+impl NaIRGenPass._container_layout_hash(
+    key_type: ir.Type, val_type: (ir.Type | None)
+) -> dict {
+    _fields = [(2, key_type)];
+    _next = 3;
+    if val_type is not None {
+        _fields.append((3, val_type));
+        _next = 4;
+    }
+    return {
+        "kind": "hash",
+        "data_fields": _fields,
+        "ctrl_idx": _next,
+        "used_idx": _next + 1,
+        "order_idx": _next + 2,
+        "drop_base": _next + 3
+    };
+}
+
+impl NaIRGenPass._container_struct_fields(layout: dict) -> list {
+    i64 = ir.IntType(64);
+    _fields = [i64, i64];
+    for (_, _dt) in layout["data_fields"] {
+        _fields.append(_dt.as_pointer());
+    }
+    if layout["kind"] == "hash" {
+        _fields.append(ir.IntType(8).as_pointer());
+        _fields.append(i64);
+        _fields.append(i64.as_pointer());
+    }
+    if self._gc_mode() == "none" {
+        for _ in range(len(layout["data_fields"])) {
+            _fields.append(self._nogc_elem_drop_slot_ty());
+        }
+    }
+    return _fields;
+}
+
+impl NaIRGenPass._emit_live_slot_loop(
+    fn: ir.Function,
+    b: ir.IRBuilder,
+    cont: ir.Value,
+    layout: dict,
+    tag: str,
+    body_cb: object,
+    fields: (list | None) = None
+) -> ir.IRBuilder {
+    i8 = ir.IntType(8);
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    _is_hash = layout["kind"] == "hash";
+    _fields = fields if fields is not None else layout["data_fields"];
+    _arrs = [];
+    for (_fi, _) in _fields {
+        _arrs.append(
+            b.load(
+                b.gep(
+                    cont,
+                    [ir.Constant(i32, 0), ir.Constant(i32, _fi)],
+                    name=f"{tag}.d{_fi}.p"
+                ),
+                name=f"{tag}.d{_fi}"
+            )
+        );
+    }
+    _bound_field = 1 if _is_hash else 0;
+    _bound = b.load(
+        b.gep(
+            cont,
+            [ir.Constant(i32, 0), ir.Constant(i32, _bound_field)],
+            name=f"{tag}.bound.p"
+        ),
+        name=f"{tag}.bound"
+    );
+    _ctrl = None;
+    if _is_hash {
+        _ctrl = b.load(
+            b.gep(
+                cont,
+                [ir.Constant(i32, 0), ir.Constant(i32, layout["ctrl_idx"])],
+                name=f"{tag}.ctrl.p"
+            ),
+            name=f"{tag}.ctrl"
+        );
+    }
+    _iv = b.alloca(i64, name=f"{tag}.i");
+    b.store(ir.Constant(i64, 0), _iv);
+    _cond_bb = fn.append_basic_block(f"{tag}.cond");
+    _live_bb = fn.append_basic_block(f"{tag}.live");
+    _next_bb = fn.append_basic_block(f"{tag}.next");
+    _end_bb = fn.append_basic_block(f"{tag}.end");
+    b.branch(_cond_bb);
+    bc = ir.IRBuilder(_cond_bb);
+    _i = bc.load(_iv, name=f"{tag}.iv");
+    if _is_hash {
+        _chk_bb = fn.append_basic_block(f"{tag}.chk");
+        bc.cbranch(
+            bc.icmp_unsigned(">=", _i, _bound, name=f"{tag}.done"), _end_bb, _chk_bb
+        );
+        bk = ir.IRBuilder(_chk_bb);
+        _cb = bk.load(bk.gep(_ctrl, [_i], name=f"{tag}.cb.p"), name=f"{tag}.cb");
+        bk.cbranch(
+            bk.icmp_unsigned(">=", _cb, ir.Constant(i8, 0x80), name=f"{tag}.occ"),
+            _live_bb,
+            _next_bb
+        );
+    } else {
+        bc.cbranch(
+            bc.icmp_unsigned("<", _i, _bound, name=f"{tag}.more"), _live_bb, _end_bb
+        );
+    }
+    bl = ir.IRBuilder(_live_bb);
+    _elem_ptrs = [
+        bl.gep(_arr, [_i], name=f"{tag}.e{_k}.p") for (_k, _arr) in enumerate(_arrs)
+    ];
+    bl = body_cb(bl, _i, _elem_ptrs);
+    bl.branch(_next_bb);
+    bn = ir.IRBuilder(_next_bb);
+    bn.store(bn.add(_i, ir.Constant(i64, 1), name=f"{tag}.inc"), _iv);
+    bn.branch(_cond_bb);
+    return ir.IRBuilder(_end_bb);
+}
+
 impl NaIRGenPass._emit_container_new_fn(
-    fn_name: str, container_ptr_type: ir.Type, data_types: list, dtor_fn: object = None
+    fn_name: str, container_ptr_type: ir.Type, layout: dict, dtor_fn: object = None
 ) -> ir.Function {
     new_fnty = ir.FunctionType(container_ptr_type, []);
     new_fn = ir.Function(self.llvm_module, new_fnty, name=fn_name);
     new_fn.linkage = "private";
     bb = new_fn.append_basic_block("entry");
     b = ir.IRBuilder(bb);
-    result = self._emit_rc_alloc_container(b, container_ptr_type, data_types);
+    result = self._emit_rc_alloc_container(b, container_ptr_type, layout);
     container_ptr = result[0];
 
     if self._gc_mode() == "none" {
         _i32_nz = ir.IntType(32);
         _slot_ty_nz = self._nogc_elem_drop_slot_ty();
-        for _j in range(len(data_types)) {
+        for _j in range(len(layout["data_fields"])) {
             _slot_p_nz = b.gep(
                 container_ptr,
                 [
                     ir.Constant(_i32_nz, 0),
-                    ir.Constant(_i32_nz, 2 + len(data_types) + _j)
+                    ir.Constant(_i32_nz, layout["drop_base"] + _j)
                 ],
                 name=f"edrop{_j}.init"
             );
@@ -53,15 +188,15 @@ impl NaIRGenPass._emit_container_new_fn(
     }
 
     _ptr_data_fields = [
-        (i + 2, dt)
-        for (i, dt) in enumerate(data_types)
+        (fi, dt)
+        for (fi, dt) in layout["data_fields"]
         if isinstance(dt, ir.PointerType)
     ];
     _cont_type_name = self._container_type_name(dtor_fn);
     _cont_has_trace = False;
     if _ptr_data_fields and self._gc_mode() == "cycles" {
         _cont_trace_fn = self._emit_container_trace_fn(
-            f"__rc_trace_{_cont_type_name}", container_ptr_type, _ptr_data_fields
+            f"__rc_trace_{_cont_type_name}", container_ptr_type, layout
         );
         _cont_has_trace = self._register_trace_pair(dtor_fn, _cont_trace_fn);
     }
@@ -82,11 +217,9 @@ impl NaIRGenPass._container_type_name(dtor_fn: object) -> str {
 }
 
 impl NaIRGenPass._emit_container_trace_fn(
-    trace_fn_name: str, container_ptr_type: ir.Type, pointer_data_fields: list
+    trace_fn_name: str, container_ptr_type: ir.Type, layout: dict
 ) -> ir.Function {
     i8_ptr = ir.IntType(8).as_pointer();
-    i32 = ir.IntType(32);
-    i64 = ir.IntType(64);
     visitor_ptype = ir.FunctionType(ir.VoidType(), [i8_ptr]).as_pointer();
     trace_fnty = ir.FunctionType(ir.VoidType(), [i8_ptr, i8_ptr]);
 
@@ -107,45 +240,25 @@ impl NaIRGenPass._emit_container_trace_fn(
     trace_fn.args[1].name = "vis";
 
     entry_bb = trace_fn.append_basic_block("entry");
-    done_bb = trace_fn.append_basic_block("done");
     b = ir.IRBuilder(entry_bb);
     _vis = b.bitcast(trace_fn.args[1], visitor_ptype, name="vis.fn");
     _cont = b.bitcast(trace_fn.args[0], container_ptr_type, name="cont.typed");
-    _len = b.load(
-        b.gep(_cont, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="len.ptr"),
-        name="len"
-    );
+    _ptr_fields = [
+        (fi, dt)
+        for (fi, dt) in layout["data_fields"]
+        if isinstance(dt, ir.PointerType)
+    ];
 
-    for (field_idx, _elem_type) in pointer_data_fields {
-        _data_arr = b.load(
-            b.gep(
-                _cont,
-                [ir.Constant(i32, 0), ir.Constant(i32, field_idx)],
-                name=f"data{field_idx}.ptr"
-            ),
-            name=f"data{field_idx}"
-        );
-        _iv = b.alloca(i64, name=f"ti{field_idx}");
-        b.store(ir.Constant(i64, 0), _iv);
-        cond_bb = trace_fn.append_basic_block(f"tcond{field_idx}");
-        body_bb = trace_fn.append_basic_block(f"tbody{field_idx}");
-        end_bb = trace_fn.append_basic_block(f"tend{field_idx}");
-        b.branch(cond_bb);
-        b = ir.IRBuilder(cond_bb);
-        _i = b.load(_iv, name="ti");
-        b.cbranch(b.icmp_unsigned("<", _i, _len, name="tcmp"), body_bb, end_bb);
-        b = ir.IRBuilder(body_bb);
-        _elem = b.load(
-            b.gep(_data_arr, [b.load(_iv, name="ti2")], name="elem.ptr"),
-            name="elem.val"
-        );
-        b.call(_vis, [b.bitcast(_elem, i8_ptr, name="elem.i8")]);
-        b.store(b.add(b.load(_iv, name="ti3"), ir.Constant(i64, 1), name="tinc"), _iv);
-        b.branch(cond_bb);
-        b = ir.IRBuilder(end_bb);
+    def _visit_slot(bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list) -> ir.IRBuilder {
+        for _ep in elem_ptrs {
+            _elem = bl.load(_ep, name="elem.val");
+            bl.call(_vis, [bl.bitcast(_elem, i8_ptr, name="elem.i8")]);
+        }
+        return bl;
     }
-    b.branch(done_bb);
-    b = ir.IRBuilder(done_bb);
+    b = self._emit_live_slot_loop(
+        trace_fn, b, _cont, layout, "trace", _visit_slot, fields=_ptr_fields
+    );
     b.ret_void();
     return trace_fn;
 }
@@ -169,12 +282,10 @@ impl NaIRGenPass._emit_container_len_fn(
 }
 
 impl NaIRGenPass._emit_container_release_fn(
-    fn_name: str, container_ptr_type: ir.Type, data_fields: list
+    fn_name: str, container_ptr_type: ir.Type, layout: dict
 ) -> ir.Function {
     i32 = ir.IntType(32);
     i8_ptr = ir.IntType(8).as_pointer();
-    i64 = ir.IntType(64);
-    free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8_ptr]);
     release_fnty = ir.FunctionType(ir.VoidType(), [container_ptr_type]);
 
     try {
@@ -193,46 +304,85 @@ impl NaIRGenPass._emit_container_release_fn(
     release_fn.args[0].name = "container";
     i8 = ir.IntType(8);
     (b, done_bb) = self._emit_rc_destructor_preamble(release_fn, container_ptr_type);
-    for (field_idx, elem_type) in data_fields {
-        if isinstance(elem_type, ir.PointerType) {
-            _cycles_on = self._gc_mode() == "cycles";
-            if _cycles_on and self.rc_collecting_gv is None {
-                self._emit_rc_helpers();
-            }
-            rel_elems_bb = release_fn.append_basic_block("release_elems");
-            post_elems_bb = release_fn.append_basic_block("post_elems");
-            if _cycles_on {
-                _cont_coll = b.load(self.rc_collecting_gv, name="cont.collecting");
-                b.cbranch(
-                    b.icmp_unsigned(
-                        "!=", _cont_coll, ir.Constant(i8, 0), name="cont.mid.coll"
-                    ),
-                    post_elems_bb,
-                    rel_elems_bb
-                );
-            } else {
-                b.branch(rel_elems_bb);
-            }
-            b = ir.IRBuilder(rel_elems_bb);
-            b = self._emit_rc_release_elem_loop(
-                b, release_fn, release_fn.args[0], field_idx
-            );
-            b.branch(post_elems_bb);
-            b = ir.IRBuilder(post_elems_bb);
+    if self.rc_safe_free_fn is None or self.rc_release_simple_fn is None {
+        self._emit_rc_helpers();
+    }
+    cont_arg = release_fn.args[0];
+    _ptr_fields = [
+        (fi, dt)
+        for (fi, dt) in layout["data_fields"]
+        if isinstance(dt, ir.PointerType)
+    ];
+    if _ptr_fields {
+        _cycles_on = self._gc_mode() == "cycles";
+        if _cycles_on and self.rc_collecting_gv is None {
+            self._emit_rc_helpers();
         }
+        rel_elems_bb = release_fn.append_basic_block("release_elems");
+        post_elems_bb = release_fn.append_basic_block("post_elems");
+        if _cycles_on {
+            _cont_coll = b.load(self.rc_collecting_gv, name="cont.collecting");
+            b.cbranch(
+                b.icmp_unsigned(
+                    "!=", _cont_coll, ir.Constant(i8, 0), name="cont.mid.coll"
+                ),
+                post_elems_bb,
+                rel_elems_bb
+            );
+        } else {
+            b.branch(rel_elems_bb);
+        }
+        b = ir.IRBuilder(rel_elems_bb);
+
+        def _release_slot(
+            bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list
+        ) -> ir.IRBuilder {
+            for _ep in elem_ptrs {
+                _ev = bl.load(_ep, name="elem.val.rel");
+                bl.call(
+                    self.rc_release_simple_fn,
+                    [bl.bitcast(_ev, i8_ptr, name="elem.cast.rel")]
+                );
+            }
+            return bl;
+        }
+        b = self._emit_live_slot_loop(
+            release_fn, b, cont_arg, layout, "rel", _release_slot, fields=_ptr_fields
+        );
+        b.branch(post_elems_bb);
+        b = ir.IRBuilder(post_elems_bb);
+    }
+    for (field_idx, _) in layout["data_fields"] {
         data_p = b.gep(
-            release_fn.args[0],
+            cont_arg,
             [ir.Constant(i32, 0), ir.Constant(i32, field_idx)],
             name=f"data{field_idx}.ptr.f"
         );
         data_f = b.load(data_p, name=f"data{field_idx}.f");
-        if self.rc_safe_free_fn is None {
-            self._emit_rc_helpers();
-        }
         b.call(
             self.rc_safe_free_fn,
             [b.bitcast(data_f, i8_ptr, name=f"data{field_idx}.cast")]
         );
+    }
+    if layout["kind"] == "hash" {
+        _ctrl_f = b.load(
+            b.gep(
+                cont_arg,
+                [ir.Constant(i32, 0), ir.Constant(i32, layout["ctrl_idx"])],
+                name="ctrl.ptr.f"
+            ),
+            name="ctrl.f"
+        );
+        b.call(self.rc_safe_free_fn, [_ctrl_f]);
+        _order_f = b.load(
+            b.gep(
+                cont_arg,
+                [ir.Constant(i32, 0), ir.Constant(i32, layout["order_idx"])],
+                name="order.ptr.f"
+            ),
+            name="order.f"
+        );
+        b.call(self.rc_safe_free_fn, [b.bitcast(_order_f, i8_ptr, name="order.cast")]);
     }
 
     self._emit_release_header_free(release_fn, b, done_bb);
@@ -278,45 +428,6 @@ impl NaIRGenPass._emit_release_header_free(
     b.branch(done_bb);
     b = ir.IRBuilder(done_bb);
     b.ret_void();
-}
-
-impl NaIRGenPass._emit_linear_search_loop(
-    func: ir.Function,
-    entry_builder: ir.IRBuilder,
-    search_val: ir.Value,
-    arr: ir.Value,
-    arr_len: ir.Value,
-    elem_type: ir.Type,
-    elem_size: int = 0
-) -> tuple {
-    i64 = ir.IntType(64);
-    idx_alloca = entry_builder.alloca(i64, name="idx");
-    entry_builder.store(ir.Constant(i64, 0), idx_alloca);
-    loop_cond = func.append_basic_block("loop.cond");
-    loop_body = func.append_basic_block("loop.body");
-    incr_bb = func.append_basic_block("incr");
-    found_bb = func.append_basic_block("found");
-    not_found_bb = func.append_basic_block("not.found");
-    entry_builder.branch(loop_cond);
-
-    b = ir.IRBuilder(loop_cond);
-    idx = b.load(idx_alloca, name="idx");
-    cmp = b.icmp_signed("<", idx, arr_len, name="cmp");
-    b.cbranch(cmp, loop_body, not_found_bb);
-
-    b = ir.IRBuilder(loop_body);
-    idx_body = b.load(idx_alloca, name="idx.body");
-    elem_ptr = b.gep(arr, [idx_body], name="elem.ptr");
-    elem_val = b.load(elem_ptr, name="elem.val");
-    elem_eq = self._emit_key_comparison(b, elem_type, elem_val, search_val, elem_size);
-    b.cbranch(elem_eq, found_bb, incr_bb);
-
-    b = ir.IRBuilder(incr_bb);
-    idx_incr = b.load(idx_alloca, name="idx.incr");
-    next_idx = b.add(idx_incr, ir.Constant(i64, 1), name="next.idx");
-    b.store(next_idx, idx_alloca);
-    b.branch(loop_cond);
-    return (ir.IRBuilder(found_bb), ir.IRBuilder(not_found_bb), idx_alloca);
 }
 
 impl NaIRGenPass._emit_array_get_fn(
@@ -402,13 +513,15 @@ impl NaIRGenPass._emit_key_comparison(
         );
     } elif isinstance(key_type, ir.PointerType) {
         return b.icmp_unsigned("==", stored_val, search_val, name="key.eq");
+    } elif isinstance(key_type, ir.DoubleType) {
+        return b.fcmp_ordered("==", stored_val, search_val, name="key.eq");
     } else {
         return b.icmp_signed("==", stored_val, search_val, name="key.eq");
     }
 }
 
 impl NaIRGenPass._emit_rc_alloc_container(
-    b: ir.IRBuilder, container_ptr_type: ir.Type, data_types: list, initial_cap: int = 8
+    b: ir.IRBuilder, container_ptr_type: ir.Type, layout: dict, initial_cap: int = 8
 ) -> tuple {
     i64 = ir.IntType(64);
     i32 = ir.IntType(32);
@@ -436,8 +549,8 @@ impl NaIRGenPass._emit_rc_alloc_container(
     b.store(ir.Constant(i64, initial_cap), cap_p);
 
     data_ptrs = [];
-    for (i, dtype) in enumerate(data_types) {
-        field_idx = i + 2;
+    for (i, fpair) in enumerate(layout["data_fields"]) {
+        (field_idx, dtype) = fpair;
         elem_null = ir.Constant(dtype.as_pointer(), None);
         elem_gep = b.gep(elem_null, [ir.Constant(i32, 1)], name=f"elem{i}.sizeof");
         elem_size = b.ptrtoint(elem_gep, i64, name=f"elem{i}.size");
@@ -453,6 +566,39 @@ impl NaIRGenPass._emit_rc_alloc_container(
         );
         b.store(data, data_p);
         data_ptrs.append(data);
+    }
+    if layout["kind"] == "hash" {
+        calloc_fn = self._get_or_declare_extern("calloc", i8_ptr, [i64, i64]);
+        _ctrl0 = b.call(
+            calloc_fn,
+            [ir.Constant(i64, initial_cap), ir.Constant(i64, 1)],
+            name="ctrl0"
+        );
+        b.store(
+            _ctrl0,
+            b.gep(
+                container_ptr,
+                [ir.Constant(i32, 0), ir.Constant(i32, layout["ctrl_idx"])],
+                name="ctrl.ptr"
+            )
+        );
+        b.store(
+            ir.Constant(i64, 0),
+            b.gep(
+                container_ptr,
+                [ir.Constant(i32, 0), ir.Constant(i32, layout["used_idx"])],
+                name="used.ptr"
+            )
+        );
+        _ord0 = b.call(malloc_fn, [ir.Constant(i64, initial_cap * 8)], name="order0");
+        b.store(
+            b.bitcast(_ord0, i64.as_pointer(), name="order0.p"),
+            b.gep(
+                container_ptr,
+                [ir.Constant(i32, 0), ir.Constant(i32, layout["order_idx"])],
+                name="order.ptr"
+            )
+        );
     }
     return tuple([container_ptr] + data_ptrs);
 }
@@ -513,49 +659,4 @@ impl NaIRGenPass._emit_rc_destructor_preamble(
 
     free_builder = ir.IRBuilder(free_bb);
     return (free_builder, done_bb);
-}
-
-impl NaIRGenPass._emit_rc_release_elem_loop(
-    b: ir.IRBuilder,
-    release_fn: ir.Function,
-    container_arg: ir.Value,
-    data_field_idx: int
-) -> ir.IRBuilder {
-    i32 = ir.IntType(32);
-    i64 = ir.IntType(64);
-    i8_ptr = ir.IntType(8).as_pointer();
-    if self.rc_release_simple_fn is None {
-        self._emit_rc_helpers();
-    }
-
-    len_p = b.gep(
-        container_arg, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="len.ptr.rel"
-    );
-    cur_len = b.load(len_p, name="len.rel");
-    data_p = b.gep(
-        container_arg,
-        [ir.Constant(i32, 0), ir.Constant(i32, data_field_idx)],
-        name="data.ptr.rel"
-    );
-    data_arr = b.load(data_p, name="data.rel");
-
-    loop_alloca = b.alloca(i64, name="loop.rel");
-    b.store(ir.Constant(i64, 0), loop_alloca);
-    lcond = release_fn.append_basic_block("loop.cond.rel");
-    lbody = release_fn.append_basic_block("loop.body.rel");
-    lend = release_fn.append_basic_block("loop.end.rel");
-    b.branch(lcond);
-    b = ir.IRBuilder(lcond);
-    li = b.load(loop_alloca, name="li.rel");
-    b.cbranch(b.icmp_unsigned("<", li, cur_len, name="cmp.rel"), lbody, lend);
-    b = ir.IRBuilder(lbody);
-    ep = b.gep(data_arr, [b.load(loop_alloca, name="li2.rel")], name="elem.ptr.rel");
-    ev = b.load(ep, name="elem.val.rel");
-    b.call(self.rc_release_simple_fn, [b.bitcast(ev, i8_ptr, name="elem.cast.rel")]);
-    b.store(
-        b.add(b.load(loop_alloca, name="li3.rel"), ir.Constant(i64, 1), name="inc.rel"),
-        loop_alloca
-    );
-    b.branch(lcond);
-    return ir.IRBuilder(lend);
 }

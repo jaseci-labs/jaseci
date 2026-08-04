@@ -1004,6 +1004,10 @@ impl NaIRGenPass._emit_container_drop_fn(cont_name: str) -> (ir.Function | None)
     if cont_name in self.container_drop_fns {
         return self.container_drop_fns[cont_name];
     }
+    layout = self.container_layouts.get(cont_name);
+    if layout is None {
+        return None;
+    }
     _struct = None;
     try {
         _struct = self.llvm_module.context.get_identified_type(cont_name);
@@ -1012,10 +1016,6 @@ impl NaIRGenPass._emit_container_drop_fn(cont_name: str) -> (ir.Function | None)
     }
     if _struct is None or not _struct?.elements {
         return None;
-    }
-
-    if cont_name.startswith("Dict.") and len(list(_struct.elements)) >= 9 {
-        return self._emit_dict_drop_fn(cont_name, _struct);
     }
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
@@ -1035,40 +1035,19 @@ impl NaIRGenPass._emit_container_drop_fn(cont_name: str) -> (ir.Function | None)
     );
     b.cbranch(is_null, done_bb, body_bb);
 
-    b.position_at_end(body_bb);
+    b = ir.IRBuilder(body_bb);
     cont = b.bitcast(fn.args[0], _struct.as_pointer(), name="drop.cont");
     free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
-    i64 = ir.IntType(64);
     _elems = list(_struct.elements);
-    _bufs = [];
-    _slots = [];
-    for (_fi, _fty) in enumerate(_elems) {
-        if _fi < 2 or not isinstance(_fty, ir.PointerType) {
-            continue;
-        }
-        if isinstance(_fty.pointee, ir.FunctionType) {
-            _slots.append(_fi);
-        } else {
-            _bufs.append((_fi, _fty));
-        }
-    }
-    _len_v = None;
-    if _slots {
-        _len_p = b.gep(
-            cont, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="drop.len.p"
-        );
-        _len_v = b.load(_len_p, name="drop.len");
-    }
-    for (_bk, _bpair) in enumerate(_bufs) {
-        (_fi, _fty) = _bpair;
+    _has_slots = layout["drop_base"] < len(_elems);
+    for (_bk, _fpair) in enumerate(layout["data_fields"]) {
+        (_fi, _fty) = _fpair;
         dp = b.gep(
             cont, [ir.Constant(i32, 0), ir.Constant(i32, _fi)], name=f"drop.data{_fi}.p"
         );
         dv = b.load(dp, name=f"drop.data{_fi}");
-        if _len_v is not None
-            and _bk < len(_slots)
-            and isinstance(_fty.pointee, ir.PointerType) {
-            _si = _slots[_bk];
+        if _has_slots and isinstance(_fty, ir.PointerType) {
+            _si = layout["drop_base"] + _bk;
             _sp = b.gep(
                 cont,
                 [ir.Constant(i32, 0), ir.Constant(i32, _si)],
@@ -1078,142 +1057,50 @@ impl NaIRGenPass._emit_container_drop_fn(cont_name: str) -> (ir.Function | None)
             _have = b.icmp_unsigned(
                 "!=", _sfn, ir.Constant(_elems[_si], None), name=f"edrop{_fi}.have"
             );
-            _idx_p = b.alloca(i64, name=f"edrop{_fi}.idx");
-            b.store(ir.Constant(i64, 0), _idx_p);
-            _chk_bb = fn.append_basic_block(f"edrop{_fi}.chk");
-            _loop_bb = fn.append_basic_block(f"edrop{_fi}.body");
+            _walk_bb = fn.append_basic_block(f"edrop{_fi}.walk");
             _next_bb = fn.append_basic_block(f"edrop{_fi}.next");
-            b.cbranch(_have, _chk_bb, _next_bb);
+            b.cbranch(_have, _walk_bb, _next_bb);
+            bw = ir.IRBuilder(_walk_bb);
 
-            b.position_at_end(_chk_bb);
-            _iv = b.load(_idx_p, name=f"edrop{_fi}.i");
-            _more = b.icmp_signed("<", _iv, _len_v, name=f"edrop{_fi}.more");
-            b.cbranch(_more, _loop_bb, _next_bb);
-
-            b.position_at_end(_loop_bb);
-            _iv2 = b.load(_idx_p, name=f"edrop{_fi}.i2");
-            _ep = b.gep(dv, [_iv2], name=f"edrop{_fi}.elem.p");
-            _ev = b.load(_ep, name=f"edrop{_fi}.elem");
-            _ei8 = b.bitcast(_ev, i8p, name=f"edrop{_fi}.elem.i8");
-            b.call(_sfn, [_ei8]);
-            b.store(b.add(_iv2, ir.Constant(i64, 1), name=f"edrop{_fi}.inc"), _idx_p);
-            b.branch(_chk_bb);
-
-            b.position_at_end(_next_bb);
-        }
-        dv_i8 = b.bitcast(dv, i8p, name=f"drop.data{_fi}.i8");
-        b.call(free_fn, [dv_i8]);
-    }
-    b.call(free_fn, [fn.args[0]]);
-    b.branch(done_bb);
-
-    b.position_at_end(done_bb);
-    b.ret_void();
-    return fn;
-}
-
-impl NaIRGenPass._emit_dict_drop_fn(
-    cont_name: str, dict_struct: ir.Type
-) -> (ir.Function | None) {
-    if cont_name in self.container_drop_fns {
-        return self.container_drop_fns[cont_name];
-    }
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
-    i32 = ir.IntType(32);
-    i64 = ir.IntType(64);
-    fnty = ir.FunctionType(ir.VoidType(), [i8p]);
-    _safe = cont_name.replace(".", "_");
-    fn = ir.Function(self.llvm_module, fnty, name=f"__drop_{_safe}");
-    fn.linkage = "private";
-    fn.args[0].name = "self";
-    self.container_drop_fns[cont_name] = fn;
-
-    entry_bb = fn.append_basic_block("entry");
-    body_bb = fn.append_basic_block("body");
-    done_bb = fn.append_basic_block("done");
-    b = ir.IRBuilder(entry_bb);
-    is_null = b.icmp_unsigned(
-        "==", fn.args[0], ir.Constant(i8p, None), name="drop.null"
-    );
-    b.cbranch(is_null, done_bb, body_bb);
-
-    b.position_at_end(body_bb);
-    cont = b.bitcast(fn.args[0], dict_struct.as_pointer(), name="drop.cont");
-    free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
-    _elems = list(dict_struct.elements);
-    cap_v = b.load(
-        b.gep(cont, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="drop.cap.p"),
-        name="drop.cap"
-    );
-    ctrl_v = b.load(
-        b.gep(cont, [ir.Constant(i32, 0), ir.Constant(i32, 4)], name="drop.ctrl.p"),
-        name="drop.ctrl"
-    );
-
-    for (_fi, _si) in [(2, 7), (3, 8)] {
-        dp = b.gep(
-            cont, [ir.Constant(i32, 0), ir.Constant(i32, _fi)], name=f"drop.data{_fi}.p"
-        );
-        dv = b.load(dp, name=f"drop.data{_fi}");
-        if isinstance(_elems[_fi].pointee, ir.PointerType) {
-            _sp = b.gep(
-                cont,
-                [ir.Constant(i32, 0), ir.Constant(i32, _si)],
-                name=f"edrop{_fi}.slot.p"
+            def _drop_slot(
+                bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list
+            ) -> ir.IRBuilder {
+                _ev = bl.load(elem_ptrs[0], name=f"edrop{_fi}.elem");
+                bl.call(_sfn, [bl.bitcast(_ev, i8p, name=f"edrop{_fi}.elem.i8")]);
+                return bl;
+            }
+            bw = self._emit_live_slot_loop(
+                fn, bw, cont, layout, f"edrop{_fi}", _drop_slot, fields=[_fpair]
             );
-            _sfn = b.load(_sp, name=f"edrop{_fi}.slot");
-            _have = b.icmp_unsigned(
-                "!=", _sfn, ir.Constant(_elems[_si], None), name=f"edrop{_fi}.have"
-            );
-            _idx_p = b.alloca(i64, name=f"edrop{_fi}.idx");
-            b.store(ir.Constant(i64, 0), _idx_p);
-            _chk_bb = fn.append_basic_block(f"edrop{_fi}.chk");
-            _occ_bb = fn.append_basic_block(f"edrop{_fi}.occ");
-            _call_bb = fn.append_basic_block(f"edrop{_fi}.call");
-            _inc_bb = fn.append_basic_block(f"edrop{_fi}.inc");
-            _next_bb = fn.append_basic_block(f"edrop{_fi}.next");
-            b.cbranch(_have, _chk_bb, _next_bb);
-
-            b.position_at_end(_chk_bb);
-            _iv = b.load(_idx_p, name=f"edrop{_fi}.i");
-            _more = b.icmp_unsigned("<", _iv, cap_v, name=f"edrop{_fi}.more");
-            b.cbranch(_more, _occ_bb, _next_bb);
-
-            b.position_at_end(_occ_bb);
-            _cb = b.load(
-                b.gep(ctrl_v, [_iv], name=f"edrop{_fi}.cb.p"), name=f"edrop{_fi}.cb"
-            );
-            _occ = b.icmp_unsigned(
-                ">=", _cb, ir.Constant(i8, 0x80), name=f"edrop{_fi}.isocc"
-            );
-            b.cbranch(_occ, _call_bb, _inc_bb);
-
-            b.position_at_end(_call_bb);
-            _ep = b.gep(dv, [_iv], name=f"edrop{_fi}.elem.p");
-            _ev = b.load(_ep, name=f"edrop{_fi}.elem");
-            _ei8 = b.bitcast(_ev, i8p, name=f"edrop{_fi}.elem.i8");
-            b.call(_sfn, [_ei8]);
-            b.branch(_inc_bb);
-
-            b.position_at_end(_inc_bb);
-            b.store(b.add(_iv, ir.Constant(i64, 1), name=f"edrop{_fi}.next.i"), _idx_p);
-            b.branch(_chk_bb);
-
-            b.position_at_end(_next_bb);
+            bw.branch(_next_bb);
+            b = ir.IRBuilder(_next_bb);
         }
         b.call(free_fn, [b.bitcast(dv, i8p, name=f"drop.data{_fi}.i8")]);
     }
-    b.call(free_fn, [ctrl_v]);
-    order_v = b.load(
-        b.gep(cont, [ir.Constant(i32, 0), ir.Constant(i32, 6)], name="drop.ord.p"),
-        name="drop.ord"
-    );
-    b.call(free_fn, [b.bitcast(order_v, i8p, name="drop.ord.i8")]);
+    if layout["kind"] == "hash" {
+        ctrl_v = b.load(
+            b.gep(
+                cont,
+                [ir.Constant(i32, 0), ir.Constant(i32, layout["ctrl_idx"])],
+                name="drop.ctrl.p"
+            ),
+            name="drop.ctrl"
+        );
+        b.call(free_fn, [ctrl_v]);
+        order_v = b.load(
+            b.gep(
+                cont,
+                [ir.Constant(i32, 0), ir.Constant(i32, layout["order_idx"])],
+                name="drop.ord.p"
+            ),
+            name="drop.ord"
+        );
+        b.call(free_fn, [b.bitcast(order_v, i8p, name="drop.ord.i8")]);
+    }
     b.call(free_fn, [fn.args[0]]);
     b.branch(done_bb);
 
-    b.position_at_end(done_bb);
+    b = ir.IRBuilder(done_bb);
     b.ret_void();
     return fn;
 }
@@ -1257,7 +1144,7 @@ impl NaIRGenPass._nogc_type_arg_mangles(expr: uni.UniNode | None) -> list {
 }
 
 impl NaIRGenPass._nogc_stamp_elem_drops(
-    cont: ir.Value | None, elem_mangles: list, family: str
+    cont: ir.Value | None, elem_mangles: list
 ) -> None {
     if cont is None or self._gc_mode() != "none" {
         return;
@@ -1265,20 +1152,19 @@ impl NaIRGenPass._nogc_stamp_elem_drops(
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     _slot_ty = self._nogc_elem_drop_slot_ty();
-    _slot_specs: list = [];
-    if family == "dict" {
-        if len(elem_mangles) >= 2 {
-            _slot_specs = [(7, elem_mangles[0]), (8, elem_mangles[1])];
-        }
-    } elif len(elem_mangles) >= 1 {
-        _slot_specs = [(3, elem_mangles[0])];
-    }
     _cont_struct = cont.type?.pointee;
-    _n_fields = len(list(getattr(_cont_struct, "elements", []) or []));
+    _cont_name = getattr(_cont_struct, "name", "") or "";
+    _layout = self.container_layouts.get(_cont_name);
+    if _layout is None {
+        return;
+    }
+    _base = _layout["drop_base"];
+    _slot_specs: list = [
+        (_base + _k, elem_mangles[_k])
+        for _k in range(len(_layout["data_fields"]))
+        if _k < len(elem_mangles)
+    ];
     for (_idx, _em) in _slot_specs {
-        if _idx >= _n_fields {
-            continue;
-        }
         _drop_target: (ir.Value | None) = None;
         if _em == "str" {
             _drop_target = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);

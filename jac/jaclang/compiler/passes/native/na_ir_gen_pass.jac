@@ -240,6 +240,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_release_fns: dict[str, ir.Function] = {},
         struct_drop_fns: dict[str, ir.Function] = {},
         container_drop_fns: dict[str, ir.Function] = {},
+        container_layouts: dict[str, dict] = {},
         struct_drop_hooks: dict[str, ir.Function] = {},
         struct_drop_fields_fns: dict[str, ir.Function] = {},
         arena_helpers_emitted: bool = False,
@@ -610,6 +611,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         val: ir.Value, spec_val: ir.Value, part: uni.FormattedValue
     ) -> (ir.Value | None);
 
+    def _static_str_struct_const(data: bytes) -> tuple;
     def _make_global_string(text: str, name_prefix: str = ".str") -> ir.Value;
     def _forward_declare_archetype_names(module: uni.Module) -> None;
     def _native_archetypes(module: uni.Module) -> list[uni.Archetype];
@@ -709,7 +711,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         elem_fn: ir.Function,
         open_text: str,
         close_text: str,
-        empty_text: (str | None)
+        empty_text: (str | None),
+        get_fn: (ir.Function | None) = None
     ) -> ir.Function;
 
     def _repr_elem_spec_of_key(elem_key: str) -> (tuple | None);
@@ -745,11 +748,21 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _dict_key_spec(key_type: ir.Type) -> tuple;
     def _dict_val_spec(val_type: ir.Type) -> str;
-    def _emit_rc_alloc_container(
+    def _container_layout_dense(data_types: list) -> dict;
+    def _container_layout_hash(key_type: ir.Type, val_type: (ir.Type | None)) -> dict;
+    def _container_struct_fields(layout: dict) -> list;
+    def _emit_live_slot_loop(
+        fn: ir.Function,
         b: ir.IRBuilder,
-        container_ptr_type: ir.Type,
-        data_types: list,
-        initial_cap: int = 8
+        cont: ir.Value,
+        layout: dict,
+        tag: str,
+        body_cb: object,
+        fields: (list | None) = None
+    ) -> ir.IRBuilder;
+
+    def _emit_rc_alloc_container(
+        b: ir.IRBuilder, container_ptr_type: ir.Type, layout: dict, initial_cap: int = 8
     ) -> tuple;
 
     def _emit_grow_array(
@@ -765,17 +778,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         release_fn: ir.Function, ptr_type: ir.Type
     ) -> tuple;
 
-    def _emit_rc_release_elem_loop(
-        b: ir.IRBuilder,
-        release_fn: ir.Function,
-        container_arg: ir.Value,
-        data_field_idx: int
-    ) -> ir.IRBuilder;
-
     def _emit_container_new_fn(
         fn_name: str,
         container_ptr_type: ir.Type,
-        data_types: list,
+        layout: dict,
         dtor_fn: (ir.Function | None) = None
     ) -> ir.Function;
 
@@ -784,22 +790,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> ir.Function;
 
     def _emit_container_release_fn(
-        fn_name: str, container_ptr_type: ir.Type, data_fields: list
+        fn_name: str, container_ptr_type: ir.Type, layout: dict
     ) -> ir.Function;
 
     def _emit_release_header_free(
         release_fn: ir.Function, b: ir.IRBuilder, done_bb: ir.Block
     ) -> None;
-
-    def _emit_linear_search_loop(
-        func: ir.Function,
-        entry_builder: ir.IRBuilder,
-        search_val: ir.Value,
-        arr: ir.Value,
-        arr_len: ir.Value,
-        elem_type: ir.Type,
-        elem_size: int = 0
-    ) -> tuple;
 
     def _emit_array_get_fn(
         fn_name: str,
@@ -989,8 +985,20 @@ obj NaIRGenPass(ModuleCodegenPass) {
         removed_slot: ir.Value,
         new_len: ir.Value,
         i32: ir.Type,
-        i64: ir.Type
+        i64: ir.Type,
+        order_idx: int
     ) -> ir.IRBuilder;
+
+    def _emit_hash_core_helpers(
+        family: str,
+        type_key: str,
+        cont_ptr_type: ir.Type,
+        key_type: ir.Type,
+        val_type: (ir.Type | None),
+        key_type_name: str,
+        key_size: int,
+        layout: dict
+    ) -> dict;
 
     def _emit_order_scan_incr_block(
         b: ir.IRBuilder,
@@ -1000,10 +1008,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         fn: ir.Function,
         scan_bb: ir.Block
     ) -> ir.Block;
-
-    def _emit_dict_trace_fn(
-        trace_fn_name: str, dict_ptr_type: ir.Type, key_type: ir.Type, val_type: ir.Type
-    ) -> ir.Function;
 
     def _box_to_jacval(value: ir.Value) -> ir.Value;
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value;
@@ -1163,7 +1167,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _struct_has_ref_fields(arch_name: str) -> bool;
     def _container_type_name(dtor_fn: object) -> str;
     def _emit_container_trace_fn(
-        trace_fn_name: str, container_ptr_type: ir.Type, pointer_data_fields: list
+        trace_fn_name: str, container_ptr_type: ir.Type, layout: dict
     ) -> ir.Function;
 
     def _emit_rc_collect_cycles -> None;
@@ -1231,15 +1235,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _emit_container_drop_fn(cont_name: str) -> (ir.Function | None);
-    def _emit_dict_drop_fn(
-        cont_name: str, dict_struct: ir.Type
-    ) -> (ir.Function | None);
-
     def _nogc_elem_drop_slot_ty -> ir.Type;
-    def _nogc_stamp_elem_drops(
-        cont: ir.Value | None, elem_mangles: list, family: str
-    ) -> None;
-
+    def _nogc_stamp_elem_drops(cont: ir.Value | None, elem_mangles: list) -> None;
     def _nogc_elem_prep(
         expr: uni.UniNode | None, val: ir.Value | None
     ) -> (ir.Value | None);

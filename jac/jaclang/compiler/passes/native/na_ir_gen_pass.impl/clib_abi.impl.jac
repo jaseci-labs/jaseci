@@ -88,7 +88,7 @@ impl NaIRGenPass._clib_alloc_box(name: str) -> ir.Value {
         i64p = i64.as_pointer();
         raw_i8 = self.builder.bitcast(typed_ptr, i8p, name="clib.box.i8");
         dtor_slot = self.builder.gep(
-            raw_i8, [ir.Constant(i64, -8)], name="clib.box.dtorslot"
+            raw_i8, [ir.Constant(i64, HDR_DTOR_OFF)], name="clib.box.dtorslot"
         );
         dtor_slot_i64 = self.builder.bitcast(dtor_slot, i64p, name="clib.box.dtori64p");
         dtor_i64 = self.builder.ptrtoint(dtor_fn, i64, name="clib.box.dtori64");

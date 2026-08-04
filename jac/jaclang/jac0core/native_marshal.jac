@@ -51,6 +51,18 @@ class NativeDict(ctypes.Structure) {
 }
 
 
+class NativeSet(ctypes.Structure) {
+    has _fields_: list[tuple[str, type]] = [
+        ("len", ctypes.c_int64),
+        ("cap", ctypes.c_int64),
+        ("keys", ctypes.c_void_p),
+        ("ctrl", ctypes.c_void_p),
+        ("used", ctypes.c_int64),
+        ("order", ctypes.c_void_p)
+    ];
+}
+
+
 obj NativeStructView {
     has addr: int,
         ct_cls: any = None,
@@ -264,13 +276,23 @@ def _marshal_set(set_ptr: int, elem_name: str, func_layout: any = None) -> any {
     if elem_name not in ("i64", "f64", "bytes", "ptr") {
         return set_ptr;
     }
-    nl = NativeList.from_address(set_ptr);
-    count = int(nl.len) if (nl.len > 0 and nl.data) else 0;
+    ns = NativeSet.from_address(set_ptr);
+    count = int(ns.len) if ns.len > 0 else 0;
+    cap = int(ns.cap) if ns.cap > 0 else 0;
+    if (count <= 0 or cap <= 0 or not ns.order) {
+        return set();
+    }
     ret_keys = func_layout?.ret_elem_keys if func_layout is not None else None;
     as_str = bool(
         elem_name == "ptr" and ret_keys and len(ret_keys) == 1 and ret_keys[0] == "str"
     );
-    return set(_decode_scalar_array(nl.data, count, elem_name, as_str=as_str));
+    order = (ctypes.c_int64 * count).from_address(ns.order);
+    slots = [
+        int(s)
+        for s in order
+        if 0 <= int(s) and int(s) < cap
+    ];
+    return set(_decode_scalar_at(ns.keys, slots, elem_name, as_str=as_str));
 }
 
 

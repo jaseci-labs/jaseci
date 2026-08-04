@@ -55,22 +55,14 @@ impl NaIRGenPass._codegen_enum(nd: uni.Enum) -> None {
 impl NaIRGenPass._build_enum_string_table(
     enum_name: str, entries: list, with_values: bool = True
 ) -> None {
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
+    i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
-    i64 = ir.IntType(64);
-    sentinel_val = ir.Constant(i64, 0x7FFFFFFFFFFFFFFF);
-    zero_i64 = ir.Constant(i64, 0);
     value_ptrs: list = [];
     name_ptrs: list = [];
     for (mname, str_val, ordinal) in entries {
         if with_values {
-            val_bytes = bytearray((str_val + "\0").encode("utf8"));
-            val_arr_type = ir.ArrayType(i8, len(val_bytes));
-            val_struct_type = ir.LiteralStructType([i64, i64, val_arr_type]);
-            val_c_str = ir.Constant(val_arr_type, val_bytes);
-            val_struct = ir.Constant(
-                val_struct_type, [sentinel_val, zero_i64, val_c_str]
+            (val_struct_type, val_struct) = self._static_str_struct_const(
+                (str_val + "\0").encode("utf8")
             );
             val_gv = ir.GlobalVariable(
                 self.llvm_module,
@@ -87,12 +79,8 @@ impl NaIRGenPass._build_enum_string_table(
             value_ptrs.append(val_ptr);
         }
 
-        name_bytes = bytearray((mname + "\0").encode("utf8"));
-        name_arr_type = ir.ArrayType(i8, len(name_bytes));
-        name_struct_type = ir.LiteralStructType([i64, i64, name_arr_type]);
-        name_c_str = ir.Constant(name_arr_type, name_bytes);
-        name_struct = ir.Constant(
-            name_struct_type, [sentinel_val, zero_i64, name_c_str]
+        (name_struct_type, name_struct) = self._static_str_struct_const(
+            (mname + "\0").encode("utf8")
         );
         name_gv = ir.GlobalVariable(
             self.llvm_module, name_struct_type, name=f"__enum.{enum_name}.n.{ordinal}"

@@ -374,10 +374,18 @@ Collections are represented as LLVM struct types:
 
 | Jac Type | Internal Layout |
 |----------|----------------|
-| `list[T]` | `{ i64 capacity, i64 len, T* data }` |
-| `dict[K, V]` | `{ K* keys, V* values, i64 len }` |
-| `set[T]` | `{ T* data, i64 len }` |
+| `list[T]` | `{ i64 len, i64 cap, T* data }` |
+| `dict[K, V]` | `{ i64 len, i64 cap, K* keys, V* vals, i8* ctrl, i64 used, i64* order }` |
+| `set[T]` | `{ i64 len, i64 cap, T* keys, i8* ctrl, i64 used, i64* order }` |
 | `tuple[T, ...]` | LLVM literal struct (fields packed by type) |
+
+`dict` and `set` are open-addressing hash tables sharing one core: FNV-1a hashing for strings, bytes, and by-value aggregates, multiplicative hashing for scalars, control-byte fingerprints with tombstone-aware linear probing, rehash at 75% load, and an insertion-order slot array so iteration matches Python semantics.
+
+### Container Lifecycle Authority
+
+Each container type is described by one set of layout facts (element arrays plus, for hash containers, the control/used/order fields), registered in the native pass's container layout registry. One slot-iteration emitter is the sole authority for visiting live element slots: dense containers iterate `[0..len)`; hash containers walk `[0..cap)` gated on control-byte occupancy. The shared constructor, release, cycle-trace, and ownership-drop emitters are parameterized by those facts, so a container type acquires its complete lifecycle from its layout facts and slot iterator alone. Cycle-trace registration (the `E9002` invariant) and the mid-collection reentry guard live only inside the shared emitters; a container wired through the authority participates in cycle collection by construction, and one that bypasses the emitters cannot exist because the emitters are the only path.
+
+Static strings have one constructor: a single helper builds the `{ i64 sentinel, i64 tagged_len, [N x i8] }` immortal-string struct used by string literals, enum name and value tables, and the `__jac_chars` single-character cache, so a layout change is a one-helper edit.
 
 ### Type Identity and Layout Authority
 

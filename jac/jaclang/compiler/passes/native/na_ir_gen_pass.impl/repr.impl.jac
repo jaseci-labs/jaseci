@@ -413,7 +413,8 @@ impl NaIRGenPass._repr_seq_fn(
     elem_fn: ir.Function,
     open_text: str,
     close_text: str,
-    empty_text: (str | None)
+    empty_text: (str | None),
+    get_fn: (ir.Function | None) = None
 ) -> ir.Function {
     i8p: any = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
@@ -450,9 +451,12 @@ impl NaIRGenPass._repr_seq_fn(
         b.ret(self._repr_const_str(empty_text));
         b.position_at_end(main_bb);
     }
-    data = b.load(
-        b.gep(c_arg, [z32, ir.Constant(i32, 2)], name="rp.data.p"), name="rp.data"
-    );
+    data = None;
+    if get_fn is None {
+        data = b.load(
+            b.gep(c_arg, [z32, ir.Constant(i32, 2)], name="rp.data.p"), name="rp.data"
+        );
+    }
     acc: any = b.alloca(i8p, name="rp.acc");
     iv = b.alloca(i64, name="rp.i");
     b.store(self._rc_strdup(open_g, name="rp.acc0"), acc);
@@ -466,7 +470,11 @@ impl NaIRGenPass._repr_seq_fn(
     b.cbranch(b.icmp_signed("<", i_cur, len_v, name="rp.more"), body_bb, done_bb);
     b.position_at_end(body_bb);
     self._repr_maybe_sep(fn, i_cur, acc, sep_g);
-    elem: any = b.load(b.gep(data, [i_cur], name="rp.elem.p"), name="rp.elem");
+    if get_fn is None {
+        elem: any = b.load(b.gep(data, [i_cur], name="rp.elem.p"), name="rp.elem");
+    } else {
+        elem: any = b.call(get_fn, [c_arg, i_cur], name="rp.elem");
+    }
     piece = self._repr_call_elem_fn(elem_fn, elem);
     self._repr_acc_concat(acc, piece, True);
     b.store(b.add(i_cur, ir.Constant(i64, 1), name="rp.inc"), iv);
@@ -529,7 +537,8 @@ impl NaIRGenPass._repr_set_fn(type_key: str) -> (ir.Function | None) {
         elem_fn,
         "{",
         "}",
-        "set()"
+        "set()",
+        get_fn=self.set_helpers[_spec[0]]["get"]
     );
 }
 
