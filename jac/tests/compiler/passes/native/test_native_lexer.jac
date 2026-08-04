@@ -15,15 +15,22 @@ import from typing { Callable }
 import jaclang;
 import from jaclang.jac0core.codeinfo { NativeFunctionInfo }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.parser.tokens { Token, TokenKind, SourceLoc }
 import from jaclang.jac0core.parser.lexer { Lexer }
 import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 import jaclang.jac0core.unitree as uni;
 
 glob NA_LEXER_PATH = str(
-         Path(jaclang.__file__).parent / "jac0core" / "parser" / "lexer.na.jac"
+         Path(jaclang.__file__).parent / "jac0core" / "parser" / "lexer.jac"
      ),
      FIXTURES = os.path.join(TESTS_DIR, "compiler", "passes", "native", "fixtures");
+
+def _lexer_opts -> CompileOptions {
+    return CompileOptions(
+        type_check=False, default_codespace='native', force_target_program=True
+    );
+}
 
 def compile_fixture(fixture: str) -> tuple[ExecutionEngine | None, uni.Module] {
     prog = JacProgram();
@@ -36,17 +43,17 @@ def compile_fixture(fixture: str) -> tuple[ExecutionEngine | None, uni.Module] {
 # --- Compilation test ---
 test "native lexer compiles" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors: {errors}";
     eng = ir.gen.native_engine;
-    assert eng is not None , "No native engine produced for lexer.na.jac";
+    assert eng is not None , "No native engine produced for lexer.jac";
 }
 
 # --- Metadata export tests ---
 test "native layout exported for lexer" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     layout = ir.gen.native_layout;
     assert layout is not None , "No native_layout on CodeGenTarget";
     assert len(layout.structs) > 0 , "No structs in layout";
@@ -56,7 +63,7 @@ test "native layout exported for lexer" {
 
 test "native layout struct fields correct" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     layout = ir.gen.native_layout;
     assert layout is not None;
     assert "SourceLoc" in layout.structs , "SourceLoc struct missing";
@@ -68,7 +75,7 @@ test "native layout struct fields correct" {
 
 test "native layout enum members correct" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     layout = ir.gen.native_layout;
     assert layout is not None;
     assert len(layout.enums) > 0 , "No enums in layout";
@@ -79,7 +86,7 @@ test "native layout enum members correct" {
 
 test "native layout functions have types" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     layout = ir.gen.native_layout;
     assert layout is not None;
     for (fname, flayout) in layout.functions.items() {
@@ -94,7 +101,7 @@ test "auto-marshal arithmetic add" {
         build_enum_maps,
         wrap_native_function
     }
-    (eng, ir) = compile_fixture("arithmetic.na.jac");
+    (eng, ir) = compile_fixture("arithmetic.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
     ct_classes = build_ctypes_classes(layout);
@@ -114,7 +121,7 @@ test "auto-marshal arithmetic float_add" {
         build_enum_maps,
         wrap_native_function
     }
-    (eng, ir) = compile_fixture("arithmetic.na.jac");
+    (eng, ir) = compile_fixture("arithmetic.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
     ct_classes = build_ctypes_classes(layout);
@@ -130,7 +137,7 @@ test "auto-marshal arithmetic float_add" {
 test "auto-marshal install_native_wrappers" {
     import types;
     import from jaclang.jac0core.native_marshal { install_native_wrappers }
-    (eng, ir) = compile_fixture("arithmetic.na.jac");
+    (eng, ir) = compile_fixture("arithmetic.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
 
@@ -161,7 +168,7 @@ test "auto-marshal install_native_wrappers" {
 
 # --- String enum auto-marshalling ---
 test "native layout for string enums" {
-    (eng, ir) = compile_fixture("string_enums.na.jac");
+    (eng, ir) = compile_fixture("string_enums.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
     assert "Color" in layout.enums , "Color enum not in layout";
@@ -179,7 +186,7 @@ test "auto-marshal string enum functions" {
         build_enum_maps,
         wrap_native_function
     }
-    (eng, ir) = compile_fixture("string_enums.na.jac");
+    (eng, ir) = compile_fixture("string_enums.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
     ct_classes = build_ctypes_classes(layout);
@@ -198,7 +205,7 @@ test "auto-marshal string enum functions" {
 # --- Tuple metadata export ---
 test "native layout tuple metadata for tokenize" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     layout = ir.gen.native_layout;
     assert layout is not None;
     assert len(layout.tuples) > 0 , "No tuples in layout";
@@ -227,7 +234,7 @@ test "auto-marshal tuple with struct list" {
         build_enum_maps,
         wrap_native_function
     }
-    (eng, ir) = compile_fixture("tuple_structs.na.jac");
+    (eng, ir) = compile_fixture("tuple_structs.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
     ct_classes = build_ctypes_classes(layout);
@@ -268,7 +275,7 @@ test "auto-marshal struct with string field" {
         build_enum_maps,
         wrap_native_function
     }
-    (eng, ir) = compile_fixture("tuple_structs.na.jac");
+    (eng, ir) = compile_fixture("tuple_structs.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
     assert eng is not None;
@@ -302,7 +309,7 @@ test "native tokenize returns correct tokens" {
     import ctypes as ct;
 
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     eng = ir.gen.native_engine;
     layout = ir.gen.native_layout;
     assert eng is not None;
@@ -351,7 +358,7 @@ test "native tokenize matches python lexer" {
     import ctypes as ct;
 
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     eng = ir.gen.native_engine;
     layout = ir.gen.native_layout;
     assert eng is not None;
@@ -399,7 +406,7 @@ test "native tokenize matches python lexer for fstrings" {
     import ctypes as ct;
 
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     eng = ir.gen.native_engine;
     layout = ir.gen.native_layout;
     assert eng is not None;
@@ -448,7 +455,7 @@ test "native tokenize matches python lexer for unicode (byte offsets)" {
     import ctypes as ct;
 
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     eng = ir.gen.native_engine;
     layout = ir.gen.native_layout;
     assert eng is not None and layout is not None;
@@ -515,7 +522,7 @@ test "native tokenize error count matches python for illegal chars" {
     import ctypes as ct;
 
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     eng = ir.gen.native_engine;
     layout = ir.gen.native_layout;
     assert eng is not None and layout is not None;
@@ -551,7 +558,7 @@ test "native tokenize performance" {
     import time;
 
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, options=_lexer_opts());
     eng = ir.gen.native_engine;
     layout = ir.gen.native_layout;
     assert eng is not None;
@@ -592,65 +599,4 @@ test "native tokenize performance" {
     # Just verify it completes; speedup depends on marshalling overhead
     assert na_time > 0;
     assert py_time > 0;
-}
-
-# --- Deferred native acceleration tests ---
-test "discover bootstrap na modules" {
-    import from jaclang.jac0core.native_accel { discover_bootstrap_na_modules }
-    modules = discover_bootstrap_na_modules();
-    # lexer.na.jac should be discovered if it's loaded
-    found_lexer = False;
-    for (mod_name, na_file) in modules.items() {
-        if "lexer" in mod_name and na_file.endswith("lexer.na.jac") {
-            found_lexer = True;
-        }
-    }
-    assert found_lexer , f"lexer.na.jac not found in discovered modules: {modules}";
-}
-
-test "accelerate module compiles lexer" {
-    import from jaclang.jac0core.native_accel { accelerate_module }
-    mod_name = "jaclang.jac0core.parser.lexer";
-    na_file = str(
-        Path(jaclang.__file__).parent / "jac0core" / "parser" / "lexer.na.jac"
-    );
-    # Ensure module is loaded
-    assert mod_name in sys.modules , f"{mod_name} not loaded";
-    lexer_mod = sys.modules[mod_name];
-
-    # Save original functions so we can restore after test
-    saved: dict[str, Callable] = {};
-    for (name, obj) in list(lexer_mod.__dict__.items()) {
-        if callable(obj) and not name.startswith("_") {
-            saved[name] = obj;
-        }
-    }
-
-    try {
-        count = accelerate_module(mod_name, na_file);
-        assert count >= 0 , f"accelerate_module failed with {count}";
-        # Check that the engine was stored on the module
-        if count > 0 {
-            assert hasattr(lexer_mod, "__jac_native_engine__") , "Native engine not stored on module";
-            assert hasattr(lexer_mod, "__jac_native_layout__") , "Native layout not stored on module";
-        }
-    } finally {
-        # Restore original Python functions to avoid corrupting other tests
-        # in the same xdist worker (native wrappers return int ordinals
-        # instead of TokenKind enum members)
-        for (name, orig) in saved.items() {
-            if hasattr(lexer_mod.__dict__.get(name), "__wrapped__") {
-                lexer_mod.__dict__[name] = orig;
-            }
-        }
-        # Clean up native engine references
-        lexer_mod.__dict__.pop("__jac_native_engine__", None);
-        lexer_mod.__dict__.pop("__jac_native_layout__", None);
-        # Clean up _py_ prefixed backup copies
-        for name in list(lexer_mod.__dict__.keys()) {
-            if name.startswith("_py_") {
-                del lexer_mod.__dict__[name];
-            }
-        }
-    }
 }

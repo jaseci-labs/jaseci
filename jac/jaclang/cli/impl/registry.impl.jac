@@ -9,34 +9,6 @@ def _norm_dest(kwargs: dict, name: str) -> str {
 
 impl CommandRegistry.init -> None {
     self.commands = {};
-    self._pending_extensions = {};
-    self._finalized = False;
-    self.parser = argparse.ArgumentParser(
-        prog='jac',
-        description='Jac Programming Language CLI',
-        epilog=f'For more information, visit: {JAC_GITHUB_URL}',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        add_help=False
-    );
-    self.parser.add_argument(
-        '-h',
-        '--help',
-        action='store_true',
-        dest='help',
-        help='Show all commands and exit'
-    );
-    self.parser.add_argument(
-        '-V',
-        '--version',
-        action='store_true',
-        help='Show the Jac version and installation path'
-    );
-    self.sub_parsers = self.parser.add_subparsers(
-        title='commands',
-        dest='command',
-        description='Available commands:',
-        metavar='COMMAND'
-    );
 }
 
 impl CommandRegistry.command(
@@ -83,7 +55,7 @@ impl CommandRegistry.get_all(
         spec
         for spec in self.commands.values()
         if (include_hidden or not spec.hidden)
-        and (group is None or spec.group == group)
+            and (group is None or spec.group == group)
     ];
 }
 
@@ -222,11 +194,4 @@ impl get_registry -> CommandRegistry {
         _registry = CommandRegistry();
     }
     return _registry;
-}
-
-impl register_feature_commands -> None {
-    import jaclang.runtimelib.client.cli;
-    import jaclang.cli.shadcn.cli;
-    import jaclang.scale.plugin;
-    import jaclang.byllm.cli;
 }

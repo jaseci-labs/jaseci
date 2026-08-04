@@ -33,7 +33,6 @@ glob _SEEDS: list[str] = [
          "jaclang.jac0core.unitree",
          "jaclang.jac0core.bccache",
          "jaclang.jac0core.jir",
-         "jaclang.jac0core.native_accel",
          "jaclang.jac0core.native_marshal",
          "jaclang.jac0core.interop_bridge",
          "jaclang.jac0core.gen_jir_registry",
@@ -129,7 +128,7 @@ def scan_jaclang_imports(py_src: str) -> set[str] {
         for child in py_ast.iter_child_nodes(nd) {
             tc = in_tc;
             if isinstance(child, py_ast.If)
-            and ("TYPE_CHECKING" in py_ast.unparse(child.test)) {
+                and ("TYPE_CHECKING" in py_ast.unparse(child.test)) {
                 tc = True;
             }
             if (not tc) and isinstance(child, py_ast.Import) {
@@ -229,7 +228,7 @@ def build_runtime_closure(
             return True;
         }
         if (not include_byllm)
-        and ((mod == "jaclang.byllm") or mod.startswith("jaclang.byllm.")) {
+            and ((mod == "jaclang.byllm") or mod.startswith("jaclang.byllm.")) {
             return True;
         }
         return False;

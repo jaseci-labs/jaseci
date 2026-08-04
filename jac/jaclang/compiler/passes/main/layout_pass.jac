@@ -1,7 +1,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
 
 import type from jaclang.compiler.passes.main.type_facts_pass { TypeIdIndex }
@@ -118,7 +118,8 @@ obj LayoutPass(Transform[uni.Module, uni.Module]) {
         cancel_token: any = None,
         tid_index: (TypeIdIndex | None) = None,
         mod_scopes: dict[str, dict[str, str]] = {},
-        registry: LayoutRegistry postinit;
+        registry: LayoutRegistry postinit,
+        isinstance_targets: set[str] postinit;
 
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
@@ -131,6 +132,8 @@ obj LayoutPass(Transform[uni.Module, uni.Module]) {
     ) -> None;
 
     def _build_registry_over(arch_map: dict[str, uni.Archetype]) -> None;
+
+    def _collect_isinstance_targets(module: uni.Module) -> None;
     def _build_hierarchy(archetypes: dict[str, uni.Archetype]) -> None;
     def _compute_c3_mro(class_name: str) -> list[str];
     def _topo_sort(arch_map: dict[str, uni.Archetype]) -> list[str];

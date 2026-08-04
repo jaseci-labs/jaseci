@@ -23,17 +23,20 @@ glob registry = get_registry();
             short="s"
         ),
         Arg.create(
-            "main", typ=bool, default=True, help="Treat module as __main__", short="m"
-        ),
-        Arg.create(
-            "cache", typ=bool, default=True, help="Enable compilation cache", short="c"
-        ),
-        Arg.create(
-            "autonative",
+            "main",
             typ=bool,
-            default=False,
-            help="Auto-promote compatible modules to native execution (experimental)",
-            short="N"
+            default=True,
+            help="Treat module as __main__",
+            short="m",
+            config_key="run.main"
+        ),
+        Arg.create(
+            "cache",
+            typ=bool,
+            default=True,
+            help="Enable compilation cache",
+            short="c",
+            config_key="run.cache"
         ),
         Arg.create(
             "profile",
@@ -92,7 +95,6 @@ glob registry = get_registry();
         ("jac run --debug app.jac", "Run under the Python debugger"),
         ("jac run --show", "Print what the project would run/build, without doing it"),
         ("jac run --no-cache app.jac", "Run without caching"),
-        ("jac run --autonative app.jac", "Run with native auto-promotion"),
         ("jac run --profile prod app.jac", "Run with production profile"),
         ("jac run -e all app.jac", "Run and show all diagnostics (errors+warnings)"),
         ("jac run -e none app.jac", "Run silently, suppress all diagnostics"),
@@ -106,7 +108,6 @@ def run(
     show: bool = False,
     main: bool = True,
     cache: bool = True,
-    autonative: bool = False,
     diagnostics: str = "",
     entry_name: str = "",
     nd: str = "",
@@ -126,7 +127,14 @@ def run(
             default="",
             help="Entry .jac file (default: [project] entry-point from jac.toml)"
         ),
-        Arg.create("port", typ=int, default=8000, help="Port to serve on", short="p"),
+        Arg.create(
+            "port",
+            typ=int,
+            default=8000,
+            help="Port to serve on",
+            short="p",
+            config_key="serve.port"
+        ),
         Arg.create(
             "api_port",
             typ=int,
@@ -165,8 +173,22 @@ def enter(
             default="main.jac",
             help="Path to .jac file (default: main.jac)"
         ),
-        Arg.create("port", typ=int, default=8000, help="Server port", short="p"),
-        Arg.create("main", typ=bool, default=True, help="Treat as __main__", short="m"),
+        Arg.create(
+            "port",
+            typ=int,
+            default=8000,
+            help="Server port",
+            short="p",
+            config_key="serve.port"
+        ),
+        Arg.create(
+            "main",
+            typ=bool,
+            default=True,
+            help="Treat as __main__",
+            short="m",
+            config_key="run.main"
+        ),
         Arg.create(
             "faux",
             typ=bool,
@@ -319,7 +341,7 @@ def run_jab_image(
             "global",
             typ=bool,
             default=False,
-            help="Resolve from the jac-owned global site only, ignoring the project venv",
+            help="Resolve from jac-owned global tools only (global python site + global npm), ignoring the project",
             short="g",
             dest="use_global"
         ),
@@ -349,6 +371,10 @@ def run_jab_image(
         ("jac x black .", "Run an installed formatter on the current directory"),
         ("jac x eslint .", "Run a project npm tool (node_modules/.bin) via bun"),
         ("jac x --global hf whoami", "Force the global-site copy of a tool"),
+        (
+            "jac x --global eslint .",
+            "Run a globally-installed npm tool (jac install --npm --global eslint)"
+        ),
         ("jac x --node vite build", "Force the project's npm tool"),
         ("jac x --list", "List the CLI tools available here"),
 

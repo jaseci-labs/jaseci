@@ -3,21 +3,27 @@ import from jaclang.cli.console { console }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 
 impl tool(tool: str, args: list = []) -> int {
+    import importlib;
     import from jaclang.utils.lang_tools { AstTool }
     if tool in ("jac2py", "py2jac", "jac2js", "jac2c") {
-        import from jaclang.cli.commands.transform { jac2py, py2jac, jac2js, jac2c }
+        _transform = importlib.import_module("jaclang.cli.commands.transform");
         if not args {
             console.error(f"Usage: jac tool {tool} <file>");
             return 1;
         }
-        fwd = {"jac2py": jac2py, "py2jac": py2jac, "jac2js": jac2js, "jac2c": jac2c};
+        fwd = {
+            "jac2py": _transform.jac2py,
+            "py2jac": _transform.py2jac,
+            "jac2js": _transform.jac2js,
+            "jac2c": _transform.jac2c,
+        };
         return fwd[tool](args[0]);
     }
     if tool in ("c2jac", "cbindgen") {
         return _run_c_transform(tool, args);
     }
     if tool == "grammar" {
-        import from jaclang.cli.commands.analysis { grammar }
+        _analysis = importlib.import_module("jaclang.cli.commands.analysis");
         output = "";
         strict = False;
         i = 0;
@@ -40,7 +46,7 @@ impl tool(tool: str, args: list = []) -> int {
             }
             i += 1;
         }
-        return grammar(output=output, strict=strict);
+        return _analysis.grammar(output=output, strict=strict);
     }
     if hasattr(AstTool, tool) {
         try {
@@ -320,7 +326,8 @@ def _extract_commands(registry: any) -> list {
                 } else {
                     flags.append((f"--{arg.name}", short, arg.help or ""));
                 }
-            } elif arg.kind in (ArgKind.POSITIONAL, ArgKind.MULTI, ArgKind.REMAINDER) {
+            } elif arg.kind
+                in (ArgKind.POSITIONAL, ArgKind.MULTI_POSITIONAL, ArgKind.REMAINDER) {
                 has_file_positional = True;
             }
         }
@@ -374,7 +381,14 @@ def _install_completion(shell: str, code: str) -> int {
     if shell == "fish" {
         source_line = "source " + comp_file;
     } else {
-        source_line = "[[ -f " + q + comp_file + q + " ]] && source " + q + comp_file + q;
+        source_line = "[[ -f "
+            + q
+            + comp_file
+            + q
+            + " ]] && source "
+            + q
+            + comp_file
+            + q;
     }
     new_block = f"{start_marker}\n{source_line}\n{end_marker}\n";
     if os.path.exists(config_file) {
@@ -489,5 +503,24 @@ impl gen_uni_dispatch(verify: bool = False) -> int {
     for msg in write_all() {
         console.print(msg);
     }
+    return 0;
+}
+
+impl gen_cli_manifest(verify: bool = False) -> int {
+    import from jaclang.cli.gen_cli_manifest { write_routes, verify_drift }
+    if verify {
+        drift = verify_drift();
+        for msg in drift {
+            console.error(f"{msg}");
+        }
+        if drift {
+            console.error("Run `jac gen-cli-manifest` to update.");
+            return 1;
+        }
+        console.print("Manifest route table is up to date.");
+        return 0;
+    }
+    out = write_routes();
+    console.print(f"Generated {out}");
     return 0;
 }
