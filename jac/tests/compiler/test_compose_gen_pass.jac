@@ -181,7 +181,7 @@ def:pub Counter() -> Composable {
         path = Path(tmp) / "counter.jac";
         path.write_text(src, encoding="utf-8");
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
-        import from jaclang.compiler.passes.ecmascript.intent.leaves { is_kt_leaf }
+        import from jaclang.compiler.passes.compose.compose_leaves { is_kt_leaf }
         import from jaclang.compiler.passes.compose.kotlin_ast { KtLiteral }
         program = Jac.program;
         mod = program.compile(str(path));

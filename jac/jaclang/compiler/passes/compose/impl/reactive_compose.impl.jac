@@ -1,5 +1,5 @@
 import from jaclang.compiler.passes.ecmascript.intent.model { IntentComponent }
-import from jaclang.compiler.passes.ecmascript.intent.leaves {
+import from jaclang.compiler.passes.compose.compose_leaves {
     intent_expr_to_src,
     intent_stmts_to_src
 }
