@@ -1,3 +1,4 @@
+import sys;
 import types;
 import from threading { Event }
 import jaclang.jac0core.unitree as uni;
@@ -7,6 +8,12 @@ import from jaclang.jac0core.passes { Alert }
 import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 import type from jaclang.jac0core.compiler { JacCompiler }
 import type from jaclang.jac0core.passes { Transform }
+
+with entry {
+    if sys.getrecursionlimit() < 12000 {
+        sys.setrecursionlimit(12000);
+    }
+}
 
 class JacProgram {
     has mod: uni.ProgramModule,
