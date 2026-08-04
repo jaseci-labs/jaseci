@@ -189,12 +189,14 @@ impl HeaderBuilder._script_tag(spec: dict) -> str {
         if key in ("src", "content") or not val {
             continue;
         }
-        if key in self.script_flag_attrs {
-            attrs.append(key);
-        } elif key in self.script_value_attrs {
-            attrs.append(f'{key}="{html.escape(str(val))}"');
-        } elif re.fullmatch(r"data_[a-z0-9_]+", key) {
-            attrs.append(f'{key.replace("_", "-")}="{html.escape(str(val))}"');
+        name = str(key).replace("_", "-");
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", name) or name.startswith("on") {
+            continue;
+        }
+        if val is True {
+            attrs.append(name);
+        } else {
+            attrs.append(f'{name}="{html.escape(str(val))}"');
         }
     }
     opening = " ".join(["<script"] + attrs);

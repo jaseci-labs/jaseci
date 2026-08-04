@@ -126,7 +126,7 @@ test "attribute values are escaped inside their quotes" {
 }
 
 
-test "attributes outside the whitelist are dropped" {
+test "event handler attributes are never emitted" {
     hb = HeaderBuilder(
         meta_data={
             "scripts": [{"src": "/a.js", "onload": "alert(1)", "onerror": "alert(2)"}]
@@ -137,6 +137,21 @@ test "attributes outside the whitelist are dropped" {
     assert '<script src="/a.js"></script>' in head;
     assert "onload" not in head;
     assert "alert" not in head;
+}
+
+
+test "attributes are validated by shape, not by a vocabulary list" {
+    hb = HeaderBuilder(
+        meta_data={
+            "scripts": [
+                {"src": "/a.js", "blocking": "render", "data_flag": True, "tabindex": 3}
+            ]
+        },
+        function_name="app"
+    );
+    head = hb.build_head();
+    assert '<script src="/a.js" blocking="render" data-flag tabindex="3"></script>'
+        in head;
 }
 
 

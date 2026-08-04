@@ -1576,17 +1576,21 @@ both are given `src` wins, matching how browsers treat a script element with a
 scripts = ["https://cdn.example.com/sdk.js"]
 ```
 
-Supported attributes, all optional:
+Every other key on an entry becomes an attribute on the tag, so `async`, `defer`,
+`type`, `crossorigin`, `integrity`, `nonce`, `data-*`, and any attribute the
+platform adds later all work without special-casing. Three rules govern the
+rendering:
 
-| Attribute | Notes |
-|-----------|-------|
-| `async`, `defer`, `nomodule` | Booleans. Rendered as bare attributes when `true`, omitted when `false`. |
-| `type`, `crossorigin`, `integrity`, `referrerpolicy`, `nonce`, `id`, `fetchpriority` | Rendered as `name="value"`. |
-| `data_*` | Rendered as `data-*`, e.g. `data_site_id = "abc"` becomes `data-site-id="abc"`. Keys must use only lowercase letters, digits, and underscores. |
+| Rule | Example |
+|------|---------|
+| Underscores in keys fold to hyphens. | `data_site_id = "abc"` renders `data-site-id="abc"`. |
+| `true` renders a bare flag; `false` or an empty value omits the attribute. | `defer = true` renders `defer`. |
+| Any other value renders as `name="value"`, HTML-escaped. | `crossorigin = "anonymous"` |
 
-Anything else is ignored, so event-handler attributes such as `onload` cannot be
-set this way. Attribute values are HTML-escaped, and a literal `</script>` inside
-an inline `content` body is escaped so it cannot close the tag early.
+Keys that do not fold to a well-formed lowercase attribute name are dropped, and
+event-handler attributes (`on*`) are never emitted, so an entry cannot attach
+script logic to the tag itself; use `content` for that. A literal `</script>`
+inside an inline `content` body is escaped so it cannot close the tag early.
 
 Scripts are emitted last in the `<head>`, after the title, meta, and link tags,
 and appear in `jac build` output, `jac start`, and `jac start --dev` alike.

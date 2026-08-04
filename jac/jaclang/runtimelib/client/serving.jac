@@ -32,16 +32,6 @@ obj HeaderBuilder {
             "author",
             "robots",
             "theme_color"
-        ],
-        script_flag_attrs: list = ["async", "defer", "nomodule"],
-        script_value_attrs: list = [
-            "type",
-            "crossorigin",
-            "integrity",
-            "referrerpolicy",
-            "nonce",
-            "id",
-            "fetchpriority"
         ];
 
     def build_head -> str;
