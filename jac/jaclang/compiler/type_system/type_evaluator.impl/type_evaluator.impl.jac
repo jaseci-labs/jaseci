@@ -1966,6 +1966,9 @@ impl TypeEvaluator._get_type_of_expression_core(
         case uni.AwaitExpr():
             return self.get_type_of_expression(expr.target);
 
+        case uni.ConcurrentExpr():
+            return self.get_type_of_expression(expr.target);
+
         case uni.YieldExpr():
             if expr.expr is not None {
                 return self.get_type_of_expression(expr.expr);

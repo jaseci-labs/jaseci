@@ -1831,3 +1831,265 @@ impl NaIRGenPass._emit_isinstance_user(
     result.add_incoming(cmp, end_nonnull);
     return result;
 }
+
+impl NaIRGenPass._flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None) {
+    import from jaclang.jac0core.constant { Tokens as Tok }
+    asgn = nd.parent;
+    if not (
+        isinstance(asgn, uni.Assignment)
+        and asgn.value is nd
+        and asgn.aug_op is None
+        and len(asgn.target) == 1
+        and isinstance(asgn.target[0], uni.Name)
+    ) {
+        return None;
+    }
+    h = asgn.target[0];
+    if h.sym is None {
+        return None;
+    }
+    _fn = asgn.find_parent_of_type(uni.Ability);
+    _scope = _fn if _fn is not None else asgn.find_parent_of_type(uni.ModuleCode);
+    if _scope is None {
+        return None;
+    }
+    _spawn_loop = (
+        asgn.find_parent_of_type(uni.InForStmt)
+        or asgn.find_parent_of_type(uni.WhileStmt)
+        or asgn.find_parent_of_type(uni.IterForStmt)
+    );
+    _waits = 0;
+    for use in _scope.get_all_sub_nodes(uni.Name) {
+        if use.sym is not h.sym or use is h {
+            continue;
+        }
+        _p = use.parent;
+        _use_loop = (
+            use.find_parent_of_type(uni.InForStmt)
+            or use.find_parent_of_type(uni.WhileStmt)
+            or use.find_parent_of_type(uni.IterForStmt)
+        );
+        if isinstance(_p, uni.ConcurrentExpr)
+            and _p.target is use
+            and _p.tok is not None
+            and _p.tok.name == Tok.KW_WAIT
+            and _use_loop is _spawn_loop {
+            _waits += 1;
+            continue;
+        }
+        return None;
+    }
+    if _waits != 1 {
+        return None;
+    }
+    return h;
+}
+
+impl NaIRGenPass._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) {
+    import from jaclang.jac0core.constant { Tokens as Tok }
+    if nd.tok is None {
+        return None;
+    }
+    _par_ok = (self.ir_in.gen.nogc_enforced and self._gc_mode() == "none")
+        or (self._gc_mode() == "rc" and not self._rc_debug_codegen);
+    if not _par_ok
+        or "wasm" in str(self.llvm_module.triple)
+        or self._gen_ctx is not None {
+        return None;
+    }
+    i64 = ir.IntType(64);
+    i32 = ir.IntType(32);
+    i8p = ir.IntType(8).as_pointer();
+    if nd.tok.name == Tok.KW_WAIT {
+        if not isinstance(nd.target, uni.Name) or nd.target.sym is None {
+            return None;
+        }
+        _meta = self.flow_future_meta.get(id(nd.target.sym));
+        if _meta is None {
+            return None;
+        }
+        (fut_ty, res_ty) = _meta;
+        _slot = self.local_vars.get(nd.target.sym_name);
+        if _slot is None {
+            _slot = self.global_vars.get(nd.target.sym_name);
+        }
+        if _slot is None {
+            return None;
+        }
+        _hv = self.builder.load(_slot, name="fut.h");
+        if isinstance(_hv.type, ir.DoubleType) {
+            _hv = self.builder.bitcast(_hv, i64, name="fut.h.i");
+        }
+        if isinstance(_hv.type, ir.PointerType) {
+            _fut = self.builder.bitcast(_hv, fut_ty.as_pointer(), name="fut.p");
+        } else {
+            _fut = self.builder.inttoptr(_hv, fut_ty.as_pointer(), name="fut.p");
+        }
+        _tid = self.builder.load(
+            self.builder.gep(
+                _fut, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="fut.tid.s"
+            ),
+            name="fut.tid"
+        );
+        _join_bb = self.builder.function.append_basic_block("fut.join");
+        _done_bb = self.builder.function.append_basic_block("fut.done");
+        self.builder.cbranch(
+            self.builder.icmp_signed("!=", _tid, ir.Constant(i64, 0), name="fut.live"),
+            _join_bb,
+            _done_bb
+        );
+        self.builder.position_at_end(_join_bb);
+        _pjoin = self._get_or_declare_extern("pthread_join", i32, [i64, i8p]);
+        self.builder.call(_pjoin, [_tid, ir.Constant(i8p, None)]);
+        self.builder.branch(_done_bb);
+        self.builder.position_at_end(_done_bb);
+        _res = self.builder.load(
+            self.builder.gep(
+                _fut, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="fut.res.s"
+            ),
+            name="fut.res"
+        );
+        _free = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+        self.builder.call(_free, [self.builder.bitcast(_fut, i8p, name="fut.i8")]);
+        if isinstance(res_ty, ir.PointerType) {
+            self._mark_owned(_res);
+        }
+        return _res;
+    }
+    if nd.tok.name != Tok.KW_FLOW {
+        return None;
+    }
+    call = nd.target;
+    if not isinstance(call, uni.FuncCall) or not isinstance(call.target, uni.Name) {
+        return None;
+    }
+    fname = call.target.sym_name;
+    callee = self.func_symtab.get(fname);
+    if callee is None
+        or not isinstance(callee, ir.Function)
+        or fname in self.clib_fn_abi
+        or fname in self.clib_extern_names {
+        return None;
+    }
+    _res_ty = callee.function_type.return_type;
+    _res_ok = (isinstance(_res_ty, ir.IntType) and _res_ty.width == 64)
+        or isinstance(_res_ty, ir.DoubleType)
+        or isinstance(_res_ty, ir.PointerType);
+    if not _res_ok {
+        return None;
+    }
+    h = self._flow_future_licensed(nd);
+    if h is None {
+        return None;
+    }
+    _argv: list = [];
+    for p in (call.params or []) {
+        if isinstance(p, uni.KWPair) {
+            return None;
+        }
+        _v = self._codegen_expr(p);
+        if _v is None {
+            return None;
+        }
+        _argv.append(_v);
+    }
+    if len(_argv) != len(callee.args) {
+        return None;
+    }
+    _cargs: list = [];
+    for (i, a) in enumerate(_argv) {
+        _cargs.append(self._coerce_type(a, callee.args[i].type));
+    }
+    fut_ty = ir.LiteralStructType([i64, _res_ty] + [a.type for a in _cargs]);
+    self._str_count += 1;
+    _fid = self._str_count;
+    _task_fn = ir.Function(
+        self.llvm_module, ir.FunctionType(i8p, [i8p]), name=f"__jac_flow_task_{_fid}"
+    );
+    _task_fn.linkage = "private";
+    _tb = ir.IRBuilder(_task_fn.append_basic_block("entry"));
+    _tf = _tb.bitcast(_task_fn.args[0], fut_ty.as_pointer(), name="t.fut");
+    _t_args: list = [];
+    for i in range(len(_cargs)) {
+        _t_args.append(
+            _tb.load(
+                _tb.gep(
+                    _tf,
+                    [ir.Constant(i32, 0), ir.Constant(i32, 2 + i)],
+                    name=f"t.a{i}.s"
+                ),
+                name=f"t.a{i}"
+            )
+        );
+    }
+    _t_res = _tb.call(callee, _t_args, name="t.call");
+    _tb.store(
+        _t_res, _tb.gep(_tf, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="t.res.s")
+    );
+    if self._gc_mode() != "none" {
+        _saved_b = self._builder;
+        self._builder = _tb;
+        for (i, a) in enumerate(_cargs) {
+            if isinstance(a.type, ir.PointerType) {
+                self._emit_rc_release_simple(_t_args[i], op="flow_arg", loc="");
+            }
+        }
+        self._builder = _saved_b;
+    }
+    _tb.ret(ir.Constant(i8p, None));
+    _malloc = self._get_or_declare_extern("malloc", i8p, [i64]);
+    _sz = self.builder.ptrtoint(
+        self.builder.gep(
+            ir.Constant(fut_ty.as_pointer(), None),
+            [ir.Constant(i32, 1)],
+            name="fut.szp"
+        ),
+        i64,
+        name="fut.sz"
+    );
+    _fut8 = self.builder.call(_malloc, [_sz], name="fut.raw");
+    _fut = self.builder.bitcast(_fut8, fut_ty.as_pointer(), name="fut.new");
+    for (i, a) in enumerate(_cargs) {
+        if isinstance(a.type, ir.PointerType) and self._gc_mode() != "none" {
+            self._emit_rc_retain(a, op="flow_arg", loc="");
+        }
+        self.builder.store(
+            a,
+            self.builder.gep(
+                _fut, [ir.Constant(i32, 0), ir.Constant(i32, 2 + i)], name=f"fut.a{i}.s"
+            )
+        );
+    }
+    _tid_slot = self.builder.gep(
+        _fut, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="fut.tid.w"
+    );
+    self.builder.store(ir.Constant(i64, 0), _tid_slot);
+    _thr_fnty_p = ir.FunctionType(i8p, [i8p]).as_pointer();
+    _pcreate = self._get_or_declare_extern(
+        "pthread_create", i32, [i64.as_pointer(), i8p, _thr_fnty_p, i8p]
+    );
+    _crc = self.builder.call(
+        _pcreate, [_tid_slot, ir.Constant(i8p, None), _task_fn, _fut8], name="fut.crc"
+    );
+    _seq_bb = self.builder.function.append_basic_block("fut.seq");
+    _ok_bb = self.builder.function.append_basic_block("fut.spawned");
+    self.builder.cbranch(
+        self.builder.icmp_signed("!=", _crc, ir.Constant(i32, 0), name="fut.crc.bad"),
+        _seq_bb,
+        _ok_bb
+    );
+    self.builder.position_at_end(_seq_bb);
+    self.builder.store(ir.Constant(i64, 0), _tid_slot);
+    self.builder.call(_task_fn, [_fut8]);
+    self.builder.branch(_ok_bb);
+    self.builder.position_at_end(_ok_bb);
+    self.flow_future_meta[id(h.sym)] = (fut_ty, _res_ty);
+    _hraw = self.builder.ptrtoint(_fut8, i64, name="fut.h.raw");
+    if isinstance(_res_ty, ir.DoubleType) {
+        return self.builder.bitcast(_hraw, ir.DoubleType(), name="fut.h.f");
+    }
+    if isinstance(_res_ty, ir.PointerType) {
+        return self.builder.bitcast(_fut8, _res_ty, name="fut.h.p");
+    }
+    return _hraw;
+}

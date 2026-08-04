@@ -102,6 +102,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         func_symtab: dict[str, ir.Function] = {},
         local_vars: dict[str, ir.AllocaInstr] = {},
         param_vars: set[str] = set(),
+        flow_future_meta: dict = {},
         has_native_code: bool = False,
         native_tests: list = [],
         _fmt_strings: dict[str, ir.GlobalVariable] = {},
@@ -1154,6 +1155,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> ir.Value;
 
     def _try_partition_sugar_assign(nd: uni.Assignment) -> bool;
+    def _try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None);
+    def _flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None);
     def _str_desc_type -> ir.Type;
     def _emit_str_desc_helpers -> None;
     def _membrane_str_out(b: ir.IRBuilder, val: ir.Value) -> ir.Value;

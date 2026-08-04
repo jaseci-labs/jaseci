@@ -81,7 +81,10 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
     } elif isinstance(nd, uni.AwaitExpr) {
         _result = self._codegen_expr(nd.target);
     } elif isinstance(nd, uni.ConcurrentExpr) {
-        _result = self._codegen_expr(nd.target);
+        _result = self._try_flow_future(nd);
+        if _result is None {
+            _result = self._codegen_expr(nd.target);
+        }
     } elif isinstance(nd, uni.EdgeRefTrailer) {
         _result = self._codegen_edge_ref_trailer(nd);
     } elif (
