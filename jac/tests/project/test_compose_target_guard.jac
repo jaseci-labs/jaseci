@@ -2,7 +2,7 @@
 
 Compose is the Android (Jetpack Compose) surface and has no ES/web lowering, so
 it must not be selectable for a web compile. EsastGenPass._ensure_backend rejects
-it with E5082 (Android builds lower via ComposeGenPass under no_cgen and never
+it with E5085 (Android builds lower via ComposeGenPass under no_cgen and never
 enter this pass), instead of falling through to an opaque 'unknown framework'.
 """
 import tempfile;
@@ -29,13 +29,13 @@ def:pub app() -> JsxElement {
 }
 
 
-test "compose framework on a web compile surfaces E5082" {
+test "compose framework on a web compile surfaces E5085" {
     codes = _error_codes_for_framework("compose");
-    assert "E5082" in codes , codes;
+    assert "E5085" in codes , codes;
 }
 
 
-test "a web framework on a web compile does not surface E5082" {
+test "a web framework on a web compile does not surface E5085" {
     codes = _error_codes_for_framework("react");
-    assert "E5082" not in codes , codes;
+    assert "E5085" not in codes , codes;
 }

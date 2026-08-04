@@ -67,8 +67,9 @@ def _errors_in(
     # react) client module deterministically under parallel test runs.
     prog.compile(
         path,
-        no_cgen=True,
-        options=CompileOptions(type_check=True, client_framework=framework)
+        options=CompileOptions(
+            type_check=True, no_cgen=True, client_framework=framework
+        )
     );
     return [str(e) for e in prog.errors_had];
 }

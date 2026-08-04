@@ -42,9 +42,9 @@ impl EsastGenPass._ensure_backend -> None {
             or "react";
     }
     if effective_fw == "compose" {
-        import from jaclang.jac0core.diagnostics { E5082 }
+        import from jaclang.jac0core.diagnostics { E5085 }
         import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-        self.emit(E5082);
+        self.emit(E5085);
         self.backend = ReactBackend();
         return;
     }
