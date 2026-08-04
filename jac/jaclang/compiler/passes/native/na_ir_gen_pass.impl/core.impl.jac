@@ -1,13 +1,14 @@
 impl NaIRGenPass.postinit -> None {
     import os as _ni_os;
 
-    self._rc_debug_codegen = bool(_ni_os.environ.get("JAC_RC_DEBUG_CODEGEN", ""));
+    _ni_opts = self.prog._compile_options;
+    self._rc_debug_codegen = bool(_ni_opts.rc_debug_codegen);
     _ni_src: str = self.ir_in.loc.mod_path if self.ir_in.loc else "";
     _ni_mod_name: str = _ni_os.path.basename(_ni_src) if _ni_src else "jac_native";
     self.llvm_module = ir.Module(name=_ni_mod_name, context=ir.Context());
     import jaclang.compiler.passes.native.llvm.binding as _llvm_bind;
 
-    _ni_target_ovr = _ni_os.environ.get("JAC_NATIVE_TARGET", "");
+    _ni_target_ovr = _ni_opts.native_target or "";
     if _ni_target_ovr {
         _llvm_bind.initialize_all_targets();
         _llvm_bind.initialize_all_asmprinters();
@@ -21,7 +22,7 @@ impl NaIRGenPass.postinit -> None {
     self.llvm_module.data_layout = str(_tm.target_data);
     self.llvm_module.triple = _tm.triple;
 
-    if _ni_src and _ni_os.environ.get("JAC_NATIVE_DEBUG", "") {
+    if _ni_src and _ni_opts.native_debug {
         _ni_src_dir: str = _ni_os.path.dirname(_ni_os.path.abspath(_ni_src));
         try {
             self.di_file = self.llvm_module.add_debug_info(
@@ -150,7 +151,7 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         self.ir_in.gen.llvm_ir = self.llvm_module;
 
         import os;
-        if os.environ.get("JAC_RC_STATS", "") {
+        if self.prog._compile_options.rc_stats {
             _rc_total = self.rc_retains_emitted + self.rc_releases_emitted;
             _rc_known = _rc_total + self.rc_ops_elided;
             _rc_pct = (100.0 * self.rc_ops_elided / _rc_known) if _rc_known else 0.0;
@@ -172,7 +173,7 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
                 f"{_rc_stk}{_rc_arena}{_rc_free}\n"
             );
         }
-        _ir_dump_path = os.environ.get("JAC_DUMP_IR", "");
+        _ir_dump_path = self.prog._compile_options.dump_ir_path or "";
         if _ir_dump_path {
             with open(_ir_dump_path, "w") as _f {
                 _f.write(str(self.llvm_module));

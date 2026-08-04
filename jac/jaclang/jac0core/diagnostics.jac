@@ -1353,6 +1353,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "'{existing_module}' and '{new_module}'. "
          "Mark one as :priv or rename to avoid a runtime crash."
      ),
+     E5027 = _err(
+         "E5027",
+         Category.CODEGEN,
+         "Native module '{path}' was built with different compile options "
+         "(cached fingerprint {cached_fp}, current build {current_fp}); "
+         "refusing a mixed-options link.",
+         help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac nacompile --scrub`."
+     ),
      E5030 = _err(
          "E5030",
          Category.CODEGEN,

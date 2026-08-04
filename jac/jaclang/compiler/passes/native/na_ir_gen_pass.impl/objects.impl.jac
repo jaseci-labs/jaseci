@@ -621,8 +621,7 @@ impl NaIRGenPass._demote_method_if_unlowerable(
         return False;
     }
 
-    import os;
-    _warn = bool(os.environ.get("JAC_NATIVE_DEBUG", ""));
+    _warn = bool(self.prog._compile_options.native_debug);
 
     if not _warn {
         _warn = True;

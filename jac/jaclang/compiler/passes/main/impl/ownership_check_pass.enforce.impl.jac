@@ -492,8 +492,8 @@ impl OwnershipCheckPass._nogc_check_call(call: uni.FuncCall, prov: str) -> None 
         return;
     }
 
-    import os as _dbg_os;
-    if _dbg_os.environ.get("JAC_NOGC_DEBUG") {
+    _dbg_opts = self.prog?._compile_options;
+    if _dbg_opts and _dbg_opts.nogc_debug {
         import sys as _dbg_sys;
         _dbg_sys.stderr.write(
             f"nogc-dbg call callee={_callee_root.sym_name} "

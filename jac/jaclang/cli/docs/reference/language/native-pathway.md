@@ -885,6 +885,39 @@ Assert messages in native tests are limited to string literals: `assert cond, "m
 
 ---
 
+## Build Options and Artifact Identity
+
+The single authority for codegen-affecting build options is the compile-options object (`CompileOptions` in `jaclang/jac0core/compile_options.jac`). It is constructed once at the CLI/program boundary and threaded to every compiler pass through the program; each option resolves as explicit argument, then environment override, then `jac.toml`, then built-in default. No compiler pass reads the environment directly; a source-scan test over `jaclang/compiler/passes/` enforces this.
+
+The codegen options carry a canonical identity string and a short hash of it, the codegen fingerprint. The fingerprint participates in artifact identity: it is folded into the JIR module cache key and into the native import IR cache key, so flipping any codegen option re-keys the artifact and a stale build is never served. Each native import artifact is stamped with the fingerprint of the options that built it; a cached module whose stamp disagrees with the current build is rejected with `E5027` instead of being linked into a mixed-options binary.
+
+### Codegen options (part of the fingerprint)
+
+| Environment override | `jac.toml` key | Effect |
+|---|---|---|
+| `JAC_NATIVE_TARGET` | `[build.native] target` | Cross-compilation target triple; also selects OS-specific source variants (`.linux.jac`, `.darwin.jac`, `.windows.jac`). |
+| `JAC_OPT_LEVEL` | `[build.native] opt_level` | LLVM optimization level, 0 through 3 (default 2). |
+| `JAC_NATIVE_DEBUG` | `[build.native] debug` | Emits DWARF debug info and runs the JIT path unoptimized. |
+| `JAC_RC_DEBUG_CODEGEN` | `[build.native] rc_debug_codegen` | Compiles the RC trace machinery (`RC MALLOC` / `RC FREE` lines behind `__rc_debug_enable()`) into the binary. |
+| (none) | `[gc] default` | GC mode `cycles` / `rc` / `none`; `jac nacompile --gc` overrides. |
+| (none) | `[gc.enforce] modules`, `grandfathered` | Zero-RC enforcement patterns. |
+
+### Diagnostic options (read into the options object, outside the fingerprint)
+
+| Environment override | `jac.toml` key | Effect |
+|---|---|---|
+| `JAC_DUMP_IR` | `[build.native] dump_ir` | Writes the final optimized IR to the given path. |
+| `JAC_DEBUG_IR` | (none) | Saves each module's generated IR as `<stem>.ll` in the native cache dir. |
+| `JAC_RC_STATS` | (none) | Prints the per-module rc-stats line to stderr. |
+| `JAC_NOGC_DEBUG` | (none) | Verbose ownership-enforcement logging to stderr. |
+| `JAC_SYMMAP` | (none) | Writes a `<binary>.symmap` symbol map beside a linked ELF executable. |
+
+Toolchain location variables are read through the same boundary module, never inside passes: `JAC_LLVM_SHIM`, `JAC_LLVM_TYPED_POINTERS` (with `LLVMLITE_ENABLE_IR_LAYER_TYPED_POINTERS` honored as a fallback), `JAC_NATIVE_WASM_LIBC_DIR`, `JAC_NATIVE_MUSL_DIR`, `JAC_NATIVE_FLOOR_DIR`, `JAC_NATIVE_CA_BUNDLE`.
+
+`JAC_NO_GC` and `JAC_GC_CYCLES` are runtime switches read by the compiled binary itself, not by the compiler; the Memory Management section above describes them.
+
+---
+
 ## Debugging
 
 ### Dumping LLVM IR
