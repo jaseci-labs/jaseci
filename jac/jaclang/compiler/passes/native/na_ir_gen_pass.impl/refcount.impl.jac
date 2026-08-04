@@ -1626,6 +1626,9 @@ impl NaIRGenPass._drop_fn_for(mangle: str) -> (ir.Function | None) {
     }
     i8p = ir.IntType(8).as_pointer();
     _fn: (ir.Function | None) = None;
+    if mangle in self.struct_types and self._arch_is_osp_name(mangle) {
+        return None;
+    }
     if mangle == "str" {
         _fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
     } elif mangle in self.struct_types {
