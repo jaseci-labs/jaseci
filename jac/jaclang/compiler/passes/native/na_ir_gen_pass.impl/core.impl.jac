@@ -159,12 +159,17 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
             _rc_arena = (
                 f" arena={self.rc_region_allocs}" if self.rc_region_allocs else ""
             );
+            _rc_stk = (
+                f" promoted={self.rc_stack_promotions}"
+                    if self.rc_stack_promotions
+                    else ""
+            );
             sys.stderr.write(
                 f"rc-stats [{os.path.basename(self.ir_in.loc.mod_path)}] "
                 f"gc={self._gc_mode()} retains={self.rc_retains_emitted} "
                 f"releases={self.rc_releases_emitted} "
                 f"elided={self.rc_ops_elided} coverage={_rc_pct:.1f}%"
-                f"{_rc_arena}{_rc_free}\n"
+                f"{_rc_stk}{_rc_arena}{_rc_free}\n"
             );
         }
         _ir_dump_path = os.environ.get("JAC_DUMP_IR", "");

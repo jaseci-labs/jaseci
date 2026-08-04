@@ -3529,105 +3529,21 @@ impl NativeDictEmitter.emit_pop(
         return None;
     }
     b = get_builder(p);
-    i32 = ir.IntType(32);
-    i64 = ir.IntType(64);
     key = args[0];
     val_type = helpers["val_type"];
-    key_type = helpers["key_type"];
     has_default = len(args) >= 2;
 
-    found_i1 = b.call(helpers["contains"], [target, key], name="dpop.found");
     func = b.basic_block.function;
     found_bb = func.append_basic_block(name="dpop.yes");
     notfound_bb = func.append_basic_block(name="dpop.no");
     done_bb = func.append_basic_block(name="dpop.done");
+
+    found_i1 = b.call(helpers["contains"], [target, key], name="dpop.found");
     b.cbranch(found_i1, found_bb, notfound_bb);
 
     b.position_at_start(found_bb);
-    saved_val = b.call(helpers["get"], [target, key], name="dpop.val");
-
-    len_ptr = b.gep(
-        target, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="dpop.len.ptr"
-    );
-    keys_ptr = b.gep(
-        target, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="dpop.keys.ptr"
-    );
-    vals_ptr = b.gep(
-        target, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="dpop.vals.ptr"
-    );
-    dict_len = b.load(len_ptr, name="dpop.len");
-    keys_arr = b.load(keys_ptr, name="dpop.keys");
-    vals_arr = b.load(vals_ptr, name="dpop.vals");
-    new_len = b.sub(dict_len, ir.Constant(i64, 1), name="dpop.newlen");
-
-    search_bb = func.append_basic_block(name="dpop.search");
-    search_body = func.append_basic_block(name="dpop.search.body");
-    search_found = func.append_basic_block(name="dpop.search.found");
-    b.branch(search_bb);
-    b.position_at_start(search_bb);
-    si = b.phi(i64, name="dpop.si");
-    si.add_incoming(ir.Constant(i64, 0), found_bb);
-    si_end = b.icmp_unsigned(">=", si, dict_len, name="dpop.si.end");
-    b.cbranch(si_end, search_found, search_body);
-    b.position_at_start(search_body);
-    kp = b.gep(keys_arr, [si], name="dpop.kp");
-    kv = b.load(kp, name="dpop.kv");
-    i8p = ir.IntType(8).as_pointer();
-    if isinstance(key_type, ir.IntType) {
-        keq = b.icmp_signed("==", kv, key, name="dpop.keq");
-    } elif key_type == i8p {
-        strcmp_fn = p._get_or_declare_extern("strcmp", ir.IntType(32), [i8p, i8p]);
-        cmp_result = b.call(strcmp_fn, [kv, key], name="dpop.strcmp");
-        keq = b.icmp_signed(
-            "==", cmp_result, ir.Constant(ir.IntType(32), 0), name="dpop.keq"
-        );
-    } else {
-        keq = b.icmp_unsigned("==", kv, key, name="dpop.keq");
-    }
-    next_si = b.add(si, ir.Constant(i64, 1), name="dpop.nsi");
-    si.add_incoming(next_si, search_body);
-    b.cbranch(keq, search_found, search_bb);
-
-    b.position_at_start(search_found);
-    found_idx = b.phi(i64, name="dpop.fidx");
-    found_idx.add_incoming(si, search_body);
-    found_idx.add_incoming(dict_len, search_bb);
-    shift_bb = func.append_basic_block(name="dpop.shift");
-    shift_body_bb = func.append_basic_block(name="dpop.shift.body");
-    shift_done = func.append_basic_block(name="dpop.shift.done");
-
-    if isinstance(key_type, ir.PointerType) {
-        if p.rc_release_simple_fn is None {
-            p._emit_rc_helpers();
-        }
-        _i8p_dp = ir.IntType(8).as_pointer();
-        _old_kp_dp = b.gep(keys_arr, [found_idx], name="dpop_old_kp");
-        _old_kv_dp = b.load(_old_kp_dp, name="dpop_old_kv");
-        _old_kc_dp = b.bitcast(_old_kv_dp, _i8p_dp, name="dpop_old_kc");
-        b.call(p.rc_release_simple_fn, [_old_kc_dp]);
-    }
-    b.branch(shift_bb);
-    b.position_at_start(shift_bb);
-    ji = b.phi(i64, name="dpop.ji");
-    ji.add_incoming(found_idx, search_found);
-    ji_end = b.icmp_unsigned(">=", ji, new_len, name="dpop.ji.end");
-    b.cbranch(ji_end, shift_done, shift_body_bb);
-    b.position_at_start(shift_body_bb);
-    next_ji = b.add(ji, ir.Constant(i64, 1), name="dpop.nji");
-
-    src_kp = b.gep(keys_arr, [next_ji], name="dpop.src.kp");
-    skv = b.load(src_kp, name="dpop.skv");
-    dst_kp = b.gep(keys_arr, [ji], name="dpop.dst.kp");
-    b.store(skv, dst_kp);
-
-    src_vp = b.gep(vals_arr, [next_ji], name="dpop.src.vp");
-    svv = b.load(src_vp, name="dpop.svv");
-    dst_vp = b.gep(vals_arr, [ji], name="dpop.dst.vp");
-    b.store(svv, dst_vp);
-    ji.add_incoming(next_ji, shift_body_bb);
-    b.branch(shift_bb);
-    b.position_at_start(shift_done);
-    b.store(new_len, len_ptr);
+    popped_val = b.call(helpers["pop"], [target, key], name="dpop.val");
+    _found_pred = b.basic_block;
     b.branch(done_bb);
 
     b.position_at_start(notfound_bb);
@@ -3643,12 +3559,13 @@ impl NativeDictEmitter.emit_pop(
             default_val = ir.Constant(val_type, 0);
         }
     }
+    _notfound_pred = b.basic_block;
     b.branch(done_bb);
 
     b.position_at_start(done_bb);
     result = b.phi(val_type, name="dpop.result");
-    result.add_incoming(saved_val, shift_done);
-    result.add_incoming(default_val, notfound_bb);
+    result.add_incoming(popped_val, _found_pred);
+    result.add_incoming(default_val, _notfound_pred);
     return result;
 }
 
@@ -3664,117 +3581,11 @@ impl NativeDictEmitter.emit_remove(
         return None;
     }
     b = get_builder(p);
-    i32 = ir.IntType(32);
-    i64 = ir.IntType(64);
-    i8p = ir.IntType(8).as_pointer();
     key = args[0];
-    key_type = helpers["key_type"];
-    val_type = helpers["val_type"];
-    func = b.basic_block.function;
-    found_bb = func.append_basic_block(name="drem.found");
-    nokey_bb = func.append_basic_block(name="drem.nokey");
-    search_bb = func.append_basic_block(name="drem.search");
-    search_body = func.append_basic_block(name="drem.search.body");
-    sfound_bb = func.append_basic_block(name="drem.sfound");
-    shift_bb = func.append_basic_block(name="drem.shift");
-    shift_body = func.append_basic_block(name="drem.shift.body");
-    store_bb = func.append_basic_block(name="drem.store");
-    done_bb = func.append_basic_block(name="drem.done");
-
     found_i1 = b.call(helpers["contains"], [target, key], name="drem.has");
-    b.cbranch(found_i1, found_bb, nokey_bb);
-
-    b.position_at_start(nokey_bb);
-    p._emit_runtime_raise(ir.Constant(ir.IntType(1), 1), "KeyError", "key not found");
-    b.branch(done_bb);
-
-    b.position_at_start(found_bb);
-    len_ptr = b.gep(
-        target, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="drem.len.p"
-    );
-    keys_ptr = b.gep(
-        target, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="drem.keys.p"
-    );
-    vals_ptr = b.gep(
-        target, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="drem.vals.p"
-    );
-    dict_len = b.load(len_ptr, name="drem.len");
-    keys_arr = b.load(keys_ptr, name="drem.keys");
-    vals_arr = b.load(vals_ptr, name="drem.vals");
-    new_len = b.sub(dict_len, ir.Constant(i64, 1), name="drem.newlen");
-    b.branch(search_bb);
-
-    b.position_at_start(search_bb);
-    si = b.phi(i64, name="drem.si");
-    si.add_incoming(ir.Constant(i64, 0), found_bb);
-    si_end = b.icmp_unsigned(">=", si, dict_len, name="drem.si.end");
-    b.cbranch(si_end, sfound_bb, search_body);
-    b.position_at_start(search_body);
-    kp = b.gep(keys_arr, [si], name="drem.kp");
-    kv = b.load(kp, name="drem.kv");
-    if isinstance(key_type, ir.IntType) {
-        keq = b.icmp_signed("==", kv, key, name="drem.keq");
-    } elif key_type == i8p {
-        strcmp_fn = p._get_or_declare_extern("strcmp", ir.IntType(32), [i8p, i8p]);
-        cmp_result = b.call(strcmp_fn, [kv, key], name="drem.strcmp");
-        keq = b.icmp_signed(
-            "==", cmp_result, ir.Constant(ir.IntType(32), 0), name="drem.keq"
-        );
-    } else {
-        keq = b.icmp_unsigned("==", kv, key, name="drem.keq");
-    }
-    next_si = b.add(si, ir.Constant(i64, 1), name="drem.nsi");
-    si.add_incoming(next_si, search_body);
-    b.cbranch(keq, sfound_bb, search_bb);
-
-    b.position_at_start(sfound_bb);
-    found_idx = b.phi(i64, name="drem.fidx");
-    found_idx.add_incoming(si, search_body);
-    found_idx.add_incoming(dict_len, search_bb);
-
-    _i8p_dr = ir.IntType(8).as_pointer();
-    if isinstance(key_type, ir.PointerType) {
-        if p.rc_release_simple_fn is None {
-            p._emit_rc_helpers();
-        }
-        _old_dr_kp = b.gep(keys_arr, [found_idx], name="drem_rel_kp");
-        _old_dr_kv = b.load(_old_dr_kp, name="drem_rel_kv");
-        _old_dr_kc = b.bitcast(_old_dr_kv, _i8p_dr, name="drem_rel_kc");
-        b.call(p.rc_release_simple_fn, [_old_dr_kc]);
-    }
-    if isinstance(val_type, ir.PointerType) {
-        if p.rc_release_simple_fn is None {
-            p._emit_rc_helpers();
-        }
-        _old_dr_vp = b.gep(vals_arr, [found_idx], name="drem_rel_vp");
-        _old_dr_vv = b.load(_old_dr_vp, name="drem_rel_vv");
-        _old_dr_vc = b.bitcast(_old_dr_vv, _i8p_dr, name="drem_rel_vc");
-        b.call(p.rc_release_simple_fn, [_old_dr_vc]);
-    }
-    b.branch(shift_bb);
-    b.position_at_start(shift_bb);
-    ji = b.phi(i64, name="drem.ji");
-    ji.add_incoming(found_idx, sfound_bb);
-    ji_end = b.icmp_unsigned(">=", ji, new_len, name="drem.ji.end");
-    b.cbranch(ji_end, store_bb, shift_body);
-    b.position_at_start(shift_body);
-    next_ji = b.add(ji, ir.Constant(i64, 1), name="drem.nji");
-    b.store(
-        b.load(b.gep(keys_arr, [next_ji], name="drem.src.kp"), name="drem.skv"),
-        b.gep(keys_arr, [ji], name="drem.dst.kp")
-    );
-    b.store(
-        b.load(b.gep(vals_arr, [next_ji], name="drem.src.vp"), name="drem.svv"),
-        b.gep(vals_arr, [ji], name="drem.dst.vp")
-    );
-    ji.add_incoming(next_ji, shift_body);
-    b.branch(shift_bb);
-
-    b.position_at_start(store_bb);
-    b.store(new_len, len_ptr);
-    b.branch(done_bb);
-
-    b.position_at_start(done_bb);
+    _not_found = b.not_(found_i1, name="drem.miss");
+    p._emit_runtime_raise(_not_found, "KeyError", "key not found");
+    b.call(helpers["remove"], [target, key]);
     return None;
 }
 
@@ -3802,9 +3613,31 @@ impl NativeDictEmitter.emit_popitem(
 
     last_idx = b.sub(dict_len, ir.Constant(i64, 1), name="dpi.last");
     last_key = b.call(helpers["get_key"], [target, last_idx], name="dpi.key");
-    last_val = b.call(helpers["get"], [target, last_key], name="dpi.val");
 
-    b.store(last_idx, len_ptr);
+    last_key_out = last_key;
+    if isinstance(key_type, ir.PointerType) {
+        _i8p_pi = ir.IntType(8).as_pointer();
+        if p._nogc_headerless() {
+            if (
+                isinstance(key_type.pointee, ir.IntType) and key_type.pointee.width == 8
+            ) {
+                _strdup_pi = p._get_or_declare_extern("strdup", _i8p_pi, [_i8p_pi]);
+                _key_copy = b.call(
+                    _strdup_pi,
+                    [b.bitcast(last_key, _i8p_pi, name="dpi.k.src")],
+                    name="dpi.k.copy"
+                );
+                last_key_out = b.bitcast(_key_copy, key_type, name="dpi.k.out");
+            }
+        } else {
+            if p.rc_retain_fn is None {
+                p._emit_rc_helpers();
+            }
+            b.call(p.rc_retain_fn, [b.bitcast(last_key, _i8p_pi, name="dpi.k.ret")]);
+        }
+    }
+
+    last_val = b.call(helpers["pop"], [target, last_key], name="dpi.val");
 
     tuple_type = ir.LiteralStructType([key_type, val_type]);
     null_ptr = ir.Constant(tuple_type.as_pointer(), None);
@@ -3818,7 +3651,7 @@ impl NativeDictEmitter.emit_popitem(
     v_ptr = b.gep(
         tuple_ptr, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="dpi.v.ptr"
     );
-    b.store(last_key, k_ptr);
+    b.store(last_key_out, k_ptr);
     b.store(last_val, v_ptr);
 
     kt_str = "i8p"
@@ -3923,13 +3756,9 @@ impl NativeDictEmitter.emit_clear(
         return None;
     }
     b = get_builder(p);
-    i32 = ir.IntType(32);
-    i64 = ir.IntType(64);
-    len_ptr = b.gep(
-        target, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="dclear.len.ptr"
-    );
-    b.store(ir.Constant(i64, 0), len_ptr);
-    return ir.Constant(i64, 0);
+
+    b.call(helpers["clear"], [target]);
+    return ir.Constant(ir.IntType(64), 0);
 }
 
 impl NativeDictEmitter.emit_copy(

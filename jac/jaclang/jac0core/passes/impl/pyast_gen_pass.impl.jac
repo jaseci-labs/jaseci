@@ -2962,7 +2962,7 @@ impl PyastGenPass._emit_jobj_ref(nd: uni.UnaryExpr) -> None {
 }
 
 impl PyastGenPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
-    if nd.ownership == OwnershipKind.OWN {
+    if nd.ownership in (OwnershipKind.OWN, OwnershipKind.IMM) {
         nd.gen.py_ast = [self.py_ast_val(nd.operand)];
         return;
     }
@@ -3290,18 +3290,20 @@ impl PyastGenPass.exit_atom_trailer(nd: uni.AtomTrailer) -> None {
             self.emit(E5008);
         }
     } elif isinstance(nd.right, uni.FilterCompr) {
-        if (
-            isinstance(nd.target, uni.EdgeRefTrailer)
-            and not nd.target.edges_only
-            and not nd.target.is_async
-        ) {
+        if self._is_edge_ref_target(nd.target) {
             target_py = cast(ast3.Call, self.py_ast_val(nd.target));
-            target_py.keywords.append(
-                self.sync(
-                    ast3.keyword(
-                        arg='post_filter',
-                        value=cast(ast3.expr, self.py_ast_val(nd.right))
-                    )
+            narrow_kws = self._query_filter_kws(nd.right, 'nd', 'preds');
+            target_py.args[0] = self.sync(
+                ast3.Call(
+                    func=self.sync(
+                        ast3.Attribute(
+                            value=cast(ast3.expr, target_py.args[0]),
+                            attr='narrow',
+                            ctx=ast3.Load()
+                        )
+                    ),
+                    args=[],
+                    keywords=narrow_kws
                 )
             );
             nd.gen.py_ast = [target_py];
@@ -3619,6 +3621,107 @@ impl PyastGenPass.exit_special_var_ref(nd: uni.SpecialVarRef) -> None {
     }
 }
 
+impl PyastGenPass._cmp_op_str(op: object) -> (str | None) {
+    if isinstance(op, ast3.Eq) {
+        return '==';
+    }
+    if isinstance(op, ast3.NotEq) {
+        return '!=';
+    }
+    if isinstance(op, ast3.Lt) {
+        return '<';
+    }
+    if isinstance(op, ast3.LtE) {
+        return '<=';
+    }
+    if isinstance(op, ast3.Gt) {
+        return '>';
+    }
+    if isinstance(op, ast3.GtE) {
+        return '>=';
+    }
+    if isinstance(op, ast3.In) {
+        return 'in';
+    }
+    return None;
+}
+
+impl PyastGenPass._query_filter_kws(
+    fc: uni.FilterCompr, type_arg: str, preds_arg: str
+) -> list {
+    p = self;
+    kws: list = [];
+    if fc.f_type {
+        kws.append(
+            p.sync(
+                ast3.keyword(
+                    arg=type_arg, value=cast(ast3.expr, p.py_ast_val(fc.f_type))
+                )
+            )
+        );
+    }
+    preds: list = [];
+    for x in fc.compares {
+        cmp_ast = p.py_ast_val(x);
+        reason: (str | None) = None;
+        if not isinstance(cmp_ast, ast3.Compare) {
+            reason = 'not a comparison';
+        } elif len(cmp_ast.ops) != 1 {
+            reason = 'chained comparisons are not admitted';
+        } elif not isinstance(cmp_ast.left, ast3.Name) {
+            reason = 'left side must be a declared field name';
+        } elif p._cmp_op_str(cmp_ast.ops[0]) is None {
+            reason = f"operator '{type(cmp_ast.ops[0]).__name__}' is not admitted";
+        }
+        if reason is not None {
+            p.emit(E5094, node_override=x, reason=reason);
+            continue;
+        }
+        cmp_c = cast(ast3.Compare, cmp_ast);
+        preds.append(
+            p.sync(
+                ast3.Call(
+                    func=p.jaclib_obj('QPred'),
+                    args=[],
+                    keywords=[
+                        p.sync(
+                            ast3.keyword(
+                                arg='field',
+                                value=p.sync(
+                                    ast3.Constant(value=cast(ast3.Name, cmp_c.left).id)
+                                )
+                            )
+                        ),
+                        p.sync(
+                            ast3.keyword(
+                                arg='op',
+                                value=p.sync(
+                                    ast3.Constant(value=p._cmp_op_str(cmp_c.ops[0]))
+                                )
+                            )
+                        ),
+                        p.sync(
+                            ast3.keyword(
+                                arg='value', value=cast(ast3.expr, cmp_c.comparators[0])
+                            )
+                        )
+                    ]
+                )
+            )
+        );
+    }
+    if preds {
+        kws.append(
+            p.sync(
+                ast3.keyword(
+                    arg=preds_arg, value=p.sync(ast3.List(elts=preds, ctx=ast3.Load()))
+                )
+            )
+        );
+    }
+    return kws;
+}
+
 impl PyastGenPass.exit_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> None {
     origin = None;
     cur = nd.chain[0];
@@ -3628,49 +3731,36 @@ impl PyastGenPass.exit_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> None {
         origin = self.py_ast_val(cur);
         cur = cast(uni.EdgeOpRef, chomp.pop(0));
     }
-    pynode = self.sync(
-        ast3.Call(
-            func=self.jaclib_obj('OPath'),
-            args=[cast(ast3.expr, (origin or self.py_ast_val(cur)))],
-            keywords=[]
-        )
-    );
+    origin_ast = cast(ast3.expr, (origin or self.py_ast_val(cur)));
+    hops: list = [];
     while True {
-        keywords = [];
-        if cur.filter_cond {
-            keywords.append(
-                self.sync(
-                    ast3.keyword(
-                        arg='edge',
-                        value=cast(
-                            ast3.expr, self.sync(self.py_ast_val(cur.filter_cond))
-                        )
-                    )
+        keywords = [
+            self.sync(
+                ast3.keyword(
+                    arg='dir', value=self.sync(ast3.Constant(value=cur.edge_dir.value))
                 )
-            );
+            )
+        ];
+        if cur.filter_cond {
+            keywords.extend(self._query_filter_kws(cur.filter_cond, 'edge', 'epreds'));
         }
         if (chomp and not isinstance(chomp[0], uni.EdgeOpRef)) {
             filt = chomp.pop(0);
-            keywords.append(
-                self.sync(
-                    ast3.keyword(
-                        arg='nd',
-                        value=cast(ast3.expr, self.sync(self.py_ast_val(filt)))
+            if isinstance(filt, uni.FilterCompr) {
+                keywords.extend(self._query_filter_kws(filt, 'nd', 'preds'));
+            } else {
+                keywords.append(
+                    self.sync(
+                        ast3.keyword(
+                            arg='only', value=cast(ast3.expr, self.py_ast_val(filt))
+                        )
                     )
-                )
-            );
+                );
+            }
         }
-        pynode = self.sync(
-            ast3.Call(
-                func=self.sync(
-                    ast3.Attribute(
-                        value=pynode,
-                        attr=f"edge_{cur.edge_dir.name.lower()}",
-                        ctx=ast3.Load()
-                    )
-                ),
-                args=[],
-                keywords=keywords
+        hops.append(
+            self.sync(
+                ast3.Call(func=self.jaclib_obj('QHop'), args=[], keywords=keywords)
             )
         );
         if chomp {
@@ -3679,17 +3769,27 @@ impl PyastGenPass.exit_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> None {
             break;
         }
     }
+    gq_kws = [
+        self.sync(
+            ast3.keyword(
+                arg='hops', value=self.sync(ast3.List(elts=hops, ctx=ast3.Load()))
+            )
+        )
+    ];
     if nd.edges_only {
-        pynode = self.sync(
-            ast3.Call(
-                func=self.sync(
-                    ast3.Attribute(value=pynode, attr='edge', ctx=ast3.Load())
-                ),
-                args=[],
-                keywords=[]
+        gq_kws.append(
+            self.sync(
+                ast3.keyword(
+                    arg='edges_only', value=self.sync(ast3.Constant(value=True))
+                )
             )
         );
     }
+    pynode = self.sync(
+        ast3.Call(
+            func=self.jaclib_obj('GraphQuery'), args=[origin_ast], keywords=gq_kws
+        )
+    );
     if from_visit {
         pynode = self.sync(
             ast3.Call(

@@ -660,6 +660,36 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " be reassigned, have a field written, or be borrowed `&mut`. Take an `imm` as"
          " read-only, or use an `own`/managed binding if you need to mutate."
      ),
+     W1312 = _warn(
+         "W1312",
+         Category.LINT,
+         "Owned value '{name}' silently seals into managed storage",
+         help="Passing an owned binding to an unannotated parameter moves it across"
+         " the membrane: the callee receives a managed value and '{name}' is"
+         " consumed at a distance. Write managed({name}) at the call site to make"
+         " the seal explicit, or annotate the callee parameter `own` to take"
+         " ownership intentionally."
+     ),
+     E1311 = _err(
+         "E1311",
+         Category.SEMANTIC,
+         "Cannot freeze '{name}': the value may be aliased",
+         help="the `imm` operator needs a statically unique operand so the frozen"
+         " value can never be written through another handle: apply it to an `own`"
+         " binding (it is consumed) or to a fresh expression. Copy the value first,"
+         " or take ownership of it, before freezing."
+     ),
+     E1313 = _err(
+         "E1313",
+         Category.SEMANTIC,
+         "`flow for` does not allow {name}",
+         help="the body of a `flow for` runs as independent tasks over disjoint"
+         " elements, and the loop's closing brace is the join: control flow may not"
+         " cross it (`continue` skips one element; `break`/`return` cannot), the"
+         " collection must be lent (`&xs` or `&mut xs`) so disjointness is checkable,"
+         " and nesting `flow for` is not supported yet. Restructure the loop, or use"
+         " a plain `for` when sequential semantics are what you want."
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,
@@ -1374,6 +1404,17 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Native lowering failed for {kind} '{name}'",
          help="The construct is within the native capability set, but this specific shape (its types, values, or runtime bindings) could not be lowered by NaIRGenPass. Adjust the shape, add type annotations, or move the code to a non-native context. Statically-known unsupported constructs are reported as E5090 by the capability check instead."
+     ),
+     E5094 = _err(
+         "E5094",
+         Category.CODEGEN,
+         "Graph query filter outside the closed sublanguage: {reason}",
+         help="Predicates inside [?...] on a graph reference must be "
+         "`field <op> value` with op one of ==, !=, <, <=, >, >=, in, "
+         "where the value is a scalar expression evaluated once at query "
+         "construction. Move anything else to a list comprehension over "
+         "the query result, where its object-space cost is visible.",
+         blocks_codegen=True
      ),
      E5093 = _err(
          "E5093",
