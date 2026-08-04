@@ -1,8 +1,10 @@
-"""HeaderBuilder must emit crawler-parseable meta tags.
+"""HeaderBuilder must emit crawler-parseable meta tags and script tags.
 
 Unquoted attribute values end at the first space per HTML parsing rules,
 so `content=The Jac Programming Language` reads back as content="The" -
 exactly what link-preview crawlers (LinkedIn, Slack, X) then display.
+The script tests assert whole tags, so an exact match also proves that
+nothing the config could not express was emitted.
 """
 
 import from jaclang.runtimelib.client.serving { HeaderBuilder }
@@ -78,13 +80,6 @@ test "values are escaped inside their quotes" {
 }
 
 
-"""Both tag shapes in one pass. The external entry's exact string pins every
-attribute rule at once: src escaping, a bare flag from `true`, `false` omitting
-`async`, `0` and `""` surviving as real values, underscore folding, a name no
-whitelist knew (`blocking`), an event handler (the CDN fallback pattern), and
-insertion order. Because the match is exact, it also proves the four malformed
-keys built nothing. The inline entry pins that a body renders raw but cannot
-close the tag early, in any case, while unrelated tags pass through."""
 test "script entries render every attribute and body rule" {
     hb = HeaderBuilder(
         meta_data={
@@ -128,8 +123,6 @@ test "script entries render every attribute and body rule" {
 }
 
 
-"""Every accepted spelling reaches the same renderer, and anything malformed
-degrades to no output rather than an error or a broken tag."""
 test "all input shapes are accepted and malformed config emits nothing" {
     shapes = [
         ["https://cdn.example.com/sdk.js"],
@@ -137,9 +130,8 @@ test "all input shapes are accepted and malformed config emits nothing" {
         [{"src": "https://cdn.example.com/sdk.js", "content": "ignored()"}]
     ];
     for value in shapes {
-        head = HeaderBuilder(
-            meta_data={"scripts": value}, function_name="app"
-        ).build_head();
+        hb = HeaderBuilder(meta_data={"scripts": value}, function_name="app");
+        head = hb.build_head();
         assert '<script src="https://cdn.example.com/sdk.js"></script>' in head;
         assert "ignored()" not in head;
     }
@@ -147,12 +139,13 @@ test "all input shapes are accepted and malformed config emits nothing" {
         hb = HeaderBuilder(meta_data={"scripts": value}, function_name="app");
         assert "<script" not in hb.build_head();
     }
-    head = HeaderBuilder(
+    hb = HeaderBuilder(
         meta_data={
             "scripts": [{"defer": True}, {"src": "  "}, {}, "", 42, {"src": "/real.js"}]
         },
         function_name="app"
-    ).build_head();
+    );
+    head = hb.build_head();
     assert head.count("<script") == 1;
     assert '<script src="/real.js"></script>' in head;
 }
