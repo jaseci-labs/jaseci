@@ -1541,68 +1541,46 @@ og_image = "/assets/og-image.png"
 
 #### Head Scripts
 
-Add `<script>` tags to the generated `<head>` with the `scripts` key. Use it for
-analytics snippets, third-party SDKs, and preloaded libraries that must be
-available before the app bundle boots:
-
-```toml
-[client.app_meta_data]
-scripts = [
-  { src = "https://js.stripe.com/v3", defer = true },
-]
-```
-
-The array-of-tables form is equivalent and reads better for several entries:
+Add `<script>` tags to the generated `<head>` with the `scripts` key, for
+analytics snippets, third-party SDKs, and anything that must be available before
+the app bundle boots:
 
 ```toml
 [[client.app_meta_data.scripts]]
-src = "https://cdn.example.com/maps.js"
-async = true
-crossorigin = "anonymous"
+src = "https://js.stripe.com/v3"
+defer = true
+
+[[client.app_meta_data.scripts]]
+src = "https://cdn.example.com/lib.js"
+onerror = "loadLocalFallback()"
 
 [[client.app_meta_data.scripts]]
 content = """
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
 """
 ```
 
-Each entry takes either `src` (external script) or `content` (inline body); when
-both are given `src` wins, matching how browsers treat a script element with a
-`src` attribute. A bare string is shorthand for `src`:
+Each entry takes either `src` or an inline `content` body, and `src` wins if
+both are given. The inline array `scripts = [{ src = "...", defer = true }]` and
+a bare string `scripts = ["https://..."]` are equivalent shorthands.
 
-```toml
-scripts = ["https://cdn.example.com/sdk.js"]
-```
-
-Every other key on an entry becomes an attribute on the tag, so `async`, `defer`,
-`type`, `crossorigin`, `integrity`, `nonce`, `data-*`, and any attribute the
-platform adds later all work without special-casing. Three rules govern the
-rendering:
+Every other key becomes an attribute, so `type`, `crossorigin`, `integrity`,
+`nonce`, `data-*`, event handlers, and any attribute the platform adds later all
+work without special-casing:
 
 | Rule | Example |
 |------|---------|
-| Underscores in keys fold to hyphens. | `data_site_id = "abc"` renders `data-site-id="abc"`. |
-| `true` renders a bare flag; `false` omits the attribute entirely. | `defer = true` renders `defer`. |
-| Any other value renders as `name="value"`, HTML-escaped, including `0` and `""`. | `tabindex = 0` renders `tabindex="0"`. |
-
-Event handlers work like any other attribute, which is what the CDN fallback
-pattern needs:
-
-```toml
-[[client.app_meta_data.scripts]]
-src = "https://cdn.example.com/lib.js"
-onerror = "loadLocalFallback()"
-```
+| Underscores fold to hyphens. | `data_site_id = "abc"` renders `data-site-id="abc"` |
+| `true` renders a bare flag, `false` omits the attribute. | `defer = true` renders `defer` |
+| Any other value renders escaped, including `0` and `""`. | `tabindex = 0` renders `tabindex="0"` |
 
 Keys that do not fold to a well-formed lowercase attribute name are dropped, so
-a stray space or quote in a key cannot forge extra attributes on the tag. A
-literal `</script>` inside an inline `content` body is escaped so it cannot
-close the tag early.
+a stray space or quote cannot forge extra attributes, and a literal `</script>`
+in an inline body is escaped so it cannot close the tag early.
 
-Scripts are emitted last in the `<head>`, after the title, meta, and link tags,
-and appear in `jac build` output, `jac start`, and `jac start --dev` alike.
+Scripts are emitted after the title, meta, and link tags, in `jac build` output,
+`jac start`, and `jac start --dev` alike.
 
 ### API Base URL
 
