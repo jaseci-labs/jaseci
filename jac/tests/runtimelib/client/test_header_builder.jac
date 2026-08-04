@@ -149,7 +149,11 @@ test "unsafe or malformed attribute keys are dropped" {
                     "onerror": "alert(2)",
                     "data_x onmouseover": "alert(3)",
                     'data_y" onclick="alert(4)': "v",
+                    "data_z><img src=x onerror=alert(5)><span data_q": "v",
                     "data_UPPER": "v",
+                    "data_": "v",
+                    "data__x": "v",
+                    "9data_lead": "v",
                     "data_ok": "1"
                 }
             ]

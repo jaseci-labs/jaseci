@@ -190,7 +190,8 @@ impl HeaderBuilder._script_tag(spec: dict) -> str {
             continue;
         }
         name = str(key).replace("_", "-");
-        if not re.fullmatch(r"[a-z][a-z0-9-]*", name) or name.startswith("on") {
+        if not re.fullmatch(r"[a-z][a-z0-9]*(-[a-z0-9]+)*", name)
+            or name.startswith("on") {
             continue;
         }
         if val is True {
