@@ -35,6 +35,7 @@ glob OWNBENCH = str(Path(__file__).resolve().parents[4] / "examples" / "ownbench
          "own_deriv": ["20", "3"],
          "own_aos": ["300", "3"],
          "own_strops": ["150", "3"],
+         "own_parse": ["200", "3"],
 
      };
 
@@ -136,6 +137,10 @@ test "ownbench differential identity: aos (own fields + archetype lists)" {
 
 test "ownbench differential identity: strops (string-representation oracle)" {
     _assert_differential_identity("own_strops");
+}
+
+test "ownbench differential identity: parse (zero-copy view oracle)" {
+    _assert_differential_identity("own_parse");
 }
 
 test "ownbench erasure round-trip: aos reproduces annotated digest" {

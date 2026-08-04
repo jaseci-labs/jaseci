@@ -225,6 +225,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         str_stamp_fn: (ir.Function | None) = None,
         str_new_fn: (ir.Function | None) = None,
         str_cmp_fn: (ir.Function | None) = None,
+        str_cmp3_fn: (ir.Function | None) = None,
         str_dup_fn: (ir.Function | None) = None,
         str_len_raw_fn: (ir.Function | None) = None,
         str_wrap_fn: (ir.Function | None) = None,
@@ -1154,6 +1155,17 @@ obj NaIRGenPass(ModuleCodegenPass) {
         b: ir.IRBuilder, lhs: ir.Value, rhs: ir.Value, name: str = "s.cmp"
     ) -> ir.Value;
 
+    def _emit_str_cmp3_helper -> None;
+    def _call_str_cmp3(
+        b: ir.IRBuilder,
+        l_data: ir.Value,
+        l_len: ir.Value,
+        r_data: ir.Value,
+        r_len: ir.Value,
+        name: str = "s.cmp3"
+    ) -> ir.Value;
+
+    def _str_cmp_parts_of(val: ir.Value) -> (tuple | None);
     def _emit_str_dup_helper -> None;
     def _call_str_dup(b: ir.IRBuilder, ptr: ir.Value, name: str = "s.dup") -> ir.Value;
     def _emit_str_len_raw_helper -> None;

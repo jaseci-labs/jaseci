@@ -1637,6 +1637,26 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             }
         } else {
             target_val = self._codegen_expr(nd.target);
+            if target_val is not None
+                and self._str_desc_ty is not None
+                and target_val.type == self._str_desc_ty {
+                _dslices = nd.right.slices or [];
+                if _dslices {
+                    _didx_node = _dslices[0];
+                    _didx_val = self._codegen_expr(_didx_node);
+                    if _didx_val is None and _didx_node?.start {
+                        _didx_val = self._codegen_expr(_didx_node.start);
+                    }
+                    if _didx_val is not None {
+                        _ddata = self.builder.extract_value(
+                            target_val,
+                            0 if self._nogc_headerless() else 1,
+                            name="chr.data"
+                        );
+                        return self._codegen_string_index(_ddata, _didx_val);
+                    }
+                }
+            }
             target_val = self._str_norm(target_val);
             if target_val is not None {
                 if self?.jacval_type and target_val.type == self.jacval_type {

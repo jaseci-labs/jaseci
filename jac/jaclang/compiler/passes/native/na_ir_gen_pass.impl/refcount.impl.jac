@@ -1985,3 +1985,71 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
     b.ret_void();
     self.struct_release_fns[arch_name] = release_fn;
 }
+
+impl NaIRGenPass._emit_str_cmp3_helper -> None {
+    if self.str_cmp3_fn is not None {
+        return;
+    }
+    i8p = ir.IntType(8).as_pointer();
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    memcmp_fn = self._get_or_declare_extern("memcmp", i32, [i8p, i8p, i64]);
+    fn = self._define_function(
+        "__jac_str_cmp3", ir.FunctionType(i32, [i8p, i64, i8p, i64])
+    );
+    fn.linkage = "private";
+    fn.args[0].name = "a";
+    fn.args[1].name = "al";
+    fn.args[2].name = "b";
+    fn.args[3].name = "bl";
+    _entry = fn.append_basic_block("entry");
+    _cmp_bb = fn.append_basic_block("cmp");
+    _retr_bb = fn.append_basic_block("retr");
+    _tie_bb = fn.append_basic_block("tie");
+    b = ir.IRBuilder(_entry);
+    _al = fn.args[1];
+    _bl = fn.args[3];
+    _n = b.select(b.icmp_signed("<", _al, _bl, name="c3.min.p"), _al, _bl, name="c3.n");
+    b.cbranch(
+        b.icmp_signed(">", _n, ir.Constant(i64, 0), name="c3.has"), _cmp_bb, _tie_bb
+    );
+    b = ir.IRBuilder(_cmp_bb);
+    _r = b.call(memcmp_fn, [fn.args[0], fn.args[2], _n], name="c3.memcmp");
+    b.cbranch(
+        b.icmp_signed("!=", _r, ir.Constant(i32, 0), name="c3.ne"), _retr_bb, _tie_bb
+    );
+    b = ir.IRBuilder(_retr_bb);
+    b.ret(_r);
+    b = ir.IRBuilder(_tie_bb);
+    _gt = b.zext(b.icmp_signed(">", _al, _bl, name="c3.gt"), i32, name="c3.gt32");
+    _lt = b.zext(b.icmp_signed("<", _al, _bl, name="c3.lt"), i32, name="c3.lt32");
+    b.ret(b.sub(_gt, _lt, name="c3.sign"));
+    self.str_cmp3_fn = fn;
+}
+
+impl NaIRGenPass._call_str_cmp3(
+    b: ir.IRBuilder,
+    l_data: ir.Value,
+    l_len: ir.Value,
+    r_data: ir.Value,
+    r_len: ir.Value,
+    name: str = "s.cmp3"
+) -> ir.Value {
+    if self.str_cmp3_fn is None {
+        self._emit_str_cmp3_helper();
+    }
+    return b.call(self.str_cmp3_fn, [l_data, l_len, r_data, r_len], name=name);
+}
+
+impl NaIRGenPass._str_cmp_parts_of(val: ir.Value) -> (tuple | None) {
+    if self._str_desc_ty is not None and val.type == self._str_desc_ty {
+        _hl = self._nogc_headerless();
+        _d = self.builder.extract_value(val, 0 if _hl else 1, name="scmp.data");
+        _l = self.builder.extract_value(val, 1 if _hl else 2, name="scmp.len");
+        return (_d, _l);
+    }
+    if val.type == ir.IntType(8).as_pointer() {
+        return (val, self._call_str_len(self.builder, val, name="scmp.rawlen"));
+    }
+    return None;
+}

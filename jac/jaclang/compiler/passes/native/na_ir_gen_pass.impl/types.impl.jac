@@ -1782,6 +1782,26 @@ impl NaIRGenPass._emit_arch_dunder_binop(
 impl NaIRGenPass._emit_comparison(
     op: str, left: ir.Value, right: ir.Value, is_float: bool
 ) -> (ir.Value | None) {
+    _dty = self._str_desc_ty;
+    if _dty is not None
+        and (left.type == _dty or right.type == _dty)
+        and op in (Tok.EE, Tok.NE, Tok.LT, Tok.GT, Tok.LTE, Tok.GTE) {
+        _lp = self._str_cmp_parts_of(left);
+        _rp = self._str_cmp_parts_of(right);
+        if _lp is not None and _rp is not None {
+            _sc3 = self._call_str_cmp3(self.builder, _lp[0], _lp[1], _rp[0], _rp[1]);
+            _z32c = ir.Constant(ir.IntType(32), 0);
+            _cmp_op = {
+                Tok.EE: "==",
+                Tok.NE: "!=",
+                Tok.LT: "<",
+                Tok.GT: ">",
+                Tok.LTE: "<=",
+                Tok.GTE: ">="
+            }[op];
+            return self.builder.icmp_signed(_cmp_op, _sc3, _z32c, name="scmp3");
+        }
+    }
     left = self._str_norm(left);
     right = self._str_norm(right);
     _l_is_tval = isinstance(left.type, ir.LiteralStructType);
