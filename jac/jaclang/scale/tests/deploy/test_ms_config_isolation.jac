@@ -1,47 +1,76 @@
-import unittest.mock;
+import os;
+import shutil;
+import tempfile;
+import from pathlib { Path }
+import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    GATEWAY_NAME,
     ManifestBuilder,
     k8s_safe_name
 }
-import jaclang.scale.deploy.target.kubernetes.manifest_builder as builder_mod;
 
-# What an embedding host (a jac-scale app that deploys other apps in-process)
-# has loaded process-globally while it deploys a guest app.
-glob _HOST_CONFIG: dict = {
-         "routes": {"builder_sv": "/builder"},
-         "shared_volumes": [
-             {
-                 "name": "${SHARED_DATA_PVC}",
-                 "mount_path": "/app/.jachome",
-                 "services": ["builder_sv"],
-                 "size": "10Gi",
-                 "access_mode": "ReadWriteMany",
-                 "storage_class": "efs-sc"
-             }
-         ]
-     };
+# The host's own jac.toml, in the shape of the builder service that hit this in
+# production: a jac-scale app that deploys other apps in-process, whose
+# shared_volumes name is an env placeholder its own pod never resolved.
+glob _HOST_TOML: str = '[project]\n'
+     'name = "builder"\n'
+     'entry-point = "main.jac"\n'
+     '\n'
+     '[scale.microservices]\n'
+     'routes = { builder_sv = "/builder" }\n'
+     'shared_volumes = [{ name = "${SHARED_DATA_PVC}", '
+     'mount_path = "/app/.jachome", services = ["builder_sv"], '
+     'size = "10Gi", access_mode = "ReadWriteMany", storage_class = "efs-sc" }]\n';
 
 
-def _host_scale_config -> any {
-    cfg = unittest.mock.MagicMock();
-    cfg.get_microservices_config.return_value = _HOST_CONFIG;
-    return cfg;
+def _load_host_config -> str {
+    # Load a real jac.toml process-globally, the way a running host app has its
+    # own config loaded while it deploys a guest.
+    project_dir = tempfile.mkdtemp(prefix="jac-host-config-");
+    (Path(project_dir) / "jac.toml").write_text(_HOST_TOML);
+    reset_scale_config();
+    get_scale_config(project_dir=Path(project_dir));
+    return project_dir;
 }
 
 
-test "a guest app that declares no microservices config gets none of the host's" {
-    builder = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name="standup", namespace="jb-standup"),
-        microservices_config={}
-    );
+def _unload_host_config(project_dir: str) {
+    reset_scale_config();
+    shutil.rmtree(project_dir, ignore_errors=True);
+}
 
-    with unittest.mock.patch.object(
-        builder_mod, "get_scale_config", _host_scale_config
-    ) {
-        resolved = builder._ms_cfg();
+
+def _guest_builder(ms_config: (dict[str, any] | None)) -> ManifestBuilder {
+    # A guest app that declares no [scale.microservices] of its own; the SDK
+    # hands the builder the spec's config, which for such an app is empty.
+    return ManifestBuilder(
+        k8s_config=KubernetesConfig(app_name="standup", namespace="jb-standup"),
+        microservices_config=ms_config
+    );
+}
+
+
+test "the host's config really loads, so the leak tests are meaningful" {
+    project_dir = _load_host_config();
+    try {
+        host_cfg = get_scale_config().get_microservices_config();
+        assert host_cfg.get("routes", {}) == {"builder_sv": "/builder"};
+        assert len(host_cfg.get("shared_volumes", [])) == 1;
+    } finally {
+        _unload_host_config(project_dir);
+    }
+}
+
+
+test "a guest that declares no microservices config gets none of the host's" {
+    project_dir = _load_host_config();
+    try {
+        resolved = _guest_builder({})._ms_cfg();
+    } finally {
+        _unload_host_config(project_dir);
     }
 
     assert resolved.get("shared_volumes", []) == [] , f"guest inherited the host's shared_volumes: {resolved.get(
@@ -53,16 +82,12 @@ test "a guest app that declares no microservices config gets none of the host's"
 }
 
 
-test "a guest app's manifest bundle carries no PVC from the host's config" {
-    builder = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name="standup", namespace="jb-standup"),
-        microservices_config={}
-    );
-
-    with unittest.mock.patch.object(
-        builder_mod, "get_scale_config", _host_scale_config
-    ) {
-        pvcs = builder._build_shared_pvc_manifests();
+test "a guest's manifest bundle carries no PVC built from the host's config" {
+    project_dir = _load_host_config();
+    try {
+        pvcs = _guest_builder({})._build_shared_pvc_manifests();
+    } finally {
+        _unload_host_config(project_dir);
     }
 
     assert pvcs == {} , f"host shared_volumes leaked into the guest bundle: {pvcs}";
@@ -70,34 +95,30 @@ test "a guest app's manifest bundle carries no PVC from the host's config" {
 
 
 test "an omitted microservices config still falls back to the loaded one" {
-    builder = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name="standup", namespace="jb-standup")
-    );
-
-    with unittest.mock.patch.object(
-        builder_mod, "get_scale_config", _host_scale_config
-    ) {
-        resolved = builder._ms_cfg();
+    project_dir = _load_host_config();
+    try {
+        resolved = _guest_builder(None)._ms_cfg();
+    } finally {
+        _unload_host_config(project_dir);
     }
 
-    assert resolved.get("routes", {}) == {"builder_sv": "/builder"};
+    assert resolved.get("routes", {}) == {"builder_sv": "/builder"} , "the CLI path must keep reading the app's own loaded config";
 }
 
 
-test "a caller-supplied config does not take routes from JAC_SV_ROUTES" {
-    builder = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name="standup", namespace="jb-standup"),
-        microservices_config={}
-    );
-
-    with unittest.mock.patch.dict(
-        "os.environ", {"JAC_SV_ROUTES": '{"builder_sv": "/builder"}'}
-    ) {
-        with unittest.mock.patch.object(
-            builder_mod, "get_scale_config", _host_scale_config
-        ) {
-            resolved = builder._ms_cfg();
+test "a supplied config does not take routes from JAC_SV_ROUTES" {
+    project_dir = _load_host_config();
+    previous = os.environ.get("JAC_SV_ROUTES");
+    os.environ["JAC_SV_ROUTES"] = '{"builder_sv": "/builder"}';
+    try {
+        resolved = _guest_builder({})._ms_cfg();
+    } finally {
+        if previous is None {
+            os.environ.pop("JAC_SV_ROUTES", None);
+        } else {
+            os.environ["JAC_SV_ROUTES"] = previous;
         }
+        _unload_host_config(project_dir);
     }
 
     assert resolved.get("routes", {}) == {} , f"guest inherited the host's routes via env: {resolved.get(
@@ -154,6 +175,5 @@ test "k8s_safe_name rejects a name with nothing usable left" {
 
 
 test "the gateway keeps its reserved short name" {
-    import from jaclang.scale.deploy.target.kubernetes.manifest_builder { GATEWAY_NAME }
     assert k8s_safe_name(GATEWAY_NAME) == "gateway";
 }
