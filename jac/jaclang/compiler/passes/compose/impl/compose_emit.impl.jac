@@ -68,9 +68,7 @@ impl component_screen_name(comp_name: str) -> str {
 }
 
 impl screen_name_for(
-    path: (str | None),
-    comp_name: (str | None),
-    is_home: bool = False
+    path: (str | None), comp_name: (str | None), is_home: bool = False
 ) -> str {
     if is_home or path == "/" {
         return HOME_SCREEN_NAME;
@@ -82,6 +80,108 @@ impl screen_name_for(
         return component_screen_name(comp_name);
     }
     return HOME_SCREEN_NAME;
+}
+
+# A resolved route: one route path bound to exactly one Kotlin screen
+# function name, plus the component (if any) that backs it. `body_override`
+# carries verbatim Kotlin for the synthesized home fallback.
+obj _RouteEntry {
+    has path: str,
+        screen_name: str,
+        comp: (IntentComponent | None) = None,
+        body_override: str = "";
+}
+
+# Single source of truth for the route -> screen mapping. Every consumer of
+# routes (emit_jac_app's `when` arms, emit_screens' screen functions,
+# and write()'s scaffold route table) reads from this list, so they can never
+# disagree on a path's screen name.
+#
+# Collision detection: distinct paths that normalize to the same Kotlin screen
+# name (e.g. `/a-b` and `/a_b` both -> `ABScreen`) would otherwise produce a
+# duplicate `fun` or a `when` arm pointing at a screen that was silently
+# dropped by a `seen` set. Instead we record a diagnostic, and write()
+# already refuses to emit while any diagnostic is present.
+def _resolve_route_plan(model: ComposeModule) -> list[_RouteEntry] {
+    entries: list[_RouteEntry] = [];
+    name_to_path: dict[str, str] = {};
+    seen_paths: set[str] = set();
+
+    def add(
+        path: str, sname: str, comp: (IntentComponent | None), body_override: str = ""
+    ) {
+        prior = name_to_path.get(sname);
+        if prior is not None and prior != path {
+            model.intent.add_diagnostic(
+                f"routes '{prior}' and '{path}' both lower to screen '{sname}' "
+                "- give one an explicit screen_name or rename it so each emits "
+                "a distinct Kotlin function"
+            );
+        }
+        name_to_path[sname] = path;
+        entries.append(
+            _RouteEntry(
+                path=path, screen_name=sname, comp=comp, body_override=body_override
+            )
+        );
+    }
+
+    for route in model.intent.routes {
+        if route.path in seen_paths {
+            continue;
+        }
+        seen_paths.add(route.path);
+        sname = route.screen_name or route_to_screen_name(route.path);
+        comp = None;
+        if route.component and route.component in model.intent.components {
+            comp = model.intent.components[route.component];
+        }
+        add(route.path, sname, comp);
+    }
+
+    for (cname, comp) in model.intent.components.items() {
+        if comp.route_path {
+            path = comp.route_path;
+            sname = screen_name_for(path, cname);
+        } elif comp.is_screen {
+            path = "/";
+            sname = screen_name_for(path, cname);
+        } else {
+            continue;
+        }
+        if path in seen_paths {
+            continue;
+        }
+        seen_paths.add(path);
+        add(path, sname, comp);
+    }
+
+    if not entries {
+        for (cname, comp) in model.intent.components.items() {
+            if model.compose_view_for(cname) is None {
+                continue;
+            }
+            sname = screen_name_for(
+                None, cname, is_home=(cname in HOME_COMPONENT_NAMES)
+            );
+            add("/", sname, comp);
+            break;
+        }
+    }
+
+    if not entries {
+        add(
+            "/",
+            HOME_SCREEN_NAME,
+            None,
+            body_override=(
+                "    Column(modifier = Modifier.fillMaxSize()) {\n"
+                '        Text(text = "Jac Compose")\n'
+                "    }"
+            )
+        );
+    }
+    return entries;
 }
 
 def _screen_imports -> str {
@@ -113,6 +213,32 @@ def _emit_kotlin_imports(model: ComposeModule) -> str {
     return "".join([f"import {line}\n" for line in lines]);
 }
 
+# Jac arithmetic semantics runtime. `jac_to_kotlin` lowers `/`, `//`, and `%`
+# onto `JacMath` members so the result follows Jac (not Kotlin) semantics;
+# Kotlin overload resolution keeps Int operands Int and widens to Double
+# when a float is involved. Always emitted (same package as Screens.kt, so
+# the top-level object needs no import).
+def _emit_jac_math(pkg: str) -> str {
+    return (
+        f"package {pkg}\n\n"
+        "object JacMath {\n"
+        "    fun truediv(a: Number, b: Number): Double "
+        "= a.toDouble() / b.toDouble()\n"
+        "    fun floorDiv(a: Int, b: Int): Int = Math.floorDiv(a, b)\n"
+        "    fun floorDiv(a: Long, b: Long): Long = Math.floorDiv(a, b)\n"
+        "    fun floorDiv(a: Double, b: Double): Double "
+        "= kotlin.math.floor(a / b)\n"
+        "    fun floorDiv(a: Number, b: Number): Double "
+        "= kotlin.math.floor(a.toDouble() / b.toDouble())\n"
+        "    fun mod(a: Int, b: Int): Int = Math.floorMod(a, b)\n"
+        "    fun mod(a: Long, b: Long): Long = Math.floorMod(a, b)\n"
+        "    fun mod(a: Double, b: Double): Double = ((a % b) + b) % b\n"
+        "    fun mod(a: Number, b: Number): Double "
+        "= ((a.toDouble() % b.toDouble()) + b.toDouble()) % b.toDouble()\n"
+        "}\n"
+    );
+}
+
 def _section_registry_stub -> str {
     return """
 class JacSectionRegistry {
@@ -120,47 +246,34 @@ class JacSectionRegistry {
 }
 
 private data class JacRouteEntry(val path: String, val fragment: String?)
+
+enum class JacNavOperation { Push, Replace }
+enum class JacExternalMode { WebView, System }
 """;
 }
 
+impl ComposeEmit.route_plan -> any {
+    if self._plan is None {
+        self._plan = _resolve_route_plan(self.model);
+    }
+    return self._plan;
+}
+
 impl ComposeEmit.emit_jac_app -> str {
-    routes = list(self.model.intent.routes);
-    paths: list[str] = [];
-    path_to_screen: dict[str, str] = {};
-    if routes {
-        for r in routes {
-            paths.append(r.path);
-            path_to_screen[r.path] = r.screen_name or route_to_screen_name(r.path);
-        }
-    } else {
-        for comp in self.model.intent.components.values() {
-            if comp.route_path {
-                paths.append(comp.route_path);
-                path_to_screen[comp.route_path] = route_to_screen_name(comp.route_path);
-            } elif comp.is_screen {
-                paths.append("/");
-                path_to_screen["/"] = route_to_screen_name("/");
-            }
-        }
-    }
-    if not paths {
-        paths = ["/"];
-        path_to_screen["/"] = route_to_screen_name("/");
-    }
+    plan = self.route_plan();
 
     when_arms: list[str] = [];
-    for path in paths {
-        screen = path_to_screen.get(path) or route_to_screen_name(path);
+    for entry in plan {
         when_arms.append(
             f'                    "{escape_kotlin(
-                path
+                entry.path
             )}" -> Box(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {{ '
-            f"{screen}(viewportWidth, scrollState, sectionRegistry, ::navigate, ::goBack, ::openExternal) }}"
+            f"{entry.screen_name}(viewportWidth, scrollState, sectionRegistry, ::navigate, ::goBack, ::openExternal) }}"
         );
     }
-    first_screen = path_to_screen.get(paths[0]) or route_to_screen_name(paths[0]);
+    first_screen = plan[0].screen_name if plan else HOME_SCREEN_NAME;
     when_arms.append(
-        f"                    else -> Box(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {{ "
+        "                    else -> Box(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) { "
         f"{first_screen}(viewportWidth, scrollState, sectionRegistry, ::navigate, ::goBack, ::openExternal) }}"
     );
     arms = "\n".join(when_arms);
@@ -194,7 +307,7 @@ fun JacApp(startPath: String = JacRoutes.initialPath, startFragment: String? = n
     val backStack = remember {{ mutableStateListOf<JacRouteEntry>() }}
     val scrollState = rememberScrollState()
     val sectionRegistry = remember(currentEntry.path) {{ JacSectionRegistry() }}
-    fun navigate(operation: String, target: String, fragment: String?) {{
+    fun navigate(operation: JacNavOperation, target: String, fragment: String?) {{
         val path = target.ifEmpty {{ currentEntry.path }}
         if (!JacRoutes.paths.contains(path)) {{
             return
@@ -203,7 +316,7 @@ fun JacApp(startPath: String = JacRoutes.initialPath, startFragment: String? = n
         if (destination == currentEntry) {{
             return
         }}
-        if (operation == "replace") {{
+        if (operation == JacNavOperation.Replace) {{
             currentEntry = destination
         }} else {{
             backStack.add(currentEntry)
@@ -219,15 +332,15 @@ fun JacApp(startPath: String = JacRoutes.initialPath, startFragment: String? = n
             currentEntry = JacRouteEntry(JacRoutes.initialPath, null)
         }}
     }}
-    fun openExternal(mode: String, target: String) {{
-        if (mode == "webview") {{
+    fun openExternal(mode: JacExternalMode, target: String) {{
+        if (mode == JacExternalMode.WebView) {{
             externalUrl = target
         }} else {{
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
         }}
     }}
     LaunchedEffect(navigationRequest) {{
-        navigate("replace", initialPath, initialFragment)
+        navigate(JacNavOperation.Replace, initialPath, initialFragment)
     }}
 {persist_effect}    LaunchedEffect(currentEntry.path) {{
         scrollState.scrollTo(0)
@@ -324,65 +437,16 @@ obj _ScreenPlanEntry {
         body_override: str = "";
 }
 
-def _collect_screen_plan(model: ComposeModule) -> list[_ScreenPlanEntry] {
-    entries: list[_ScreenPlanEntry] = [];
-    seen: set[str] = set();
-
-    for route in model.intent.routes {
-        sname = route.screen_name or route_to_screen_name(route.path);
-        if sname in seen {
-            continue;
-        }
-        seen.add(sname);
-        comp = None;
-        if route.component and route.component in model.intent.components {
-            comp = model.intent.components[route.component];
-        }
-        entries.append(_ScreenPlanEntry(name=sname, comp=comp));
-    }
-
-    for (cname, comp) in model.intent.components.items() {
-        if not comp.route_path and not comp.is_screen {
-            continue;
-        }
-        sname = screen_name_for(comp.route_path, cname);
-        if sname in seen {
-            continue;
-        }
-        seen.add(sname);
-        entries.append(_ScreenPlanEntry(name=sname, comp=comp));
-    }
-
-    if not entries {
-        for (cname, comp) in model.intent.components.items() {
-            if model.compose_view_for(cname) is None {
-                continue;
-            }
-            sname = screen_name_for(
-                None, cname, is_home=(cname in HOME_COMPONENT_NAMES)
-            );
-            if sname in seen {
-                continue;
-            }
-            seen.add(sname);
-            entries.append(_ScreenPlanEntry(name=sname, comp=comp));
-        }
-    }
-
-    if not entries {
-        entries.append(
-            _ScreenPlanEntry(
-                name=HOME_SCREEN_NAME,
-                body_override=(
-                    "    Column(modifier = Modifier.fillMaxSize()) {\n"
-                    "        Text(text = \"Jac Compose\")\n"
-                    "    }"
-                )
-            )
-        );
-    }
-
-    return entries;
+# Projects the cached route plan into the (name, comp, body_override) shape
+# the screen emitter consumes. Route gathering, dedup, and collision
+# diagnostics all live in _resolve_route_plan - this adds no resolution of
+# its own, so it must be fed the already-resolved plan (not a fresh model).
+def _screen_plan_from_entries(entries: list[_RouteEntry]) -> list[_ScreenPlanEntry] {
+    return [
+        _ScreenPlanEntry(
+            name=e.screen_name, comp=e.comp, body_override=e.body_override
+        ) for e in entries
+    ];
 }
 
 def _collect_reusable_plan(
@@ -442,7 +506,7 @@ impl ComposeEmit.emit_screens -> str {
     native_em = ComposeNativeEmitter();
     react_em = ReactiveComposeEmitter();
 
-    screen_plan = _collect_screen_plan(self.model);
+    screen_plan = _screen_plan_from_entries(self.route_plan());
     seen: set[str] = set();
     for plan_entry in screen_plan {
         seen.add(plan_entry.name);
@@ -513,20 +577,7 @@ impl ComposeEmit.write -> list[Path] {
     out = self.out_dir;
     out.mkdir(parents=True, exist_ok=True);
 
-    routes: list[str] = [];
-    for r in self.model.intent.routes {
-        routes.append(r.path);
-    }
-    if not routes {
-        for comp in self.model.intent.components.values() {
-            if comp.route_path {
-                routes.append(comp.route_path);
-            }
-        }
-    }
-    if not routes {
-        routes = ["/"];
-    }
+    routes = [e.path for e in self.route_plan()];
 
     files = build_gradle_scaffold(
         self.model.intent.package_name,
@@ -565,6 +616,7 @@ impl ComposeEmit.write -> list[Path] {
     }
     files[f"{screens_root}/Screens.kt"] = screens_src;
     files[f"{screens_root}/JacClient.kt"] = client_src;
+    files[f"{screens_root}/JacMath.kt"] = _emit_jac_math(self.model.intent.package_name);
 
     written: list[Path] = [];
     reused = 0;

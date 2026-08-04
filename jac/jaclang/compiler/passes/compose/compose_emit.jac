@@ -6,18 +6,21 @@ glob HOME_SCREEN_NAME: str = "HomeScreen";
 obj ComposeEmit {
     has model: ComposeModule,
         out_dir: Path,
-        dev: bool = False;
+        dev: bool = False,
+        _plan: any = None;
 
     def write -> list[Path];
     def emit_screens -> str;
     def emit_jac_app -> str;
+    # Lazily-resolved, cached route plan — the single source of truth shared by
+    # emit_jac_app, emit_screens, and write. Resolving once also means route
+    # collisions record each diagnostic exactly once.
+    def route_plan -> any;
 }
 
 def normalize_route_segment(segment: str) -> str;
 def route_to_screen_name(path: str) -> str;
 def component_screen_name(comp_name: str) -> str;
 def screen_name_for(
-    path: (str | None),
-    comp_name: (str | None),
-    is_home: bool = False
+    path: (str | None), comp_name: (str | None), is_home: bool = False
 ) -> str;

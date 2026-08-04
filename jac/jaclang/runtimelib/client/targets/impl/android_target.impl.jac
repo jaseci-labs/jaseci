@@ -223,8 +223,8 @@ impl AndroidTarget._synthesize_routes_from_screens(model: any) -> None {
 }
 
 impl AndroidTarget._compile_page_into_model(
-    page_file: Path, program: any, model: any = None
-) -> any {
+    page_file: Path, program: any
+) -> tuple[(any, any)] {
     import from jaclang.compiler.passes.compose.compose_gen_pass {
         run_compose_gen_pass
     }
@@ -239,13 +239,10 @@ impl AndroidTarget._compile_page_into_model(
         )
     );
     if not page_mod {
-        return None;
+        return (None, None);
     }
     page_model = run_compose_gen_pass(page_mod, program);
-    if model is not None {
-        model.merge_from(page_model);
-    }
-    return page_mod;
+    return (page_mod, page_model);
 }
 
 impl AndroidTarget._populate_compose_routes(
@@ -279,12 +276,34 @@ impl AndroidTarget._populate_compose_routes(
     model.intent.routes = [];
     seen_paths: set[str] = set();
     for route in routes {
-        page_mod = self._compile_page_into_model(route.file_path, program, model);
+        (page_mod, page_model) = self._compile_page_into_model(
+            route.file_path, program
+        );
+
+        # The router allows different files to export the same name (e.g. every
+        # page exporting `View`); the path-derived `component_import` is the
+        # unique identity (see test_route_scanner's same-name cases). Re-key the
+        # page's component to it BEFORE merging so repeated export names don't
+        # clobber each other in the aggregate model, and use it as the route's
+        # component binding.
+        key_name = route.component_import or route.source_export;
+        if (
+            page_model is not None
+            and route.source_export
+            and route.component_import
+            and route.component_import != route.source_export
+        ) {
+            page_model.rename_component(route.source_export, route.component_import);
+        }
+        if page_model is not None {
+            model.merge_from(page_model);
+        }
         self._attach_interop_manifest(model, page_mod);
 
-        export_name = route.source_export;
-        if export_name and export_name in model.intent.components {
-            comp = model.intent.components[export_name];
+        # Mark the screen after merge; the component now lives under `key_name`
+        # whether it was re-keyed to component_import or kept its native name.
+        if key_name and key_name in model.intent.components {
+            comp = model.intent.components[key_name];
             comp.is_screen = True;
             comp.route_path = route.path;
         }
@@ -295,7 +314,7 @@ impl AndroidTarget._populate_compose_routes(
         seen_paths.add(route.path);
         sname = screen_name_for(route.path, None);
         model.intent.routes.append(
-            IntentRoute(path=route.path, screen_name=sname, component=export_name)
+            IntentRoute(path=route.path, screen_name=sname, component=key_name)
         );
     }
 
@@ -475,7 +494,7 @@ impl AndroidTarget.dev(
     try {
         httpd = start_jac_dev_server(port, state);
         console.print(
-            f"  Dev server on http://0.0.0.0:{port} (manifest + classes.dex)",
+            f"  Dev server on http://127.0.0.1:{port} (manifest + classes.dex)",
             style="success"
         );
         console.print(
@@ -531,7 +550,7 @@ impl AndroidTarget._locate_android_tools -> tuple {
         );
     }
     sdk_path = Path(sdk);
-    d8: Path = Path("");
+    d8: (Path | None) = None;
     build_tools = sdk_path / "build-tools";
     if build_tools.is_dir() {
         versions = sorted(
@@ -549,7 +568,7 @@ impl AndroidTarget._locate_android_tools -> tuple {
             }
         }
     }
-    android_jar: Path = Path("");
+    android_jar: (Path | None) = None;
     platforms = sdk_path / "platforms";
     if platforms.is_dir() {
         vers = sorted(
@@ -567,10 +586,12 @@ impl AndroidTarget._locate_android_tools -> tuple {
             }
         }
     }
-    if not str(d8) {
+    # NB: `Path("")` normalizes to `.` (truthy), so an empty-string sentinel
+    # would never trip a truthiness check — use an explicit None sentinel.
+    if d8 is None {
         raise RuntimeError(f"d8 not found under {build_tools}");
     }
-    if not str(android_jar) {
+    if android_jar is None {
         raise RuntimeError(f"android.jar not found under {platforms}");
     }
     return (d8, android_jar);

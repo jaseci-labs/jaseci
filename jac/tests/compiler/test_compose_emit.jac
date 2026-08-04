@@ -190,3 +190,123 @@ test "_slot_wrap wraps declared slots and open-vocab widgets, not known values" 
     lit = kt.KtLiteral(value="hi");
     assert _slot_wrap(lit, "Text", "text") is lit;
 }
+
+# #5 — emit_jac_app's dispatcher and emit_screens' screen functions share ONE
+# route->screen resolution, so a `when` arm can never point at a screen that was
+# never emitted (or vice versa).
+test "emit_jac_app when-arms reference only screens emit_screens defines" {
+    model = ComposeModule();
+    model.intent.package_name = "dev.jac.t";
+    model.intent.routes = [
+        IntentRoute(path="/", screen_name="HomeScreen", component="app"),
+        IntentRoute(path="/profile", screen_name="ProfileScreen", component="profile")
+    ];
+    for n in ["app", "profile"] {
+        model.intent.components[n] = IntentComponent(name=n, is_screen=True);
+    }
+    em = ComposeEmit(model=model, out_dir=Path("/tmp"));
+    app = em.emit_jac_app();
+    screens = em.emit_screens();
+    for sname in ["HomeScreen", "ProfileScreen"] {
+        assert f"fun {sname}(" in screens , f"{sname} must be defined";
+        assert f"{sname}(" in app , f"{sname} must be dispatched";
+    }
+    assert model.intent.diagnostics == [] , "clean model must have no diagnostics";
+}
+
+# #6 — lossy normalization: `/foo-bar` and `/foo_bar` both lower to FooBarScreen.
+# In production, screen_name is computed from the path (screen_name_for), so two
+# distinct pages whose paths normalize identically collide. Rather than
+# silently dropping one screen (old `seen`-set behaviour) and emitting a `when`
+# arm into nothing, the resolver records a diagnostic so write() refuses to
+# ship broken/duplicate Kotlin.
+test "route plan flags screen-name collisions instead of silent dupes" {
+    model = ComposeModule();
+    model.intent.package_name = "dev.jac.t";
+    # Both paths normalize to FooBarScreen (locked by the identifier test above);
+    # production would assign each route that same computed screen_name.
+    model.intent.routes = [
+        IntentRoute(path="/foo-bar", screen_name="FooBarScreen"),
+        IntentRoute(path="/foo_bar", screen_name="FooBarScreen")
+    ];
+    ComposeEmit(model=model, out_dir=Path("/tmp")).emit_screens();
+    joined = "\n".join(model.intent.diagnostics);
+    assert "FooBarScreen" in joined;
+    assert "both lower to screen" in joined;
+}
+
+# #7 — navigation operation/mode are typed Kotlin enums, not string literals
+# compared at runtime (no `operation == "replace"` / `mode == "webview"`).
+test "navigation uses typed enums, not stringly-typed operation/mode" {
+    model = ComposeModule();
+    model.intent.package_name = "dev.jac.t";
+    model.intent.routes = [
+        IntentRoute(path="/", screen_name="HomeScreen", component="app")
+    ];
+    model.intent.components["app"] = IntentComponent(name="app", is_screen=True);
+    code = ComposeEmit(model=model, out_dir=Path("/tmp")).emit_screens();
+    assert "enum class JacNavOperation" in code;
+    assert "enum class JacExternalMode" in code;
+    assert "fun navigate(operation: JacNavOperation," in code;
+    assert "fun openExternal(mode: JacExternalMode," in code;
+    assert 'operation == "replace"' not in code;
+    assert 'mode == "webview"' not in code;
+}
+
+# #8 — Jac arithmetic semantics runtime. `/`, `//`, `%` lower to JacMath so
+# the emitted Kotlin can't adopt Kotlin's truncating integer semantics. The
+# helpers preserve the Jac result type via Kotlin overload resolution
+# (Int operands -> Int, a float operand -> Double) and floor/mod toward the
+# correct (Jac/Python) direction.
+test "JacMath runtime encodes Jac division/floor/mod semantics" {
+    import from jaclang.compiler.passes.compose.compose_emit { _emit_jac_math }
+    kt = _emit_jac_math("dev.jac.t");
+    assert "package dev.jac.t" in kt;
+    assert "object JacMath" in kt;
+    # true division always yields Double
+    assert "fun truediv(a: Number, b: Number): Double" in kt;
+    # floor division: Int overload floors toward -inf (Math.floorDiv), Double
+    # overload via kotlin.math.floor
+    assert "fun floorDiv(a: Int, b: Int): Int = Math.floorDiv(a, b)" in kt;
+    assert "kotlin.math.floor(a / b)" in kt;
+    # modulo: Int overload takes divisor's sign (Math.floorMod)
+    assert "fun mod(a: Int, b: Int): Int = Math.floorMod(a, b)" in kt;
+    assert "fun mod(a: Double, b: Double): Double = ((a % b) + b) % b" in kt;
+}
+
+# #9 — pages that export the same name must not clobber each other on merge.
+# The router lets distinct files share an export name (e.g. every page exports
+# `View`); the path-derived component_import is the unique identity, so each
+# page's component is re-keyed to it before merging into the aggregate model.
+test "repeated export names merge to distinct components by component_import" {
+    import from jaclang.compiler.passes.ecmascript.intent.model {
+        IntentComponent
+    }
+    import from jaclang.compiler.passes.compose.view_ir { ComposeElement }
+
+    def _page(export_name: str) -> ComposeModule {
+        pm = ComposeModule();
+        pm.intent.components[export_name] = IntentComponent(name=export_name);
+        pm.compose_views[export_name] = ComposeElement(name=export_name);
+        return pm;
+    }
+
+    # two pages both exporting `View` — the bug: merge keys by source export
+    page_index = _page("View");
+    page_about = _page("View");
+    page_index.rename_component("View", "PagesIndex");
+    page_about.rename_component("View", "PagesAbout");
+
+    model = ComposeModule();
+    model.merge_from(page_index);
+    model.merge_from(page_about);
+
+    assert "PagesIndex" in model.intent.components;
+    assert "PagesAbout" in model.intent.components;
+    assert "View" not in model.intent.components;
+    assert model.compose_view_for("PagesIndex") is not None;
+    assert model.compose_view_for("PagesAbout") is not None;
+    assert model.compose_view_for("PagesIndex") is not model.compose_view_for(
+        "PagesAbout"
+    );
+}

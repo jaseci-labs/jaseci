@@ -56,6 +56,6 @@ obj AndroidTarget(ClientTarget) {
 
     def:priv _synthesize_routes_from_screens(model: any) -> None;
     def:priv _compile_page_into_model(
-        page_file: Path, program: any, model: any = None
-    ) -> any;
+        page_file: Path, program: any
+    ) -> tuple[(any, any)];
 }

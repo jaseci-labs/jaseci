@@ -37,4 +37,17 @@ obj ComposeViewBuilder {
     def _lift_if(
         child: uni.JsxExpression, ternary: uni.IfElseExpr
     ) -> (ComposeIfChild | None);
+
+    # Lower a component body's view from a direct `return <Jsx>` or an if/else
+    # of JSX returns (the latter emits inline, no wrapper). JSX the lowering
+    # cannot cover is reported via `diagnostics` so no broken/empty screen is
+    # produced silently. `name = <Jsx>; return name` is not expressible today
+    # (the parser splits it), so such a body surfaces a diagnostic.
+    def lower_component_view(stmts: list[uni.UniNode]) -> (ComposeElement | None);
+    def _lower_stmts(stmts: list[uni.UniNode]) -> (list | None);
+    def _lower_jsx_value(expr: uni.UniNode) -> (ComposeElementChild | None);
+    def _lower_if_stmt(stmt: uni.IfStmt) -> (ComposeIfChild | None);
+    def _guard_coverage(
+        stmts: list[uni.UniNode], before: set[int], lowered: (list | None)
+    ) -> None;
 }

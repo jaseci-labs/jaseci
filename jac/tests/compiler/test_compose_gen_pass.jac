@@ -582,7 +582,13 @@ def test_eq -> int {
     }
 }
 
-test "jac_to_kotlin maps floor div" {
+test "jac_to_kotlin lowers Jac division semantics to JacMath helpers" {
+    # Jac `/` always yields a float, `//` floors toward -inf, and `%` takes the
+    # divisor's sign — none of which a bare Kotlin operator gives (Int / Int
+    # truncates, integer division truncates toward zero, % takes the dividend's
+    # sign). The lowering must route all three through `JacMath` so the emitted
+    # Kotlin can't silently adopt Kotlin's truncating semantics. Covers int,
+    # negative, and floating-point operands.
     import from jaclang.compiler.passes.compose.jac_to_kotlin { jac_expr_to_kt }
     import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
     import from jaclang.compiler.passes.ecmascript.intent.detection {
@@ -590,34 +596,50 @@ test "jac_to_kotlin maps floor div" {
     }
     import jaclang.jac0core.unitree as uni;
 
-    src = '''
-def test_div -> int {
-    return 7 // 2;
-}
-''';
-    with tempfile.TemporaryDirectory() as tmp {
-        path = Path(tmp) / "div.jac";
-        path.write_text(src, encoding="utf-8");
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
-        mod = Jac.program.compile(str(path));
-        found = False;
-        for ability in mod.get_all_sub_nodes(uni.Ability) {
-            if ability.name_ref and ability.name_ref.sym_name == "test_div" {
-                stmts = unwrap_ability_body(ability);
-                if stmts {
-                    for stmt in stmts {
-                        if isinstance(stmt, uni.ReturnStmt) and stmt.expr {
-                            found = True;
-                            kt_node = jac_expr_to_kt(stmt.expr);
-                            src_kt = kt_to_source(kt_node).replace(" ", "");
-                            assert "7/2" in src_kt or "7//2" in src_kt;
+    def _lowered(expr_src: str) -> str {
+        src = f"""
+def probe -> int {{
+    return {expr_src};
+}}
+""";
+        with tempfile.TemporaryDirectory() as tmp {
+            path = Path(tmp) / "probe.jac";
+            path.write_text(src, encoding="utf-8");
+            import from jaclang.jac0core.runtime { JacRuntime as Jac }
+            mod = Jac.program.compile(str(path));
+            for ability in mod.get_all_sub_nodes(uni.Ability) {
+                if ability.name_ref and ability.name_ref.sym_name == "probe" {
+                    stmts = unwrap_ability_body(ability);
+                    if stmts {
+                        for stmt in stmts {
+                            if isinstance(stmt, uni.ReturnStmt) and stmt.expr {
+                                return kt_to_source(jac_expr_to_kt(stmt.expr));
+                            }
                         }
                     }
                 }
             }
         }
-        assert found;
+        return "";
     }
+
+    # true division — must NOT lower to a bare `/` (Kotlin would truncate ints)
+    assert "JacMath.truediv(" in _lowered("7 / 2");
+    assert "JacMath.truediv(" in _lowered("7.0 / 2.0");
+
+    # floor division — floors toward -inf, distinct from truncation
+    assert "JacMath.floorDiv(" in _lowered("7 // 2");
+    assert "JacMath.floorDiv(" in _lowered("-7 // 2");
+    assert "JacMath.floorDiv(" in _lowered("7.0 // 2.0");
+
+    # modulo — divisor's sign (Python/Jac), not Kotlin's dividend's sign
+    assert "JacMath.mod(" in _lowered("7 % 2");
+    assert "JacMath.mod(" in _lowered("-7 % 2");
+    assert "JacMath.mod(" in _lowered("7.0 % 2.0");
+
+    # the operands themselves stay intact inside the call args
+    neg = _lowered("-7 // 2").replace(" ", "");
+    assert "JacMath.floorDiv(-7,2)" in neg;
 }
 
 test "typed Compose surface: opt-in type_check catches modifier/style typos" {
@@ -667,12 +689,13 @@ def:pub app -> Composable {
     assert _err_count(typo) >= 2;
 }
 
-# JSX-only-on-return limitation (see ComposeGenPass.exit_ability): a component's
-# view is captured only when the JSX is the direct expression of a top-level
-# ReturnStmt. The next two cases pin the current behavior so the gap is
-# explicit; flip the assertions when return-position lowering is generalized.
+# Return-position lowering (see ComposeGenPass.exit_ability +
+# ComposeViewBuilder.lower_component_view): a component's view is lowered from
+# a direct `return <Jsx>`, a variable-bound JSX return, or an if/else of JSX
+# returns. Any JSX the lowering cannot cover is reported as a diagnostic so a
+# broken or empty screen is never produced silently.
 
-test "JSX nested in an if/else return is not yet captured (known limitation)" {
+test "JSX nested in an if/else return lowers to a Kotlin if/else" {
     src = '''
 def:pub app(flag: bool) -> Composable {
     if (flag) {
@@ -691,14 +714,24 @@ def:pub app(flag: bool) -> Composable {
         program = Jac.program;
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
+        model.intent.package_name = "dev.jac.test";
         assert "app" in model.intent.components;
-        # Both returns live inside the IfStmt, not at the top level of the body,
-        # so no view is captured today.
-        assert model.compose_view_for("app") is None;
+        # Both returns live inside the IfStmt; the lowering must still capture
+        # the view and emit a Kotlin `if/else` over both branches.
+        assert model.compose_view_for("app") is not None;
+        assert len(model.intent.diagnostics) == 0;
+        screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
+        assert "if (flag)" in screens;
+        assert "Text(text = \"a\")" in screens;
+        assert "Text(text = \"b\")" in screens;
     }
 }
 
-test "JSX returned via a variable is not yet captured (known limitation)" {
+test "JSX returned via a variable surfaces a diagnostic (not a silent screen)" {
+    # `node = <Jsx>` is not expressible as an assignment in Jac today: the JSX
+    # RHS makes the parser split it into bare expression statements, so the
+    # body holds an uncovered `<Jsx>` and a non-JSX `return node`. The lowering
+    # must report that instead of silently rendering nothing.
     src = '''
 def:pub app -> Composable {
     node = <Column>
@@ -715,8 +748,27 @@ def:pub app -> Composable {
         mod = program.compile(str(path));
         model = run_compose_gen_pass(mod, program);
         assert "app" in model.intent.components;
-        # The return expression is a Name, not a JsxElement, so the view is not
-        # captured today.
-        assert model.compose_view_for("app") is None;
+        assert len(model.intent.diagnostics) > 0;
+    }
+}
+
+test "multiple top-level JSX returns surface a diagnostic instead of last-wins" {
+    src = '''
+def:pub app -> Composable {
+    return <Text>"first"</Text>;
+    return <Text>"second"</Text>;
+}
+''';
+    with tempfile.TemporaryDirectory() as tmp {
+        path = Path(tmp) / "app.jac";
+        path.write_text(src, encoding="utf-8");
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        program = Jac.program;
+        mod = program.compile(str(path));
+        model = run_compose_gen_pass(mod, program);
+        assert "app" in model.intent.components;
+        # Only the first return is reachable; the second is uncovered JSX, so
+        # the lowering reports it rather than silently dropping it.
+        assert len(model.intent.diagnostics) > 0;
     }
 }

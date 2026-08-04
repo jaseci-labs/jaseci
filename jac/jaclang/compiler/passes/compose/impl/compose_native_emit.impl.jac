@@ -351,14 +351,22 @@ impl ComposeNativeEmitter.emit_view(view: (ComposeElement | None)) -> str {
     if view is None {
         return f"{self.indent}Column(modifier = Modifier.fillMaxSize()) {{\n{self.indent}}}";
     }
-    kt_node = self._emit_element(view);
-    src = kt_to_source(kt_node);
+    # A nameless fragment root holds the view's top-level body items — e.g. a
+    # conditional or loop return — and emits them inline with no wrapper
+    # container; any other root is a single Composable element.
+    if view.name == "" {
+        nodes = self._emit_children(view.children or []);
+    } else {
+        nodes = [self._emit_element(view)];
+    }
     indented: list[str] = [];
-    for line in src.split("\n") {
-        if line.strip() {
-            indented.append(f"{self.indent}{line}");
-        } else {
-            indented.append("");
+    for node in nodes {
+        for line in kt_to_source(node).split("\n") {
+            if line.strip() {
+                indented.append(f"{self.indent}{line}");
+            } else {
+                indented.append("");
+            }
         }
     }
     return "\n".join(indented);

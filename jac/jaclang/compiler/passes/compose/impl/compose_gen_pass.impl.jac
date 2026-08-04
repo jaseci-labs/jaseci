@@ -144,29 +144,19 @@ impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
         self._session().record_and_lower_effect(nd);
     }
 
-    # KNOWN LIMITATION (JSX-only-on-return): a component's view is captured
-    # only when the JSX is the direct expression of a top-level ReturnStmt in
-    # the ability body. exit_jsx_element is a no-op below, so JSX that is (a)
-    # nested inside an if/when/match branch, (b) bound to a variable then
-    # returned, or (c) used as a non-return expression is not lowered into the
-    # Compose view IR today. Multiple top-level returns overwrite, so only the
-    # last one wins. Generalizing this needs recursive statement traversal;
-    # see test_compose_gen_pass "JSX ... not yet captured" cases which pin the
-    # current behavior.
+    # Lower the component's view from its body. A direct `return <Jsx>`, a
+    # variable-bound JSX return, and an if/else of JSX returns are all lowered
+    # (the latter to a Kotlin `if/else`); any JSX the lowering cannot cover is
+    # reported as a diagnostic via the view builder so a broken or empty screen
+    # is never produced silently.
     inner = unwrap_ability_body(nd);
     if inner {
         self._sync_lowerer_reactive_vars();
-        for stmt in inner {
-            if isinstance(stmt, uni.ReturnStmt) and stmt.expr {
-                if isinstance(stmt.expr, uni.JsxElement) {
-                    view = self.view_builder.build_element(stmt.expr);
-                    if view is not None {
-                        comp_name = self.model.intent.current;
-                        if comp_name is not None {
-                            self.model.compose_views[comp_name] = view;
-                        }
-                    }
-                }
+        comp_name = self.model.intent.current;
+        if comp_name is not None {
+            view = self.view_builder.lower_component_view(inner);
+            if view is not None {
+                self.model.compose_views[comp_name] = view;
             }
         }
     }

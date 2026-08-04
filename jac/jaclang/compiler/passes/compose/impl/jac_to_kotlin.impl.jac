@@ -3,7 +3,19 @@ import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 import from jaclang.compiler.passes.ecmascript.intent.detection { assignment_kt_op }
 
-glob _KT_KEYWORDS: set[str] = {
+# Jac division semantics differ from Kotlin's and cannot be lowered to a bare
+# Kotlin operator: `/` always yields a float (Kotlin `Int / Int` truncates),
+# `//` floors toward -infinity (Kotlin integer division truncates toward
+# zero), and `%` takes the divisor's sign (Kotlin `%` takes the dividend's).
+# These lower to `JacMath` helpers (see compose_emit's JacMath.kt) so the
+# operands stay call-delimited and Kotlin overload resolution preserves the
+# Jac result type (Int operands -> Int, a float operand -> Double).
+glob _JAC_ARITH_RT: dict[str, str] = {
+         Tok.DIV.name: 'truediv',
+         Tok.FLOOR_DIV.name: 'floorDiv',
+         Tok.MOD.name: 'mod'
+     },
+     _KT_KEYWORDS: set[str] = {
          'as',
          'break',
          'class',
@@ -41,9 +53,6 @@ glob _KT_KEYWORDS: set[str] = {
          Tok.PLUS.name: '+',
          Tok.MINUS.name: '-',
          Tok.STAR_MUL.name: '*',
-         Tok.DIV.name: '/',
-         Tok.FLOOR_DIV.name: '/',
-         Tok.MOD.name: '%',
          Tok.BW_AND.name: 'and',
          Tok.BW_OR.name: 'or',
          Tok.BW_XOR.name: 'xor',
@@ -75,6 +84,25 @@ def _op_name(nd: (uni.Token | None)) -> (str | None) {
 
 def _unsupported(message: str) -> kt.KtRaw {
     return kt.KtRaw(code=f"/* {message} */");
+}
+
+def _jac_math_call(
+    method: str, left: (kt.KtNode | None), right: (kt.KtNode | None)
+) -> kt.KtNode {
+    args: list[kt.KtNode] = [];
+    if left is not None {
+        args.append(left);
+    }
+    if right is not None {
+        args.append(right);
+    }
+    return kt.KtCall(
+        callee=kt.KtMemberAccess(
+            object=kt.KtIdentifier(name="JacMath"),
+            property=kt.KtIdentifier(name=method)
+        ),
+        args=args
+    );
 }
 
 def _typography_style(prop_name: str) -> kt.KtMemberAccess {
@@ -131,6 +159,11 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         }
         name_map = {'None': 'null', 'True': 'true', 'False': 'false', 'self': 'this'};
         return kt.KtIdentifier(name=_kt_id(name_map.get(nd.sym_name, nd.sym_name)));
+    }
+    if isinstance(nd, uni.AtomUnit) {
+        # A bare atom wrapper (e.g. the name in `if (flag)`); lower its inner
+        # token/node via the matching case below.
+        return self.convert_expr(nd.value);
     }
     if isinstance(nd, uni.MultiString) {
         parts: list[str | kt.KtNode] = [];
@@ -320,6 +353,9 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
                 operator=_JAC_LOGICAL_OPS[op_key], left=left, right=right
             );
         }
+        if op_key and op_key in _JAC_ARITH_RT {
+            return _jac_math_call(_JAC_ARITH_RT[op_key], left, right);
+        }
         op = _JAC_BINARY_OPS.get(op_key, '+') if op_key else '+';
         infix_fun = op in _BINARY_INFIX_FUN;
         return kt.KtBinary(operator=op, left=left, right=right, infix_fun=infix_fun);
@@ -410,16 +446,10 @@ impl JacToKotlin.convert_stmt(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
             return _unsupported("multi-target assignment");
         }
         name = nd.target[0].sym_name;
-        if name in self.reactive_vars {
-            op = assignment_kt_op(nd);
-            return kt.KtAssignment(
-                operator=op,
-                left=kt.KtIdentifier(name=_kt_id(name)),
-                right=self.convert_expr(nd.value)
-            );
-        }
-
-        if nd.aug_op and nd.aug_op.name {
+        # Reactive variables and augmented assignments share one path: the
+        # operator helper maps `=` to '=' and `+=`/`-=`/… to their Kotlin
+        # compound forms (see ASSIGNMENT_KT_OPS in detection.jac).
+        if (name in self.reactive_vars) or (nd.aug_op and nd.aug_op.name) {
             return kt.KtAssignment(
                 operator=assignment_kt_op(nd),
                 left=kt.KtIdentifier(name=_kt_id(name)),

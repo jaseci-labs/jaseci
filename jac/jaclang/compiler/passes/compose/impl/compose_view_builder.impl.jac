@@ -329,3 +329,191 @@ impl ComposeViewBuilder._lift_if(
         jac_node=child
     );
 }
+
+# --- root-level (return-position) lowering ---------------------------------
+
+def _is_real_jsx(nd: uni.JsxElement) -> bool {
+    # The parser stashes the <Tag>/</Tag> markers as JsxElements inside the real
+    # element's .kid; a real element is either top-level or present in its
+    # JsxElement parent's .children (same guard as the JSX prop validator).
+    parent = nd.parent;
+    if isinstance(parent, uni.JsxElement) {
+        siblings = parent.children or [];
+        if not any([sib is nd for sib in siblings]) {
+            return False;
+        }
+    }
+    return True;
+}
+
+def _collect_real_jsx(nd: uni.UniNode, out: list) -> None {
+    if isinstance(nd, uni.JsxElement) and _is_real_jsx(nd) {
+        out.append(nd);
+    }
+    for child in (nd.kid or []) {
+        # Lambda/closure bodies are their own composable scopes (slot or click
+        # handlers), not the component's top-level view — don't count their JSX
+        # toward the component-body coverage check.
+        if isinstance(child, uni.LambdaExpr) {
+            continue;
+        }
+        _collect_real_jsx(child, out);
+    }
+}
+
+def _contains_real_jsx(nd: uni.UniNode) -> bool {
+    found: list = [];
+    _collect_real_jsx(nd, found);
+    return len(found) > 0;
+}
+
+def _ends_in_return(stmts: list) -> bool {
+    if not stmts {
+        return False;
+    }
+    last = stmts[-1];
+    if isinstance(last, uni.ReturnStmt) {
+        return True;
+    }
+    if isinstance(last, uni.IfStmt) {
+        alt = last.else_body;
+        return _ends_in_return(list(last.body or []))
+            and isinstance(alt, uni.ElseStmt)
+            and _ends_in_return(list(alt.body or []));
+    }
+    return False;
+}
+
+def _if_returns_on_all_paths(stmt: uni.IfStmt) -> bool {
+    alt = stmt.else_body;
+    return _ends_in_return(list(stmt.body or []))
+        and isinstance(alt, uni.ElseStmt)
+        and _ends_in_return(list(alt.body or []));
+}
+
+impl ComposeViewBuilder.lower_component_view(
+    stmts: list[uni.UniNode]
+) -> (ComposeElement | None) {
+    # Only count JsxElements built for *this* component toward coverage.
+    before = set(self._view_by_node.keys());
+    items = self._lower_stmts(stmts);
+    self._guard_coverage(stmts, before, items);
+    if items is None or len(items) == 0 {
+        return None;
+    }
+    # A single direct element return lowers to that element verbatim (the common
+    # case); a conditional or multi-item root becomes a nameless fragment whose
+    # body items ComposeNativeEmitter.emit_view emits inline (no wrapper).
+    first = items[0];
+    if len(items) == 1 and isinstance(first, ComposeElementChild) {
+        return first.element;
+    }
+    return ComposeElement(name="", attrs=[], children=items, jac_node=None);
+}
+
+impl ComposeViewBuilder._lower_stmts(stmts: list[uni.UniNode]) -> (list | None) {
+    items: list = [];
+    for stmt in stmts {
+        if isinstance(stmt, uni.ReturnStmt) {
+            if stmt.expr is None {
+                break;
+            }
+            child = self._lower_jsx_value(stmt.expr);
+            if child is None {
+                return None;
+            }
+            items.append(child);
+            break;
+        }
+        if isinstance(stmt, uni.IfStmt) {
+            # An if with no JSX anywhere is not a view construct (e.g. a local
+            # mutation); skip it and let the state/effect machinery handle it.
+            if not _contains_real_jsx(stmt) {
+                continue;
+            }
+            ifchild = self._lower_if_stmt(stmt);
+            if ifchild is None {
+                return None;
+            }
+            items.append(ifchild);
+            if _if_returns_on_all_paths(stmt) {
+                break;
+            }
+            continue;
+        }
+        # Assignments, declarations, effect/state setup, and plain expressions
+        # are not part of the view tree.
+    }
+    return items;
+}
+
+impl ComposeViewBuilder._lower_jsx_value(
+    expr: uni.UniNode
+) -> (ComposeElementChild | None) {
+    if not isinstance(expr, uni.JsxElement) {
+        return None;
+    }
+    built = self.build_element(expr);
+    if built is None {
+        return None;
+    }
+    return ComposeElementChild(element=built, jac_node=expr);
+}
+
+impl ComposeViewBuilder._lower_if_stmt(
+    stmt: uni.IfStmt
+) -> (ComposeIfChild | None) {
+    test = self.lowerer.convert_expr(stmt.condition);
+    if test is None {
+        return None;
+    }
+    cons = self._lower_stmts(list(stmt.body or []));
+    if cons is None {
+        return None;
+    }
+    alternate: (list | None) = None;
+    alt = stmt.else_body;
+    if isinstance(alt, uni.ElseStmt) {
+        alt_items = self._lower_stmts(list(alt.body or []));
+        if alt_items is None {
+            return None;
+        }
+        alternate = alt_items;
+    }
+    return ComposeIfChild(
+        `test=test,
+        consequent=cons,
+        alternate=alternate,
+        jac_node=stmt
+    );
+}
+
+impl ComposeViewBuilder._guard_coverage(
+    stmts: list[uni.UniNode], before: set[int], lowered: (list | None)
+) -> None {
+    all_jsx: list = [];
+    for stmt in stmts {
+        _collect_real_jsx(stmt, all_jsx);
+    }
+    if len(all_jsx) == 0 {
+        return;
+    }
+    if lowered is None {
+        self.diagnostics.append(
+            "Compose view: the component body contains JSX but it could not be "
+            "lowered into the screen (e.g. a non-JSX return, or JSX inside a "
+            "loop/match). Restructure to a direct or if/else JSX return, or use "
+            "<Raw kotlin=\"...\"> for verbatim Kotlin."
+        );
+        return;
+    }
+    built = set(self._view_by_node.keys()) - before;
+    uncovered = [j for j in all_jsx if id(j) not in built];
+    if len(uncovered) > 0 {
+        self.diagnostics.append(
+            "Compose view: some JSX was not lowered (found JSX in a branch not "
+            "all paths return, after an early return, or in a loop/match). "
+            "Restructure so all JSX is reachable from a single return path."
+        );
+    }
+}
