@@ -1843,6 +1843,26 @@ def _make_sealed_image(
 glob _PIN_REEXEC_ENV: str = "JAC_TOOLCHAIN_REEXEC";
 
 
+def _resolved_pin_clause(spec: str) -> str {
+    # A range hides which release it lands on, so name it. An exact pin already
+    # reads as the version, and resolving one does not prove it was published,
+    # so claiming it "resolves to" that version would overstate what we know.
+    import from jaclang.scale.injector.binary { _exact_of, resolve_pin_target }
+    if _exact_of(spec) {
+        return "";
+    }
+    try {
+        target = resolve_pin_target(spec);
+    } except Exception {
+        return "";
+    }
+    if not target {
+        return " No published release satisfies it.";
+    }
+    return f" The pin resolves to jac {target}.";
+}
+
+
 def _toolchain_pin_gate(
     config: any, target: str, output: str, fat: bool
 ) -> (int | None) {
@@ -1873,7 +1893,7 @@ def _toolchain_pin_gate(
     }
     if os.environ.get("JAC_NO_TOOLCHAIN_FETCH") {
         console.error(
-            pinned,
+            pinned + _resolved_pin_clause(spec),
             hint=(
                 "Build with a jac that satisfies the pin, or update [project] "
                 "jac-version in jac.toml (JAC_NO_TOOLCHAIN_FETCH disables the "
@@ -1895,7 +1915,8 @@ def _bundle_under_pinned_toolchain(
 
     console.print(
         f"  Project pins jac-version \"{spec}\"; this jac is {running}. "
-        "Fetching the pinned toolchain...",
+        "Fetching the pinned toolchain (JAC_NO_TOOLCHAIN_FETCH=1 to refuse "
+        "instead)...",
         style="muted"
     );
     try {

@@ -156,6 +156,15 @@ def version_satisfies(version: str, spec: str) -> bool {
 }
 
 
+def resolve_pin_target(spec: str) -> str {
+    # The concrete release a jac-version spec resolves to, or "" when none
+    # satisfies it. Public so callers can name the target version (in an error,
+    # a staged toolchain alias, a pod's runtime choice) without re-deriving
+    # what a spec means.
+    return _resolve_target_version(GH_REPO, spec);
+}
+
+
 def host_release_suffix -> str {
     import platform;
     sysname = platform.system();
@@ -182,7 +191,7 @@ def _toolchain_cache_dir -> Path {
 
 
 def download_host_toolchain(spec: str) -> tuple[str, Path] {
-    version = _resolve_target_version(GH_REPO, spec);
+    version = resolve_pin_target(spec);
     if not version {
         raise RuntimeError(
             f"jac-version {spec!r} matches no published {GH_REPO} release. Fix "
@@ -436,7 +445,7 @@ def download_release_binary(channel: str, arch: str, version: str = "") -> bytes
         return _fetch_verified_asset(
             binary_url,
             checksum_url,
-            _binary_cache_path(channel, arch),
+            _binary_cache_path(channel, arch, version),
             f"{channel} jac binary"
         );
     } except HTTPError as e {
@@ -584,8 +593,11 @@ def _scale_cache_root -> Path {
 }
 
 
-def _binary_cache_path(channel: str, arch: str) -> Path {
-    return _scale_cache_root() / f"jac-{channel}-linux-{arch}";
+def _binary_cache_path(channel: str, arch: str, version: str = "") -> Path {
+    # Version-keyed when the deploy resolved a pin, so several pinned
+    # toolchains coexist and a re-resolved version cannot serve stale bytes
+    # from a channel-keyed file. Unpinned deploys stay channel-keyed.
+    return _scale_cache_root() / f"jac-{version or channel}-linux-{arch}";
 }
 
 
