@@ -6,67 +6,66 @@ import from jaclang.scale.identity.user_manager { JacScaleUserManager }
 import from jaclang.scale.config.config_loader { JacScaleConfig }
 
 
-obj _AbsentUserStorage {
-    has root_id: str | None = None,
-        calls: list = [];
-
-    def user_exists_by_id(user_id: str) -> bool {
-        return False;
-    }
-
-    def get_username(user_id: str) -> str | None {
-        return None;
-    }
-
-    def get_user_role(user_id: str) -> str | None {
-        return None;
-    }
-
-    def find_user_by_identity(value: str) -> dict | None {
-        return None;
-    }
-
-    def ensure_user_by_id(user_id: str) -> str | None {
-        self.calls.append(user_id);
-        return self.root_id;
-    }
+# The production topology, in miniature: a "gateway" manager and a "service"
+# manager over separate real stores, sharing the fleet JWT config. Users and
+# sessions live only in the gateway's store until JIT provisioning runs.
+def _gateway_with_user -> tuple {
+    gateway = JacScaleUserManager(base_path=tempfile.mkdtemp());
+    result = gateway.create_user_with_identities(
+        identities=[{"type": "username", "value": "fleet-user"}],
+        credential={"type": "password", "password": "pw-12345"}
+    );
+    assert result.get("user_id") , result;
+    return (gateway, result["user_id"]);
 }
 
 
-def _manager(jit: bool, storage: _AbsentUserStorage) -> JacScaleUserManager {
-    um = JacScaleUserManager(base_path=tempfile.mkdtemp(), jit_provision=jit);
-    um._identity_storage = storage;
-    return um;
+test "a valid gateway token for a locally unknown user is rejected without JIT" {
+    (gateway, user_id) = _gateway_with_user();
+    service = JacScaleUserManager(base_path=tempfile.mkdtemp(), jit_provision=False);
+    token = gateway.create_jwt_token(user_id);
+    detail = service.validate_jwt_token_detail(token);
+    assert detail["status"] == "unknown_user" , detail;
+    assert service.user_exists(user_id) is False;
 }
 
 
-test "a valid token for a locally unknown user is rejected without JIT" {
-    storage = _AbsentUserStorage(root_id="root-1");
-    um = _manager(False, storage);
-    token = um.create_jwt_token("user-from-gateway");
-    detail = um.validate_jwt_token_detail(token);
-    assert detail["status"] == "unknown_user";
-    assert storage.calls == [];
-}
-
-
-test "JIT provisions the user and accepts the token" {
-    storage = _AbsentUserStorage(root_id="root-1");
-    um = _manager(True, storage);
-    token = um.create_jwt_token("user-from-gateway");
-    detail = um.validate_jwt_token_detail(token);
+test "JIT provisions the user once and accepts the token" {
+    (gateway, user_id) = _gateway_with_user();
+    service = JacScaleUserManager(base_path=tempfile.mkdtemp(), jit_provision=True);
+    token = gateway.create_jwt_token(user_id);
+    detail = service.validate_jwt_token_detail(token);
     assert detail["status"] == "ok" , detail;
-    assert detail["user_id"] == "user-from-gateway";
-    assert storage.calls == ["user-from-gateway"];
+    assert detail["user_id"] == user_id;
+    assert service.user_exists(user_id) is True;
+    root_id = service.get_root_id(user_id);
+    assert root_id;
+    # Idempotent: a second request reuses the provisioned record and root.
+    detail2 = service.validate_jwt_token_detail(token);
+    assert detail2["status"] == "ok" , detail2;
+    assert service.get_root_id(user_id) == root_id;
 }
 
 
 test "JIT that cannot provision still rejects" {
-    storage = _AbsentUserStorage();
-    um = _manager(True, storage);
-    token = um.create_jwt_token("user-from-gateway");
-    detail = um.validate_jwt_token_detail(token);
-    assert detail["status"] == "unknown_user";
+    (gateway, user_id) = _gateway_with_user();
+    service = JacScaleUserManager(base_path=tempfile.mkdtemp(), jit_provision=True);
+    service._identity_storage._store_user(
+        {
+            "user_id": user_id,
+            "status": "deleted",
+            "identities": [],
+            "credentials": [],
+            "root_id": "root-ghost",
+            "role": "user",
+            "profile": {},
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00"
+        }
+    );
+    token = gateway.create_jwt_token(user_id);
+    detail = service.validate_jwt_token_detail(token);
+    assert detail["status"] == "unknown_user" , detail;
 }
 
 
