@@ -83,8 +83,8 @@ delegates to `JacRuntimeInterface`.
 
 The `__all__` in `builtin.jac` also exports adjacent names that fall outside
 the blog post's nine but follow the same registration pattern: `llm`,
-`archetype_alias`, the access-level singletons (`NoPerm`, `ReadPerm`,
-`ConnectPerm`, `WritePerm`), and the decorators `restspec` and `schedule`.
+`archetype_alias`, the ambient `AccessLevel` enum, and the decorators
+`restspec` and `schedule`.
 
 ---
 
@@ -104,7 +104,7 @@ The consolidated `__all__` covers:
 
 - **Archetypes**: `Node`, `Edge`, `Walker`, `Obj`, `Root`, `GenericEdge`, `JsxElement`
 - **Graph operations**: `spawn`, `visit`, `disengage`, `connect`, `disconnect`, `refs`, `arefs`, `filter_on`, `build_edge`, `destroy`
-- **Walker support types**: `OPath`, `DSFunc`, `EdgeDir`
+- **Walker support types**: `GraphQuery`, `QHop`, `QPred`, `DSFunc`, `EdgeDir`
 - **Context & root**: `root`, `create_j_context`, `get_context`
 - **Lifecycle**: `on_entry`, `on_exit`
 - **AI/MTIR**: `get_mtir`, `sem`, `call_llm`, `by_operator`

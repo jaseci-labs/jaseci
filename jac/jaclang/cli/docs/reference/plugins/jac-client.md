@@ -1539,6 +1539,49 @@ og_description = "App description"
 og_image = "/assets/og-image.png"
 ```
 
+#### Head Scripts
+
+Add `<script>` tags to the generated `<head>` with the `scripts` key, for
+analytics snippets, third-party SDKs, and anything that must be available before
+the app bundle boots:
+
+```toml
+[[client.app_meta_data.scripts]]
+src = "https://js.stripe.com/v3"
+defer = true
+
+[[client.app_meta_data.scripts]]
+src = "https://cdn.example.com/lib.js"
+onerror = "loadLocalFallback()"
+
+[[client.app_meta_data.scripts]]
+content = """
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+"""
+```
+
+Each entry takes either `src` or an inline `content` body, and `src` wins if
+both are given. The inline array `scripts = [{ src = "...", defer = true }]` and
+a bare string `scripts = ["https://..."]` are equivalent shorthands.
+
+Every other key becomes an attribute, so `type`, `crossorigin`, `integrity`,
+`nonce`, `data-*`, event handlers, and any attribute the platform adds later all
+work without special-casing:
+
+| Rule | Example |
+|------|---------|
+| Underscores fold to hyphens. | `data_site_id = "abc"` renders `data-site-id="abc"` |
+| `true` renders a bare flag, `false` omits the attribute. | `defer = true` renders `defer` |
+| Any other value renders escaped, including `0` and `""`. | `tabindex = 0` renders `tabindex="0"` |
+
+Keys that do not fold to a well-formed lowercase attribute name are dropped, so
+a stray space or quote cannot forge extra attributes, and a literal `</script>`
+in an inline body is escaped so it cannot close the tag early.
+
+Scripts are emitted after the title, meta, and link tags, in `jac build` output,
+`jac start`, and `jac start --dev` alike.
+
 ### API Base URL
 
 Set the backend API base URL used by client-side requests:
@@ -2004,8 +2047,15 @@ Authors choose per project -- or ship both targets from one repo while keeping s
 | `TextInput` | `input`, `textarea` | `TextInput` | RNW `TextInput` |
 | `Image` | `img` | `Image` | RNW `Image` |
 | `ScrollView` | `ul`, `ol`, scroll areas | `ScrollView` | RNW `ScrollView` |
+| `FlatList` / `SectionList` | long/grouped lists (virtualized) | `FlatList` / `SectionList` | RNW `FlatList` / `SectionList` |
+| `RefreshControl` | (pull-to-refresh) | `RefreshControl` | RNW `RefreshControl` |
+| `Modal` | `dialog` | `Modal` | RNW `Modal` |
+| `Switch` | `input type="checkbox"` | `Switch` | RNW `Switch` |
 | `Animated` / `Easing` | (CSS transitions) | `Animated` / `Easing` | RNW `Animated` / `Easing` |
-| `useWindowDimensions` | (media queries) | `useWindowDimensions` | RNW `useWindowDimensions` |
+| `useWindowDimensions` / `Dimensions` | (media queries) | `useWindowDimensions` / `Dimensions` | RNW equivalents |
+| `StatusBar` | (`theme-color` meta) | `StatusBar` | RNW `StatusBar` |
+| `Alert` | `window.alert` | `Alert` | RNW `Alert` |
+| `Linking` | `window.open` | `Linking` | RNW `Linking` |
 | `StyleSheet` | CSS / `className` | `StyleSheet.create` | RNW `StyleSheet` |
 
 Styling is React Native's model only: `style={{...}}` objects over a flexbox subset, plus an optional design-token/theme object. HTML tags are rejected at compile time (E1105); CSS imports are warned about and stripped from native builds (`.css` files never reach Metro).
@@ -2056,7 +2106,7 @@ See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics 
 Platform differences are handled in priority order:
 
 1. **The vocabulary absorbs divergence** (primary). Components own their platform differences internally -- `ScrollView`, `Image`, and future additions present one API and branch inside `@jac/mobui`. Authors see a single component.
-2. **`.native.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `examples/mobui/littlex`'s `icon.jac` / `icon.native.jac` split. The compiler picks the `.native.jac` variant when `--client react-native` is selected and falls back to `.jac` when not found. (A `Platform.os` / `Platform.select` one-liner API is planned but not yet part of `@jac/mobui`.)
+2. **`.native.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `examples/mobui/littlex`'s `icon.jac` / `icon.native.jac` split. The compiler picks the `.native.jac` variant when `--client react-native` is selected and falls back to `.jac` when not found. Reach for a file pair only when the two platforms need *different imports*; for branching on values, `Platform` is already part of the vocabulary, so `Platform.OS` and `Platform.select({ios: ..., android: ..., default: ...})` work inline.
 
 #### What carries over from web
 

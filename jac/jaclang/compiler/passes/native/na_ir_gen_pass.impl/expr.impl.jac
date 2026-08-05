@@ -81,7 +81,10 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
     } elif isinstance(nd, uni.AwaitExpr) {
         _result = self._codegen_expr(nd.target);
     } elif isinstance(nd, uni.ConcurrentExpr) {
-        _result = self._codegen_expr(nd.target);
+        _result = self._try_flow_future(nd);
+        if _result is None {
+            _result = self._codegen_expr(nd.target);
+        }
     } elif isinstance(nd, uni.EdgeRefTrailer) {
         _result = self._codegen_edge_ref_trailer(nd);
     } elif (
@@ -319,7 +322,8 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     entry_bb = anon_fn.append_basic_block("entry");
     self._builder = ir.IRBuilder(entry_bb);
     self.local_vars = {};
-    self.nogc_stack_vars = set();
+    self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
@@ -530,7 +534,10 @@ impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
 
     if result is not None {
         i8p = ir.IntType(8).as_pointer();
-        if op == Tok.PLUS and left.type == i8p and right.type == i8p {
+        _sdt = self._str_desc_ty;
+        _l_strish = left.type == i8p or (_sdt is not None and left.type == _sdt);
+        _r_strish = right.type == i8p or (_sdt is not None and right.type == _sdt);
+        if op == Tok.PLUS and _l_strish and _r_strish {
             if self._is_owned(left) {
                 self._emit_rc_release_typed(
                     left, op="binop_lhs", loc=getattr(left, 'jac_loc', '')
@@ -743,6 +750,8 @@ impl NaIRGenPass._codegen_compare_link(
 
     if op == Tok.KW_IN or op == Tok.KW_NIN {
         is_not_in = op == Tok.KW_NIN;
+        left = self._str_norm(left);
+        right = self._str_norm(right);
 
         for (dict_key, helpers) in self.dict_helpers.items() {
             dict_type = self.dict_types.get(dict_key);
@@ -840,17 +849,12 @@ impl NaIRGenPass._codegen_compare_link(
                     and isinstance(left_coerced.type, ir.PointerType)
                 ) {
                     _lin_i8p = ir.IntType(8).as_pointer();
-                    _lin_strcmp = self._get_or_declare_extern(
-                        "strcmp", ir.IntType(32), [_lin_i8p, _lin_i8p]
-                    );
-                    _lin_cmp = self.builder.call(
-                        _lin_strcmp,
-                        [
-                            self.builder.bitcast(
-                                left_coerced, _lin_i8p, name="list.in.l.i8"
-                            ),
-                            self.builder.bitcast(elem, _lin_i8p, name="list.in.e.i8")
-                        ],
+                    _lin_cmp = self._call_str_cmp(
+                        self.builder,
+                        self.builder.bitcast(
+                            left_coerced, _lin_i8p, name="list.in.l.i8"
+                        ),
+                        self.builder.bitcast(elem, _lin_i8p, name="list.in.e.i8"),
                         name="list.in.strcmp"
                     );
                     eq = self.builder.icmp_signed(
@@ -919,12 +923,8 @@ impl NaIRGenPass._codegen_compare_link(
                             "==", left_c, elem, name=f"tuple.in.{i}.eq"
                         );
                     } else {
-                        i8p = ir.IntType(8).as_pointer();
-                        strcmp_fn = self._get_or_declare_extern(
-                            "strcmp", ir.IntType(32), [i8p, i8p]
-                        );
-                        cmp = self.builder.call(
-                            strcmp_fn, [left_c, elem], name=f"tuple.in.{i}.cmp"
+                        cmp = self._call_str_cmp(
+                            self.builder, left_c, elem, name=f"tuple.in.{i}.cmp"
                         );
                         eq = self.builder.icmp_signed(
                             "==",
@@ -1177,6 +1177,9 @@ impl NaIRGenPass._codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None) {
     if is_borrow_kind(nd.ownership) {
         return operand;
     }
+    if nd.ownership == OwnershipKind.IMM {
+        return operand;
+    }
     if nd.ownership == OwnershipKind.OWN {
         if isinstance(operand.type, ir.PointerType)
             and operand.type == ir.IntType(8).as_pointer() {
@@ -1263,7 +1266,7 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
     op_name = nd.op.name if isinstance(nd.op, uni.Token) else str(nd.op);
     is_and = op_name == Tok.KW_AND;
 
-    result = self._codegen_expr(nd.values[0]);
+    result = self._str_norm(self._codegen_expr(nd.values[0]));
     if result is None {
         return None;
     }
@@ -1281,11 +1284,9 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
         }
 
         self.builder.position_at_end(rhs_bb);
-        rhs_val = self._codegen_expr(nd.values[i]);
+        rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
         if rhs_val is None {
-            rhs_val = ir.Constant(result.type, None)
-                if isinstance(result.type, ir.PointerType)
-                else ir.Constant(result.type, 0);
+            return None;
         }
         target_t = self._bool_expr_unify_type(result.type, rhs_val.type);
         if target_t is None {
@@ -1342,6 +1343,22 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     }
 
     if then_val is not None and else_val is not None {
+        if then_val.type != else_val.type
+            and self._str_desc_ty is not None
+            and (
+                then_val.type == self._str_desc_ty or else_val.type == self._str_desc_ty
+            ) {
+            if then_val.type != self._str_desc_ty {
+                self.builder.position_before(then_end_bb.terminator);
+                then_val = self._coerce_type(then_val, self._str_desc_ty);
+                then_end_bb = self.builder.block;
+            }
+            if else_val.type != self._str_desc_ty {
+                self.builder.position_before(else_end_bb.terminator);
+                else_val = self._coerce_type(else_val, self._str_desc_ty);
+                else_end_bb = self.builder.block;
+            }
+        }
         if then_val.type != else_val.type {
             if isinstance(then_val.type, ir.DoubleType)
                 or isinstance(else_val.type, ir.DoubleType) {
@@ -1551,6 +1568,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             _slice_list_spec = self._list_spec_of(nd.target);
             if _slice_list_spec is not None {
                 target_val = self._codegen_expr(nd.target);
+                target_val = self._str_norm(target_val);
                 if target_val is not None {
                     _shape = self._infer_list_elem_type(target_val);
                     elem_type_name = _shape if _shape is not None else _slice_list_spec;
@@ -1561,6 +1579,15 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
             } else {
                 target_val = self._codegen_expr(nd.target);
+                if target_val is not None
+                    and self._str_desc_ty is not None
+                    and target_val.type == self._str_desc_ty {
+                    result = self._codegen_string_slice(target_val, s, nd.target);
+                    if result is not None {
+                        return result;
+                    }
+                }
+                target_val = self._str_norm(target_val);
                 if target_val is not None {
                     i8p = ir.IntType(8).as_pointer();
                     if self._is_bytes_value(target_val) {
@@ -1569,7 +1596,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             return result;
                         }
                     } elif target_val.type == i8p {
-                        result = self._codegen_string_slice(target_val, s);
+                        result = self._codegen_string_slice(target_val, s, nd.target);
                         if result is not None {
                             return result;
                         }
@@ -1597,6 +1624,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             else None;
         if _idx_list_spec is not None {
             target_val = self._codegen_expr(nd.target);
+            target_val = self._str_norm(target_val);
             if target_val is not None {
                 _shape = self._infer_list_elem_type(target_val);
                 elem_type_name = _shape if _shape is not None else _idx_list_spec;
@@ -1629,6 +1657,27 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             }
         } else {
             target_val = self._codegen_expr(nd.target);
+            if target_val is not None
+                and self._str_desc_ty is not None
+                and target_val.type == self._str_desc_ty {
+                _dslices = nd.right.slices or [];
+                if _dslices {
+                    _didx_node = _dslices[0];
+                    _didx_val = self._codegen_expr(_didx_node);
+                    if _didx_val is None and _didx_node?.start {
+                        _didx_val = self._codegen_expr(_didx_node.start);
+                    }
+                    if _didx_val is not None {
+                        _ddata = self.builder.extract_value(
+                            target_val,
+                            0 if self._nogc_headerless() else 1,
+                            name="chr.data"
+                        );
+                        return self._codegen_string_index(_ddata, _didx_val);
+                    }
+                }
+            }
+            target_val = self._str_norm(target_val);
             if target_val is not None {
                 if self?.jacval_type and target_val.type == self.jacval_type {
                     _any_slices = nd.right.slices or [];
@@ -1775,6 +1824,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             if len(parts) == 2 {
                 (key_type_name, val_type_name) = (parts[0], parts[1]);
                 target_val = self._codegen_expr(nd.target);
+                target_val = self._str_norm(target_val);
                 if target_val is not None {
                     slices = nd.right.slices or [];
                     if slices {

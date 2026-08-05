@@ -116,7 +116,6 @@ test "fsck (SQLite): a half-linked edge + its stranded child are collected" {
     orig = JacRuntime.get_base_path_dir();
     try {
         cfg = JacConfig();
-        cfg.run.topology_index = True;
         set_config(cfg);
         JacRuntime.set_base_path(tmp);
         ctx0: any = ExecutionContext();

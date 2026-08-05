@@ -699,7 +699,7 @@ impl NaIRGenPass._native_module_call_target(nd: uni.FuncCall) -> (str | None) {
         and mod_name not in self.local_vars
         and mod_name not in self.struct_types
     ) {
-        return method_name;
+        return (mod_name, method_name);
     }
     return None;
 }
@@ -721,12 +721,13 @@ impl NaIRGenPass._codegen_rc_intrinsic(func_name: str) -> bool {
 impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     _call_kind = nd.call_kind;
 
+    _mod_qual: (str | None) = None;
     if _call_kind == "method" {
         _mod_fn = self._native_module_call_target(nd);
         if _mod_fn is None {
             return self._codegen_method_call(nd);
         }
-        func_name = _mod_fn;
+        (_mod_qual, func_name) = _mod_fn;
     } else {
         func_name = self._get_name(nd.target);
         if func_name is None {
@@ -736,6 +737,37 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
     if self._codegen_rc_intrinsic(func_name) {
         return None;
+    }
+
+    if func_name == "__float_bits" {
+        params_l = nd.params or [];
+        if params_l {
+            arg_val = self._codegen_expr(params_l[0]);
+            if arg_val is not None {
+                if not isinstance(arg_val.type, ir.DoubleType) {
+                    arg_val = self._coerce_type(arg_val, ir.DoubleType());
+                }
+                return self.builder.bitcast(arg_val, ir.IntType(64), name="float_bits");
+            }
+        }
+        return ir.Constant(ir.IntType(64), 0);
+    }
+    if func_name == "__bits_float" {
+        params_l = nd.params or [];
+        if params_l {
+            arg_val = self._codegen_expr(params_l[0]);
+            if arg_val is not None {
+                if not isinstance(arg_val.type, ir.IntType) {
+                    arg_val = self._coerce_type(arg_val, ir.IntType(64));
+                } elif arg_val.type.width != 64 {
+                    arg_val = self._coerce_type(arg_val, ir.IntType(64));
+                }
+                return self.builder.bitcast(
+                    arg_val, ir.DoubleType(), name="bits_float"
+                );
+            }
+        }
+        return ir.Constant(ir.DoubleType(), 0.0);
     }
 
     if _call_kind == "builtin" {
@@ -766,39 +798,6 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
 
-        if func_name == "__float_bits" {
-            params_l = nd.params or [];
-            if params_l {
-                arg_val = self._codegen_expr(params_l[0]);
-                if arg_val is not None {
-                    if not isinstance(arg_val.type, ir.DoubleType) {
-                        arg_val = self._coerce_type(arg_val, ir.DoubleType());
-                    }
-                    return self.builder.bitcast(
-                        arg_val, ir.IntType(64), name="float_bits"
-                    );
-                }
-            }
-            return ir.Constant(ir.IntType(64), 0);
-        }
-        if func_name == "__bits_float" {
-            params_l = nd.params or [];
-            if params_l {
-                arg_val = self._codegen_expr(params_l[0]);
-                if arg_val is not None {
-                    if not isinstance(arg_val.type, ir.IntType) {
-                        arg_val = self._coerce_type(arg_val, ir.IntType(64));
-                    } elif arg_val.type.width != 64 {
-                        arg_val = self._coerce_type(arg_val, ir.IntType(64));
-                    }
-                    return self.builder.bitcast(
-                        arg_val, ir.DoubleType(), name="bits_float"
-                    );
-                }
-            }
-            return ir.Constant(ir.DoubleType(), 0.0);
-        }
-
         if func_name == "isinstance" {
             return self._emit_isinstance(nd);
         }
@@ -811,7 +810,18 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 if arg_val is not None {
                     _len_result: (ir.Value | None) = None;
 
-                    if self?.jacval_type and arg_val.type == self.jacval_type {
+                    if self._str_desc_ty is not None
+                        and arg_val.type == self._str_desc_ty {
+                        _len_result = self.builder.extract_value(
+                            arg_val,
+                            len(list(self._str_desc_ty.elements)) - 1,
+                            name="s.len.o1"
+                        );
+                    }
+
+                    if _len_result is None
+                        and self?.jacval_type
+                        and arg_val.type == self.jacval_type {
                         _len_result = self._codegen_any_len(arg_val);
                     }
 
@@ -1185,24 +1195,21 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             self.builder.cbranch(is_eof, eof_bb, ok_bb);
 
             self.builder.position_at_start(eof_bb);
-            eof_str = self.builder.call(
-                self.rc_alloc_fn, [ir.Constant(ir.IntType(64), 1)], name="eof.str"
+            eof_str = self._str_alloc(
+                self.builder, ir.Constant(ir.IntType(64), 1), name="eof.str"
             );
-            self.builder.store(ir.Constant(ir.IntType(8), 0), eof_str);
+            self._str_finish(self.builder, eof_str, ir.Constant(ir.IntType(64), 0));
             self.builder.branch(merge_bb);
             eof_bb_end = self.builder.block;
 
             self.builder.position_at_start(ok_bb);
 
-            strlen_fn = self._get_or_declare_extern("strlen", ir.IntType(64), [i8p]);
-            slen = self.builder.call(strlen_fn, [buf_ptr], name="input.len");
+            slen = self._call_str_len_raw(self.builder, buf_ptr, name="input.len");
 
             alloc_size = self.builder.add(
                 slen, ir.Constant(ir.IntType(64), 1), name="alloc.size"
             );
-            result_ptr = self.builder.call(
-                self.rc_alloc_fn, [alloc_size], name="input.result"
-            );
+            result_ptr = self._str_alloc(self.builder, alloc_size, name="input.result");
             memcpy = self._get_or_declare_extern(
                 "memcpy", i8p, [i8p, i8p, ir.IntType(64)]
             );
@@ -1256,6 +1263,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             self.builder.store(store_cr_val, cr_ptr);
             self.builder.branch(nostrip_bb);
             self.builder.position_at_start(nostrip_bb);
+            final_len = self._call_str_len(
+                self.builder, result_ptr, name="input.final.len"
+            );
+            self._str_finish(self.builder, result_ptr, final_len);
             self.builder.branch(merge_bb);
             ok_bb_end = self.builder.block;
 
@@ -1283,6 +1294,12 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return self._codegen_decorated_call(nd, func_name);
     }
     func = self.func_symtab.get(func_name);
+    if func is not None and _mod_qual is not None {
+        _dm = self._func_def_mod.get(func_name);
+        if _dm is not None and _dm != _mod_qual {
+            func = None;
+        }
+    }
     if func is None {
         manifest = self.ir_in.gen.interop_manifest;
         binding = manifest.bindings.get(func_name);
@@ -1424,6 +1441,21 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     _is_foreign = func_name in self.clib_extern_names;
     coerced: list[ir.Value] = [];
 
+    _clib_str_args: set = set();
+    _clib_str_ret = False;
+    if _is_foreign {
+        import from jaclang.compiler.targets.foreign { declared_type_name }
+        _clib_sig = self._callee_sig_of(nd);
+        if _clib_sig is not None {
+            for (_ci, _cp) in enumerate(_clib_sig.get_parameters()) {
+                if _cp.type_tag is not None
+                    and declared_type_name(_cp.type_tag.tag) == "str" {
+                    _clib_str_args.add(_ci);
+                }
+            }
+            _clib_str_ret = declared_type_name(_clib_sig.return_type) == "str";
+        }
+    }
     release_args: list[ir.Value] = [];
     _i8ptr = ir.IntType(8).as_pointer();
     for (i, arg) in enumerate(args) {
@@ -1436,6 +1468,15 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             coerced.append(
                 self._bytes_data_ptr(arg) if func.args[i].type == _i8ptr else arg
             );
+            release_args.append(arg);
+        } elif (
+            _is_foreign
+            and i in _clib_str_args
+            and i < len(func.args)
+            and func.args[i].type == _i8ptr
+            and isinstance(arg.type, ir.PointerType)
+        ) {
+            coerced.append(self._membrane_str_out(self.builder, arg));
             release_args.append(arg);
         } elif i < len(func.args) {
             _c = self._coerce_type(arg, func.args[i].type);
@@ -1511,6 +1552,9 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     result = self.builder.call(func, coerced, name=f"call.{func_name}");
     if func_name in self.clib_extern_names {
         result = self._clib_sext_ret(func_name, result);
+        if _clib_str_ret and isinstance(result.type, ir.PointerType) {
+            result = self._membrane_str_in(self.builder, result);
+        }
     }
 
     self._release_owned_args(release_args, op="call_arg");
@@ -1804,4 +1848,266 @@ impl NaIRGenPass._emit_isinstance_user(
     result.add_incoming(ir.Constant(i1, 0), pre_bb);
     result.add_incoming(cmp, end_nonnull);
     return result;
+}
+
+impl NaIRGenPass._flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None) {
+    import from jaclang.jac0core.constant { Tokens as Tok }
+    asgn = nd.parent;
+    if not (
+        isinstance(asgn, uni.Assignment)
+        and asgn.value is nd
+        and asgn.aug_op is None
+        and len(asgn.target) == 1
+        and isinstance(asgn.target[0], uni.Name)
+    ) {
+        return None;
+    }
+    h = asgn.target[0];
+    if h.sym is None {
+        return None;
+    }
+    _fn = asgn.find_parent_of_type(uni.Ability);
+    _scope = _fn if _fn is not None else asgn.find_parent_of_type(uni.ModuleCode);
+    if _scope is None {
+        return None;
+    }
+    _spawn_loop = (
+        asgn.find_parent_of_type(uni.InForStmt)
+        or asgn.find_parent_of_type(uni.WhileStmt)
+        or asgn.find_parent_of_type(uni.IterForStmt)
+    );
+    _waits = 0;
+    for use in _scope.get_all_sub_nodes(uni.Name) {
+        if use.sym is not h.sym or use is h {
+            continue;
+        }
+        _p = use.parent;
+        _use_loop = (
+            use.find_parent_of_type(uni.InForStmt)
+            or use.find_parent_of_type(uni.WhileStmt)
+            or use.find_parent_of_type(uni.IterForStmt)
+        );
+        if isinstance(_p, uni.ConcurrentExpr)
+            and _p.target is use
+            and _p.tok is not None
+            and _p.tok.name == Tok.KW_WAIT
+            and _use_loop is _spawn_loop {
+            _waits += 1;
+            continue;
+        }
+        return None;
+    }
+    if _waits != 1 {
+        return None;
+    }
+    return h;
+}
+
+impl NaIRGenPass._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) {
+    import from jaclang.jac0core.constant { Tokens as Tok }
+    if nd.tok is None {
+        return None;
+    }
+    _par_ok = (self.ir_in.gen.nogc_enforced and self._gc_mode() == "none")
+        or (self._gc_mode() == "rc" and not self._rc_debug_codegen);
+    if not _par_ok
+        or "wasm" in str(self.llvm_module.triple)
+        or self._gen_ctx is not None {
+        return None;
+    }
+    i64 = ir.IntType(64);
+    i32 = ir.IntType(32);
+    i8p = ir.IntType(8).as_pointer();
+    if nd.tok.name == Tok.KW_WAIT {
+        if not isinstance(nd.target, uni.Name) or nd.target.sym is None {
+            return None;
+        }
+        _meta = self.flow_future_meta.get(id(nd.target.sym));
+        if _meta is None {
+            return None;
+        }
+        (fut_ty, res_ty) = _meta;
+        _slot = self.local_vars.get(nd.target.sym_name);
+        if _slot is None {
+            _slot = self.global_vars.get(nd.target.sym_name);
+        }
+        if _slot is None {
+            return None;
+        }
+        _hv = self.builder.load(_slot, name="fut.h");
+        if isinstance(_hv.type, ir.DoubleType) {
+            _hv = self.builder.bitcast(_hv, i64, name="fut.h.i");
+        }
+        if isinstance(_hv.type, ir.PointerType) {
+            _fut = self.builder.bitcast(_hv, fut_ty.as_pointer(), name="fut.p");
+        } else {
+            _fut = self.builder.inttoptr(_hv, fut_ty.as_pointer(), name="fut.p");
+        }
+        _tid = self.builder.load(
+            self.builder.gep(
+                _fut, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="fut.tid.s"
+            ),
+            name="fut.tid"
+        );
+        _join_bb = self.builder.function.append_basic_block("fut.join");
+        _done_bb = self.builder.function.append_basic_block("fut.done");
+        self.builder.cbranch(
+            self.builder.icmp_signed("!=", _tid, ir.Constant(i64, 0), name="fut.live"),
+            _join_bb,
+            _done_bb
+        );
+        self.builder.position_at_end(_join_bb);
+        _pjoin = self._get_or_declare_extern("pthread_join", i32, [i64, i8p]);
+        self.builder.call(_pjoin, [_tid, ir.Constant(i8p, None)]);
+        self.builder.branch(_done_bb);
+        self.builder.position_at_end(_done_bb);
+        _res = self.builder.load(
+            self.builder.gep(
+                _fut, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="fut.res.s"
+            ),
+            name="fut.res"
+        );
+        _free = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+        self.builder.call(_free, [self.builder.bitcast(_fut, i8p, name="fut.i8")]);
+        if isinstance(res_ty, ir.PointerType) {
+            self._mark_owned(_res);
+        }
+        return _res;
+    }
+    if nd.tok.name != Tok.KW_FLOW {
+        return None;
+    }
+    call = nd.target;
+    if not isinstance(call, uni.FuncCall) or not isinstance(call.target, uni.Name) {
+        return None;
+    }
+    fname = call.target.sym_name;
+    callee = self.func_symtab.get(fname);
+    if callee is None
+        or not isinstance(callee, ir.Function)
+        or fname in self.clib_fn_abi
+        or fname in self.clib_extern_names {
+        return None;
+    }
+    _res_ty = callee.function_type.return_type;
+    _res_ok = (isinstance(_res_ty, ir.IntType) and _res_ty.width == 64)
+        or isinstance(_res_ty, ir.DoubleType)
+        or isinstance(_res_ty, ir.PointerType);
+    if not _res_ok {
+        return None;
+    }
+    h = self._flow_future_licensed(nd);
+    if h is None {
+        return None;
+    }
+    _argv: list = [];
+    for p in (call.params or []) {
+        if isinstance(p, uni.KWPair) {
+            return None;
+        }
+        _v = self._codegen_expr(p);
+        if _v is None {
+            return None;
+        }
+        _argv.append(_v);
+    }
+    if len(_argv) != len(callee.args) {
+        return None;
+    }
+    _cargs: list = [];
+    for (i, a) in enumerate(_argv) {
+        _cargs.append(self._coerce_type(a, callee.args[i].type));
+    }
+    fut_ty = ir.LiteralStructType([i64, _res_ty] + [a.type for a in _cargs]);
+    self._str_count += 1;
+    _fid = self._str_count;
+    _task_fn = ir.Function(
+        self.llvm_module, ir.FunctionType(i8p, [i8p]), name=f"__jac_flow_task_{_fid}"
+    );
+    _task_fn.linkage = "private";
+    _tb = ir.IRBuilder(_task_fn.append_basic_block("entry"));
+    _tf = _tb.bitcast(_task_fn.args[0], fut_ty.as_pointer(), name="t.fut");
+    _t_args: list = [];
+    for i in range(len(_cargs)) {
+        _t_args.append(
+            _tb.load(
+                _tb.gep(
+                    _tf,
+                    [ir.Constant(i32, 0), ir.Constant(i32, 2 + i)],
+                    name=f"t.a{i}.s"
+                ),
+                name=f"t.a{i}"
+            )
+        );
+    }
+    _t_res = _tb.call(callee, _t_args, name="t.call");
+    _tb.store(
+        _t_res, _tb.gep(_tf, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="t.res.s")
+    );
+    if self._gc_mode() != "none" {
+        _saved_b = self._builder;
+        self._builder = _tb;
+        for (i, a) in enumerate(_cargs) {
+            if isinstance(a.type, ir.PointerType) {
+                self._emit_rc_release_simple(_t_args[i], op="flow_arg", loc="");
+            }
+        }
+        self._builder = _saved_b;
+    }
+    _tb.ret(ir.Constant(i8p, None));
+    _malloc = self._get_or_declare_extern("malloc", i8p, [i64]);
+    _sz = self.builder.ptrtoint(
+        self.builder.gep(
+            ir.Constant(fut_ty.as_pointer(), None),
+            [ir.Constant(i32, 1)],
+            name="fut.szp"
+        ),
+        i64,
+        name="fut.sz"
+    );
+    _fut8 = self.builder.call(_malloc, [_sz], name="fut.raw");
+    _fut = self.builder.bitcast(_fut8, fut_ty.as_pointer(), name="fut.new");
+    for (i, a) in enumerate(_cargs) {
+        if isinstance(a.type, ir.PointerType) and self._gc_mode() != "none" {
+            self._emit_rc_retain(a, op="flow_arg", loc="");
+        }
+        self.builder.store(
+            a,
+            self.builder.gep(
+                _fut, [ir.Constant(i32, 0), ir.Constant(i32, 2 + i)], name=f"fut.a{i}.s"
+            )
+        );
+    }
+    _tid_slot = self.builder.gep(
+        _fut, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="fut.tid.w"
+    );
+    self.builder.store(ir.Constant(i64, 0), _tid_slot);
+    _thr_fnty_p = ir.FunctionType(i8p, [i8p]).as_pointer();
+    _pcreate = self._get_or_declare_extern(
+        "pthread_create", i32, [i64.as_pointer(), i8p, _thr_fnty_p, i8p]
+    );
+    _crc = self.builder.call(
+        _pcreate, [_tid_slot, ir.Constant(i8p, None), _task_fn, _fut8], name="fut.crc"
+    );
+    _seq_bb = self.builder.function.append_basic_block("fut.seq");
+    _ok_bb = self.builder.function.append_basic_block("fut.spawned");
+    self.builder.cbranch(
+        self.builder.icmp_signed("!=", _crc, ir.Constant(i32, 0), name="fut.crc.bad"),
+        _seq_bb,
+        _ok_bb
+    );
+    self.builder.position_at_end(_seq_bb);
+    self.builder.store(ir.Constant(i64, 0), _tid_slot);
+    self.builder.call(_task_fn, [_fut8]);
+    self.builder.branch(_ok_bb);
+    self.builder.position_at_end(_ok_bb);
+    self.flow_future_meta[id(h.sym)] = (fut_ty, _res_ty);
+    _hraw = self.builder.ptrtoint(_fut8, i64, name="fut.h.raw");
+    if isinstance(_res_ty, ir.DoubleType) {
+        return self.builder.bitcast(_hraw, ir.DoubleType(), name="fut.h.f");
+    }
+    if isinstance(_res_ty, ir.PointerType) {
+        return self.builder.bitcast(_fut8, _res_ty, name="fut.h.p");
+    }
+    return _hraw;
 }

@@ -1300,6 +1300,16 @@ impl Parser.parse_ref -> Expr {
             kid=[own_op, own_target]
         );
     }
+    if self.match_tok(TokenKind.KW_IMM) {
+        imm_op = self.make_uni_token(self.previous());
+        imm_target = self.parse_await_expr();
+        return UnaryExpr(
+            operand=imm_target,
+            op=imm_op,
+            ownership=OwnershipKind.IMM,
+            kid=[imm_op, imm_target]
+        );
+    }
     if self.match_tok(TokenKind.BW_AND) {
         raw_tok = self.previous();
         op = self.make_uni_token(raw_tok);
@@ -3695,6 +3705,9 @@ impl Parser.parse_statement{
     if self.check(TokenKind.KW_ASYNC) and self.check_peek(TokenKind.KW_FOR) {
         return self.parse_for_stmt();
     }
+    if self.check(TokenKind.KW_FLOW) and self.check_peek(TokenKind.KW_FOR) {
+        return self.parse_for_stmt();
+    }
     if self.check(TokenKind.KW_ASYNC) and self.check_peek(TokenKind.KW_WITH) {
         return self.parse_with_stmt();
     }
@@ -3985,15 +3998,22 @@ impl Parser.parse_forever_stmt -> ForeverStmt {
 impl Parser.parse_for_stmt{
     is_async = False;
     async_uni = None;
+    flow_uni = None;
     if self.match_tok(TokenKind.KW_ASYNC) {
         is_async = True;
         async_uni = self.make_uni_token(self.previous());
+    }
+    if self.match_tok(TokenKind.KW_FLOW) {
+        flow_uni = self.make_uni_token(self.previous());
     }
     for_uni = self.consume_uni(TokenKind.KW_FOR);
 
     target = self.parse_atomic_chain();
 
     if self.check(TokenKind.EQ) {
+        if flow_uni is not None {
+            self.error("`flow for` requires the `for <x> in <collection>` form");
+        }
         eq_tok = self.expect(TokenKind.EQ);
         eq_uni = self.make_uni_token(eq_tok);
         start_val = self.parse_expression();
@@ -4079,6 +4099,9 @@ impl Parser.parse_for_stmt{
     kid: list = [];
     if is_async {
         kid.append(async_uni);
+    }
+    if flow_uni is not None {
+        kid.append(flow_uni);
     }
     kid.extend([for_uni, target, in_uni, iter_expr]);
     kid.append(lb_uni);
@@ -6366,8 +6389,11 @@ impl Parser.parse_global_var_assignment -> Assignment {
     type_tag: SubTag | None = None;
     if self.match_tok(TokenKind.COLON) {
         gv_colon_uni = self.make_uni_token(self.previous());
+        gv_own_kid: list = [gv_colon_uni];
+        gv_own_kind = self.parse_ownership_prefix(gv_own_kid);
         tp = self.parse_pipe();
-        type_tag = SubTag(tag=tp, kid=[gv_colon_uni, tp]);
+        gv_own_kid.append(tp);
+        type_tag = SubTag(tag=tp, ownership=gv_own_kind, kid=gv_own_kid);
     }
     value = None;
     targets: list = [name];

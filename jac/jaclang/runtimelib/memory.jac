@@ -5,8 +5,8 @@ import from collections.abc { Callable, Generator, Iterable }
 import from uuid { UUID }
 
 import from jaclang.jac0core.archetype { Anchor, NodeAnchor, Root }
+import from jaclang.jac0core.graph_query { QHop, QPred }
 import from jaclang.runtimelib.changeset { ApplyReport, ChangeSet, WriteIntent }
-import from jaclang.runtimelib.query_plan { QueryPlan }
 import from jaclang.runtimelib.typecache { get_field_types }
 
 glob logger = logging.getLogger(__name__),
@@ -47,8 +47,28 @@ obj Memory {
     def quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None;
     def is_recoverable_quarantine(id: UUID) -> bool;
     def get_mem -> dict[UUID, Anchor] abst;
-    def capabilities -> set[str];
-    def execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None];
+    def hop_rows(
+        src_ids: list[UUID], hop: QHop, ordered: bool = False
+    ) -> (list[tuple[UUID, UUID]] | None) {
+        return None;
+    }
+
+    def filter_ids(ids: list[UUID], preds: list[QPred]) -> (set[UUID] | None) {
+        return None;
+    }
+
+    def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None) {
+        return None;
+    }
+
+    def existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
+        return None;
+    }
+
+    def node_pages(ids: list[UUID]) -> (dict[UUID, dict] | None) {
+        return None;
+    }
+
     async def aget(id: UUID) -> (Anchor | None);
     async def aput(anchor: Anchor) -> None;
     async def adelete(id: UUID) -> None;
@@ -64,6 +84,48 @@ obj CacheMemory(Memory) {
 
 obj PersistentMemory(Memory) {
     def apply(changeset: ChangeSet) -> ApplyReport abst;
+    def hop_rows(
+        src_ids: list[UUID], hop: QHop, ordered: bool = False
+    ) -> (list[tuple[UUID, UUID]] | None) {
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the graph-index "
+            "contract (hop_rows/filter_ids); every persistent backend must "
+            "own its graph index"
+        );
+    }
+
+    def filter_ids(ids: list[UUID], preds: list[QPred]) -> (set[UUID] | None) {
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the graph-index "
+            "contract (hop_rows/filter_ids); every persistent backend must "
+            "own its graph index"
+        );
+    }
+
+    def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None) {
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the graph-index "
+            "contract (edge_endpoints); every persistent backend must own "
+            "its graph index"
+        );
+    }
+
+    def existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the graph-index "
+            "contract (existing_ids); every persistent backend must own "
+            "its graph index"
+        );
+    }
+
+    def node_pages(ids: list[UUID]) -> (dict[UUID, dict] | None) {
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the graph-index "
+            "contract (node_pages); every persistent backend must own "
+            "its graph index"
+        );
+    }
+
     def inspect_summary -> dict abst;
     def list_quarantined(limit: int = 50) -> list abst;
     def show_quarantined(id_prefix: str) -> (dict | None) abst;
@@ -127,6 +189,14 @@ obj SqliteMemory(PersistentMemory) {
     def get_roots -> Generator[Root, None, None];
     def commit(anchor: (Anchor | None) = None) -> None;
     def apply(changeset: ChangeSet) -> ApplyReport;
+    def hop_rows(
+        src_ids: list[UUID], hop: QHop, ordered: bool = False
+    ) -> (list[tuple[UUID, UUID]] | None);
+
+    def filter_ids(ids: list[UUID], preds: list[QPred]) -> (set[UUID] | None);
+    def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None);
+    def existing_ids(ids: list[UUID]) -> (set[UUID] | None);
+    def node_pages(ids: list[UUID]) -> (dict[UUID, dict] | None);
     def _apply_one(conn: sqlite3.Connection, intent: WriteIntent) -> None;
     def _merge_write(conn: sqlite3.Connection, intent: WriteIntent) -> None;
     def inspect_summary -> dict;
@@ -171,6 +241,12 @@ obj TieredMemory(VolatileMemory) {
     def _collect_into(changes: ChangeSet) -> None;
     def _post_apply(apply_report: ApplyReport) -> None;
     def batch_get(ids: list[UUID]) -> dict[UUID, Anchor];
-    def capabilities -> set[str];
-    def execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None];
+    def hop_rows(
+        src_ids: list[UUID], hop: QHop, ordered: bool = False
+    ) -> (list[tuple[UUID, UUID]] | None);
+
+    def filter_ids(ids: list[UUID], preds: list[QPred]) -> (set[UUID] | None);
+    def edge_endpoints(ids: list[UUID]) -> (dict[UUID, tuple[UUID, UUID]] | None);
+    def existing_ids(ids: list[UUID]) -> (set[UUID] | None);
+    def node_pages(ids: list[UUID]) -> (dict[UUID, dict] | None);
 }
