@@ -81,7 +81,7 @@ test "a module with compile errors is never classified client-only" {
     with open(broken, "w") as f {
         f.write(
             "node Todo {\n    has text: str\n        done: bool = False\n}\n"
-            + "def:pub app -> JsxElement {\n    return <div>x</div>;\n}\n"
+                + "def:pub app -> JsxElement {\n    return <div>x</div>;\n}\n"
         );
     }
     facts = discover_spaces([broken]);
