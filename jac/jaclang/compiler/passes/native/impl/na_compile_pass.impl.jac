@@ -1,3 +1,44 @@
+impl native_compiler_fingerprint(options: any) -> str {
+    import glob as _cgl;
+    import hashlib as _cfh_hash;
+    import os as _cfp_os;
+    import jaclang as _jlm;
+    _jl_dir = _cfp_os.path.dirname(_cfp_os.path.abspath(_jlm.__file__));
+    _nat_dir = _cfp_os.path.join(_jl_dir, "compiler", "passes", "native");
+    _comp_h = _cfh_hash.sha256();
+    for _cp in [
+        _cfp_os.path.join(_nat_dir, "impl", "*.jac"),
+        _cfp_os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
+
+    ] {
+        for _cf in sorted(_cgl.glob(_cp)) {
+            try {
+                with open(_cf, "rb") as _cfh {
+                    _comp_h.update(_cfh.read());
+                }
+            } except Exception { }
+        }
+    }
+    _comp_h.update(options.codegen_identity().encode());
+    return _comp_h.hexdigest()[:8];
+}
+
+impl native_dep_cache_paths(real_path: str, options: any) -> tuple {
+    import hashlib as _dcp_hash;
+    import os as _dcp_os;
+    import from jaclang.jac0core.jir { get_native_cache_dir }
+    _ir_cache_dir = str(get_native_cache_dir(real_path));
+    _src_stem = _dcp_os.path.splitext(_dcp_os.path.basename(real_path))[0];
+    with open(real_path, "rb") as _sf {
+        _source_hash = _dcp_hash.sha256(_sf.read()).hexdigest()[:12];
+    }
+    _fp = native_compiler_fingerprint(options);
+    return (
+        _dcp_os.path.join(_ir_cache_dir, f"{_src_stem}.{_source_hash}.{_fp}.ir_cache"),
+        _dcp_os.path.join(_ir_cache_dir, f"{_src_stem}.{_source_hash}.{_fp}.ir_meta")
+    );
+}
+
 impl DepClibMeta.to_meta -> dict {
     return {
         "clib_paths": self.clib_paths,
@@ -298,31 +339,11 @@ impl NativeCompilePass._compile_and_link_native_imports(
         native_safe_sym
     }
 
-    import glob as _cgl;
-    import jaclang as _jlm;
-    _jl_dir = os.path.dirname(os.path.abspath(_jlm.__file__));
-    _nat_dir = os.path.join(_jl_dir, "compiler", "passes", "native");
-    _comp_h = hashlib.sha256();
-    for _cp in [
-        os.path.join(_nat_dir, "impl", "*.jac"),
-        os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
-
-    ] {
-        for _cf in sorted(_cgl.glob(_cp)) {
-            try {
-                with open(_cf, "rb") as _cfh {
-                    _comp_h.update(_cfh.read());
-                }
-            } except Exception { }
-        }
-    }
     import from jaclang.jac0core.compile_options {
         CompileOptions as _LinkOpts,
         link_fingerprint_mismatches
     }
     _link_opts = self.prog?._compile_options or _LinkOpts();
-    _comp_h.update(_link_opts.codegen_identity().encode());
-    _compiler_fp = _comp_h.hexdigest()[:8];
     _link_fp = _link_opts.codegen_fingerprint();
 
     linked_modules: dict = {};
@@ -419,7 +440,6 @@ impl NativeCompilePass._compile_and_link_native_imports(
         _src_stem = os.path.splitext(os.path.basename(real_path))[0];
         _ir_cache_dir = str(get_native_cache_dir(real_path));
 
-        _source_hash = "";
         _cache_ir_path = "";
         _cache_meta_path = "";
         _cache_hit = False;
@@ -428,14 +448,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
         meta = DepClibMeta();
 
         try {
-            with open(real_path, "rb") as _sf {
-                _source_hash = hashlib.sha256(_sf.read()).hexdigest()[:12];
-            }
-            _cache_ir_path = os.path.join(
-                _ir_cache_dir, f"{_src_stem}.{_source_hash}.{_compiler_fp}.ir_cache"
-            );
-            _cache_meta_path = os.path.join(
-                _ir_cache_dir, f"{_src_stem}.{_source_hash}.{_compiler_fp}.ir_meta"
+            (_cache_ir_path, _cache_meta_path) = native_dep_cache_paths(
+                real_path, _link_opts
             );
 
             if os.path.exists(_cache_ir_path) and os.path.exists(_cache_meta_path) {

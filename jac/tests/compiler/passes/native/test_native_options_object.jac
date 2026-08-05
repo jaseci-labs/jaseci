@@ -171,24 +171,36 @@ test "flipping a codegen option re-keys the native import cache" {
 }
 
 def _mixed_body(tmp: str, dep_stem: str) {
+    import from jaclang.compiler.passes.native.na_compile_pass {
+        native_dep_cache_paths
+    }
     main_path = _write_pair(tmp, dep_stem);
-    prog_a = _compile_main(main_path, False);
-    assert not prog_a.errors_had , (
-        f"seed compile errors: {[str(e) for e in prog_a.errors_had]}"
+    dep_real = os.path.realpath(os.path.join(tmp, f"{dep_stem}.jac"));
+    # Place the tampered artifact at the exact path the compiler's own
+    # dep-cache lookup resolves (same function, same process, same env), so
+    # the mixed-options hit is guaranteed by construction rather than by a
+    # prior compile's side effects.
+    (ir_path, meta_path) = native_dep_cache_paths(dep_real, _aot_opts(False));
+    os.makedirs(os.path.dirname(ir_path), exist_ok=True);
+    with open(ir_path, "w") as f {
+        f.write("; tampered dep ir -- must never be parsed or linked");
+    }
+    with open(meta_path, "w") as f {
+        f.write(json.dumps({"options_fingerprint": "0000deadfp00"}));
+    }
+    assert os.path.exists(ir_path) and os.path.exists(meta_path) , (
+        f"hit precondition not established: {ir_path} / {meta_path}"
     );
-    metas = _dep_cache_files(tmp, dep_stem, "ir_meta");
-    assert len(metas) == 1;
-    with open(metas[0], "r") as f {
-        meta = json.loads(f.read());
-    }
-    meta["options_fingerprint"] = "0000deadfp00";
-    with open(metas[0], "w") as f {
-        f.write(json.dumps(meta));
-    }
     prog_b = _compile_main(main_path, False);
+    (ir_after, meta_after) = native_dep_cache_paths(dep_real, _aot_opts(False));
+    assert (ir_after, meta_after) == (ir_path, meta_path) , (
+        "dep-cache key drifted between seeding and compiling in one process: "
+        f"seeded {meta_path}, compiler resolved {meta_after}"
+    );
     codes = [(e.code.code if e.code else "") for e in prog_b.errors_had];
     assert "E5027" in codes , (
-        f"expected E5027 on mixed-options cache hit, got {codes}"
+        f"expected E5027 on mixed-options cache hit, got {codes} "
+        f"(tampered meta still present: {os.path.exists(meta_path)})"
     );
 }
 

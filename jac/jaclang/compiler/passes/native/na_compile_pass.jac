@@ -27,6 +27,9 @@ obj DepClibMeta {
     def propagate_to(gen: CodeGenTarget) -> None;
 }
 
+def native_compiler_fingerprint(options: any) -> str;
+def native_dep_cache_paths(real_path: str, options: any) -> tuple;
+
 
 obj NativeCompilePass(Transform) {
     def postinit -> None;
