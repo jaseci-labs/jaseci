@@ -7,7 +7,6 @@ impl NativeIntEmitter.emit_to_bytes(
     p = ctx.pass_ref;
     b = get_builder(p);
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     zero64 = ir.Constant(i64, 0);
@@ -21,8 +20,7 @@ impl NativeIntEmitter.emit_to_bytes(
     buf = p._bytes_data_ptr(bv);
 
     big_str = p._make_global_string("big");
-    strcmp_fn = p._get_or_declare_extern("strcmp", i32, [i8p, i8p]);
-    cmp_res = b.call(strcmp_fn, [byteorder, big_str], name="tb.cmp");
+    cmp_res = p._call_str_cmp(b, byteorder, big_str, name="tb.cmp");
     is_big = b.icmp_signed("==", cmp_res, ir.Constant(i32, 0), name="tb.isbig");
 
     func = b.basic_block.function;
@@ -170,8 +168,6 @@ impl NativeIntEmitter.emit_from_bytes(
     }
     p = ctx.pass_ref;
     b = get_builder(p);
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     zero64 = ir.Constant(i64, 0);
@@ -184,14 +180,12 @@ impl NativeIntEmitter.emit_from_bytes(
         length = p._bytes_len_val(bytes_obj);
         bytes_ptr = p._bytes_data_ptr(bytes_obj);
     } else {
-        strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-        length = b.call(strlen_fn, [bytes_obj], name="fb.len");
+        length = p._call_str_len(b, bytes_obj, name="fb.len");
         bytes_ptr = bytes_obj;
     }
 
     big_str = p._make_global_string("big");
-    strcmp_fn = p._get_or_declare_extern("strcmp", i32, [i8p, i8p]);
-    cmp_res = b.call(strcmp_fn, [byteorder, big_str], name="fb.cmp");
+    cmp_res = p._call_str_cmp(b, byteorder, big_str, name="fb.cmp");
     is_big = b.icmp_signed("==", cmp_res, ir.Constant(i32, 0), name="fb.isbig");
 
     func = b.basic_block.function;
@@ -315,11 +309,12 @@ impl NativeFloatEmitter.emit_hex(
     i32 = ir.IntType(32);
     buf_size = ir.Constant(i64, 64);
     p._set_rc_ctx("float_hex", "");
-    buf = b.call(p.rc_alloc_fn, [buf_size], name="fhex.buf");
+    buf = p._str_alloc(b, buf_size, name="fhex.buf");
     p._clear_rc_ctx();
     fmt = p._make_global_string("%a");
     snprintf = p._get_or_declare_extern("snprintf", i32, [i8p, i64, i8p], var_arg=True);
-    b.call(snprintf, [buf, buf_size, fmt, target], name="fhex.len");
+    fhex_n32 = b.call(snprintf, [buf, buf_size, fmt, target], name="fhex.len");
+    p._str_finish(b, buf, b.sext(fhex_n32, i64, name="fhex.len64"));
     return buf;
 }
 
@@ -476,17 +471,14 @@ impl NativeStrEmitter.emit_capitalize(
     p = ctx.pass_ref;
     b = get_builder(p);
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
     toupper_fn = p._get_or_declare_extern("toupper", i32, [i32]);
     tolower_fn = p._get_or_declare_extern("tolower", i32, [i32]);
-    slen = b.call(strlen_fn, [target], name="cap.len");
+    slen = p._call_str_len(b, target, name="cap.len");
     alloc_size = b.add(slen, ir.Constant(i64, 1), name="cap.alloc.sz");
     p._set_rc_ctx("capitalize", "");
-    result = b.call(rc_alloc_fn, [alloc_size], name="cap.buf");
+    result = p._str_alloc(b, alloc_size, name="cap.buf");
     p._clear_rc_ctx();
     is_empty = b.icmp_unsigned("==", slen, ir.Constant(i64, 0), name="cap.empty");
     func = b.basic_block.function;
@@ -522,8 +514,7 @@ impl NativeStrEmitter.emit_capitalize(
     idx.add_incoming(next_idx, body_bb);
     b.branch(loop_bb);
     b.position_at_start(done_bb);
-    null_ptr = b.gep(result, [slen], name="cap.null.ptr");
-    b.store(ir.Constant(i8, 0), null_ptr);
+    p._str_finish(b, result, slen);
     return result;
 }
 
@@ -551,16 +542,12 @@ impl NativeStrEmitter._emit_case_transform(
     p = ctx.pass_ref;
     b = get_builder(p);
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    slen = b.call(strlen_fn, [target], name="case.len");
-    rc_alloc_fn = p.rc_alloc_fn;
-    assert rc_alloc_fn is not None , "RC alloc function should be set";
+    slen = p._call_str_len(b, target, name="case.len");
     alloc_size = b.add(slen, ir.Constant(i64, 1), name="case.alloc.sz");
     p._set_rc_ctx("upper_lower", "");
-    result = b.call(rc_alloc_fn, [alloc_size], name="case.buf");
+    result = p._str_alloc(b, alloc_size, name="case.buf");
     p._clear_rc_ctx();
     transform_fn = p._get_or_declare_extern(cfunc_name, i32, [i32]);
     func = b.basic_block.function;
@@ -586,8 +573,7 @@ impl NativeStrEmitter._emit_case_transform(
     idx.add_incoming(next_idx, body_bb);
     b.branch(loop_bb);
     b.position_at_start(done_bb);
-    null_ptr = b.gep(result, [slen], name="case.null.ptr");
-    b.store(ir.Constant(i8, 0), null_ptr);
+    p._str_finish(b, result, slen);
     return result;
 }
 
@@ -597,19 +583,15 @@ impl NativeStrEmitter.emit_title(
     p = ctx.pass_ref;
     b = get_builder(p);
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
-    assert rc_alloc_fn is not None , "RC alloc function should be set";
     toupper_fn = p._get_or_declare_extern("toupper", i32, [i32]);
     tolower_fn = p._get_or_declare_extern("tolower", i32, [i32]);
     isalpha_fn = p._get_or_declare_extern("isalpha", i32, [i32]);
-    slen = b.call(strlen_fn, [target], name="title.len");
+    slen = p._call_str_len(b, target, name="title.len");
     alloc_size = b.add(slen, ir.Constant(i64, 1), name="title.alloc");
     p._set_rc_ctx("title", "");
-    result = b.call(rc_alloc_fn, [alloc_size], name="title.buf");
+    result = p._str_alloc(b, alloc_size, name="title.buf");
     p._clear_rc_ctx();
     func = b.basic_block.function;
     entry_bb = b.basic_block;
@@ -654,8 +636,7 @@ impl NativeStrEmitter.emit_title(
     at_boundary.add_incoming(new_boundary, body_bb);
     b.branch(loop_bb);
     b.position_at_start(done_bb);
-    null_ptr = b.gep(result, [slen], name="title.null.ptr");
-    b.store(ir.Constant(i8, 0), null_ptr);
+    p._str_finish(b, result, slen);
     return result;
 }
 
@@ -665,19 +646,16 @@ impl NativeStrEmitter.emit_swapcase(
     p = ctx.pass_ref;
     b = get_builder(p);
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
     toupper_fn = p._get_or_declare_extern("toupper", i32, [i32]);
     tolower_fn = p._get_or_declare_extern("tolower", i32, [i32]);
     islower_fn = p._get_or_declare_extern("islower", i32, [i32]);
     isupper_fn = p._get_or_declare_extern("isupper", i32, [i32]);
-    slen = b.call(strlen_fn, [target], name="swap.len");
+    slen = p._call_str_len(b, target, name="swap.len");
     alloc_size = b.add(slen, ir.Constant(i64, 1), name="swap.alloc.sz");
     p._set_rc_ctx("swapcase", "");
-    result = b.call(rc_alloc_fn, [alloc_size], name="swap.buf");
+    result = p._str_alloc(b, alloc_size, name="swap.buf");
     p._clear_rc_ctx();
     func = b.basic_block.function;
     entry_bb = b.basic_block;
@@ -710,8 +688,7 @@ impl NativeStrEmitter.emit_swapcase(
     idx.add_incoming(next_idx, body_bb);
     b.branch(loop_bb);
     b.position_at_start(done_bb);
-    null_ptr = b.gep(result, [slen], name="swap.null.ptr");
-    b.store(ir.Constant(i8, 0), null_ptr);
+    p._str_finish(b, result, slen);
     return result;
 }
 
@@ -726,8 +703,7 @@ impl NativeStrEmitter.emit_count(
     i8p = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     strstr_fn = p._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    sub_len = b.call(strlen_fn, [args[0]], name="cnt.sub.len");
+    sub_len = p._call_str_len(b, args[0], name="cnt.sub.len");
     null_ptr = ir.Constant(i8p, None);
     func = b.basic_block.function;
     empty_bb = func.append_basic_block(name="cnt.empty");
@@ -739,7 +715,7 @@ impl NativeStrEmitter.emit_count(
     is_empty = b.icmp_unsigned("==", sub_len, ir.Constant(i64, 0), name="cnt.isempty");
     b.cbranch(is_empty, empty_bb, scan_bb);
     b.position_at_start(empty_bb);
-    tgt_len = b.call(strlen_fn, [target], name="cnt.tgt.len");
+    tgt_len = p._call_str_len(b, target, name="cnt.tgt.len");
     empty_count = b.add(tgt_len, ir.Constant(i64, 1), name="cnt.empty.n");
     b.branch(done_bb);
     b.position_at_start(scan_bb);
@@ -780,8 +756,7 @@ impl NativeStrEmitter.emit_find(
     strstr_fn = p._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
     search_from = target;
     if len(args) >= 2 {
-        strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-        slen = b.call(strlen_fn, [target], name="find.slen");
+        slen = p._call_str_len(b, target, name="find.slen");
         start = p._coerce_type(args[1], i64);
         neg = b.icmp_signed("<", start, ir.Constant(i64, 0), name="find.st.neg");
         wrapped = b.add(start, slen, name="find.st.wrap");
@@ -812,9 +787,8 @@ impl NativeStrEmitter.emit_rfind(
     i8p = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     strstr_fn = p._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    slen = b.call(strlen_fn, [target], name="rfind.slen");
-    sub_len = b.call(strlen_fn, [args[0]], name="rfind.sub.len");
+    slen = p._call_str_len(b, target, name="rfind.slen");
+    sub_len = p._call_str_len(b, args[0], name="rfind.sub.len");
     null_ptr = ir.Constant(i8p, None);
     target_int = b.ptrtoint(target, i64, name="rfind.tgt.int");
     func = b.basic_block.function;
@@ -906,9 +880,8 @@ impl NativeStrEmitter.emit_startswith(
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     strncmp_fn = p._get_or_declare_extern("strncmp", i32, [i8p, i8p, i64]);
-    prefix_len = b.call(strlen_fn, [args[0]], name="sw.pfx.len");
+    prefix_len = p._call_str_len(b, args[0], name="sw.pfx.len");
     cmp = b.call(strncmp_fn, [target, args[0], prefix_len], name="sw.cmp");
     is_zero = b.icmp_signed("==", cmp, ir.Constant(i32, 0), name="sw.eq");
     return b.zext(is_zero, i64, name="sw.result");
@@ -922,17 +895,14 @@ impl NativeStrEmitter.emit_endswith(
     }
     p = ctx.pass_ref;
     b = get_builder(p);
-    i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    strcmp_fn = p._get_or_declare_extern("strcmp", i32, [i8p, i8p]);
-    target_len = b.call(strlen_fn, [target], name="ew.tgt.len");
-    suffix_len = b.call(strlen_fn, [args[0]], name="ew.sfx.len");
+    target_len = p._call_str_len(b, target, name="ew.tgt.len");
+    suffix_len = p._call_str_len(b, args[0], name="ew.sfx.len");
     too_long = b.icmp_unsigned(">", suffix_len, target_len, name="ew.toolong");
     offset = b.sub(target_len, suffix_len, name="ew.offset");
     end_ptr = b.gep(target, [offset], name="ew.end.ptr");
-    cmp = b.call(strcmp_fn, [end_ptr, args[0]], name="ew.cmp");
+    cmp = p._call_str_cmp(b, end_ptr, args[0], name="ew.cmp");
     is_match = b.icmp_signed("==", cmp, ir.Constant(i32, 0), name="ew.match");
     match_i64 = b.zext(is_match, i64, name="ew.match.i64");
     return b.select(too_long, ir.Constant(i64, 0), match_i64, name="ew.result");
@@ -949,23 +919,21 @@ impl NativeStrEmitter.emit_replace(
     i8 = ir.IntType(8);
     i8p = i8.as_pointer();
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     strstr_fn = p._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     old_str = args[0];
     new_str = args[1];
 
     count_val: ir.Value = ir.Constant(i64, -1) if len(args) < 3 else args[2];
-    target_len = b.call(strlen_fn, [target], name="repl.tgt.len");
-    old_len = b.call(strlen_fn, [old_str], name="repl.old.len");
-    new_len = b.call(strlen_fn, [new_str], name="repl.new.len");
+    target_len = p._call_str_len(b, target, name="repl.tgt.len");
+    old_len = p._call_str_len(b, old_str, name="repl.old.len");
+    new_len = p._call_str_len(b, new_str, name="repl.new.len");
 
     generous_factor = b.add(new_len, ir.Constant(i64, 1), name="repl.factor");
     generous_size = b.mul(target_len, generous_factor, name="repl.generous");
     alloc_size = b.add(generous_size, ir.Constant(i64, 1), name="repl.alloc");
     p._set_rc_ctx("replace", "");
-    result = b.call(rc_alloc_fn, [alloc_size], name="repl.buf");
+    result = p._str_alloc(b, alloc_size, name="repl.buf");
     p._clear_rc_ctx();
     null_ptr = ir.Constant(i8p, None);
     func = b.basic_block.function;
@@ -1009,12 +977,11 @@ impl NativeStrEmitter.emit_replace(
     remaining.add_incoming(next_remaining, found_bb);
     b.branch(loop_bb);
     b.position_at_start(notfound_bb);
-    remain_len = b.call(strlen_fn, [src], name="repl.remain.len");
+    remain_len = p._call_str_len_raw(b, src, name="repl.remain.len");
     dst_ptr3 = b.gep(result, [dst_off], name="repl.dst.ptr3");
     b.call(memcpy_fn, [dst_ptr3, src, remain_len]);
     final_len = b.add(dst_off, remain_len, name="repl.final.len");
-    null_term = b.gep(result, [final_len], name="repl.null.term");
-    b.store(ir.Constant(i8, 0), null_term);
+    p._str_finish(b, result, final_len);
     b.branch(done_bb);
     b.position_at_start(done_bb);
     return result;
@@ -1053,12 +1020,10 @@ impl NativeStrEmitter.emit_removeprefix(
     i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     strncmp_fn = p._get_or_declare_extern("strncmp", i32, [i8p, i8p, i64]);
-    rc_alloc_fn = p.rc_alloc_fn;
     strcpy_fn = p._get_or_declare_extern("strcpy", i8p, [i8p, i8p]);
-    prefix_len = b.call(strlen_fn, [args[0]], name="rmpfx.pfx.len");
-    target_len = b.call(strlen_fn, [target], name="rmpfx.tgt.len");
+    prefix_len = p._call_str_len(b, args[0], name="rmpfx.pfx.len");
+    target_len = p._call_str_len(b, target, name="rmpfx.tgt.len");
     too_long = b.icmp_unsigned(">", prefix_len, target_len, name="rmpfx.toolong");
     func = b.basic_block.function;
     check_bb = func.append_basic_block(name="rmpfx.check");
@@ -1075,18 +1040,20 @@ impl NativeStrEmitter.emit_removeprefix(
     rest_len = b.sub(target_len, prefix_len, name="rmpfx.rest.len");
     alloc_m = b.add(rest_len, ir.Constant(i64, 1), name="rmpfx.alloc.m");
     p._set_rc_ctx("removeprefix", "");
-    result_m = b.call(rc_alloc_fn, [alloc_m], name="rmpfx.buf.m");
+    result_m = p._str_alloc(b, alloc_m, name="rmpfx.buf.m");
     p._clear_rc_ctx();
     rest_ptr = b.gep(target, [prefix_len], name="rmpfx.rest.ptr");
     b.call(strcpy_fn, [result_m, rest_ptr]);
+    p._str_finish(b, result_m, rest_len);
     b.branch(done_bb);
 
     b.position_at_start(nomatch_bb);
     alloc_n = b.add(target_len, ir.Constant(i64, 1), name="rmpfx.alloc.n");
     p._set_rc_ctx("removeprefix", "");
-    result_n = b.call(rc_alloc_fn, [alloc_n], name="rmpfx.buf.n");
+    result_n = p._str_alloc(b, alloc_n, name="rmpfx.buf.n");
     p._clear_rc_ctx();
     b.call(strcpy_fn, [result_n, target]);
+    p._str_finish(b, result_n, target_len);
     b.branch(done_bb);
     b.position_at_start(done_bb);
     result_phi = b.phi(i8p, name="rmpfx.result");
@@ -1107,12 +1074,9 @@ impl NativeStrEmitter.emit_removesuffix(
     i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    strcmp_fn = p._get_or_declare_extern("strcmp", i32, [i8p, i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
-    suffix_len = b.call(strlen_fn, [args[0]], name="rmsfx.sfx.len");
-    target_len = b.call(strlen_fn, [target], name="rmsfx.tgt.len");
+    suffix_len = p._call_str_len(b, args[0], name="rmsfx.sfx.len");
+    target_len = p._call_str_len(b, target, name="rmsfx.tgt.len");
     too_long = b.icmp_unsigned(">", suffix_len, target_len, name="rmsfx.toolong");
     func = b.basic_block.function;
     check_bb = func.append_basic_block(name="rmsfx.check");
@@ -1123,7 +1087,7 @@ impl NativeStrEmitter.emit_removesuffix(
     b.position_at_start(check_bb);
     offset = b.sub(target_len, suffix_len, name="rmsfx.offset");
     end_ptr = b.gep(target, [offset], name="rmsfx.end.ptr");
-    cmp = b.call(strcmp_fn, [end_ptr, args[0]], name="rmsfx.cmp");
+    cmp = p._call_str_cmp(b, end_ptr, args[0], name="rmsfx.cmp");
     is_match = b.icmp_signed("==", cmp, ir.Constant(i32, 0), name="rmsfx.eq");
     b.cbranch(is_match, match_bb, nomatch_bb);
 
@@ -1131,21 +1095,19 @@ impl NativeStrEmitter.emit_removesuffix(
     new_len = b.sub(target_len, suffix_len, name="rmsfx.newlen");
     alloc_m = b.add(new_len, ir.Constant(i64, 1), name="rmsfx.alloc.m");
     p._set_rc_ctx("removesuffix", "");
-    result_m = b.call(rc_alloc_fn, [alloc_m], name="rmsfx.buf.m");
+    result_m = p._str_alloc(b, alloc_m, name="rmsfx.buf.m");
     p._clear_rc_ctx();
     b.call(memcpy_fn, [result_m, target, new_len]);
-    null_ptr_m = b.gep(result_m, [new_len], name="rmsfx.null.m");
-    b.store(ir.Constant(i8, 0), null_ptr_m);
+    p._str_finish(b, result_m, new_len);
     b.branch(done_bb);
 
     b.position_at_start(nomatch_bb);
     alloc_n = b.add(target_len, ir.Constant(i64, 1), name="rmsfx.alloc.n");
     p._set_rc_ctx("removesuffix", "");
-    result_n = b.call(rc_alloc_fn, [alloc_n], name="rmsfx.buf.n");
+    result_n = p._str_alloc(b, alloc_n, name="rmsfx.buf.n");
     p._clear_rc_ctx();
     b.call(memcpy_fn, [result_n, target, target_len]);
-    null_ptr_n = b.gep(result_n, [target_len], name="rmsfx.null.n");
-    b.store(ir.Constant(i8, 0), null_ptr_n);
+    p._str_finish(b, result_n, target_len);
     b.branch(done_bb);
     b.position_at_start(done_bb);
     result_phi = b.phi(i8p, name="rmsfx.result");
@@ -1193,8 +1155,6 @@ impl NativeStrEmitter.emit_join(
     i64 = ir.IntType(64);
     zero = ir.Constant(i64, 0);
     one = ir.Constant(i64, 1);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
 
     p._emit_list_helpers("ptr", i8p);
@@ -1203,7 +1163,7 @@ impl NativeStrEmitter.emit_join(
         return None;
     }
     the_list = args[0];
-    sep_len = b.call(strlen_fn, [target], name="jn.seplen");
+    sep_len = p._call_str_len(b, target, name="jn.seplen");
     list_len = b.call(lhelpers["len"], [the_list], name="jn.listlen");
     func = b.basic_block.function;
 
@@ -1215,9 +1175,9 @@ impl NativeStrEmitter.emit_join(
 
     b.position_at_start(empty_bb);
     p._set_rc_ctx("join", "");
-    empty_buf = b.call(rc_alloc_fn, [one], name="jn.empty.buf");
+    empty_buf = p._str_alloc(b, one, name="jn.empty.buf");
     p._clear_rc_ctx();
-    b.store(ir.Constant(i8, 0), empty_buf);
+    p._str_finish(b, empty_buf, zero);
     b.branch(done_bb);
 
     b.position_at_start(pass1_bb);
@@ -1235,7 +1195,7 @@ impl NativeStrEmitter.emit_join(
     b.cbranch(p1_end, pass2_start, body1_bb);
     b.position_at_start(body1_bb);
     elem = b.call(lhelpers["get"], [the_list, p1_idx], name="jn.p1.elem");
-    elen = b.call(strlen_fn, [elem], name="jn.p1.elen");
+    elen = p._call_str_len(b, elem, name="jn.p1.elen");
     new_total = b.add(p1_total, elen, name="jn.p1.ntot");
     next_p1 = b.add(p1_idx, one, name="jn.p1.next");
     p1_idx.add_incoming(next_p1, body1_bb);
@@ -1250,7 +1210,7 @@ impl NativeStrEmitter.emit_join(
     grand_total = b.add(total_phi, sep_total, name="jn.grand");
     alloc_sz = b.add(grand_total, one, name="jn.alloc");
     p._set_rc_ctx("join", "");
-    buf = b.call(rc_alloc_fn, [alloc_sz], name="jn.buf");
+    buf = p._str_alloc(b, alloc_sz, name="jn.buf");
     p._clear_rc_ctx();
 
     entry_p2 = b.basic_block;
@@ -1270,7 +1230,7 @@ impl NativeStrEmitter.emit_join(
     b.cbranch(p2_end, copy_done, body2_bb);
     b.position_at_start(body2_bb);
     elem2 = b.call(lhelpers["get"], [the_list, p2_idx], name="jn.p2.elem");
-    elen2 = b.call(strlen_fn, [elem2], name="jn.p2.elen");
+    elen2 = p._call_str_len(b, elem2, name="jn.p2.elen");
     dst2 = b.gep(buf, [p2_off], name="jn.p2.dst");
     b.call(memcpy_fn, [dst2, elem2, elen2]);
     off_after_elem = b.add(p2_off, elen2, name="jn.p2.off2");
@@ -1297,8 +1257,7 @@ impl NativeStrEmitter.emit_join(
     b.position_at_start(copy_done);
     final_off = b.phi(i64, name="jn.final.off");
     final_off.add_incoming(p2_off, loop2_bb);
-    null_p = b.gep(buf, [final_off], name="jn.null");
-    b.store(ir.Constant(i8, 0), null_p);
+    p._str_finish(b, buf, final_off);
     b.branch(done_bb);
 
     b.position_at_start(done_bb);
@@ -1321,7 +1280,6 @@ impl NativeStrEmitter.emit_partition(
     i64 = ir.IntType(64);
     i32 = ir.IntType(32);
     sep_val = args[0];
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     strstr_fn = p._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     p._emit_list_helpers("ptr", i8p);
@@ -1330,8 +1288,8 @@ impl NativeStrEmitter.emit_partition(
         return None;
     }
     result_list = b.call(lh["new"], [], name="part.list");
-    sep_len = b.call(strlen_fn, [sep_val], name="part.seplen");
-    str_len = b.call(strlen_fn, [target], name="part.strlen");
+    sep_len = p._call_str_len(b, sep_val, name="part.seplen");
+    str_len = p._call_str_len(b, target, name="part.strlen");
     found_ptr = b.call(strstr_fn, [target, sep_val], name="part.found");
     null_i8p = ir.Constant(i8p, None);
     is_found = b.icmp_unsigned("!=", found_ptr, null_i8p, name="part.isfound");
@@ -1346,28 +1304,26 @@ impl NativeStrEmitter.emit_partition(
     found_int = b.ptrtoint(found_ptr, i64, name="part.fint");
     before_len = b.sub(found_int, base_int, name="part.blen");
     before_alloc = b.add(before_len, ir.Constant(i64, 1), name="part.balloc");
-    before_ptr = b.call(p.rc_alloc_fn, [before_alloc], name="part.before");
+    before_ptr = p._str_alloc(b, before_alloc, name="part.before");
     b.call(memcpy_fn, [before_ptr, target, before_len]);
-    before_null = b.gep(before_ptr, [before_len], name="part.bnull");
-    b.store(ir.Constant(i8, 0), before_null);
+    p._str_finish(b, before_ptr, before_len);
     after_off = b.add(before_len, sep_len, name="part.aoff");
     after_len = b.sub(str_len, after_off, name="part.alen");
     after_alloc = b.add(after_len, ir.Constant(i64, 1), name="part.aalloc");
-    after_ptr = b.call(p.rc_alloc_fn, [after_alloc], name="part.after");
+    after_ptr = p._str_alloc(b, after_alloc, name="part.after");
     after_src = b.gep(target, [after_off], name="part.asrc");
     b.call(memcpy_fn, [after_ptr, after_src, after_len]);
-    after_null = b.gep(after_ptr, [after_len], name="part.anull");
-    b.store(ir.Constant(i8, 0), after_null);
+    p._str_finish(b, after_ptr, after_len);
     b.call(lh["append"], [result_list, before_ptr]);
     b.call(lh["append"], [result_list, sep_val]);
     b.call(lh["append"], [result_list, after_ptr]);
     b.branch(merge_bb);
 
     b.position_at_start(notfound_bb);
-    empty1 = b.call(p.rc_alloc_fn, [ir.Constant(i64, 1)], name="part.e1");
-    b.store(ir.Constant(i8, 0), empty1);
-    empty2 = b.call(p.rc_alloc_fn, [ir.Constant(i64, 1)], name="part.e2");
-    b.store(ir.Constant(i8, 0), empty2);
+    empty1 = p._str_alloc(b, ir.Constant(i64, 1), name="part.e1");
+    p._str_finish(b, empty1, ir.Constant(i64, 0));
+    empty2 = p._str_alloc(b, ir.Constant(i64, 1), name="part.e2");
+    p._str_finish(b, empty2, ir.Constant(i64, 0));
     b.call(lh["append"], [result_list, target]);
     b.call(lh["append"], [result_list, empty1]);
     b.call(lh["append"], [result_list, empty2]);
@@ -1388,7 +1344,6 @@ impl NativeStrEmitter.emit_rpartition(
     i8p = i8.as_pointer();
     i64 = ir.IntType(64);
     sep_val = args[0];
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     strstr_fn = p._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     p._emit_list_helpers("ptr", i8p);
@@ -1397,8 +1352,8 @@ impl NativeStrEmitter.emit_rpartition(
         return None;
     }
     result_list = b.call(lh["new"], [], name="rpart.list");
-    sep_len = b.call(strlen_fn, [sep_val], name="rpart.seplen");
-    str_len = b.call(strlen_fn, [target], name="rpart.strlen");
+    sep_len = p._call_str_len(b, sep_val, name="rpart.seplen");
+    str_len = p._call_str_len(b, target, name="rpart.strlen");
 
     func = b.basic_block.function;
     entry_bb = b.basic_block;
@@ -1435,28 +1390,26 @@ impl NativeStrEmitter.emit_rpartition(
     last_int = b.ptrtoint(last_match, i64, name="rpart.lint");
     before_len = b.sub(last_int, base_int, name="rpart.blen");
     before_alloc = b.add(before_len, ir.Constant(i64, 1), name="rpart.balloc");
-    before_ptr = b.call(p.rc_alloc_fn, [before_alloc], name="rpart.before");
+    before_ptr = p._str_alloc(b, before_alloc, name="rpart.before");
     b.call(memcpy_fn, [before_ptr, target, before_len]);
-    before_null = b.gep(before_ptr, [before_len], name="rpart.bnull");
-    b.store(ir.Constant(i8, 0), before_null);
+    p._str_finish(b, before_ptr, before_len);
     after_off = b.add(before_len, sep_len, name="rpart.aoff");
     after_len = b.sub(str_len, after_off, name="rpart.alen");
     after_alloc = b.add(after_len, ir.Constant(i64, 1), name="rpart.aalloc");
-    after_ptr = b.call(p.rc_alloc_fn, [after_alloc], name="rpart.after");
+    after_ptr = p._str_alloc(b, after_alloc, name="rpart.after");
     after_src = b.gep(target, [after_off], name="rpart.asrc");
     b.call(memcpy_fn, [after_ptr, after_src, after_len]);
-    after_null = b.gep(after_ptr, [after_len], name="rpart.anull");
-    b.store(ir.Constant(i8, 0), after_null);
+    p._str_finish(b, after_ptr, after_len);
     b.call(lh["append"], [result_list, before_ptr]);
     b.call(lh["append"], [result_list, sep_val]);
     b.call(lh["append"], [result_list, after_ptr]);
     b.branch(merge_bb);
 
     b.position_at_start(notfound_bb);
-    empty1 = b.call(p.rc_alloc_fn, [ir.Constant(i64, 1)], name="rpart.e1");
-    b.store(ir.Constant(i8, 0), empty1);
-    empty2 = b.call(p.rc_alloc_fn, [ir.Constant(i64, 1)], name="rpart.e2");
-    b.store(ir.Constant(i8, 0), empty2);
+    empty1 = p._str_alloc(b, ir.Constant(i64, 1), name="rpart.e1");
+    p._str_finish(b, empty1, ir.Constant(i64, 0));
+    empty2 = p._str_alloc(b, ir.Constant(i64, 1), name="rpart.e2");
+    p._str_finish(b, empty2, ir.Constant(i64, 0));
     b.call(lh["append"], [result_list, empty1]);
     b.call(lh["append"], [result_list, empty2]);
     b.call(lh["append"], [result_list, target]);
@@ -1477,13 +1430,11 @@ impl NativeStrEmitter.emit_format(
     i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     strstr_fn = p._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     snprintf_fn = p._get_or_declare_extern(
         "snprintf", i32, [i8p, i64, i8p], var_arg=True
     );
-    rc_alloc_fn = p.rc_alloc_fn;
     placeholder = p._make_global_string("{}");
     ph_len = ir.Constant(i64, 2);
     null_ptr = ir.Constant(i8p, None);
@@ -1491,9 +1442,12 @@ impl NativeStrEmitter.emit_format(
     str_args: list[ir.Value] = [];
     for arg in args {
         if isinstance(arg.type, ir.IntType) and arg.type.width > 1 {
-            buf = b.call(rc_alloc_fn, [ir.Constant(i64, 32)], name="fmt.ibuf");
+            buf = p._str_alloc(b, ir.Constant(i64, 32), name="fmt.ibuf");
             fmt_s = p._make_global_string("%ld");
-            b.call(snprintf_fn, [buf, ir.Constant(i64, 32), fmt_s, arg]);
+            ibuf_n32 = b.call(
+                snprintf_fn, [buf, ir.Constant(i64, 32), fmt_s, arg], name="fmt.ibuf.n"
+            );
+            p._str_finish(b, buf, b.sext(ibuf_n32, i64, name="fmt.ibuf.n64"));
             str_args.append(buf);
         } elif isinstance(arg.type, ir.DoubleType) {
             str_args.append(p._emit_float_repr(arg));
@@ -1505,15 +1459,15 @@ impl NativeStrEmitter.emit_format(
     current = target;
     for i in range(len(str_args)) {
         arg_str = str_args[i];
-        arg_len = b.call(strlen_fn, [arg_str], name=f"fmt.a{i}.len");
-        cur_len = b.call(strlen_fn, [current], name=f"fmt.c{i}.len");
+        arg_len = p._call_str_len(b, arg_str, name=f"fmt.a{i}.len");
+        cur_len = p._call_str_len(b, current, name=f"fmt.c{i}.len");
 
         alloc_sz = b.add(
             b.sub(cur_len, ph_len, name=f"fmt.sub{i}"),
             b.add(arg_len, ir.Constant(i64, 1), name=f"fmt.aln{i}"),
             name=f"fmt.alloc{i}"
         );
-        result = b.call(rc_alloc_fn, [alloc_sz], name=f"fmt.res{i}");
+        result = p._str_alloc(b, alloc_sz, name=f"fmt.res{i}");
 
         found = b.call(strstr_fn, [current, placeholder], name=f"fmt.fnd{i}");
         is_null = b.icmp_unsigned("==", found, null_ptr, name=f"fmt.null{i}");
@@ -1534,18 +1488,16 @@ impl NativeStrEmitter.emit_format(
         dst3 = b.gep(result, [dst3_off], name=f"fmt.d3.{i}");
         sfx_start_int = b.add(fnd_int, ph_len, name=f"fmt.sfxi{i}");
         sfx_start = b.inttoptr(sfx_start_int, i8p, name=f"fmt.sfx{i}");
-        sfx_len = b.call(strlen_fn, [sfx_start], name=f"fmt.slen{i}");
+        sfx_len = p._call_str_len_raw(b, sfx_start, name=f"fmt.slen{i}");
         b.call(memcpy_fn, [dst3, sfx_start, sfx_len]);
         total_len = b.add(dst3_off, sfx_len, name=f"fmt.tlen{i}");
-        null_term = b.gep(result, [total_len], name=f"fmt.nt{i}");
-        b.store(ir.Constant(i8, 0), null_term);
+        p._str_finish(b, result, total_len);
         b.branch(merge_bb);
 
         b.position_at_start(skip_bb);
 
         b.call(memcpy_fn, [result, current, cur_len]);
-        null_term2 = b.gep(result, [cur_len], name=f"fmt.nt2.{i}");
-        b.store(ir.Constant(i8, 0), null_term2);
+        p._str_finish(b, result, cur_len);
         b.branch(merge_bb);
         b.position_at_start(merge_bb);
         current = result;
@@ -1570,11 +1522,9 @@ impl NativeStrEmitter.emit_center(
     i8 = ir.IntType(8);
     i8p = i8.as_pointer();
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     memset_fn = p._get_or_declare_extern("memset", i8p, [i8p, ir.IntType(32), i64]);
-    slen = b.call(strlen_fn, [target], name="center.len");
+    slen = p._call_str_len(b, target, name="center.len");
     width = args[0];
     needs_pad = b.icmp_unsigned("<", slen, width, name="center.needspad");
     func = b.basic_block.function;
@@ -1591,7 +1541,7 @@ impl NativeStrEmitter.emit_center(
     left_pad = b.add(half, adj, name="center.lpad");
     right_pad = b.sub(total_pad, left_pad, name="center.rpad");
     alloc_pad = b.add(width, ir.Constant(i64, 1), name="center.alloc");
-    buf_pad = b.call(rc_alloc_fn, [alloc_pad], name="center.buf");
+    buf_pad = p._str_alloc(b, alloc_pad, name="center.buf");
 
     b.call(memset_fn, [buf_pad, ir.Constant(ir.IntType(32), 32), left_pad]);
 
@@ -1601,16 +1551,14 @@ impl NativeStrEmitter.emit_center(
     right_ptr = b.gep(str_ptr, [slen], name="center.rpad.ptr");
     b.call(memset_fn, [right_ptr, ir.Constant(ir.IntType(32), 32), right_pad]);
 
-    null_pad = b.gep(buf_pad, [width], name="center.null");
-    b.store(ir.Constant(i8, 0), null_pad);
+    p._str_finish(b, buf_pad, width);
     b.branch(done_bb);
 
     b.position_at_start(nopad_bb);
     alloc_nopad = b.add(slen, ir.Constant(i64, 1), name="center.alloc.np");
-    buf_nopad = b.call(rc_alloc_fn, [alloc_nopad], name="center.buf.np");
+    buf_nopad = p._str_alloc(b, alloc_nopad, name="center.buf.np");
     b.call(memcpy_fn, [buf_nopad, target, slen]);
-    null_nopad = b.gep(buf_nopad, [slen], name="center.null.np");
-    b.store(ir.Constant(i8, 0), null_nopad);
+    p._str_finish(b, buf_nopad, slen);
     b.branch(done_bb);
     b.position_at_start(done_bb);
     result = b.phi(i8p, name="center.result");
@@ -1630,11 +1578,9 @@ impl NativeStrEmitter.emit_ljust(
     i8 = ir.IntType(8);
     i8p = i8.as_pointer();
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     memset_fn = p._get_or_declare_extern("memset", i8p, [i8p, ir.IntType(32), i64]);
-    slen = b.call(strlen_fn, [target], name="ljust.len");
+    slen = p._call_str_len(b, target, name="ljust.len");
     width = args[0];
     needs_pad = b.icmp_unsigned("<", slen, width, name="ljust.needspad");
     func = b.basic_block.function;
@@ -1645,21 +1591,19 @@ impl NativeStrEmitter.emit_ljust(
 
     b.position_at_start(pad_bb);
     alloc_pad = b.add(width, ir.Constant(i64, 1), name="ljust.alloc");
-    buf_pad = b.call(rc_alloc_fn, [alloc_pad], name="ljust.buf");
+    buf_pad = p._str_alloc(b, alloc_pad, name="ljust.buf");
     b.call(memcpy_fn, [buf_pad, target, slen]);
     pad_ptr = b.gep(buf_pad, [slen], name="ljust.pad.ptr");
     pad_len = b.sub(width, slen, name="ljust.pad.len");
     b.call(memset_fn, [pad_ptr, ir.Constant(ir.IntType(32), 32), pad_len]);
-    null_pad = b.gep(buf_pad, [width], name="ljust.null");
-    b.store(ir.Constant(i8, 0), null_pad);
+    p._str_finish(b, buf_pad, width);
     b.branch(done_bb);
 
     b.position_at_start(nopad_bb);
     alloc_nopad = b.add(slen, ir.Constant(i64, 1), name="ljust.alloc.np");
-    buf_nopad = b.call(rc_alloc_fn, [alloc_nopad], name="ljust.buf.np");
+    buf_nopad = p._str_alloc(b, alloc_nopad, name="ljust.buf.np");
     b.call(memcpy_fn, [buf_nopad, target, slen]);
-    null_nopad = b.gep(buf_nopad, [slen], name="ljust.null.np");
-    b.store(ir.Constant(i8, 0), null_nopad);
+    p._str_finish(b, buf_nopad, slen);
     b.branch(done_bb);
     b.position_at_start(done_bb);
     result = b.phi(i8p, name="ljust.result");
@@ -1679,11 +1623,9 @@ impl NativeStrEmitter.emit_rjust(
     i8 = ir.IntType(8);
     i8p = i8.as_pointer();
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     memset_fn = p._get_or_declare_extern("memset", i8p, [i8p, ir.IntType(32), i64]);
-    slen = b.call(strlen_fn, [target], name="rjust.len");
+    slen = p._call_str_len(b, target, name="rjust.len");
     width = args[0];
     needs_pad = b.icmp_unsigned("<", slen, width, name="rjust.needspad");
     func = b.basic_block.function;
@@ -1693,20 +1635,18 @@ impl NativeStrEmitter.emit_rjust(
     b.cbranch(needs_pad, pad_bb, nopad_bb);
     b.position_at_start(pad_bb);
     alloc_pad = b.add(width, ir.Constant(i64, 1), name="rjust.alloc");
-    buf_pad = b.call(rc_alloc_fn, [alloc_pad], name="rjust.buf");
+    buf_pad = p._str_alloc(b, alloc_pad, name="rjust.buf");
     pad_len = b.sub(width, slen, name="rjust.pad.len");
     b.call(memset_fn, [buf_pad, ir.Constant(ir.IntType(32), 32), pad_len]);
     str_dst = b.gep(buf_pad, [pad_len], name="rjust.str.dst");
     b.call(memcpy_fn, [str_dst, target, slen]);
-    null_pad = b.gep(buf_pad, [width], name="rjust.null");
-    b.store(ir.Constant(i8, 0), null_pad);
+    p._str_finish(b, buf_pad, width);
     b.branch(done_bb);
     b.position_at_start(nopad_bb);
     alloc_nopad = b.add(slen, ir.Constant(i64, 1), name="rjust.alloc.np");
-    buf_nopad = b.call(rc_alloc_fn, [alloc_nopad], name="rjust.buf.np");
+    buf_nopad = p._str_alloc(b, alloc_nopad, name="rjust.buf.np");
     b.call(memcpy_fn, [buf_nopad, target, slen]);
-    null_nopad = b.gep(buf_nopad, [slen], name="rjust.null.np");
-    b.store(ir.Constant(i8, 0), null_nopad);
+    p._str_finish(b, buf_nopad, slen);
     b.branch(done_bb);
     b.position_at_start(done_bb);
     result = b.phi(i8p, name="rjust.result");
@@ -1726,11 +1666,9 @@ impl NativeStrEmitter.emit_zfill(
     i8 = ir.IntType(8);
     i8p = i8.as_pointer();
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     memset_fn = p._get_or_declare_extern("memset", i8p, [i8p, ir.IntType(32), i64]);
-    slen = b.call(strlen_fn, [target], name="zfill.len");
+    slen = p._call_str_len(b, target, name="zfill.len");
     width = args[0];
     needs_pad = b.icmp_unsigned("<", slen, width, name="zfill.needspad");
     func = b.basic_block.function;
@@ -1741,7 +1679,7 @@ impl NativeStrEmitter.emit_zfill(
 
     b.position_at_start(pad_bb);
     alloc_pad = b.add(width, ir.Constant(i64, 1), name="zfill.alloc");
-    buf_pad = b.call(rc_alloc_fn, [alloc_pad], name="zfill.buf");
+    buf_pad = p._str_alloc(b, alloc_pad, name="zfill.buf");
     first_ch = b.load(target, name="zfill.first");
     is_plus = b.icmp_unsigned("==", first_ch, ir.Constant(i8, 43), name="zfill.plus");
     is_minus = b.icmp_unsigned("==", first_ch, ir.Constant(i8, 45), name="zfill.minus");
@@ -1781,16 +1719,14 @@ impl NativeStrEmitter.emit_zfill(
     b.call(memcpy_fn, [dst_nosign, target, slen]);
     b.branch(merge_bb);
     b.position_at_start(merge_bb);
-    null_pad = b.gep(buf_pad, [width], name="zfill.null");
-    b.store(ir.Constant(i8, 0), null_pad);
+    p._str_finish(b, buf_pad, width);
     b.branch(done_bb);
 
     b.position_at_start(nopad_bb);
     alloc_nopad = b.add(slen, ir.Constant(i64, 1), name="zfill.alloc.np");
-    buf_nopad = b.call(rc_alloc_fn, [alloc_nopad], name="zfill.buf.np");
+    buf_nopad = p._str_alloc(b, alloc_nopad, name="zfill.buf.np");
     b.call(memcpy_fn, [buf_nopad, target, slen]);
-    null_nopad = b.gep(buf_nopad, [slen], name="zfill.null.np");
-    b.store(ir.Constant(i8, 0), null_nopad);
+    p._str_finish(b, buf_nopad, slen);
     b.branch(done_bb);
     b.position_at_start(done_bb);
     result = b.phi(i8p, name="zfill.result");
@@ -1805,13 +1741,10 @@ impl NativeStrEmitter.emit_expandtabs(
     p = ctx.pass_ref;
     b = get_builder(p);
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i64 = ir.IntType(64);
     zero = ir.Constant(i64, 0);
     one = ir.Constant(i64, 1);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    rc_alloc_fn = p.rc_alloc_fn;
-    slen = b.call(strlen_fn, [target], name="et.len");
+    slen = p._call_str_len(b, target, name="et.len");
 
     if args {
         tabsize = args[0];
@@ -1824,7 +1757,7 @@ impl NativeStrEmitter.emit_expandtabs(
     );
     worst = b.mul(slen, ts_or_one, name="et.worst");
     alloc_sz = b.add(worst, one, name="et.alloc");
-    buf = b.call(rc_alloc_fn, [alloc_sz], name="et.buf");
+    buf = p._str_alloc(b, alloc_sz, name="et.buf");
     func = b.basic_block.function;
     entry_bb = b.basic_block;
     loop_bb = func.append_basic_block(name="et.loop");
@@ -1929,8 +1862,7 @@ impl NativeStrEmitter.emit_expandtabs(
     b.position_at_start(done_bb);
     done_di = b.phi(i64, name="et.done.di");
     done_di.add_incoming(di, loop_bb);
-    null_p = b.gep(buf, [done_di], name="et.null");
-    b.store(ir.Constant(i8, 0), null_p);
+    p._str_finish(b, buf, done_di);
     return buf;
 }
 
@@ -1944,13 +1876,10 @@ impl NativeStrEmitter._emit_char_test(
 ) -> (ir.Value | None) {
     p = ctx.pass_ref;
     b = get_builder(p);
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     test_fn = p._get_or_declare_extern(cfunc_name, i32, [i32]);
-    slen = b.call(strlen_fn, [target], name=f"{prefix}.len");
+    slen = p._call_str_len(b, target, name=f"{prefix}.len");
     is_empty = b.icmp_unsigned("==", slen, ir.Constant(i64, 0), name=f"{prefix}.empty");
     func = b.basic_block.function;
     entry_bb = b.basic_block;
@@ -2006,11 +1935,8 @@ impl NativeStrEmitter.emit_isascii(
 ) -> (ir.Value | None) {
     p = ctx.pass_ref;
     b = get_builder(p);
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    slen = b.call(strlen_fn, [target], name="isascii.len");
+    slen = p._call_str_len(b, target, name="isascii.len");
     is_empty = b.icmp_unsigned("==", slen, ir.Constant(i64, 0), name="isascii.empty");
     func = b.basic_block.function;
     entry_bb = b.basic_block;
@@ -2062,13 +1988,11 @@ impl NativeStrEmitter.emit_isidentifier(
     p = ctx.pass_ref;
     b = get_builder(p);
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     isalpha_fn = p._get_or_declare_extern("isalpha", i32, [i32]);
     isalnum_fn = p._get_or_declare_extern("isalnum", i32, [i32]);
-    slen = b.call(strlen_fn, [target], name="isid.len");
+    slen = p._call_str_len(b, target, name="isid.len");
     is_empty = b.icmp_unsigned("==", slen, ir.Constant(i64, 0), name="isid.empty");
     func = b.basic_block.function;
     entry_bb = b.basic_block;
@@ -2125,14 +2049,11 @@ impl NativeStrEmitter.emit_islower(
 ) -> (ir.Value | None) {
     p = ctx.pass_ref;
     b = get_builder(p);
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     isupper_fn = p._get_or_declare_extern("isupper", i32, [i32]);
     isalpha_fn = p._get_or_declare_extern("isalpha", i32, [i32]);
-    slen = b.call(strlen_fn, [target], name="islower.len");
+    slen = p._call_str_len(b, target, name="islower.len");
     is_empty = b.icmp_unsigned("==", slen, ir.Constant(i64, 0), name="islower.empty");
     func = b.basic_block.function;
     entry_bb = b.basic_block;
@@ -2207,15 +2128,12 @@ impl NativeStrEmitter.emit_istitle(
 ) -> (ir.Value | None) {
     p = ctx.pass_ref;
     b = get_builder(p);
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     isupper_fn = p._get_or_declare_extern("isupper", i32, [i32]);
     islower_fn = p._get_or_declare_extern("islower", i32, [i32]);
     isalpha_fn = p._get_or_declare_extern("isalpha", i32, [i32]);
-    slen = b.call(strlen_fn, [target], name="istitle.len");
+    slen = p._call_str_len(b, target, name="istitle.len");
     is_empty = b.icmp_unsigned("==", slen, ir.Constant(i64, 0), name="istitle.empty");
     func = b.basic_block.function;
     entry_bb = b.basic_block;
@@ -2281,14 +2199,11 @@ impl NativeStrEmitter.emit_isupper(
 ) -> (ir.Value | None) {
     p = ctx.pass_ref;
     b = get_builder(p);
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     islower_fn = p._get_or_declare_extern("islower", i32, [i32]);
     isalpha_fn = p._get_or_declare_extern("isalpha", i32, [i32]);
-    slen = b.call(strlen_fn, [target], name="isupper.len");
+    slen = p._call_str_len(b, target, name="isupper.len");
     is_empty = b.icmp_unsigned("==", slen, ir.Constant(i64, 0), name="isupper.empty");
     func = b.basic_block.function;
     entry_bb = b.basic_block;
@@ -2341,10 +2256,7 @@ impl NativeStrEmitter.emit_encode(
 ) -> (ir.Value | None) {
     p = ctx.pass_ref;
     b = get_builder(p);
-    i8p = ir.IntType(8).as_pointer();
-    i64 = ir.IntType(64);
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-    n = b.call(strlen_fn, [target], name="enc.len");
+    n = p._call_str_len(b, target, name="enc.len");
     return p._bytes_from_raw(target, n);
 }
 
@@ -2371,19 +2283,19 @@ impl NativeBytesEmitter.emit_decode(
 ) -> (ir.Value | None) {
     p = ctx.pass_ref;
     b = get_builder(p);
-    i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
+    i8p = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     n = p._bytes_len_val(target);
     alloc_sz = b.add(n, ir.Constant(i64, 1), name="dec.alloc");
-    new_str = p._rc_call_with_ctx(
-        p.rc_alloc_fn, [alloc_sz], op="bytes_decode", loc="", name="dec.str"
-    );
-    p._emit_set_type_tag(b, new_str, "str");
+    p._set_rc_ctx("bytes_decode", "");
+    new_str = p._str_alloc(b, alloc_sz, name="dec.str");
+    p._clear_rc_ctx();
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
     b.call(memcpy_fn, [new_str, p._bytes_data_ptr(target), n]);
-    nul_ptr = b.gep(new_str, [n], name="dec.nul");
-    b.store(ir.Constant(i8, 0), nul_ptr);
+    dec_end = b.gep(new_str, [n], name="dec.end");
+    b.store(ir.Constant(ir.IntType(8), 0), dec_end);
+
+    p._stamp_str_len(b, new_str, p._call_str_len_raw(b, new_str, name="dec.len"));
     p._mark_owned(new_str);
     return new_str;
 }
@@ -3164,10 +3076,13 @@ impl NativeListEmitter.emit_sort(
         cmp_gt = b.fcmp_ordered(">", cj, cj1, name="sort.gt");
         cmp_lt = b.fcmp_ordered("<", cj, cj1, name="sort.lt");
     } elif isinstance(cmp_type, ir.PointerType) {
-        strcmp_fn = p._get_or_declare_extern(
-            "strcmp", ir.IntType(32), [cmp_type, cmp_type]
+        _i8p_cmp = ir.IntType(8).as_pointer();
+        cmp_result = p._call_str_cmp(
+            b,
+            b.bitcast(cj, _i8p_cmp, name="sort.cj.cast"),
+            b.bitcast(cj1, _i8p_cmp, name="sort.cj1.cast"),
+            name="sort.cmp"
         );
-        cmp_result = b.call(strcmp_fn, [cj, cj1], name="sort.cmp");
         cmp_gt = b.icmp_signed(
             ">", cmp_result, ir.Constant(ir.IntType(32), 0), name="sort.gt"
         );
@@ -3621,11 +3536,8 @@ impl NativeDictEmitter.emit_popitem(
             if (
                 isinstance(key_type.pointee, ir.IntType) and key_type.pointee.width == 8
             ) {
-                _strdup_pi = p._get_or_declare_extern("strdup", _i8p_pi, [_i8p_pi]);
-                _key_copy = b.call(
-                    _strdup_pi,
-                    [b.bitcast(last_key, _i8p_pi, name="dpi.k.src")],
-                    name="dpi.k.copy"
+                _key_copy = p._call_str_dup(
+                    b, b.bitcast(last_key, _i8p_pi, name="dpi.k.src"), name="dpi.k.copy"
                 );
                 last_key_out = b.bitcast(_key_copy, key_type, name="dpi.k.out");
             }
@@ -5466,9 +5378,8 @@ impl NativeBuiltinEmitter.emit_format(
         "snprintf", ir.IntType(32), [i8p, i64, i8p], var_arg=True
     );
 
-    strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
     memcpy_fn = p._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
-    spec_len = b.call(strlen_fn, [spec_val], name="fmt.speclen");
+    spec_len = p._call_str_len(b, spec_val, name="fmt.speclen");
 
     fmt_size = b.add(spec_len, ir.Constant(i64, 2), name="fmt.fmtsz");
     fmt_buf = b.call(rc_alloc_fn, [fmt_size], name="fmt.fmtbuf");
@@ -5491,9 +5402,9 @@ impl NativeBuiltinEmitter.emit_format(
     );
     need = b.sext(need32, i64, name="fmt.need64");
     buf_size = b.add(need, ir.Constant(i64, 1), name="fmt.size");
-    buf_ptr = b.call(rc_alloc_fn, [buf_size], name="fmt.buf");
+    buf_ptr = p._str_alloc(b, buf_size, name="fmt.buf");
     b.call(snprintf, [buf_ptr, buf_size, fmt_buf, arg_val]);
-    p._emit_set_type_tag(b, buf_ptr, "str");
+    p._str_finish(b, buf_ptr, need);
     p._emit_rc_release_simple(fmt_buf, op="fmt_tmp", loc="");
     return buf_ptr;
 }
@@ -5555,19 +5466,19 @@ impl NativeBuiltinEmitter.emit_str(
             return cont_s;
         }
     }
-    rc_alloc_fn = p.rc_alloc_fn;
-    buf_ptr = b.call(rc_alloc_fn, [ir.Constant(ir.IntType(64), 32)], name="str.buf");
+    buf_ptr = p._str_alloc(b, ir.Constant(ir.IntType(64), 32), name="str.buf");
     snprintf = p._get_or_declare_extern(
         "snprintf", ir.IntType(32), [i8p, ir.IntType(64), i8p], var_arg=True
     );
 
     fmt = p._get_snprintf_fmt("%ld");
     fmt_ptr = b.bitcast(fmt, i8p, name="str.fmt.ptr");
-    b.call(
+    str_n32 = b.call(
         snprintf,
         [buf_ptr, ir.Constant(ir.IntType(64), 32), fmt_ptr, arg_val],
         name="str.snprintf"
     );
+    p._str_finish(b, buf_ptr, b.sext(str_n32, ir.IntType(64), name="str.len64"));
     return buf_ptr;
 }
 
@@ -5672,8 +5583,7 @@ impl NativeBuiltinEmitter.emit_bool(
     if isinstance(arg_val.type, ir.PointerType) {
         i8p = ir.IntType(8).as_pointer();
         if arg_val.type == i8p {
-            strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
-            slen = b.call(strlen_fn, [arg_val], name="bool.slen");
+            slen = p._call_str_len(b, arg_val, name="bool.slen");
             is_nonempty = b.icmp_unsigned(
                 "!=", slen, ir.Constant(i64, 0), name="bool.nonempty"
             );

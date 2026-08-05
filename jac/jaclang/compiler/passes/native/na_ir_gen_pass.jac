@@ -102,6 +102,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         func_symtab: dict[str, ir.Function] = {},
         local_vars: dict[str, ir.AllocaInstr] = {},
         param_vars: set[str] = set(),
+        flow_future_meta: dict = {},
+        drop_fn_registry: dict = {},
         has_native_code: bool = False,
         native_tests: list = [],
         _fmt_strings: dict[str, ir.GlobalVariable] = {},
@@ -222,6 +224,14 @@ obj NaIRGenPass(ModuleCodegenPass) {
         str_len_fn: (ir.Function | None) = None,
         str_stamp_fn: (ir.Function | None) = None,
         str_new_fn: (ir.Function | None) = None,
+        str_cmp_fn: (ir.Function | None) = None,
+        str_cmp3_fn: (ir.Function | None) = None,
+        str_dup_fn: (ir.Function | None) = None,
+        str_len_raw_fn: (ir.Function | None) = None,
+        str_wrap_fn: (ir.Function | None) = None,
+        str_wrap_raw_fn: (ir.Function | None) = None,
+        str_unwrap_fn: (ir.Function | None) = None,
+        _str_desc_ty: object = None,
         rc_roots_buf_gv: object = None,
         rc_roots_cap_gv: object = None,
         rc_roots_count_gv: object = None,
@@ -254,6 +264,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         anon_region_active: dict[int, str] = {},
         rc_region_allocs: int = 0,
         nogc_no_free_vars: set[str] = set(),
+        nogc_owned_str_vars: set[str] = set(),
         list_release_fns: dict[str, ir.Function] = {},
         dict_release_fns: dict[str, ir.Function] = {},
         set_release_fns: dict[str, ir.Function] = {},
@@ -269,7 +280,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         di_file: object = None,
         di_cu: object = None,
         _di_current_sp: object = None,
-        _func_loc: dict[str, int] = {};
+        _func_loc: dict[str, int] = {},
+        _func_def_mod: dict[str, str] = {};
 
     static has REQUIRES: tuple = (
         'inference',
@@ -326,7 +338,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None);
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
     def _codegen_rc_intrinsic(func_name: str) -> bool;
-    def _native_module_call_target(nd: uni.FuncCall) -> (str | None);
+    def _native_module_call_target(nd: uni.FuncCall) -> (tuple | None);
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 
@@ -788,6 +800,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> ir.Function;
 
     def _emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> None;
+    def _drop_fn_for(mangle: str) -> (ir.Function | None);
+    def _aos_elem_of(type_expr: uni.UniNode | None) -> (str | None);
+    def _emit_aos_list_helpers(tname: str) -> ir.Type;
+    def _drop_spec_for_mangle(mangle: str) -> (tuple | None);
+    def _nogc_type_arg_mangles_of_str(m: str) -> list;
     def _codegen_list_val(nd: uni.ListVal) -> (ir.Value | None);
     def _codegen_index(
         target_val: ir.Value, index_val: ir.Value, elem_type_name: str
@@ -837,9 +854,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_string_slice(
-        target_val: ir.Value, slice_node: object
+        target_val: ir.Value, slice_node: object, base_node: object = None
     ) -> (ir.Value | None);
 
+    def _hl_view_base_licensed(base_node: object) -> bool;
     def _emit_sys_argv -> (ir.Value | None);
     def _emit_sys_stream(stream: str) -> (ir.Value | None);
     def _emit_sys_exit(args: list[ir.Value]) -> (ir.Value | None);
@@ -1134,6 +1152,39 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_str_stamp_and_new -> None;
     def _call_str_len(b: ir.IRBuilder, ptr: ir.Value, name: str = "s.len") -> ir.Value;
     def _stamp_str_len(b: ir.IRBuilder, ptr: ir.Value, len_val: ir.Value) -> None;
+    def _emit_str_cmp_helper -> None;
+    def _call_str_cmp(
+        b: ir.IRBuilder, lhs: ir.Value, rhs: ir.Value, name: str = "s.cmp"
+    ) -> ir.Value;
+
+    def _emit_str_cmp3_helper -> None;
+    def _call_str_cmp3(
+        b: ir.IRBuilder,
+        l_data: ir.Value,
+        l_len: ir.Value,
+        r_data: ir.Value,
+        r_len: ir.Value,
+        name: str = "s.cmp3"
+    ) -> ir.Value;
+
+    def _str_cmp_parts_of(val: ir.Value) -> (tuple | None);
+    def _emit_str_dup_helper -> None;
+    def _call_str_dup(b: ir.IRBuilder, ptr: ir.Value, name: str = "s.dup") -> ir.Value;
+    def _emit_str_len_raw_helper -> None;
+    def _call_str_len_raw(
+        b: ir.IRBuilder, ptr: ir.Value, name: str = "s.rlen"
+    ) -> ir.Value;
+
+    def _try_partition_sugar_assign(nd: uni.Assignment) -> bool;
+    def _try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None);
+    def _flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None);
+    def _str_desc_type -> ir.Type;
+    def _str_norm(val: ir.Value | None) -> (ir.Value | None);
+    def _emit_str_desc_helpers -> None;
+    def _membrane_str_out(b: ir.IRBuilder, val: ir.Value) -> ir.Value;
+    def _membrane_str_in(b: ir.IRBuilder, val: ir.Value) -> ir.Value;
+    def _str_alloc(b: ir.IRBuilder, size: ir.Value, name: str = "s.buf") -> ir.Value;
+    def _str_finish(b: ir.IRBuilder, buf: ir.Value, len_val: ir.Value) -> None;
     def _emit_rc_roots_globals -> None;
     def _emit_trace_fn(arch_name: str) -> None;
     def _register_trace_pair(dtor_fn: object, trace_fn: ir.Function) -> bool;
@@ -1232,7 +1283,18 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _open_anon_region(gidx: int) -> None;
     def _close_anon_region(gidx: int) -> None;
     def _try_flow_for_parallel(nd: uni.InForStmt) -> bool;
+    def _na_chunks_shape(expr: object) -> (tuple | None);
+    def _try_chunked_for(nd: uni.InForStmt) -> bool;
+    def _emit_chunk_header(
+        coll: ir.Value,
+        n_val: ir.Value,
+        ci: ir.Value,
+        hdr: ir.Value,
+        len_fn: ir.Function
+    ) -> None;
+
     def _nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> bool;
+    def _nogc_str_free_owned(val: ir.Value) -> None;
     def _nogc_free_scratch(val: ir.Value, op: str) -> None;
     def _emit_last_use_releases(stmt: uni.UniNode) -> None;
     def _stack_alloc_target_ok(nd: uni.UniNode) -> bool;

@@ -99,7 +99,17 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
         slot_gv.initializer = ir.Constant(fnty.as_pointer(), None);
         self.decorated_fns[name] = (func, slot_gv, _dec_names, fnty);
     } else {
-        func = ir.Function(self.llvm_module, fnty, name=name);
+        _emit_name = name;
+        if nd.access
+            and nd.access.tag.name == Tok.KW_PRIV
+            and nd.find_parent_of_type(uni.Archetype) is None {
+            import from jaclang.jac0core.codeinfo { native_safe_sym }
+            _def_m = nd.find_parent_of_type(uni.Module);
+            if _def_m is not None {
+                _emit_name = f"{name}.__jacp_{native_safe_sym(_def_m.name)}";
+            }
+        }
+        func = ir.Function(self.llvm_module, fnty, name=_emit_name);
     }
 
     for (i, p) in enumerate(sig.get_parameters()) {
@@ -107,6 +117,10 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     }
     self._apply_ownership_param_attrs(func, sig.get_parameters(), 0);
     self.func_symtab[name] = func;
+    _fdm = nd.find_parent_of_type(uni.Module);
+    if _fdm is not None {
+        self._func_def_mod[name] = _fdm.name;
+    }
 
     self._func_loc[name] = nd.loc.first_line if nd.loc else 0;
 
@@ -224,6 +238,7 @@ impl NaIRGenPass._declare_clib_ability(nd: uni.Ability) -> None {
         for pp in param_plan {
             if pp["kind"] == "scalar" {
                 pp["type"] = sysv_param_types[pp["argpos"]];
+                pp["is_str"] = pp.get("tname") == "str";
             }
         }
         sysv_sret = plan["sret"];
@@ -284,6 +299,7 @@ impl NaIRGenPass._declare_clib_ability(nd: uni.Ability) -> None {
                 }
             }
         }
+        sysv_ret_plan["is_str"] = _fdecl["ret"] == "str";
         self.clib_fn_abi[name] = {
             "params": param_plan,
             "ret": sysv_ret_plan,
@@ -357,6 +373,7 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
     self.local_vars = {};
     self.param_vars = set();
     self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
@@ -458,6 +475,7 @@ impl NaIRGenPass._codegen_test(nd: uni.Test) -> None {
     self._builder = ir.IRBuilder(entry_bb);
     self.local_vars = {};
     self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
     saved_param_vars = self.param_vars;
     self.param_vars = set();
@@ -629,6 +647,7 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     self._builder = ir.IRBuilder(fn.append_basic_block("entry"));
     self.local_vars = {};
     self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
     self.param_vars = set();
     self.var_list_elem_struct = {};
@@ -959,6 +978,7 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     saved_locals = self.local_vars if self?.local_vars else {};
     saved_params = self.param_vars;
     saved_nogc = self.nogc_no_free_vars;
+    saved_nogc_owned = self.nogc_owned_str_vars;
     saved_region = self.region_handle_vars;
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
@@ -969,6 +989,7 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self.local_vars = {};
     self.param_vars = set();
     self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
@@ -1058,6 +1079,7 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self.local_vars = saved_locals;
     self.param_vars = saved_params;
     self.nogc_no_free_vars = saved_nogc;
+    self.nogc_owned_str_vars = saved_nogc_owned;
     self.region_handle_vars = saved_region;
     self.closure_cell_vars = saved_cell_vars;
     self.closure_cell_handles = saved_cell_handles;
@@ -1070,6 +1092,7 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self.local_vars = {};
     self.param_vars = set();
     self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
 
     if self.rc_alloc_fn is None {
@@ -1207,6 +1230,7 @@ impl NaIRGenPass._emit_glob_init_func -> None {
     self.local_vars = {};
     self.param_vars = set();
     self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
@@ -1385,6 +1409,7 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     self.local_vars = {};
     self.param_vars = set();
     self.nogc_no_free_vars = set();
+    self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};

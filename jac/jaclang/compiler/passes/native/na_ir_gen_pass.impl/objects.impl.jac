@@ -1958,7 +1958,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
 
     if method_name in self._primitive_method_names("str") {
-        str_val = self._codegen_expr(trailer.target);
+        str_val = self._str_norm(self._codegen_expr(trailer.target));
         if str_val is not None and str_val.type == ir.IntType(8).as_pointer() {
             arg_vals = self._codegen_call_args(nd);
             result = self._dispatch_primitive_method(
