@@ -16,9 +16,9 @@ glob READINESS_GATE_LABEL: str = "elbv2.k8s.aws/pod-readiness-gate-inject",
 
 # One real k3s apiserver (testcontainers) shared by the whole file, torn down
 # at exit - the same real-infra pattern as tests/data/test_occ_replay.jac.
-def _require_cluster {
+def _require_cluster -> str {
     if "cluster" in _shared {
-        return;
+        return _shared["kubeconfig"];
     }
     if "error" in _shared {
         raise unittest.SkipTest(_shared["error"]);
@@ -33,7 +33,7 @@ def _require_cluster {
         );
         kubeconfig.write(container.config_yaml());
         kubeconfig.close();
-        os.environ["KUBECONFIG"] = kubeconfig.name;
+        _shared["kubeconfig"] = kubeconfig.name;
         _shared["cluster"] = container;
     } except Exception as e {
         _shared["error"] = (
@@ -42,20 +42,30 @@ def _require_cluster {
         );
         raise unittest.SkipTest(_shared["error"]);
     }
+    return _shared["kubeconfig"];
 }
 
 
-def _config(namespace: str, shared_ingress_class: str = "") -> KubernetesConfig {
+def _config(
+    namespace: str, kubeconfig: str, shared_ingress_class: str = ""
+) -> KubernetesConfig {
     if shared_ingress_class {
         return KubernetesConfig(
             app_name="standup",
             namespace=namespace,
             domain="standup.example.com",
             shared_ingress=True,
-            shared_ingress_class=shared_ingress_class
+            shared_ingress_class=shared_ingress_class,
+            python_image="busybox:1.36",
+            kubeconfig=kubeconfig
         );
     }
-    return KubernetesConfig(app_name="standup", namespace=namespace);
+    return KubernetesConfig(
+        app_name="standup",
+        namespace=namespace,
+        python_image="busybox:1.36",
+        kubeconfig=kubeconfig
+    );
 }
 
 
@@ -82,20 +92,29 @@ def _deploy_through_apply(cfg: KubernetesConfig) {
 }
 
 
-def _live_namespace_labels(namespace: str) -> dict {
-    import from kubernetes { client }
-    ns = client.CoreV1Api().read_namespace(name=namespace);
+def _live_api(kubeconfig: str) -> tuple {
+    import from kubernetes { client, config }
+    api_client = config.new_client_from_config(config_file=kubeconfig);
+    return (
+        client.CoreV1Api(api_client=api_client),
+        client.AppsV1Api(api_client=api_client),
+        client.ApiClient()
+    );
+}
+
+
+def _live_namespace_labels(kubeconfig: str, namespace: str) -> dict {
+    (core_v1, _, _) = _live_api(kubeconfig);
+    ns: any = core_v1.read_namespace(name=namespace);
     return dict(ns.metadata.labels or {});
 }
 
 
-def _live_deployments(namespace: str) -> list {
-    import from kubernetes { client }
-    api = client.AppsV1Api();
-    serializer = client.ApiClient();
+def _live_deployments(kubeconfig: str, namespace: str) -> list {
+    (_, apps_v1, serializer) = _live_api(kubeconfig);
     return [
         serializer.sanitize_for_serialization(d)
-        for d in api.list_namespaced_deployment(namespace=namespace).items
+        for d in apps_v1.list_namespaced_deployment(namespace=namespace).items
     ];
 }
 
@@ -119,12 +138,12 @@ def _fresh_ns(prefix: str) -> str {
 # pod while the ALB is still health-checking the new target, and the target
 # group goes briefly empty on every redeploy.
 test "an ALB shared-ingress deploy labels the namespace for readiness gates" {
-    _require_cluster();
+    kubeconfig = _require_cluster();
     ns = _fresh_ns("alb-gate");
 
-    _deploy_through_apply(_config(ns, "alb"));
+    _deploy_through_apply(_config(ns, kubeconfig, "alb"));
 
-    labels = _live_namespace_labels(ns);
+    labels = _live_namespace_labels(kubeconfig, ns);
     assert labels.get(READINESS_GATE_LABEL) == "enabled" , f"namespace labels after deploy: {labels}";
 }
 
@@ -132,12 +151,12 @@ test "an ALB shared-ingress deploy labels the namespace for readiness gates" {
 # The other half of the gap: after replacement the old pod died at ~15s while
 # the ALB was still shifting new requests off its deregistering IP target.
 test "every Deployment an ALB deploy applies outlives target deregistration" {
-    _require_cluster();
+    kubeconfig = _require_cluster();
     ns = _fresh_ns("alb-drain");
 
-    _deploy_through_apply(_config(ns, "alb"));
+    _deploy_through_apply(_config(ns, kubeconfig, "alb"));
 
-    deployments = _live_deployments(ns);
+    deployments = _live_deployments(kubeconfig, ns);
     assert len(deployments) >= 2;
     for dep in deployments {
         (sleep_s, grace) = _drain_of(dep);
@@ -151,14 +170,14 @@ test "every Deployment an ALB deploy applies outlives target deregistration" {
 
 
 test "a non-ALB deploy leaves the namespace alone and keeps the short drain" {
-    _require_cluster();
+    kubeconfig = _require_cluster();
     ns = _fresh_ns("nginx");
 
-    _deploy_through_apply(_config(ns));
+    _deploy_through_apply(_config(ns, kubeconfig));
 
-    labels = _live_namespace_labels(ns);
+    labels = _live_namespace_labels(kubeconfig, ns);
     assert READINESS_GATE_LABEL not in labels , f"endpoint-routed deploy must not touch namespace labels: {labels}";
-    deployments = _live_deployments(ns);
+    deployments = _live_deployments(kubeconfig, ns);
     assert len(deployments) >= 2;
     for dep in deployments {
         (sleep_s, grace) = _drain_of(dep);
@@ -171,14 +190,14 @@ test "a non-ALB deploy leaves the namespace alone and keeps the short drain" {
 
 
 test "a second deploy does not re-patch an already-labeled namespace" {
-    _require_cluster();
+    kubeconfig = _require_cluster();
     ns = _fresh_ns("alb-idem");
-    cfg = _config(ns, "alb");
+    cfg = _config(ns, kubeconfig, "alb");
 
     _deploy_through_apply(cfg);
-    first = _live_namespace_labels(ns);
+    first = _live_namespace_labels(kubeconfig, ns);
     _deploy_through_apply(cfg);
-    second = _live_namespace_labels(ns);
+    second = _live_namespace_labels(kubeconfig, ns);
 
     assert first.get(READINESS_GATE_LABEL) == "enabled";
     assert second == first , f"redeploy changed namespace labels: {first} -> {second}";
