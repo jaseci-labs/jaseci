@@ -283,7 +283,6 @@ impl NaIRGenPass._emit_dict_helpers(
 
     malloc_fn = self._get_or_declare_extern("malloc", i8p, [i64]);
     calloc_fn = self._get_or_declare_extern("calloc", i8p, [i64, i64]);
-    strcmp_fn = self._get_or_declare_extern("strcmp", i32, [i8p, i8p]);
     if self.rc_safe_free_fn is None {
         self._emit_rc_helpers();
     }
@@ -485,7 +484,7 @@ impl NaIRGenPass._emit_dict_helpers(
         dat_eq = bke.icmp_signed("==", mcr_b, ir.Constant(i32, 0), name="dateq");
         keq = bke.and_(len_eq, dat_eq, name="keq");
     } elif is_str_key {
-        cmpr = bke.call(strcmp_fn, [kke, k_f], name="scmp");
+        cmpr = self._call_str_cmp(bke, kke, k_f, name="scmp");
         keq = bke.icmp_signed("==", cmpr, ir.Constant(i32, 0), name="keq");
     } elif _key_sz > 0 {
         memcmp_fn = self._get_or_declare_extern("memcmp", i32, [i8p, i8p, i64]);
@@ -806,8 +805,9 @@ impl NaIRGenPass._emit_dict_helpers(
             and isinstance(key_type.pointee, ir.IntType)
             and key_type.pointee.width == 8
         ) {
-            _strdup_i = self._get_or_declare_extern("strdup", i8p, [i8p]);
-            _k_ins = bi.call(_strdup_i, [bi.bitcast(k_s, i8p, name="dins_key_src")]);
+            _k_ins = self._call_str_dup(
+                bi, bi.bitcast(k_s, i8p, name="dins_key_src"), name="dins_key_dup"
+            );
             _k_ins = bi.bitcast(_k_ins, key_type, name="dins_key_copy");
         }
     } else {
@@ -1333,6 +1333,7 @@ impl NaIRGenPass._emit_dict_helpers(
 }
 
 impl NaIRGenPass._box_to_jacval(value: ir.Value) -> ir.Value {
+    value = self._str_norm(value);
     b = self.builder;
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
@@ -1461,7 +1462,7 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
 
     first_pair = nd.kv_pairs[0];
     first_key = self._codegen_expr(first_pair.key);
-    first_val = self._codegen_expr(first_pair.value);
+    first_val = self._str_norm(self._codegen_expr(first_pair.value));
     if first_key is None or first_val is None {
         return None;
     }

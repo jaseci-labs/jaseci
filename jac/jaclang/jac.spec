@@ -471,7 +471,7 @@ switch_case ::= ("default" | "case" pattern) ":" statement*
 global_var ::= "glob" access_tag global_var_assignment ("," global_var_assignment)* ";"
 
 global_var_assignment ::=
-    (NAME | KWESC_NAME) (":" pipe)? ("=" expression ("=" expression)*)?
+    (NAME | KWESC_NAME) (":" ownership_prefix pipe)? ("=" expression ("=" expression)*)?
 
 impl_def ::=
     ("@" atomic_chain)* "impl" impl_target_name ("." impl_target_name)* (

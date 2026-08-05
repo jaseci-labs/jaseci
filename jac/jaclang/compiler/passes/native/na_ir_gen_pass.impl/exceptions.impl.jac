@@ -304,6 +304,8 @@ impl NaIRGenPass._codegen_raise(nd: uni.RaiseStmt) -> None {
     if exc_msg is None {
         exc_msg = self._make_global_string(exc_type_name, name_prefix=".exc.msg");
     }
+    exc_msg = self._str_norm(exc_msg);
+    exc_payload = self._str_norm(exc_payload);
 
     if isinstance(exc_msg.type, ir.PointerType) and exc_msg.type != i8p {
         exc_msg = self.builder.bitcast(exc_msg, i8p, name="exc.msg.cast");

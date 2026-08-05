@@ -6389,8 +6389,11 @@ impl Parser.parse_global_var_assignment -> Assignment {
     type_tag: SubTag | None = None;
     if self.match_tok(TokenKind.COLON) {
         gv_colon_uni = self.make_uni_token(self.previous());
+        gv_own_kid: list = [gv_colon_uni];
+        gv_own_kind = self.parse_ownership_prefix(gv_own_kid);
         tp = self.parse_pipe();
-        type_tag = SubTag(tag=tp, kid=[gv_colon_uni, tp]);
+        gv_own_kid.append(tp);
+        type_tag = SubTag(tag=tp, ownership=gv_own_kind, kid=gv_own_kid);
     }
     value = None;
     targets: list = [name];
