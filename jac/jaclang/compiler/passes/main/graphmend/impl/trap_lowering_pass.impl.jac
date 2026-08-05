@@ -1,5 +1,5 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.passes.main.graphmend.break_kind { GraphBreakKind }
+import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
 
 impl TrapLoweringPass.before_pass -> None {
     self._enabled = self.prog._compile_options.graphmend;
@@ -12,7 +12,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if not self._enabled {
         return;
     }
-    if nd?._gm_break_kind != GraphBreakKind.VAL_GUARD {
+    if self.prog.graphmend_breaks.get(id(nd)) != GraphBreakKind.VAL_GUARD {
         return;
     }
     if (not nd.body) or (len(nd.body) != 1) {
@@ -40,10 +40,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     eq = self._torch_equal_args(x);
     if eq is not None {
         (a, b) = eq;
-        mod = nd.find_parent_of_type(uni.Module);
-        if mod is not None {
-            mod._gm_needs_eq_assert = True;
-        }
+        self._need_helper(nd, GraphMendHelper.EQ_ASSERT);
         self._replace(nd, [self._eq_assert_stmt(nd, a, b, use_msg)]);
         if marked is not None {
             self._mark_guard(wrap);
@@ -101,26 +98,36 @@ impl TrapLoweringPass._marked_message(
     if not isinstance(msg, (uni.String, uni.MultiString)) {
         return None;
     }
-    text = "[[GM-TRAP " + type_name + "]]" + msg.lit_value + "[[/GM-TRAP]]";
+    text = "[[GM-TRAP " + type_name + "]]" + str(msg.lit_value) + "[[/GM-TRAP]]";
     return self._str(at, text);
+}
+
+impl TrapLoweringPass._need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None {
+    mod = at.find_parent_of_type(uni.Module);
+    if mod is None {
+        return;
+    }
+    needed = self.prog.graphmend_helpers.get(id(mod));
+    if needed is None {
+        needed = set();
+        self.prog.graphmend_helpers[id(mod)] = needed;
+    }
+    needed.add(helper);
 }
 
 impl TrapLoweringPass._mark_guard(ability: (uni.Ability | None)) -> None {
     if ability is None {
         return;
     }
-    ability._gm_needs_trap_guard = True;
-    mod = ability.find_parent_of_type(uni.Module);
-    if mod is not None {
-        mod._gm_needs_trap_guard = True;
-    }
+    self._guarded_fns.add(id(ability));
+    self._need_helper(ability, GraphMendHelper.TRAP_GUARD);
 }
 
 impl TrapLoweringPass.exit_ability(nd: uni.Ability) -> None {
     if not self._enabled {
         return;
     }
-    if not getattr(nd, '_gm_needs_trap_guard', False) {
+    if id(nd) not in self._guarded_fns {
         return;
     }
     dec = self._gen_name(nd, '__jac_trap_guard__');
@@ -133,7 +140,8 @@ impl TrapLoweringPass._torch_equal_args(x: uni.Expr) -> (tuple | None) {
     if not isinstance(x, uni.FuncCall) {
         return None;
     }
-    target = x.target;
+    call: uni.FuncCall = x;
+    target = call.target;
     if not (
         isinstance(target, uni.AtomTrailer)
         and isinstance(target.right, uni.Name)
@@ -145,7 +153,7 @@ impl TrapLoweringPass._torch_equal_args(x: uni.Expr) -> (tuple | None) {
     }
     pos = [
         p
-        for p in (x.params or [])
+        for p in (call.params or [])
         if not isinstance(p, uni.KWPair)
     ];
     if len(pos) < 2 {
@@ -176,7 +184,20 @@ impl TrapLoweringPass._raise_message(rs: uni.RaiseStmt, at: uni.UniNode) -> uni.
 }
 
 impl TrapLoweringPass._gen_name(at: uni.UniNode, value: str) -> uni.Name {
-    return uni.Name.gen_stub_from_node(at, value);
+    nm = uni.Name(
+        orig_src=at.loc.orig_src,
+        name=Tok.NAME.value,
+        value=value,
+        line=at.loc.first_line,
+        end_line=at.loc.last_line,
+        col_start=at.loc.col_start,
+        col_end=at.loc.col_end,
+        pos_start=at.loc.pos_start,
+        pos_end=at.loc.pos_end
+    );
+    nm.parent = at.parent;
+    nm.name_of = nm;
+    return nm;
 }
 
 impl TrapLoweringPass._str(at: uni.UniNode, text: str) -> uni.String {
@@ -232,10 +253,11 @@ impl TrapLoweringPass._replace(old: uni.UniNode, new_nodes: list) -> None {
     if parent is None {
         return;
     }
-    body = parent?.body;
+    holder: any = parent;
+    body = holder?.body;
     if isinstance(body, list) and (old in body) {
         i = body.index(old);
-        parent.body = body[:i] + new_nodes + body[(i + 1):];
+        setattr(holder, 'body', list(body[:i]) + new_nodes + list(body[(i + 1):]));
     }
     if old in parent.kid {
         j = parent.kid.index(old);

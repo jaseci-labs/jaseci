@@ -1,6 +1,6 @@
+import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.passes { UniPass }
-import from jaclang.compiler.passes.main.graphmend.break_kind { GraphBreakKind }
+import from jaclang.jac0core.constant { GraphBreakKind }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     is_dynamic_torch_attr,
     is_side_effect_name
@@ -21,17 +21,17 @@ impl GraphBreakDetectPass.before_pass -> None {
 
 impl GraphBreakDetectPass._collect_entry_points -> set[int] {
     ids: set[int] = set();
-    for ab in UniPass.get_all_sub_nodes(self.ir_in, uni.Ability) {
+    for ab in self.ir_in.get_all_sub_nodes(uni.Ability) {
         if self._has_torch_compile_decorator(ab) {
             ids.add(id(ab));
         }
     }
-    for arch in UniPass.get_all_sub_nodes(self.ir_in, uni.Archetype) {
+    for arch in self.ir_in.get_all_sub_nodes(uni.Archetype) {
         if self._has_torch_compile_decorator(arch) {
             ids.add(id(arch));
         }
     }
-    for call in UniPass.get_all_sub_nodes(self.ir_in, uni.FuncCall) {
+    for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
         if self._call_is_torch_compile(call) {
             entry = self._resolve_wrapped_entry(call);
             if entry is not None {
@@ -96,7 +96,7 @@ impl GraphBreakDetectPass._def_node(
     if (not sym) or (not sym.defn) {
         return None;
     }
-    cur = sym.defn[0];
+    cur: (uni.UniNode | None) = sym.defn[0];
     while cur {
         if isinstance(cur, (uni.Ability, uni.Archetype)) {
             return cur;
@@ -162,9 +162,9 @@ impl GraphBreakDetectPass.enter_if_stmt(nd: uni.IfStmt) -> None {
         return;
     }
     if self._body_is_only_raise(nd.body) {
-        nd._gm_break_kind = GraphBreakKind.VAL_GUARD;
+        self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.VAL_GUARD;
     } else {
-        nd._gm_break_kind = GraphBreakKind.DYN_CTRL_FL;
+        self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.DYN_CTRL_FL;
     }
 }
 
@@ -180,7 +180,7 @@ impl GraphBreakDetectPass.enter_func_call(nd: uni.FuncCall) -> None {
         if self._is_user_defined(nd, name) {
             return;
         }
-        nd._gm_break_kind = GraphBreakKind.SIDE_EFFECT;
+        self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.SIDE_EFFECT;
     }
 }
 
@@ -204,7 +204,9 @@ impl GraphBreakDetectPass._is_user_defined(nd: uni.FuncCall, name: str) -> bool 
     return bool(sym and sym.defn);
 }
 
-impl GraphBreakDetectPass._body_is_only_raise(body: list) -> bool {
+impl GraphBreakDetectPass._body_is_only_raise(
+    body: Sequence[uni.CodeBlockStmt]
+) -> bool {
     if (not body) or (len(body) != 1) {
         return False;
     }

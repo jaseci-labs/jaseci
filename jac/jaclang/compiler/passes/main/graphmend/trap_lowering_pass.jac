@@ -1,12 +1,15 @@
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.constant { Tokens as Tok, GraphMendHelper }
 import from jaclang.jac0core.passes { UniPass }
 
 glob _TENSOR_BOOL_OPS: set[str] = {'all', 'any', 'allclose'};
 
 obj TrapLoweringPass(UniPass) {
-    has _enabled: bool = False;
+    has _enabled: bool = False,
+        _guarded_fns: set[int] = set();
 
     def before_pass -> None;
+    def _need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
     def _enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | None);
     def _has_torch_compile_decorator(nd: uni.UniNode) -> bool;
