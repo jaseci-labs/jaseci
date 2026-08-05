@@ -1,9 +1,6 @@
-"""Every dispatch path that produces a usage object must attach a `cost` figure
-(computed via litellm's own `completion_cost`) onto that same object, so the
-`usage` StreamEvent's per-call/aggregate totals carry cost for free -- with no
-extra plumbing, since the existing aggregation loop in basellm.impl.jac sums
-any numeric field it finds. A pricing-table miss must degrade to no `cost` key,
-never raise out of a dispatch call."""
+"""Every dispatch path that builds a usage object must attach a `cost` figure via
+litellm's own `completion_cost`; a pricing-table miss must degrade to no `cost`
+key, never raise out of a dispatch call."""
 
 import asyncio;
 import types;
@@ -14,7 +11,7 @@ import from jaclang.byllm.mtir { MTRuntime }
 import from jaclang.byllm.types { Message, MessageRole }
 
 
-def _mt_run() -> MTRuntime {
+def _mt_run -> MTRuntime {
     return MTRuntime(
         messages=[
             Message(role=MessageRole.SYSTEM, content="s"),
@@ -56,9 +53,9 @@ test "dispatch_no_streaming attaches cost from litellm.completion_cost" {
     def _fake_call(params: dict) -> dict {
         return _text_response("hi");
     }
-    with mock.patch.object(
-        llm, "model_call_no_stream", _fake_call
-    ), mock.patch.object(_byllm_llm_mod.litellm, "completion_cost", _fake_cost) {
+    with mock.patch.object(llm, "model_call_no_stream", _fake_call), mock.patch.object(
+        _byllm_llm_mod.litellm, "completion_cost", _fake_cost
+    ) {
         result = llm.dispatch_no_streaming(_mt_run());
     }
     assert result.usage["cost"] == 0.0042 , result.usage;
@@ -71,9 +68,9 @@ test "adispatch_no_streaming attaches cost from litellm.completion_cost" {
     async def _fake_call(params: dict) -> dict {
         return _text_response("hi");
     }
-    with mock.patch.object(
-        llm, "model_call_no_stream_async", _fake_call
-    ), mock.patch.object(_byllm_llm_mod.litellm, "completion_cost", _fake_cost) {
+    with mock.patch.object(llm, "model_call_no_stream_async", _fake_call), mock.patch.object(
+        _byllm_llm_mod.litellm, "completion_cost", _fake_cost
+    ) {
         result = asyncio.run(llm.adispatch_no_streaming(_mt_run()));
     }
     assert result.usage["cost"] == 0.0042 , result.usage;
@@ -94,9 +91,7 @@ test "dispatch_streaming_with_tools attaches cost via stream_chunk_builder" {
         return rebuilt;
     }
     out: list = [];
-    with mock.patch.object(
-        llm, "model_call_with_stream", _fake_stream
-    ), mock.patch.object(
+    with mock.patch.object(llm, "model_call_with_stream", _fake_stream), mock.patch.object(
         _byllm_llm_mod.litellm, "stream_chunk_builder", _fake_builder
     ), mock.patch.object(_byllm_llm_mod.litellm, "completion_cost", _fake_cost) {
         list(llm.dispatch_streaming_with_tools(_mt_run(), out));
@@ -119,9 +114,9 @@ test "dispatch_streaming attaches cost to the stream's final usage chunk" {
     def _fake_stream(params: dict) -> list {
         return chunks;
     }
-    with mock.patch.object(
-        llm, "model_call_with_stream", _fake_stream
-    ), mock.patch.object(_byllm_llm_mod.litellm, "completion_cost", _fake_cost) {
+    with mock.patch.object(llm, "model_call_with_stream", _fake_stream), mock.patch.object(
+        _byllm_llm_mod.litellm, "completion_cost", _fake_cost
+    ) {
         list(llm.dispatch_streaming(_mt_run()));
     }
     assert llm._usage_history[-1].cost == 0.0042 , llm._usage_history;
@@ -131,11 +126,11 @@ test "dispatch_streaming attaches cost to the stream's final usage chunk" {
 obj _AsyncChunks {
     has items: list;
 
-    def __aiter__() -> _AsyncChunks {
+    def __aiter__ -> _AsyncChunks {
         return self;
     }
 
-    async def __anext__() -> object {
+    async def __anext__ -> object {
         if not self.items {
             raise StopAsyncIteration;
         }
@@ -144,7 +139,7 @@ obj _AsyncChunks {
 }
 
 async def _drain_async(agen: object) {
-    async for _item in agen {}
+    async for _item in agen { }
 }
 
 
@@ -162,9 +157,9 @@ test "adispatch_streaming attaches cost to the stream's final usage chunk" {
     async def _fake_stream(params: dict) -> _AsyncChunks {
         return _AsyncChunks(items=chunks);
     }
-    with mock.patch.object(
-        llm, "model_call_with_stream_async", _fake_stream
-    ), mock.patch.object(_byllm_llm_mod.litellm, "completion_cost", _fake_cost) {
+    with mock.patch.object(llm, "model_call_with_stream_async", _fake_stream), mock.patch.object(
+        _byllm_llm_mod.litellm, "completion_cost", _fake_cost
+    ) {
         asyncio.run(_drain_async(llm.adispatch_streaming(_mt_run())));
     }
     assert llm._usage_history[-1].cost == 0.0042 , llm._usage_history;
@@ -177,9 +172,7 @@ test "a pricing-table miss degrades to no cost key, never raises" {
     def _fake_call(params: dict) -> dict {
         return _text_response("hi");
     }
-    with mock.patch.object(
-        llm, "model_call_no_stream", _fake_call
-    ), mock.patch.object(
+    with mock.patch.object(llm, "model_call_no_stream", _fake_call), mock.patch.object(
         _byllm_llm_mod.litellm, "completion_cost", _raise_pricing_error
     ) {
         result = llm.dispatch_no_streaming(_mt_run());

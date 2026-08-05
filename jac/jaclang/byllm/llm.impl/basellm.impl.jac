@@ -118,14 +118,6 @@ def _litellm_ctx_window(model_name: str) -> int {
 }
 
 
-"""Attaches the USD cost of one LLM call onto its usage object, computed via
-litellm's own `completion_cost` (same pricing table `_litellm_ctx_window` already
-relies on for context windows). `usage_obj` is whatever a dispatch path already
-extracted -- a dict or a litellm `Usage` instance -- and gains a `cost` entry in
-place, so it flows through `_usage_history`'s existing per-call/aggregate summing
-with no other change. A pricing-table miss (unrecognized model, etc.) leaves
-`usage_obj` untouched rather than raising: an absent cost must never fail a call
-that otherwise succeeded."""
 def _attach_call_cost(
     usage_obj: object, model_name: str, response: object = None
 ) -> None {
@@ -135,7 +127,9 @@ def _attach_call_cost(
     try {
         cost = litellm.completion_cost(
             completion_response=(
-                response if response is not None else {"model": model_name, "usage": usage_obj}
+                response
+                    if response is not None
+                    else {"model": model_name, "usage": usage_obj}
             ),
             model=model_name
         );
