@@ -196,6 +196,7 @@ obj TypeEvaluator {
         _mobui_module_cache: dict[str, bool] = {},
         _compose_module_cache: dict[str, bool] = {},
         _compose_global_names: set[str] = {},
+        _compose_layout_inst_cache: dict[str, (TypeBase | None)] = {},
         _strict_site_cache: dict[int, bool] = {},
         _sv_async_syms_cache: dict[int, set[int]] = {},
         _and_narrowing_overrides: dict[int, TypeBase] = {},
@@ -277,6 +278,7 @@ obj TypeEvaluator {
     def _is_compose_gated_member(sym: uni.Symbol) -> bool;
     def _compose_composable_instance -> TypeBase;
     def _map_compose_param(p: SigParam) -> TypeBase;
+    def _compose_layout_type_for(ktype: str) -> (TypeBase | None);
     def _map_kotlin_type(ktype: str) -> TypeBase;
     def _map_kotlin_lambda(ktype: str) -> TypeBase;
     def _compose_sig_to_functype(sig: ComposeSig) -> types.FunctionType;

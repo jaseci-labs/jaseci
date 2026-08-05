@@ -659,8 +659,37 @@ impl TypeEvaluator._map_kotlin_lambda(ktype: str) -> TypeBase {
     );
 }
 
+impl TypeEvaluator._compose_layout_type_for(ktype: str) -> (TypeBase | None) {
+    lower = ktype.strip().lower();
+    ns = "";
+    if "compose.foundation.layout.arrangement" in lower {
+        ns = "ArrangementNamespace";
+    } elif "compose.ui.alignment" in lower {
+        ns = "AlignmentNamespace";
+    }
+    if not ns {
+        return None;
+    }
+    if ns in self._compose_layout_inst_cache {
+        return self._compose_layout_inst_cache[ns];
+    }
+    inst: (TypeBase | None) = None;
+    if self.js_globals_module is not None {
+        cls = self._get_type_from_module(self.js_globals_module, ns);
+        if isinstance(cls, types.ClassType) {
+            inst = self._convert_to_instance(cls);
+        }
+    }
+    self._compose_layout_inst_cache[ns] = inst;
+    return inst;
+}
+
 impl TypeEvaluator._map_kotlin_type(ktype: str) -> TypeBase {
     foreign_any = types.AnyType(is_foreign=True);
+    layout = self._compose_layout_type_for(ktype);
+    if layout is not None {
+        return layout;
+    }
     if self.prefetch is None {
         return foreign_any;
     }

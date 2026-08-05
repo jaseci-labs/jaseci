@@ -485,6 +485,69 @@ test "const namespaces are ingested live at checker init" {
     }
 }
 
+test "typed const namespaces resolve to a concrete type, not foreign-any (A1)" {
+    # The A1 win: Arrangement/Alignment named constants are no longer
+    # foreign-any — each member is an instance of its ingested namespace class,
+    # and `_map_kotlin_type` maps the matching Kotlin layout types (bare
+    # namespace + nested Horizontal/Vertical/HorizontalOrVertical subtypes) onto
+    # that same class, so a const and the widget param it flows into unify.
+    ev = JacProgram().get_type_evaluator();
+
+    for (ns, member, expect) in [
+        ("ArrangementNamespace", "Center", "ArrangementNamespace"),
+        ("ArrangementNamespace", "SpaceBetween", "ArrangementNamespace"),
+        ("AlignmentNamespace", "CenterVertically", "AlignmentNamespace"),
+        ("AlignmentNamespace", "CenterHorizontally", "AlignmentNamespace")
+    ] {
+        cls = ev._get_type_from_module(ev.js_globals_module, ns);
+        sym = cls.shared.symbol_table.names_in_scope.get(member);
+        t = str(ev.get_type_of_symbol(sym));
+        assert expect in t , f"{ns}.{member} should be {expect}, got {t}";
+        assert "any" not in t , f"{ns}.{member} must not be foreign-any, got {t}";
+    }
+
+    # named colors are scalars (`long`) -> int (A2 promotes Color to a value
+    # class); they are already non-any, so they stay int for now.
+    cc = ev._get_type_from_module(ev.js_globals_module, "ColorNamespace");
+    assert "int" in str(
+        ev.get_type_of_symbol(cc.shared.symbol_table.names_in_scope.get("Red"))
+    );
+
+    # _map_kotlin_type recognizes the layout family by its AndroidX package
+    # path (the last-component strip would otherwise collide Vertical/Horizontal
+    # across Arrangement and Alignment).
+    assert "ArrangementNamespace" in str(
+        ev._map_kotlin_type("androidx.compose.foundation.layout.Arrangement.Vertical")
+    );
+    assert "ArrangementNamespace" in str(
+        ev._map_kotlin_type(
+            "androidx.compose.foundation.layout.Arrangement.HorizontalOrVertical"
+        )
+    );
+    assert "AlignmentNamespace" in str(
+        ev._map_kotlin_type("androidx.compose.ui.Alignment.Horizontal")
+    );
+}
+
+test "typed layout params catch arrangement/alignment mixups (A1)" {
+    # Typing the widget layout params (not just the constants) is the payoff:
+    # swapping an Arrangement for an Alignment, or passing a bare string, used to
+    # slip through to Kotlin and is now caught at Jac compile time.
+    assert _errors_for(
+        "def f -> Composable {\n    return <Column verticalArrangement={Alignment.CenterHorizontally}>\"x\"</Column>;\n}\n",
+        ".jac"
+    );
+    assert _errors_for(
+        "def f -> Composable {\n    return <Column verticalArrangement={\"center\"}>\"x\"</Column>;\n}\n",
+        ".jac"
+    );
+    # the correct pairing stays clean (no false positive from the tighter type).
+    assert not _errors_for(
+        "def f -> Composable {\n    return <Column verticalArrangement={Arrangement.Center} horizontalAlignment={Alignment.CenterHorizontally}>\"x\"</Column>;\n}\n",
+        ".jac"
+    );
+}
+
 # ── Part 5: default-on safety net (A4) ───────────────────────────────────────
 # type_check now defaults ON for [client.android]. That is only safe if a page
 # written in idiomatic Compose Jac — every Kotlin-ism the checker was taught —
