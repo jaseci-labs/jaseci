@@ -715,6 +715,16 @@ impl NaIRGenPass._to_bool(val: ir.Value) -> ir.Value {
     if self?.jacval_type and val.type == self.jacval_type {
         return self._jacval_truthy(val);
     }
+    if self._opt_payload_of(val.type) is not None {
+        # Optional truthiness: None is falsy, a present payload keeps its
+        # own truthiness (Some(0) is falsy, matching Python).
+        _tag = self.builder.extract_value(val, 0, name="opt.tobool.tag");
+        _tag_set = self.builder.icmp_signed(
+            "!=", _tag, ir.Constant(ir.IntType(8), 0), name="opt.tobool.has"
+        );
+        _pl = self.builder.extract_value(val, 1, name="opt.tobool.pl");
+        return self.builder.and_(_tag_set, self._to_bool(_pl), name="opt.tobool");
+    }
     if isinstance(val.type, ir.IntType) {
         return self.builder.icmp_unsigned(
             "!=", val, ir.Constant(val.type, 0), name="tobool"
@@ -976,7 +986,12 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
             "!=", _tag, ir.Constant(ir.IntType(8), 0), name="opt.has"
         );
         if isinstance(target_type, ir.IntType) and target_type.width == 1 {
-            return _tag_set;
+            # Python truthiness: None is falsy, and a present payload keeps
+            # its own truthiness (Some(0) is falsy), so presence alone is
+            # not the answer.
+            _pl_t = self.builder.extract_value(val, 1, name="opt.payload.t");
+            _pl_b = self._coerce_type_inner(_pl_t, target_type);
+            return self.builder.and_(_tag_set, _pl_b, name="opt.truthy");
         }
         _pl = self.builder.extract_value(val, 1, name="opt.payload");
         if self?.jacval_type and target_type == self.jacval_type {

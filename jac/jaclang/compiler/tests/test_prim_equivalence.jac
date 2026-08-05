@@ -176,6 +176,16 @@ test "dict" {
     run_with_both("prim_dict.jac", "dict_py", "dict_cl", "dict_na");
 }
 
+test "dict get miss is a real None on every backend" {
+    run_with_both(
+        "prim_dict_get_none.jac",
+        "dgn_py",
+        "dgn_cl",
+        "dgn_na",
+        require=["cl", "na"]
+    );
+}
+
 test "phi str box" {
     run_with_both(
         "prim_phi_str_box.jac",

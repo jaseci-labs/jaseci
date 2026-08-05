@@ -3220,23 +3220,41 @@ impl NativeDictEmitter.emit_get(
     done_bb = func.append_basic_block(name="dget.done");
     b.cbranch(found_i1, found_bb, notfound_bb);
 
+    val_type = helpers["val_type"];
+    # The checker types 1-arg get() as V | None. For non-pointer V a
+    # fabricated zero-value would destroy miss-ness (0 is
+    # indistinguishable from a stored 0, and `is None` on it is false), so
+    # the miss must produce the real optional representation: JacOpt with
+    # tag 0. Pointer-valued dicts keep the nullable-pointer convention,
+    # which already IS the V | None encoding.
+    wrap_optional = (len(args) < 2) and (not isinstance(val_type, ir.PointerType));
+    result_type = p._jac_optional_type(val_type) if wrap_optional else val_type;
+
     b.position_at_start(found_bb);
     val = b.call(helpers["get"], [target, key], name="dget.val");
+    if wrap_optional {
+        _tagged = b.insert_value(
+            ir.Constant(result_type, None),
+            ir.Constant(ir.IntType(8), 1),
+            0,
+            name="dget.some.tag"
+        );
+        val = b.insert_value(_tagged, val, 1, name="dget.some");
+    }
     b.branch(done_bb);
 
     b.position_at_start(notfound_bb);
-    val_type = helpers["val_type"];
-    if len(args) >= 2 {
+    if wrap_optional {
+        default_val = ir.Constant(result_type, None);
+    } elif len(args) >= 2 {
         default_val = p._coerce_type(args[1], val_type);
-    } elif isinstance(val_type, ir.PointerType) {
-        default_val = ir.Constant(val_type, None);
     } else {
-        default_val = ir.Constant(val_type, 0);
+        default_val = ir.Constant(val_type, None);
     }
     b.branch(done_bb);
 
     b.position_at_start(done_bb);
-    result = b.phi(val_type, name="dget.result");
+    result = b.phi(result_type, name="dget.result");
     result.add_incoming(val, found_bb);
     result.add_incoming(default_val, notfound_bb);
     if isinstance(val_type, ir.PointerType) {
