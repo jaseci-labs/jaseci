@@ -22,14 +22,14 @@ def project_root_of(source_path: str) -> (str | None) {
 
 
 def require_project_root(source_path: str) -> str {
-    root = project_root_of(source_path);
-    if not root {
+    proj_root = project_root_of(source_path);
+    if not proj_root {
         raise ValueError(
             f"{source_path} is not inside a jac project (no jac.toml in any "
             "ancestor directory), so placement cannot be resolved for it."
         );
     }
-    return root;
+    return proj_root;
 }
 
 
@@ -63,15 +63,13 @@ def emits_server_code(mod: (uni.Module | None)) -> bool {
 }
 
 
-def declared_path_spaces(source_path: str, prog: object) -> set[str] {
+def declared_path_spaces(source_path: str, prog: any) -> set[str] {
     import from jaclang.jac0core.placement_solver { _materialize_module }
     return module_spaces(_materialize_module(source_path, prog));
 }
 
 
-def discover_spaces(
-    paths: list[str], prog: (object | None) = None
-) -> dict[str, set[str]] {
+def discover_spaces(paths: list[str], prog: any = None) -> dict[str, set[str]] {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compiler { hub_module_for_path }
     target = prog if prog is not None else JacProgram();

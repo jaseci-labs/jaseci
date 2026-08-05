@@ -16,7 +16,8 @@ glob APP_VOLUME_NAME: str = "jac-app",
      APP_MOUNT_PATH: str = "/app",
      JAC_HOME: str = "/app/.jachome",
      TOOLCHAIN_SUBDIR: str = ".jactoolchain",
-     DEFAULT_SEAL_TIMEOUT_S: int = 1800;
+     DEFAULT_SEAL_TIMEOUT_S: int = 1800,
+     PLACEHOLDER_JAC_TOML: str = "[project]\nname = \"app\"\n";
 
 glob _EXCLUDE_DIRS: set[str] = {
          ".jac",
@@ -221,6 +222,8 @@ def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
         stage.mkdir(parents=True, exist_ok=True);
         if sanitized_toml is not None {
             (stage / "jac.toml").write_text(sanitized_toml, encoding="utf-8");
+        } else {
+            (stage / "jac.toml").write_text(PLACEHOLDER_JAC_TOML, encoding="utf-8");
         }
         for (rel, text) in nested_sanitized_tomls(base).items() {
             dest = stage / Path(rel);
@@ -444,9 +447,9 @@ def pack_jab(project_dir: str, provisioned_database: str, pod_binary: bytes) -> 
                     info.size = len(data);
                     tar.addfile(info, io.BytesIO(data));
                 }
-                for (rel, text) in nested_sanitized_tomls(base).items() {
-                    data = text.encode("utf-8");
-                    info = tarfile.TarInfo(name=rel);
+                for (toml_rel, toml_text) in nested_sanitized_tomls(base).items() {
+                    data = toml_text.encode("utf-8");
+                    info = tarfile.TarInfo(name=toml_rel);
                     info.size = len(data);
                     tar.addfile(info, io.BytesIO(data));
                 }

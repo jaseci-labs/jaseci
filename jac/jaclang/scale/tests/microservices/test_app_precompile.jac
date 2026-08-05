@@ -100,6 +100,16 @@ test "the seal skips pinned and inferred client modules and nested projects" {
 }
 
 
+test "a project without jac.toml stages the minimal placeholder for the seal" {
+    import from jaclang.scale.injector.bundle { PLACEHOLDER_JAC_TOML }
+    d = tempfile.mkdtemp(prefix="jac-app-");
+    Path(d, "svc.jac").write_text("def:pub ping -> str { return \"pong\"; }\n");
+    stage_root = _stage_app(Path(d), sanitized_jac_toml(Path(d)));
+    staged = (stage_root / "app" / "jac.toml").read_text();
+    assert staged == PLACEHOLDER_JAC_TOML;
+}
+
+
 test "sealing an app tree without jac.toml fails loudly before compiling" {
     import from jaclang.utils.precompile_bytecode { main as seal_main }
     d = tempfile.mkdtemp(prefix="jac-app-");
