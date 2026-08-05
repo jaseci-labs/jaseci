@@ -99,7 +99,17 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
         slot_gv.initializer = ir.Constant(fnty.as_pointer(), None);
         self.decorated_fns[name] = (func, slot_gv, _dec_names, fnty);
     } else {
-        func = ir.Function(self.llvm_module, fnty, name=name);
+        _emit_name = name;
+        if nd.access
+            and nd.access.tag.name == Tok.KW_PRIV
+            and nd.find_parent_of_type(uni.Archetype) is None {
+            import from jaclang.jac0core.codeinfo { native_safe_sym }
+            _def_m = nd.find_parent_of_type(uni.Module);
+            if _def_m is not None {
+                _emit_name = f"{name}.__jacp_{native_safe_sym(_def_m.name)}";
+            }
+        }
+        func = ir.Function(self.llvm_module, fnty, name=_emit_name);
     }
 
     for (i, p) in enumerate(sig.get_parameters()) {
@@ -107,6 +117,10 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     }
     self._apply_ownership_param_attrs(func, sig.get_parameters(), 0);
     self.func_symtab[name] = func;
+    _fdm = nd.find_parent_of_type(uni.Module);
+    if _fdm is not None {
+        self._func_def_mod[name] = _fdm.name;
+    }
 
     self._func_loc[name] = nd.loc.first_line if nd.loc else 0;
 

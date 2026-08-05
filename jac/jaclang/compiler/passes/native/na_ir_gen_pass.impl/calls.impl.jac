@@ -699,7 +699,7 @@ impl NaIRGenPass._native_module_call_target(nd: uni.FuncCall) -> (str | None) {
         and mod_name not in self.local_vars
         and mod_name not in self.struct_types
     ) {
-        return method_name;
+        return (mod_name, method_name);
     }
     return None;
 }
@@ -721,12 +721,13 @@ impl NaIRGenPass._codegen_rc_intrinsic(func_name: str) -> bool {
 impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     _call_kind = nd.call_kind;
 
+    _mod_qual: (str | None) = None;
     if _call_kind == "method" {
         _mod_fn = self._native_module_call_target(nd);
         if _mod_fn is None {
             return self._codegen_method_call(nd);
         }
-        func_name = _mod_fn;
+        (_mod_qual, func_name) = _mod_fn;
     } else {
         func_name = self._get_name(nd.target);
         if func_name is None {
@@ -1293,6 +1294,12 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return self._codegen_decorated_call(nd, func_name);
     }
     func = self.func_symtab.get(func_name);
+    if func is not None and _mod_qual is not None {
+        _dm = self._func_def_mod.get(func_name);
+        if _dm is not None and _dm != _mod_qual {
+            func = None;
+        }
+    }
     if func is None {
         manifest = self.ir_in.gen.interop_manifest;
         binding = manifest.bindings.get(func_name);
