@@ -47,6 +47,16 @@ impl OwnershipCheckPass._process_partition_sugar -> None {
         if not (call.params or []) {
             continue;
         }
+        _psr_recv = _tr.target;
+        _psr_m = "";
+        try {
+            _psr_m = _psr_recv.type.mangle() if _psr_recv.type is not None else "";
+        } except Exception {
+            _psr_m = "";
+        }
+        if _psr_m != "Region" {
+            continue;
+        }
         reason = self._partition_sugar_reason(call);
         if reason != "" {
             self.emit(E1314, node_override=call, name=reason);
