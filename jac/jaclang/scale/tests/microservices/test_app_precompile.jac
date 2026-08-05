@@ -78,6 +78,22 @@ test "seal timeout comes from [scale] seal_timeout with a safe default" {
 }
 
 
+test "the seal skips pinned and inferred client modules and nested projects" {
+    base = Path(_pinned_app());
+    os.makedirs(os.path.join(str(base), "pages"));
+    Path(str(base), "pages", "home.jac").write_text(
+        "def:pub home -> JsxElement {\n    return <div>hi</div>;\n}\n"
+    );
+    stage_root = _stage_app(base, sanitized_jac_toml(base));
+    stage = stage_root / "app";
+    import from jaclang.utils.precompile_bytecode { sealable_sources }
+    rels = {
+        Path(p).relative_to(stage).as_posix() for p in sealable_sources(str(stage))
+    };
+    assert rels == {"__init__.jac", "svc.jac"} , rels;
+}
+
+
 test "sealing an app tree without jac.toml fails loudly before compiling" {
     import from jaclang.utils.precompile_bytecode { main as seal_main }
     d = tempfile.mkdtemp(prefix="jac-app-");

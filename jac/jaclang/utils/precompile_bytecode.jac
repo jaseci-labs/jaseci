@@ -108,44 +108,39 @@ def find_jac_files(package_dir: str) -> list[str] {
     return result;
 }
 
-glob NATIVE_ONLY_DIR: str = os.path.join("runtimelib", "na_stdlib"),
-     MIXED_NATIVE_DIR: str = os.path.join(
-         "runtimelib", "client", "targets", "desktop", "native"
-     );
-
-def _is_native_only_source(package_dir: str, p: str) -> bool {
-    rel = os.path.relpath(p, package_dir);
-    if rel.startswith(NATIVE_ONLY_DIR + os.sep) {
-        return True;
-    }
-
-    if rel.startswith(MIXED_NATIVE_DIR + os.sep) {
-        import from jaclang.jac0core.placement_solver { native_default_path_ok }
-        return native_default_path_ok(p);
-    }
-    return False;
-}
+glob _sealable_cache: dict[str, list[str]] = {};
 
 def sealable_sources(package_dir: str) -> list[str] {
+    key = os.path.abspath(package_dir);
+    cached = _sealable_cache.get(key);
+    if cached is not None {
+        return cached;
+    }
     boot_prefix = str(Path(package_dir) / "jac0core") + os.sep;
     nested = _nested_project_dirs(package_dir);
-    return [
+    candidates = [
         p
         for p in find_jac_files(package_dir)
-        if not p.startswith(boot_prefix)
-            and not _is_native_only_source(package_dir, p)
-            and not _is_pinned_client(package_dir, p)
-            and not any(p.startswith(n) for n in nested)
+        if not p.startswith(boot_prefix) and not any(p.startswith(n) for n in nested)
     ];
-}
-
-def _is_pinned_client(package_dir: str, p: str) -> bool {
-    import from jaclang.jac0core.placement_pins { config_module_pin }
-    try {
-        return config_module_pin(p) == 'client';
-    } except Exception {
-        return False;
+    if Path(package_dir).name == "jaclang" {
+        import from jaclang.jac0core.placement_facts { toolchain_native_by_policy }
+        result = [
+            p
+            for p in candidates
+            if not toolchain_native_by_policy(package_dir, p)
+        ];
+    } else {
+        import from jaclang.jac0core.placement_facts { client_only_paths }
+        client_only = client_only_paths(candidates);
+        result = [
+            p
+            for p in candidates
+            if os.path.abspath(p) not in client_only
+        ];
     }
+    _sealable_cache[key] = result;
+    return result;
 }
 
 def precompile_unit(
