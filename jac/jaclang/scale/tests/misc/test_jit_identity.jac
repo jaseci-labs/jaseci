@@ -97,7 +97,8 @@ test "identity config defaults to gateway_owned and honors an opt-out" {
 
     tmp2 = tempfile.mkdtemp();
     Path(tmp2, "jac.toml").write_text(
-        '[project]\nname = "t"\nversion = "0.0.1"\nentry-point = "main.jac"\n\n' + '[scale.microservices.identity]\ngateway_owned = false\n'
+        '[project]\nname = "t"\nversion = "0.0.1"\nentry-point = "main.jac"\n\n'
+            + '[scale.microservices.identity]\ngateway_owned = false\n'
     );
     cfg2 = JacScaleConfig(project_dir=Path(tmp2)).get_microservices_config();
     assert cfg2["identity"]["gateway_owned"] is False;
