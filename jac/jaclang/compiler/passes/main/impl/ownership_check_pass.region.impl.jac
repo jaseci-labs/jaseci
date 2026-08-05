@@ -11,14 +11,19 @@ impl OwnershipCheckPass._partition_sugar_reason(call: uni.FuncCall) -> str {
     if not (isinstance(asgn, uni.Assignment) and asgn.value is call) {
         return "use outside a direct tuple-unpack assignment";
     }
-    if len(asgn.target) != 1 or not isinstance(asgn.target[0], uni.TupleVal) {
+    if len(asgn.target) != 1 {
         return "a non-tuple unpack target";
     }
-    _names = [v for v in asgn.target[0].values];
-    for v in _names {
+    _tv = asgn.target[0];
+    if not isinstance(_tv, uni.TupleVal) {
+        return "a non-tuple unpack target";
+    }
+    _names: list[uni.Name] = [];
+    for v in (_tv.values or []) {
         if not isinstance(v, uni.Name) {
             return "a non-name unpack target";
         }
+        _names.append(v);
     }
     if len(_names) != _n {
         return f"an unpack arity of {len(_names)} for n={_n}";
@@ -62,7 +67,18 @@ impl OwnershipCheckPass._process_partition_sugar -> None {
             self.emit(E1314, node_override=call, name=reason);
             continue;
         }
-        for nmv in call.parent.target[0].values {
+        _ps_asgn = call.parent;
+        if not isinstance(_ps_asgn, uni.Assignment) {
+            continue;
+        }
+        _ps_tv = _ps_asgn.target[0];
+        if not isinstance(_ps_tv, uni.TupleVal) {
+            continue;
+        }
+        for nmv in (_ps_tv.values or []) {
+            if not isinstance(nmv, uni.Name) {
+                continue;
+            }
             _sid = self._sym_id(nmv);
             if _sid is None or nmv.sym is None {
                 continue;

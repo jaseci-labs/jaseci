@@ -470,7 +470,8 @@ impl OwnershipCheckPass._chunks_shape_of(expr: uni.Expr | None) -> (tuple | None
     if not isinstance(expr, uni.FuncCall) {
         return None;
     }
-    _t = expr.target;
+    _fcx: uni.FuncCall = expr;
+    _t = _fcx.target;
     if not (
         isinstance(_t, uni.AtomTrailer)
         and _t.is_attr
@@ -489,7 +490,7 @@ impl OwnershipCheckPass._chunks_shape_of(expr: uni.Expr | None) -> (tuple | None
         return None;
     }
     _params = [
-        (p.value if isinstance(p, uni.KWPair) else p) for p in (expr.params or [])
+        (p.value if isinstance(p, uni.KWPair) else p) for p in (_fcx.params or [])
     ];
     if len(_params) != 1 {
         return None;
