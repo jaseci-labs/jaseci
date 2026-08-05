@@ -137,12 +137,24 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     self._pending_list_elem_struct = None;
     if not nd.values {
         elem_type_name = "";
+        _decl_par = nd.parent;
+        _bare_list_decl = False;
+        if isinstance(_decl_par, (uni.Assignment, uni.HasVar))
+            and _decl_par.value is nd
+            and _decl_par.type_tag is not None {
+            _lt_tag = _decl_par.type_tag.tag;
+            _lt_name: (str | None) = None;
+            if isinstance(_lt_tag, uni.Name) {
+                _lt_name = _lt_tag.value;
+            } elif uni?.BuiltinType and isinstance(_lt_tag, uni.BuiltinType) {
+                _lt_name = _lt_tag.value;
+            }
+            _bare_list_decl = _lt_name == "list";
+        }
         _own_spec = self._elem_spec_of(nd);
         if _own_spec is not None {
             elem_type_name = _own_spec;
-        } elif isinstance(nd, uni.Expr)
-            and nd.type is not None
-            and self._mangled_of(nd.type) == "list" {
+        } elif _bare_list_decl {
             elem_type_name = "i64";
         } elif self._builder and self._builder.function {
             ret_type = self.builder.function.return_value.type;
