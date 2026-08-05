@@ -157,6 +157,17 @@ def _names(raw: bytes) -> list[str] {
 }
 
 
+test "pack_jab on a nonexistent app directory is a hard error" {
+    caught = "";
+    try {
+        pack_jab("/tmp/jac-no-such-app-dir", "", b"binary");
+    } except ValueError as e {
+        caught = str(e);
+    }
+    assert "does not exist" in caught , caught;
+}
+
+
 test "pack_jab without a pod binary is a hard error (a .jab requires a seal)" {
     caught = False;
     try {

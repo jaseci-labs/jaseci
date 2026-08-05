@@ -380,6 +380,12 @@ def pack_jab(project_dir: str, provisioned_database: str, pod_binary: bytes) -> 
         );
     }
     base = Path(project_dir).resolve();
+    if not base.is_dir() {
+        raise ValueError(
+            f"App project directory does not exist: {base}. A deploy seals "
+            "the project tree; check the code_folder path."
+        );
+    }
     sanitized = sanitized_jac_toml(base, provisioned_database);
     staged = _precompile_app(
         base, pod_binary, sanitized, seal_timeout_setting(project_dir)
