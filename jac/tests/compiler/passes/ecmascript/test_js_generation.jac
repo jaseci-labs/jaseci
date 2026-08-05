@@ -1768,17 +1768,19 @@ test "is and is not emit identity comparison operators" {
     # both `is` and `is not` fell through to the `===` default. `is None`
     # was accidentally correct; `is not None` silently inverted to `===`,
     # causing branches like `if x is not None { ... }` to run only when x
-    # *was* None.
+    # *was* None. None comparisons now lower to LOOSE equality (== null /
+    # != null) so JS undefined -- from no-return calls, empty pops, host
+    # interop -- reads as Jac None instead of impersonating a value (#7922).
     jac_code = "\"\"\"Test is/is not codegen.\"\"\"\n\ndef check(x: int | None) -> int {\n    if x is None {\n        return 1;\n    }\n    if x is not None {\n        return 2;\n    }\n    return 3;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
         js_code = compile_fixture_to_js(temp_path);
-        assert "x === null" in js_code , (
-            f"`is None` must emit `=== null`, got:\n{js_code}"
+        assert "x == null" in js_code and "x === null" not in js_code , (
+            f"`is None` must emit loose `== null`, got:\n{js_code}"
         );
-        assert "x !== null" in js_code , (
-            f"`is not None` must emit `!== null`, got:\n{js_code}"
+        assert "x != null" in js_code and "x !== null" not in js_code , (
+            f"`is not None` must emit loose `!= null`, got:\n{js_code}"
         );
         assert_balanced_syntax(js_code, temp_path);
     } finally {
@@ -3062,6 +3064,49 @@ test "dict.get miss is a real None on the client (#7884)" {
     for (key, want) in expected.items() {
         assert key in got and got[key] == want , (
             f"dict.get axis {key}: expected {want}, got {got.get(key)}\njs:\n"
+            + js_code
+        );
+    }
+}
+
+test "None comparisons lower to loose equality so undefined cannot impersonate a value (#7884, #7922)" {
+    # RC-5, class-closing half: undefined leaks into Jac-visible values
+    # from sites beyond dict.get (no-return functions, empty pops, host
+    # interop). JS `x == null` is true for exactly null and undefined --
+    # precisely Jac None-ness -- so None comparisons use loose equality
+    # while `is` between non-None operands stays strict.
+    js_code = compile_fixture_to_js("none_compare_loose.jac", FIXTURES);
+
+    n_idx = js_code.find("function t_noret_is_none");
+    assert n_idx >= 0;
+    n_chunk = js_code[n_idx:n_idx + 200];
+    assert "== null" in n_chunk and "=== null" not in n_chunk , (
+        "`is None` must lower to loose `== null`; got:\n" + n_chunk
+    );
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(none_cmp_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "none-compare fixture crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {
+        "noret_none": True,
+        "noret_not_none": False,
+        "pop_empty_none": True,
+        "value_not_none": True
+    };
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"none-compare axis {key}: expected {want}, got {got.get(key)}\njs:\n"
             + js_code
         );
     }

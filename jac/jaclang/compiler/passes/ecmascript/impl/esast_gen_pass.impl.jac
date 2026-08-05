@@ -2595,6 +2595,7 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
                 else es.Identifier(name='left'); }
         )
     );
+    left_uni: uni.UniNode = nd.left;
     for (op_token, right_node) in zip(nd.ops, nd.rights, strict=False) {
         right: es.Expression = cast(
             es.Expression,
@@ -2606,6 +2607,29 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
             )
         );
         op_tok = Tok(op_token.name) if (op_token.name in Tok.__members__) else None;
+
+        if (
+            op_tok in (Tok.KW_IS, Tok.KW_ISN, Tok.EE, Tok.NE)
+            and (
+                self._is_null_literal(left_uni)
+                or self._is_null_literal(right_node)
+            )
+        ) {
+            # Jac None-ness in JS is null OR undefined: values like a
+            # no-return call or host interop hand back undefined, and a
+            # strict `=== null` would let undefined impersonate a present
+            # value. Loose `== null` is true for exactly those two.
+            loose_op = '==' if (op_tok in (Tok.KW_IS, Tok.EE)) else '!=';
+            comparisons.append(
+                self.sync_loc(
+                    es.BinaryExpression(operator=loose_op, left=left, right=right),
+                    jac_node=nd
+                )
+            );
+            left = right;
+            left_uni = right_node;
+            continue;
+        }
 
         _cmp_emit_name = CMP_EMIT_MAP.get(op_tok) if op_tok else None;
         if _cmp_emit_name {
@@ -2631,6 +2655,7 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
                 }
                 comparisons.append(comparison);
                 left = right;
+                left_uni = right_node;
                 continue;
             }
         }
@@ -2685,6 +2710,7 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
         }
         comparisons.append(comparison);
         left = right;
+        left_uni = right_node;
     }
     if (len(comparisons) == 1) {
         nd.gen.es_ast = comparisons[0];
@@ -2698,6 +2724,14 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
         }
         nd.gen.es_ast = result;
     }
+}
+
+impl EsastGenPass._is_null_literal(nd: (uni.UniNode | None)) -> bool {
+    if nd is None {
+        return False;
+    }
+    return isinstance(nd, uni.Null)
+        or (isinstance(nd, uni.Name) and nd.sym_name == 'None');
 }
 
 impl EsastGenPass.exit_cfg_expr(nd: uni.CfgExpr) -> None {

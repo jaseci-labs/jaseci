@@ -210,6 +210,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _register_declaration(name: str) -> None;
     def _declaring_scope_for(name_node: uni.UniNode) -> (ScopeInfo | None);
     def _operand_str(unparser: object, es_node: es.Expression) -> str;
+    def _is_null_literal(nd: (uni.UniNode | None)) -> bool;
     def _hoist_into(scope: ScopeInfo, name: str, jac_node: uni.UniNode) -> None;
     def _ensure_identifier_declared(name: str, jac_node: uni.UniNode) -> None;
     def _prepend_hoisted(
