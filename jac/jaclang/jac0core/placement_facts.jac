@@ -96,6 +96,12 @@ def discover_spaces(
 }
 
 
+def pinned_module_space(source_path: str) -> str {
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+    return config_module_pin(source_path);
+}
+
+
 def spaces_are_client_only(spaces: set[str]) -> bool {
     return len(spaces) == 1 and SPACE_CLIENT in spaces;
 }

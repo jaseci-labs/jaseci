@@ -103,6 +103,39 @@ test "sealed images persist placement and expose it without re-derivation" {
 }
 
 
+test "placement_pins imports stay within the documented allowlist" {
+    import from pathlib { Path }
+    allow = {
+        "jaclang/cli/commands/impl/fix.impl.jac",
+        "jaclang/jac0core/compiler.jac",
+        "jaclang/jac0core/impl/compiler.impl.jac",
+        "jaclang/jac0core/jir.jac",
+        "jaclang/jac0core/modresolver.jac",
+        "jaclang/jac0core/passes/impl/boundary_analysis_pass.impl.jac",
+        "jaclang/jac0core/placement.jac",
+        "jaclang/jac0core/placement_facts.jac",
+        "jaclang/jac0core/placement_pins.jac",
+        "jaclang/jac0core/placement_solver.jac"
+    };
+    pkg = os.path.join(JAC_ROOT, "jaclang");
+    offenders: list[str] = [];
+    for p in sorted(Path(pkg).rglob("*.jac")) {
+        if not p.is_file() {
+            continue;
+        }
+        rel = p.relative_to(JAC_ROOT).as_posix();
+        if "/tests/" in rel or "/fixtures/" in rel or "/vendor/" in rel {
+            continue;
+        }
+        if "placement_pins" in p.read_text(encoding="utf-8", errors="ignore")
+            and rel not in allow {
+            offenders.append(rel);
+        }
+    }
+    assert not offenders , offenders;
+}
+
+
 test "toolchain native policy matches na_stdlib and desktop native trees" {
     pkg = os.path.join(JAC_ROOT, "jaclang");
     na = os.path.join(pkg, "runtimelib", "na_stdlib", "_bz2_native.jac");
