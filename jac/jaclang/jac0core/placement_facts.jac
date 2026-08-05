@@ -69,6 +69,23 @@ def declared_path_spaces(source_path: str, prog: any) -> set[str] {
 }
 
 
+def _errors_for_path(prog: any, ap: str) -> int {
+    count = 0;
+    normed = os.path.normpath(ap);
+    for e in prog.errors_had {
+        try {
+            e_path = os.path.normpath(e.loc.mod_path);
+        } except Exception {
+            continue;
+        }
+        if e_path == normed {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+
 def discover_spaces(paths: list[str], prog: any = None) -> dict[str, set[str]] {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compiler { hub_module_for_path }
@@ -85,7 +102,11 @@ def discover_spaces(paths: list[str], prog: any = None) -> dict[str, set[str]] {
             }
             mod = hub_module_for_path(ap, target);
         }
-        out[ap] = module_spaces(mod);
+        spaces = set(module_spaces(mod));
+        if _errors_for_path(target, ap) > 0 {
+            spaces.add(SPACE_SERVER);
+        }
+        out[ap] = spaces;
     }
     if prog is None {
         target.release_compile_closure();

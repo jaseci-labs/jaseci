@@ -75,6 +75,22 @@ test "require_project_root is loud where project_root_of is soft" {
 }
 
 
+test "a module with compile errors is never classified client-only" {
+    d = tempfile.mkdtemp(prefix="jac-broken-client-");
+    broken = os.path.join(d, "broken_page.jac");
+    with open(broken, "w") as f {
+        f.write(
+            "node Todo {\n    has text: str\n        done: bool = False\n}\n"
+            + "def:pub app -> JsxElement {\n    return <div>x</div>;\n}\n"
+        );
+    }
+    facts = discover_spaces([broken]);
+    spaces = facts[os.path.abspath(broken)];
+    assert "server" in spaces , spaces;
+    assert client_only_paths([broken]) == set();
+}
+
+
 test "sealed images persist placement and expose it without re-derivation" {
     import json;
     import from jaclang.jac0core.placement_facts { sealed_spaces_for }
