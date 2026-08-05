@@ -1301,6 +1301,14 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (typeof x === "object") return Object.keys(x).length > 0;
       return true;
     },
+    len(x) {
+      if (x === null || x === undefined) throw new _jac.exc.TypeError("object has no len()");
+      if (typeof x === "string" || Array.isArray(x)) return x.length;
+      if (x instanceof Set || x instanceof Map) return x.size;
+      if (typeof x.length === "number") return x.length;
+      if (typeof x === "object") return Object.keys(x).length;
+      throw new _jac.exc.TypeError("object of type '" + typeof x + "' has no len()");
+    },
     range(...args) {
       let start, stop, step;
       if (args.length === 1) { start = 0; stop = args[0]; step = 1; }

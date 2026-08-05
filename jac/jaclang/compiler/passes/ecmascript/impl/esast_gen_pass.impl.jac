@@ -1851,7 +1851,14 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         _emit_fn = getattr(self._builtin_emitter, _emit_fn_name, None);
         if _emit_fn {
             _unparser = JSCodeGenerator();
-            _ctx = self._primitives_es_mod.ESEmitCtx(unparser=_unparser);
+            _arg_type_names: list[str] = [
+                self._expr_type_name(_p)
+                for _p in nd.params
+                if not isinstance(_p, uni.KWPair)
+            ];
+            _ctx = self._primitives_es_mod.ESEmitCtx(
+                unparser=_unparser, arg_type_names=_arg_type_names
+            );
             _args_strs: list[str] = [];
             for _a in args {
                 _args_strs.append(_unparser.generate(_a));

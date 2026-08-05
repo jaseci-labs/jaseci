@@ -2970,3 +2970,53 @@ test "module-level entry block assignment hoists to module scope (#7882)" {
         os.unlink(temp_path);
     }
 }
+
+test "len dispatches on argument type: dict, set, unknown (#7883)" {
+    # RC-4: emit_len unconditionally returned `.length`, which is undefined
+    # on plain JS objects (dict) and on Set, so len(d) silently returned
+    # undefined and every comparison against it was false. The builtin
+    # emitter now sees the argument's inferred type.
+    js_code = compile_fixture_to_js("len_type_dispatch.jac", FIXTURES);
+
+    d_idx = js_code.find("function t_len_dict");
+    assert d_idx >= 0;
+    d_chunk = js_code[d_idx:d_idx + 250];
+    assert "Object.keys(d).length" in d_chunk , (
+        "len(dict) must emit Object.keys(x).length; got:\n" + d_chunk
+    );
+
+    s_idx = js_code.find("function t_len_set");
+    assert s_idx >= 0;
+    s_chunk = js_code[s_idx:s_idx + 250];
+    assert ".size" in s_chunk , (
+        "len(set) must emit .size; got:\n" + s_chunk
+    );
+
+    a_idx = js_code.find("function t_len_any");
+    assert a_idx >= 0;
+    a_chunk = js_code[a_idx:a_idx + 250];
+    assert "_jac.builtin.len(" in a_chunk , (
+        "len(<unknown type>) must route through _jac.builtin.len; got:\n" + a_chunk
+    );
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(t_len_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "len dispatch crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {"d": 2, "s": 3, "a": 4, "l": 3, "st": 4};
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"len shape {key}: expected {want}, got {got.get(key)}\njs:\n" + js_code
+        );
+    }
+}

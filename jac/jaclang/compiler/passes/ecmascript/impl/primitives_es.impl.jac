@@ -1723,7 +1723,25 @@ impl ESBuiltinEmitter.emit_input(
 }
 
 impl ESBuiltinEmitter.emit_len(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {
-    return args[0] + ".length";
+    if not args {
+        return None;
+    }
+    # `.length` is only right for array-likes: it is undefined on plain
+    # objects (dict) and on Set/Map, so dispatch on the argument's inferred
+    # type and fall back to the runtime helper when the type is unknown.
+    arg_type = (ctx.arg_type_names or [""])[0]
+        if ctx.arg_type_names
+        else "";
+    if arg_type == "dict" {
+        return "Object.keys(" + args[0] + ").length";
+    }
+    if arg_type in ("set", "frozenset") {
+        return args[0] + ".size";
+    }
+    if arg_type in ("str", "list", "tuple", "bytes", "bytearray", "range") {
+        return args[0] + ".length";
+    }
+    return _rt("builtin", "len", args);
 }
 
 impl ESBuiltinEmitter.emit_abs(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {
