@@ -56,7 +56,13 @@ class JacStrABI(ctypes.Structure) {
     ];
 }
 
-def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_sfunc(
+    eng: object,
+    name: str,
+    restype: type | None,
+    *argtypes: type,
+    free_str_args: bool = False
+) -> object {
     # descriptor-ABI variant of get_func: a c_char_p spelling here means a
     # Jac `str` (the by-value {root, data, len} descriptor at the native
     # ABI). LLVM decomposes a by-value descriptor param into three scalar
@@ -97,21 +103,48 @@ def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> 
             if sn_addr
             else None
     );
+    rel_addr = 0;
+    for rl in ("__rc_release_simple", "free") {
+        try {
+            rel_addr = eng.get_function_address(rl);
+        } except Exception {
+            rel_addr = 0;
+        }
+        if rel_addr {
+            break;
+        }
+    }
+    relstr = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(rel_addr) if rel_addr else None;
     def _call(*args: any) -> any {
         c_args: list = [];
+        _buf_flags: list = [];
         for (a, is_str) in zip(args, str_slots) {
             if is_str {
                 assert mkstr is not None , "jac_str_new not found in JIT engine";
                 b = a.encode("utf-8") if isinstance(a, str) else a;
                 p = mkstr(b, len(b));
                 c_args.append(p);
+                _buf_flags.append(True);
                 c_args.append(p);
+                _buf_flags.append(False);
                 c_args.append(len(b));
+                _buf_flags.append(False);
             } else {
                 c_args.append(a);
+                _buf_flags.append(False);
             }
         }
+        _arg_bufs = [
+            _cp
+            for (_cp, _isb) in zip(c_args, _buf_flags)
+            if _isb
+        ];
         r = raw(*c_args);
+        if free_str_args and relstr is not None {
+            for _cp in _arg_bufs {
+                relstr(_cp);
+            }
+        }
         if real_res is JacStrABI {
             if not r.data {
                 return b"";
@@ -1250,9 +1283,16 @@ test "builtins strip split" {
 test "builtins split and slice do not leak (#6814)" {
     (eng, _) = compile_native("builtins.jac");
     f_split = get_sfunc(
-        eng, "split_count", ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p
+        eng,
+        "split_count",
+        ctypes.c_int64,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        free_str_args=True
     );
-    f_slice = get_sfunc(eng, "slice_half_len", ctypes.c_int64, ctypes.c_char_p);
+    f_slice = get_sfunc(
+        eng, "slice_half_len", ctypes.c_int64, ctypes.c_char_p, free_str_args=True
+    );
     many = b",".join([b"x"] * 200);
     big = b"x" * 10000;
     # Correctness must survive the ownership fix.
