@@ -597,7 +597,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
     def ensure_alb_readiness_gates(core_v1: any, namespace: str) -> None {
         cfg = self.k8s_config;
         is_alb = bool(getattr(cfg, "shared_ingress", False))
-            and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
+        and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
         if not is_alb {
             return;
         }

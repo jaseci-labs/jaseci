@@ -686,7 +686,7 @@ obj ManifestBuilder {
     def _alb_deregistration_cushion -> int {
         cfg = self.k8s_config;
         is_alb = bool(getattr(cfg, "shared_ingress", False))
-            and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
+        and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
         return 20 if is_alb else 0;
     }
 
@@ -985,9 +985,7 @@ obj ManifestBuilder {
         }
         spec: dict[str, any] = {
             "containers": [container],
-            "terminationGracePeriodSeconds": drain_t
-                + _UVICORN_EXIT_CUSHION_S
-                + self._alb_deregistration_cushion()
+            "terminationGracePeriodSeconds": drain_t + _UVICORN_EXIT_CUSHION_S + self._alb_deregistration_cushion()
         };
         sa_name = self._service_account_name();
         if sa_name {
