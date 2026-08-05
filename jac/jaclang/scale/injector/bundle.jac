@@ -278,6 +278,11 @@ def _precompile_app(
                 f".jab: {(result.stderr or result.stdout).strip()[-2000:]}"
             );
         }
+        for line in (result.stdout or "").splitlines()[-12:] {
+            if line.strip() {
+                logger.info(f"seal: {line.strip()}");
+            }
+        }
         return stage;
     } except Exception {
         shutil.rmtree(str(stage_root), ignore_errors=True);

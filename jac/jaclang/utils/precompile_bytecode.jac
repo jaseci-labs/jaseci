@@ -136,13 +136,38 @@ def sealable_sources(package_dir: str) -> list[str] {
             discover_spaces,
             spaces_are_client_only
         }
-        facts = discover_spaces(candidates);
+        import from jaclang.jac0core.program { JacProgram }
+        discovery = JacProgram();
+        facts = discover_spaces(candidates, discovery);
         _placement_cache[key] = facts;
-        result = [
-            p
-            for p in candidates
-            if not spaces_are_client_only(facts[os.path.abspath(p)])
-        ];
+        if discovery.errors_had {
+            console.print(
+                f"  Placement discovery hit {len(discovery.errors_had)} "
+                "error(s); sealing every candidate so each failure surfaces "
+                "per-file instead of being skipped."
+            );
+            result = candidates;
+        } else {
+            skipped = [
+                p
+                for p in candidates
+                if spaces_are_client_only(facts[os.path.abspath(p)])
+            ];
+            result = [
+                p
+                for p in candidates
+                if p not in skipped
+            ];
+            if skipped {
+                names = ", ".join(
+                    str(Path(p).relative_to(Path(key))) for p in skipped[:8]
+                );
+                console.print(
+                    f"  Skipping {len(skipped)} client-only module(s): {names}"
+                );
+            }
+        }
+        discovery.release_compile_closure();
     }
     _sealable_cache[key] = result;
     return result;

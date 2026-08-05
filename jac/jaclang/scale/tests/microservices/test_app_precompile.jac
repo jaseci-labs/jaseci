@@ -100,6 +100,24 @@ test "the seal skips pinned and inferred client modules and nested projects" {
 }
 
 
+test "any discovery error voids client skips so failures surface per-file" {
+    base = Path(_pinned_app());
+    os.makedirs(os.path.join(str(base), "pages"));
+    Path(str(base), "pages", "broken.jac").write_text(
+        "node T {\n    has a: str\n        b: int = 0\n}\n"
+            + "def:pub page -> JsxElement {\n    return <div>x</div>;\n}\n"
+    );
+    stage_root = _stage_app(base, sanitized_jac_toml(base));
+    stage = stage_root / "app";
+    import from jaclang.utils.precompile_bytecode { sealable_sources }
+    rels = {
+        Path(p).relative_to(stage).as_posix() for p in sealable_sources(str(stage))
+    };
+    assert "pages/broken.jac" in rels , rels;
+    assert "ui/page.jac" in rels , rels;
+}
+
+
 test "a project without jac.toml stages the minimal placeholder for the seal" {
     import from jaclang.scale.injector.bundle { PLACEHOLDER_JAC_TOML }
     d = tempfile.mkdtemp(prefix="jac-app-");
