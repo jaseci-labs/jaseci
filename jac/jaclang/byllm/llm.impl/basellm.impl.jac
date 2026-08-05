@@ -121,7 +121,16 @@ def _litellm_ctx_window(model_name: str) -> int {
 def _attach_call_cost(
     usage_obj: object, model_name: str, response: object = None
 ) -> None {
-    if usage_obj is None {
+    # litellm prices a usage object carrying no token counts at 0.0. Attaching
+    # that would make a call whose tokens the provider never reported look free
+    # and quietly pull the aggregate down, so leave cost unset instead and keep
+    # unknown distinguishable from free.
+    if usage_obj is None
+        or not (
+            _usage_int(usage_obj, "prompt_tokens")
+            or _usage_int(usage_obj, "completion_tokens")
+            or _usage_int(usage_obj, "total_tokens")
+        ) {
         return;
     }
     try {
