@@ -564,3 +564,62 @@ test "hetero container band-aids are deleted; one element-storage authority" {
         f"(_elem_storage_llvm in types.impl.jac); found: {authority_defs}"
     );
 }
+
+test "no consumer-site NULL guards on string operands" {
+    import jaclang;
+    native_dir = os.path.join(
+        os.path.dirname(os.path.abspath(jaclang.__file__)),
+        "compiler",
+        "passes",
+        "native"
+    );
+    assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";
+    banned = [
+        "strcmp.lnull",
+        "strcmp.rnull",
+        "strcmp.anynull",
+        "strcmp.lsafe",
+        "strcmp.rsafe",
+        "tobool.str.null"
+    ];
+    unwrap_msg = "value is None where a value is required";
+    offenders: list[str] = [];
+    unwrap_sites: list[str] = [];
+    for (dirpath, _dirs, files) in os.walk(native_dir) {
+        if os.path.sep + "wasm_rt" in dirpath or os.path.sep + "llvm" in dirpath {
+            continue;
+        }
+        for fname in files {
+            if not fname.endswith(".jac") {
+                continue;
+            }
+            fpath = os.path.join(dirpath, fname);
+            rel = os.path.relpath(fpath, native_dir);
+            with open(fpath, "r", encoding="utf-8", errors="replace") as f {
+                for (lineno, line) in enumerate(f, 1) {
+                    for token in banned {
+                        if token in line {
+                            offenders.append(f"{rel}:{lineno}: {line.strip()}");
+                        }
+                    }
+                    if unwrap_msg in line {
+                        unwrap_sites.append(f"{rel}:{lineno}");
+                    }
+                }
+            }
+        }
+    }
+    assert not offenders , (
+        "a consumer-site NULL guard on a string operand survives (nullable "
+        "pointers were replaced by tagged JacOptional values; a raw NULL str "
+        "is impossible by construction):\n"
+        + "\n".join(offenders)
+    );
+    assert len(unwrap_sites) == 1
+        and unwrap_sites[0].startswith(
+            os.path.join("na_ir_gen_pass.impl", "types.impl.jac")
+        ) , (
+        "optional unwrap must be emitted by exactly one site "
+        f"(_coerce_type_inner in types.impl.jac); found: {unwrap_sites}"
+    );
+}
