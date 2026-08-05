@@ -70,6 +70,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
         kubeconfig_failed: bool = False;
         try {
             k8s_cluster_config.load_kube_config(
+                config_file=(getattr(self.k8s_config, "kubeconfig", "") or None),
                 context=(self.k8s_config.kube_context or None)
             );
         } except ConfigException {
