@@ -19,13 +19,14 @@ Usage::
 import hashlib;
 import json;
 import os;
+import shutil;
 import sys;
 import from pathlib { Path }
 
 import from jaclang.cli.console { console }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.jir_passes { JirWriter }
-import from jaclang.jac0core.jir { FORMAT_VERSION }
+import from jaclang.jac0core.jir { FORMAT_VERSION, SEC_MODKEY, compute_module_key, jir_matches_source }
 import from jaclang.compiler.type_system.typeshed_image {
     MANIFEST_NAME,
     MANIFEST_FORMAT,
@@ -50,13 +51,27 @@ def find_pyi_files(d: str) -> list[str] {
 }
 
 
-def compile_stub_ir(program: JacProgram, pyi_path: str) -> bytes {
-    mod = program.compile(file_path=pyi_path, symtab_ir_only=True);
-    if mod is None {
-        raise RuntimeError(f"no IR for {pyi_path}");
+def reuse_stub(
+    pyi_path: str, fullname: str, jir_dir: Path, modules: dict
+) -> bool {
+    jir_rel = fullname + ".jir";
+    jir_path = jir_dir / jir_rel;
+    if not jir_path.is_file() {
+        return False;
     }
-    mod.stub_only = True;
-    return JirWriter().write_module(mod);
+    try {
+        existing = jir_path.read_bytes();
+    } except Exception {
+        return False;
+    }
+    if not jir_matches_source(existing, pyi_path) {
+        return False;
+    }
+    modules[fullname] = {
+        "jir": jir_rel,
+        "sha256": hashlib.sha256(existing).hexdigest()
+    };
+    return True;
 }
 
 
@@ -68,7 +83,15 @@ def emit_stub(
     modules: dict
 ) -> bool {
     try {
-        data = compile_stub_ir(program, pyi_path);
+        mod = program.compile(file_path=pyi_path, symtab_ir_only=True);
+        if mod is None {
+            raise RuntimeError(f"no IR for {pyi_path}");
+        }
+        mod.stub_only = True;
+        mod_key = compute_module_key(pyi_path);
+        data = JirWriter().write_module(
+            mod, sections={SEC_MODKEY: mod_key.encode("utf-8")}
+        );
     } except Exception as e {
         console.error(f"FAIL {fullname}: {e}");
         return False;
@@ -98,20 +121,56 @@ def build_typeshed_bundle(
     }
 
     pyver = python_tag();
-    jir_dir = Path(out_dir) / pyver;
+    out_path = Path(out_dir);
+    for stale_dir in sorted(out_path.iterdir()) {
+        if stale_dir.is_dir() and stale_dir.name != pyver {
+            shutil.rmtree(stale_dir, ignore_errors=True);
+        }
+    }
+    jir_dir = out_path / pyver;
     jir_dir.mkdir(parents=True, exist_ok=True);
 
     program = JacProgram();
     modules: dict = {};
     compiled = 0;
+    reused = 0;
     failed = 0;
 
     stdlib_pyis = find_pyi_files(stdlib_dir);
     if limit > 0 {
         stdlib_pyis = stdlib_pyis[:limit];
     }
+    local_pyis: list[tuple[str, str]] = [];
+    for d in local_dirs {
+        for pyi in find_pyi_files(d) {
+            local_pyis.append((pyi, Path(pyi).stem));
+        }
+    }
+    expected: set[str] = {
+        stub_fullname(stdlib_dir, pyi) + ".jir" for pyi in stdlib_pyis
+    };
+    for (_, fullname) in local_pyis {
+        expected.add(fullname + ".jir");
+    }
+    for old_jir in sorted(jir_dir.rglob("*.jir")) {
+        if str(old_jir.relative_to(jir_dir)) not in expected {
+            old_jir.unlink();
+        }
+    }
+
+    total = len(stdlib_pyis) + len(local_pyis);
+    done = 0;
+
     for pyi in stdlib_pyis {
         fullname = stub_fullname(stdlib_dir, pyi);
+        done += 1;
+        label = fullname[:60].ljust(60);
+        sys.stderr.write(f"\r  [{done}/{total}] {label}");
+        sys.stderr.flush();
+        if reuse_stub(pyi, fullname, jir_dir, modules) {
+            reused += 1;
+            continue;
+        }
         if emit_stub(program, pyi, fullname, jir_dir, modules) {
             compiled += 1;
         } else {
@@ -120,17 +179,25 @@ def build_typeshed_bundle(
         program.release_compile_closure();
     }
 
-    for d in local_dirs {
-        for pyi in find_pyi_files(d) {
-            fullname = Path(pyi).stem;
-            if emit_stub(program, pyi, fullname, jir_dir, modules) {
-                compiled += 1;
-            } else {
-                failed += 1;
-            }
-            program.release_compile_closure();
+    for (pyi, fullname) in local_pyis {
+        done += 1;
+        label = fullname[:60].ljust(60);
+        sys.stderr.write(f"\r  [{done}/{total}] {label}");
+        sys.stderr.flush();
+        if reuse_stub(pyi, fullname, jir_dir, modules) {
+            reused += 1;
+            continue;
         }
+        if emit_stub(program, pyi, fullname, jir_dir, modules) {
+            compiled += 1;
+        } else {
+            failed += 1;
+        }
+        program.release_compile_closure();
     }
+
+    sys.stderr.write("\n");
+    sys.stderr.flush();
 
     manifest = {
         "format": MANIFEST_FORMAT,
@@ -145,7 +212,7 @@ def build_typeshed_bundle(
         json.dumps(manifest, sort_keys=True, indent=1) + "\n", encoding="utf-8"
     );
     console.print(
-        f"typeshed bundle: {compiled} compiled, {failed} failed, "
+        f"typeshed bundle: {compiled} compiled, {reused} reused, {failed} failed, "
         + f"{len(modules)} modules -> {out_dir}"
     );
     return 0 if failed == 0 else 1;

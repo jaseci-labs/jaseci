@@ -386,6 +386,7 @@ pub fn build(b: *std.Build) void {
         // linked-source mode (no bundled compiler, no precompile).
         if (link_dir == null) {
             mk.addArg(b.fmt("--precompiled-cache={s}", .{b.pathFromRoot(".precompiled-build")}));
+            mk.addArg(b.fmt("--typeshed-sealed-cache={s}", .{b.pathFromRoot(".typeshed-sealed-build")}));
         }
 
         // Fused ninja editor: stage the assembled nvim tree (runtime + config)
@@ -549,6 +550,10 @@ fn addTreeInputs(b: *std.Build, run: *std.Build.Step.Run, sub_path: []const u8) 
         if (entry.kind != .file) continue;
         if (std.mem.indexOf(u8, entry.path, "__pycache__") != null) continue;
         if (std.mem.indexOf(u8, entry.path, "node_modules") != null) continue;
+        // Generated sealed typeshed bundle (precompile_typeshed.jac output): a
+        // build artifact, never source. Hashing it (if a dev build populated the
+        // source tree) would force needless repacks on every typeshed edit.
+        if (std.mem.indexOf(u8, entry.path, "vendor/typeshed/_sealed") != null) continue;
         if (std.mem.endsWith(u8, entry.path, ".pyc")) continue;
         run.addFileInput(b.path(b.fmt("{s}/{s}", .{ sub_path, entry.path })));
     }

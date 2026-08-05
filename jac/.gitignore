@@ -82,6 +82,12 @@ jaclang/runtimelib/client/_bun/
 # fetch-typeshed step of launcher/payload.zig, not committed -- only the PIN /
 # TARBALL_SHA256 / LICENSE / PROVENANCE.md beside the stubs are tracked.
 jaclang/vendor/typeshed/stdlib
+# Sealed typeshed bundle (precompile_typeshed.jac output) -- generated into the
+# staged site by mkpayload's precompileTypeshed(), never committed.
+jaclang/vendor/typeshed/_sealed
+# Persistent sealed typeshed cache: mkpayload seeds the build temp from it and
+# writes the refreshed tree back (see build.zig --typeshed-sealed-cache).
+.typeshed-sealed-build/
 .llvm-build/
 # CI staging dir for a cache-restored prebuilt shim (setup-jac -Dshim-bin).
 .shim-build/

@@ -145,7 +145,7 @@ pub fn main(init: std.process.Init) !void {
             try fetchTypeshed(io, gpa, a, argv[2]);
         },
         .mkpayload => {
-            if (n < 5) die("usage: payload mkpayload <pbs-python-dir> <repo-root> <out.tar.zst> [--shim=PATH] [--skip-precompile] [--link-source=PATH] [--precompiled-cache=DIR] [--nvim=DIR] [--seal] [--debug-src]\n(--seal: freeze bootstrap + emit MANIFEST.json; the payload boots from JIR, sources ship for tracebacks)", .{});
+            if (n < 5) die("usage: payload mkpayload <pbs-python-dir> <repo-root> <out.tar.zst> [--shim=PATH] [--skip-precompile] [--link-source=PATH] [--precompiled-cache=DIR] [--typeshed-sealed-cache=DIR] [--nvim=DIR] [--seal] [--debug-src]\n(--seal: freeze bootstrap + emit MANIFEST.json; the payload boots from JIR, sources ship for tracebacks)", .{});
             // Trailing flags (after the positional pbs/root/out, see build.zig):
             var shim_so: ?[]const u8 = null;
             var pyembed_so: ?[]const u8 = null;
@@ -155,6 +155,7 @@ pub fn main(init: std.process.Init) !void {
             var musl_dir: ?[]const u8 = null;
             var wasm_libc_dir: ?[]const u8 = null;
             var precompiled_cache: ?[]const u8 = null;
+            var typeshed_sealed_cache: ?[]const u8 = null;
             var nvim_dir: ?[]const u8 = null;
             var ninja_link: ?[]const u8 = null;
             var seal = false;
@@ -178,6 +179,8 @@ pub fn main(init: std.process.Init) !void {
                     wasm_libc_dir = arg["--wasm-libc=".len..];
                 } else if (std.mem.startsWith(u8, arg, "--precompiled-cache=")) {
                     precompiled_cache = arg["--precompiled-cache=".len..];
+                } else if (std.mem.startsWith(u8, arg, "--typeshed-sealed-cache=")) {
+                    typeshed_sealed_cache = arg["--typeshed-sealed-cache=".len..];
                 } else if (std.mem.startsWith(u8, arg, "--nvim=")) {
                     nvim_dir = arg["--nvim=".len..];
                 } else if (std.mem.startsWith(u8, arg, "--ninja-link=")) {
@@ -188,7 +191,7 @@ pub fn main(init: std.process.Init) !void {
                     debug_src = true;
                 }
             }
-            try mkPayload(io, gpa, a, init.environ_map, argv[2], argv[3], argv[4], shim_so, pyembed_so, bun_bin, skip_precompile, link_source, musl_dir, wasm_libc_dir, precompiled_cache, nvim_dir, ninja_link, seal, debug_src);
+            try mkPayload(io, gpa, a, init.environ_map, argv[2], argv[3], argv[4], shim_so, pyembed_so, bun_bin, skip_precompile, link_source, musl_dir, wasm_libc_dir, precompiled_cache, typeshed_sealed_cache, nvim_dir, ninja_link, seal, debug_src);
         },
         .@"typeshed-sha" => {
             if (n < 3) die("usage: payload typeshed-sha <commit>", .{});
@@ -1064,6 +1067,13 @@ fn mkPayload(
     // stale or partial dir is harmless (it only misses reuse), which is why
     // CI can restore it with prefix-fallback keys unlike the binary cache.
     precompiled_cache: ?[]const u8,
+    // Persistent sealed typeshed bundle cache: mkpayload seeds the build temp
+    // from it before precompile_typeshed.jac and writes the refreshed tree back
+    // after -- the builder re-validates every seeded .jir by its content-
+    // addressed module key (PIN + TARBALL_SHA256 + compiler serialization) and
+    // recompiles only stale stubs, so the ~82s full typeshed precompile shrinks
+    // to just the changed stubs. A stale or partial dir is harmless.
+    typeshed_sealed_cache: ?[]const u8,
     // The assembled ninja editor tree (jac/build.zig composes it from the
     // neovim dependency's exported runtime + the jac/editor/ninja config
     // layer). Staged verbatim under stage/nvim/ -- the launcher's `jac ninja`
@@ -1233,6 +1243,19 @@ fn mkPayload(
         }
     }
 
+    // Sealed typeshed bundle (the type-checker analogue of _precompiled/):
+    // compile the vendored stdlib stubs + core stubs to name-keyed JIR under
+    // vendor/typeshed/_sealed/, which the evaluator loads by name at startup
+    // with no per-load re-hash (see typeshed_image.discover_image). Same gate
+    // as the bytecode precompile: skipped under --skip-precompile (link
+    // validation) and --link-source / -Ddev (no bundled compiler). Independent
+    // of _precompiled (different output dir, no shared state) -- it only needs
+    // the staged jaclang + the materialized typeshed stdlib, both present here,
+    // so it runs before stageTree so _sealed rides the payload.
+    if (!skip_precompile and link_source == null) {
+        try precompileTypeshed(io, gpa, a, parent_env, py, pbs_py_dir, site, typeshed_sealed_cache);
+    }
+
     // Bundle runtime helpers (pytest/-xdist -> `jac test`, watchdog -> `jac start
     // --dev`, tomlkit -> project tooling). Installed AFTER precompile so the
     // precompiler's package walk only sees jaclang. Drop stray bytecode first so
@@ -1278,6 +1301,203 @@ fn resolvePython(io: Io, a: Allocator, pbs_py_dir: []const u8) ![]const u8 {
     die("mkpayload: no python at {s}/install/bin", .{pbs_py_dir});
 }
 
+/// Write the shared precompile boot shim (`{site}/precompile_boot.py`) and
+/// return its path. A thin `jac run` launcher: it installs the staged-site
+/// finder (so `import jaclang` resolves to the bundled copy, not a dev tree),
+/// sets argv to `jac run <script> ...`, and hands control to the staged
+/// cli_boot. It carries NO logic -- the real arguments travel through the
+/// child's argv, never spliced into Python source. Shared by the bytecode
+/// precompiler (precompile_bytecode.jac) and the typeshed bundle builder
+/// (precompile_typeshed.jac), so both precompiles boot identically.
+fn writeBootShim(io: Io, a: Allocator, site: []const u8) ![]const u8 {
+    const boot = try std.fmt.allocPrint(a, "{s}/precompile_boot.py", .{site});
+    try Dir.cwd().writeFile(io, .{
+        .sub_path = boot,
+        .data =
+        \\import sys
+        \\import _jac_finder; _jac_finder.install()
+        \\sys.argv = ['jac', 'run'] + sys.argv[1:]
+        \\from jaclang.jac0core.cli_boot import start_cli
+        \\start_cli()
+        \\
+        ,
+    });
+    return boot;
+}
+
+/// Clone the parent env and apply the hermetic overrides shared by both
+/// precompile passes (bytecode `_precompiled/` and typeshed `_sealed/`).
+/// PYTHONHOME/PYTHONPATH anchor the child to the fetched pbs python and the
+/// staged site; DONTWRITEBYTECODE keeps the later `pip install --target` from
+/// refusing a __pycache__-littered dir; HOME/PATH minimize host leakage.
+/// JAC_NO_DEV_SOURCE pins `import jaclang` to the staged dist-info (a dev
+/// tree's stale version would invalidate the whole bundle at runtime);
+/// JAC_NO_SEAL keeps the precompiler running UNSEALED so it never sealed-loads
+/// the manifest it is regenerating (#7135). Caller defers deinit() on the map.
+fn precompileEnv(
+    gpa: Allocator,
+    a: Allocator,
+    parent_env: *std.process.Environ.Map,
+    pbs_py_dir: []const u8,
+    site: []const u8,
+) !std.process.Environ.Map {
+    var env = try cloneEnv(gpa, parent_env);
+    errdefer env.deinit();
+    try env.put("PYTHONHOME", try std.fmt.allocPrint(a, "{s}/install", .{pbs_py_dir}));
+    try env.put("PYTHONPATH", site);
+    try env.put("PYTHONUTF8", "1");
+    try env.put("PYTHONDONTWRITEBYTECODE", "1");
+    try env.put("HOME", site);
+    try env.put("PATH", "/usr/bin:/bin");
+    try env.put("JAC_NO_DEV_SOURCE", "1");
+    try env.put("JAC_NO_SEAL", "1");
+    return env;
+}
+
+/// Build the sealed typeshed bundle (`vendor/typeshed/_sealed/`) the type
+/// evaluator loads by name at startup with no per-load re-hash (see
+/// compiler/type_system/typeshed_image.jac discover_image). The type-checker
+/// analogue of `precompile()`'s `_precompiled/`: it compiles the vendored
+/// typeshed stdlib stubs + the local core stubs to module IR and emits a
+/// MANIFEST.json keyed by stub fullname. Single-pass (no seal-compile /
+/// seal-finalize split), so success is judged STRICTLY by exit code 0 AND a
+/// freshly validated manifest -- unlike bytecode, which tolerates a few
+/// un-precompilable modules (judged by PRECOMPILE_RESULT.json).
+///
+/// Failure-safe output (review P0): build into a sibling temp dir and rename
+/// it into place only AFTER the manifest validates, so a crashed or partial
+/// build can never leave a stale/corrupt `_sealed` in the staged tree (which
+/// would otherwise ship and silently fail-closed to live compile at runtime).
+/// `skipJaclang` drops any source-tree `_sealed`, so the rename target is fresh.
+/// Independent of the bytecode precompile -- it only needs the staged jaclang
+/// + the materialized typeshed stdlib, both present at the call site.
+fn precompileTypeshed(
+    io: Io,
+    gpa: Allocator,
+    a: Allocator,
+    parent_env: *std.process.Environ.Map,
+    py: []const u8,
+    pbs_py_dir: []const u8,
+    site: []const u8,
+    typeshed_sealed_cache: ?[]const u8,
+) !void {
+    const ts = try std.fmt.allocPrint(a, "{s}/jaclang/vendor/typeshed", .{site});
+    const builder = try std.fmt.allocPrint(a, "{s}/jaclang/utils/precompile_typeshed.jac", .{site});
+    // Older checkout without the builder: nothing to seal, stay quiet -- the
+    // type checker falls back to live compile, as it always did pre-bundle.
+    if (!fileExists(io, builder)) return;
+
+    log("==> precompiling typeshed stubs -> sealed bundle (name-keyed stub IR)", .{});
+
+    const sealed = try std.fmt.allocPrint(a, "{s}/_sealed", .{ts});
+    const tmp = try std.fmt.allocPrint(a, "{s}.build", .{sealed});
+    // Clear any leftover from a prior run in this work dir. The work dir is
+    // fresh per mkpayload and skipJaclang prevents a source copy, so these are
+    // normally absent -- belt-and-suspenders.
+    Dir.cwd().deleteTree(io, sealed) catch {};
+    if (typeshed_sealed_cache) |tc| {
+        if (Dir.cwd().openDir(io, tc, .{ .iterate = true })) |d| {
+            var seed = d;
+            defer seed.close(io);
+            Dir.cwd().deleteTree(io, tmp) catch {};
+            log("==> seeding typeshed sealed bundle from {s}", .{tc});
+            try copyTree(io, gpa, a, seed, tmp, skipNone);
+        } else |_| {
+            Dir.cwd().deleteTree(io, tmp) catch {};
+        }
+    } else {
+        Dir.cwd().deleteTree(io, tmp) catch {};
+    }
+
+    const boot = try writeBootShim(io, a, site);
+    const argv = [_][]const u8{
+        py,
+        "-S",
+        boot,
+        builder,
+        tmp,
+        try std.fmt.allocPrint(a, "--stdlib={s}/stdlib", .{ts}),
+        try std.fmt.allocPrint(a, "--local={s}/jaclang/compiler/type_system", .{site}),
+        try std.fmt.allocPrint(a, "--pin={s}/PIN", .{ts}),
+    };
+    var env = try precompileEnv(gpa, a, parent_env, pbs_py_dir, site);
+    defer env.deinit();
+
+    // Strict: require exit 0. The builder returns 1 if ANY stub fails to
+    // compile, so a regression fails the build here rather than shipping a
+    // half-bundle that silently degrades type checking. A genuinely
+    // un-precompilable stub is a real bug to fix in the builder, not something
+    // to tolerate with a partial manifest -- the contract the loader relies on.
+    if (!runChild(io, &argv, &env, true)) {
+        Dir.cwd().deleteTree(io, tmp) catch {};
+        die(
+            "mkpayload: typeshed bundle build failed (precompile_typeshed.jac exited non-zero; see log above). " ++
+                "Fail rather than ship a half-built type-check image.",
+            .{},
+        );
+    }
+
+    // Validate the fresh manifest BEFORE promoting it. The loader re-checks
+    // all of this at runtime and fail-closed on any mismatch (falls back to
+    // live compile); validating here surfaces a broken bundle at BUILD time.
+    try validateTypeshedManifest(io, gpa, try std.fmt.allocPrint(a, "{s}/MANIFEST.json", .{tmp}));
+
+    // Atomically promote: rename temp -> _sealed. The target is absent (cleared
+    // above and skipped at copy time), so a plain rename succeeds
+    // cross-platform (no move-over-existing).
+    Dir.cwd().rename(tmp, Dir.cwd(), sealed, io) catch |err|
+        die("mkpayload: could not promote typeshed bundle {s} -> {s}: {s}", .{ tmp, sealed, @errorName(err) });
+    log("   sealed typeshed bundle promoted -> {s}", .{sealed});
+    if (typeshed_sealed_cache) |tc| {
+        Dir.cwd().deleteTree(io, tc) catch {};
+        var fresh = try Dir.cwd().openDir(io, sealed, .{ .iterate = true });
+        defer fresh.close(io);
+        try copyTree(io, gpa, a, fresh, tc, skipNone);
+    }
+}
+
+/// Validate the freshly built typeshed MANIFEST.json against the schema the
+/// loader expects (typeshed_image.load_typeshed_image), so a broken bundle
+/// fails the build rather than silently fail-closing to live compile at
+/// runtime. The builder writes this manifest from the build interpreter's own
+/// values, so a mismatch here signals schema drift or a truncated build --
+/// either way, do not ship it. `gpa` (not the arena) owns the parsed JSON so it
+/// is freed promptly.
+fn validateTypeshedManifest(io: Io, gpa: Allocator, manifest_path: []const u8) !void {
+    const data = Dir.cwd().readFileAlloc(io, manifest_path, gpa, .unlimited) catch |err|
+        die("mkpayload: typeshed bundle produced no MANIFEST.json ({s}); the build failed.", .{@errorName(err)});
+    defer gpa.free(data);
+    var parsed = std.json.parseFromSlice(std.json.Value, gpa, data, .{}) catch |err|
+        die("mkpayload: typeshed MANIFEST.json is not valid JSON: {s}", .{@errorName(err)});
+    defer parsed.deinit();
+    const v = parsed.value;
+    if (v != .object) die("mkpayload: typeshed MANIFEST.json is not a JSON object", .{});
+
+    const obj = v.object;
+    const kind_str: []const u8 = if (obj.get("kind")) |k| (if (k == .string) k.string else "<not a string>") else "<missing>";
+    const fmt_ok = if (obj.get("format")) |f| (f == .integer and f.integer == 1) else false;
+    const jir_ok = if (obj.get("jir_format_version")) |j| (j == .integer and j.integer > 0) else false;
+    const mods_ok = if (obj.get("modules")) |m| (m == .object and m.object.count() > 0) else false;
+
+    if (!std.mem.eql(u8, kind_str, "typeshed"))
+        die("mkpayload: typeshed MANIFEST.json kind != 'typeshed' (got {s})", .{kind_str});
+    if (!fmt_ok)
+        die("mkpayload: typeshed MANIFEST.json format != 1", .{});
+    if (!jir_ok)
+        die("mkpayload: typeshed MANIFEST.json jir_format_version missing or non-positive", .{});
+    if (!mods_ok)
+        die("mkpayload: typeshed MANIFEST.json 'modules' is empty/missing -- bundle built no stubs", .{});
+
+    // python_tag: cpython-<major><minor> (cpython-314) -- the tag the BUNDLED
+    // interpreter (this build's pbs python) writes, which the shipped binary
+    // embeds, so the manifest must match. py_ver is comptime ("3.14");
+    // single-digit major holds for every CPython we bundle.
+    const expect_tag = "cpython-" ++ py_ver[0..1] ++ py_ver[2..];
+    const tag_str: []const u8 = if (obj.get("python_tag")) |t| (if (t == .string) t.string else "<not a string>") else "<missing>";
+    if (!std.mem.eql(u8, tag_str, expect_tag))
+        die("mkpayload: typeshed MANIFEST.json python_tag mismatch (got {s}, expected {s} for the bundled interpreter)", .{ tag_str, expect_tag });
+}
+
 /// Precompile jaclang -> _precompiled JIR for a fast first run. The precompiler
 /// intentionally cannot bytecode-compile a few core modules and exits non-zero;
 /// success is judged by the PRECOMPILE_RESULT.json completion marker it writes
@@ -1291,23 +1511,13 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
         log("==> precompiling jaclang -> _precompiled JIR (fast first run)", .{});
     }
 
-    // One fixed boot shim for both passes; the precompiler's arguments travel
-    // through the child's real argv, never spliced into Python source. Pass 1
-    // is compile-only (--seal-compile excludes jac0core and does NOT finalize),
-    // so a mid-loop crash on an un-precompilable native module leaves the
-    // generated JIRs intact for the crash-isolated --seal-finalize pass below.
-    const boot = try std.fmt.allocPrint(a, "{s}/precompile_boot.py", .{site});
-    try Dir.cwd().writeFile(io, .{
-        .sub_path = boot,
-        .data =
-        \\import sys
-        \\import _jac_finder; _jac_finder.install()
-        \\sys.argv = ['jac', 'run'] + sys.argv[1:]
-        \\from jaclang.jac0core.cli_boot import start_cli
-        \\start_cli()
-        \\
-        ,
-    });
+    // One fixed boot shim shared with precompileTypeshed(); the precompiler's
+    // arguments travel through the child's real argv, never spliced into Python
+    // source. Pass 1 is compile-only (--seal-compile excludes jac0core and does
+    // NOT finalize), so a mid-loop crash on an un-precompilable native module
+    // leaves the generated JIRs intact for the crash-isolated --seal-finalize
+    // pass below.
+    const boot = try writeBootShim(io, a, site);
     var argv_buf: [7][]const u8 = undefined;
     var argc: usize = 0;
     for ([_][]const u8{ py, "-S", boot, pc, site }) |s| {
@@ -1323,31 +1533,15 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
         argc += 1;
     }
 
-    // Controlled, hermetic env (clone parent, then override) -- mirrors the env
-    // the shell prefixed the precompiler with. DONTWRITEBYTECODE so importing
-    // jaclang here doesn't litter site/__pycache__ (which would make the later
-    // `pip install --target` refuse the dir); JIR generation is independent.
-    var env = try cloneEnv(gpa, parent_env);
+    // Controlled, hermetic env -- shared with precompileTypeshed() via
+    // precompileEnv(). DONTWRITEBYTECODE keeps the later `pip install --target`
+    // from refusing a __pycache__-littered dir; JIR generation is independent.
+    // JAC_NO_DEV_SOURCE pins the precompiler to the staged-site jaclang (NOT a
+    // dev tree, whose stale egg-info version would make the whole bundle fail
+    // validation at runtime); JAC_NO_SEAL keeps it running UNSEALED so it never
+    // sealed-loads the manifest it is regenerating (#7135). See precompileEnv().
+    var env = try precompileEnv(gpa, a, parent_env, pbs_py_dir, site);
     defer env.deinit();
-    try env.put("PYTHONHOME", try std.fmt.allocPrint(a, "{s}/install", .{pbs_py_dir}));
-    try env.put("PYTHONPATH", site);
-    try env.put("PYTHONUTF8", "1");
-    try env.put("PYTHONDONTWRITEBYTECODE", "1");
-    try env.put("HOME", site);
-    try env.put("PATH", "/usr/bin:/bin");
-    // Pin the precompiler to the bundled (staged-site) jaclang, NOT a dev-source
-    // tree. The build runs inside the repo whose jac.toml carries
-    // [dev] jaclang_source, so _jac_finder's apply_dev_source_override would
-    // otherwise reroute `import jaclang` to the source tree and stamp every JIR's
-    // module key with the source's (often stale) egg-info version. The shipped
-    // binary reports jac.toml's version, so a dev-source stamp makes the whole
-    // bundle fail validation at runtime and every module recompiles on first run.
-    // JAC_NO_DEV_SOURCE keeps pkg_version reading the staged dist-info we ship.
-    try env.put("JAC_NO_DEV_SOURCE", "1");
-    // The staged jaclang imports itself to run the precompiler; it must run
-    // UNSEALED (from source), never sealed-load the manifest it is regenerating
-    // (which may still be a seeded, older-format image). #7135.
-    try env.put("JAC_NO_SEAL", "1");
 
     _ = runChild(io, argv_buf[0..argc], &env, true); // non-zero exit is by design
 
@@ -1818,6 +2012,10 @@ fn skipJaclang(p: []const u8) bool {
         std.mem.indexOf(u8, p, "node_modules") != null or
         std.mem.indexOf(u8, p, "_precompiled") != null or
         std.mem.indexOf(u8, p, "vendor/typeshed/stubs") != null or
+        // The sealed typeshed bundle (_sealed/) is a build artifact generated
+        // fresh below by precompileTypeshed(), never copied from a (possibly
+        // stale) source-tree placement -- skip it here so only the fresh build ships.
+        std.mem.indexOf(u8, p, "vendor/typeshed/_sealed") != null or
         // The LLVMPY_* shim is placed fresh via --shim, not copied from the
         // (gitignored, build-placed) source-tree artifact -- skip it here.
         std.mem.indexOf(u8, p, "libjacllvm.") != null or

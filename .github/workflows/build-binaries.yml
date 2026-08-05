@@ -121,6 +121,15 @@ jobs:
           restore-keys: |
             jac-precompiled-${{ runner.os }}-${{ runner.arch }}-
 
+      - name: Restore cached sealed typeshed bundle (dev channel)
+        if: inputs.channel == 'dev'
+        uses: actions/cache@v4
+        with:
+          path: jac/.typeshed-sealed-build
+          key: jac-typeshed-sealed-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/vendor/typeshed/PIN', 'jac/jaclang/vendor/typeshed/TARBALL_SHA256', 'jac/jaclang/**') }}
+          restore-keys: |
+            jac-typeshed-sealed-${{ runner.os }}-${{ runner.arch }}-
+
       # The Zig package store (.zig-cache/p): the neovim fork + its transitive
       # PUC Lua source off lua.org's FTP (the build's flakiest fetch), mini.nvim,
       # tree-sitter-jac, etc. Content-addressed source packages -- immutable, so

@@ -132,6 +132,22 @@ runs:
         restore-keys: |
           jac-precompiled-${{ runner.os }}-${{ runner.arch }}-
 
+    # The sealed typeshed bundle is mkpayload's second most expensive stage (~82s:
+    # it compiles every vendored .pyi stub). mkpayload seeds the build temp from
+    # jac/.typeshed-sealed-build and the builder re-validates every seeded .jir
+    # by its content-addressed module key (PIN + TARBALL_SHA256 + compiler
+    # serialization), recompiling only stale stubs. A stale tree is useful rather
+    # than dangerous -- same restore-keys pattern as the JIR precompile cache.
+    - name: Restore cached sealed typeshed bundle
+      id: typeshed-sealed-cache
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: jac/.typeshed-sealed-build
+        key: jac-typeshed-sealed-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/vendor/typeshed/PIN', 'jac/jaclang/vendor/typeshed/TARBALL_SHA256', 'jac/jaclang/**') }}
+        restore-keys: |
+          jac-typeshed-sealed-${{ runner.os }}-${{ runner.arch }}-
+
     # The Zig package store (.zig-cache/p): every git/tarball dependency
     # `zig build` fetches -- the pinned neovim fork and, transitively, its PUC
     # Lua source off lua.org's FTP (historically the flakiest fetch in the whole
@@ -270,6 +286,16 @@ runs:
       with:
         path: jac/.precompiled-build
         key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+
+    - name: Save sealed typeshed bundle cache (main only)
+      if: >-
+        github.ref == 'refs/heads/main' &&
+        steps.cache.outputs.cache-hit != 'true' &&
+        steps.typeshed-sealed-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: jac/.typeshed-sealed-build
+        key: jac-typeshed-sealed-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/vendor/typeshed/PIN', 'jac/jaclang/vendor/typeshed/TARBALL_SHA256', 'jac/jaclang/**') }}
 
     # Seed the Zig package store from main only (see the restore note). Like the
     # precompile cache, a restore-keys prefix hit still leaves cache-hit != true,
