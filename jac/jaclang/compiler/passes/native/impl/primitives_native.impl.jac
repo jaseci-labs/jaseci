@@ -2562,8 +2562,8 @@ impl NativeListEmitter.emit_append(
     p._rc_call_with_ctx(helpers["append"], [target, val], op="append", loc=_append_loc);
 
     if isinstance(_boxed_val.type, ir.PointerType)
-        and p._is_owned(_boxed_val)
-        and not p._nogc_headerless() {
+    and p._is_owned(_boxed_val)
+    and not p._nogc_headerless() {
         p._emit_rc_release_simple(_boxed_val, op="append", loc=_append_loc);
     }
     return ir.Constant(ir.IntType(64), 0);
@@ -2912,9 +2912,7 @@ impl NativeListEmitter.emit_index(
     result = b.phi(i64, name="idx.result");
     result.add_incoming(ir.Constant(i64, -1), loop_bb);
     result.add_incoming(idx, found_bb);
-    # Python semantics: a miss raises ValueError. Returning -1 silently
-    # poisons downstream indexing (xs[-1] is valid and grabs the last
-    # element).
+
     miss = b.icmp_signed("==", result, ir.Constant(i64, -1), name="idx.miss");
     p._emit_runtime_raise(miss, "ValueError", "list.index(x): x not in list");
     return result;
@@ -3226,12 +3224,7 @@ impl NativeDictEmitter.emit_get(
     b.cbranch(found_i1, found_bb, notfound_bb);
 
     val_type = helpers["val_type"];
-    # The checker types 1-arg get() as V | None. For non-pointer V a
-    # fabricated zero-value would destroy miss-ness (0 is
-    # indistinguishable from a stored 0, and `is None` on it is false), so
-    # the miss must produce the real optional representation: JacOpt with
-    # tag 0. Pointer-valued dicts keep the nullable-pointer convention,
-    # which already IS the V | None encoding.
+
     wrap_optional = (len(args) < 2) and (not isinstance(val_type, ir.PointerType));
     result_type = p._jac_optional_type(val_type) if wrap_optional else val_type;
 
@@ -3620,13 +3613,8 @@ impl NativeDictEmitter.emit_setdefault(
     if len(args) >= 2 {
         default_val = args[1];
     } elif isinstance(val_type, ir.PointerType) {
-        # Python setdefault() with no default inserts None; a nullable
-        # pointer slot can represent that faithfully.
         default_val = ir.Constant(val_type, None);
     } else {
-        # A non-nullable value slot (int/float) cannot hold None; falling
-        # back to a fabricated 0 would silently diverge from Python, so
-        # decline to lower and let the dispatcher report E5092.
         return None;
     }
 
@@ -3763,8 +3751,8 @@ impl NativeSetEmitter.emit_add(
     get_builder(p).call(helpers["add"], [target, val]);
 
     if isinstance(val.type, ir.PointerType)
-        and p._is_owned(val)
-        and not p._nogc_headerless() {
+    and p._is_owned(val)
+    and not p._nogc_headerless() {
         _b_sa = get_builder(p);
         _i8p_sa = ir.IntType(8).as_pointer();
         _rc_sa = _b_sa.bitcast(val, _i8p_sa, name="sadd_own_rel_cast");
@@ -4704,7 +4692,7 @@ impl NativeTupleEmitter._get_struct_info(
     self, ctx: NativeEmitCtx, target: ir.Value
 ) -> (object | None) {
     if isinstance(target.type, ir.PointerType)
-        and isinstance(target.type.pointee, ir.LiteralStructType) {
+    and isinstance(target.type.pointee, ir.LiteralStructType) {
         return target.type.pointee;
     }
 

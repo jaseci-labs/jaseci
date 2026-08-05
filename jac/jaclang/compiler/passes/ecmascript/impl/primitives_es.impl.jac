@@ -628,15 +628,7 @@ impl ESStrEmitter.emit_isidentifier(
 impl ESStrEmitter.emit_islower(
     self, ctx: ESEmitCtx, target: str, args: list[str]
 ) -> (str | None) {
-    return "("
-        + target
-        + " === "
-        + target
-        + ".toLowerCase() && "
-        + target
-        + " !== "
-        + target
-        + ".toUpperCase())";
+    return "(" + target + " === " + target + ".toLowerCase() && " + target + " !== " + target + ".toUpperCase())";
 }
 
 impl ESStrEmitter.emit_isnumeric(
@@ -666,15 +658,7 @@ impl ESStrEmitter.emit_istitle(
 impl ESStrEmitter.emit_isupper(
     self, ctx: ESEmitCtx, target: str, args: list[str]
 ) -> (str | None) {
-    return "("
-        + target
-        + " === "
-        + target
-        + ".toUpperCase() && "
-        + target
-        + " !== "
-        + target
-        + ".toLowerCase())";
+    return "(" + target + " === " + target + ".toUpperCase() && " + target + " !== " + target + ".toLowerCase())";
 }
 
 impl ESStrEmitter.emit_encode(
@@ -758,11 +742,7 @@ impl ESStrEmitter.emit_op_contains(
 impl ESBytesEmitter.emit_decode(
     self, ctx: ESEmitCtx, target: str, args: list[str]
 ) -> (str | None) {
-    return "new TextDecoder("
-        + (args[0] if len(args) > 0 else "")
-        + ").decode("
-        + target
-        + ")";
+    return "new TextDecoder(" + (args[0] if len(args) > 0 else "") + ").decode(" + target + ")";
 }
 
 impl ESBytesEmitter.emit_hex(
@@ -1212,11 +1192,6 @@ impl ESListEmitter.emit_op_imul(
 impl ESDictEmitter.emit_get(
     self, ctx: ESEmitCtx, target: str, args: list[str]
 ) -> (str | None) {
-    # Python dict.get semantics need a membership check: a miss returns the
-    # default (null when omitted, so `is None` sees a real None), and a
-    # present-but-None value is returned as stored. `target[k] ?? default`
-    # gets all three wrong (undefined on miss, default substituted for a
-    # stored None), so route through the runtime's checked implementation.
     return _rt("dict", "get", [target] + args);
 }
 
@@ -1728,12 +1703,8 @@ impl ESBuiltinEmitter.emit_len(self, ctx: ESEmitCtx, args: list[str]) -> (str | 
     if not args {
         return None;
     }
-    # `.length` is only right for array-likes: it is undefined on plain
-    # objects (dict) and on Set/Map, so dispatch on the argument's inferred
-    # type and fall back to the runtime helper when the type is unknown.
-    arg_type = (ctx.arg_type_names or [""])[0]
-        if ctx.arg_type_names
-        else "";
+
+    arg_type = (ctx.arg_type_names or [""])[0] if ctx.arg_type_names else "";
     if arg_type == "dict" {
         return "Object.keys(" + args[0] + ").length";
     }
@@ -1900,15 +1871,9 @@ impl ESBuiltinEmitter.emit_pow(self, ctx: ESEmitCtx, args: list[str]) -> (str | 
 impl ESBuiltinEmitter.emit_divmod(
     self, ctx: ESEmitCtx, args: list[str]
 ) -> (str | None) {
-    return "[Math.floor("
-        + args[0]
-        + " / "
-        + args[1]
-        + "), "
-        + args[0]
-        + " % "
-        + args[1]
-        + "]";
+    return "[Math.floor(" + args[0] + " / " + args[1] + "), " + args[0] + " % " + args[
+        1
+    ] + "]";
 }
 
 impl ESBuiltinEmitter.emit_iter(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {

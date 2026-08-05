@@ -1387,13 +1387,7 @@ def _build_exc_runtime_js -> str {
                 else ((parent + "_") if parent in _JS_RESERVED_EXC_NAMES else parent)
         );
         lines.append(
-            "    class "
-                + local
-                + " extends "
-                + parent_local
-                + " { constructor(m) { super(m); this.name = '"
-                + name
-                + "'; } }"
+            "    class " + local + " extends " + parent_local + " { constructor(m) { super(m); this.name = '" + name + "'; } }"
         );
         exports.append(
             (name + ": " + local) if name in _JS_RESERVED_EXC_NAMES else name
@@ -1460,13 +1454,7 @@ def _build_types_runtime_js -> str {
             body = "a.length === 0 ? (" + zero + ") : (" + one + ")";
         } else {
             body = (
-                "a.length === 0 ? ("
-                + zero
-                + ") : a.length === 1 ? ("
-                + one
-                + ") : ("
-                + two
-                + ")"
+                "a.length === 0 ? (" + zero + ") : a.length === 1 ? (" + one + ") : (" + two + ")"
             );
         }
         entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");

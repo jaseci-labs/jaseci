@@ -5,7 +5,7 @@ leftover -1 marshalling sentinel for int-vs-None `is` comparisons, which
 made `-1 is None` evaluate true.
 """
 
-def nid_py() -> dict {
+def nid_py -> dict {
     y: int = 0 - 1;
     z: int = 0;
     neg1_is_none: int = 1 if (y is None) else 0;
@@ -18,7 +18,7 @@ def nid_py() -> dict {
     };
 }
 
-def nid_cl() -> dict {
+def nid_cl -> dict {
     y: int = 0 - 1;
     z: int = 0;
     neg1_is_none: int = 1 if (y is None) else 0;
@@ -31,7 +31,7 @@ def nid_cl() -> dict {
     };
 }
 
-def nid_na() -> dict[str, any] {
+def nid_na -> dict[str, any] {
     y: int = 0 - 1;
     z: int = 0;
     neg1_is_none: int = 1 if (y is None) else 0;

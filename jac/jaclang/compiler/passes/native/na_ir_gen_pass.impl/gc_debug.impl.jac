@@ -38,9 +38,9 @@ impl NaIRGenPass._emit_rc_debug_globals -> None {
         _triple = str(self.llvm_module.triple or "").lower();
         if "wasm" not in _triple {
             _is_darwin = ("darwin" in _triple)
-                or ("apple" in _triple)
-                or ("macos" in _triple)
-                or ("ios" in _triple);
+            or ("apple" in _triple)
+            or ("macos" in _triple)
+            or ("ios" in _triple);
             _stderr_name = "__stderrp" if _is_darwin else "stderr";
             if _stderr_name not in self.extern_funcs {
                 _stderr_gv = ir.GlobalVariable(
@@ -56,8 +56,7 @@ impl NaIRGenPass._emit_rc_debug_globals -> None {
                 "fprintf", i32, [i8_ptr, i8_ptr], var_arg=True
             );
             _notice = self._get_fmt_string(
-                "jac: RC debug tracing not compiled in"
-                    + " (build with JAC_RC_DEBUG_CODEGEN=1)"
+                "jac: RC debug tracing not compiled in" + " (build with JAC_RC_DEBUG_CODEGEN=1)"
             );
             _notice_ptr = _b_en.gep(
                 _notice, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="en.notice"
@@ -340,9 +339,9 @@ impl NaIRGenPass._emit_raw_free_bbs(
             _msz = ir.Constant(i64, 0);
         } else {
             _is_darwin = ("darwin" in _triple)
-                or ("apple" in _triple)
-                or ("macos" in _triple)
-                or ("ios" in _triple);
+            or ("apple" in _triple)
+            or ("macos" in _triple)
+            or ("ios" in _triple);
             _msz_sym = "malloc_size" if _is_darwin else "malloc_usable_size";
             _msz_fn = self._get_or_declare_extern(_msz_sym, i64, [i8_ptr]);
             _msz = b.call(_msz_fn, [_raw_msz], name="msz");
@@ -415,9 +414,9 @@ impl NaIRGenPass._emit_struct_free_log(
         _msz2 = ir.Constant(i64, 0);
     } else {
         _is_darwin = ("darwin" in _triple)
-            or ("apple" in _triple)
-            or ("macos" in _triple)
-            or ("ios" in _triple);
+        or ("apple" in _triple)
+        or ("macos" in _triple)
+        or ("ios" in _triple);
         _msz_sym = "malloc_size" if _is_darwin else "malloc_usable_size";
         _msz_fn = self._get_or_declare_extern(_msz_sym, i64, [i8_ptr]);
         _msz2 = b.call(_msz_fn, [obj_raw], name="msz2");
@@ -459,8 +458,8 @@ impl NaIRGenPass._set_rc_ctx(op: str, loc: str) -> None {
 
 impl NaIRGenPass._clear_rc_ctx -> None {
     if not self._rc_debug_codegen
-        or self._nogc_headerless()
-        or self.rc_ctx_op_gv is None {
+    or self._nogc_headerless()
+    or self.rc_ctx_op_gv is None {
         return;
     }
     i8_ptr = ir.IntType(8).as_pointer();

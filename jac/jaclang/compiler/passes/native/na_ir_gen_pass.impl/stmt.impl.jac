@@ -159,8 +159,8 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
         _del_arch = self._struct_name_of(target_expr);
         _del_model = self.ir_in.gen.osp_model;
         if (_del_arch is not None)
-            and (_del_model is not None)
-            and (_del_model.arch_kind.get(_del_arch) == "edge") {
+        and (_del_model is not None)
+        and (_del_model.arch_kind.get(_del_arch) == "edge") {
             _disc_fn = self.func_symtab.get("osp_disconnect");
             _edge_h = self._codegen_expr(target_expr);
             if (_disc_fn is not None) and (_edge_h is not None) {
@@ -247,8 +247,8 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
         if nd.expr is not None {
             _rv = self._codegen_expr(nd.expr);
             if _rv is not None
-                and isinstance(_rv.type, ir.PointerType)
-                and self._is_owned(_rv) {
+            and isinstance(_rv.type, ir.PointerType)
+            and self._is_owned(_rv) {
                 self._emit_rc_release_simple(_rv, op="gen_ret_val", loc=_gr_loc);
             }
         }
@@ -271,33 +271,33 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
             val = self._coerce_type(val, func_ret_type);
             _ret_root_local = False;
             if isinstance(nd.expr, uni.AtomTrailer)
-                and isinstance(nd.expr.right, uni.IndexSlice) {
+            and isinstance(nd.expr.right, uni.IndexSlice) {
                 _rr = nd.expr.target;
                 while isinstance(_rr, uni.AtomTrailer) {
                     _rr = _rr.target;
                 }
                 if isinstance(_rr, uni.Name)
-                    and _rr.sym_name in self.local_vars
-                    and _rr.sym_name not in self.param_vars {
+                and _rr.sym_name in self.local_vars
+                and _rr.sym_name not in self.param_vars {
                     _ret_root_local = True;
                 }
             }
             if _ret_root_local
-                and (
-                    isinstance(val.type, ir.PointerType)
-                    or (self._str_desc_ty is not None and val.type == self._str_desc_ty)
-                )
-                and not self._is_owned(val)
-                and self._gc_mode() != "none" {
+            and (
+                isinstance(val.type, ir.PointerType)
+                or (self._str_desc_ty is not None and val.type == self._str_desc_ty)
+            )
+            and not self._is_owned(val)
+            and self._gc_mode() != "none" {
                 self._emit_rc_retain(val, op="ret_borrowed", loc="");
                 self._mark_owned(val);
             }
 
             skip_var: (str | None) = None;
             if isinstance(nd.expr, uni.Name)
-                and nd.expr.sym_name in self.local_vars
-                and nd.expr.sym_name not in self.param_vars
-                and nd.expr.sym_name not in self.closure_cell_handles {
+            and nd.expr.sym_name in self.local_vars
+            and nd.expr.sym_name not in self.param_vars
+            and nd.expr.sym_name not in self.closure_cell_handles {
                 skip_var = nd.expr.sym_name;
             } elif isinstance(nd.expr, uni.TupleVal) {
                 tup_elems = nd.expr.values or [];
@@ -794,8 +794,8 @@ impl NaIRGenPass._match_subj_ty(expr: (uni.UniNode | None)) -> (object | None) {
         return None;
     }
     holder = decl.find_parent_of_type(uni.Assignment)
-        or decl.find_parent_of_type(uni.ParamVar)
-        or decl.find_parent_of_type(uni.HasVar);
+    or decl.find_parent_of_type(uni.ParamVar)
+    or decl.find_parent_of_type(uni.HasVar);
     tag = holder.type_tag if holder is not None else None;
     tag_expr = tag.tag if tag is not None else None;
     if isinstance(tag_expr, uni.Expr) and tag_expr.type is not None {
@@ -846,8 +846,8 @@ impl NaIRGenPass._match_cast_elem(
     }
     lowered = self._lower_type(elem_ty);
     if lowered is not None
-        and isinstance(lowered, ir.PointerType)
-        and lowered != elem.type {
+    and isinstance(lowered, ir.PointerType)
+    and lowered != elem.type {
         return self.builder.bitcast(elem, lowered, name="match.elem.cast");
     }
     return elem;
@@ -862,7 +862,7 @@ impl NaIRGenPass._match_seq_cond(
     spec = self._infer_list_elem_type(subj);
     if spec is None {
         if isinstance(subj.type, ir.PointerType)
-            and isinstance(subj.type.pointee, ir.LiteralStructType) {
+        and isinstance(subj.type.pointee, ir.LiteralStructType) {
             return self._match_tuple_seq_cond(pat, subj, subj_ty);
         }
         self.emit(
@@ -1093,8 +1093,8 @@ impl NaIRGenPass._match_arch_cond(
     }
     static_name = self._struct_ptr_pointee_name(subj);
     if static_name is None
-        and subj_ty is not None
-        and isinstance(subj.type, ir.PointerType) {
+    and subj_ty is not None
+    and isinstance(subj.type, ir.PointerType) {
         tk = self._mangled_of(subj_ty);
         cands = [tk] + (tk.split("|") if "|" in tk else []);
         for part in cands {
@@ -1200,12 +1200,12 @@ impl NaIRGenPass._match_value_eq(
     }
 
     if isinstance(subj.type, ir.IntType)
-        and isinstance(pat.type, ir.IntType)
-        and subj.type != pat.type {
+    and isinstance(pat.type, ir.IntType)
+    and subj.type != pat.type {
         pat = self._coerce_type(pat, subj.type);
     }
     is_float = isinstance(subj.type, (ir.DoubleType, ir.FloatType))
-        or isinstance(pat.type, (ir.DoubleType, ir.FloatType));
+    or isinstance(pat.type, (ir.DoubleType, ir.FloatType));
     (lhs, rhs) = (subj, pat);
     if is_float {
         (lhs, rhs) = self._promote_to_float(subj, pat);
@@ -1242,8 +1242,8 @@ impl NaIRGenPass._bind_match_capture(
 ) -> None {
     alloca = self.local_vars.get(cap_name);
     if alloca is None
-        or not isinstance(alloca.type, ir.PointerType)
-        or alloca.type.pointee != val.type {
+    or not isinstance(alloca.type, ir.PointerType)
+    or alloca.type.pointee != val.type {
         alloca = self._entry_alloca(val.type, cap_name);
         if isinstance(val.type, ir.PointerType) {
             _func_b = self.builder.function;
@@ -1278,9 +1278,9 @@ impl NaIRGenPass._bind_match_seq(
     spec = self._infer_list_elem_type(subj);
     if spec is None {
         if isinstance(subj.type, ir.PointerType)
-            and isinstance(subj.type.pointee, ir.LiteralStructType)
-            and star is None
-            and len(subj.type.pointee.elements) == len(heads) {
+        and isinstance(subj.type.pointee, ir.LiteralStructType)
+        and star is None
+        and len(subj.type.pointee.elements) == len(heads) {
             loaded = self.builder.load(subj, name="match.tup");
             for (i, sub_pat) in enumerate(heads) {
                 elem = self.builder.extract_value(loaded, i, name="match.tup.elem");
@@ -1493,9 +1493,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
         value = self._instantiate_generic_for_target(nd.value.value, nd.type_tag.tag);
     }
     if value is None
-        and nd.type_tag is not None
-        and isinstance(nd.value, uni.ListVal)
-        and not (nd.value.values or []) {
+    and nd.type_tag is not None
+    and isinstance(nd.value, uni.ListVal)
+    and not (nd.value.values or []) {
         _aos_t = self._aos_elem_of(nd.type_tag);
         if _aos_t is not None {
             self._emit_aos_list_helpers(_aos_t);
@@ -1638,8 +1638,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 );
                 _ba_src = self._bytearray_src_of(value);
                 if _ba_start is not None
-                    and _ba_stop is not None
-                    and _ba_src is not None {
+                and _ba_stop is not None
+                and _ba_src is not None {
                     _ba_fns = self._bytearray_runtime_fns();
                     _i64_ba = ir.IntType(64);
                     self.builder.call(
@@ -1739,7 +1739,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                     target_val, idx_val
                                 );
                                 if isinstance(value.type, ir.IdentifiedStructType)
-                                    and value.type == _struct_t {
+                                and value.type == _struct_t {
                                     self.builder.store(value, elem_ptr);
                                     _idx_stored = True;
                                 } elif (
@@ -1787,7 +1787,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 if not _skip_redecl {
                     _declared_type = self._resolve_jac_type(_redecl_tag);
                     if _declared_type is not None
-                        and _declared_type != alloca.type.pointee {
+                    and _declared_type != alloca.type.pointee {
                         alloca = self._entry_alloca(_declared_type, var_name);
                         self.local_vars[var_name] = alloca;
                     }
@@ -1995,7 +1995,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                             set_elem_name: (str | None) = None;
                             for (sname, stype) in self.set_types.items() {
                                 if current.type == stype.as_pointer()
-                                    or rhs_set.type == stype.as_pointer() {
+                                or rhs_set.type == stype.as_pointer() {
                                     set_elem_name = sname;
                                     break;
                                 }
@@ -2085,7 +2085,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                         if nd.value is not None
                                         else None;
                                     if _rhs_var_ior is not None
-                                        and _rhs_var_ior in self.local_vars {
+                                    and _rhs_var_ior in self.local_vars {
                                         _rhs_alloca_ior = self.local_vars[_rhs_var_ior];
                                         self.builder.store(
                                             ir.Constant(
@@ -2145,7 +2145,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             _is_raw_int_ptr = getattr(coerced, 'opname', '') == 'inttoptr';
             self._register_region_handle_var(nd, var_name);
             if isinstance(alloca.type.pointee, ir.PointerType)
-                and not is_inplace_set_op {
+            and not is_inplace_set_op {
                 if _is_raw_int_ptr {
                     self.param_vars.add(var_name);
                 } elif var_name in self.region_handle_vars {
@@ -2157,13 +2157,13 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     self.builder.call(self.region_drop_fn, [_old_i8]);
                 } else {
                     if self._nogc_headerless()
-                        and isinstance(nd.value, uni.Name)
-                        and nd.value.sym is not None
-                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
+                    and isinstance(nd.value, uni.Name)
+                    and nd.value.sym is not None
+                    and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
                         self.nogc_no_free_vars.add(var_name);
                     }
                     if not self._is_owned(value)
-                        and not self._can_native_move_lower(nd) {
+                    and not self._can_native_move_lower(nd) {
                         self._emit_rc_retain(
                             coerced,
                             op="assign",
@@ -2178,10 +2178,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         self._nogc_headerless()
                         and getattr(nd, 'na_overwrite_consumed', False)
                     )
-                        and not (
-                            self._gc_mode() == "none"
-                            and var_name in self.nogc_no_free_vars
-                        ) {
+                    and not (
+                        self._gc_mode() == "none" and var_name in self.nogc_no_free_vars
+                    ) {
                         old_val = self.builder.load(alloca, name=f"{var_name}.old");
                         self._emit_rc_release_typed(
                             old_val,
@@ -2241,7 +2240,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         self._nogc_headerless()
                         and getattr(nd, 'na_overwrite_consumed', False)
                     )
-                        and var_name not in self.nogc_no_free_vars {
+                    and var_name not in self.nogc_no_free_vars {
                         _osr_old = self.builder.load(alloca, name=f"{var_name}.old");
                         self._nogc_str_free_owned(_osr_old);
                     }
@@ -2267,9 +2266,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             }
             self.builder.store(coerced, alloca);
         } elif var_name in self.global_vars
-            and isinstance(target_expr, uni.NameAtom)
-            and target_expr.sym is not None
-            and target_expr.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
+        and isinstance(target_expr, uni.NameAtom)
+        and target_expr.sym is not None
+        and target_expr.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
             global_var = self.global_vars[var_name];
             if nd.aug_op is not None {
                 aug_op_val = nd.aug_op.value;
@@ -2424,7 +2423,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     and global_var.type.pointee == self._str_desc_ty
                 )
             )
-                and not _is_raw_int_ptr_g {
+            and not _is_raw_int_ptr_g {
                 if not self._is_owned(value) {
                     self._emit_rc_retain(
                         coerced,
@@ -2487,12 +2486,12 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             }
             self.builder.store(coerced, global_var);
             if self._nogc_headerless()
-                and isinstance(nd.value, uni.Name)
-                and nd.value.sym_name in self.local_vars
-                and nd.value.sym_name not in self.param_vars {
+            and isinstance(nd.value, uni.Name)
+            and nd.value.sym_name in self.local_vars
+            and nd.value.sym_name not in self.param_vars {
                 _gxfer_slot = self.local_vars[nd.value.sym_name];
                 if isinstance(_gxfer_slot.type, ir.PointerType)
-                    and isinstance(_gxfer_slot.type.pointee, ir.PointerType) {
+                and isinstance(_gxfer_slot.type.pointee, ir.PointerType) {
                     self.builder.store(
                         ir.Constant(_gxfer_slot.type.pointee, None), _gxfer_slot
                     );
@@ -2514,7 +2513,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     _clos_hint = None;
                 }
                 if _clos_hint is not None
-                    and self._closure_struct_of(_clos_hint) is not None {
+                and self._closure_struct_of(_clos_hint) is not None {
                     value = self._coerce_type(value, _clos_hint);
                     var_type = _clos_hint;
                     _pre_box_val = value;
@@ -2595,8 +2594,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 isinstance(var_type, ir.PointerType)
                 or (self._str_desc_ty is not None and var_type == self._str_desc_ty)
             )
-                and not _mk_cell
-                and not _in_gen_frame {
+            and not _mk_cell
+            and not _in_gen_frame {
                 _func_e = self.builder.function;
                 _ebb = _func_e.entry_basic_block;
                 _cur_bb = self.builder.block;
@@ -2618,10 +2617,10 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             }
             self._register_region_handle_var(nd, var_name);
             if isinstance(var_type, ir.PointerType)
-                and var_name in self.region_handle_vars {
+            and var_name in self.region_handle_vars {
                 ;
             } elif isinstance(var_type, ir.PointerType)
-                or (self._str_desc_ty is not None and var_type == self._str_desc_ty) {
+            or (self._str_desc_ty is not None and var_type == self._str_desc_ty) {
                 if getattr(value, 'opname', '') == 'inttoptr' {
                     self.param_vars.add(var_name);
                 } else {
@@ -2638,9 +2637,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         and nd.target[0].sym.ownership == OwnershipKind.OWN
                     );
                     if self._nogc_headerless()
-                        and isinstance(nd.value, uni.Name)
-                        and nd.value.sym is not None
-                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
+                    and isinstance(nd.value, uni.Name)
+                    and nd.value.sym is not None
+                    and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
                         self.nogc_no_free_vars.add(var_name);
                     }
                     _moved_here = False;
@@ -2692,10 +2691,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         self._nogc_headerless()
                         and getattr(nd, 'na_overwrite_consumed', False)
                     )
-                        and not (
-                            self._gc_mode() == "none"
-                            and var_name in self.nogc_no_free_vars
-                        ) {
+                    and not (
+                        self._gc_mode() == "none" and var_name in self.nogc_no_free_vars
+                    ) {
                         old_val = self.builder.load(alloca, name=f"{var_name}.old");
                         if _own_str_tgt {
                             self._nogc_str_free_owned(old_val);
@@ -2716,7 +2714,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 and getattr(_pre_box_val, 'opname', '') != 'inttoptr'
             ) {
                 if not self._is_owned(_pre_box_val)
-                    and not self._can_native_move_lower(nd) {
+                and not self._can_native_move_lower(nd) {
                     self._emit_rc_retain(
                         _pre_box_val,
                         op="assign_box",
@@ -2797,10 +2795,10 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         else self._get_name(nd.target);
 
     if isinstance(nd.target, uni.TupleVal)
-        and isinstance(nd.collection, uni.FuncCall)
-        and isinstance(nd.collection.target, uni.AtomTrailer)
-        and nd.collection.target.is_attr
-        and self._get_name(nd.collection.target.right) == "items" {
+    and isinstance(nd.collection, uni.FuncCall)
+    and isinstance(nd.collection.target, uni.AtomTrailer)
+    and nd.collection.target.is_attr
+    and self._get_name(nd.collection.target.right) == "items" {
         items_dict_key = self._dict_key_of(nd.collection.target.target);
         helpers = self.dict_helpers.get(items_dict_key)
             if items_dict_key is not None
@@ -2840,8 +2838,8 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     }
 
     if isinstance(nd.collection, uni.FuncCall)
-        and self._get_name(nd.collection.target) == "range"
-        and nd.collection.call_kind == "builtin" {
+    and self._get_name(nd.collection.target) == "range"
+    and nd.collection.call_kind == "builtin" {
         params = nd.collection.params or [];
         start_val: (ir.Value | None) = None;
         stop_val: (ir.Value | None) = None;
@@ -2916,8 +2914,8 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     }
 
     if _coll_memo is not None
-        and self?.jacval_type
-        and _coll_memo.type == self.jacval_type {
+    and self?.jacval_type
+    and _coll_memo.type == self.jacval_type {
         self._emit_list_helpers("jacval", self.jacval_type);
         _any_list_helpers = self.list_helpers.get("jacval");
         if _any_list_helpers is not None {
@@ -2953,9 +2951,9 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     }
 
     if self._list_spec_of(nd.collection) is None
-        and self._dict_key_of(nd.collection) is None
-        and _coll_memo is not None
-        and _coll_memo.type == ir.IntType(8).as_pointer() {
+    and self._dict_key_of(nd.collection) is None
+    and _coll_memo is not None
+    and _coll_memo.type == ir.IntType(8).as_pointer() {
         self._codegen_for_indexed(
             nd,
             kind="str",
@@ -3048,7 +3046,7 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         return False;
     }
     _par_ok = (self.ir_in.gen.nogc_enforced and self._gc_mode() == "none")
-        or (self._gc_mode() == "rc" and not self._rc_debug_codegen);
+    or (self._gc_mode() == "rc" and not self._rc_debug_codegen);
     if not _par_ok {
         return False;
     }
@@ -3068,15 +3066,16 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     _reds: list = [];
     _red_names: set[str] = set();
     for st in (nd.body or []) {
-        _r_asgns = ([st] if isinstance(st, uni.Assignment) else [])
-            + list(st.get_all_sub_nodes(uni.Assignment));
+        _r_asgns = ([st] if isinstance(st, uni.Assignment) else []) + list(
+            st.get_all_sub_nodes(uni.Assignment)
+        );
         for _ra in _r_asgns {
             if _ra.na_flow_reduce
-                and len(_ra.target) == 1
-                and isinstance(_ra.target[0], uni.Name) {
+            and len(_ra.target) == 1
+            and isinstance(_ra.target[0], uni.Name) {
                 _rn = _ra.target[0].sym_name;
                 if _rn not in _red_names
-                    and (_rn in self.local_vars or _rn in self.global_vars) {
+                and (_rn in self.local_vars or _rn in self.global_vars) {
                     _red_names.add(_rn);
                     _reds.append((_rn, _ra.na_flow_reduce));
                 }
@@ -3129,9 +3128,9 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         for anm in st.get_all_sub_nodes(uni.Name) {
             _nmn = anm.sym_name;
             if _nmn == loop_var
-                or _nmn in _caps
-                or _nmn in _red_names
-                or _nmn not in self.local_vars {
+            or _nmn in _caps
+            or _nmn in _red_names
+            or _nmn not in self.local_vars {
                 continue;
             }
             _decl = anm.sym.decl if anm.sym is not None else None;
@@ -3173,9 +3172,9 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         );
     }
     _cap_off = 2 if _chk is not None else 1;
-    _ctx_field_types = [coll.type]
-        + ([i64] if _chk is not None else [])
-        + [v.type for v in _cap_vals];
+    _ctx_field_types = [coll.type] + ([i64] if _chk is not None else []) + [
+        v.type for v in _cap_vals
+    ];
     _ctx_ty = ir.LiteralStructType(_ctx_field_types);
     _ctx_slot = self.builder.alloca(_ctx_ty, name="ffor.ctx");
     self.builder.store(
@@ -3815,8 +3814,8 @@ impl NaIRGenPass._codegen_for_indexed(
             }
             self.local_vars[vname] = alloca;
             if rc_vars
-                and isinstance(vtype, ir.PointerType)
-                and self._gc_mode() == "none" {
+            and isinstance(vtype, ir.PointerType)
+            and self._gc_mode() == "none" {
                 self.nogc_no_free_vars.add(vname);
             }
             allocas.append(alloca);
@@ -3925,8 +3924,8 @@ impl NaIRGenPass._codegen_for_indexed(
                 }
             } else {
                 if rc_vars
-                    and isinstance(var_types[0], ir.PointerType)
-                    and self._gc_mode() != "none" {
+                and isinstance(var_types[0], ir.PointerType)
+                and self._gc_mode() != "none" {
                     old_val = self.builder.load(allocas[0], name="for.old");
                     self._emit_rc_release_simple(old_val, op="for_elem", loc=_rc_loc);
                     self._emit_rc_retain(elem_val, op="for_elem", loc=_rc_loc);
@@ -3983,8 +3982,8 @@ impl NaIRGenPass._codegen_for_indexed(
         );
         self.builder.store(ir.Constant(_coll_end.type, None), _gen_coll_slot);
     } elif coll_release_op
-        and isinstance(collection_val.type, ir.PointerType)
-        and self._is_owned(collection_val) {
+    and isinstance(collection_val.type, ir.PointerType)
+    and self._is_owned(collection_val) {
         self._emit_rc_release_simple(collection_val, op=coll_release_op, loc=_for_loc);
     }
 }

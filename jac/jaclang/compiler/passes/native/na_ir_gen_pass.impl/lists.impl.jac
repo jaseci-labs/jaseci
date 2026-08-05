@@ -224,7 +224,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     }
 
     if isinstance(elem_type, ir.PointerType)
-        and isinstance(elem_type.pointee, ir.LiteralStructType) {
+    and isinstance(elem_type.pointee, ir.LiteralStructType) {
         self._pending_list_elem_struct = elem_type;
     }
 
@@ -255,8 +255,8 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     );
 
     if isinstance(first_val.type, ir.PointerType)
-        and self._is_owned(first_val)
-        and self._gc_mode() != "none" {
+    and self._is_owned(first_val)
+    and self._gc_mode() != "none" {
         self._emit_rc_release_simple(first_val, op="list_init", loc=_linit_loc);
     }
 
@@ -264,10 +264,10 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         val = self._str_norm(self._codegen_expr(nd.values[i]));
         if val is not None {
             if self._pending_list_elem_struct is not None
-                and isinstance(self._pending_list_elem_struct, ir.PointerType)
-                and isinstance(
-                    self._pending_list_elem_struct.pointee, ir.LiteralStructType
-                ) {
+            and isinstance(self._pending_list_elem_struct, ir.PointerType)
+            and isinstance(
+                self._pending_list_elem_struct.pointee, ir.LiteralStructType
+            ) {
                 val = self._coerce_tuple_to_struct(
                     val, self._pending_list_elem_struct.pointee
                 );
@@ -283,7 +283,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
                 val = self.builder.bitcast(val, i8p, name="elem.cast");
             } else {
                 if self._list_box_ptr_into_i64(_boxed_val, helpers["elem_type"])
-                    and not self._is_owned(_boxed_val) {
+                and not self._is_owned(_boxed_val) {
                     self._emit_rc_retain(
                         _boxed_val, op="list_init_box", loc=_linit_loc
                     );
@@ -295,9 +295,9 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             );
 
             if isinstance(_boxed_val.type, ir.PointerType)
-                and self._is_owned(_boxed_val)
-                and self._gc_mode() != "none"
-                and not self._list_box_ptr_into_i64(_boxed_val, helpers["elem_type"]) {
+            and self._is_owned(_boxed_val)
+            and self._gc_mode() != "none"
+            and not self._list_box_ptr_into_i64(_boxed_val, helpers["elem_type"]) {
                 self._emit_rc_release_simple(
                     _boxed_val, op="list_init", loc=_linit_loc
                 );

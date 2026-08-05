@@ -178,11 +178,7 @@ test "dict" {
 
 test "native print renders bools as True and False" {
     run_with_both(
-        "prim_print_bool.jac",
-        "pbool_py",
-        "pbool_cl",
-        "pbool_na",
-        require=["cl", "na"]
+        "prim_print_bool.jac", "pbool_py", "pbool_cl", "pbool_na", require=["cl", "na"]
     );
     # The native print of an i1 must go through the True/False string
     # select, not the %lld integer path that rendered bools as 1/0.
@@ -195,21 +191,13 @@ test "native print renders bools as True and False" {
 
 test "unboxed scalars are never None on any backend" {
     run_with_both(
-        "prim_none_identity.jac",
-        "nid_py",
-        "nid_cl",
-        "nid_na",
-        require=["cl", "na"]
+        "prim_none_identity.jac", "nid_py", "nid_cl", "nid_na", require=["cl", "na"]
     );
 }
 
 test "dict get miss is a real None on every backend" {
     run_with_both(
-        "prim_dict_get_none.jac",
-        "dgn_py",
-        "dgn_cl",
-        "dgn_na",
-        require=["cl", "na"]
+        "prim_dict_get_none.jac", "dgn_py", "dgn_cl", "dgn_na", require=["cl", "na"]
     );
 }
 

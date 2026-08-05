@@ -32,8 +32,11 @@ impl NaIRGenPass._apply_ownership_param_attrs(
         if not isinstance(arg.type, ir.PointerType) {
             continue;
         }
-        if kind
-            in (OwnershipKind.OWN, OwnershipKind.MUT_BORROW, OwnershipKind.BORROW) {
+        if kind in (
+            OwnershipKind.OWN,
+            OwnershipKind.MUT_BORROW,
+            OwnershipKind.BORROW
+        ) {
             arg.add_attribute("noalias");
         }
         if kind in (OwnershipKind.BORROW, OwnershipKind.IMM) {
@@ -76,9 +79,9 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
 
     _dec_names: list[str] = [];
     if nd.decorators
-        and not isinstance(nd.parent, uni.Archetype)
-        and nd.find_parent_of_type(uni.Ability) is None
-        and name not in self.generator_fns {
+    and not isinstance(nd.parent, uni.Archetype)
+    and nd.find_parent_of_type(uni.Ability) is None
+    and name not in self.generator_fns {
         for _dx in nd.decorators {
             if isinstance(_dx, uni.Name) {
                 _dec_names.append(_dx.value);
@@ -101,8 +104,8 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     } else {
         _emit_name = name;
         if nd.access
-            and nd.access.tag.name == Tok.KW_PRIV
-            and nd.find_parent_of_type(uni.Archetype) is None {
+        and nd.access.tag.name == Tok.KW_PRIV
+        and nd.find_parent_of_type(uni.Archetype) is None {
             import from jaclang.jac0core.codeinfo { native_safe_sym }
             _def_m = nd.find_parent_of_type(uni.Module);
             if _def_m is not None {
@@ -359,11 +362,11 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
     }
 
     if (name in self.generator_fns and self.generator_fns[name] is nd)
-        or (
-            nd.type_params
-            and self._mono_solution is not None
-            and self._ability_is_generator(nd)
-        ) {
+    or (
+        nd.type_params
+        and self._mono_solution is not None
+        and self._ability_is_generator(nd)
+    ) {
         self._codegen_generator(nd, func);
         return;
     }
@@ -406,7 +409,7 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         self.local_vars[param_name] = alloca;
 
         if isinstance(arg_val.type, ir.PointerType)
-            and bool(p.name?.sym?.param_rebound) {
+        and bool(p.name?.sym?.param_rebound) {
             self._emit_rc_retain(arg_val, op="param_promote", loc=name);
         } else {
             self.param_vars.add(param_name);

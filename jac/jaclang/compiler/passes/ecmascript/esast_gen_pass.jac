@@ -376,9 +376,8 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _lower_match_pattern(
         pat: uni.MatchPattern, subj: es.Expression
     ) -> tuple[(es.Expression | None), list[es.Statement], bool];
-    def _match_bind_name(
-        name_node: uni.UniNode, value: es.Expression
-    ) -> es.Statement;
+
+    def _match_bind_name(name_node: uni.UniNode, value: es.Expression) -> es.Statement;
     def _match_arch_field_order(pat: uni.MatchArch) -> (list[str] | None);
     def _match_subj_member(subj: es.Expression, field: str) -> es.Expression;
     def _ensure_emitters -> None;

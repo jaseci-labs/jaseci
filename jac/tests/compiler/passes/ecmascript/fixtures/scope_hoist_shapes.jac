@@ -16,7 +16,7 @@ def t_ifelse(neg: bool) -> str {
     return result;
 }
 
-def t_while() -> int {
+def t_while -> int {
     n = 3;
     while n > 0 {
         last = n;
@@ -25,14 +25,14 @@ def t_while() -> int {
     return last;
 }
 
-def t_for() -> int {
+def t_for -> int {
     for x in [1, 2, 3] {
         hit = x;
     }
     return hit;
 }
 
-def t_try() -> str {
+def t_try -> str {
     try {
         outcome = "ok";
     } except Exception as e {
@@ -48,7 +48,7 @@ def t_walrus(x: int) -> int {
     return 0 - y;
 }
 
-def t_destr() -> int {
+def t_destr -> int {
     a = 1;
     (a, b) = (10, 20);
     return a + b;
@@ -65,7 +65,7 @@ impl t_impl(neg: bool) -> str {
     return r2;
 }
 
-def t_all() -> dict {
+def t_all -> dict {
     return {
         "ifelse": t_ifelse(True),
         "whl": t_while(),

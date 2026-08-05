@@ -63,9 +63,9 @@ impl NaIRGenPass._emit_set_helpers(
     );
 
     if self._nogc_headerless()
-        and isinstance(elem_type, ir.PointerType)
-        and isinstance(elem_type.pointee, ir.IntType)
-        and elem_type.pointee.width == 8 {
+    and isinstance(elem_type, ir.PointerType)
+    and isinstance(elem_type.pointee, ir.IntType)
+    and elem_type.pointee.width == 8 {
         _i8p_dup = ir.IntType(8).as_pointer();
         _sslot_p = found_b.gep(
             s_arg, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="sadd.dup.slot.p"

@@ -577,7 +577,7 @@ impl NaIRGenPass._can_native_move_lower(nd: object) -> bool {
         isinstance(src_alloca.type, ir.PointerType)
         and isinstance(src_alloca.type.pointee, ir.PointerType)
     )
-        and not _mv_desc_slot {
+    and not _mv_desc_slot {
         return False;
     }
     self.builder.store(ir.Constant(src_alloca.type.pointee, None), src_alloca);
@@ -1142,13 +1142,12 @@ impl NaIRGenPass._emit_rc_release_simple(
     }
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(ptr)
-            and not (
-                op in _NOGC_CONTAINER_DROP_OPS
-                and self._nogc_emit_drop(ptr, op=op, loc=loc)
-            ) {
+        and not (
+            op in _NOGC_CONTAINER_DROP_OPS and self._nogc_emit_drop(ptr, op=op, loc=loc)
+        ) {
             if _rls_owned
-                and op in _NOGC_TEMP_FREE_OPS
-                and isinstance(ptr.type, ir.PointerType) {
+            and op in _NOGC_TEMP_FREE_OPS
+            and isinstance(ptr.type, ir.PointerType) {
                 self._nogc_str_free_owned(ptr);
             } else {
                 self._nogc_free_scratch(ptr, op);
@@ -1192,13 +1191,12 @@ impl NaIRGenPass._emit_rc_release_typed(
     }
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(val)
-            and not (
-                op in _NOGC_CONTAINER_DROP_OPS
-                and self._nogc_emit_drop(val, op=op, loc=loc)
-            ) {
+        and not (
+            op in _NOGC_CONTAINER_DROP_OPS and self._nogc_emit_drop(val, op=op, loc=loc)
+        ) {
             if _rlt_owned
-                and op in _NOGC_TEMP_FREE_OPS
-                and isinstance(val.type, ir.PointerType) {
+            and op in _NOGC_TEMP_FREE_OPS
+            and isinstance(val.type, ir.PointerType) {
                 self._nogc_str_free_owned(val);
             } else {
                 self._nogc_free_scratch(val, op);
@@ -1251,7 +1249,7 @@ impl NaIRGenPass._arch_is_walker_name(arch_name: str) -> bool {
 
 impl NaIRGenPass._nogc_headerless -> bool {
     return getattr(self.ir_in.gen, "nogc_enforced", False)
-        and self._gc_mode() == "none";
+    and self._gc_mode() == "none";
 }
 
 impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
@@ -1282,7 +1280,7 @@ impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
     b.position_at_end(body_bb);
     _dobj = b.bitcast(fn.args[0], struct_type.as_pointer(), name="drop.obj");
     _hook = self.struct_drop_hooks.get(type_name)
-        or self.func_symtab.get(f"{type_name}.drop");
+    or self.func_symtab.get(f"{type_name}.drop");
     if _hook is not None {
         self.struct_drop_hooks[type_name] = _hook;
         b.call(_hook, [_dobj]);
@@ -1321,8 +1319,8 @@ impl NaIRGenPass._emit_struct_drop_fn(type_name: str) -> (ir.Function | None) {
         if _pname in self.struct_types or _pname == type_name {
             _fld_drop = self._emit_struct_drop_fn(_pname);
         } elif _pname.startswith("List.")
-            or _pname.startswith("Dict.")
-            or _pname.startswith("Set.") {
+        or _pname.startswith("Dict.")
+        or _pname.startswith("Set.") {
             _fld_drop = self._emit_container_drop_fn(_pname);
         }
         if _fld_drop is None {
@@ -1410,8 +1408,8 @@ impl NaIRGenPass._emit_container_drop_fn(cont_name: str) -> (ir.Function | None)
         );
         dv = b.load(dp, name=f"drop.data{_fi}");
         if _len_v is not None
-            and _bk < len(_slots)
-            and isinstance(_fty.pointee, ir.PointerType) {
+        and _bk < len(_slots)
+        and isinstance(_fty.pointee, ir.PointerType) {
             _si = _slots[_bk];
             _sp = b.gep(
                 cont,
@@ -1636,10 +1634,10 @@ impl NaIRGenPass._drop_spec_for_mangle(mangle: str) -> (tuple | None) {
         return ("f64", ir.DoubleType());
     }
     if mangle == "str"
-        or mangle in self.struct_types
-        or mangle.startswith("list[")
-        or mangle.startswith("dict[")
-        or mangle.startswith("set[") {
+    or mangle in self.struct_types
+    or mangle.startswith("list[")
+    or mangle.startswith("dict[")
+    or mangle.startswith("set[") {
         return ("ptr", ir.IntType(8).as_pointer());
     }
     return None;
@@ -1762,14 +1760,14 @@ impl NaIRGenPass._nogc_elem_prep(
         and val.type.pointee.width == 8
     ) {
         if isinstance(val.type, ir.PointerType)
-            and isinstance(expr, uni.Name)
-            and expr.sym_name in self.local_vars
-            and expr.sym_name not in self.param_vars {
+        and isinstance(expr, uni.Name)
+        and expr.sym_name in self.local_vars
+        and expr.sym_name not in self.param_vars {
             _epm = self.ir_in.gen?.rc_move_in or set();
             if id(expr) in _epm {
                 _ep_slot = self.local_vars[expr.sym_name];
                 if isinstance(_ep_slot.type, ir.PointerType)
-                    and isinstance(_ep_slot.type.pointee, ir.PointerType) {
+                and isinstance(_ep_slot.type.pointee, ir.PointerType) {
                     self.builder.store(
                         ir.Constant(_ep_slot.type.pointee, None), _ep_slot
                     );
@@ -1820,8 +1818,8 @@ impl NaIRGenPass._nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> 
         _pointee = val.type?.pointee;
         _pname = getattr(_pointee, "name", "") or "";
         if _pname.startswith("List.")
-            or _pname.startswith("Dict.")
-            or _pname.startswith("Set.") {
+        or _pname.startswith("Dict.")
+        or _pname.startswith("Set.") {
             _fn = self._emit_container_drop_fn(_pname);
         }
     }
@@ -1835,15 +1833,14 @@ impl NaIRGenPass._nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> 
 }
 
 impl NaIRGenPass._nogc_free_scratch(val: ir.Value, op: str) -> None {
-    if op
-        not in (
-            "print_tmp",
-            "fstr_obj_tmp",
-            "mstr_old",
-            "mstr_val",
-            "fstring",
-            "str_index"
-        ) {
+    if op not in (
+        "print_tmp",
+        "fstr_obj_tmp",
+        "mstr_old",
+        "mstr_val",
+        "fstring",
+        "str_index"
+    ) {
         return;
     }
     if not isinstance(val.type, ir.PointerType) {
@@ -1891,9 +1888,9 @@ impl NaIRGenPass._emit_scope_cleanup(
         }
 
         if self._nogc_headerless()
-            and self._str_desc_ty is not None
-            and isinstance(alloca.type, ir.PointerType)
-            and alloca.type.pointee == self._str_desc_ty {
+        and self._str_desc_ty is not None
+        and isinstance(alloca.type, ir.PointerType)
+        and alloca.type.pointee == self._str_desc_ty {
             if var_name == skip_var {
                 self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
             } elif var_name in self.nogc_owned_str_vars {
@@ -1904,7 +1901,7 @@ impl NaIRGenPass._emit_scope_cleanup(
             continue;
         }
         if isinstance(alloca.type, ir.PointerType)
-            and isinstance(alloca.type.pointee, ir.PointerType) {
+        and isinstance(alloca.type.pointee, ir.PointerType) {
             if var_name in self.region_handle_vars {
                 if var_name != skip_var {
                     _region_handles.append((var_name, alloca));
@@ -1950,9 +1947,9 @@ impl NaIRGenPass._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -> No
             continue;
         }
         if self._nogc_headerless()
-            and self._str_desc_ty is not None
-            and isinstance(alloca.type, ir.PointerType)
-            and alloca.type.pointee == self._str_desc_ty {
+        and self._str_desc_ty is not None
+        and isinstance(alloca.type, ir.PointerType)
+        and alloca.type.pointee == self._str_desc_ty {
             if var_name in self.nogc_owned_str_vars {
                 val = self.builder.load(alloca, name=f"iter.cleanup.{var_name}");
                 self._nogc_str_free_owned(val);
@@ -2031,7 +2028,7 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
     (b, done_bb) = self._emit_rc_destructor_preamble(release_fn, struct_ptr_type);
 
     _hook = self.struct_drop_hooks.get(arch_name)
-        or self.func_symtab.get(f"{arch_name}.drop");
+    or self.func_symtab.get(f"{arch_name}.drop");
     if _hook is not None {
         self.struct_drop_hooks[arch_name] = _hook;
         b.call(_hook, [release_fn.args[0]]);
@@ -2039,8 +2036,8 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
 
     _has_ref_fields = any(
         isinstance(_ft, ir.PointerType)
-            and _fn not in opaque_fields
-            and field_indices.get(_fn, -1) >= 0 for (_fn, _ft) in field_types.items()
+        and _fn not in opaque_fields
+        and field_indices.get(_fn, -1) >= 0 for (_fn, _ft) in field_types.items()
     );
     if _has_ref_fields {
         _cycles_on = self._gc_mode() == "cycles";

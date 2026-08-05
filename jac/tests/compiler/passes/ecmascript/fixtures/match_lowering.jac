@@ -13,10 +13,13 @@ def m_value(x: str) -> str {
     match x {
         case "a":
             return "AAA";
+
         case "b":
             return "BBB";
+
         case _:
             return "OTHER";
+
     }
 }
 
@@ -24,47 +27,61 @@ def m_guard(n: int) -> str {
     match n {
         case v if v > 10:
             return "big";
+
         case v if v > 5:
             return "mid";
+
         case _:
             return "small";
+
     }
 }
 
 def m_seq(xs: list) -> str {
     match xs {
-        case [1, 2, 3]:
+        case [ 1 , 2 , 3 ]:
             return "exact";
-        case [1, *rest]:
+
+        case [ 1 , * rest ]:
             return "starts1:" + str(len(rest));
-        case []:
+
+        case [ ]:
             return "empty";
+
         case _:
             return "other";
+
     }
 }
 
 def m_map(d: dict) -> str {
     match d {
-        case {"kind": "circle", "r": r}:
+        case { "kind" : "circle" , "r" : r }:
             return "circle:" + str(r);
-        case {"kind": k}:
+
+        case { "kind" : k }:
             return "kind:" + str(k);
+
         case _:
             return "nokind";
+
     }
 }
 
 def m_arch(p: any) -> str {
     match p {
-        case Point(x=0, y=0):
+        case Point(x = 0, y = 0):
             return "origin";
+
         case Point(0, y):
             return "yaxis:" + str(y);
+
         case Point():
             return "point";
+
         case _:
             return "notpoint";
+
     }
 }
 
@@ -72,30 +89,38 @@ def m_or(x: any) -> str {
     match x {
         case 1 | 2 | 3:
             return "small";
+
         case "a" | "b":
             return "letter";
+
         case None:
             return "none";
+
         case _:
             return "big";
+
     }
 }
 
 def m_as(x: any) -> str {
     match x {
-        case [1, y] as pair:
+        case [ 1 , y ] as pair:
             return "pair:" + str(y) + ":" + str(len(pair));
+
         case _:
             return "no";
+
     }
 }
 
 def m_rest(d: dict) -> str {
     match d {
-        case {"a": v, **rest}:
+        case { "a" : v , ** rest }:
             return "rest:" + str(v) + ":" + str(len(rest));
+
         case _:
             return "no";
+
     }
 }
 
@@ -103,12 +128,16 @@ def m_singleton(x: any) -> str {
     match x {
         case True:
             return "T";
+
         case False:
             return "F";
+
         case None:
             return "N";
+
         case _:
             return "V";
+
     }
 }
 
