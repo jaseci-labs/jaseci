@@ -63,7 +63,11 @@ spawn ::= "spawn" unpack | unpack ("spawn" unpack)*
 
 unpack ::= "*" ref | ref
 
-ref ::= "own" await_expr | "&" (await_expr | "mut"? await_expr) | await_expr
+ref ::=
+    "own" await_expr
+    | "imm" await_expr
+    | "&" (await_expr | "mut"? await_expr)
+    | await_expr
 
 await_expr ::= "await" pipe_call | pipe_call
 
@@ -308,7 +312,7 @@ open_stmt ::= "in" expression "{" code_block_stmts "}"
 forever_stmt ::= "forever" "{" code_block_stmts "}"
 
 for_stmt ::=
-    "async"? "for" atomic_chain (
+    "async"? "flow"? "for" atomic_chain (
         "=" expression "while" expression "with" atomic_chain assignment_with_target?
         "{" code_block_stmts "}" else_stmt?
         | "in" expression "{" code_block_stmts "}" else_stmt?
@@ -467,7 +471,7 @@ switch_case ::= ("default" | "case" pattern) ":" statement*
 global_var ::= "glob" access_tag global_var_assignment ("," global_var_assignment)* ";"
 
 global_var_assignment ::=
-    (NAME | KWESC_NAME) (":" pipe)? ("=" expression ("=" expression)*)?
+    (NAME | KWESC_NAME) (":" ownership_prefix pipe)? ("=" expression ("=" expression)*)?
 
 impl_def ::=
     ("@" atomic_chain)* "impl" impl_target_name ("." impl_target_name)* (

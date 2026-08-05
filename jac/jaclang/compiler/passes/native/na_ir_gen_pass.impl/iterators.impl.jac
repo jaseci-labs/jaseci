@@ -191,6 +191,31 @@ impl NaIRGenPass._make_list_iter(
     return self._make_jac_iter(next_fn, state);
 }
 
+impl NaIRGenPass._get_char_cache_gv -> ir.Value {
+    sym = "__jac_chars";
+    if sym in self.llvm_module.globals {
+        return self.llvm_module.globals[sym];
+    }
+    i8 = ir.IntType(8);
+    i64 = ir.IntType(64);
+    arr2_type = ir.ArrayType(i8, 2);
+    char_struct_type = ir.LiteralStructType([i64, i64, arr2_type]);
+    arr256_type = ir.ArrayType(char_struct_type, 256);
+    sentinel = ir.Constant(i64, RC_SENTINEL);
+
+    dtor_len1 = ir.Constant(i64, (1 << 1) | 1);
+    entries: list = [];
+    for _bi in range(256) {
+        c_arr = ir.Constant(arr2_type, bytearray([_bi, 0]));
+        entries.append(ir.Constant(char_struct_type, [sentinel, dtor_len1, c_arr]));
+    }
+    cache_gv = ir.GlobalVariable(self.llvm_module, arr256_type, name=sym);
+    cache_gv.linkage = "private";
+    cache_gv.global_constant = True;
+    cache_gv.initializer = ir.Constant(arr256_type, entries);
+    return cache_gv;
+}
+
 impl NaIRGenPass._str_iter_next_fn -> ir.Function {
     key = "str";
     if key in self._iter_next_fns {
@@ -228,13 +253,15 @@ impl NaIRGenPass._str_iter_next_fn -> ir.Function {
     b.cbranch(ok, cont, stop);
     b.position_at_end(cont);
 
-    i8 = ir.IntType(8);
     char_ptr = b.gep(s_ptr, [idx], name="sit.char.ptr");
     char_val = b.load(char_ptr, name="sit.char");
-    ch = b.call(self.rc_alloc_fn, [ir.Constant(i64, 2)], name="sit.char.str");
-    b.store(char_val, ch);
-    b.store(ir.Constant(i8, 0), b.gep(ch, [ir.Constant(i64, 1)], name="sit.null.ptr"));
-    b.call(self.str_stamp_fn, [ch, ir.Constant(i64, 1)]);
+    byte_idx = b.zext(char_val, i64, name="sit.char.idx");
+    cache_gv = self._get_char_cache_gv();
+    ch = b.gep(
+        cache_gv,
+        [ir.Constant(i32, 0), byte_idx, ir.Constant(i32, 2), ir.Constant(i32, 0)],
+        name="sit.char.cached"
+    );
     out_t = b.bitcast(fn.args[1], i8p.as_pointer(), name="sit.out");
     b.store(ch, out_t);
     b.store(b.add(idx, ir.Constant(i64, 1), name="sit.idx.next"), idx_slot);
@@ -750,7 +777,7 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
             return self._build_iter_from_expr(params[0]);
         }
     }
-    val = self._codegen_expr(expr);
+    val = self._str_norm(self._codegen_expr(expr));
     if val is None {
         return None;
     }
@@ -1228,14 +1255,21 @@ impl NaIRGenPass._codegen_next(nd: uni.FuncCall) -> (ir.Value | None) {
     self._ensure_iter_types();
     i1 = ir.IntType(1);
     i8p = ir.IntType(8).as_pointer();
-    out_slot = self._entry_alloca(elem_type, "next.out");
+
+    _out_is_desc = self._str_desc_ty is not None and elem_type == self._str_desc_ty;
+    _slot_ty = ir.IntType(8).as_pointer() if _out_is_desc else elem_type;
+    out_slot = self._entry_alloca(_slot_ty, "next.out");
     out_i8 = self.builder.bitcast(out_slot, i8p, name="next.out.i8");
     got = self._emit_iter_advance(self.builder, iter_val, out_i8);
     is_stop = self.builder.icmp_unsigned(
         "==", got, ir.Constant(i1, 0), name="next.stop"
     );
     self._emit_runtime_raise(is_stop, "StopIteration", "");
-    return self.builder.load(out_slot, name="next.val");
+    _next_val = self.builder.load(out_slot, name="next.val");
+    if _out_is_desc {
+        _next_val = self._coerce_type(_next_val, elem_type);
+    }
+    return _next_val;
 }
 
 impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {

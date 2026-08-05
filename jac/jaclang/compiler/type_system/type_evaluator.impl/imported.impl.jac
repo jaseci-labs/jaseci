@@ -362,6 +362,13 @@ impl TypeEvaluator._import_module_from_path(
         mod = self.program.mod.hub[resolved_path];
     } elif resolved_path in target_hub {
         mod = target_hub[resolved_path];
+    } elif resolved_path in self._modules_in_compile {
+        _pending = self.program.find_module(resolved_path);
+        if _pending is not None {
+            mod = _pending;
+        } else {
+            return uni.Module.make_stub(inject_name=Path(resolved_path).stem);
+        }
     } else {
         jir_mod: (uni.Module | None) = None;
         if resolved_path.endswith('.jac') and not resolved_path.endswith('.na.jac') {
@@ -375,9 +382,14 @@ impl TypeEvaluator._import_module_from_path(
             target_hub[resolved_path] = mod;
             target_program.hub_cache_stamp(resolved_path);
         } else {
-            mod = self.program.compile(
-                path, no_cgen=True, type_check=False, symtab_ir_only=True
-            );
+            self._modules_in_compile.add(resolved_path);
+            try {
+                mod = self.program.compile(
+                    path, no_cgen=True, type_check=False, symtab_ir_only=True
+                );
+            } finally {
+                self._modules_in_compile.discard(resolved_path);
+            }
             if mod.parent_scope is None and mod is not self.builtins_module {
                 mod.parent_scope = self.builtins_module;
             }
@@ -492,6 +504,7 @@ impl TypeEvaluator.get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
             self.pop_symbol_resolution(symbol);
         }
     }
+    self._cyclic_resolution_depth += 1;
     return types.UnknownType();
 }
 

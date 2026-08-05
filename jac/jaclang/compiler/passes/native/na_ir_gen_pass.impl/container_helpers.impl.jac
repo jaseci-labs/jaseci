@@ -235,7 +235,14 @@ impl NaIRGenPass._emit_container_release_fn(
         );
     }
 
-    if self.rc_alloc_fn is None {
+    self._emit_release_header_free(release_fn, b, done_bb);
+    return release_fn;
+}
+
+impl NaIRGenPass._emit_release_header_free(
+    release_fn: ir.Function, b: ir.IRBuilder, done_bb: ir.Block
+) -> None {
+    if self.rc_alloc_fn is None or self.rc_safe_free_fn is None {
         self._emit_rc_helpers();
     }
     _i8pc = ir.IntType(8).as_pointer();
@@ -267,14 +274,10 @@ impl NaIRGenPass._emit_container_release_fn(
         _cl_tag
     );
     b = ir.IRBuilder(actual_free_cont_bb);
-    if self.rc_safe_free_fn is None {
-        self._emit_rc_helpers();
-    }
     b.call(self.rc_safe_free_fn, [_cont_raw]);
     b.branch(done_bb);
     b = ir.IRBuilder(done_bb);
     b.ret_void();
-    return release_fn;
 }
 
 impl NaIRGenPass._emit_linear_search_loop(
@@ -378,10 +381,7 @@ impl NaIRGenPass._emit_key_comparison(
         data_eq = b.icmp_signed("==", cmpr, _z0, name="key.by.dataeq");
         return b.and_(len_eq, data_eq, name="key.by.eq");
     } elif key_type == i8_ptr {
-        strcmp_fn = self._get_or_declare_extern(
-            "strcmp", ir.IntType(32), [i8_ptr, i8_ptr]
-        );
-        cmp_result = b.call(strcmp_fn, [stored_val, search_val], name="strcmp");
+        cmp_result = self._call_str_cmp(b, stored_val, search_val, name="strcmp");
         return b.icmp_signed(
             "==", cmp_result, ir.Constant(ir.IntType(32), 0), name="key.eq"
         );

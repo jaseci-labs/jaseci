@@ -193,6 +193,8 @@ obj TypeEvaluator {
         _flow_pending_symbols: set[int] postinit,
         _flow_pending_keys: set[str] postinit,
         _module_type_cache: dict[str, types.ModuleType] = {},
+        _modules_in_compile: set[str] postinit,
+        _cyclic_resolution_depth: int = 0,
         _mobui_module_cache: dict[str, bool] = {},
         _compose_module_cache: dict[str, bool] = {},
         _compose_global_names: set[str] = {},

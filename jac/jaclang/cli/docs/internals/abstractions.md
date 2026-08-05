@@ -104,7 +104,7 @@ The consolidated `__all__` covers:
 
 - **Archetypes**: `Node`, `Edge`, `Walker`, `Obj`, `Root`, `GenericEdge`, `JsxElement`
 - **Graph operations**: `spawn`, `visit`, `disengage`, `connect`, `disconnect`, `refs`, `arefs`, `filter_on`, `build_edge`, `destroy`
-- **Walker support types**: `OPath`, `DSFunc`, `EdgeDir`
+- **Walker support types**: `GraphQuery`, `QHop`, `QPred`, `DSFunc`, `EdgeDir`
 - **Context & root**: `root`, `create_j_context`, `get_context`
 - **Lifecycle**: `on_entry`, `on_exit`
 - **AI/MTIR**: `get_mtir`, `sem`, `call_llm`, `by_operator`

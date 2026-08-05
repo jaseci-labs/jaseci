@@ -132,6 +132,14 @@ glob FORBIDDEN: dict[str, str] = {
              2,
              "declaration-surface reads at interop layout export"
          ),
+         ("native/na_ir_gen_pass.impl/calls.impl.jac", "type_tag.tag"): (
+             1,
+             "declaration-surface read of foreign extern signatures: the "
+             "clib membrane needs the DECLARED str params/returns of a "
+             "foreign call to route them through the JacStr wrap/unwrap "
+             "shims (#7870 strings step 2) - the C membrane always "
+             "trafficks NUL-terminated char*"
+         ),
          ("native/na_ir_gen_pass.impl/func.impl.jac", "type_tag.tag"): (
              4,
              "scalar LLVM materialization from declared clib annotations "
