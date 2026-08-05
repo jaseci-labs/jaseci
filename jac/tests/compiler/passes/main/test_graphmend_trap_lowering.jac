@@ -3,6 +3,7 @@
 Assertions run against the generated Python source (the lowering target)."""
 import ast;
 import os;
+import tempfile;
 import from pathlib { Path }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
@@ -18,16 +19,52 @@ glob FIXTURES = os.path.join(
          "graphmend"
      );
 
-"""Compile a fixture and return its generated Python source."""
-def _pysrc(name: str, gm: bool) -> str {
+"""Compile a source file and return its generated Python source."""
+def _compile_path(path: str, gm: bool) -> str {
     prog = JacProgram();
     mod = prog.compile(
-        file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(graphmend=gm, type_check=False)
+        file_path=path, options=CompileOptions(graphmend=gm, type_check=False)
     );
     pa = mod.gen.py_ast;
     mod_ast = pa[0] if isinstance(pa, list) else pa;
     return ast.unparse(mod_ast);
+}
+
+"""Compile a checked-in .jac fixture and return its generated Python source."""
+def _pysrc(name: str, gm: bool) -> str {
+    return _compile_path(os.path.join(FIXTURES, name), gm);
+}
+
+"""A Python-source model with a tensor-bool validation guard.
+
+Written to a temp file at test time rather than checked in as a .py fixture:
+the repository does not accept new Python files, and the point of the fixture
+is only that GraphMend ingests .py source, which a generated file exercises
+just as well."""
+glob PY_VAL_GUARD_SRC = '\n'.join(
+         [
+             "import torch",
+             "",
+             "",
+             "@torch.compile()",
+             "def f(x, mask):",
+             "    x = torch.relu(x)",
+             "    if not mask.all():",
+             "        raise ValueError(\"mask must be all true\")",
+             "    return torch.sin(x) * 2.0",
+             ""
+         ]
+     );
+
+"""Compile the generated .py model above and return its Python lowering."""
+def _py_fixture_src(gm: bool) -> str {
+    with tempfile.TemporaryDirectory() as tmp {
+        path = os.path.join(tmp, "py_val_guard.py");
+        with open(path, "w") as fh {
+            fh.write(PY_VAL_GUARD_SRC);
+        }
+        return _compile_path(path, gm);
+    }
 }
 
 test "torch.equal guard lowers to the tensor-equality assert helper" {
@@ -71,7 +108,7 @@ test "py source: validation guard lowers to torch._assert_async" {
     # The .py front-end (PyastBuildPass) produces UniIR whose nodes unparse
     # differently from .jac-origin nodes, so the trap pattern must match
     # structurally; this guards `jac run model.py --graphmend`.
-    src = _pysrc("py_val_guard.py", True);
+    src = _py_fixture_src(True);
     assert (
         "torch._assert_async(mask.all(), "
         "'[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')"
@@ -82,7 +119,7 @@ test "py source: validation guard lowers to torch._assert_async" {
 }
 
 test "py source: no transformation when graphmend disabled" {
-    src = _pysrc("py_val_guard.py", False);
+    src = _py_fixture_src(False);
     assert "torch._assert_async(" not in src;
     assert "if not mask.all():" in src;
 }
