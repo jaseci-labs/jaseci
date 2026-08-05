@@ -149,3 +149,28 @@ test "delete_user leaves a tombstone, not an absence" {
     assert raw is not None and raw.get("status") == "deleted";
     assert um._identity_storage.ensure_user_by_id("doomed") is None;
 }
+
+
+test "tombstoned users disappear from listings" {
+    tmp = tempfile.mkdtemp();
+    um = JacScaleUserManager(base_path=tmp, jit_provision=True);
+    for uid in ["keeper", "goner"] {
+        um._identity_storage._store_user(
+            {
+                "user_id": uid,
+                "status": "active",
+                "identities": [],
+                "credentials": [],
+                "root_id": "root-" + uid,
+                "role": "user",
+                "profile": {},
+                "created_at": "2026-01-01T00:00:00",
+                "updated_at": "2026-01-01T00:00:00"
+            }
+        );
+    }
+    assert {u["user_id"] for u in um.list_all_users()} == {"keeper", "goner"};
+    result = um.delete_user("goner");
+    assert result.get("message") , result;
+    assert {u["user_id"] for u in um.list_all_users()} == {"keeper"};
+}

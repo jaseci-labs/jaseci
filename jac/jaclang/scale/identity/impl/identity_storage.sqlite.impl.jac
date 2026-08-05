@@ -364,7 +364,9 @@ impl SqliteIdentityStorage.list_all_users(
             lk.c.value_normalized == Con.GUEST.value
         );
         rows = conn.execute(
-            select(t).where(t.c.user_id.not_in(guest_subq)).order_by(
+            select(t).where(
+                t.c.user_id.not_in(guest_subq), t.c.status != 'deleted'
+            ).order_by(
                 t.c.created_at.desc()
             ).limit(
                 limit

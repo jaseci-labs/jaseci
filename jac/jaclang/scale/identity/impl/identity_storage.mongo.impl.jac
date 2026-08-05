@@ -169,7 +169,10 @@ impl MongoIdentityStorage.list_all_users(
     limit: int, offset: int
 ) -> list[dict[str, any]] {
     cursor = self.users_col.find(
-        {'identities.value_normalized': {'$ne': Con.GUEST.value}},
+        {
+            'identities.value_normalized': {'$ne': Con.GUEST.value},
+            'status': {'$ne': 'deleted'}
+        },
         {'_id': 0, 'credentials': 0}
     ).sort(
         'created_at', -1
