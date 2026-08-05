@@ -179,7 +179,7 @@ impl NaIRGenPass._repr_leaf_fn(kind: str) -> (ir.Function | None) {
         t_g = self._make_global_string("True", name_prefix=".repr.true");
         f_g = self._make_global_string("False", name_prefix=".repr.false");
         nz = b.icmp_signed("!=", v, ir.Constant(i64, 0), name="rp.b.nz");
-        sel = b.select(nz, t_g, f_g, name="rp.b.sel");
+        sel: any = b.select(nz, t_g, f_g, name="rp.b.sel");
         if self._nogc_headerless() {
             sel = self._call_str_dup(b, sel, name="rp.b.dup");
         }
