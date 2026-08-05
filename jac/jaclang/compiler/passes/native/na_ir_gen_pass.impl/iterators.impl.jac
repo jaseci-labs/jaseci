@@ -777,7 +777,7 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
             return self._build_iter_from_expr(params[0]);
         }
     }
-    val = self._codegen_expr(expr);
+    val = self._str_norm(self._codegen_expr(expr));
     if val is None {
         return None;
     }
@@ -1255,14 +1255,21 @@ impl NaIRGenPass._codegen_next(nd: uni.FuncCall) -> (ir.Value | None) {
     self._ensure_iter_types();
     i1 = ir.IntType(1);
     i8p = ir.IntType(8).as_pointer();
-    out_slot = self._entry_alloca(elem_type, "next.out");
+
+    _out_is_desc = self._str_desc_ty is not None and elem_type == self._str_desc_ty;
+    _slot_ty = ir.IntType(8).as_pointer() if _out_is_desc else elem_type;
+    out_slot = self._entry_alloca(_slot_ty, "next.out");
     out_i8 = self.builder.bitcast(out_slot, i8p, name="next.out.i8");
     got = self._emit_iter_advance(self.builder, iter_val, out_i8);
     is_stop = self.builder.icmp_unsigned(
         "==", got, ir.Constant(i1, 0), name="next.stop"
     );
     self._emit_runtime_raise(is_stop, "StopIteration", "");
-    return self.builder.load(out_slot, name="next.val");
+    _next_val = self.builder.load(out_slot, name="next.val");
+    if _out_is_desc {
+        _next_val = self._coerce_type(_next_val, elem_type);
+    }
+    return _next_val;
 }
 
 impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {

@@ -486,6 +486,12 @@ impl nacompile(
                 and ("/" in lib_path or "\\" in lib_path) {
                 _needed = os.path.basename(lib_path);
             }
+            _needed_base = os.path.basename(_needed);
+            if _needed_base == "libc.so" {
+                _needed = "libc.so.6";
+            } elif _needed_base == "libm.so" {
+                _needed = "libm.so.6";
+            }
             if _needed not in needed_libs {
                 needed_libs.append(_needed);
             }

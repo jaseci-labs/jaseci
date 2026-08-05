@@ -7,8 +7,10 @@ differential-identity oracle.
 
 ## Part 1: ownership kernels
 
-Six kernels, one source each, annotated to the enforced zero-RC
-endpoint, run under three memory modes from the same source:
+Eight kernels, one source each, annotated to the enforced zero-RC
+endpoint (`own_aos` adds the by-value AoS layout and `own_strops` is
+the string-representation oracle), run under three memory modes from
+the same source:
 
 | mode | flags | meaning |
 |---|---|---|

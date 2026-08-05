@@ -43,6 +43,91 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
     return functype(addr);
 }
 
+class JacStrABI(ctypes.Structure) {
+    # Register view of a by-value JacStr {root, data, len} return. LLVM
+    # lowers the aggregate return into scalar return registers; a 16-byte
+    # two-pointer struct restype makes libffi read the first two of them,
+    # which yields root and data. len rides in the third return register,
+    # unreachable through libffi, but Jac string payloads are always
+    # NUL-terminated at len so a bounded read is recovered from data.
+    has _fields_: list[tuple[str, type]] = [
+        ("root", ctypes.c_void_p),
+        ("data", ctypes.c_void_p)
+    ];
+}
+
+def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+    # descriptor-ABI variant of get_func: a c_char_p spelling here means a
+    # Jac `str` (the by-value {root, data, len} descriptor at the native
+    # ABI). LLVM decomposes a by-value descriptor param into three scalar
+    # slots, so each str param is declared as (root, data, len) scalars and
+    # bytes/str args build their backing storage via jac_str_new; str
+    # returns come back as the full bytes of the result string, so existing
+    # comparisons keep working.
+    addr = eng.get_function_address(name);
+    assert addr != 0 , f"Function '{name}' not found in JIT engine";
+    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    str_slots: list = [];
+    real_args: list = [];
+    for a in argtypes {
+        if a == ctypes.c_char_p {
+            str_slots.append(True);
+            real_args.append(ctypes.c_void_p);
+            real_args.append(ctypes.c_void_p);
+            real_args.append(ctypes.c_int64);
+        } else {
+            str_slots.append(False);
+            real_args.append(a);
+        }
+    }
+    raw = ctypes.CFUNCTYPE(real_res, *real_args)(addr);
+    sn_addr = 0;
+    for sn in ("jac_str_new", "__jac_str_new") {
+        try {
+            sn_addr = eng.get_function_address(sn);
+        } except Exception {
+            sn_addr = 0;
+        }
+        if sn_addr {
+            break;
+        }
+    }
+    mkstr = (
+        ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(sn_addr)
+            if sn_addr
+            else None
+    );
+    _str_buf_cache: dict = {};
+    def _call(*args: any) -> any {
+        c_args: list = [];
+        for (a, is_str) in zip(args, str_slots) {
+            if is_str {
+                assert mkstr is not None , "jac_str_new not found in JIT engine";
+                b = a.encode("utf-8") if isinstance(a, str) else a;
+                p = _str_buf_cache.get(b);
+                if p is None {
+                    p = mkstr(b, len(b));
+                    _str_buf_cache[b] = p;
+                }
+                c_args.append(p);
+                c_args.append(p);
+                c_args.append(len(b));
+            } else {
+                c_args.append(a);
+            }
+        }
+        r = raw(*c_args);
+        if real_res is JacStrABI {
+            if not r.data {
+                return b"";
+            }
+            return ctypes.string_at(r.data);
+        }
+        return r;
+    }
+    return _call;
+}
+
 """Current resident-set-size of this process in kB (Linux), or -1 if the
 /proc interface is unavailable (e.g. macOS) so callers can skip the gate."""
 def _rss_kb -> int {
@@ -169,7 +254,7 @@ test "native partial class: un-lowerable method skipped, sibling stays native" {
     # the rest of the class compiles: native construction + the native-eligible
     # `length` work, the module reports no errors.
     (eng, ir) = compile_native("partial_native.jac");
-    measure = get_func(eng, "measure", ctypes.c_int64, ctypes.c_char_p);
+    measure = get_sfunc(eng, "measure", ctypes.c_int64, ctypes.c_char_p);
     assert measure(b"hello") == 5;
     assert measure(b"") == 0;
     layout = ir.gen.native_layout;
@@ -512,7 +597,7 @@ test "mixed-type ternary coerces in predecessor block (#6987)" {
 # --- TestNativeStrings ---
 test "strings greet" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "greet", ctypes.c_char_p);
+    f = get_sfunc(eng, "greet", ctypes.c_char_p);
     assert f() == b"hello";
 }
 
@@ -522,19 +607,19 @@ test "strings greet" {
 # (c_char_p), so the expected value is the Python-decoded string, utf-8 encoded.
 test "strings numeric escapes decode (na subseteq sv)" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "escapes_numeric", ctypes.c_char_p);
+    f = get_sfunc(eng, "escapes_numeric", ctypes.c_char_p);
     assert f() == "aAbéc😀d".encode("utf-8");
 }
 
 test "strings unicode escape decode (na subseteq sv)" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "escapes_u", ctypes.c_char_p);
+    f = get_sfunc(eng, "escapes_u", ctypes.c_char_p);
     assert f() == "X—Y".encode("utf-8");
 }
 
 test "strings simple escapes still decode" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "escapes_simple", ctypes.c_char_p);
+    f = get_sfunc(eng, "escapes_simple", ctypes.c_char_p);
     assert f() == b"p\tq\nr";
 }
 
@@ -589,14 +674,14 @@ test "float repr shortest round-trip matches CPython (na == sv) (#6978 0.3)" {
 
 test "strings str equal" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "str_equal", ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p);
+    f = get_sfunc(eng, "str_equal", ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p);
     assert f(b"hello", b"hello") == 1;
     assert f(b"hello", b"world") == 0;
 }
 
 test "strings str not equal" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(
+    f = get_sfunc(
         eng, "str_not_equal", ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p
     );
     assert f(b"hello", b"world") == 1;
@@ -605,7 +690,7 @@ test "strings str not equal" {
 
 test "strings concat" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(
+    f = get_sfunc(
         eng, "concat_strings", ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p
     );
     assert f(b"hello ", b"world") == b"hello world";
@@ -633,7 +718,7 @@ test "os getenv honors default for unset var issue 6688" {
 # `s.encode()[a:b].decode()` round-trips and that byte access is portable.
 test "bytes utf8 byte_len" {
     (eng, _) = compile_native("bytes_utf8.jac");
-    f = get_func(eng, "byte_len", ctypes.c_int64, ctypes.c_char_p);
+    f = get_sfunc(eng, "byte_len", ctypes.c_int64, ctypes.c_char_p);
     assert f("café".encode("utf-8")) == 5;
     assert f("日本語".encode("utf-8")) == 9;
     assert f(b"ascii") == 5;
@@ -641,7 +726,7 @@ test "bytes utf8 byte_len" {
 
 test "bytes utf8 byte_at portable" {
     (eng, _) = compile_native("bytes_utf8.jac");
-    f = get_func(eng, "byte_at", ctypes.c_int64, ctypes.c_char_p, ctypes.c_int64);
+    f = get_sfunc(eng, "byte_at", ctypes.c_int64, ctypes.c_char_p, ctypes.c_int64);
     enc = "café".encode("utf-8");  # 63 61 66 C3 A9
     for i in range(len(enc)) {
         assert f(enc, i) == enc[i] , f"byte_at({i}) native={f(enc, i)} py={enc[i]}";
@@ -650,9 +735,9 @@ test "bytes utf8 byte_at portable" {
 
 test "bytes utf8 decode roundtrip and slice" {
     (eng, _) = compile_native("bytes_utf8.jac");
-    rt = get_func(eng, "roundtrip", ctypes.c_char_p, ctypes.c_char_p);
+    rt = get_sfunc(eng, "roundtrip", ctypes.c_char_p, ctypes.c_char_p);
     assert rt("café".encode("utf-8")) == "café".encode("utf-8");
-    sd = get_func(
+    sd = get_sfunc(
         eng,
         "slice_decode",
         ctypes.c_char_p,
@@ -667,7 +752,7 @@ test "bytes utf8 decode roundtrip and slice" {
 
 test "strings fstring int" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "format_int", ctypes.c_char_p, ctypes.c_int64);
+    f = get_sfunc(eng, "format_int", ctypes.c_char_p, ctypes.c_int64);
     assert f(42) == b"val=42";
     assert f(0) == b"val=0";
     assert f(-7) == b"val=-7";
@@ -675,20 +760,22 @@ test "strings fstring int" {
 
 test "strings fstring two" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "format_two", ctypes.c_char_p, ctypes.c_int64, ctypes.c_int64);
+    f = get_sfunc(eng, "format_two", ctypes.c_char_p, ctypes.c_int64, ctypes.c_int64);
     assert f(3, 4) == b"3+4";
     assert f(10, 20) == b"10+20";
 }
 
 test "strings fstring mixed" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "format_mixed", ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int64);
+    f = get_sfunc(
+        eng, "format_mixed", ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int64
+    );
     assert f(b"Alice", 30) == b"name=Alice, age=30";
 }
 
 test "strings str replace count arg respected" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "str_replace_first_only", ctypes.c_char_p, ctypes.c_char_p);
+    f = get_sfunc(eng, "str_replace_first_only", ctypes.c_char_p, ctypes.c_char_p);
     # only the first 'a' should be replaced; remaining 'a's must be untouched
     assert f(b"aaa") == b"Xaa";
     assert f(b"banana") == b"bXnana";
@@ -696,14 +783,14 @@ test "strings str replace count arg respected" {
 
 test "strings for-in-str join" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "str_for_in_join", ctypes.c_char_p, ctypes.c_char_p);
+    f = get_sfunc(eng, "str_for_in_join", ctypes.c_char_p, ctypes.c_char_p);
     assert f(b"Hello") == b"Hello";
     assert f(b"") == b"";
 }
 
 test "strings for-in-str count" {
     (eng, _) = compile_native("strings.jac");
-    f = get_func(eng, "str_for_in_count", ctypes.c_int64, ctypes.c_char_p);
+    f = get_sfunc(eng, "str_for_in_count", ctypes.c_int64, ctypes.c_char_p);
     assert f(b"Hello") == 5;
     assert f(b"") == 0;
 }
@@ -1143,7 +1230,7 @@ test "builtins int parse" {
 
 test "builtins strip" {
     (eng, _) = compile_native("builtins.jac");
-    f = get_func(eng, "test_strip", ctypes.c_char_p);
+    f = get_sfunc(eng, "test_strip", ctypes.c_char_p);
     assert f() == b"hi";
 }
 
@@ -1155,7 +1242,7 @@ test "builtins split len" {
 
 test "builtins split get" {
     (eng, _) = compile_native("builtins.jac");
-    f = get_func(eng, "test_split_get", ctypes.c_char_p);
+    f = get_sfunc(eng, "test_split_get", ctypes.c_char_p);
     assert f() == b"world";
 }
 
@@ -1167,10 +1254,10 @@ test "builtins strip split" {
 
 test "builtins split and slice do not leak (#6814)" {
     (eng, _) = compile_native("builtins.jac");
-    f_split = get_func(
+    f_split = get_sfunc(
         eng, "split_count", ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p
     );
-    f_slice = get_func(eng, "slice_half_len", ctypes.c_int64, ctypes.c_char_p);
+    f_slice = get_sfunc(eng, "slice_half_len", ctypes.c_int64, ctypes.c_char_p);
     many = b",".join([b"x"] * 200);
     big = b"x" * 10000;
     # Correctness must survive the ownership fix.
@@ -3908,7 +3995,7 @@ test "switch string" {
     (eng, _ir) = compile_native("switch_stmt.jac");
     entry = get_func(eng, "jac_entry", None);
     entry();
-    f = get_func(eng, "switch_str", ctypes.c_int64, ctypes.c_char_p);
+    f = get_sfunc(eng, "switch_str", ctypes.c_int64, ctypes.c_char_p);
     assert f(b"(") == 1 , f"switch_str('(') should be 1, got {f(b'(')}";
     assert f(b")") == 2 , f"switch_str(')') should be 2, got {f(b')')}";
     assert f(b"{") == 3;
@@ -4025,7 +4112,7 @@ test "optional field compiles to pointer type" {
 
 test "all_fields struct round-trip via ctypes" {
     (eng, ir) = compile_native("func_ptr_fields.jac");
-    make = get_func(
+    make = get_sfunc(
         eng,
         "make_all_fields",
         ctypes.c_void_p,
@@ -4041,7 +4128,7 @@ test "all_fields struct round-trip via ctypes" {
 
 test "all_fields bool field round-trip" {
     (eng, ir) = compile_native("func_ptr_fields.jac");
-    make = get_func(
+    make = get_sfunc(
         eng,
         "make_all_fields",
         ctypes.c_void_p,
@@ -5225,7 +5312,7 @@ test "match honors case guards" {
 
 test "match dispatches on string patterns" {
     (eng, _) = compile_native("match_stmt.jac");
-    f = get_func(eng, "match_str", ctypes.c_int64, ctypes.c_char_p);
+    f = get_sfunc(eng, "match_str", ctypes.c_int64, ctypes.c_char_p);
     assert f(b"hi") == 1;
     assert f(b"bye") == 2;
     assert f(b"nope") == 0;
