@@ -692,6 +692,23 @@ test "exception as binding" {
     assert f() == 1;
 }
 
+test "runtime list index miss raises ValueError" {
+    # Native list.index returned -1 on a miss instead of raising -- and
+    # xs[-1] is a *valid* index, so the poison spread silently (#7922).
+    (eng, _) = compile_native("prim_runtime_errors.jac");
+    f = get_func(eng, "test_list_index_miss_na", ctypes.c_int64);
+    assert f() == 1;
+}
+
+test "runtime setdefault no-default inserts a real None" {
+    # Native setdefault() with no default inserted a fabricated zero of
+    # the value type; for nullable (pointer) value slots it must insert
+    # None like Python (#7922).
+    (eng, _) = compile_native("prim_runtime_errors.jac");
+    f = get_func(eng, "test_setdefault_none_na", ctypes.c_int64);
+    assert f() == 1;
+}
+
 test "runtime divzero caught exact" {
     (eng, _) = compile_native("prim_runtime_errors.jac");
     f = get_func(eng, "test_divzero_catch_exact_na", ctypes.c_int64);

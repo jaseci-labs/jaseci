@@ -2912,6 +2912,11 @@ impl NativeListEmitter.emit_index(
     result = b.phi(i64, name="idx.result");
     result.add_incoming(ir.Constant(i64, -1), loop_bb);
     result.add_incoming(idx, found_bb);
+    # Python semantics: a miss raises ValueError. Returning -1 silently
+    # poisons downstream indexing (xs[-1] is valid and grabs the last
+    # element).
+    miss = b.icmp_signed("==", result, ir.Constant(i64, -1), name="idx.miss");
+    p._emit_runtime_raise(miss, "ValueError", "list.index(x): x not in list");
     return result;
 }
 
@@ -3612,7 +3617,18 @@ impl NativeDictEmitter.emit_setdefault(
     i64 = ir.IntType(64);
     key = args[0];
     val_type = helpers["val_type"];
-    default_val = args[1] if len(args) >= 2 else ir.Constant(val_type, 0);
+    if len(args) >= 2 {
+        default_val = args[1];
+    } elif isinstance(val_type, ir.PointerType) {
+        # Python setdefault() with no default inserts None; a nullable
+        # pointer slot can represent that faithfully.
+        default_val = ir.Constant(val_type, None);
+    } else {
+        # A non-nullable value slot (int/float) cannot hold None; falling
+        # back to a fabricated 0 would silently diverge from Python, so
+        # decline to lower and let the dispatcher report E5092.
+        return None;
+    }
 
     found = b.call(helpers["contains"], [target, key], name="sdef.found");
     func = b.basic_block.function;

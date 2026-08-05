@@ -243,6 +243,8 @@
 "prim_runtime_errors.test_index_oob_catch_parent_na" = "native"
 "prim_runtime_errors.test_key_error_catch_exact_na" = "native"
 "prim_runtime_errors.test_key_error_catch_parent_na" = "native"
+"prim_runtime_errors.test_list_index_miss_na" = "native"
+"prim_runtime_errors.test_setdefault_none_na" = "native"
 "prim_runtime_errors.test_modulo_zero_na" = "native"
 "prim_runtime_errors.test_multi_handler_runtime_na" = "native"
 "prim_runtime_errors.test_runtime_finally_na" = "native"
