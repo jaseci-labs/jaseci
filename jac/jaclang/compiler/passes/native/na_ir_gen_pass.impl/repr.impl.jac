@@ -707,7 +707,7 @@ impl NaIRGenPass._runtime_repr_key(val: ir.Value) -> (str | None) {
     if not isinstance(val.type, ir.PointerType) {
         return None;
     }
-    _pname = getattr(val.type.pointee, "name", "") or "";
+    _pname: str = getattr(val.type.pointee, "name", "") or "";
     _elem_names = {"i64": "int", "f64": "float", "jacval": "any", "ptr": "str"};
     if _pname.startswith("List.") {
         _spec = _pname[5:];
@@ -821,7 +821,7 @@ impl NaIRGenPass._repr_jacval_fn -> (ir.Function | None) {
         return None;
     }
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
+    i8p: any = i8.as_pointer();
     i64 = ir.IntType(64);
     f64 = ir.DoubleType();
     fnty = ir.FunctionType(i8p, [self.jacval_type]);
@@ -840,7 +840,7 @@ impl NaIRGenPass._repr_jacval_fn -> (ir.Function | None) {
     def _ret_const(bl: ir.IRBuilder, text: str, label: str) {
         _prev = self._builder;
         self._builder = bl;
-        _g = self._make_global_string(text, name_prefix=f".repr.jv.{label}");
+        _g: any = self._make_global_string(text, name_prefix=f".repr.jv.{label}");
         if self._nogc_headerless() {
             _g = bl.call(_strdup, [_g], name=f"rp.jv.{label}.dup");
         }
