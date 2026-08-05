@@ -866,6 +866,12 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             if params_l {
                 elem_type_name: (str | None) = None;
                 arg_val = self._codegen_expr(params_l[0]);
+                if arg_val is not None
+                    and self._opt_payload_of(arg_val.type) is not None {
+                    arg_val = self._coerce_type(
+                        arg_val, self._opt_payload_of(arg_val.type)
+                    );
+                }
                 if arg_val is not None {
                     _len_result: (ir.Value | None) = None;
 

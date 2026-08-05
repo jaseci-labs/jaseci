@@ -2758,6 +2758,29 @@ impl TypeEvaluator.is_none_type(ty: TypeBase) -> bool {
     );
 }
 
+impl TypeEvaluator._diag_unnarrowed_optional(
+    nd: uni.UniNode, ty: TypeBase, required: str
+) -> bool {
+    if not isinstance(ty, types.UnionType) {
+        return False;
+    }
+    _has_none = False;
+    for _m in (ty.types or []) {
+        if self.is_none_type(self._convert_to_instance(_m)) {
+            _has_none = True;
+            break;
+        }
+    }
+    if not _has_none {
+        return False;
+    }
+    if not self._in_native_context() or not self._is_strict_site(nd) {
+        return False;
+    }
+    self.emit_diag(E1121, nd, type=str(ty), required=required);
+    return True;
+}
+
 impl TypeEvaluator._is_strict_site(nd: uni.UniNode) -> bool {
     mod = nd.find_parent_of_type(uni.Module);
     if mod is None {

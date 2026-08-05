@@ -186,6 +186,10 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
 }
 
 impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {
+    _opt_pt = self._opt_payload_of(ty);
+    if _opt_pt is not None {
+        return "opt." + self._llvm_type_str(_opt_pt);
+    }
     if isinstance(ty, ir.IntType) {
         if ty.width == 64 {
             return "i64";
@@ -355,10 +359,21 @@ impl NaIRGenPass._export_native_layout -> None {
         }
 
         ret_enum: (str | None) = None;
-        if ret_type == "i64" {
+        if ret_type in ("i64", "opt.i64") {
             _rkey = self.func_ret_type_key.get(fname);
-            if _rkey is not None and _rkey in self.enum_types {
-                ret_enum = _rkey;
+            if _rkey is not None {
+                if _rkey in self.enum_types {
+                    ret_enum = _rkey;
+                } elif "|" in _rkey {
+                    _rnon = [
+                        s.strip()
+                        for s in _rkey.split("|")
+                        if s.strip() not in ("None", "NoneType")
+                    ];
+                    if len(_rnon) == 1 and _rnon[0] in self.enum_types {
+                        ret_enum = _rnon[0];
+                    }
+                }
             }
         }
 
@@ -1210,6 +1225,13 @@ impl NaIRGenPass._dispatch_builtin(
     type_key: str = ""
 ) -> (ir.Value | None) {
     self._ensure_emitters();
+    if (
+        func_name == "str"
+        and len(args) == 1
+        and self._opt_payload_of(args[0].type) is not None
+    ) {
+        return self._emit_optional_str(args[0], None);
+    }
     _emit_fn = getattr(self._native_builtin_emitter, "emit_" + func_name, None);
     if _emit_fn is None {
         return None;

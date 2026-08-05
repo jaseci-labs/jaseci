@@ -65,6 +65,7 @@ class TypeCheckPass(UniPass) {
     def exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> None;
     def exit_atom_trailer(self: TypeCheckPass, nd: uni.AtomTrailer) -> None;
     def exit_binary_expr(self: TypeCheckPass, nd: uni.BinaryExpr) -> None;
+    def exit_compare_expr(self: TypeCheckPass, nd: uni.CompareExpr) -> None;
     def exit_func_call(self: TypeCheckPass, nd: uni.FuncCall) -> None;
     def _check_intrinsic_call(self: TypeCheckPass, nd: uni.FuncCall) -> None;
     def _check_intrinsic_collision(self: TypeCheckPass, nd: uni.Ability) -> None;

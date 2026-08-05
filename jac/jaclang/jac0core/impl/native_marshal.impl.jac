@@ -77,6 +77,23 @@ impl NativeStructView._resolve(name: str, raw: any) -> any {
         return fn_type(raw);
     }
 
+    if lt.startswith("opt.") {
+        if (raw is None or int(raw.tag) == 0) {
+            return None;
+        }
+        return marshal_value(
+            raw.payload,
+            lt[4:],
+            self.ctypes_classes,
+            self.enum_maps,
+            {},
+            None,
+            None,
+            self.layout,
+            self._view_memo
+        );
+    }
+
     if lt == "i8*" {
         if (raw is None or raw == 0) {
             return "";

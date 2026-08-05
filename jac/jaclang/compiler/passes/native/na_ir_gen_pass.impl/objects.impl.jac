@@ -1952,6 +1952,10 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
     if method_name in self._primitive_method_names("str") {
         str_val = self._codegen_expr(trailer.target);
+        if str_val is not None
+            and self._opt_payload_of(str_val.type) == ir.IntType(8).as_pointer() {
+            str_val = self._coerce_type(str_val, ir.IntType(8).as_pointer());
+        }
         if str_val is not None and str_val.type == ir.IntType(8).as_pointer() {
             arg_vals = self._codegen_call_args(nd);
             result = self._dispatch_primitive_method(
@@ -2058,6 +2062,10 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
     if obj_val is None {
         return None;
+    }
+    _mc_opt = self._opt_payload_of(obj_val.type);
+    if _mc_opt is not None {
+        obj_val = self._coerce_type(obj_val, _mc_opt);
     }
 
     if isinstance(obj_val.type, ir.PointerType) {
@@ -2196,6 +2204,10 @@ impl NaIRGenPass._codegen_field_access(
     if field_indices is None or field_name not in field_indices {
         return None;
     }
+    _fa_opt = self._opt_payload_of(obj_val.type);
+    if _fa_opt is not None {
+        obj_val = self._coerce_type(obj_val, _fa_opt);
+    }
 
     if isinstance(obj_val.type, ir.IntType) and (type_name in self.struct_types) {
         obj_val = self.builder.inttoptr(
@@ -2323,6 +2335,9 @@ impl NaIRGenPass._codegen_field_assign(
     _fa_errs = len(self.errors_had);
     field_name = self._get_name(target.right);
     obj_val = self._codegen_expr(target.target);
+    if obj_val is not None and self._opt_payload_of(obj_val.type) is not None {
+        obj_val = self._coerce_type(obj_val, self._opt_payload_of(obj_val.type));
+    }
     type_name: (str | None) = self._struct_name_of(target.target);
     if type_name is None and obj_val is not None {
         type_name = self._infer_type_name(obj_val);
@@ -2394,6 +2409,21 @@ impl NaIRGenPass._codegen_field_assign(
                 if target.loc
                 else 0}"
         );
+    }
+    _fs_opt = self._opt_payload_of(ftype);
+    if _fs_opt is not None and isinstance(_fs_opt, ir.PointerType) and not _vt_struct {
+        _fs_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{target.loc.first_line
+            if target.loc
+            else 0}";
+        _fs_new_pv = self.builder.extract_value(
+            value, 1, name=f"field.{field_name}.newpv"
+        );
+        self._emit_take_ref(_fs_new_pv, op="field_set", loc=_fs_loc);
+        _fs_old = self.builder.load(field_ptr, name=f"field.{field_name}.old");
+        _fs_old_pv = self.builder.extract_value(
+            _fs_old, 1, name=f"field.{field_name}.oldpv"
+        );
+        self._emit_rc_release_simple(_fs_old_pv, op="field_set", loc=_fs_loc);
     }
     self.builder.store(value, field_ptr);
 }

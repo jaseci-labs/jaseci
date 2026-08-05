@@ -375,6 +375,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);
+    def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None);
     def _scan_closure_escapes(nd: uni.UniNode, body: (list | tuple)) -> None;
     def _closure_sig_struct(fnty: ir.FunctionType) -> tuple;
     def _closure_struct_of(val_type: ir.Type) -> (str | None);
@@ -516,6 +517,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _emit_comparison(
+        op: str, left: ir.Value, right: ir.Value, is_float: bool
+    ) -> (ir.Value | None);
+
+    def _emit_optional_eq(
         op: str, left: ir.Value, right: ir.Value, is_float: bool
     ) -> (ir.Value | None);
 
@@ -692,6 +697,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_obj_str(val: ir.Value) -> (ir.Value | None);
+    def _emit_optional_str(
+        val: ir.Value, part: (uni.UniNode | None)
+    ) -> (ir.Value | None);
+
     def _emit_default_obj_repr(val: ir.Value, type_name: str) -> ir.Value;
     def _emit_container_repr(
         val: ir.Value, type_key: (str | None)

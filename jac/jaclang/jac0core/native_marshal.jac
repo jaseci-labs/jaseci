@@ -338,6 +338,26 @@ def _marshal_set(set_ptr: int, elem_name: str, func_layout: any = None) -> any {
 }
 
 
+glob _OPT_CTYPES: dict = {};
+
+def _opt_ctype(payload_type: str) -> type {
+    cached = _OPT_CTYPES.get(payload_type);
+    if cached is not None {
+        return cached;
+    }
+    pct = LLVM_TO_CTYPES.get(payload_type);
+    if pct is None or payload_type.endswith("*") or payload_type == "ptr" {
+        pct = ctypes.c_void_p;
+    }
+    cls = type(
+        f"NativeOpt_{payload_type.replace('*', 'p').replace('.', '_')}",
+        (ctypes.Structure, ),
+        {"_fields_": [("tag", ctypes.c_int8), ("payload", pct)]}
+    );
+    _OPT_CTYPES[payload_type] = cls;
+    return cls;
+}
+
 def build_ctypes_classes(layout: any) -> dict {
     classes: dict = {};
     for (name, struct_layout) in layout.structs.items() {
@@ -345,6 +365,8 @@ def build_ctypes_classes(layout: any) -> dict {
         for f in struct_layout.fields {
             if f.is_func_ptr {
                 ct = ctypes.c_void_p;
+            } elif f.llvm_type.startswith("opt.") {
+                ct = _opt_ctype(f.llvm_type[4:]);
             } else {
                 ct = LLVM_TO_CTYPES.get(f.llvm_type);
                 if (ct is None or f.llvm_type == "i8*") {
@@ -399,6 +421,26 @@ def marshal_value(
         }
         fn_type = _build_cfunctype(field_info);
         return fn_type(raw);
+    }
+
+    if llvm_type.startswith("opt.") {
+        if raw is None {
+            return None;
+        }
+        if int(raw.tag) == 0 {
+            return None;
+        }
+        return marshal_value(
+            raw.payload,
+            llvm_type[4:],
+            ctypes_classes,
+            enum_maps,
+            py_classes,
+            None,
+            func_layout,
+            layout,
+            view_memo
+        );
     }
 
     if llvm_type in ("i64", "i32", "i16", "i8") {
@@ -594,6 +636,10 @@ def wrap_native_function(
         return None;
     }
 
+    if any(pt.startswith("opt.") for pt in func_layout.param_types) {
+        return None;
+    }
+
     c_arg_types: list = [];
     for pt in func_layout.param_types {
         ct = LLVM_TO_CTYPES.get(pt);
@@ -608,6 +654,8 @@ def wrap_native_function(
     if c_ret is None {
         if ret_type == "void" {
             c_ret = None;
+        } elif ret_type.startswith("opt.") {
+            c_ret = _opt_ctype(ret_type[4:]);
         } else {
             c_ret = ctypes.c_void_p;
         }

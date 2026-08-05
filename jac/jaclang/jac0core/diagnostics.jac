@@ -592,6 +592,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " TypeScript declarations (or the matching @types/<package>), or relax"
          " the setting to \"warn\"."
      ),
+     E1121 = _err(
+         "E1121",
+         Category.TYPE,
+         "Possibly-None value of type \"{type}\" used where {required} is required",
+         help="Native code requires optionals to be narrowed before use at a"
+         " site that needs the unwrapped value. Guard the value first, e.g."
+         " `if x is not None { ... }`. Equality (`==`, `!=`) and `is None`"
+         " checks operate on the optional directly and need no narrowing."
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,

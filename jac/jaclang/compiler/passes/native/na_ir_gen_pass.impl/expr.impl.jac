@@ -98,6 +98,17 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
     if _result is not None {
         _result.jac_loc = _jac_loc;
 
+        if self?.jacval_type
+            and _result.type == self.jacval_type
+            and isinstance(nd, uni.Expr)
+            and nd.type is not None {
+            _jv_want = self._lower_type(nd.type);
+            if _jv_want is not None and self._opt_payload_of(_jv_want) is not None {
+                _result = self._coerce_type(_result, _jv_want);
+                _result.jac_loc = _jac_loc;
+            }
+        }
+
         if isinstance(_result.type, ir.PointerType) {
             import from jaclang.compiler.passes.main.rc_facts_pass {
                 Ownership,

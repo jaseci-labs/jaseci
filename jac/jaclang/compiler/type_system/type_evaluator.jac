@@ -75,6 +75,7 @@ import from jaclang.jac0core.diagnostics {
     E1110,
     E1111,
     E1120,
+    E1121,
     E0049,
     W1050,
     W1051,
@@ -292,6 +293,10 @@ obj TypeEvaluator {
     def is_explicit_any(ty: TypeBase) -> bool;
     def is_none_type(ty: TypeBase) -> bool;
     def _is_strict_site(nd: uni.UniNode) -> bool;
+    def _diag_unnarrowed_optional(
+        nd: uni.UniNode, ty: TypeBase, required: str
+    ) -> bool;
+
     def _in_native_context -> bool;
     def is_typevar_class(ty: TypeBase) -> bool;
     def is_paramspec_class(ty: TypeBase) -> bool;

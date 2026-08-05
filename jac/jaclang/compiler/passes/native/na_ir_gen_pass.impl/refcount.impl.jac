@@ -1549,7 +1549,7 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
     }
 
     _has_ref_fields = any(
-        isinstance(_ft, ir.PointerType)
+        (isinstance(_ft, ir.PointerType) or self._opt_ptr_payload_of(_ft) is not None)
             and _fn not in foreign_fields
             and field_indices.get(_fn, -1) >= 0 for (_fn, _ft) in field_types.items()
     );
@@ -1577,20 +1577,37 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
             if fname in foreign_fields {
                 continue;
             }
+            idx = field_indices.get(fname, -1);
+            if idx < 0 {
+                continue;
+            }
             if isinstance(ftype, ir.PointerType) {
-                idx = field_indices.get(fname, -1);
-                if idx >= 0 {
-                    field_ptr = b.gep(
-                        release_fn.args[0],
-                        [ir.Constant(i32, 0), ir.Constant(i32, idx)],
-                        name=f"field.{fname}.ptr"
-                    );
-                    field_val = b.load(field_ptr, name=f"field.{fname}.val");
-                    b.call(
-                        self.rc_release_simple_fn,
-                        [b.bitcast(field_val, i8_ptr, name=f"field.{fname}.cast")]
-                    );
-                }
+                field_ptr = b.gep(
+                    release_fn.args[0],
+                    [ir.Constant(i32, 0), ir.Constant(i32, idx)],
+                    name=f"field.{fname}.ptr"
+                );
+                field_val = b.load(field_ptr, name=f"field.{fname}.val");
+                b.call(
+                    self.rc_release_simple_fn,
+                    [b.bitcast(field_val, i8_ptr, name=f"field.{fname}.cast")]
+                );
+            } elif self._opt_ptr_payload_of(ftype) is not None {
+                field_ptr = b.gep(
+                    release_fn.args[0],
+                    [ir.Constant(i32, 0), ir.Constant(i32, idx)],
+                    name=f"field.{fname}.ptr"
+                );
+                pv_ptr = b.gep(
+                    field_ptr,
+                    [ir.Constant(i32, 0), ir.Constant(i32, 1)],
+                    name=f"field.{fname}.pvp"
+                );
+                pv_val = b.load(pv_ptr, name=f"field.{fname}.pv");
+                b.call(
+                    self.rc_release_simple_fn,
+                    [b.bitcast(pv_val, i8_ptr, name=f"field.{fname}.pv.cast")]
+                );
             }
         }
         b.branch(post_fields_bb);

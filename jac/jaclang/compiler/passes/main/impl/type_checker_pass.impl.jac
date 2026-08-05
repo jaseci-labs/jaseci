@@ -266,6 +266,29 @@ impl TypeCheckPass.exit_jsx_element(self: TypeCheckPass, nd: uni.JsxElement) -> 
     self.evaluator.get_type_of_expression(nd);
 }
 
+impl TypeCheckPass.exit_compare_expr(self: TypeCheckPass, nd: uni.CompareExpr) -> None {
+    if self._lambda_depth > 0 {
+        return;
+    }
+    _cmp_mod = nd.find_parent_of_type(uni.Module);
+    if _cmp_mod is None or _cmp_mod.is_raised_from_py {
+        return;
+    }
+    _ord_ops = (Tok.LT, Tok.LTE, Tok.GT, Tok.GTE);
+    operands: list = [nd.left];
+    operands.extend(nd.rights);
+    for (i, op) in enumerate(nd.ops) {
+        _opname = op.name if isinstance(op, uni.Token) else str(op);
+        if _opname not in _ord_ops {
+            continue;
+        }
+        for side in (operands[i], operands[i + 1]) {
+            _side_t = self.evaluator.get_type_of_expression(side);
+            self.evaluator._diag_unnarrowed_optional(nd, _side_t, "an ordered operand");
+        }
+    }
+}
+
 impl TypeCheckPass.exit_binary_expr(self: TypeCheckPass, nd: uni.BinaryExpr) -> None {
     if self._lambda_depth > 0 {
         return;
@@ -274,10 +297,38 @@ impl TypeCheckPass.exit_binary_expr(self: TypeCheckPass, nd: uni.BinaryExpr) -> 
 }
 
 impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: uni.AtomTrailer) -> None {
+    import from jaclang.compiler.type_system { types }
     if self._lambda_depth > 0 {
         return;
     }
     self.evaluator.get_type_of_expression(nd);
+    _at_mod = nd.find_parent_of_type(uni.Module);
+    if (
+        not nd.is_attr
+        and _at_mod is not None
+        and not _at_mod.is_raised_from_py
+        and isinstance(nd.right, uni.IndexSlice)
+        and not nd.right.is_range
+        and nd.right.slices
+        and nd.right.slices[0].start is not None
+    ) {
+        _idx_expr = nd.right.slices[0].start;
+        _idx_t = self.evaluator.get_type_of_expression(_idx_expr);
+        if isinstance(_idx_t, types.UnionType) {
+            _base_t = self.evaluator.get_type_of_expression(nd.target);
+            if isinstance(_base_t, types.ClassType)
+                and _base_t.is_class_instance()
+                and not _base_t.is_any_type()
+                and self.evaluator.get_type_of_magic_method_call(
+                    _base_t, "__getitem__", [_idx_expr], None
+                )
+                    is None {
+                self.evaluator._diag_unnarrowed_optional(
+                    nd, _idx_t, "a subscript index"
+                );
+            }
+        }
+    }
 }
 
 impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> None {
