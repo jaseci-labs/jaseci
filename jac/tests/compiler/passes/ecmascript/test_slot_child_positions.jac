@@ -198,3 +198,30 @@ test "an elif chain keeps every arm on the same footing" {
         "all three arms of one chain share a single child position:\n" + clean
     );
 }
+
+test "a loop inside a loop stays one flat array" {
+    # An inner loop opening its own accumulator groups the children into
+    # unkeyed sub-arrays, which React pairs by position, so reordering the
+    # outer list rebuilds every item even though each key is correct.
+    js_code = compile_fixture("nested_loops.jac");
+
+    inner = re.findall(r"let (__jac_view_kids_\d+) = \[\];", js_code);
+    assert len(inner) == 1 , (
+        "nested loops share the one accumulator they are already inside:\n" + js_code
+    );
+    appends = len(re.findall(re.escape(inner[0]) + r"\.push\(", js_code));
+    assert appends == 1 , (
+        "only the innermost element appends; an inner loop must not push a "
+        "sub-array of its own:\n"
+        + js_code
+    );
+    assert reserved_slots(js_code, "__jac_view_kids") == 2 , (
+        "the whole nest still occupies one position, leaving the sibling its " "own:\n"
+        + js_code
+    );
+    assert assigned_indices(js_code, "__jac_view_kids") == [0, 1] , (
+        "the nest takes index 0 and the sibling index 1, so the sibling cannot "
+        "shift when the rows grow:\n"
+        + js_code
+    );
+}

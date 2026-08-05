@@ -3191,7 +3191,8 @@ impl EsastGenPass.exit_try_stmt(nd: uni.TryStmt) -> None {
 }
 
 impl EsastGenPass._view_open_loop_acc(nd: uni.UniNode) -> None {
-    if self._cur_view_acc() is None {
+    acc = self._cur_view_acc();
+    if (acc is None) or (acc in self._view_dynamic_accs) {
         return;
     }
     self._view_dynamic_accs.add(self._push_view_acc());
