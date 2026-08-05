@@ -594,6 +594,43 @@ obj KubernetesTarget(KubernetesTargetBase) {
         );
     }
 
+    def ensure_alb_readiness_gates(core_v1: any, namespace: str) -> None {
+        cfg = self.k8s_config;
+        is_alb = bool(getattr(cfg, "shared_ingress", False))
+            and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
+        if not is_alb {
+            return;
+        }
+        gate_label = "elbv2.k8s.aws/pod-readiness-gate-inject";
+        try {
+            ns = core_v1.read_namespace(name=namespace);
+            labels: dict = dict(getattr(ns.metadata, "labels", {}) or {});
+            if labels.get(gate_label) == "enabled" {
+                return;
+            }
+            core_v1.patch_namespace(
+                name=namespace, body={"metadata": {"labels": {gate_label: "enabled"}}}
+            );
+            if self.logger {
+                self.logger.info(
+                    f"Labeled namespace '{namespace}' for ALB pod readiness "
+                    f"gates: rollouts now wait for the new pod's ALB target to "
+                    f"pass health checks before retiring the old pod.",
+                    {"label": gate_label}
+                );
+            }
+        } except Exception as e {
+            if self.logger {
+                self.logger.warn(
+                    f"Could not label namespace '{namespace}' for ALB pod "
+                    f"readiness gates ({e}); rollouts may briefly serve 502s "
+                    f"from the ALB while new targets pass health checks.",
+                    {"label": gate_label}
+                );
+            }
+        }
+    }
+
     def _ensure_privileged_namespace(core_v1: any, namespace: str) -> None {
         try {
             ns = core_v1.read_namespace(name=namespace);
@@ -738,6 +775,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         ensure_namespace_exists(namespace);
+        self.ensure_alb_readiness_gates(core_v1, namespace);
 
         ops_rbac = bundle.get("ops_rbac");
         if ops_rbac {
