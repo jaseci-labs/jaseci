@@ -1600,6 +1600,15 @@ impl TypeEvaluator._get_type_of_expression_core(
                             None
                         );
                     }
+                    if result is None and op.name in (Tok.EE, Tok.NE) {
+                        # Python equality never fails to resolve:
+                        # object.__eq__/__ne__ are the universal identity
+                        # fallback, so a failed lookup here (e.g. typeshed's
+                        # NoneType declares no __eq__, making `x == None`
+                        # a false E1110) is not an error. Ordered
+                        # comparisons keep flagging.
+                        continue;
+                    }
                     if result is None {
                         self.emit_diag(
                             E1110,

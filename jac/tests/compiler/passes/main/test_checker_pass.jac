@@ -5763,3 +5763,23 @@ test "bare_list_flow_inference" {
         )}";
     }
 }
+
+test "none_equality_not_flagged" {
+    # `==` / `!=` never fail to resolve in Python (object.__eq__ is the
+    # universal identity fallback), so None-equality must not raise E1110.
+    # typeshed's NoneType has no __eq__, which previously made every
+    # `x == None` an error and steered users toward `is None` (#7922).
+    program = JacProgram();
+    path = os.path.join(CHECKER_FIXTURES, "checker_none_equality.jac");
+    mod = program.compile(path, options=NO_TC);
+    TypeCheckPass(ir_in=mod, prog=program);
+    eq_errors = [
+        e
+        for e in program.errors_had
+        if "not supported between" in str(e)
+    ];
+    assert not eq_errors , (
+        "None equality must type-check; got: "
+        + str([str(e) for e in eq_errors])
+    );
+}
