@@ -24,6 +24,7 @@ class JacProgram {
         type_evaluator: TypeEvaluator | None,
         _compiler: JacCompiler | None,
         _compile_options: CompileOptions,
+        graphmend_enabled: bool,
         _native_cache: dict[(str, any)],
         _hub_cache_times: dict[str, float],
         _dependents: dict[str, set[str]],

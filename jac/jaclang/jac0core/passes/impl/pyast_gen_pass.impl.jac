@@ -844,6 +844,12 @@ impl PyastGenPass.exit_module(nd: uni.Module) -> None {
         self.builtin_imports.update(child_pass.builtin_imports);
         self.typing_imports.update(child_pass.typing_imports);
     }
+    if getattr(nd, '_gm_needs_eq_assert', False) {
+        self.jaclib_obj('__jac_tensor_eq_assert__');
+    }
+    if getattr(nd, '_gm_needs_trap_guard', False) {
+        self.jaclib_obj('__jac_trap_guard__');
+    }
     is_builtin_module = (
         nd.loc.mod_path.endswith(('builtin.jac', 'builtin.py'))
         and ('runtimelib' in nd.loc.mod_path)
