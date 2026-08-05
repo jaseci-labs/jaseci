@@ -453,7 +453,14 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 _ir_cache_dir, f"{_src_stem}.{_source_hash}.{_compiler_fp}.ir_meta"
             );
 
-            if os.path.exists(_cache_ir_path) and os.path.exists(_cache_meta_path) {
+            _no_ir_cache = bool(getattr(_gc_opts, "no_ir_cache", False))
+                if _gc_opts
+                else False;
+            if (
+                not _no_ir_cache
+                and os.path.exists(_cache_ir_path)
+                and os.path.exists(_cache_meta_path)
+            ) {
                 with open(_cache_ir_path, "r") as _cf {
                     imported_llvm_str_raw = _cf.read();
                 }
@@ -743,11 +750,14 @@ impl NativeCompilePass._compile_and_link_native_imports(
     }
 }
 
-glob _OSP_KERNEL_IR_CACHE: list = [];
+glob _OSP_KERNEL_IR_CACHE: dict[str, str] = {};
 
-def _compile_osp_kernel_ir -> (str | None) {
-    if _OSP_KERNEL_IR_CACHE {
-        return _OSP_KERNEL_IR_CACHE[0];
+def _compile_osp_kernel_ir(
+    gc_mode: str = "cycles", enforce: bool = False
+) -> (str | None) {
+    _ck_key = f"{gc_mode}:{enforce}";
+    if _ck_key in _OSP_KERNEL_IR_CACHE {
+        return _OSP_KERNEL_IR_CACHE[_ck_key];
     }
     import os;
     import shutil;
@@ -769,7 +779,36 @@ def _compile_osp_kernel_ir -> (str | None) {
         m = prog.compile(
             na_copy,
             options=_KernelOpts(
-                aot_mode=True, type_check=False, default_codespace='native'
+                aot_mode=True,
+                type_check=False,
+                default_codespace='native',
+                na_gc_mode=gc_mode,
+                nogc_enforce_all=enforce,
+                suppress_codes=(
+                    [
+                        "E1301",
+                        "E1302",
+                        "E1303",
+                        "E1304",
+                        "E1306",
+                        "E1308",
+                        "E1309",
+                        "E1311",
+                        "E1313",
+                        "E1314",
+                        "E1315",
+                        "E1401",
+                        "E1402",
+                        "E1403",
+                        "E1404",
+                        "E1405",
+                        "E1406",
+                        "W1310",
+                        "W1312"
+                    ]
+                        if enforce
+                        else []
+                )
             )
         );
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
@@ -781,7 +820,7 @@ def _compile_osp_kernel_ir -> (str | None) {
         shutil.rmtree(tmp_dir, ignore_errors=True);
     }
     if ir_str is not None {
-        _OSP_KERNEL_IR_CACHE.append(ir_str);
+        _OSP_KERNEL_IR_CACHE[_ck_key] = ir_str;
     }
     return ir_str;
 }
@@ -800,7 +839,10 @@ impl NativeCompilePass._references_undefined_osp_kernel(main_mod: object) -> boo
 }
 
 impl NativeCompilePass._link_osp_kernel(main_mod: object) -> None {
-    ir_str = _compile_osp_kernel_ir();
+    _gc = str(getattr(self.prog?._compile_options, "na_gc_mode", "cycles") or "cycles");
+    _enf = bool(getattr(self.prog?._compile_options, "nogc_enforce_all", False))
+        or bool(getattr(self.ir_in.gen, "nogc_enforced", False));
+    ir_str = _compile_osp_kernel_ir(_gc, _enf and _gc == "none");
     if ir_str is None {
         return;
     }

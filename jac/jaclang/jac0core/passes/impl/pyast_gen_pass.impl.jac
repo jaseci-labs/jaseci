@@ -3535,6 +3535,37 @@ impl PyastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
             nd.gen.py_ast = nd.target.gen.py_ast;
             return;
         }
+        if isinstance(nd.target, uni.AtomTrailer)
+            and nd.target.is_attr
+            and isinstance(nd.target.right, uni.Name)
+            and nd.target.right.sym_name == "chunks"
+            and nd.params is not None
+            and len(nd.params) == 1 {
+            _ck_m = "";
+            try {
+                _ck_m = nd.target.target.type.mangle()
+                    if nd.target.target.type is not None
+                    else "";
+            } except Exception {
+                _ck_m = "";
+            }
+            if _ck_m == "list"
+                or _ck_m.startswith("list[")
+                or (_ck_m in ("", "Unknown", "None") and nd.target.right.sym is None) {
+                _ck_recv = self.py_ast_val(nd.target.target);
+                _ck_n = self.py_ast_val(nd.params[0]);
+                nd.gen.py_ast = [
+                    self.sync(
+                        ast3.Call(
+                            func=self.builtin_name('_jac_chunks'),
+                            args=[cast(ast3.expr, _ck_recv), cast(ast3.expr, _ck_n)],
+                            keywords=[]
+                        )
+                    )
+                ];
+                return;
+            }
+        }
         func = self.py_ast_val(nd.target);
         (args, keywords) = self.gen_call_args(nd);
         nd.gen.py_ast = [

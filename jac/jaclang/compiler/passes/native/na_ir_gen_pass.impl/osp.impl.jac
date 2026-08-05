@@ -63,6 +63,7 @@ impl NaIRGenPass._register_osp_kernel_module -> None {
     if kernel_mod is None {
         return;
     }
+    kernel_mod.gen.nogc_enforced = getattr(self.ir_in.gen, "nogc_enforced", False);
     self._walk_imported_module_type_names(kernel_mod);
     self._walk_imported_module_types(kernel_mod);
     self._walk_imported_module_abilities(kernel_mod);
@@ -190,6 +191,9 @@ impl NaIRGenPass._osp_rc_new(struct_name: str) -> (ir.Value | None) {
 }
 
 impl NaIRGenPass._osp_make_immortal(ptr: ir.Value) -> None {
+    if self._nogc_headerless() {
+        return;
+    }
     i8p = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     _raw = self.builder.bitcast(ptr, i8p, name="osp.imm.i8");
