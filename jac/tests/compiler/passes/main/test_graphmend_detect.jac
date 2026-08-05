@@ -42,16 +42,14 @@ def _compile(name: str, gm: bool) -> uni.Module {
 
 """Collect the GraphMend break-kind tag of every IfStmt in a module."""
 def _if_kinds(mod: uni.Module) -> list {
-    return [
-        getattr(n, '_gm_break_kind', None) for n in mod.get_all_sub_nodes(uni.IfStmt)
-    ];
+    return [n?._gm_break_kind for n in mod.get_all_sub_nodes(uni.IfStmt)];
 }
 
 """Collect non-empty GraphMend break-kind tags of FuncCalls in a module."""
 def _call_kinds(mod: uni.Module) -> list {
     out = [];
     for n in mod.get_all_sub_nodes(uni.FuncCall) {
-        k = getattr(n, '_gm_break_kind', None);
+        k = n?._gm_break_kind;
         if k {
             out.append(k);
         }
