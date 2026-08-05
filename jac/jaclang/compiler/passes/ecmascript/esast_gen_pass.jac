@@ -26,6 +26,7 @@ import from jaclang.jac0core.diagnostics {
     E5012,
     E5016,
     E5017,
+    E5018,
     W5013,
     W5014,
     W5015,
@@ -183,6 +184,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         component_export_names: set[str] = set(),
         reactive_vars_stack: list[set[str]] = [],
         injected_imports: set[str] = set(),
+        match_seq: int = 0,
         _view_stack: list[(str | None)] = [],
         _view_used_base: bool = False,
         _view_acc_counter: int = 0,
@@ -370,6 +372,15 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_expr_stmt(nd: uni.ExprStmt) -> None;
     def exit_switch_stmt(nd: uni.SwitchStmt) -> None;
     def exit_switch_case(nd: uni.SwitchCase) -> None;
+    def exit_match_stmt(nd: uni.MatchStmt) -> None;
+    def _lower_match_pattern(
+        pat: uni.MatchPattern, subj: es.Expression
+    ) -> tuple[(es.Expression | None), list[es.Statement], bool];
+    def _match_bind_name(
+        name_node: uni.UniNode, value: es.Expression
+    ) -> es.Statement;
+    def _match_arch_field_order(pat: uni.MatchArch) -> (list[str] | None);
+    def _match_subj_member(subj: es.Expression, field: str) -> es.Expression;
     def _ensure_emitters -> None;
     def _resolve_primitive_type_name(_obj_type: object) -> str;
     def _try_primitive_op(

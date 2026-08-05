@@ -3111,3 +3111,74 @@ test "None comparisons lower to loose equality so undefined cannot impersonate a
         );
     }
 }
+
+test "match lowers to a guarded if-chain with full pattern coverage (#7881)" {
+    # RC-2: EsastGenPass had no MatchStmt lowering at all, so a client
+    # function whose body was a match compiled to an empty function that
+    # returned undefined for every input. The lowering is an if-chain over
+    # a cached subject (never a JS switch): guards fall through to later
+    # cases, bodies keep their own return/break semantics, and captures
+    # hoist through the same scope machinery as ordinary assignments.
+    js_code = compile_fixture_to_js("match_lowering.jac", FIXTURES);
+
+    v_idx = js_code.find("function m_value");
+    assert v_idx >= 0;
+    v_chunk = js_code[v_idx:v_idx + 400];
+    assert "__jac_match_subj_" in v_chunk , (
+        "match must lower to the cached-subject if-chain; got:\n" + v_chunk
+    );
+    assert "switch" not in v_chunk , (
+        "match must not lower to a JS switch; got:\n" + v_chunk
+    );
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(m_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "match lowering crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {
+        "v_a": "AAA",
+        "v_b": "BBB",
+        "v_z": "OTHER",
+        "g_big": "big",
+        "g_mid": "mid",
+        "g_small": "small",
+        "s_exact": "exact",
+        "s_star": "starts1:3",
+        "s_empty": "empty",
+        "s_other": "other",
+        "m_circle": "circle:5",
+        "m_kind": "kind:sq",
+        "m_none": "nokind",
+        "a_origin": "origin",
+        "a_yaxis": "yaxis:7",
+        "a_point": "point",
+        "a_not": "notpoint",
+        "o_small": "small",
+        "o_letter": "letter",
+        "o_none": "none",
+        "o_big": "big",
+        "r_hit": "rest:1:2",
+        "r_no": "no",
+        "as_pair": "pair:5:2",
+        "as_no": "no",
+        "t": "T",
+        "f": "F",
+        "n": "N",
+        "v": "V"
+    };
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"match axis {key}: expected {want}, got {got.get(key)}"
+        );
+    }
+}
