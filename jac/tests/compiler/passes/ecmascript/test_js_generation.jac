@@ -173,7 +173,11 @@ test "core fixture emits expected constructs" {
         "function greet",
         "function fibonacci",
         "for (const i of array)",
-        "for (let i = 0; (i < limit); i += 1)",
+        # `for i=0 to ...` loop vars are function-scoped in Jac (symtab hoists
+        # the untyped init assignment), so the declaration hoists out of the
+        # for-head and the var stays readable after the loop (#7922).
+        "for (i = 0; (i < limit); i += 1)",
+        "let i;",
         "while ((counter > 0))",
         "while (true)",
 
@@ -2886,6 +2890,81 @@ test "supported client statements do not trip the completeness guard (#7922)" {
         assert not drops , (
             "Guard false-positive on supported statements: "
             + str([str(e) for e in drops])
+        );
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+test "branch-first assignment binds function-wide, not per block (#7882)" {
+    # RC-3: the ES backend declared `let` at the assignment site in whatever
+    # block scope was current, so `if {result=..} else {result=..} return
+    # result;` emitted two dead block-scoped bindings and threw
+    # ReferenceError. The symbol table hoists such names to the enclosing
+    # Ability; the emitted JS must match it. Executes all seven shapes.
+    js_code = compile_fixture_to_js("scope_hoist_shapes.jac", FIXTURES);
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(t_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "scope-hoist shapes crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+        + "\njs:\n"
+        + js_code
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {
+        "ifelse": "NEG",
+        "whl": 1,
+        "fr": 3,
+        "tr": "ok",
+        "wal": 5,
+        "des": 30,
+        "imp": "B"
+    };
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"shape {key}: expected {want}, got {got.get(key)}\njs:\n" + js_code
+        );
+    }
+
+    # The if/else shape must produce exactly one binding for `result`
+    # (scan only the user function -- the _jac runtime bundle has its own
+    # unrelated `let result` locals).
+    fn_idx = js_code.find("function t_ifelse");
+    assert fn_idx >= 0 , "compiled function t_ifelse must be present";
+    user_chunk = js_code[fn_idx:fn_idx + 300];
+    assert user_chunk.count("let result") == 1 , (
+        "expected a single hoisted `let result`, got:\n" + user_chunk
+    );
+}
+
+test "module-level entry block assignment hoists to module scope (#7882)" {
+    jac_code = (
+        "with entry {\n"
+        "    if True {\n"
+        "        z = 42;\n"
+        "    }\n"
+        "    print(z);\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+        assert "let z;" in js_code , (
+            "module-level `z` must be hoisted to module scope as `let z;`:\n"
+            + js_code
+        );
+        assert "let z = 42" not in js_code , (
+            "branch assignment must not block-scope `z`:\n" + js_code
         );
     } finally {
         os.unlink(temp_path);

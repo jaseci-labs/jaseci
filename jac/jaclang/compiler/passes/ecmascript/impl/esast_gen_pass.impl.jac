@@ -2103,14 +2103,50 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
         decl_name = info.decl_name;
         pattern_names = info.pattern_names;
         should_declare = False;
+        cur_scope = self._current_scope();
 
         if decl_name {
-            should_declare = not self._is_declared_in_any_scope(decl_name);
+            owning = self._declaring_scope_for(target_node);
+            if owning is None {
+                should_declare = not self._is_declared_in_any_scope(decl_name);
+            } elif owning is cur_scope {
+                should_declare = decl_name not in owning.declared;
+            } elif decl_name not in owning.declared {
+                # The symbol lives in an enclosing function/module scope:
+                # hoist `let name;` there and assign in place so the binding
+                # survives this block (python function scoping).
+                self._hoist_into(owning, decl_name, target_node);
+            }
         } elif pattern_names {
-            should_declare = any(
-                (not self._is_declared_in_any_scope(name))
-                for (name, _) in pattern_names
-            );
+            # Declare the pattern inline only when every bound name is new
+            # and owned by the current scope; otherwise hoist the new names
+            # to their owning scopes and emit a plain pattern assignment
+            # (redeclaring an existing name in `let [a, b] = ...` is a JS
+            # SyntaxError).
+            inline_ok = True;
+            for (name, name_node) in pattern_names {
+                p_owning = self._declaring_scope_for(name_node);
+                if p_owning is None {
+                    if self._is_declared_in_any_scope(name) {
+                        inline_ok = False;
+                    }
+                } elif (p_owning is not cur_scope) or (name in p_owning.declared) {
+                    inline_ok = False;
+                }
+            }
+            should_declare = inline_ok;
+            if not inline_ok {
+                for (name, name_node) in pattern_names {
+                    p_owning = self._declaring_scope_for(name_node) or cur_scope;
+                    if (
+                        p_owning
+                        and (name not in p_owning.declared)
+                        and not self._is_declared_in_any_scope(name)
+                    ) {
+                        self._hoist_into(p_owning, name, name_node);
+                    }
+                }
+            }
         }
         if should_declare {
             declarator = self.sync_loc(
@@ -2321,10 +2357,13 @@ impl EsastGenPass._try_primitive_op(
     }
     _unparser = JSCodeGenerator();
     _ctx = self._primitives_es_mod.ESEmitCtx(unparser=_unparser);
-    _target_str = _unparser.generate(left_es);
+    # Operand strings get spliced into operator templates, so expression
+    # forms that bind looser than any operator (assignment from a walrus,
+    # conditionals, arrows) must be parenthesized to survive re-parsing.
+    _target_str = self._operand_str(_unparser, left_es);
     _args_strs: list[str] = [];
     if right_es is not None {
-        _args_strs.append(_unparser.generate(right_es));
+        _args_strs.append(self._operand_str(_unparser, right_es));
     }
     _result = _emit_fn(_ctx, _target_str, _args_strs);
     if _result is None {
@@ -2334,6 +2373,21 @@ impl EsastGenPass._try_primitive_op(
         self.needs_jac_runtime = True;
     }
     return self.sync_loc(es.Identifier(name=_result), jac_node=jac_node);
+}
+
+impl EsastGenPass._operand_str(unparser: object, es_node: es.Expression) -> str {
+    rendered = unparser.generate(es_node);
+    if isinstance(
+        es_node,
+        (
+            es.AssignmentExpression,
+            es.ConditionalExpression,
+            es.ArrowFunctionExpression
+        )
+    ) {
+        return "(" + rendered + ")";
+    }
+    return rendered;
 }
 
 impl EsastGenPass._expr_type_name(expr_node: uni.UniNode) -> str {
@@ -3250,7 +3304,14 @@ impl EsastGenPass._target_to_pattern(target: es.Node, loc: uni.UniNode) -> es.No
 impl EsastGenPass.exit_iter_for_stmt(nd: uni.IterForStmt) -> None {
     `init: es.VariableDeclaration | es.Expression | None = None;
     if (nd.iter and nd.iter.gen.es_ast) {
-        `init = cast('es.VariableDeclaration | es.Expression', nd.iter.gen.es_ast);
+        iter_gen = nd.iter.gen.es_ast;
+        if isinstance(iter_gen, es.ExpressionStatement) {
+            # The loop variable's symbol is function-scoped, so the init
+            # assignment was hoisted and emitted as a plain assignment.
+            `init = cast(es.Expression, iter_gen.expression);
+        } else {
+            `init = cast('es.VariableDeclaration | es.Expression', iter_gen);
+        }
     }
     `test: (es.Expression | None) = None;
     if (nd.condition and nd.condition.gen.es_ast) {
@@ -6204,11 +6265,46 @@ impl EsastGenPass._prepend_hoisted(
     return statements;
 }
 
-impl EsastGenPass._ensure_identifier_declared(
-    name: str, jac_node: uni.UniNode
+impl EsastGenPass._declaring_scope_for(
+    name_node: uni.UniNode
+) -> (ScopeInfo | None) {
+    # The symbol table is the scoping oracle: an untyped assignment binds one
+    # function-level symbol no matter which block first assigns it. Resolve
+    # the symbol's owning scope so the `let` lands where the binding lives.
+    # Only scopes with a hoist drain point are eligible; anything else falls
+    # back to the legacy site-local behavior.
+    if not isinstance(name_node, uni.AstSymbolNode) {
+        return None;
+    }
+    sym = name_node.sym;
+    if (sym is None) or (sym.parent_tab is None) {
+        return None;
+    }
+    owner = sym.parent_tab;
+    if not isinstance(owner, (uni.Module, uni.Ability, uni.ImplDef, uni.Test)) {
+        return None;
+    }
+    if isinstance(owner, uni.ImplDef) {
+        # An ImplDef grafted as an ability's body pops its scope before
+        # exit_ability drains hoists, so declarations owned by the impl
+        # scope must land in the declaring ability's scope instead.
+        if not isinstance(owner.decl_link, uni.Ability) {
+            return None;
+        }
+        owner = owner.decl_link;
+    }
+    for scope in reversed(self.scope_stack) {
+        if scope.nd is owner {
+            return scope;
+        }
+    }
+    return None;
+}
+
+impl EsastGenPass._hoist_into(
+    scope: ScopeInfo, name: str, jac_node: uni.UniNode
 ) -> None {
-    scope = self._current_scope();
-    if (not scope or (name in scope.declared)) {
+    if name in scope.declared {
         return;
     }
     ident = self.sync_loc(es.Identifier(name=name), jac_node=jac_node);
@@ -6220,6 +6316,19 @@ impl EsastGenPass._ensure_identifier_declared(
     );
     scope.hoisted.append(decl);
     scope.declared.add(name);
+}
+
+impl EsastGenPass._ensure_identifier_declared(
+    name: str, jac_node: uni.UniNode
+) -> None {
+    if self._is_declared_in_any_scope(name) {
+        return;
+    }
+    scope = self._declaring_scope_for(jac_node) or self._current_scope();
+    if not scope {
+        return;
+    }
+    self._hoist_into(scope, name, jac_node);
 }
 
 impl EsastGenPass._register_declaration(name: str) -> None {
