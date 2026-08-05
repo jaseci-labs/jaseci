@@ -1,9 +1,17 @@
 import io;
 import os;
+import sys;
 import tarfile;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.scale.injector.bundle { pack_jab }
+import from jaclang.scale.injector.bundle {
+    DEFAULT_SEAL_TIMEOUT_S,
+    _stage_app,
+    nested_sanitized_tomls,
+    pack_jab,
+    sanitized_jac_toml,
+    seal_timeout_setting
+}
 
 
 def _mini_app -> str {
@@ -11,6 +19,83 @@ def _mini_app -> str {
     Path(d, "jac.toml").write_text("[project]\nname = \"mini\"\n");
     Path(d, "svc.jac").write_text("def:pub ping -> str { return \"pong\"; }\n");
     return d;
+}
+
+
+def _pinned_app -> str {
+    # A markerless-era app: pinned client subtree, a nested project, secrets
+    # in jac.toml, and a .env that must never reach the stage.
+    d = tempfile.mkdtemp(prefix="jac-app-");
+    Path(d, "jac.toml").write_text(
+        "[project]\nname = \"mini\"\n\n[scale]\nseal_timeout = 123\n\n"
+            + "[scale.secrets]\nAPI_KEY = \"hunter2\"\n\n"
+            + "[placement.pins]\n\"ui*\" = \"client\"\n"
+    );
+    Path(d, "svc.jac").write_text("def:pub ping -> str { return \"pong\"; }\n");
+    os.makedirs(os.path.join(d, "ui"));
+    Path(d, "ui", "page.jac").write_text("def page -> str { return \"ui\"; }\n");
+    os.makedirs(os.path.join(d, "docsite"));
+    Path(d, "docsite", "jac.toml").write_text("[project]\nname = \"docs\"\n");
+    Path(d, "docsite", "index.jac").write_text("def d -> str { return \"x\"; }\n");
+    Path(d, ".env").write_text("SECRET=1\n");
+    return d;
+}
+
+
+test "staging writes sanitized root and nested jac.toml before the seal runs" {
+    base = Path(_pinned_app());
+    stage_root = _stage_app(base, sanitized_jac_toml(base));
+    stage = stage_root / "app";
+    root_toml = (stage / "jac.toml").read_text();
+    assert "placement.pins" in root_toml;
+    assert "secrets" not in root_toml;
+    assert "seal_timeout" in root_toml;
+    assert (stage / "docsite" / "jac.toml").is_file();
+    assert not (stage / ".env").exists();
+}
+
+
+test "placement pins are readable from inside the seal stage (issue 7866)" {
+    base = Path(_pinned_app());
+    stage_root = _stage_app(base, sanitized_jac_toml(base));
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+    staged_page = stage_root / "app" / "ui" / "page.jac";
+    assert config_module_pin(str(staged_page)) == "client";
+}
+
+
+test "nested project tomls are sanitized and enumerated" {
+    base = Path(_pinned_app());
+    nested = nested_sanitized_tomls(base);
+    assert list(nested.keys()) == ["docsite/jac.toml"];
+    assert "docs" in nested["docsite/jac.toml"];
+}
+
+
+test "seal timeout comes from [scale] seal_timeout with a safe default" {
+    assert seal_timeout_setting(_pinned_app()) == 123;
+    assert seal_timeout_setting(_mini_app()) == DEFAULT_SEAL_TIMEOUT_S;
+}
+
+
+test "sealing an app tree without jac.toml fails loudly before compiling" {
+    import from jaclang.utils.precompile_bytecode { main as seal_main }
+    d = tempfile.mkdtemp(prefix="jac-app-");
+    app = Path(d, "app");
+    app.mkdir();
+    (app / "__init__.jac").write_text("");
+    (app / "svc.jac").write_text("def:pub ping -> str { return \"pong\"; }\n");
+    old_argv = sys.argv;
+    sys.argv = ["precompile", d, "--seal"];
+    code = 0;
+    try {
+        seal_main();
+    } except SystemExit as e {
+        code = int(e.code or 0);
+    } finally {
+        sys.argv = old_argv;
+    }
+    assert code == 1;
 }
 
 

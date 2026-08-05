@@ -637,6 +637,17 @@ def main {
     }
 
     pkg_name = Path(package_dir).name;
+    if (seal or seal_compile or finalize_only)
+        and pkg_name != "jaclang"
+        and not (Path(package_dir) / "jac.toml").is_file() {
+        console.error(
+            f"Seal aborted: {package_dir} has no jac.toml. An app seal reads "
+            "placement, nested-project scoping, and app metadata from the "
+            "project config; sealing without it would compile every module "
+            "including client code. Stage a sanitized jac.toml first."
+        );
+        sys.exit(1);
+    }
     pyver = f"cpython-{sys.version_info.major}{sys.version_info.minor}";
     precompiled_dir = Path(package_dir) / "_precompiled";
 
