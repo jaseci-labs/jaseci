@@ -463,8 +463,8 @@ def import_target_pinned_server(nd: uni.Import) -> bool {
     try {
         target = nd.from_loc.resolve_relative_path();
         if isinstance(target, str) and target.endswith('.jac') {
-            import from jaclang.jac0core.placement_pins { config_module_pin }
-            return config_module_pin(target) == 'server';
+            import from jaclang.jac0core.placement_facts { pinned_module_space }
+            return pinned_module_space(target) == 'server';
         }
     } except Exception {
         return False;
