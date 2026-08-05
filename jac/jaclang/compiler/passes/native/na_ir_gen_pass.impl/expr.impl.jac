@@ -759,12 +759,22 @@ impl NaIRGenPass._codegen_compare_link(
             dict_type = self.dict_types.get(dict_key);
             if dict_type is not None and right.type == dict_type.as_pointer() {
                 key_type = helpers["key_type"];
-                left_coerced = self._coerce_type(left, key_type);
+                (left_coerced, _din_gate) = self._opt_membership_operand(
+                    left, key_type
+                );
                 result = self.builder.call(
                     helpers["contains"], [right, left_coerced], name="dict.contains"
                 );
 
                 result = self.builder.zext(result, ir.IntType(64), name="contains.i64");
+                if _din_gate is not None {
+                    result = self.builder.select(
+                        _din_gate,
+                        result,
+                        ir.Constant(ir.IntType(64), 0),
+                        name="dict.in.opt"
+                    );
+                }
                 if is_not_in {
                     result = self.builder.icmp_signed(
                         "==", result, ir.Constant(ir.IntType(64), 0), name="not.in"
@@ -787,11 +797,21 @@ impl NaIRGenPass._codegen_compare_link(
             set_type = self.set_types.get(set_key);
             if set_type is not None and right.type == set_type.as_pointer() {
                 elem_type = helpers["elem_type"];
-                left_coerced = self._coerce_type(left, elem_type);
+                (left_coerced, _sin_gate) = self._opt_membership_operand(
+                    left, elem_type
+                );
                 result = self.builder.call(
                     helpers["contains"], [right, left_coerced], name="set.contains"
                 );
                 result = self.builder.zext(result, ir.IntType(64), name="contains.i64");
+                if _sin_gate is not None {
+                    result = self.builder.select(
+                        _sin_gate,
+                        result,
+                        ir.Constant(ir.IntType(64), 0),
+                        name="set.in.opt"
+                    );
+                }
                 if is_not_in {
                     result = self.builder.icmp_signed(
                         "==", result, ir.Constant(ir.IntType(64), 0), name="not.in"
@@ -814,7 +834,9 @@ impl NaIRGenPass._codegen_compare_link(
             list_type = self.list_types.get(list_key);
             if list_type is not None and right.type == list_type.as_pointer() {
                 elem_type = helpers["elem_type"];
-                left_coerced = self._coerce_type(left, elem_type);
+                (left_coerced, _lin_gate) = self._opt_membership_operand(
+                    left, elem_type
+                );
                 list_len = self.builder.call(
                     helpers["len"], [right], name="list.in.len"
                 );
@@ -870,15 +892,22 @@ impl NaIRGenPass._codegen_compare_link(
                         ir.Constant(ir.IntType(32), 0),
                         name="list.in.eq"
                     );
+                } elif self?.jacval_type and elem.type == self.jacval_type {
+                    eq = self._emit_jacval_eq(left_coerced, elem);
+                } elif isinstance(elem.type, (ir.DoubleType, ir.FloatType)) {
+                    eq = self.builder.fcmp_ordered(
+                        "==", elem, left_coerced, name="list.in.eq"
+                    );
                 } else {
                     eq = self.builder.icmp_signed(
                         "==", elem, left_coerced, name="list.in.eq"
                     );
                 }
+                _lin_end_bb = self.builder.basic_block;
                 next_idx = self.builder.add(
                     idx, ir.Constant(i64, 1), name="list.in.next"
                 );
-                idx.add_incoming(next_idx, check_bb);
+                idx.add_incoming(next_idx, _lin_end_bb);
                 self.builder.cbranch(eq, found_bb, loop_bb);
                 self.builder.position_at_start(found_bb);
                 self.builder.branch(done_bb);
@@ -886,6 +915,11 @@ impl NaIRGenPass._codegen_compare_link(
                 result = self.builder.phi(i64, name="list.in.result");
                 result.add_incoming(ir.Constant(i64, 0), loop_bb);
                 result.add_incoming(ir.Constant(i64, 1), found_bb);
+                if _lin_gate is not None {
+                    result = self.builder.select(
+                        _lin_gate, result, ir.Constant(i64, 0), name="list.in.opt"
+                    );
+                }
                 if is_not_in {
                     result = self.builder.icmp_signed(
                         "==", result, ir.Constant(i64, 0), name="not.in"

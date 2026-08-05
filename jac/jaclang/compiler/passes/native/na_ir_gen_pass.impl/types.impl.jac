@@ -1769,6 +1769,75 @@ impl NaIRGenPass._emit_arch_dunder_binop(
     return _try_dispatch(self, right, left, rmagic);
 }
 
+impl NaIRGenPass._opt_membership_operand(left: ir.Value, slot_type: ir.Type) -> tuple {
+    _pt = self._opt_payload_of(left.type);
+    if _pt is None or (self?.jacval_type and slot_type == self.jacval_type) {
+        return (self._coerce_type(left, slot_type), None);
+    }
+    i8p = ir.IntType(8).as_pointer();
+    _tag = self.builder.extract_value(left, 0, name="opt.in.tag");
+    _tag_set = self.builder.icmp_signed(
+        "!=", _tag, ir.Constant(ir.IntType(8), 0), name="opt.in.has"
+    );
+    _pv = self.builder.extract_value(left, 1, name="opt.in.pv");
+    if _pv.type == i8p and slot_type == i8p {
+        _pv = self.builder.select(
+            _tag_set,
+            _pv,
+            self.builder.bitcast(
+                self._make_global_string(""), i8p, name="opt.in.empty"
+            ),
+            name="opt.in.safe"
+        );
+    }
+    return (self._coerce_type(_pv, slot_type), _tag_set);
+}
+
+impl NaIRGenPass._emit_jacval_eq(left: ir.Value, right: ir.Value) -> ir.Value {
+    i1 = ir.IntType(1);
+    i8 = ir.IntType(8);
+    i8p = ir.IntType(8).as_pointer();
+    ltag = self.builder.extract_value(left, 0, name="jv.eq.ltag");
+    rtag = self.builder.extract_value(right, 0, name="jv.eq.rtag");
+    lpay = self.builder.extract_value(left, 1, name="jv.eq.lpay");
+    rpay = self.builder.extract_value(right, 1, name="jv.eq.rpay");
+    tag_eq = self.builder.icmp_signed("==", ltag, rtag, name="jv.eq.tag");
+    both_str = self.builder.and_(
+        self.builder.icmp_signed("==", ltag, ir.Constant(i8, 2), name="jv.eq.lstr"),
+        self.builder.icmp_signed("==", rtag, ir.Constant(i8, 2), name="jv.eq.rstr"),
+        name="jv.eq.bothstr"
+    );
+    func = self.builder.basic_block.function;
+    entry_bb = self.builder.basic_block;
+    str_bb = func.append_basic_block(name="jv.eq.str");
+    bits_bb = func.append_basic_block(name="jv.eq.bits");
+    merge_bb = func.append_basic_block(name="jv.eq.done");
+    self.builder.cbranch(both_str, str_bb, bits_bb);
+    self.builder.position_at_start(str_bb);
+    strcmp_fn = self._get_or_declare_extern("strcmp", ir.IntType(32), [i8p, i8p]);
+    sres = self.builder.call(
+        strcmp_fn,
+        [
+            self.builder.inttoptr(lpay, i8p, name="jv.eq.lsp"),
+            self.builder.inttoptr(rpay, i8p, name="jv.eq.rsp")
+        ],
+        name="jv.eq.strcmp"
+    );
+    str_eq = self.builder.icmp_signed(
+        "==", sres, ir.Constant(ir.IntType(32), 0), name="jv.eq.streq"
+    );
+    self.builder.branch(merge_bb);
+    self.builder.position_at_start(bits_bb);
+    pay_eq = self.builder.icmp_signed("==", lpay, rpay, name="jv.eq.pay");
+    bits_eq = self.builder.and_(tag_eq, pay_eq, name="jv.eq.bitseq");
+    self.builder.branch(merge_bb);
+    self.builder.position_at_start(merge_bb);
+    res = self.builder.phi(i1, name="jv.eq");
+    res.add_incoming(str_eq, str_bb);
+    res.add_incoming(bits_eq, bits_bb);
+    return res;
+}
+
 impl NaIRGenPass._emit_optional_eq(
     op: str, left: ir.Value, right: ir.Value, is_float: bool
 ) -> (ir.Value | None) {
@@ -1860,6 +1929,16 @@ impl NaIRGenPass._emit_optional_eq(
 impl NaIRGenPass._emit_comparison(
     op: str, left: ir.Value, right: ir.Value, is_float: bool
 ) -> (ir.Value | None) {
+    if self?.jacval_type
+        and left.type == self.jacval_type
+        and right.type == self.jacval_type
+        and op in (Tok.EE, Tok.NE) {
+        _jv_res = self._emit_jacval_eq(left, right);
+        if op == Tok.NE {
+            return self.builder.not_(_jv_res, name="jv.ne");
+        }
+        return _jv_res;
+    }
     _l_opt = self._opt_payload_of(left.type);
     _r_opt = self._opt_payload_of(right.type);
     if _l_opt is not None or _r_opt is not None {
@@ -2125,6 +2204,10 @@ impl NaIRGenPass._emit_comparison(
                         lcmp_elem_ne = self.builder.fcmp_ordered(
                             "!=", lcmp_ea, lcmp_eb, name="lcmp.ene"
                         );
+                    } elif self?.jacval_type and lcmp_et == self.jacval_type {
+                        lcmp_elem_ne = self.builder.not_(
+                            self._emit_jacval_eq(lcmp_ea, lcmp_eb), name="lcmp.ene"
+                        );
                     } else {
                         lcmp_strcmp = self._get_or_declare_extern(
                             "strcmp", ir.IntType(32), [i8_ptr, i8_ptr]
@@ -2161,6 +2244,14 @@ impl NaIRGenPass._emit_comparison(
                 }
 
                 if op in (Tok.LT, Tok.GT, Tok.LTE, Tok.GTE) {
+                    if self?.jacval_type and lcmp_et == self.jacval_type {
+                        self.emit(
+                            E5092,
+                            kind="comparison",
+                            name="ordering on tagged-element lists"
+                        );
+                        return None;
+                    }
                     lcmp_lt_len = self.builder.icmp_unsigned(
                         "<", lcmp_la, lcmp_lb, name="lcmp.lex.ltl"
                     );

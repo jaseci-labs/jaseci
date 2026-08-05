@@ -524,6 +524,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         op: str, left: ir.Value, right: ir.Value, is_float: bool
     ) -> (ir.Value | None);
 
+    def _emit_jacval_eq(left: ir.Value, right: ir.Value) -> ir.Value;
+    def _opt_membership_operand(left: ir.Value, slot_type: ir.Type) -> tuple;
     def _codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
     def _codegen_enum(nd: uni.Enum) -> None;
     def _build_enum_string_table(

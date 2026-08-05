@@ -173,6 +173,44 @@ def list_of_opt -> int {
     return c;
 }
 
+enum Marker { LO = 1, MID = 2, HI = 3 }
+
+obj Cursor {
+    has prev: Marker | None = None;
+}
+
+def marker_membership -> int {
+    c = Cursor();
+    r = 0;
+    if c.prev in [Marker.LO, Marker.MID] {
+        r += 1;
+    }
+    if c.prev not in [Marker.HI] {
+        r += 10;
+    }
+    c.prev = Marker.MID;
+    if c.prev in [Marker.LO, Marker.MID] {
+        r += 100;
+    }
+    if c.prev not in [Marker.HI] {
+        r += 1000;
+    }
+    return r;
+}
+
+def opt_str_membership -> int {
+    s: str | None = None;
+    r = 0;
+    if s in ["a", "b"] {
+        r += 1;
+    }
+    s = "b";
+    if s in ["a", "b"] {
+        r += 10;
+    }
+    return r;
+}
+
 def maybe_pair(flag: int) -> tuple[int, int] | None {
     if flag > 0 {
         return (3, 4);

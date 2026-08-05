@@ -109,6 +109,22 @@ test "optional container elements ride jacval slots" {
     );
 }
 
+test "optional operands in container membership ride tagged slots" {
+    # The sealed-binary build hit this shape in the jac0core lexer
+    # (`prev_token_kind: TokenKind | None` tested with `in [TokenKind...]`):
+    # the optional operand makes the literal a jacval-element list, and the
+    # membership loop used to emit a raw integer icmp on the JacVal struct
+    # (E5020 LLVM IR parse failure). A None operand must also mean plain
+    # False membership, never an unwrap raise or a NULL strcmp.
+    (eng, _) = compile_native("optional_ptr.jac");
+    assert get_func(eng, "marker_membership", ctypes.c_int64)() == 1110 , (
+        "None is in nothing; a carried value matches by payload"
+    );
+    assert get_func(eng, "opt_str_membership", ctypes.c_int64)() == 10 , (
+        "None-string membership is False, value matches by strcmp"
+    );
+}
+
 test "un-narrowed optional use at strict sites is E1121, never runtime UB" {
     msgs = compile_errors("optional_ptr_diag.jac");
     ordering = [
