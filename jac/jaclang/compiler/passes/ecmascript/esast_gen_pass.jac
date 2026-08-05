@@ -25,6 +25,7 @@ import from jaclang.jac0core.diagnostics {
     E5011,
     E5012,
     E5016,
+    E5017,
     W5013,
     W5014,
     W5015,
@@ -123,6 +124,15 @@ glob _T = TypeVar('_T', bound=es.Node),
      LiteralValue = str | bool | int | float | None;
 
 glob VIEW_ACC: str = "__jac_view_kids";
+
+glob ES_STMT_DISPLAY: dict[str, str] = {
+         'DeleteStmt': "'del' statement",
+         'MatchStmt': "'match' statement",
+         'WithStmt': "'with' statement",
+         'OpenStmt': "'open' block",
+         'TypedCtxBlock': 'typed context block',
+         'PyInlineCode': 'inline Python block'
+     };
 
 obj ScopeInfo {
     has nd: uni.UniScopeNode,

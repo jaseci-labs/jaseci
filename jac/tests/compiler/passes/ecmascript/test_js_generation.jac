@@ -2819,3 +2819,75 @@ test "builtin name used as a dict key lowers to that key, not the 'key' fallback
         os.unlink(temp_path);
     }
 }
+
+test "unimplemented client statement is a hard error, not a silent drop (#7922)" {
+    # RC-1: EsastGenPass assembled bodies by silently skipping any statement
+    # that never produced an es_ast, so constructs with no ES lowering
+    # (del, with, ...) vanished from the output while `jac check` stayed
+    # green -- the function compiled but computed the wrong value at
+    # runtime. Any such statement must now be a blocks_codegen error.
+    jac_code = (
+        "def t_del() -> int {\n"
+        "    d: dict[str, int] = {\"a\": 1, \"b\": 2};\n"
+        "    del d[\"a\"];\n"
+        "    return len(d.keys());\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        prog = JacProgram();
+        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        EsastGenPass(ir_in=ir, prog=prog);
+        drops = [
+            e
+            for e in prog.errors_had
+            if "not supported by client codegen" in str(e)
+        ];
+        assert len(drops) == 1 , (
+            "Expected exactly one E5017 silent-drop diagnostic, got "
+            + str([str(e) for e in prog.errors_had])
+        );
+        assert "del" in str(drops[0]) , (
+            "E5017 must name the offending construct; got " + str(drops[0])
+        );
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+test "supported client statements do not trip the completeness guard (#7922)" {
+    # Companion to the guard test: a body exercising the ordinary statement
+    # repertoire (assignment, if/else, loops, try/except, return) must not
+    # produce any E5017 -- the guard fires only for genuinely unlowered
+    # statements.
+    jac_code = (
+        "def t_ok(n: int) -> int {\n"
+        "    total = 0;\n"
+        "    for i in range(n) {\n"
+        "        if i % 2 == 0 { total += i; } else { total += 1; }\n"
+        "    }\n"
+        "    while total > 100 { total -= 10; }\n"
+        "    try { total += 1; } except Exception as e { total = 0; }\n"
+        "    return total;\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        prog = JacProgram();
+        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        EsastGenPass(ir_in=ir, prog=prog);
+        drops = [
+            e
+            for e in prog.errors_had
+            if "not supported by client codegen" in str(e)
+        ];
+        assert not drops , (
+            "Guard false-positive on supported statements: "
+            + str([str(e) for e in drops])
+        );
+    } finally {
+        os.unlink(temp_path);
+    }
+}

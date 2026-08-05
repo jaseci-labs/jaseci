@@ -1337,6 +1337,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Could not generate JavaScript for builtin '{name}': {error}"
      ),
+     E5017 = _err(
+         "E5017",
+         Category.CODEGEN,
+         "{construct} is not supported by client codegen",
+         help="This statement has no ECMAScript lowering yet, and without this error it would be silently dropped from the client bundle. Rewrite it using supported constructs, or move the logic to a server or native codespace.",
+         blocks_codegen=True
+     ),
      W5013 = _warn(
          "W5013",
          Category.CODEGEN,

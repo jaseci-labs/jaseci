@@ -5930,6 +5930,21 @@ impl EsastGenPass._collect_stmt_body(
             );
         } elif isinstance(generated, es.Statement) {
             statements.append(generated);
+        } elif (
+            generated is None
+            and isinstance(stmt, uni.CodeBlockStmt)
+            and not isinstance(stmt, uni.Import)
+        ) {
+            # A statement with no lowering must be a hard error: dropping it
+            # emits a function that compiles clean and computes the wrong
+            # value. Imports are exempt -- dropped client-used imports are
+            # already a dedicated hard error with their own policy.
+            cls_name = stmt.__class__.__name__;
+            self.emit(
+                E5017,
+                node_override=stmt,
+                construct=ES_STMT_DISPLAY.get(cls_name, cls_name)
+            );
         }
     }
     return statements;
