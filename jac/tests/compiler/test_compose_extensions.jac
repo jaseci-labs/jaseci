@@ -509,24 +509,26 @@ test "typed const namespaces resolve to a concrete type, not foreign-any (A1)" {
     # named colors are scalars (`long`) -> int (A2 promotes Color to a value
     # class); they are already non-any, so they stay int for now.
     cc = ev._get_type_from_module(ev.js_globals_module, "ColorNamespace");
-    assert "int" in str(
-        ev.get_type_of_symbol(cc.shared.symbol_table.names_in_scope.get("Red"))
-    );
+    assert "int"
+        in str(ev.get_type_of_symbol(cc.shared.symbol_table.names_in_scope.get("Red")));
 
     # _map_kotlin_type recognizes the layout family by its AndroidX package
     # path (the last-component strip would otherwise collide Vertical/Horizontal
     # across Arrangement and Alignment).
-    assert "ArrangementNamespace" in str(
-        ev._map_kotlin_type("androidx.compose.foundation.layout.Arrangement.Vertical")
-    );
-    assert "ArrangementNamespace" in str(
-        ev._map_kotlin_type(
-            "androidx.compose.foundation.layout.Arrangement.HorizontalOrVertical"
-        )
-    );
-    assert "AlignmentNamespace" in str(
-        ev._map_kotlin_type("androidx.compose.ui.Alignment.Horizontal")
-    );
+    assert "ArrangementNamespace"
+        in str(
+            ev._map_kotlin_type(
+                "androidx.compose.foundation.layout.Arrangement.Vertical"
+            )
+        );
+    assert "ArrangementNamespace"
+        in str(
+            ev._map_kotlin_type(
+                "androidx.compose.foundation.layout.Arrangement.HorizontalOrVertical"
+            )
+        );
+    assert "AlignmentNamespace"
+        in str(ev._map_kotlin_type("androidx.compose.ui.Alignment.Horizontal"));
 }
 
 test "typed layout params catch arrangement/alignment mixups (A1)" {
