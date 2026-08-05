@@ -792,7 +792,11 @@ test "builtins introspection" {
 
 test "match sequence" {
     run_with_both(
-        "prim_match.jac", "match_seq_py", "match_seq_cl", "match_seq_na", require=["na"]
+        "prim_match.jac",
+        "match_seq_py",
+        "match_seq_cl",
+        "match_seq_na",
+        require=["cl", "na"]
     );
 }
 
@@ -802,13 +806,17 @@ test "match star" {
         "match_star_py",
         "match_star_cl",
         "match_star_na",
-        require=["na"]
+        require=["cl", "na"]
     );
 }
 
 test "match mapping" {
     run_with_both(
-        "prim_match.jac", "match_map_py", "match_map_cl", "match_map_na", require=["na"]
+        "prim_match.jac",
+        "match_map_py",
+        "match_map_cl",
+        "match_map_na",
+        require=["cl", "na"]
     );
 }
 
@@ -818,7 +826,7 @@ test "match class" {
         "match_arch_py",
         "match_arch_cl",
         "match_arch_na",
-        require=["na"]
+        require=["cl", "na"]
     );
 }
 
