@@ -43,6 +43,61 @@ test "builder resolves has_memory_request from service, global, and defaults" {
     assert b._get_autoscaler_config("orders_ops")["has_memory_request"];
 }
 
+test "_get_autoscaler_config surfaces the per-service hpa.behavior fragment" {
+    b = _builder(
+        {
+            "billing_ops": {
+                "hpa": {
+                    "behavior": {
+                        "scaleDown": {
+                            "stabilizationWindowSeconds": 600,
+                            "policies": [
+                                {"type": "Pods", "value": 2, "periodSeconds": 300}
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    );
+    cfg = b._get_autoscaler_config("billing_ops");
+    assert cfg["behavior"]["scaleDown"]["stabilizationWindowSeconds"] == 600;
+}
+
+test "_get_autoscaler_config defaults behavior to an empty dict when unset" {
+    b = _builder({"billing_ops": {}});
+    cfg = b._get_autoscaler_config("billing_ops");
+    assert cfg["behavior"] == {};
+}
+
+test "hpa.behavior on one service does not leak onto another" {
+    b = _builder(
+        {
+            "billing_ops": {
+                "hpa": {"behavior": {"scaleDown": {"selectPolicy": "Min"}}}
+            },
+            "orders_ops": {}
+        }
+    );
+    assert b._get_autoscaler_config("billing_ops")["behavior"]
+        == {"scaleDown": {"selectPolicy": "Min"}};
+    assert b._get_autoscaler_config("orders_ops")["behavior"] == {};
+}
+
+test "hpa.enabled false still short-circuits before behavior is considered" {
+    b = _builder(
+        {
+            "billing_ops": {
+                "hpa": {
+                    "enabled": False,
+                    "behavior": {"scaleDown": {"selectPolicy": "Min"}}
+                }
+            }
+        }
+    );
+    assert b._get_autoscaler_config("billing_ops") is None;
+}
+
 test "memory triggers are seeded or skipped based on the resolved request" {
     assert _triggers({}) == ["cpu", "memory"];
     assert _triggers({"has_memory_request": False}) == ["cpu"];
