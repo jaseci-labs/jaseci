@@ -233,7 +233,7 @@ test "issue #6732: a bare expression statement in a slot is accumulated" {
     js_code = es_to_js(es_ast);
 
     # A (the bug): the conditional bare string must be accumulated, not dropped.
-    # It reaches the accumulator through the branch's conditional expression.
+    # It reaches the accumulator through the branch's indexed write.
     assert re.search(
         r'__jac_view_kids\w*(\[\d+\] = |\.push\()[^;]*"BARE_STRING_A"', js_code
     ) , (
