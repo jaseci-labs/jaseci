@@ -176,6 +176,16 @@ test "dict" {
     run_with_both("prim_dict.jac", "dict_py", "dict_cl", "dict_na");
 }
 
+test "unboxed scalars are never None on any backend" {
+    run_with_both(
+        "prim_none_identity.jac",
+        "nid_py",
+        "nid_cl",
+        "nid_na",
+        require=["cl", "na"]
+    );
+}
+
 test "dict get miss is a real None on every backend" {
     run_with_both(
         "prim_dict_get_none.jac",

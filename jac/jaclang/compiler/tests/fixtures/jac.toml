@@ -138,6 +138,8 @@
 "prim_dict.dict_na" = "native"
 "prim_dict_get_none.dgn_cl" = "client"
 "prim_dict_get_none.dgn_na" = "native"
+"prim_none_identity.nid_cl" = "client"
+"prim_none_identity.nid_na" = "native"
 "prim_dict_struct_vals._mk_reg_na" = "native"
 "prim_dict_struct_vals.dict_struct_vals_cl" = "client"
 "prim_dict_struct_vals.dict_struct_vals_na" = "native"

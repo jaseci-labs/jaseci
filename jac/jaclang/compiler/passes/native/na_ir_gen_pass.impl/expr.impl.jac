@@ -1056,8 +1056,10 @@ impl NaIRGenPass._codegen_compare_link(
 
         if isinstance(left.type, ir.IntType)
             and isinstance(right.type, ir.PointerType) {
-            sentinel = ir.Constant(left.type, -1);
-            return self.builder.icmp_signed("==", left, sentinel, name="is.none");
+            # An unboxed scalar is never the None pointer. The old '== -1'
+            # sentinel (a zero-copy marshalling relic) made '-1 is None'
+            # evaluate true.
+            return ir.Constant(ir.IntType(1), 0);
         }
         return self._to_bool(left);
     }
@@ -1091,8 +1093,9 @@ impl NaIRGenPass._codegen_compare_link(
 
         if isinstance(left.type, ir.IntType)
             and isinstance(right.type, ir.PointerType) {
-            sentinel = ir.Constant(left.type, -1);
-            return self.builder.icmp_signed("!=", left, sentinel, name="isnot.none");
+            # Mirror of the KW_IS case: an unboxed scalar is always
+            # 'is not None'.
+            return ir.Constant(ir.IntType(1), 1);
         }
         return self._to_bool(left);
     }
