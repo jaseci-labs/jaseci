@@ -1343,6 +1343,22 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     }
 
     if then_val is not None and else_val is not None {
+        if then_val.type != else_val.type
+            and self._str_desc_ty is not None
+            and (
+                then_val.type == self._str_desc_ty or else_val.type == self._str_desc_ty
+            ) {
+            if then_val.type != self._str_desc_ty {
+                self.builder.position_before(then_end_bb.terminator);
+                then_val = self._coerce_type(then_val, self._str_desc_ty);
+                then_end_bb = self.builder.block;
+            }
+            if else_val.type != self._str_desc_ty {
+                self.builder.position_before(else_end_bb.terminator);
+                else_val = self._coerce_type(else_val, self._str_desc_ty);
+                else_end_bb = self.builder.block;
+            }
+        }
         if then_val.type != else_val.type {
             if isinstance(then_val.type, ir.DoubleType)
                 or isinstance(else_val.type, ir.DoubleType) {

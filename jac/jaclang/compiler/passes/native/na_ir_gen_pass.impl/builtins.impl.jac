@@ -398,6 +398,7 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
             }
             if _spec_val is not None {
                 _dyn = self._emit_dyn_spec_format(val, _spec_val, part);
+                _dyn = self._str_norm(_dyn);
                 if _dyn is None {
                     return None;
                 }
@@ -428,6 +429,7 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 if _tr is None {
                     _sg = self._make_global_string(_spec_txt, name_prefix=".fspec");
                     _sdyn = self._emit_dyn_spec_format(val, _sg, part);
+                    _sdyn = self._str_norm(_sdyn);
                     if _sdyn is None {
                         return None;
                     }
@@ -1280,6 +1282,8 @@ impl NaIRGenPass._emit_dyn_spec_format(
     val: ir.Value, spec_val: ir.Value, part: uni.FormattedValue
 ) -> (ir.Value | None) {
     i8p = ir.IntType(8).as_pointer();
+    val = self._str_norm(val);
+    spec_val = self._str_norm(spec_val);
     kname: (str | None) = None;
     sval = val;
     if isinstance(val.type, ir.IntType) and val.type.width == 1 {
