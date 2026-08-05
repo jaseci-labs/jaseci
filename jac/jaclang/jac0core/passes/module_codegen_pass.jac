@@ -65,7 +65,10 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
             sym = nm.sym;
             if (sym is not None) and sym.defn {
                 cand = sym.defn[0].name_of;
-                if isinstance(cand, uni.Archetype) and (cand.name is not None) {
+                if (
+                    isinstance(cand, (uni.Archetype, uni.Enum))
+                    and (cand.name is not None)
+                ) {
                     names.append(cand.name.value);
                 }
             }
@@ -74,12 +77,24 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
     }
 
     static def shared_archetypes_for_context(
-        module: uni.Module, ctx: CodeContext
+        module: uni.Module, ctx: CodeContext, include_enums: bool = False
     ) -> list[uni.Archetype] {
+        # Enums are value-carrying and side-effect-free, so they are as safe
+        # to dual-emit as data archetypes; the ES backend opts in (a client
+        # function comparing against a server-context enum otherwise loses
+        # the declaration entirely). Native keeps the default: its caller
+        # feeds the layout registry, which is archetype-only.
         shared: dict[(str, uni.Archetype)] = {};
         for arch in module.get_all_sub_nodes(uni.Archetype) {
             if (arch.name is not None) and isinstance(arch.parent, uni.Module) {
                 shared[arch.name.value] = arch;
+            }
+        }
+        if include_enums {
+            for en in module.get_all_sub_nodes(uni.Enum) {
+                if (en.name is not None) and isinstance(en.parent, uni.Module) {
+                    shared[en.name.value] = en;
+                }
             }
         }
         if not shared {

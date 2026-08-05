@@ -4431,6 +4431,7 @@ impl EsastGenPass.exit_enum(nd: uni.Enum) -> None {
     }
     properties: list[(es.Property | es.SpreadElement)] = [];
     inner = self.unwrap_body(nd);
+    next_auto = 1;
     if inner {
         for stmt in inner {
             if isinstance(stmt, uni.Assignment) {
@@ -4442,10 +4443,23 @@ impl EsastGenPass.exit_enum(nd: uni.Enum) -> None {
                         enum_value: es.Expression;
                         if (stmt.value and stmt.value.gen.es_ast) {
                             enum_value = cast(es.Expression, stmt.value.gen.es_ast);
+                            if (
+                                isinstance(enum_value, es.Literal)
+                                and isinstance(enum_value.value, int)
+                                and not isinstance(enum_value.value, bool)
+                            ) {
+                                next_auto = enum_value.value + 1;
+                            }
                         } else {
+                            # Bare member: Python lowers these through
+                            # enum.auto() (1-based, continuing after the last
+                            # explicit int), so the ES side must number
+                            # identically or cross-codespace comparisons
+                            # diverge.
                             enum_value = self.sync_loc(
-                                es.Literal(value=None), jac_node=stmt
+                                es.Literal(value=next_auto), jac_node=stmt
                             );
+                            next_auto += 1;
                         }
                         prop = self.sync_loc(
                             es.Property(key=key, value=enum_value, kind='init'),
@@ -5784,7 +5798,7 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     for stmt in merged_body {
         if stmt.gen.es_ast {
             is_shared_arch = (
-                isinstance(stmt, uni.Archetype)
+                isinstance(stmt, (uni.Archetype, uni.Enum))
                 and (stmt.name is not None)
                 and (stmt.name.value in self.shared_arch_names)
             );
@@ -6295,7 +6309,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         is_native_edge = isinstance(nd, uni.Import)
             and self._is_client_native_import(nd);
         is_shared_arch = (
-            isinstance(nd, uni.Archetype)
+            isinstance(nd, (uni.Archetype, uni.Enum))
             and (nd.name is not None)
             and (nd.name.value in self.shared_arch_names)
         );
@@ -6321,7 +6335,7 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
         is_sv_import = isinstance(nd, uni.Import) and nd.is_service_import;
 
         is_shared_arch = (
-            isinstance(nd, uni.Archetype)
+            isinstance(nd, (uni.Archetype, uni.Enum))
             and (nd.name is not None)
             and (nd.name.value in self.shared_arch_names)
         );
@@ -6362,7 +6376,7 @@ impl EsastGenPass.before_pass -> None {
     self.shared_arch_names: set[str] = {
         a.name.value
         for a in ModuleCodegenPass.shared_archetypes_for_context(
-            self.ir_in, CodeContext.CLIENT
+            self.ir_in, CodeContext.CLIENT, include_enums=True
         )
         if a.name is not None
     };

@@ -14,6 +14,12 @@ test "int" {
     run_with_both("prim_int.jac", "int_py", "int_cl", "int_na");
 }
 
+test "enums" {
+    run_with_both(
+        "prim_enums.jac", "enums_py", "enums_cl", "enums_na", require=["cl"]
+    );
+}
+
 test "float" {
     run_with_both("prim_float.jac", "float_py", "float_cl", "float_na");
 }
