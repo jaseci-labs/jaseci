@@ -36,6 +36,8 @@ __all__ = [
     "Root",
     "GenericEdge",
     "JsxElement",
+    "JsxPage",
+    "JsxLayout",
     "OPath",
     "DSFunc",
     "EdgeDir",
@@ -71,11 +73,8 @@ __all__ = [
     "unsafe_html",
     # Ambient values and constants
     "llm",
-    "NoPerm",
-    "ReadPerm",
-    "ConnectPerm",
-    "WritePerm",
     # Builtin enums
+    "AccessLevel",
     "ScheduleTrigger",
     "APIProtocol",
 ]
@@ -108,7 +107,22 @@ class Root(Node):
 
 class GenericEdge(Edge): ...
 
-class JsxElement:
+# Route marker types for the client file-based router. A `pages/` module whose
+# public export returns `JsxPage` is a route; one returning `JsxLayout` is a
+# layout. `JsxElement` is assignable to both, so a component body returning JSX
+# satisfies a `-> JsxPage` / `-> JsxLayout` signature; the distinct annotation is
+# what marks the export as a route/layout (the name of the export is free).
+class JsxPage:
+    tag: object
+    props: dict[str, object]
+    children: list[object]
+
+class JsxLayout:
+    tag: object
+    props: dict[str, object]
+    children: list[object]
+
+class JsxElement(JsxPage, JsxLayout):
     tag: object
     props: dict[str, object]
     children: list[object]
@@ -119,7 +133,8 @@ class DSFunc: ...
 # First-class region handle: an ownable, sendable, escape-checked allocation
 # extent opened by `in <handle> { ... }`. On managed backends the handle is a
 # no-op; native codegen gives it arena semantics.
-class Region: ...
+class Region:
+    def partition(self) -> Region: ...
 
 class EdgeDir:
     OUT: int
@@ -196,13 +211,13 @@ def unsafe_html(html: object) -> object: ...
 
 def destroy(objs: object) -> None: ...
 
-# ── Permission constants ───────────────────────────────────────────
-NoPerm: int
-ReadPerm: int
-ConnectPerm: int
-WritePerm: int
-
 # ── Builtin enums ──────────────────────────────────────────────────
+class AccessLevel:
+    NO_ACCESS: AccessLevel
+    READ: AccessLevel
+    CONNECT: AccessLevel
+    WRITE: AccessLevel
+
 class ScheduleTrigger:
     STATIC: str
     DYNAMIC: str

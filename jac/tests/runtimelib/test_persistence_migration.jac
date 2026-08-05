@@ -118,7 +118,7 @@ test "new SqliteMemory creates the expected schema" {
             "SELECT value FROM schema_meta WHERE key='db_format_version'"
         );
         row = cursor.fetchone();
-        assert row and row[0] == '1' , "db_format_version must be '1'";
+        assert row and row[0] == '2' , "db_format_version must be '2'";
         mem.close();
     }
 }

@@ -39,6 +39,18 @@ Bug index:
                       Unknown when the included submodule imported back from its
                       own package (circular self-import); poisoned the vendored
                       llvm ir/binding surface and every native pass (#7163)
+  #LOOPHDR-1 - loop-header back-edge detection used find_parent_of_type(<same
+               kind>), so a back edge originating inside a nested loop of the
+               SAME kind was treated as a loop-entry pred and destroyed the
+               header narrowing (#7853)
+  #CYCLE-IMPORT-1 - re-entrant module import while that module's compile was
+                    still on the stack fell into a fresh program.compile of the
+                    same path instead of answering from the in-flight state
+                    (#7853)
+  #CYCLE-TAINT-1 - an Unknown born from the symbol-resolution cycle guard was
+                   cached on the expression node and diagnosed (W1051 / E1032 /
+                   E1053), freezing transient in-flight types that settle once
+                   the cycle unwinds (#7853)
 """
 
 import os;
@@ -48,7 +60,7 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.compiler.type_system.type_utils { compute_mro_linearization }
-import from jaclang.compiler.type_system.types { ClassType, TypeFlags }
+import from jaclang.compiler.type_system.types { ClassType, TypeFlags, UnknownType }
 
 glob CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "checker"
@@ -577,7 +589,7 @@ test "bug_impl1_has_var_shadow_in_impl_body" {
     );
     program = JacProgram();
     program.compile(
-        os.path.join(fixture_dir, "impl_has_var_reassign.cl.jac"), type_check=True
+        os.path.join(fixture_dir, "impl_has_var_reassign.jac"), type_check=True
     );
 
     # Expected after fix: 0 errors. The impl body should type-check cleanly:
@@ -1065,5 +1077,153 @@ test "bug_7163_llvm_ir_boundary_resolves" {
         "Bug #7163: `import from ...llvm { ir }` then `ir.Value` with `.type` "
         "must resolve. `ir.Value` was Unknown (member access on an absorbed "
         f"symbol). Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #LOOPHDR-1 / #7853: loop-header narrowing merges only loop-entry
+# preds; back edges are skipped. Detection used
+# `pred.find_parent_of_type(<kind of header>)`, i.e. the NEAREST same-kind
+# ancestor, so a back edge originating inside a nested loop of the SAME
+# kind (the tail of the inner loop's else clause links straight to the
+# outer header) resolved to the inner loop, was mistaken for a loop-entry
+# pred, and its widening assignment (`cur = start`, Item | None) erased the
+# entry narrowing (`cur = Item()`). `cur.val` in the outer body then raised
+# a spurious "Cannot access attribute ... missing from NoneType" error.
+# The fixture's single-loop control is the unnested equivalent that always
+# checked clean; nested same-kind loops must match it.
+# =========================================================================
+test "bug_loophdr1_nested_same_kind_loop_back_edge" {
+    program = compile_and_check("checker_nested_loop_backedge.jac");
+    assert program.errors_had == [] , (
+        "Bug #LOOPHDR-1: a back edge into a loop header that originates "
+        "inside a nested loop of the same kind must be skipped when "
+        "computing the header narrowing, exactly like its unnested "
+        "equivalent. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #CYCLE-IMPORT-1 / #7853, part 1: a well-formed two-module import
+# cycle where each side uses the other's symbol in a signature must check
+# clean end-to-end. (This path is answered from the module hub -- the
+# partially-built tree -- and guards the overall cyclic-import contract.)
+# =========================================================================
+test "bug_cycimp1_cyclic_import_pair_checks_clean" {
+    program = compile_and_check("checker_cycle_import_sig_a.jac");
+    assert program.errors_had == [] , (
+        "Bug #CYCLE-IMPORT-1: a cyclic import pair with signature-level "
+        "cross-references must produce no errors. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    unresolved = [
+        w
+        for w in program.warnings_had
+        if "could not be resolved" in str(w)
+    ];
+    assert unresolved == [] , (
+        "Bug #CYCLE-IMPORT-1: a cyclic import pair must not leave W1051 "
+        f"noise. Got: {[str(w) for w in unresolved]}"
+    );
+}
+
+# =========================================================================
+# Bug #CYCLE-IMPORT-1 / #7853, part 2: the re-entrant import guard itself.
+# When the evaluator is asked for a module whose compile is still on the
+# stack (tracked in `_modules_in_compile`) and the partial tree is not in
+# any hub yet -- reachable organically only through the narrow window
+# before parse publishes the module (e.g. a parse-failed member of a
+# native cyclic pair) -- it must answer with a stub instead of re-entering
+# program.compile for the same path (unbounded mutual recursion). This
+# test drives the branch directly: it marks the path as in-compile and
+# asserts the stub answer, that no compile happened (no diagnostics, path
+# still absent from the hub), and that a later, non-re-entrant query does
+# compile and resolve the real module.
+# =========================================================================
+test "bug_cycimp1_reentrant_import_guard_returns_stub" {
+    import from pathlib { Path }
+    program = JacProgram();
+    evaluator = program.get_type_evaluator();
+    target = str(
+        Path(os.path.join(CHECKER_FIXTURES, "checker_cycle_guard_target.jac")).resolve()
+    );
+    pre_errs = len(program.errors_had);
+    evaluator._modules_in_compile.add(target);
+    try {
+        stub = evaluator._import_module_from_path(target);
+    } finally {
+        evaluator._modules_in_compile.discard(target);
+    }
+    assert stub.stub_only , (
+        "Bug #CYCLE-IMPORT-1: a re-entrant import of a mid-compile module "
+        "absent from every hub must return a stub module."
+    );
+    assert target not in program.mod.hub , (
+        "Bug #CYCLE-IMPORT-1: the re-entrant import guard must not compile "
+        "or publish the module -- that is the in-flight compile's job."
+    );
+    assert len(program.errors_had) == pre_errs , (
+        "Bug #CYCLE-IMPORT-1: the guard path must not emit diagnostics. "
+        f"Got errors: {[str(e) for e in program.errors_had[pre_errs:]]}"
+    );
+
+    settled = evaluator._import_module_from_path(target);
+    assert not settled.stub_only and settled.name == "checker_cycle_guard_target" , (
+        "Bug #CYCLE-IMPORT-1: once the module is no longer mid-compile, the "
+        "same query must compile and return the real module."
+    );
+}
+
+# =========================================================================
+# Bug #CYCLE-TAINT-1 / #7853: an Unknown produced by the symbol-resolution
+# cycle guard (get_type_of_symbol re-entered for a symbol already on the
+# resolution stack) is transient: once the cycle unwinds, the type settles.
+# The checker used to treat it like any other Unknown -- caching it on the
+# expression node, emitting W1051, letting E1032 fire on attribute access
+# and E1053 on argument checks, and freezing the assignment's LHS -- so
+# code whose types fully settle reported spurious diagnostics and the
+# symbol stayed Unknown forever.
+#
+# Fixture shape (mutually referencing globals across an import cycle):
+#   main:    glob CONFIG = REGISTRY.defaults;
+#   sibling: glob REGISTRY = Reg() if CONFIG is None else Reg();
+# Resolving CONFIG re-enters CONFIG through the sibling's initializer, but
+# the re-entrant leg only feeds `is None` (bool either way), so REGISTRY
+# settles to Reg and CONFIG to dict. Pre-fix this produced 2 spurious
+# errors (E1032-style attribute access, E1053-style len() arg) plus W1051
+# noise, and get_type_of_symbol(CONFIG) stayed <Unknown> after the pass.
+# =========================================================================
+test "bug_cyctaint1_settling_cycle_checks_clean_and_resolves" {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
+        options=CompileOptions(type_check=False, default_codespace='server')
+    );
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    assert program.errors_had == [] , (
+        "Bug #CYCLE-TAINT-1: a symbol-resolution cycle whose types settle "
+        "after unwinding must not produce errors. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    unresolved = [
+        w
+        for w in program.warnings_had
+        if "could not be resolved" in str(w)
+    ];
+    assert unresolved == [] , (
+        "Bug #CYCLE-TAINT-1: the transient in-flight Unknown must not be "
+        f"diagnosed as W1051. Got: {[str(w) for w in unresolved]}"
+    );
+
+    config_sym = mod.names_in_scope.get("CONFIG");
+    assert config_sym is not None , "CONFIG symbol missing from fixture module";
+    settled = program.get_type_evaluator().get_type_of_symbol(config_sym);
+    assert not isinstance(settled, UnknownType) and str(settled) == "dict" , (
+        "Bug #CYCLE-TAINT-1: after the cycle unwinds, a later query must "
+        "resolve the settled type (dict via Reg.defaults), not a frozen "
+        f"Unknown. Got: {settled}"
     );
 }

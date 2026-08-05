@@ -588,6 +588,9 @@ impl NaIRGenPass._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     vals = b.load(
         b.gep(d_arg, [z32, ir.Constant(i32, 3)], name="rp.d.vals.p"), name="rp.d.vals"
     );
+    order = b.load(
+        b.gep(d_arg, [z32, ir.Constant(i32, 6)], name="rp.d.ord.p"), name="rp.d.order"
+    );
     acc: any = b.alloca(i8p, name="rp.acc");
     iv = b.alloca(i64, name="rp.i");
     b.store(self._rc_strdup(open_g, name="rp.acc0"), acc);
@@ -600,11 +603,12 @@ impl NaIRGenPass._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     i_cur: any = b.load(iv, name="rp.iv");
     b.cbranch(b.icmp_signed("<", i_cur, len_v, name="rp.more"), body_bb, done_bb);
     b.position_at_end(body_bb);
+    _slot: any = b.load(b.gep(order, [i_cur], name="rp.slp"), name="rp.slot");
     self._repr_maybe_sep(fn, i_cur, acc, sep_g);
-    k_el: any = b.load(b.gep(keys, [i_cur], name="rp.k.p"), name="rp.k");
+    k_el: any = b.load(b.gep(keys, [_slot], name="rp.k.p"), name="rp.k");
     self._repr_acc_concat(acc, self._repr_call_elem_fn(kfn, k_el), True);
     self._repr_acc_concat(acc, colon_g, False);
-    v_el: any = b.load(b.gep(vals, [i_cur], name="rp.v.p"), name="rp.v");
+    v_el: any = b.load(b.gep(vals, [_slot], name="rp.v.p"), name="rp.v");
     self._repr_acc_concat(acc, self._repr_call_elem_fn(vfn, v_el), True);
     b.store(b.add(i_cur, ir.Constant(i64, 1), name="rp.inc"), iv);
     b.branch(cond_bb);

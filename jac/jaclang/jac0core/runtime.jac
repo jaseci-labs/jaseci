@@ -28,12 +28,11 @@ import from uuid { UUID }
 import from jaclang.jac0core.archetype {
     GenericEdge,
     ObjectAnchor,
-    ObjectSpatialDestination,
     ObjectSpatialFunction,
-    ObjectSpatialPath,
     Root
 }
 import from jaclang.jac0core.constant { EdgeDir, colors }
+import from jaclang.jac0core.graph_query { GraphQuery, QHop }
 import from jaclang.jac0core.constructs {
     AccessLevel,
     access_level_cast,
@@ -67,9 +66,13 @@ import type from jaclang.runtimelib.server { ModuleIntrospector, UserManager }
 glob logger = getLogger(__name__),
      T = TypeVar('T'),
      P = ParamSpec('P'),
-     JsonValue: TypeAlias = None | str | int | float | bool | `list['JsonValue'] | `dict[
-         (str, 'JsonValue')
-     ],
+     JsonValue: TypeAlias = None
+         | str
+         | int
+         | float
+         | bool
+         | `list['JsonValue']
+         | `dict[(str, 'JsonValue')],
      StatusCode: TypeAlias = Literal[(200, 201, 400, 401, 404, 500, 503)],
      _request_context: ContextVar[ExecutionContext | None] = ContextVar(
          'request_context', default=None
@@ -93,47 +96,6 @@ def _scale_provider -> any {
     } except ImportError { }
     _scale_provider_cache.append(result);
     return result;
-}
-
-def _prefetch_edges(origin: list[NodeArchetype]) -> None {
-    ctx = JacRuntimeInterface.get_context();
-    if not hasattr(ctx.mem, 'batch_get') {
-        return;
-    }
-    edge_ids: list = [];
-    for nd in origin {
-        nanch = nd.__jac__;
-        for edge_stub in nanch.edges {
-            if not edge_stub.is_populated() {
-                edge_ids.append(edge_stub.id);
-            }
-        }
-    }
-    if edge_ids {
-        ctx.mem.batch_get(edge_ids);
-    }
-    node_ids: list = [];
-    for nd in origin {
-        nanch = nd.__jac__;
-        for anchor in nanch.edges {
-            loaded = ctx.mem.get(anchor.id);
-            if loaded {
-                if loaded?.source
-                and loaded.source is not None
-                and not loaded.source.is_populated() {
-                    node_ids.append(loaded.source.id);
-                }
-                if loaded?.target
-                and loaded.target is not None
-                and not loaded.target.is_populated() {
-                    node_ids.append(loaded.target.id);
-                }
-            }
-        }
-    }
-    if node_ids {
-        ctx.mem.batch_get(node_ids);
-    }
 }
 
 def resolve_ref(
@@ -179,7 +141,6 @@ class JacClassReferences {
     with entry {
         TYPE_CHECKING: bool = TYPE_CHECKING;
         DSFunc = ObjectSpatialFunction;
-        OPath = ObjectSpatialPath;
         Root = Root;
         GenericEdge = GenericEdge;
         Obj = Archetype;
@@ -258,30 +219,15 @@ class JacAccessValidation {
 }
 
 class JacGraph {
-    static def get_edges(
-        origin: list[NodeArchetype], destination: ObjectSpatialDestination
-    ) -> list[EdgeArchetype];
-
-    static def get_edges_with_node(
-        origin: list[NodeArchetype],
-        destination: ObjectSpatialDestination,
-        from_visit: bool = False
-    ) -> list[(EdgeArchetype | NodeArchetype)];
-
-    static def edges_to_nodes(
-        origin: list[NodeArchetype], destination: ObjectSpatialDestination
-    ) -> list[NodeArchetype];
-
     static def refs(
-        path: ObjectSpatialPath | NodeArchetype | list[NodeArchetype],
-        post_filter: (Callable[([Archetype], bool)] | None) = None,
+        path: GraphQuery | NodeArchetype | list[NodeArchetype],
         slc: (slice | None) = None
-    ) -> list[NodeArchetype] | list[EdgeArchetype] | list[
-        (NodeArchetype | EdgeArchetype)
-    ];
+    ) -> list[NodeArchetype]
+        | list[EdgeArchetype]
+        | list[(NodeArchetype | EdgeArchetype)];
 
     static async def arefs(
-        path: ObjectSpatialPath | NodeArchetype | list[NodeArchetype]
+        path: GraphQuery | NodeArchetype | list[NodeArchetype]
     ) -> None;
 
     static def filter_on(
@@ -322,9 +268,12 @@ class JacWalker {
         `walker: WalkerArchetype,
         expr:
             (
-                list[(NodeArchetype | EdgeArchetype)] | list[NodeArchetype] | list[
-                    EdgeArchetype
-                ] | NodeArchetype | EdgeArchetype | ObjectSpatialPath
+                list[(NodeArchetype | EdgeArchetype)]
+                | list[NodeArchetype]
+                | list[EdgeArchetype]
+                | NodeArchetype
+                | EdgeArchetype
+                | GraphQuery
             ),
         insert_loc: int = -1
     ) -> bool;
@@ -534,7 +483,8 @@ class JacRuntime(JacRuntimeInterface) {
 
         strict_permissions: bool = os.environ.get(
             "JAC_STRICT_PERMISSIONS", ""
-        ).strip().lower() in ("1", "true", "yes", "on");
+        ).strip().lower()
+            in ("1", "true", "yes", "on");
     }
 
     @classmethod

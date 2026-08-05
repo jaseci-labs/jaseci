@@ -242,13 +242,22 @@ impl JacAPIServerEndpoints.create_function_parameters(
 
 impl JacAPIServerEndpoints.create_function_callback(
     func_name: str
-) -> Callable[..., (TransportResponse | StreamingResponse)] {
+) -> Callable[..., (TransportResponse | StreamingResponse | Response)] {
     import from jaclang.runtimelib.transport { TransportResponse, Meta }
     import from fastapi { Request }
     requires_auth = self.introspector.is_auth_required_for_function(func_name);
+
+    func_spec = self.get_functions()[func_name].restspec
+        if self.get_functions()[func_name]?.restspec
+        else None;
+    raw_body = func_spec is not None and not func_spec.envelope;
+    raw_media_type = (func_spec.produces or 'text/plain')
+        if func_spec
+        else 'text/plain';
+
     async def callback(
         request: Request, **kwargs: JsonValue
-    ) -> (TransportResponse | StreamingResponse) {
+    ) -> (TransportResponse | StreamingResponse | Response) {
         username: (str | None) = request.state?.username if request?.state else None;
         if requires_auth and not username {
             return TransportResponse.fail(
@@ -288,6 +297,19 @@ impl JacAPIServerEndpoints.create_function_callback(
                 details=result.get('traceback') if 'traceback' in result else None,
                 meta=Meta(extra={'http_status': 500})
             );
+        }
+        if raw_body {
+            payload = result.get('result') if isinstance(result, dict) else result;
+            if isinstance(payload, bytes) {
+                body = payload;
+            } elif isinstance(payload, str) {
+                body = payload.encode('utf-8');
+            } elif payload is None {
+                body = b"";
+            } else {
+                body = json.dumps(payload).encode('utf-8');
+            }
+            return Response(content=body, media_type=raw_media_type);
         }
         return TransportResponse.success(
             data=result, meta=Meta(extra={'http_status': 200})
@@ -573,10 +595,12 @@ impl JacAPIServerEndpoints.create_webhook_parameters(
 }
 
 impl JacAPIServerEndpoints.register_webhook_endpoints -> None {
+    has_webhook_walkers = False;
     for walker_name in self.get_walkers() {
         protocol = self.get_walker_protocol(walker_name);
 
         if protocol == APIProtocol.WEBHOOK {
+            has_webhook_walkers = True;
             self.server.add_endpoint(
                 JEndPoint(
                     method=HTTPMethod.POST,
@@ -590,6 +614,9 @@ impl JacAPIServerEndpoints.register_webhook_endpoints -> None {
                 )
             );
         }
+    }
+    if has_webhook_walkers {
+        self.get_api_key_manager();
     }
 }
 

@@ -63,52 +63,50 @@ def _get_or_seed_anchor -> Products {
     return anchor;
 }
 
-sv {
-    # No :pub - requires a valid session, so a gateway-issued token proves
-    # cross-service identity (the service JIT-provisions the user root).
-    def whoami -> dict {
-        return {"authenticated": True};
-    }
+# No :pub - requires a valid session, so a gateway-issued token proves
+# cross-service identity (the service JIT-provisions the user root).
+def whoami -> dict {
+    return {"authenticated": True};
+}
 
-    def:pub list_products -> list[dict] {
-        anchor = _get_or_seed_anchor();
-        items: list = [];
-        for p in [anchor-->][?:Product] {
-            items.append(
-                {
-                    "id": p.id,
-                    "name": p.name,
-                    "price": p.price,
-                    "description": p.description,
-                    "stock": p.stock
-                }
-            );
-        }
-        return items;
-    }
-
-    def:pub get_product(product_id: str) -> dict {
-        anchor = _get_or_seed_anchor();
-        for p in [anchor-->][?:Product] {
-            if p.id == product_id {
-                return {
-                    "id": p.id,
-                    "name": p.name,
-                    "price": p.price,
-                    "description": p.description,
-                    "stock": p.stock
-                };
+def:pub list_products -> list[dict] {
+    anchor = _get_or_seed_anchor();
+    items: list = [];
+    for p in [anchor-->][?:Product] {
+        items.append(
+            {
+                "id": p.id,
+                "name": p.name,
+                "price": p.price,
+                "description": p.description,
+                "stock": p.stock
             }
-        }
-        return {"error": "Product not found"};
+        );
     }
+    return items;
+}
 
-    @restspec(protocol=APIProtocol.WEBSOCKET)
-    async walker:pub EchoMessage {
-        has message: str;
-
-        async can echo with Root entry {
-            report {"echo": self.message, "from": "products_app"};
+def:pub get_product(product_id: str) -> dict {
+    anchor = _get_or_seed_anchor();
+    for p in [anchor-->][?:Product] {
+        if p.id == product_id {
+            return {
+                "id": p.id,
+                "name": p.name,
+                "price": p.price,
+                "description": p.description,
+                "stock": p.stock
+            };
         }
+    }
+    return {"error": "Product not found"};
+}
+
+@restspec(protocol=APIProtocol.WEBSOCKET)
+async walker:pub EchoMessage {
+    has message: str;
+
+    async can echo with Root entry {
+        report {"echo": self.message, "from": "products_app"};
     }
 }

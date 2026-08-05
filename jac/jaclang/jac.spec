@@ -63,7 +63,11 @@ spawn ::= "spawn" unpack | unpack ("spawn" unpack)*
 
 unpack ::= "*" ref | ref
 
-ref ::= "own" await_expr | "&" (await_expr | "mut"? await_expr) | await_expr
+ref ::=
+    "own" await_expr
+    | "imm" await_expr
+    | "&" (await_expr | "mut"? await_expr)
+    | await_expr
 
 await_expr ::= "await" pipe_call | pipe_call
 
@@ -240,12 +244,6 @@ jsx_child ::=
 
 element_stmt ::=
     ";"
-    | client_block
-    | "cl" element_stmt
-    | server_block
-    | "sv" element_stmt
-    | native_block
-    | "na" element_stmt
     | type_alias
     | import_stmt
     | archetype
@@ -260,14 +258,7 @@ element_stmt ::=
     | module_code
 
 docstring_target ::=
-    STRING
-    (test | enum | type_alias | global_var | impl_def | module_code | element_stmt)?
-
-client_block ::= "cl" ("{" element_stmt* "}" | element_stmt)
-
-server_block ::= "sv" ("{" element_stmt* "}" | element_stmt)?
-
-native_block ::= "na" ("{" element_stmt* "}" | element_stmt)?
+    STRING (test | enum | type_alias | global_var | impl_def | module_code)?
 
 module_code ::=
     "with" ("exit" | "entry")? (":" (NAME | KWESC_NAME))? "{" code_block_stmts "}"
@@ -321,7 +312,7 @@ open_stmt ::= "in" expression "{" code_block_stmts "}"
 forever_stmt ::= "forever" "{" code_block_stmts "}"
 
 for_stmt ::=
-    "async"? "for" atomic_chain (
+    "async"? "flow"? "for" atomic_chain (
         "=" expression "while" expression "with" atomic_chain assignment_with_target?
         "{" code_block_stmts "}" else_stmt?
         | "in" expression "{" code_block_stmts "}" else_stmt?

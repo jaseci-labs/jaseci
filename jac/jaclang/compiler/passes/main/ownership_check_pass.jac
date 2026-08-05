@@ -26,10 +26,13 @@ enum AccessKind {
     READ = "read"
 }
 
+def _stdlib_attr_call_root(call: uni.FuncCall) -> (str | None);
+
 obj BorrowMeta {
     has name: str,
         owner: (SymId | None) = None,
-        is_mut: bool = False;
+        is_mut: bool = False,
+        field: str = "";
 }
 
 obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
@@ -63,6 +66,8 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _nogc_setup -> None;
     def _nogc_resolve_provenance -> (str | None);
     def _nogc_infer_locals -> None;
+    def _nogc_str_slice_value(expr: uni.Expr | None) -> bool;
+    def _nogc_str_elem_ok(expr: uni.Expr | None, idx_ctx: bool = False) -> bool;
     def _nogc_tag_shape(tag: uni.SubTag | None) -> str;
     def _nogc_local_shape(nm: uni.Name) -> str;
     def _nogc_local_shape_expr_heap(expr: uni.Expr | None) -> bool;
@@ -72,6 +77,15 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _nogc_container_grow_method(call: uni.FuncCall) -> (str | None);
     def _nogc_module_enforced(mod_name: str) -> bool;
     def _nogc_check_call(call: uni.FuncCall, prov: str) -> None;
+    def _own_field_target(tgt: uni.AtomTrailer) -> bool;
+    def _nogc_fresh_arch_elem(expr: uni.Expr | None) -> bool;
+    def _nogc_fresh_scalar_list(expr: uni.Expr | None) -> bool;
+    def _stamp_loop_borrows -> None;
+    def _emit_element_space_conflicts -> None;
+    def _emit_freeze_diagnostics -> None;
+    def _emit_seal_warnings -> None;
+    def _flow_lend_joined(cexpr: uni.ConcurrentExpr, owner_sid: SymId) -> bool;
+    def _spawn_move_gen(nd: uni.UniCFGNode) -> set[SymId];
     def _emit_enforcement_diagnostics -> None;
     def _build_index(tree: uni.UniNode) -> None;
     def _stamp_ownership -> None;
@@ -103,6 +117,11 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _region_callee_is_safe(call: uni.FuncCall, region: uni.OpenStmt) -> bool;
     def _stamp_region_borrows -> None;
     def _open_handle_name(region: uni.OpenStmt) -> (uni.Name | None);
+    def _seal_connect_handle(bx: uni.BinaryExpr) -> (uni.Name | None);
+    def _flow_for_stmts -> list[uni.InForStmt];
+    def _emit_flow_for_diagnostics -> None;
+    def _seal_arch_ctor(fc: uni.FuncCall) -> bool;
+    def _emit_post_seal_diagnostics(region: uni.OpenStmt) -> None;
     def _region_handle_sid(region: uni.OpenStmt) -> (SymId | None);
     def _region_handle_kind(region: uni.OpenStmt) -> str;
     def _param_is_region_borrow(param: uni.ParamVar) -> bool;
@@ -155,6 +174,9 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _owned_name(sym_id: SymId, fallback: str) -> str;
     def _borrow_owner_of(borrow_id: SymId) -> (SymId | None);
     def _borrow_is_mut_of(borrow_id: SymId) -> bool;
+    def _borrow_field_of(borrow_id: SymId) -> str;
+    def _single_field_of(nd: uni.Expr | None) -> str;
+    def _fields_overlap(a: str, b: str) -> bool;
     def _borrow_display_name(borrow_id: SymId, fallback: str) -> str;
     def _classify_access(nd: uni.Name) -> AccessKind;
     def _is_write_target(nd: uni.Name) -> bool;

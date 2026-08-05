@@ -191,6 +191,31 @@ impl NaIRGenPass._make_list_iter(
     return self._make_jac_iter(next_fn, state);
 }
 
+impl NaIRGenPass._get_char_cache_gv -> ir.Value {
+    sym = "__jac_chars";
+    if sym in self.llvm_module.globals {
+        return self.llvm_module.globals[sym];
+    }
+    i8 = ir.IntType(8);
+    i64 = ir.IntType(64);
+    arr2_type = ir.ArrayType(i8, 2);
+    char_struct_type = ir.LiteralStructType([i64, i64, arr2_type]);
+    arr256_type = ir.ArrayType(char_struct_type, 256);
+    sentinel = ir.Constant(i64, RC_SENTINEL);
+
+    dtor_len1 = ir.Constant(i64, (1 << 1) | 1);
+    entries: list = [];
+    for _bi in range(256) {
+        c_arr = ir.Constant(arr2_type, bytearray([_bi, 0]));
+        entries.append(ir.Constant(char_struct_type, [sentinel, dtor_len1, c_arr]));
+    }
+    cache_gv = ir.GlobalVariable(self.llvm_module, arr256_type, name=sym);
+    cache_gv.linkage = "private";
+    cache_gv.global_constant = True;
+    cache_gv.initializer = ir.Constant(arr256_type, entries);
+    return cache_gv;
+}
+
 impl NaIRGenPass._str_iter_next_fn -> ir.Function {
     key = "str";
     if key in self._iter_next_fns {
@@ -201,7 +226,9 @@ impl NaIRGenPass._str_iter_next_fn -> ir.Function {
     i64 = ir.IntType(64);
     i1 = ir.IntType(1);
     state_ptr_type = self.struct_types["StrIterState"].as_pointer();
-    strlen_fn = self._get_or_declare_extern("strlen", i64, [i8p]);
+    if self.str_len_fn is None {
+        self._emit_str_len_helpers();
+    }
     nfty = ir.FunctionType(i1, [i8p, i8p]);
     fn = ir.Function(self.llvm_module, nfty, name="__iter_next_str");
     fn.linkage = "private";
@@ -221,17 +248,20 @@ impl NaIRGenPass._str_iter_next_fn -> ir.Function {
         state, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="sit.idx.slot"
     );
     idx = b.load(idx_slot, name="sit.idx");
-    n = b.call(strlen_fn, [s_ptr], name="sit.len");
+    n = b.call(self.str_len_fn, [s_ptr], name="sit.len");
     ok = b.icmp_signed("<", idx, n, name="sit.ok");
     b.cbranch(ok, cont, stop);
     b.position_at_end(cont);
 
-    i8 = ir.IntType(8);
     char_ptr = b.gep(s_ptr, [idx], name="sit.char.ptr");
     char_val = b.load(char_ptr, name="sit.char");
-    ch = b.call(self.rc_alloc_fn, [ir.Constant(i64, 2)], name="sit.char.str");
-    b.store(char_val, ch);
-    b.store(ir.Constant(i8, 0), b.gep(ch, [ir.Constant(i64, 1)], name="sit.null.ptr"));
+    byte_idx = b.zext(char_val, i64, name="sit.char.idx");
+    cache_gv = self._get_char_cache_gv();
+    ch = b.gep(
+        cache_gv,
+        [ir.Constant(i32, 0), byte_idx, ir.Constant(i32, 2), ir.Constant(i32, 0)],
+        name="sit.char.cached"
+    );
     out_t = b.bitcast(fn.args[1], i8p.as_pointer(), name="sit.out");
     b.store(ch, out_t);
     b.store(b.add(idx, ir.Constant(i64, 1), name="sit.idx.next"), idx_slot);
@@ -623,7 +653,7 @@ impl NaIRGenPass._make_iter_from_value(
         return (self._make_str_iter(val), "str", i8p);
     }
     if self._jac_iter_type is not None
-    and val.type == self._jac_iter_type.as_pointer() {
+        and val.type == self._jac_iter_type.as_pointer() {
         if not self._is_owned(val) {
             self._emit_rc_retain(val, op="iter_alias");
             self._mark_owned(val);
@@ -709,7 +739,7 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
         params = expr.params or [];
 
         if cname in ("map", "filter", "enumerate", "zip", "iter")
-        and expr.call_kind != "builtin" {
+            and expr.call_kind != "builtin" {
             cname = None;
         }
         if cname == "map" and len(params) == 2 {
@@ -1070,7 +1100,7 @@ impl NaIRGenPass._resolve_method(
 
 impl NaIRGenPass._arch_implements_iter(arch_name: str) -> bool {
     return self._resolve_method(arch_name, "__next__") is not None
-    or self._resolve_method(arch_name, "__iter__") is not None;
+        or self._resolve_method(arch_name, "__iter__") is not None;
 }
 
 impl NaIRGenPass._user_iter_next_fn(
@@ -1273,7 +1303,7 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
 
     _gen_it_spill: (ir.Value | None) = None;
     if self._gen_ctx is not None
-    and self.builder.function is self._gen_ctx["resume_fn"] {
+        and self.builder.function is self._gen_ctx["resume_fn"] {
         _gen_it_spill = self._entry_alloca(iter_val.type, "iterf.itslot");
         self.builder.store(iter_val, _gen_it_spill);
     }

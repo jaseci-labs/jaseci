@@ -56,7 +56,7 @@ test "db inspect prints a summary with counts" {
         # fragile. The summary line is enough to prove the CLI ran
         # correctly; archetype-level correctness is exercised by
         # backend-direct unit tests.
-        assert "format_version=1" in out , f"summary missing format_version: {out!r}";
+        assert "format_version=2" in out , f"summary missing format_version: {out!r}";
         # Create walker makes 2 LegacyPerson nodes on root, which also
         # creates 2 GenericEdge anchors -- 5 anchors total with root.
         assert "anchors=5" in out , f"expected anchors=5 in summary: {out!r}";

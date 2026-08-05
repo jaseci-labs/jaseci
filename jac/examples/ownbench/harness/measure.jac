@@ -61,7 +61,7 @@ def mode_flags(mode: str) -> list[str] {
 
 """Compile one kernel under one mode; exit loudly on failure."""
 def compile_kernel(kernel: str, mode: str) -> Path {
-    src = BENCH / "kernels" / f"{kernel}.na.jac";
+    src = BENCH / "kernels" / f"{kernel}.jac";
     out = BENCH / "bin" / f"{kernel}_{mode}";
     out.parent.mkdir(exist_ok=True);
     cmd = ["jac", "nacompile", str(src)] + mode_flags(mode) + ["-o", str(out)];
@@ -120,7 +120,7 @@ def parse_opts(argv: list[str]) -> dict {
             opts["skip_compile"] = True;
             i += 1;
         } elif flag in ("--kernels", "--modes", "--sizes", "--out", "--invocations")
-        and i + 1 < len(argv) {
+            and i + 1 < len(argv) {
             key = flag[2:].replace("-", "_");
             opts[key] = int(argv[i + 1]) if flag == "--invocations" else argv[i + 1];
             i += 2;

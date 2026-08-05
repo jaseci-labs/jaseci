@@ -112,8 +112,8 @@ def _deep_merge(base: dict, `override: dict) -> dict {
     result = base.copy();
     for (key, value) in `override.items() {
         if key in result
-        and isinstance(result[key], dict)
-        and isinstance(value, dict) {
+            and isinstance(result[key], dict)
+            and isinstance(value, dict) {
             result[key] = _deep_merge(result[key], value);
         } else {
             result[key] = value;
@@ -384,8 +384,8 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
 
     for (key, value) in data.items() {
         if key in self._raw_data
-        and isinstance(self._raw_data[key], dict)
-        and isinstance(value, dict) {
+            and isinstance(self._raw_data[key], dict)
+            and isinstance(value, dict) {
             self._raw_data[key].update(value);
         } else {
             self._raw_data[key] = value;
@@ -600,7 +600,9 @@ def _toml_token_alt(name: str) -> str {
 def _toml_find_span(lines: list[str], parts: tuple) -> tuple[int, int] | None {
     import re;
     header_re = re.compile(
-        r"^\s*\[\s*" + r"\s*\.\s*".join([_toml_token_alt(p) for p in parts]) + r"\s*\]\s*(?:#.*)?$"
+        r"^\s*\[\s*"
+            + r"\s*\.\s*".join([_toml_token_alt(p) for p in parts])
+            + r"\s*\]\s*(?:#.*)?$"
     );
     header = -1;
     for (i, line) in enumerate(lines) {
@@ -1093,7 +1095,6 @@ impl _parse_toml_data(
             session=run_data.get("session", ""),
             main=run_data.get("main", True),
             cache=run_data.get("cache", True),
-            topology_index=run_data.get("topology_index", True),
             diagnostics=run_data.get("diagnostics", "error")
         );
     }
