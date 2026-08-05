@@ -91,6 +91,12 @@ test "the seal skips pinned and inferred client modules and nested projects" {
         Path(p).relative_to(stage).as_posix() for p in sealable_sources(str(stage))
     };
     assert rels == {"__init__.jac", "svc.jac"} , rels;
+    import from jaclang.utils.precompile_bytecode { placement_facts_map }
+    placement = placement_facts_map(str(stage));
+    assert placement["svc.jac"] == ["server"];
+    assert placement["ui/page.jac"] == ["client"];
+    assert placement["pages/home.jac"] == ["client"];
+    assert "docsite/index.jac" not in placement;
 }
 
 

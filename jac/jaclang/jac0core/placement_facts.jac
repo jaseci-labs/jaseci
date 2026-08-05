@@ -96,15 +96,52 @@ def discover_spaces(
 }
 
 
+def spaces_are_client_only(spaces: set[str]) -> bool {
+    return len(spaces) == 1 and SPACE_CLIENT in spaces;
+}
+
+
 def client_only_paths(paths: list[str]) -> set[str] {
     facts = discover_spaces(paths);
     out: set[str] = set();
     for (p, spaces) in facts.items() {
-        if len(spaces) == 1 and SPACE_CLIENT in spaces {
+        if spaces_are_client_only(spaces) {
             out.add(p);
         }
     }
     return out;
+}
+
+
+def sealed_spaces_for(source_path: str) -> (set[str] | None) {
+    import json;
+    ap = os.path.abspath(source_path);
+    d = os.path.dirname(ap);
+    while True {
+        mf = os.path.join(d, "_precompiled", "MANIFEST.json");
+        if os.path.isfile(mf) {
+            break;
+        }
+        parent = os.path.dirname(d);
+        if parent == d {
+            return None;
+        }
+        d = parent;
+    }
+    try {
+        with open(mf, "r") as f {
+            manifest = json.load(f);
+        }
+    } except Exception {
+        return None;
+    }
+    placement = manifest.get("placement") or {};
+    rel = os.path.relpath(ap, d).replace(os.sep, "/");
+    spaces = placement.get(rel);
+    if spaces is None {
+        return None;
+    }
+    return set(spaces);
 }
 
 

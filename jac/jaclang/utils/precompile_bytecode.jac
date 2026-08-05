@@ -108,7 +108,8 @@ def find_jac_files(package_dir: str) -> list[str] {
     return result;
 }
 
-glob _sealable_cache: dict[str, list[str]] = {};
+glob _sealable_cache: dict[str, list[str]] = {},
+     _placement_cache: dict[str, dict[str, set[str]]] = {};
 
 def sealable_sources(package_dir: str) -> list[str] {
     key = os.path.abspath(package_dir);
@@ -131,16 +132,35 @@ def sealable_sources(package_dir: str) -> list[str] {
             if not toolchain_native_by_policy(package_dir, p)
         ];
     } else {
-        import from jaclang.jac0core.placement_facts { client_only_paths }
-        client_only = client_only_paths(candidates);
+        import from jaclang.jac0core.placement_facts {
+            discover_spaces,
+            spaces_are_client_only
+        }
+        facts = discover_spaces(candidates);
+        _placement_cache[key] = facts;
         result = [
             p
             for p in candidates
-            if os.path.abspath(p) not in client_only
+            if not spaces_are_client_only(facts[os.path.abspath(p)])
         ];
     }
     _sealable_cache[key] = result;
     return result;
+}
+
+def placement_facts_map(package_dir: str) -> dict[str, list[str]] {
+    key = os.path.abspath(package_dir);
+    sealable_sources(package_dir);
+    facts = _placement_cache.get(key);
+    if not facts {
+        return {};
+    }
+    out: dict[str, list[str]] = {};
+    for (ap, spaces) in facts.items() {
+        rel = Path(ap).relative_to(Path(key)).as_posix();
+        out[rel] = sorted(spaces);
+    }
+    return out;
 }
 
 def precompile_unit(
@@ -531,6 +551,10 @@ def seal_finalize(
             f"  App: kind={app_meta.get('kind')} caps={app_meta.get('capabilities')}"
         );
     }
+    placement = placement_facts_map(str(pkg_path)) if pkg_name != "jaclang" else {};
+    if placement {
+        console.print(f"  Placement facts: {len(placement)} modules");
+    }
     write_manifest(
         precompiled_dir,
         pkg_name,
@@ -538,7 +562,8 @@ def seal_finalize(
         manifest_modules,
         payloads,
         app_meta,
-        native_artifacts
+        native_artifacts,
+        placement
     );
     console.print(f"  Manifest: {precompiled_dir / MANIFEST_NAME}");
     return 0;
@@ -551,7 +576,8 @@ def write_manifest(
     modules: dict[str, dict],
     payloads: (dict[str, str] | None) = None,
     app_meta: (dict | None) = None,
-    native_artifacts: (dict[str, dict] | None) = None
+    native_artifacts: (dict[str, dict] | None) = None,
+    placement: (dict[str, list[str]] | None) = None
 ) {
     import from importlib.metadata { version as pkg_version }
     try {
@@ -559,7 +585,7 @@ def write_manifest(
     } except Exception {
         jac_ver = "0.0.0";
     }
-    manifest = {
+    manifest: dict[str, any] = {
         "format": MANIFEST_FORMAT,
         "package": pkg_name,
         "python_tag": pyver,
@@ -575,6 +601,9 @@ def write_manifest(
     }
     if native_artifacts {
         manifest["native_artifacts"] = native_artifacts;
+    }
+    if placement {
+        manifest["placement"] = placement;
     }
     (precompiled_dir / MANIFEST_NAME).write_text(
         json.dumps(manifest, sort_keys=True, indent=1) + "\n", encoding="utf-8"
