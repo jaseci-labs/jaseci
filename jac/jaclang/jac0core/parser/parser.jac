@@ -365,7 +365,8 @@ obj Parser {
         source: Source | None = None,
         prog: (JacProgram | None) = None,
         _view_body_depth: int = 0,
-        _impl_enum_comma_unis: list = [];
+        _impl_enum_comma_unis: list = [],
+        _cast_enabled: bool = True;
 
     def current -> Token;
     def peek(offset: int = 1) -> Token;
@@ -429,6 +430,7 @@ obj Parser {
     def parse_walrus_assign -> Expr;
     def parse_by_expr -> Expr;
     def parse_cast -> Expr;
+    def parse_cast_type -> Expr;
     def parse_pipe -> Expr;
     def parse_pipe_back -> Expr;
     def parse_bitwise_or -> Expr;

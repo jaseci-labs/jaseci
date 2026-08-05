@@ -722,7 +722,10 @@ impl Parser.parse_expression(allow_cast: bool = True) -> Expr {
         return self.parse_lambda_expr();
     }
 
-    expr = self.parse_cast() if allow_cast else self.parse_concurrent_expr();
+    prev_cast_enabled = self._cast_enabled;
+    self._cast_enabled = allow_cast;
+    expr = self.parse_concurrent_expr();
+    self._cast_enabled = prev_cast_enabled;
     if self._check_js_arrow_fault() {
         expr = self._recover_js_arrow_fault(expr);
     }
@@ -831,13 +834,23 @@ impl Parser.parse_by_expr -> Expr {
 }
 
 impl Parser.parse_cast -> Expr {
-    expr = self.parse_concurrent_expr();
-    while self.match_tok(TokenKind.KW_AS) {
+    expr = self.parse_bitwise_or();
+    while self._cast_enabled and self.match_tok(TokenKind.KW_AS) {
         as_uni = self.make_uni_token(self.previous());
-        cast_type = self.parse_pipe();
+        cast_type = self.parse_cast_type();
         expr = CastExpr(value=expr, cast_type=cast_type, kid=[expr, as_uni, cast_type]);
     }
     return expr;
+}
+
+impl Parser.parse_cast_type -> Expr {
+    left = self.parse_atomic_chain();
+    while self.match_tok(TokenKind.BW_OR) {
+        op = self.make_uni_token(self.previous());
+        right = self.parse_atomic_chain();
+        left = BinaryExpr(left=left, op=op, right=right, kid=[left, op, right]);
+    }
+    return left;
 }
 
 impl Parser.parse_pipe -> Expr {
@@ -959,7 +972,7 @@ impl Parser.parse_logical_not -> Expr {
 }
 
 impl Parser.parse_compare -> Expr {
-    left = self.parse_bitwise_or();
+    left = self.parse_cast();
     if self.check_any(
         TokenKind.EE,
         TokenKind.NE,
@@ -1002,7 +1015,7 @@ impl Parser.parse_compare -> Expr {
             op = self.make_uni_token(op_tok);
             ops.append(op);
             kid.append(op);
-            right = self.parse_bitwise_or();
+            right = self.parse_cast();
             rights.append(right);
             kid.append(right);
         }

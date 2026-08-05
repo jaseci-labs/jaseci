@@ -5238,6 +5238,35 @@ test "as_cast_resolves_any_assignment" {
         + "\n---\n".join(e.pretty_print() for e in parse_errs);
 }
 
+test "cast_target_must_be_a_type" {
+    # A cast target that is not a type expression — a comparison, a value
+    # variable — is diagnosed with E1044; unions and generics stay valid (#7885).
+    path = os.path.join(CHECKER_FIXTURES, "checker_cast_target_not_type.jac");
+    program = JacProgram();
+    mod = program.compile(path, options=NO_TC);
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    e1044 = [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code == "E1044"
+    ];
+    assert len(e1044) == 2 , f"Expected 2 E1044 (bad_parens, bad_value), got {len(
+        e1044
+    )}:\n"
+        + "\n---\n".join(e.pretty_print() for e in program.errors_had);
+    lines = sorted(e.loc.first_line for e in e1044);
+    assert lines == [4, 8] , f"E1044 on wrong lines: {lines}";
+
+    others = [
+        e
+        for e in program.errors_had
+        if not (e.code and e.code.code == "E1044")
+    ];
+    assert len(others) == 0 , "Only E1044 expected — the union and generic casts"
+        " must stay valid:\n" + "\n---\n".join(e.pretty_print() for e in others);
+}
+
 # ============================================================================
 # Issue #6058 — TypeEvaluator correctness for patterns native code uses.
 # Fixed-width primitives (iN, uN, fN) are width refinements of the same
