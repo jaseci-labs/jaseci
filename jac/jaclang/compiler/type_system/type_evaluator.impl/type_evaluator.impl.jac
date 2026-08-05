@@ -3189,7 +3189,14 @@ impl TypeEvaluator.get_type_of_expression(
     }
     if isinstance(result, types.UnknownType) {
         mod = node_.find_parent_of_type(uni.Module);
-        if mod is None or not mod.is_raised_from_py {
+        is_pattern_wildcard = (
+            isinstance(node_, uni.Name)
+            and node_.value == '_'
+            and node_.find_parent_of_type(uni.MatchPattern) is not None
+        );
+        if (mod is None or not mod.is_raised_from_py) and not is_pattern_wildcard {
+            # `case _:` is a binder, not an expression read; an Unknown
+            # there is by design, not a checker gap.
             self.emit_diag(W1051, node_);
         }
     }

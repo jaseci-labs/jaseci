@@ -5783,3 +5783,23 @@ test "none_equality_not_flagged" {
         + str([str(e) for e in eq_errors])
     );
 }
+
+test "match_wildcard_no_warning_noise" {
+    # `case _:` is a binder, not an expression read: it must not draw
+    # W2001 ("may be undefined") from static analysis or W1051 (unknown
+    # expression type) from the checker (#7922).
+    program = JacProgram();
+    path = os.path.join(CHECKER_FIXTURES, "checker_match_wildcard.jac");
+    mod = program.compile(path, options=NO_TC);
+    TypeCheckPass(ir_in=mod, prog=program);
+    noise = [
+        w
+        for w in program.warnings_had
+        if ("'_'" in str(w)) or ("may be undefined" in str(w))
+            or ("could not be resolved" in str(w))
+    ];
+    assert not noise , (
+        "case _ must not draw warning noise; got: "
+        + str([str(w) for w in noise])
+    );
+}
