@@ -554,6 +554,8 @@ def seal_finalize(
     placement = placement_facts_map(str(pkg_path)) if pkg_name != "jaclang" else {};
     if placement {
         console.print(f"  Placement facts: {len(placement)} modules");
+        app_meta = dict(app_meta);
+        app_meta["placement"] = placement;
     }
     write_manifest(
         precompiled_dir,
@@ -562,8 +564,7 @@ def seal_finalize(
         manifest_modules,
         payloads,
         app_meta,
-        native_artifacts,
-        placement
+        native_artifacts
     );
     console.print(f"  Manifest: {precompiled_dir / MANIFEST_NAME}");
     return 0;
@@ -576,8 +577,7 @@ def write_manifest(
     modules: dict[str, dict],
     payloads: (dict[str, str] | None) = None,
     app_meta: (dict | None) = None,
-    native_artifacts: (dict[str, dict] | None) = None,
-    placement: (dict[str, list[str]] | None) = None
+    native_artifacts: (dict[str, dict] | None) = None
 ) {
     import from importlib.metadata { version as pkg_version }
     try {
@@ -601,9 +601,6 @@ def write_manifest(
     }
     if native_artifacts {
         manifest["native_artifacts"] = native_artifacts;
-    }
-    if placement {
-        manifest["placement"] = placement;
     }
     (precompiled_dir / MANIFEST_NAME).write_text(
         json.dumps(manifest, sort_keys=True, indent=1) + "\n", encoding="utf-8"
