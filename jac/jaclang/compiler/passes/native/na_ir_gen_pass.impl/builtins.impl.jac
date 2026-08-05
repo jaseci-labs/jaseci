@@ -189,20 +189,25 @@ impl NaIRGenPass._codegen_multistring(nd: uni.MultiString) -> (ir.Value | None) 
     return result;
 }
 
-impl NaIRGenPass._make_global_string(text: str, name_prefix: str = ".str") -> ir.Value {
+impl NaIRGenPass._static_str_struct_const(data: bytes) -> tuple {
     i64 = ir.IntType(64);
     i8 = ir.IntType(8);
+    arr_type = ir.ArrayType(i8, len(data));
+    struct_type = ir.LiteralStructType([i64, i64, arr_type]);
+    sentinel_val = ir.Constant(i64, RC_SENTINEL);
+    tagged_len = ir.Constant(i64, ((len(data) - 1) << 1) | 1);
+    c_str = ir.Constant(arr_type, bytearray(data));
+    return (struct_type, ir.Constant(struct_type, [sentinel_val, tagged_len, c_str]), );
+}
+
+impl NaIRGenPass._make_global_string(text: str, name_prefix: str = ".str") -> ir.Value {
     i32 = ir.IntType(32);
     _key = f"{name_prefix}\x00{text}";
     global_str = self._interned_strs.get(_key);
     if global_str is None {
-        str_bytes = bytearray((text + "\0").encode("utf8"));
-        arr_type = ir.ArrayType(i8, len(str_bytes));
-        struct_type = ir.LiteralStructType([i64, i64, arr_type]);
-        sentinel_val = ir.Constant(i64, 0x7FFFFFFFFFFFFFFF);
-        dtor_val = ir.Constant(i64, ((len(str_bytes) - 1) << 1) | 1);
-        c_str = ir.Constant(arr_type, str_bytes);
-        struct_val = ir.Constant(struct_type, [sentinel_val, dtor_val, c_str]);
+        (struct_type, struct_val) = self._static_str_struct_const(
+            (text + "\0").encode("utf8")
+        );
         global_str = ir.GlobalVariable(
             self.llvm_module, struct_type, name=f"{name_prefix}.{self._str_count}"
         );
@@ -345,6 +350,57 @@ impl NaIRGenPass._fstring_spec_to_printf(spec: str, kind: str) -> (tuple | None)
     return None;
 }
 
+impl NaIRGenPass._emit_optional_str(
+    val: ir.Value, part: (uni.UniNode | None)
+) -> (ir.Value | None) {
+    _pt = self._opt_payload_of(val.type);
+    if _pt is None {
+        return None;
+    }
+    i8p = ir.IntType(8).as_pointer();
+    if not isinstance(_pt, ir.PointerType) {
+        if not self?.jacval_type {
+            return None;
+        }
+        _jv = self._coerce_type(val, self.jacval_type);
+        _rfn = self._repr_jacval_fn();
+        if _rfn is None {
+            return None;
+        }
+        _s = self.builder.call(_rfn, [_jv], name="opt.str.jv");
+        self._mark_owned(_s);
+        return _s;
+    }
+    _none_s = self.builder.bitcast(
+        self._make_global_string("None"), i8p, name="opt.str.none"
+    );
+    _tag = self.builder.extract_value(val, 0, name="opt.str.tag");
+    _set = self.builder.icmp_signed(
+        "!=", _tag, ir.Constant(ir.IntType(8), 0), name="opt.str.set"
+    );
+    _func = self.builder.basic_block.function;
+    _entry = self.builder.basic_block;
+    _some_bb = _func.append_basic_block(name="opt.str.some");
+    _merge_bb = _func.append_basic_block(name="opt.str.done");
+    self.builder.cbranch(_set, _some_bb, _merge_bb);
+    self.builder.position_at_start(_some_bb);
+    _pv = self.builder.extract_value(val, 1, name="opt.str.pv");
+    _s: (ir.Value | None) = _pv;
+    if _pt != i8p {
+        _s = self._emit_obj_str(_pv);
+        if _s is None {
+            return None;
+        }
+    }
+    _some_end = self.builder.basic_block;
+    self.builder.branch(_merge_bb);
+    self.builder.position_at_start(_merge_bb);
+    _phi = self.builder.phi(i8p, name="opt.str");
+    _phi.add_incoming(_none_s, _entry);
+    _phi.add_incoming(_s, _some_end);
+    return _phi;
+}
+
 impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
     fmt_parts: list[str] = [];
     args: list[ir.Value] = [];
@@ -360,6 +416,22 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
             val = self._str_norm(self._codegen_expr(part.format_part));
             if val is None {
                 continue;
+            }
+            if self._opt_payload_of(val.type) is not None {
+                _opt_s = self._emit_optional_str(val, part);
+                if _opt_s is None {
+                    self.emit(
+                        E5092,
+                        node_override=part,
+                        kind="f-string value",
+                        name="optional"
+                    );
+                    return None;
+                }
+                val = _opt_s;
+                if self._is_owned(_opt_s) {
+                    obj_strs.append(_opt_s);
+                }
             }
             _conv = part.conversion if part.conversion is not None else -1;
             if _conv == 114 {
@@ -994,7 +1066,7 @@ impl NaIRGenPass._codegen_str_split(
     self._set_rc_ctx("str_split", "");
     new_list = self.builder.call(helpers["new"], [], name="split.list");
     self._clear_rc_ctx();
-    self._nogc_stamp_elem_drops(new_list, ["str"], "list");
+    self._nogc_stamp_elem_drops(new_list, ["str"]);
 
     str_len = self._call_str_len(self.builder, str_val, name="str.len");
     sep_len = self._call_str_len(self.builder, sep_val, name="sep.len");

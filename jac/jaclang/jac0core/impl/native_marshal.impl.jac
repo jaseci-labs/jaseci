@@ -77,6 +77,23 @@ impl NativeStructView._resolve(name: str, raw: any) -> any {
         return fn_type(raw);
     }
 
+    if lt.startswith("opt.") {
+        if (raw is None or int(raw.tag) == 0) {
+            return None;
+        }
+        return marshal_value(
+            raw.payload,
+            lt[4:],
+            self.ctypes_classes,
+            self.enum_maps,
+            {},
+            None,
+            None,
+            self.layout,
+            self._view_memo
+        );
+    }
+
     if lt == "i8*" {
         if (raw is None or raw == 0) {
             return "";
@@ -184,6 +201,8 @@ impl NativeListView.postinit -> None {
             self._arr = (ctypes.c_int64 * self._count).from_address(nl.data);
         } elif self.elem_key == "f64" {
             self._arr = (ctypes.c_double * self._count).from_address(nl.data);
+        } elif self.elem_key == "jacval" {
+            self._arr = (NativeJacVal * self._count).from_address(nl.data);
         } else {
             self._arr = (ctypes.c_void_p * self._count).from_address(nl.data);
         }
@@ -210,6 +229,9 @@ impl NativeListView.__getitem__(index: any) -> any {
     }
     if self.elem_key == "f64" {
         return float(raw);
+    }
+    if self.elem_key == "jacval" {
+        return decode_jacval(int(raw.tag), int(raw.payload));
     }
 
     if (self._ct_cls and raw and raw != 0) {

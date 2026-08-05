@@ -450,7 +450,7 @@ impl nacompile(
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();
 
-    triple = os.environ.get("JAC_NATIVE_TARGET", "") or llvm.get_default_triple();
+    triple = (options.native_target or "") or llvm.get_default_triple();
     console.print(f"  Target: {triple}");
 
     export_symbols: list[str] = [];
@@ -571,7 +571,7 @@ impl nacompile(
         return 1;
     }
 
-    _target_ovr = os.environ.get("JAC_NATIVE_TARGET", "");
+    _target_ovr = options.native_target or "";
     if _target_ovr {
         target = llvm.Target.from_triple(_target_ovr);
     } else {
@@ -586,14 +586,8 @@ impl nacompile(
         target_machine = target.create_target_machine(opt=2, codemodel="large");
     }
 
-    import from jaclang.project { get_config, NativeBuildConfig }
-    _native_cfg = NativeBuildConfig();
-    _jac_config = get_config();
-    if _jac_config {
-        _native_cfg = _jac_config.build.native;
-    }
-    _opt_level = int(os.environ.get("JAC_OPT_LEVEL", str(_native_cfg.opt_level)));
-    _dump_path = os.environ.get("JAC_DUMP_IR", _native_cfg.dump_ir);
+    _opt_level = int(options.opt_level or 0);
+    _dump_path = options.dump_ir_path or "";
 
     if _opt_level > 0 {
         pto = llvm.create_pipeline_tuning_options(speed_level=_opt_level);
