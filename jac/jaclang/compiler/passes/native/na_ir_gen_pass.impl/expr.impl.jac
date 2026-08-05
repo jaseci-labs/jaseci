@@ -750,6 +750,8 @@ impl NaIRGenPass._codegen_compare_link(
 
     if op == Tok.KW_IN or op == Tok.KW_NIN {
         is_not_in = op == Tok.KW_NIN;
+        left = self._str_norm(left);
+        right = self._str_norm(right);
 
         for (dict_key, helpers) in self.dict_helpers.items() {
             dict_type = self.dict_types.get(dict_key);
@@ -1284,9 +1286,7 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
         self.builder.position_at_end(rhs_bb);
         rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
         if rhs_val is None {
-            rhs_val = ir.Constant(result.type, None)
-                if isinstance(result.type, ir.PointerType)
-                else ir.Constant(result.type, 0);
+            return None;
         }
         target_t = self._bool_expr_unify_type(result.type, rhs_val.type);
         if target_t is None {

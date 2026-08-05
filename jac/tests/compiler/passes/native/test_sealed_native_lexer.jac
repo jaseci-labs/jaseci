@@ -253,6 +253,26 @@ test "sealed dylib lexer matches bytecode lexer token for token" {
     }
 }
 
+test "sealed scan self-check keeps lexer diagnostics intact" {
+    # The dylib-level diag marshal drops warnings (pre-existing on main;
+    # exposed once the descriptor-ABI marshal let the sealed lexer bind).
+    # frontend._native_scan self-checks at bind time and falls back to the
+    # bytecode lexer when diagnostics do not survive, so W0100-class
+    # warnings never silently disappear from sealed builds.
+    import from jaclang.jac0core.parser.frontend { _native_scan, parse }
+    _scan = _native_scan();
+    if _scan is not None {
+        (_t, _c, _d, _e) = _scan('x = "\\q";', "selfcheck.jac");
+        assert len(_d) == 1 and _d[0].code_str == "W0100" , (
+            "sealed scan bound without surviving diagnostics"
+        );
+    }
+    (py_toks, py_comments, py_diags, py_errs) = bytecode_lexer.tokenize_full(
+        'with entry { x = "press \\q now"; }', "diagprobe.jac"
+    );
+    assert len(py_diags) == 1 and py_diags[0].code_str == "W0100";
+}
+
 test "sealed manifest round trip resolves the artifact" {
     import hashlib;
     import from jaclang.jac0core.sealed { load_image }

@@ -545,6 +545,14 @@ with entry {
 }
 ```
 
+One target is permanently sequential for now: **wasm builds always run
+`flow for` as the ordinary loop**. WebAssembly has no threads story in
+the toolchain (no wasm-threads/shared-memory atomics in the linker or
+the host shims), so the sequential lowering on the wasm triple is the
+documented behavior, not a bug -- results are identical by the same
+disjointness rule, and parallel fan-out remains a native-host property
+until a wasm-threads story exists.
+
 ## The `drop` hook
 
 An archetype may declare a reserved ability named `drop` (undunderscored, like `postinit`). On the native backend it runs exactly once, when the object is destroyed, and before the object's own fields are torn down:
