@@ -1289,6 +1289,14 @@ impl NaIRGenPass._bool_expr_unify_type(a: ir.Type, b: ir.Type) -> (ir.Type | Non
     if a == b {
         return a;
     }
+    _pa = self._opt_ptr_payload_of(a);
+    if _pa is not None and _pa == b {
+        return b;
+    }
+    _pb = self._opt_ptr_payload_of(b);
+    if _pb is not None and _pb == a {
+        return a;
+    }
     if isinstance(a, ir.DoubleType) and isinstance(b, ir.IntType) {
         return a;
     }
@@ -1340,7 +1348,11 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
             target_t = ir.IntType(1);
         }
         if rhs_val.type != target_t {
-            rhs_val = self._coerce_type(rhs_val, target_t);
+            if self._opt_ptr_payload_of(rhs_val.type) == target_t {
+                rhs_val = self.builder.extract_value(rhs_val, 1, name="bool.opt.rpv");
+            } else {
+                rhs_val = self._coerce_type(rhs_val, target_t);
+            }
         }
         rhs_end_bb = self.builder.block;
         if not self.builder.block.is_terminated {
@@ -1350,7 +1362,11 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
         if result.type != target_t {
             _entry_term = entry_bb.instructions[-1];
             self.builder.position_before(_entry_term);
-            result = self._coerce_type(result, target_t);
+            if self._opt_ptr_payload_of(result.type) == target_t {
+                result = self.builder.extract_value(result, 1, name="bool.opt.lpv");
+            } else {
+                result = self._coerce_type(result, target_t);
+            }
         }
         self.builder.position_at_end(merge_bb);
         phi = self.builder.phi(target_t, name="bool.result");

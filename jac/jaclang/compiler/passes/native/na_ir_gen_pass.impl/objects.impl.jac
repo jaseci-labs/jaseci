@@ -279,8 +279,8 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         self.osp_type_tag_field[arch_name] = layout.type_tag_slot;
     }
     if layout.reports_slot is not None {
-        self._emit_list_helpers("i64", ir.IntType(64));
-        _rep_lt = self.list_types.get("i64");
+        self._emit_list_helpers("jacval", self.jacval_type);
+        _rep_lt = self.list_types.get("jacval");
         if _rep_lt is not None {
             field_types.append(_rep_lt.as_pointer());
             field_index_map["reports"] = layout.reports_slot;
@@ -1181,7 +1181,7 @@ impl NaIRGenPass._codegen_instantiation(
 
     _rep_idx = self.osp_reports_field.get(type_name);
     if _rep_idx is not None {
-        _rep_h = self.list_helpers.get("i64");
+        _rep_h = self.list_helpers.get("jacval");
         if _rep_h is not None {
             _rep_list = self._rc_call_with_ctx(
                 _rep_h["new"], [], op="new", loc="", name="reports.init"

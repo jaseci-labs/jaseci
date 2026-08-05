@@ -1089,7 +1089,16 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
             0,
             name="opt.tag"
         );
-        return self.builder.insert_value(_ov, _pv, 1, name="opt.wrap");
+        _ov = self.builder.insert_value(_ov, _pv, 1, name="opt.wrap");
+        if _tgt_is_ptr {
+            _pv_nn = self.builder.icmp_unsigned(
+                "!=", _pv, ir.Constant(_opt_tgt, None), name="opt.wrap.nn"
+            );
+            return self.builder.select(
+                _pv_nn, _ov, ir.Constant(target_type, None), name="opt.wrap.sel"
+            );
+        }
+        return _ov;
     }
     _opt_src = self._opt_payload_of(val.type);
     if _opt_src is not None {

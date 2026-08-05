@@ -140,6 +140,10 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         _own_spec = self._elem_spec_of(nd);
         if _own_spec is not None {
             elem_type_name = _own_spec;
+        } elif isinstance(nd, uni.Expr)
+            and nd.type is not None
+            and self._mangled_of(nd.type) == "list" {
+            elem_type_name = "i64";
         } elif self._builder and self._builder.function {
             ret_type = self.builder.function.return_value.type;
             if isinstance(ret_type, ir.PointerType) {

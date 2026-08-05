@@ -1046,6 +1046,15 @@ impl NaIRGenPass._str_norm(val: ir.Value | None) -> (ir.Value | None) {
     return _normed;
 }
 
+impl NaIRGenPass._str_arg(val: ir.Value | None) -> (ir.Value | None) {
+    val = self._str_norm(val);
+    if val is not None
+        and self._opt_ptr_payload_of(val.type) == ir.IntType(8).as_pointer() {
+        return self._coerce_type(val, ir.IntType(8).as_pointer());
+    }
+    return val;
+}
+
 impl NaIRGenPass._membrane_str_out(b: ir.IRBuilder, val: ir.Value) -> ir.Value {
     if self.str_unwrap_fn is None {
         self._emit_str_desc_helpers();

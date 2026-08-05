@@ -467,9 +467,8 @@ impl NaIRGenPass._emit_hash_core_helpers(
             and isinstance(key_type.pointee, ir.IntType)
             and key_type.pointee.width == 8
         ) {
-            _k_ins = self._call_str_dup(
-                bi, bi.bitcast(k_s, i8p, name="ins_key_src"), name="ins_key_dup"
-            );
+            _k_src: any = bi.bitcast(k_s, i8p, name="ins_key_src");
+            _k_ins = self._call_str_dup(bi, _k_src, name="ins_key_dup");
             _k_ins = bi.bitcast(_k_ins, key_type, name="ins_key_copy");
         }
     } else {
