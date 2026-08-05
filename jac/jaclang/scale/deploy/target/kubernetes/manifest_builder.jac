@@ -801,6 +801,7 @@ obj ManifestBuilder {
                 raw_triggers.append(dict(item));
             }
         }
+        behavior = hpa.get("behavior", {});
         return {
             "min": int(hpa.get("min", 1)),
             "max": int(hpa.get("max", 3)),
@@ -811,7 +812,8 @@ obj ManifestBuilder {
             "has_memory_request": bool(
                 self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)
             ),
-            "triggers": raw_triggers
+            "triggers": raw_triggers,
+            "behavior": dict(behavior) if isinstance(behavior, dict) else {}
         };
     }
 
