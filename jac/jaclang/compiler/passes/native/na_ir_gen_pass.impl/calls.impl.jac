@@ -595,6 +595,11 @@ impl NaIRGenPass._codegen_call_args(nd: uni.FuncCall) -> list {
 impl NaIRGenPass._emit_take_ref(value: ir.Value, op: str, loc: str = "") -> None {
     if isinstance(value.type, ir.PointerType) and not self._is_owned(value) {
         self._emit_rc_retain(value, op=op, loc=loc);
+        return;
+    }
+    if self._opt_ptr_payload_of(value.type) is not None and not self._is_owned(value) {
+        _tr_pv = self.builder.extract_value(value, 1, name="takeref.opt.pv");
+        self._emit_rc_retain(_tr_pv, op=op, loc=loc);
     }
 }
 

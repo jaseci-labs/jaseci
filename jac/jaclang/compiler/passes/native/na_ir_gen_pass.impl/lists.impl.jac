@@ -136,7 +136,7 @@ impl NaIRGenPass._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> 
 impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     self._pending_list_elem_struct = None;
     if not nd.values {
-        elem_type_name = "i64";
+        elem_type_name = "";
         _own_spec = self._elem_spec_of(nd);
         if _own_spec is not None {
             elem_type_name = _own_spec;
@@ -150,6 +150,9 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
                     }
                 }
             }
+        }
+        if not elem_type_name {
+            elem_type_name = "jacval" if self?.jacval_type else "i64";
         }
 
         if elem_type_name == "ptr" {

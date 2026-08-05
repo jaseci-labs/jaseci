@@ -64,6 +64,28 @@ def _dep_cache_files(tmp: str, dep_stem: str, ext: str) -> list[str] {
     return sorted(glob.glob(os.path.join(cache_dir, f"{dep_stem}.*.{ext}")));
 }
 
+glob _CACHE_ENV_KEYS: tuple = ("XDG_CACHE_HOME", "HOME", "LOCALAPPDATA");
+
+"""Scope the global cache roots into the test tempdir; return the saved env."""
+def _isolate_cache_env(tmp: str) -> dict {
+    saved: dict = {};
+    for k in _CACHE_ENV_KEYS {
+        saved[k] = os.environ.get(k);
+        os.environ[k] = os.path.join(tmp, "cache-root");
+    }
+    return saved;
+}
+
+def _restore_cache_env(saved: dict) {
+    for (k, v) in saved.items() {
+        if v is None {
+            os.environ.pop(k, None);
+        } else {
+            os.environ[k] = v;
+        }
+    }
+}
+
 
 test "rc debug trace gate is driven by the options object, not env" {
     saved = os.environ.pop("JAC_RC_DEBUG_CODEGEN", None);
@@ -108,58 +130,76 @@ test "rc debug trace gate is driven by the options object, not env" {
     }
 }
 
+def _rekey_body(tmp: str, dep_stem: str) {
+    main_path = _write_pair(tmp, dep_stem);
+    prog_a = _compile_main(main_path, False);
+    assert not prog_a.errors_had , (
+        f"option-A compile errors: {[str(e) for e in prog_a.errors_had]}"
+    );
+    files_a = _dep_cache_files(tmp, dep_stem, "ir_cache");
+    assert len(files_a) == 1 , f"expected one dep artifact, got {files_a}";
+    prog_b = _compile_main(main_path, True);
+    assert not prog_b.errors_had , (
+        f"option-B compile errors: {[str(e) for e in prog_b.errors_had]}"
+    );
+    files_b = _dep_cache_files(tmp, dep_stem, "ir_cache");
+    assert len(files_b) == 1;
+    assert os.path.basename(files_a[0]) != os.path.basename(files_b[0]) , (
+        "option flip reused the same native cache artifact"
+    );
+    metas = _dep_cache_files(tmp, dep_stem, "ir_meta");
+    assert len(metas) == 1;
+    with open(metas[0], "r") as f {
+        meta = json.loads(f.read());
+    }
+    expected_fp = _aot_opts(True).codegen_fingerprint();
+    assert meta.get("options_fingerprint") == expected_fp , (
+        f"meta stamp {meta.get('options_fingerprint')} != {expected_fp}"
+    );
+}
+
 test "flipping a codegen option re-keys the native import cache" {
     dep_stem = "g_optdep_rekey_7871";
     with tempfile.TemporaryDirectory() as tmp {
-        main_path = _write_pair(tmp, dep_stem);
-        prog_a = _compile_main(main_path, False);
-        assert not prog_a.errors_had , (
-            f"option-A compile errors: {[str(e) for e in prog_a.errors_had]}"
-        );
-        files_a = _dep_cache_files(tmp, dep_stem, "ir_cache");
-        assert len(files_a) == 1 , f"expected one dep artifact, got {files_a}";
-        prog_b = _compile_main(main_path, True);
-        assert not prog_b.errors_had , (
-            f"option-B compile errors: {[str(e) for e in prog_b.errors_had]}"
-        );
-        files_b = _dep_cache_files(tmp, dep_stem, "ir_cache");
-        assert len(files_b) == 1;
-        assert os.path.basename(files_a[0]) != os.path.basename(files_b[0]) , (
-            "option flip reused the same native cache artifact"
-        );
-        metas = _dep_cache_files(tmp, dep_stem, "ir_meta");
-        assert len(metas) == 1;
-        with open(metas[0], "r") as f {
-            meta = json.loads(f.read());
+        _env = _isolate_cache_env(tmp);
+        try {
+            _rekey_body(tmp, dep_stem);
+        } finally {
+            _restore_cache_env(_env);
         }
-        expected_fp = _aot_opts(True).codegen_fingerprint();
-        assert meta.get("options_fingerprint") == expected_fp , (
-            f"meta stamp {meta.get('options_fingerprint')} != {expected_fp}"
-        );
     }
+}
+
+def _mixed_body(tmp: str, dep_stem: str) {
+    main_path = _write_pair(tmp, dep_stem);
+    prog_a = _compile_main(main_path, False);
+    assert not prog_a.errors_had , (
+        f"seed compile errors: {[str(e) for e in prog_a.errors_had]}"
+    );
+    metas = _dep_cache_files(tmp, dep_stem, "ir_meta");
+    assert len(metas) == 1;
+    with open(metas[0], "r") as f {
+        meta = json.loads(f.read());
+    }
+    meta["options_fingerprint"] = "0000deadfp00";
+    with open(metas[0], "w") as f {
+        f.write(json.dumps(meta));
+    }
+    prog_b = _compile_main(main_path, False);
+    codes = [(e.code.code if e.code else "") for e in prog_b.errors_had];
+    assert "E5027" in codes , (
+        f"expected E5027 on mixed-options cache hit, got {codes}"
+    );
 }
 
 test "a fingerprint-mismatched cached dep is a hard E5027, never linked" {
     dep_stem = "g_optdep_mixed_7871";
     with tempfile.TemporaryDirectory() as tmp {
-        main_path = _write_pair(tmp, dep_stem);
-        prog_a = _compile_main(main_path, False);
-        assert not prog_a.errors_had , (
-            f"seed compile errors: {[str(e) for e in prog_a.errors_had]}"
-        );
-        metas = _dep_cache_files(tmp, dep_stem, "ir_meta");
-        assert len(metas) == 1;
-        with open(metas[0], "r") as f {
-            meta = json.loads(f.read());
+        _env = _isolate_cache_env(tmp);
+        try {
+            _mixed_body(tmp, dep_stem);
+        } finally {
+            _restore_cache_env(_env);
         }
-        meta["options_fingerprint"] = "0000deadfp00";
-        with open(metas[0], "w") as f {
-            f.write(json.dumps(meta));
-        }
-        prog_b = _compile_main(main_path, False);
-        codes = [(e.code.code if e.code else "") for e in prog_b.errors_had];
-        assert "E5027" in codes , (
-            f"expected E5027 on mixed-options cache hit, got {codes}"
-        );
     }
 }

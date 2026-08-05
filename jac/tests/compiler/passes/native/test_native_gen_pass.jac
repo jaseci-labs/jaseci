@@ -3153,6 +3153,7 @@ test "native-default chess.jac runs via cli" {
             input=stdin_data,
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=120,
             cwd=tmpdir
         );
@@ -4010,7 +4011,7 @@ test "struct layout tracks field indices correctly" {
     assert indices == list(range(len(af.fields)));
 }
 
-test "optional field compiles to pointer type" {
+test "optional field compiles to a tagged optional slot" {
     (eng, ir) = compile_native("func_ptr_fields.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
@@ -4019,8 +4020,9 @@ test "optional field compiles to pointer type" {
     field_map = {f.name: f for f in mp.fields};
     assert field_map["x"].llvm_type == "i64";
     assert field_map["y"].llvm_type == "i64";
-    # label is str|None → still i8* (pointers are nullable)
-    assert field_map["label"].llvm_type == "i8*";
+    # label is str|None -> a tagged JacOptional slot (#7871 A), never a
+    # bare nullable pointer
+    assert field_map["label"].llvm_type == "opt.i8*";
 }
 
 test "all_fields struct round-trip via ctypes" {

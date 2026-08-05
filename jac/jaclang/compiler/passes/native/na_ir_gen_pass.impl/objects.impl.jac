@@ -2063,10 +2063,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if obj_val is None {
         return None;
     }
-    _mc_opt = self._opt_payload_of(obj_val.type);
-    if _mc_opt is not None {
-        obj_val = self._coerce_type(obj_val, _mc_opt);
-    }
+    obj_val = self._opt_unwrap_attr(obj_val);
 
     if isinstance(obj_val.type, ir.PointerType) {
         null_ptr = ir.Constant(obj_val.type, None);
@@ -2197,6 +2194,21 @@ impl NaIRGenPass._emit_default_obj_repr(val: ir.Value, type_name: str) -> ir.Val
     return self._mark_owned(buf);
 }
 
+impl NaIRGenPass._opt_unwrap_attr(obj_val: ir.Value) -> ir.Value {
+    _ua_opt = self._opt_payload_of(obj_val.type);
+    if _ua_opt is None {
+        return obj_val;
+    }
+    _ua_tag = self.builder.extract_value(obj_val, 0, name="attr.opt.tag");
+    _ua_none = self.builder.icmp_signed(
+        "==", _ua_tag, ir.Constant(ir.IntType(8), 0), name="attr.opt.none"
+    );
+    self._emit_runtime_raise(
+        _ua_none, "AttributeError", "'NoneType' object has no attribute"
+    );
+    return self.builder.extract_value(obj_val, 1, name="attr.opt.val");
+}
+
 impl NaIRGenPass._codegen_field_access(
     obj_val: ir.Value, field_name: str, type_name: str
 ) -> (ir.Value | None) {
@@ -2204,10 +2216,7 @@ impl NaIRGenPass._codegen_field_access(
     if field_indices is None or field_name not in field_indices {
         return None;
     }
-    _fa_opt = self._opt_payload_of(obj_val.type);
-    if _fa_opt is not None {
-        obj_val = self._coerce_type(obj_val, _fa_opt);
-    }
+    obj_val = self._opt_unwrap_attr(obj_val);
 
     if isinstance(obj_val.type, ir.IntType) and (type_name in self.struct_types) {
         obj_val = self.builder.inttoptr(
@@ -2335,8 +2344,8 @@ impl NaIRGenPass._codegen_field_assign(
     _fa_errs = len(self.errors_had);
     field_name = self._get_name(target.right);
     obj_val = self._codegen_expr(target.target);
-    if obj_val is not None and self._opt_payload_of(obj_val.type) is not None {
-        obj_val = self._coerce_type(obj_val, self._opt_payload_of(obj_val.type));
+    if obj_val is not None {
+        obj_val = self._opt_unwrap_attr(obj_val);
     }
     type_name: (str | None) = self._struct_name_of(target.target);
     if type_name is None and obj_val is not None {
