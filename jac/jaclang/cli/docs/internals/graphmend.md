@@ -29,6 +29,12 @@ page as they land.
   is inert for normal compiles.
 - The passes run in `get_py_code_gen`, immediately before `PyastGenPass`:
   `GraphBreakDetectPass`, then `TrapLoweringPass`.
+- Cross-pass state is typed and lives on `JacProgram`, not on AST nodes:
+  `graphmend_breaks` maps a node id to its `GraphBreakKind` (detection to
+  transformation), and `graphmend_helpers` maps a module id to the set of
+  `GraphMendHelper` values whose imports the preamble must emit
+  (transformation to code generation). Keying analysis results by node id on
+  the program is the same idiom `_analyses_run` uses.
 - Caching: transformed bytecode must never be served to (or from) a normal
   run. While GraphMend is active the compiler skips the sealed-JIR fast path,
   the on-disk module cache and the precompiled-JIR bundle, and does not write
@@ -39,9 +45,9 @@ page as they land.
 ## Detection: `GraphBreakDetectPass`
 
 Detection implements the paper's Dynamo entry-point analysis plus graph-break
-type analysis. It tags AST nodes with a `GraphBreakKind` (see
-`graphmend/break_kind.jac`); each kind names the single transform allowed to
-lower it:
+type analysis. It records a `GraphBreakKind` (declared in
+`jac0core/constant.jac`) per break site; each kind names the single transform
+allowed to lower it:
 
 | Kind | Pattern | Consumer |
 |---|---|---|
