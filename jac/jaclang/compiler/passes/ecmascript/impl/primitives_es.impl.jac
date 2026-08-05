@@ -1212,10 +1212,12 @@ impl ESListEmitter.emit_op_imul(
 impl ESDictEmitter.emit_get(
     self, ctx: ESEmitCtx, target: str, args: list[str]
 ) -> (str | None) {
-    if len(args) == 1 {
-        return "(" + target + "[" + args[0] + "] ?? undefined)";
-    }
-    return "(" + target + "[" + args[0] + "] ?? " + args[1] + ")";
+    # Python dict.get semantics need a membership check: a miss returns the
+    # default (null when omitted, so `is None` sees a real None), and a
+    # present-but-None value is returned as stored. `target[k] ?? default`
+    # gets all three wrong (undefined on miss, default substituted for a
+    # stored None), so route through the runtime's checked implementation.
+    return _rt("dict", "get", [target] + args);
 }
 
 impl ESDictEmitter.emit_keys(

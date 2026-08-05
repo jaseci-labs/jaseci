@@ -2785,16 +2785,21 @@ test "getattr default with or/and emits parenthesized nullish coalescing (#6562)
     assert_balanced_syntax(js_code, fixture);
 }
 
-test "ESDictEmitter.emit_get parenthesizes ?? for 1- and 2-arg forms (#6562)" {
+test "ESDictEmitter.emit_get routes through the membership-checked runtime (#6562, #7884)" {
+    # `target[k] ?? default` was wrong on three axes: a miss produced
+    # undefined (never equal to null, so `is None` failed), a stored None
+    # with no default became undefined, and a stored None with a default
+    # wrongly returned the default. The runtime's _jac.dict.get does the
+    # required membership check and defaults to null.
     emitter = ESDictEmitter();
     ctx = ESEmitCtx(unparser=JSCodeGenerator());
     one_arg = emitter.emit_get(ctx, "d", ['"k"']);
     two_arg = emitter.emit_get(ctx, "d", ['"k"', '""']);
-    assert one_arg == '(d["k"] ?? undefined)' , (
-        "1-arg emit_get must wrap ?? in parens; got " + str(one_arg)
+    assert one_arg == '_jac.dict.get(d, "k")' , (
+        "1-arg emit_get must call the runtime helper; got " + str(one_arg)
     );
-    assert two_arg == '(d["k"] ?? "")' , (
-        "2-arg emit_get must wrap ?? in parens; got " + str(two_arg)
+    assert two_arg == '_jac.dict.get(d, "k", "")' , (
+        "2-arg emit_get must forward the default; got " + str(two_arg)
     );
 }
 
@@ -3017,6 +3022,47 @@ test "len dispatches on argument type: dict, set, unknown (#7883)" {
     for (key, want) in expected.items() {
         assert key in got and got[key] == want , (
             f"len shape {key}: expected {want}, got {got.get(key)}\njs:\n" + js_code
+        );
+    }
+}
+
+test "dict.get miss is a real None on the client (#7884)" {
+    # RC-5: emit_get produced `(d[k] ?? undefined)` while None lowers to
+    # null, so `d.get(missing) is None` was false and `is not None` true
+    # for every missing key. Also covers the two present-but-None axes the
+    # runtime's own docs warn about.
+    js_code = compile_fixture_to_js("dict_get_none_semantics.jac", FIXTURES);
+
+    assert "?? undefined" not in js_code , (
+        "dict.get must not emit `?? undefined`:\n" + js_code
+    );
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(get_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "dict.get semantics crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {
+        "miss_is_none": True,
+        "miss_is_not_none": False,
+        "present": 1,
+        "stored_none": True,
+        "stored_none_default": True,
+        "miss_default": 7
+    };
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"dict.get axis {key}: expected {want}, got {got.get(key)}\njs:\n"
+            + js_code
         );
     }
 }

@@ -358,9 +358,9 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       // Python `dict.get`: returns the stored value when the key is present
       // (even if it is null), and the default only when the key is absent.
       // A membership check is required — `o[key] ?? default_` would wrongly
-      // substitute the default for a present-but-null value.
-      get: (o, key, default_) =>
-        Object.prototype.hasOwnProperty.call(o, key) ? o[key] : default_,
+      // substitute the default for a present-but-null value. The default
+      // defaults to null so a miss is a real Jac None, never undefined.
+      get: (o, key, default_ = null) => _jac.dict.get(o, key, default_),
       items: (o) => Object.entries(o),
       keys: (o) => Object.keys(o),
       pop: (o, key, default_) => _jac.dict.pop(o, key, default_),
@@ -398,7 +398,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     _map: {
       clear: (m) => { m.clear(); return null; },
       copy: (m) => new Map(m),
-      get: (m, key, default_) => (m.has(key) ? m.get(key) : default_),
+      get: (m, key, default_ = null) => (m.has(key) ? m.get(key) : default_),
       items: (m) => [...m.entries()],
       keys: (m) => [...m.keys()],
       pop: (m, key, default_) => {
@@ -583,6 +583,9 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
   },
 
   dict: {
+    get(d, key, default_ = null) {
+      return Object.prototype.hasOwnProperty.call(d, key) ? d[key] : default_;
+    },
     pop(d, key, default_) {
       if (key in d) { const v = d[key]; delete d[key]; return v; }
       if (default_ !== undefined) return default_;
