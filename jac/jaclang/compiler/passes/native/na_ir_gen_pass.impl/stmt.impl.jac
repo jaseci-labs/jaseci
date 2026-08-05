@@ -3075,7 +3075,8 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
                 and len(_ra.target) == 1
                 and isinstance(_ra.target[0], uni.Name) {
                 _rn = _ra.target[0].sym_name;
-                if _rn not in _red_names and _rn in self.local_vars {
+                if _rn not in _red_names
+                    and (_rn in self.local_vars or _rn in self.global_vars) {
                     _red_names.add(_rn);
                     _reds.append((_rn, _ra.na_flow_reduce));
                 }
@@ -3645,7 +3646,10 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
 
     self.builder.position_at_end(_done_bb);
     for (_ri, _red) in enumerate(_reds) {
-        _acc_slot = self.local_vars[_red[0]];
+        _acc_slot = self.local_vars.get(_red[0]);
+        if _acc_slot is None {
+            _acc_slot = self.global_vars[_red[0]];
+        }
         _cur_slot = self.builder.alloca(i64, name=f"ffor.comb.{_red[0]}");
         self.builder.store(
             self.builder.load(_acc_slot, name=f"ffor.comb.{_red[0]}.0"), _cur_slot
