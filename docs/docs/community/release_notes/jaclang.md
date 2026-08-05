@@ -2,7 +2,14 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.10 (Latest Release)
+## jaclang 0.34.11 (Latest Release)
+
+### Bug Fixes
+
+- **An upgraded app no longer ends up with two Deployments serving one Service** (#7878): 0.34.9 renamed the app Deployment from `<app>` to `<app>-deployment` while leaving the pod selector `app=<app>` unchanged. Kubernetes has no rename primitive, so the first deploy after the upgrade created a second Deployment rather than updating the first; the pre-0.34.9 object kept running, its pods kept the label the Service selects, and the Service silently load-balanced across two application versions. Nothing surfaced it - both Deployments healthy, Service healthy, CI green - so it presented as flaky responses rather than a bad deploy. The apply path now reaps the superseded object: for every Deployment in the bundle it records the pod selector that Deployment claims, then deletes any Deployment in the namespace that jac-scale owns (`managed=jac-scale`), claims one of those selectors, and is not the object just applied. Keying on the selector rather than on a version marker makes this an invariant rather than a one-off migration - exactly one Deployment jac-scale owns backs each Service it applies - so it holds for a rename in either direction and for apps that skip intermediate versions. Provisioned databases, the per-app ingress controller and the monitoring stack sit on their own selectors and are never candidates, an operator's own Deployment on the same selector is left alone because jac-scale does not own it, and a listing failure is logged rather than failing a deploy that otherwise succeeded.
+- **ALB shared-ingress rollouts are now actually zero-downtime** (jacHammer-deployed apps saw 502s on every redeploy): with `shared_ingress_class = "alb"` the ALB routes to pod IPs it health-checks itself (`target-type: ip`), so Kubernetes readiness never meant ALB routability - the Deployment controller retired the old pod the moment the new one was k8s-Ready, while the AWS LB Controller was still registering and health-checking the new target, leaving the target group briefly empty even though `kubectl` showed a flawless `RollingUpdate maxSurge=1/maxUnavailable=0`. The deploy now labels the app namespace `elbv2.k8s.aws/pod-readiness-gate-inject: enabled` on the ALB path, so the LB Controller injects pod readiness gates and a new pod only counts Ready - and the old one is only retired - once its ALB target passes health checks; labeling is idempotent and a failure logs rather than failing the deploy. ALB-routed pods also gain a deregistration cushion (preStop `sleep 25`, `terminationGracePeriodSeconds` 40, up from 5s/15s) so the retiring pod keeps answering while its target drains. Endpoint-routed ingress classes keep the short 5s/15s drain unchanged.
+
+## jaclang 0.34.10
 
 ### Bug Fixes
 
