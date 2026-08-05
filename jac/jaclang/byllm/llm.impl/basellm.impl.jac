@@ -118,45 +118,6 @@ def _litellm_ctx_window(model_name: str) -> int {
 }
 
 
-def _attach_call_cost(
-    usage_obj: object, model_name: str, response: object = None
-) -> None {
-    # litellm prices a usage object carrying no token counts at 0.0. Attaching
-    # that would make a call whose tokens the provider never reported look free
-    # and quietly pull the aggregate down, so leave cost unset instead and keep
-    # unknown distinguishable from free.
-    if usage_obj is None
-        or not (
-            _usage_int(usage_obj, "prompt_tokens")
-            or _usage_int(usage_obj, "completion_tokens")
-            or _usage_int(usage_obj, "total_tokens")
-        ) {
-        return;
-    }
-    try {
-        cost = litellm.completion_cost(
-            completion_response=(
-                response
-                    if response is not None
-                    else {"model": model_name, "usage": usage_obj}
-            ),
-            model=model_name
-        );
-    } except Exception {
-        return;
-    }
-    if isinstance(usage_obj, dict) {
-        usage_obj["cost"] = cost;
-    } else {
-        try {
-            setattr(usage_obj, "cost", cost);
-        } except Exception {
-            ;
-        }
-    }
-}
-
-
 def _copy_for_compaction(model: BaseLLM) -> BaseLLM {
     import copy;
     m = copy.copy(model);
@@ -1260,7 +1221,6 @@ impl BaseLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         if not tool_calls_list
         else output_content;
     usage_data = response.get("usage", {});
-    _attach_call_cost(usage_data, self.model_name, response);
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
@@ -1300,7 +1260,6 @@ impl BaseLLM.dispatch_streaming(mt_run: MTRuntime) -> Generator[str, None, None]
             for chunk in response {
                 chunk_usage = chunk?.usage;
                 if chunk_usage {
-                    _attach_call_cost(chunk_usage, self.model_name);
                     self._usage_history.append(chunk_usage);
                 }
                 if chunk?.choices and chunk?.choices?[0]?.delta {
@@ -1381,7 +1340,6 @@ impl BaseLLM.dispatch_streaming_with_tools(
         if rebuilt {
             message = rebuilt.get("choices", [])[0].get("message");
             usage_data = rebuilt.get("usage", {}) or {};
-            _attach_call_cost(usage_data, self.model_name, rebuilt);
             finish_reason = str(
                 rebuilt.get("choices", [])[0].get("finish_reason") or ""
             );
@@ -1466,7 +1424,6 @@ impl BaseLLM.adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         if not tool_calls_list
         else output_content;
     usage_data = response.get("usage", {});
-    _attach_call_cost(usage_data, self.model_name, response);
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
@@ -1486,7 +1443,6 @@ impl BaseLLM.adispatch_streaming(mt_run: MTRuntime) {
             async for chunk in response {
                 chunk_usage = chunk?.usage;
                 if chunk_usage {
-                    _attach_call_cost(chunk_usage, self.model_name);
                     self._usage_history.append(chunk_usage);
                 }
                 if chunk?.choices and chunk?.choices?[0]?.delta {

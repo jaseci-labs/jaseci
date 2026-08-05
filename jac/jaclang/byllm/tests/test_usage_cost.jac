@@ -1,12 +1,8 @@
-"""Cost attached to the usage payload (#7896).
+"""Cost on the usage payload (#7896).
 
-These tests drive litellm's real `completion_cost`. Mocking it would only prove
-a float travelled from one function to another, and would keep passing if the
-call itself broke -- `_attach_call_cost` swallows every exception, so a mocked
-suite stays green while the feature reports nothing. The pricing table is local
-and synchronous, so exercising it costs no network and no key, and the expected
-figure is read from that same table rather than hard-coded so a repricing moves
-both sides together.
+Uses litellm's real `completion_cost` rather than a stub: `_attach_call_cost`
+swallows every exception, so a mocked suite stays green while the feature
+reports nothing. The pricing table is local, so this needs no network or key.
 """
 
 import asyncio;
@@ -20,8 +16,7 @@ import from jaclang.byllm.types { Message, MessageRole }
 
 glob MODEL = "gpt-4o-mini",
      UNPRICEABLE = "openai/ft:definitely-not-a-real-model:acme::zzz",
-     PROMPT_TOKENS = 100,
-     COMPLETION_TOKENS = 20,
+     TOKENS = {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
      PATHS = [
          "dispatch_no_streaming",
          "adispatch_no_streaming",
@@ -40,22 +35,13 @@ def _response(model: str = MODEL, usage: (dict | None) = None) -> dict {
                 "finish_reason": "stop"
             }
         ],
-        "usage": usage
-            if usage is not None
-            else {
-                "prompt_tokens": PROMPT_TOKENS,
-                "completion_tokens": COMPLETION_TOKENS,
-                "total_tokens": PROMPT_TOKENS + COMPLETION_TOKENS
-            }
+        "usage": dict(TOKENS) if usage is None else usage
     };
 }
 
 
-"""Read `cost` off either shape of usage object, or None when it is absent."""
 def _cost_of(usage: any) -> any {
-    return usage.get("cost")
-        if isinstance(usage, dict)
-        else getattr(usage, "cost", None);
+    return usage.get("cost") if isinstance(usage, dict) else usage?.cost;
 }
 
 
@@ -71,11 +57,6 @@ async def _drain(agen: any) {
 }
 
 
-"""Run one dispatch path against a canned response and hand back its usage.
-
-The streaming paths carry a real litellm `Usage`, which is what production sees
-and what the aggregate later serialises; the others carry the response's dict.
-"""
 def _usage_from(path: str, response: (dict | None) = None) -> any {
     resp = response if response is not None else _response();
     llm = Model(model_name=resp["model"]);
@@ -95,16 +76,8 @@ def _usage_from(path: str, response: (dict | None) = None) -> any {
             usage=None,
             choices=[types.SimpleNamespace(delta=types.SimpleNamespace(content="hi"))]
         ),
-        types.SimpleNamespace(
-            usage=litellm.Usage(
-                prompt_tokens=PROMPT_TOKENS,
-                completion_tokens=COMPLETION_TOKENS,
-                total_tokens=PROMPT_TOKENS + COMPLETION_TOKENS
-            ),
-            choices=[]
-        )
+        types.SimpleNamespace(usage=litellm.Usage(**TOKENS), choices=[])
     ];
-
     _call = lambda (params: dict) { return resp; };
     _stream = lambda (params: dict) { return chunks; };
     _rebuild = lambda (seen: list) { return resp; };
@@ -152,64 +125,40 @@ def _usage_from(path: str, response: (dict | None) = None) -> any {
 
 
 test "every dispatch path reports the cost litellm computes for the call" {
-    # Comparing against litellm's own table pins the integration rather than a
-    # price: wrong arguments, a changed signature, or a swallowed failure all
-    # land as a missing or mismatched cost. Agreement across the five also pins
-    # the synthetic {"model", "usage"} wrapper the streaming paths build against
-    # the full response the others pass.
     expected = litellm.completion_cost(completion_response=_response(), model=MODEL);
-    assert expected > 0.0 , (
-        f"litellm priced {MODEL} at {expected}; this fixture can no longer detect a "
-        "regression"
-    );
+    assert expected > 0.0 , f"litellm priced {MODEL} at {expected}; fixture is blind";
 
     for path in PATHS {
-        cost = _cost_of(_usage_from(path));
+        usage = _usage_from(path);
+        cost = _cost_of(usage);
         assert cost is not None , f"{path} left no cost on the usage payload";
         assert abs(cost - expected) < 1e-12 , (
-            f"{path} reported {cost}, litellm computes {expected} for the same call"
+            f"{path} reported {cost}, litellm computes {expected}"
         );
+        if not isinstance(usage, dict) {
+            dumped: dict = usage.model_dump();
+            assert "cost" in dumped , (
+                f"{path} set cost but model_dump() dropped it, so would the aggregate"
+            );
+        }
     }
 }
 
 
-test "cost survives the serialisation the aggregate reads usage through" {
-    # The streaming paths set `cost` on a real litellm Usage, and the aggregate
-    # in `_invoke_streaming` reads each entry via `model_dump()`. That carries an
-    # attribute litellm never declared only because Usage permits extras, so the
-    # totals rest on a third-party detail worth pinning.
-    usage = _usage_from("dispatch_streaming");
-
-    assert not isinstance(usage, dict) , "streaming should carry litellm's Usage object";
-    dumped = usage.model_dump();
-    assert "cost" in dumped , (
-        f"cost is set on the object but lost in model_dump(), so the aggregate would "
-        f"drop it. Keys: {sorted(dumped.keys())}"
-    );
-    assert dumped["cost"] == _cost_of(usage) , dumped;
-}
-
-
-test "a model litellm cannot price leaves cost unset and never raises" {
-    usage = _usage_from("dispatch_no_streaming", _response(UNPRICEABLE));
-
-    assert _cost_of(usage) is None , (
-        f"an unpriceable model must leave cost unset, got {_cost_of(usage)}"
-    );
-    assert usage["prompt_tokens"] == PROMPT_TOKENS , (
-        "token counts must survive a pricing failure"
-    );
-}
-
-
-test "a response carrying no usage data reports no cost rather than zero" {
-    # litellm prices an empty usage at 0.0. Attaching that makes a call whose
-    # tokens are unknown indistinguishable from a free one and drags the
-    # aggregate down silently -- the failure mode #7896 exists to remove.
-    usage = _usage_from("dispatch_no_streaming", _response(MODEL, {}));
-
-    assert _cost_of(usage) is None , (
-        f"a response with no usage data reported cost={_cost_of(usage)}; unknown "
-        "must stay distinguishable from free"
-    );
+test "cost is omitted rather than guessed when it cannot be computed" {
+    for (label, resp) in [
+        ("unpriceable model", _response(UNPRICEABLE)),
+        ("response with no usage data", _response(MODEL, {}))
+    ] {
+        usage = _usage_from("dispatch_no_streaming", resp);
+        assert _cost_of(usage) is None , (
+            f"{label} reported cost={_cost_of(usage)}; unknown must stay distinct "
+            "from free"
+        );
+        if resp["usage"] {
+            assert usage["prompt_tokens"] == TOKENS["prompt_tokens"] , (
+                f"{label} must leave the token counts intact"
+            );
+        }
+    }
 }
