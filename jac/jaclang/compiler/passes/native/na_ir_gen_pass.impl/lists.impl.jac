@@ -184,7 +184,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         if _decl_elem is not None
         else None;
 
-    first_val = self._codegen_expr(nd.values[0]);
+    first_val = self._str_norm(self._codegen_expr(nd.values[0]));
     if first_val is None {
         return None;
     }
@@ -257,7 +257,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     }
 
     for i in range(1, len(nd.values)) {
-        val = self._codegen_expr(nd.values[i]);
+        val = self._str_norm(self._codegen_expr(nd.values[i]));
         if val is not None {
             if self._pending_list_elem_struct is not None
                 and isinstance(self._pending_list_elem_struct, ir.PointerType)
@@ -382,6 +382,7 @@ impl NaIRGenPass._codegen_any_len(jacval: ir.Value) -> ir.Value {
 impl NaIRGenPass._codegen_index_set(
     target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
 ) -> None {
+    value = self._str_norm(value);
     helpers = self.list_helpers.get(elem_type_name);
     if helpers is None {
         return;
@@ -428,4 +429,220 @@ impl NaIRGenPass._codegen_index_set(
     ) {
         self._emit_rc_release_simple(_orig_value, op="list_set", loc=_lset_ctx_loc);
     }
+}
+
+impl NaIRGenPass._emit_aos_list_helpers(tname: str) -> ir.Type {
+    _spec = f"aos.{tname}";
+    if _spec in self.list_types {
+        return self.list_types[_spec];
+    }
+    i8p = ir.IntType(8).as_pointer();
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    _t_struct = self.struct_types[tname];
+    _tp = _t_struct.as_pointer();
+    st = self.llvm_module.context.get_identified_type(f"List.aos.{tname}");
+    st.set_body(i64, i64, _tp);
+    self.list_types[_spec] = st;
+    self.container_layouts[f"List.aos.{tname}"] = {
+        "kind": "aos",
+        "data_fields": [(2, _t_struct)],
+        "elem_kinds": ["raw"],
+        "ctrl_idx": -1,
+        "used_idx": -1,
+        "order_idx": -1,
+        "drop_base": 3
+    };
+    _stp = st.as_pointer();
+    _malloc = self._get_or_declare_extern("malloc", i8p, [i64]);
+    _free = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+    _memcpy = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
+    _z = ir.Constant(i32, 0);
+
+    new_fn = self._define_function(
+        f"__list_new_aos_{tname}", ir.FunctionType(_stp, [])
+    );
+    new_fn.linkage = "private";
+    b = ir.IRBuilder(new_fn.append_basic_block("entry"));
+    _szT = b.ptrtoint(
+        b.gep(ir.Constant(_tp, None), [ir.Constant(i32, 1)], name="szT.p"),
+        i64,
+        name="szT"
+    );
+    _szSelf = b.ptrtoint(
+        b.gep(ir.Constant(_stp, None), [ir.Constant(i32, 1)], name="szS.p"),
+        i64,
+        name="szS"
+    );
+    _selfp = b.bitcast(
+        b.call(_malloc, [_szSelf], name="aos.self8"), _stp, name="aos.self"
+    );
+    b.store(
+        ir.Constant(i64, 0), b.gep(_selfp, [_z, ir.Constant(i32, 0)], name="aos.len")
+    );
+    b.store(
+        ir.Constant(i64, 8), b.gep(_selfp, [_z, ir.Constant(i32, 1)], name="aos.cap")
+    );
+    _buf0 = b.call(
+        _malloc, [b.mul(ir.Constant(i64, 8), _szT, name="aos.b0.sz")], name="aos.b0"
+    );
+    b.store(
+        b.bitcast(_buf0, _tp, name="aos.b0.t"),
+        b.gep(_selfp, [_z, ir.Constant(i32, 2)], name="aos.data")
+    );
+    b.ret(_selfp);
+
+    append_fn = self._define_function(
+        f"__list_append_aos_{tname}", ir.FunctionType(ir.VoidType(), [_stp, _tp])
+    );
+    append_fn.linkage = "private";
+    _a_entry = append_fn.append_basic_block("entry");
+    _a_grow = append_fn.append_basic_block("grow");
+    _a_store = append_fn.append_basic_block("store");
+    b = ir.IRBuilder(_a_entry);
+    _a_szT = b.ptrtoint(
+        b.gep(ir.Constant(_tp, None), [ir.Constant(i32, 1)], name="a.szT.p"),
+        i64,
+        name="a.szT"
+    );
+    _a_len_p = b.gep(append_fn.args[0], [_z, ir.Constant(i32, 0)], name="a.len.p");
+    _a_cap_p = b.gep(append_fn.args[0], [_z, ir.Constant(i32, 1)], name="a.cap.p");
+    _a_data_p = b.gep(append_fn.args[0], [_z, ir.Constant(i32, 2)], name="a.data.p");
+    _a_len = b.load(_a_len_p, name="a.len");
+    _a_cap = b.load(_a_cap_p, name="a.cap");
+    b.cbranch(b.icmp_signed(">=", _a_len, _a_cap, name="a.full"), _a_grow, _a_store);
+    b = ir.IRBuilder(_a_grow);
+    _g_ncap = b.mul(_a_cap, ir.Constant(i64, 2), name="a.ncap");
+    _g_new = b.call(_malloc, [b.mul(_g_ncap, _a_szT, name="a.nsz")], name="a.nbuf");
+    _g_old = b.load(_a_data_p, name="a.old");
+    b.call(
+        _memcpy,
+        [
+            _g_new,
+            b.bitcast(_g_old, i8p, name="a.old8"),
+            b.mul(_a_len, _a_szT, name="a.copysz")
+        ]
+    );
+    b.call(_free, [b.bitcast(_g_old, i8p, name="a.old8f")]);
+    b.store(b.bitcast(_g_new, _tp, name="a.nbuf.t"), _a_data_p);
+    b.store(_g_ncap, _a_cap_p);
+    b.branch(_a_store);
+    b = ir.IRBuilder(_a_store);
+    _s_data = b.load(_a_data_p, name="a.data");
+    _s_dst = b.gep(_s_data, [_a_len], name="a.dst");
+    b.call(
+        _memcpy,
+        [
+            b.bitcast(_s_dst, i8p, name="a.dst8"),
+            b.bitcast(append_fn.args[1], i8p, name="a.src8"),
+            _a_szT
+        ]
+    );
+    b.call(_free, [b.bitcast(append_fn.args[1], i8p, name="a.shell8")]);
+    b.store(b.add(_a_len, ir.Constant(i64, 1), name="a.len1"), _a_len_p);
+    b.ret_void();
+
+    get_fn = self._define_function(
+        f"__list_get_aos_{tname}", ir.FunctionType(_tp, [_stp, i64])
+    );
+    get_fn.linkage = "private";
+    b = ir.IRBuilder(get_fn.append_basic_block("entry"));
+    _g_data = b.load(
+        b.gep(get_fn.args[0], [_z, ir.Constant(i32, 2)], name="g.data.p"), name="g.data"
+    );
+    b.ret(b.gep(_g_data, [get_fn.args[1]], name="g.elem"));
+
+    set_fn = self._define_function(
+        f"__list_set_aos_{tname}", ir.FunctionType(ir.VoidType(), [_stp, i64, _tp])
+    );
+    set_fn.linkage = "private";
+    b = ir.IRBuilder(set_fn.append_basic_block("entry"));
+    _st_szT = b.ptrtoint(
+        b.gep(ir.Constant(_tp, None), [ir.Constant(i32, 1)], name="s.szT.p"),
+        i64,
+        name="s.szT"
+    );
+    _st_data = b.load(
+        b.gep(set_fn.args[0], [_z, ir.Constant(i32, 2)], name="s.data.p"), name="s.data"
+    );
+    _st_slot = b.gep(_st_data, [set_fn.args[1]], name="s.slot");
+    _fields_fn = self._emit_struct_drop_fields_fn(tname);
+    if _fields_fn is not None {
+        b.call(_fields_fn, [b.bitcast(_st_slot, i8p, name="s.slot8")]);
+    }
+    b.call(
+        _memcpy,
+        [
+            b.bitcast(_st_slot, i8p, name="s.slot8b"),
+            b.bitcast(set_fn.args[2], i8p, name="s.src8"),
+            _st_szT
+        ]
+    );
+    b.call(_free, [b.bitcast(set_fn.args[2], i8p, name="s.shell8")]);
+    b.ret_void();
+
+    len_fn = self._define_function(
+        f"__list_len_aos_{tname}", ir.FunctionType(i64, [_stp])
+    );
+    len_fn.linkage = "private";
+    b = ir.IRBuilder(len_fn.append_basic_block("entry"));
+    b.ret(
+        b.load(
+            b.gep(len_fn.args[0], [_z, ir.Constant(i32, 0)], name="l.len.p"),
+            name="l.len"
+        )
+    );
+
+    drop_fn = ir.Function(
+        self.llvm_module,
+        ir.FunctionType(ir.VoidType(), [i8p]),
+        name=f"__drop_List_aos_{tname}"
+    );
+    drop_fn.linkage = "private";
+    drop_fn.args[0].name = "self";
+    _d_entry = drop_fn.append_basic_block("entry");
+    _d_prep = drop_fn.append_basic_block("prep");
+    _d_done = drop_fn.append_basic_block("done");
+    b = ir.IRBuilder(_d_entry);
+    _d_null = b.icmp_unsigned(
+        "==", drop_fn.args[0], ir.Constant(i8p, None), name="d.null"
+    );
+    b.cbranch(_d_null, _d_done, _d_prep);
+    b = ir.IRBuilder(_d_prep);
+    _d_selfp = b.bitcast(drop_fn.args[0], _stp, name="d.self");
+    _d_fields = self._emit_struct_drop_fields_fn(tname);
+
+    def _aos_drop_elem(bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list) -> ir.IRBuilder {
+        if _d_fields is not None {
+            bl.call(_d_fields, [bl.bitcast(elem_ptrs[0], i8p, name="d.elem8")]);
+        }
+        return bl;
+    }
+    b = self._emit_live_slot_loop(
+        drop_fn,
+        b,
+        _d_selfp,
+        self.container_layouts[f"List.aos.{tname}"],
+        "d",
+        _aos_drop_elem
+    );
+    _d_data = b.load(
+        b.gep(_d_selfp, [_z, ir.Constant(i32, 2)], name="d.data.p"), name="d.data"
+    );
+    b.call(_free, [b.bitcast(_d_data, i8p, name="d.data8")]);
+    b.call(_free, [drop_fn.args[0]]);
+    b.branch(_d_done);
+    b = ir.IRBuilder(_d_done);
+    b.ret_void();
+    self.container_drop_fns[f"List.aos.{tname}"] = drop_fn;
+
+    self.list_helpers[_spec] = {
+        "new": new_fn,
+        "append": append_fn,
+        "get": get_fn,
+        "set": set_fn,
+        "len": len_fn,
+        "elem_type": _tp
+    };
+    return st;
 }

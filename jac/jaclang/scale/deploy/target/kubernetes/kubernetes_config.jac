@@ -78,6 +78,7 @@ obj KubernetesConfig(BaseConfig) {
         ops_console: bool = False,
         ops_console_mutations: bool = False,
         kube_context: str = "",
+        kubeconfig: str = "",
         labels: dict[str, str] = {};
 
     override def to_dict -> dict[str, any] {
@@ -152,6 +153,7 @@ obj KubernetesConfig(BaseConfig) {
                 'ops_console': self.ops_console,
                 'ops_console_mutations': self.ops_console_mutations,
                 'kube_context': self.kube_context,
+                'kubeconfig': self.kubeconfig,
                 'labels': self.labels
             }
         );
@@ -237,6 +239,7 @@ obj KubernetesConfig(BaseConfig) {
             ops_console=config.get('ops_console', False),
             ops_console_mutations=config.get('ops_console_mutations', False),
             kube_context=config.get('kube_context', ''),
+            kubeconfig=config.get('kubeconfig', ''),
             labels=config.get('labels', {})
         );
     }

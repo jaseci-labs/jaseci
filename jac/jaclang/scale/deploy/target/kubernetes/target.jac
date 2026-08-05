@@ -9,6 +9,7 @@ import from jaclang.scale._optdeps.kubernetes { client, ApiException }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     ensure_namespace_exists,
     create_k8s_secret,
+    delete_if_exists,
     get_cluster_provider,
     _resolve_current_rs_hashes,
     _refresh_rs_hashes
@@ -40,10 +41,10 @@ glob logger = logging.getLogger(__name__);
 
 obj KubernetesTarget(KubernetesTargetBase) {
     has _deploy_context: DeployContext = DeployContext(),
-        microservices_config: dict[str, any] = {};
+        microservices_config: (dict[str, any] | None) = None;
 
     def _ms_cfg -> dict[str, any] {
-        if self.microservices_config {
+        if self.microservices_config is not None {
             return self.microservices_config;
         }
         try {
@@ -590,6 +591,43 @@ obj KubernetesTarget(KubernetesTargetBase) {
         );
     }
 
+    def ensure_alb_readiness_gates(core_v1: any, namespace: str) -> None {
+        cfg = self.k8s_config;
+        is_alb = bool(getattr(cfg, "shared_ingress", False))
+            and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
+        if not is_alb {
+            return;
+        }
+        gate_label = "elbv2.k8s.aws/pod-readiness-gate-inject";
+        try {
+            ns = core_v1.read_namespace(name=namespace);
+            labels: dict = dict(getattr(ns.metadata, "labels", {}) or {});
+            if labels.get(gate_label) == "enabled" {
+                return;
+            }
+            core_v1.patch_namespace(
+                name=namespace, body={"metadata": {"labels": {gate_label: "enabled"}}}
+            );
+            if self.logger {
+                self.logger.info(
+                    f"Labeled namespace '{namespace}' for ALB pod readiness "
+                    f"gates: rollouts now wait for the new pod's ALB target to "
+                    f"pass health checks before retiring the old pod.",
+                    {"label": gate_label}
+                );
+            }
+        } except Exception as e {
+            if self.logger {
+                self.logger.warn(
+                    f"Could not label namespace '{namespace}' for ALB pod "
+                    f"readiness gates ({e}); rollouts may briefly serve 502s "
+                    f"from the ALB while new targets pass health checks.",
+                    {"label": gate_label}
+                );
+            }
+        }
+    }
+
     def _ensure_privileged_namespace(core_v1: any, namespace: str) -> None {
         try {
             ns = core_v1.read_namespace(name=namespace);
@@ -791,6 +829,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         ensure_namespace_exists(namespace);
+        self.ensure_alb_readiness_gates(core_v1, namespace);
 
         ops_rbac = bundle.get("ops_rbac");
         if ops_rbac {
@@ -868,6 +907,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 );
             }
         }
+
+        self.reap_superseded_deployments(apps_v1, namespace, bundle);
 
         for svc_name in bundle.get("autoscalers", {}).keys() {
             k8s_name = k8s_safe_name(svc_name);
@@ -991,6 +1032,68 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     f"Ops Console RBAC not applied ({e}); the in-admin "
                     f"deploy-health pages will render a 403 until the Role is "
                     f"bound to the gateway ServiceAccount."
+                );
+            }
+        }
+    }
+
+    def reap_superseded_deployments(
+        apps_v1: any, namespace: str, bundle: dict[str, any]
+    ) {
+        applied: dict[str, str] = {};
+        for dep in bundle.get("deployments", {}).values() {
+            try {
+                selector = str(dep["spec"]["selector"]["matchLabels"]["app"]);
+                applied[selector] = str(dep["metadata"]["name"]);
+            } except Exception {
+                continue;
+            }
+        }
+        if not applied {
+            return;
+        }
+
+        try {
+            existing = apps_v1.list_namespaced_deployment(namespace=namespace).items;
+        } except Exception as e {
+            if self.logger {
+                self.logger.warn(
+                    f"Could not list Deployments to reap superseded ones: {e}",
+                    {"namespace": namespace}
+                );
+            }
+            return;
+        }
+
+        for dep in existing {
+            try {
+                name = str(dep.metadata.name);
+                labels = dict(dep.metadata.labels or {});
+                selector = str((dep.spec.selector.match_labels or {}).get("app", ""));
+            } except Exception {
+                continue;
+            }
+            if labels.get("managed") != "jac-scale" {
+                continue;
+            }
+            current = applied.get(selector);
+            if current is None or current == name {
+                continue;
+            }
+            delete_if_exists(
+                apps_v1.delete_namespaced_deployment, name, namespace, "Deployment"
+            );
+            self._emit(
+                "apply",
+                "ok",
+                f"Removed superseded Deployment '{name}'",
+                detail={"superseded_by": current, "selector": selector}
+            );
+            if self.logger {
+                self.logger.info(
+                    f"Removed superseded Deployment '{name}'; '{current}' now "
+                    f"solely backs the 'app={selector}' Service",
+                    {"namespace": namespace}
                 );
             }
         }

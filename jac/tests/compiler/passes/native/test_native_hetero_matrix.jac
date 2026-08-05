@@ -24,7 +24,7 @@ import os;
 import subprocess;
 import sys;
 import tempfile;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
 import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(
@@ -69,9 +69,17 @@ def _get(eng: object, name: str, restype: type | None, *argtypes: type) -> objec
 }
 
 
+def _get_s(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+    # descriptor-ABI variant of _get: a c_char_p spelling means a Jac
+    # `str` (the by-value {root, data, len} descriptor at the native ABI);
+    # delegates to the shared tests.support harness.
+    return native_str_func(eng, name, restype, *argtypes);
+}
+
+
 test "hetero list read-back: str, int, float slots" {
     (eng, _) = _compile(PROG);
-    rs = _get(eng, "hl_read_str", ctypes.c_char_p, ctypes.c_char_p);
+    rs = _get_s(eng, "hl_read_str", ctypes.c_char_p, ctypes.c_char_p);
     ri = _get(eng, "hl_read_int", ctypes.c_int64);
     rf = _get(eng, "hl_read_float", ctypes.c_double);
     assert rs(b"in").decode("utf-8") == "in!";
@@ -81,9 +89,9 @@ test "hetero list read-back: str, int, float slots" {
 
 test "hetero list slot overwrite and append/pop" {
     (eng, _) = _compile(PROG);
-    ow = _get(eng, "hl_overwrite", ctypes.c_char_p, ctypes.c_char_p);
+    ow = _get_s(eng, "hl_overwrite", ctypes.c_char_p, ctypes.c_char_p);
     ap = _get(eng, "hl_append_pop", ctypes.c_int64);
-    ann = _get(eng, "hl_annotated", ctypes.c_char_p, ctypes.c_char_p);
+    ann = _get_s(eng, "hl_annotated", ctypes.c_char_p, ctypes.c_char_p);
     assert ow(b"ow").decode("utf-8") == "ow-two";
     assert ap() == 6;
     assert ann(b"q").decode("utf-8") == "q?";
@@ -97,19 +105,19 @@ test "hetero list iteration dispatches isinstance by tag" {
 
 test "hetero list and dict repr render mixed elements" {
     (eng, _) = _compile(PROG);
-    lr = _get(eng, "hl_repr", ctypes.c_char_p);
-    dr = _get(eng, "hd_repr", ctypes.c_char_p);
+    lr = _get_s(eng, "hl_repr", ctypes.c_char_p);
+    dr = _get_s(eng, "hd_repr", ctypes.c_char_p);
     assert lr().decode("utf-8") == "[1, 'two', 3.5, True]";
     assert dr().decode("utf-8") == "{'a': 1, 'b': 'two'}";
 }
 
 test "hetero dict read-back, overwrite, pop, clear" {
     (eng, _) = _compile(PROG);
-    rs = _get(eng, "hd_read_str", ctypes.c_char_p);
+    rs = _get_s(eng, "hd_read_str", ctypes.c_char_p);
     ri = _get(eng, "hd_read_int", ctypes.c_int64);
-    ow = _get(eng, "hd_overwrite", ctypes.c_char_p, ctypes.c_char_p);
-    pl = _get(eng, "hd_pop_len", ctypes.c_int64, ctypes.c_char_p);
-    cl = _get(eng, "hd_clear_len", ctypes.c_int64, ctypes.c_char_p);
+    ow = _get_s(eng, "hd_overwrite", ctypes.c_char_p, ctypes.c_char_p);
+    pl = _get_s(eng, "hd_pop_len", ctypes.c_int64, ctypes.c_char_p);
+    cl = _get_s(eng, "hd_clear_len", ctypes.c_int64, ctypes.c_char_p);
     assert rs().decode("utf-8") == "bee";
     assert ri() == 42;
     assert ow(b"dv").decode("utf-8") == "dv-second";

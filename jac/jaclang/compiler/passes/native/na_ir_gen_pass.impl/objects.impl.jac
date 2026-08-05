@@ -1951,7 +1951,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
 
     if method_name in self._primitive_method_names("str") {
-        str_val = self._codegen_expr(trailer.target);
+        str_val = self._str_norm(self._codegen_expr(trailer.target));
         if str_val is not None
             and self._opt_payload_of(str_val.type) == ir.IntType(8).as_pointer() {
             str_val = self._coerce_type(str_val, ir.IntType(8).as_pointer());

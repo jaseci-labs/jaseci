@@ -1,4 +1,8 @@
 import from jaclang.scale.config.app_config { AppConfig }
+import from jaclang.scale.config.config_loader {
+    get_scale_config,
+    normalize_microservices_config
+}
 import from jaclang.scale.models.deploy_context { DeployContext }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -10,14 +14,32 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 
 
 glob GATEWAY_NAME: str = "__gateway__",
-     _UVICORN_EXIT_CUSHION_S: int = 5;
+     _UVICORN_EXIT_CUSHION_S: int = 5,
+     _RFC1123_MAX_LEN: int = 253;
 
 
 def k8s_safe_name(svc_name: str) -> str {
     if svc_name == GATEWAY_NAME {
         return "gateway";
     }
-    return svc_name.lower().replace("_", "-");
+    import re;
+    if "${" in svc_name {
+        raise ValueError(
+            f"'{svc_name}' still contains an unresolved ${{...}} placeholder, so "
+            f"the environment variable it names was not set where this deploy "
+            f"ran. Export it, or replace it with a literal name."
+        );
+    }
+    safe = re.sub(r"[^a-z0-9.-]", "-", svc_name.lower().replace("_", "-"));
+    safe = re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", safe)[:_RFC1123_MAX_LEN];
+    safe = re.sub(r"[^a-z0-9]+$", "", safe);
+    if not safe {
+        raise ValueError(
+            f"'{svc_name}' has no characters usable in a Kubernetes name; names "
+            f"must contain at least one letter or digit."
+        );
+    }
+    return safe;
 }
 
 
@@ -81,16 +103,14 @@ obj ManifestBuilder {
         project_dir: str = "",
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
-        microservices_config: dict[str, any] = {},
+        microservices_config: (dict[str, any] | None) = None,
         dry_run: bool = False;
 
     def _ms_cfg -> dict[str, any] {
-        import from jaclang.scale.config.config_loader {
-            get_scale_config,
-            normalize_microservices_config
-        }
-        if self.microservices_config {
-            return normalize_microservices_config(self.microservices_config);
+        if self.microservices_config is not None {
+            return normalize_microservices_config(
+                self.microservices_config, env_routes_fallback=False
+            );
         }
         try {
             return get_scale_config().get_microservices_config();
@@ -679,8 +699,16 @@ obj ManifestBuilder {
         };
     }
 
+    def _alb_deregistration_cushion -> int {
+        cfg = self.k8s_config;
+        is_alb = bool(getattr(cfg, "shared_ingress", False))
+            and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
+        return 20 if is_alb else 0;
+    }
+
     def _build_prestop_hook -> dict[str, any] {
-        return {"exec": {"command": ["sh", "-c", "sleep 5"]}};
+        cushion = 5 + self._alb_deregistration_cushion();
+        return {"exec": {"command": ["sh", "-c", f"sleep {cushion}"]}};
     }
 
     def _build_deployment_manifest(
@@ -976,7 +1004,9 @@ obj ManifestBuilder {
         }
         spec: dict[str, any] = {
             "containers": [container],
-            "terminationGracePeriodSeconds": drain_t + _UVICORN_EXIT_CUSHION_S
+            "terminationGracePeriodSeconds": drain_t
+                + _UVICORN_EXIT_CUSHION_S
+                + self._alb_deregistration_cushion()
         };
         sa_name = self._service_account_name();
         if sa_name {

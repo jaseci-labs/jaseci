@@ -321,6 +321,7 @@ impl nacompile(
             default_codespace=('native' if auto_promote else ''),
             force_target_program=True,
             na_gc_mode=gc,
+            no_ir_cache=scrub,
             nogc_cli_target=(base_stem(filename) if enforce_nogc else ""),
             nogc_enforce_modules=(_gc_cfg.enforce.modules if _gc_cfg else []),
             nogc_grandfathered=(_gc_cfg.enforce.grandfathered if _gc_cfg else [])
@@ -484,6 +485,12 @@ impl nacompile(
                 and (not lib_path.startswith("@"))
                 and ("/" in lib_path or "\\" in lib_path) {
                 _needed = os.path.basename(lib_path);
+            }
+            _needed_base = os.path.basename(_needed);
+            if _needed_base == "libc.so" {
+                _needed = "libc.so.6";
+            } elif _needed_base == "libm.so" {
+                _needed = "libm.so.6";
             }
             if _needed not in needed_libs {
                 needed_libs.append(_needed);

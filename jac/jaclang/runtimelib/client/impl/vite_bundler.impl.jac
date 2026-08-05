@@ -1324,6 +1324,17 @@ impl ViteBundler.start_dev_server(
     return process;
 }
 
+def _dev_head_scripts -> str {
+    import from jaclang.project.config { get_config }
+    import from jaclang.runtimelib.client.serving { HeaderBuilder }
+
+    config = get_config();
+    client_cfg = config.get_plugin_config('client') if config else None;
+    meta_data = client_cfg.get('app_meta_data', {}) if client_cfg else {};
+    tags = HeaderBuilder(meta_data, 'dev').build_scripts();
+    return ''.join(f'    {tag}\n' for tag in tags);
+}
+
 impl ViteBundler._ensure_dev_index_html(self: ViteBundler, build_dir: Path) -> None {
     index_html = build_dir / 'index.html';
     index_content = '''<!DOCTYPE html>
@@ -1385,6 +1396,9 @@ impl ViteBundler._ensure_dev_index_html(self: ViteBundler, build_dir: Path) -> N
   </body>
 </html>
 ''';
+    if head_scripts := _dev_head_scripts() {
+        index_content = index_content.replace('  </head>', f'{head_scripts}  </head>');
+    }
     index_html.write_text(index_content, encoding='utf-8');
 }
 

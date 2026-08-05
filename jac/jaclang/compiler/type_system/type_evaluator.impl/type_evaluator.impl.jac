@@ -1972,6 +1972,9 @@ impl TypeEvaluator._get_type_of_expression_core(
         case uni.AwaitExpr():
             return self.get_type_of_expression(expr.target);
 
+        case uni.ConcurrentExpr():
+            return self.get_type_of_expression(expr.target);
+
         case uni.YieldExpr():
             if expr.expr is not None {
                 return self.get_type_of_expression(expr.expr);
@@ -3478,6 +3481,19 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
         return target_hub[resolved_path];
     }
     file_content = read_file_with_encoding(path);
+    if path.endswith("builtins.pyi") and "def chunks(" not in file_content {
+        _ck_anchor = "    def copy(self) -> list[_T]: ...";
+        if _ck_anchor in file_content {
+            file_content = file_content.replace(
+                _ck_anchor,
+                _ck_anchor
+                    + "\n    # Jac extension: chunked iteration views"
+                    + " (`for c in &xs.chunks(n)`).\n"
+                    + "    def chunks(self, n: int, /) -> list[list[_T]]: ...",
+                1
+            );
+        }
+    }
     uni_source = uni.Source(file_content, path);
     mod = PyastBuildPass(
         ir_in=uni.PythonModuleAst(py_ast.parse(file_content), orig_src=uni_source,),

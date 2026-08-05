@@ -43,9 +43,91 @@ def _get(eng: object, name: str, restype: type | None, *argtypes: type) -> objec
 }
 
 
+class JacStrABI(ctypes.Structure) {
+    # Register view of a by-value JacStr {root, data, len} return. LLVM
+    # lowers the aggregate return into scalar return registers; a 16-byte
+    # two-pointer struct restype makes libffi read the first two of them,
+    # which yields root and data. len rides in the third return register,
+    # unreachable through libffi, but Jac string payloads are always
+    # NUL-terminated at len so a bounded read is recovered from data.
+    has _fields_: list[tuple[str, type]] = [
+        ("root", ctypes.c_void_p),
+        ("data", ctypes.c_void_p)
+    ];
+}
+
+
+def _get_s(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+    # descriptor-ABI variant of _get: a c_char_p spelling here means a
+    # Jac `str` (the by-value {root, data, len} descriptor at the native
+    # ABI). LLVM decomposes a by-value descriptor param into three scalar
+    # slots, so each str param is declared as (root, data, len) scalars and
+    # bytes/str args build their backing storage via jac_str_new; str
+    # returns come back as the full bytes of the result string, so existing
+    # comparisons keep working.
+    addr = eng.get_function_address(name);
+    assert addr != 0 , f"Function '{name}' not found in JIT engine";
+    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    str_slots: list = [];
+    real_args: list = [];
+    for a in argtypes {
+        if a == ctypes.c_char_p {
+            str_slots.append(True);
+            real_args.append(ctypes.c_void_p);
+            real_args.append(ctypes.c_void_p);
+            real_args.append(ctypes.c_int64);
+        } else {
+            str_slots.append(False);
+            real_args.append(a);
+        }
+    }
+    raw = ctypes.CFUNCTYPE(real_res, *real_args)(addr);
+    sn_addr = 0;
+    for sn in ("jac_str_new", "__jac_str_new") {
+        try {
+            sn_addr = eng.get_function_address(sn);
+        } except Exception {
+            sn_addr = 0;
+        }
+        if sn_addr {
+            break;
+        }
+    }
+    mkstr = (
+        ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(sn_addr)
+            if sn_addr
+            else None
+    );
+    def _call(*args: any) -> any {
+        c_args: list = [];
+        for (a, is_str) in zip(args, str_slots) {
+            if is_str {
+                assert mkstr is not None , "jac_str_new not found in JIT engine";
+                b = a.encode("utf-8") if isinstance(a, str) else a;
+                p = mkstr(b, len(b));
+                c_args.append(p);
+                c_args.append(p);
+                c_args.append(len(b));
+            } else {
+                c_args.append(a);
+            }
+        }
+        r = raw(*c_args);
+        if real_res is JacStrABI {
+            if not r.data {
+                return b"";
+            }
+            return ctypes.string_at(r.data);
+        }
+        return r;
+    }
+    return _call;
+}
+
+
 test "heap string stored in a heterogeneous list by index assignment survives" {
     eng = _compile(FIXTURE);
-    via_local = _get(eng, "via_local", ctypes.c_char_p, ctypes.c_char_p);
+    via_local = _get_s(eng, "via_local", ctypes.c_char_p, ctypes.c_char_p);
     # r = [19, ""]; r[1] = s[5:12]; return r[1]  -> the sliced substring intact
     assert via_local(b"u-ca=iso8601").decode("utf-8") == "iso8601";
     assert via_local(b"12345abcdefg").decode("utf-8") == "abcdefg";
@@ -54,8 +136,8 @@ test "heap string stored in a heterogeneous list by index assignment survives" {
 
 test "heap slices placed directly in a mixed list literal survive" {
     eng = _compile(FIXTURE);
-    a = _get(eng, "via_literal_a", ctypes.c_char_p, ctypes.c_char_p);
-    b = _get(eng, "via_literal_b", ctypes.c_char_p, ctypes.c_char_p);
+    a = _get_s(eng, "via_literal_a", ctypes.c_char_p, ctypes.c_char_p);
+    b = _get_s(eng, "via_literal_b", ctypes.c_char_p, ctypes.c_char_p);
     # r = [99, s[0:3], s[5:12]]
     assert a(b"u-ca=iso8601").decode("utf-8") == "u-c";
     assert b(b"u-ca=iso8601").decode("utf-8") == "iso8601";
@@ -64,7 +146,7 @@ test "heap slices placed directly in a mixed list literal survive" {
 
 test "string passed as an argument and stored in a mixed list survives" {
     eng = _compile(FIXTURE);
-    via_arg = _get(eng, "via_arg", ctypes.c_char_p, ctypes.c_int64, ctypes.c_char_p);
+    via_arg = _get_s(eng, "via_arg", ctypes.c_char_p, ctypes.c_int64, ctypes.c_char_p);
     assert via_arg(7, b"hello").decode("utf-8") == "hello";
     assert via_arg(0, b"").decode("utf-8") == "";
 }

@@ -70,6 +70,9 @@ impl NaIRGenPass.postinit -> None {
         self.type_map["str"] = _spec_map["i8*"];
     }
 
+    if "wasm" not in str(self.llvm_module.triple or "") {
+        self.type_map["str"] = self._str_desc_type();
+    }
     self.type_map["LiteralString"] = self.type_map.get("str", _spec_map["i8*"]);
     self.type_map["Region"] = _spec_map["i8*"];
 
@@ -189,6 +192,9 @@ impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {
     _opt_pt = self._opt_payload_of(ty);
     if _opt_pt is not None {
         return "opt." + self._llvm_type_str(_opt_pt);
+    }
+    if self._str_desc_ty is not None and ty == self._str_desc_ty {
+        return "jacstr3" if len(list(self._str_desc_ty.elements)) == 3 else "jacstr2";
     }
     if isinstance(ty, ir.IntType) {
         if ty.width == 64 {
@@ -1194,6 +1200,8 @@ impl NaIRGenPass._dispatch_primitive_method(
     kw_node: (uni.UniNode | None) = None
 ) -> (ir.Value | None) {
     self._ensure_emitters();
+    target = self._str_norm(target);
+    args = [self._str_norm(_a) for _a in args];
     _emitter = self._native_emitters.get(type_name);
     if _emitter is None {
         return None;
@@ -1224,6 +1232,7 @@ impl NaIRGenPass._dispatch_builtin(
     kw_node: (uni.UniNode | None) = None,
     type_key: str = ""
 ) -> (ir.Value | None) {
+    args = [self._str_norm(_a) for _a in args];
     self._ensure_emitters();
     if (
         func_name == "str"

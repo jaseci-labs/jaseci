@@ -14,6 +14,173 @@ impl OwnershipCheckPass._flow_for_stmts -> list[uni.InForStmt] {
     return out;
 }
 
+impl OwnershipCheckPass._flow_reduce_shape(asgn: uni.Assignment, sid: SymId) -> str {
+    import from jaclang.jac0core.constant { Tokens as Tok }
+    if len(asgn.target) != 1 or not isinstance(asgn.target[0], uni.Name) {
+        return "";
+    }
+    if self._sym_id(asgn.target[0]) != sid {
+        return "";
+    }
+    if asgn.aug_op is not None {
+        if asgn.aug_op.name != Tok.ADD_EQ {
+            return "";
+        }
+        _val = asgn.value;
+        if _val is None {
+            return "";
+        }
+        _rhs_names = ([_val] if isinstance(_val, uni.Name) else [])
+            + list(_val.get_all_sub_nodes(uni.Name));
+        for rn in _rhs_names {
+            if self._sym_id(rn) == sid {
+                return "";
+            }
+        }
+        return "add";
+    }
+    if not isinstance(asgn.value, uni.FuncCall) {
+        return "";
+    }
+    fc = asgn.value;
+    if not isinstance(fc.target, uni.Name)
+        or fc.target.sym_name not in ("min", "max") {
+        return "";
+    }
+    _fcsym = fc.target.sym;
+    if _fcsym is not None and _fcsym.decl is not None {
+        _fmod = _fcsym.decl.find_parent_of_type(uni.Module);
+        if _fmod is None or _fmod.name != "builtins" {
+            return "";
+        }
+    }
+    _params = fc.params or [];
+    if len(_params) != 2 {
+        return "";
+    }
+    _acc_args = 0;
+    for p in _params {
+        if not isinstance(p, uni.Expr) or isinstance(p, uni.KWPair) {
+            return "";
+        }
+        if isinstance(p, uni.Name) and self._sym_id(p) == sid {
+            _acc_args += 1;
+        } else {
+            _p_names = ([p] if isinstance(p, uni.Name) else [])
+                + list(p.get_all_sub_nodes(uni.Name));
+            for pn in _p_names {
+                if self._sym_id(pn) == sid {
+                    return "";
+                }
+            }
+        }
+    }
+    if _acc_args != 1 {
+        return "";
+    }
+    return fc.target.sym_name;
+}
+
+impl OwnershipCheckPass._collect_flow_reductions(
+    lp: uni.InForStmt
+) -> dict[SymId, str] {
+    _asgns: list[uni.Assignment] = [];
+    for st in (lp.body or []) {
+        if isinstance(st, uni.Assignment) {
+            _asgns.append(st);
+        }
+        for a in st.get_all_sub_nodes(uni.Assignment) {
+            _asgns.append(a);
+        }
+    }
+    _cands: dict[SymId, str] = {};
+    _sites: dict[SymId, list[uni.Assignment]] = {};
+    _lp_fn = lp.find_parent_of_type(uni.Ability);
+    _lp_mc = lp.find_parent_of_type(uni.ModuleCode);
+    for a in _asgns {
+        if len(a.target) != 1 or not isinstance(a.target[0], uni.Name) {
+            continue;
+        }
+        tgt = a.target[0];
+        sid = self._sym_id(tgt);
+        if sid is None or tgt.sym is None or tgt.sym.decl is None {
+            continue;
+        }
+        if self._is_ancestor(lp, tgt.sym.decl) {
+            continue;
+        }
+        if tgt.sym.decl.find_parent_of_type(uni.Ability) is not _lp_fn
+            or tgt.sym.decl.find_parent_of_type(uni.ModuleCode) is not _lp_mc {
+            continue;
+        }
+        _t = "";
+        try {
+            _t = tgt.type.mangle() if tgt.type is not None else "";
+        } except Exception {
+            _t = "";
+        }
+        if _t != "int" {
+            continue;
+        }
+        if sid in _cands and _cands[sid] == "" {
+            continue;
+        }
+        shape = self._flow_reduce_shape(a, sid);
+        if shape == "" {
+            _cands[sid] = "";
+            continue;
+        }
+        if sid in _cands and _cands[sid] != shape {
+            _cands[sid] = "";
+            continue;
+        }
+        _cands[sid] = shape;
+        if sid not in _sites {
+            _sites[sid] = [];
+        }
+        _sites[sid].append(a);
+    }
+    out: dict[SymId, str] = {};
+    for (sid, op) in _cands.items() {
+        if op == "" {
+            continue;
+        }
+        _all_inside = True;
+        for st in (lp.body or []) {
+            _nms = ([st] if isinstance(st, uni.Name) else [])
+                + list(st.get_all_sub_nodes(uni.Name));
+            for nm in _nms {
+                if self._sym_id(nm) != sid {
+                    continue;
+                }
+                _inside = False;
+                for a in _sites[sid] {
+                    if nm is a or self._is_ancestor(a, nm) {
+                        _inside = True;
+                        break;
+                    }
+                }
+                if not _inside {
+                    _all_inside = False;
+                    break;
+                }
+            }
+            if not _all_inside {
+                break;
+            }
+        }
+        if _all_inside {
+            out[sid] = op;
+        }
+    }
+    for (sid, op) in out.items() {
+        for a in _sites[sid] {
+            a.na_flow_reduce = op;
+        }
+    }
+    return out;
+}
+
 impl OwnershipCheckPass._emit_flow_for_diagnostics -> None {
     import from jaclang.jac0core.constant { Tokens as Tok }
     _flows = self._flow_for_stmts();
@@ -48,6 +215,7 @@ impl OwnershipCheckPass._emit_flow_for_diagnostics -> None {
                 self.emit(E1313, node_override=inner, name="a nested `flow for`");
             }
         }
+        _licensed = self._collect_flow_reductions(lp);
         _flagged: set[int] = set();
         for st in (lp.body or []) {
             _subs: list[uni.UniNode] = (
@@ -106,6 +274,9 @@ impl OwnershipCheckPass._emit_flow_for_diagnostics -> None {
                 }
                 sid = self._sym_id(nm);
                 if sid is None or sid in _flagged or sid in _coll_sids {
+                    continue;
+                }
+                if sid in _licensed {
                     continue;
                 }
                 _is_write = False;
@@ -293,4 +464,89 @@ impl OwnershipCheckPass._is_deep_immutable_scalar(nm: uni.Name) -> bool {
         return False;
     }
     return _mangled in ("int", "float", "bool", "str", "bytes");
+}
+
+impl OwnershipCheckPass._chunks_shape_of(expr: uni.Expr | None) -> (tuple | None) {
+    if not isinstance(expr, uni.FuncCall) {
+        return None;
+    }
+    _fcx: uni.FuncCall = expr;
+    _t = _fcx.target;
+    if not (
+        isinstance(_t, uni.AtomTrailer)
+        and _t.is_attr
+        and isinstance(_t.right, uni.Name)
+        and _t.right.sym_name == "chunks"
+    ) {
+        return None;
+    }
+    _m = "";
+    try {
+        _m = _t.target.type.mangle() if _t.target.type is not None else "";
+    } except Exception {
+        return None;
+    }
+    if _m != "list" and not _m.startswith("list[") {
+        return None;
+    }
+    _params = [
+        (p.value if isinstance(p, uni.KWPair) else p) for p in (_fcx.params or [])
+    ];
+    if len(_params) != 1 {
+        return None;
+    }
+    return (_t.target, _params[0]);
+}
+
+impl OwnershipCheckPass._emit_chunk_view_diagnostics -> None {
+    _licensed: set[int] = set();
+    _chunk_vars: dict[SymId, uni.InForStmt] = {};
+    for st in self.ir_in.get_all_sub_nodes(uni.InForStmt) {
+        coll = st.collection;
+        if isinstance(coll, uni.UnaryExpr)
+            and is_borrow_kind(coll.ownership)
+            and self._chunks_shape_of(coll.operand) is not None {
+            _licensed.add(id(coll.operand));
+            tgt = st.target;
+            if isinstance(tgt, uni.Name) and tgt.sym is not None {
+                _chunk_vars[self._name_sym_id(tgt)] = st;
+            }
+        }
+    }
+    for fc in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
+        if self._chunks_shape_of(fc) is not None and id(fc) not in _licensed {
+            self.emit(
+                E1313,
+                node_override=fc,
+                name="`chunks()` outside a lent `for` collection"
+            );
+        }
+    }
+    for (sid, st) in _chunk_vars.items() {
+        for use in self.name_uses_by_sym.get(sid, []) {
+            _p = use.parent;
+            if isinstance(_p, uni.AtomTrailer)
+                and _p.target is use
+                and _p.is_attr
+                and isinstance(_p.right, uni.Name)
+                and _p.right.sym_name
+                    in (
+                        "append",
+                        "insert",
+                        "extend",
+                        "pop",
+                        "remove",
+                        "clear",
+                        "sort",
+                        "reverse"
+                    ) {
+                self.emit(
+                    E1313,
+                    node_override=_p,
+                    name=f"structural mutation of a chunk view"
+                    f" ({_p.right.sym_name}())"
+                );
+            }
+        }
+    }
 }
