@@ -122,9 +122,11 @@ def build_typeshed_bundle(
 
     pyver = python_tag();
     out_path = Path(out_dir);
-    for stale_dir in sorted(out_path.iterdir()) {
-        if stale_dir.is_dir() and stale_dir.name != pyver {
-            shutil.rmtree(stale_dir, ignore_errors=True);
+    if out_path.is_dir() {
+        for stale_dir in sorted(out_path.iterdir()) {
+            if stale_dir.is_dir() and stale_dir.name != pyver {
+                shutil.rmtree(stale_dir, ignore_errors=True);
+            }
         }
     }
     jir_dir = out_path / pyver;
