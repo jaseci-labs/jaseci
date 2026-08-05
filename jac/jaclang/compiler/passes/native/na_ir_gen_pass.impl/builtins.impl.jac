@@ -47,12 +47,18 @@ impl NaIRGenPass._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
 
         if isinstance(val.type, ir.IntType) {
             if val.type.width == 1 {
-                val = self.builder.zext(val, ir.IntType(64));
-            } elif val.type.width < 64 {
-                val = self.builder.sext(val, ir.IntType(64));
+                # Bools print as True/False, not 1/0.
+                t_g = self._make_global_string("True", name_prefix=".repr.true");
+                f_g = self._make_global_string("False", name_prefix=".repr.false");
+                fmt_parts.append("%s");
+                args.append(self.builder.select(val, t_g, f_g, name="print.bool"));
+            } else {
+                if val.type.width < 64 {
+                    val = self.builder.sext(val, ir.IntType(64));
+                }
+                fmt_parts.append("%lld");
+                args.append(val);
             }
-            fmt_parts.append("%lld");
-            args.append(val);
         } elif isinstance(val.type, ir.DoubleType) {
             fmt_parts.append("%s");
             args.append(self._emit_float_repr(val));

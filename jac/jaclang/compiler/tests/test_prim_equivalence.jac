@@ -176,6 +176,23 @@ test "dict" {
     run_with_both("prim_dict.jac", "dict_py", "dict_cl", "dict_na");
 }
 
+test "native print renders bools as True and False" {
+    run_with_both(
+        "prim_print_bool.jac",
+        "pbool_py",
+        "pbool_cl",
+        "pbool_na",
+        require=["cl", "na"]
+    );
+    # The native print of an i1 must go through the True/False string
+    # select, not the %lld integer path that rendered bools as 1/0.
+    (eng, na_ir) = compile_native("prim_print_bool.jac");
+    llvm_txt = str(na_ir.gen.llvm_ir);
+    assert (".repr.true" in llvm_txt) and (".repr.false" in llvm_txt) , (
+        "print(bool) must select the True/False repr strings natively"
+    );
+}
+
 test "unboxed scalars are never None on any backend" {
     run_with_both(
         "prim_none_identity.jac",
