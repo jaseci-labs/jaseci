@@ -1212,10 +1212,7 @@ impl ESListEmitter.emit_op_imul(
 impl ESDictEmitter.emit_get(
     self, ctx: ESEmitCtx, target: str, args: list[str]
 ) -> (str | None) {
-    if len(args) == 1 {
-        return "(" + target + "[" + args[0] + "] ?? undefined)";
-    }
-    return "(" + target + "[" + args[0] + "] ?? " + args[1] + ")";
+    return _rt("dict", "get", [target] + args);
 }
 
 impl ESDictEmitter.emit_keys(
@@ -1723,7 +1720,21 @@ impl ESBuiltinEmitter.emit_input(
 }
 
 impl ESBuiltinEmitter.emit_len(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {
-    return args[0] + ".length";
+    if not args {
+        return None;
+    }
+
+    arg_type = (ctx.arg_type_names or [""])[0] if ctx.arg_type_names else "";
+    if arg_type == "dict" {
+        return "Object.keys(" + args[0] + ").length";
+    }
+    if arg_type in ("set", "frozenset") {
+        return args[0] + ".size";
+    }
+    if arg_type in ("str", "list", "tuple", "bytes", "bytearray", "range") {
+        return args[0] + ".length";
+    }
+    return _rt("builtin", "len", args);
 }
 
 impl ESBuiltinEmitter.emit_abs(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {
@@ -1970,9 +1981,7 @@ impl ESBuiltinEmitter.emit_int(self, ctx: ESEmitCtx, args: list[str]) -> (str | 
     if len(args) == 0 {
         return "0";
     }
-    # Math.trunc(Number(x)) / parseInt partial-parse or NaN where Python
-    # raises ValueError; the runtime helper keeps the typeof-number fast
-    # path and applies strict string validation.
+
     return _rt("builtin", "int", args);
 }
 
@@ -1982,8 +1991,7 @@ impl ESBuiltinEmitter.emit_float(
     if len(args) == 0 {
         return "0.0";
     }
-    # parseFloat never throws and accepts partial parses ("10abc" -> 10),
-    # so every try/float coercion pattern silently diverged from Python.
+
     return _rt("builtin", "float", args);
 }
 
@@ -1999,8 +2007,7 @@ impl ESBuiltinEmitter.emit_list(self, ctx: ESEmitCtx, args: list[str]) -> (str |
     if len(args) == 0 {
         return "[]";
     }
-    # list(d) on a dict yields its keys in Python; _jac.builtin.iter is a
-    # pass-through for anything already iterable.
+
     return "Array.from(" + _rt("builtin", "iter", args) + ")";
 }
 
@@ -2008,10 +2015,7 @@ impl ESBuiltinEmitter.emit_dict(self, ctx: ESEmitCtx, args: list[str]) -> (str |
     if len(args) == 0 {
         return "{}";
     }
-    # Dicts are represented as plain objects, which are not iterable, so a
-    # bare Object.fromEntries copy throws on the most common call shape
-    # (dict(other_dict)); the runtime helper dispatches on the actual value
-    # kind (plain object / Map / iterable of pairs).
+
     return _rt("builtin", "dict", args);
 }
 

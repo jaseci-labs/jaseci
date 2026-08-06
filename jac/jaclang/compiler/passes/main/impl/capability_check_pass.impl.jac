@@ -540,7 +540,7 @@ impl ClientCapabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     }
     if not getattr(ir_in.gen, 'client_viols_reported', False) {
         for (_vnode, _vkind) in client_capability_violations(ir_in) {
-            self.emit(E5095, node_override=_vnode, kind=_vkind);
+            self.emit(E5096, node_override=_vnode, kind=_vkind);
         }
         ir_in.gen.client_viols_reported = True;
     }

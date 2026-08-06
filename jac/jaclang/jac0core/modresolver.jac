@@ -752,10 +752,6 @@ def _npm_package_entry(pkg_dir: str, data: dict) -> (str | None) {
     return None;
 }
 
-"""JS import specifier for a local .jac target, relative to the importing
-file. Compiled modules mirror the source tree, so a root-anchored
-'./pkg/mod.js' specifier is only correct when the importer sits at the
-project root; every nested importer needs a genuinely relative path."""
 def relative_js_specifier(target_path: str, importer_path: str) -> str {
     target = target_path;
     if target.endswith('.jac') {

@@ -198,10 +198,7 @@ def _create_body(
         existing = find_project_root(cwd);
         if existing and not force {
             (project_root, toml_path) = existing;
-            # Only re-initializing an existing project root needs --force;
-            # an ancestor project must not block a fresh nested project
-            # (config resolution is nearest-wins, so nested projects are
-            # first-class -- e.g. a repo checked out inside a monorepo).
+
             if Path(project_root).resolve() == cwd.resolve() {
                 console.error(f"Already in a Jac project: {toml_path}");
                 console.print("Use --force to reinitialize.", style="muted");

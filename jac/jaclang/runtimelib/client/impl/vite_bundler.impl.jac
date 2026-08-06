@@ -172,11 +172,6 @@ impl ViteBundler.create_tsconfig(self: ViteBundler) -> Path {
     return tsconfig_path;
 }
 
-"""Installed node_modules are stale when the generated dependency
-manifest (configs/package.json) no longer matches what was last installed;
-the marker written after each successful install carries that hash. A
-missing marker with an existing node_modules also reads as stale so
-manifest edits made before this marker existed still trigger a re-sync."""
 impl client_deps_stale(build_dir: Path) -> bool {
     import hashlib;
     node_modules = build_dir / 'node_modules';

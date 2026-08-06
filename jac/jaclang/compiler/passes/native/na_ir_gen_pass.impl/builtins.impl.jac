@@ -47,12 +47,17 @@ impl NaIRGenPass._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
 
         if isinstance(val.type, ir.IntType) {
             if val.type.width == 1 {
-                val = self.builder.zext(val, ir.IntType(64));
-            } elif val.type.width < 64 {
-                val = self.builder.sext(val, ir.IntType(64));
+                t_g = self._make_global_string("True", name_prefix=".repr.true");
+                f_g = self._make_global_string("False", name_prefix=".repr.false");
+                fmt_parts.append("%s");
+                args.append(self.builder.select(val, t_g, f_g, name="print.bool"));
+            } else {
+                if val.type.width < 64 {
+                    val = self.builder.sext(val, ir.IntType(64));
+                }
+                fmt_parts.append("%lld");
+                args.append(val);
             }
-            fmt_parts.append("%lld");
-            args.append(val);
         } elif isinstance(val.type, ir.DoubleType) {
             fmt_parts.append("%s");
             args.append(self._emit_float_repr(val));
@@ -85,6 +90,19 @@ impl NaIRGenPass._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
             }
             fmt_parts.append("%s");
             args.append(val);
+        } elif self._opt_payload_of(val.type) is not None {
+            _opt_s = self._emit_opt_repr(val);
+            if _opt_s is None {
+                self.emit(
+                    E5092,
+                    node_override=param,
+                    kind="print argument",
+                    name=type(param).__name__
+                );
+                return None;
+            }
+            fmt_parts.append("%s");
+            args.append(_opt_s);
         } elif isinstance(val.type, ir.LiteralStructType) {
             _tup_s = self._emit_container_repr(val, self._type_key_of(param));
             if _tup_s is None {
@@ -1419,6 +1437,40 @@ impl NaIRGenPass._emit_dyn_spec_format(
         self._emit_rc_release_typed(sval, op="fstr_dyn_tmp", loc="");
     }
     return self._mark_owned(res);
+}
+
+impl NaIRGenPass._emit_opt_repr(opt_val: ir.Value) -> (ir.Value | None) {
+    b = self.builder;
+    i8 = ir.IntType(8);
+    i64 = ir.IntType(64);
+    tag = b.extract_value(opt_val, 0, name="opt.repr.tag");
+    present = b.icmp_signed("!=", tag, ir.Constant(i8, 0), name="opt.repr.has");
+    payload = b.extract_value(opt_val, 1, name="opt.repr.pl");
+    some_str: (ir.Value | None) = None;
+    if isinstance(payload.type, ir.IntType) and payload.type.width == 1 {
+        t_g = self._make_global_string("True", name_prefix=".repr.true");
+        f_g = self._make_global_string("False", name_prefix=".repr.false");
+        some_str = b.select(payload, t_g, f_g, name="opt.repr.bool");
+    } elif isinstance(payload.type, ir.IntType) {
+        fn = self._repr_leaf_fn("int");
+        if fn is not None {
+            some_str = b.call(
+                fn, [self._coerce_type(payload, i64)], name="opt.repr.int"
+            );
+        }
+    } elif isinstance(payload.type, (ir.FloatType, ir.DoubleType)) {
+        some_str = self._emit_float_repr(self._coerce_type(payload, ir.DoubleType()));
+    }
+    if some_str is None {
+        return None;
+    }
+    none_str = self._make_global_string("None", name_prefix=".repr.none");
+    if self._nogc_headerless() {
+        none_str = self._call_str_dup(b, none_str, name="opt.repr.none.dup");
+    }
+    sel = b.select(present, some_str, none_str, name="opt.repr");
+    self._mark_owned(sel);
+    return sel;
 }
 
 impl NaIRGenPass._emit_float_repr(fv: ir.Value) -> ir.Value {

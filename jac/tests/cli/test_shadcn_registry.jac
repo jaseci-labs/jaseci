@@ -9,8 +9,8 @@ import json;
 import from tests.support { JAC_ROOT }
 
 glob REGISTRY = os.path.join(
-    JAC_ROOT, "jaclang", "cli", "shadcn", "registry", "registry.json"
-);
+         JAC_ROOT, "jaclang", "cli", "shadcn", "registry", "registry.json"
+     );
 
 def load_registry -> dict {
     with open(REGISTRY) as f {
@@ -30,8 +30,7 @@ test "every component npm dep has a pinned version range" {
             }
         }
     }
-    assert not missing ,
-        f"unpinned registry deps (add to registry depVersions): {missing}";
+    assert not missing , f"unpinned registry deps (add to registry depVersions): {missing}";
 }
 
 test "shared and pinned ranges are bounded" {
@@ -40,8 +39,7 @@ test "shared and pinned ranges are bounded" {
         assert rng != "*" , f"sharedDeps unbounded: {dep}";
     }
     for (dep, rng) in reg.get("depVersions", {}).items() {
-        assert str(rng).startswith(("^", "~", ">=")) or str(rng)[0].isdigit() ,
-            f"depVersions range malformed: {dep} = {rng}";
+        assert str(rng).startswith(("^", "~", ">=")) or str(rng)[0].isdigit() , f"depVersions range malformed: {dep} = {rng}";
     }
 }
 
@@ -49,6 +47,5 @@ test "component lookup accepts underscore spellings" {
     import from jaclang.cli.shadcn.shadcn_handler { _resolve_peer_deps }
     reg = load_registry();
     resolved = _resolve_peer_deps(["scroll_area"], reg, set());
-    assert "scroll-area" in resolved ,
-        f"underscored name should resolve to the hyphenated registry key, got {resolved}";
+    assert "scroll-area" in resolved , f"underscored name should resolve to the hyphenated registry key, got {resolved}";
 }

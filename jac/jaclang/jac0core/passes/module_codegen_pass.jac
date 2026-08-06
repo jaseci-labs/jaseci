@@ -79,11 +79,6 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
     static def shared_archetypes_for_context(
         module: uni.Module, ctx: CodeContext, include_enums: bool = False
     ) -> list[uni.Archetype] {
-        # Enums are value-carrying and side-effect-free, so they are as safe
-        # to dual-emit as data archetypes; the ES backend opts in (a client
-        # function comparing against a server-context enum otherwise loses
-        # the declaration entirely). Native keeps the default: its caller
-        # feeds the layout registry, which is archetype-only.
         shared: dict[(str, uni.Archetype)] = {};
         for arch in module.get_all_sub_nodes(uni.Archetype) {
             if (arch.name is not None) and isinstance(arch.parent, uni.Module) {
@@ -123,20 +118,12 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
     }
 }
 
-"""Constructs with no ES lowering: EsastGenPass leaves gen.es_ast empty
-for unhandled node kinds, so without this check they vanish from the
-client bundle silently (a yield becomes a no-op, a match body
-disappears). Only hard client placements are flagged; dual-emitted
-elements keep their server copy and are the placement solver's concern."""
 def client_capability_violations(mod: uni.Module) -> list {
     out: list = [];
+
     reject: list = [
         (uni.YieldExpr, "a yield expression"),
-        (uni.MatchStmt, "a match statement"),
-        (uni.ConcurrentExpr, "flow/wait concurrency"),
-        (uni.DeleteStmt, "a delete statement"),
-        (uni.WithStmt, "a with statement"),
-        (uni.PyInlineCode, "an inline ::py:: block")
+        (uni.ConcurrentExpr, "flow/wait concurrency")
     ];
     for _stmt in ModuleCodegenPass.iter_context_stmts(mod, CodeContext.CLIENT) {
         if getattr(_stmt, 'codespace_dual', False) {

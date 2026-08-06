@@ -1851,7 +1851,14 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         _emit_fn = getattr(self._builtin_emitter, _emit_fn_name, None);
         if _emit_fn {
             _unparser = JSCodeGenerator();
-            _ctx = self._primitives_es_mod.ESEmitCtx(unparser=_unparser);
+            _arg_type_names: list[str] = [
+                self._expr_type_name(_p)
+                for _p in nd.params
+                if not isinstance(_p, uni.KWPair)
+            ];
+            _ctx = self._primitives_es_mod.ESEmitCtx(
+                unparser=_unparser, arg_type_names=_arg_type_names
+            );
             _args_strs: list[str] = [];
             for _a in args {
                 _args_strs.append(_unparser.generate(_a));
@@ -2103,14 +2110,42 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
         decl_name = info.decl_name;
         pattern_names = info.pattern_names;
         should_declare = False;
+        cur_scope = self._current_scope();
 
         if decl_name {
-            should_declare = not self._is_declared_in_any_scope(decl_name);
+            owning = self._declaring_scope_for(target_node);
+            if owning is None {
+                should_declare = not self._is_declared_in_any_scope(decl_name);
+            } elif owning is cur_scope {
+                should_declare = decl_name not in owning.declared;
+            } elif decl_name not in owning.declared {
+                self._hoist_into(owning, decl_name, target_node);
+            }
         } elif pattern_names {
-            should_declare = any(
-                (not self._is_declared_in_any_scope(name))
-                for (name, _) in pattern_names
-            );
+            inline_ok = True;
+            for (name, name_node) in pattern_names {
+                p_owning = self._declaring_scope_for(name_node);
+                if p_owning is None {
+                    if self._is_declared_in_any_scope(name) {
+                        inline_ok = False;
+                    }
+                } elif (p_owning is not cur_scope) or (name in p_owning.declared) {
+                    inline_ok = False;
+                }
+            }
+            should_declare = inline_ok;
+            if not inline_ok {
+                for (name, name_node) in pattern_names {
+                    p_owning = self._declaring_scope_for(name_node) or cur_scope;
+                    if (
+                        p_owning
+                        and (name not in p_owning.declared)
+                        and not self._is_declared_in_any_scope(name)
+                    ) {
+                        self._hoist_into(p_owning, name, name_node);
+                    }
+                }
+            }
         }
         if should_declare {
             declarator = self.sync_loc(
@@ -2321,10 +2356,11 @@ impl EsastGenPass._try_primitive_op(
     }
     _unparser = JSCodeGenerator();
     _ctx = self._primitives_es_mod.ESEmitCtx(unparser=_unparser);
-    _target_str = _unparser.generate(left_es);
+
+    _target_str = self._operand_str(_unparser, left_es);
     _args_strs: list[str] = [];
     if right_es is not None {
-        _args_strs.append(_unparser.generate(right_es));
+        _args_strs.append(self._operand_str(_unparser, right_es));
     }
     _result = _emit_fn(_ctx, _target_str, _args_strs);
     if _result is None {
@@ -2334,6 +2370,17 @@ impl EsastGenPass._try_primitive_op(
         self.needs_jac_runtime = True;
     }
     return self.sync_loc(es.Identifier(name=_result), jac_node=jac_node);
+}
+
+impl EsastGenPass._operand_str(unparser: object, es_node: es.Expression) -> str {
+    rendered = unparser.generate(es_node);
+    if isinstance(
+        es_node,
+        (es.AssignmentExpression, es.ConditionalExpression, es.ArrowFunctionExpression)
+    ) {
+        return "(" + rendered + ")";
+    }
+    return rendered;
 }
 
 impl EsastGenPass._expr_type_name(expr_node: uni.UniNode) -> str {
@@ -2534,6 +2581,7 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
                 else es.Identifier(name='left'); }
         )
     );
+    left_uni: uni.UniNode = nd.left;
     for (op_token, right_node) in zip(nd.ops, nd.rights, strict=False) {
         right: es.Expression = cast(
             es.Expression,
@@ -2545,6 +2593,22 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
             )
         );
         op_tok = Tok(op_token.name) if (op_token.name in Tok.__members__) else None;
+
+        if (
+            op_tok in (Tok.KW_IS, Tok.KW_ISN, Tok.EE, Tok.NE)
+            and (self._is_null_literal(left_uni) or self._is_null_literal(right_node))
+        ) {
+            loose_op = '==' if (op_tok in (Tok.KW_IS, Tok.EE)) else '!=';
+            comparisons.append(
+                self.sync_loc(
+                    es.BinaryExpression(operator=loose_op, left=left, right=right),
+                    jac_node=nd
+                )
+            );
+            left = right;
+            left_uni = right_node;
+            continue;
+        }
 
         _cmp_emit_name = CMP_EMIT_MAP.get(op_tok) if op_tok else None;
         if _cmp_emit_name {
@@ -2570,6 +2634,7 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
                 }
                 comparisons.append(comparison);
                 left = right;
+                left_uni = right_node;
                 continue;
             }
         }
@@ -2624,6 +2689,7 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
         }
         comparisons.append(comparison);
         left = right;
+        left_uni = right_node;
     }
     if (len(comparisons) == 1) {
         nd.gen.es_ast = comparisons[0];
@@ -2637,6 +2703,14 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
         }
         nd.gen.es_ast = result;
     }
+}
+
+impl EsastGenPass._is_null_literal(nd: (uni.UniNode | None)) -> bool {
+    if nd is None {
+        return False;
+    }
+    return isinstance(nd, uni.Null)
+        or (isinstance(nd, uni.Name) and nd.sym_name == 'None');
 }
 
 impl EsastGenPass.exit_cfg_expr(nd: uni.CfgExpr) -> None {
@@ -2807,6 +2881,557 @@ impl EsastGenPass.exit_switch_stmt(nd: uni.SwitchStmt) -> None {
     nd.gen.es_ast = self.sync_loc(
         es.SwitchStatement(discriminant=`test, cases=cases), jac_node=nd
     );
+}
+
+impl EsastGenPass.exit_match_stmt(nd: uni.MatchStmt) -> None {
+    subj_expr = cast(
+        es.Expression,
+        self._get_ast_or_default(
+            nd.target, default_factory=lambda (_src: any) { es.Literal(value=None); }
+        )
+    );
+    self.match_seq += 1;
+    subj_name = f"__jac_match_subj_{self.match_seq}";
+    flag_name = f"__jac_matched_{self.match_seq}";
+    stmts: list[es.Statement] = [];
+    stmts.append(
+        self.sync_loc(
+            es.VariableDeclaration(
+                declarations=[
+                    self.sync_loc(
+                        es.VariableDeclarator(
+                            id=es.Identifier(name=subj_name), `init=subj_expr
+                        ),
+                        jac_node=nd
+                    )
+                ],
+                kind='let'
+            ),
+            jac_node=nd
+        )
+    );
+    stmts.append(
+        self.sync_loc(
+            es.VariableDeclaration(
+                declarations=[
+                    self.sync_loc(
+                        es.VariableDeclarator(
+                            id=es.Identifier(name=flag_name),
+                            `init=es.Literal(value=False)
+                        ),
+                        jac_node=nd
+                    )
+                ],
+                kind='let'
+            ),
+            jac_node=nd
+        )
+    );
+    for mcase in nd.cases {
+        (cond, binds, ok) = self._lower_match_pattern(
+            mcase.pattern, self.sync_loc(es.Identifier(name=subj_name), jac_node=mcase)
+        );
+        if not ok {
+            nd.gen.es_ast = self.sync_loc(es.BlockStatement(body=[]), jac_node=nd);
+            return;
+        }
+        body_stmts = self._collect_stmt_body(mcase.body);
+        set_flag = self.sync_loc(
+            es.ExpressionStatement(
+                expression=self.sync_loc(
+                    es.AssignmentExpression(
+                        operator='=',
+                        left=es.Identifier(name=flag_name),
+                        right=es.Literal(value=True)
+                    ),
+                    jac_node=mcase
+                )
+            ),
+            jac_node=mcase
+        );
+        inner: list[es.Statement] = list(binds);
+        if mcase.guard is not None {
+            guard_expr = self._coerce_truthy(
+                mcase.guard,
+                cast(
+                    es.Expression,
+                    self._get_ast_or_default(
+                        mcase.guard,
+                        default_factory=lambda (_src: any) { es.Literal(value=True); }
+                    )
+                ),
+                mcase
+            );
+            inner.append(
+                self.sync_loc(
+                    es.IfStatement(
+                        `test=guard_expr,
+                        consequent=self.sync_loc(
+                            es.BlockStatement(body=[set_flag] + body_stmts),
+                            jac_node=mcase
+                        )
+                    ),
+                    jac_node=mcase
+                )
+            );
+        } else {
+            inner.append(set_flag);
+            inner.extend(body_stmts);
+        }
+        test_expr: es.Expression = self.sync_loc(
+            es.UnaryExpression(
+                operator='!', prefix=True, argument=es.Identifier(name=flag_name)
+            ),
+            jac_node=mcase
+        );
+        if cond is not None {
+            test_expr = self.sync_loc(
+                es.LogicalExpression(operator='&&', left=test_expr, right=cond),
+                jac_node=mcase
+            );
+        }
+        stmts.append(
+            self.sync_loc(
+                es.IfStatement(
+                    `test=test_expr,
+                    consequent=self.sync_loc(
+                        es.BlockStatement(body=inner), jac_node=mcase
+                    )
+                ),
+                jac_node=mcase
+            )
+        );
+    }
+    nd.gen.es_ast = stmts;
+}
+
+impl EsastGenPass._match_subj_member(subj: es.Expression, field: str) -> es.Expression {
+    return es.MemberExpression(
+        object=subj, property=es.Identifier(name=field), computed=False
+    );
+}
+
+impl EsastGenPass._match_bind_name(
+    name_node: uni.UniNode, value: es.Expression
+) -> es.Statement {
+    bind_name = name_node.sym_name
+        if isinstance(name_node, uni.AstSymbolNode)
+        else str(name_node);
+    self._ensure_identifier_declared(bind_name, name_node);
+    return self.sync_loc(
+        es.ExpressionStatement(
+            expression=self.sync_loc(
+                es.AssignmentExpression(
+                    operator='=', left=es.Identifier(name=bind_name), right=value
+                ),
+                jac_node=name_node
+            )
+        ),
+        jac_node=name_node
+    );
+}
+
+impl EsastGenPass._match_arch_field_order(pat: uni.MatchArch) -> (list[str] | None) {
+    nm = pat.name;
+    sym = nm.sym if isinstance(nm, uni.AstSymbolNode) else None;
+    if sym is None {
+        return None;
+    }
+    arch_node: (uni.UniNode | None) = sym.decl;
+    while arch_node is not None and not isinstance(arch_node, uni.Archetype) {
+        arch_node = arch_node.parent;
+    }
+    if arch_node is None {
+        return None;
+    }
+    inner = self.unwrap_body(arch_node);
+    if inner is None {
+        return None;
+    }
+    order: list[str] = [];
+    for stmt in inner {
+        if isinstance(stmt, uni.ArchHas) {
+            for hv in stmt.vars {
+                order.append(hv.name.value);
+            }
+        }
+    }
+    return order or None;
+}
+
+impl EsastGenPass._lower_match_pattern(
+    pat: uni.MatchPattern, subj: es.Expression
+) -> tuple[(es.Expression | None), list[es.Statement], bool] {
+    no_binds: list[es.Statement] = [];
+    if isinstance(pat, uni.MatchWild) {
+        return (None, no_binds, True);
+    }
+    if isinstance(pat, uni.MatchAs) {
+        cond: (es.Expression | None) = None;
+        binds: list[es.Statement] = [];
+        if pat.pattern is not None {
+            (cond, binds, ok) = self._lower_match_pattern(pat.pattern, subj);
+            if not ok {
+                return (None, no_binds, False);
+            }
+        }
+        binds.append(self._match_bind_name(pat.name, subj));
+        return (cond, binds, True);
+    }
+    if isinstance(pat, (uni.MatchValue, uni.MatchSingleton)) {
+        val_node = pat.value;
+        val_expr = cast(
+            es.Expression,
+            self._get_ast_or_default(
+                val_node, default_factory=lambda (_src: any) { es.Literal(value=None); }
+            )
+        );
+
+        op = '==' if self._is_null_literal(val_node) else '===';
+        return (
+            self.sync_loc(
+                es.BinaryExpression(operator=op, left=subj, right=val_expr),
+                jac_node=pat
+            ),
+            no_binds,
+            True
+        );
+    }
+    if isinstance(pat, uni.MatchOr) {
+        or_cond: (es.Expression | None) = None;
+        for sub in pat.patterns {
+            (c, b, ok) = self._lower_match_pattern(sub, subj);
+            if not ok {
+                return (None, no_binds, False);
+            }
+            if b {
+                self.emit(
+                    E5018, node_override=sub, construct='binding in an or-pattern'
+                );
+                return (None, no_binds, False);
+            }
+            if c is None {
+                return (None, no_binds, True);
+            }
+            or_cond = c
+                if or_cond is None
+                else self.sync_loc(
+                    es.LogicalExpression(operator='||', left=or_cond, right=c),
+                    jac_node=pat
+                );
+        }
+        return (or_cond, no_binds, True);
+    }
+    if isinstance(pat, uni.MatchSequence) {
+        values = list(pat.values);
+        star_idx = -1;
+        for i in range(len(values)) {
+            if isinstance(values[i], uni.MatchStar) {
+                star_idx = i;
+                break;
+            }
+        }
+        conds: list[es.Expression] = [
+            self.sync_loc(
+                es.CallExpression(
+                    callee=es.MemberExpression(
+                        object=es.Identifier(name='Array'),
+                        property=es.Identifier(name='isArray'),
+                        computed=False
+                    ),
+                    arguments=[subj]
+                ),
+                jac_node=pat
+            )
+        ];
+        seq_binds: list[es.Statement] = [];
+        subj_len = self._match_subj_member(subj, 'length');
+        if star_idx < 0 {
+            conds.append(
+                self.sync_loc(
+                    es.BinaryExpression(
+                        operator='===',
+                        left=subj_len,
+                        right=es.Literal(value=len(values))
+                    ),
+                    jac_node=pat
+                )
+            );
+        } else {
+            conds.append(
+                self.sync_loc(
+                    es.BinaryExpression(
+                        operator='>=',
+                        left=subj_len,
+                        right=es.Literal(value=len(values) - 1)
+                    ),
+                    jac_node=pat
+                )
+            );
+        }
+        for i in range(len(values)) {
+            sub = values[i];
+            if isinstance(sub, uni.MatchStar) {
+                after = len(values) - 1 - i;
+                slice_args: list[es.Expression] = [es.Literal(value=i)];
+                if after > 0 {
+                    slice_args.append(
+                        self.sync_loc(
+                            es.BinaryExpression(
+                                operator='-',
+                                left=self._match_subj_member(subj, 'length'),
+                                right=es.Literal(value=after)
+                            ),
+                            jac_node=sub
+                        )
+                    );
+                }
+                seq_binds.append(
+                    self._match_bind_name(
+                        sub.name,
+                        self.sync_loc(
+                            es.CallExpression(
+                                callee=self._match_subj_member(subj, 'slice'),
+                                arguments=slice_args
+                            ),
+                            jac_node=sub
+                        )
+                    )
+                );
+                continue;
+            }
+            if star_idx >= 0 and i > star_idx {
+                elem_idx: es.Expression = self.sync_loc(
+                    es.BinaryExpression(
+                        operator='-',
+                        left=self._match_subj_member(subj, 'length'),
+                        right=es.Literal(value=len(values) - i)
+                    ),
+                    jac_node=sub
+                );
+            } else {
+                elem_idx = es.Literal(value=i);
+            }
+            elem = self.sync_loc(
+                es.MemberExpression(object=subj, property=elem_idx, computed=True),
+                jac_node=sub
+            );
+            (c, b, ok) = self._lower_match_pattern(sub, elem);
+            if not ok {
+                return (None, no_binds, False);
+            }
+            if c is not None {
+                conds.append(c);
+            }
+            seq_binds.extend(b);
+        }
+        seq_cond: es.Expression = conds[0];
+        for c in conds[1:] {
+            seq_cond = self.sync_loc(
+                es.LogicalExpression(operator='&&', left=seq_cond, right=c),
+                jac_node=pat
+            );
+        }
+        return (seq_cond, seq_binds, True);
+    }
+    if isinstance(pat, uni.MatchMapping) {
+        map_conds: list[es.Expression] = [];
+        map_binds: list[es.Statement] = [];
+        rest_star: (uni.MatchStar | None) = None;
+        matched_keys: list[es.Expression] = [];
+        for entry in pat.values {
+            if isinstance(entry, uni.MatchStar) {
+                rest_star = entry;
+                continue;
+            }
+            key_node = entry.key;
+            if isinstance(key_node, uni.MatchValue) {
+                key_node = key_node.value;
+            }
+            key_expr = cast(
+                es.Expression,
+                self._get_ast_or_default(
+                    key_node,
+                    default_factory=lambda (_src: any) { es.Literal(value=None); }
+                )
+            );
+            map_conds.append(
+                self.sync_loc(
+                    es.CallExpression(
+                        callee=es.MemberExpression(
+                            object=es.MemberExpression(
+                                object=es.MemberExpression(
+                                    object=es.Identifier(name='Object'),
+                                    property=es.Identifier(name='prototype'),
+                                    computed=False
+                                ),
+                                property=es.Identifier(name='hasOwnProperty'),
+                                computed=False
+                            ),
+                            property=es.Identifier(name='call'),
+                            computed=False
+                        ),
+                        arguments=[subj, key_expr]
+                    ),
+                    jac_node=entry
+                )
+            );
+            val_at_key = self.sync_loc(
+                es.MemberExpression(object=subj, property=key_expr, computed=True),
+                jac_node=entry
+            );
+            matched_keys.append(key_expr);
+            (c, b, ok) = self._lower_match_pattern(entry.value, val_at_key);
+            if not ok {
+                return (None, no_binds, False);
+            }
+            if c is not None {
+                map_conds.append(c);
+            }
+            map_binds.extend(b);
+        }
+        if rest_star is not None {
+            filter_arrow = self.sync_loc(
+                es.ArrowFunctionExpression(
+                    params=[es.ArrayPattern(elements=[es.Identifier(name='__jac_k')])],
+                    body=self.sync_loc(
+                        es.UnaryExpression(
+                            operator='!',
+                            prefix=True,
+                            argument=self.sync_loc(
+                                es.CallExpression(
+                                    callee=es.MemberExpression(
+                                        object=es.ArrayExpression(
+                                            elements=list(matched_keys)
+                                        ),
+                                        property=es.Identifier(name='includes'),
+                                        computed=False
+                                    ),
+                                    arguments=[es.Identifier(name='__jac_k')]
+                                ),
+                                jac_node=rest_star
+                            )
+                        ),
+                        jac_node=rest_star
+                    ),
+                    expression=True
+                ),
+                jac_node=rest_star
+            );
+            rest_value = self.sync_loc(
+                es.CallExpression(
+                    callee=es.MemberExpression(
+                        object=es.Identifier(name='Object'),
+                        property=es.Identifier(name='fromEntries'),
+                        computed=False
+                    ),
+                    arguments=[
+                        self.sync_loc(
+                            es.CallExpression(
+                                callee=es.MemberExpression(
+                                    object=self.sync_loc(
+                                        es.CallExpression(
+                                            callee=es.MemberExpression(
+                                                object=es.Identifier(name='Object'),
+                                                property=es.Identifier(name='entries'),
+                                                computed=False
+                                            ),
+                                            arguments=[subj]
+                                        ),
+                                        jac_node=rest_star
+                                    ),
+                                    property=es.Identifier(name='filter'),
+                                    computed=False
+                                ),
+                                arguments=[filter_arrow]
+                            ),
+                            jac_node=rest_star
+                        )
+                    ]
+                ),
+                jac_node=rest_star
+            );
+            map_binds.append(self._match_bind_name(rest_star.name, rest_value));
+        }
+        if not map_conds {
+            return (None, map_binds, True);
+        }
+        map_cond: es.Expression = map_conds[0];
+        for c in map_conds[1:] {
+            map_cond = self.sync_loc(
+                es.LogicalExpression(operator='&&', left=map_cond, right=c),
+                jac_node=pat
+            );
+        }
+        return (map_cond, map_binds, True);
+    }
+    if isinstance(pat, uni.MatchArch) {
+        cls_name = pat.name.sym_name
+            if isinstance(pat.name, uni.AstSymbolNode)
+            else None;
+        if cls_name is None {
+            self.emit(E5018, node_override=pat, construct='dotted class pattern');
+            return (None, no_binds, False);
+        }
+        arch_conds: list[es.Expression] = [
+            self.sync_loc(
+                es.BinaryExpression(
+                    operator='instanceof', left=subj, right=es.Identifier(name=cls_name)
+                ),
+                jac_node=pat
+            )
+        ];
+        arch_binds: list[es.Statement] = [];
+        pairs: list = [];
+        arg_pats = list(pat.arg_patterns) if pat.arg_patterns else [];
+        if arg_pats {
+            order = self._match_arch_field_order(pat);
+            if order is None or len(arg_pats) > len(order) {
+                self.emit(
+                    E5018,
+                    node_override=pat,
+                    construct='positional class pattern with unresolvable field order'
+                );
+                return (None, no_binds, False);
+            }
+            for i in range(len(arg_pats)) {
+                pairs.append((order[i], arg_pats[i]));
+            }
+        }
+        for kv in (list(pat.kw_patterns) if pat.kw_patterns else []) {
+            fname = kv.key.sym_name if isinstance(kv.key, uni.AstSymbolNode) else None;
+            if fname is None {
+                self.emit(
+                    E5018, node_override=kv, construct='computed class-pattern field'
+                );
+                return (None, no_binds, False);
+            }
+            pairs.append((fname, kv.value));
+        }
+        for (fname, sub_pat) in pairs {
+            field_expr = self.sync_loc(
+                self._match_subj_member(subj, fname), jac_node=pat
+            );
+            (c, b, ok) = self._lower_match_pattern(sub_pat, field_expr);
+            if not ok {
+                return (None, no_binds, False);
+            }
+            if c is not None {
+                arch_conds.append(c);
+            }
+            arch_binds.extend(b);
+        }
+        arch_cond: es.Expression = arch_conds[0];
+        for c in arch_conds[1:] {
+            arch_cond = self.sync_loc(
+                es.LogicalExpression(operator='&&', left=arch_cond, right=c),
+                jac_node=pat
+            );
+        }
+        return (arch_cond, arch_binds, True);
+    }
+    self.emit(E5018, node_override=pat, construct=pat.__class__.__name__);
+    return (None, no_binds, False);
 }
 
 impl EsastGenPass.exit_expr_stmt(nd: uni.ExprStmt) -> None {
@@ -3198,12 +3823,7 @@ impl EsastGenPass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
     right: es.Expression = cast(es.Expression, nd.collection.gen.es_ast)
         if nd.collection.gen.es_ast
         else self.sync_loc(es.Identifier(name='collection'), jac_node=nd.collection);
-    # Python iteration over a dict yields its keys, but dicts are plain JS
-    # objects (not iterable), so a bare for-of throws. Statically-known
-    # dicts wrap in Object.keys directly; anything not statically known to
-    # be JS-iterable dispatches through _jac.builtin.iter so dynamically
-    # typed dicts iterate correctly too. Known-iterable primitives stay
-    # bare (zero-cost path).
+
     ctype = self._expr_type_name(nd.collection);
     if ctype == "dict" {
         right = self.sync_loc(
@@ -3224,10 +3844,18 @@ impl EsastGenPass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
             ),
             jac_node=nd.collection
         );
-    } elif ctype not in [
-        "list", "str", "tuple", "set", "bytes", "bytearray", "range",
-        "generator", "frozenset"
-    ] {
+    } elif ctype
+        not in [
+            "list",
+            "str",
+            "tuple",
+            "set",
+            "bytes",
+            "bytearray",
+            "range",
+            "generator",
+            "frozenset"
+        ] {
         right = self._build_jac_call(
             ["_jac", "builtin", "iter"], [right], nd.collection
         );
@@ -3284,7 +3912,12 @@ impl EsastGenPass._target_to_pattern(target: es.Node, loc: uni.UniNode) -> es.No
 impl EsastGenPass.exit_iter_for_stmt(nd: uni.IterForStmt) -> None {
     `init: es.VariableDeclaration | es.Expression | None = None;
     if (nd.iter and nd.iter.gen.es_ast) {
-        `init = cast('es.VariableDeclaration | es.Expression', nd.iter.gen.es_ast);
+        iter_gen = nd.iter.gen.es_ast;
+        if isinstance(iter_gen, es.ExpressionStatement) {
+            `init = cast(es.Expression, iter_gen.expression);
+        } else {
+            `init = cast('es.VariableDeclaration | es.Expression', iter_gen);
+        }
     }
     `test: (es.Expression | None) = None;
     if (nd.condition and nd.condition.gen.es_ast) {
@@ -4485,11 +5118,6 @@ impl EsastGenPass.exit_enum(nd: uni.Enum) -> None {
                                 next_auto = enum_value.value + 1;
                             }
                         } else {
-                            # Bare member: Python lowers these through
-                            # enum.auto() (1-based, continuing after the last
-                            # explicit int), so the ES side must number
-                            # identically or cross-codespace comparisons
-                            # diverge.
                             enum_value = self.sync_loc(
                                 es.Literal(value=next_auto), jac_node=stmt
                             );
@@ -4670,6 +5298,23 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
             }
         }
         if constructor_stmts {
+            if nd.base_classes {
+                constructor_stmts.insert(
+                    0,
+                    self.sync_loc(
+                        es.ExpressionStatement(
+                            expression=self.sync_loc(
+                                es.CallExpression(
+                                    callee=es.Identifier(name='super'),
+                                    arguments=[es.Identifier(name='props')]
+                                ),
+                                jac_node=nd
+                            )
+                        ),
+                        jac_node=nd
+                    )
+                );
+            }
             constructor_method = self.sync_loc(
                 es.MethodDefinition(
                     key=self.sync_loc(es.Identifier(name='constructor'), jac_node=nd),
@@ -4759,11 +5404,7 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         if resolved_path.endswith('.jac')
             and not import_path.startswith('.')
             and not is_jac_runtime {
-            # Root-anchored (absolute) local import: emit the specifier
-            # relative to the importing file, not the project root.
-            js_import_path = relative_js_specifier(
-                resolved_path, nd.loc.mod_path
-            );
+            js_import_path = relative_js_specifier(resolved_path, nd.loc.mod_path);
         } else {
             js_import_path = convert_to_js_import_path(import_path);
         }
@@ -4782,9 +5423,7 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         self.client_manifest.imports[import_key] = resolved_path;
         import_path = import_key;
         if resolved_path.endswith('.jac') and not import_path.startswith('.') {
-            js_import_path = relative_js_specifier(
-                resolved_path, nd.loc.mod_path
-            );
+            js_import_path = relative_js_specifier(resolved_path, nd.loc.mod_path);
         } else {
             js_import_path = convert_to_js_import_path(import_path);
         }
@@ -5840,7 +6479,7 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     for stmt in merged_body {
         if stmt.gen.es_ast {
             is_shared_arch = (
-                isinstance(stmt, (uni.Archetype, uni.Enum))
+                isinstance(stmt, uni.Archetype)
                 and (stmt.name is not None)
                 and (stmt.name.value in self.shared_arch_names)
             );
@@ -5986,6 +6625,17 @@ impl EsastGenPass._collect_stmt_body(
             );
         } elif isinstance(generated, es.Statement) {
             statements.append(generated);
+        } elif (
+            generated is None
+            and isinstance(stmt, uni.CodeBlockStmt)
+            and not isinstance(stmt, uni.Import)
+        ) {
+            cls_name = stmt.__class__.__name__;
+            self.emit(
+                E5017,
+                node_override=stmt,
+                construct=ES_STMT_DISPLAY.get(cls_name, cls_name)
+            );
         }
     }
     return statements;
@@ -6245,11 +6895,36 @@ impl EsastGenPass._prepend_hoisted(
     return statements;
 }
 
-impl EsastGenPass._ensure_identifier_declared(
-    name: str, jac_node: uni.UniNode
+impl EsastGenPass._declaring_scope_for(name_node: uni.UniNode) -> (ScopeInfo | None) {
+    if not isinstance(name_node, uni.AstSymbolNode) {
+        return None;
+    }
+    sym = name_node.sym;
+    if (sym is None) or (sym.parent_tab is None) {
+        return None;
+    }
+    owner = sym.parent_tab;
+    if not isinstance(owner, (uni.Module, uni.Ability, uni.ImplDef, uni.Test)) {
+        return None;
+    }
+    if isinstance(owner, uni.ImplDef) {
+        if not isinstance(owner.decl_link, uni.Ability) {
+            return None;
+        }
+        owner = owner.decl_link;
+    }
+    for scope in reversed(self.scope_stack) {
+        if scope.nd is owner {
+            return scope;
+        }
+    }
+    return None;
+}
+
+impl EsastGenPass._hoist_into(
+    scope: ScopeInfo, name: str, jac_node: uni.UniNode
 ) -> None {
-    scope = self._current_scope();
-    if (not scope or (name in scope.declared)) {
+    if name in scope.declared {
         return;
     }
     ident = self.sync_loc(es.Identifier(name=name), jac_node=jac_node);
@@ -6261,6 +6936,19 @@ impl EsastGenPass._ensure_identifier_declared(
     );
     scope.hoisted.append(decl);
     scope.declared.add(name);
+}
+
+impl EsastGenPass._ensure_identifier_declared(
+    name: str, jac_node: uni.UniNode
+) -> None {
+    if self._is_declared_in_any_scope(name) {
+        return;
+    }
+    scope = self._declaring_scope_for(jac_node) or self._current_scope();
+    if not scope {
+        return;
+    }
+    self._hoist_into(scope, name, jac_node);
 }
 
 impl EsastGenPass._register_declaration(name: str) -> None {
@@ -6351,7 +7039,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         is_native_edge = isinstance(nd, uni.Import)
             and self._is_client_native_import(nd);
         is_shared_arch = (
-            isinstance(nd, (uni.Archetype, uni.Enum))
+            isinstance(nd, uni.Archetype)
             and (nd.name is not None)
             and (nd.name.value in self.shared_arch_names)
         );
@@ -6377,7 +7065,7 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
         is_sv_import = isinstance(nd, uni.Import) and nd.is_service_import;
 
         is_shared_arch = (
-            isinstance(nd, (uni.Archetype, uni.Enum))
+            isinstance(nd, uni.Archetype)
             and (nd.name is not None)
             and (nd.name.value in self.shared_arch_names)
         );
@@ -6406,17 +7094,14 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
 
 impl EsastGenPass.before_pass -> None {
     import from jaclang.jac0core.codeinfo { ClientManifest }
-    # Backstop mirror of ClientCapabilityCheckPass: this pass leaves
-    # gen.es_ast empty for unhandled node kinds, so constructs with no ES
-    # lowering must be diagnosed on every client compile, not only when
-    # the typecheck schedule runs (check == build).
+
     import from jaclang.jac0core.passes.module_codegen_pass {
         client_capability_violations
     }
-    import from jaclang.jac0core.diagnostics { E5095 }
+    import from jaclang.jac0core.diagnostics { E5096 }
     if not getattr(self.ir_in.gen, 'client_viols_reported', False) {
         for (_vnode, _vkind) in client_capability_violations(self.ir_in) {
-            self.emit(E5095, node_override=_vnode, kind=_vkind);
+            self.emit(E5096, node_override=_vnode, kind=_vkind);
         }
         self.ir_in.gen.client_viols_reported = True;
     }
@@ -6432,7 +7117,7 @@ impl EsastGenPass.before_pass -> None {
     self.shared_arch_names: set[str] = {
         a.name.value
         for a in ModuleCodegenPass.shared_archetypes_for_context(
-            self.ir_in, CodeContext.CLIENT, include_enums=True
+            self.ir_in, CodeContext.CLIENT
         )
         if a.name is not None
     };

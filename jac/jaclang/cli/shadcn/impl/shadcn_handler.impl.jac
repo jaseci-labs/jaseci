@@ -101,8 +101,7 @@ impl _resolve_peer_deps(requested: list, registry_data: dict, existing: set) -> 
     queue: list = list(requested);
     while queue {
         name = queue.pop(0);
-        # Registry keys are hyphenated while installed files are
-        # underscored, so accept either spelling from the user.
+
         if name not in components and name.replace("_", "-") in components {
             name = name.replace("_", "-");
         }
@@ -375,10 +374,6 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
 
         for dep in comp_data.get("npmDeps", []) {
             if dep not in all_npm_deps {
-                # Vendored components are written against specific majors;
-                # an unbounded range installs whatever is current and breaks
-                # when upstream renames exports (react-resizable-panels v4
-                # vs the v2 API the resizable component targets).
                 all_npm_deps[dep] = dep_versions.get(dep, "*");
             }
         }

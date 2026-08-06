@@ -58,10 +58,6 @@ def _ensure_executable(path: str) {
 }
 
 
-"""System-installed bun: PATH first, then the conventional ~/.bun home
-install. Source checkouts carry no bundled copy, so without this fallback
-every fresh editable dev loop dead-ends on the hard error even with a
-perfectly good bun installed."""
 impl _find_path_bun -> str | None {
     on_path = shutil.which("bun.exe" if platform.system() == "Windows" else "bun");
     if on_path {

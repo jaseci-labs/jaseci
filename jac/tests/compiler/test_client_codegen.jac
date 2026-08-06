@@ -319,14 +319,13 @@ test "absolute imports in nested modules emit importer-relative specifiers" {
         with open(os.path.join(td, "blocks", "layout.jac"), "w") as f {
             f.write(
                 "import from vm.model { helper }\n"
-                + "def use_helper() -> int { return helper(); }\n"
+                    + "def use_helper() -> int { return helper(); }\n"
             );
         }
         prog = JacProgram();
         mod = prog.compile(os.path.join(td, "blocks", "layout.jac"));
         js = mod.gen.js;
-        assert "../vm/model" in js ,
-            f"nested absolute import emitted a root-relative specifier: {js[0:400]}";
+        assert "../vm/model" in js , f"nested absolute import emitted a root-relative specifier: {js[0:400]}";
     }
 }
 
@@ -340,11 +339,13 @@ test "client capability check rejects silently-dropped constructs" {
     return vals;
 }
 
-def pick(x: int) -> int {
-    match x {
-        case 1: return 10;
-        case _: return 0;
-    }
+def race() -> int {
+    fut = flow slow_op();
+    return wait fut;
+}
+
+def slow_op() -> int {
+    return 1;
 }
 """;
     prog = JacProgram();
@@ -354,8 +355,6 @@ def pick(x: int) -> int {
         ;
     }
     msgs = " ".join([str(e) for e in prog.errors_had]);
-    assert "Client pathway does not yet support a yield expression" in msgs ,
-        f"client-placed yield must be diagnosed, got: {msgs[0:600]}";
-    assert "Client pathway does not yet support a match statement" in msgs ,
-        f"client-placed match must be diagnosed, got: {msgs[0:600]}";
+    assert "Client pathway does not yet support a yield expression" in msgs , f"client-placed yield must be diagnosed, got: {msgs[0:600]}";
+    assert "Client pathway does not yet support flow/wait concurrency" in msgs , f"client-placed flow/wait must be diagnosed, got: {msgs[0:600]}";
 }

@@ -1107,7 +1107,9 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
             "!=", _tag, ir.Constant(ir.IntType(8), 0), name="opt.has"
         );
         if isinstance(target_type, ir.IntType) and target_type.width == 1 {
-            return _tag_set;
+            _pl_t = self.builder.extract_value(val, 1, name="opt.payload.t");
+            _pl_b = self._coerce_type_inner(_pl_t, target_type);
+            return self.builder.and_(_tag_set, _pl_b, name="opt.truthy");
         }
         _pl = self.builder.extract_value(val, 1, name="opt.payload");
         if self?.jacval_type and target_type == self.jacval_type {

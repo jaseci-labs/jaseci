@@ -214,14 +214,14 @@ def _fill_import_facts(es: ElementSummary, imp: uni.Import) {
     }
 }
 
-"""Persistence evidence for a module: any root access in its body. Cached
-on the module node -- _element_reqs runs per element."""
 def module_has_root_access(stmt: uni.UniNode) -> bool {
-    mod = stmt if isinstance(stmt, uni.Module) else stmt.find_parent_of_type(uni.Module);
+    mod = stmt
+        if isinstance(stmt, uni.Module)
+        else stmt.find_parent_of_type(uni.Module);
     if mod is None {
         return True;
     }
-    cached = getattr(mod.gen, '_has_root_access', None);
+    cached = mod.gen?._has_root_access;
     if cached is not None {
         return cached;
     }
@@ -275,12 +275,6 @@ def _element_reqs(stmt: uni.UniNode) -> list {
         }
     }
     if isinstance(stmt, uni.Archetype) and stmt.arch_kind is not None {
-        # Persistence is evidence-based: a graph archetype anchors server
-        # only when its defining module actually touches root. Rootless
-        # object models (an in-browser block graph, a client-side scene
-        # graph) stay pullable; anything the program persists keeps the
-        # anchor, and cross-module persistence still anchors through the
-        # persisting module's own root access.
         if module_has_root_access(stmt) {
             reqs.append(['PERSIST', f"{stmt.arch_kind} archetype"]);
         }
@@ -526,9 +520,7 @@ def scan_native_blockers(
             return (f"contains {typ.__name__}", deps);
         }
     }
-    # Statically-known native rejects (the E5090 set is native-context
-    # gated and useless before stamping): proposing native for these can
-    # only end in a lowering failure and a demotion note.
+
     for typ in (uni.DisconnectOp, ) {
         if module.get_all_sub_nodes(typ) {
             return (f"native-unsupported {typ.__name__}", deps);

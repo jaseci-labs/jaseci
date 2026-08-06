@@ -192,9 +192,6 @@ def _pullable_by_client_reference(
 ) -> bool {
     import from jaclang.jac0core.compiler { is_server_anchored_module }
     if isinstance(elem, uni.Archetype) and elem.arch_kind is not None {
-        # Evidence-based: only archetypes whose module actually persists
-        # (touches root) are un-pullable; rootless graph object models are
-        # ordinary in-memory types and the client OSP kernel runs them.
         import from jaclang.jac0core.placement { module_has_root_access }
         if module_has_root_access(elem) {
             return False;

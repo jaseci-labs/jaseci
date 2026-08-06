@@ -16,22 +16,22 @@ def _proj -> str {
     with open(os.path.join(d, "storage.jac"), "w") as f {
         f.write(
             "node Doc {\n    has label: str = \"\";\n}\n\n"
-            + "def:pub save_doc(label: str) -> str {\n"
-            + "    root ++> Doc(label=label);\n"
-            + "    return \"saved:\" + label;\n"
-            + "}\n\n"
-            + "def:pub count_docs() -> int {\n"
-            + "    return len([root-->]);\n"
-            + "}\n"
+                + "def:pub save_doc(label: str) -> str {\n"
+                + "    root ++> Doc(label=label);\n"
+                + "    return \"saved:\" + label;\n"
+                + "}\n\n"
+                + "def:pub count_docs() -> int {\n"
+                + "    return len([root-->]);\n"
+                + "}\n"
         );
     }
     with open(os.path.join(d, "main.jac"), "w") as f {
         f.write(
             "import from .storage { save_doc, count_docs }\n\n"
-            + "def:pub app -> JsxElement {\n"
-            + "    has n: int = 0;\n"
-            + "    <button onClick={lambda { save_doc(\"x\"); }}>save {n}</button>;\n"
-            + "}\n"
+                + "def:pub app -> JsxElement {\n"
+                + "    has n: int = 0;\n"
+                + "    <button onClick={lambda { save_doc(\"x\"); }}>save {n}</button>;\n"
+                + "}\n"
         );
     }
     return d;

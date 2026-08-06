@@ -1606,6 +1606,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                             None
                         );
                     }
+                    if result is None and op.name in (Tok.EE, Tok.NE) {
+                        continue;
+                    }
                     if result is None {
                         self.emit_diag(
                             E1110,
@@ -3208,7 +3211,12 @@ impl TypeEvaluator.get_type_of_expression(
     }
     if isinstance(result, types.UnknownType) {
         mod = node_.find_parent_of_type(uni.Module);
-        if mod is None or not mod.is_raised_from_py {
+        is_pattern_wildcard = (
+            isinstance(node_, uni.Name)
+            and node_.value == '_'
+            and node_.find_parent_of_type(uni.MatchPattern) is not None
+        );
+        if (mod is None or not mod.is_raised_from_py) and not is_pattern_wildcard {
             self.emit_diag(W1051, node_);
         }
     }

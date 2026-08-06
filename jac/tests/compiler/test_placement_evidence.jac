@@ -52,8 +52,7 @@ test "rootless graph archetypes follow a client pin" {
         prog = JacProgram();
         mod = prog.compile(os.path.join(d, "model.jac"));
         js = mod.gen.js;
-        assert "class Block" in js ,
-            f"rootless pinned archetype missing from client bundle: {js[0:400]}";
+        assert "class Block" in js , f"rootless pinned archetype missing from client bundle: {js[0:400]}";
         msgs = " ".join([str(e) for e in prog.errors_had]);
         assert "E5082" not in msgs and "no client-side presence" not in msgs , msgs;
     } finally {
@@ -62,14 +61,16 @@ test "rootless graph archetypes follow a client pin" {
 }
 
 test "root-using archetypes keep the server anchor" {
-    d = _proj({
-        "store.jac": (
-            "node Doc {\n    has label: str = \"\";\n}\n"
-            + "def:pub save_doc() -> None {\n"
-            + "    root ++> Doc(label=\"x\");\n"
-            + "}\n"
-        )
-    });
+    d = _proj(
+        {
+            "store.jac": (
+                "node Doc {\n    has label: str = \"\";\n}\n"
+                + "def:pub save_doc() -> None {\n"
+                + "    root ++> Doc(label=\"x\");\n"
+                + "}\n"
+            )
+        }
+    );
     try {
         prog = JacProgram();
         mod = prog.compile(os.path.join(d, "store.jac"));
@@ -86,56 +87,58 @@ test "root-using archetypes keep the server anchor" {
 }
 
 test "jaclang-internal imports pin the importing element server" {
-    d = _proj({
-        "bridge.jac": (
-            "import from jaclang.cli.console { console }\n"
-            + "def:pub check_src(src: str) -> str {\n"
-            + "    console.print(src);\n"
-            + "    return src;\n"
-            + "}\n"
-        ),
-        "main.jac": (
-            "import from .bridge { check_src }\n"
-            + "def:pub app -> JsxElement {\n"
-            + "    <button onClick={lambda { check_src(\"x\"); }}>go</button>;\n"
-            + "}\n"
-        )
-    });
+    d = _proj(
+        {
+            "bridge.jac": (
+                "import from jaclang.cli.console { console }\n"
+                + "def:pub check_src(src: str) -> str {\n"
+                + "    console.print(src);\n"
+                + "    return src;\n"
+                + "}\n"
+            ),
+            "main.jac": (
+                "import from .bridge { check_src }\n"
+                + "def:pub app -> JsxElement {\n"
+                + "    <button onClick={lambda { check_src(\"x\"); }}>go</button>;\n"
+                + "}\n"
+            )
+        }
+    );
     try {
         prog = JacProgram();
         mod = prog.compile(os.path.join(d, "main.jac"));
         js = mod.gen.js;
-        assert 'from "./bridge.js"' not in js ,
-            f"jaclang-importing module dual-emitted into the client bundle: {js[0:400]}";
+        assert 'from "./bridge.js"' not in js , f"jaclang-importing module dual-emitted into the client bundle: {js[0:400]}";
     } finally {
         shutil.rmtree(d, ignore_errors=True);
     }
 }
 
 test "unpinned rootless archetypes pull into client closures" {
-    d = _proj({
-        "model.jac": (
-            "node Block {\n    has opcode: str = \"\";\n}\n"
-            + "def make_block(op: str) -> Block {\n"
-            + "    return Block(opcode=op);\n"
-            + "}\n"
-        ),
-        "main.jac": (
-            "import from .model { Block, make_block }\n"
-            + "def:pub app -> JsxElement {\n"
-            + "    has items: list = [];\n"
-            + "    <button onClick={lambda { items = items + [make_block(\"x\")]; }}>\n"
-            + "        add\n"
-            + "    </button>;\n"
-            + "}\n"
-        )
-    });
+    d = _proj(
+        {
+            "model.jac": (
+                "node Block {\n    has opcode: str = \"\";\n}\n"
+                + "def make_block(op: str) -> Block {\n"
+                + "    return Block(opcode=op);\n"
+                + "}\n"
+            ),
+            "main.jac": (
+                "import from .model { Block, make_block }\n"
+                + "def:pub app -> JsxElement {\n"
+                + "    has items: list = [];\n"
+                + "    <button onClick={lambda { items = items + [make_block(\"x\")]; }}>\n"
+                + "        add\n"
+                + "    </button>;\n"
+                + "}\n"
+            )
+        }
+    );
     try {
         prog = JacProgram();
         mod = prog.compile(os.path.join(d, "main.jac"));
         msgs = " ".join([str(e) for e in prog.errors_had]);
-        assert "no client-side presence" not in msgs ,
-            f"rootless archetype closure should pull client, got: {msgs[0:500]}";
+        assert "no client-side presence" not in msgs , f"rootless archetype closure should pull client, got: {msgs[0:500]}";
     } finally {
         shutil.rmtree(d, ignore_errors=True);
     }
@@ -143,14 +146,16 @@ test "unpinned rootless archetypes pull into client closures" {
 
 test "solver does not propose native for capability-violating modules" {
     import from jaclang.jac0core.placement_solver { native_default_verdict }
-    d = _proj({
-        "walkmod.jac": (
-            "node Spot {}\n"
-            + "def unlink(a: Spot, b: Spot) -> None {\n"
-            + "    a del--> b;\n"
-            + "}\n"
-        )
-    });
+    d = _proj(
+        {
+            "walkmod.jac": (
+                "node Spot {}\n"
+                + "def unlink(a: Spot, b: Spot) -> None {\n"
+                + "    a del--> b;\n"
+                + "}\n"
+            )
+        }
+    );
     try {
         prog = JacProgram();
         mod = prog.compile(os.path.join(d, "walkmod.jac"), no_cgen=True);

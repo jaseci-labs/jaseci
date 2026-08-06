@@ -2919,6 +2919,9 @@ impl NativeListEmitter.emit_index(
     result = b.phi(i64, name="idx.result");
     result.add_incoming(ir.Constant(i64, -1), loop_bb);
     result.add_incoming(idx, found_bb);
+
+    miss = b.icmp_signed("==", result, ir.Constant(i64, -1), name="idx.miss");
+    p._emit_runtime_raise(miss, "ValueError", "list.index(x): x not in list");
     return result;
 }
 
@@ -3227,23 +3230,36 @@ impl NativeDictEmitter.emit_get(
     done_bb = func.append_basic_block(name="dget.done");
     b.cbranch(found_i1, found_bb, notfound_bb);
 
+    val_type = helpers["val_type"];
+
+    wrap_optional = (len(args) < 2) and (not isinstance(val_type, ir.PointerType));
+    result_type = p._jac_optional_type(val_type) if wrap_optional else val_type;
+
     b.position_at_start(found_bb);
     val = b.call(helpers["get"], [target, key], name="dget.val");
+    if wrap_optional {
+        _tagged = b.insert_value(
+            ir.Constant(result_type, None),
+            ir.Constant(ir.IntType(8), 1),
+            0,
+            name="dget.some.tag"
+        );
+        val = b.insert_value(_tagged, val, 1, name="dget.some");
+    }
     b.branch(done_bb);
 
     b.position_at_start(notfound_bb);
-    val_type = helpers["val_type"];
-    if len(args) >= 2 {
+    if wrap_optional {
+        default_val = ir.Constant(result_type, None);
+    } elif len(args) >= 2 {
         default_val = p._coerce_type(args[1], val_type);
-    } elif isinstance(val_type, ir.PointerType) {
-        default_val = ir.Constant(val_type, None);
     } else {
-        default_val = ir.Constant(val_type, 0);
+        default_val = ir.Constant(val_type, None);
     }
     b.branch(done_bb);
 
     b.position_at_start(done_bb);
-    result = b.phi(val_type, name="dget.result");
+    result = b.phi(result_type, name="dget.result");
     result.add_incoming(val, found_bb);
     result.add_incoming(default_val, notfound_bb);
     if isinstance(val_type, ir.PointerType) {
@@ -3601,15 +3617,13 @@ impl NativeDictEmitter.emit_setdefault(
     i64 = ir.IntType(64);
     key = args[0];
     val_type = helpers["val_type"];
-    default_val = (
-        args[1]
-            if len(args) >= 2
-            else (
-                ir.Constant(val_type, None)
-                    if p._elem_kind(val_type) != "raw"
-                    else ir.Constant(val_type, 0)
-            )
-    );
+    if len(args) >= 2 {
+        default_val = args[1];
+    } elif p._elem_kind(val_type) != "raw" {
+        default_val = ir.Constant(val_type, None);
+    } else {
+        return None;
+    }
 
     found = b.call(helpers["contains"], [target, key], name="sdef.found");
     func = b.basic_block.function;
