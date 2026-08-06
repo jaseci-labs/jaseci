@@ -44,3 +44,11 @@ test "shared and pinned ranges are bounded" {
             f"depVersions range malformed: {dep} = {rng}";
     }
 }
+
+test "component lookup accepts underscore spellings" {
+    import from jaclang.cli.shadcn.shadcn_handler { _resolve_peer_deps }
+    reg = load_registry();
+    resolved = _resolve_peer_deps(["scroll_area"], reg, set());
+    assert "scroll-area" in resolved ,
+        f"underscored name should resolve to the hyphenated registry key, got {resolved}";
+}

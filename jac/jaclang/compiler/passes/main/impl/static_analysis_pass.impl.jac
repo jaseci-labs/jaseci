@@ -331,7 +331,17 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
             if op.value in ("==", "!=", "is", "is not") {
                 right = nd.rights[i] if i < len(nd.rights) else None;
                 if isinstance(right, uni.Bool) {
-                    self.emit(W2075, node_override=nd);
+                    # Only redundant when the operand is statically boolean:
+                    # over any/unknown operands `v is True` is an identity
+                    # discriminator, and rewriting it to `v` changes
+                    # behavior for truthy non-bool values.
+                    import from jaclang.compiler.type_system.type_utils {
+                        expr_primitive_name
+                    }
+                    left = nd.left if i == 0 else nd.rights[i - 1];
+                    if expr_primitive_name(self.prog, left) == "bool" {
+                        self.emit(W2075, node_override=nd);
+                    }
                 }
             }
         }

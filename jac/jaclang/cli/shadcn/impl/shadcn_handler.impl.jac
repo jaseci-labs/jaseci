@@ -101,6 +101,11 @@ impl _resolve_peer_deps(requested: list, registry_data: dict, existing: set) -> 
     queue: list = list(requested);
     while queue {
         name = queue.pop(0);
+        # Registry keys are hyphenated while installed files are
+        # underscored, so accept either spelling from the user.
+        if name not in components and name.replace("_", "-") in components {
+            name = name.replace("_", "-");
+        }
         if name in visited or name in existing {
             continue;
         }
