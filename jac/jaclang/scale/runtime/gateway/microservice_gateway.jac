@@ -9,6 +9,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceEntry,
     ServiceStatus
 }
+import from jaclang.scale.runtime.gateway.route_table { ServiceRouteTable }
 import from jaclang.scale.runtime.transport.http_forward { raw_forward }
 import from jaclang.scale.runtime.context.util {
     DEFAULT_GATEWAY_PORT,
@@ -49,7 +50,9 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
         server: any = None,
         user_manager: any = None,
         _metrics: any = None,
-        base_path: str = ".";
+        base_path: str = ".",
+        route_table: ServiceRouteTable = ServiceRouteTable(),
+        _routes_refreshed_at: float = 0.0;
 
     def setup -> FastAPI;
     def resolve_target_url(service_entry: ServiceEntry, path: str, query: str) -> str;
@@ -63,7 +66,15 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
 
     def handle_admin(path: str) -> Response | None;
     async def handle_proxy(request: Request, path: str) -> Response | None;
+    async def handle_app_route(request: Request, path: str) -> Response | None;
+    async def refresh_app_routes -> bool;
+    async def forward_to(
+        request: Request, service_entry: ServiceEntry, target_url: str
+    ) -> Response | None;
+
+    def service_base_url(service_entry: ServiceEntry) -> str;
     def handle_static(request: Request, path: str) -> Response | None;
+    def handle_spa_fallback(request: Request, path: str) -> Response | None;
     def handle_metrics -> Response;
     async def handle_openapi -> Response;
     def handle_docs -> Response;
