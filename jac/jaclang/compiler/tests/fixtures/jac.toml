@@ -187,6 +187,8 @@
 "prim_hashlib.hashlib_cl" = "client"
 "prim_hashlib.hashlib_na" = "native"
 "prim_enums.enums_cl" = "client"
+"prim_float.numparse_cl" = "client"
+"prim_float.numparse_na" = "native"
 "prim_enums.enums_na" = "native"
 "prim_int.int_cl" = "client"
 "prim_int.int_na" = "native"

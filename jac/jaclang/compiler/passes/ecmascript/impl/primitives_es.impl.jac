@@ -1970,10 +1970,10 @@ impl ESBuiltinEmitter.emit_int(self, ctx: ESEmitCtx, args: list[str]) -> (str | 
     if len(args) == 0 {
         return "0";
     }
-    if len(args) == 1 {
-        return "Math.trunc(Number(" + args[0] + "))";
-    }
-    return "parseInt(" + args[0] + ", " + args[1] + ")";
+    # Math.trunc(Number(x)) / parseInt partial-parse or NaN where Python
+    # raises ValueError; the runtime helper keeps the typeof-number fast
+    # path and applies strict string validation.
+    return _rt("builtin", "int", args);
 }
 
 impl ESBuiltinEmitter.emit_float(
@@ -1982,7 +1982,9 @@ impl ESBuiltinEmitter.emit_float(
     if len(args) == 0 {
         return "0.0";
     }
-    return "parseFloat(" + args[0] + ")";
+    # parseFloat never throws and accepts partial parses ("10abc" -> 10),
+    # so every try/float coercion pattern silently diverged from Python.
+    return _rt("builtin", "float", args);
 }
 
 impl ESBuiltinEmitter.emit_bool(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {

@@ -28,6 +28,13 @@ test "dict iteration" {
     );
 }
 
+test "numeric parse" {
+    run_with_both(
+        "prim_float.jac", "numparse_py", "numparse_cl", "numparse_na",
+        require=["cl"]
+    );
+}
+
 test "enums" {
     run_with_both(
         "prim_enums.jac", "enums_py", "enums_cl", "enums_na", require=["cl"]
