@@ -1,8 +1,8 @@
 """GraphMend trap-lowering (validation guard) tests.
 
-Assertions run against the generated Python source (the lowering target).
-Detection is exercised through its consumer: a rewrite happening proves the
-guard was tagged, a rewrite NOT happening proves it was not."""
+Assertions run against the generated Python source (the lowering target),
+plus the detection tag table where source alone cannot distinguish "not
+detected" from "detected but declined by the trap pass"."""
 import ast;
 import os;
 import tempfile;
@@ -28,6 +28,19 @@ def _compile_path(path: str, gm: bool) -> str {
 """Compile a checked-in .jac fixture and return its generated Python source."""
 def _pysrc(name: str, gm: bool) -> str {
     return _compile_path(os.path.join(FIXTURES, name), gm);
+}
+
+"""Compile a fixture with graphmend on and count the detection tags recorded.
+
+Observes detection directly (the side table survives the full compile), so a
+guard the trap pass would decline anyway still cannot hide a mis-tag."""
+def _break_count(name: str) -> int {
+    prog = JacProgram();
+    prog.compile(
+        file_path=os.path.join(FIXTURES, name),
+        options=CompileOptions(graphmend=True, type_check=False)
+    );
+    return len(prog.graphmend_breaks);
 }
 
 """A Python-source model with a tensor-bool validation guard.
@@ -73,6 +86,7 @@ test "torch.equal guard lowers to the tensor-equality assert helper" {
     assert "import __jac_tensor_eq_assert__" in src;
     assert "raise ValueError" not in src;
     assert "if not torch.equal" not in src;
+    assert _break_count("val_guard.jac") == 1;
 }
 
 test "tensor-bool guard lowers to torch._assert_async directly" {
@@ -119,4 +133,7 @@ test "static (non-tensor) guard is not rewritten" {
     assert "__jac_tensor_eq_assert__(" not in src;
     assert "if not isinstance(flag, str)" in src;
     assert "raise TypeError" in src;
+    # rewrite absence alone would not prove precision: the trap pass would
+    # decline this shape even if it were mis-tagged, so check the tag table
+    assert _break_count("static_guard.jac") == 0;
 }

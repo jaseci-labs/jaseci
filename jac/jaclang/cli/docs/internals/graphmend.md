@@ -69,13 +69,15 @@ models, which are the primary target (`jac run model.py -g`).
 ### Data dependence
 
 A condition is data-dependent when it uses a dynamic torch attribute
-directly, or when a bounded use-def trace over the symbol table shows it
-derives from one (for example `seq_len = torch.max(position_ids) + 1` used in
-a later branch). The dynamic-attribute table
-(`graphmend/torch_attr_table.jac`) lists ops whose result depends on tensor
-data rather than static shape: `item`, `tolist`, reductions, `nonzero`,
-`equal`, `allclose`, `unique` and so on. Extending detection to a new op is
-one entry in that table.
+directly. The dynamic-attribute table (`graphmend/torch_attr_table.jac`)
+lists ops whose result depends on tensor data rather than static shape:
+`item`, `tolist`, reductions, `nonzero`, `equal`, `allclose`, `unique` and so
+on. Extending detection to a new op is one entry in that table. Direct use is
+sufficient here because every guard shape the trap transform accepts names
+its dynamic op inline; the bounded use-def trace that follows a condition
+back through assignments (for example `seq_len = torch.max(position_ids) + 1`
+used in a later branch) arrives with the predication pass, whose branch
+conditions genuinely need it.
 
 One deliberate precision choice: function parameters are NOT assumed dynamic.
 Treating every parameter as tensor-derived would tag static guards such as
