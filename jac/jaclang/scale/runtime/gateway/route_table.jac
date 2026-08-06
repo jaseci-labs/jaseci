@@ -41,8 +41,10 @@ async def learn_service_routes(
 
     learned: int = 0;
     for (name, service_entry) in registry.entries.items() {
-        if service_entry.status
-            not in (ServiceStatus.HEALTHY, ServiceStatus.STARTING) {
+        if service_entry.status not in (
+            ServiceStatus.HEALTHY,
+            ServiceStatus.STARTING
+        ) {
             continue;
         }
         if not service_entry.url {

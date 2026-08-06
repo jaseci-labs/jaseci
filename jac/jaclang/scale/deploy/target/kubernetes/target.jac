@@ -214,10 +214,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     }
 
                     owned = in_fleet
-                        or (
-                            companion_app_names is not None
-                            and app in companion_app_names
-                        );
+                    or (companion_app_names is not None and app in companion_app_names);
                     crashing = (
                         owned and restarts >= 3 and reason not in imagepull_reasons
                     );

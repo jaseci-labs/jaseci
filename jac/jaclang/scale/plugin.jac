@@ -379,7 +379,7 @@ def scale_cmd(
 
     is_fleet_pod = os.environ.get("JAC_SV_SIBLING") == "1";
     if ms_config.get("enabled", None) is False
-        and not (action == "gateway" and is_fleet_pod) {
+    and not (action == "gateway" and is_fleet_pod) {
         console.print(
             "Microservice mode is disabled (enabled = false in jac.toml).",
             style="error"

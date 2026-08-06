@@ -473,7 +473,7 @@ impl MicroserviceGateway.refresh_app_routes -> bool {
 
     now: float = time.monotonic();
     if self._routes_refreshed_at
-        and now - self._routes_refreshed_at < route_refresh_seconds() {
+    and now - self._routes_refreshed_at < route_refresh_seconds() {
         return False;
     }
 
