@@ -11,6 +11,7 @@ import time;
 import from jaclang.scale.config.config_loader { JacScaleConfig }
 import from jaclang.scale._optdeps.pymongo { HAS_PYMONGO }
 import from jaclang.scale.memory.memory_hierarchy { MongoBackend, _process_cache }
+import from jaclang.scale.persistence.mongo_health { _mongo_down, mongo_recently_down }
 
 
 """An address in TEST-NET-1 (RFC 5737), guaranteed not to be routable."""
@@ -21,6 +22,7 @@ def _clear_mongo_cache {
     for key in ["mongo_client", "mongo_available"] {
         _process_cache.pop(key, None);
     }
+    _mongo_down.pop("until", None);
 }
 
 
@@ -89,6 +91,36 @@ test "an unreachable mongo resolves unavailable within the probe budget" {
         # because it covers connect plus probe on a loaded CI box; anything
         # in this range proves the timeout is applied at all.
         assert elapsed < 10.0 , f"MongoBackend blocked {elapsed:.1f}s on an unreachable URI";
+    } finally {
+        _clear_mongo_cache();
+        if saved is None {
+            os.environ.pop("MONGODB_TIMEOUT_MS", None);
+        } else {
+            os.environ["MONGODB_TIMEOUT_MS"] = saved;
+        }
+    }
+}
+
+
+test "a failed probe is shared process-wide within the TTL" {
+    if not HAS_PYMONGO {
+        return;
+    }
+    saved = os.environ.get("MONGODB_TIMEOUT_MS");
+    os.environ["MONGODB_TIMEOUT_MS"] = "500";
+    _clear_mongo_cache();
+    try {
+        MongoBackend(mongo_url=_DEAD_URI);
+        assert mongo_recently_down();
+        start = time.monotonic();
+        second = MongoBackend(mongo_url=_DEAD_URI);
+        available = second.is_available();
+        elapsed = time.monotonic() - start;
+        assert not available;
+        # The first instance paid the probe and recorded the outage, so a
+        # second instance in the same process must resolve from the negative
+        # cache without another server-selection round-trip.
+        assert elapsed < 1.0 , f"second instance re-paid the probe: {elapsed:.1f}s";
     } finally {
         _clear_mongo_cache();
         if saved is None {
