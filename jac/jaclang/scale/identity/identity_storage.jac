@@ -17,8 +17,6 @@ import from sqlalchemy {
     update
 }
 import from sqlalchemy.exc { IntegrityError, OperationalError }
-import from jaclang.scale._optdeps.pymongo { DuplicateKeyError }
-import type from pymongo.collection { Collection }
 import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.scale.config.config_loader { get_scale_config }
 
@@ -68,27 +66,6 @@ obj IdentityStorage {
 
     def unlink_sso_account(user_id: str, platform: str) -> dict[str, str];
     def get_sso_accounts(user_id: str) -> list[dict[str, str]];
-}
-
-obj MongoIdentityStorage(IdentityStorage) {
-    has users_col: Collection[dict[str, any]];
-
-    def _store_user(user_doc: dict[str, any]) -> None;
-    def _update_fields(user_id: str, fields: dict[str, any]) -> bool;
-    def _get_credentials(user_id: str) -> list[dict[str, any]];
-    def _update_credentials(user_id: str, credentials: list[dict[str, any]]) -> None;
-    def _get_identities(user_id: str) -> list[dict[str, any]];
-    def _add_identity(user_id: str, identity: dict[str, any]) -> bool;
-    def _remove_sso_identity(user_id: str, platform: str) -> bool;
-    def _find_sso_link(platform: str, external_id: str) -> dict[str, any] | None;
-    def _set_identity_verified(user_id: str, value_normalized: str) -> bool;
-    def ensure_indexes -> None;
-    def get_user_by_id(user_id: str) -> dict[str, any] | None;
-    def delete_user(user_id: str) -> bool;
-    def find_user_by_identity(value: str) -> dict[str, any] | None;
-    def identity_taken(value: str) -> bool;
-    def list_all_users(limit: int = 100, offset: int = 0) -> list[dict[str, any]];
-    def get_user_by_sso(platform: str, external_id: str) -> dict[str, any] | None;
 }
 
 obj SqliteIdentityStorage(IdentityStorage) {

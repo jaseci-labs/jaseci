@@ -1713,7 +1713,7 @@ test "serve sync skips write access check on unchanged anchors" {
         # so a subsequent sync() should detect no drift and skip the
         # write-access check.
         import from typing { cast }
-        import from jaclang.runtimelib.memory { TieredMemory }
+        import from jaclang.runtimelib.session { Session }
         serialized = cast(dict, Serializer.serialize(sys_root, include_type=True));
         sys_root_copy = Serializer.deserialize(serialized);
         if sys_root_copy is not None {
@@ -1722,7 +1722,7 @@ test "serve sync skips write access check on unchanged anchors" {
         sys_root.persistent = True;
         sys_root.hash = Serializer._compute_hash(sys_root);
         # Ensure it is present in L3's __mem__ and on disk.
-        tiered = cast(TieredMemory, ctx.mem);
+        tiered = cast(Session, ctx.mem);
         l3 = tiered.l3;
         if l3 is not None {
             l3.put(sys_root);

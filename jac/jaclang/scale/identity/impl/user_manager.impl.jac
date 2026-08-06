@@ -23,23 +23,12 @@ impl JacScaleUserManager.postinit -> None {
         }
     }
 
-    db_config = get_scale_config().get_database_config();
-    mongodb_uri = db_config.get('mongodb_uri');
-
-    if mongodb_uri is not None {
-        import from jaclang.scale.persistence.db { get_mongo_client }
-        client = get_mongo_client();
-        db = client['jac_db'];
-        self._identity_storage = MongoIdentityStorage(users_col=db['users']);
-        self._identity_storage.ensure_indexes();
-    } else {
-        import os;
-        base_for_data = os.environ.get('JAC_DATA_PATH', self.base_path);
-        data_dir = os.path.join(base_for_data, '.jac', 'data');
-        os.makedirs(data_dir, exist_ok=True);
-        db_path = os.path.join(data_dir, 'users.db');
-        self._identity_storage = SqliteIdentityStorage(db_path=db_path);
-    }
+    import os;
+    base_for_data = os.environ.get('JAC_DATA_PATH', self.base_path);
+    data_dir = os.path.join(base_for_data, '.jac', 'data');
+    os.makedirs(data_dir, exist_ok=True);
+    db_path = os.path.join(data_dir, 'users.db');
+    self._identity_storage = SqliteIdentityStorage(db_path=db_path);
 }
 
 impl JacScaleUserManager.create_user(username: str, password: str) -> dict[str, any] {
