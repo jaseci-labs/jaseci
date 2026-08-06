@@ -1,6 +1,8 @@
-"""GraphMend predicated trap-lowering (validation guard) tests.
+"""GraphMend trap-lowering (validation guard) tests.
 
-Assertions run against the generated Python source (the lowering target)."""
+Assertions run against the generated Python source (the lowering target).
+Detection is exercised through its consumer: a rewrite happening proves the
+guard was tagged, a rewrite NOT happening proves it was not."""
 import ast;
 import os;
 import tempfile;
@@ -69,7 +71,6 @@ test "torch.equal guard lowers to the tensor-equality assert helper" {
     assert "@__jac_trap_guard__" in src;
     # helper imports are emitted and the raising branch is gone
     assert "import __jac_tensor_eq_assert__" in src;
-    assert "__jac_trap_guard__" in src;
     assert "raise ValueError" not in src;
     assert "if not torch.equal" not in src;
 }
@@ -81,17 +82,9 @@ test "tensor-bool guard lowers to torch._assert_async directly" {
         "'[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')"
         in src
     );
-    # boundary decorator restores the exception type at the call site
     assert "@__jac_trap_guard__" in src;
     assert "raise ValueError" not in src;
     assert "if not mask.all()" not in src;
-}
-
-test "validation guard preserved when graphmend disabled" {
-    src = _pysrc("val_guard.jac", False);
-    assert "__jac_tensor_eq_assert__(" not in src;
-    assert "if not torch.equal(attention_mask, expected):" in src;
-    assert "raise ValueError('unsupported attention mask')" in src;
 }
 
 test "py source: validation guard lowers to torch._assert_async" {
@@ -108,8 +101,22 @@ test "py source: validation guard lowers to torch._assert_async" {
     assert "raise ValueError" not in src;
 }
 
-test "py source: no transformation when graphmend disabled" {
+test "no transformation when graphmend disabled" {
+    src = _pysrc("val_guard.jac", False);
+    assert "__jac_tensor_eq_assert__(" not in src;
+    assert "if not torch.equal(attention_mask, expected):" in src;
+    assert "raise ValueError('unsupported attention mask')" in src;
     src = _py_fixture_src(False);
     assert "torch._assert_async(" not in src;
     assert "if not mask.all():" in src;
+}
+
+test "static (non-tensor) guard is not rewritten" {
+    # `if not isinstance(flag, str): raise` has no tensor-data dependence;
+    # Dynamo traces it without a break, so GraphMend must leave it alone.
+    src = _pysrc("static_guard.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "__jac_tensor_eq_assert__(" not in src;
+    assert "if not isinstance(flag, str)" in src;
+    assert "raise TypeError" in src;
 }
