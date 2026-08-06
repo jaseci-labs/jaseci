@@ -85,10 +85,9 @@ sv {
 ### 2. Configure jac.toml
 
 ```toml
-[scale.microservices]
-enabled = true
-
-# Map module names to gateway URL prefixes (for client-facing routing)
+# The service cut: each key runs as its own service; the value is its
+# gateway URL prefix ("" derives /<module-slug>). Discovered sv services
+# turn microservice mode on; this table only customizes their prefixes.
 [scale.microservices.routes]
 products_app = "/api/products"
 cart_app = "/api/cart"
@@ -298,7 +297,8 @@ Same code, different deployer:
 
 ## Kubernetes Deployment
 
-`jac start <file>.jac --scale` with `[scale.microservices].enabled = true`
+`jac start <file>.jac --scale` with services declared in
+`[scale.microservices.routes]`
 auto-routes to the microservice K8s target: one image built and pushed,
 then per-service `Deployment` + `ClusterIP Service` + autoscaler (HPA or KEDA `ScaledObject`) + PDB applied
 for every `sv import`-discovered service plus the gateway.

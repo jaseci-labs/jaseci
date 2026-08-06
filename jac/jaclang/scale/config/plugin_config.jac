@@ -259,7 +259,7 @@ class JacScalePluginConfig {
                         "enabled": {
                             "type": "bool",
                             "default": False,
-                            "description": "Enable microservice mode (auto-derived from sv imports; set [scale.microservices] to customize)."
+                            "description": "Deprecated - sv imports are auto-discovered, so microservice mode turns on without this key; set false to opt out and run single-process. Ignored inside deployed fleet pods (the deploy already realized the topology). A future release removes this key."
                         },
                         "gateway_port": {
                             "type": "int",
