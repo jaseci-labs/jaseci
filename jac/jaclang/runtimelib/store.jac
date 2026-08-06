@@ -5,16 +5,20 @@ edges, shared KV state, and quarantine records. Every Session owns exactly one
 Store transaction at a time; all graph reads and writes happen inside it, so
 read-your-writes, aborts, and conflict detection are the engine's job — the
 runtime never simulates them (epic #7945).
+
+Schema: a single `anchors` table holds nodes and edges (`kind` discriminates;
+edge rows carry src/dst/undirected, which doubles as the adjacency index), a
+`graph_types` ancestry table powers subtype dispatch, `kv_state` serves the
+shared key-value needs, and `quarantine` keeps dangling-ref forensics. Row
+versions are the engine's xmin, observed inside the transaction snapshot —
+the currency the PodCache trades in.
 """
 
+import json;
 import logging;
-import os;
 import threading;
-import from collections.abc { Generator, Iterable }
 import from typing { Any }
 import from uuid { UUID }
-
-import from jaclang.jac0core.archetype { Anchor, NodeAnchor, Root }
 
 glob logger = logging.getLogger(__name__),
      SCHEMA_VERSION = 1,
@@ -37,19 +41,22 @@ obj ConnInfo {
 obj AnchorRow {
     """Wire/row form of one anchor: identity + payload + snapshot version.
 
-    `version` is the row's xmin at read time: the cache may serve `props`
-    for an id only when the version observed inside the current transaction
-    matches (cache short-circuits hydration, never truth).
+    `version` is the row's xmin observed at read time: the cache may serve
+    `props` for an id only when the version seen inside the current
+    transaction matches (cache short-circuits hydration, never truth).
+    `ancestry` carries the archetype's MRO names for the dispatch table.
     """
     has id: UUID,
         kind: str,
-        arch_type: str,
-        arch_module: str,
-        root_id: (UUID | None),
-        props: dict,
+        arch_type: str = '',
+        arch_module: str = '',
+        fingerprint: str = '',
+        root_id: (UUID | None) = None,
+        props: dict = {},
         src: (UUID | None) = None,
         dst: (UUID | None) = None,
         undirected: bool = False,
+        ancestry: list[str] = [],
         version: int = 0;
 }
 
@@ -57,8 +64,8 @@ obj AnchorRow {
 obj Store {
     """Narrow engine contract. Implementations own connections and DDL.
 
-    All row-level methods run inside the currently open transaction; callers
-    (the Session) own transaction lifecycle via begin/commit/rollback.
+    All row-level methods run inside the currently open transaction; the
+    Session owns transaction lifecycle via begin/commit/rollback.
     """
     def is_available -> bool abst;
 
@@ -69,14 +76,16 @@ obj Store {
     def rollback -> None abst;
     def in_txn -> bool abst;
     def load(ids: list[UUID]) -> dict[UUID, AnchorRow] abst;
-    def upsert(rows: list[AnchorRow]) -> None abst;
+    def upsert(rows_in: list[AnchorRow]) -> None abst;
     def delete(ids: list[UUID]) -> None abst;
     def existing(ids: list[UUID]) -> set[UUID] abst;
     def root_ids -> list[UUID] abst;
-    def rows(sql: str, params: (list | tuple)) -> list[tuple] abst;
+    def subtype_names(type_name: str) -> list[str] abst;
+    def rows(sql: str, params: dict) -> list[tuple] abst;
     def kv_get(key: str) -> (str | None) abst;
     def kv_put(key: str, value: str) -> None abst;
     def kv_delete(key: str) -> None abst;
+    def quarantine(missing_id: UUID, referrer_id: (UUID | None), kind: str) -> None abst;
     def notify(channel: str, payload: str) -> None abst;
     def close -> None abst;
 }
@@ -85,16 +94,21 @@ obj Store {
 obj PgStore(Store) {
     """Postgres implementation over the vendored pure-python wire driver.
 
-    Two connection lanes: the transactional lane owned by begin/commit, and a
-    dedicated autocommit lane for LISTEN (notifications bypass transaction-mode
-    pooling by design).
+    Two connection lanes: the transactional lane owned by begin/commit, and
+    a dedicated autocommit lane for LISTEN + out-of-band notifies
+    (notifications bypass transaction-mode pooling by design).
     """
     has conninfo: ConnInfo,
+        promotions: dict[str, list[str]] = {},
         _conn: (Any | None) postinit,
-        _listen_conn: (Any | None) postinit,
+        _side_conn: (Any | None) postinit,
         _lock: threading.RLock postinit,
         _server_version: (int | None) postinit,
-        _in_txn: bool postinit;
+        _in_txn: bool postinit,
+        _known_types: set[str] postinit,
+        _listeners: list[tuple[str, Any]] postinit,
+        _listen_thread: (Any | None) postinit,
+        _listen_stop: (Any | None) postinit;
 
     def postinit -> None;
     def is_available -> bool;
@@ -105,18 +119,25 @@ obj PgStore(Store) {
     def rollback -> None;
     def in_txn -> bool;
     def load(ids: list[UUID]) -> dict[UUID, AnchorRow];
-    def upsert(rows: list[AnchorRow]) -> None;
+    def upsert(rows_in: list[AnchorRow]) -> None;
     def delete(ids: list[UUID]) -> None;
     def existing(ids: list[UUID]) -> set[UUID];
     def root_ids -> list[UUID];
-    def rows(sql: str, params: (list | tuple)) -> list[tuple];
+    def subtype_names(type_name: str) -> list[str];
+    def rows(sql: str, params: dict) -> list[tuple];
     def kv_get(key: str) -> (str | None);
     def kv_put(key: str, value: str) -> None;
     def kv_delete(key: str) -> None;
+    def quarantine(missing_id: UUID, referrer_id: (UUID | None), kind: str) -> None;
     def notify(channel: str, payload: str) -> None;
     def listen(channel: str, callback: Any) -> None;
     def close -> None;
-    def _ensure_conn -> Any;
-    def _ddl(promotions: dict[str, list[str]]) -> list[str];
-    def _property_graph_ddl -> list[str];
+    def _connect -> Any;
+    def _main -> Any;
+    def _side -> Any;
+    def _run(sql: str, params: dict) -> list;
+    def _promotion_columns -> list[tuple[str, str, str]];
+    def _apply_promotions -> None;
+    def _property_graph_ddl -> None;
+    def _listen_loop -> None;
 }
