@@ -1,15 +1,17 @@
 """GraphQuery -> SQL compiler: whole traversals in one round trip.
 
 The #7855 GraphQuery IR is the front-end; this module is the back-end that
-replaces the per-hop planner loop. A query compiles to a plan of segments:
-each segment is one SQL statement walking as many consecutive hops as are
-fully pushable (typed edge/node dispatch, QPred comparisons on promoted
-columns or JSONB); a hop carrying a non-pushable predicate ends its segment
-and contributes a residual filter evaluated in Python on materialized
-anchors before the next segment continues from the surviving frontier.
+replaces the per-hop planner loop. A query compiles to one SQL statement
+joining the anchors table once per hop — edge dispatch, node dispatch,
+predicate filters (jsonb-typed, so numbers compare numerically), only-id
+narrowing, and deterministic edge-id ordering all execute inside the
+Session's open transaction, after the read barrier, so uncommitted local
+mutations are visible by construction.
 
-All SQL executes on the Session's open transaction, after the read barrier,
-so uncommitted local mutations are visible by construction.
+Every QPred value is a SCALAR (or list of scalars) by IR contract, so every
+hop is pushable; compile_query still reports `residual` hops defensively —
+a hop whose predicate value defies SQL encoding is left for Python
+evaluation on the materialized frontier.
 """
 
 import logging;
@@ -19,32 +21,20 @@ import from uuid { UUID }
 import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
 
 glob logger = logging.getLogger(__name__),
-     __all__ = ['CompiledPlan', 'PlanSegment', 'compile_query'];
+     __all__ = ['CompiledQuery', 'compile_query'];
 
 
-obj PlanSegment {
-    """One executable step: SQL over >=1 consecutive hops, then residuals."""
+obj CompiledQuery {
+    """One SQL statement resolving the whole hop chain.
+
+    Row shape: (final_node_id, last_edge_id) — ordered by the edge-id chain
+    for determinism. `residual` maps hop index -> preds to re-check in
+    Python (normally empty).
+    """
     has sql: str = '',
-        params: list = [],
-        hop_span: int = 1,
-        want_edges: bool = False,
-        residual_hop: (QHop | None) = None;
+        params: dict = {},
+        residual: dict[int, list[QPred]] = {};
 }
 
 
-obj CompiledPlan {
-    has segments: list[PlanSegment] = [],
-        slc: (Any | None) = None,
-        from_visit: bool = False;
-}
-
-
-def compile_query(
-    q: GraphQuery, promotions: dict[str, list[str]], edges: bool = False
-) -> CompiledPlan;
-
-def pushable(pred: QPred) -> bool;
-
-def pred_sql(
-    alias: str, pred: QPred, params: list, promotions: dict[str, list[str]]
-) -> str;
+def compile_query(q: GraphQuery, upto: int) -> CompiledQuery;
