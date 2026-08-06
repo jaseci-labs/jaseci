@@ -87,8 +87,8 @@ In single-process `jac start` mode the FastAPI app installs a permissive
 CORS middleware (`allow_origins=['*']`, all methods/headers); there is
 no `[scale.cors]` knob to tune it.
 
-In **microservice mode** (`[scale.microservices] enabled = true`),
-the gateway exposes a configurable CORS section:
+In **microservice mode** (on whenever `[scale.microservices.routes]`
+declares services), the gateway exposes a configurable CORS section:
 
 ```toml
 [scale.microservices.cors]
