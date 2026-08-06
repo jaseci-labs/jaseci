@@ -531,8 +531,7 @@ impl TypeEvaluator.get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
             self.pop_symbol_resolution(symbol);
         }
     }
-    self._cyclic_resolution_depth += 1;
-    return types.UnknownType();
+    return types.UnknownType(is_incomplete=True);
 }
 
 impl TypeEvaluator.resolve_to_definition_symbol(symbol: uni.Symbol) -> uni.Symbol {

@@ -142,6 +142,13 @@ glob FORBIDDEN: dict[str, str] = {
              1,
              "declaration-surface read during archetype field lowering"
          ),
+         ("native/na_ir_gen_pass.impl/lists.impl.jac", "type_tag.tag"): (
+             1,
+             "declared-vs-inferred bare list is a declaration-surface "
+             "distinction central facts do not carry (the checker stamps "
+             "unannotated empties as bare list too); the empty-literal "
+             "storage-family decision must key on the explicit annotation"
+         ),
          ("native/na_ir_gen_pass.impl/stmt.impl.jac", "type_tag.tag"): (
              7,
              "surface-shape dispatch on declared annotation forms "

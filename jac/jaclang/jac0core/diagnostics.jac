@@ -592,6 +592,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " TypeScript declarations (or the matching @types/<package>), or relax"
          " the setting to \"warn\"."
      ),
+     E1121 = _err(
+         "E1121",
+         Category.TYPE,
+         "Possibly-None value of type \"{type}\" used where {required} is required",
+         help="Native code requires optionals to be narrowed before use at a"
+         " site that needs the unwrapped value. Guard the value first, e.g."
+         " `if x is not None { ... }`. Equality (`==`, `!=`) and `is None`"
+         " checks operate on the optional directly and need no narrowing."
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,
@@ -1337,6 +1346,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Could not generate JavaScript for builtin '{name}': {error}"
      ),
+     E5017 = _err(
+         "E5017",
+         Category.CODEGEN,
+         "{construct} is not supported by client codegen",
+         help="This statement has no ECMAScript lowering yet, and without this error it would be silently dropped from the client bundle. Rewrite it using supported constructs, or move the logic to a server or native codespace.",
+         blocks_codegen=True
+     ),
+     E5018 = _err(
+         "E5018",
+         Category.CODEGEN,
+         "match pattern {construct} is not supported by client codegen",
+         help="This pattern shape has no ECMAScript lowering yet (e.g. a binding inside an or-pattern, a mapping rest-capture, or a class pattern whose field order cannot be resolved). Restructure the pattern or move the match to a server or native codespace.",
+         blocks_codegen=True
+     ),
      W5013 = _warn(
          "W5013",
          Category.CODEGEN,
@@ -1377,6 +1400,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Symbol collision during native link: '{symbol}' is defined in both "
          "'{existing_module}' and '{new_module}'. "
          "Mark one as :priv or rename to avoid a runtime crash."
+     ),
+     E5027 = _err(
+         "E5027",
+         Category.CODEGEN,
+         "Native module '{path}' was built with different compile options "
+         "(cached fingerprint {cached_fp}, current build {current_fp}); "
+         "refusing a mixed-options link.",
+         help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac nacompile --scrub`."
      ),
      E5030 = _err(
          "E5030",
@@ -1440,6 +1471,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "construction. Move anything else to a list comprehension over "
          "the query result, where its object-space cost is visible.",
          blocks_codegen=True
+     ),
+     E5095 = _err(
+         "E5095",
+         Category.CODEGEN,
+         "Invalid call to reserved intrinsic '{name}': {reason}",
+         help="Double-underscore names in the compiler's intrinsic registry are reserved: every call lowers to the registered intrinsic, whose signature is fixed by the registry. Match the registered arity and operand types; an invalid intrinsic call never falls back to a user definition or a default value."
      ),
      E5093 = _err(
          "E5093",
@@ -1512,6 +1549,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client code uses server-placed function '{name}' as a value — function values cannot cross the placement boundary",
          help="A function reference that flows into client-side data (stored, returned, or passed along) needs client presence; only calls to def:pub endpoints bridge over RPC. Drop ':pub' so the function is pulled client-side, or restructure so the client stores data instead of the function."
+     ),
+     W6008 = _warn(
+         "W6008",
+         Category.CODEGEN,
+         "Definition of '{name}' collides with the reserved native intrinsic of the same name",
+         help="'{name}' is in the compiler's intrinsic registry, so native code always lowers calls to the registered intrinsic — this definition is never called from a native context. It stays callable as an ordinary function from non-native (Python/JS) contexts; rename it if that shadowing is not intended."
      ),
      E9001 = _err("E9001", Category.ICE, "ICE: Pass {pass_name} -- {details}"),
      E9002 = _err(

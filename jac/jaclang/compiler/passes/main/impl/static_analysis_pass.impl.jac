@@ -136,6 +136,13 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
             continue;
         }
 
+        if (
+            name_nd.value == '_'
+            and name_nd.find_parent_of_type(uni.MatchPattern) is not None
+        ) {
+            continue;
+        }
+
         if name_nd.find_parent_of_type(uni.ModulePath) is not None {
             continue;
         }
