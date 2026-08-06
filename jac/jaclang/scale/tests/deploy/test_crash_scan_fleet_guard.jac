@@ -50,9 +50,7 @@ def _cs(name: str, restarts: int, waiting_reason: str = "") -> V1ContainerStatus
 }
 
 
-def _pod(
-    name: str, app: str, phase: str, statuses: list, pth: str = ""
-) -> V1Pod {
+def _pod(name: str, app: str, phase: str, statuses: list, pth: str = "") -> V1Pod {
     labels = {"app": app};
     if pth {
         labels["pod-template-hash"] = pth;

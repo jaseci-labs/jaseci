@@ -212,17 +212,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         pod_reason = reason;
                     }
 
-                    # Judge only pods this deploy owns: the fleet's own
-                    # Deployments plus its companions (redis/mongodb, which
-                    # live outside fleet_app_names and current_hashes). A
-                    # crash-looping stranger - e.g. an orphaned pre-rename
-                    # Deployment - must not fail a healthy rollout, exactly as
-                    # the ImagePull and stuck-ContainerCreating branches below
-                    # already ignore it.
-                    owned = in_fleet or (
-                        companion_app_names is not None
-                        and app in companion_app_names
-                    );
+                    owned = in_fleet
+                        or (
+                            companion_app_names is not None
+                            and app in companion_app_names
+                        );
                     crashing = (
                         owned and restarts >= 3 and reason not in imagepull_reasons
                     );
@@ -376,9 +370,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         ready = 0;
         interactive = bool(sys.stdout.isatty());
         fleet_apps: set = set(app_labels);
-        # Companions this deploy provisions beside the fleet. They are not in
-        # fleet_apps (no route Deployment) and their hashes are never resolved
-        # into current_hashes, but their health is still this deploy's to judge.
+
         app_name = str(self.k8s_config.app_name or "");
         companion_apps: set = (
             {f"{app_name}-redis", f"{app_name}-mongodb"} if app_name else set()
