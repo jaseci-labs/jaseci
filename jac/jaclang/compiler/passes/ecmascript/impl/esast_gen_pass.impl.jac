@@ -3198,6 +3198,40 @@ impl EsastGenPass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
     right: es.Expression = cast(es.Expression, nd.collection.gen.es_ast)
         if nd.collection.gen.es_ast
         else self.sync_loc(es.Identifier(name='collection'), jac_node=nd.collection);
+    # Python iteration over a dict yields its keys, but dicts are plain JS
+    # objects (not iterable), so a bare for-of throws. Statically-known
+    # dicts wrap in Object.keys directly; anything not statically known to
+    # be JS-iterable dispatches through _jac.builtin.iter so dynamically
+    # typed dicts iterate correctly too. Known-iterable primitives stay
+    # bare (zero-cost path).
+    ctype = self._expr_type_name(nd.collection);
+    if ctype == "dict" {
+        right = self.sync_loc(
+            es.CallExpression(
+                callee=self.sync_loc(
+                    es.MemberExpression(
+                        object=self.sync_loc(
+                            es.Identifier(name='Object'), jac_node=nd.collection
+                        ),
+                        property=self.sync_loc(
+                            es.Identifier(name='keys'), jac_node=nd.collection
+                        ),
+                        computed=False
+                    ),
+                    jac_node=nd.collection
+                ),
+                arguments=[right]
+            ),
+            jac_node=nd.collection
+        );
+    } elif ctype not in [
+        "list", "str", "tuple", "set", "bytes", "bytearray", "range",
+        "generator", "frozenset"
+    ] {
+        right = self._build_jac_call(
+            ["_jac", "builtin", "iter"], [right], nd.collection
+        );
+    }
     body = self._build_block_statement(nd, nd.body);
     if isinstance(left, es.VariableDeclaration) {
         decl = left;

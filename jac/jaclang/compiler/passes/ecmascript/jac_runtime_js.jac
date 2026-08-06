@@ -1105,7 +1105,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return total;
     },
     sorted(iterable, key, reverse) {
-      const arr = [...iterable];
+      const arr = [..._jac.builtin.iter(iterable)];
       if (key) {
         arr.sort((a, b) => {
           const ka = key(a), kb = key(b);
@@ -1118,6 +1118,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return arr;
     },
     enumerate(iterable, start) {
+      iterable = _jac.builtin.iter(iterable);
       const s = start || 0;
       return [...iterable].map((v, i) => [s + i, v]);
     },
@@ -1300,6 +1301,14 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (x instanceof Set || x instanceof Map) return x.size > 0;
       if (typeof x === "object") return Object.keys(x).length > 0;
       return true;
+    },
+    iter(x) {
+      if (x === null || x === undefined) return [];
+      if (x instanceof Map) return Array.from(x.keys());
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return Object.keys(x);
+      }
+      return x;
     },
     dict(x) {
       if (x === null || x === undefined) return {};

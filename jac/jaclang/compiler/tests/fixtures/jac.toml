@@ -136,6 +136,8 @@
 "prim_datetime.datetime_na" = "native"
 "prim_dict.dict_cl" = "client"
 "prim_dict.dict_ctor_cl" = "client"
+"prim_dict.dict_iter_cl" = "client"
+"prim_dict.dict_iter_na" = "native"
 "prim_dict.dict_ctor_na" = "native"
 "prim_dict.dict_na" = "native"
 "prim_dict_struct_vals._mk_reg_na" = "native"

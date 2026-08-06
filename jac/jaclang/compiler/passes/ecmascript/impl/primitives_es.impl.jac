@@ -1997,7 +1997,9 @@ impl ESBuiltinEmitter.emit_list(self, ctx: ESEmitCtx, args: list[str]) -> (str |
     if len(args) == 0 {
         return "[]";
     }
-    return "Array.from(" + args[0] + ")";
+    # list(d) on a dict yields its keys in Python; _jac.builtin.iter is a
+    # pass-through for anything already iterable.
+    return "Array.from(" + _rt("builtin", "iter", args) + ")";
 }
 
 impl ESBuiltinEmitter.emit_dict(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {
@@ -2015,7 +2017,7 @@ impl ESBuiltinEmitter.emit_set(self, ctx: ESEmitCtx, args: list[str]) -> (str | 
     if len(args) == 0 {
         return "new Set()";
     }
-    return "new Set(" + args[0] + ")";
+    return "new Set(" + _rt("builtin", "iter", args) + ")";
 }
 
 impl ESBuiltinEmitter.emit_tuple(

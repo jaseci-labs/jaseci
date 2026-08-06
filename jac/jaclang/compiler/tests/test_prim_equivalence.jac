@@ -21,6 +21,13 @@ test "dict ctor" {
     );
 }
 
+test "dict iteration" {
+    run_with_both(
+        "prim_dict.jac", "dict_iter_py", "dict_iter_cl", "dict_iter_na",
+        require=["cl"]
+    );
+}
+
 test "enums" {
     run_with_both(
         "prim_enums.jac", "enums_py", "enums_cl", "enums_na", require=["cl"]
