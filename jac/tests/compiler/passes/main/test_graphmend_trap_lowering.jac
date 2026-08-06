@@ -34,20 +34,17 @@ Written to a temp file at test time rather than checked in as a .py fixture:
 the repository does not accept new Python files, and the point of the fixture
 is only that GraphMend ingests .py source, which a generated file exercises
 just as well."""
-glob PY_VAL_GUARD_SRC = '\n'.join(
-         [
-             "import torch",
-             "",
-             "",
-             "@torch.compile()",
-             "def f(x, mask):",
-             "    x = torch.relu(x)",
-             "    if not mask.all():",
-             "        raise ValueError(\"mask must be all true\")",
-             "    return torch.sin(x) * 2.0",
-             ""
-         ]
-     );
+glob PY_VAL_GUARD_SRC = '''
+import torch
+
+
+@torch.compile()
+def f(x, mask):
+    x = torch.relu(x)
+    if not mask.all():
+        raise ValueError("mask must be all true")
+    return torch.sin(x) * 2.0
+''';
 
 """Compile the generated .py model above and return its Python lowering."""
 def _py_fixture_src(gm: bool) -> str {

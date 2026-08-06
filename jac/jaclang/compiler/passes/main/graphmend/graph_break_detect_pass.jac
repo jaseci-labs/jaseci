@@ -8,11 +8,9 @@ obj GraphBreakDetectPass(UniPass) {
 
     def before_pass -> None;
     def _collect_entry_points -> set[int];
-    def _call_is_torch_compile(call: uni.FuncCall) -> bool;
     def _resolve_wrapped_entry(call: uni.FuncCall) -> (uni.UniNode | None);
     def _def_node(name: str, ctx: uni.UniNode) -> (uni.UniNode | None);
     def _var_assignment(name: str, ctx: uni.UniNode) -> (uni.Assignment | None);
-    def _has_torch_compile_decorator(nd: uni.UniNode) -> bool;
     def _in_torch_compiled_scope(nd: uni.UniNode) -> bool;
     def enter_if_stmt(nd: uni.IfStmt) -> None;
     def enter_func_call(nd: uni.FuncCall) -> None;

@@ -2,8 +2,10 @@ import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    has_torch_compile_decorator,
     is_dynamic_torch_attr,
-    is_side_effect_name
+    is_side_effect_name,
+    is_torch_attr_target
 }
 
 impl GraphBreakDetectPass.before_pass -> None {
@@ -22,17 +24,17 @@ impl GraphBreakDetectPass.before_pass -> None {
 impl GraphBreakDetectPass._collect_entry_points -> set[int] {
     ids: set[int] = set();
     for ab in self.ir_in.get_all_sub_nodes(uni.Ability) {
-        if self._has_torch_compile_decorator(ab) {
+        if has_torch_compile_decorator(ab) {
             ids.add(id(ab));
         }
     }
     for arch in self.ir_in.get_all_sub_nodes(uni.Archetype) {
-        if self._has_torch_compile_decorator(arch) {
+        if has_torch_compile_decorator(arch) {
             ids.add(id(arch));
         }
     }
     for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
-        if self._call_is_torch_compile(call) {
+        if is_torch_attr_target(call.target, 'compile') {
             entry = self._resolve_wrapped_entry(call);
             if entry is not None {
                 ids.add(id(entry));
@@ -40,17 +42,6 @@ impl GraphBreakDetectPass._collect_entry_points -> set[int] {
         }
     }
     return ids;
-}
-
-impl GraphBreakDetectPass._call_is_torch_compile(call: uni.FuncCall) -> bool {
-    t = call.target;
-    return (
-        isinstance(t, uni.AtomTrailer)
-        and isinstance(t.right, uni.Name)
-        and (t.right.value == 'compile')
-        and isinstance(t.target, uni.Name)
-        and (t.target.value == 'torch')
-    );
 }
 
 impl GraphBreakDetectPass._resolve_wrapped_entry(
@@ -118,23 +109,6 @@ impl GraphBreakDetectPass._var_assignment(
         return None;
     }
     return self._defining_assignment(sym);
-}
-
-impl GraphBreakDetectPass._has_torch_compile_decorator(nd: uni.UniNode) -> bool {
-    decs = nd?.decorators;
-    for dec in (decs or []) {
-        target = dec.target if isinstance(dec, uni.FuncCall) else dec;
-        if (
-            isinstance(target, uni.AtomTrailer)
-            and isinstance(target.right, uni.Name)
-            and (target.right.value == 'compile')
-            and isinstance(target.target, uni.Name)
-            and (target.target.value == 'torch')
-        ) {
-            return True;
-        }
-    }
-    return False;
 }
 
 impl GraphBreakDetectPass._in_torch_compiled_scope(nd: uni.UniNode) -> bool {

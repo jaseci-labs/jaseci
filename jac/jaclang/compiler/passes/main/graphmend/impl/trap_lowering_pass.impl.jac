@@ -1,5 +1,9 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
+import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    has_torch_compile_decorator,
+    is_torch_attr_target
+}
 
 impl TrapLoweringPass.before_pass -> None {
     self._enabled = self.prog._compile_options.graphmend;
@@ -55,26 +59,10 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
 
 impl TrapLoweringPass._enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | None) {
     ab = nd.find_parent_of_type(uni.Ability);
-    if (ab is not None) and self._has_torch_compile_decorator(ab) {
+    if (ab is not None) and has_torch_compile_decorator(ab) {
         return ab;
     }
     return None;
-}
-
-impl TrapLoweringPass._has_torch_compile_decorator(nd: uni.UniNode) -> bool {
-    for dec in (nd?.decorators or []) {
-        target = dec.target if isinstance(dec, uni.FuncCall) else dec;
-        if (
-            isinstance(target, uni.AtomTrailer)
-            and isinstance(target.right, uni.Name)
-            and (target.right.value == 'compile')
-            and isinstance(target.target, uni.Name)
-            and (target.target.value == 'torch')
-        ) {
-            return True;
-        }
-    }
-    return False;
 }
 
 impl TrapLoweringPass._exception_type_name(rs: uni.RaiseStmt) -> (str | None) {
@@ -141,14 +129,7 @@ impl TrapLoweringPass._torch_equal_args(x: uni.Expr) -> (tuple | None) {
         return None;
     }
     call: uni.FuncCall = x;
-    target = call.target;
-    if not (
-        isinstance(target, uni.AtomTrailer)
-        and isinstance(target.right, uni.Name)
-        and (target.right.value == 'equal')
-        and isinstance(target.target, uni.Name)
-        and (target.target.value == 'torch')
-    ) {
+    if not is_torch_attr_target(call.target, 'equal') {
         return None;
     }
     pos = [
@@ -184,20 +165,8 @@ impl TrapLoweringPass._raise_message(rs: uni.RaiseStmt, at: uni.UniNode) -> uni.
 }
 
 impl TrapLoweringPass._gen_name(at: uni.UniNode, value: str) -> uni.Name {
-    nm = uni.Name(
-        orig_src=at.loc.orig_src,
-        name=Tok.NAME.value,
-        value=value,
-        line=at.loc.first_line,
-        end_line=at.loc.last_line,
-        col_start=at.loc.col_start,
-        col_end=at.loc.col_end,
-        pos_start=at.loc.pos_start,
-        pos_end=at.loc.pos_end
-    );
-    nm.parent = at.parent;
-    nm.name_of = nm;
-    return nm;
+    anchor: any = at;
+    return uni.Name.gen_stub_from_node(anchor, value);
 }
 
 impl TrapLoweringPass._str(at: uni.UniNode, text: str) -> uni.String {
