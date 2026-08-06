@@ -329,3 +329,33 @@ test "absolute imports in nested modules emit importer-relative specifiers" {
             f"nested absolute import emitted a root-relative specifier: {js[0:400]}";
     }
 }
+
+test "client capability check rejects silently-dropped constructs" {
+    code = """def gen_vals() -> list {
+    vals: list = [];
+    for i in range(3) {
+        vals.append(i);
+    }
+    yield 1;
+    return vals;
+}
+
+def pick(x: int) -> int {
+    match x {
+        case 1: return 10;
+        case _: return 0;
+    }
+}
+""";
+    prog = JacProgram();
+    try {
+        compile_inline(code, prog=prog, client=True);
+    } except Exception {
+        ;
+    }
+    msgs = " ".join([str(e) for e in prog.errors_had]);
+    assert "Client pathway does not yet support a yield expression" in msgs ,
+        f"client-placed yield must be diagnosed, got: {msgs[0:600]}";
+    assert "Client pathway does not yet support a match statement" in msgs ,
+        f"client-placed match must be diagnosed, got: {msgs[0:600]}";
+}

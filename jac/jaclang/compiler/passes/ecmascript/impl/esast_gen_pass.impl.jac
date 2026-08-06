@@ -6406,6 +6406,20 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
 
 impl EsastGenPass.before_pass -> None {
     import from jaclang.jac0core.codeinfo { ClientManifest }
+    # Backstop mirror of ClientCapabilityCheckPass: this pass leaves
+    # gen.es_ast empty for unhandled node kinds, so constructs with no ES
+    # lowering must be diagnosed on every client compile, not only when
+    # the typecheck schedule runs (check == build).
+    import from jaclang.jac0core.passes.module_codegen_pass {
+        client_capability_violations
+    }
+    import from jaclang.jac0core.diagnostics { E5095 }
+    if not getattr(self.ir_in.gen, 'client_viols_reported', False) {
+        for (_vnode, _vkind) in client_capability_violations(self.ir_in) {
+            self.emit(E5095, node_override=_vnode, kind=_vkind);
+        }
+        self.ir_in.gen.client_viols_reported = True;
+    }
     self.child_passes = self._init_child_passes(EsastGenPass);
     self.client_manifest = ClientManifest();
     self.component_export_names = set();

@@ -122,3 +122,31 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
         return list(result.values());
     }
 }
+
+"""Constructs with no ES lowering: EsastGenPass leaves gen.es_ast empty
+for unhandled node kinds, so without this check they vanish from the
+client bundle silently (a yield becomes a no-op, a match body
+disappears). Only hard client placements are flagged; dual-emitted
+elements keep their server copy and are the placement solver's concern."""
+def client_capability_violations(mod: uni.Module) -> list {
+    out: list = [];
+    reject: list = [
+        (uni.YieldExpr, "a yield expression"),
+        (uni.MatchStmt, "a match statement"),
+        (uni.ConcurrentExpr, "flow/wait concurrency"),
+        (uni.DeleteStmt, "a delete statement"),
+        (uni.WithStmt, "a with statement"),
+        (uni.PyInlineCode, "an inline ::py:: block")
+    ];
+    for _stmt in ModuleCodegenPass.iter_context_stmts(mod, CodeContext.CLIENT) {
+        if getattr(_stmt, 'codespace_dual', False) {
+            continue;
+        }
+        for (node_t, kind_name) in reject {
+            for _nd in _stmt.get_all_sub_nodes(typ=node_t) {
+                out.append((_nd, kind_name));
+            }
+        }
+    }
+    return out;
+}
