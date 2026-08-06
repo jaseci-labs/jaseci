@@ -214,6 +214,28 @@ def _fill_import_facts(es: ElementSummary, imp: uni.Import) {
     }
 }
 
+"""Persistence evidence for a module: any root access in its body. Cached
+on the module node -- _element_reqs runs per element."""
+def module_has_root_access(stmt: uni.UniNode) -> bool {
+    mod = stmt if isinstance(stmt, uni.Module) else stmt.find_parent_of_type(uni.Module);
+    if mod is None {
+        return True;
+    }
+    cached = getattr(mod.gen, '_has_root_access', None);
+    if cached is not None {
+        return cached;
+    }
+    found = False;
+    for svr in mod.get_all_sub_nodes(uni.SpecialVarRef) {
+        if svr.orig.name == Tok.KW_ROOT {
+            found = True;
+            break;
+        }
+    }
+    mod.gen._has_root_access = found;
+    return found;
+}
+
 def _element_reqs(stmt: uni.UniNode) -> list {
     reqs: list = [];
     if isinstance(stmt, uni.Import) {
@@ -253,7 +275,15 @@ def _element_reqs(stmt: uni.UniNode) -> list {
         }
     }
     if isinstance(stmt, uni.Archetype) and stmt.arch_kind is not None {
-        reqs.append(['PERSIST', f"{stmt.arch_kind} archetype"]);
+        # Persistence is evidence-based: a graph archetype anchors server
+        # only when its defining module actually touches root. Rootless
+        # object models (an in-browser block graph, a client-side scene
+        # graph) stay pullable; anything the program persists keeps the
+        # anchor, and cross-module persistence still anchors through the
+        # persisting module's own root access.
+        if module_has_root_access(stmt) {
+            reqs.append(['PERSIST', f"{stmt.arch_kind} archetype"]);
+        }
     }
     for ab in stmt.get_all_sub_nodes(uni.Ability) {
         if ab.is_async {
@@ -442,7 +472,7 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
         }
     }
     for arch in module.get_all_sub_nodes(uni.Archetype) {
-        if arch.arch_kind is not None {
+        if arch.arch_kind is not None and module_has_root_access(module) {
             reasons.append(f"graph archetype '{arch.name.value}'");
             break;
         }
