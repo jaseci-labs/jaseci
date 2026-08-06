@@ -12,9 +12,9 @@ dataflow, before Python code generation, so only the Python lowering target is
 affected. The JS and native backends see the original tree.
 
 This page is the specification and legality argument for the passes that have
-landed. It currently covers detection and trap lowering; the predication
-(`torch.where` / `torch.cond`) and side-effect deferral transforms extend this
-page as they land.
+landed. It currently covers detection, trap lowering and predication
+(`torch.where` / `torch.cond`); the side-effect deferral transform extends
+this page when it lands.
 
 ## Activation and plumbing
 
@@ -28,7 +28,11 @@ page as they land.
   `before_pass` and prunes immediately when the flag is off, so the schedule
   is inert for normal compiles.
 - The passes run in `get_py_code_gen`, immediately before `PyastGenPass`:
-  `GraphBreakDetectPass`, then `TrapLoweringPass`.
+  `GraphBreakDetectPass`, then `TrapLoweringPass`, then
+  `PredicateCtrlFlowPass`. The order is load-bearing: trap lowering removes
+  the `raise` from a validation guard nested inside a data-dependent branch,
+  which is what lets predication later hoist that branch's setup statements
+  (the lowered assert is re-gated on the branch predicate, see below).
 - Cross-pass state is typed and lives on `JacProgram`, not on AST nodes:
   `graphmend_breaks` maps a node id to its `GraphBreakKind` (detection to
   transformation), and `graphmend_helpers` maps a module id to the set of
@@ -48,10 +52,10 @@ Detection implements the paper's Dynamo entry-point analysis plus graph-break
 type analysis. It records a `GraphBreakKind` (declared in
 `jac0core/constant.jac`) per break site; each kind names the single transform
 allowed to lower it. Detection breadth grows in lockstep with the transforms:
-only `VAL_GUARD` (a data-dependent `if not C: raise`, consumed by
-`TrapLoweringPass`) exists today, so no analysis ships before the transform
-that lowers it. Data-dependent `if`/`else` and side-effect kinds arrive with
-the predication and deferral passes.
+a data-dependent conditional whose body is exactly one `raise` is tagged
+`VAL_GUARD` (consumed by `TrapLoweringPass`); any other data-dependent
+conditional is tagged `DYN_CTRL_FL` (consumed by `PredicateCtrlFlowPass`).
+The side-effect kind arrives with the deferral pass.
 
 ### Entry points
 
@@ -69,15 +73,17 @@ models, which are the primary target (`jac run model.py -g`).
 ### Data dependence
 
 A condition is data-dependent when it uses a dynamic torch attribute
-directly. The dynamic-attribute table (`graphmend/torch_attr_table.jac`)
-lists ops whose result depends on tensor data rather than static shape:
-`item`, `tolist`, reductions, `nonzero`, `equal`, `allclose`, `unique` and so
-on. Extending detection to a new op is one entry in that table. Direct use is
-sufficient here because every guard shape the trap transform accepts names
-its dynamic op inline; the bounded use-def trace that follows a condition
-back through assignments (for example `seq_len = torch.max(position_ids) + 1`
-used in a later branch) arrives with the predication pass, whose branch
-conditions genuinely need it.
+directly, or when a bounded use-def trace shows it derives from one. The
+dynamic-attribute table (`graphmend/torch_attr_table.jac`) lists ops whose
+result depends on tensor data rather than static shape: `item`, `tolist`,
+reductions, `nonzero`, `equal`, `allclose`, `unique` and so on. Extending
+detection to a new op is one entry in that table. The use-def trace follows
+each name in the condition back through its defining assignment (depth-capped
+and cycle-guarded), so `seq_len = torch.max(position_ids) + 1` makes a later
+`if seq_len > limit:` data-dependent even though the condition itself names
+no torch op. Guard shapes the trap transform accepts always name their
+dynamic op inline; branch conditions genuinely need the trace, which is why
+it landed with the predication pass.
 
 One deliberate precision choice: function parameters are NOT assumed dynamic.
 Treating every parameter as tensor-derived would tag static guards such as
@@ -158,14 +164,146 @@ generated module preamble only when the pass actually used them
 (`__jac_tensor_eq_assert__`, `__jac_trap_guard__`). Both live on `JacBuiltin`
 in `jac0core/runtime.jac`.
 
+## Predication: `PredicateCtrlFlowPass`
+
+A data-dependent `if`/`else` (tagged `DYN_CTRL_FL`) forces TorchDynamo to
+pick a Python path from tensor data, splitting the graph at the branch. The
+pass rewrites the branch into a single graph-native selection so both paths
+stay inside one FX graph. It fires only when both branches produce the same
+output, so the rewrite is provably semantics-preserving; anything more
+complex (differing targets, elif chains, a missing `else`) is left intact.
+
+### Reconciliation shapes
+
+Three shapes are accepted, matched on the final statement of each branch:
+
+```python
+if c: x = A            # same-target assignment
+else: x = B            #   -> __gm_cond = c; __gm_true = A; __gm_false = B
+                       #      x = torch.where(__gm_cond, __gm_true, __gm_false)
+
+if c: return A         # same-shape return
+else: return B         #   -> ...; return torch.where(...)
+
+if c: g(a, k=K)        # common call: same callee, same kwargs, same arity
+else: g(b, k=K)        #   -> g(torch.where(__gm_cond, a, b), k=K)
+```
+
+The common-call form merges each differing positional argument with its own
+`torch.where` and emits the call once; kwargs must be textually identical and
+the callee texts must match. Branch values that are `None` decline (no tensor
+selection exists for it), as does a branch pair mixing a call with a literal
+(see below).
+
+### `torch.where` versus `torch.cond`
+
+`torch.where` is an ordinary call, so both operands are evaluated regardless
+of the predicate. For symmetric values (bare names, pure arithmetic) that is
+harmless and is what the pass emits. When a branch value contains a function
+call, evaluating both sides would run a call the original program did not
+run, which is not merely wasteful: it is unsound whenever that call is only
+valid under its own predicate. For that shape the pass emits `torch.cond`,
+whose lambda branches execute only the selected path:
+
+```python
+x = torch.cond(__gm_cond_0, lambda: f(a), lambda: g(b), ())
+```
+
+The selection is ordered by legality first and cost second: `torch.cond`
+introduces branch-dispatch synchronization and disables CUDA Graph capture
+for the region, so `torch.where` is preferred wherever it is legal. One gap
+remains: a call paired with a literal. `torch.where` would speculate the
+call, and `torch.cond` cannot return a Python literal, so neither form is
+sound and the branch is left untouched, break included.
+
+### Multi-statement branches and hoisting legality
+
+When both branches end in the same call but carry setup statements before it,
+the setups are hoisted to run unconditionally (predication computes both
+paths). A hoisted setup must therefore be observationally neutral on the
+untaken path. Two obligations apply, and failing either declines the whole
+rewrite:
+
+1. Control neutrality: no `return`, `raise`, `break` or `continue` anywhere
+   in a setup, else a control transfer becomes unconditional.
+2. Effect neutrality: every setup must be one of the licensed forms below.
+   Anything else, in particular a non-idempotent observable write such as
+   `self.counter += 1`, is declined and the break is left intact.
+
+The licensed forms:
+
+- A pure write to bare local names whose value contains no call. The value is
+  recomputed, nothing escapes.
+- An idempotent device move `x = x.to(...)` where the target is textually the
+  receiver. Re-running it is a no-op.
+- A lowered validation assert (`torch._assert_async(...)` produced by
+  `TrapLoweringPass`). It is hoisted but re-gated on the branch predicate so
+  it cannot fire on the untaken path: the check `C` becomes
+  `torch.logical_or(torch.logical_not(cond), C)` for the true branch and
+  `torch.logical_or(cond, C)` for the false branch. The `torch.equal` guard
+  form (`__jac_tensor_eq_assert__`) computes its check inside the helper
+  where no predicate can be injected, so its presence declines the rewrite
+  rather than asserting unconditionally.
+- An existence-guarded initialization, under the conditions below.
+
+### The existence-guard license
+
+`if not hasattr(X, "k"): X.k = init(...)` is the one licensed hoist that
+creates state earlier than the original program would. The `hasattr` shape
+alone is not sufficient; five conditions must hold:
+
+- G1, shape: the guard has no `else` branch.
+- G2, memoization: the body definitely assigns `X.k`, so the guard closes and
+  re-execution is a genuine no-op. Without this the body re-runs on every
+  call, and hoisting it would run a live write on the untaken path.
+- G3, body neutrality: every other statement in the body is itself a neutral
+  assignment. Only the memoizing write may contain a call (the initializer);
+  arbitrary I/O smuggled in under a `hasattr` header is declined.
+- G4, confinement: the attribute `k` is read nowhere in the module outside
+  the rewritten region, including via string literals equal to `"k"` (which
+  could feed `hasattr`/`getattr`/`setattr`). Early existence must not be
+  observable by any code the pass can see.
+- G5, initializer safety: every call in the memoizing write resolves to
+  inspectable code that is pure and non-raising for the arguments this call
+  site passes. A bare-name callee must resolve to a module-level function. An
+  attribute callee such as `self.rope_init_fn` cannot be resolved from one
+  module, but the dispatch-table idiom is still decidable: the candidate set
+  is every function reachable through any module-level dict of local
+  functions, narrowed by signature compatibility (a function the call would
+  raise `TypeError` on cannot be the callee), and every surviving candidate
+  must clear the purity check. A `raise` inside a candidate counts as
+  unreachable only in the varkwargs-validation form (`if rope_kwargs: raise`)
+  when this call passes no unexpected keyword. Purity is transitive into
+  local helpers; unresolvable calls are opaque and decline.
+
+### Caveat: speculated memoization is a state change, not a no-op
+
+The existence-guard hoist runs the initializer on executions where the
+original predicate would have been false, so the memoized attribute exists
+earlier than the original program would create it. The `hasattr` guard makes
+replay idempotent (running twice equals running once); it does not make
+speculation invisible. What makes the hoist legal is confinement (G4): the
+attribute is a private memoization slot no other code in the module can test
+or read, so no observer inside the compiled module distinguishes "cached now"
+from "cached on a later call". Two assumptions remain outside what the
+analysis can discharge: an observer in another module (an external `hasattr`,
+a `__dict__` or `state_dict()` walk, a subclass in another file) can still
+see the slot early, and an attribute callee bound to something other than a
+module-level dispatch table would not be seen by G5. The honest phrasing of
+the guarantee is therefore equivalence modulo private memoization state.
+
 ## Evidence
 
-`tests/compiler/passes/main/test_graphmend_detect.jac` and
-`test_graphmend_trap_lowering.jac` assert detection tags and the generated
-Python source for `.jac` and `.py` fixtures.
-`test_graphmend_trap_integration.jac` (skipped without torch) drives the
-transformed code through a counting Dynamo backend and asserts the paper's
-metric directly: the validation-guard fixture fragments into two or more
-graphs without GraphMend and exactly one with it, and a failing guard under a
-real eager-backend compile surfaces as the original `ValueError` with the
-original message, with no marker text leaking to the user.
+`tests/compiler/passes/main/test_graphmend_trap_lowering.jac` and
+`test_graphmend_ctrl_flow.jac` assert detection tags and the generated
+Python source for `.jac` and `.py` fixtures, including one decline test per
+legality condition above.
+`test_graphmend_trap_integration.jac` and
+`test_graphmend_where_integration.jac` (skipped without torch) drive the
+transformed code through a counting Dynamo backend and assert the paper's
+metric directly: each fixture fragments into two or more graphs without
+GraphMend and exactly one with it. The trap tests additionally check that a
+failing guard under a real eager-backend compile surfaces as the original
+`ValueError` with the original message, with no marker text leaking to the
+user; the predication tests additionally check that a hoisted, re-gated
+assert stays dormant when its branch is not taken.
