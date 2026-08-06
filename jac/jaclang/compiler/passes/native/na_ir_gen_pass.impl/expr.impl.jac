@@ -525,6 +525,9 @@ impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     if isinstance(nd.op, uni.ConnectOp) {
         return self._codegen_connect(nd);
     }
+    if isinstance(nd.op, uni.DisconnectOp) {
+        return self._codegen_disconnect(nd);
+    }
     op = nd.op.name if isinstance(nd.op, uni.Token) else str(nd.op);
 
     if op == Tok.WALRUS_EQ {
