@@ -2959,6 +2959,22 @@ test "guard_narrowing" {
         + "\n---\n".join(err.pretty_print() for err in program.errors_had);
 }
 
+"""Test narrowing survives loop-exit edges when the body rewrites the symbol."""
+test "loop_exit_narrowing" {
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_loop_exit_narrowing.jac"), options=NO_TC
+    );
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    # All cases should pass: post-loop guards narrow from the declared type
+    # when the body writes the symbol, and narrowed state still carries
+    # across loops that leave the symbol untouched.
+    assert len(program.errors_had) == 0 , "Expected 0 type errors, but got "
+        + f"{len(program.errors_had)}:\n"
+        + "\n---\n".join(err.pretty_print() for err in program.errors_had);
+}
+
 """Test impl files can access imports from their parent .jac file."""
 test "impl_imports_from_parent" {
     program = JacProgram();
