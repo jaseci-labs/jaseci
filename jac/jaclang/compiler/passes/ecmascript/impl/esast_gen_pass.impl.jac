@@ -7099,7 +7099,7 @@ impl EsastGenPass.before_pass -> None {
         client_capability_violations
     }
     import from jaclang.jac0core.diagnostics { E5096 }
-    if not getattr(self.ir_in.gen, 'client_viols_reported', False) {
+    if not self.ir_in.gen.client_viols_reported {
         for (_vnode, _vkind) in client_capability_violations(self.ir_in) {
             self.emit(E5096, node_override=_vnode, kind=_vkind);
         }

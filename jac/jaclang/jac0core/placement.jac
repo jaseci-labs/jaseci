@@ -9,7 +9,8 @@ glob PLACEMENT_SCHEMA: int = 1,
          uni.TypedCtxBlock,
          uni.PyInlineCode,
          uni.JsxElement
-     );
+     ),
+     PLACEMENT_NATIVE_REJECT_NODES: tuple = (uni.DisconnectOp, );
 
 obj ElementSummary {
     has index: int = -1,
@@ -221,7 +222,7 @@ def module_has_root_access(stmt: uni.UniNode) -> bool {
     if mod is None {
         return True;
     }
-    cached = mod.gen?._has_root_access;
+    cached = mod.gen.has_root_access;
     if cached is not None {
         return cached;
     }
@@ -232,7 +233,7 @@ def module_has_root_access(stmt: uni.UniNode) -> bool {
             break;
         }
     }
-    mod.gen._has_root_access = found;
+    mod.gen.has_root_access = found;
     return found;
 }
 
@@ -521,7 +522,7 @@ def scan_native_blockers(
         }
     }
 
-    for typ in (uni.DisconnectOp, ) {
+    for typ in PLACEMENT_NATIVE_REJECT_NODES {
         if module.get_all_sub_nodes(typ) {
             return (f"native-unsupported {typ.__name__}", deps);
         }

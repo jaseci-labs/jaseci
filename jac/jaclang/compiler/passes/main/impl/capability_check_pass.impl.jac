@@ -538,7 +538,7 @@ impl ClientCapabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     import from jaclang.jac0core.passes.module_codegen_pass {
         client_capability_violations
     }
-    if not getattr(ir_in.gen, 'client_viols_reported', False) {
+    if not ir_in.gen.client_viols_reported {
         for (_vnode, _vkind) in client_capability_violations(ir_in) {
             self.emit(E5096, node_override=_vnode, kind=_vkind);
         }
