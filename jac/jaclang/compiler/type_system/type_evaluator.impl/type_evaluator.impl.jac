@@ -3793,6 +3793,15 @@ impl TypeEvaluator._get_type_from_flow_node(
             }
         }
 
+        if isinstance(
+            pred, (uni.WhileStmt, uni.ForeverStmt, uni.InForStmt, uni.IterForStmt)
+        )
+            and not (pred.body and flow_node is pred.body[0])
+            and self._loop_body_writes_target(pred, target) {
+            has_unnarrowed_pred = True;
+            continue;
+        }
+
         if key not in pred.affected_symbols and not isinstance(pred, uni.CfgExpr) {
             has_unnarrowed_pred = True;
             continue;
@@ -4005,6 +4014,39 @@ impl TypeEvaluator._get_type_from_flow_node(
     }
     visited.discard(flow_node_id);
     return result;
+}
+
+impl TypeEvaluator._loop_body_writes_target(
+    loop_node: uni.UniCFGNode, target: NarrowingTarget
+) -> bool {
+    import from jaclang.compiler.symbol_utils { collect_assignment_target_keys }
+    cache_key = id(loop_node);
+    written = self._loop_written_keys_cache.get(cache_key);
+    if written is None {
+        keys: set[str] = set();
+        for asgn in loop_node.get_all_sub_nodes(uni.Assignment) {
+            for t in asgn.target {
+                keys.update(collect_assignment_target_keys(t));
+            }
+        }
+
+        for_nodes: list[uni.InForStmt] = loop_node.get_all_sub_nodes(uni.InForStmt);
+        if isinstance(loop_node, uni.InForStmt) {
+            for_nodes.append(loop_node);
+        }
+        for f in for_nodes {
+            keys.update(collect_assignment_target_keys(f.target));
+        }
+        for compr in loop_node.get_all_sub_nodes(uni.AssignCompr) {
+            keys.update(collect_assignment_target_keys(compr.target));
+        }
+        written = keys;
+        self._loop_written_keys_cache[cache_key] = written;
+    }
+    if target.key in written {
+        return True;
+    }
+    return bool(target.deps and (target.deps & written));
 }
 
 impl TypeEvaluator._classify_edge(pred: uni.IfStmt, succ: uni.UniCFGNode) -> str {

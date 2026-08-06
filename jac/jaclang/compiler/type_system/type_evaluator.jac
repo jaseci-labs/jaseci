@@ -182,6 +182,7 @@ obj TypeEvaluator {
         _strict_site_cache: dict[int, bool] = {},
         _sv_async_syms_cache: dict[int, set[int]] = {},
         _and_narrowing_overrides: dict[int, TypeBase] = {},
+        _loop_written_keys_cache: dict[int, set[str]] = {},
         _ts_decl_cache: dict[str, (dict[str, TsDecl] | None)] = {},
         _ts_decl_path_cache: dict[str, (str | None)] = {},
         _ts_synth_class_cache: dict[int, (dict[str, types.ClassType] | None)] = {},
@@ -563,6 +564,10 @@ obj TypeEvaluator {
     def _get_type_from_flow_node(
         target: NarrowingTarget, flow_node: uni.UniCFGNode, visited: set
     ) -> TypeBase | None;
+
+    def _loop_body_writes_target(
+        loop_node: uni.UniCFGNode, target: NarrowingTarget
+    ) -> bool;
 
     def _classify_edge(pred: uni.IfStmt, succ: uni.UniCFGNode) -> str;
     def _find_predicate_for(
