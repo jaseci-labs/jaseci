@@ -248,6 +248,7 @@ def get_type_check_sched(
         }
         import from jaclang.compiler.passes.main.access_check_pass { AccessCheckPass }
         import from jaclang.compiler.passes.main.capability_check_pass {
+            ClientCapabilityCheckPass,
             NativeCapabilityCheckPass,
             PortabilityWarnPass
         }
@@ -260,6 +261,7 @@ def get_type_check_sched(
             AccessCheckPass,
             OwnershipCheckPass,
             NativeCapabilityCheckPass,
+            ClientCapabilityCheckPass,
             PortabilityWarnPass,
             JacLintCheckPass
         ];

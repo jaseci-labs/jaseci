@@ -80,7 +80,9 @@ impl JacTestClient._ensure_initialized -> None {
 
     Jac.jac_import(target=mod, base_path=base, lng="jac");
 
-    self._server = JacAPIServer(module_name=mod, port=0, base_path=self._base_path);
+    self._server = JacAPIServer(
+        module_name=mod, port=0, base_path=self._base_path, module_file=self._jac_file
+    );
 
     self._server.load_module();
 
