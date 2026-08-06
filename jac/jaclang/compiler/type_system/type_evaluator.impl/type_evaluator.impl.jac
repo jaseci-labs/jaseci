@@ -3459,15 +3459,11 @@ impl TypeEvaluator._load_stub_module(path: str, fullname: str = "") -> uni.Modul
         return target_hub[resolved_path];
     }
 
-    # Sealed typeshed image: name-keyed, no source re-hash. Falls through to
-    # the live import path on miss or when no image is present.
-    if fullname {
+    import from jaclang.compiler.type_system.typeshed_image { sealed_stub_skipped }
+    if fullname and not sealed_stub_skipped(fullname) {
         sealed = self._find_sealed_stub(fullname);
         if sealed is not None {
-            if (
-                sealed.parent_scope is None
-                and sealed is not self.builtins_module
-            ) {
+            if (sealed.parent_scope is None and sealed is not self.builtins_module) {
                 sealed.parent_scope = self.builtins_module;
             }
             self.program.mod.hub[resolved_path] = sealed;
@@ -3547,15 +3543,23 @@ impl TypeEvaluator.postinit -> None {
     self.prefetch.type_var_tuple_class = self._get_type_from_module(
         self.typing_module, "TypeVarTuple"
     );
-    self.builtins_module = self._load_stub_module(self._BUILTINS_STUB_FILE_PATH, "builtins");
+    self.builtins_module = self._load_stub_module(
+        self._BUILTINS_STUB_FILE_PATH, "builtins"
+    );
     self.jac_builtins_module = self._load_stub_module(
         self._JAC_BUILTINS_STUB_FILE_PATH, "jac_builtins"
     );
-    self.dom_types_module = self._load_stub_module(self._DOM_TYPES_STUB_FILE_PATH, "dom_types");
+    self.dom_types_module = self._load_stub_module(
+        self._DOM_TYPES_STUB_FILE_PATH, "dom_types"
+    );
 
-    self.na_builtins_module = self._load_stub_module(self._NA_BUILTINS_STUB_FILE_PATH, "na_builtins");
+    self.na_builtins_module = self._load_stub_module(
+        self._NA_BUILTINS_STUB_FILE_PATH, "na_builtins"
+    );
 
-    self.js_globals_module = self._load_stub_module(self._JS_GLOBALS_STUB_FILE_PATH, "js_globals");
+    self.js_globals_module = self._load_stub_module(
+        self._JS_GLOBALS_STUB_FILE_PATH, "js_globals"
+    );
 
     def read_dunder_all(path: str) -> (set[str] | None) {
         try {

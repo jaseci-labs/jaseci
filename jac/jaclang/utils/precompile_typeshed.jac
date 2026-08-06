@@ -1,21 +1,3 @@
-"""Build a sealed typeshed bundle from vendored .pyi stubs.
-
-The type-checker analogue of ``utils/precompile_bytecode.jac``: compiles the
-vendored typeshed stdlib stubs plus the local core stubs to module IR
-(``symtab_ir_only``, ``stub_only``), writes each as a whole-module ``.jir`` via
-``JirWriter``, and emits a ``MANIFEST.json`` keyed by stub fullname. The result
-is loaded at type-evaluator startup by
-``compiler/type_system/typeshed_image.jac`` and resolved by name with no
-per-load source re-hash -- see that module for the manifest schema.
-
-Usage::
-
-    jac run utils/precompile_typeshed.jac <out-dir>
-        [--stdlib=PATH] [--local=PATH] [--pin=PATH] [--limit=N] [--debug-src]
-
-``--limit`` caps the stdlib stubs processed (for quick smoke runs).
-"""
-
 import hashlib;
 import json;
 import os;
@@ -26,13 +8,19 @@ import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.jir_passes { JirWriter }
-import from jaclang.jac0core.jir { FORMAT_VERSION, SEC_MODKEY, compute_module_key, jir_matches_source }
+import from jaclang.jac0core.jir {
+    FORMAT_VERSION,
+    SEC_MODKEY,
+    compute_module_key,
+    jir_matches_source
+}
 import from jaclang.compiler.type_system.typeshed_image {
     MANIFEST_NAME,
     MANIFEST_FORMAT,
     KIND,
     python_tag,
-    stub_fullname
+    stub_fullname,
+    sealed_stub_skipped
 }
 
 
@@ -51,9 +39,7 @@ def find_pyi_files(d: str) -> list[str] {
 }
 
 
-def reuse_stub(
-    pyi_path: str, fullname: str, jir_dir: Path, modules: dict
-) -> bool {
+def reuse_stub(pyi_path: str, fullname: str, jir_dir: Path, modules: dict) -> bool {
     jir_rel = fullname + ".jir";
     jir_path = jir_dir / jir_rel;
     if not jir_path.is_file() {
@@ -76,11 +62,7 @@ def reuse_stub(
 
 
 def emit_stub(
-    program: JacProgram,
-    pyi_path: str,
-    fullname: str,
-    jir_dir: Path,
-    modules: dict
+    program: JacProgram, pyi_path: str, fullname: str, jir_dir: Path, modules: dict
 ) -> bool {
     try {
         mod = program.compile(file_path=pyi_path, symtab_ir_only=True);
@@ -98,10 +80,7 @@ def emit_stub(
     }
     jir_rel = fullname + ".jir";
     (jir_dir / jir_rel).write_bytes(data);
-    modules[fullname] = {
-        "jir": jir_rel,
-        "sha256": hashlib.sha256(data).hexdigest()
-    };
+    modules[fullname] = {"jir": jir_rel, "sha256": hashlib.sha256(data).hexdigest()};
     return True;
 }
 
@@ -149,7 +128,9 @@ def build_typeshed_bundle(
         }
     }
     expected: set[str] = {
-        stub_fullname(stdlib_dir, pyi) + ".jir" for pyi in stdlib_pyis
+        stub_fullname(stdlib_dir, pyi) + ".jir"
+        for pyi in stdlib_pyis
+        if not sealed_stub_skipped(stub_fullname(stdlib_dir, pyi))
     };
     for (_, fullname) in local_pyis {
         expected.add(fullname + ".jir");
@@ -165,6 +146,9 @@ def build_typeshed_bundle(
 
     for pyi in stdlib_pyis {
         fullname = stub_fullname(stdlib_dir, pyi);
+        if sealed_stub_skipped(fullname) {
+            continue;
+        }
         done += 1;
         label = fullname[:60].ljust(60);
         sys.stderr.write(f"\r  [{done}/{total}] {label}");
@@ -215,7 +199,7 @@ def build_typeshed_bundle(
     );
     console.print(
         f"typeshed bundle: {compiled} compiled, {reused} reused, {failed} failed, "
-        + f"{len(modules)} modules -> {out_dir}"
+            + f"{len(modules)} modules -> {out_dir}"
     );
     return 0 if failed == 0 else 1;
 }
@@ -258,7 +242,7 @@ with entry:__main__ {
     if out_dir is None {
         console.error(
             "usage: jac run utils/precompile_typeshed.jac <out-dir> "
-            + "[--stdlib=PATH] [--local=PATH] [--pin=PATH] [--limit=N]"
+                + "[--stdlib=PATH] [--local=PATH] [--pin=PATH] [--limit=N]"
         );
         sys.exit(2);
     }

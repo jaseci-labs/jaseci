@@ -370,9 +370,7 @@ impl TypeEvaluator._import_module_from_path(
             return uni.Module.make_stub(inject_name=Path(resolved_path).stem);
         }
     } else {
-        sealed_mod: (uni.Module | None) = self._try_read_typeshed_image(
-            resolved_path
-        );
+        sealed_mod: (uni.Module | None) = self._try_read_typeshed_image(resolved_path);
         if sealed_mod is not None {
             mod = sealed_mod;
         } else {
@@ -503,7 +501,7 @@ impl TypeEvaluator._try_read_jir_cache(resolved_path: str) -> (uni.Module | None
 
 impl TypeEvaluator._find_sealed_stub(fullname: str) -> (uni.Module | None) {
     if self._typeshed_image is None {
-        import from jaclang.compiler.type_system.typeshed_image { discover_image };
+        import from jaclang.compiler.type_system.typeshed_image { discover_image }
         self._typeshed_image = discover_image();
     }
     if self._typeshed_image is None {
@@ -512,14 +510,13 @@ impl TypeEvaluator._find_sealed_stub(fullname: str) -> (uni.Module | None) {
     return self._typeshed_image.find_stub(fullname);
 }
 
-impl TypeEvaluator._try_read_typeshed_image(
-    resolved_path: str
-) -> (uni.Module | None) {
+impl TypeEvaluator._try_read_typeshed_image(resolved_path: str) -> (uni.Module | None) {
     import from jaclang.compiler.type_system.typeshed_image {
-        fullname_for_resolved_path
-    };
+        fullname_for_resolved_path,
+        sealed_stub_skipped
+    }
     fn = fullname_for_resolved_path(resolved_path);
-    if fn is None {
+    if fn is None or sealed_stub_skipped(fn) {
         return None;
     }
     return self._find_sealed_stub(fn);

@@ -315,8 +315,8 @@ test "type evaluator uses JIR cache for pyi stubs" {
         # Regression: Archetype.arch_type must survive the JIR round-trip.
         # Root cause was PyastBuildPass not attaching arch_type as a kid, so
         # the kid-only serializer dropped it; no read-side repair is needed.
-        import from jaclang.jac0core.unitree { Archetype };
-        import from jaclang.jac0core.constant { Tokens as Tok };
+        import from jaclang.jac0core.unitree { Archetype }
+        import from jaclang.jac0core.constant { Tokens as Tok }
         foo2: list = [];
         for a in mod2.get_all_sub_nodes(Archetype) {
             if a.name is not None and a.name.value == "Foo" {
@@ -349,13 +349,17 @@ test "type evaluator uses JIR cache for pyi stubs" {
 test "sealed typeshed image resolves stubs by name" {
     import json;
     import hashlib;
-    import from jaclang.jac0core.jir_passes { JirWriter };
-    import from jaclang.jac0core.jir { FORMAT_VERSION };
-    import from jaclang.jac0core.unitree { Archetype };
-    import from jaclang.jac0core.constant { Tokens as Tok };
+    import from jaclang.jac0core.jir_passes { JirWriter }
+    import from jaclang.jac0core.jir { FORMAT_VERSION }
+    import from jaclang.jac0core.unitree { Archetype }
+    import from jaclang.jac0core.constant { Tokens as Tok }
     import from jaclang.compiler.type_system.typeshed_image {
-        load_typeshed_image, MANIFEST_NAME, MANIFEST_FORMAT, KIND, python_tag
-    };
+        load_typeshed_image,
+        MANIFEST_NAME,
+        MANIFEST_FORMAT,
+        KIND,
+        python_tag
+    }
 
     bundle = tempfile.mkdtemp(prefix="jac_typeshed_img_", dir=_test_tmp_dir);
     pyver = python_tag();
@@ -435,17 +439,21 @@ test "sealed typeshed image resolves stubs by name" {
 
 test "sealed typeshed image rejects a mismatched manifest" {
     import json;
-    import from jaclang.jac0core.jir { FORMAT_VERSION };
+    import from jaclang.jac0core.jir { FORMAT_VERSION }
     import from jaclang.compiler.type_system.typeshed_image {
-        load_typeshed_image, MANIFEST_NAME, MANIFEST_FORMAT, KIND, python_tag
-    };
+        load_typeshed_image,
+        MANIFEST_NAME,
+        MANIFEST_FORMAT,
+        KIND,
+        python_tag
+    }
 
     bundle = tempfile.mkdtemp(prefix="jac_typeshed_img2_", dir=_test_tmp_dir);
     pyver = python_tag();
     os.makedirs(os.path.join(bundle, pyver), exist_ok=True);
     mpath = os.path.join(bundle, MANIFEST_NAME);
 
-    def dump(m: dict) -> None {
+    def dump(m: dict) {
         with open(mpath, "w") as fh {
             fh.write(json.dumps(m));
         }
@@ -493,10 +501,11 @@ test "sealed typeshed image rejects a mismatched manifest" {
 
 test "precompile_typeshed builds a name-keyed bundle" {
     import json;
-    import from jaclang.utils.precompile_typeshed { build_typeshed_bundle };
+    import from jaclang.utils.precompile_typeshed { build_typeshed_bundle }
     import from jaclang.compiler.type_system.typeshed_image {
-        load_typeshed_image, MANIFEST_NAME
-    };
+        load_typeshed_image,
+        MANIFEST_NAME
+    }
 
     work = tempfile.mkdtemp(prefix="jac_ts_build_", dir=_test_tmp_dir);
     stdlib = os.path.join(work, "stdlib");
@@ -520,9 +529,7 @@ test "precompile_typeshed builds a name-keyed bundle" {
         assert img is not None , "bundle did not load";
         # __init__.pyi collapses to the package name; module pyi -> dotted name.
         assert img.find_stub("foo") is not None , "foo missing";
-        assert img.find_stub("pkg") is not None , (
-            "package __init__ fullname missing"
-        );
+        assert img.find_stub("pkg") is not None , ("package __init__ fullname missing");
         assert img.find_stub("pkg.bar") is not None , "pkg.bar missing";
         assert img.find_stub("pkg.nonexist") is None , "unknown should miss";
         m = json.loads(open(os.path.join(out, MANIFEST_NAME)).read());
@@ -537,8 +544,8 @@ test "type evaluator resolves a stub via the sealed image" {
     # Builds a 1-stub bundle, then confirms the type evaluator resolves the
     # stub by name through JAC_TYPESHED_IMAGE (the wiring in _find_sealed_stub
     # / _load_stub_module), with a live-compile fallback on miss.
-    import from jaclang.utils.precompile_typeshed { build_typeshed_bundle };
-    import from jaclang.compiler.type_system.typeshed_image { MANIFEST_NAME };
+    import from jaclang.utils.precompile_typeshed { build_typeshed_bundle }
+    import from jaclang.compiler.type_system.typeshed_image { MANIFEST_NAME }
 
     work = tempfile.mkdtemp(prefix="jac_ts_wire_", dir=_test_tmp_dir);
     stdlib = os.path.join(work, "stdlib");
