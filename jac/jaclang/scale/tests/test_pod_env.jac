@@ -137,18 +137,17 @@ test "build_env keeps per-service overrides but never shadows the K8S_* vars" {
 }
 
 
-test "gateway pod client-build fallback uses --client web, not the typecheck-gated full build" {
-    # #7667: a bare `jac build` gates on the whole-project type-check, so a
-    # type-error app silently shipped without its client and / served a 404.
+test "the gateway pod never rebuilds the client at boot" {
+    # The deploy builds the client bundle on the host and fails fast when
+    # that build fails; the pod serves what shipped and must not retry.
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = ManifestBuilder(k8s_config=cfg);
     with mock.patch.object(builder, "_client_entry", return_value="main.jac") {
         entry = builder._pod_entrypoint();
     }
     args = entry["args"][0];
-    assert 'jac build "main.jac" --client web' in args;
-    assert "[ ! -f .jac/client/dist/index.html ]" in args;
-    assert 'jac build "main.jac" ||' not in args;
+    assert "jac build" not in args;
+    assert "exec jac scale gateway" in args;
 }
 
 
