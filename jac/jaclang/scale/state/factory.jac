@@ -10,13 +10,16 @@ def get_state_backend(scale_enabled: bool = False) -> StateBackend {
     if backend is None {
         if scale_enabled {
             try {
-                import from jaclang.scale.state.redis_state_backend {
-                    RedisStateBackend
+                import from jaclang.scale.persistence.pg { shared_store }
+                import from jaclang.scale.state.pg_state_backend {
+                    PgStateBackend
                 }
-                backend = RedisStateBackend();
+                store = shared_store();
+                assert store is not None , "no reachable database";
+                backend = PgStateBackend(store=store);
             } except Exception as e {
                 logger.warning(
-                    f"RedisStateBackend unavailable ({e}); falling back to "
+                    f"PgStateBackend unavailable ({e}); falling back to "
                         + "InProcessStateBackend. Shared state will NOT span replicas."
                 );
                 backend = InProcessStateBackend();

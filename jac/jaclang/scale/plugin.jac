@@ -43,7 +43,7 @@ def _scale_runtime_active -> bool {
         return True;
     }
     db = get_scale_config().get_database_config();
-    return bool(db.get("mongodb_uri") or db.get("redis_url"));
+    return bool(db.get("url") or db.get("postgres_url") or os.environ.get("JAC_DB_URL"));
 }
 
 def scale_start(

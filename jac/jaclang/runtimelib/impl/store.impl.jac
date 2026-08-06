@@ -42,6 +42,7 @@ glob _SCHEMA_SQL = [
     CREATE TABLE IF NOT EXISTS kv_state (
         key        text PRIMARY KEY,
         value      text NOT NULL,
+        expires_at timestamptz,
         updated_at timestamptz NOT NULL DEFAULT now()
     )
     """,
@@ -129,8 +130,11 @@ impl PgStore._side -> Any {
 
 
 impl PgStore._run(sql: str, params: dict) -> list {
-    conn: Any = self._main();
-    return conn.run(sql, **params) or [];
+    # pg8000 connections are not thread-safe; side services share stores.
+    with self._lock {
+        conn: Any = self._main();
+        return conn.run(sql, **params) or [];
+    }
 }
 
 
@@ -373,7 +377,13 @@ impl PgStore.rows(sql: str, params: dict) -> list[tuple] {
 
 
 impl PgStore.kv_get(key: str) -> (str | None) {
-    rows = self._run('SELECT value FROM kv_state WHERE key = :k', {'k': key});
+    rows = self._run(
+        """
+        SELECT value FROM kv_state
+        WHERE key = :k AND (expires_at IS NULL OR expires_at > now())
+        """,
+        {'k': key}
+    );
     return str(rows[0][0]) if rows else None;
 }
 

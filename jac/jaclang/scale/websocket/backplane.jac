@@ -24,22 +24,26 @@ obj MemoryBackplane(BaseBackplane) {
     async def close;
 }
 
-obj RedisBackplane(BaseBackplane) {
-    has url: str,
-        _client: any = None,
-        _pubsub: any = None,
-        _reader_task: any = None,
+obj PgBackplane(BaseBackplane) {
+    """Cross-pod fanout over Postgres LISTEN/NOTIFY on the shared store.
+
+    Payloads above the NOTIFY limit spill to kv_state and travel as
+    pointers, so message size is unbounded while the wire stays tiny.
+    """
+    has _store: Any = None,
+        _loop: Any = None,
         _handlers: dict[str, list[Any]] = {},
-        _lock: any = None,
+        _listening: set[str] = set(),
         _closed: bool = False;
 
-    def _get_lock -> Any;
     async def start -> None;
-    async def _reader_loop -> None;
     async def publish(channel: str, message: dict) -> None;
     async def subscribe(channel: str, handler: Any);
     async def unsubscribe(channel: str, handler: Any);
     async def close;
+    def _pg_channel(channel: str) -> str;
+    def _on_notify(channel: str, payload: str) -> None;
+    async def _dispatch(channel: str, message: dict) -> None;
 }
 
 def build_backplane(cfg: dict) -> BaseBackplane;
