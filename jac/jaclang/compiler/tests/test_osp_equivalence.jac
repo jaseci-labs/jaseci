@@ -230,6 +230,32 @@ test "osp edge del: `del e` removes the edge from the adjacency (rewire)" {
     );
 }
 
+test "osp disconn between: `a del ->:E:-> b` / `c del --> d` remove matching edges" {
+    # Binary disconnect (DisconnectOp) lowers on na via the central
+    # osp_disconn_between store call (and on cl via the __ospDiscBetweenW
+    # wrapper over the same store): typed form removes only matching-type
+    # edges between the endpoints (parallel F edge survives), untyped form
+    # removes every edge between its endpoints; the expression yields bool.
+    assert run_py_fixture("osp_disconn_between", "disc_between_py")
+        == {
+            "before_a": 3,
+            "before_c": 2,
+            "removed_t": 1,
+            "removed_u": 1,
+            "typed_left": 1,
+            "f_left": 1,
+            "a_out": 2,
+            "c_out": 0
+        };
+    run_with_both(
+        "osp_disconn_between.jac",
+        "disc_between_py",
+        "disc_between_cl",
+        "disc_between_na",
+        require=["na", "cl"]
+    );
+}
+
 test "osp cross-module: spawn / connect / edge-ref on imported archetypes" {
     # Issue #6642 Blocker 2: archetypes defined in osp_xmod_lib.jac, wired +
     # walked from the consumer osp_xmod_main.jac. Imported OSP archetypes
@@ -459,5 +485,47 @@ test "osp typed edge endpoints: field read off an unfiltered neighbour traversal
         "typed_endpoint_na",
         "typed_endpoint_na",
         require=["na"]
+    );
+}
+
+test "osp plain-function ops: explicit origins, filters, multi-hop, disconnect (#7941)" {
+    # Every earlier fixture built graphs in plain code but traversed only
+    # inside walker abilities; the cl backend hardcoded `here` as the ref
+    # origin and silently lowered explicit-origin refs to undefined. This
+    # pins the full bare-op surface outside any walker on every backend.
+    assert run_py_fixture("osp_plain_fn_ops", "plain_ops_py") == {
+        "out_all": 3,
+        "out_typed": 2,
+        "picked_v": 4,
+        "two_hop": 1,
+        "into_d": 2,
+        "first_v": 3,
+        "after_del": 1,
+        "still_in_d": 2
+    };
+    run_with_both(
+        "osp_plain_fn_ops.jac",
+        "plain_ops_py",
+        "plain_ops_cl",
+        "plain_ops_na",
+        require=["na", "cl"]
+    );
+}
+
+test "osp interop: plain-built graphs walk, walker-built edges traverse (#7941)" {
+    # The one-substrate gate: a shim keeping bare-op edges in a store the
+    # kernel cannot see can never pass this. na is entry-only for walkers
+    # today, so only cl is required alongside the py reference.
+    assert run_py_fixture("osp_interop", "interop_py") == {
+        "hits": 105,
+        "after_b": 2,
+        "grown_v": 99
+    };
+    run_with_both(
+        "osp_interop.jac",
+        "interop_py",
+        "interop_cl",
+        "interop_na",
+        require=["cl"]
     );
 }
