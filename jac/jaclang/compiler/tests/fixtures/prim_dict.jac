@@ -345,3 +345,43 @@ def dict_na() -> dict[str, any] {
         "pi_after_len": pi_after_len
     };
 }
+
+def dict_ctor_py() -> dict {
+    base: dict = {"a": 1, "b": 2};
+    copy1: dict = dict(base);
+    copy1["c"] = 3;
+    pairs: list = [["x", 10], ["y", 20]];
+    from_pairs: dict = dict(pairs);
+    empty: dict = dict();
+    return {
+        "orig_len": len(base),
+        "copy_len": len(copy1),
+        "copy_c": copy1["c"],
+        "orig_has_c": "c" in base,
+        "fp_x": from_pairs["x"],
+        "fp_y": from_pairs["y"],
+        "empty_len": len(empty)
+    };
+}
+
+def dict_ctor_cl() -> dict {
+    base: dict = {"a": 1, "b": 2};
+    copy1: dict = dict(base);
+    copy1["c"] = 3;
+    pairs: list = [["x", 10], ["y", 20]];
+    from_pairs: dict = dict(pairs);
+    empty: dict = dict();
+    return {
+        "orig_len": len(base),
+        "copy_len": len(copy1),
+        "copy_c": copy1["c"],
+        "orig_has_c": "c" in base,
+        "fp_x": from_pairs["x"],
+        "fp_y": from_pairs["y"],
+        "empty_len": len(empty)
+    };
+}
+
+def dict_ctor_na() -> dict {
+    return {};
+}

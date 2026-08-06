@@ -1301,6 +1301,14 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (typeof x === "object") return Object.keys(x).length > 0;
       return true;
     },
+    dict(x) {
+      if (x === null || x === undefined) return {};
+      if (x instanceof Map) return Object.fromEntries(x);
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return {...x};
+      }
+      return Object.fromEntries(x);
+    },
     range(...args) {
       let start, stop, step;
       if (args.length === 1) { start = 0; stop = args[0]; step = 1; }

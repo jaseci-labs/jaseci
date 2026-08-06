@@ -2004,7 +2004,11 @@ impl ESBuiltinEmitter.emit_dict(self, ctx: ESEmitCtx, args: list[str]) -> (str |
     if len(args) == 0 {
         return "{}";
     }
-    return "Object.fromEntries(" + args[0] + ")";
+    # Dicts are represented as plain objects, which are not iterable, so a
+    # bare Object.fromEntries copy throws on the most common call shape
+    # (dict(other_dict)); the runtime helper dispatches on the actual value
+    # kind (plain object / Map / iterable of pairs).
+    return _rt("builtin", "dict", args);
 }
 
 impl ESBuiltinEmitter.emit_set(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {
