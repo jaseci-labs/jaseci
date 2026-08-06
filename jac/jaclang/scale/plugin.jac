@@ -173,12 +173,6 @@ def _print_deployment_status(status_data: dict) -> None {
         if 'grafana' in urls {
             console.print(f"  Grafana:       {urls['grafana']}", style="bold");
         }
-        if 'redis_insight' in urls {
-            console.print(f"  RedisInsight:  {urls['redis_insight']}", style="bold");
-        }
-        if 'mongo_express' in urls {
-            console.print(f"  Mongo Express: {urls['mongo_express']}", style="bold");
-        }
         console.print();
     }
 }
@@ -192,7 +186,7 @@ def deploy_destroy(
         raise FileNotFoundError(f"File not found: '{file_path}'");
     }
 
-    valid_components = ["application", "database", "cache", "monitoring", "dashboard"];
+    valid_components = ["application", "database", "monitoring"];
     if component and target != 'kubernetes' {
         console.print(
             "ERROR: --component is only supported for the 'kubernetes' target.",
@@ -394,7 +388,7 @@ def _scale_split(module_name: str) -> int {
             "component",
             typ=str,
             default="",
-            help="Platform destroy: component to remove (application, database, cache, monitoring, dashboard; default: entire deployment)"
+            help="Platform destroy: component to remove (application, database, monitoring; default: entire deployment)"
         ),
 
     ],
@@ -412,7 +406,7 @@ def _scale_split(module_name: str) -> int {
         ("jac scale destroy app.jac", "Remove app's platform deployment"),
         (
             "jac scale destroy app.jac --component database",
-            "Remove only MongoDB from the deployment"
+            "Remove only the database from the deployment"
         ),
 
     ],

@@ -133,7 +133,7 @@ obj ManifestBuilder {
             k8s_safe_name(self.k8s_config.app_name),
             self.k8s_config.namespace,
             proj,
-            provisioned_database=("mongo" if self.k8s_config.mongodb_enabled else ""),
+            provisioned_database=("postgres" if self.k8s_config.postgres_enabled else ""),
             dry_run=self.dry_run
         );
         injector: PvcInjector = selection[0];

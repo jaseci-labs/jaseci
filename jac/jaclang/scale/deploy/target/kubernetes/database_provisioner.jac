@@ -15,13 +15,10 @@ obj DatabaseProvisioner {
         self.k8s_target.env_list = [];
 
         cfg = self.k8s_target.k8s_config;
-        mongo_on = cfg.mongodb_enabled;
-        redis_on = cfg.redis_enabled;
-        if not (mongo_on or redis_on) {
+        if not cfg.postgres_enabled {
             if self.logger {
                 self.logger.info(
-                    "Database provisioning skipped (mongodb_enabled=false, "
-                    "redis_enabled=false)",
+                    "Database provisioning skipped (postgres_enabled=false)",
                     {"app_name": app_name}
                 );
             }
@@ -36,8 +33,7 @@ obj DatabaseProvisioner {
 
         if self.logger {
             self.logger.info(
-                f"Provisioning databases for '{app_name}': "
-                f"mongodb={mongo_on}, redis={redis_on}",
+                f"Provisioning postgres for '{app_name}'",
                 {"namespace": namespace}
             );
         }

@@ -19,26 +19,14 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         },
         'database': {
             'type': None,
-            'mongodb_uri': None,
-            'redis_url': None,
             'project_id': None,
-            'shelf_db_path': '.jac/data/anchor_store.db',
-            'redis_max_memory': '200mb',
-            'redis_eviction_policy': 'allkeys-lru',
-            'redis_eviction_samples': 5,
-            'redis_default_ttl': 3600,
-            'redis_max_connections': 20,
-            'redis_enable_keyspace_notifications': False,
-            'redis_l1_invalidation_enabled': True,
-            'redis_l1_invalidation_channel': 'jac:anchor:invalidate',
-            'redis_cpu_request': '100m',
-            'redis_cpu_limit': '500m',
-            'redis_memory_request': '128Mi',
-            'redis_memory_limit': '1Gi'
+            'url': None,
+            'deploy_mode': 'image',
+            'postgres_image': 'postgres:19',
+            'postgres_storage': '2Gi'
         },
         'websocket': {
             'backplane': None,
-            'redis_url': None,
             'max_message_bytes': 65536,
             'max_connections_per_target': 5000,
             'max_connections_per_user': 10,
@@ -49,18 +37,8 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         'kubernetes': {
             'namespace': 'default',
             'container_port': 8000,
-            'mongodb_enabled': True,
-            'redis_enabled': True,
-            'redis_dashboard': False,
-            'mongodb_dashboard': False,
-            'mongo_express_username': 'admin',
-            'mongo_express_password': 'admin',
-            'redis_insight_username': 'admin',
-            'redis_insight_password': 'admin',
-            'mongodb_root_username': 'admin',
-            'mongodb_root_password': 'password',
-            'redis_username': 'admin',
-            'redis_password': 'password',
+            'postgres_enabled': True,
+            'postgres_storage_size': '2Gi',
             'ingress_node_port': 30080,
             'ingress_limit_rps': 20,
             'ingress_limit_burst_multiplier': 5,
@@ -210,30 +188,10 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     db_config = config.get('database', {});
     return {
         'type': db_config.get('type'),
-        'mongodb_uri': os.environ.get('MONGODB_URI') or db_config.get('mongodb_uri'),
-        'redis_url': os.environ.get('REDIS_URL') or db_config.get('redis_url'),
-        'project_id': resolve_firebase_project_id(
-            FIRESTORE_PROJECT_ID_ENV, db_config.get('project_id')
-        ),
-        'shelf_db_path': db_config.get('shelf_db_path', '.jac/data/anchor_store.db'),
-        'redis_max_memory': db_config.get('redis_max_memory', '200mb'),
-        'redis_eviction_policy': db_config.get('redis_eviction_policy', 'allkeys-lru'),
-        'redis_eviction_samples': int(db_config.get('redis_eviction_samples', 5)),
-        'redis_default_ttl': int(db_config.get('redis_default_ttl', 3600)),
-        'redis_max_connections': int(db_config.get('redis_max_connections', 20)),
-        'redis_enable_keyspace_notifications': db_config.get(
-            'redis_enable_keyspace_notifications', False
-        ),
-        'redis_l1_invalidation_enabled': db_config.get(
-            'redis_l1_invalidation_enabled', True
-        ),
-        'redis_l1_invalidation_channel': db_config.get(
-            'redis_l1_invalidation_channel', 'jac:anchor:invalidate'
-        ),
-        'redis_cpu_request': db_config.get('redis_cpu_request', '100m'),
-        'redis_cpu_limit': db_config.get('redis_cpu_limit', '500m'),
-        'redis_memory_request': db_config.get('redis_memory_request', '128Mi'),
-        'redis_memory_limit': db_config.get('redis_memory_limit', '1Gi')
+        'url': os.environ.get('JAC_DB_URL') or db_config.get('url'),
+        'deploy_mode': db_config.get('deploy_mode', 'image'),
+        'postgres_image': db_config.get('postgres_image', 'postgres:19'),
+        'postgres_storage': db_config.get('postgres_storage', '2Gi')
     };
 }
 
@@ -411,11 +369,8 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
     if backplane is not None {
         backplane = str(backplane).lower();
     }
-    ws_redis_url = ws_config.get('redis_url')
-        or self.get_database_config().get('redis_url');
     return {
         'backplane': backplane,
-        'redis_url': ws_redis_url,
         'max_message_bytes': int(_ws_positive(ws_config, 'max_message_bytes', 65536)),
         'max_connections_per_target': int(
             _ws_positive(ws_config, 'max_connections_per_target', 5000)
