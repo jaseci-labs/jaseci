@@ -31,6 +31,7 @@ def _expose_backend(client: ScaleTestClient) -> tuple {
         host="127.0.0.1",
         port=0,
         log_level="warning",
+        loop="asyncio",
         ws="none",
         lifespan="off"
     );
