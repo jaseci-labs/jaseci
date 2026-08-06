@@ -84,6 +84,25 @@ def get_layout_registry(module: uni.Module, prog: any = None) -> LayoutRegistry 
     return module.gen.layout_registry or LayoutRegistry();
 }
 
+def is_enum_class_type(t: any) -> bool {
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _ClassType }
+    } except ImportError {
+        return False;
+    }
+    return isinstance(t, _ClassType)
+        and t._shared is not None
+        and t.shared.is_enum_class;
+}
+
+def enum_decl_of(t: any) -> (uni.Enum | None) {
+    if not is_enum_class_type(t) {
+        return None;
+    }
+    _scope = t.shared.symbol_table;
+    return _scope if isinstance(_scope, uni.Enum) else None;
+}
+
 obj LayoutRegistry {
     has layouts: dict[str, ArchetypeLayout] = {},
         class_parents: dict[str, list[str]] = {},

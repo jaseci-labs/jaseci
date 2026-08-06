@@ -1,13 +1,15 @@
 """A heap string stored into a heterogeneous list survives read-back.
 
-A mixed-type list (e.g. `[int, str]`) lowers to a raw-integer backing store, so a
-pointer element is boxed as an integer the container does not reference-count.
-The regression: the source string was freed at its last use while the escaping
-list still held it, so the element became a dangling pointer overwritten by the
-next allocation -- the string read back as garbage/empty. These tests store a
-heap string into a mixed list via every affected path (index assignment of a
-local, slices directly in a literal, a string argument, and a churn loop that
-forces backing-store growth) and assert it reads back intact.
+A mixed-type list (e.g. `[int, str]`) lowers to tagged jacval element storage:
+the container holds `{tag, payload}` values and retains heap payloads through
+the tag on store. The original regression (a raw-integer backing store boxing
+the pointer invisibly, so the source string was freed at last use while the
+escaping list still held it, and the element read back as garbage) stays
+pinned by these tests as use-after-free guards: index assignment of a local,
+slices directly in a literal, a string argument, and a churn loop that forces
+backing-store growth all read back intact. The churn loop additionally runs
+under an allocator in-use probe asserting FULL reclamation: every boxed
+element is released when its list dies, not merely kept alive.
 """
 
 import ctypes;
@@ -158,4 +160,49 @@ test "many heterogeneous lists in a loop stay consistent (no corruption)" {
     #   10*2 + 90*3 + 900*4 = 20 + 270 + 3600 = 3890.
     assert churn(1000) == 3890;
     assert churn(0) == 0;
+}
+
+
+test "hetero list churn reclaims every boxed element (in-use heap)" {
+    import sys;
+    if not sys.platform.startswith("linux") {
+        return;
+    }
+    try {
+        libc = ctypes.CDLL("libc.so.6");
+        _fields = [
+            (n, ctypes.c_size_t)
+            for n in (
+                "arena",
+                "ordblks",
+                "smblks",
+                "hblks",
+                "hblkhd",
+                "usmblks",
+                "fsmblks",
+                "uordblks",
+                "fordblks",
+                "keepcost"
+            )
+        ];
+        _MI = type("Mallinfo2", (ctypes.Structure, ), {"_fields_": _fields});
+        libc.mallinfo2.restype = _MI;
+    } except (OSError, AttributeError) {
+        return;
+    }
+    inuse = lambda { int(libc.mallinfo2().uordblks); };
+    eng = _compile(FIXTURE);
+    churn = _get(eng, "churn", ctypes.c_int64, ctypes.c_int64);
+    for _ in range(3) {
+        churn(2000);
+    }
+    base = inuse();
+    for _ in range(40) {
+        churn(2000);
+    }
+    growth = inuse() - base;
+    assert growth < 256 * 1024 , (
+        f"hetero list churn grew in-use heap by {growth} B -- boxed elements "
+        f"are not reclaimed when the list dies"
+    );
 }

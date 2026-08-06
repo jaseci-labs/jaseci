@@ -313,8 +313,8 @@ def _rk_reg(addr: int, rgn: int) {
     _rt_head[s] = e;
 }
 
-def osp_refs(origin: int, dir: int, edge_tag: int, edges_only: int) -> list {
-    out: list = [];
+def osp_refs(origin: int, dir: int, edge_tag: int, edges_only: int) -> list[int] {
+    out: list[int] = [];
     s = _nt_find(origin);
     if s < 0 {
         return out;
@@ -350,8 +350,10 @@ def osp_refs(origin: int, dir: int, edge_tag: int, edges_only: int) -> list {
     return out;
 }
 
-def osp_refs_many(origins: list, dir: int, edge_tag: int, edges_only: int) -> list {
-    out: list = [];
+def osp_refs_many(
+    origins: list[int], dir: int, edge_tag: int, edges_only: int
+) -> list[int] {
+    out: list[int] = [];
     i = 0;
     n = len(origins);
     while i < n {
@@ -370,8 +372,8 @@ def osp_refs_many(origins: list, dir: int, edge_tag: int, edges_only: int) -> li
     return out;
 }
 
-def osp_wrap1(x: int) -> list {
-    out: list = [];
+def osp_wrap1(x: int) -> list[int] {
+    out: list[int] = [];
     out.append(x);
     return out;
 }

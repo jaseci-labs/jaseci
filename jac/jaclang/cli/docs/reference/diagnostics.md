@@ -201,6 +201,7 @@ Emitted by the type checker and type evaluator.
 |------|---------|
 | `E1040` | Type "{type}" is not subscriptable |
 | `E1041` | Type "{type}" is not awaitable |
+| `E1044` | Cast target is not a type: "{type}" |
 
 ### Function Call Errors
 
