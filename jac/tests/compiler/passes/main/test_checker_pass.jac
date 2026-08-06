@@ -3878,7 +3878,9 @@ test "root_cause_1_raise_does_not_narrow" {
     ok_errors = [
         e
         for e in program.errors_had
-        if e.loc and 96 <= e.loc.first_line <= 101
+        if e.loc
+            and str(e.loc.mod_path).endswith("checker_narrowing_root_causes.jac")
+            and 96 <= e.loc.first_line <= 101
     ];
     assert len(ok_errors) == 0 , f"ok_raise_narrowing_simple should have 0 errors, got {len(
         ok_errors
@@ -3889,7 +3891,9 @@ test "root_cause_1_raise_does_not_narrow" {
     rc1_errors = [
         e
         for e in program.errors_had
-        if e.loc and 105 <= e.loc.first_line <= 134
+        if e.loc
+            and str(e.loc.mod_path).endswith("checker_narrowing_root_causes.jac")
+            and 105 <= e.loc.first_line <= 134
     ];
     # FIXED: Raise narrowing now promotes inverted narrowings to parent scope.
     assert len(rc1_errors) == 0 , f"Expected 0 raise-narrowing errors (fixed), got {len(
@@ -4244,15 +4248,24 @@ test "root_causes_total_error_count" {
     );
     TypeCheckPass(ir_in=mod, prog=program);
 
-    # 26 errors (down from 29): dotted stdlib submodules (`importlib.util`)
-    # now resolve through ModuleType attribute access, removing the
-    # `.util`-on-Unknown errors from the Root Cause 6 corpus. Before that,
-    # 29 was down from 35: partial union member access returning resolved
-    # types instead of Unknown eliminated 6 cascading errors.
-    assert len(program.errors_had) == 26 , f"Expected 26 total errors, got {len(
-        program.errors_had
+    # 25 errors located in the fixture itself (the count is scoped to the
+    # fixture file: stub-evaluation diagnostics such as typeshed E0075 are
+    # attributed to whichever program first evaluates the stub classes, so
+    # an unscoped count is process-order-dependent). Down from 29: dotted
+    # stdlib submodules (`importlib.util`) resolve through ModuleType
+    # attribute access, removing the `.util`-on-Unknown errors from the
+    # Root Cause 6 corpus. Before that, 29 was down from 35: partial union
+    # member access returning resolved types instead of Unknown eliminated
+    # 6 cascading errors.
+    _fixture_errors = [
+        e
+        for e in program.errors_had
+        if e.loc and str(e.loc.mod_path).endswith("checker_narrowing_root_causes.jac")
+    ];
+    assert len(_fixture_errors) == 25 , f"Expected 25 fixture errors, got {len(
+        _fixture_errors
     )}:\n"
-        + "\n---\n".join(e.pretty_print() for e in program.errors_had);
+        + "\n---\n".join(e.pretty_print() for e in _fixture_errors);
 }
 
 """MRO resolves correctly when base class imported through Python __init__.py re-export."""

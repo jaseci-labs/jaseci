@@ -125,7 +125,14 @@ def native_default_path_ok(path: str) -> bool {
 }
 
 def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
-    import from jaclang.jac0core.compiler { _is_demoted_native }
+    import from jaclang.jac0core.compiler {
+        _is_demoted_native,
+        native_pipeline_available
+    }
+    (env_ok, env_reason) = native_pipeline_available();
+    if not env_ok {
+        return (False, env_reason);
+    }
     mod_path = module.loc.mod_path if module.loc is not None else '';
     if not mod_path {
         return (False, "no module path");
