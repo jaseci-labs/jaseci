@@ -17,6 +17,7 @@ import from jaclang.compiler.passes.ecmascript.scoped_styles {
 import from jaclang.compiler.passes.ecmascript.framework_backend { FrameworkBackend }
 import from jaclang.jac0core.modresolver {
     convert_to_js_import_path,
+    relative_js_specifier,
     resolve_relative_path
 }
 import from jaclang.jac0core.diagnostics {

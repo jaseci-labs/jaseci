@@ -4759,9 +4759,14 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         if resolved_path.endswith('.jac')
             and not import_path.startswith('.')
             and not is_jac_runtime {
-            import_path = '.' + import_path;
+            # Root-anchored (absolute) local import: emit the specifier
+            # relative to the importing file, not the project root.
+            js_import_path = relative_js_specifier(
+                resolved_path, nd.loc.mod_path
+            );
+        } else {
+            js_import_path = convert_to_js_import_path(import_path);
         }
-        js_import_path = convert_to_js_import_path(import_path);
     } elif (not nd.from_loc and nd.items) {
         self.client_manifest.has_client = True;
         first_item = nd.items[0];
@@ -4777,9 +4782,12 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         self.client_manifest.imports[import_key] = resolved_path;
         import_path = import_key;
         if resolved_path.endswith('.jac') and not import_path.startswith('.') {
-            import_path = '.' + import_path;
+            js_import_path = relative_js_specifier(
+                resolved_path, nd.loc.mod_path
+            );
+        } else {
+            js_import_path = convert_to_js_import_path(import_path);
         }
-        js_import_path = convert_to_js_import_path(import_path);
     } else {
         return;
     }

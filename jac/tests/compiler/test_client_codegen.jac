@@ -305,3 +305,27 @@ def:pub app -> JsxElement {
     n = js.count("new Program(");
     assert n >= 1 , f"constructor lost 'new' in component-prop lambda (found {n}): {js[-1500:]}";
 }
+
+test "absolute imports in nested modules emit importer-relative specifiers" {
+    with TemporaryDirectory() as td {
+        with open(os.path.join(td, "jac.toml"), "w") as f {
+            f.write('[placement.pins]\n"*" = "client"\n');
+        }
+        os.makedirs(os.path.join(td, "vm"));
+        os.makedirs(os.path.join(td, "blocks"));
+        with open(os.path.join(td, "vm", "model.jac"), "w") as f {
+            f.write("def helper() -> int { return 5; }\n");
+        }
+        with open(os.path.join(td, "blocks", "layout.jac"), "w") as f {
+            f.write(
+                "import from vm.model { helper }\n"
+                + "def use_helper() -> int { return helper(); }\n"
+            );
+        }
+        prog = JacProgram();
+        mod = prog.compile(os.path.join(td, "blocks", "layout.jac"));
+        js = mod.gen.js;
+        assert "../vm/model" in js ,
+            f"nested absolute import emitted a root-relative specifier: {js[0:400]}";
+    }
+}
