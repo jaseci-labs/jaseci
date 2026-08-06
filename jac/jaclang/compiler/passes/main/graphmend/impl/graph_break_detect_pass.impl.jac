@@ -3,9 +3,7 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     has_torch_compile_decorator,
-    is_dynamic_torch_attr,
-    is_side_effect_name,
-    is_torch_attr_target
+    is_dynamic_torch_attr
 }
 
 impl GraphBreakDetectPass.before_pass -> None {
@@ -33,82 +31,7 @@ impl GraphBreakDetectPass._collect_entry_points -> set[int] {
             ids.add(id(arch));
         }
     }
-    for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
-        if is_torch_attr_target(call.target, 'compile') {
-            entry = self._resolve_wrapped_entry(call);
-            if entry is not None {
-                ids.add(id(entry));
-            }
-        }
-    }
     return ids;
-}
-
-impl GraphBreakDetectPass._resolve_wrapped_entry(
-    call: uni.FuncCall
-) -> (uni.UniNode | None) {
-    arg = None;
-    for p in (call.params or []) {
-        if not isinstance(p, uni.KWPair) {
-            arg = p;
-            break;
-        }
-    }
-    if arg is None {
-        return None;
-    }
-    inner = arg.target if isinstance(arg, uni.FuncCall) else arg;
-    if not isinstance(inner, uni.Name) {
-        return None;
-    }
-    resolved = self._def_node(inner.value, call);
-    if resolved is not None {
-        return resolved;
-    }
-    assign = self._var_assignment(inner.value, call);
-    if (assign is not None) and (assign.value is not None) {
-        v = assign.value;
-        cls = v.target if isinstance(v, uni.FuncCall) else v;
-        if isinstance(cls, uni.Name) {
-            return self._def_node(cls.value, call);
-        }
-    }
-    return None;
-}
-
-impl GraphBreakDetectPass._def_node(
-    name: str, ctx: uni.UniNode
-) -> (uni.UniNode | None) {
-    st = ctx.sym_tab;
-    if not st {
-        return None;
-    }
-    sym = st.lookup(name, deep=True);
-    if (not sym) or (not sym.defn) {
-        return None;
-    }
-    cur: (uni.UniNode | None) = sym.defn[0];
-    while cur {
-        if isinstance(cur, (uni.Ability, uni.Archetype)) {
-            return cur;
-        }
-        cur = cur.parent;
-    }
-    return None;
-}
-
-impl GraphBreakDetectPass._var_assignment(
-    name: str, ctx: uni.UniNode
-) -> (uni.Assignment | None) {
-    st = ctx.sym_tab;
-    if not st {
-        return None;
-    }
-    sym = st.lookup(name, deep=True);
-    if not sym {
-        return None;
-    }
-    return self._defining_assignment(sym);
 }
 
 impl GraphBreakDetectPass._in_torch_compiled_scope(nd: uni.UniNode) -> bool {
@@ -129,53 +52,15 @@ impl GraphBreakDetectPass.enter_if_stmt(nd: uni.IfStmt) -> None {
     if isinstance(nd, uni.ElseIf) {
         return;
     }
+    if not self._body_is_only_raise(nd.body) {
+        return;
+    }
     if not self._in_torch_compiled_scope(nd) {
         return;
     }
-    if not self._condition_is_data_dependent(nd.condition) {
-        return;
-    }
-    if self._body_is_only_raise(nd.body) {
+    if self._condition_is_data_dependent(nd.condition) {
         self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.VAL_GUARD;
-    } else {
-        self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.DYN_CTRL_FL;
     }
-}
-
-impl GraphBreakDetectPass.enter_func_call(nd: uni.FuncCall) -> None {
-    if not self._enabled {
-        return;
-    }
-    if not self._in_torch_compiled_scope(nd) {
-        return;
-    }
-    name = self._call_name(nd);
-    if (name is not None) and is_side_effect_name(name) {
-        if self._is_user_defined(nd, name) {
-            return;
-        }
-        self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.SIDE_EFFECT;
-    }
-}
-
-impl GraphBreakDetectPass._call_name(nd: uni.FuncCall) -> (str | None) {
-    target = nd.target;
-    if isinstance(target, uni.Name) {
-        return target.value;
-    }
-    if (isinstance(target, uni.AtomTrailer) and isinstance(target.right, uni.Name)) {
-        return target.right.value;
-    }
-    return None;
-}
-
-impl GraphBreakDetectPass._is_user_defined(nd: uni.FuncCall, name: str) -> bool {
-    st = nd.sym_tab;
-    if not st {
-        return False;
-    }
-    sym = st.lookup(name, deep=True);
-    return bool(sym and sym.defn);
 }
 
 impl GraphBreakDetectPass._body_is_only_raise(

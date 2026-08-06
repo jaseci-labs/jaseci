@@ -15,11 +15,10 @@ glob FIXTURES = os.path.join(
 
 """Compile a fixture and, when `gm`, run ONLY the GraphMend detection pass.
 
-The full GraphMend pipeline replaces the tagged IfStmt/FuncCall nodes during
-transformation, so the detection tags are no longer observable on the final
-module. To assert detection in isolation we compile without the transform
-passes (graphmend=False) and then run GraphBreakDetectPass standalone with the
-flag enabled, leaving the tagged nodes intact."""
+The full GraphMend pipeline replaces the tagged nodes during transformation,
+so the detection tags are no longer observable on the final module. To assert
+detection in isolation we compile without the transform passes and then run
+GraphBreakDetectPass standalone with the flag enabled."""
 def _compile(name: str, gm: bool) -> tuple {
     prog = JacProgram();
     mod = prog.compile(
@@ -41,41 +40,17 @@ def _if_kinds(compiled: tuple) -> list {
     ];
 }
 
-"""Collect non-empty GraphMend break-kind tags of FuncCalls in a module."""
-def _call_kinds(compiled: tuple) -> list {
-    (prog, mod) = compiled;
-    out = [];
-    for n in mod.get_all_sub_nodes(uni.FuncCall) {
-        k = prog.graphmend_breaks.get(id(n));
-        if k {
-            out.append(k);
-        }
-    }
-    return out;
-}
-
-test "detects data-dependent control flow" {
-    compiled = _compile("where_return.jac", True);
-    assert GraphBreakKind.DYN_CTRL_FL in _if_kinds(compiled);
-}
-
-test "detects validation guard" {
+test "detects data-dependent validation guard" {
     compiled = _compile("val_guard.jac", True);
     assert GraphBreakKind.VAL_GUARD in _if_kinds(compiled);
 }
 
-test "detects print side effect" {
-    compiled = _compile("side_effect.jac", True);
-    assert GraphBreakKind.SIDE_EFFECT in _call_kinds(compiled);
-}
-
 test "no detection when graphmend disabled" {
-    compiled = _compile("where_return.jac", False);
+    compiled = _compile("val_guard.jac", False);
     assert _if_kinds(compiled) == [None];
 }
 
-test "static hasattr control flow is not tagged" {
-    compiled = _compile("hasattr_static.jac", True);
-    assert GraphBreakKind.DYN_CTRL_FL not in _if_kinds(compiled);
-    assert GraphBreakKind.VAL_GUARD not in _if_kinds(compiled);
+test "static (non-tensor) guard is not tagged" {
+    compiled = _compile("static_guard.jac", True);
+    assert _if_kinds(compiled) == [None];
 }

@@ -118,11 +118,7 @@ enum ExprCtx { LOAD = 'load', STORE = 'store', DEL = 'del' }
 
 enum OwnershipKind { NONE = 0, OWN = 1, BORROW = 2, MUT_BORROW = 3, IMM = 4 }
 
-enum GraphBreakKind {
-    VAL_GUARD = 'val_guard',
-    DYN_CTRL_FL = 'dyn_ctrl_fl',
-    SIDE_EFFECT = 'side_effect'
-}
+enum GraphBreakKind { VAL_GUARD = 'val_guard' }
 
 enum GraphMendHelper {
     EQ_ASSERT = '__jac_tensor_eq_assert__',

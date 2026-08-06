@@ -47,27 +47,24 @@ page as they land.
 Detection implements the paper's Dynamo entry-point analysis plus graph-break
 type analysis. It records a `GraphBreakKind` (declared in
 `jac0core/constant.jac`) per break site; each kind names the single transform
-allowed to lower it:
-
-| Kind | Pattern | Consumer |
-|---|---|---|
-| `VAL_GUARD` | data-dependent `if not C: raise` | `TrapLoweringPass` |
-| `DYN_CTRL_FL` | data-dependent `if`/`else` | predication (future PR) |
-| `SIDE_EFFECT` | `print` / logger call | deferral (future PR) |
+allowed to lower it. Detection breadth grows in lockstep with the transforms:
+only `VAL_GUARD` (a data-dependent `if not C: raise`, consumed by
+`TrapLoweringPass`) exists today, so no analysis ships before the transform
+that lowers it. Data-dependent `if`/`else` and side-effect kinds arrive with
+the predication and deferral passes.
 
 ### Entry points
 
-A function or class is in scope when it is `@torch.compile`-decorated, or
-wrapped at a call site: `torch.compile(fn)`, `torch.compile(Model())`, or
-`m = Model(); torch.compile(m)` (resolved through the symbol table to the
-defining `Ability`/`Archetype`). Methods of a wrapped class become in scope.
-Everything outside an entry point is left untouched.
+A function or class is in scope when it is `@torch.compile`-decorated
+(matched via `has_torch_compile_decorator` in `torch_attr_table.jac`).
+Everything outside an entry point is left untouched. Call-site wrapping
+(`m = Model(); torch.compile(m)`) is resolved by the scoped-import work,
+which is also where whole-module treatment of imported model code lands.
 
-Decorators and call sites are matched structurally (a `torch` name with a
-trailing `compile` attribute), never by unparsing to text: Python-origin
-(`.py`) and Jac-origin (`.jac`) trees unparse differently, so a text match
-silently fails on `.py` models, which are the primary target
-(`jac run model.py -g`).
+Decorators are matched structurally (a `torch` name with a trailing `compile`
+attribute), never by unparsing to text: Python-origin (`.py`) and Jac-origin
+(`.jac`) trees unparse differently, so a text match silently fails on `.py`
+models, which are the primary target (`jac run model.py -g`).
 
 ### Data dependence
 
@@ -80,15 +77,11 @@ data rather than static shape: `item`, `tolist`, reductions, `nonzero`,
 `equal`, `allclose`, `unique` and so on. Extending detection to a new op is
 one entry in that table.
 
-Two deliberate precision choices:
-
-- Function parameters are NOT assumed dynamic. Treating every parameter as
-  tensor-derived would tag static introspection such as
-  `if hasattr(self, "flag")`, which Dynamo handles without a break, and
-  rewriting it would be wrong. Detection keys on torch dynamic attributes.
-- A call like `print(...)` is only tagged `SIDE_EFFECT` when the name still
-  resolves to the builtin; a user-defined function that shadows a
-  logging-like name is not tagged.
+One deliberate precision choice: function parameters are NOT assumed dynamic.
+Treating every parameter as tensor-derived would tag static guards such as
+`if not isinstance(flag, str): raise`, which Dynamo handles without a break,
+and rewriting them would be wrong. Detection keys on torch dynamic
+attributes.
 
 ## Trap lowering: `TrapLoweringPass`
 
