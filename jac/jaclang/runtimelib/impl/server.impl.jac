@@ -557,11 +557,27 @@ impl ModuleIntrospector.postinit -> None {
 }
 
 impl ModuleIntrospector.load(force_reload: bool = False) -> None {
+    import sys;
+    loaded = Jac.loaded_modules.get(self.module_name);
+    if (loaded is not None and self.module_file) {
+        mod_file = loaded?.__file__;
+        if not (
+            mod_file
+            and os.path.exists(mod_file)
+            and os.path.realpath(mod_file) == os.path.realpath(self.module_file)
+        ) {
+            Jac.loaded_modules.pop(self.module_name, None);
+            sys.modules.pop(self.module_name, None);
+        }
+    }
     needs_import = force_reload or (self.module_name not in Jac.loaded_modules);
-    if (needs_import and self.base_path) {
+    import_base = os.path.dirname(os.path.abspath(self.module_file))
+        if self.module_file
+        else self.base_path;
+    if (needs_import and import_base) {
         Jac.jac_import(
             target=self.module_name,
-            base_path=os.path.abspath(self.base_path),
+            base_path=os.path.abspath(import_base),
             lng='jac',
             reload_module=force_reload
         );
@@ -1636,7 +1652,9 @@ impl JacAPIServer.postinit -> None {
         return _um.get_root_id(Con.GUEST.value);
     }
     Jac.set_shared_root_resolver(_shared_root_id);
-    self.introspector = ModuleIntrospector(self.module_name, self.base_path);
+    self.introspector = ModuleIntrospector(
+        self.module_name, self.base_path, module_file=self.module_file
+    );
     self.execution_manager = ExecutionManager(
         base_path=self.base_path, user_manager=self.user_manager
     );

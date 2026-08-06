@@ -530,6 +530,24 @@ impl NativeCapabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     return ir_in;
 }
 
+impl ClientCapabilityCheckPass.postinit -> None {
+    super.postinit();
+}
+
+impl ClientCapabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
+    import from jaclang.jac0core.passes.module_codegen_pass {
+        client_capability_violations
+    }
+    if not ir_in.gen.client_viols_reported {
+        for (_vnode, _vkind) in client_capability_violations(ir_in) {
+            self.emit(E5096, node_override=_vnode, kind=_vkind);
+        }
+        ir_in.gen.client_viols_reported = True;
+    }
+    return ir_in;
+}
+
+
 impl PortabilityWarnPass.postinit -> None {
     super.postinit();
 }

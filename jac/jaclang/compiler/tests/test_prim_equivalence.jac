@@ -14,6 +14,28 @@ test "int" {
     run_with_both("prim_int.jac", "int_py", "int_cl", "int_na");
 }
 
+test "dict ctor" {
+    run_with_both(
+        "prim_dict.jac", "dict_ctor_py", "dict_ctor_cl", "dict_ctor_na", require=["cl"]
+    );
+}
+
+test "dict iteration" {
+    run_with_both(
+        "prim_dict.jac", "dict_iter_py", "dict_iter_cl", "dict_iter_na", require=["cl"]
+    );
+}
+
+test "numeric parse" {
+    run_with_both(
+        "prim_float.jac", "numparse_py", "numparse_cl", "numparse_na", require=["cl"]
+    );
+}
+
+test "enums" {
+    run_with_both("prim_enums.jac", "enums_py", "enums_cl", "enums_na", require=["cl"]);
+}
+
 test "float" {
     run_with_both("prim_float.jac", "float_py", "float_cl", "float_na");
 }
