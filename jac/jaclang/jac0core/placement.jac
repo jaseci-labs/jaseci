@@ -222,6 +222,7 @@ def module_has_root_access(stmt: uni.UniNode) -> bool {
     if mod is None {
         return True;
     }
+
     cached = mod.gen.has_root_access;
     if cached is not None {
         return cached;

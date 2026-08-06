@@ -757,6 +757,7 @@ def relative_js_specifier(target_path: str, importer_path: str) -> str {
     if target.endswith('.jac') {
         target = target[:-4];
     }
+
     rel = os.path.relpath(target, os.path.dirname(importer_path));
     rel = rel.replace(os.sep, '/');
     if not rel.startswith('.') {

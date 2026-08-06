@@ -182,6 +182,7 @@ impl client_deps_stale(build_dir: Path) -> bool {
     if not manifest.exists() {
         return False;
     }
+
     marker = node_modules / '.jac-deps-hash';
     current = hashlib.sha256(manifest.read_bytes()).hexdigest();
     if not marker.exists() {
