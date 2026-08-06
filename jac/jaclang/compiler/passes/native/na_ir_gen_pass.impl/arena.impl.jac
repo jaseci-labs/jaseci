@@ -1070,9 +1070,9 @@ impl NaIRGenPass._register_region_handle_var(
     }
     self.region_handle_vars.add(var_name);
     if isinstance(nd.value, uni.Name)
-    and nd.value.sym is not None
-    and nd.value.sym.na_region_handle
-    and nd.value.sym_name != var_name {
+        and nd.value.sym is not None
+        and nd.value.sym.na_region_handle
+        and nd.value.sym_name != var_name {
         self.region_handle_vars.discard(nd.value.sym_name);
     }
 }
@@ -1148,16 +1148,19 @@ impl NaIRGenPass._emit_struct_drop_fields_fn(type_name: str) -> (ir.Function | N
         return None;
     }
     _hook = self.struct_drop_hooks.get(type_name)
-    or self.func_symtab.get(f"{type_name}.drop");
+        or self.func_symtab.get(f"{type_name}.drop");
     field_types = self.struct_field_types.get(type_name, {});
     field_indices = self.struct_field_indices.get(type_name, {});
-    opaque_fields = self.struct_field_opaque.get(type_name, set());
+    foreign_fields = self.struct_field_foreign.get(type_name, set());
     _ptr_fields = [
         (fname, ftype)
         for (fname, ftype) in field_types.items()
-        if fname not in opaque_fields
-        and isinstance(ftype, ir.PointerType)
-        and field_indices.get(fname, -1) >= 0
+        if fname not in foreign_fields
+            and (
+                isinstance(ftype, ir.PointerType)
+                or self._opt_ptr_payload_of(ftype) is not None
+            )
+            and field_indices.get(fname, -1) >= 0
     ];
     if _hook is None and not _ptr_fields {
         return None;
@@ -1193,6 +1196,19 @@ impl NaIRGenPass._emit_struct_drop_fields_fn(type_name: str) -> (ir.Function | N
         fp = b.gep(
             _dobj, [ir.Constant(i32, 0), ir.Constant(i32, idx)], name=f"dropf.{fname}.p"
         );
+        if self._opt_ptr_payload_of(ftype) is not None {
+            fp = b.gep(
+                fp,
+                [ir.Constant(i32, 0), ir.Constant(i32, 1)],
+                name=f"dropf.{fname}.pvp"
+            );
+            fv = b.load(fp, name=f"dropf.{fname}.pv");
+            b.call(
+                self.rc_release_simple_fn,
+                [b.bitcast(fv, i8p, name=f"dropf.{fname}.pv.i8")]
+            );
+            continue;
+        }
         fv = b.load(fp, name=f"dropf.{fname}");
         if isinstance(fv.type.pointee, ir.FunctionType) {
             continue;

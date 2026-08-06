@@ -451,8 +451,7 @@ impl NaIRGenPass._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> d
     _ocf.linkage = "internal";
     self._builder = ir.IRBuilder(_ocf.append_basic_block("entry"));
     _ws_idx = self.struct_field_indices.get("WalkScope", {});
-    _li64 = self.list_types.get("i64");
-    if _li64 is not None {
+    if _ws_idx {
         _scope = _ocf.args[0];
 
         _wlk_jv = self.builder.load(
@@ -481,7 +480,7 @@ impl NaIRGenPass._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> d
             _rep,
             self.builder.bitcast(
                 self.builder.gep(_wlk_i8, [ir.Constant(i64, 16)], name="oc.repslot.i8"),
-                _li64.as_pointer().as_pointer(),
+                _rep.type.as_pointer(),
                 name="oc.repslot"
             )
         );

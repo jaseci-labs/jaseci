@@ -83,6 +83,10 @@ impl NaIRGenPass._infer_unpack_struct_ptr(nd: object) -> (ir.Type | None) {
 impl NaIRGenPass._codegen_tuple_unpack(
     targets: list, tuple_val: ir.Value, tuple_node: (object | None)
 ) -> bool {
+    _tu_opt = self._opt_payload_of(tuple_val.type);
+    if _tu_opt is not None {
+        tuple_val = self._coerce_type(tuple_val, _tu_opt);
+    }
     _orig_tv = tuple_val;
     struct_type: (ir.LiteralStructType | None) = None;
     is_value = False;

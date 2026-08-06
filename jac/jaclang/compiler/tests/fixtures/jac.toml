@@ -188,6 +188,7 @@
 "prim_gzip.gzip_na" = "native"
 "prim_hashlib.hashlib_cl" = "client"
 "prim_hashlib.hashlib_na" = "native"
+"prim_hetero.hetero_na" = "native"
 "prim_int.int_cl" = "client"
 "prim_int.int_na" = "native"
 "prim_json.json_cl" = "client"

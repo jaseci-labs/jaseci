@@ -821,3 +821,9 @@ test "match class" {
 test "new builtin and positional ctors" {
     run_with_both("prim_new.jac", "new_py", "new_cl", "new_na", require=["na"]);
 }
+
+test "hetero containers round trip" {
+    run_with_both(
+        "prim_hetero.jac", "hetero_py", "hetero_cl", "hetero_na", require=["na"]
+    );
+}

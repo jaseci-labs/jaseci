@@ -68,7 +68,7 @@ impl NaIRGenPass._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None) {
     list_val = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_lcompr_loc, name="compr.list"
     );
-    self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd), "list");
+    self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd));
 
     self._codegen_compr_walk(
         nd.compr, 0, "list", list_val, nd.out_expr, None, elem_type_name
@@ -149,7 +149,7 @@ impl NaIRGenPass._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None) {
     dict_val = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_dcompr_loc, name="dcompr.dict"
     );
-    self._nogc_stamp_elem_drops(dict_val, self._nogc_type_arg_mangles(nd), "dict");
+    self._nogc_stamp_elem_drops(dict_val, self._nogc_type_arg_mangles(nd));
 
     self._codegen_compr_walk(
         nd.compr, 0, "dict", dict_val, key_expr, val_expr, dict_key
@@ -223,7 +223,7 @@ impl NaIRGenPass._codegen_set_compr(nd: uni.SetCompr) -> (ir.Value | None) {
     set_val = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_scompr_loc, name="scompr.set"
     );
-    self._nogc_stamp_elem_drops(set_val, self._nogc_type_arg_mangles(nd), "set");
+    self._nogc_stamp_elem_drops(set_val, self._nogc_type_arg_mangles(nd));
 
     self._codegen_compr_walk(
         nd.compr, 0, "set", set_val, out_expr, None, elem_type_name
