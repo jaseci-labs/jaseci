@@ -255,3 +255,53 @@ test "component rename is skipped when the PascalCase name is already taken" {
     assert "function page()" in js;
     assert "const page" not in js;
 }
+
+test "archetype constructors in jsx-attribute lambdas emit new" {
+    code = """obj Task {
+    has label: str = \"\";
+}
+
+def:pub app -> JsxElement {
+    has items: list = [];
+
+    def add_direct {
+        items = items + [Task(label=\"direct\")];
+    }
+
+    <div>
+        <button onClick={lambda { items = items + [Task(label=\"clicked\")]; }}>
+            add
+        </button>
+    </div>;
+}
+""";
+    mod = compile_inline(code, client=True);
+    js = mod.gen.js;
+    n = js.count("new Task(");
+    assert n >= 2 , f"constructor lost 'new' inside jsx-attribute lambda (found {n}): {js[-1500:]}";
+}
+
+test "constructor as call argument in component-prop lambda emits new" {
+    code = """obj Program {
+    has name: str = \"untitled\";
+}
+
+def:pub Toolbar(onNew: any) -> JsxElement {
+    <button onClick={lambda { onNew(); }}>new</button>;
+}
+
+def load_program(p: any) -> None {
+    print(p);
+}
+
+def:pub app -> JsxElement {
+    <div>
+        <Toolbar onNew={lambda { load_program(Program(name=\"untitled\")); }}/>
+    </div>;
+}
+""";
+    mod = compile_inline(code, client=True);
+    js = mod.gen.js;
+    n = js.count("new Program(");
+    assert n >= 1 , f"constructor lost 'new' in component-prop lambda (found {n}): {js[-1500:]}";
+}
