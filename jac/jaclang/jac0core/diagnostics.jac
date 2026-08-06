@@ -371,6 +371,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="Add the key to the TypedDict definition, or index with a key "
          "declared on the type."
      ),
+     E1044 = _err(
+         "E1044",
+         Category.TYPE,
+         "Cast target is not a type: \"{type}\"",
+         help="The right-hand side of 'as' must be a type expression, e.g. "
+         "'int', 'list[int]', or 'int | None'."
+     ),
      E1050 = _err(
          "E1050",
          Category.TYPE,

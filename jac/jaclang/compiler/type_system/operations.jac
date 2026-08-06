@@ -145,6 +145,30 @@ def get_numeric_promotion_type(
     return evaluator._convert_to_instance(right_type);
 }
 
+def is_annotation_type(evaluator: 'TypeEvaluator', ty: jtypes.TypeBase) -> bool {
+    if ty.is_instantiable() or isinstance(ty, jtypes.UnionType) {
+        return True;
+    }
+
+    if isinstance(ty, jtypes.TypeVarType) {
+        return True;
+    }
+
+    if isinstance(ty, jtypes.FunctionType) and ty.is_from_callable_annotation() {
+        return True;
+    }
+
+    if isinstance(ty, jtypes.NeverType) {
+        return True;
+    }
+
+    none_type_class = evaluator.prefetch.none_type_class;
+    if isinstance(ty, jtypes.ClassType) and none_type_class is not None {
+        return ty.shared == none_type_class.shared;
+    }
+    return False;
+}
+
 def get_type_of_binary_operation(
     evaluator: 'TypeEvaluator', expr: uni.BinaryExpr
 ) -> jtypes.TypeBase {
@@ -240,32 +264,9 @@ def get_type_of_binary_operation(
     }
 
     if (isinstance(expr.op, uni.Token) and (expr.op.name in BINARY_OPERATOR_MAP)) {
-        def is_annotation_type(ty: jtypes.TypeBase) -> bool {
-            if ty.is_instantiable() or isinstance(ty, jtypes.UnionType) {
-                return True;
-            }
-
-            if isinstance(ty, jtypes.TypeVarType) {
-                return True;
-            }
-
-            if isinstance(ty, jtypes.FunctionType)
-            and ty.is_from_callable_annotation() {
-                return True;
-            }
-
-            if isinstance(ty, jtypes.NeverType) {
-                return True;
-            }
-
-            none_type_class = evaluator.prefetch.none_type_class;
-            if isinstance(ty, jtypes.ClassType) and none_type_class is not None {
-                return ty.shared == none_type_class.shared;
-            }
-            return False;
-        }
         if expr.op.name == Tok.BW_OR {
-            if is_annotation_type(left_type) and is_annotation_type(right_type) {
+            if is_annotation_type(evaluator, left_type)
+                and is_annotation_type(evaluator, right_type) {
                 return jtypes.UnionType(types=[left_type, right_type]);
             }
         }
