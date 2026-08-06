@@ -23,10 +23,12 @@ import from typing { Any }
 import from uuid { UUID }
 
 import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
+import from jaclang.runtimelib.podcache { PodCache, INVALIDATION_CHANNEL }
 import from jaclang.runtimelib.store { AnchorRow, ConnInfo, PgStore, Store }
 
 glob logger = logging.getLogger(__name__),
      MAX_RETRIES = 5,
+     _process_cache = PodCache(),
      __all__ = ['Session', 'promotions_for', 'conninfo_from_url'];
 
 
@@ -45,9 +47,11 @@ obj Session {
         _deleted: set[UUID] postinit,
         _flushed_hash: dict[UUID, int] postinit,
         _on_commit: list[Callable] postinit,
+        _txn_changed: set[UUID] postinit,
         _runtime: (Any | None) postinit;
 
     def postinit -> None;
+    def data_location -> (str | None);
     # -- Memory facade (contract the runtime already depends on) --
     def is_available -> bool;
     def get(id: UUID) -> (Anchor | None);

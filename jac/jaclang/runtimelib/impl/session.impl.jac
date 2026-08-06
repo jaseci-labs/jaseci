@@ -89,12 +89,24 @@ impl Session.postinit -> None {
     self._deleted = set();
     self._flushed_hash = {};
     self._on_commit = [];
+    self._txn_changed = set();
     self._runtime = None;
     if self.store is None and self.base_path {
         url = os.environ.get('JAC_DB_URL', '');
         promos = promotions_for(self.base_path);
         if url {
             pgs = PgStore(conninfo=conninfo_from_url(url));
+            try {
+                # Shared server: peers' commits evict our cache entries.
+                pgs.listen(
+                    INVALIDATION_CHANNEL,
+                    lambda (payload: str) {
+                        _process_cache.invalidate_payload(payload);
+                    }
+                );
+            } except Exception as e {
+                logger.debug(f"cache invalidation listener skipped: {e}");
+            }
         } else {
             import from jaclang.runtimelib.pgembed { PgRuntime }
             rt = PgRuntime(data_dir=_pg_data_dir(self.base_path, self.target_path));
@@ -104,6 +116,19 @@ impl Session.postinit -> None {
         pgs.ensure_schema(promos);
         self.store = pgs;
     }
+}
+
+
+impl Session.data_location -> (str | None) {
+    rt: Any = self._runtime;
+    if rt is not None {
+        return str(rt.data_dir);
+    }
+    if isinstance(self.store, PgStore) {
+        info = self.store.conninfo;
+        return info.unix_socket_dir or f"{info.host}:{info.port}/{info.database}";
+    }
+    return None;
 }
 
 
@@ -122,10 +147,7 @@ impl Session.get(id: UUID) -> (Anchor | None) {
     if self.store is None {
         return None;
     }
-    self.read_barrier();
-    rows = self.store.load([id]);
-    row = rows.get(id);
-    return self._materialize(row) if row is not None else None;
+    return self.batch_get([id]).get(id);
 }
 
 
@@ -231,10 +253,32 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
     }
     if missing and self.store is not None {
         self.read_barrier();
-        for (rid, row) in self.store.load(missing).items() {
+        versions = self.store.load_versions(missing);
+        still: list[UUID] = [];
+        for i in missing {
+            ver = versions.get(i);
+            if ver is None {
+                continue;
+            }
+            props = _process_cache.get(i, ver);
+            if props is None {
+                still.append(i);
+                continue;
+            }
+            anchor = self._materialize(
+                AnchorRow(id=i, kind='', props=props, version=ver)
+            );
+            if anchor is not None {
+                out[i] = anchor;
+            } else {
+                still.append(i);
+            }
+        }
+        for (rid, row) in self.store.load(still).items() {
             anchor = self._materialize(row);
             if anchor is not None {
                 out[rid] = anchor;
+                _process_cache.put(rid, row.version, row.props);
             }
         }
     }
@@ -246,6 +290,24 @@ impl Session.commit(anchor: (Anchor | None) = None) -> None {
     if self.store is not None {
         self.flush(full=True);
         self.store.commit();
+        if self._txn_changed {
+            changed = list(self._txn_changed);
+            self._txn_changed.clear();
+            for id in changed {
+                _process_cache.invalidate(id);
+            }
+            try {
+                # NOTIFY payloads cap at 8KB; chunk conservatively.
+                for start in range(0, len(changed), 100) {
+                    self.store.notify(
+                        INVALIDATION_CHANNEL,
+                        ','.join(str(i) for i in changed[start:start + 100])
+                    );
+                }
+            } except Exception as e {
+                logger.debug(f"cache invalidation notify skipped: {e}");
+            }
+        }
     } else {
         self._dirty.clear();
         self._deleted.clear();
@@ -417,11 +479,15 @@ impl Session.flush(full: bool = False) -> None {
     }
     if rows {
         self.store.upsert(rows);
+        for r in rows {
+            self._txn_changed.add(r.id);
+        }
     }
     if self._deleted {
         self.store.delete(list(self._deleted));
         for id in self._deleted {
             self._flushed_hash.pop(id, None);
+            self._txn_changed.add(id);
         }
         self._deleted.clear();
     }

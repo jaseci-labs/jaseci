@@ -249,6 +249,18 @@ impl PgStore.load(ids: list[UUID]) -> dict[UUID, AnchorRow] {
 }
 
 
+impl PgStore.load_versions(ids: list[UUID]) -> dict[UUID, int] {
+    if not ids {
+        return {};
+    }
+    rows = self._run(
+        'SELECT id, xmin::text FROM anchors WHERE id = ANY(CAST(:ids AS uuid[]))',
+        {'ids': [str(i) for i in ids]}
+    );
+    return {UUID(str(r[0])): int(str(r[1])) for r in rows};
+}
+
+
 impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
     if not rows_in {
         return;
