@@ -3478,37 +3478,29 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
         raise FileNotFoundError(f"Stub file not found at {path}");
     }
 
-    resolved_path = str(Path(path).resolve());
-
-    compiler = self.program._get_compiler();
-    target_hub = compiler._resolve_program(resolved_path, self.program).mod.hub;
-    if resolved_path in self.program.mod.hub {
-        return self.program.mod.hub[resolved_path];
-    }
-    if resolved_path in target_hub {
-        return target_hub[resolved_path];
-    }
-    file_content = read_file_with_encoding(path);
-    if path.endswith("builtins.pyi") and "def chunks(" not in file_content {
-        _ck_anchor = "    def copy(self) -> list[_T]: ...";
-        if _ck_anchor in file_content {
-            file_content = file_content.replace(
-                _ck_anchor,
-                _ck_anchor
-                    + "\n    # Jac extension: chunked iteration views"
-                    + " (`for c in &xs.chunks(n)`).\n"
-                    + "    def chunks(self, n: int, /) -> list[list[_T]]: ...",
-                1
-            );
+    use_str: (str | None) = None;
+    if path.endswith("builtins.pyi") {
+        file_content = read_file_with_encoding(path);
+        if "def chunks(" not in file_content {
+            _ck_anchor = "    def copy(self) -> list[_T]: ...";
+            if _ck_anchor in file_content {
+                file_content = file_content.replace(
+                    _ck_anchor,
+                    _ck_anchor
+                        + "\n    # Jac extension: chunked iteration views"
+                        + " (`for c in &xs.chunks(n)`).\n"
+                        + "    def chunks(self, n: int, /) -> list[list[_T]]: ...",
+                    1
+                );
+            }
         }
+        use_str = file_content;
     }
-    uni_source = uni.Source(file_content, path);
-    mod = PyastBuildPass(
-        ir_in=uni.PythonModuleAst(py_ast.parse(file_content), orig_src=uni_source,),
-        prog=self.program,
-    ).ir_out;
-    SymTabBuildPass(ir_in=mod, prog=self.program);
-    target_hub[resolved_path] = mod;
+
+    mod = self.program.load_dependency_module(path, use_str=use_str);
+    if mod.parent_scope is None and mod is not self.builtins_module {
+        mod.parent_scope = self.builtins_module;
+    }
     return mod;
 }
 

@@ -151,6 +151,66 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
     }
 }
 
+impl JacProgram.load_dependency_module(
+    self: JacProgram,
+    source_path: str,
+    importer_path: (str | None) = None,
+    use_str: (str | None) = None
+) -> uni.Module {
+    import from pathlib { Path }
+    import from jaclang.jac0core.jir {
+        jir_cacheable_source_path,
+        read_module_jir_cache,
+        write_module_jir_cache,
+    }
+
+    resolved_path = str(Path(source_path).resolve());
+    compiler = self._get_compiler();
+    target_program = compiler._resolve_program(resolved_path, self);
+    target_hub = target_program.mod.hub;
+
+    if (resolved_path in self.mod.hub and not self.is_hub_entry_fresh(resolved_path)) {
+        self.invalidate_module(resolved_path);
+    }
+    if (
+        resolved_path in target_hub
+        and target_program is not self
+        and not target_program.is_hub_entry_fresh(resolved_path)
+    ) {
+        target_program.invalidate_module(resolved_path);
+    }
+
+    mod: uni.Module;
+    if resolved_path in self.mod.hub {
+        mod = self.mod.hub[resolved_path];
+    } elif resolved_path in target_hub {
+        mod = target_hub[resolved_path];
+    } else {
+        jir_mod = read_module_jir_cache(resolved_path);
+        if jir_mod is not None {
+            mod = jir_mod;
+        } else {
+            mod = self.compile(
+                source_path,
+                use_str=use_str,
+                no_cgen=True,
+                type_check=False,
+                symtab_ir_only=True
+            );
+            if jir_cacheable_source_path(resolved_path) {
+                write_module_jir_cache(resolved_path, mod);
+            }
+        }
+        target_hub[resolved_path] = mod;
+        target_program.hub_cache_stamp(resolved_path);
+    }
+
+    if importer_path is not None {
+        self.record_dependency(importer_path, resolved_path);
+    }
+    return mod;
+}
+
 impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
     if self._compiler {
         return self._compiler;
