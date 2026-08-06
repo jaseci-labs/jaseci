@@ -140,3 +140,23 @@ test "unpinned rootless archetypes pull into client closures" {
         shutil.rmtree(d, ignore_errors=True);
     }
 }
+
+test "solver does not propose native for capability-violating modules" {
+    import from jaclang.jac0core.placement_solver { native_default_verdict }
+    d = _proj({
+        "walkmod.jac": (
+            "node Spot {}\n"
+            + "def unlink(a: Spot, b: Spot) -> None {\n"
+            + "    a del--> b;\n"
+            + "}\n"
+        )
+    });
+    try {
+        prog = JacProgram();
+        mod = prog.compile(os.path.join(d, "walkmod.jac"), no_cgen=True);
+        (ok, reason) = native_default_verdict(mod);
+        assert not ok , "capability-violating module must not prefer native";
+    } finally {
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}

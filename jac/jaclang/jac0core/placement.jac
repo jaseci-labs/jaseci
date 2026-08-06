@@ -526,6 +526,14 @@ def scan_native_blockers(
             return (f"contains {typ.__name__}", deps);
         }
     }
+    # Statically-known native rejects (the E5090 set is native-context
+    # gated and useless before stamping): proposing native for these can
+    # only end in a lowering failure and a demotion note.
+    for typ in (uni.DisconnectOp, ) {
+        if module.get_all_sub_nodes(typ) {
+            return (f"native-unsupported {typ.__name__}", deps);
+        }
+    }
     for svr in module.get_all_sub_nodes(uni.SpecialVarRef) {
         if svr.orig.name == Tok.KW_ROOT {
             return ("root access (persistent graph)", deps);
