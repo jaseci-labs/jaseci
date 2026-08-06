@@ -121,10 +121,7 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
 def client_capability_violations(mod: uni.Module) -> list {
     out: list = [];
 
-    reject: list = [
-        (uni.YieldExpr, "a yield expression"),
-        (uni.ConcurrentExpr, "flow/wait concurrency")
-    ];
+    reject: list = [(uni.ConcurrentExpr, "flow/wait concurrency")];
     for _stmt in ModuleCodegenPass.iter_context_stmts(mod, CodeContext.CLIENT) {
         if getattr(_stmt, 'codespace_dual', False) {
             continue;

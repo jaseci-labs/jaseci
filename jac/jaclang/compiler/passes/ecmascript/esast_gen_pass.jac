@@ -393,6 +393,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
 
     def _expr_type_name(expr_node: uni.UniNode) -> str;
     def _is_collection_expr(expr_node: uni.UniNode) -> bool;
+    def _is_native_iterable_builtin_call(expr_node: uni.UniNode) -> bool;
     def _build_jac_ref(
         path: list[str], jac_node: (uni.UniNode | None)
     ) -> es.Expression;
@@ -532,6 +533,8 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_f_string(nd: uni.FString) -> None;
     def exit_if_else_expr(nd: uni.IfElseExpr) -> None;
     def exit_await_expr(nd: uni.AwaitExpr) -> None;
+    def exit_yield_expr(nd: uni.YieldExpr) -> None;
+    def _ability_is_generator(nd: uni.Ability) -> bool;
     def exit_cast_expr(nd: uni.CastExpr) -> None;
     def exit_null(nd: uni.Null) -> None;
     def exit_name(nd: uni.Name) -> None;

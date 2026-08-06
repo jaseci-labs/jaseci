@@ -40,9 +40,7 @@ def _proj -> str {
 test "client-only imported def:pubs are mounted as endpoints" {
     d = _proj();
     try {
-        client = JacTestClient.from_file(
-            os.path.join(d, "main.jac"), base_path=tempfile.mkdtemp()
-        );
+        client = JacTestClient.from_file(os.path.join(d, "main.jac"));
         r = client.post("/function/save_doc", json={"label": "a"});
         assert r.ok , f"save_doc not mounted: {r.status_code}";
         assert r.data["result"] == "saved:a" , f"got {r.data}";

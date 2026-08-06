@@ -330,16 +330,7 @@ test "absolute imports in nested modules emit importer-relative specifiers" {
 }
 
 test "client capability check rejects silently-dropped constructs" {
-    code = """def gen_vals() -> list {
-    vals: list = [];
-    for i in range(3) {
-        vals.append(i);
-    }
-    yield 1;
-    return vals;
-}
-
-def race() -> int {
+    code = """def race() -> int {
     fut = flow slow_op();
     return wait fut;
 }
@@ -355,6 +346,29 @@ def slow_op() -> int {
         ;
     }
     msgs = " ".join([str(e) for e in prog.errors_had]);
-    assert "Client pathway does not yet support a yield expression" in msgs , f"client-placed yield must be diagnosed, got: {msgs[0:600]}";
     assert "Client pathway does not yet support flow/wait concurrency" in msgs , f"client-placed flow/wait must be diagnosed, got: {msgs[0:600]}";
+}
+
+test "client generators lower to JS function* with yield" {
+    code = """def gen_vals(limit: int) {
+    index = 0;
+    while index < limit {
+        yield index * 3;
+        index += 1;
+    }
+}
+
+def sum_gen() -> int {
+    total = 0;
+    for v in gen_vals(3) {
+        total += v;
+    }
+    return total;
+}
+""";
+    mod = compile_inline(code, client=True);
+    js = mod.gen.js;
+    assert "function* gen_vals" in js , f"generator must emit function*: {js[0:600]}";
+    assert "yield (index * 3)" in js or "yield index * 3" in js , f"yield must survive lowering: {js[0:600]}";
+    assert "for (const v of _jac.builtin.iter(gen_vals(3)))" in js , f"generator calls must stay iterable in for-of: {js[0:600]}";
 }
