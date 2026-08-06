@@ -1101,8 +1101,7 @@ impl NaIRGenPass._codegen_compare_link(
 
         if isinstance(left.type, ir.IntType)
             and isinstance(right.type, ir.PointerType) {
-            sentinel = ir.Constant(left.type, -1);
-            return self.builder.icmp_signed("==", left, sentinel, name="is.none");
+            return ir.Constant(ir.IntType(1), 0);
         }
         return self._to_bool(left);
     }
@@ -1136,8 +1135,7 @@ impl NaIRGenPass._codegen_compare_link(
 
         if isinstance(left.type, ir.IntType)
             and isinstance(right.type, ir.PointerType) {
-            sentinel = ir.Constant(left.type, -1);
-            return self.builder.icmp_signed("!=", left, sentinel, name="isnot.none");
+            return ir.Constant(ir.IntType(1), 1);
         }
         return self._to_bool(left);
     }
