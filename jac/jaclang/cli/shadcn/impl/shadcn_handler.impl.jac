@@ -345,6 +345,7 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
     all_npm_deps: dict = {};
     shared_deps = registry_data.get("sharedDeps", {});
     all_npm_deps.update(shared_deps);
+    dep_versions = registry_data.get("depVersions", {});
 
     added: list = [];
     for name in to_install {
@@ -369,7 +370,11 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
 
         for dep in comp_data.get("npmDeps", []) {
             if dep not in all_npm_deps {
-                all_npm_deps[dep] = "*";
+                # Vendored components are written against specific majors;
+                # an unbounded range installs whatever is current and breaks
+                # when upstream renames exports (react-resizable-panels v4
+                # vs the v2 API the resizable component targets).
+                all_npm_deps[dep] = dep_versions.get(dep, "*");
             }
         }
 
