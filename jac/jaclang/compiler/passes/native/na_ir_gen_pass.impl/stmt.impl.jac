@@ -128,6 +128,13 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
             and self._is_owned(_estmt_val)
         ) {
             self._emit_rc_release_simple(_estmt_val, op="discarded_call", loc="");
+        } elif (
+            _estmt_val is not None
+            and self?.jacval_type
+            and _estmt_val.type == self.jacval_type
+            and self._is_owned(_estmt_val)
+        ) {
+            self._emit_elem_release(self.builder, self.jacval_type, _estmt_val);
         }
     } elif isinstance(nd, uni.TryStmt) {
         self._codegen_try(nd);
@@ -190,6 +197,7 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
                 }
                 if dict_type_key is not None {
                     dict_val = self._codegen_expr(target_expr.target);
+                    dict_type_key = self._dict_key_reconcile(dict_type_key, dict_val);
                     idx_node = slices[0];
                     idx_val = self._codegen_expr(idx_node);
                     if idx_val is None and idx_node?.start {
@@ -1525,7 +1533,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                 helpers["new"], [], name="set.new"
                             );
                             self._nogc_stamp_elem_drops(
-                                value, self._nogc_type_arg_mangles(_set_t0), "set"
+                                value, self._nogc_type_arg_mangles(_set_t0)
                             );
 
                             self._mark_owned(value);
@@ -1668,13 +1676,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         idx_val = self._codegen_expr(idx_node.start);
                     }
                     if idx_val is not None {
-                        dict_type_key = self._dict_key_of(target_expr.target);
-                        if dict_type_key is None {
-                            dict_info = self._infer_dict_type(target_val);
-                            if dict_info is not None {
-                                dict_type_key = f"{dict_info[0]}:{dict_info[1]}";
-                            }
-                        }
+                        dict_type_key = self._dict_key_reconcile(
+                            self._dict_key_of(target_expr.target), target_val
+                        );
                         if dict_type_key is not None {
                             parts = dict_type_key.split(":");
                             if len(parts) == 2 {
@@ -1971,13 +1975,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                             current, coerced, name=f"{var_name}.or"
                         );
                     } elif isinstance(current.type, ir.PointerType) {
-                        dict_type_key = self._dict_key_of(target_expr);
-                        if dict_type_key is None {
-                            dict_info = self._infer_dict_type(current);
-                            if dict_info is not None {
-                                dict_type_key = f"{dict_info[0]}:{dict_info[1]}";
-                            }
-                        }
+                        dict_type_key = self._dict_key_reconcile(
+                            self._dict_key_of(target_expr), current
+                        );
                         if dict_type_key is not None {
                             self._ensure_emitters();
                             _de = self._native_emitters.get("dict");
@@ -2004,28 +2004,14 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                 shelpers = self.set_helpers.get(set_elem_name);
                                 if shelpers is not None {
                                     i64 = ir.IntType(64);
-                                    i32 = ir.IntType(32);
 
                                     rhs_cast = self.builder.bitcast(
                                         rhs_set,
                                         self.set_types[set_elem_name].as_pointer(),
                                         name="rhs.set.cast"
                                     );
-                                    rhs_len_ptr = self.builder.gep(
-                                        rhs_cast,
-                                        [ir.Constant(i32, 0), ir.Constant(i32, 0)],
-                                        name="rhs.len.ptr"
-                                    );
-                                    rhs_len = self.builder.load(
-                                        rhs_len_ptr, name="rhs.len"
-                                    );
-                                    rhs_elems_ptr = self.builder.gep(
-                                        rhs_cast,
-                                        [ir.Constant(i32, 0), ir.Constant(i32, 2)],
-                                        name="rhs.elems.ptr"
-                                    );
-                                    rhs_elems = self.builder.load(
-                                        rhs_elems_ptr, name="rhs.elems"
+                                    rhs_len = self.builder.call(
+                                        shelpers["len"], [rhs_cast], name="rhs.len"
                                     );
 
                                     loop_idx = self._entry_alloca(i64, "union.idx");
@@ -2049,11 +2035,10 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                     elem_i = self.builder.load(
                                         loop_idx, name="union.elem.i"
                                     );
-                                    elem_ptr = self.builder.gep(
-                                        rhs_elems, [elem_i], name="union.elem.ptr"
-                                    );
-                                    elem_val = self.builder.load(
-                                        elem_ptr, name="union.elem.val"
+                                    elem_val = self.builder.call(
+                                        shelpers["get"],
+                                        [rhs_cast, elem_i],
+                                        name="union.elem.val"
                                     );
                                     lhs_cast = self.builder.bitcast(
                                         lhs_set,
@@ -2264,6 +2249,28 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 } elif self._is_owned(value) {
                     self.rc_ops_elided += 1;
                 }
+            } elif self._opt_ptr_payload_of(alloca.type.pointee) is not None
+                and not self._nogc_headerless()
+                and not is_inplace_set_op
+                and not _is_raw_int_ptr {
+                _opt_re_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                    if nd.loc
+                    else 0}";
+                if not self._is_owned(value) and not self._can_native_move_lower(nd) {
+                    _opt_re_pv = self.builder.extract_value(
+                        coerced, 1, name=f"{var_name}.opt.newpv"
+                    );
+                    self._emit_rc_retain(_opt_re_pv, op="assign", loc=_opt_re_loc);
+                } else {
+                    self.rc_ops_elided += 1;
+                }
+                _opt_re_old = self.builder.load(alloca, name=f"{var_name}.opt.old");
+                _opt_re_old_pv = self.builder.extract_value(
+                    _opt_re_old, 1, name=f"{var_name}.opt.oldpv"
+                );
+                self._emit_rc_release_simple(
+                    _opt_re_old_pv, op="overwrite", loc=_opt_re_loc
+                );
             }
             self.builder.store(coerced, alloca);
         } elif var_name in self.global_vars
@@ -2594,6 +2601,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             if (
                 isinstance(var_type, ir.PointerType)
                 or (self._str_desc_ty is not None and var_type == self._str_desc_ty)
+                or self._opt_ptr_payload_of(var_type) is not None
             )
                 and not _mk_cell
                 and not _in_gen_frame {
@@ -2727,6 +2735,28 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 } elif self._is_owned(_pre_box_val) {
                     self.rc_ops_elided += 1;
                 }
+            } elif self._opt_ptr_payload_of(var_type) is not None
+                and not self._nogc_headerless() {
+                _opt_asg_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                    if nd.loc
+                    else 0}";
+                if not self._is_owned(value) and not self._can_native_move_lower(nd) {
+                    _opt_new_pv = self.builder.extract_value(
+                        value, 1, name=f"{var_name}.opt.newpv"
+                    );
+                    self._emit_rc_retain(_opt_new_pv, op="assign", loc=_opt_asg_loc);
+                } else {
+                    self.rc_ops_elided += 1;
+                }
+                if not _mk_cell and not _in_gen_frame {
+                    _opt_old = self.builder.load(alloca, name=f"{var_name}.opt.old");
+                    _opt_old_pv = self.builder.extract_value(
+                        _opt_old, 1, name=f"{var_name}.opt.oldpv"
+                    );
+                    self._emit_rc_release_simple(
+                        _opt_old_pv, op="overwrite", loc=_opt_asg_loc
+                    );
+                }
             }
             self.builder.store(value, alloca);
             self.local_vars[var_name] = alloca;
@@ -2802,16 +2832,19 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         and nd.collection.target.is_attr
         and self._get_name(nd.collection.target.right) == "items" {
         items_dict_key = self._dict_key_of(nd.collection.target.target);
-        helpers = self.dict_helpers.get(items_dict_key)
-            if items_dict_key is not None
-            else None;
         unpack_targets = nd.target.values or [];
-        if helpers is not None and len(unpack_targets) == 2 {
+        if items_dict_key is not None and len(unpack_targets) == 2 {
             key_var_name = self._get_name(unpack_targets[0]);
             val_var_name = self._get_name(unpack_targets[1]);
             if key_var_name is not None and val_var_name is not None {
                 collection_val = self._codegen_expr(nd.collection.target.target);
-                if collection_val is not None {
+                items_dict_key = self._dict_key_reconcile(
+                    items_dict_key, collection_val
+                );
+                helpers = self.dict_helpers.get(items_dict_key)
+                    if items_dict_key is not None
+                    else None;
+                if collection_val is not None and helpers is not None {
                     self._codegen_for_indexed(
                         nd,
                         kind="items",
@@ -2892,11 +2925,8 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     _coll_memo: (ir.Value | None) = self._str_norm(self._codegen_expr(nd.collection));
 
     dict_type_key: (str | None) = self._dict_key_of(nd.collection);
-    if dict_type_key is None and _coll_memo is not None {
-        dict_info = self._infer_dict_type(_coll_memo);
-        if dict_info is not None {
-            dict_type_key = f"{dict_info[0]}:{dict_info[1]}";
-        }
+    if _coll_memo is not None {
+        dict_type_key = self._dict_key_reconcile(dict_type_key, _coll_memo);
     }
     if dict_type_key is not None {
         helpers = self.dict_helpers.get(dict_type_key);
