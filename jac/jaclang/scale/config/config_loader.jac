@@ -32,9 +32,8 @@ def normalize_microservices_config(
     ms_config: dict[str, any], env_routes_fallback: bool = True
 ) -> dict[str, any];
 
-glob _scale_config_instance: JacScaleConfig | None = None;
-
-glob DEFAULT_MONGODB_TIMEOUT_MS: int = 5000;
+glob _scale_config_instance: JacScaleConfig | None = None,
+     DEFAULT_MONGODB_TIMEOUT_MS: int = 5000;
 
 def _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float;
 def get_scale_config(project_dir: Path | None = None) -> JacScaleConfig;

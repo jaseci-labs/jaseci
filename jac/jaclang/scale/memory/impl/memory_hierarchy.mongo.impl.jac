@@ -35,9 +35,7 @@ impl MongoBackend.postinit -> None {
         self._probe_ok = self.is_available();
         if not self._probe_ok {
             warn_mongo_unreachable(
-                self.mongo_url,
-                db_config['mongodb_timeout_ms'],
-                "local persistence"
+                self.mongo_url, db_config['mongodb_timeout_ms'], "local persistence"
             );
             self.db = None;
             self.collection = None;

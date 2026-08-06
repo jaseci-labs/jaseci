@@ -42,9 +42,7 @@ impl JacScaleUserManager.postinit -> None {
             self._identity_storage.ensure_indexes();
         } else {
             warn_mongo_unreachable(
-                mongodb_uri,
-                db_config['mongodb_timeout_ms'],
-                "local identity storage"
+                mongodb_uri, db_config['mongodb_timeout_ms'], "local identity storage"
             );
         }
     }
