@@ -343,12 +343,16 @@ impl _run_harness(
             module_js = module_js.replace('"@jac/runtime"', '"./jac_runtime.js"');
             module_js = module_js.replace("'@jac/runtime'", "'./jac_runtime.js'");
 
-            core_specifier = "./jaclang/runtimelib/client_runtime_core.js";
+            import re;
             core_js = None;
-            if core_specifier in runtime_js {
+            core_match = re.search(
+                r'from\s+[\'\"]([^\'\"]*client_runtime_core\.js)[\'\"]',
+                runtime_js
+            );
+            if core_match {
                 core_js = _compile_runtime_core_js();
                 runtime_js = runtime_js.replace(
-                    core_specifier, "./client_runtime_core.js"
+                    core_match.group(1), "./client_runtime_core.js"
                 );
             }
 
