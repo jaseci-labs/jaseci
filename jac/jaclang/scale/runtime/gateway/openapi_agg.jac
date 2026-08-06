@@ -21,7 +21,6 @@ def _prefixed_paths(paths: dict, prefix: str) -> dict {
     return result;
 }
 
-"""Read one service's OpenAPI document; None when it is unreachable or unusable."""
 async def fetch_service_spec(
     service_entry: ServiceEntry, timeout: float = 5.0
 ) -> dict | None {

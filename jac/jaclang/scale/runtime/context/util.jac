@@ -75,7 +75,6 @@ def http_forward_timeout(service_name: str | None = None) -> float {
 }
 
 
-"""How long the gateway may reuse a learned service route table before re-reading it."""
 def route_refresh_seconds -> float {
     try {
         import from jaclang.scale.config.config_loader { get_scale_config }

@@ -1,10 +1,3 @@
-"""Root-level route ownership, learned from each service's own OpenAPI document.
-
-A service's path set is app-defined: `@restspec(path=...)` puts a walker or
-function anywhere, so no fixed list of segments can describe it. The gateway
-therefore asks each service what it serves instead of guessing.
-"""
-
 import logging;
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
@@ -14,7 +7,6 @@ import from jaclang.scale.runtime.gateway.service_registry {
 glob _rt_logger = logging.getLogger(__name__);
 
 
-"""The literal head of an OpenAPI path template: /api/items/{id} -> /api/items."""
 def literal_prefix(template: str) -> str {
     kept: list[str] = [];
     for segment in template.strip("/").split("/") {
@@ -42,7 +34,6 @@ obj ServiceRouteTable {
 }
 
 
-"""Refresh `table` from every reachable service; returns the number learned."""
 async def learn_service_routes(
     registry: ServiceRegistry, table: ServiceRouteTable
 ) -> int {

@@ -70,7 +70,6 @@ def _longest_prefix_match(norm_path: str, service_prefixes: list[str]) -> str {
 }
 
 
-"""Paths the gateway answers itself - a service may never claim them back."""
 def is_gateway_owned(path: str) -> bool {
     norm = _normalize(path);
     if norm in _BUILTIN_EXACT {
