@@ -32,7 +32,8 @@ import from jaclang.jac0core.diagnostics {
     W5014,
     W5015,
     E5080,
-    E5081
+    E5081,
+    E5085
 }
 
 glob _T = TypeVar('_T', bound=es.Node),
