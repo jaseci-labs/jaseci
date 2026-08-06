@@ -3,8 +3,7 @@ import from jaclang.scale.runtime.context.tracing { start_memory_span, end_memor
 import from jaclang.runtimelib.exceptions { WriteConflict }
 
 import from jaclang.scale.persistence.mongo_health {
-    mark_mongo_down,
-    mongo_recently_down,
+    mongo_reachable,
     warn_mongo_unreachable
 }
 
@@ -15,7 +14,7 @@ impl MongoBackend.postinit -> None {
     }
     if self.mongo_url {
         if 'mongo_client' not in _process_cache {
-            timeout_ms = int(db_config.get('mongodb_timeout_ms', 5000));
+            timeout_ms = db_config['mongodb_timeout_ms'];
             try {
                 _process_cache['mongo_client'] = MongoClient(
                     self.mongo_url,
@@ -37,9 +36,11 @@ impl MongoBackend.postinit -> None {
         if not self._probe_ok {
             warn_mongo_unreachable(
                 self.mongo_url,
-                int(_get_db_config().get('mongodb_timeout_ms', 5000)),
+                db_config['mongodb_timeout_ms'],
                 "local persistence"
             );
+            self.db = None;
+            self.collection = None;
             return;
         }
         try {
@@ -275,29 +276,17 @@ impl MongoBackend.is_available -> bool {
     if self._probe_ok is not None {
         return self._probe_ok;
     }
-    if mongo_recently_down() {
-        return False;
-    }
     if not self.mongo_url {
         self.mongo_url = _get_db_config().get('mongodb_uri');
     }
-    if not self.mongo_url or self.client is None {
+    if not self.mongo_url {
         return False;
     }
-    try {
-        self.client.admin.command('ping');
+    if mongo_reachable(self.client) {
         _process_cache['mongo_available'] = True;
         return True;
-    } except ConnectionFailure {
-        mark_mongo_down();
-        _process_cache['mongo_available'] = False;
-        return False;
-    } except Exception as e {
-        logger.debug(f"MongoDB availability check failed: {e}");
-        mark_mongo_down();
-        _process_cache['mongo_available'] = False;
-        return False;
     }
+    return False;
 }
 
 impl MongoBackend.get(id: UUID) -> (Anchor | None) {
@@ -1883,7 +1872,7 @@ impl MongoBackend.aget(id: UUID) -> (Anchor | None) {
         return await super.aget(id);
     }
     if 'async_mongo_client' not in _process_cache {
-        timeout_ms = int(_get_db_config().get('mongodb_timeout_ms', 5000));
+        timeout_ms = _get_db_config()['mongodb_timeout_ms'];
         _process_cache['async_mongo_client'] = AsyncMongoClient(
             self.mongo_url,
             serverSelectionTimeoutMS=timeout_ms,

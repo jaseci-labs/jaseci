@@ -86,9 +86,7 @@ class DatabaseProviderFactory {
             require_optional("pymongo", "data.mongo");
             import from pymongo { MongoClient }
             opts = dict(config or {});
-            timeout_ms = int(
-                get_scale_config().get_database_config().get("mongodb_timeout_ms", 5000)
-            );
+            timeout_ms = get_scale_config().get_database_config()["mongodb_timeout_ms"];
             for key in ["serverSelectionTimeoutMS", "connectTimeoutMS"] {
                 if key not in opts {
                     opts[key] = timeout_ms;

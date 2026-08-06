@@ -20,6 +20,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         'database': {
             'type': None,
             'mongodb_uri': None,
+            'mongodb_timeout_ms': DEFAULT_MONGODB_TIMEOUT_MS,
             'redis_url': None,
             'project_id': None,
             'shelf_db_path': '.jac/data/anchor_store.db',
@@ -218,7 +219,7 @@ def _mongodb_timeout_ms(configured: any) -> int {
     if parsed > 0 {
         return parsed;
     }
-    fallback = 5000;
+    fallback = DEFAULT_MONGODB_TIMEOUT_MS;
     if raw or configured != fallback {
         logging.getLogger(__name__).warning(
             f"ignoring invalid {source}={value!r}; "
@@ -236,7 +237,7 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
         'type': db_config.get('type'),
         'mongodb_uri': os.environ.get('MONGODB_URI') or db_config.get('mongodb_uri'),
         'mongodb_timeout_ms': _mongodb_timeout_ms(
-            db_config.get('mongodb_timeout_ms', 5000)
+            db_config.get('mongodb_timeout_ms', DEFAULT_MONGODB_TIMEOUT_MS)
         ),
         'redis_url': os.environ.get('REDIS_URL') or db_config.get('redis_url'),
         'project_id': resolve_firebase_project_id(

@@ -26,31 +26,44 @@ def _clear_mongo_cache {
 }
 
 
+def _set_timeout_env(value: (str | None)) -> (str | None) {
+    saved = os.environ.get("MONGODB_TIMEOUT_MS");
+    if value is None {
+        os.environ.pop("MONGODB_TIMEOUT_MS", None);
+    } else {
+        os.environ["MONGODB_TIMEOUT_MS"] = value;
+    }
+    return saved;
+}
+
+
+def _restore_timeout_env(saved: (str | None)) {
+    if saved is None {
+        os.environ.pop("MONGODB_TIMEOUT_MS", None);
+    } else {
+        os.environ["MONGODB_TIMEOUT_MS"] = saved;
+    }
+}
+
+
 test "database config exposes a bounded mongodb timeout by default" {
-    saved = os.environ.pop("MONGODB_TIMEOUT_MS", None);
+    saved = _set_timeout_env(None);
     try {
         cfg = JacScaleConfig().get_database_config();
         assert cfg["mongodb_timeout_ms"] == 5000;
     } finally {
-        if saved is not None {
-            os.environ["MONGODB_TIMEOUT_MS"] = saved;
-        }
+        _restore_timeout_env(saved);
     }
 }
 
 
 test "MONGODB_TIMEOUT_MS overrides the default probe budget" {
-    saved = os.environ.get("MONGODB_TIMEOUT_MS");
-    os.environ["MONGODB_TIMEOUT_MS"] = "250";
+    saved = _set_timeout_env("250");
     try {
         cfg = JacScaleConfig().get_database_config();
         assert cfg["mongodb_timeout_ms"] == 250;
     } finally {
-        if saved is None {
-            os.environ.pop("MONGODB_TIMEOUT_MS", None);
-        } else {
-            os.environ["MONGODB_TIMEOUT_MS"] = saved;
-        }
+        _restore_timeout_env(saved);
     }
 }
 
@@ -64,11 +77,7 @@ test "a malformed MONGODB_TIMEOUT_MS falls back instead of raising" {
             assert cfg["mongodb_timeout_ms"] == 5000 , f"{bad!r} did not fall back";
         }
     } finally {
-        if saved is None {
-            os.environ.pop("MONGODB_TIMEOUT_MS", None);
-        } else {
-            os.environ["MONGODB_TIMEOUT_MS"] = saved;
-        }
+        _restore_timeout_env(saved);
     }
 }
 
@@ -77,8 +86,7 @@ test "an unreachable mongo resolves unavailable within the probe budget" {
     if not HAS_PYMONGO {
         return;
     }
-    saved = os.environ.get("MONGODB_TIMEOUT_MS");
-    os.environ["MONGODB_TIMEOUT_MS"] = "500";
+    saved = _set_timeout_env("500");
     _clear_mongo_cache();
     try {
         start = time.monotonic();
@@ -93,11 +101,7 @@ test "an unreachable mongo resolves unavailable within the probe budget" {
         assert elapsed < 10.0 , f"MongoBackend blocked {elapsed:.1f}s on an unreachable URI";
     } finally {
         _clear_mongo_cache();
-        if saved is None {
-            os.environ.pop("MONGODB_TIMEOUT_MS", None);
-        } else {
-            os.environ["MONGODB_TIMEOUT_MS"] = saved;
-        }
+        _restore_timeout_env(saved);
     }
 }
 
@@ -106,8 +110,7 @@ test "a failed probe is shared process-wide within the TTL" {
     if not HAS_PYMONGO {
         return;
     }
-    saved = os.environ.get("MONGODB_TIMEOUT_MS");
-    os.environ["MONGODB_TIMEOUT_MS"] = "500";
+    saved = _set_timeout_env("500");
     _clear_mongo_cache();
     try {
         MongoBackend(mongo_url=_DEAD_URI);
@@ -123,11 +126,7 @@ test "a failed probe is shared process-wide within the TTL" {
         assert elapsed < 1.0 , f"second instance re-paid the probe: {elapsed:.1f}s";
     } finally {
         _clear_mongo_cache();
-        if saved is None {
-            os.environ.pop("MONGODB_TIMEOUT_MS", None);
-        } else {
-            os.environ["MONGODB_TIMEOUT_MS"] = saved;
-        }
+        _restore_timeout_env(saved);
     }
 }
 
@@ -136,8 +135,7 @@ test "a failed probe is memoized per instance, not re-paid per call" {
     if not HAS_PYMONGO {
         return;
     }
-    saved = os.environ.get("MONGODB_TIMEOUT_MS");
-    os.environ["MONGODB_TIMEOUT_MS"] = "500";
+    saved = _set_timeout_env("500");
     _clear_mongo_cache();
     try {
         backend = MongoBackend(mongo_url=_DEAD_URI);
@@ -152,10 +150,6 @@ test "a failed probe is memoized per instance, not re-paid per call" {
         assert elapsed < 1.0 , f"repeat is_available() re-probed for {elapsed:.1f}s";
     } finally {
         _clear_mongo_cache();
-        if saved is None {
-            os.environ.pop("MONGODB_TIMEOUT_MS", None);
-        } else {
-            os.environ["MONGODB_TIMEOUT_MS"] = saved;
-        }
+        _restore_timeout_env(saved);
     }
 }
