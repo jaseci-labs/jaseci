@@ -17,6 +17,7 @@ import from jaclang.compiler.passes.ecmascript.scoped_styles {
 import from jaclang.compiler.passes.ecmascript.framework_backend { FrameworkBackend }
 import from jaclang.jac0core.modresolver {
     convert_to_js_import_path,
+    relative_js_specifier,
     resolve_relative_path
 }
 import from jaclang.jac0core.diagnostics {
@@ -25,6 +26,8 @@ import from jaclang.jac0core.diagnostics {
     E5011,
     E5012,
     E5016,
+    E5017,
+    E5018,
     W5013,
     W5014,
     W5015,
@@ -124,6 +127,15 @@ glob _T = TypeVar('_T', bound=es.Node),
 
 glob VIEW_ACC: str = "__jac_view_kids";
 
+glob ES_STMT_DISPLAY: dict[str, str] = {
+         'DeleteStmt': "'del' statement",
+         'MatchStmt': "'match' statement",
+         'WithStmt': "'with' statement",
+         'OpenStmt': "'open' block",
+         'TypedCtxBlock': 'typed context block',
+         'PyInlineCode': 'inline Python block'
+     };
+
 obj ScopeInfo {
     has nd: uni.UniScopeNode,
         declared: set[str] = set(),
@@ -173,11 +185,13 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         component_export_names: set[str] = set(),
         reactive_vars_stack: list[set[str]] = [],
         injected_imports: set[str] = set(),
+        match_seq: int = 0,
         _view_stack: list[(str | None)] = [],
         _view_used_base: bool = False,
         _view_acc_counter: int = 0,
         _view_awaiting_tries: set[int] = set(),
         sv_import_stubs: list[es.Statement] = [],
+        na_import_stubs: list[es.Statement] = [],
         needs_jac_runtime: bool = False,
         needs_osp_kernel: bool = False,
         needs_osp_graph: bool = False,
@@ -197,6 +211,10 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _current_scope -> (ScopeInfo | None);
     def _is_declared_in_any_scope(name: str) -> bool;
     def _register_declaration(name: str) -> None;
+    def _declaring_scope_for(name_node: uni.UniNode) -> (ScopeInfo | None);
+    def _operand_str(unparser: object, es_node: es.Expression) -> str;
+    def _is_null_literal(nd: (uni.UniNode | None)) -> bool;
+    def _hoist_into(scope: ScopeInfo, name: str, jac_node: uni.UniNode) -> None;
     def _ensure_identifier_declared(name: str, jac_node: uni.UniNode) -> None;
     def _prepend_hoisted(
         nd: uni.UniScopeNode, statements: list[es.Statement]
@@ -274,10 +292,17 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def populate_client_manifest(nd: uni.Module) -> None;
     def exit_sub_tag(nd: uni.SubTag[uni.T]) -> None;
     def exit_import(nd: uni.Import) -> None;
-    def _generate_sv_import_stubs(nd: uni.Import) -> None;
+    def _partition_client_import_items(nd: uni.Import) -> (tuple[list, list] | None);
+    def _generate_sv_import_stubs(
+        nd: uni.Import, items: (Sequence[uni.ModuleItem] | None) = None
+    ) -> None;
+
     def _sv_import_item_is_type(nd: uni.Import, item: uni.ModuleItem) -> bool;
     def _record_sv_backend(nd: uni.Import) -> None;
+    def _generate_na_import_binding(nd: uni.Import) -> None;
+    def _is_client_native_import(nd: uni.Import) -> bool;
     def _emit_boundary_type_stubs(nd: uni.Module) -> list;
+    def _es_json_literal(value: any) -> any;
     def exit_type_alias(nd: uni.TypeAlias) -> None;
     def exit_type_param(nd: uni.TypeParam) -> None;
     def exit_archetype(nd: uni.Archetype) -> None;
@@ -348,6 +373,14 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_expr_stmt(nd: uni.ExprStmt) -> None;
     def exit_switch_stmt(nd: uni.SwitchStmt) -> None;
     def exit_switch_case(nd: uni.SwitchCase) -> None;
+    def exit_match_stmt(nd: uni.MatchStmt) -> None;
+    def _lower_match_pattern(
+        pat: uni.MatchPattern, subj: es.Expression
+    ) -> tuple[(es.Expression | None), list[es.Statement], bool];
+
+    def _match_bind_name(name_node: uni.UniNode, value: es.Expression) -> es.Statement;
+    def _match_arch_field_order(pat: uni.MatchArch) -> (list[str] | None);
+    def _match_subj_member(subj: es.Expression, field: str) -> es.Expression;
     def _ensure_emitters -> None;
     def _resolve_primitive_type_name(_obj_type: object) -> str;
     def _try_primitive_op(
@@ -360,6 +393,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
 
     def _expr_type_name(expr_node: uni.UniNode) -> str;
     def _is_collection_expr(expr_node: uni.UniNode) -> bool;
+    def _is_native_iterable_builtin_call(expr_node: uni.UniNode) -> bool;
     def _build_jac_ref(
         path: list[str], jac_node: (uni.UniNode | None)
     ) -> es.Expression;
@@ -398,6 +432,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _resolve_source_module(nd: uni.Import) -> (uni.Module | None);
     def _resolve_call_ability(nd: uni.FuncCall) -> (uni.Ability | None);
     def _return_type_includes_jsx_element(rt: uni.Expr) -> bool;
+    def _return_type_route_role(rt: uni.Expr) -> (str | None);
     def _component_pascal_name(nd: uni.Ability) -> (str | None);
     def _component_call_abi(ability_node: uni.Ability) -> str;
     def _build_props_spread_component_call(
@@ -498,6 +533,8 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_f_string(nd: uni.FString) -> None;
     def exit_if_else_expr(nd: uni.IfElseExpr) -> None;
     def exit_await_expr(nd: uni.AwaitExpr) -> None;
+    def exit_yield_expr(nd: uni.YieldExpr) -> None;
+    def _ability_is_generator(nd: uni.Ability) -> bool;
     def exit_cast_expr(nd: uni.CastExpr) -> None;
     def exit_null(nd: uni.Null) -> None;
     def exit_name(nd: uni.Name) -> None;
@@ -506,8 +543,6 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _is_call_target(nd: uni.UniNode) -> bool;
     def exit_global_vars(nd: uni.GlobalVars) -> None;
     def exit_module_code(nd: uni.ModuleCode) -> None;
-    def exit_client_block(nd: uni.ClientBlock) -> None;
-    def exit_native_block(nd: uni.NativeBlock) -> None;
     def exit_test(nd: uni.Test) -> None;
     def exit_token(nd: uni.Token) -> None;
     def exit_semi(nd: uni.Semi) -> None;

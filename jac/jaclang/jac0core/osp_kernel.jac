@@ -19,11 +19,12 @@ obj NodeDesc {
 
 obj WalkScope {
     has wlk: any,
-        path: list,
-        next: list,
-        ignores: list,
-        reports: list,
-        disengaged: bool = False;
+        path: list[int],
+        next: list[int],
+        ignores: list[int],
+        reports: list[any],
+        disengaged: bool = False,
+        next_head: int = 0;
 }
 
 obj OspRuntime {
@@ -42,19 +43,33 @@ def _current_scope -> (WalkScope | None) {
     return None;
 }
 
-def osp_visit(targets: list, insert_loc: int = -1) -> bool {
+def osp_visit(targets: list[int], insert_loc: int = -1) -> bool {
     scope = _current_scope();
     if scope is None {
         return False;
     }
-    filtered: list = [];
-    for t in targets {
-        if t not in scope.ignores {
-            filtered.append(t);
+    filtered = targets;
+    if scope.ignores {
+        kept: list[int] = [];
+        for t in targets {
+            if t not in scope.ignores {
+                kept.append(t);
+            }
         }
+        filtered = kept;
     }
     if not filtered {
         return False;
+    }
+    if insert_loc == -1 {
+        for t in filtered {
+            scope.next.append(t);
+        }
+        return True;
+    }
+    if scope.next_head > 0 {
+        scope.next = scope.next[scope.next_head:];
+        scope.next_head = 0;
     }
     pos = insert_loc;
     if pos < -len(scope.next) {
@@ -105,12 +120,29 @@ def run_untyped(slots: list[Slot], a: any, b: any) -> None {
     }
 }
 
+def _dequeue(scope: WalkScope) -> (int | None) {
+    while scope.next_head < len(scope.next) {
+        candidate = scope.next[scope.next_head];
+        scope.next_head += 1;
+        if (not scope.ignores) or (candidate not in scope.ignores) {
+            return candidate;
+        }
+    }
+    if scope.next_head > 0 {
+        scope.next.clear();
+        scope.next_head = 0;
+    }
+    return None;
+}
+
 def _visit_recursive(
-    rt: OspRuntime, scope: WalkScope, wdesc: WalkerDesc, loc: any
+    rt: OspRuntime, scope: WalkScope, wdesc: WalkerDesc, loc: int
 ) -> bool {
-    stack: list = [(loc, 0)];
-    while stack {
-        (cur, phase) = stack.pop();
+    stack_loc: list[int] = [loc];
+    stack_ph: list[int] = [0];
+    while stack_loc {
+        cur = stack_loc.pop();
+        phase = stack_ph.pop();
         if scope.disengaged {
             return False;
         }
@@ -131,22 +163,19 @@ def _visit_recursive(
                 return False;
             }
 
-            stack.append((cur, 1));
+            stack_loc.append(cur);
+            stack_ph.append(1);
         } elif phase == 1 {
-            child = None;
-            while scope.next {
-                candidate = scope.next.pop(0);
-                if candidate not in scope.ignores {
-                    child = candidate;
-                    break;
-                }
-            }
+            child = _dequeue(scope);
             if child is not None {
-                stack.append((cur, 1));
+                stack_loc.append(cur);
+                stack_ph.append(1);
 
-                stack.append((child, 0));
+                stack_loc.append(child);
+                stack_ph.append(0);
             } else {
-                stack.append((cur, 2));
+                stack_loc.append(cur);
+                stack_ph.append(2);
             }
         } else {
             loc_tag: int = rt.tag_of(cur);
@@ -168,7 +197,7 @@ def _visit_recursive(
     return not scope.disengaged;
 }
 
-def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list) -> any {
+def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list[int]) -> any {
     scope = WalkScope(wlk=wlk, path=[], next=`list(starts), ignores=[], reports=[]);
     _walk_stack.append(scope);
     ok = False;
@@ -179,12 +208,13 @@ def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list) -> any 
             run_untyped(wdesc.entry, wlk, anchor);
         }
 
-        while scope.next and (not scope.disengaged) {
-            nxt = scope.next.pop(0);
-            if nxt not in scope.ignores {
-                if not _visit_recursive(rt, scope, wdesc, nxt) {
-                    break;
-                }
+        while not scope.disengaged {
+            nxt = _dequeue(scope);
+            if nxt is None {
+                break;
+            }
+            if not _visit_recursive(rt, scope, wdesc, nxt) {
+                break;
             }
         }
 

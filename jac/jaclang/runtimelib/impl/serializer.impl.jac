@@ -109,24 +109,15 @@ impl Serializer._serialize_value(
         };
         if val.is_populated() {
             arch = val.archetype;
-            result['archetype'] = Serializer._type_info(arch, include_type) | Serializer._serialize_attrs(
-                arch, include_type, api_mode, ref_mode, _seen
-            );
+            result['archetype'] = Serializer._type_info(arch, include_type)
+                | Serializer._serialize_attrs(
+                    arch, include_type, api_mode, ref_mode, _seen
+                );
         }
         if isinstance(val, NodeAnchor) {
             result['edges'] = [str(e.id) for e in val.edges];
 
             result['version'] = val.version;
-
-            if val.topology_index_data is not None
-            and isinstance(val.archetype, Root) {
-                import from base64 { b64encode }
-                result['topology_index_data'] = b64encode(
-                    val.topology_index_data
-                ).decode(
-                    'ascii'
-                );
-            }
         }
         if isinstance(val, EdgeAnchor) {
             result |= {
@@ -178,9 +169,8 @@ impl Serializer._serialize_value(
                     else 'walker' if isinstance(val, WalkerArchetype) else 'archetype'
             };
         }
-        return result | Serializer._serialize_attrs(
-            val, include_type, api_mode, ref_mode, _seen
-        );
+        return result
+            | Serializer._serialize_attrs(val, include_type, api_mode, ref_mode, _seen);
     }
 
     if val?.__dict__ {
@@ -288,7 +278,11 @@ impl Serializer.deserialize(data: dict[str, object]) -> (object | None) {
             }
             return instance;
         } except Exception as e {
-            logger.error(f"Failed to deserialize {type_name}: {e}");
+            if Serializer._should_warn_once(
+                "deserialize-failed", f"{cls.__module__}.{type_name}:{type(e).__name__}"
+            ) {
+                logger.error(f"Failed to deserialize {type_name}: {e}");
+            }
         }
     }
     return None;
@@ -363,17 +357,18 @@ impl Serializer.repair(data: dict[str, object], cls: type) -> tuple {
     if repaired is data and not steps {
         return (data, []);
     }
+    cls_key = f"{cls.__module__}.{cls.__name__}";
     if mode == 'detect' {
-        if steps {
+        if steps and Serializer._should_warn_once("drift-detected", cls_key) {
             logger.info(
-                f"Serializer: drift detected on {cls.__module__}.{cls.__name__} "
+                f"Serializer: drift detected on {cls_key} "
                 f"(JAC_SCHEMA_REPAIR=detect; steps not applied: {steps})"
             );
         }
         return (data, []);
     }
-    if steps {
-        logger.info(f"Serializer: repaired {cls.__module__}.{cls.__name__}: {steps}");
+    if steps and Serializer._should_warn_once("repaired", cls_key) {
+        logger.info(f"Serializer: repaired {cls_key}: {steps}");
     }
 
     return (repaired, steps);
@@ -510,7 +505,11 @@ impl Serializer._get_class(module_name: str, class_name: str) -> (type | None) {
 
     if (aliased_key := Serializer._aliases.get(key)) {
         if (cls := Serializer._registry.get(aliased_key)) {
-            logger.info(f"Serializer: resolving aliased class {key} -> {aliased_key}");
+            if Serializer._should_warn_once("alias-resolved", key) {
+                logger.info(
+                    f"Serializer: resolving aliased class {key} -> {aliased_key}"
+                );
+            }
             return cls;
         }
 
@@ -595,10 +594,15 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
 
         if (arch_data := data.get('archetype')) {
             if not isinstance(arch_data, dict) {
-                logger.warning(
-                    "Serializer: archetype field is not a dict "
-                    f"({type(arch_data).__name__}); dropping anchor."
-                );
+                if Serializer._should_warn_once(
+                    "archetype-not-dict",
+                    f"{data.get('__type__', 'anchor')}.{type(arch_data).__name__}"
+                ) {
+                    logger.warning(
+                        "Serializer: archetype field is not a dict "
+                        f"({type(arch_data).__name__}); dropping anchor."
+                    );
+                }
                 return None;
             }
             archetype = Serializer._deserialize_archetype(arch_data, anchor);
@@ -635,14 +639,6 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
             );
 
             anchor.version = data.get('version', 0);
-
-            anchor.topology_index_data = None;
-            if isinstance(anchor.__dict__.get('archetype'), Root) {
-                if (topo_b64 := data.get('topology_index_data')) {
-                    import from base64 { b64decode }
-                    anchor.topology_index_data = b64decode(topo_b64);
-                }
-            }
         }
         if isinstance(anchor, EdgeAnchor) {
             anchor.is_undirected = data.get('is_undirected', False);
@@ -658,7 +654,17 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
         anchor.hash = Serializer._compute_hash(anchor);
         return anchor;
     } except Exception as e {
-        logger.error(f"Failed to deserialize anchor: {e}");
+        failed_arch = data.get('archetype');
+        arch_id = (
+            f"{failed_arch.get('__module__')}.{failed_arch.get('__type__')}"
+                if isinstance(failed_arch, dict)
+                else data.get('__type__', 'anchor')
+        );
+        if Serializer._should_warn_once(
+            "anchor-failed", f"{arch_id}:{type(e).__name__}"
+        ) {
+            logger.error(f"Failed to deserialize anchor: {e}");
+        }
         return None;
     }
 }
@@ -789,10 +795,14 @@ impl Serializer._deserialize_archetype(
         }
         if dropped {
             if mode == 'repair' {
-                logger.info(
-                    f"Serializer: preserved unknown fields in attic on "
-                    f"{module_name}.{type_name}: {sorted(dropped)}"
-                );
+                if Serializer._should_warn_once(
+                    "attic-preserved", f"{module_name}.{type_name}"
+                ) {
+                    logger.info(
+                        f"Serializer: preserved unknown fields in attic on "
+                        f"{module_name}.{type_name}: {sorted(dropped)}"
+                    );
+                }
             } else {
                 logger.debug(
                     f"Serializer: dropped removed fields on {module_name}."
@@ -828,7 +838,11 @@ impl Serializer._deserialize_archetype(
         setattr(arch, '__jac__', anchor);
         return arch;
     } except Exception as e {
-        logger.error(f"Failed to deserialize archetype {type_name}: {e}");
+        if Serializer._should_warn_once(
+            "archetype-error", f"{module_name}.{type_name}:{type(e).__name__}"
+        ) {
+            logger.error(f"Failed to deserialize archetype {type_name}: {e}");
+        }
         return None;
     }
 }

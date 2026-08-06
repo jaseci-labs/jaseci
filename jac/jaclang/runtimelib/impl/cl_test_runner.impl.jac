@@ -45,7 +45,7 @@ impl _compile_runtime_core_js -> str {
     if (not runtime_src) or (not Path(runtime_src).exists()) {
         raise RuntimeError("could not resolve @jac/runtime to a client runtime source");
     }
-    core_path = Path(runtime_src).parent / "client_runtime_core.cl.jac";
+    core_path = Path(runtime_src).parent / "client_runtime_core.jac";
     if not core_path.exists() {
         raise RuntimeError("could not resolve client_runtime_core sibling source");
     }
@@ -117,9 +117,13 @@ impl _build_harness(
     entries = [];
     for t in tests {
         entries.append(
-            "  [" + json.dumps(t["name"]) + ", " + json.dumps(
-                t.get("description", t["name"])
-            ) + ", " + t["name"] + "]"
+            "  ["
+                + json.dumps(t["name"])
+                + ", "
+                + json.dumps(t.get("description", t["name"]))
+                + ", "
+                + t["name"]
+                + "]"
         );
     }
     fn_entries = ",\n".join(entries);
@@ -339,12 +343,15 @@ impl _run_harness(
             module_js = module_js.replace('"@jac/runtime"', '"./jac_runtime.js"');
             module_js = module_js.replace("'@jac/runtime'", "'./jac_runtime.js'");
 
-            core_specifier = "./jaclang/runtimelib/client_runtime_core.js";
+            import re;
             core_js = None;
-            if core_specifier in runtime_js {
+            core_match = re.search(
+                r'from\s+[\'\"]([^\'\"]*client_runtime_core\.js)[\'\"]', runtime_js
+            );
+            if core_match {
                 core_js = _compile_runtime_core_js();
                 runtime_js = runtime_js.replace(
-                    core_specifier, "./client_runtime_core.js"
+                    core_match.group(1), "./client_runtime_core.js"
                 );
             }
 
@@ -418,19 +425,38 @@ impl _parse_results(stdout: str, tests: list) -> (list[ClTestResult] | None) {
     return None;
 }
 
+impl module_is_client(filepath: str) -> bool {
+    path = os.path.abspath(str(filepath));
+    if path in _COLOR_CACHE {
+        return _COLOR_CACHE[path];
+    }
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.constant { CodeContext }
+    import from jaclang.jac0core.program { JacProgram }
+    result = False;
+    try {
+        mod = JacProgram().compile(
+            path, options=CompileOptions(symtab_ir_only=True, type_check=False)
+        );
+        result = mod is not None
+            and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
+    } except Exception {
+        result = False;
+    }
+    _COLOR_CACHE[path] = result;
+    return result;
+}
+
 impl is_cl_test_file(filepath: str) -> bool {
-    import from jaclang.jac0core.ext_registry { is_client_module }
-    name = os.path.basename(str(filepath));
-    return is_client_module(name);
+    return module_is_client(filepath);
 }
 
 impl is_cl_test_file_for_discovery(filepath: str) -> bool {
-    import from jaclang.jac0core.ext_registry { is_client_module, is_client_test }
     name = os.path.basename(str(filepath));
-    if not is_client_module(name) {
+    if not name.startswith("test_") {
         return False;
     }
-    return name.startswith("test_") or is_client_test(name);
+    return module_is_client(filepath);
 }
 
 impl register_results_into_jactestcheck(filepath: str, results: list) -> None {

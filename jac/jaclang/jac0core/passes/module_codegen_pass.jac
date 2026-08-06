@@ -38,19 +38,7 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
         result: list[uni.ElementStmt] = [];
         for (body, _strip) in ModuleCodegenPass.iter_woven_segments(module) {
             for stmt in body {
-                if isinstance(stmt, uni.NativeBlock) {
-                    if (ctx is None or ctx == CodeContext.NATIVE) {
-                        result.extend(stmt.body);
-                    }
-                } elif isinstance(stmt, uni.ClientBlock) {
-                    if (ctx is None or ctx == CodeContext.CLIENT) {
-                        result.extend(stmt.body);
-                    }
-                } elif isinstance(stmt, uni.ServerBlock) {
-                    if (ctx is None or ctx == CodeContext.SERVER) {
-                        result.extend(stmt.body);
-                    }
-                } elif ctx is None {
+                if ctx is None {
                     result.append(stmt);
                 } elif (
                     isinstance(stmt, uni.ContextAwareNode) and stmt.code_context == ctx
@@ -77,7 +65,10 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
             sym = nm.sym;
             if (sym is not None) and sym.defn {
                 cand = sym.defn[0].name_of;
-                if isinstance(cand, uni.Archetype) and (cand.name is not None) {
+                if (
+                    isinstance(cand, (uni.Archetype, uni.Enum))
+                    and (cand.name is not None)
+                ) {
                     names.append(cand.name.value);
                 }
             }
@@ -86,12 +77,19 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
     }
 
     static def shared_archetypes_for_context(
-        module: uni.Module, ctx: CodeContext
+        module: uni.Module, ctx: CodeContext, include_enums: bool = False
     ) -> list[uni.Archetype] {
         shared: dict[(str, uni.Archetype)] = {};
         for arch in module.get_all_sub_nodes(uni.Archetype) {
             if (arch.name is not None) and isinstance(arch.parent, uni.Module) {
                 shared[arch.name.value] = arch;
+            }
+        }
+        if include_enums {
+            for en in module.get_all_sub_nodes(uni.Enum) {
+                if (en.name is not None) and isinstance(en.parent, uni.Module) {
+                    shared[en.name.value] = en;
+                }
             }
         }
         if not shared {
@@ -118,4 +116,21 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
         }
         return list(result.values());
     }
+}
+
+def client_capability_violations(mod: uni.Module) -> list {
+    out: list = [];
+
+    reject: list = [(uni.ConcurrentExpr, "flow/wait concurrency")];
+    for _stmt in ModuleCodegenPass.iter_context_stmts(mod, CodeContext.CLIENT) {
+        if getattr(_stmt, 'codespace_dual', False) {
+            continue;
+        }
+        for (node_t, kind_name) in reject {
+            for _nd in _stmt.get_all_sub_nodes(typ=node_t) {
+                out.append((_nd, kind_name));
+            }
+        }
+    }
+    return out;
 }

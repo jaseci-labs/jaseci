@@ -358,9 +358,9 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       // Python `dict.get`: returns the stored value when the key is present
       // (even if it is null), and the default only when the key is absent.
       // A membership check is required — `o[key] ?? default_` would wrongly
-      // substitute the default for a present-but-null value.
-      get: (o, key, default_) =>
-        Object.prototype.hasOwnProperty.call(o, key) ? o[key] : default_,
+      // substitute the default for a present-but-null value. The default
+      // defaults to null so a miss is a real Jac None, never undefined.
+      get: (o, key, default_ = null) => _jac.dict.get(o, key, default_),
       items: (o) => Object.entries(o),
       keys: (o) => Object.keys(o),
       pop: (o, key, default_) => _jac.dict.pop(o, key, default_),
@@ -398,7 +398,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     _map: {
       clear: (m) => { m.clear(); return null; },
       copy: (m) => new Map(m),
-      get: (m, key, default_) => (m.has(key) ? m.get(key) : default_),
+      get: (m, key, default_ = null) => (m.has(key) ? m.get(key) : default_),
       items: (m) => [...m.entries()],
       keys: (m) => [...m.keys()],
       pop: (m, key, default_) => {
@@ -583,6 +583,9 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
   },
 
   dict: {
+    get(d, key, default_ = null) {
+      return Object.prototype.hasOwnProperty.call(d, key) ? d[key] : default_;
+    },
     pop(d, key, default_) {
       if (key in d) { const v = d[key]; delete d[key]; return v; }
       if (default_ !== undefined) return default_;
@@ -1105,7 +1108,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return total;
     },
     sorted(iterable, key, reverse) {
-      const arr = [...iterable];
+      const arr = [..._jac.builtin.iter(iterable)];
       if (key) {
         arr.sort((a, b) => {
           const ka = key(a), kb = key(b);
@@ -1118,6 +1121,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return arr;
     },
     enumerate(iterable, start) {
+      iterable = _jac.builtin.iter(iterable);
       const s = start || 0;
       return [...iterable].map((v, i) => [s + i, v]);
     },
@@ -1301,6 +1305,67 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (typeof x === "object") return Object.keys(x).length > 0;
       return true;
     },
+    float(x) {
+      if (typeof x === "number") return x;
+      if (typeof x === "boolean") return x ? 1 : 0;
+      if (typeof x === "string") {
+        const s = x.trim().toLowerCase();
+        if (/^[+-]?(infinity|inf)$/.test(s)) return s[0] === "-" ? -Infinity : Infinity;
+        if (/^[+-]?nan$/.test(s)) return NaN;
+        const n = (s === "" || /[x]/.test(s)) ? NaN : Number(s);
+        if (Number.isNaN(n)) throw new _jac.exc.ValueError("could not convert string to float: '" + x + "'");
+        return n;
+      }
+      throw new _jac.exc.TypeError("float() argument must be a string or a real number, not '" + _jac.poly._typename(x) + "'");
+    },
+    int(x, base) {
+      if (base !== undefined && base !== null) {
+        if (typeof x !== "string") throw new _jac.exc.TypeError("int() can't convert non-string with explicit base");
+        let s = x.trim().toLowerCase();
+        let sign = 1;
+        if (s[0] === "+" || s[0] === "-") { if (s[0] === "-") sign = -1; s = s.slice(1); }
+        if (base === 16 && s.startsWith("0x")) s = s.slice(2);
+        if (base === 8 && s.startsWith("0o")) s = s.slice(2);
+        if (base === 2 && s.startsWith("0b")) s = s.slice(2);
+        const digits = "0123456789abcdefghijklmnopqrstuvwxyz".slice(0, base);
+        if (s === "" || [...s].some((c) => digits.indexOf(c) === -1)) {
+          throw new _jac.exc.ValueError("invalid literal for int() with base " + base + ": '" + x + "'");
+        }
+        return sign * parseInt(s, base);
+      }
+      if (typeof x === "number") return Math.trunc(x);
+      if (typeof x === "boolean") return x ? 1 : 0;
+      if (typeof x === "string") {
+        const s = x.trim();
+        if (!/^[+-]?[0-9]+$/.test(s)) throw new _jac.exc.ValueError("invalid literal for int() with base 10: '" + x + "'");
+        return parseInt(s, 10);
+      }
+      throw new _jac.exc.TypeError("int() argument must be a string or a number, not '" + _jac.poly._typename(x) + "'");
+    },
+    iter(x) {
+      if (x === null || x === undefined) return [];
+      if (x instanceof Map) return Array.from(x.keys());
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return Object.keys(x);
+      }
+      return x;
+    },
+    dict(x) {
+      if (x === null || x === undefined) return {};
+      if (x instanceof Map) return Object.fromEntries(x);
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return {...x};
+      }
+      return Object.fromEntries(x);
+    },
+    len(x) {
+      if (x === null || x === undefined) throw new _jac.exc.TypeError("object has no len()");
+      if (typeof x === "string" || Array.isArray(x)) return x.length;
+      if (x instanceof Set || x instanceof Map) return x.size;
+      if (typeof x.length === "number") return x.length;
+      if (typeof x === "object") return Object.keys(x).length;
+      throw new _jac.exc.TypeError("object of type '" + typeof x + "' has no len()");
+    },
     range(...args) {
       let start, stop, step;
       if (args.length === 1) { start = 0; stop = args[0]; step = 1; }
@@ -1376,7 +1441,13 @@ def _build_exc_runtime_js -> str {
                 else ((parent + "_") if parent in _JS_RESERVED_EXC_NAMES else parent)
         );
         lines.append(
-            "    class " + local + " extends " + parent_local + " { constructor(m) { super(m); this.name = '" + name + "'; } }"
+            "    class "
+                + local
+                + " extends "
+                + parent_local
+                + " { constructor(m) { super(m); this.name = '"
+                + name
+                + "'; } }"
         );
         exports.append(
             (name + ": " + local) if name in _JS_RESERVED_EXC_NAMES else name
@@ -1443,7 +1514,13 @@ def _build_types_runtime_js -> str {
             body = "a.length === 0 ? (" + zero + ") : (" + one + ")";
         } else {
             body = (
-                "a.length === 0 ? (" + zero + ") : a.length === 1 ? (" + one + ") : (" + two + ")"
+                "a.length === 0 ? ("
+                + zero
+                + ") : a.length === 1 ? ("
+                + one
+                + ") : ("
+                + two
+                + ")"
             );
         }
         entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");
@@ -1488,13 +1565,19 @@ def build_osp_kernel_js -> str {
     src = os.path.join(os.path.dirname(jaclang.__file__), "jac0core", "osp_kernel.jac");
 
     tmp_dir = tempfile.mkdtemp();
-    cl_copy = os.path.join(tmp_dir, "osp_kernel.cl.jac");
+    cl_copy = os.path.join(tmp_dir, "osp_kernel_cl.jac");
     shutil.copyfile(src, cl_copy);
     js = "";
     try {
+        import from jaclang.jac0core.compile_options { CompileOptions }
         prog = JacProgram();
 
-        ir = prog.compile(file_path=cl_copy, no_cgen=True, type_check=True);
+        ir = prog.compile(
+            file_path=cl_copy,
+            options=CompileOptions(
+                force_codespace='client', no_cgen=True, type_check=True
+            )
+        );
         program = EsastGenPass(ir_in=ir, prog=prog).ir_out.gen.es_ast;
         kept: list = [];
         if isinstance(program, es.Program) {

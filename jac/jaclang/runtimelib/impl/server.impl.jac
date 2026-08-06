@@ -557,11 +557,27 @@ impl ModuleIntrospector.postinit -> None {
 }
 
 impl ModuleIntrospector.load(force_reload: bool = False) -> None {
+    import sys;
+    loaded = Jac.loaded_modules.get(self.module_name);
+    if (loaded is not None and self.module_file) {
+        mod_file = loaded?.__file__;
+        if not (
+            mod_file
+            and os.path.exists(mod_file)
+            and os.path.realpath(mod_file) == os.path.realpath(self.module_file)
+        ) {
+            Jac.loaded_modules.pop(self.module_name, None);
+            sys.modules.pop(self.module_name, None);
+        }
+    }
     needs_import = force_reload or (self.module_name not in Jac.loaded_modules);
-    if (needs_import and self.base_path) {
+    import_base = os.path.dirname(os.path.abspath(self.module_file))
+        if self.module_file
+        else self.base_path;
+    if (needs_import and import_base) {
         Jac.jac_import(
             target=self.module_name,
-            base_path=os.path.abspath(self.base_path),
+            base_path=os.path.abspath(import_base),
             lng='jac',
             reload_module=force_reload
         );
@@ -583,6 +599,8 @@ impl ModuleIntrospector.load(force_reload: bool = False) -> None {
 }
 
 impl ModuleIntrospector._load_manifest -> None {
+    self._spa_routes_loaded = False;
+    self._spa_route_patterns = None;
     if not self._module {
         return;
     }
@@ -678,7 +696,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
             } except Exception {
                 continue;
             }
-            if not (src and src.endswith(('.jac', '.cl.jac'))) {
+            if not (src and src.endswith(('.jac', '.jac'))) {
                 continue;
             }
             prov = Jac.program.find_module(src);
@@ -834,10 +852,18 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
                 continue;
             }
             for binding in man.server_exports_to_client {
-                if binding.kind == 'walker' {
-                    walker_bindings[binding.name] = binding;
-                } else {
-                    fn_bindings[binding.name] = binding;
+                table = walker_bindings if binding.kind == 'walker' else fn_bindings;
+                prior = table.get(binding.name);
+                if prior is None {
+                    table[binding.name] = binding;
+                } elif prior.ast_node is not binding.ast_node {
+                    import logging;
+                    logging.getLogger("jaclang.serve").warning(
+                        "conflicting cross-boundary %s binding '%s'; keeping the "
+                        "first registration",
+                        binding.kind,
+                        binding.name
+                    );
                 }
             }
             for (acc_name, auth) in man.func_access.items() {
@@ -893,8 +919,8 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
         auth = table.get(name, None);
         if auth is None {
             is_pub = ast_node is not None
-            and ast_node?.access is not None
-            and ast_node.access.tag.name == Tok.KW_PUB;
+                and ast_node?.access is not None
+                and ast_node.access.tag.name == Tok.KW_PUB;
             auth = not is_pub;
         }
         return auth;
@@ -1221,6 +1247,77 @@ impl ModuleIntrospector.render_page(
     return Jac.render_page(self, function_name, args, username);
 }
 
+impl ModuleIntrospector.spa_fallback_status(url_path: str) -> int {
+    if not self._spa_routes_loaded {
+        self._spa_route_patterns = self._load_spa_routes();
+        self._spa_routes_loaded = True;
+    }
+    patterns = self._spa_route_patterns;
+    if patterns is None {
+        return 200;
+    }
+    segments = [
+        seg
+        for seg in url_path.split('/')
+        if seg
+    ];
+    for pattern in patterns {
+        if self._spa_route_matches(pattern, segments) {
+            return 200;
+        }
+    }
+    return 404;
+}
+
+impl ModuleIntrospector._load_spa_routes -> (list[str] | None) {
+    import from pathlib { Path }
+    import from jaclang.runtimelib.client.route_scanner {
+        RouteScanner,
+        resolve_route_exports
+    }
+    if not self.base_path {
+        return None;
+    }
+    try {
+        scanner = RouteScanner(
+            project_root=Path(self.base_path), route_exports_of=resolve_route_exports
+        );
+        if not scanner.has_pages_dir() {
+            return None;
+        }
+        return [
+            entry.path
+            for entry in scanner.scan()
+            if entry.path not in ('*', '/*')
+        ];
+    } except Exception {
+        return None;
+    }
+}
+
+impl ModuleIntrospector._spa_route_matches(pattern: str, segments: list[str]) -> bool {
+    psegs = [
+        seg
+        for seg in pattern.split('/')
+        if seg
+    ];
+    for (i, pseg) in enumerate(psegs) {
+        if pseg == '*' {
+            return True;
+        }
+        if i >= len(segments) {
+            return False;
+        }
+        if pseg.startswith(':') {
+            continue;
+        }
+        if pseg != segments[i] {
+            return False;
+        }
+    }
+    return len(segments) == len(psegs);
+}
+
 impl ModuleIntrospector.is_auth_required_for_function(func_name: str) -> bool {
     return self._function_access.get(func_name, True);
 }
@@ -1288,9 +1385,9 @@ impl ResponseBuilder._add_cors_headers(handler: BaseHTTPRequestHandler) -> None 
 impl ResponseBuilder._add_custom_headers(handler: BaseHTTPRequestHandler) -> None {
     config = get_config();
     if config
-    and config.environments
-    and "response" in config.environments
-    and "headers" in config.environments["response"] {
+        and config.environments
+        and "response" in config.environments
+        and "headers" in config.environments["response"] {
         for (header_name, header_value) in config.environments["response"][
             "headers"
         ].items() {
@@ -1555,7 +1652,9 @@ impl JacAPIServer.postinit -> None {
         return _um.get_root_id(Con.GUEST.value);
     }
     Jac.set_shared_root_resolver(_shared_root_id);
-    self.introspector = ModuleIntrospector(self.module_name, self.base_path);
+    self.introspector = ModuleIntrospector(
+        self.module_name, self.base_path, module_file=self.module_file
+    );
     self.execution_manager = ExecutionManager(
         base_path=self.base_path, user_manager=self.user_manager
     );
@@ -1604,7 +1703,8 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 import logging;
                 import traceback;
                 logging.getLogger('jaclang.serve').error(
-                    f"Unhandled error serving {self.command} {self.path}:\n" + traceback.format_exc()
+                    f"Unhandled error serving {self.command} {self.path}:\n"
+                        + traceback.format_exc()
                 );
                 try {
                     Jac.send_json(self, 500, {'error': f"{type(exc).__name__}: {exc}"});
@@ -1636,9 +1736,10 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
 
         def _send_response(self: JacRequestHandler, response: TransportResponse) {
             if isinstance(response, TransportResponse)
-            and (
-                isgenerator(response.data) or isinstance(response.data, AsyncGenerator)
-            ) {
+                and (
+                    isgenerator(response.data)
+                    or isinstance(response.data, AsyncGenerator)
+                ) {
                 self._send_sse_response(response.data);
             } else {
                 transport = HTTPTransport(handler=self);
@@ -1710,7 +1811,9 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
             }
         }
 
-        def _render_page(self: JacRequestHandler, func_name: str, args: dict = {}) {
+        def _render_page(
+            self: JacRequestHandler, func_name: str, args: dict = {}, status: int = 200
+        ) {
             username = self._authenticate();
             if not username {
                 username = Con.GUEST.value;
@@ -1722,7 +1825,7 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 render_payload = server.introspector.render_page(
                     func_name, args, username
                 );
-                Jac.send_html(self, 200, render_payload['html']);
+                Jac.send_html(self, status, render_payload['html']);
             } except ValueError as exc {
                 Jac.send_json(self, 404, {'error': str(exc)});
             } except RuntimeError as exc {
@@ -1743,10 +1846,8 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
 
         def _serve_graph_page(self: JacRequestHandler) {
             try {
-                import jaclang.scale;
-                template = (
-                    Path(jaclang.scale.__file__).parent / 'templates' / 'graph.html'
-                );
+                import jaclang.scale as scale_mod;
+                template = Path(scale_mod.__file__).parent / 'templates' / 'graph.html';
                 html = template.read_text(encoding='utf-8');
             } except (ImportError, OSError) as exc {
                 Jac.send_json(
@@ -1882,7 +1983,8 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 and not path.startswith('/walkers')
                 and not path.startswith('/protected')
                 and (
-                    Path(path).suffix in (
+                    Path(path).suffix
+                    in (
                         custom_asset_extensions
                         or {
                             '.png',
@@ -1926,8 +2028,16 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                     }
                     file_name = Path(relative_path).name;
 
-                    client_build_dist_file = base_path / '.jac' / 'client' / 'dist' / relative_path;
-                    client_build_dist_file_simple = base_path / '.jac' / 'client' / 'dist' / file_name;
+                    client_build_dist_file = base_path
+                        / '.jac'
+                        / 'client'
+                        / 'dist'
+                        / relative_path;
+                    client_build_dist_file_simple = base_path
+                        / '.jac'
+                        / 'client'
+                        / 'dist'
+                        / file_name;
 
                     dist_file = base_path / 'dist' / relative_path;
                     dist_file_simple = base_path / 'dist' / file_name;
@@ -1999,7 +2109,11 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                         for (key, values) in query_params.items()
                         if (key != 'mode')
                     };
-                    self._render_page(base_route_app, args);
+                    self._render_page(
+                        base_route_app,
+                        args,
+                        server.introspector.spa_fallback_status('/')
+                    );
                     return;
                 }
                 Jac.send_json(
@@ -2098,7 +2212,11 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 configured_root = config.serve.base_route_app if config else "";
                 base_route_app = server.introspector.resolve_root_app(configured_root);
                 if base_route_app {
-                    self._render_page(base_route_app, {});
+                    self._render_page(
+                        base_route_app,
+                        {},
+                        server.introspector.spa_fallback_status(path)
+                    );
                 } else {
                     Jac.send_json(self, 404, {'error': 'Not found'});
                 }

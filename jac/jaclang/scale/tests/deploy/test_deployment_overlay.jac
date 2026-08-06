@@ -1,7 +1,7 @@
 import os;
 import from pathlib { Path }
-import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
-    MicroserviceManifestBuilder,
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    ManifestBuilder,
     merge_manifest_overlay
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
@@ -10,8 +10,8 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.config.config_loader { JacScaleConfig }
 
 
-def _builder(services: dict) -> MicroserviceManifestBuilder {
-    return MicroserviceManifestBuilder(
+def _builder(services: dict) -> ManifestBuilder {
+    return ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="t", namespace="t-ns"),
         microservices_config={"services": services},
         dry_run=True
@@ -146,7 +146,8 @@ test "JAC_PROFILE overlay file reaches the scale plugin config" {
     tmp = tempfile.mkdtemp();
     with open(os.path.join(tmp, "jac.toml"), "w") as f {
         f.write(
-            '[project]\nname = "t"\nversion = "0.0.1"\nentry-point = "main.jac"\n\n' + '[scale.kubernetes]\nnamespace = "prod-ns"\nmin_replicas = 3\n'
+            '[project]\nname = "t"\nversion = "0.0.1"\nentry-point = "main.jac"\n\n'
+                + '[scale.kubernetes]\nnamespace = "prod-ns"\nmin_replicas = 3\n'
         );
     }
     with open(os.path.join(tmp, "jac.preview.toml"), "w") as f {
@@ -172,7 +173,8 @@ test "deprecated JAC_ENV still selects the profile for plugin configs" {
     tmp = tempfile.mkdtemp();
     with open(os.path.join(tmp, "jac.toml"), "w") as f {
         f.write(
-            '[project]\nname = "t"\nversion = "0.0.1"\nentry-point = "main.jac"\n\n' + '[scale.kubernetes]\nmin_replicas = 3\n'
+            '[project]\nname = "t"\nversion = "0.0.1"\nentry-point = "main.jac"\n\n'
+                + '[scale.kubernetes]\nmin_replicas = 3\n'
         );
     }
     with open(os.path.join(tmp, "jac.preview.toml"), "w") as f {
@@ -201,7 +203,8 @@ test "without JAC_PROFILE the base config is unchanged" {
     tmp = tempfile.mkdtemp();
     with open(os.path.join(tmp, "jac.toml"), "w") as f {
         f.write(
-            '[project]\nname = "t"\nversion = "0.0.1"\nentry-point = "main.jac"\n\n' + '[scale.kubernetes]\nmin_replicas = 3\n'
+            '[project]\nname = "t"\nversion = "0.0.1"\nentry-point = "main.jac"\n\n'
+                + '[scale.kubernetes]\nmin_replicas = 3\n'
         );
     }
     with open(os.path.join(tmp, "jac.preview.toml"), "w") as f {
@@ -227,8 +230,18 @@ test "embedder-supplied config gets schema defaults (client entry included)" {
 }
 
 
+test "gateway entrypoint builds the client leniently and does not swallow failure" {
+    b = _builder({"svc_a": {}});
+    entry = b._pod_entrypoint();
+    script = "".join(entry["args"]);
+    assert 'jac build "main.jac" --client web' in script;
+    assert "|| echo" not in script;
+    assert "client build failed; / will 404" not in script;
+}
+
+
 test "embedder overrides survive normalization" {
-    b = MicroserviceManifestBuilder(
+    b = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="t", namespace="t-ns"),
         microservices_config={
             "gateway_port": 9001,

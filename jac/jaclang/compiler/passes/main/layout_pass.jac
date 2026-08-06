@@ -1,7 +1,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
 
 glob LAYOUT_COMPATIBLE_PRIMITIVES: set[str] = {
@@ -82,6 +82,25 @@ def get_layout_registry(module: uni.Module, prog: any = None) -> LayoutRegistry 
 
     pass_inst = LayoutPass(ir_in=module, prog=prog);
     return module.gen.layout_registry or LayoutRegistry();
+}
+
+def is_enum_class_type(t: any) -> bool {
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _ClassType }
+    } except ImportError {
+        return False;
+    }
+    return isinstance(t, _ClassType)
+        and t._shared is not None
+        and t.shared.is_enum_class;
+}
+
+def enum_decl_of(t: any) -> (uni.Enum | None) {
+    if not is_enum_class_type(t) {
+        return None;
+    }
+    _scope = t.shared.symbol_table;
+    return _scope if isinstance(_scope, uni.Enum) else None;
 }
 
 obj LayoutRegistry {
