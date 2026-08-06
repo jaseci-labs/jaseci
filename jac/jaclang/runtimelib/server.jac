@@ -99,6 +99,7 @@ obj ExecutionManager {
 obj ModuleIntrospector {
     has module_name: str,
         base_path: (str | None),
+        module_file: (str | None) = None,
         _module: any = None,
         _functions: dict[(str, Callable[(..., Any)])] = {},
         _walkers: dict[(str, type[WalkerArchetype])] = {},
@@ -204,6 +205,7 @@ obj JacAPIServer {
     has module_name: str,
         port: int = 8000,
         base_path: str = "",
+        module_file: (str | None) = None,
         is_sv_sibling: bool = False,
         user_manager: UserManager postinit,
         execution_manager: ExecutionManager postinit,

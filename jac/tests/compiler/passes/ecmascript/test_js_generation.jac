@@ -236,7 +236,7 @@ test "advanced fixture emits expected constructs" {
         "async function fetch_value",
         "await fetch_value",
         "async function gather_async",
-        "function generator_examples",
+        "function* generator_examples",
         "function spread_and_rest_examples",
         "...defaults",
         "function template_literal_examples",
@@ -2586,9 +2586,10 @@ test "builtin type used as a value lowers to a callable (#7454)" {
             + user_js
         );
     }
-    # The direct-call path must stay inline (no runtime round-trip).
-    assert "Math.trunc(Number(x))" in user_js , (
-        "direct `int(x)` must still coerce inline:\n" + user_js
+    # The direct-call path routes through the strict runtime parser so that
+    # `int("12abc")` raises ValueError like Python instead of yielding NaN.
+    assert "_jac.builtin.int(x)" in user_js , (
+        "direct `int(x)` must route through the strict runtime parser:\n" + user_js
     );
 
     wrapper = (
