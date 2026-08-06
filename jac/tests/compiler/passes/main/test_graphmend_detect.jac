@@ -1,7 +1,6 @@
 """GraphMend graph-break detection pass tests."""
 import os;
-import from pathlib { Path }
-import jaclang;
+import from tests.support { JAC_ROOT }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -11,13 +10,7 @@ import from jaclang.compiler.passes.main.graphmend.graph_break_detect_pass {
 }
 
 glob FIXTURES = os.path.join(
-         str(Path(jaclang.__file__).parent.parent),
-         "tests",
-         "compiler",
-         "passes",
-         "main",
-         "fixtures",
-         "graphmend"
+         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
      );
 
 """Compile a fixture and, when `gm`, run ONLY the GraphMend detection pass.

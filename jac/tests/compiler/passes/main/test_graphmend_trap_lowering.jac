@@ -4,19 +4,12 @@ Assertions run against the generated Python source (the lowering target)."""
 import ast;
 import os;
 import tempfile;
-import from pathlib { Path }
-import jaclang;
+import from tests.support { JAC_ROOT }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 
 glob FIXTURES = os.path.join(
-         str(Path(jaclang.__file__).parent.parent),
-         "tests",
-         "compiler",
-         "passes",
-         "main",
-         "fixtures",
-         "graphmend"
+         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
      );
 
 """Compile a source file and return its generated Python source."""
