@@ -21,9 +21,11 @@ obj Box {
     has label: str | None = None;
 }
 
-# Comparing a possibly-null string must not segfault. Equality follows Python:
-# with a null operand, == / != are pointer identity (None == "" is False,
-# None == None is True); ordering ops coalesce null to the empty string.
+# `str | None` lowers to a tagged JacOptional value, so comparing an unset
+# field is tag arithmetic, never a NULL strcmp. Equality follows Python:
+# None == "" is False, None == None is True. Ordering against an un-narrowed
+# optional is rejected at check time (E1121, pinned in
+# test_native_optional_ptr.jac).
 def null_eq_empty -> int {
     b = Box();
     if b.label == "" {
@@ -44,14 +46,6 @@ def null_eq_null -> int {
 def null_ne_empty -> int {
     b = Box();
     if b.label != "" {
-        return 1;
-    }
-    return 0;
-}
-
-def null_lt_word -> int {
-    b = Box();
-    if b.label < "hi" {
         return 1;
     }
     return 0;

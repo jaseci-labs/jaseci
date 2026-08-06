@@ -621,12 +621,7 @@ impl TypeEvaluator._get_type_of_expression_core(
             return types.UnknownType();
 
         case uni.AtomTrailer():
-            _cyc_before_base = self._cyclic_resolution_depth;
             base_type = self.get_type_of_expression(expr.target);
-            _base_cycle_tainted = (
-                isinstance(base_type, types.UnknownType)
-                and self._cyclic_resolution_depth != _cyc_before_base
-            );
 
             if isinstance(expr.target, uni.Name) and expr.target.sym {
                 if narrowed := self.get_narrowed_type(expr.target.sym, expr) {
@@ -647,12 +642,15 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if base_type.is_diagnosed {
                         return types.UnknownType(is_diagnosed=True);
                     }
+                    if base_type.is_incomplete {
+                        return types.UnknownType(is_incomplete=True);
+                    }
                     target_already_unknown = (
                         isinstance(expr.target.type, types.UnknownType)
                         and isinstance(expr.target, (uni.AtomTrailer, uni.FuncCall))
                     );
 
-                    if not target_already_unknown and not _base_cycle_tainted {
+                    if not target_already_unknown {
                         self.emit_diag(E1032, expr.right, attr=expr.right.value);
                     }
                     return types.UnknownType();
@@ -725,6 +723,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                         }
 
                         sym.add_use(expr.right);
+                        if isinstance(sym_type, types.UnknownType)
+                            and sym_type.is_incomplete {
+                            return sym_type;
+                        }
                         expr.right.type = sym_type;
                         return sym_type;
                     }
@@ -1275,6 +1277,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
                 return base_type;
             } else {
+                if isinstance(base_type, types.UnknownType)
+                    and base_type.is_incomplete {
+                    return types.UnknownType(is_incomplete=True);
+                }
                 if (
                     isinstance(base_type, types.ClassType)
                     and base_type.is_special_form("Callable")
@@ -1599,6 +1605,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                             [expr.left if i == 0 else expr.rights[i - 1]],
                             None
                         );
+                    }
+                    if result is None and op.name in (Tok.EE, Tok.NE) {
+                        continue;
                     }
                     if result is None {
                         self.emit_diag(
@@ -2755,6 +2764,29 @@ impl TypeEvaluator.is_none_type(ty: TypeBase) -> bool {
     );
 }
 
+impl TypeEvaluator._diag_unnarrowed_optional(
+    nd: uni.UniNode, ty: TypeBase, required: str
+) -> bool {
+    if not isinstance(ty, types.UnionType) {
+        return False;
+    }
+    _has_none = False;
+    for _m in (ty.types or []) {
+        if self.is_none_type(self._convert_to_instance(_m)) {
+            _has_none = True;
+            break;
+        }
+    }
+    if not _has_none {
+        return False;
+    }
+    if not self._in_native_context() or not self._is_strict_site(nd) {
+        return False;
+    }
+    self.emit_diag(E1121, nd, type=str(ty), required=required);
+    return True;
+}
+
 impl TypeEvaluator._is_strict_site(nd: uni.UniNode) -> bool {
     mod = nd.find_parent_of_type(uni.Module);
     if mod is None {
@@ -2841,7 +2873,8 @@ impl TypeEvaluator.assign_type(
         return True;
     }
 
-    if isinstance(src_type, types.UnknownType) and src_type.is_diagnosed {
+    if isinstance(src_type, types.UnknownType)
+        and (src_type.is_diagnosed or src_type.is_incomplete) {
         return True;
     }
 
@@ -3172,15 +3205,18 @@ impl TypeEvaluator.get_type_of_expression(
             return node_.type;
         }
     }
-    _cyc_before = self._cyclic_resolution_depth;
     result = self._get_type_of_expression_core(node_, expected_type);
-    if isinstance(result, types.UnknownType)
-        and self._cyclic_resolution_depth != _cyc_before {
+    if isinstance(result, types.UnknownType) and result.is_incomplete {
         return result;
     }
     if isinstance(result, types.UnknownType) {
         mod = node_.find_parent_of_type(uni.Module);
-        if mod is None or not mod.is_raised_from_py {
+        is_pattern_wildcard = (
+            isinstance(node_, uni.Name)
+            and node_.value == '_'
+            and node_.find_parent_of_type(uni.MatchPattern) is not None
+        );
+        if (mod is None or not mod.is_raised_from_py) and not is_pattern_wildcard {
             self.emit_diag(W1051, node_);
         }
     }
@@ -3194,28 +3230,22 @@ impl TypeEvaluator.get_type_of_expression(
     return result;
 }
 
-impl TypeEvaluator.pop_symbol_resolution(symbol: uni.Symbol) -> bool {
-    popped_entry = self.symbol_resolution_stack.pop();
-    assert popped_entry.symbol == symbol;
-    return popped_entry.is_result_valid;
+impl TypeEvaluator.pop_symbol_resolution(symbol: uni.Symbol) -> None {
+    popped_symbol = self.symbol_resolution_stack.pop();
+    assert popped_symbol == symbol;
 }
 
 impl TypeEvaluator.push_symbol_resolution(symbol: uni.Symbol) -> bool {
-    idx = self.get_index_of_symbol_resolution(symbol);
-    if idx is not None {
-        for i in range(idx, len(self.symbol_resolution_stack)) {
-            entry_ = self.symbol_resolution_stack[i];
-            entry_.is_result_valid = False;
-        }
+    if self.get_index_of_symbol_resolution(symbol) is not None {
         return False;
     }
-    self.symbol_resolution_stack.append(SymbolResolutionStackEntry(symbol=symbol));
+    self.symbol_resolution_stack.append(symbol);
     return True;
 }
 
 impl TypeEvaluator.get_index_of_symbol_resolution(symbol: uni.Symbol) -> int | None {
     for (i, entry_) in enumerate(self.symbol_resolution_stack) {
-        if entry_.symbol == symbol {
+        if entry_ == symbol {
             return i;
         }
     }
@@ -3970,7 +4000,9 @@ impl TypeEvaluator._get_type_from_flow_node(
     } else {
         result = self._union_narrowed_types(incoming_types);
     }
-    self._flow_node_type_cache[cache_key] = result;
+    if not (isinstance(result, types.UnknownType) and result.is_incomplete) {
+        self._flow_node_type_cache[cache_key] = result;
+    }
     visited.discard(flow_node_id);
     return result;
 }
