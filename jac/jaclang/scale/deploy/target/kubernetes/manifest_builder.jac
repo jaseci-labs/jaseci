@@ -1031,9 +1031,7 @@ obj ManifestBuilder {
         }
         spec["initContainers"].append(
             build_bootstrap_init_container(
-                self.k8s_config,
-                self.k8s_config.python_image,
-                is_gateway=(svc_name == GATEWAY_NAME)
+                self.k8s_config, self.k8s_config.python_image
             )
         );
         return spec;

@@ -230,13 +230,12 @@ test "embedder-supplied config gets schema defaults (client entry included)" {
 }
 
 
-test "gateway entrypoint builds the client leniently and does not swallow failure" {
+test "gateway entrypoint serves the shipped bundle and never rebuilds it" {
     b = _builder({"svc_a": {}});
     entry = b._pod_entrypoint();
     script = "".join(entry["args"]);
-    assert 'jac build "main.jac" --client web' in script;
-    assert "|| echo" not in script;
-    assert "client build failed; / will 404" not in script;
+    assert "jac build" not in script;
+    assert "exec jac scale gateway" in script;
 }
 
 
