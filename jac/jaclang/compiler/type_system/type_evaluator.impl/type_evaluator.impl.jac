@@ -1543,9 +1543,15 @@ impl TypeEvaluator._get_type_of_expression_core(
 
         case uni.CastExpr():
             self.get_type_of_expression(expr.value);
-            return self._convert_to_instance(
-                self.get_type_of_expression(expr.cast_type)
-            );
+            target_type = self.get_type_of_expression(expr.cast_type);
+            if not (
+                target_type.is_any_type()
+                or isinstance(target_type, types.UnknownType)
+                or operations.is_annotation_type(self, target_type)
+            ) {
+                self.emit_diag(E1044, expr.cast_type, type=str(target_type));
+            }
+            return self._convert_to_instance(target_type);
 
         case uni.BinaryExpr():
             return operations.get_type_of_binary_operation(self, expr);
