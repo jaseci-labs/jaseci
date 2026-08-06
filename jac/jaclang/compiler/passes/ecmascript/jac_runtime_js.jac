@@ -1108,7 +1108,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return total;
     },
     sorted(iterable, key, reverse) {
-      const arr = [...iterable];
+      const arr = [..._jac.builtin.iter(iterable)];
       if (key) {
         arr.sort((a, b) => {
           const ka = key(a), kb = key(b);
@@ -1121,6 +1121,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return arr;
     },
     enumerate(iterable, start) {
+      iterable = _jac.builtin.iter(iterable);
       const s = start || 0;
       return [...iterable].map((v, i) => [s + i, v]);
     },
@@ -1303,6 +1304,59 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (x instanceof Set || x instanceof Map) return x.size > 0;
       if (typeof x === "object") return Object.keys(x).length > 0;
       return true;
+    },
+    float(x) {
+      if (typeof x === "number") return x;
+      if (typeof x === "boolean") return x ? 1 : 0;
+      if (typeof x === "string") {
+        const s = x.trim().toLowerCase();
+        if (/^[+-]?(infinity|inf)$/.test(s)) return s[0] === "-" ? -Infinity : Infinity;
+        if (/^[+-]?nan$/.test(s)) return NaN;
+        const n = (s === "" || /[x]/.test(s)) ? NaN : Number(s);
+        if (Number.isNaN(n)) throw new _jac.exc.ValueError("could not convert string to float: '" + x + "'");
+        return n;
+      }
+      throw new _jac.exc.TypeError("float() argument must be a string or a real number, not '" + _jac.poly._typename(x) + "'");
+    },
+    int(x, base) {
+      if (base !== undefined && base !== null) {
+        if (typeof x !== "string") throw new _jac.exc.TypeError("int() can't convert non-string with explicit base");
+        let s = x.trim().toLowerCase();
+        let sign = 1;
+        if (s[0] === "+" || s[0] === "-") { if (s[0] === "-") sign = -1; s = s.slice(1); }
+        if (base === 16 && s.startsWith("0x")) s = s.slice(2);
+        if (base === 8 && s.startsWith("0o")) s = s.slice(2);
+        if (base === 2 && s.startsWith("0b")) s = s.slice(2);
+        const digits = "0123456789abcdefghijklmnopqrstuvwxyz".slice(0, base);
+        if (s === "" || [...s].some((c) => digits.indexOf(c) === -1)) {
+          throw new _jac.exc.ValueError("invalid literal for int() with base " + base + ": '" + x + "'");
+        }
+        return sign * parseInt(s, base);
+      }
+      if (typeof x === "number") return Math.trunc(x);
+      if (typeof x === "boolean") return x ? 1 : 0;
+      if (typeof x === "string") {
+        const s = x.trim();
+        if (!/^[+-]?[0-9]+$/.test(s)) throw new _jac.exc.ValueError("invalid literal for int() with base 10: '" + x + "'");
+        return parseInt(s, 10);
+      }
+      throw new _jac.exc.TypeError("int() argument must be a string or a number, not '" + _jac.poly._typename(x) + "'");
+    },
+    iter(x) {
+      if (x === null || x === undefined) return [];
+      if (x instanceof Map) return Array.from(x.keys());
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return Object.keys(x);
+      }
+      return x;
+    },
+    dict(x) {
+      if (x === null || x === undefined) return {};
+      if (x instanceof Map) return Object.fromEntries(x);
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return {...x};
+      }
+      return Object.fromEntries(x);
     },
     len(x) {
       if (x === null || x === undefined) throw new _jac.exc.TypeError("object has no len()");
