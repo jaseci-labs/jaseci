@@ -15,7 +15,7 @@ glob registry = get_registry();
         ),
         Arg.create(
             "paths",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_POSITIONAL,
             default=["."],
             help="Files or directories to migrate (default: current directory)"
         ),

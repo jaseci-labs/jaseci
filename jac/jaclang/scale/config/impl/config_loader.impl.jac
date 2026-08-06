@@ -200,7 +200,7 @@ impl JacScaleConfig.get_sso_config(self: JacScaleConfig) -> dict[str, any] {
                 FIREBASE_AUTH_PROJECT_ID_ENV,
                 firebase_config.get('project_id', '') or None
             )
-            or ''
+                or ''
         }
     };
 }
@@ -412,7 +412,7 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
         backplane = str(backplane).lower();
     }
     ws_redis_url = ws_config.get('redis_url')
-    or self.get_database_config().get('redis_url');
+        or self.get_database_config().get('redis_url');
     return {
         'backplane': backplane,
         'redis_url': ws_redis_url,
@@ -536,13 +536,15 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
 }
 
 
-impl normalize_microservices_config(ms_config: dict[str, any]) -> dict[str, any] {
+impl normalize_microservices_config(
+    ms_config: dict[str, any], env_routes_fallback: bool = True
+) -> dict[str, any] {
     client_config = ms_config.get('client', {});
     cors_config = ms_config.get('cors', {});
     rl_config = ms_config.get('rate_limit', {});
 
     routes: dict[str, any] = dict(ms_config.get('routes', {}));
-    if not routes {
+    if not routes and env_routes_fallback {
         import json;
         env_routes: str = os.environ.get('JAC_SV_ROUTES', '');
         if env_routes {
@@ -560,7 +562,8 @@ impl normalize_microservices_config(ms_config: dict[str, any]) -> dict[str, any]
     }
 
     raw_client_entry = client_config.get('entry', None);
-    if raw_client_entry is False {
+
+    if raw_client_entry is False or raw_client_entry == '' {
         resolved_client_entry: str = '';
     } elif raw_client_entry {
         resolved_client_entry: str = str(raw_client_entry);

@@ -134,6 +134,18 @@ test "param syntax" {
     assert len(prog.errors_had) == 8;
 }
 
+test "operator after cast target is a syntax error" {
+    # The cast target is a tight type production; `x as int + 1` no longer
+    # silently absorbs `+ 1` into the cast type (#7885).
+    captured_output = io.StringIO();
+    sys.stdout = captured_output;
+    prog = JacProgram();
+    prog.compile(os.path.join(FIXTURES, "cast_rhs_operator_err.jac"));
+    sys.stdout = sys.__stdout__;
+    assert prog.errors_had;
+    assert any(e.code is not None and e.code.code == "E0006" for e in prog.errors_had);
+}
+
 test "new keyword errors" {
     # `new` is an ambient builtin in Jac (callable as `new(Cls, ...args)`),
     # so JS-style `new Cls(args)` usage no longer parses. The parser detects
@@ -220,9 +232,8 @@ test "connect_disconnect_missing_rhs" {
         for e in prog.errors_had
         if e.code and e.code.code == "E0026"
     ];
-    assert len(e0026) == 5 , f"Expected 5 E0026 (missing RHS), got {len(e0026)}:\n" + "\n---\n".join(
-        e.pretty_print() for e in e0026
-    );
+    assert len(e0026) == 5 , f"Expected 5 E0026 (missing RHS), got {len(e0026)}:\n"
+        + "\n---\n".join(e.pretty_print() for e in e0026);
     # Sanity: the misleading "Unexpected token in expression" diagnostic
     # must no longer appear for these inputs.
     bad = [
@@ -230,9 +241,8 @@ test "connect_disconnect_missing_rhs" {
         for e in prog.errors_had
         if e.code and e.code.code == "E0004"
     ];
-    assert len(bad) == 0 , "E0004 leaked through after E0026 fix:\n" + "\n---\n".join(
-        e.pretty_print() for e in bad
-    );
+    assert len(bad) == 0 , "E0004 leaked through after E0026 fix:\n"
+        + "\n---\n".join(e.pretty_print() for e in bad);
 }
 
 test "jsx comprehensive fixture" {
@@ -738,7 +748,7 @@ test "docstring attaches to all member types inside archetype body" {
     def collect_doc_nodes(nd: uni.UniNode) -> list {
         results: list = [];
         if isinstance(nd, (uni.ArchHas, uni.Ability, uni.ModuleCode, uni.Archetype))
-        and nd.doc is not None {
+            and nd.doc is not None {
             results.append(nd);
         }
         for k in nd.kid {

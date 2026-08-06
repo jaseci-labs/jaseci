@@ -664,8 +664,9 @@ test "aot native mandate still fails loudly" {
 """A bare (Python-ecosystem) import whose symbols client code uses at value
 level was silently pruned from the client bundle: the PY requirement pinned
 the import server-side, the ES backend dropped it, and the page died with
-`ReferenceError: useRef is not defined` while `jac check` stayed green.
-E5084 must name the symbol and the module at compile time."""
+`ReferenceError: dedent is not defined` while `jac check` stayed green.
+E5084 must name the symbol and the module at compile time. (Bare npm names
+like `react` resolve through the client npm world and never fire this.)"""
 test "client value use of a bare python import is E5084" {
     import from jaclang.jac0core.compile_options { CompileOptions }
     prog = JacProgram();
@@ -679,11 +680,11 @@ test "client value use of a bare python import is E5084" {
         if e.code is not None and e.code.code == 'E5084'
     ];
     assert len(bare_errs) == 1 , (
-        f"expected exactly one E5084 for the client useRef pull, got "
+        f"expected exactly one E5084 for the client dedent pull, got "
         f"{[str(e) for e in prog.errors_had]}"
     );
-    assert 'useRef' in str(bare_errs[0]) , "E5084 must name the unbound symbol";
-    assert 'react' in str(bare_errs[0]) , "E5084 must name the bare module";
+    assert 'dedent' in str(bare_errs[0]) , "E5084 must name the unbound symbol";
+    assert 'textwrap' in str(bare_errs[0]) , "E5084 must name the bare module";
 }
 
 test "annotation-only use of a bare python import stays silent" {

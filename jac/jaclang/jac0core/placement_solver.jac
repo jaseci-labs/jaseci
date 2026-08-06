@@ -30,9 +30,9 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
     }
     import from jaclang.jac0core.bccache { discover_annex_files }
     import from jaclang.jac0core.parser { parse as rd_parse }
-    files = [path] + discover_annex_files(path, '.impl.jac') + discover_annex_files(
-        path, '.test.jac'
-    );
+    files = [path]
+        + discover_annex_files(path, '.impl.jac')
+        + discover_annex_files(path, '.test.jac');
     fresh_parts: list[tuple] = [];
     for f in files {
         try {
@@ -125,7 +125,14 @@ def native_default_path_ok(path: str) -> bool {
 }
 
 def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
-    import from jaclang.jac0core.compiler { _is_demoted_native }
+    import from jaclang.jac0core.compiler {
+        _is_demoted_native,
+        native_pipeline_available
+    }
+    (env_ok, env_reason) = native_pipeline_available();
+    if not env_ok {
+        return (False, env_reason);
+    }
     mod_path = module.loc.mod_path if module.loc is not None else '';
     if not mod_path {
         return (False, "no module path");
@@ -154,7 +161,7 @@ def _top_element(module: uni.Module, nd: uni.UniNode) -> (uni.UniNode | None) {
 
 def _is_client_top(elem: uni.UniNode) -> bool {
     return isinstance(elem, uni.ContextAwareNode)
-    and elem.code_context == CodeContext.CLIENT;
+        and elem.code_context == CodeContext.CLIENT;
 }
 
 def _py_import_client_portable(elem: uni.Import) -> bool {
@@ -303,7 +310,7 @@ def _closure_pullable(
     }
     seen.add(id(top));
     if isinstance(top, uni.ContextAwareNode)
-    and top.code_context == CodeContext.CLIENT {
+        and top.code_context == CodeContext.CLIENT {
         return True;
     }
     if isinstance(top, uni.Import) {
@@ -322,7 +329,7 @@ def _closure_pullable(
             }
             item_top = _named_top_element(source_mod, item.name.value);
             if item_top is None
-            or not _closure_pullable(item_top, source_mod, prog, seen) {
+                or not _closure_pullable(item_top, source_mod, prog, seen) {
                 return False;
             }
         }
@@ -406,11 +413,12 @@ def _seed_from_summary(module: uni.Module, prog: any) -> int {
                 break;
             }
             if cap == 'NPM'
-            and reason in (
-                'string-path import',
-                'virtual @jac import',
-                'npm dependency'
-            ) {
+                and reason
+                    in (
+                        'string-path import',
+                        'virtual @jac import',
+                        'npm dependency'
+                    ) {
                 target_ctx = CodeContext.CLIENT;
                 ctx_label = 'client';
                 why = reason;

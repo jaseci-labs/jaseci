@@ -912,11 +912,11 @@ impl JacCompiler._compile_once(
 
     _prev_opts = actual_program._compile_options;
     if _prev_opts is not None
-    and not (
-        options.nogc_enforce_all
-        or options.nogc_cli_target
-        or options.nogc_enforce_modules
-    ) {
+        and not (
+            options.nogc_enforce_all
+            or options.nogc_cli_target
+            or options.nogc_enforce_modules
+        ) {
         options.nogc_enforce_all = _prev_opts.nogc_enforce_all;
         options.nogc_cli_target = _prev_opts.nogc_cli_target;
         options.nogc_enforce_modules = _prev_opts.nogc_enforce_modules;
@@ -976,14 +976,14 @@ impl JacCompiler._compile_once(
 
     import from jaclang.jac0core.constant { CodeContext as _CodeCtx }
     is_explicit_native = mod_targ is not None
-    and mod_targ.declares_codespace(_CodeCtx.NATIVE, path_hint=file_path);
+        and mod_targ.declares_codespace(_CodeCtx.NATIVE, path_hint=file_path);
     is_client_mod = mod_targ is not None
-    and mod_targ.declares_codespace(_CodeCtx.CLIENT, path_hint=file_path);
+        and mod_targ.declares_codespace(_CodeCtx.CLIENT, path_hint=file_path);
     is_native_mod = is_explicit_native;
 
     run_inference = options.type_check
-    or is_native_mod
-    or (is_client_mod and not options.no_cgen and not options.symtab_ir_only);
+        or is_native_mod
+        or (is_client_mod and not options.no_cgen and not options.symtab_ir_only);
     if run_inference {
         if options.symtab_ir_only {
             self.run_schedule(
@@ -1005,7 +1005,7 @@ impl JacCompiler._compile_once(
         import from dataclasses { replace as _replace_opts }
         for dep_mod in list(actual_program.mod.hub.values()) {
             if (dep_mod is mod_targ)
-            or (id(dep_mod) in actual_program._inferred_mods) {
+                or (id(dep_mod) in actual_program._inferred_mods) {
                 continue;
             }
             if dep_mod.decided_codespace == 'native' {
@@ -1029,27 +1029,19 @@ impl JacCompiler._compile_once(
     }
 
     if options.type_check or is_native_mod {
-        _check_passes = get_type_check_sched();
-        _mod_analyses = actual_program._analyses_run.get(id(mod_targ), set());
-        if _check_passes and 'cfg' not in _mod_analyses {
-            try {
-                import from jaclang.compiler.passes.main.cfg_build_pass {
-                    CFGBuildPass as _CfgPass
-                }
-                _check_passes = [_CfgPass] + _check_passes;
-            } except ImportError { }
-        }
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
-            passes=_check_passes,
+            passes=get_type_check_sched(
+                provided=actual_program._analyses_run.get(id(mod_targ), set())
+            ),
             cancel_token=options.cancel_token
         );
     }
 
     if is_native_mod
-    and not had_blocking_errors
-    and self._count_module_errors(actual_program, cur_mod_path) > 0 {
+        and not had_blocking_errors
+        and self._count_module_errors(actual_program, cur_mod_path) > 0 {
         had_blocking_errors = True;
     }
 
@@ -1077,10 +1069,13 @@ impl JacCompiler._compile_once(
             try {
                 import from jaclang.compiler.passes.native { NaIRGenPass }
                 import from jaclang.compiler.passes.main.rc_facts_pass { RcFactsPass }
-                import from jaclang.jac0core.compiler {
-                    expand_with_requirements as _expand_reqs
-                }
-                _parity_passes = _expand_reqs([NaIRGenPass], {'rc-facts': RcFactsPass});
+                _parity_passes = resolve_schedule(
+                    [NaIRGenPass],
+                    providers=providers_for([RcFactsPass]),
+                    preprovided=actual_program._analyses_run.get(id(mod_targ), set()),
+                    drop_unsatisfiable=True,
+                    origin='native check-parity schedule'
+                );
             } except ImportError {
                 _parity_passes = [];
             }
@@ -1130,8 +1125,8 @@ impl JacCompiler._compile_once(
                     continue;
                 }
                 cb_is_client_dep = isinstance(cb_src, str)
-                and cb_imp.code_context == CodeContext.CLIENT
-                and cb_src.endswith('.jac');
+                    and cb_imp.code_context == CodeContext.CLIENT
+                    and cb_src.endswith('.jac');
                 if not cb_is_client_dep {
                     continue;
                 }
@@ -1168,11 +1163,14 @@ impl JacCompiler._compile_once(
 
         import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
         needs_native = is_native_mod
-        or ModuleCodegenPass.has_native_context_stmts(mod_targ);
+            or ModuleCodegenPass.has_native_context_stmts(mod_targ);
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
-            passes=get_py_code_gen(native=needs_native),
+            passes=get_py_code_gen(
+                native=needs_native,
+                provided=actual_program._analyses_run.get(id(mod_targ), set())
+            ),
             cancel_token=options.cancel_token
         );
         if mod_targ.decided_codespace == 'native' {
@@ -1206,20 +1204,14 @@ impl JacCompiler.run_schedule(
         provided = set();
         target_program._analyses_run[id(mod)] = provided;
     }
+    validate_schedule(
+        passes,
+        preprovided=provided,
+        origin=(f"schedule for module {mod.loc.mod_path if mod.loc else mod.name}")
+    );
     for current_pass in passes {
         if (cancel_token and cancel_token.is_set()) {
             break;
-        }
-        for _req in (getattr(current_pass, 'REQUIRES', ()) or ()) {
-            if _req not in provided {
-                raise RuntimeError(
-                    f"scheduling error: pass {current_pass.__name__} requires "
-                    f"analysis '{_req}' which has not run for module "
-                    f"{mod.loc.mod_path if mod.loc else mod.name} -- the "
-                    f"schedule that reached this point is missing a declared "
-                    f"dependency."
-                );
-            }
         }
         current_pass(ir_in=mod, prog=target_program, cancel_token=cancel_token);
         for _prov in (getattr(current_pass, 'PROVIDES', ()) or ()) {

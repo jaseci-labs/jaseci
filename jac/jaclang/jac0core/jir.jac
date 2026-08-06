@@ -196,6 +196,8 @@ def compute_module_key(source_path: str) -> str {
     h.update(pins_digest(source_path).encode());
     import from jaclang.jac0core.service_cut { cut_digest }
     h.update(cut_digest(source_path).encode());
+    import from jaclang.jac0core.compile_options { effective_codegen_fingerprint }
+    h.update(effective_codegen_fingerprint().encode());
     h.update(compute_content_sha256(source_path).encode());
     for (rel, digest) in _related_files(source_path) {
         h.update(rel.encode());
@@ -419,9 +421,8 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         }
         cache_mtime = os.path.getmtime(cache_path);
 
-        related = discover_annex_files(source_path, '.impl.jac') + discover_annex_files(
-            source_path, '.test.jac'
-        );
+        related = discover_annex_files(source_path, '.impl.jac')
+            + discover_annex_files(source_path, '.test.jac');
         style = discover_style_annex(source_path);
         if style is not None {
             related.append(style);

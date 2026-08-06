@@ -16,7 +16,8 @@ enum CallKind {
     INSTANTIATION = "instantiation",
     BUILTIN = "builtin",
     CLIB = "clib",
-    FUNCTION = "function"
+    FUNCTION = "function",
+    INTRINSIC = "intrinsic"
 }
 
 def is_builtin_region_name(nm: object) -> bool {
@@ -68,6 +69,16 @@ def _is_user_symbol(sym: uni.Symbol) -> bool {
     return False;
 }
 
+def intrinsic_registry_if_ready -> object | None {
+    import sys;
+    _mod = sys.modules.get("jaclang.compiler.intrinsic_registry");
+    if _mod is not None and _mod?.INTRINSIC_REGISTRY is None {
+        return None;
+    }
+    import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
+    return INTRINSIC_REGISTRY;
+}
+
 def classify_call(nd: uni.FuncCall) -> CallKind {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
@@ -75,18 +86,25 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
         return CallKind.METHOD;
     }
 
+    intrinsics = intrinsic_registry_if_ready();
+    if intrinsics is not None
+        and isinstance(nd.target, uni.Name)
+        and intrinsics.is_intrinsic(nd.target.sym_name) {
+        return CallKind.INTRINSIC;
+    }
+
     sym = resolve_expr_symbol(nd.target);
 
     if sym is not None
-    and sym.decl is not None
-    and sym.sym_type
-    not in (
-        SymbolType.OBJECT_ARCH,
-        SymbolType.NODE_ARCH,
-        SymbolType.EDGE_ARCH,
-        SymbolType.WALKER_ARCH,
-        SymbolType.ENUM_ARCH
-    ) {
+        and sym.decl is not None
+        and sym.sym_type
+            not in (
+                SymbolType.OBJECT_ARCH,
+                SymbolType.NODE_ARCH,
+                SymbolType.EDGE_ARCH,
+                SymbolType.WALKER_ARCH,
+                SymbolType.ENUM_ARCH
+            ) {
         _imp = sym.decl.find_parent_of_type(uni.Import);
         if _imp is not None and _imp.clib_decls {
             return CallKind.CLIB;
@@ -94,20 +112,20 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
     }
     if sym is not None and _is_user_symbol(sym) {
         if sym.sym_type
-        in (
-            SymbolType.OBJECT_ARCH,
-            SymbolType.NODE_ARCH,
-            SymbolType.EDGE_ARCH,
-            SymbolType.WALKER_ARCH,
-            SymbolType.ENUM_ARCH
-        ) {
+            in (
+                SymbolType.OBJECT_ARCH,
+                SymbolType.NODE_ARCH,
+                SymbolType.EDGE_ARCH,
+                SymbolType.WALKER_ARCH,
+                SymbolType.ENUM_ARCH
+            ) {
             return CallKind.INSTANTIATION;
         }
         return CallKind.FUNCTION;
     }
 
     if isinstance(nd.target, uni.Name)
-    and JAC_TYPE_REGISTRY.is_builtin(nd.target.sym_name) {
+        and JAC_TYPE_REGISTRY.is_builtin(nd.target.sym_name) {
         return CallKind.BUILTIN;
     }
     return CallKind.FUNCTION;
@@ -161,8 +179,8 @@ def int_subscript_suffix(right: uni.IndexSlice) -> str | None {
             }
 
             if isinstance(start, uni.MultiString)
-            and len(start.strings) == 1
-            and isinstance(start.strings[0], uni.String) {
+                and len(start.strings) == 1
+                and isinstance(start.strings[0], uni.String) {
                 return f'[{start.strings[0].lit_value!r}]';
             }
 
@@ -317,7 +335,7 @@ def collect_narrowing_symbols(condition: uni.Expr) -> set[str] {
     if isinstance(condition, uni.CfgExpr) {
         symbols.update(collect_narrowing_symbols(condition.expr));
     } elif isinstance(condition, uni.AtomUnit)
-    and isinstance(condition.value, uni.Expr) {
+        and isinstance(condition.value, uni.Expr) {
         symbols.update(collect_narrowing_symbols(condition.value));
     } elif isinstance(condition, uni.UnaryExpr) {
         symbols.update(collect_narrowing_symbols(condition.operand));
@@ -463,8 +481,8 @@ def import_target_pinned_server(nd: uni.Import) -> bool {
     try {
         target = nd.from_loc.resolve_relative_path();
         if isinstance(target, str) and target.endswith('.jac') {
-            import from jaclang.jac0core.placement_pins { config_module_pin }
-            return config_module_pin(target) == 'server';
+            import from jaclang.jac0core.placement_facts { pinned_module_space }
+            return pinned_module_space(target) == 'server';
         }
     } except Exception {
         return False;
@@ -506,6 +524,19 @@ def report_dead_client_import(
     reporter.emit(E5082, node_override=item, name=name, module=module_name);
 }
 
+
+def report_client_bare_import_uses(reporter: any, mod: uni.Module) {
+    for stmt in mod.body {
+        if (
+            isinstance(stmt, uni.ContextAwareNode)
+            and stmt.code_context == CodeContext.CLIENT
+            and not stmt.codespace_dual
+        ) {
+            _report_client_bare_import_uses(reporter, mod, stmt);
+        }
+    }
+}
+
 def _already_warned(reporter: any, diag: any, nd: uni.UniNode) -> bool {
     for w in reporter.prog.warnings_had {
         if (
@@ -537,41 +568,87 @@ def _in_annotation_position(nm: uni.Name, stop: uni.UniNode) -> bool {
     return False;
 }
 
-def _report_client_bare_import_uses(reporter: any, mod: uni.Module, stmt: uni.UniNode) {
-    for nm in stmt.get_all_sub_nodes(uni.Name) {
-        par = nm.parent;
-        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
-            continue;
-        }
-        sym = nm.sym;
-        if sym is None or sym.decl is None {
-            continue;
-        }
-        decl = sym.decl;
-
-        if isinstance(decl, uni.ModuleItem) {
-            item = decl;
-        } elif isinstance(decl.parent, uni.ModuleItem) {
-            item = decl.parent;
-        } else {
-            continue;
-        }
-        imp = item.from_parent;
+def _bare_py_import_bindings(mod: uni.Module) -> dict[str, tuple] {
+    out: dict[str, tuple] = {};
+    for imp in mod.get_all_sub_nodes(uni.Import) {
         if imp.is_service_import or imp.is_typed {
             continue;
         }
         if imp.ecosystem != 'py' {
             continue;
         }
-        if imp.from_loc is not None and imp.from_loc.level > 0 {
+        if imp.from_loc is None or imp.from_loc.level > 0 {
             continue;
         }
         if imp.code_context == CodeContext.CLIENT {
             continue;
         }
+        for item in imp.items {
+            if not isinstance(item, uni.ModuleItem) {
+                continue;
+            }
+            if item.alias is not None {
+                binding = item.alias.sym_name;
+            } elif isinstance(item.name, uni.Name) {
+                binding = item.name.sym_name;
+            } else {
+                binding = str(item.name.value);
+            }
+            out[binding] = (item, imp);
+        }
+    }
+    return out;
+}
+
+
+def _shadows_bare_import(nm: uni.Name) -> bool {
+    sym = nm.sym;
+    if sym is None or sym.decl is None {
+        return False;
+    }
+    decl = sym.decl;
+    if isinstance(decl, uni.ModuleItem) or isinstance(decl.parent, uni.ModuleItem) {
+        return False;
+    }
+    cur = decl.parent;
+    while cur is not None {
+        if isinstance(cur, (uni.ParamVar, uni.HasVar)) {
+            return True;
+        }
+        if isinstance(cur, uni.Assignment) {
+            return decl in cur.target
+                or any([decl in t.get_all_sub_nodes(uni.Name) for t in cur.target]);
+        }
+        if isinstance(cur, uni.ElementStmt) {
+            return False;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+
+def _report_client_bare_import_uses(reporter: any, mod: uni.Module, stmt: uni.UniNode) {
+    bindings = _bare_py_import_bindings(mod);
+    if not bindings {
+        return;
+    }
+    for nm in stmt.get_all_sub_nodes(uni.Name) {
+        par = nm.parent;
+        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+            continue;
+        }
+        hit = bindings.get(nm.value);
+        if hit is None {
+            continue;
+        }
+        if _shadows_bare_import(nm) {
+            continue;
+        }
         if _in_annotation_position(nm, stmt) {
             continue;
         }
+        (item, imp) = hit;
         module_name = imp.from_loc.dot_path_str if imp.from_loc is not None else '';
         already = False;
         for e in reporter.prog.errors_had {

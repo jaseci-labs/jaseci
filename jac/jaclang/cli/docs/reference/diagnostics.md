@@ -201,6 +201,7 @@ Emitted by the type checker and type evaluator.
 |------|---------|
 | `E1040` | Type "{type}" is not subscriptable |
 | `E1041` | Type "{type}" is not awaitable |
+| `E1044` | Cast target is not a type: "{type}" |
 
 ### Function Call Errors
 
@@ -288,6 +289,9 @@ Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and
 | `E1307` | Reference to '{name}' escapes its region |
 | `E1308` | '{name}' is not sendable across a concurrency boundary |
 | `E1309` | Cannot mutate '{name}' through a deep-immutable `imm` binding |
+| `E1311` | Cannot freeze '{name}': the value may be aliased |
+| `E1313` | `flow for` does not allow {name} |
+| `E1314` | `partition(n)` does not allow {name} |
 
 ### Zero-RC Enforcement Errors
 
@@ -312,6 +316,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `W1051` | Expression type could not be resolved (Unknown) |
 | `W1052` | JSX component '{component}' uses an untyped props bag (`props: any`); its JSX props cannot be type-checked |
 | `W1310` | Region open on '{name}' has an empty body |
+| `W1312` | Owned value '{name}' silently seals into managed storage |
 
 ---
 
@@ -325,6 +330,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `E1120` | Import of '{name}' from untyped external module '{module}' (no type declarations found) |
 | `W1103` | '{name}' is ambient and does not need to be imported from '{module}' |
 | `W1104` | Use the lowercase `any` keyword instead of importing `Any` from typing |
+| `W1105` | Local module '{name}' shadows the npm package of the same name |
 
 ---
 
@@ -509,11 +515,11 @@ Emitted during code generation, formatting, and native compilation.
 | `E5080` | Argument '{name}' for server function '{func}' is given both positionally and by keyword |
 | `E5081` | Unknown client framework '{framework}' |
 | `E5082` | Client code imports '{name}' from '{module}', but '{name}' has no client-side presence |
-| `E5084` | Client code uses '{name}' from bare import '{module}', which resolves in the Python ecosystem and has no client-side presence |
+| `E5084` | Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module |
 
 `E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, pin it (or its module) `"client"` via `[placement.pins]`, or move it into client code.
 
-`E5084` is the bare-import sibling: `import from react { useRef }` (no quotes) resolves in the Python ecosystem, so placement pins the import server-side and the client bundle never binds `useRef`; the page then fails at runtime with a ReferenceError even though every file compiled cleanly. For an npm package, quote the module (`import from "react" { useRef }`); for server logic, expose a `def:pub` endpoint, which bridges over RPC on a plain import. Annotation-only uses do not fire it, since ES output erases type annotations.
+`E5084` is the bare-import sibling. A bare name resolves across the module universe -- local Jac module first, then Python, then the client npm world (jac.toml `[dependencies.npm]`, the active framework's own packages, and whatever is installed under `.jac/client/node_modules`), so `import from react { useRef }` works unquoted. When the name resolves to none of those client-reachable worlds, placement pins the import server-side, the bundle never binds the symbol, and the page would fail at runtime with a ReferenceError -- so client use fails the build instead. Install or declare the package in `[dependencies.npm]` (or quote the module to pin the npm form), or keep the use server-side behind a `def:pub` endpoint. Annotation-only uses do not fire it, since ES output erases type annotations; imports whose uses are all server-side prune silently as before.
 
 ---
 

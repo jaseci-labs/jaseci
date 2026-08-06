@@ -136,14 +136,14 @@ def:pub DeployPage -> JsxElement {
                                 </td>
                                 <td
                                     className={"py-1.5 pr-3 "
-                                    + (
-                                        "text-success"
-                                            if (
-                                                d["ready"] == d["desired"]
-                                                and d["desired"] > 0
-                                            )
-                                            else "text-warning"
-                                    )}
+                                        + (
+                                            "text-success"
+                                                if (
+                                                    d["ready"] == d["desired"]
+                                                    and d["desired"] > 0
+                                                )
+                                                else "text-warning"
+                                        )}
                                 >
                                     {String(d["ready"])}/{String(d["desired"])}
                                 </td>
@@ -199,11 +199,11 @@ def:pub DeployPage -> JsxElement {
                                 </td>
                                 <td
                                     className={"py-1.5 pr-3 "
-                                    + (
-                                        "text-danger font-medium"
-                                            if p["restarts"] > 0
-                                            else "text-muted"
-                                    )}
+                                        + (
+                                            "text-danger font-medium"
+                                                if p["restarts"] > 0
+                                                else "text-muted"
+                                        )}
                                 >
                                     {String(p["restarts"])}
                                 </td>

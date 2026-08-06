@@ -159,7 +159,8 @@ glob NODE_SPECS: tuple = (
                  FieldDesc(name="mutable", kind=2),
                  FieldDesc(name="aug_op", kind=6),
                  FieldDesc(name="na_move_lowerable", kind=2),
-                 FieldDesc(name="na_overwrite_consumed", kind=2)
+                 FieldDesc(name="na_overwrite_consumed", kind=2),
+                 FieldDesc(name="na_flow_reduce", kind=0)
              )
          ),
          NodeSpec(
@@ -1318,7 +1319,7 @@ glob NODE_SPECS: tuple = (
              is_scope=False,
              is_cfg=False,
              is_name_atom=False,
-             fields=(FieldDesc(name="ast", kind=10), FieldDesc(name="orig_src", kind=4))
+             fields=(FieldDesc(name="ast", kind=4), FieldDesc(name="orig_src", kind=4))
          ),
          NodeSpec(
              type_idx=116,

@@ -358,9 +358,9 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       // Python `dict.get`: returns the stored value when the key is present
       // (even if it is null), and the default only when the key is absent.
       // A membership check is required — `o[key] ?? default_` would wrongly
-      // substitute the default for a present-but-null value.
-      get: (o, key, default_) =>
-        Object.prototype.hasOwnProperty.call(o, key) ? o[key] : default_,
+      // substitute the default for a present-but-null value. The default
+      // defaults to null so a miss is a real Jac None, never undefined.
+      get: (o, key, default_ = null) => _jac.dict.get(o, key, default_),
       items: (o) => Object.entries(o),
       keys: (o) => Object.keys(o),
       pop: (o, key, default_) => _jac.dict.pop(o, key, default_),
@@ -398,7 +398,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     _map: {
       clear: (m) => { m.clear(); return null; },
       copy: (m) => new Map(m),
-      get: (m, key, default_) => (m.has(key) ? m.get(key) : default_),
+      get: (m, key, default_ = null) => (m.has(key) ? m.get(key) : default_),
       items: (m) => [...m.entries()],
       keys: (m) => [...m.keys()],
       pop: (m, key, default_) => {
@@ -583,6 +583,9 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
   },
 
   dict: {
+    get(d, key, default_ = null) {
+      return Object.prototype.hasOwnProperty.call(d, key) ? d[key] : default_;
+    },
     pop(d, key, default_) {
       if (key in d) { const v = d[key]; delete d[key]; return v; }
       if (default_ !== undefined) return default_;
@@ -1301,6 +1304,14 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (typeof x === "object") return Object.keys(x).length > 0;
       return true;
     },
+    len(x) {
+      if (x === null || x === undefined) throw new _jac.exc.TypeError("object has no len()");
+      if (typeof x === "string" || Array.isArray(x)) return x.length;
+      if (x instanceof Set || x instanceof Map) return x.size;
+      if (typeof x.length === "number") return x.length;
+      if (typeof x === "object") return Object.keys(x).length;
+      throw new _jac.exc.TypeError("object of type '" + typeof x + "' has no len()");
+    },
     range(...args) {
       let start, stop, step;
       if (args.length === 1) { start = 0; stop = args[0]; step = 1; }
@@ -1376,7 +1387,13 @@ def _build_exc_runtime_js -> str {
                 else ((parent + "_") if parent in _JS_RESERVED_EXC_NAMES else parent)
         );
         lines.append(
-            "    class " + local + " extends " + parent_local + " { constructor(m) { super(m); this.name = '" + name + "'; } }"
+            "    class "
+                + local
+                + " extends "
+                + parent_local
+                + " { constructor(m) { super(m); this.name = '"
+                + name
+                + "'; } }"
         );
         exports.append(
             (name + ": " + local) if name in _JS_RESERVED_EXC_NAMES else name
@@ -1443,7 +1460,13 @@ def _build_types_runtime_js -> str {
             body = "a.length === 0 ? (" + zero + ") : (" + one + ")";
         } else {
             body = (
-                "a.length === 0 ? (" + zero + ") : a.length === 1 ? (" + one + ") : (" + two + ")"
+                "a.length === 0 ? ("
+                + zero
+                + ") : a.length === 1 ? ("
+                + one
+                + ") : ("
+                + two
+                + ")"
             );
         }
         entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");

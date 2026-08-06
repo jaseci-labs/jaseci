@@ -29,7 +29,8 @@ def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     initarr_ir = ""
         if "__jac_init_array" in llvm_ir_str
         else (
-            '@__jac_init_array = global ptr null\n' + '@__jac_init_count = global i64 0\n\n'
+            '@__jac_init_array = global ptr null\n'
+            + '@__jac_init_count = global i64 0\n\n'
         );
 
     has_exit = "@exit" in llvm_ir_str or '@"exit"' in llvm_ir_str;
@@ -45,10 +46,54 @@ def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     atexit_def = ""
         if ("@atexit(" in llvm_ir_str or '@"atexit"' in llvm_ir_str)
         else (
-            'declare i32 @__cxa_atexit(ptr, ptr, ptr)\n' + 'define i32 @atexit(ptr %atx_fn) {\nentry:\n' + '    %atx_r = call i32 @__cxa_atexit(ptr %atx_fn, ptr null, ptr @__dso_handle)\n' + '    ret i32 %atx_r\n}\n\n'
+            'declare i32 @__cxa_atexit(ptr, ptr, ptr)\n'
+            + 'define i32 @atexit(ptr %atx_fn) {\nentry:\n'
+            + '    %atx_r = call i32 @__cxa_atexit(ptr %atx_fn, ptr null, ptr @__dso_handle)\n'
+            + '    ret i32 %atx_r\n}\n\n'
         );
     ir = (
-        '\n; --- injected entry point ---\n' + globals_ir + initarr_ir + exit_decl + lsm_decl + dso_def + atexit_def + 'declare ptr @llvm.stacksave()\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    %ia = load ptr, ptr @__jac_init_array\n' + '    %ic = load i64, ptr @__jac_init_count\n' + '    br label %ia.cond\n' + 'ia.cond:\n' + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n' + '    %more = icmp ult i64 %i, %ic\n' + '    br i1 %more, label %ia.body, label %ia.done\n' + 'ia.body:\n' + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n' + '    %fn = load ptr, ptr %slot\n' + '    call void %fn()\n' + '    %inext = add i64 %i, 1\n' + '    br label %ia.cond\n' + 'ia.done:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() naked noreturn {\n' + 'entry:\n' + '    %sp = call ptr @llvm.stacksave()\n' + '    %argc = load i32, ptr %sp\n' + '    %argv = getelementptr i8, ptr %sp, i64 8\n' + '    call void @_jac_boot(i32 %argc, ptr %argv, ptr %sp)\n' + '    unreachable\n' + '}\n\n' + 'define internal void @_jac_boot(i32 %bargc, ptr %bargv, ptr %bstack) noreturn {\n' + 'entry:\n' + '    %r = call i32 @__libc_start_main(ptr @main, i32 %bargc, ptr %bargv, ptr null, ptr null, ptr null, ptr %bstack)\n' + '    unreachable\n' + '}\n'
+        '\n; --- injected entry point ---\n'
+        + globals_ir
+        + initarr_ir
+        + exit_decl
+        + lsm_decl
+        + dso_def
+        + atexit_def
+        + 'declare ptr @llvm.stacksave()\n\n'
+        + 'define i32 @main(i32 %argc, ptr %argv) {\n'
+        + 'entry:\n'
+        + '    store i32 %argc, ptr @__jac_argc\n'
+        + '    store ptr %argv, ptr @__jac_argv\n'
+        + '    %ia = load ptr, ptr @__jac_init_array\n'
+        + '    %ic = load i64, ptr @__jac_init_count\n'
+        + '    br label %ia.cond\n'
+        + 'ia.cond:\n'
+        + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n'
+        + '    %more = icmp ult i64 %i, %ic\n'
+        + '    br i1 %more, label %ia.body, label %ia.done\n'
+        + 'ia.body:\n'
+        + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n'
+        + '    %fn = load ptr, ptr %slot\n'
+        + '    call void %fn()\n'
+        + '    %inext = add i64 %i, 1\n'
+        + '    br label %ia.cond\n'
+        + 'ia.done:\n'
+        + '    call void @jac_entry()\n'
+        + '    ret i32 0\n'
+        + '}\n\n'
+        + 'define void @_start() naked noreturn {\n'
+        + 'entry:\n'
+        + '    %sp = call ptr @llvm.stacksave()\n'
+        + '    %argc = load i32, ptr %sp\n'
+        + '    %argv = getelementptr i8, ptr %sp, i64 8\n'
+        + '    call void @_jac_boot(i32 %argc, ptr %argv, ptr %sp)\n'
+        + '    unreachable\n'
+        + '}\n\n'
+        + 'define internal void @_jac_boot(i32 %bargc, ptr %bargv, ptr %bstack) noreturn {\n'
+        + 'entry:\n'
+        + '    %r = call i32 @__libc_start_main(ptr @main, i32 %bargc, ptr %bargv, ptr null, ptr null, ptr null, ptr %bstack)\n'
+        + '    unreachable\n'
+        + '}\n'
     );
     return llvm_ir_str + ir;
 }
@@ -59,7 +104,15 @@ def _inject_entry_macho(llvm_ir_str: str) -> str {
     globals_ir = ""
         if has_jac_argc
         else ('@__jac_argc = global i32 0\n' + '@__jac_argv = global ptr null\n\n');
-    ir = '\n; --- injected entry point ---\n' + globals_ir + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n';
+    ir = '\n; --- injected entry point ---\n'
+        + globals_ir
+        + 'define i32 @main(i32 %argc, ptr %argv) {\n'
+        + 'entry:\n'
+        + '    store i32 %argc, ptr @__jac_argc\n'
+        + '    store ptr %argv, ptr @__jac_argv\n'
+        + '    call void @jac_entry()\n'
+        + '    ret i32 0\n'
+        + '}\n';
     return llvm_ir_str + ir;
 }
 
@@ -72,10 +125,34 @@ def _inject_entry_elf_static(llvm_ir_str: str) -> str {
     initarr_ir = ""
         if "__jac_init_array" in llvm_ir_str
         else (
-            '@__jac_init_array = global ptr null\n' + '@__jac_init_count = global i64 0\n\n'
+            '@__jac_init_array = global ptr null\n'
+            + '@__jac_init_count = global i64 0\n\n'
         );
     ir = (
-        '\n; --- injected entry point (musl static) ---\n' + globals_ir + initarr_ir + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    %ia = load ptr, ptr @__jac_init_array\n' + '    %ic = load i64, ptr @__jac_init_count\n' + '    br label %ia.cond\n' + 'ia.cond:\n' + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n' + '    %more = icmp ult i64 %i, %ic\n' + '    br i1 %more, label %ia.body, label %ia.done\n' + 'ia.body:\n' + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n' + '    %fn = load ptr, ptr %slot\n' + '    call void %fn()\n' + '    %inext = add i64 %i, 1\n' + '    br label %ia.cond\n' + 'ia.done:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n'
+        '\n; --- injected entry point (musl static) ---\n'
+        + globals_ir
+        + initarr_ir
+        + 'define i32 @main(i32 %argc, ptr %argv) {\n'
+        + 'entry:\n'
+        + '    store i32 %argc, ptr @__jac_argc\n'
+        + '    store ptr %argv, ptr @__jac_argv\n'
+        + '    %ia = load ptr, ptr @__jac_init_array\n'
+        + '    %ic = load i64, ptr @__jac_init_count\n'
+        + '    br label %ia.cond\n'
+        + 'ia.cond:\n'
+        + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n'
+        + '    %more = icmp ult i64 %i, %ic\n'
+        + '    br i1 %more, label %ia.body, label %ia.done\n'
+        + 'ia.body:\n'
+        + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n'
+        + '    %fn = load ptr, ptr %slot\n'
+        + '    call void %fn()\n'
+        + '    %inext = add i64 %i, 1\n'
+        + '    br label %ia.cond\n'
+        + 'ia.done:\n'
+        + '    call void @jac_entry()\n'
+        + '    ret i32 0\n'
+        + '}\n'
     );
     return llvm_ir_str + ir;
 }
@@ -90,7 +167,32 @@ def _inject_entry_pe(llvm_ir_str: str) -> str {
     exit_decl = "" if has_exit else 'declare void @exit(i32)\n\n';
     fltused = "" if "@_fltused" in llvm_ir_str else '@_fltused = global i32 0\n\n';
     ir = (
-        '\n; --- injected PE entry ---\n' + globals_ir + exit_decl + fltused + 'declare i32 @__getmainargs(ptr, ptr, ptr, i32, ptr)\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_jac_win_start() {\n' + 'entry:\n' + '    %argc.addr = alloca i32\n' + '    %argv.addr = alloca ptr\n' + '    %env.addr = alloca ptr\n' + '    %si = alloca i32\n' + '    store i32 0, ptr %si\n' + '    %gr = call i32 @__getmainargs(ptr %argc.addr, ptr %argv.addr, ptr %env.addr, i32 0, ptr %si)\n' + '    %ac = load i32, ptr %argc.addr\n' + '    %av = load ptr, ptr %argv.addr\n' + '    %r = call i32 @main(i32 %ac, ptr %av)\n' + '    call void @exit(i32 %r)\n' + '    ret void\n' + '}\n'
+        '\n; --- injected PE entry ---\n'
+        + globals_ir
+        + exit_decl
+        + fltused
+        + 'declare i32 @__getmainargs(ptr, ptr, ptr, i32, ptr)\n\n'
+        + 'define i32 @main(i32 %argc, ptr %argv) {\n'
+        + 'entry:\n'
+        + '    store i32 %argc, ptr @__jac_argc\n'
+        + '    store ptr %argv, ptr @__jac_argv\n'
+        + '    call void @jac_entry()\n'
+        + '    ret i32 0\n'
+        + '}\n\n'
+        + 'define void @_jac_win_start() {\n'
+        + 'entry:\n'
+        + '    %argc.addr = alloca i32\n'
+        + '    %argv.addr = alloca ptr\n'
+        + '    %env.addr = alloca ptr\n'
+        + '    %si = alloca i32\n'
+        + '    store i32 0, ptr %si\n'
+        + '    %gr = call i32 @__getmainargs(ptr %argc.addr, ptr %argv.addr, ptr %env.addr, i32 0, ptr %si)\n'
+        + '    %ac = load i32, ptr %argc.addr\n'
+        + '    %av = load ptr, ptr %argv.addr\n'
+        + '    %r = call i32 @main(i32 %ac, ptr %av)\n'
+        + '    call void @exit(i32 %r)\n'
+        + '    ret void\n'
+        + '}\n'
     );
     return llvm_ir_str + ir;
 }
@@ -147,8 +249,8 @@ impl nacompile(
     }
 
     is_windows = (sys.platform == "win32")
-    or ("windows" in target)
-    or (target in ["win", "win64", "mingw"]);
+        or ("windows" in target)
+        or (target in ["win", "win64", "mingw"]);
     if is_windows {
         os.environ["JAC_NATIVE_TARGET"] = (
             target if "-" in target else "x86_64-pc-windows-msvc"
@@ -156,8 +258,8 @@ impl nacompile(
     }
 
     is_macos_target = (target in ["macos", "darwin", "osx", "macosx"])
-    or ("apple" in target)
-    or ("darwin" in target);
+        or ("apple" in target)
+        or ("darwin" in target);
     if is_macos_target {
         os.environ["JAC_NATIVE_TARGET"] = (
             target if "-" in target else "arm64-apple-darwin"
@@ -165,8 +267,8 @@ impl nacompile(
     }
 
     is_linux_target = (target in ["linux", "elf"])
-    or ("linux-gnu" in target)
-    or ("linux-musl" in target);
+        or ("linux-gnu" in target)
+        or ("linux-musl" in target);
     if is_linux_target {
         os.environ["JAC_NATIVE_TARGET"] = (
             target if "-" in target else "x86_64-unknown-linux-gnu"
@@ -192,7 +294,7 @@ impl nacompile(
     auto_promote = is_jac(filename);
 
     is_macos = ((sys.platform == "darwin") and not is_windows and not is_linux_target)
-    or is_macos_target;
+        or is_macos_target;
 
     if not output {
         output = base_stem(filename);
@@ -219,6 +321,7 @@ impl nacompile(
             default_codespace=('native' if auto_promote else ''),
             force_target_program=True,
             na_gc_mode=gc,
+            no_ir_cache=scrub,
             nogc_cli_target=(base_stem(filename) if enforce_nogc else ""),
             nogc_enforce_modules=(_gc_cfg.enforce.modules if _gc_cfg else []),
             nogc_grandfathered=(_gc_cfg.enforce.grandfathered if _gc_cfg else [])
@@ -248,7 +351,7 @@ impl nacompile(
 
     if ir_module is None or ir_module.gen.llvm_ir is None {
         if auto_promote
-        and not (ir_module and ir_module.decided_codespace == 'native') {
+            and not (ir_module and ir_module.decided_codespace == 'native') {
             console.error(
                 "This .jac file is not compatible with native compilation.\n"
                 "  It may use walkers, nodes, edges, async, lambdas, or other\n"
@@ -321,7 +424,10 @@ impl nacompile(
                 _parts.append("entry-point env probes: " + ", ".join(_rc_probes));
             }
             console.error(
-                "assert-no-rc: emitted IR contains " + "; ".join(_parts) + "\n  (module has managed heap types or RC-emitting code;" + " see rc-stats coverage)"
+                "assert-no-rc: emitted IR contains "
+                    + "; ".join(_parts)
+                    + "\n  (module has managed heap types or RC-emitting code;"
+                    + " see rc-stats coverage)"
             );
             return 1;
         }
@@ -344,7 +450,7 @@ impl nacompile(
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();
 
-    triple = os.environ.get("JAC_NATIVE_TARGET", "") or llvm.get_default_triple();
+    triple = (options.native_target or "") or llvm.get_default_triple();
     console.print(f"  Target: {triple}");
 
     export_symbols: list[str] = [];
@@ -375,10 +481,16 @@ impl nacompile(
             }
             _needed = lib_path;
             if (not os.path.isabs(lib_path))
-            and (not lib_path.startswith("$"))
-            and (not lib_path.startswith("@"))
-            and ("/" in lib_path or "\\" in lib_path) {
+                and (not lib_path.startswith("$"))
+                and (not lib_path.startswith("@"))
+                and ("/" in lib_path or "\\" in lib_path) {
                 _needed = os.path.basename(lib_path);
+            }
+            _needed_base = os.path.basename(_needed);
+            if _needed_base == "libc.so" {
+                _needed = "libc.so.6";
+            } elif _needed_base == "libm.so" {
+                _needed = "libm.so.6";
             }
             if _needed not in needed_libs {
                 needed_libs.append(_needed);
@@ -419,9 +531,8 @@ impl nacompile(
             return 1;
         }
         console.print(
-            f"  Exporting {len(export_symbols)} C-ABI symbol(s): " + ", ".join(
-                export_symbols
-            )
+            f"  Exporting {len(export_symbols)} C-ABI symbol(s): "
+                + ", ".join(export_symbols)
         );
     } elif is_windows {
         llvm_ir_str = _inject_entry_pe(llvm_ir_str);
@@ -434,8 +545,8 @@ impl nacompile(
     }
 
     if (shared or (_is_linux_exec and not _static_musl))
-    and not is_macos
-    and not is_windows {
+        and not is_macos
+        and not is_windows {
         if "libc.so.6" not in needed_libs {
             needed_libs.append("libc.so.6");
         }
@@ -460,7 +571,7 @@ impl nacompile(
         return 1;
     }
 
-    _target_ovr = os.environ.get("JAC_NATIVE_TARGET", "");
+    _target_ovr = options.native_target or "";
     if _target_ovr {
         target = llvm.Target.from_triple(_target_ovr);
     } else {
@@ -475,14 +586,8 @@ impl nacompile(
         target_machine = target.create_target_machine(opt=2, codemodel="large");
     }
 
-    import from jaclang.project { get_config, NativeBuildConfig }
-    _native_cfg = NativeBuildConfig();
-    _jac_config = get_config();
-    if _jac_config {
-        _native_cfg = _jac_config.build.native;
-    }
-    _opt_level = int(os.environ.get("JAC_OPT_LEVEL", str(_native_cfg.opt_level)));
-    _dump_path = os.environ.get("JAC_DUMP_IR", _native_cfg.dump_ir);
+    _opt_level = int(options.opt_level or 0);
+    _dump_path = options.dump_ir_path or "";
 
     if _opt_level > 0 {
         pto = llvm.create_pipeline_tuning_options(speed_level=_opt_level);
@@ -784,8 +889,8 @@ def _musl_lib_dir(triple: str) -> (str | None) {
         for d in sorted(os.listdir(pbs)) {
             libdir = os.path.join(pbs, d, "musl", "lib");
             if os.path.isdir(libdir)
-            and os.path.isfile(os.path.join(libdir, "libc.a"))
-            and (want in d) {
+                and os.path.isfile(os.path.join(libdir, "libc.a"))
+                and (want in d) {
                 return libdir;
             }
         }
@@ -796,8 +901,8 @@ def _musl_lib_dir(triple: str) -> (str | None) {
         for d in sorted(os.listdir(floor)) {
             cand = os.path.join(floor, d, "musl");
             if os.path.isdir(cand)
-            and os.path.isfile(os.path.join(cand, "libc.a"))
-            and (want in d) {
+                and os.path.isfile(os.path.join(cand, "libc.a"))
+                and (want in d) {
                 return cand;
             }
         }

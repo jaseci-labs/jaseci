@@ -22,17 +22,17 @@ with entry {
     c = (
         a()
             if 1
-            and isinstance(a, int)
-            and isinstance(a, int)
-            and isinstance(a, int)
-            and isinstance(a, int)
-            and isinstance(a, int)
+                and isinstance(a, int)
+                and isinstance(a, int)
+                and isinstance(a, int)
+                and isinstance(a, int)
+                and isinstance(a, int)
             else (
                 999
                     if isinstance(a, int)
-                    and isinstance(a, int)
-                    and isinstance(a, int)
-                    and isinstance(4, bool)
+                        and isinstance(a, int)
+                        and isinstance(a, int)
+                        and isinstance(4, bool)
                     else 7
             )
     );

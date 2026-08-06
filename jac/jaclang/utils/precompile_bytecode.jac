@@ -108,44 +108,84 @@ def find_jac_files(package_dir: str) -> list[str] {
     return result;
 }
 
-glob NATIVE_ONLY_DIR: str = os.path.join("runtimelib", "na_stdlib"),
-     MIXED_NATIVE_DIR: str = os.path.join(
-         "runtimelib", "client", "targets", "desktop", "native"
-     );
-
-def _is_native_only_source(package_dir: str, p: str) -> bool {
-    rel = os.path.relpath(p, package_dir);
-    if rel.startswith(NATIVE_ONLY_DIR + os.sep) {
-        return True;
-    }
-
-    if rel.startswith(MIXED_NATIVE_DIR + os.sep) {
-        import from jaclang.jac0core.placement_solver { native_default_path_ok }
-        return native_default_path_ok(p);
-    }
-    return False;
-}
+glob _sealable_cache: dict[str, list[str]] = {},
+     _placement_cache: dict[str, dict[str, set[str]]] = {};
 
 def sealable_sources(package_dir: str) -> list[str] {
+    key = os.path.abspath(package_dir);
+    cached = _sealable_cache.get(key);
+    if cached is not None {
+        return cached;
+    }
     boot_prefix = str(Path(package_dir) / "jac0core") + os.sep;
     nested = _nested_project_dirs(package_dir);
-    return [
+    candidates = [
         p
         for p in find_jac_files(package_dir)
-        if not p.startswith(boot_prefix)
-        and not _is_native_only_source(package_dir, p)
-        and not _is_pinned_client(package_dir, p)
-        and not any(p.startswith(n) for n in nested)
+        if not p.startswith(boot_prefix) and not any(p.startswith(n) for n in nested)
     ];
+    if Path(package_dir).name == "jaclang" {
+        import from jaclang.jac0core.placement_facts { toolchain_native_by_policy }
+        result = [
+            p
+            for p in candidates
+            if not toolchain_native_by_policy(package_dir, p)
+        ];
+    } else {
+        import from jaclang.jac0core.placement_facts {
+            discover_spaces,
+            spaces_are_client_only
+        }
+        import from jaclang.jac0core.program { JacProgram }
+        discovery = JacProgram();
+        facts = discover_spaces(candidates, discovery);
+        _placement_cache[key] = facts;
+        if discovery.errors_had {
+            console.print(
+                f"  Placement discovery hit {len(discovery.errors_had)} "
+                "error(s); sealing every candidate so each failure surfaces "
+                "per-file instead of being skipped."
+            );
+            result = candidates;
+        } else {
+            skipped = [
+                p
+                for p in candidates
+                if spaces_are_client_only(facts[os.path.abspath(p)])
+            ];
+            result = [
+                p
+                for p in candidates
+                if p not in skipped
+            ];
+            if skipped {
+                names = ", ".join(
+                    str(Path(p).relative_to(Path(key))) for p in skipped[:8]
+                );
+                console.print(
+                    f"  Skipping {len(skipped)} client-only module(s): {names}"
+                );
+            }
+        }
+        discovery.release_compile_closure();
+    }
+    _sealable_cache[key] = result;
+    return result;
 }
 
-def _is_pinned_client(package_dir: str, p: str) -> bool {
-    import from jaclang.jac0core.placement_pins { config_module_pin }
-    try {
-        return config_module_pin(p) == 'client';
-    } except Exception {
-        return False;
+def placement_facts_map(package_dir: str) -> dict[str, list[str]] {
+    key = os.path.abspath(package_dir);
+    sealable_sources(package_dir);
+    facts = _placement_cache.get(key);
+    if not facts {
+        return {};
     }
+    out: dict[str, list[str]] = {};
+    for (ap, spaces) in facts.items() {
+        rel = Path(ap).relative_to(Path(key)).as_posix();
+        out[rel] = sorted(spaces);
+    }
+    return out;
 }
 
 def precompile_unit(
@@ -385,7 +425,7 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
         caps.append("has-entry");
     }
     if (pkg_path / CLIENT_DIST_REL).is_dir()
-    or kind in ["web-app", "desktop", "mobile"] {
+        or kind in ["web-app", "desktop", "mobile"] {
         caps.append("has-client");
     }
     if (pkg_path / NATIVE_DIR_REL).is_dir() {
@@ -536,6 +576,12 @@ def seal_finalize(
             f"  App: kind={app_meta.get('kind')} caps={app_meta.get('capabilities')}"
         );
     }
+    placement = placement_facts_map(str(pkg_path)) if pkg_name != "jaclang" else {};
+    if placement {
+        console.print(f"  Placement facts: {len(placement)} modules");
+        app_meta = dict(app_meta);
+        app_meta["placement"] = placement;
+    }
     write_manifest(
         precompiled_dir,
         pkg_name,
@@ -564,7 +610,7 @@ def write_manifest(
     } except Exception {
         jac_ver = "0.0.0";
     }
-    manifest = {
+    manifest: dict[str, any] = {
         "format": MANIFEST_FORMAT,
         "package": pkg_name,
         "python_tag": pyver,
@@ -637,6 +683,17 @@ def main {
     }
 
     pkg_name = Path(package_dir).name;
+    if (seal or seal_compile or finalize_only)
+        and pkg_name != "jaclang"
+        and not (Path(package_dir) / "jac.toml").is_file() {
+        console.error(
+            f"Seal aborted: {package_dir} has no jac.toml. An app seal reads "
+            "placement, nested-project scoping, and app metadata from the "
+            "project config; sealing without it would compile every module "
+            "including client code. Stage a sanitized jac.toml first."
+        );
+        sys.exit(1);
+    }
     pyver = f"cpython-{sys.version_info.major}{sys.version_info.minor}";
     precompiled_dir = Path(package_dir) / "_precompiled";
 
@@ -703,7 +760,7 @@ def main {
             if jir_path.is_file() {
                 existing = jir_path.read_bytes();
                 if jir_matches_source(existing, jac_path)
-                and embed_src == (read_debug_source(existing) is not None) {
+                    and embed_src == (read_debug_source(existing) is not None) {
                     reused += 1;
                     continue;
                 }
@@ -729,7 +786,8 @@ def main {
     sys.stderr.flush();
 
     console.print(
-        f"\nDone! Compiled {compiled}/{len(jac_files)} modules" + f" ({reused} reused, {failed} failed)"
+        f"\nDone! Compiled {compiled}/{len(jac_files)} modules"
+            + f" ({reused} reused, {failed} failed)"
     );
     console.print(f"  Output: {precompiled_dir}");
     console.print(f"  Python version: {pyver}");
@@ -742,7 +800,8 @@ def main {
                 "reused": reused,
                 "failed": failed
             }
-        ) + "\n",
+        )
+            + "\n",
         encoding="utf-8"
     );
 

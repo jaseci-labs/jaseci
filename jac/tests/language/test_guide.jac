@@ -243,6 +243,10 @@ test "every mapped diagnostic code resolves to a bundled guide" {
         "E1307": "jac-native-memory",
         "E1308": "jac-native-memory",
         "E1309": "jac-native-memory",
+        "E1311": "jac-native-memory",
+        "W1312": "jac-native-memory",
+        "E1313": "jac-native-memory",
+        "E1314": "jac-native-memory",
         "E1401": "jac-native-memory",
         "E1402": "jac-native-memory",
         "E1403": "jac-native-memory",
@@ -394,9 +398,9 @@ test "every ```jac example in a guide checks clean" {
         }
     }
     assert not failures , (
-        "guide ```jac examples must pass `jac check` -- fix the example, or " + "if it is a non-runnable fragment downgrade its fence to plain ```:\n\n" + "\n".join(
-            failures
-        )
+        "guide ```jac examples must pass `jac check` -- fix the example, or "
+        + "if it is a non-runnable fragment downgrade its fence to plain ```:\n\n"
+        + "\n".join(failures)
     );
 }
 

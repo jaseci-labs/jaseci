@@ -83,18 +83,18 @@ def:pub ComboboxInput(props: any) -> JsxElement {
         />
         <InputGroupAddon align="inline-end">
             {showTrigger
-            and (
-                <InputGroupButton
-                    size="icon-xs"
-                    variant="ghost"
-                    asChild={True}
-                    data-slot="input-group-button"
-                    className="group-has-data-[slot=combobox-clear]/input-group:hidden data-pressed:bg-transparent"
-                    disabled={disabled}
-                >
-                    <ComboboxTrigger/>
-                </InputGroupButton>
-            )}{showClear and <ComboboxClear disabled={disabled}/>}
+                and (
+                    <InputGroupButton
+                        size="icon-xs"
+                        variant="ghost"
+                        asChild={True}
+                        data-slot="input-group-button"
+                        className="group-has-data-[slot=combobox-clear]/input-group:hidden data-pressed:bg-transparent"
+                        disabled={disabled}
+                    >
+                        <ComboboxTrigger/>
+                    </InputGroupButton>
+                )}{showClear and <ComboboxClear disabled={disabled}/>}
         </InputGroupAddon>
         {props["children"]}
     </InputGroup>
@@ -229,19 +229,19 @@ def:pub ComboboxChip(props: any) -> JsxElement {
         )}
     >
         {props["children"]}{showRemove
-        and (
-            <ComboboxPrimitive.ChipRemove
-                render={<Button variant="ghost" size="icon-xs"/>}
-                className="-ml-1 opacity-50 hover:opacity-100"
-                data-slot="combobox-chip-remove"
-            >
-                <HugeiconsIcon
-                    icon={Cancel01Icon}
-                    strokeWidth={2}
-                    className="pointer-events-none"
-                />
-            </ComboboxPrimitive.ChipRemove>
-        )}
+            and (
+                <ComboboxPrimitive.ChipRemove
+                    render={<Button variant="ghost" size="icon-xs"/>}
+                    className="-ml-1 opacity-50 hover:opacity-100"
+                    data-slot="combobox-chip-remove"
+                >
+                    <HugeiconsIcon
+                        icon={Cancel01Icon}
+                        strokeWidth={2}
+                        className="pointer-events-none"
+                    />
+                </ComboboxPrimitive.ChipRemove>
+            )}
     </ComboboxPrimitive.Chip>
 }
 

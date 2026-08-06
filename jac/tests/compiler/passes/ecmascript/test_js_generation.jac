@@ -173,7 +173,11 @@ test "core fixture emits expected constructs" {
         "function greet",
         "function fibonacci",
         "for (const i of array)",
-        "for (let i = 0; (i < limit); i += 1)",
+        # `for i=0 to ...` loop vars are function-scoped in Jac (symtab hoists
+        # the untyped init assignment), so the declaration hoists out of the
+        # for-head and the var stays readable after the loop (#7922).
+        "for (i = 0; (i < limit); i += 1)",
+        "let i;",
         "while ((counter > 0))",
         "while (true)",
 
@@ -250,13 +254,15 @@ test "advanced fixture emits expected constructs" {
     assert "function TodoList(props) {" in js_code;
     assert "const {filteredTodos, toggleTodo, deleteTodo} = props;" in js_code;
     assert (
-        "\"toggleTodo\": toggleTodo, \"deleteTodo\": props.deleteTodo, \"children\": props.children" in js_code
+        "\"toggleTodo\": toggleTodo, \"deleteTodo\": props.deleteTodo, \"children\": props.children"
+        in js_code
     );
 
     assert "function PropTodoList(props) {" in js_code;
     assert "const {filteredTodos, toggleTodo, deleteTodo} = props;" in js_code;
     assert (
-        "\"toggleTodo\": props.toggleTodo, \"deleteTodo\": props.deleteTodo, \"children\": props.children}, []);" in js_code
+        "\"toggleTodo\": props.toggleTodo, \"deleteTodo\": props.deleteTodo, \"children\": props.children}, []);"
+        in js_code
     );
 
     assert_balanced_syntax(js_code, advanced_fixture);
@@ -759,7 +765,8 @@ test "separated files" {
     # static type is unknown — `.strip()` routes through the polymorphic
     # runtime dispatcher instead of leaking the Python method name.
     assert (
-        "__jacSpawn(\"create_todo\", \"\", {\"text\": _jac.poly.call(input, \"strip\")});" in js_code
+        "__jacSpawn(\"create_todo\", \"\", {\"text\": _jac.poly.call(input, \"strip\")});"
+        in js_code
     );
 }
 
@@ -808,7 +815,9 @@ test "sv import kwargs preserve names in jac call function" {
 
     # Pure-kwargs single arg: ``greet(name=input_text)``
     assert '__jacCallFunction("greet", {"name": input_text})' in js_code , (
-        "Single-kwarg call must propagate the name into the args object;\n" + "got:\n" + js_code
+        "Single-kwarg call must propagate the name into the args object;\n"
+        + "got:\n"
+        + js_code
     );
 
     # Pure-kwargs out-of-order: ``add_pair(b=2, a=1)`` — both keys must be
@@ -817,19 +826,25 @@ test "sv import kwargs preserve names in jac call function" {
         '__jacCallFunction("add_pair", {"b": 2, "a": 1})' in js_code
         or '__jacCallFunction("add_pair", {"a": 1, "b": 2})' in js_code
     ) , (
-        "Kwargs-only call must include all kwarg keys in the args object;\n" + "got:\n" + js_code
+        "Kwargs-only call must include all kwarg keys in the args object;\n"
+        + "got:\n"
+        + js_code
     );
 
     # Mixed positional + kwarg: ``add_pair(1, b=2)`` — first param mapped
     # by position to its server-side name, second carried by kwarg key.
     assert '__jacCallFunction("add_pair", {"a": 1, "b": 2})' in js_code , (
-        "Mixed positional/kwarg call must merge both into the args object;\n" + "got:\n" + js_code
+        "Mixed positional/kwarg call must merge both into the args object;\n"
+        + "got:\n"
+        + js_code
     );
 
     # ``**dict`` spread against a known signature can lower to declared
     # parameter-key reads, avoiding the old single-object positional shape.
     assert '__jacCallFunction("add_pair", {"a": kw["a"], "b": kw["b"]})' in js_code , (
-        "**dict spread against known signature must compile to keyed parameter reads;\n" + "got:\n" + js_code
+        "**dict spread against known signature must compile to keyed parameter reads;\n"
+        + "got:\n"
+        + js_code
     );
 
     # Sanity: the obvious bug-shape — empty args object — must not appear
@@ -849,10 +864,14 @@ test "sv import kwargs preserve names in production jac2js path" {
     js_code = compile_fixture_to_js_production(fixture, FIXTURES);
 
     assert '__jacCallFunction("greet", {"name": input_text})' in js_code , (
-        "Production jac2js path must lower sv-import kwargs directly into the RPC args object;\n" + "got:\n" + js_code
+        "Production jac2js path must lower sv-import kwargs directly into the RPC args object;\n"
+        + "got:\n"
+        + js_code
     );
     assert "await greet({name: input_text})" not in js_code , (
-        "Production jac2js path must not pass kwargs object into the generated RPC wrapper;\n" + "got:\n" + js_code
+        "Production jac2js path must not pass kwargs object into the generated RPC wrapper;\n"
+        + "got:\n"
+        + js_code
     );
     assert '__jacCallFunction("greet", {})' not in js_code , (
         "Production jac2js path must not emit an empty RPC args object for kwargs calls."
@@ -873,17 +892,24 @@ test "sv import wrapper covers posonly and kwonly params" {
     # Wrapper signature must list params in declared order — filter (posonly),
     # query (regular), scope (kwonly).
     assert "asyncfunctionquery(filter,query,scope)" in compact_js , (
-        "sv-import wrapper must include posonly + kwonly params in its JS " + "signature, not silently drop them;\ngot:\n" + js_code
+        "sv-import wrapper must include posonly + kwonly params in its JS "
+        + "signature, not silently drop them;\ngot:\n"
+        + js_code
     );
     # All three params must appear in the RPC args object the wrapper posts.
     assert (
-        '__jacCallFunction("query",{"filter":filter,"query":query,"scope":scope})' in compact_js
+        '__jacCallFunction("query",{"filter":filter,"query":query,"scope":scope})'
+        in compact_js
     ) , (
-        "sv-import wrapper must forward posonly + kwonly params in the RPC " + "args object;\ngot:\n" + js_code
+        "sv-import wrapper must forward posonly + kwonly params in the RPC "
+        + "args object;\ngot:\n"
+        + js_code
     );
     # Pre-fix bug shape: a one-arg wrapper that posts only the regular param.
     assert "asyncfunctionquery(query)" not in compact_js , (
-        "Wrapper must not regress to walking only sig.params (which would drop " + "posonly + kwonly);\ngot:\n" + js_code
+        "Wrapper must not regress to walking only sig.params (which would drop "
+        + "posonly + kwonly);\ngot:\n"
+        + js_code
     );
 }
 
@@ -893,49 +919,76 @@ test "plain client kwargs lower to ordered js arguments" {
     compact_js = js_code.replace("\n", "").replace(" ", "");
 
     assert "setTotal(add(5, 10));" in js_code , (
-        "Known Jac function kwargs must lower to ordered JS positional args;\n" + "got:\n" + js_code
+        "Known Jac function kwargs must lower to ordered JS positional args;\n"
+        + "got:\n"
+        + js_code
     );
     assert "setMixed(add(1, 2));" in js_code , (
-        "Mixed positional/kwarg call must preserve positional args and order kwargs by signature;\n" + "got:\n" + js_code
+        "Mixed positional/kwarg call must preserve positional args and order kwargs by signature;\n"
+        + "got:\n"
+        + js_code
     );
     assert "function add_defaults(a = 1, b = 2)" in js_code , (
-        "Jac default parameter values must be preserved in emitted JS function signatures;\n" + "got:\n" + js_code
+        "Jac default parameter values must be preserved in emitted JS function signatures;\n"
+        + "got:\n"
+        + js_code
     );
     assert "setDefaulted(add_defaults(undefined, 99));" in js_code , (
-        "Skipping an earlier defaulted param must emit an undefined placeholder, not collapse positions;\n" + "got:\n" + js_code
+        "Skipping an earlier defaulted param must emit an undefined placeholder, not collapse positions;\n"
+        + "got:\n"
+        + js_code
     );
     assert 'setSpread_total(add(kw["a"], kw["b"]));' in js_code , (
-        "Known **kwargs calls must lower to declared-parameter property reads;\n" + "got:\n" + js_code
+        "Known **kwargs calls must lower to declared-parameter property reads;\n"
+        + "got:\n"
+        + js_code
     );
     assert compact_js.count(")(get_kw()))") == 1 , (
         "Complex **kwargs source must be evaluated exactly once;\n" + "got:\n" + js_code
     );
     assert (
-        'setSpread_call_total((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))(get_kw()));' in compact_js
+        'setSpread_call_total((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))(get_kw()));'
+        in compact_js
     ) , (
-        "Known **function_call() spread must lower through a single-evaluation temp IIFE;\n" + "got:\n" + js_code
+        "Known **function_call() spread must lower through a single-evaluation temp IIFE;\n"
+        + "got:\n"
+        + js_code
     );
     assert (
-        'setSpread_merge_total((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))({...kw1,...kw2}));' in compact_js
+        'setSpread_merge_total((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))({...kw1,...kw2}));'
+        in compact_js
     ) , (
-        "Multiple **kwargs spreads must merge earlier and later sources before keyed reads;\n" + "got:\n" + js_code
+        "Multiple **kwargs spreads must merge earlier and later sources before keyed reads;\n"
+        + "got:\n"
+        + js_code
     );
     assert (
-        'setSpread_override_total((__jac_kwargs=>add3(__jac_kwargs["a"],99,__jac_kwargs["c"]))({...kw1,...kw2}));' in compact_js
+        'setSpread_override_total((__jac_kwargs=>add3(__jac_kwargs["a"],99,__jac_kwargs["c"]))({...kw1,...kw2}));'
+        in compact_js
     ) , (
-        "Explicit kwargs must override **spread values while preserving other merged keys;\n" + "got:\n" + js_code
+        "Explicit kwargs must override **spread values while preserving other merged keys;\n"
+        + "got:\n"
+        + js_code
     );
     assert "setMethod_total(counter.bump(5, 3));" in js_code , (
-        "Known method kwargs must lower to ordered JS positional args;\n" + "got:\n" + js_code
+        "Known method kwargs must lower to ordered JS positional args;\n"
+        + "got:\n"
+        + js_code
     );
     assert "add({b: 10, a: 5})" not in js_code , (
-        "Plain kwargs must not be passed as one positional object argument;\n" + "got:\n" + js_code
+        "Plain kwargs must not be passed as one positional object argument;\n"
+        + "got:\n"
+        + js_code
     );
     assert "add_defaults(99)" not in js_code , (
-        "Defaulted kwargs must not collapse missing earlier params;\n" + "got:\n" + js_code
+        "Defaulted kwargs must not collapse missing earlier params;\n"
+        + "got:\n"
+        + js_code
     );
     assert "counter.bump({amount: 5, mul: 3})" not in js_code , (
-        "Method kwargs must not be passed as one positional object argument;\n" + "got:\n" + js_code
+        "Method kwargs must not be passed as one positional object argument;\n"
+        + "got:\n"
+        + js_code
     );
 }
 
@@ -959,9 +1012,8 @@ test "sv import duplicate kwarg is a compile error" {
         if "given both positionally and by keyword" in str(e)
     ];
     assert len(dup_errs) == 1 , (
-        "Expected exactly one E5080 collision diagnostic, got " + str(
-            [str(e) for e in prog.errors_had]
-        )
+        "Expected exactly one E5080 collision diagnostic, got "
+        + str([str(e) for e in prog.errors_had])
     );
     assert "name" in str(dup_errs[0]) and "greet" in str(dup_errs[0]);
 }
@@ -973,8 +1025,8 @@ test "sv import nested in cl block emits no dead import" {
         "svc_kwargs/sv_import_cl_block_client.jac", FIXTURES
     );
     assert "sv_import_cl_block_server" not in js_code , (
-        "nested sv import must not emit a client import of the server "
-        "module; got:\n" + js_code
+        "nested sv import must not emit a client import of the server " "module; got:\n"
+        + js_code
     );
     assert '__jacSpawn("say_hi"' in js_code , (
         "nested sv import must still lower the call to __jacSpawn; got:\n" + js_code
@@ -1232,8 +1284,8 @@ test "poly get dispatches through runtime helper for untyped receivers" {
     # the _jac.poly.call runtime dispatcher (with the method name as a string
     # argument) instead of leaking the Python method name verbatim into JS.
     assert "_jac.poly.call(" in user_chunk and '"get"' in user_chunk , (
-        "Untyped .get() must route through the _jac.poly.call() dispatcher;\n"
-        "got:\n" + user_chunk
+        "Untyped .get() must route through the _jac.poly.call() dispatcher;\n" "got:\n"
+        + user_chunk
     );
     # `_jac.poly.call(mapping, "get", "a")` does NOT contain `.get("`, but a
     # leak like `mapping.get("a")` would — so this cleanly catches a raw
@@ -1251,7 +1303,12 @@ test "poly get dispatches through runtime helper for untyped receivers" {
         timeout=30
     );
     assert result.returncode == 0 , (
-        "poly.get dispatch crashed in Node:\n" "stdout=" + result.stdout + "\nstderr=" + result.stderr + "\njs:\n" + js_code
+        "poly.get dispatch crashed in Node:\n" "stdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+        + "\njs:\n"
+        + js_code
     );
     got: dict[str, any] = json.loads(result.stdout.strip());
     assert "hit" in got and got["hit"] == 1 , (
@@ -1273,8 +1330,8 @@ test "poly get dispatches to custom obj method not plain-object bracket" {
 
     # Must route through the dispatcher because the receiver is any-typed.
     assert "_jac.poly.call(" in user_chunk and '"get"' in user_chunk , (
-        "Untyped .get() on a custom obj must route through _jac.poly.call();\n"
-        "got:\n" + user_chunk
+        "Untyped .get() on a custom obj must route through _jac.poly.call();\n" "got:\n"
+        + user_chunk
     );
 
     # Verify runtime behavior: the dispatcher must detect the user-defined
@@ -1289,12 +1346,18 @@ test "poly get dispatches to custom obj method not plain-object bracket" {
         timeout=30
     );
     assert result.returncode == 0 , (
-        "poly.get custom-obj dispatch crashed in Node:\n" "stdout=" + result.stdout + "\nstderr=" + result.stderr + "\njs:\n" + js_code
+        "poly.get custom-obj dispatch crashed in Node:\n" "stdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+        + "\njs:\n"
+        + js_code
     );
     got: dict[str, any] = json.loads(result.stdout.strip());
     assert "hit" in got and got["hit"] == 42 , (
         "poly.get on custom obj must call the object's .get() method and "
-        "return 42, got " + str(got)
+        "return 42, got "
+        + str(got)
     );
     assert "miss" in got and got["miss"] == -1 , (
         "poly.get on custom obj must return default -1 for missing key, got " + str(got)
@@ -1312,17 +1375,22 @@ test "poly call dispatches dict/list/set/user methods on untyped receivers" {
     assert fn_idx >= 0 , "compiled function test_poly_complete must be present";
     user_chunk = js_code[fn_idx:fn_idx + 1200];
     assert "_jac.poly.call(" in user_chunk , (
-        "Untyped container methods must route through _jac.poly.call();\n"
-        "got:\n" + user_chunk
+        "Untyped container methods must route through _jac.poly.call();\n" "got:\n"
+        + user_chunk
     );
     for leaked in [".keys(", ".values(", ".update(", ".append(", ".discard("] {
         assert leaked not in user_chunk , (
-            "Python method " + leaked + ") leaked verbatim into compiled JS:\n" + user_chunk
+            "Python method "
+            + leaked
+            + ") leaked verbatim into compiled JS:\n"
+            + user_chunk
         );
     }
 
     wrapper = (
-        js_code + "\nconsole.log(JSON.stringify(test_poly_complete()));" + "\nconsole.log(JSON.stringify(test_poly_attribute_error()));\n"
+        js_code
+        + "\nconsole.log(JSON.stringify(test_poly_complete()));"
+        + "\nconsole.log(JSON.stringify(test_poly_attribute_error()));\n"
     );
     result = subprocess.run(
         ["node", "--input-type=module", "-e", wrapper],
@@ -1331,7 +1399,12 @@ test "poly call dispatches dict/list/set/user methods on untyped receivers" {
         timeout=30
     );
     assert result.returncode == 0 , (
-        "poly.call dispatch crashed in Node:\nstdout=" + result.stdout + "\nstderr=" + result.stderr + "\njs:\n" + js_code
+        "poly.call dispatch crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+        + "\njs:\n"
+        + js_code
     );
     lines = result.stdout.strip().split("\n");
     got: dict[str, any] = json.loads(lines[0]);
@@ -1357,9 +1430,8 @@ test "poly call dispatches dict/list/set/user methods on untyped receivers" {
     assert got["has_one"] == False , ("set.discard mismatch: " + str(got));
     # user-defined method name colliding with a primitive: forwarded.
     assert got["box_count"] == 3 , (
-        "primitive-named user method must be forwarded, not run as a list op: " + str(
-            got
-        )
+        "primitive-named user method must be forwarded, not run as a list op: "
+        + str(got)
     );
     # JS-global method on a function-typed receiver (Object.keys): the
     # dispatcher must forward to the function's own method, not throw.
@@ -1618,7 +1690,8 @@ test "list concat in impl file uses array spread not string plus" {
     has_push = ".push(" in js_code;
 
     assert (has_spread or has_concat or has_push) or not has_raw_plus_array , (
-        "List concatenation in impl file must use array spread/concat, " + "not JS `+` operator (which produces string concatenation)"
+        "List concatenation in impl file must use array spread/concat, "
+        + "not JS `+` operator (which produces string concatenation)"
     );
 
     assert_balanced_syntax(js_code, fixture);
@@ -1667,7 +1740,8 @@ test "jsx preserves single-space whitespace between adjacent expression children
     # Children must include a literal " " separator between count and the
     # conditional, AND between the conditional and "remaining".
     assert (
-        "[count, \" \", ((count === 1) ? \"task\" : \"tasks\"), \" remaining\"]" in js_code
+        "[count, \" \", ((count === 1) ? \"task\" : \"tasks\"), \" remaining\"]"
+        in js_code
     ) , (
         "Same-line `{a} {b}` must emit a `\" \"` child between adjacent "
         f"expressions, got:\n{js_code}"
@@ -1694,17 +1768,19 @@ test "is and is not emit identity comparison operators" {
     # both `is` and `is not` fell through to the `===` default. `is None`
     # was accidentally correct; `is not None` silently inverted to `===`,
     # causing branches like `if x is not None { ... }` to run only when x
-    # *was* None.
+    # *was* None. None comparisons now lower to LOOSE equality (== null /
+    # != null) so JS undefined -- from no-return calls, empty pops, host
+    # interop -- reads as Jac None instead of impersonating a value (#7922).
     jac_code = "\"\"\"Test is/is not codegen.\"\"\"\n\ndef check(x: int | None) -> int {\n    if x is None {\n        return 1;\n    }\n    if x is not None {\n        return 2;\n    }\n    return 3;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
         js_code = compile_fixture_to_js(temp_path);
-        assert "x === null" in js_code , (
-            f"`is None` must emit `=== null`, got:\n{js_code}"
+        assert "x == null" in js_code and "x === null" not in js_code , (
+            f"`is None` must emit loose `== null`, got:\n{js_code}"
         );
-        assert "x !== null" in js_code , (
-            f"`is not None` must emit `!== null`, got:\n{js_code}"
+        assert "x != null" in js_code and "x !== null" not in js_code , (
+            f"`is not None` must emit loose `!= null`, got:\n{js_code}"
         );
         assert_balanced_syntax(js_code, temp_path);
     } finally {
@@ -1781,7 +1857,13 @@ test "issue 5930 sibling if else branches each get block scoped let" {
         # the bundle through node with `"use strict";` prepended and call
         # both branches.
         wrapper = (
-            '"use strict";\n' + js_code + "\nif (typeof test !== 'function')" + " { throw new Error('test() not exported'); }" + "\nif (test(true) !== 0 || test(false) !== 0)" + " { throw new Error('branches must return 0'); }" + "\nconsole.log('ok');\n"
+            '"use strict";\n'
+            + js_code
+            + "\nif (typeof test !== 'function')"
+            + " { throw new Error('test() not exported'); }"
+            + "\nif (test(true) !== 0 || test(false) !== 0)"
+            + " { throw new Error('branches must return 0'); }"
+            + "\nconsole.log('ok');\n"
         );
         result = subprocess.run(
             ["node", "--input-type=module", "-e", wrapper],
@@ -1823,7 +1905,12 @@ test "sibling block scopes — elif chain each branch gets its own let" {
         # Run under strict mode through node to catch any
         # ReferenceError-shaped regression.
         wrapper = (
-            '"use strict";\n' + js_code + "\nif (test_elif(1) !== 0 || test_elif(2) !== 0" + " || test_elif(3) !== 0 || test_elif(99) !== 0)" + " { throw new Error('branches must return 0'); }" + "\nconsole.log('ok');\n"
+            '"use strict";\n'
+            + js_code
+            + "\nif (test_elif(1) !== 0 || test_elif(2) !== 0"
+            + " || test_elif(3) !== 0 || test_elif(99) !== 0)"
+            + " { throw new Error('branches must return 0'); }"
+            + "\nconsole.log('ok');\n"
         );
         result = subprocess.run(
             ["node", "--input-type=module", "-e", wrapper],
@@ -1901,7 +1988,13 @@ test "sibling block scopes — try except finally each get their own let" {
         # Run under strict mode through node to confirm no
         # `ReferenceError: x is not defined` in the except or finally branch.
         wrapper = (
-            '"use strict";\n' + js_code + "\nif (test_try(false) !== 0)" + " { throw new Error('no-throw path must return 0'); }" + "\nif (test_try(true) !== 0)" + " { throw new Error('throw path must return 0'); }" + "\nconsole.log('ok');\n"
+            '"use strict";\n'
+            + js_code
+            + "\nif (test_try(false) !== 0)"
+            + " { throw new Error('no-throw path must return 0'); }"
+            + "\nif (test_try(true) !== 0)"
+            + " { throw new Error('throw path must return 0'); }"
+            + "\nconsole.log('ok');\n"
         );
         result = subprocess.run(
             ["node", "--input-type=module", "-e", wrapper],
@@ -1938,7 +2031,13 @@ test "except Exception catches native JS errors (interop resilience)" {
             "builtin except must dispatch via _jac.exc.matches, got:\n" f"{js_code}"
         );
         wrapper = (
-            '"use strict";\n' + js_code + "\nif (parse_or_default('not json') !== null)" + " { throw new Error('except Exception must catch native SyntaxError'); }" + "\nif (JSON.stringify(parse_or_default('[1,2]')) !== '[1,2]')" + " { throw new Error('valid JSON must still parse'); }" + "\nconsole.log('ok');\n"
+            '"use strict";\n'
+            + js_code
+            + "\nif (parse_or_default('not json') !== null)"
+            + " { throw new Error('except Exception must catch native SyntaxError'); }"
+            + "\nif (JSON.stringify(parse_or_default('[1,2]')) !== '[1,2]')"
+            + " { throw new Error('valid JSON must still parse'); }"
+            + "\nconsole.log('ok');\n"
         );
         result = subprocess.run(
             ["node", "--input-type=module", "-e", wrapper],
@@ -1970,7 +2069,13 @@ test "narrow builtin except does not catch native JS errors" {
             f"narrow builtin except must dispatch via _jac.exc.matches, got:\n{js_code}"
         );
         wrapper = (
-            '"use strict";\n' + js_code + "\nlet threw = false;" + "\ntry { narrow('not json'); } catch (e) { threw = (e instanceof SyntaxError); }" + "\nif (!threw) { throw new Error('except ValueError must NOT catch native SyntaxError'); }" + "\nif (narrow('5') !== 1) { throw new Error('valid path must return 1'); }" + "\nconsole.log('ok');\n"
+            '"use strict";\n'
+            + js_code
+            + "\nlet threw = false;"
+            + "\ntry { narrow('not json'); } catch (e) { threw = (e instanceof SyntaxError); }"
+            + "\nif (!threw) { throw new Error('except ValueError must NOT catch native SyntaxError'); }"
+            + "\nif (narrow('5') !== 1) { throw new Error('valid path must return 1'); }"
+            + "\nconsole.log('ok');\n"
         );
         result = subprocess.run(
             ["node", "--input-type=module", "-e", wrapper],
@@ -2007,7 +2112,13 @@ test "user-defined exception except is not a catch-all" {
             f"_jac.exc.matches predicate, got:\n{js_code}"
         );
         wrapper = (
-            '"use strict";\n' + js_code + "\nif (classify(1) !== 'mine')" + " { throw new Error('except MyError must catch MyError'); }" + "\nif (classify(2) !== 've')" + " { throw new Error('except MyError must NOT catch a ValueError'); }" + "\nconsole.log('ok');\n"
+            '"use strict";\n'
+            + js_code
+            + "\nif (classify(1) !== 'mine')"
+            + " { throw new Error('except MyError must catch MyError'); }"
+            + "\nif (classify(2) !== 've')"
+            + " { throw new Error('except MyError must NOT catch a ValueError'); }"
+            + "\nconsole.log('ok');\n"
         );
         result = subprocess.run(
             ["node", "--input-type=module", "-e", wrapper],
@@ -2042,7 +2153,11 @@ test "exception archetype subclassing a builtin extends _jac.exc.X" {
             f"global, got:\n{js_code}"
         );
         wrapper = (
-            '"use strict";\n' + js_code + "\nif (boom() !== 1)" + " { throw new Error('custom exception must load and be caught by except Exception'); }" + "\nconsole.log('ok');\n"
+            '"use strict";\n'
+            + js_code
+            + "\nif (boom() !== 1)"
+            + " { throw new Error('custom exception must load and be caught by except Exception'); }"
+            + "\nconsole.log('ok');\n"
         );
         result = subprocess.run(
             ["node", "--input-type=module", "-e", wrapper],
@@ -2077,7 +2192,11 @@ test "exception archetype subclassing ValueError extends _jac.exc.ValueError" {
             f"global, got:\n{js_code}"
         );
         wrapper = (
-            '"use strict";\n' + js_code + "\nif (parse_int('x') !== -1)" + " { throw new Error('custom ValueError subclass must be caught by except ValueError'); }" + "\nconsole.log('ok');\n"
+            '"use strict";\n'
+            + js_code
+            + "\nif (parse_int('x') !== -1)"
+            + " { throw new Error('custom ValueError subclass must be caught by except ValueError'); }"
+            + "\nconsole.log('ok');\n"
         );
         result = subprocess.run(
             ["node", "--input-type=module", "-e", wrapper],
@@ -2365,7 +2484,9 @@ def probe(resp: any, xs: any) -> dict {
             f"string-key access must stay a raw subscript:\n{js_code}"
         );
         wrapper = (
-            js_code + "\nconst r = probe({user_id: 'u9', data: {}}, [10, 20, 30]);" + "\nconsole.log(JSON.stringify(r));\n"
+            js_code
+            + "\nconst r = probe({user_id: 'u9', data: {}}, [10, 20, 30]);"
+            + "\nconsole.log(JSON.stringify(r));\n"
         );
         result = subprocess.run(
             ["node", "--input-type=module", "-e", wrapper],
@@ -2410,7 +2531,15 @@ test "isinstance/issubclass against builtin types, user class, and tuples (#6458
     # Drive the emitted JS through Node to confirm correct Python semantics
     # (including bool-as-subclass-of-int, tuple-of-types, and issubclass).
     wrapper = (
-        js_code + "\nconst cases = [['hi'], [true], [5], [3.14], [[1, 2]], " + "[new Widget({name: 'w'})]];" + "\nconsole.log(JSON.stringify({" + "  classify: cases.map(c => classify(c[0]))," + "  scalar: [is_scalar(5), is_scalar(3.14), is_scalar('x'), " + "is_scalar(true), is_scalar([1])]," + "  subclass: subclass_probe()" + "}));\n"
+        js_code
+        + "\nconst cases = [['hi'], [true], [5], [3.14], [[1, 2]], "
+        + "[new Widget({name: 'w'})]];"
+        + "\nconsole.log(JSON.stringify({"
+        + "  classify: cases.map(c => classify(c[0])),"
+        + "  scalar: [is_scalar(5), is_scalar(3.14), is_scalar('x'), "
+        + "is_scalar(true), is_scalar([1])],"
+        + "  subclass: subclass_probe()"
+        + "}));\n"
     );
     result = subprocess.run(
         ["node", "--input-type=module", "-e", wrapper],
@@ -2451,8 +2580,10 @@ test "builtin type used as a value lowers to a callable (#7454)" {
     user_js = js_code[fn_idx:];
     for tag in ["\"int\"", "\"str\"", "\"bool\""] {
         assert tag not in user_js , (
-            "builtin type lowered to the bare string " + tag + ", which throws "
-            "when called; user code:\n" + user_js
+            "builtin type lowered to the bare string "
+            + tag
+            + ", which throws " "when called; user code:\n"
+            + user_js
         );
     }
     # The direct-call path must stay inline (no runtime round-trip).
@@ -2461,7 +2592,17 @@ test "builtin type used as a value lowers to a callable (#7454)" {
     );
 
     wrapper = (
-        js_code + "\nconsole.log(JSON.stringify({" + "  parse_all: parse_all([\"1\", \"2\", \"3\"])," + "  keep_truthy: keep_truthy([0, 1, \"\", \"a\", 2])," + "  sort_numerically: sort_numerically([\"10\", \"9\", \"2\"])," + "  alias_call: alias_call(\"42\")," + "  coerce_all: coerce_all(5)," + "  direct_call: direct_call(\"7\")," + "  classify: [classify(true), classify(3), classify(\"x\"), classify(1.5)]," + "  subclass: subclass_probe()" + "}));\n"
+        js_code
+        + "\nconsole.log(JSON.stringify({"
+        + "  parse_all: parse_all([\"1\", \"2\", \"3\"]),"
+        + "  keep_truthy: keep_truthy([0, 1, \"\", \"a\", 2]),"
+        + "  sort_numerically: sort_numerically([\"10\", \"9\", \"2\"]),"
+        + "  alias_call: alias_call(\"42\"),"
+        + "  coerce_all: coerce_all(5),"
+        + "  direct_call: direct_call(\"7\"),"
+        + "  classify: [classify(true), classify(3), classify(\"x\"), classify(1.5)],"
+        + "  subclass: subclass_probe()"
+        + "}));\n"
     );
     result = subprocess.run(
         ["node", "--input-type=module", "-e", wrapper],
@@ -2542,8 +2683,11 @@ test "builtin functions lower to runtime helpers without type-check (#7480)" {
         "range"
     ] {
         assert re.search(r"(?<![.\w])" + name + r"\s*\(", user_js) is None , (
-            "builtin function `" + name + "` lowered to a bare, undefined "
-            "identifier (ReferenceError at runtime); user code:\n" + user_js
+            "builtin function `"
+            + name
+            + "` lowered to a bare, undefined "
+            "identifier (ReferenceError at runtime); user code:\n"
+            + user_js
         );
     }
 
@@ -2553,7 +2697,12 @@ test "builtin functions lower to runtime helpers without type-check (#7480)" {
         pytest.skip("node not on PATH");
     }
     wrapper = (
-        js_code + "\nconsole.log(JSON.stringify({" + "  summarize: summarize([3, 1, 2])," + "  numeric: numeric(5)," + "  zipped: combined([1, 2], [3, 4])[2]" + "}));\n"
+        js_code
+        + "\nconsole.log(JSON.stringify({"
+        + "  summarize: summarize([3, 1, 2]),"
+        + "  numeric: numeric(5),"
+        + "  zipped: combined([1, 2], [3, 4])[2]"
+        + "}));\n"
     );
     result = subprocess.run(
         ["node", "--input-type=module", "-e", wrapper],
@@ -2584,7 +2733,8 @@ test "getattr default with or/and emits parenthesized nullish coalescing (#6562)
     fixture = "dict_get_nullish_or_precedence.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
-    wrapper = js_code + "\nconsole.log(JSON.stringify(test_nullish_logical_precedence_cases()));\n";
+    wrapper = js_code
+        + "\nconsole.log(JSON.stringify(test_nullish_logical_precedence_cases()));\n";
     result = subprocess.run(
         ["node", "--input-type=module", "-e", wrapper],
         capture_output=True,
@@ -2592,7 +2742,13 @@ test "getattr default with or/and emits parenthesized nullish coalescing (#6562)
         timeout=30
     );
     assert result.returncode == 0 , (
-        "getattr + or/and fixture crashed in Node:\n" + "stdout=" + result.stdout + "\nstderr=" + result.stderr + "\njs:\n" + js_code
+        "getattr + or/and fixture crashed in Node:\n"
+        + "stdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+        + "\njs:\n"
+        + js_code
     );
 
     got: dict[str, any] = json.loads(result.stdout.strip());
@@ -2631,16 +2787,21 @@ test "getattr default with or/and emits parenthesized nullish coalescing (#6562)
     assert_balanced_syntax(js_code, fixture);
 }
 
-test "ESDictEmitter.emit_get parenthesizes ?? for 1- and 2-arg forms (#6562)" {
+test "ESDictEmitter.emit_get routes through the membership-checked runtime (#6562, #7884)" {
+    # `target[k] ?? default` was wrong on three axes: a miss produced
+    # undefined (never equal to null, so `is None` failed), a stored None
+    # with no default became undefined, and a stored None with a default
+    # wrongly returned the default. The runtime's _jac.dict.get does the
+    # required membership check and defaults to null.
     emitter = ESDictEmitter();
     ctx = ESEmitCtx(unparser=JSCodeGenerator());
     one_arg = emitter.emit_get(ctx, "d", ['"k"']);
     two_arg = emitter.emit_get(ctx, "d", ['"k"', '""']);
-    assert one_arg == '(d["k"] ?? undefined)' , (
-        "1-arg emit_get must wrap ?? in parens; got " + str(one_arg)
+    assert one_arg == '_jac.dict.get(d, "k")' , (
+        "1-arg emit_get must call the runtime helper; got " + str(one_arg)
     );
-    assert two_arg == '(d["k"] ?? "")' , (
-        "2-arg emit_get must wrap ?? in parens; got " + str(two_arg)
+    assert two_arg == '_jac.dict.get(d, "k", "")' , (
+        "2-arg emit_get must forward the default; got " + str(two_arg)
     );
 }
 
@@ -2661,11 +2822,359 @@ test "builtin name used as a dict key lowers to that key, not the 'key' fallback
             f"builtin `type` key must lower to `type`, not the `key` fallback:\n{js_code}"
         );
         assert "key: \"email\"" not in js_code
-        and "\"key\": \"email\"" not in js_code , (
+            and "\"key\": \"email\"" not in js_code , (
             f"builtin `type` key must not collapse to the literal `key`:\n{js_code}"
         );
         assert_balanced_syntax(js_code, temp_path);
     } finally {
         os.unlink(temp_path);
+    }
+}
+
+test "unimplemented client statement is a hard error, not a silent drop (#7922)" {
+    # RC-1: EsastGenPass assembled bodies by silently skipping any statement
+    # that never produced an es_ast, so constructs with no ES lowering
+    # (del, with, ...) vanished from the output while `jac check` stayed
+    # green -- the function compiled but computed the wrong value at
+    # runtime. Any such statement must now be a blocks_codegen error.
+    jac_code = (
+        "def t_del() -> int {\n"
+        "    d: dict[str, int] = {\"a\": 1, \"b\": 2};\n"
+        "    del d[\"a\"];\n"
+        "    return len(d.keys());\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        prog = JacProgram();
+        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        EsastGenPass(ir_in=ir, prog=prog);
+        drops = [
+            e
+            for e in prog.errors_had
+            if "not supported by client codegen" in str(e)
+        ];
+        assert len(drops) == 1 , (
+            "Expected exactly one E5017 silent-drop diagnostic, got "
+            + str([str(e) for e in prog.errors_had])
+        );
+        assert "del" in str(drops[0]) , (
+            "E5017 must name the offending construct; got " + str(drops[0])
+        );
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+test "supported client statements do not trip the completeness guard (#7922)" {
+    # Companion to the guard test: a body exercising the ordinary statement
+    # repertoire (assignment, if/else, loops, try/except, return) must not
+    # produce any E5017 -- the guard fires only for genuinely unlowered
+    # statements.
+    jac_code = (
+        "def t_ok(n: int) -> int {\n"
+        "    total = 0;\n"
+        "    for i in range(n) {\n"
+        "        if i % 2 == 0 { total += i; } else { total += 1; }\n"
+        "    }\n"
+        "    while total > 100 { total -= 10; }\n"
+        "    try { total += 1; } except Exception as e { total = 0; }\n"
+        "    return total;\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        prog = JacProgram();
+        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        EsastGenPass(ir_in=ir, prog=prog);
+        drops = [
+            e
+            for e in prog.errors_had
+            if "not supported by client codegen" in str(e)
+        ];
+        assert not drops , (
+            "Guard false-positive on supported statements: "
+            + str([str(e) for e in drops])
+        );
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+test "branch-first assignment binds function-wide, not per block (#7882)" {
+    # RC-3: the ES backend declared `let` at the assignment site in whatever
+    # block scope was current, so `if {result=..} else {result=..} return
+    # result;` emitted two dead block-scoped bindings and threw
+    # ReferenceError. The symbol table hoists such names to the enclosing
+    # Ability; the emitted JS must match it. Executes all seven shapes.
+    js_code = compile_fixture_to_js("scope_hoist_shapes.jac", FIXTURES);
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(t_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "scope-hoist shapes crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+        + "\njs:\n"
+        + js_code
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {
+        "ifelse": "NEG",
+        "whl": 1,
+        "fr": 3,
+        "tr": "ok",
+        "wal": 5,
+        "des": 30,
+        "imp": "B"
+    };
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"shape {key}: expected {want}, got {got.get(key)}\njs:\n" + js_code
+        );
+    }
+
+    # The if/else shape must produce exactly one binding for `result`
+    # (scan only the user function -- the _jac runtime bundle has its own
+    # unrelated `let result` locals).
+    fn_idx = js_code.find("function t_ifelse");
+    assert fn_idx >= 0 , "compiled function t_ifelse must be present";
+    user_chunk = js_code[fn_idx:fn_idx + 300];
+    assert user_chunk.count("let result") == 1 , (
+        "expected a single hoisted `let result`, got:\n" + user_chunk
+    );
+}
+
+test "module-level entry block assignment hoists to module scope (#7882)" {
+    jac_code = (
+        "with entry {\n"
+        "    if True {\n"
+        "        z = 42;\n"
+        "    }\n"
+        "    print(z);\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+        assert "let z;" in js_code , (
+            "module-level `z` must be hoisted to module scope as `let z;`:\n" + js_code
+        );
+        assert "let z = 42" not in js_code , (
+            "branch assignment must not block-scope `z`:\n" + js_code
+        );
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+test "len dispatches on argument type: dict, set, unknown (#7883)" {
+    # RC-4: emit_len unconditionally returned `.length`, which is undefined
+    # on plain JS objects (dict) and on Set, so len(d) silently returned
+    # undefined and every comparison against it was false. The builtin
+    # emitter now sees the argument's inferred type.
+    js_code = compile_fixture_to_js("len_type_dispatch.jac", FIXTURES);
+
+    d_idx = js_code.find("function t_len_dict");
+    assert d_idx >= 0;
+    d_chunk = js_code[d_idx:d_idx + 250];
+    assert "Object.keys(d).length" in d_chunk , (
+        "len(dict) must emit Object.keys(x).length; got:\n" + d_chunk
+    );
+
+    s_idx = js_code.find("function t_len_set");
+    assert s_idx >= 0;
+    s_chunk = js_code[s_idx:s_idx + 250];
+    assert ".size" in s_chunk , ("len(set) must emit .size; got:\n" + s_chunk);
+
+    a_idx = js_code.find("function t_len_any");
+    assert a_idx >= 0;
+    a_chunk = js_code[a_idx:a_idx + 250];
+    assert "_jac.builtin.len(" in a_chunk , (
+        "len(<unknown type>) must route through _jac.builtin.len; got:\n" + a_chunk
+    );
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(t_len_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "len dispatch crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {"d": 2, "s": 3, "a": 4, "l": 3, "st": 4};
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"len shape {key}: expected {want}, got {got.get(key)}\njs:\n" + js_code
+        );
+    }
+}
+
+test "dict.get miss is a real None on the client (#7884)" {
+    # RC-5: emit_get produced `(d[k] ?? undefined)` while None lowers to
+    # null, so `d.get(missing) is None` was false and `is not None` true
+    # for every missing key. Also covers the two present-but-None axes the
+    # runtime's own docs warn about.
+    js_code = compile_fixture_to_js("dict_get_none_semantics.jac", FIXTURES);
+
+    assert "?? undefined" not in js_code , (
+        "dict.get must not emit `?? undefined`:\n" + js_code
+    );
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(get_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "dict.get semantics crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {
+        "miss_is_none": True,
+        "miss_is_not_none": False,
+        "present": 1,
+        "stored_none": True,
+        "stored_none_default": True,
+        "miss_default": 7
+    };
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"dict.get axis {key}: expected {want}, got {got.get(key)}\njs:\n" + js_code
+        );
+    }
+}
+
+test "None comparisons lower to loose equality so undefined cannot impersonate a value (#7884, #7922)" {
+    # RC-5, class-closing half: undefined leaks into Jac-visible values
+    # from sites beyond dict.get (no-return functions, empty pops, host
+    # interop). JS `x == null` is true for exactly null and undefined --
+    # precisely Jac None-ness -- so None comparisons use loose equality
+    # while `is` between non-None operands stays strict.
+    js_code = compile_fixture_to_js("none_compare_loose.jac", FIXTURES);
+
+    n_idx = js_code.find("function t_noret_is_none");
+    assert n_idx >= 0;
+    n_chunk = js_code[n_idx:n_idx + 200];
+    assert "== null" in n_chunk and "=== null" not in n_chunk , (
+        "`is None` must lower to loose `== null`; got:\n" + n_chunk
+    );
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(none_cmp_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "none-compare fixture crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {
+        "noret_none": True,
+        "noret_not_none": False,
+        "pop_empty_none": True,
+        "value_not_none": True
+    };
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"none-compare axis {key}: expected {want}, got {got.get(key)}\njs:\n"
+            + js_code
+        );
+    }
+}
+
+test "match lowers to a guarded if-chain with full pattern coverage (#7881)" {
+    # RC-2: EsastGenPass had no MatchStmt lowering at all, so a client
+    # function whose body was a match compiled to an empty function that
+    # returned undefined for every input. The lowering is an if-chain over
+    # a cached subject (never a JS switch): guards fall through to later
+    # cases, bodies keep their own return/break semantics, and captures
+    # hoist through the same scope machinery as ordinary assignments.
+    js_code = compile_fixture_to_js("match_lowering.jac", FIXTURES);
+
+    v_idx = js_code.find("function m_value");
+    assert v_idx >= 0;
+    v_chunk = js_code[v_idx:v_idx + 400];
+    assert "__jac_match_subj_" in v_chunk , (
+        "match must lower to the cached-subject if-chain; got:\n" + v_chunk
+    );
+    assert "switch" not in v_chunk , (
+        "match must not lower to a JS switch; got:\n" + v_chunk
+    );
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(m_all()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "match lowering crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {
+        "v_a": "AAA",
+        "v_b": "BBB",
+        "v_z": "OTHER",
+        "g_big": "big",
+        "g_mid": "mid",
+        "g_small": "small",
+        "s_exact": "exact",
+        "s_star": "starts1:3",
+        "s_empty": "empty",
+        "s_other": "other",
+        "m_circle": "circle:5",
+        "m_kind": "kind:sq",
+        "m_none": "nokind",
+        "a_origin": "origin",
+        "a_yaxis": "yaxis:7",
+        "a_point": "point",
+        "a_not": "notpoint",
+        "o_small": "small",
+        "o_letter": "letter",
+        "o_none": "none",
+        "o_big": "big",
+        "r_hit": "rest:1:2",
+        "r_no": "no",
+        "as_pair": "pair:5:2",
+        "as_no": "no",
+        "t": "T",
+        "f": "F",
+        "n": "N",
+        "v": "V"
+    };
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"match axis {key}: expected {want}, got {got.get(key)}"
+        );
     }
 }

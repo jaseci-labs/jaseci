@@ -42,7 +42,7 @@ glob FORBIDDEN: dict[str, str] = {
      # at sites where the declaration IS the fact.
      SANCTIONED: dict[tuple, tuple] = {
          ("ecmascript/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
-             4,
+             5,
              "collect_field_names/symbol_owner_archetype - symbol-FACT "
              "readers over an already-resolved walker symbol. "
              "The former classify_call fallback is deleted (#7418): "
@@ -60,7 +60,13 @@ glob FORBIDDEN: dict[str, str] = {
              "only consumes stamped facts, never the producer. The former "
              "ability_of_symbol read at sv-import stub generation is "
              "deleted (#7760): stubs now consume the InteropBinding "
-             "recorded by BoundaryAnalysisPass"
+             "recorded by BoundaryAnalysisPass. Plus "
+             "report_client_bare_import_uses at exit_module: client use "
+             "of a bare import that resolves to no client-reachable "
+             "module is a guaranteed runtime ReferenceError - the "
+             "reporter consumes stamped code_context and symbol facts, "
+             "shared with StaticAnalysisPass so build-only and "
+             "check-only runs agree"
          ),
          ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
              1,
@@ -118,6 +124,14 @@ glob FORBIDDEN: dict[str, str] = {
              2,
              "declaration-surface reads at interop layout export"
          ),
+         ("native/na_ir_gen_pass.impl/calls.impl.jac", "type_tag.tag"): (
+             1,
+             "declaration-surface read of foreign extern signatures: the "
+             "clib membrane needs the DECLARED str params/returns of a "
+             "foreign call to route them through the JacStr wrap/unwrap "
+             "shims (#7870 strings step 2) - the C membrane always "
+             "trafficks NUL-terminated char*"
+         ),
          ("native/na_ir_gen_pass.impl/func.impl.jac", "type_tag.tag"): (
              4,
              "scalar LLVM materialization from declared clib annotations "
@@ -127,6 +141,13 @@ glob FORBIDDEN: dict[str, str] = {
          ("native/na_ir_gen_pass.impl/objects.impl.jac", "type_tag.tag"): (
              1,
              "declaration-surface read during archetype field lowering"
+         ),
+         ("native/na_ir_gen_pass.impl/lists.impl.jac", "type_tag.tag"): (
+             1,
+             "declared-vs-inferred bare list is a declaration-surface "
+             "distinction central facts do not carry (the checker stamps "
+             "unannotated empties as bare list too); the empty-literal "
+             "storage-family decision must key on the explicit annotation"
          ),
          ("native/na_ir_gen_pass.impl/stmt.impl.jac", "type_tag.tag"): (
              7,

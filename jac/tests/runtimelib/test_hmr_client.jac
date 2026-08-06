@@ -901,7 +901,7 @@ test "router entry survives an error then fix cycle" {
         error_data = json.loads(error_file.read_text());
         assert "index.jac" in str(error_data["file"]) , "mirrored error must name the failing file";
         assert "Failed to compile" in str(error_data["message"])
-        and "index.jac" in str(error_data["message"]) , "mirrored error must carry the actual compiler message";
+            and "index.jac" in str(error_data["message"]) , "mirrored error must carry the actual compiler message";
         # Fix the page: router still intact, mirrored error cleared
         index_file.write_text(good_source);
         reloader._recompile_client_code(str(index_file));

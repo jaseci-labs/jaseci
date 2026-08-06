@@ -683,7 +683,7 @@ impl LayoutPass._is_layout_compatible_type(
     }
 
     if isinstance(type_node, uni.UnaryExpr)
-    and type_node.ownership != OwnershipKind.NONE {
+        and type_node.ownership != OwnershipKind.NONE {
         return self._is_layout_compatible_type(type_node.operand, arch_map);
     }
 

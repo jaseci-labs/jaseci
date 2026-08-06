@@ -619,9 +619,9 @@ test "L2 and L3 commit with server restart" {
         for key in redis_keys {
             val = redis_client.get(key);
             if val
-            and b"Task" in val
-            and b'"id": 500' in val
-            and b'"title": "L2/L3 Test"' in val {
+                and b"Task" in val
+                and b'"id": 500' in val
+                and b'"title": "L2/L3 Test"' in val {
                 task_found_in_redis = True;
                 break;
             }
@@ -853,7 +853,12 @@ test "batch_get reduces MongoDB queries for edge traversals" {
     base_url = f"http://localhost:{port}";
     server = start_server(FIXTURES_DIR, JAC_FILE, port);
 
-    num_tasks = 10;
+    # The projection warm path adds a small CONSTANT number of id-space
+    # queries on a cold process (node_pages + ancestry + heal probes); the
+    # invariant under test is that traversal I/O stays O(1) in edge count,
+    # so the workload is sized to keep per-edge behavior failing while
+    # constant overhead passes.
+    num_tasks = 40;
 
     try {
         db = mongo_client["jac_db"];
@@ -1020,9 +1025,8 @@ test "partial update only writes mutated fields — unmodified fields survive in
             {"$set": {"data.archetype.metadata.__sentinel__": "PRESERVED"}}
         );
         sentinel_check = collection.find_one({"_id": item_id});
-        assert sentinel_check["data"]["archetype"]["metadata"].get("__sentinel__") == "PRESERVED" , (
-            "Sentinel injection failed"
-        );
+        assert sentinel_check["data"]["archetype"]["metadata"].get("__sentinel__")
+            == "PRESERVED" , ("Sentinel injection failed");
 
         post_request(base_url, "/walker/AppendTag", {"id": 42, "tag": "urgent"}, token);
 
@@ -1030,7 +1034,8 @@ test "partial update only writes mutated fields — unmodified fields survive in
         assert "urgent" in doc["data"]["archetype"]["tags"] , (
             "tags mutation was not persisted to MongoDB"
         );
-        assert doc["data"]["archetype"]["metadata"].get("__sentinel__") == "PRESERVED" , (
+        assert doc["data"]["archetype"]["metadata"].get("__sentinel__")
+            == "PRESERVED" , (
             "put_partial overwrote metadata — a full $set was issued instead of a partial one"
         );
     } finally {

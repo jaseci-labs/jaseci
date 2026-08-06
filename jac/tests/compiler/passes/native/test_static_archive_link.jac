@@ -82,9 +82,15 @@ def _inject_macho(ir_txt: str) -> str {
     globals_ir = ""
         if "__jac_argc" in ir_txt
         else "@__jac_argc = global i32 0\n@__jac_argv = global ptr null\n\n";
-    return ir_txt + (
-        "\n; --- injected entry point ---\n" + globals_ir + "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n" + "    store i32 %argc, ptr @__jac_argc\n" + "    store ptr %argv, ptr @__jac_argv\n" + "    call void @jac_entry()\n    ret i32 0\n}\n"
-    );
+    return ir_txt
+        + (
+            "\n; --- injected entry point ---\n"
+            + globals_ir
+            + "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n"
+            + "    store i32 %argc, ptr @__jac_argc\n"
+            + "    store ptr %argv, ptr @__jac_argv\n"
+            + "    call void @jac_entry()\n    ret i32 0\n}\n"
+        );
 }
 
 
@@ -231,7 +237,8 @@ test "ELF: static-link jac_floor_magic from a member object, run, verify (#6978 
     # main object calls. Emitted from IR so the test needs no checked-in binary
     # and no host C toolchain, and stays cross-host (Mach-O `ar` cannot build an
     # ELF member's symbol index, so a real archive can't be assembled on macOS).
-    member_ir = f'target triple = "{triple}"\n\n' + "define i64 @jac_floor_magic() {\nentry:\n  ret i64 1234605616436508552\n}\n";
+    member_ir = f'target triple = "{triple}"\n\n'
+        + "define i64 @jac_floor_magic() {\nentry:\n  ret i64 1234605616436508552\n}\n";
     member_obj = _emit_object(member_ir, triple);
 
     d = tempfile.mkdtemp();
