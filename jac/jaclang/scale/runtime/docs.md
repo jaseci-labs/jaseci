@@ -88,11 +88,9 @@ def:pub create_order(user_id: str) -> dict {
 ### 2. Configure jac.toml
 
 ```toml
-[scale.microservices]
-enabled = true
-
 # The service cut: each key runs as its own service; the value is its
-# gateway URL prefix ("" derives /<module-slug>)
+# gateway URL prefix ("" derives /<module-slug>). Declaring routes IS what
+# turns microservice mode on; remove the table to run single-process.
 [scale.microservices.routes]
 products_app = "/api/products"
 cart_app = "/api/cart"
@@ -308,7 +306,8 @@ Same code, different deployer:
 
 ## Kubernetes Deployment
 
-`jac start <file>.jac --scale` with `[scale.microservices].enabled = true`
+`jac start <file>.jac --scale` with services declared in
+`[scale.microservices.routes]`
 auto-routes to the microservice K8s target: one image built and pushed,
 then per-service `Deployment` + `ClusterIP Service` + autoscaler (HPA or KEDA `ScaledObject`) + PDB applied
 for every `[scale.microservices.routes]` entry plus the gateway.
