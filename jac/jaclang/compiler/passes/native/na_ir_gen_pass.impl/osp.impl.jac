@@ -71,7 +71,7 @@ impl NaIRGenPass._register_osp_kernel_module -> None {
 
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
     if (_manifest is not None)
-    and ("osp_kernel" not in _manifest.native_transitive_sources) {
+        and ("osp_kernel" not in _manifest.native_transitive_sources) {
         _manifest.native_transitive_sources.append("osp_kernel");
     }
 }
@@ -102,7 +102,7 @@ impl NaIRGenPass._compute_osp_model(archetypes: list[uni.Archetype]) -> None {
 impl NaIRGenPass._osp_active -> bool {
     _model = self.ir_in.gen.osp_model;
     return (_model is not None)
-    and (_model.has_event_ability() or _model.uses_construct);
+        and (_model.has_event_ability() or _model.uses_construct);
 }
 
 impl NaIRGenPass._xmod_osp_help(names: list) -> (str | None) {
@@ -883,8 +883,8 @@ impl NaIRGenPass._codegen_edge_ref_trailer(
     }
 
     if (origin_val is None)
-    or (_idx >= len(chain))
-    or (not isinstance(chain[_idx], uni.EdgeOpRef)) {
+        or (_idx >= len(chain))
+        or (not isinstance(chain[_idx], uni.EdgeOpRef)) {
         self.emit(E5092, node_override=nd, kind="expression", name="EdgeRefTrailer");
         return None;
     }
@@ -906,7 +906,7 @@ impl NaIRGenPass._codegen_edge_ref_trailer(
             }
         }
         _is_last_hop = (_idx >= len(chain))
-        or (not isinstance(chain[_idx], uni.EdgeOpRef));
+            or (not isinstance(chain[_idx], uni.EdgeOpRef));
 
         _dir = int(step.edge_dir.value);
         _edge_tag = -1;
@@ -1060,7 +1060,7 @@ impl NaIRGenPass._codegen_chained_filter(nd: uni.AtomTrailer) -> (ir.Value | Non
         }
         if _result is target_val {
             if isinstance(target_val.type, ir.PointerType)
-            and self._is_owned(target_val) {
+                and self._is_owned(target_val) {
                 self._emit_rc_release_simple(target_val, op="chain_filter", loc="");
             }
         } else {

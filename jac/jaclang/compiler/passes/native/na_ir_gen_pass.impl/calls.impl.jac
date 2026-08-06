@@ -13,9 +13,9 @@ impl NaIRGenPass._arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None)
     }
     for stmt in arch.body {
         if isinstance(stmt, uni.Ability)
-        and stmt.name_ref is not None
-        and stmt.name_ref.sym_name in ("init", "__init__")
-        and isinstance(stmt.signature, uni.FuncSignature) {
+            and stmt.name_ref is not None
+            and stmt.name_ref.sym_name in ("init", "__init__")
+            and isinstance(stmt.signature, uni.FuncSignature) {
             return stmt.signature;
         }
     }
@@ -168,13 +168,13 @@ impl NaIRGenPass._codegen_bound_args(
         _has_pack = False;
     }
     if _has_pack {
-        _chk = self_offset - _self_skip + len(callee_sig.posonly_params or []) + len(
-            callee_sig.params or []
-        );
+        _chk = self_offset - _self_skip
+            + len(callee_sig.posonly_params or [])
+            + len(callee_sig.params or []);
         if callee_sig.varargs is not None {
             _vt_ok = False;
             if _chk < len(func.args)
-            and isinstance(func.args[_chk].type, ir.PointerType) {
+                and isinstance(func.args[_chk].type, ir.PointerType) {
                 for (_, _lt) in self.list_types.items() {
                     if _lt.as_pointer() == func.args[_chk].type {
                         _vt_ok = True;
@@ -191,10 +191,10 @@ impl NaIRGenPass._codegen_bound_args(
         if _has_pack and callee_sig.kwargs is not None {
             _dt_ok = False;
             if _chk < len(func.args)
-            and isinstance(func.args[_chk].type, ir.PointerType) {
+                and isinstance(func.args[_chk].type, ir.PointerType) {
                 for (_dk, _dt) in self.dict_types.items() {
                     if _dk.startswith("ptr:")
-                    and _dt.as_pointer() == func.args[_chk].type {
+                        and _dt.as_pointer() == func.args[_chk].type {
                         _dt_ok = True;
                         break;
                     }
@@ -226,15 +226,15 @@ impl NaIRGenPass._codegen_bound_args(
             } elif sp.value is not None {
                 chosen = sp.value;
                 if isinstance(chosen, (uni.Null, uni.Ellipsis))
-                and str(chosen.loc.mod_path).endswith(".pyi") {
+                    and str(chosen.loc.mod_path).endswith(".pyi") {
                     chosen = None;
                 }
             }
             if isinstance(chosen, tuple) and chosen and chosen[0] == "spread.val" {
                 val = chosen[1];
             } elif isinstance(chosen, tuple)
-            and chosen
-            and chosen[0] == "spread.list.val" {
+                and chosen
+                and chosen[0] == "spread.list.val" {
                 self.emit(
                     E5092,
                     node_override=nd,
@@ -256,14 +256,14 @@ impl NaIRGenPass._codegen_bound_args(
         for pix in range(len(sig_params), len(positional)) {
             _extra_p = positional[pix];
             if isinstance(_extra_p, tuple)
-            and _extra_p
-            and _extra_p[0] == "spread.val" {
+                and _extra_p
+                and _extra_p[0] == "spread.val" {
                 args.append(_extra_p[1]);
                 continue;
             }
             if isinstance(_extra_p, tuple)
-            and _extra_p
-            and _extra_p[0] == "spread.list.val" {
+                and _extra_p
+                and _extra_p[0] == "spread.list.val" {
                 continue;
             }
             v = self._codegen_expr(_extra_p);
@@ -286,15 +286,15 @@ impl NaIRGenPass._codegen_bound_args(
             } elif sp.value is not None {
                 chosen = sp.value;
                 if isinstance(chosen, (uni.Null, uni.Ellipsis))
-                and str(chosen.loc.mod_path).endswith(".pyi") {
+                    and str(chosen.loc.mod_path).endswith(".pyi") {
                     chosen = None;
                 }
             }
             if isinstance(chosen, tuple) and chosen and chosen[0] == "spread.val" {
                 val = chosen[1];
             } elif isinstance(chosen, tuple)
-            and chosen
-            and chosen[0] == "spread.list.val" {
+                and chosen
+                and chosen[0] == "spread.list.val" {
                 self.emit(
                     E5092,
                     node_override=nd,
@@ -333,15 +333,15 @@ impl NaIRGenPass._codegen_bound_args(
             } elif sp.value is not None {
                 chosen = sp.value;
                 if isinstance(chosen, (uni.Null, uni.Ellipsis))
-                and str(chosen.loc.mod_path).endswith(".pyi") {
+                    and str(chosen.loc.mod_path).endswith(".pyi") {
                     chosen = None;
                 }
             }
             if isinstance(chosen, tuple) and chosen and chosen[0] == "spread.val" {
                 val = chosen[1];
             } elif isinstance(chosen, tuple)
-            and chosen
-            and chosen[0] == "spread.list.val" {
+                and chosen
+                and chosen[0] == "spread.list.val" {
                 self.emit(
                     E5092,
                     node_override=nd,
@@ -882,7 +882,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     _len_result: (ir.Value | None) = None;
 
                     if self._str_desc_ty is not None
-                    and arg_val.type == self._str_desc_ty {
+                        and arg_val.type == self._str_desc_ty {
                         _len_result = self.builder.extract_value(
                             arg_val,
                             len(list(self._str_desc_ty.elements)) - 1,
@@ -891,8 +891,8 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     }
 
                     if _len_result is None
-                    and self?.jacval_type
-                    and arg_val.type == self.jacval_type {
+                        and self?.jacval_type
+                        and arg_val.type == self.jacval_type {
                         _len_result = self._codegen_any_len(arg_val);
                     }
 
@@ -904,7 +904,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                         for (dict_key, helpers) in self.dict_helpers.items() {
                             dict_type = self.dict_types.get(dict_key);
                             if dict_type is not None
-                            and arg_val.type == dict_type.as_pointer() {
+                                and arg_val.type == dict_type.as_pointer() {
                                 _len_result = self.builder.call(
                                     helpers["len"], [arg_val], name="dict.len"
                                 );
@@ -917,7 +917,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                         for (set_key, helpers) in self.set_helpers.items() {
                             set_type = self.set_types.get(set_key);
                             if set_type is not None
-                            and arg_val.type == set_type.as_pointer() {
+                                and arg_val.type == set_type.as_pointer() {
                                 _len_result = self.builder.call(
                                     helpers["len"], [arg_val], name="set.len"
                                 );
@@ -941,14 +941,14 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     }
 
                     if _len_result is None
-                    and arg_val.type == ir.IntType(8).as_pointer() {
+                        and arg_val.type == ir.IntType(8).as_pointer() {
                         _len_result = self._call_str_len(
                             self.builder, arg_val, name="str.len"
                         );
                     }
                     if _len_result is not None {
                         if isinstance(arg_val.type, ir.PointerType)
-                        and self._is_owned(arg_val) {
+                            and self._is_owned(arg_val) {
                             self._emit_rc_release_simple(arg_val, op="len_arg", loc="");
                         }
                         return _len_result;
@@ -1106,17 +1106,8 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
 
-        if func_name in (
-            "abs",
-            "min",
-            "max",
-            "pow",
-            "divmod",
-            "sum",
-            "any",
-            "all",
-            "format"
-        ) {
+        if func_name
+            in ("abs", "min", "max", "pow", "divmod", "sum", "any", "all", "format") {
             params_l = nd.params or [];
             arg_vals: list[ir.Value] = [];
             for param in params_l {
@@ -1130,7 +1121,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
                 for _barg in arg_vals {
                     if isinstance(_barg.type, ir.PointerType)
-                    and self._is_owned(_barg) {
+                        and self._is_owned(_barg) {
                         self._emit_rc_release_simple(_barg, op="builtin_arg", loc="");
                     }
                 }
@@ -1154,30 +1145,31 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return None;
         }
 
-        if func_name in (
-            "ord",
-            "int",
-            "chr",
-            "str",
-            "hex",
-            "oct",
-            "bin",
-            "round",
-            "float",
-            "bool",
-            "sorted",
-            "reversed",
-            "list",
-            "set",
-            "frozenset",
-            "dict",
-            "bytes",
-            "bytearray",
-            "id",
-            "hash",
-            "repr",
-            "ascii"
-        ) {
+        if func_name
+            in (
+                "ord",
+                "int",
+                "chr",
+                "str",
+                "hex",
+                "oct",
+                "bin",
+                "round",
+                "float",
+                "bool",
+                "sorted",
+                "reversed",
+                "list",
+                "set",
+                "frozenset",
+                "dict",
+                "bytes",
+                "bytearray",
+                "id",
+                "hash",
+                "repr",
+                "ascii"
+            ) {
             params_l = nd.params or [];
             if params_l {
                 arg_val = self._codegen_expr(params_l[0]);
@@ -1191,7 +1183,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     );
 
                     if isinstance(arg_val.type, ir.PointerType)
-                    and self._is_owned(arg_val) {
+                        and self._is_owned(arg_val) {
                         self._emit_rc_release_simple(
                             arg_val, op="builtin1_arg", loc=""
                         );
@@ -1221,7 +1213,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     fmt_ptr = self.builder.bitcast(fmt, i8p, name="fmt.ptr");
 
                     if isinstance(prompt_val.type, ir.PointerType)
-                    and prompt_val.type != i8p {
+                        and prompt_val.type != i8p {
                         prompt_val = self.builder.bitcast(
                             prompt_val, i8p, name="prompt.cast"
                         );
@@ -1229,7 +1221,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     self.builder.call(printf, [fmt_ptr, prompt_val]);
 
                     if isinstance(_prompt_orig.type, ir.PointerType)
-                    and self._is_owned(_prompt_orig) {
+                        and self._is_owned(_prompt_orig) {
                         self._emit_rc_release_simple(
                             _prompt_orig, op="input_prompt", loc=""
                         );
@@ -1384,32 +1376,32 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         binding = manifest.bindings.get(func_name);
         _src_ab: (uni.Ability | None) = None;
         if binding is not None
-        and binding.source_module is not None
-        and func_name not in self.generic_fns {
+            and binding.source_module is not None
+            and func_name not in self.generic_fns {
             _src_ab = self._find_source_ability(binding.source_module, func_name);
             if _src_ab is not None and _src_ab.type_params {
                 self.generic_fns[func_name] = _src_ab;
             }
         }
         if binding is not None
-        and func_name not in self.generic_fns
-        and (
-            binding.source_context.value == "server"
-            or (
-                binding.source_context.value == "native"
-                and binding.source_module is not None
-            )
-        ) {
+            and func_name not in self.generic_fns
+            and (
+                binding.source_context.value == "server"
+                or (
+                    binding.source_context.value == "native"
+                    and binding.source_module is not None
+                )
+            ) {
             sig = _src_ab.signature
                 if _src_ab is not None
-                and isinstance(_src_ab.signature, uni.FuncSignature)
+                    and isinstance(_src_ab.signature, uni.FuncSignature)
                 else None;
             if sig is None {
                 sig = self._callee_sig_of(nd);
             }
             if sig is None
-            and isinstance(binding.ast_node, uni.Ability)
-            and isinstance(binding.ast_node.signature, uni.FuncSignature) {
+                and isinstance(binding.ast_node, uni.Ability)
+                and isinstance(binding.ast_node.signature, uni.FuncSignature) {
                 sig = binding.ast_node.signature;
             }
             if sig is None {
@@ -1488,7 +1480,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
                 for _icarg in _iargs {
                     if isinstance(_icarg.type, ir.PointerType)
-                    and self._is_owned(_icarg) {
+                        and self._is_owned(_icarg) {
                         self._emit_rc_release_simple(_icarg, op="icall_arg", loc="");
                     }
                 }
@@ -1528,7 +1520,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         if _clib_sig is not None {
             for (_ci, _cp) in enumerate(_clib_sig.get_parameters()) {
                 if _cp.type_tag is not None
-                and declared_type_name(_cp.type_tag.tag) == "str" {
+                    and declared_type_name(_cp.type_tag.tag) == "str" {
                     _clib_str_args.add(_ci);
                 }
             }
@@ -1569,7 +1561,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if self._nogc_headerless() {
         _skip_own: set = set();
         _is_ctor = isinstance(nd.target, uni.Name)
-        and nd.target.sym_name in self.arch_ast_map;
+            and nd.target.sym_name in self.arch_ast_map;
         _sig = None if _is_ctor else self._callee_sig_of(nd);
         _sig_params = _sig.get_parameters() if _sig is not None else [];
         if _is_ctor {
@@ -1579,7 +1571,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         } elif _sig is not None and len(_sig_params) == len(release_args) {
             for (_oi, _op) in enumerate(_sig_params) {
                 if _op.type_tag is not None
-                and _op.type_tag.ownership == OwnershipKind.OWN {
+                    and _op.type_tag.ownership == OwnershipKind.OWN {
                     _skip_own.add(_oi);
                 }
             }
@@ -1619,8 +1611,8 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 }
                 _salloca = self.local_vars.get(_anode.sym_name);
                 if _salloca is not None
-                and isinstance(_salloca.type, ir.PointerType)
-                and isinstance(_salloca.type.pointee, ir.PointerType) {
+                    and isinstance(_salloca.type, ir.PointerType)
+                    and isinstance(_salloca.type.pointee, ir.PointerType) {
                     self.builder.store(
                         ir.Constant(_salloca.type.pointee, None), _salloca
                     );
@@ -1967,10 +1959,10 @@ impl NaIRGenPass._flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | No
             or use.find_parent_of_type(uni.IterForStmt)
         );
         if isinstance(_p, uni.ConcurrentExpr)
-        and _p.target is use
-        and _p.tok is not None
-        and _p.tok.name == Tok.KW_WAIT
-        and _use_loop is _spawn_loop {
+            and _p.target is use
+            and _p.tok is not None
+            and _p.tok.name == Tok.KW_WAIT
+            and _use_loop is _spawn_loop {
             _waits += 1;
             continue;
         }
@@ -1988,10 +1980,10 @@ impl NaIRGenPass._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) {
         return None;
     }
     _par_ok = (self.ir_in.gen.nogc_enforced and self._gc_mode() == "none")
-    or (self._gc_mode() == "rc" and not self._rc_debug_codegen);
+        or (self._gc_mode() == "rc" and not self._rc_debug_codegen);
     if not _par_ok
-    or "wasm" in str(self.llvm_module.triple)
-    or self._gen_ctx is not None {
+        or "wasm" in str(self.llvm_module.triple)
+        or self._gen_ctx is not None {
         return None;
     }
     i64 = ir.IntType(64);
@@ -2063,15 +2055,15 @@ impl NaIRGenPass._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) {
     fname = call.target.sym_name;
     callee = self.func_symtab.get(fname);
     if callee is None
-    or not isinstance(callee, ir.Function)
-    or fname in self.clib_fn_abi
-    or fname in self.clib_extern_names {
+        or not isinstance(callee, ir.Function)
+        or fname in self.clib_fn_abi
+        or fname in self.clib_extern_names {
         return None;
     }
     _res_ty = callee.function_type.return_type;
     _res_ok = (isinstance(_res_ty, ir.IntType) and _res_ty.width == 64)
-    or isinstance(_res_ty, ir.DoubleType)
-    or isinstance(_res_ty, ir.PointerType);
+        or isinstance(_res_ty, ir.DoubleType)
+        or isinstance(_res_ty, ir.PointerType);
     if not _res_ok {
         return None;
     }

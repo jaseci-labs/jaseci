@@ -493,8 +493,8 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                     return None;
                 }
                 if _conv != 114
-                and isinstance(val.type, ir.PointerType)
-                and self._is_owned(val) {
+                    and isinstance(val.type, ir.PointerType)
+                    and self._is_owned(val) {
                     obj_strs.append(val);
                 }
                 obj_strs.append(_spec_val);
@@ -524,8 +524,8 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                         return None;
                     }
                     if _conv != 114
-                    and isinstance(val.type, ir.PointerType)
-                    and self._is_owned(val) {
+                        and isinstance(val.type, ir.PointerType)
+                        and self._is_owned(val) {
                         obj_strs.append(val);
                     }
                     obj_strs.append(_sdyn);
@@ -828,8 +828,11 @@ impl NaIRGenPass._codegen_string_slice(
     }
     _static_step1 = isinstance(_sl_ast, uni.Slice) and _sl_ast.step is None;
     _view_ok = _static_step1
-    and self._str_desc_ty is not None
-    and (self._gc_mode() != "none" or (_hl and self._hl_view_base_licensed(base_node)));
+        and self._str_desc_ty is not None
+        and (
+            self._gc_mode() != "none"
+            or (_hl and self._hl_view_base_licensed(base_node))
+        );
     if _view_ok {
         _v_raw = self.builder.sub(stop_val, start_val, name="s.view.raw");
         _v_len = self.builder.select(
@@ -950,12 +953,13 @@ impl NaIRGenPass._hl_view_base_licensed(base_node: object) -> bool {
     }
     return (
         _x.sym_name == "self"
-        or _x.sym.ownership in (
-            OwnershipKind.OWN,
-            OwnershipKind.BORROW,
-            OwnershipKind.MUT_BORROW,
-            OwnershipKind.IMM
-        )
+        or _x.sym.ownership
+            in (
+                OwnershipKind.OWN,
+                OwnershipKind.BORROW,
+                OwnershipKind.MUT_BORROW,
+                OwnershipKind.IMM
+            )
     );
 }
 
@@ -1353,8 +1357,8 @@ impl NaIRGenPass._emit_fstr_repr(
         }
         if _r is not None {
             if isinstance(val.type, ir.PointerType)
-            and self._is_owned(val)
-            and (_r is not val) {
+                and self._is_owned(val)
+                and (_r is not val) {
                 self._emit_rc_release_typed(val, op="fstr_repr_src", loc="");
             }
             return _r;
@@ -1428,8 +1432,8 @@ impl NaIRGenPass._emit_dyn_spec_format(
     _a1 = self._coerce_type(spec_val, fn.args[1].type);
     res = self.builder.call(fn, [_a0, _a1], name="fstr.dyn");
     if (sval is not val)
-    and isinstance(sval.type, ir.PointerType)
-    and self._is_owned(sval) {
+        and isinstance(sval.type, ir.PointerType)
+        and self._is_owned(sval) {
         self._emit_rc_release_typed(sval, op="fstr_dyn_tmp", loc="");
     }
     return self._mark_owned(res);
