@@ -195,6 +195,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         needs_jac_runtime: bool = False,
         needs_osp_kernel: bool = False,
         needs_osp_graph: bool = False,
+        _unlowered_reported: set = set(),
         _osp_var_arch_cache: (dict | None) = None,
         _primitive_emitters: (dict[str, object] | None) = None,
         _builtin_emitter: (object | None) = None,
@@ -258,18 +259,33 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     ) -> es.VariableDeclaration;
 
     def _emit_osp_slot_method(nd: uni.Ability, osp: dict) -> None;
+    def _build_osp_tags_js -> str;
     def _build_osp_setup_js -> str;
     def _osp_slots_js(slots: list, tags: dict) -> str;
     def _osp_arch_kinds -> dict[str, str];
     def _osp_arch_set -> set[str];
     def _osp_var_arch -> dict[str, str];
+    def _osp_expr_arch_kind(expr: (uni.UniNode | None)) -> (str | None);
     def _spawn_walker_arch(expr: uni.Expr) -> (str | None);
     def _spawn_target_is_local_node(expr: uni.Expr) -> bool;
     def _build_osp_graph_call(
         nd: uni.BinaryExpr, left: es.Expression, right: es.Expression
     ) -> (es.Expression | None);
 
-    def _build_edge_ref(nd: uni.EdgeRefTrailer) -> (es.Expression | None);
+    def _build_osp_disconnect_call(
+        nd: uni.BinaryExpr, left: es.Expression, right: es.Expression
+    ) -> es.Expression;
+
+    def _build_edge_ref(nd: uni.EdgeRefTrailer) -> es.Expression;
+    def _build_osp_filter_pred(
+        nd: uni.UniNode, filt: uni.FilterCompr
+    ) -> (es.Expression | None);
+
+    def _edge_tag_literal(
+        nd: uni.UniNode, type_expr: (uni.UniNode | None), hard: bool
+    ) -> int;
+
+    def _is_client_destined(nd: uni.UniNode) -> bool;
     def _build_local_osp_spawn(
         nd: uni.BinaryExpr, left: es.Expression, right: es.Expression
     ) -> (es.Expression | None);
@@ -373,6 +389,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_expr_stmt(nd: uni.ExprStmt) -> None;
     def exit_switch_stmt(nd: uni.SwitchStmt) -> None;
     def exit_switch_case(nd: uni.SwitchCase) -> None;
+    def exit_delete_stmt(nd: uni.DeleteStmt) -> None;
     def exit_match_stmt(nd: uni.MatchStmt) -> None;
     def _lower_match_pattern(
         pat: uni.MatchPattern, subj: es.Expression

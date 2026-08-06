@@ -2816,6 +2816,10 @@ impl EsastGenPass.exit_binary_expr(nd: uni.BinaryExpr) -> None {
         nd.gen.es_ast = connect_call;
         return;
     }
+    if isinstance(nd.op, uni.DisconnectOp) {
+        nd.gen.es_ast = self._build_osp_disconnect_call(nd, left, right);
+        return;
+    }
     op_name_str = nd.op?.name;
     op_name = Tok(op_name_str) if (op_name_str in Tok.__members__) else None;
     if (op_name == Tok.KW_SPAWN) {
@@ -2879,6 +2883,36 @@ impl EsastGenPass.exit_binary_expr(nd: uni.BinaryExpr) -> None {
         }
     }
     nd.gen.es_ast = bin_expr;
+}
+
+impl EsastGenPass.exit_delete_stmt(nd: uni.DeleteStmt) -> None {
+    target = nd.target;
+    if isinstance(target, uni.AtomTrailer) {
+        return;
+    }
+    _kind = self._osp_expr_arch_kind(target);
+    if (_kind is not None) and (_kind != "edge") {
+        return;
+    }
+    self.needs_osp_graph = True;
+    target_es = cast(
+        es.Expression,
+        self._get_ast_or_default(
+            target, default_factory=lambda (_src: any) { es.Literal(value=None); }
+        )
+    );
+    nd.gen.es_ast = self.sync_loc(
+        es.ExpressionStatement(
+            expression=self.sync_loc(
+                es.CallExpression(
+                    callee=self.sync_loc(es.Identifier(name='__ospDiscW'), jac_node=nd),
+                    arguments=[target_es]
+                ),
+                jac_node=nd
+            )
+        ),
+        jac_node=nd
+    );
 }
 
 impl EsastGenPass.exit_switch_case(nd: uni.SwitchCase) -> None {
@@ -4770,6 +4804,28 @@ impl EsastGenPass._osp_arch_set -> set[str] {
     return set(self._osp_arch_kinds().keys());
 }
 
+impl EsastGenPass._osp_expr_arch_kind(expr: (uni.UniNode | None)) -> (str | None) {
+    import from jaclang.compiler.type_system.types { ClassType }
+    if not isinstance(expr, uni.Expr) {
+        return None;
+    }
+    _ty = expr.type;
+    if _ty is None {
+        try {
+            _te = self.prog.get_type_evaluator();
+            if _te {
+                _ty = _te.get_type_of_expression(expr);
+            }
+        } except Exception {
+            _ty = None;
+        }
+    }
+    if isinstance(_ty, ClassType) {
+        return self._osp_model().arch_kind.get(_ty.shared.class_name);
+    }
+    return None;
+}
+
 impl EsastGenPass._osp_var_arch -> dict[str, str] {
     if self._osp_var_arch_cache is not None {
         return self._osp_var_arch_cache;
@@ -4880,6 +4936,32 @@ impl EsastGenPass._build_local_osp_spawn(
     );
 }
 
+impl EsastGenPass._build_osp_tags_js -> str {
+    _model = self._osp_model();
+    tags = _model.tags;
+    lines: list[str] = [];
+    isa_parts: list[str] = [];
+    for name in _model.arch_kind.keys() {
+        tag = tags.get(name);
+        if tag is None {
+            continue;
+        }
+        lines.append(
+            f'if (typeof {name} !== "undefined") {name}.prototype.__tag = {tag};'
+        );
+        isa_members = ", ".join(
+            [
+                str(tags[a])
+                for a in _model.isa.get(name, [])
+                if a in tags
+            ]
+        );
+        isa_parts.append(f"{tag}: new Set([{isa_members}])");
+    }
+    lines.append("const __ospISA = {" + ", ".join(isa_parts) + "};");
+    return "\n".join(lines);
+}
+
 impl EsastGenPass._build_osp_setup_js -> str {
     _model = self._osp_model();
 
@@ -4897,23 +4979,12 @@ impl EsastGenPass._build_osp_setup_js -> str {
     }
 
     lines: list[str] = [];
-    isa_parts: list[str] = [];
-    for name in arch_kinds.keys() {
-        tag = tags[name];
-        lines.append(f"{name}.prototype.__tag = {tag};");
-        isa_members = ", ".join(
-            [
-                str(tags[a])
-                for a in _model.isa.get(name, [])
-                if a in tags
-            ]
-        );
-        isa_parts.append(f"{tag}: new Set([{isa_members}])");
-    }
-    lines.append("const __ospISA = {" + ", ".join(isa_parts) + "};");
     desc_parts: list[str] = [];
     for name in arch_kinds.keys() {
-        tag = tags[name];
+        tag = tags.get(name);
+        if tag is None {
+            continue;
+        }
         desc_cls = "WalkerDesc" if (arch_kinds[name] == "walker") else "NodeDesc";
         entry_js = self._osp_slots_js(entry_by_owner.get(name, []), tags);
         exit_js = self._osp_slots_js(exit_by_owner.get(name, []), tags);
@@ -4925,7 +4996,7 @@ impl EsastGenPass._build_osp_setup_js -> str {
     lines.append(
         "const __ospRT = new OspRuntime({"
             + "tag_of: (h) => h.__tag, "
-            + "is_a: (t, b) => __ospISA[t] ? __ospISA[t].has(b) : (t === b), "
+            + "is_a: (t, b) => __ospIsA(t, b), "
             + "node_desc: (t) => __ospDESC[t], "
             + "on_complete: (s, ok) => { if (s.wlk) s.wlk.reports = s.reports; }"
             + "});"
@@ -5025,55 +5096,244 @@ impl EsastGenPass.exit_report_stmt(nd: uni.ReportStmt) -> None {
 }
 
 impl EsastGenPass.exit_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> None {
-    result = self._build_edge_ref(nd);
-    if result is not None {
-        nd.gen.es_ast = result;
-    }
+    nd.gen.es_ast = self._build_edge_ref(nd);
 }
 
-impl EsastGenPass._build_edge_ref(nd: uni.EdgeRefTrailer) -> (es.Expression | None) {
-    if not nd.chain {
-        return None;
+impl EsastGenPass._edge_tag_literal(
+    nd: uni.UniNode, type_expr: (uni.UniNode | None), hard: bool
+) -> int {
+    if type_expr is None {
+        return -1;
     }
-    step = nd.chain[0];
-    if not isinstance(step, uni.EdgeOpRef) {
-        return None;
+    _etname = OspAnalysis.head_name(type_expr);
+    if _etname is None {
+        return -1;
+    }
+    _tag = self._osp_model().tags.get(_etname, -1);
+    if (_tag < 0) and hard {
+        import from jaclang.jac0core.diagnostics { E5097 }
+        self.emit(
+            E5097,
+            node_override=nd,
+            kind=f"a graph reference with unresolved archetype '{_etname}'"
+        );
+    }
+    return _tag;
+}
+
+impl EsastGenPass._build_edge_ref(nd: uni.EdgeRefTrailer) -> es.Expression {
+    import from jaclang.jac0core.diagnostics { E5097 }
+    fail = self.sync_loc(es.ArrayExpression(elements=[]), jac_node=nd);
+    chain = nd.chain;
+    if not chain {
+        self.emit(E5097, node_override=nd, kind="an empty edge reference");
+        return fail;
     }
     self.needs_osp_graph = True;
-
-    origin: es.Expression = self.sync_loc(es.Identifier(name='here'), jac_node=nd);
-    direction = self.sync_loc(es.Literal(value=int(step.edge_dir.value)), jac_node=nd);
-    edge_tag: es.Expression = self.sync_loc(es.Literal(value=None), jac_node=nd);
-    fcond = step.filter_cond;
-    if (fcond is not None) and (fcond.f_type is not None) {
-        edge_tag = self.sync_loc(
-            es.MemberExpression(
-                object=self.sync_loc(
-                    es.MemberExpression(
-                        object=self.sync_loc(
-                            es.Identifier(name=fcond.f_type.value), jac_node=nd
-                        ),
-                        property=self.sync_loc(
-                            es.Identifier(name='prototype'), jac_node=nd
-                        ),
-                        computed=False
+    _idx = 0;
+    origin: es.Expression;
+    if isinstance(chain[0], uni.EdgeOpRef) {
+        origin = self.sync_loc(es.Identifier(name='here'), jac_node=nd);
+    } else {
+        origin = cast(
+            es.Expression,
+            self._get_ast_or_default(
+                chain[0],
+                default_factory=lambda (_src: any) { es.ArrayExpression(elements=[]); }
+            )
+        );
+        _idx = 1;
+    }
+    if (_idx >= len(chain)) or (not isinstance(chain[_idx], uni.EdgeOpRef)) {
+        self.emit(E5097, node_override=nd, kind="this edge reference shape");
+        return fail;
+    }
+    cur: (es.Expression | None) = None;
+    while (_idx < len(chain)) and isinstance(chain[_idx], uni.EdgeOpRef) {
+        step = chain[_idx];
+        _idx += 1;
+        _step_filter: (uni.FilterCompr | None) = None;
+        if (_idx < len(chain)) and isinstance(chain[_idx], uni.FilterCompr) {
+            _step_filter = chain[_idx];
+            _idx += 1;
+        }
+        _is_last_hop = (_idx >= len(chain))
+            or (not isinstance(chain[_idx], uni.EdgeOpRef));
+        _fcond = step.filter_cond;
+        _edge_tag = self._edge_tag_literal(
+            nd, _fcond.f_type if (_fcond is not None) else None, True
+        );
+        _edges_only = 1 if (nd.edges_only and _is_last_hop) else 0;
+        hop_args: list[es.Expression] = [
+            origin if (cur is None) else cur,
+            self.sync_loc(es.Literal(value=int(step.edge_dir.value)), jac_node=nd),
+            self.sync_loc(es.Literal(value=_edge_tag), jac_node=nd),
+            self.sync_loc(es.Literal(value=_edges_only), jac_node=nd)
+        ];
+        if (_fcond is not None) and _fcond.compares {
+            _epred = self._build_osp_filter_pred(nd, _fcond);
+            if _epred is None {
+                return fail;
+            }
+            hop_args.append(
+                self.sync_loc(
+                    es.ArrowFunctionExpression(
+                        params=[self.sync_loc(es.Identifier(name='x'), jac_node=nd)],
+                        body=_epred,
+                        expression=True
                     ),
                     jac_node=nd
-                ),
-                property=self.sync_loc(es.Identifier(name='__tag'), jac_node=nd),
-                computed=False
+                )
+            );
+        }
+        hop_fn = '__ospRefsW' if (cur is None) else '__ospRefsManyW';
+        result: es.Expression = self.sync_loc(
+            es.CallExpression(
+                callee=self.sync_loc(es.Identifier(name=hop_fn), jac_node=nd),
+                arguments=hop_args
             ),
             jac_node=nd
         );
+        if _step_filter is not None {
+            pred = self._build_osp_filter_pred(nd, _step_filter);
+            if pred is None {
+                return fail;
+            }
+            result = self.sync_loc(
+                es.CallExpression(
+                    callee=self.sync_loc(
+                        es.MemberExpression(
+                            object=result,
+                            property=self.sync_loc(
+                                es.Identifier(name='filter'), jac_node=nd
+                            ),
+                            computed=False
+                        ),
+                        jac_node=nd
+                    ),
+                    arguments=[
+                        self.sync_loc(
+                            es.ArrowFunctionExpression(
+                                params=[
+                                    self.sync_loc(es.Identifier(name='x'), jac_node=nd)
+                                ],
+                                body=pred,
+                                expression=True
+                            ),
+                            jac_node=nd
+                        )
+                    ]
+                ),
+                jac_node=nd
+            );
+        }
+        cur = result;
     }
-    edges_only = self.sync_loc(es.Literal(value=bool(nd.edges_only)), jac_node=nd);
-    return self.sync_loc(
-        es.CallExpression(
-            callee=self.sync_loc(es.Identifier(name='__ospRefs'), jac_node=nd),
-            arguments=[origin, direction, edge_tag, edges_only]
-        ),
-        jac_node=nd
-    );
+    if (cur is None) or (_idx != len(chain)) {
+        self.emit(E5097, node_override=nd, kind="this edge reference shape");
+        return fail;
+    }
+    return cur;
+}
+
+impl EsastGenPass._build_osp_filter_pred(
+    nd: uni.UniNode, filt: uni.FilterCompr
+) -> (es.Expression | None) {
+    import from jaclang.jac0core.diagnostics { E5097 }
+    parts: list[es.Expression] = [];
+    if filt.f_type is not None {
+        _ntag = self._edge_tag_literal(nd, filt.f_type, True);
+        if _ntag < 0 {
+            return None;
+        }
+        parts.append(
+            self.sync_loc(
+                es.CallExpression(
+                    callee=self.sync_loc(es.Identifier(name='__ospIsA'), jac_node=nd),
+                    arguments=[
+                        self.sync_loc(
+                            es.LogicalExpression(
+                                operator='??',
+                                left=self.sync_loc(
+                                    es.MemberExpression(
+                                        object=self.sync_loc(
+                                            es.Identifier(name='x'), jac_node=nd
+                                        ),
+                                        property=self.sync_loc(
+                                            es.Identifier(name='__tag'), jac_node=nd
+                                        ),
+                                        computed=False
+                                    ),
+                                    jac_node=nd
+                                ),
+                                right=self.sync_loc(es.Literal(value=-1), jac_node=nd)
+                            ),
+                            jac_node=nd
+                        ),
+                        self.sync_loc(es.Literal(value=_ntag), jac_node=nd)
+                    ]
+                ),
+                jac_node=nd
+            )
+        );
+    }
+    for cmp in filt.compares {
+        _lhs = cmp.left;
+        _js_op: (str | None) = None;
+        if isinstance(_lhs, uni.Name)
+            and (len(cmp.ops) == 1)
+            and (len(cmp.rights) == 1) {
+            _op_name = cmp.ops[0].name;
+            _op_tok = Tok(_op_name) if (_op_name in Tok.__members__) else None;
+            if _op_tok in (Tok.EE, Tok.NE, Tok.LT, Tok.GT, Tok.LTE, Tok.GTE) {
+                _js_op = ES_COMPARISON_OPS.get(_op_tok);
+            }
+        }
+        if (_js_op is None) or (not isinstance(_lhs, uni.Name)) {
+            self.emit(
+                E5097,
+                node_override=nd,
+                kind="a graph filter outside 'name <op> value' form"
+            );
+            return None;
+        }
+        rhs = cast(
+            es.Expression,
+            self._get_ast_or_default(
+                cmp.rights[0],
+                default_factory=lambda (_src: any) { es.Literal(value=None); }
+            )
+        );
+        parts.append(
+            self.sync_loc(
+                es.BinaryExpression(
+                    operator=_js_op,
+                    left=self.sync_loc(
+                        es.MemberExpression(
+                            object=self.sync_loc(es.Identifier(name='x'), jac_node=nd),
+                            property=self.sync_loc(
+                                es.Identifier(name=_lhs.sym_name), jac_node=nd
+                            ),
+                            computed=False
+                        ),
+                        jac_node=nd
+                    ),
+                    right=rhs
+                ),
+                jac_node=nd
+            )
+        );
+    }
+    if not parts {
+        return self.sync_loc(es.Literal(value=True), jac_node=nd);
+    }
+    pred = parts[0];
+    for part in parts[1:] {
+        pred = self.sync_loc(
+            es.LogicalExpression(operator='&&', left=pred, right=part), jac_node=nd
+        );
+    }
+    return pred;
 }
 
 impl EsastGenPass._build_osp_graph_call(
@@ -5092,25 +5352,70 @@ impl EsastGenPass._build_osp_graph_call(
     } else {
         (src, tgt) = (left, right);
     }
-    make_edge: es.Expression = self.sync_loc(es.Literal(value=None), jac_node=nd);
-    if (co.conn_type is not None) and co.conn_type.gen.es_ast {
-        make_edge = self.sync_loc(
-            es.ArrowFunctionExpression(
-                params=[],
-                body=cast(es.Expression, co.conn_type.gen.es_ast),
-                expression=True
-            ),
-            jac_node=nd
-        );
+    edge_tag = -1;
+    edge_body: es.Expression;
+    if co.conn_type is None {
+        edge_body = self.sync_loc(es.ObjectExpression(properties=[]), jac_node=nd);
+    } else {
+        edge_tag = self._edge_tag_literal(nd, co.conn_type, False);
+        if isinstance(co.conn_type, uni.Name) {
+            edge_body = self.sync_loc(
+                es.NewExpression(
+                    callee=self.sync_loc(
+                        es.Identifier(name=co.conn_type.sym_name), jac_node=co.conn_type
+                    ),
+                    arguments=[]
+                ),
+                jac_node=nd
+            );
+        } else {
+            edge_body = cast(
+                es.Expression,
+                self._get_ast_or_default(
+                    co.conn_type,
+                    default_factory=lambda (_src: any) { es.ObjectExpression(
+                        properties=[]
+                    ); }
+                )
+            );
+        }
     }
+    make_edge = self.sync_loc(
+        es.ArrowFunctionExpression(params=[], body=edge_body, expression=True),
+        jac_node=nd
+    );
     return self.sync_loc(
         es.CallExpression(
-            callee=self.sync_loc(es.Identifier(name='__ospConn'), jac_node=nd),
+            callee=self.sync_loc(es.Identifier(name='__ospConnW'), jac_node=nd),
             arguments=[
                 src,
                 tgt,
                 make_edge,
-                self.sync_loc(es.Literal(value=undirected), jac_node=nd)
+                self.sync_loc(es.Literal(value=undirected), jac_node=nd),
+                self.sync_loc(es.Literal(value=edge_tag), jac_node=nd)
+            ]
+        ),
+        jac_node=nd
+    );
+}
+
+impl EsastGenPass._build_osp_disconnect_call(
+    nd: uni.BinaryExpr, left: es.Expression, right: es.Expression
+) -> es.Expression {
+    self.needs_osp_graph = True;
+    spec = cast(uni.DisconnectOp, nd.op).edge_spec;
+    _fcond = spec.filter_cond;
+    _edge_tag = self._edge_tag_literal(
+        nd, _fcond.f_type if (_fcond is not None) else None, True
+    );
+    return self.sync_loc(
+        es.CallExpression(
+            callee=self.sync_loc(es.Identifier(name='__ospDiscBetweenW'), jac_node=nd),
+            arguments=[
+                left,
+                right,
+                self.sync_loc(es.Literal(value=int(spec.edge_dir.value)), jac_node=nd),
+                self.sync_loc(es.Literal(value=_edge_tag), jac_node=nd)
             ]
         ),
         jac_node=nd
@@ -6497,6 +6802,9 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
         body.extend(hoisted);
     }
 
+    if self.needs_osp_graph or self.needs_osp_kernel {
+        self.needs_jac_runtime = True;
+    }
     if self.needs_jac_runtime {
         import from jaclang.compiler.passes.ecmascript.jac_runtime_js {
             build_jac_runtime_js
@@ -6533,31 +6841,37 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     target_body = client_items or fallback_items;
     body.extend(self._flatten_ast_list(target_body));
 
-    if self.needs_osp_graph {
+    if self.needs_osp_graph or self.needs_osp_kernel {
         import from jaclang.compiler.passes.ecmascript.jac_runtime_js {
-            build_osp_graph_js
+            build_osp_core_js,
+            build_osp_driver_js
         }
         body.append(
             self.sync_loc(
                 es.ExpressionStatement(
-                    expression=es.Identifier(name=build_osp_graph_js())
+                    expression=es.Identifier(name=build_osp_core_js())
+                ),
+                jac_node=nd
+            )
+        );
+        body.append(
+            self.sync_loc(
+                es.ExpressionStatement(
+                    expression=es.Identifier(name=build_osp_driver_js())
+                ),
+                jac_node=nd
+            )
+        );
+        body.append(
+            self.sync_loc(
+                es.ExpressionStatement(
+                    expression=es.Identifier(name=self._build_osp_tags_js())
                 ),
                 jac_node=nd
             )
         );
     }
     if self.needs_osp_kernel {
-        import from jaclang.compiler.passes.ecmascript.jac_runtime_js {
-            build_osp_kernel_js
-        }
-        body.append(
-            self.sync_loc(
-                es.ExpressionStatement(
-                    expression=es.Identifier(name=build_osp_kernel_js())
-                ),
-                jac_node=nd
-            )
-        );
         body.append(
             self.sync_loc(
                 es.ExpressionStatement(
@@ -6639,9 +6953,30 @@ impl EsastGenPass._get_ast_or_default(
             return cast(_T, generated);
         }
     }
+    if (
+        isinstance(nd, uni.Expr)
+        and (nd.gen.es_ast is None)
+        and (nd not in self._unlowered_reported)
+        and self._is_client_destined(nd)
+    ) {
+        import from jaclang.jac0core.diagnostics { E5097 }
+        self._unlowered_reported.add(nd);
+        self.emit(E5097, node_override=nd, kind=nd.__class__.__name__);
+    }
     fallback = default_factory(nd);
     jac_ref = nd if (nd is not None) else self.cur_node;
     return self.sync_loc(fallback, jac_node=jac_ref);
+}
+
+impl EsastGenPass._is_client_destined(nd: uni.UniNode) -> bool {
+    cur: (uni.UniNode | None) = nd;
+    while cur is not None {
+        if isinstance(cur, uni.ContextAwareNode) {
+            return (cur.code_context == CodeContext.CLIENT) or cur.codespace_dual;
+        }
+        cur = cur.parent;
+    }
+    return False;
 }
 
 impl EsastGenPass._collect_stmt_body(

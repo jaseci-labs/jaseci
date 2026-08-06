@@ -1548,11 +1548,11 @@ def build_jac_runtime_js -> str {
     );
 }
 
-glob _OSP_KERNEL_JS_CACHE: list[str] = [];
+glob _OSP_CORE_JS_CACHE: list[str] = [];
 
-def build_osp_kernel_js -> str {
-    if _OSP_KERNEL_JS_CACHE {
-        return _OSP_KERNEL_JS_CACHE[0];
+def build_osp_core_js -> str {
+    if _OSP_CORE_JS_CACHE {
+        return _OSP_CORE_JS_CACHE[0];
     }
     import os;
     import shutil;
@@ -1562,11 +1562,19 @@ def build_osp_kernel_js -> str {
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
     import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
     import from jaclang.compiler.passes.ecmascript { estree as es }
-    src = os.path.join(os.path.dirname(jaclang.__file__), "jac0core", "osp_kernel.jac");
+    _core_dir = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
+    with open(os.path.join(_core_dir, "osp_kernel.jac"), "r") as _kf {
+        _ktext = _kf.read();
+    }
+    with open(os.path.join(_core_dir, "osp_graph.jac"), "r") as _gf {
+        _gtext = _gf.read();
+    }
 
     tmp_dir = tempfile.mkdtemp();
-    cl_copy = os.path.join(tmp_dir, "osp_kernel_cl.jac");
-    shutil.copyfile(src, cl_copy);
+    cl_copy = os.path.join(tmp_dir, "osp_core_cl.jac");
+    with open(cl_copy, "w") as _out {
+        _out.write(_ktext + "\n\n" + _gtext);
+    }
     js = "";
     try {
         import from jaclang.jac0core.compile_options { CompileOptions }
@@ -1598,38 +1606,71 @@ def build_osp_kernel_js -> str {
     } finally {
         shutil.rmtree(tmp_dir, ignore_errors=True);
     }
-    _OSP_KERNEL_JS_CACHE.append(js);
+    _OSP_CORE_JS_CACHE.append(js);
     return js;
 }
 
-def build_osp_graph_js -> str {
+def build_osp_driver_js -> str {
     return r"""
-function __ospConn(srcs, tgts, makeEdge, undirected) {
-  srcs = Array.isArray(srcs) ? srcs : [srcs];
-  tgts = Array.isArray(tgts) ? tgts : [tgts];
+const __ospO = [null];
+const __ospH = new Map();
+function __ospId(o) {
+  if (o == null) return 0;
+  let h = __ospH.get(o);
+  if (h === undefined) { h = __ospO.length; __ospO.push(o); __ospH.set(o, h); }
+  return h;
+}
+function __ospConnW(src, tgt, mkEdge, undirected, tag = -1) {
+  const srcs = Array.isArray(src) ? src : [src];
+  const tgts = Array.isArray(tgt) ? tgt : [tgt];
   for (const s of srcs) for (const t of tgts) {
-    const e = makeEdge ? makeEdge() : {};
-    e.__src = s; e.__tgt = t; e.__undirected = !!undirected;
-    (s.__edges ??= []).push(e); (t.__edges ??= []).push(e);
+    osp_conn(__ospId(s), __ospId(t), __ospId(mkEdge()), undirected ? 1 : 0, tag, 0, 0);
   }
   return tgts.length === 1 ? tgts[0] : tgts;
 }
-function __ospRefs(nodes, dir, edgeTag, edgesOnly) {
-  nodes = Array.isArray(nodes) ? nodes : [nodes];
-  const seen = new Set(), out = [];
-  for (const n of nodes) for (const e of (n.__edges || [])) {
-    if (edgeTag != null && e.__tag !== edgeTag) continue;
-    const eff = e.__undirected ? 3 : dir;
-    if ((eff === 2 || eff === 3) && e.__src === n) {
-      const o = edgesOnly ? e : e.__tgt;
-      if (!seen.has(o)) { seen.add(o); out.push(o); }
-    }
-    if ((eff === 1 || eff === 3) && e.__tgt === n) {
-      const o = edgesOnly ? e : e.__src;
-      if (!seen.has(o)) { seen.add(o); out.push(o); }
+function __ospRefsW(origin, dir, tag = -1, edgesOnly = 0, pred = null) {
+  const oh = __ospId(origin);
+  if (pred === null) {
+    return osp_refs(oh, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+  }
+  if (edgesOnly) {
+    return osp_refs(oh, dir, tag, 1).map((h) => __ospO[h]).filter(pred);
+  }
+  const inv = dir === 1 ? 2 : (dir === 2 ? 1 : 3);
+  const mine = osp_refs(oh, dir, tag, 1);
+  const out = [];
+  for (const th of osp_refs(oh, dir, tag, 0)) {
+    const theirs = new Set(osp_refs(th, inv, tag, 1));
+    for (const eh of mine) {
+      if (theirs.has(eh) && pred(__ospO[eh])) { out.push(__ospO[th]); break; }
     }
   }
   return out;
+}
+function __ospRefsManyW(objs, dir, tag = -1, edgesOnly = 0, pred = null) {
+  if (pred === null) {
+    const hs = [];
+    for (const o of objs) hs.push(__ospId(o));
+    return osp_refs_many(hs, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+  }
+  const out = [];
+  const seen = new Set();
+  for (const o of objs) {
+    for (const r of __ospRefsW(o, dir, tag, edgesOnly, pred)) {
+      if (!seen.has(r)) { seen.add(r); out.push(r); }
+    }
+  }
+  return out;
+}
+function __ospDiscW(eobj) {
+  return osp_disconnect(__ospId(eobj));
+}
+function __ospDiscBetweenW(a, b, dir, tag = -1) {
+  return osp_disconn_between(__ospId(a), __ospId(b), dir, tag);
+}
+function __ospIsA(t, b) {
+  const s = (typeof __ospISA !== 'undefined') && __ospISA[t];
+  return s ? s.has(b) : t === b;
 }
 """;
 }
