@@ -1,0 +1,12 @@
+pg8000/__init__.py,sha256=1IIKCMJwsifRtrjwvIRGlKVvt5g9U1ty5yGUyEulH9A,4858
+pg8000/converters.py,sha256=SRnZhMZlQ0BqLqJ4DcUPbuNxaGRVZJOsI3wph4ImKDU,19270
+pg8000/core.py,sha256=ysHlBQKQG86j3atYjgNQFJ3Y_XcRVq4cUxoqBLOSXiY,28718
+pg8000/dbapi.py,sha256=VtisIdOwvd5UL-SGOwcBTOPGBMgid9nisttqPPbt-W0,30918
+pg8000/exceptions.py,sha256=2ZsB7erzgfCiQqBF4tfVqZa_v9ihz4N6qpj3jJEuQGc,887
+pg8000/legacy.py,sha256=WO4BxT8KQ7ctwKuAu3NbAhwKDqKRAojfmR3uOJ6eDA8,25800
+pg8000/native.py,sha256=gMItE_m7tO4JyBEWi9UUx15eZamkzLLyznazEPeTkzQ,9293
+pg8000/types.py,sha256=ar8884a6m9_xZugUdZPna9MNFTP4UTIlKjQL2TusI-8,8397
+pg8000-1.31.5.dist-info/METADATA,sha256=zzMNsBKHwDkymmGTSI6yxIJgpG7t0zTFJXhTyNA-_-0,88793
+pg8000-1.31.5.dist-info/WHEEL,sha256=qtCwoSJWgHk21S1Kb4ihdzI2rlJ1ZKaIurTj_ngOhyQ,87
+pg8000-1.31.5.dist-info/licenses/LICENSE,sha256=9j4AHZihv_el7TfYfj7O4jmXmwC5F2rMjOqDOPO9BSM,1541
+pg8000-1.31.5.dist-info/RECORD,,
