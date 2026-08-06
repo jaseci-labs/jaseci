@@ -184,8 +184,7 @@ impl ViteCompiler.compile_runtime_utils(self: ViteCompiler) -> tuple[str, list[s
     if core_path.exists() {
         import re;
         core_match = re.search(
-            r'from\s+[\'\"]([^\'\"]*client_runtime_core\.js)[\'\"]',
-            runtimeutils_js
+            r'from\s+[\'\"]([^\'\"]*client_runtime_core\.js)[\'\"]', runtimeutils_js
         );
         if core_match {
             (core_js, core_mod, _) = self.jac_compiler.compile_module(core_path);

@@ -197,11 +197,6 @@ def _collect_dep_modules(
         for spec in _relative_dep_specs(js) {
             rel = posixpath.normpath(posixpath.join(cur_dir, spec));
             if is_entry and rel != spec.lstrip("./") {
-                # The entry moves to the package root as index.js while deps
-                # are packaged at their source-mirror paths, so its
-                # importer-relative specifiers must be remapped to the
-                # packaged locations. Dep-internal specifiers stay correct
-                # because the package mirrors the source tree.
                 for quote in ['"', "'"] {
                     entry_js = entry_js.replace(
                         quote + spec + quote, quote + "./" + rel + quote

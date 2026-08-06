@@ -346,8 +346,7 @@ impl _run_harness(
             import re;
             core_js = None;
             core_match = re.search(
-                r'from\s+[\'\"]([^\'\"]*client_runtime_core\.js)[\'\"]',
-                runtime_js
+                r'from\s+[\'\"]([^\'\"]*client_runtime_core\.js)[\'\"]', runtime_js
             );
             if core_match {
                 core_js = _compile_runtime_core_js();
