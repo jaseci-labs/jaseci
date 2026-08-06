@@ -7012,6 +7012,9 @@ impl EsastGenPass._pop_scope(nd: uni.UniScopeNode) -> None {
         if info.hoisted {
             names: list[str] = [];
             for decl in info.hoisted {
+                if not isinstance(decl, es.VariableDeclaration) {
+                    continue;
+                }
                 for declarator in decl.declarations {
                     ident = declarator.id;
                     if isinstance(ident, es.Identifier) {
