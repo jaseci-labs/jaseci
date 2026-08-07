@@ -11,7 +11,10 @@ import from jaclang.scale.deploy.autoscale.http_activation {
     HTTPActivationSpec,
     HTTPRoutingRule
 }
-import from jaclang.scale.deploy.autoscale.keda_capabilities { KEDACapabilities }
+import from jaclang.scale.deploy.autoscale.keda_capabilities {
+    KEDACapabilities,
+    SUPPORTED_HTTP_INTERCEPTOR_API_VERSIONS
+}
 import from jaclang.scale.observability.logger { Logger }
 import hashlib;
 

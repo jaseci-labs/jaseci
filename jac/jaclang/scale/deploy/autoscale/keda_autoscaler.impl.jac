@@ -740,12 +740,10 @@ impl KEDAAutoscaler._validate_http_activation_spec{
 
 impl KEDAAutoscaler._check_service_address{
     (host, _, __) = address.partition(":");
-    if "." in host {
-        (name, _, namespace) = host.partition(".");
-    } else {
-        name = host;
-        namespace = "keda";
-    }
+    # host may be name, name.namespace, or a full name.namespace.svc.<cluster-domain> FQDN
+    parts = host.split(".");
+    name = parts[0];
+    namespace = parts[1] if len(parts) > 1 else "keda";
     try {
         core_api.read_namespaced_service(name=name, namespace=namespace);
         return None;
@@ -820,22 +818,26 @@ impl KEDAAutoscaler.discover_capabilities{
     }
 
     http_addon_status: (int | None) = None;
-    try {
-        api.list_cluster_custom_object(
-            group="http.keda.sh", version="v1beta1", plural="interceptorroutes"
-        );
-        caps.http_addon_available = True;
-        caps.interceptor_route_api_version = "v1beta1";
-    } except ApiException as e {
-        http_addon_status = e.status;
-        if e.status == 403 {
-            caps.errors.append(
-                "Permission denied (403) discovering the KEDA HTTP Add-on "
-                "(http.keda.sh/v1beta1 InterceptorRoute). Grant RBAC "
-                "list/get on this resource to the jac-scale service account."
+    for version in SUPPORTED_HTTP_INTERCEPTOR_API_VERSIONS {
+        try {
+            api.list_cluster_custom_object(
+                group="http.keda.sh", version=version, plural="interceptorroutes"
             );
-        } elif e.status not in [404, 422] {
-            raise;
+            caps.http_addon_available = True;
+            caps.interceptor_route_api_version = version;
+            break;
+        } except ApiException as e {
+            http_addon_status = e.status;
+            if e.status == 403 {
+                caps.errors.append(
+                    "Permission denied (403) discovering the KEDA HTTP Add-on "
+                    f"(http.keda.sh/{version} InterceptorRoute). Grant RBAC "
+                    "list/get on this resource to the jac-scale service account."
+                );
+                break;
+            } elif e.status not in [404, 422] {
+                raise;
+            }
         }
     }
 
@@ -892,7 +894,7 @@ impl KEDAAutoscaler.invalidate_capabilities{
 }
 
 impl KEDAAutoscaler.format_capabilities{
-    if caps.http_addon_available and not caps.errors {
+    if caps.core_available and caps.http_addon_available and not caps.errors {
         return "KEDA HTTP Add-on capabilities ready: core and HTTP Add-on both available.";
     }
     if caps.errors {

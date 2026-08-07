@@ -755,3 +755,34 @@ test "preflight treats a 403 as a distinct error instead of an unhandled excepti
     }
     assert not raised , "A 403 must be caught and reported, not propagated as an unhandled ApiException";
 }
+
+test "discover_capabilities resolves fully-qualified service addresses to name and namespace" {
+    core_api = _core_api_for();
+    keda = KEDAAutoscaler(
+        _custom_api=_custom_api_for(),
+        _core_api=core_api,
+        _apps_api=unittest.mock.MagicMock(),
+        http_scaler_address="keda-add-ons-http-external-scaler.keda.svc.cluster.local:9090",
+        interceptor_service_address="keda-add-ons-http-interceptor-proxy.keda.svc.cluster.local:8080"
+    );
+    caps = keda.discover_capabilities();
+    assert caps.errors == [] , f"FQDN service addresses must resolve cleanly, got: {caps.errors}";
+    lookups = [
+        (c[1]["name"], c[1]["namespace"])
+        for c in core_api.read_namespaced_service.call_args_list
+    ];
+    assert lookups == [
+        ("keda-add-ons-http-external-scaler", "keda"),
+        ("keda-add-ons-http-interceptor-proxy", "keda")
+    ] , f"FQDN must parse as name.namespace, ignoring the cluster-domain suffix; got: {lookups}";
+}
+
+test "format_capabilities does not report ready when core KEDA is missing" {
+    keda = _keda_for(custom_api=_custom_api_for(core=404), core_api=_core_api_for());
+    caps = keda.discover_capabilities();
+    assert caps.http_addon_available == True , "Sanity check: only core should be missing in this scenario";
+    msg = keda.format_capabilities(caps);
+    assert "not ready" in msg.lower() , (
+        f"A healthy Add-on with missing core KEDA must not be reported as ready; got: {msg}"
+    );
+}
