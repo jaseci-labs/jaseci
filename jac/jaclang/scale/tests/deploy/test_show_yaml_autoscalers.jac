@@ -6,11 +6,19 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ScalingMode }
 
 
 test "hpa engine renders the HPA manifest the apply path would build" {
     target = KubernetesTarget(config=KubernetesConfig(app_name="t", namespace="t-ns"));
-    bundle = {"autoscalers": {"api": {"min": 2, "max": 7, "cpu_target": 60}}};
+    bundle = {
+        "scaling": {
+            "api": {
+                "mode": ScalingMode.METRIC,
+                "autoscaler": {"min": 2, "max": 7, "cpu_target": 60}
+            }
+        }
+    };
     manifests = target.render_autoscaler_manifests(bundle);
     assert len(manifests) == 1;
     m = manifests[0];
@@ -28,7 +36,11 @@ test "keda engine renders the ScaledObject body, not the name/body wrapper" {
             app_name="t", namespace="t-ns", autoscaler_engine="keda"
         )
     );
-    bundle = {"autoscalers": {"api": {"min": 1, "max": 4}}};
+    bundle = {
+        "scaling": {
+            "api": {"mode": ScalingMode.METRIC, "autoscaler": {"min": 1, "max": 4}}
+        }
+    };
     manifests = target.render_autoscaler_manifests(bundle);
     assert len(manifests) == 1;
     m = manifests[0];
@@ -39,7 +51,18 @@ test "keda engine renders the ScaledObject body, not the name/body wrapper" {
 }
 
 
-test "a bundle with no autoscalers renders nothing" {
+test "a service scaled by http_activation renders no autoscaler manifest" {
+    target = KubernetesTarget(config=KubernetesConfig(app_name="t", namespace="t-ns"));
+    bundle = {
+        "scaling": {
+            "api": {"mode": ScalingMode.HTTP_ACTIVATION, "autoscaler": {}}
+        }
+    };
+    assert target.render_autoscaler_manifests(bundle) == [];
+}
+
+
+test "a bundle with no scaling renders nothing" {
     target = KubernetesTarget(config=KubernetesConfig(app_name="t", namespace="t-ns"));
     assert target.render_autoscaler_manifests({"deployments": {}}) == [];
 }
