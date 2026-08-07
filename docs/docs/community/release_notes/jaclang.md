@@ -2,7 +2,13 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.12 (Latest Release)
+## jaclang 0.34.13 (Latest Release)
+
+### Bug Fixes
+
+- **A sealed host no longer hijacks builds of projects stored under its root**: sealed-image detection walked up the directory tree and accepted any ancestor holding a `_precompiled` manifest, so a project merely nested under a sealed application's root (for example a user app staged inside a sealed builder service) adopted the host image's prebuilt client bundle - its own build never ran and `jac build --client web` failed with "bundle not found". A sealed root now counts only when the module is actually listed in that image's manifest, so sealed apps keep serving their baked bundle while nested foreign projects build their own.
+
+## jaclang 0.34.12
 
 ### Bug Fixes
 
