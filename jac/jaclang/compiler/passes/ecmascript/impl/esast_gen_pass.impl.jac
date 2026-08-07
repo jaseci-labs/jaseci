@@ -4273,6 +4273,7 @@ impl EsastGenPass._ref_forward_param(nd: uni.Ability) -> (uni.ParamVar | None) {
 impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
     inner = self.unwrap_body(nd);
     body_stmts = self._collect_stmt_body(inner);
+    body_stmts = self._prepend_hoisted(nd, body_stmts);
 
     is_entry = nd.signature.event.name == Tok.KW_ENTRY;
     is_async = nd.is_async;
@@ -6972,7 +6973,27 @@ impl EsastGenPass._current_scope -> (ScopeInfo | None) {
 
 impl EsastGenPass._pop_scope(nd: uni.UniScopeNode) -> None {
     if (self.scope_stack and (self.scope_stack[-1].nd is nd)) {
-        self.scope_stack.pop();
+        info = self.scope_stack.pop();
+        if info.hoisted {
+            names: list[str] = [];
+            for decl in info.hoisted {
+                if not isinstance(decl, es.VariableDeclaration) {
+                    continue;
+                }
+                for declarator in decl.declarations {
+                    ident = declarator.id;
+                    if isinstance(ident, es.Identifier) {
+                        names.append(f"'{ident.name}'");
+                    }
+                }
+            }
+            self.emit(
+                E5085,
+                node_override=nd,
+                names=", ".join(names) or "<unknown>",
+                scope=type(nd).__name__
+            );
+        }
     }
 }
 

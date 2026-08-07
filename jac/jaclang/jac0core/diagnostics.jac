@@ -1395,6 +1395,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Client code imports '{name}' from '{module}', but '{name}' has no client-side presence",
          help="A plain import into client code can only reference client declarations; server `def:pub` endpoints bridge automatically over RPC. Make '{name}' a `def:pub` endpoint, mark it (or its module) client, or move it into client code."
      ),
+     E5085 = _err(
+         "E5085",
+         Category.CODEGEN,
+         "Internal client codegen error: declaration(s) for {names} hoisted into scope '{scope}' were never emitted",
+         help="Client codegen queued a `let` for these variables in the scope that owns their symbols, but the scope's body was built without draining the queue, so the declarations would be silently dropped and their assignments would emit bare -- a strict-mode ReferenceError at runtime. Every body builder for a scope must drain pending hoists (see _prepend_hoisted / _build_block_statement) before the scope is popped. Please report this as a jac compiler bug."
+     ),
      W6001 = _warn(
          "W6001",
          Category.SEMANTIC,
