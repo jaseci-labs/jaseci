@@ -40,7 +40,7 @@ def _trace_enabled -> bool;
 def _build_view(mem: Memory, q: GraphQuery) -> _View;
 
 
-def _edge_alive(ea: EdgeAnchor) -> bool;
+def _edge_alive(mem: Memory, ea: EdgeAnchor) -> bool;
 
 
 def _live_row(ea: EdgeAnchor, cur: set[UUID], hop: QHop) -> (tuple[UUID, UUID] | None);

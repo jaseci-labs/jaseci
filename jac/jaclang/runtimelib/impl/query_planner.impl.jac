@@ -10,7 +10,7 @@ impl _build_view(mem: Memory, q: GraphQuery) -> _View {
         if not isinstance(anchor, EdgeAnchor) or not anchor.is_populated() {
             continue;
         }
-        if not _edge_alive(anchor) {
+        if not _edge_alive(mem, anchor) {
             view.detached.add(anchor.id);
         } elif anchor.hash == 0 {
             view.fresh.append(anchor);
@@ -112,17 +112,9 @@ impl _page_rows(
 }
 
 
-impl _edge_alive(ea: EdgeAnchor) -> bool {
-    src = ea.source;
-    if src is None or not src.is_populated() {
-        return True;
-    }
-    for e in src.edges {
-        if e.id == ea.id {
-            return True;
-        }
-    }
-    return False;
+impl _edge_alive(mem: Memory, ea: EdgeAnchor) -> bool {
+    import from jaclang.jac0core.osp_graph_sv { sv_edge_alive }
+    return sv_edge_alive(ea, mem);
 }
 
 
@@ -613,47 +605,22 @@ impl resolve_query_edges(mem: Memory, q: GraphQuery) -> list[Anchor] {
     hop = q.hops[-1];
     frontier = _materialize(mem, view, prefix_ids);
     cur_set = {a.id for a in frontier};
-    pool = mem.get_mem();
+    import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
     candidates: list[EdgeAnchor] = [];
     seen: set[UUID] = set();
-    pending: list[UUID] = [];
     for n in frontier {
         if not isinstance(n, NodeAnchor) or not n.is_populated() {
             continue;
         }
-        for stub in n.edges {
-            if stub.id in seen {
+        sv_register_hydrated(n, mem, fetch_stubs=True);
+        for lea in sv_live_edges(n, 3, None, True, mem) {
+            if not isinstance(lea, EdgeAnchor)
+                or lea.id in seen
+                or not lea.is_populated() {
                 continue;
             }
-            seen.add(stub.id);
-            found = pool.get(stub.id) or view.live_edges.get(stub.id);
-            if found is None and stub.is_populated() {
-                found = stub;
-            }
-            if isinstance(found, EdgeAnchor) and found.is_populated() {
-                candidates.append(found);
-            } else {
-                pending.append(stub.id);
-            }
-        }
-    }
-    if pending {
-        import from jaclang.runtimelib.memory { TieredMemory }
-        fetched: dict[UUID, Anchor];
-        if isinstance(mem, TieredMemory) {
-            fetched = mem.batch_get(pending);
-        } else {
-            fetched = {
-                i: a
-                for i in pending
-                if (a := mem.get(i)) is not None
-            };
-        }
-        for i in pending {
-            fa = fetched.get(i);
-            if isinstance(fa, EdgeAnchor) and fa.is_populated() {
-                candidates.append(fa);
-            }
+            seen.add(lea.id);
+            candidates.append(lea);
         }
     }
     out: list[Anchor] = [];

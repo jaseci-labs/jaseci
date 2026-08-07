@@ -5,6 +5,7 @@ import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor }
 obj _SvStore {
     has h_of_id: dict[str, int] = {},
         registered: set[str] = field(default_factory=`set),
+        forgotten: set[str] = field(default_factory=`set),
         region: int = 0;
 }
 
@@ -107,6 +108,7 @@ def sv_conn(
         _mint(st, edge_a);
         return;
     }
+    st.forgotten.discard(key);
     eh = _mint(st, edge_a);
     _graph.osp_conn(
         _mint(st, src_a),
@@ -189,34 +191,79 @@ def sv_candidate_edges_between(
     return out;
 }
 
-def sv_register_hydrated(node_a: NodeAnchor, mem: any = None) -> None {
+def _conn_hydrated(e: EdgeAnchor, m: any) -> None {
+    src_a = e.source;
+    tgt_a = e.target;
+    if src_a is None or tgt_a is None {
+        return;
+    }
+    sv_conn(src_a, tgt_a, e, e.is_undirected, m);
+}
+
+def sv_register_hydrated(
+    node_a: NodeAnchor, mem: any = None, fetch_stubs: bool = False
+) -> None {
+    # The one sanctioned live read of NodeAnchor.edges: loading the node's
+    # persistence record into the store. Everything else answers topology
+    # through the store.
     if not isinstance(node_a, NodeAnchor) or not node_a.is_populated() {
         return;
     }
     m = _mem_or_ctx(mem);
     _mint(_store_for(m), node_a);
+    pending: list[EdgeAnchor] = [];
     for e in list(node_a.edges) {
         if not e.is_populated() {
+            if fetch_stubs {
+                pending.append(e);
+            }
             continue;
         }
-        src_a = e.source;
-        tgt_a = e.target;
-        if src_a is None or tgt_a is None {
-            continue;
+        if isinstance(e, EdgeAnchor) {
+            _conn_hydrated(e, m);
         }
-        sv_conn(src_a, tgt_a, e, e.is_undirected, m);
+    }
+    if pending and m is not None {
+        batch = m?.batch_get;
+        fetched = batch([p.id for p in pending]) if batch is not None else {};
+        for p in pending {
+            fa = fetched.get(p.id) if batch is not None else m.get(p.id);
+            if isinstance(fa, EdgeAnchor) and fa.is_populated() {
+                _conn_hydrated(fa, m);
+            }
+        }
     }
 }
 
-def sv_forget_edge(edge_a: EdgeAnchor, mem: any = None) {
-    m = _mem_or_ctx(mem);
-    st = _store_for(m);
+def sv_edge_alive(edge_a: EdgeAnchor, mem: any = None) -> bool {
+    # Liveness is evidence-based: a forget (detach/destroy/abort/heal) marks
+    # the id dead even when the edge was never minted this session; absent
+    # that, an unminted edge defers to its persistence record, and a minted
+    # one is alive iff still registered.
+    st = _store_for(_mem_or_ctx(mem));
     key = str(edge_a.id);
+    if key in st.forgotten {
+        return False;
+    }
+    if key not in st.h_of_id {
+        return True;
+    }
+    return key in st.registered;
+}
+
+def sv_forget_by_id(anchor_id: any, mem: any = None) {
+    st = _store_for(_mem_or_ctx(mem));
+    key = str(anchor_id);
     st.registered.discard(key);
+    st.forgotten.add(key);
     h = st.h_of_id.get(key, 0);
     if h > 0 {
         _graph.osp_disconnect(h);
     }
+}
+
+def sv_forget_edge(edge_a: EdgeAnchor, mem: any = None) {
+    sv_forget_by_id(edge_a.id, mem);
 }
 
 def sv_store_closed(mem: any) -> int {
