@@ -24,6 +24,7 @@ import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
 }
 import from jaclang.scale.deploy.target.kubernetes.rollout {
     ROLLOUT_WAIT_FULL,
+    STALL_CONFIRM_POLLS,
     normalize_rollout_wait,
     read_rollout_status
 }
@@ -361,7 +362,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return detail;
     }
 
-    def _wait_for_fleet_rollout(bundle: dict[str, any], timeout: int = 0) -> None {
+    def _wait_for_fleet_rollout(
+        bundle: dict[str, any], timeout: int | None = None
+    ) -> None {
         import time;
         import sys;
         import from kubernetes { client }
@@ -388,7 +391,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
         mode = normalize_rollout_wait(self.k8s_config.rollout_wait);
         gate = "fully rolled out" if mode == ROLLOUT_WAIT_FULL else "serving";
-        if timeout <= 0 {
+        if timeout is None {
             timeout = self.k8s_config.rollout_timeout;
         }
         self._load_cluster_config();
@@ -410,6 +413,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             else None;
         imagepull_streak: dict[str, int] = {};
         creating_streak: dict[str, int] = {};
+        stall_streak: dict[str, int] = {};
         healed_apps: dict[str, int] = {};
         last_sig = "";
         last_heartbeat = -90;
@@ -429,7 +433,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         with console.status(f"Rolling out fleet: 0/{total} services ready...") as st {
             while elapsed < timeout {
                 ready = 0;
-                stalled: list[str] = [];
+                stalls: dict[str, str] = {};
                 for name in names {
                     try {
                         d = apps_v1.read_namespaced_deployment(name=name, namespace=ns);
@@ -437,10 +441,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         if rollout.satisfies(mode) {
                             ready += 1;
                         }
-                        if rollout.stall {
-                            stalled.append(
-                                f"deployment '{name}' stalled: {rollout.stall}"
-                            );
+                        stall = rollout.stall();
+                        if stall {
+                            stalls[name] = stall;
                         }
                     } except Exception {
                         _ = 0;
@@ -524,6 +527,12 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     );
                     raise Exception(f"{failure}.{detail}");
                 }
+                stall_streak = {k: stall_streak.get(k, 0) + 1 for k in stalls};
+                stalled = [
+                    f"deployment '{name}' stalled: {reason}"
+                    for (name, reason) in stalls.items()
+                    if stall_streak.get(name, 0) >= STALL_CONFIRM_POLLS
+                ];
                 if stalled {
                     raise Exception(
                         "; ".join(stalled)

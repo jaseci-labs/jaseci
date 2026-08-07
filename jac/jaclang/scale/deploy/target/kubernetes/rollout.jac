@@ -1,7 +1,8 @@
 glob ROLLOUT_WAIT_READY: str = "ready",
      ROLLOUT_WAIT_FULL: str = "full",
      ROLLOUT_WAIT_MODES: tuple = ("ready", "full"),
-     PROGRESS_DEADLINE_REASON: str = "ProgressDeadlineExceeded";
+     PROGRESS_DEADLINE_REASON: str = "ProgressDeadlineExceeded",
+     STALL_CONFIRM_POLLS: int = 3;
 
 
 def normalize_rollout_wait(mode: any) -> str {
@@ -16,7 +17,7 @@ def normalize_rollout_wait(mode: any) -> str {
 }
 
 
-def _replica_count(value: any) -> int {
+def _non_negative_int(value: any) -> int {
     try {
         return max(int(value or 0), 0);
     } except (TypeError, ValueError) {
@@ -25,22 +26,30 @@ def _replica_count(value: any) -> int {
 }
 
 
-def _stall_reason(status: any) -> str {
-    for cond in (status?.conditions or []) {
-        if str(cond?.type or "") != "Progressing" {
-            continue;
-        }
-        if str(cond?.reason or "") != PROGRESS_DEADLINE_REASON {
-            continue;
-        }
-        message = str(cond?.message or "").strip();
-        return (
-            f"{PROGRESS_DEADLINE_REASON}: {message}"
-                if message
-                else PROGRESS_DEADLINE_REASON
-        );
+def _field(source: any, name: str) -> any {
+    if isinstance(source, dict) {
+        return source.get(name);
     }
-    return "";
+    return getattr(source, name, None);
+}
+
+
+def _stall_condition(status: any) -> tuple {
+    conditions = _field(status, "conditions");
+    if not isinstance(conditions, list) {
+        return ("", "");
+    }
+    for cond in conditions {
+        if str(_field(cond, "type") or "") != "Progressing" {
+            continue;
+        }
+        reason = str(_field(cond, "reason") or "");
+        if reason != PROGRESS_DEADLINE_REASON {
+            continue;
+        }
+        return (reason, str(_field(cond, "message") or "").strip());
+    }
+    return ("", "");
 }
 
 
@@ -51,7 +60,8 @@ obj RolloutStatus {
         total: int = 0,
         generation: int = 0,
         observed_generation: int = 0,
-        stall: str = "";
+        stall_reason: str = "",
+        stall_message: str = "";
 
     def is_observed -> bool {
         return self.observed_generation >= self.generation;
@@ -78,6 +88,15 @@ obj RolloutStatus {
         return self.updated_available() >= 1;
     }
 
+    def stall -> str {
+        if not self.stall_reason or not self.is_observed() {
+            return "";
+        }
+        return f"{self.stall_reason}: {self.stall_message}"
+            if self.stall_message
+            else self.stall_reason;
+    }
+
     def summary -> str {
         return f"{self.updated_available()}/{self.desired}";
     }
@@ -85,16 +104,18 @@ obj RolloutStatus {
 
 
 def read_rollout_status(deployment: any) -> RolloutStatus {
-    meta = deployment?.metadata;
-    spec = deployment?.spec;
-    status = deployment?.status;
+    meta = _field(deployment, "metadata");
+    spec = _field(deployment, "spec");
+    status = _field(deployment, "status");
+    (stall_reason, stall_message) = _stall_condition(status);
     return RolloutStatus(
-        desired=_replica_count(spec?.replicas),
-        updated=_replica_count(status?.updated_replicas),
-        available=_replica_count(status?.available_replicas),
-        total=_replica_count(status?.replicas),
-        generation=_replica_count(meta?.generation),
-        observed_generation=_replica_count(status?.observed_generation),
-        stall=_stall_reason(status)
+        desired=_non_negative_int(_field(spec, "replicas")),
+        updated=_non_negative_int(_field(status, "updated_replicas")),
+        available=_non_negative_int(_field(status, "available_replicas")),
+        total=_non_negative_int(_field(status, "replicas")),
+        generation=_non_negative_int(_field(meta, "generation")),
+        observed_generation=_non_negative_int(_field(status, "observed_generation")),
+        stall_reason=stall_reason,
+        stall_message=stall_message
     );
 }

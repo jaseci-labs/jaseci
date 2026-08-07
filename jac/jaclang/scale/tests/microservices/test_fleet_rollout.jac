@@ -501,16 +501,21 @@ test "full wait is opt-in and does not change the default gate" {
     assert err is None , f"the default gate still returns mid-rollout: {err}";
 }
 
-test "a rollout past its progress deadline fails with the stall reason" {
-    target = _fleet_target();
-    stalled = SimpleNamespace(
+def _stall_condition -> object {
+    return SimpleNamespace(
         type="Progressing",
         status="False",
         reason="ProgressDeadlineExceeded",
         message="ReplicaSet 'gateway-abc' has timed out progressing."
     );
+}
+
+test "a rollout past its progress deadline fails with the stall reason" {
+    target = _fleet_target();
     (apps, core) = _rollout_apis(
-        _dep(desired=3, updated=1, available=3, total=4, conditions=[stalled])
+        _dep(
+            desired=3, updated=1, available=3, total=4, conditions=[_stall_condition()]
+        )
     );
 
     err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 60);
@@ -519,6 +524,53 @@ test "a rollout past its progress deadline fails with the stall reason" {
     assert "ProgressDeadlineExceeded" in str(err) , f"stall reason missing: {err}";
     assert "gateway-deployment" in str(err) , f"stalled deployment not named: {err}";
     assert "timed out progressing" in str(err) , f"stall message missing: {err}";
+    assert apps.read_namespaced_deployment.call_count >= 3 , (
+        "a stall must be confirmed across polls, not raised on the first: "
+        f"{apps.read_namespaced_deployment.call_count}"
+    );
+}
+
+test "a leftover stall condition from the previous deploy does not fail this one" {
+    target = _fleet_target();
+    (apps, core) = _rollout_apis(
+        _dep(
+            desired=3,
+            updated=0,
+            available=3,
+            total=3,
+            generation=5,
+            observed=4,
+            conditions=[_stall_condition()]
+        )
+    );
+
+    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 60);
+
+    assert err is not None and "timed out" in str(err) , (
+        f"expected the plain timeout, got: {err}"
+    );
+    assert "ProgressDeadlineExceeded" not in str(err) , (
+        "a condition the controller has not re-evaluated for this spec is "
+        f"the last deploy's verdict, not this one's: {err}"
+    );
+}
+
+test "a stall that clears on the next poll does not fail the deploy" {
+    target = _fleet_target();
+    (apps, core) = _rollout_apis(_rolled_out(3));
+    apps.read_namespaced_deployment.side_effect = [
+        _dep(
+            desired=3, updated=0, available=3, total=3, conditions=[_stall_condition()]
+        ),
+        _rolled_out(3)
+    ];
+
+    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 60);
+
+    assert err is None , (
+        "the controller re-asserts a stale timeout until the new ReplicaSet "
+        f"makes progress; one poll of it is not a stalled rollout: {err}"
+    );
 }
 
 test "an unsupported rollout_wait value is rejected with the valid choices" {

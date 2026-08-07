@@ -401,7 +401,7 @@ Or per invocation, which overrides the config:
 jac start main.jac --scale --wait full
 ```
 
-Use `full` in CI pipelines that cut traffic over once the deploy returns; the default is the better fit for iterating locally. Either way a rollout that exceeds its `progressDeadlineSeconds` fails immediately with the stall reason rather than waiting out the timeout.
+Use `full` in CI pipelines that cut traffic over once the deploy returns; the default is the better fit for iterating locally. Either way a rollout that exceeds its `progressDeadlineSeconds` fails with the stall reason rather than waiting out the timeout, once the stall has held across several polls - Kubernetes keeps re-asserting a `ProgressDeadlineExceeded` condition until the new ReplicaSet makes progress, so the deploy that fixes a previously timed-out rollout is not failed by its predecessor's verdict.
 
 ---
 
