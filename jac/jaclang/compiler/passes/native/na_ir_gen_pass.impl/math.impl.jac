@@ -125,11 +125,6 @@ impl NaIRGenPass._emit_math_call(name: str, nd: uni.FuncCall) -> (ir.Value | Non
 }
 
 
-"""Equalize two integer operands to a common signed width via sign-extension.
-
-Returns the (possibly sext-ed) base and exp sharing one `ir.IntType`, so the
-power kernel, comparisons, and PHI all agree on a single type.
-"""
 impl NaIRGenPass._equalize_int_pow_operands(
     base: ir.Value, exp: ir.Value
 ) -> tuple[(ir.Value, ir.Value)] {
@@ -141,8 +136,6 @@ impl NaIRGenPass._equalize_int_pow_operands(
     return (base, exp);
 }
 
-"""Emit a libm `pow` call over float-promoted operands (the single seam for
-all float power lowering). Handles int or float inputs via promotion."""
 impl NaIRGenPass._emit_float_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
     f64 = ir.DoubleType();
     (fleft, fright) = self._promote_to_float(base, exp);
@@ -150,9 +143,6 @@ impl NaIRGenPass._emit_float_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
     return self.builder.call(pow_fn, [fleft, fright], name="pow.f");
 }
 
-"""Guard `0 ** negative`: Python raises ZeroDivisionError. Emits a runtime
-check against zero (int or float base) and leaves the builder in the
-non-zero continuation block."""
 impl NaIRGenPass._emit_pow_zero_guard(base: ir.Value) -> None {
     if isinstance(base.type, ir.IntType) {
         is_zero = self.builder.icmp_signed(
@@ -160,22 +150,13 @@ impl NaIRGenPass._emit_pow_zero_guard(base: ir.Value) -> None {
         );
     } else {
         fzero = ir.Constant(base.type, 0.0);
-        is_zero = self.builder.fcmp_ordered(
-            "==", base, fzero, name="pow.zero.b"
-        );
+        is_zero = self.builder.fcmp_ordered("==", base, fzero, name="pow.zero.b");
     }
     self._emit_runtime_raise(
         is_zero, "ZeroDivisionError", "0.0 cannot be raised to a negative power"
     );
 }
 
-"""Lower `base ** exp` for integer operands via an unfolding loop.
-
-Operands MUST already share one `ir.IntType` width (see
-`_equalize_int_pow_operands`). The accumulator and counter use that operand
-type so fixed-width kernels (e.g. i32 ** i32) never mix widths. Finishes in
-its own `pow.end` block; callers must capture `self.builder.block` for PHI
-predecessors rather than assuming the entry block."""
 impl NaIRGenPass._codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
     int_ty = base.type;
     one = ir.Constant(int_ty, 1);
@@ -209,18 +190,6 @@ impl NaIRGenPass._codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
     return self.builder.load(result_alloca, name="pow.final");
 }
 
-"""Lower `base ** exp` honoring Python/Jac exponentiation semantics.
-
-Result contract (mirrors the type system in operations.jac):
-  * float operand      -> f64 (libm pow)
-  * int ** non-neg int  -> int  (loop)
-  * int ** negative int -> f64 (libm pow); 0 ** negative raises
-  * int ** dynamic-sign -> f64, branched on the runtime sign of `exp`
-
-When `exp_node` is supplied, the exponent is constant-folded to specialize
-safely; otherwise the dynamic-sign branch is used. The dynamic PHI captures
-the real predecessor blocks (the negative path's zero-guard continuation and
-the integer loop's `pow.end`), not the blocks the builder entered."""
 impl NaIRGenPass._codegen_pow(
     base: ir.Value, exp: ir.Value, exp_node: (uni.Expr | None) = None
 ) -> ir.Value {

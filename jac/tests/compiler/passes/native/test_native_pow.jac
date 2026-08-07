@@ -19,16 +19,15 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
-     );
-glob CHECKER_FIXTURES = os.path.join(
+     ),
+     CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "checker"
-     );
-
-glob _POW_SEMANTICS_ENG: (ExecutionEngine | None) = None;
-glob _POW_SEMANTICS_IR: (uni.Module | None) = None;
+     ),
+     _POW_SEMANTICS_ENG: (ExecutionEngine | None) = None,
+     _POW_SEMANTICS_IR: (uni.Module | None) = None;
 
 """Compile pow_semantics.jac once and cache the JIT engine."""
-def pow_semantics_engine() -> tuple[ExecutionEngine, uni.Module] {
+def pow_semantics_engine -> tuple[ExecutionEngine, uni.Module] {
     if _POW_SEMANTICS_ENG is None {
         prog = JacProgram();
         ir = prog.compile(
@@ -90,9 +89,7 @@ test "pow: int ** negative literal is float" {
 test "pow: int ** dynamic exponent follows runtime sign" {
     (eng, _) = pow_semantics_engine();
     get_func(eng, "jac_entry", None)();
-    dyn = get_func(
-        eng, "ipow_dyn", ctypes.c_double, ctypes.c_int64, ctypes.c_int64
-    );
+    dyn = get_func(eng, "ipow_dyn", ctypes.c_double, ctypes.c_int64, ctypes.c_int64);
     assert dyn(2, 3) == 8.0;
     assert dyn(2, -1) == 0.5;
     assert dyn(3, 0) == 1.0;
@@ -102,9 +99,7 @@ test "pow: int ** dynamic exponent follows runtime sign" {
 test "pow: fixed-width i32 kernel matches at true width" {
     (eng, _) = pow_semantics_engine();
     get_func(eng, "jac_entry", None)();
-    d = get_func(
-        eng, "ipow_i32_dyn", ctypes.c_double, ctypes.c_int32, ctypes.c_int32
-    );
+    d = get_func(eng, "ipow_i32_dyn", ctypes.c_double, ctypes.c_int32, ctypes.c_int32);
     assert d(2, 3) == 8.0;
     assert d(5, 2) == 25.0;
 }
@@ -113,14 +108,10 @@ test "pow: fixed-width i32 kernel matches at true width" {
 test "pow: float operands use libm pow" {
     (eng, _) = pow_semantics_engine();
     get_func(eng, "jac_entry", None)();
-    fp = get_func(
-        eng, "fpow", ctypes.c_double, ctypes.c_double, ctypes.c_double
-    );
+    fp = get_func(eng, "fpow", ctypes.c_double, ctypes.c_double, ctypes.c_double);
     assert fp(2.0, 3.0) == 8.0;
     assert fp(9.0, 0.5) == 3.0;
-    bp = get_func(
-        eng, "bpow", ctypes.c_double, ctypes.c_double, ctypes.c_double
-    );
+    bp = get_func(eng, "bpow", ctypes.c_double, ctypes.c_double, ctypes.c_double);
     assert bp(2.0, 10.0) == 1024.0;
 }
 
@@ -128,9 +119,7 @@ test "pow: float operands use libm pow" {
 test "pow: builtin pow(int, int) matches operator" {
     (eng, _) = pow_semantics_engine();
     get_func(eng, "jac_entry", None)();
-    bip = get_func(
-        eng, "bpow_int", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64
-    );
+    bip = get_func(eng, "bpow_int", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
     assert bip(2, 10) == 1024;
     assert bip(3, 3) == 27;
 }
@@ -177,7 +166,8 @@ test "pow: zero base with negative exponent raises ZeroDivisionError" {
 test "pow: negative **= on int rejects with E1001" {
     program = compile_and_check("checker_pow_aug_type_errors.jac");
     e1001 = [
-        e for e in program.errors_had
+        e
+        for e in program.errors_had
         if e.code and e.code.code == "E1001"
     ];
     assert len(e1001) >= 2 , f"Expected >=2 E1001 for invalid **=, got {len(e1001)}";

@@ -545,16 +545,13 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
                         base_op = AUG_TO_BINARY_MAP.get(nd.aug_op.name);
                         if base_op is not None {
                             if base_op in ARITHMETIC_OPERATORS {
-                                if nd.aug_op is not None
-                                    and nd.aug_op.value == "**=" {
+                                if nd.aug_op is not None and nd.aug_op.value == "**=" {
                                     promoted = get_pow_result_type(
-                                        self.evaluator, left_type, right_type,
-                                        nd.value
+                                        self.evaluator, left_type, right_type, nd.value
                                     );
                                 } else {
                                     promoted = get_numeric_promotion_type(
-                                        self.evaluator, left_type, right_type,
-                                        base_op
+                                        self.evaluator, left_type, right_type, base_op
                                     );
                                 }
                                 if promoted is not None {

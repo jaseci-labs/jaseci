@@ -145,20 +145,6 @@ def get_numeric_promotion_type(
     return evaluator._convert_to_instance(right_type);
 }
 
-"""Result type of the `**` operator under Python/Jac semantics.
-
-Mirrors the native codegen contract so type-checking and code generation
-agree (previously `int ** int` was always `int`, but a negative or
-runtime-sign exponent yields a float at runtime).
-
-  * any float operand        -> float
-  * int ** non-negative int    -> int (promoted; fixed-width honored)
-  * int ** negative int        -> float
-  * int ** dynamic-sign int    -> float (sound over-approximation of the
-                                  f64 the dynamic lowering produces)
-
-Returns None for non-numeric operands so callers defer to the generic
-magic-method (`__pow__`/`__rpow__`) lookup."""
 def get_pow_result_type(
     evaluator: 'TypeEvaluator',
     left_type: jtypes.TypeBase,

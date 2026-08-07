@@ -2342,9 +2342,7 @@ impl NaIRGenPass._codegen_field_aug_assign(
 }
 
 impl NaIRGenPass._codegen_field_assign(
-    target: uni.AtomTrailer,
-    value: ir.Value,
-    skip_narrow_coerce: bool = False
+    target: uni.AtomTrailer, value: ir.Value, skip_narrow_coerce: bool = False
 ) -> None {
     _fa_errs = len(self.errors_had);
     field_name = self._get_name(target.right);

@@ -1451,10 +1451,7 @@ impl NaIRGenPass._bind_match_arch(
 }
 
 impl NaIRGenPass._apply_scalar_aug_op(
-    current: ir.Value,
-    rhs: ir.Value,
-    aug_op: str,
-    rhs_node: (uni.Expr | None) = None
+    current: ir.Value, rhs: ir.Value, aug_op: str, rhs_node: (uni.Expr | None) = None
 ) -> (ir.Value | None) {
     current = self._str_norm(current);
     rhs = self._str_norm(rhs);
@@ -2138,7 +2135,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     }
                 }
             }
-            if nd.aug_op is not None and nd.aug_op.value == "**="
+            if nd.aug_op is not None
+                and nd.aug_op.value == "**="
                 and value.type != alloca.type.pointee {
                 coerced = value;
             } else {
