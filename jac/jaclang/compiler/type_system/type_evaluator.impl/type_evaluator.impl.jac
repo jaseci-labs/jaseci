@@ -3494,6 +3494,11 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
     if resolved_path in target_hub {
         return target_hub[resolved_path];
     }
+    memoized = _stub_module_memo.get(resolved_path);
+    if memoized is not None and memoized[0] == os.path.getmtime(path) {
+        target_hub[resolved_path] = memoized[1];
+        return memoized[1];
+    }
     file_content = read_file_with_encoding(path);
     if path.endswith("builtins.pyi") and "def chunks(" not in file_content {
         _ck_anchor = "    def copy(self) -> list[_T]: ...";
@@ -3515,6 +3520,7 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
     ).ir_out;
     SymTabBuildPass(ir_in=mod, prog=self.program);
     target_hub[resolved_path] = mod;
+    _stub_module_memo[resolved_path] = (os.path.getmtime(path), mod);
     return mod;
 }
 
