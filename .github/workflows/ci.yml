@@ -160,19 +160,30 @@ jobs:
 
   # Compiler half of the full repo suite, via the binary's own test runner.
   test-compiler:
-    needs: changes
+    needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Dev lane: the compiler under test is THIS checkout via the repo's
-    # [dev] jaclang_source loop; the cached host binary never rebuilds on
-    # compiler PRs. Sealed-path coverage: build-jac's smoke per PR plus the
-    # full sealed sweep in nightly.yml.
-    env:
-      JAC_NO_DEV_SOURCE: ""
+    # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
+    # (serve/client/cli tests). Under the dev lane each such spawn would
+    # recompile the checkout compiler from source into its cold cache -- a
+    # from-source build per spawn -- so these suites test the sealed artifact.
     steps:
       - uses: actions/checkout@v5
-      - name: Set up jac (dev lane)
-        uses: ./.github/actions/setup-jac-dev
+      - name: Restore typeshed stdlib stubs into the checkout
+        uses: actions/download-artifact@v4
+        with:
+          name: typeshed-stdlib
+          path: jac/jaclang/vendor/typeshed/stdlib
+      - name: Download the jac binary
+        uses: actions/download-artifact@v4
+        with:
+          name: jac-binary
+          path: bin
+      - name: Put jac on PATH
+        # upload-artifact strips the executable bit; restore it.
+        run: |
+          chmod +x "$PWD/bin/jac"
+          echo "$PWD/bin" >> "$GITHUB_PATH"
       - name: Set up Node.js (ES backend for the equivalence suite)
         uses: actions/setup-node@v4
         with:
@@ -224,18 +235,6 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
 
-      # Refresh the shared JIR cache the dev lane restores (content-addressed
-      # entries: a stale tree can only miss, never mis-serve). One seeder job
-      # bounds pool churn; PR-scoped saves cover the PR's own later pushes,
-      # main saves seed every branch.
-      - name: Save JIR compile caches
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            .jac-xdg/jac/jir
-            jac/.jac/cache
-          key: jac-jir-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
 
   # Native lowering unavailable (LLVM shim absent): user programs must compile
   # cleanly in the server codespace with zero scheduling errors and no
@@ -295,16 +294,24 @@ jobs:
 
   # Everything except the compiler tests.
   test-runtime:
-    needs: changes
+    needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Dev lane: run THIS checkout's compiler (see test-compiler).
-    env:
-      JAC_NO_DEV_SOURCE: ""
+    # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
+    # (serve/client/cli tests). Under the dev lane each such spawn would
+    # recompile the checkout compiler from source into its cold cache -- a
+    # from-source build per spawn -- so these suites test the sealed artifact.
     steps:
       - uses: actions/checkout@v5
-      - name: Set up jac (dev lane)
-        uses: ./.github/actions/setup-jac-dev
+      - name: Download the jac binary
+        uses: actions/download-artifact@v4
+        with:
+          name: jac-binary
+          path: bin
+      - name: Put jac on PATH
+        run: |
+          chmod +x "$PWD/bin/jac"
+          echo "$PWD/bin" >> "$GITHUB_PATH"
       - name: Set up Node.js (JS backend tests)
         uses: actions/setup-node@v4
         with:
@@ -536,6 +543,19 @@ jobs:
 
           exit 0
 
+      # Refresh the shared JIR cache the dev lane restores (content-addressed
+      # entries: a stale tree can only miss, never mis-serve). One Linux
+      # seeder job bounds pool churn; PR-scoped saves cover the PR's own
+      # later pushes, main saves seed every branch.
+      - name: Save JIR compile caches
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .jac-xdg/jac/jir
+            jac/.jac/cache
+          key: jac-jir-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+
   # Required check ("Contribution Checks" is the branch-protection context
   # name): independent of build-jac for the same reason as jac-check.
   contribution-checks:
@@ -606,12 +626,13 @@ jobs:
         run: bash scripts/check-release-notes.sh
 
   test-solid-and-desktop:
-    needs: changes
+    needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.desktop == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Dev lane: run THIS checkout's compiler (see test-compiler).
-    env:
-      JAC_NO_DEV_SOURCE: ""
+    # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
+    # (serve/client/cli tests). Under the dev lane each such spawn would
+    # recompile the checkout compiler from source into its cold cache -- a
+    # from-source build per spawn -- so these suites test the sealed artifact.
     steps:
     - name: Check out code
       uses: actions/checkout@v5
@@ -626,8 +647,18 @@ jobs:
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
 
-    - name: Set up jac (dev lane)
-      uses: ./.github/actions/setup-jac-dev
+    - name: Download the jac binary (build-jac artifact)
+      uses: actions/download-artifact@v4
+      with:
+        name: jac-binary
+        path: jac/zig-out/bin
+
+    - name: Put jac on PATH
+      # upload-artifact strips the executable bit; restore it. The artifact
+      # lands at jac/zig-out/bin, where setup-jac would have built it.
+      run: |
+        chmod +x "$PWD/jac/zig-out/bin/jac"
+        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
     - name: Run Solid jsdom runtime test
       env:
@@ -638,10 +669,12 @@ jobs:
       run: jac test jac/tests/runtimelib/client/test_desktop_binding.jac
 
   test-client:
+    needs: build-jac
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Dev lane: run THIS checkout's compiler (see test-compiler).
-    env:
-      JAC_NO_DEV_SOURCE: ""
+    # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
+    # (serve/client/cli tests). Under the dev lane each such spawn would
+    # recompile the checkout compiler from source into its cold cache -- a
+    # from-source build per spawn -- so these suites test the sealed artifact.
     steps:
     - name: Check out code
       uses: actions/checkout@v5
@@ -656,8 +689,18 @@ jobs:
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
 
-    - name: Set up jac (dev lane)
-      uses: ./.github/actions/setup-jac-dev
+    - name: Download the jac binary (build-jac artifact)
+      uses: actions/download-artifact@v4
+      with:
+        name: jac-binary
+        path: jac/zig-out/bin
+
+    - name: Put jac on PATH
+      # upload-artifact strips the executable bit; restore it. The artifact
+      # lands at jac/zig-out/bin, where setup-jac would have built it.
+      run: |
+        chmod +x "$PWD/jac/zig-out/bin/jac"
+        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
     - name: Set environment for testing
       run: echo "TEST_ENV=true" >> $GITHUB_ENV
@@ -682,20 +725,31 @@ jobs:
         jac test -vv jac/tests/runtimelib/client/test_inprocess_dispatch.jac
 
   test-packages-and-docs:
-    needs: changes
+    needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.byllm == 'true' || needs.changes.outputs.docs == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Dev lane: run THIS checkout's compiler (see test-compiler).
-    env:
-      JAC_NO_DEV_SOURCE: ""
+    # Sealed lane: byllm's MTIR integration tests key registries off the
+    # sealed module identity (dev-source loading keys them differently), and
+    # the suite spawns env-isolated `jac` subprocesses (see test-compiler's
+    # sealed-lane note).
     steps:
     - name: Check out code
       uses: actions/checkout@v5
       with:
         submodules: true
 
-    - name: Set up jac (dev lane)
-      uses: ./.github/actions/setup-jac-dev
+    - name: Download the jac binary (build-jac artifact)
+      uses: actions/download-artifact@v4
+      with:
+        name: jac-binary
+        path: jac/zig-out/bin
+
+    - name: Put jac on PATH
+      # upload-artifact strips the executable bit; restore it. The artifact
+      # lands at jac/zig-out/bin, where setup-jac would have built it.
+      run: |
+        chmod +x "$PWD/jac/zig-out/bin/jac"
+        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
     - name: Install byllm deps + test deps
       run: |
@@ -750,6 +804,16 @@ jobs:
         # seam gets a per-OS floor (see test_prim_equivalence.jac).
         PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword"
       run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+
+    # macOS JIR seeder (jac-check seeds the Linux tier).
+    - name: Save JIR compile caches
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          .jac-xdg/jac/jir
+          jac/.jac/cache
+        key: jac-jir-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
 
   # aarch64 cross lane (#7626 C1): cross-compile with the in-house ELF linker
   # (MOVW_UABS relocation family) + arch-parameterized vendored musl, run the
