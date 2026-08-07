@@ -13,6 +13,7 @@ glob _obj_of_h: list[(Anchor | None)] = [None],
      _h_free: list[int] = [],
      _next_region: list[int] = [1],
      _tag_of_cls: dict[(type, int)] = {},
+     _cls_of_tag_map: dict[(int, type)] = {},
      _fallback: _SvStore = _SvStore();
 
 def _mem_or_ctx(mem: any) -> any {
@@ -72,15 +73,25 @@ def obj_of(h: int) -> (Anchor | None) {
     return _obj_of_h[h];
 }
 
-def tag_for(edge_a: EdgeAnchor) -> int {
-    cls = `type(edge_a.archetype);
+def tag_of_cls(cls: type) -> int {
+    # One class<->tag registry for sv: store rows and kernel dispatch share
+    # the same stable content-hash tag space na and cl compile against.
     t = _tag_of_cls.get(cls);
     if t is None {
         import from jaclang.jac0core.osp_model { stable_osp_tag }
         t = stable_osp_tag(cls.__name__);
         _tag_of_cls[cls] = t;
+        _cls_of_tag_map[t] = cls;
     }
     return t;
+}
+
+def cls_of_tag(tag: int) -> (type | None) {
+    return _cls_of_tag_map.get(tag);
+}
+
+def tag_for(edge_a: EdgeAnchor) -> int {
+    return tag_of_cls(`type(edge_a.archetype));
 }
 
 def _resolve(cand: (Anchor | None), m: any) -> (Anchor | None) {
