@@ -9,6 +9,7 @@ import from jaclang.runtimelib.transport { TransportResponse, Meta }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.persistence.db { Db, get_mongo_client }
 import from jaclang.scale.persistence.mongo_db { MongoDb }
+import from jaclang.scale.persistence.mongo_health { mongo_recently_down }
 
 glob logger = logging.getLogger(__name__);
 

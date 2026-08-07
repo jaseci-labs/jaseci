@@ -1029,20 +1029,12 @@ impl JacCompiler._compile_once(
     }
 
     if options.type_check or is_native_mod {
-        _check_passes = get_type_check_sched();
-        _mod_analyses = actual_program._analyses_run.get(id(mod_targ), set());
-        if _check_passes and 'cfg' not in _mod_analyses {
-            try {
-                import from jaclang.compiler.passes.main.cfg_build_pass {
-                    CFGBuildPass as _CfgPass
-                }
-                _check_passes = [_CfgPass] + _check_passes;
-            } except ImportError { }
-        }
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
-            passes=_check_passes,
+            passes=get_type_check_sched(
+                provided=actual_program._analyses_run.get(id(mod_targ), set())
+            ),
             cancel_token=options.cancel_token
         );
     }
@@ -1077,10 +1069,13 @@ impl JacCompiler._compile_once(
             try {
                 import from jaclang.compiler.passes.native { NaIRGenPass }
                 import from jaclang.compiler.passes.main.rc_facts_pass { RcFactsPass }
-                import from jaclang.jac0core.compiler {
-                    expand_with_requirements as _expand_reqs
-                }
-                _parity_passes = _expand_reqs([NaIRGenPass], {'rc-facts': RcFactsPass});
+                _parity_passes = resolve_schedule(
+                    [NaIRGenPass],
+                    providers=providers_for([RcFactsPass]),
+                    preprovided=actual_program._analyses_run.get(id(mod_targ), set()),
+                    drop_unsatisfiable=True,
+                    origin='native check-parity schedule'
+                );
             } except ImportError {
                 _parity_passes = [];
             }
@@ -1172,7 +1167,10 @@ impl JacCompiler._compile_once(
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
-            passes=get_py_code_gen(native=needs_native),
+            passes=get_py_code_gen(
+                native=needs_native,
+                provided=actual_program._analyses_run.get(id(mod_targ), set())
+            ),
             cancel_token=options.cancel_token
         );
         if mod_targ.decided_codespace == 'native' {
@@ -1206,20 +1204,14 @@ impl JacCompiler.run_schedule(
         provided = set();
         target_program._analyses_run[id(mod)] = provided;
     }
+    validate_schedule(
+        passes,
+        preprovided=provided,
+        origin=(f"schedule for module {mod.loc.mod_path if mod.loc else mod.name}")
+    );
     for current_pass in passes {
         if (cancel_token and cancel_token.is_set()) {
             break;
-        }
-        for _req in (getattr(current_pass, 'REQUIRES', ()) or ()) {
-            if _req not in provided {
-                raise RuntimeError(
-                    f"scheduling error: pass {current_pass.__name__} requires "
-                    f"analysis '{_req}' which has not run for module "
-                    f"{mod.loc.mod_path if mod.loc else mod.name} -- the "
-                    f"schedule that reached this point is missing a declared "
-                    f"dependency."
-                );
-            }
         }
         current_pass(ir_in=mod, prog=target_program, cancel_token=cancel_token);
         for _prov in (getattr(current_pass, 'PROVIDES', ()) or ()) {

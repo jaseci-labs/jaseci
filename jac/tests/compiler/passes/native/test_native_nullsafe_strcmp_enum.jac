@@ -1,12 +1,13 @@
-"""Native tests for null-safe string comparison and enum-class lowering (#7851).
+"""Native tests for optional-string comparison and enum-class lowering (#7851).
 
-Comparing a possibly-null `str` (an unset `str | None` field) against a string
-literal used to dereference NULL inside `strcmp` and segfault. Equality now
-follows Python: with a null operand, == / != compare pointer identity
-(None == "" is False, None == None is True), while the ordering ops coalesce a
-null operand to the empty string. Separately, an enum-class used in a type must
-lower to its backing integer even when the enum's defining module is walked
-after the module referencing it.
+Comparing a possibly-None `str` (an unset `str | None` field) against a string
+literal used to dereference NULL inside `strcmp` and segfault. `str | None`
+lowers to a tagged JacOptional value, so equality is tag arithmetic plus a
+payload strcmp only when both sides carry values: None == "" is False,
+None == None is True. Ordering against an un-narrowed optional is an E1121
+check-time diagnostic (pinned in test_native_optional_ptr.jac). Separately, an
+enum-class used in a type must lower to its backing integer even when the
+enum's defining module is walked after the module referencing it.
 """
 
 import ctypes;
@@ -37,7 +38,7 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
     return ctypes.CFUNCTYPE(restype, *argtypes)(addr);
 }
 
-test "null string equality is pointer identity, matching Python" {
+test "optional string equality is tag arithmetic, matching Python" {
     (eng, _) = compile_native("nullsafe_strcmp_enum.jac");
     # b.label is unset (None); comparing it must be safe, and None == "" is
     # False just like Python.
@@ -52,10 +53,16 @@ test "null string equality is pointer identity, matching Python" {
     assert get_func(eng, "set_then_eq", ctypes.c_int64)() == 1;
 }
 
-test "null string ordering coalesces to the empty string" {
-    (eng, _) = compile_native("nullsafe_strcmp_enum.jac");
-    # Python would raise TypeError; natively a null operand orders as "".
-    assert get_func(eng, "null_lt_word", ctypes.c_int64)() == 1;
+test "un-narrowed optional ordering is rejected at check time" {
+    prog = JacProgram();
+    prog.compile(
+        file_path=str(os.path.join(FIXTURES, "optional_ptr_diag.jac")),
+        options=native_force_opts()
+    );
+    msgs = [str(e) for e in prog.errors_had];
+    assert any("used where an ordered operand is required" in m for m in msgs) , (
+        f"expected the E1121 ordering diagnostic, got: {msgs}"
+    );
 }
 
 test "enum-class parameter and return type lower cleanly" {

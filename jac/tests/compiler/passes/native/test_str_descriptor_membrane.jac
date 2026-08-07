@@ -15,7 +15,7 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 glob FIXTURE = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures", "clib_str_membrane.jac"
      ),
-     EXPECTED = "0\n1\nllo\nend\n",
+     EXPECTED = "0\nTrue\nllo\nend\n",
      MODE_FLAGS = {
          "none": ["--enforce-nogc", "--gc", "none", "--assert-no-rc"],
          "rc": ["--gc", "rc"],

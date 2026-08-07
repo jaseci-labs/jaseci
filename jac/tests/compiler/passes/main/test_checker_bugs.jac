@@ -51,6 +51,11 @@ Bug index:
                    cached on the expression node and diagnosed (W1051 / E1032 /
                    E1053), freezing transient in-flight types that settle once
                    the cycle unwinds (#7853)
+  #CYCLE-PRECISION-1 - the #7853 fix suppressed via a global window counter,
+                       so ANY Unknown evaluated while a cycle was in flight got
+                       amnesty, including genuine unrelated errors; replaced by
+                       an is_incomplete flag carried on the Unknown itself
+                       (#7871 E)
 """
 
 import os;
@@ -1225,5 +1230,116 @@ test "bug_cyctaint1_settling_cycle_checks_clean_and_resolves" {
         "Bug #CYCLE-TAINT-1: after the cycle unwinds, a later query must "
         "resolve the settled type (dict via Reg.defaults), not a frozen "
         f"Unknown. Got: {settled}"
+    );
+}
+
+# =========================================================================
+# Bug #CYCLE-PRECISION-1 / #7871 E: the #7853 mechanism suppressed via a
+# global depth counter with caller-side window snapshots, which amnestied
+# EVERY Unknown evaluated inside a window that saw a cycle bump -- including
+# genuine, cycle-independent errors. Completeness now travels with the
+# result (UnknownType.is_incomplete), so only types actually contaminated
+# by an in-flight resolution are exempt.
+#
+# Fixture shape: the #CYCLE-TAINT-1 settling cycle, plus a sibling glob
+#   JUNK = (N if CONFIG is None else N)();   # N: int -- calling an int
+# whose resolution overlaps the cycle window (the condition re-enters
+# CONFIG) but whose Unknown-ness is genuine: calling a non-callable int
+# yields Unknown no matter what CONFIG settles to. JUNK.oops is a real
+# E1032. Under the counter design this fixture checked completely clean
+# (verified: zero errors); with the completeness flag the genuine error
+# fires while every cycle-transient suppression still holds.
+# =========================================================================
+test "bug_cycprec1_genuine_error_in_cycle_window_still_fires" {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_cycle_precision_main.jac"),
+        options=CompileOptions(type_check=False, default_codespace='server')
+    );
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    oops_errors = [
+        e
+        for e in program.errors_had
+        if "oops" in str(e)
+    ];
+    assert len(oops_errors) == 1 , (
+        "Bug #CYCLE-PRECISION-1: the genuine attribute error on JUNK.oops "
+        "must still be diagnosed even though its evaluation overlaps a "
+        "resolution cycle. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert len(program.errors_had) == 1 , (
+        "Bug #CYCLE-PRECISION-1: the cycle-transient suppressions must "
+        "hold (no spurious assignment/argument errors) alongside the one "
+        "genuine error. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+
+    config_sym = mod.names_in_scope.get("CONFIG");
+    assert config_sym is not None , "CONFIG symbol missing from fixture module";
+    settled = program.get_type_evaluator().get_type_of_symbol(config_sym);
+    assert not isinstance(settled, UnknownType) and str(settled) == "dict" , (
+        "Bug #CYCLE-PRECISION-1: CONFIG must still settle to dict. " f"Got: {settled}"
+    );
+}
+
+# =========================================================================
+# Bug #CYCLE-PRECISION-1 / #7871 E, whitebox: the caching layer must never
+# store an incomplete result. Simulates the in-flight state by pushing
+# CONFIG onto the symbol-resolution stack, then queries the sibling's
+# CONFIG-use Name directly through the evaluator API: the answer is an
+# incomplete Unknown, nothing is frozen onto the node, and once the stack
+# unwinds the same query resolves and caches the settled type.
+# =========================================================================
+test "bug_cycprec1_node_type_never_stores_incomplete_result" {
+    import from pathlib { Path }
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
+        options=CompileOptions(type_check=False, default_codespace='server')
+    );
+    evaluator = program.get_type_evaluator();
+    config_sym = mod.names_in_scope.get("CONFIG");
+    assert config_sym is not None , "CONFIG symbol missing from fixture module";
+
+    reg_path = str(
+        Path(os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_reg.jac")).resolve()
+    );
+    reg_mod = evaluator._import_module_from_path(reg_path);
+    registry_sym = reg_mod.names_in_scope.get("REGISTRY");
+    assert registry_sym is not None , "REGISTRY symbol missing from reg module";
+    config_use = registry_sym.decl.name_of.parent.value.condition.expr.left;
+    assert config_use.value == "CONFIG" , (
+        f"fixture navigation broke: expected the CONFIG use, got {config_use}"
+    );
+
+    assert evaluator.push_symbol_resolution(config_sym) , (
+        "pushing a symbol not on the resolution stack must succeed"
+    );
+    try {
+        during = evaluator.get_type_of_expression(config_use);
+    } finally {
+        evaluator.pop_symbol_resolution(config_sym);
+    }
+    assert isinstance(during, UnknownType) and during.is_incomplete , (
+        "Bug #CYCLE-PRECISION-1: querying a symbol mid-resolution must "
+        f"answer an incomplete Unknown. Got: {during}"
+    );
+    assert config_use.type is None , (
+        "Bug #CYCLE-PRECISION-1: an incomplete result must never be stored "
+        f"in node_.type. Got: {config_use.type}"
+    );
+
+    settled = evaluator.get_type_of_expression(config_use);
+    assert not isinstance(settled, UnknownType) and str(settled) == "dict" , (
+        "Bug #CYCLE-PRECISION-1: after the stack unwinds, the same query "
+        f"must resolve the settled type. Got: {settled}"
+    );
+    assert config_use.type is not None and str(config_use.type) == "dict" , (
+        "Bug #CYCLE-PRECISION-1: the settled (complete) type must be "
+        f"cached on the node. Got: {config_use.type}"
     );
 }

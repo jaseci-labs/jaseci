@@ -242,7 +242,7 @@ class JacScalePluginConfig {
                         "enabled": {
                             "type": "bool",
                             "default": False,
-                            "description": "Enable microservice mode. Defaults to on when [scale.microservices.routes] declares services; set false to force single-process."
+                            "description": "Deprecated - declaring [scale.microservices.routes] is what turns microservice mode on; set false to force single-process while keeping the routes table. Ignored inside deployed fleet pods (the deploy already realized the topology). A future release removes this key."
                         },
                         "gateway_port": {
                             "type": "int",
