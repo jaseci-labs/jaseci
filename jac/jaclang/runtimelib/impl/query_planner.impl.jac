@@ -118,6 +118,46 @@ impl _edge_alive(mem: Memory, ea: EdgeAnchor) -> bool {
 }
 
 
+impl _acl_gated -> bool {
+    # Traversal is access-gated only for a downscoped user: with the super
+    # root (or no user at all) check_access_level short-circuits to WRITE
+    # for everything reachable, so single-tenant flows skip the gate and
+    # keep the lazy id-only hop path.
+    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    try {
+        jctx = JacRuntimeInterface.get_context();
+    } except Exception {
+        return False;
+    }
+    ur = jctx?.user_root;
+    return ur is not None and ur != jctx.system_root;
+}
+
+
+impl _acl_read_ok(anchor: Anchor) -> bool {
+    # check_access_level directly: filtering is silent hiding (the walker
+    # simply never sees the anchor), not a denied operation to report.
+    import from jaclang.jac0core.archetype { AccessLevel }
+    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    level = JacRuntimeInterface.check_access_level(anchor);
+    return level.value > AccessLevel.NO_ACCESS.value;
+}
+
+
+impl _acl_keep(mem: Memory, view: _View, ids: list[UUID]) -> list[UUID] {
+    if not ids or not _acl_gated() {
+        return ids;
+    }
+    kept: list[UUID] = [];
+    for a in _materialize(mem, view, ids) {
+        if _acl_read_ok(a) {
+            kept.append(a.id);
+        }
+    }
+    return kept;
+}
+
+
 impl _live_row(
     ea: EdgeAnchor, cur: set[UUID], hop: QHop
 ) -> (tuple[UUID, UUID] | None) {
@@ -449,6 +489,7 @@ impl _hop_once(
         }
     }
     ids = _node_pred_keep(mem, view, ids, hop.preds);
+    ids = _acl_keep(mem, view, ids);
     want = hop.only_ids();
     if want is not None {
         ids = [
@@ -626,8 +667,12 @@ impl resolve_query_edges(mem: Memory, q: GraphQuery) -> list[Anchor] {
     out: list[Anchor] = [];
     seen_nodes: set[UUID] = set();
     ewant = hop.only_ids();
+    gated = _acl_gated();
     for ea in candidates {
         if ea.archetype is None or ea.id in view.detached {
+            continue;
+        }
+        if gated and not _acl_read_ok(ea) {
             continue;
         }
         src = ea.source;
@@ -656,6 +701,9 @@ impl resolve_query_edges(mem: Memory, q: GraphQuery) -> list[Anchor] {
             continue;
         }
         other = tgt if src.id in cur_set else src;
+        if gated and not _acl_keep(mem, view, [other.id]) {
+            continue;
+        }
         if ewant is not None and other.id not in ewant {
             continue;
         }
