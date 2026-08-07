@@ -935,6 +935,8 @@ impl JacCompiler._compile_once(
         set_effective_default_codespace(options.default_codespace);
     }
     keep_str = use_str or read_file_with_encoding(file_path);
+
+    actual_program.drop_module_alerts(file_path);
     had_parse_errors = len(actual_program.errors_had);
     mod_targ = self.parse_str(
         keep_str, file_path, actual_program, cancel_token=options.cancel_token

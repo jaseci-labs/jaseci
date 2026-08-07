@@ -73,6 +73,27 @@ test "importing a broken module does not multiply its errors" {
     assert via_importer == direct , f"client importer reported {via_importer} errors for a {direct}-error failure";
 }
 
+test "recompiling a module replaces its alerts rather than appending them" {
+    with tempfile.TemporaryDirectory() as tmp {
+        proj = _write_project(tmp);
+        prog = JacProgram();
+        counts = [];
+        # A dev server or language server compiles the same module over and
+        # over on one program. `errors_had` must describe the module as it
+        # stands, not log every attempt, or each reload reports one more copy.
+        for _ in range(3) {
+            try {
+                prog.compile(str(proj / "broken.jac"));
+            } except Exception {
+                ;
+            }
+            counts.append(len(prog.errors_had));
+        }
+        assert counts[0] > 1;
+        assert counts == [counts[0], counts[0], counts[0]] , f"alerts accumulated across recompiles: {counts}";
+    }
+}
+
 test "a module that fails to parse is recorded in the hub" {
     with tempfile.TemporaryDirectory() as tmp {
         proj = _write_project(tmp);
