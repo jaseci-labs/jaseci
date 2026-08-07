@@ -4804,7 +4804,7 @@ impl EsastGenPass._osp_arch_set -> set[str] {
     return set(self._osp_arch_kinds().keys());
 }
 
-impl EsastGenPass._osp_expr_arch_kind(expr: (uni.UniNode | None)) -> (str | None) {
+impl EsastGenPass._osp_expr_arch_name(expr: (uni.UniNode | None)) -> (str | None) {
     import from jaclang.compiler.type_system.types { ClassType }
     if not isinstance(expr, uni.Expr) {
         return None;
@@ -4821,9 +4821,78 @@ impl EsastGenPass._osp_expr_arch_kind(expr: (uni.UniNode | None)) -> (str | None
         }
     }
     if isinstance(_ty, ClassType) {
-        return self._osp_model().arch_kind.get(_ty.shared.class_name);
+        _nm = _ty.shared.class_name;
+        if self._arch_kind_of_type(_ty) is not None
+            or self._arch_kind_by_name(_nm) is not None {
+            return _nm;
+        }
     }
     return None;
+}
+
+impl EsastGenPass._arch_kind_of_type(ty: object) -> (str | None) {
+    import from jaclang.compiler.type_system.types { ClassType }
+    if not isinstance(ty, ClassType) {
+        return None;
+    }
+    _st = ty.shared.symbol_table;
+    if isinstance(_st, uni.Archetype) {
+        return {
+            "KW_NODE": "node",
+            "KW_EDGE": "edge",
+            "KW_WALKER": "walker",
+            "KW_OBJECT": "object"
+        }.get(
+            _st.arch_type.name
+        );
+    }
+    return None;
+}
+
+impl EsastGenPass._expr_class_type(expr: (uni.UniNode | None)) -> (object | None) {
+    if not isinstance(expr, uni.Expr) {
+        return None;
+    }
+    _ty = expr.type;
+    if _ty is None {
+        try {
+            _te = self.prog.get_type_evaluator();
+            if _te {
+                _ty = _te.get_type_of_expression(expr);
+            }
+        } except Exception {
+            _ty = None;
+        }
+    }
+    return _ty;
+}
+
+impl EsastGenPass._osp_expr_arch_kind(expr: (uni.UniNode | None)) -> (str | None) {
+    _kind = self._arch_kind_of_type(self._expr_class_type(expr));
+    if _kind is not None {
+        return _kind;
+    }
+    _nm = self._osp_expr_arch_name(expr);
+    if _nm is None {
+        return None;
+    }
+    return self._arch_kind_by_name(_nm);
+}
+
+impl EsastGenPass._arch_kind_by_name(name: str) -> (str | None) {
+    _local = self._osp_model().arch_kind.get(name);
+    if _local is not None {
+        return _local;
+    }
+    _mod = self.ir_in if isinstance(self.ir_in, uni.Module) else self.get_main_mod();
+    _sym = _mod.lookup(name);
+    if _sym is None {
+        return None;
+    }
+    if _sym.sym_type.value in ("node", "edge", "walker") {
+        return _sym.sym_type.value;
+    }
+    return self._arch_kind_of_type(self._expr_class_type(_sym.decl));
 }
 
 impl EsastGenPass._osp_var_arch -> dict[str, str] {
@@ -4865,6 +4934,10 @@ impl EsastGenPass._spawn_walker_arch(expr: uni.Expr) -> (str | None) {
             return bound;
         }
     }
+    typed = self._osp_expr_arch_name(expr);
+    if (typed is not None) and (self._arch_kind_by_name(typed) == "walker") {
+        return typed;
+    }
     return None;
 }
 
@@ -4879,6 +4952,9 @@ impl EsastGenPass._spawn_target_is_local_node(expr: uni.Expr) -> bool {
         if (bound is not None) and (kinds.get(bound) in ("node", "edge")) {
             return True;
         }
+    }
+    if self._osp_expr_arch_kind(expr) in ("node", "edge") {
+        return True;
     }
     return False;
 }
@@ -4924,7 +5000,7 @@ impl EsastGenPass._build_local_osp_spawn(
     starts = self.sync_loc(es.ArrayExpression(elements=[target_es]), jac_node=nd);
     return self.sync_loc(
         es.CallExpression(
-            callee=self.sync_loc(es.Identifier(name="osp_spawn"), jac_node=nd),
+            callee=self.sync_loc(es.Identifier(name="__ospC.osp_spawn"), jac_node=nd),
             arguments=[
                 self.sync_loc(es.Identifier(name="__ospRT"), jac_node=nd),
                 walker_es,
@@ -4958,7 +5034,11 @@ impl EsastGenPass._build_osp_tags_js -> str {
         );
         isa_parts.append(f"{tag}: new Set([{isa_members}])");
     }
-    lines.append("const __ospISA = {" + ", ".join(isa_parts) + "};");
+    lines.append(
+        "var __ospISA = Object.assign(globalThis.__jacOspIsa ??= {}, {"
+            + ", ".join(isa_parts)
+            + "});"
+    );
     return "\n".join(lines);
 }
 
@@ -4985,19 +5065,26 @@ impl EsastGenPass._build_osp_setup_js -> str {
         if tag is None {
             continue;
         }
-        desc_cls = "WalkerDesc" if (arch_kinds[name] == "walker") else "NodeDesc";
+        desc_cls = "__ospC.WalkerDesc"
+            if (arch_kinds[name] == "walker")
+            else "__ospC.NodeDesc";
         entry_js = self._osp_slots_js(entry_by_owner.get(name, []), tags);
         exit_js = self._osp_slots_js(exit_by_owner.get(name, []), tags);
         desc_parts.append(
             f"{tag}: new {desc_cls}({{type_tag: {tag}, entry: {entry_js}, exit: {exit_js}}})"
         );
     }
-    lines.append("const __ospDESC = {" + ", ".join(desc_parts) + "};");
     lines.append(
-        "const __ospRT = new OspRuntime({"
+        "var __ospDESC = Object.assign(globalThis.__jacOspDesc ??= {}, {"
+            + ", ".join(desc_parts)
+            + "});"
+    );
+    lines.append(
+        "var __ospRT = globalThis.__jacOspRT ??= new __ospC.OspRuntime({"
             + "tag_of: (h) => h.__tag, "
             + "is_a: (t, b) => __ospIsA(t, b), "
-            + "node_desc: (t) => __ospDESC[t], "
+            + "node_desc: (t) => (globalThis.__jacOspDesc || {})[t] "
+            + "?? new __ospC.NodeDesc({type_tag: t, entry: [], exit: []}), "
             + "on_complete: (s, ok) => { if (s.wlk) s.wlk.reports = s.reports; }"
             + "});"
     );
@@ -5009,11 +5096,17 @@ impl EsastGenPass._osp_slots_js(slots: list, tags: dict) -> str {
     for slot in slots {
         fn = "(o, x) => o." + slot.ability + "(x)";
         if not slot.trigger_names {
-            parts.append("new Slot({trig_tag: -1, fn: " + fn + "})");
+            parts.append("new __ospC.Slot({trig_tag: -1, fn: " + fn + "})");
         } else {
             for trig in slot.trigger_names {
                 ttag = tags[trig] if (trig in tags) else -1;
-                parts.append(f"new Slot({{trig_tag: {ttag}, fn: {fn}}})");
+                if ttag < 0 {
+                    if self._arch_kind_by_name(trig) in ("node", "edge", "walker") {
+                        import from jaclang.jac0core.osp_model { stable_osp_tag }
+                        ttag = stable_osp_tag(trig);
+                    }
+                }
+                parts.append(f"new __ospC.Slot({{trig_tag: {ttag}, fn: {fn}}})");
             }
         }
     }
@@ -5045,7 +5138,9 @@ impl EsastGenPass.exit_visit_stmt(nd: uni.VisitStmt) -> None {
         es.ExpressionStatement(
             expression=self.sync_loc(
                 es.CallExpression(
-                    callee=self.sync_loc(es.Identifier(name='osp_visit'), jac_node=nd),
+                    callee=self.sync_loc(
+                        es.Identifier(name='__ospC.osp_visit'), jac_node=nd
+                    ),
                     arguments=[target, insert]
                 ),
                 jac_node=nd
@@ -5062,7 +5157,7 @@ impl EsastGenPass.exit_disengage_stmt(nd: uni.DisengageStmt) -> None {
             expression=self.sync_loc(
                 es.CallExpression(
                     callee=self.sync_loc(
-                        es.Identifier(name='osp_disengage'), jac_node=nd
+                        es.Identifier(name='__ospC.osp_disengage'), jac_node=nd
                     ),
                     arguments=[]
                 ),
@@ -5085,7 +5180,9 @@ impl EsastGenPass.exit_report_stmt(nd: uni.ReportStmt) -> None {
         es.ExpressionStatement(
             expression=self.sync_loc(
                 es.CallExpression(
-                    callee=self.sync_loc(es.Identifier(name='osp_report'), jac_node=nd),
+                    callee=self.sync_loc(
+                        es.Identifier(name='__ospC.osp_report'), jac_node=nd
+                    ),
                     arguments=[expr]
                 ),
                 jac_node=nd
@@ -5110,6 +5207,16 @@ impl EsastGenPass._edge_tag_literal(
         return -1;
     }
     _tag = self._osp_model().tags.get(_etname, -1);
+    if _tag < 0 {
+        _xkind = self._arch_kind_by_name(_etname);
+        if _xkind is None {
+            _xkind = self._arch_kind_of_type(self._expr_class_type(type_expr));
+        }
+        if _xkind in ("node", "edge") {
+            import from jaclang.jac0core.osp_model { stable_osp_tag }
+            _tag = stable_osp_tag(_etname);
+        }
+    }
     if (_tag < 0) and hard {
         import from jaclang.jac0core.diagnostics { E5097 }
         self.emit(

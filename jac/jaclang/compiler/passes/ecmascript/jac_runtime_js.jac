@@ -1612,8 +1612,18 @@ def build_osp_core_js -> str {
 
 def build_osp_driver_js -> str {
     return r"""
-const __ospO = [null];
-const __ospH = new Map();
+if (!globalThis.__jacOspCore) {
+  globalThis.__jacOspCore = {
+    O: [null], H: new Map(),
+    osp_conn, osp_refs, osp_refs_many, osp_wrap1, osp_disconnect,
+    osp_disconn_between, osp_edge_peer,
+    osp_spawn, osp_visit, osp_report, osp_disengage,
+    WalkerDesc, NodeDesc, Slot, OspRuntime
+  };
+}
+var __ospC = globalThis.__jacOspCore;
+var __ospO = __ospC.O;
+var __ospH = __ospC.H;
 function __ospId(o) {
   if (o == null) return 0;
   let h = __ospH.get(o);
@@ -1624,23 +1634,23 @@ function __ospConnW(src, tgt, mkEdge, undirected, tag = -1) {
   const srcs = Array.isArray(src) ? src : [src];
   const tgts = Array.isArray(tgt) ? tgt : [tgt];
   for (const s of srcs) for (const t of tgts) {
-    osp_conn(__ospId(s), __ospId(t), __ospId(mkEdge()), undirected ? 1 : 0, tag, 0, 0);
+    __ospC.osp_conn(__ospId(s), __ospId(t), __ospId(mkEdge()), undirected ? 1 : 0, tag, 0, 0);
   }
   return tgts.length === 1 ? tgts[0] : tgts;
 }
 function __ospRefsW(origin, dir, tag = -1, edgesOnly = 0, pred = null) {
   const oh = __ospId(origin);
   if (pred === null) {
-    return osp_refs(oh, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+    return __ospC.osp_refs(oh, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
   }
   if (edgesOnly) {
-    return osp_refs(oh, dir, tag, 1).map((h) => __ospO[h]).filter(pred);
+    return __ospC.osp_refs(oh, dir, tag, 1).map((h) => __ospO[h]).filter(pred);
   }
   const inv = dir === 1 ? 2 : (dir === 2 ? 1 : 3);
-  const mine = osp_refs(oh, dir, tag, 1);
+  const mine = __ospC.osp_refs(oh, dir, tag, 1);
   const out = [];
-  for (const th of osp_refs(oh, dir, tag, 0)) {
-    const theirs = new Set(osp_refs(th, inv, tag, 1));
+  for (const th of __ospC.osp_refs(oh, dir, tag, 0)) {
+    const theirs = new Set(__ospC.osp_refs(th, inv, tag, 1));
     for (const eh of mine) {
       if (theirs.has(eh) && pred(__ospO[eh])) { out.push(__ospO[th]); break; }
     }
@@ -1651,7 +1661,7 @@ function __ospRefsManyW(objs, dir, tag = -1, edgesOnly = 0, pred = null) {
   if (pred === null) {
     const hs = [];
     for (const o of objs) hs.push(__ospId(o));
-    return osp_refs_many(hs, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+    return __ospC.osp_refs_many(hs, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
   }
   const out = [];
   const seen = new Set();
@@ -1663,10 +1673,10 @@ function __ospRefsManyW(objs, dir, tag = -1, edgesOnly = 0, pred = null) {
   return out;
 }
 function __ospDiscW(eobj) {
-  return osp_disconnect(__ospId(eobj));
+  return __ospC.osp_disconnect(__ospId(eobj));
 }
 function __ospDiscBetweenW(a, b, dir, tag = -1) {
-  return osp_disconn_between(__ospId(a), __ospId(b), dir, tag);
+  return __ospC.osp_disconn_between(__ospId(a), __ospId(b), dir, tag);
 }
 function __ospIsA(t, b) {
   const s = (typeof __ospISA !== 'undefined') && __ospISA[t];

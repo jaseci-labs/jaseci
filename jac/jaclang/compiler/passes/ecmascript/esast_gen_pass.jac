@@ -265,6 +265,10 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _osp_arch_kinds -> dict[str, str];
     def _osp_arch_set -> set[str];
     def _osp_var_arch -> dict[str, str];
+    def _osp_expr_arch_name(expr: (uni.UniNode | None)) -> (str | None);
+    def _arch_kind_by_name(name: str) -> (str | None);
+    def _arch_kind_of_type(ty: object) -> (str | None);
+    def _expr_class_type(expr: (uni.UniNode | None)) -> (object | None);
     def _osp_expr_arch_kind(expr: (uni.UniNode | None)) -> (str | None);
     def _spawn_walker_arch(expr: uni.Expr) -> (str | None);
     def _spawn_target_is_local_node(expr: uni.Expr) -> bool;
