@@ -493,16 +493,17 @@ test "osp plain-function ops: explicit origins, filters, multi-hop, disconnect (
     # inside walker abilities; the cl backend hardcoded `here` as the ref
     # origin and silently lowered explicit-origin refs to undefined. This
     # pins the full bare-op surface outside any walker on every backend.
-    assert run_py_fixture("osp_plain_fn_ops", "plain_ops_py") == {
-        "out_all": 3,
-        "out_typed": 2,
-        "picked_v": 4,
-        "two_hop": 1,
-        "into_d": 2,
-        "first_v": 3,
-        "after_del": 1,
-        "still_in_d": 2
-    };
+    assert run_py_fixture("osp_plain_fn_ops", "plain_ops_py")
+        == {
+            "out_all": 3,
+            "out_typed": 2,
+            "picked_v": 4,
+            "two_hop": 1,
+            "into_d": 2,
+            "first_v": 3,
+            "after_del": 1,
+            "still_in_d": 2
+        };
     run_with_both(
         "osp_plain_fn_ops.jac",
         "plain_ops_py",
@@ -516,16 +517,9 @@ test "osp interop: plain-built graphs walk, walker-built edges traverse (#7941)"
     # The one-substrate gate: a shim keeping bare-op edges in a store the
     # kernel cannot see can never pass this. na is entry-only for walkers
     # today, so only cl is required alongside the py reference.
-    assert run_py_fixture("osp_interop", "interop_py") == {
-        "hits": 105,
-        "after_b": 2,
-        "grown_v": 99
-    };
+    assert run_py_fixture("osp_interop", "interop_py")
+        == {"hits": 105, "after_b": 2, "grown_v": 99};
     run_with_both(
-        "osp_interop.jac",
-        "interop_py",
-        "interop_cl",
-        "interop_na",
-        require=["cl"]
+        "osp_interop.jac", "interop_py", "interop_cl", "interop_na", require=["cl"]
     );
 }

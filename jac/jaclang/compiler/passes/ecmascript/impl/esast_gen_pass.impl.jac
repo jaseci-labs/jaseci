@@ -4810,16 +4810,6 @@ impl EsastGenPass._osp_expr_arch_name(expr: (uni.UniNode | None)) -> (str | None
         return None;
     }
     _ty = expr.type;
-    if _ty is None {
-        try {
-            _te = self.prog.get_type_evaluator();
-            if _te {
-                _ty = _te.get_type_of_expression(expr);
-            }
-        } except Exception {
-            _ty = None;
-        }
-    }
     if isinstance(_ty, ClassType) {
         _nm = _ty.shared.class_name;
         if self._arch_kind_of_type(_ty) is not None
@@ -4854,16 +4844,6 @@ impl EsastGenPass._expr_class_type(expr: (uni.UniNode | None)) -> (object | None
         return None;
     }
     _ty = expr.type;
-    if _ty is None {
-        try {
-            _te = self.prog.get_type_evaluator();
-            if _te {
-                _ty = _te.get_type_of_expression(expr);
-            }
-        } except Exception {
-            _ty = None;
-        }
-    }
     return _ty;
 }
 
