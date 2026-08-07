@@ -1,4 +1,8 @@
 import from jaclang.scale.config.app_config { AppConfig }
+import from jaclang.scale.config.config_loader {
+    get_scale_config,
+    normalize_microservices_config
+}
 import from jaclang.scale.models.deploy_context { DeployContext }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -10,14 +14,32 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 
 
 glob GATEWAY_NAME: str = "__gateway__",
-     _UVICORN_EXIT_CUSHION_S: int = 5;
+     _UVICORN_EXIT_CUSHION_S: int = 5,
+     _RFC1123_MAX_LEN: int = 253;
 
 
 def k8s_safe_name(svc_name: str) -> str {
     if svc_name == GATEWAY_NAME {
         return "gateway";
     }
-    return svc_name.lower().replace("_", "-");
+    import re;
+    if "${" in svc_name {
+        raise ValueError(
+            f"'{svc_name}' still contains an unresolved ${{...}} placeholder, so "
+            f"the environment variable it names was not set where this deploy "
+            f"ran. Export it, or replace it with a literal name."
+        );
+    }
+    safe = re.sub(r"[^a-z0-9.-]", "-", svc_name.lower().replace("_", "-"));
+    safe = re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", safe)[:_RFC1123_MAX_LEN];
+    safe = re.sub(r"[^a-z0-9]+$", "", safe);
+    if not safe {
+        raise ValueError(
+            f"'{svc_name}' has no characters usable in a Kubernetes name; names "
+            f"must contain at least one letter or digit."
+        );
+    }
+    return safe;
 }
 
 
@@ -81,16 +103,14 @@ obj ManifestBuilder {
         project_dir: str = "",
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
-        microservices_config: dict[str, any] = {},
+        microservices_config: (dict[str, any] | None) = None,
         dry_run: bool = False;
 
     def _ms_cfg -> dict[str, any] {
-        import from jaclang.scale.config.config_loader {
-            get_scale_config,
-            normalize_microservices_config
-        }
-        if self.microservices_config {
-            return normalize_microservices_config(self.microservices_config);
+        if self.microservices_config is not None {
+            return normalize_microservices_config(
+                self.microservices_config, env_routes_fallback=False
+            );
         }
         try {
             return get_scale_config().get_microservices_config();
@@ -142,22 +162,32 @@ obj ManifestBuilder {
         }
         dist = os.path.join(project_dir, ".jac", "client", "dist");
         console.print(f"Building the client bundle on the host ({client_entry}).");
-        try {
-            subprocess.run(
-                [jac_executable(), "build", client_entry, "--client", "web"],
-                cwd=project_dir,
-                check=True,
-                timeout=900
+        result = subprocess.run(
+            [jac_executable(), "build", client_entry, "--client", "web"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=900
+        );
+        if result.returncode != 0 {
+            tail = "\n".join(
+                (
+                    (result.stdout or "") + "\n" + (result.stderr or "")
+                ).strip().splitlines()[-15:]
             );
-            if os.path.isfile(os.path.join(dist, "index.html")) {
-                console.print("Client bundle built; shipping it to the gateway pod.");
-            }
-        } except Exception as exc {
-            console.print(
-                f"Host client build did not complete ({exc}); the gateway pod "
-                f"will build it on boot instead."
+            raise RuntimeError(
+                f"client build failed ({client_entry}, exit {result.returncode}). "
+                f"The pod serves the bundle built here and never rebuilds it - "
+                f"fix the client build and redeploy.\n{tail}"
             );
         }
+        if not os.path.isfile(os.path.join(dist, "index.html")) {
+            raise RuntimeError(
+                f"client build produced no index.html under {dist} "
+                f"({client_entry}); the gateway would have nothing to serve."
+            );
+        }
+        console.print("Client bundle built; shipping it to the gateway pod.");
     }
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
@@ -679,8 +709,16 @@ obj ManifestBuilder {
         };
     }
 
+    def _alb_deregistration_cushion -> int {
+        cfg = self.k8s_config;
+        is_alb = bool(getattr(cfg, "shared_ingress", False))
+            and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
+        return 20 if is_alb else 0;
+    }
+
     def _build_prestop_hook -> dict[str, any] {
-        return {"exec": {"command": ["sh", "-c", "sleep 5"]}};
+        cushion = 5 + self._alb_deregistration_cushion();
+        return {"exec": {"command": ["sh", "-c", f"sleep {cushion}"]}};
     }
 
     def _build_deployment_manifest(
@@ -773,6 +811,16 @@ obj ManifestBuilder {
                 raw_triggers.append(dict(item));
             }
         }
+        behavior = hpa.get("behavior", {});
+        if not isinstance(behavior, dict) {
+            if self.logger {
+                self.logger.warning(
+                    f"Ignoring malformed hpa.behavior for '{svc_name}': expected "
+                    f"a table, got {type(behavior).__name__}"
+                );
+            }
+            behavior = {};
+        }
         return {
             "min": int(hpa.get("min", 1)),
             "max": int(hpa.get("max", 3)),
@@ -783,7 +831,8 @@ obj ManifestBuilder {
             "has_memory_request": bool(
                 self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)
             ),
-            "triggers": raw_triggers
+            "triggers": raw_triggers,
+            "behavior": dict(behavior)
         };
     }
 
@@ -894,17 +943,6 @@ obj ManifestBuilder {
         import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
             build_service_apt_prefix
         }
-        gw_prefix = "";
-        client_entry = self._client_entry();
-
-        if client_entry {
-            gw_prefix = (
-                f'if [ ! -f .jac/client/dist/index.html ]; then '
-                f'echo "[jac-scale] building client bundle ({client_entry})"; '
-                f'jac build "{client_entry}" --client web; '
-                f'fi; '
-            );
-        }
         apt_prefix = build_service_apt_prefix(self.k8s_config);
         return {
             "command": ["bash", "-c"],
@@ -914,7 +952,6 @@ obj ManifestBuilder {
                 f"{apt_prefix}"
                 "export JAC_SV_SIBLING=1; "
                 'if [ "$JAC_SV_NAME" = "__gateway__" ]; then '
-                f"  {gw_prefix}"
                 "  exec jac scale gateway; "
                 "else "
                 '  SV_FILE="${JAC_SV_FILE:-}"; '
@@ -976,7 +1013,9 @@ obj ManifestBuilder {
         }
         spec: dict[str, any] = {
             "containers": [container],
-            "terminationGracePeriodSeconds": drain_t + _UVICORN_EXIT_CUSHION_S
+            "terminationGracePeriodSeconds": drain_t
+                + _UVICORN_EXIT_CUSHION_S
+                + self._alb_deregistration_cushion()
         };
         sa_name = self._service_account_name();
         if sa_name {
@@ -1003,9 +1042,7 @@ obj ManifestBuilder {
         }
         spec["initContainers"].append(
             build_bootstrap_init_container(
-                self.k8s_config,
-                self.k8s_config.python_image,
-                is_gateway=(svc_name == GATEWAY_NAME)
+                self.k8s_config, self.k8s_config.python_image
             )
         );
         return spec;

@@ -1178,6 +1178,14 @@ class NativeSetEmitter(SetEmitter[(ir.Value, NativeEmitCtx)]) {
         args: list[ir.Value]
     ) -> (ir.Value | None);
 
+    def _emit_set_elem_loop(
+        self: NativeSetEmitter,
+        ctx: NativeEmitCtx,
+        src_set: ir.Value,
+        prefix: str,
+        body_cb: object
+    ) -> None;
+
     def _emit_set_relation(
         self: NativeSetEmitter,
         ctx: NativeEmitCtx,

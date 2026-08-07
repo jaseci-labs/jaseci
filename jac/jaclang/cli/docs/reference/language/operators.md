@@ -580,7 +580,9 @@ with entry {
 }
 ```
 
-**Precedence.** The cast binds just below the ternary and above every binary operator, so `a + b as T` parses as `(a + b) as T`. To cast a ternary, parenthesize it: `(x if c else y) as T`. Casts chain left-associatively, so `x as A as B` is `(x as A) as B`.
+**Precedence.** The cast binds tighter than comparison and logical operators but looser than arithmetic and bitwise ones. So `x as int == 0` parses as `(x as int) == 0`, and `a + b as T` parses as `(a + b) as T`. To apply an arithmetic or bitwise operator to a cast's result, parenthesize the cast: `(x as int) + 1` (the unparenthesized form is a syntax error, because the cast target must be a type, not an expression). Casts chain left-associatively, so `x as A as B` is `(x as A) as B`.
+
+**The cast target is a type expression.** The right-hand side of `as` accepts a (possibly dotted or subscripted) type reference or a union of them: `x as int`, `x as list[str]`, `x as mod.Type`, `x as int | None`. A cast target that is not a type -- a value, a comparison, a literal -- is rejected by the checker (`E1044`).
 
 **Interaction with `with` / `except`.** Because `with <ctx> as <name>` and `except <type> as <name>` use `as` for their own alias, a top-level cast is not recognized in those positions -- parenthesize it instead: `with (x as T) as f`.
 
@@ -595,13 +597,13 @@ Complete precedence table from **lowest** (evaluated last) to **highest** (evalu
 |------------|-----------|---------------|-------------|
 | 1 (lowest) | `lambda` | - | Lambda expression |
 | 2 | `if else` | Right | Ternary conditional |
-| 3 | `as` | Left | Type cast |
-| 4 | `by` | Right | By operator (LLM delegation) |
-| 5 | `:=` | Right | Walrus operator |
-| 6 | `or` | Left | Logical OR |
-| 7 | `and` | Left | Logical AND |
-| 8 | `not` | - | Logical NOT (unary) |
-| 9 | `in`, `not in`, `is`, `is not`, `<`, `<=`, `>`, `>=`, `!=`, `==` | Left | Comparison/membership |
+| 3 | `by` | Right | By operator (LLM delegation) |
+| 4 | `:=` | Right | Walrus operator |
+| 5 | `or` | Left | Logical OR |
+| 6 | `and` | Left | Logical AND |
+| 7 | `not` | - | Logical NOT (unary) |
+| 8 | `in`, `not in`, `is`, `is not`, `<`, `<=`, `>`, `>=`, `!=`, `==` | Left | Comparison/membership |
+| 9 | `as` | Left | Type cast |
 | 10 | `\|` | Left | Bitwise OR |
 | 11 | `^` | Left | Bitwise XOR |
 | 12 | `&` | Left | Bitwise AND |

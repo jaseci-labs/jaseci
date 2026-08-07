@@ -357,6 +357,7 @@ impl _heal_sweep(
 impl _hop_once(
     mem: Memory, view: _View, cur: list[UUID], hop: QHop, hop_idx: int
 ) -> list[UUID] {
+    import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
     cur_set = set(cur);
     view.epred_ok = set();
     local_pairs: list[tuple[UUID, UUID]] = [];
@@ -416,15 +417,17 @@ impl _hop_once(
         if engine_rows is not None {
             _heal_sweep(mem, view, nanch, all_eids);
         }
-        for stub in nanch.edges {
-            if stub.id in seen_eids
-                or not stub.is_populated()
-                or stub.id in view.detached
-                or stub.hash != 0 {
+        sv_register_hydrated(nanch, mem);
+        for lea in sv_live_edges(nanch, 3, None, True, mem) {
+            if not isinstance(lea, EdgeAnchor)
+                or lea.id in seen_eids
+                or not lea.is_populated()
+                or lea.id in view.detached
+                or lea.hash != 0 {
                 continue;
             }
-            seen_eids.add(stub.id);
-            live_edges.append(stub);
+            seen_eids.add(lea.id);
+            live_edges.append(lea);
         }
     }
     n_live = 0;

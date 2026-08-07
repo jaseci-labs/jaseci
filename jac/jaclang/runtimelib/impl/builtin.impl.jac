@@ -238,3 +238,51 @@ impl schedule(**kwargs: any) -> Callable {
     }
     return decorator;
 }
+
+impl JacListView.__len__ -> int {
+    return self.stop - self.start;
+}
+
+impl JacListView.__getitem__(i: any) -> any {
+    _n = self.stop - self.start;
+    if i < 0 {
+        i = i + _n;
+    }
+    if i < 0 or i >= _n {
+        raise IndexError("list index out of range");
+    }
+    return self.backing[self.start + i];
+}
+
+impl JacListView.__setitem__(i: any, v: any) -> None {
+    _n = self.stop - self.start;
+    if i < 0 {
+        i = i + _n;
+    }
+    if i < 0 or i >= _n {
+        raise IndexError("list assignment index out of range");
+    }
+    self.backing[self.start + i] = v;
+}
+
+impl JacListView.__iter__ -> any {
+    return iter([self.backing[k] for k in range(self.start, self.stop)]);
+}
+
+impl _jac_chunks(xs: any, n: int) -> list {
+    if n < 1 {
+        n = 1;
+    }
+    out: list = [];
+    i = 0;
+    total = len(xs);
+    while i < total {
+        j = i + n;
+        if j > total {
+            j = total;
+        }
+        out.append(JacListView(backing=xs, start=i, stop=j));
+        i = j;
+    }
+    return out;
+}

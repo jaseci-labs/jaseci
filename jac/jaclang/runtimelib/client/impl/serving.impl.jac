@@ -153,7 +153,62 @@ impl HeaderBuilder.build_head -> str {
     lines.extend(self._build_twitter_tags());
     lines.extend(self._build_link_tags());
     lines.extend(self._build_generic_meta_tags());
+    lines.extend(self.build_scripts());
     return "\n            ".join(lines);
+}
+
+impl HeaderBuilder.build_scripts -> list[str] {
+    specs = self.meta_data.get("scripts");
+    if isinstance(specs, dict) {
+        specs = [specs];
+    }
+    if not isinstance(specs, list) {
+        return [];
+    }
+    lines: list = [];
+    for item in specs {
+        spec = {"src": item} if isinstance(item, str) else item;
+        if not isinstance(spec, dict) {
+            continue;
+        }
+        if tag := self._script_tag(spec) {
+            lines.append(tag);
+        }
+    }
+    return lines;
+}
+
+impl HeaderBuilder._script_tag(spec: dict) -> str {
+    src = str(spec.get("src") or "").strip();
+    body = str(spec.get("content") or "");
+    if not src and not body {
+        return "";
+    }
+    attrs: list = [f'src="{html.escape(src)}"'] if src else [];
+    for (key, val) in spec.items() {
+        if key in ("src", "content") or val is None {
+            continue;
+        }
+        name = str(key).replace("_", "-");
+        if not re.fullmatch(r"[a-z][a-z0-9]*(-[a-z0-9]+)*", name) {
+            continue;
+        }
+
+        if isinstance(val, bool) {
+            if val {
+                attrs.append(name);
+            }
+        } else {
+            attrs.append(f'{name}="{html.escape(str(val))}"');
+        }
+    }
+    opening = " ".join(["<script"] + attrs);
+    if src {
+        return f"{opening}></script>";
+    }
+
+    safe_body = re.sub(r"</(?=script)", r"<\\/", body, flags=re.IGNORECASE);
+    return f"{opening}>{safe_body}</script>";
 }
 
 impl HeaderBuilder._build_generic_meta_tags -> list[str] {

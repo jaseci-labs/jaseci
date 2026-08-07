@@ -202,6 +202,16 @@ test "typed disconnect" {
     assert "after F disconnect: 0" in lines[3];
 }
 
+test "undirected disconnect" {
+    output = run_jac(os.path.join(FIXTURES, "disconn_undir.jac"));
+    lines = output.split("\n");
+    assert "before: 1 1" in lines[0];
+    assert "after: 0 0" in lines[1];
+    assert "re: 1" in lines[2];
+    assert "final: 0 0" in lines[3];
+    assert "redel: False" in lines[4];
+}
+
 test "simple archs" {
     output = run_jac(os.path.join(FIXTURES, "simple_archs.jac"));
     assert output.split("\n")[0] == "1 2 0";
@@ -959,6 +969,11 @@ test "as cast is type erased" {
 test "as cast does not disturb with/except alias" {
     output = run_jac(os.path.join(FIXTURES, "as_cast_with_except.jac"));
     assert output == "with-ternary-ok\nwith-paren-cast-ok\nboom\n";
+}
+
+test "as cast binds tighter than comparison" {
+    output = run_jac(os.path.join(FIXTURES, "as_cast_precedence.jac"));
+    assert output == "compare-ok\nunion-ok\nleft-binding-ok\nlogical-ok\n";
 }
 
 test "deep walker chain does not hit recursion limit" {
