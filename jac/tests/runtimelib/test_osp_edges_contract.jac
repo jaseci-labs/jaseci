@@ -43,10 +43,10 @@ glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
              "sv_forget_by_id so the store retracts in step)"
          ),
          "jac0core/osp_graph_sv.jac": (
-             2,
+             1,
              "THE hydration mint: sv_register_hydrated loading the "
              "persistence record into the store is the one sanctioned live "
-             "read (one code read plus the comment saying so)"
+             "read"
          ),
          "runtimelib/changeset.jac": (
              1,
