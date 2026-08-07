@@ -158,11 +158,7 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
         anch.next = [];
         anch.ignores = [];
     }
-    if _kernel._walk_stack {
-        outer = _kernel._walk_stack[-1];
-        for r in scope.reports {
-            outer.reports.append(r);
-        }
+    if scope.nested {
         return;
     }
 
@@ -293,7 +289,14 @@ async def _visit_recursive_async(
 async def osp_spawn_async(
     rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list
 ) -> any {
-    scope = WalkScope(wlk=wlk, path=[], next=`list(starts), ignores=[], reports=[]);
+    scope = WalkScope(
+        wlk=wlk,
+        path=[],
+        next=`list(starts),
+        ignores=[],
+        reports=[],
+        nested=(len(_kernel._walk_stack) > 0)
+    );
     _kernel._walk_stack.append(scope);
     ok = False;
     try {
@@ -315,6 +318,12 @@ async def osp_spawn_async(
         ok = True;
     } finally {
         _kernel._walk_stack.pop();
+        if scope.nested and _kernel._walk_stack {
+            outer = _kernel._walk_stack[-1];
+            for r in scope.reports {
+                outer.reports.append(r);
+            }
+        }
         rt.on_complete(scope, ok);
     }
     return wlk;

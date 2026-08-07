@@ -452,7 +452,26 @@ impl NaIRGenPass._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> d
     self._builder = ir.IRBuilder(_ocf.append_basic_block("entry"));
     _ws_idx = self.struct_field_indices.get("WalkScope", {});
     if _ws_idx {
+        _deliver = _ocf.append_basic_block("deliver");
+        _oc_done = _ocf.append_basic_block("done");
         _scope = _ocf.args[0];
+
+        _nested = self.builder.load(
+            self.builder.gep(
+                _scope,
+                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx.get("nested", 7))],
+                name="oc.nested.p"
+            ),
+            name="oc.nested"
+        );
+        self.builder.cbranch(
+            self.builder.icmp_unsigned(
+                "!=", _nested, ir.Constant(_nested.type, 0), name="oc.isnested"
+            ),
+            _oc_done,
+            _deliver
+        );
+        self._builder = ir.IRBuilder(_deliver);
 
         _wlk_jv = self.builder.load(
             self.builder.gep(
@@ -484,6 +503,8 @@ impl NaIRGenPass._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> d
                 name="oc.repslot"
             )
         );
+        self.builder.branch(_oc_done);
+        self._builder = ir.IRBuilder(_oc_done);
     }
     self.builder.ret_void();
     out["on_complete"] = _ocf;
