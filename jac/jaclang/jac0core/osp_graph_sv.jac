@@ -4,10 +4,13 @@ import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor }
 
 obj _SvStore {
     has h_of_id: dict[str, int] = {},
-        registered: set[str] = field(default_factory=`set);
+        registered: set[str] = field(default_factory=`set),
+        region: int = 0;
 }
 
 glob _obj_of_h: list[(Anchor | None)] = [None],
+     _h_free: list[int] = [],
+     _next_region: list[int] = [1],
      _tag_of_cls: dict[(type, int)] = {},
      _fallback: _SvStore = _SvStore();
 
@@ -30,7 +33,8 @@ def _store_for(m: any) -> _SvStore {
     d = m.__dict__;
     st = d.get('_osp_sv_store');
     if st is None {
-        st = _SvStore();
+        st = _SvStore(region=_next_region[0]);
+        _next_region[0] += 1;
         d['_osp_sv_store'] = st;
     }
     return st;
@@ -40,8 +44,13 @@ def _mint(st: _SvStore, anchor: Anchor) -> int {
     key = str(anchor.id);
     h = st.h_of_id.get(key, 0);
     if h == 0 {
-        _obj_of_h.append(anchor);
-        h = len(_obj_of_h) - 1;
+        if _h_free {
+            h = _h_free.pop();
+            _obj_of_h[h] = anchor;
+        } else {
+            _obj_of_h.append(anchor);
+            h = len(_obj_of_h) - 1;
+        }
         st.h_of_id[key] = h;
         return h;
     }
@@ -105,8 +114,8 @@ def sv_conn(
         eh,
         1 if is_undirected else 0,
         tag_for(edge_a),
-        0,
-        0
+        st.region,
+        st.region
     );
     st.registered.add(key);
 }
@@ -208,4 +217,28 @@ def sv_forget_edge(edge_a: EdgeAnchor, mem: any = None) {
     if h > 0 {
         _graph.osp_disconnect(h);
     }
+}
+
+def sv_store_closed(mem: any) -> int {
+    # Handles are recyclable only because rows never outlive their store:
+    # every row a store minted carries its region, so osp_region_died leaves
+    # nothing in the process tables that could still reference these handles.
+    if mem is None {
+        return 0;
+    }
+    st = mem.__dict__.pop('_osp_sv_store', None);
+    if st is None {
+        return 0;
+    }
+    n = 0;
+    if st.region != 0 {
+        n = _graph.osp_region_died(st.region);
+    }
+    for h in st.h_of_id.values() {
+        if h > 0 and h < len(_obj_of_h) {
+            _obj_of_h[h] = None;
+            _h_free.append(h);
+        }
+    }
+    return n;
 }

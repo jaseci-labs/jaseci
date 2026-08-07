@@ -2250,6 +2250,8 @@ impl TieredMemory.close -> None {
 
     self.__mem__.clear();
     self.changes.clear();
+    import from jaclang.jac0core.osp_graph_sv { sv_store_closed }
+    sv_store_closed(self);
 }
 
 impl TieredMemory.`has(id: UUID) -> bool {
