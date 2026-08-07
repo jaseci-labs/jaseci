@@ -10,7 +10,7 @@ glob PLACEMENT_SCHEMA: int = 1,
          uni.PyInlineCode,
          uni.JsxElement
      ),
-     PLACEMENT_NATIVE_REJECT_NODES: tuple = (uni.DisconnectOp, );
+     PLACEMENT_NATIVE_REJECT_NODES: tuple = ();
 
 obj ElementSummary {
     has index: int = -1,

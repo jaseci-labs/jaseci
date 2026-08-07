@@ -511,6 +511,19 @@ test "assignment inside globvar js" {
     }
 }
 
+test "effect lambda local hoists its declaration into the effect body" {
+    jac_code = "def:pub app -> JsxElement {\n    has status: str = \"starting\";\n\n    can with entry {\n        setup = lambda {\n            probe = \"READY\";\n            status = probe;\n        };\n        setup();\n    }\n\n    <div>{status}</div>\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let probe;" in js_code , (
+        "a local first-assigned inside an effect lambda must keep its `let`; "
+        "a bare assignment throws ReferenceError in a strict-mode bundle"
+    );
+    assert "let setup = () => {" in js_code;
+    assert_balanced_syntax(js_code, temp_path);
+}
+
 test "hyphenated package imports generate correct js" {
     fixture_file_path = os.path.join(FIXTURES, "hyphenated_imports.jac");
     js_code = compile_fixture_to_js(fixture_file_path);

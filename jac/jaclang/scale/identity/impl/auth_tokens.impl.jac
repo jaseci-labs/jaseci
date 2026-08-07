@@ -7,12 +7,18 @@ impl AuthTokenStore.postinit -> None {
         try {
             self._db = MongoDb(client=get_mongo_client(), db_name='jac_db');
 
-            try {
-                col = self._db._get_mongo_collection(self._collection);
-                col.create_index('expires_at', expireAfterSeconds=0);
-                col.create_index('token_hash', unique=True);
-            } except Exception as e {
-                logger.warning(f"Could not create auth_tokens indexes: {e}");
+            if mongo_recently_down() {
+                logger.warning(
+                    "Could not create auth_tokens indexes: MongoDB recently unreachable"
+                );
+            } else {
+                try {
+                    col = self._db._get_mongo_collection(self._collection);
+                    col.create_index('expires_at', expireAfterSeconds=0);
+                    col.create_index('token_hash', unique=True);
+                } except Exception as e {
+                    logger.warning(f"Could not create auth_tokens indexes: {e}");
+                }
             }
         } except Exception as e {
             logger.warning(
