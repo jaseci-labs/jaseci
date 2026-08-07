@@ -114,7 +114,7 @@ test "an unreadable sealed manifest claims no modules" {
 }
 
 
-test "jac build inside a sealed host builds the nested project's own_mod bundle" {
+test "jac build inside a sealed host builds the nested project's bundle" {
     tmp = tempfile.mkdtemp(prefix="sealed-serve-e2e-");
     try {
         img_root = _sealed_root(tmp);
