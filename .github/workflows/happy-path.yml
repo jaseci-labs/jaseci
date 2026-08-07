@@ -68,8 +68,20 @@ jobs:
 
       # Each `jac browse` invocation reconnects to the same headless-Chrome
       # session over CDP, so the steps below share one browser.
+      # Retried: the engine only waits 10s for Chrome's DevToolsActivePort,
+      # which a cold start on a loaded 2-core runner can miss.
       - name: "browse: open the site"
-        run: jac browse open http://localhost:8000
+        run: |
+          for i in 1 2 3; do
+            if jac browse open http://localhost:8000; then
+              exit 0
+            fi
+            echo "browser launch attempt ${i} failed; retrying"
+            jac browse close || true
+            sleep 5
+          done
+          echo "::error::browser failed to launch after 3 attempts"
+          exit 1
 
       - name: "browse: page has a title"
         run: |
