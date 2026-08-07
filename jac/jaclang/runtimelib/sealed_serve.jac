@@ -7,7 +7,7 @@ import from jaclang.jac0core.sealed { MANIFEST_NAME }
 glob SERVE_MANIFEST_REL: str = os.path.join(".jac", "serve_manifest.json"),
      CLIENT_DIST_REL: str = os.path.join(".jac", "client", "dist"),
      NATIVE_DIR_REL: str = os.path.join(".jac", "native"),
-     _MODULE_KEYS_CACHE: dict = {};
+     _MODULE_KEYS_CACHE: dict[str, tuple[float, set]] = {};
 
 
 def _image_module_keys(img_root: str) -> set {
