@@ -114,10 +114,6 @@ impl _page_rows(
 
 
 impl _acl_gated -> bool {
-    # Traversal is access-gated only for a downscoped user: with the super
-    # root (or no user at all) check_access_level short-circuits to WRITE
-    # for everything reachable, so single-tenant flows skip the gate and
-    # keep the lazy id-only hop path.
     import from jaclang.jac0core.runtime { JacRuntimeInterface }
     try {
         jctx = JacRuntimeInterface.get_context();
@@ -130,8 +126,6 @@ impl _acl_gated -> bool {
 
 
 impl _acl_read_ok(anchor: Anchor) -> bool {
-    # check_access_level directly: filtering is silent hiding (the walker
-    # simply never sees the anchor), not a denied operation to report.
     import from jaclang.jac0core.archetype { AccessLevel }
     import from jaclang.jac0core.runtime { JacRuntimeInterface }
     level = JacRuntimeInterface.check_access_level(anchor);

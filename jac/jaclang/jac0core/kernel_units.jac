@@ -1,23 +1,3 @@
-"""Stable materialization of jac0core kernel compilation units (#7963).
-
-The portable kernels (osp_kernel + osp_graph as the one OSP unit; fmt_kernel)
-are consumed several ways -- compiled to JS for the client bundle, walked
-symtab-only for native IR generation, compiled to LLVM IR for native linking.
-Each consumer previously copied the sources into a fresh tempdir per process,
-which defeated any caching (a fresh path is a fresh identity, so every process
-paid a cold kernel compile) and embedded ephemeral tempdir paths in native
-debug metadata.
-
-A unit instead materializes once per (name, content) at a stable path under
-the jac cache root, and derived outputs (kernel JS, kernel LLVM IR) persist
-beside it as content-keyed artifacts: the key hashes the jaclang version, the
-unitree schema digest, the unit sources, and the consumer's own emitter
-fingerprint, so staleness is impossible by construction -- editing a kernel
-source or an emitter rebuilds, everything else is a warm read. Consumers that
-compile one unit under different codegen options use distinct variant names so
-each configuration keeps its own identity instead of thrashing one file.
-"""
-
 import os;
 
 glob OSP_CORE_PARTS: list[str] = ["osp_kernel.jac", "osp_graph.jac"],
@@ -79,11 +59,6 @@ def fmt_kernel_unit_path(variant: str) -> str {
 }
 
 def _artifact_key(unit_path: str, fingerprint: str) -> str {
-    # Same trust basis as compute_module_key: jaclang version, the unitree
-    # schema digest, the materialized unit itself (so the key can never
-    # diverge from what actually compiles), plus the consumer's own
-    # fingerprint (which hashes its emitter sources, so dev edits
-    # invalidate).
     import hashlib;
     import from importlib.metadata { version as pkg_version }
     import from jaclang.jac0core.jir { schema_digest }
@@ -135,8 +110,6 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
 }
 
 def es_pass_fingerprint -> str {
-    # The ES analog of native_compiler_fingerprint: hash the ecmascript
-    # emitter sources so editing the ES pass invalidates cached kernel JS.
     import glob as _g;
     import hashlib;
     es_dir = os.path.join(

@@ -74,8 +74,6 @@ def obj_of(h: int) -> (Anchor | None) {
 }
 
 def tag_of_cls(cls: type) -> int {
-    # One class<->tag registry for sv: store rows and kernel dispatch share
-    # the same stable content-hash tag space na and cl compile against.
     t = _tag_of_cls.get(cls);
     if t is None {
         import from jaclang.jac0core.osp_model { stable_osp_tag }
@@ -214,9 +212,6 @@ def _conn_hydrated(e: EdgeAnchor, m: any) -> None {
 def sv_register_hydrated(
     node_a: NodeAnchor, mem: any = None, fetch_stubs: bool = False
 ) -> None {
-    # The one sanctioned live read of NodeAnchor.edges: loading the node's
-    # persistence record into the store. Everything else answers topology
-    # through the store.
     if not isinstance(node_a, NodeAnchor) or not node_a.is_populated() {
         return;
     }
@@ -249,10 +244,6 @@ def sv_register_hydrated(
 }
 
 def sv_edge_alive(edge_a: EdgeAnchor, mem: any = None) -> bool {
-    # Liveness is evidence-based: a forget (detach/destroy/abort/heal) marks
-    # the id dead, a reconnect clears it, and an id the store has never seen
-    # defers to its persistence record. The registered set is connect-dedup
-    # plumbing, not liveness state.
     st = _store_for(_mem_or_ctx(mem));
     return str(edge_a.id) not in st.forgotten;
 }
@@ -273,9 +264,6 @@ def sv_forget_edge(edge_a: EdgeAnchor, mem: any = None) {
 }
 
 def sv_store_closed(mem: any) -> int {
-    # Handles are recyclable only because rows never outlive their store:
-    # every row a store minted carries its region, so osp_region_died leaves
-    # nothing in the process tables that could still reference these handles.
     if mem is None {
         return 0;
     }
