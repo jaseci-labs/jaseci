@@ -6,7 +6,7 @@ import from pickle { dumps, loads }
 import from typing { Any, cast }
 import from uuid { UUID }
 import from jaclang.scale._optdeps.redis { redis_module as redis }
-import from jaclang.scale._optdeps.pymongo { MongoClient, UpdateOne, ConnectionFailure }
+import from jaclang.scale._optdeps.pymongo { MongoClient, UpdateOne }
 import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
 import from jaclang.jac0core.graph_query { QHop, QPred }
 import from jaclang.runtimelib.changeset {
@@ -86,6 +86,7 @@ obj MongoBackend(PersistentMemory) {
         mongo_url: (str | None) = None,
         _l2_ref: (any | None) = None,
         _l1_id: (str | None) = None,
+        _probe_ok: (bool | None) = None,
         fetch_count: int = 0,
         put_count: int = 0;
 
