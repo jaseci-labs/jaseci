@@ -1,4 +1,4 @@
-import from jaclang.jac0core.const_fold { fold_const };
+import from jaclang.jac0core.const_fold { fold_const }
 
 glob _MATH_CONSTS: dict[str, float] = {
          "pi": 3.141592653589793,
@@ -159,8 +159,9 @@ impl NaIRGenPass._emit_pow_zero_guard(base: ir.Value) -> None {
             "==", base, ir.Constant(base.type, 0), name="pow.zero.b"
         );
     } else {
+        fzero = ir.Constant(base.type, 0.0);
         is_zero = self.builder.fcmp_ordered(
-            "==", base, ir.Constant(ir.DoubleType(), 0.0), name="pow.zero.b"
+            "==", base, fzero, name="pow.zero.b"
         );
     }
     self._emit_runtime_raise(
@@ -228,11 +229,37 @@ impl NaIRGenPass._codegen_pow(
         or isinstance(exp.type, (ir.DoubleType, ir.FloatType));
 
     if is_float_op {
+        exp_known_neg = False;
         if exp_node is not None {
             (rok, rv) = fold_const(exp_node);
             if rok and isinstance(rv, (int, float)) and rv < 0 {
                 self._emit_pow_zero_guard(base);
+                exp_known_neg = True;
             }
+        }
+        if not exp_known_neg {
+            (fbase, fexp) = self._promote_to_float(base, exp);
+            fzero = ir.Constant(f64, 0.0);
+            is_neg = self.builder.fcmp_ordered("<", fexp, fzero, name="pow.fneg.chk");
+            func = self.builder.function;
+            neg_bb = func.append_basic_block(name="pow.fneg");
+            pos_bb = func.append_basic_block(name="pow.fpos");
+            merge_bb = func.append_basic_block(name="pow.fmerge");
+            self.builder.cbranch(is_neg, neg_bb, pos_bb);
+            self.builder.position_at_end(neg_bb);
+            self._emit_pow_zero_guard(base);
+            fres = self._emit_float_pow(base, exp);
+            neg_pred = self.builder.block;
+            self.builder.branch(merge_bb);
+            self.builder.position_at_end(pos_bb);
+            fpres = self._emit_float_pow(base, exp);
+            pos_pred = self.builder.block;
+            self.builder.branch(merge_bb);
+            self.builder.position_at_end(merge_bb);
+            phi = self.builder.phi(f64, name="pow.fres");
+            phi.add_incoming(fres, neg_pred);
+            phi.add_incoming(fpres, pos_pred);
+            return phi;
         }
         return self._emit_float_pow(base, exp);
     }

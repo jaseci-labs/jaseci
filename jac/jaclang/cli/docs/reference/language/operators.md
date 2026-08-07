@@ -28,6 +28,20 @@ Jac includes all standard Python operators plus several unique operators for gra
 | `**` | Exponentiation | `a ** b` |
 | `@` | Matrix multiplication | `a @ b` |
 
+**Exponentiation (`**`) semantics** (Python/Jac parity):
+
+| Case | Result type | Notes |
+|------|-------------|-------|
+| `int ** non-negative int` (known) | `int` | Loop kernel when exponent sign is known at compile time |
+| `int ** negative int` (known) | `float` | libm `pow`; `0 ** negative` raises `ZeroDivisionError` |
+| `int ** dynamic-sign int` | `float` | Runtime branch on exponent sign |
+| Any operand is `float` | `float` | Both operands promoted; libm `pow` |
+| `0 ** negative` (any) | - | Raises `ZeroDivisionError` before calling libm |
+
+Augmented assignment `**=` follows the same result typing as `**`. Assigning a
+`float` power result into an `int` variable is a compile-time type error
+(`E1001`).
+
 ## 2 Comparison Operators
 
 | Operator | Description |

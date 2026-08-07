@@ -714,8 +714,17 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_field_aug_assign(
-        target: uni.AtomTrailer, rhs: ir.Value, aug_op: str
+        target: uni.AtomTrailer,
+        rhs: ir.Value,
+        aug_op: str,
+        rhs_node: (uni.Expr | None) = None
     ) -> (ir.Value | None);
+
+    def _codegen_field_assign(
+        target: uni.AtomTrailer,
+        value: ir.Value,
+        skip_narrow_coerce: bool = False
+    ) -> None;
 
     def _apply_scalar_aug_op(
         current: ir.Value,
@@ -724,7 +733,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         rhs_node: (uni.Expr | None) = None
     ) -> (ir.Value | None);
 
-    def _codegen_field_assign(target: uni.AtomTrailer, value: ir.Value) -> None;
     def _emit_key_comparison(
         b: ir.IRBuilder,
         key_type: ir.Type,
@@ -1135,7 +1143,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         args: list[ir.Value],
         kwargs: (dict | None) = None,
         kw_node: (uni.UniNode | None) = None,
-        type_key: str = ""
+        type_key: str = "",
+        arg_nodes: (list | None) = None
     ) -> (ir.Value | None);
 
     def _split_call_kwargs(nd: uni.FuncCall) -> dict;

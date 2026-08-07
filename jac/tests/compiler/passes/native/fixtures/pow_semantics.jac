@@ -47,6 +47,62 @@ def:pub bpow(a: float, b: float) -> float {
     return pow(a, b);
 }
 
+# builtin pow(int, int) — constant exponent specialization
+def:pub bpow_int(a: int, b: int) -> int {
+    return pow(a, b);
+}
+
+# builtin pow(0.0, -1.0) -> ZeroDivisionError
+def:pub bpow_zero_neg -> int {
+    result: int = 0;
+    try {
+        x: float = pow(0.0, -1.0);
+        result = -1;
+    } except ZeroDivisionError {
+        result = 1;
+    }
+    return result;
+}
+
+# 0.0 ** runtime negative float -> ZeroDivisionError
+def:pub fpow_zero_dyn -> int {
+    result: int = 0;
+    b: float = -1.0;
+    try {
+        x: float = 0.0 ** b;
+        result = -1;
+    } except ZeroDivisionError {
+        result = 1;
+    }
+    return result;
+}
+
+obj PowBox {
+    has x: int = 2;
+}
+
+# field **= with literal exponent
+def:pub field_ipow_aug -> int {
+    box = PowBox();
+    box.x **= 3;
+    return box.x;
+}
+
+# list element **=
+def:pub list_ipow_aug -> int {
+    v = [2];
+    v[0] **= 3;
+    return v[0];
+}
+
+# dict element **=
+def:pub dict_ipow_aug -> int {
+    d: dict[int, int] = {};
+    d[0] = 2;
+    d[0] **= 3;
+    return d[0];
+}
+
 # **= int (positive literal) stays int
 def:pub ipow_aug(a: int) -> int {
     x: int = a;

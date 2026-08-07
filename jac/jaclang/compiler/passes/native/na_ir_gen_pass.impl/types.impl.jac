@@ -1569,10 +1569,6 @@ impl NaIRGenPass._emit_binary_op(
         }
     }
 
-    if op == Tok.STAR_POW {
-        return self._codegen_pow(left, right);
-    }
-
     if op == Tok.BW_AND {
         return self.builder.and_(left, right, name="bwand");
     }

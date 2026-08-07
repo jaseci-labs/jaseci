@@ -1027,14 +1027,18 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             in ("abs", "min", "max", "pow", "divmod", "sum", "any", "all", "format") {
             params_l = nd.params or [];
             arg_vals: list[ir.Value] = [];
+            arg_nodes: list = [];
             for param in params_l {
                 v = self._codegen_expr(param);
                 if v is not None {
                     arg_vals.append(v);
+                    arg_nodes.append(param);
                 }
             }
             if arg_vals {
-                result = self._dispatch_builtin(func_name, arg_vals);
+                result = self._dispatch_builtin(
+                    func_name, arg_vals, arg_nodes=arg_nodes
+                );
 
                 for _barg in arg_vals {
                     if isinstance(_barg.type, ir.PointerType)

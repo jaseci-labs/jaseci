@@ -1453,12 +1453,7 @@ impl NaIRGenPass._apply_scalar_aug_op(
         return None;
     }
     if aug_op == "**=" {
-        coerced = self._coerce_type(rhs, current.type);
-        result = self._codegen_pow(current, coerced, rhs_node);
-        if result is not None and result.type != current.type {
-            result = self._coerce_type(result, current.type);
-        }
-        return result;
+        return self._codegen_pow(current, rhs, rhs_node);
     }
     coerced = self._coerce_type(rhs, current.type);
     result = self._emit_binary_op(op_toks[aug_op], current, coerced);
@@ -1532,10 +1527,14 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             if nd.aug_op is not None {
                 _faug_errs = len(self.errors_had);
                 field_val = self._codegen_field_aug_assign(
-                    target_expr, value, nd.aug_op.value
+                    target_expr, value, nd.aug_op.value, nd.value
                 );
                 if field_val is not None {
-                    self._codegen_field_assign(target_expr, field_val);
+                    self._codegen_field_assign(
+                        target_expr,
+                        field_val,
+                        skip_narrow_coerce=(nd.aug_op.value == "**=")
+                    );
                 } elif len(self.errors_had) == _faug_errs {
                     self.emit(
                         E5092,
@@ -2114,7 +2113,12 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     }
                 }
             }
-            coerced = self._coerce_type(value, alloca.type.pointee);
+            if nd.aug_op is not None and nd.aug_op.value == "**="
+                and value.type != alloca.type.pointee {
+                coerced = value;
+            } else {
+                coerced = self._coerce_type(value, alloca.type.pointee);
+            }
 
             _is_raw_int_ptr = getattr(coerced, 'opname', '') == 'inttoptr';
             self._register_region_handle_var(nd, var_name);
