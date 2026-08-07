@@ -772,10 +772,11 @@ test "discover_capabilities resolves fully-qualified service addresses to name a
         (c[1]["name"], c[1]["namespace"])
         for c in core_api.read_namespaced_service.call_args_list
     ];
-    assert lookups == [
-        ("keda-add-ons-http-external-scaler", "keda"),
-        ("keda-add-ons-http-interceptor-proxy", "keda")
-    ] , f"FQDN must parse as name.namespace, ignoring the cluster-domain suffix; got: {lookups}";
+    assert lookups
+        == [
+            ("keda-add-ons-http-external-scaler", "keda"),
+            ("keda-add-ons-http-interceptor-proxy", "keda")
+        ] , f"FQDN must parse as name.namespace, ignoring the cluster-domain suffix; got: {lookups}";
 }
 
 test "format_capabilities does not report ready when core KEDA is missing" {
