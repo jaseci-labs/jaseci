@@ -190,15 +190,13 @@ runs:
       if: steps.cache.outputs.cache-hit != 'true' && steps.shim-cache.outputs.cache-hit != 'true'
       shell: bash
       working-directory: jac
-      # Configuring the build graph without -Dno-ninja fetches the neovim +
-      # Lua closure (incl. the flaky lua.org tarball) even though this step
-      # only needs the LLVM slice -- honor the ninja input here too.
-      run: |
-        NINJA_ARG=()
-        if [ "${{ inputs.ninja }}" != "true" ]; then
-          NINJA_ARG=(-Dno-ninja)
-        fi
-        zig build "${NINJA_ARG[@]}" fetch-llvm --summary all
+      # -Dno-ninja unconditionally: fetching the LLVM slice is
+      # editor-independent (exactly like fetch-typeshed below), and
+      # configuring the graph without it drags the neovim + Lua closure
+      # (incl. the flaky lua.org tarball) into a step that cannot retry.
+      # The fused build still configures ninja itself, inside the retried
+      # build step.
+      run: zig build -Dno-ninja fetch-llvm --summary all
 
     - name: Fetch typeshed stdlib stubs
       if: steps.typeshed-cache.outputs.cache-hit != 'true'
