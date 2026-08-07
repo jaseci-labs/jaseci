@@ -144,21 +144,26 @@ test "unpinned rootless archetypes pull into client closures" {
     }
 }
 
+# Edge disconnect (`a del --> b`) lowers natively now (osp_disconn_between),
+# so it no longer blocks native placement; inline ::py:: remains the
+# statically-known native-incompatible construct.
 test "solver does not propose native for capability-violating modules" {
     import from jaclang.jac0core.placement_solver { native_default_verdict }
     d = _proj(
         {
-            "walkmod.jac": (
-                "node Spot {}\n"
-                + "def unlink(a: Spot, b: Spot) -> None {\n"
-                + "    a del--> b;\n"
+            "pymod.jac": (
+                "def f -> int {\n"
+                + "    ::py::\n"
+                + "x = 1\n"
+                + "::py::\n"
+                + "    return 1;\n"
                 + "}\n"
             )
         }
     );
     try {
         prog = JacProgram();
-        mod = prog.compile(os.path.join(d, "walkmod.jac"), no_cgen=True);
+        mod = prog.compile(os.path.join(d, "pymod.jac"), no_cgen=True);
         (ok, reason) = native_default_verdict(mod);
         assert not ok , "capability-violating module must not prefer native";
     } finally {
