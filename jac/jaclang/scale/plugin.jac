@@ -77,6 +77,14 @@ def scale_start(
             ms_config["service_files"] = resolve_service_files(
                 ms_config, ms_config["routes"]
             );
+            if ms_config["routes"] {
+                import from jaclang.scale.runtime.routing { ensure_main_service }
+                ensure_main_service(
+                    ms_config["routes"],
+                    ms_config["service_files"],
+                    os.path.basename(filename)
+                );
+            }
 
             import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
             realizer = LocalRealizer(ms_config=ms_config);

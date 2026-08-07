@@ -1,3 +1,5 @@
+import os;
+
 glob _RESERVED_SEGMENTS: set[str] = {
          "api",
          "walker",
@@ -47,6 +49,33 @@ def guard_route_name(module_name: str) {
                 + f"route does not shadow a builtin path."
         );
     }
+}
+
+
+# Fleet topology: declared routes are carve-outs; the entry module keeps
+# serving everything else. Without an implicit main service, functions that
+# live in the entry module have no home in a deployed fleet (#7945 QA).
+def ensure_main_service(
+    routes: dict[str, str], service_files: dict[str, str], entry_file: str = ''
+) -> None {
+    if 'main' in routes {
+        return;
+    }
+    for prefix in routes.values() {
+        if prefix in ('/', '/__main__') {
+            return;
+        }
+    }
+    if not entry_file {
+        try {
+            import from jaclang.project.config { get_config }
+            entry_file = get_config().entry_point or 'main.jac';
+        } except Exception {
+            entry_file = 'main.jac';
+        }
+    }
+    routes['main'] = '/__main__';
+    service_files['main'] = os.path.basename(entry_file);
 }
 
 

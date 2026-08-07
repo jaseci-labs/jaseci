@@ -134,7 +134,8 @@ obj ManifestBuilder {
             self.k8s_config.namespace,
             proj,
             provisioned_database=("postgres" if self.k8s_config.postgres_enabled else ""),
-            dry_run=self.dry_run
+            dry_run=self.dry_run,
+            access_mode=self.k8s_config.bundle_access_mode
         );
         injector: PvcInjector = selection[0];
         self._toolchain_object_key = str(selection[1]);

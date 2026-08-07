@@ -22,7 +22,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'project_id': None,
             'url': None,
             'deploy_mode': 'image',
-            'postgres_image': 'postgres:19',
+            'postgres_image': 'postgres:18',
             'postgres_storage': '2Gi'
         },
         'websocket': {
@@ -190,7 +190,7 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
         'type': db_config.get('type'),
         'url': os.environ.get('JAC_DB_URL') or db_config.get('url'),
         'deploy_mode': db_config.get('deploy_mode', 'image'),
-        'postgres_image': db_config.get('postgres_image', 'postgres:19'),
+        'postgres_image': db_config.get('postgres_image', 'postgres:18'),
         'postgres_storage': db_config.get('postgres_storage', '2Gi')
     };
 }
@@ -526,6 +526,12 @@ impl normalize_microservices_config(
         }
     }
 
+    service_files: dict = dict(ms_config.get('service_files', {}) or {});
+    if routes {
+        import from jaclang.scale.runtime.routing { ensure_main_service }
+        ensure_main_service(routes, service_files);
+    }
+
     raw_client_entry = client_config.get('entry', None);
 
     if raw_client_entry is False or raw_client_entry == '' {
@@ -548,6 +554,7 @@ impl normalize_microservices_config(
         'drain_timeout_seconds': float(ms_config.get('drain_timeout_seconds', 10)),
         'http_forward_timeout': float(ms_config.get('http_forward_timeout', 30)),
         'routes': routes,
+        'service_files': service_files,
         'services': dict(ms_config.get('services', {})),
         'rate_limit': {
             'enabled': bool(rl_config.get('enabled', False)),
