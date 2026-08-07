@@ -116,9 +116,7 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
     }
     return (
         "\nThe client build ran on the bundle's staged sources, and these "
-        "files named in its output never ship:\n"
-        + "\n".join(shown)
-        + "\nDrop the exclusion or remove the reference. Values the client "
+        "files named in its output never ship:\n" + "\n".join(shown) + "\nDrop the exclusion or remove the reference. Values the client "
         "needs at build time belong under [client.vite.define] in jac.toml; "
         "secrets stay server-side in [scale.secrets] or pod env and never "
         "reach the client."
@@ -987,18 +985,23 @@ obj ManifestBuilder {
         return env;
     }
 
+    def _resolved_memory_request(svc_cfg: dict[str, any], is_gateway: bool) -> str {
+        val = svc_cfg.get("memory_request");
+        if val is None {
+            val = self.k8s_config.memory_request;
+        }
+        if val is None {
+            val = "2Gi" if is_gateway else "1Gi";
+        }
+        return str(val) if val else "";
+    }
+
     def _build_resources(
         svc_cfg: dict[str, any], is_gateway: bool = False
     ) -> dict[str, any] {
         cfg = self.k8s_config;
 
-        memory_request_val = svc_cfg.get("memory_request");
-        if memory_request_val is None {
-            memory_request_val = cfg.memory_request;
-        }
-        if memory_request_val is None {
-            memory_request_val = "2Gi" if is_gateway else "1Gi";
-        }
+        memory_request_val = self._resolved_memory_request(svc_cfg, is_gateway);
         memory_limit_val = svc_cfg.get("memory_limit");
         if memory_limit_val is None {
             memory_limit_val = cfg.memory_limit;
@@ -1306,6 +1309,16 @@ obj ManifestBuilder {
                 raw_triggers.append(dict(item));
             }
         }
+        behavior = hpa.get("behavior", {});
+        if not isinstance(behavior, dict) {
+            if self.logger {
+                self.logger.warning(
+                    f"Ignoring malformed hpa.behavior for '{svc_name}': expected "
+                    f"a table, got {type(behavior).__name__}"
+                );
+            }
+            behavior = {};
+        }
         return {
             "min": int(hpa.get("min", 1)),
             "max": int(hpa.get("max", 3)),
@@ -1313,7 +1326,11 @@ obj ManifestBuilder {
             "memory_target": int(
                 hpa.get("memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET)
             ),
-            "triggers": raw_triggers
+            "has_memory_request": bool(
+                self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)
+            ),
+            "triggers": raw_triggers,
+            "behavior": dict(behavior)
         };
     }
 
