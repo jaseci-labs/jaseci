@@ -753,7 +753,12 @@ impl JacCompiler.parse_str(
             run_codespace_infer = True;
         }
     }
+    import from pathlib { Path as _HubPath }
+    hub_key = str(_HubPath(mod.loc.mod_path).resolve());
     if had_error {
+        target_program.mod.hub[hub_key] = mod;
+        target_program.hub_cache_stamp(hub_key);
+        target_program._failed_parses.add(hub_key);
         return mod;
     }
     if target_program.mod.main.stub_only {
@@ -761,8 +766,7 @@ impl JacCompiler.parse_str(
         target_program.mod = uni.ProgramModule(main_mod=mod);
         target_program.mod.hub.update(old_hub);
     }
-    import from pathlib { Path as _HubPath }
-    target_program.mod.hub[str(_HubPath(mod.loc.mod_path).resolve())] = mod;
+    target_program.mod.hub[hub_key] = mod;
 
     JacAnnexPass(ir_in=mod, prog=target_program);
     if run_codespace_infer {
@@ -1102,6 +1106,7 @@ impl JacCompiler._compile_once(
         and not options.no_cgen
     ) {
         import os as _cb_os;
+        import from pathlib { Path as _CbPath }
         cb_seen: set[str] = set();
         cb_worklist: list = [mod_targ];
 
@@ -1147,7 +1152,10 @@ impl JacCompiler._compile_once(
                     and cb_mod.gen.interop_manifest
                     and bool(cb_mod.gen.interop_manifest.bindings)
                 );
-                if not cb_has_facts {
+
+                cb_known_bad = str(_CbPath(cb_src).resolve())
+                    in actual_program._failed_parses;
+                if not cb_has_facts and not cb_known_bad {
                     try {
                         cb_mod = self.compile(
                             file_path=cb_src,
