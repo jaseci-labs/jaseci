@@ -2,7 +2,7 @@
 speak only for the modules the image actually contains. A project that merely
 lives in a directory nested under a sealed root - a staged user app inside a
 sealed builder service, for example - must not inherit the host image's
-bundle: the ancestor walk alone would hand the host's own frontend to any
+bundle: the ancestor walk alone would hand the host's own_mod frontend to any
 foreign `jac build`, which then fails with "bundle not found" because the
 foreign project's dist was never populated.
 
@@ -44,9 +44,7 @@ def _sealed_root(tmp: str, manifest: (dict | None) = None) -> str {
     with open(os.path.join(img_root, "main.jac"), "w", encoding="utf-8") as f {
         f.write("with entry {}\n");
     }
-    with open(
-        os.path.join(dist, "client.HOSTHASH.js"), "w", encoding="utf-8"
-    ) as f {
+    with open(os.path.join(dist, "client.HOSTHASH.js"), "w", encoding="utf-8") as f {
         f.write('console.log("host image bundle");\n');
     }
     with open(
@@ -58,15 +56,15 @@ def _sealed_root(tmp: str, manifest: (dict | None) = None) -> str {
 }
 
 
-test "a sealed image's own module resolves to the sealed root" {
+test "a sealed image's own_mod module resolves to the sealed root" {
     tmp = tempfile.mkdtemp(prefix="sealed-serve-");
     try {
         img_root = _sealed_root(tmp);
-        own = os.path.join(img_root, "main.jac");
-        assert sealed_root_for(own) == img_root;
-        dist = client_dist_for(own);
+        own_mod = os.path.join(img_root, "main.jac");
+        assert sealed_root_for(own_mod) == img_root;
+        dist = client_dist_for(own_mod);
         assert dist is not None and any(dist.glob("client.*.js"));
-        assert serve_manifest_for(own) is not None;
+        assert serve_manifest_for(own_mod) is not None;
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
     }
@@ -116,7 +114,7 @@ test "an unreadable sealed manifest claims no modules" {
 }
 
 
-test "jac build inside a sealed host builds the nested project's own bundle" {
+test "jac build inside a sealed host builds the nested project's own_mod bundle" {
     tmp = tempfile.mkdtemp(prefix="sealed-serve-e2e-");
     try {
         img_root = _sealed_root(tmp);
@@ -149,13 +147,11 @@ test "jac build inside a sealed host builds the nested project's own bundle" {
 
         dist = Path(project) / ".jac" / "client" / "dist";
         assert (dist / "index.html").is_file() , (
-            "nested build produced no index.html in the project's own dist"
+            "nested build produced no index.html in the project's own_mod dist"
         );
         bundles = list(dist.glob("client.*.js"));
         assert bundles , "nested build emitted no bundle in the project's dist";
-        assert "host image bundle" not in bundles[0].read_text(
-            encoding="utf-8"
-        ) , "the host image's bundle leaked into the nested project";
+        assert "host image bundle" not in bundles[0].read_text(encoding="utf-8") , "the host image's bundle leaked into the nested project";
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
     }
