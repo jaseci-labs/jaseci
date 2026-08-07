@@ -155,6 +155,15 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
     }
 }
 
+impl JacProgram.hub_key(path: str) -> str {
+    import from pathlib { Path }
+    return str(Path(path).resolve());
+}
+
+impl JacProgram.has_failed_parse(self: JacProgram, path: str) -> bool {
+    return JacProgram.hub_key(path) in self._failed_parses;
+}
+
 impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None {
     import os;
     try {

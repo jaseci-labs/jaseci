@@ -753,8 +753,7 @@ impl JacCompiler.parse_str(
             run_codespace_infer = True;
         }
     }
-    import from pathlib { Path as _HubPath }
-    hub_key = str(_HubPath(mod.loc.mod_path).resolve());
+    hub_key = target_program.hub_key(mod.loc.mod_path);
     if had_error {
         target_program.mod.hub[hub_key] = mod;
         target_program.hub_cache_stamp(hub_key);
@@ -1106,7 +1105,6 @@ impl JacCompiler._compile_once(
         and not options.no_cgen
     ) {
         import os as _cb_os;
-        import from pathlib { Path as _CbPath }
         cb_seen: set[str] = set();
         cb_worklist: list = [mod_targ];
 
@@ -1153,8 +1151,7 @@ impl JacCompiler._compile_once(
                     and bool(cb_mod.gen.interop_manifest.bindings)
                 );
 
-                cb_known_bad = str(_CbPath(cb_src).resolve())
-                    in actual_program._failed_parses;
+                cb_known_bad = actual_program.has_failed_parse(cb_src);
                 if not cb_has_facts and not cb_known_bad {
                     try {
                         cb_mod = self.compile(

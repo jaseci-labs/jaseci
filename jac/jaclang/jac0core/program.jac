@@ -49,6 +49,8 @@ class JacProgram {
     def transitive_dependents(self: JacProgram, target_path: str) -> set[str];
     def invalidate_module(self: JacProgram, resolved_path: str) -> None;
     def drop_module_alerts(self: JacProgram, resolved_path: str) -> None;
+    static def hub_key(path: str) -> str;
+    def has_failed_parse(self: JacProgram, path: str) -> bool;
     def _search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]];
     def find_module(self: JacProgram, path: str) -> (uni.Module | None);
     def get_bytecode(self: JacProgram, full_target: str) -> (types.CodeType | None);
