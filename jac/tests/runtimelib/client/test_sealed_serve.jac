@@ -25,9 +25,9 @@ import from .test_helpers { get_jac_command }
 
 
 def _sealed_root(tmp: str, manifest: (dict | None) = None) -> str {
-    root = os.path.join(tmp, "app");
-    os.makedirs(os.path.join(root, "_precompiled"));
-    dist = os.path.join(root, ".jac", "client", "dist");
+    img_root = os.path.join(tmp, "app");
+    os.makedirs(os.path.join(img_root, "_precompiled"));
+    dist = os.path.join(img_root, ".jac", "client", "dist");
     os.makedirs(dist);
     if manifest is None {
         manifest = {
@@ -37,11 +37,11 @@ def _sealed_root(tmp: str, manifest: (dict | None) = None) -> str {
         };
     }
     with open(
-        os.path.join(root, "_precompiled", "MANIFEST.json"), "w", encoding="utf-8"
+        os.path.join(img_root, "_precompiled", "MANIFEST.json"), "w", encoding="utf-8"
     ) as f {
         f.write(json.dumps(manifest));
     }
-    with open(os.path.join(root, "main.jac"), "w", encoding="utf-8") as f {
+    with open(os.path.join(img_root, "main.jac"), "w", encoding="utf-8") as f {
         f.write("with entry {}\n");
     }
     with open(
@@ -50,20 +50,20 @@ def _sealed_root(tmp: str, manifest: (dict | None) = None) -> str {
         f.write('console.log("host image bundle");\n');
     }
     with open(
-        os.path.join(root, ".jac", "serve_manifest.json"), "w", encoding="utf-8"
+        os.path.join(img_root, ".jac", "serve_manifest.json"), "w", encoding="utf-8"
     ) as f {
         f.write('{"client": {"exports": [], "globals": []}}');
     }
-    return root;
+    return img_root;
 }
 
 
 test "a sealed image's own module resolves to the sealed root" {
     tmp = tempfile.mkdtemp(prefix="sealed-serve-");
     try {
-        root = _sealed_root(tmp);
-        own = os.path.join(root, "main.jac");
-        assert sealed_root_for(own) == root;
+        img_root = _sealed_root(tmp);
+        own = os.path.join(img_root, "main.jac");
+        assert sealed_root_for(own) == img_root;
         dist = client_dist_for(own);
         assert dist is not None and any(dist.glob("client.*.js"));
         assert serve_manifest_for(own) is not None;
@@ -76,8 +76,8 @@ test "a sealed image's own module resolves to the sealed root" {
 test "a foreign project nested under a sealed root is not sealed" {
     tmp = tempfile.mkdtemp(prefix="sealed-serve-");
     try {
-        root = _sealed_root(tmp);
-        staged = os.path.join(root, ".jachome", "projects", "user", "todo");
+        img_root = _sealed_root(tmp);
+        staged = os.path.join(img_root, ".jachome", "projects", "user", "todo");
         os.makedirs(staged);
         foreign = os.path.join(staged, "main.jac");
         with open(foreign, "w", encoding="utf-8") as f {
@@ -101,15 +101,15 @@ test "a foreign project nested under a sealed root is not sealed" {
 test "an unreadable sealed manifest claims no modules" {
     tmp = tempfile.mkdtemp(prefix="sealed-serve-");
     try {
-        root = _sealed_root(tmp);
+        img_root = _sealed_root(tmp);
         with open(
-            os.path.join(root, "_precompiled", "MANIFEST.json"),
+            os.path.join(img_root, "_precompiled", "MANIFEST.json"),
             "w",
             encoding="utf-8"
         ) as f {
             f.write("{not json");
         }
-        assert sealed_root_for(os.path.join(root, "main.jac")) is None;
+        assert sealed_root_for(os.path.join(img_root, "main.jac")) is None;
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
     }
@@ -119,8 +119,8 @@ test "an unreadable sealed manifest claims no modules" {
 test "jac build inside a sealed host builds the nested project's own bundle" {
     tmp = tempfile.mkdtemp(prefix="sealed-serve-e2e-");
     try {
-        root = _sealed_root(tmp);
-        staging = os.path.join(root, ".jachome", "projects", "user");
+        img_root = _sealed_root(tmp);
+        staging = os.path.join(img_root, ".jachome", "projects", "user");
         os.makedirs(staging);
         jac_cmd = get_jac_command();
         created = subprocess.run(
