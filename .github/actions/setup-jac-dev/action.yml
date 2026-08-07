@@ -73,6 +73,9 @@ runs:
       uses: ./.github/actions/setup-jac
       with:
         ninja: "false"
+        # The dev loop bypasses the bundled compiler, so the ~24-min payload
+        # JIR precompile would be pure waste on this path.
+        skip-precompile: "true"
 
     # Seed/refresh the host entry after a fallback build. Saved from every
     # branch: the key only moves on launcher/build/native changes, so churn is

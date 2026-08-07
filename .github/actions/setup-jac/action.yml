@@ -23,6 +23,14 @@ inputs:
       flows restore that key and must get the fused editor).
     required: false
     default: "true"
+  skip-precompile:
+    description: >
+      Skip the payload JIR precompile (~24 min cold). Only sane for dev-lane
+      fallbacks, whose runtime bypasses the bundled compiler entirely via the
+      [dev] jaclang_source loop; a skip-precompile binary is never saved to
+      the shared jac-bin cache.
+    required: false
+    default: "false"
 runs:
   using: composite
   steps:
@@ -182,7 +190,15 @@ runs:
       if: steps.cache.outputs.cache-hit != 'true' && steps.shim-cache.outputs.cache-hit != 'true'
       shell: bash
       working-directory: jac
-      run: zig build fetch-llvm --summary all
+      # Configuring the build graph without -Dno-ninja fetches the neovim +
+      # Lua closure (incl. the flaky lua.org tarball) even though this step
+      # only needs the LLVM slice -- honor the ninja input here too.
+      run: |
+        NINJA_ARG=()
+        if [ "${{ inputs.ninja }}" != "true" ]; then
+          NINJA_ARG=(-Dno-ninja)
+        fi
+        zig build "${NINJA_ARG[@]}" fetch-llvm --summary all
 
     - name: Fetch typeshed stdlib stubs
       if: steps.typeshed-cache.outputs.cache-hit != 'true'
@@ -213,7 +229,20 @@ runs:
         if [ "${{ inputs.ninja }}" != "true" ]; then
           NINJA_ARG=(-Dno-ninja)
         fi
-        zig build "${NINJA_ARG[@]}" "${SHIM_ARG[@]}" --summary all
+        PRE_ARG=()
+        if [ "${{ inputs.skip-precompile }}" = "true" ]; then
+          PRE_ARG=(-Dskip-precompile)
+        fi
+        # Retried: the cold-store fetches (lua.org especially) time out
+        # transiently, and one flake otherwise costs a whole run.
+        for attempt in 1 2 3; do
+          if zig build "${NINJA_ARG[@]}" "${PRE_ARG[@]}" "${SHIM_ARG[@]}" --summary all; then
+            exit 0
+          fi
+          echo "zig build failed (attempt $attempt); retrying in 30s"
+          sleep 30
+        done
+        exit 1
 
     # Seed the shared binary cache from main only (see the note by the restore
     # step). Saved after the build so both the binary and the materialized
@@ -222,7 +251,8 @@ runs:
       if: >-
         github.ref == 'refs/heads/main' &&
         steps.cache.outputs.cache-hit != 'true' &&
-        inputs.ninja == 'true'
+        inputs.ninja == 'true' &&
+        inputs.skip-precompile != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
