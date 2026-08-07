@@ -740,7 +740,6 @@ impl KEDAAutoscaler._validate_http_activation_spec{
 
 impl KEDAAutoscaler._check_service_address{
     (host, _, __) = address.partition(":");
-    # host may be bare, name.namespace, or an FQDN with a cluster-domain suffix
     parts = host.split(".");
     name = parts[0];
     namespace = parts[1] if len(parts) > 1 else "keda";
