@@ -22,6 +22,11 @@ import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     GATEWAY_NAME,
     k8s_safe_name
 }
+import from jaclang.scale.deploy.target.kubernetes.rollout {
+    ROLLOUT_WAIT_FULL,
+    normalize_rollout_wait,
+    read_rollout_status
+}
 import from jaclang.scale.deploy.target.kubernetes.database_provisioner {
     DatabaseProvisioner
 }
@@ -336,7 +341,27 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return True;
     }
 
-    def _wait_for_fleet_rollout(bundle: dict[str, any], timeout: int = 1200) -> None {
+    def _fleet_pod_details(core_v1: any, ns: str, pod_selector: str | None) -> str {
+        detail = "";
+        try {
+            pods = core_v1.list_namespaced_pod(
+                namespace=ns, label_selector=pod_selector
+            ).items
+                if pod_selector
+                else [];
+            for p in pods {
+                detail += (
+                    f" [pod {p.metadata.name}]"
+                    + self._pod_failure_detail(core_v1, ns, str(p.metadata.name), p)
+                );
+            }
+        } except Exception {
+            _ = 0;
+        }
+        return detail;
+    }
+
+    def _wait_for_fleet_rollout(bundle: dict[str, any], timeout: int = 0) -> None {
         import time;
         import sys;
         import from kubernetes { client }
@@ -360,6 +385,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
         if not names {
             return;
+        }
+        mode = normalize_rollout_wait(self.k8s_config.rollout_wait);
+        gate = "fully rolled out" if mode == ROLLOUT_WAIT_FULL else "serving";
+        if timeout <= 0 {
+            timeout = self.k8s_config.rollout_timeout;
         }
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
@@ -399,11 +429,18 @@ obj KubernetesTarget(KubernetesTargetBase) {
         with console.status(f"Rolling out fleet: 0/{total} services ready...") as st {
             while elapsed < timeout {
                 ready = 0;
+                stalled: list[str] = [];
                 for name in names {
                     try {
                         d = apps_v1.read_namespaced_deployment(name=name, namespace=ns);
-                        if (d.status.ready_replicas or 0) >= 1 {
+                        rollout = read_rollout_status(d);
+                        if rollout.satisfies(mode) {
                             ready += 1;
+                        }
+                        if rollout.stall {
+                            stalled.append(
+                                f"deployment '{name}' stalled: {rollout.stall}"
+                            );
                         }
                     } except Exception {
                         _ = 0;
@@ -412,7 +449,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 if ready == total {
                     if self.logger {
                         self.logger.info(
-                            f"Fleet ready: {ready}/{total} deployments serving"
+                            f"Fleet ready: {ready}/{total} deployments {gate}"
                         );
                     }
                     return;
@@ -487,12 +524,19 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     );
                     raise Exception(f"{failure}.{detail}");
                 }
+                if stalled {
+                    raise Exception(
+                        "; ".join(stalled)
+                            + "."
+                            + self._fleet_pod_details(core_v1, ns, pod_selector)
+                    );
+                }
 
                 summary = ", ".join(phase_tokens)
                     if phase_tokens
                     else "scheduling pods";
                 line = (
-                    f"Rolling out fleet: {ready}/{total} ready - {elapsed}s "
+                    f"Rolling out fleet: {ready}/{total} {gate} - {elapsed}s "
                     f"elapsed ({summary}) - pods install jac + start the app"
                 );
                 st.update(line);
@@ -509,25 +553,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 elapsed += 10;
             }
         }
-        timeout_detail = "";
-        try {
-            stuck = core_v1.list_namespaced_pod(
-                namespace=ns, label_selector=pod_selector
-            ).items
-                if pod_selector
-                else [];
-            for p in stuck {
-                timeout_detail += (
-                    f" [pod {p.metadata.name}]"
-                    + self._pod_failure_detail(core_v1, ns, str(p.metadata.name), p)
-                );
-            }
-        } except Exception {
-            _ = 0;
-        }
         raise Exception(
-            f"timed out after {timeout}s ({ready}/{total} deployments ready)."
-            f"{timeout_detail}"
+            f"timed out after {timeout}s ({ready}/{total} deployments {gate})."
+            f"{self._fleet_pod_details(core_v1, ns, pod_selector)}"
         );
     }
 
