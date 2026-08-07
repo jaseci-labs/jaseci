@@ -738,15 +738,13 @@ glob _OSP_KERNEL_IR_CACHE: dict[str, str] = {};
 def _compile_osp_kernel_ir(
     gc_mode: str = "cycles", enforce: bool = False
 ) -> (str | None) {
-    import os;
-    import shutil;
-    import tempfile;
-    import jaclang;
+    import from jaclang.jac0core.kernel_units {
+        load_unit_artifact,
+        osp_core_unit_path,
+        store_unit_artifact
+    }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
-    import from jaclang.compiler.passes.native.na_ir_gen_pass {
-        _write_native_osp_source
-    }
 
     kernel_opts = _KernelOpts(
         aot_mode=True,
@@ -785,24 +783,26 @@ def _compile_osp_kernel_ir(
         return _OSP_KERNEL_IR_CACHE[cache_key];
     }
 
-    _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
-    tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "osp_kernel.jac");
-    ir_str = None;
+    variant = f"na_{gc_mode}_enf" if enforce else f"na_{gc_mode}";
+    unit = osp_core_unit_path(variant);
+    fp = native_compiler_fingerprint(kernel_opts);
+    ir_str = load_unit_artifact(unit, "ll", fp);
+    if ir_str is not None {
+        _OSP_KERNEL_IR_CACHE[cache_key] = ir_str;
+        return ir_str;
+    }
     try {
-        _write_native_osp_source(_core, na_copy);
         prog = JacProgram();
-        m = prog.compile(na_copy, options=kernel_opts);
+        m = prog.compile(unit, options=kernel_opts);
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
             ir_str = str(m.gen.llvm_ir);
         }
     } except Exception {
         ir_str = None;
-    } finally {
-        shutil.rmtree(tmp_dir, ignore_errors=True);
     }
     if ir_str is not None {
         _OSP_KERNEL_IR_CACHE[cache_key] = ir_str;
+        store_unit_artifact(unit, "ll", fp, ir_str);
     }
     return ir_str;
 }
@@ -846,15 +846,13 @@ impl NativeCompilePass._link_osp_kernel(main_mod: object) -> None {
 glob _FMT_KERNEL_IR_CACHE: dict = {};
 
 def _compile_fmt_kernel_ir -> (str | None) {
-    import os;
-    import shutil;
-    import tempfile;
-    import jaclang;
+    import from jaclang.jac0core.kernel_units {
+        fmt_kernel_unit_path,
+        load_unit_artifact,
+        store_unit_artifact
+    }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
-    import from jaclang.compiler.passes.native.na_ir_gen_pass {
-        _write_native_fmt_source
-    }
 
     kernel_opts = _KernelOpts(
         aot_mode=True, type_check=False, default_codespace='native', na_gc_mode='cycles'
@@ -864,24 +862,25 @@ def _compile_fmt_kernel_ir -> (str | None) {
         return _FMT_KERNEL_IR_CACHE[cache_key];
     }
 
-    _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
-    tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "fmt_kernel.jac");
-    ir_str = None;
+    unit = fmt_kernel_unit_path('na_cycles');
+    fp = native_compiler_fingerprint(kernel_opts);
+    ir_str = load_unit_artifact(unit, "ll", fp);
+    if ir_str is not None {
+        _FMT_KERNEL_IR_CACHE[cache_key] = ir_str;
+        return ir_str;
+    }
     try {
-        _write_native_fmt_source(_core, na_copy);
         prog = JacProgram();
-        m = prog.compile(na_copy, options=kernel_opts);
+        m = prog.compile(unit, options=kernel_opts);
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
             ir_str = str(m.gen.llvm_ir);
         }
     } except Exception {
         ir_str = None;
-    } finally {
-        shutil.rmtree(tmp_dir, ignore_errors=True);
     }
     if ir_str is not None {
         _FMT_KERNEL_IR_CACHE[cache_key] = ir_str;
+        store_unit_artifact(unit, "ll", fp, ir_str);
     }
     return ir_str;
 }

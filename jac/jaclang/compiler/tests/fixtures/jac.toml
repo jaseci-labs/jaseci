@@ -334,3 +334,5 @@
 "osp_plain_fn_ops.plain_ops_na" = "native"
 "osp_interop.interop_cl" = "client"
 "osp_interop.interop_na" = "native"
+"osp_nested_report.nested_report_cl" = "client"
+"osp_nested_report.nested_report_na" = "native"

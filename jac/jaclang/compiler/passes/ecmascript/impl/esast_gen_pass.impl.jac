@@ -5222,7 +5222,7 @@ impl EsastGenPass._build_osp_setup_js -> str {
             + "is_a: (t, b) => __ospIsA(t, b), "
             + "node_desc: (t) => (globalThis.__jacOspDesc || {})[t] "
             + "?? new __ospC.NodeDesc({type_tag: t, entry: [], exit: []}), "
-            + "on_complete: (s, ok) => { if (s.wlk) s.wlk.reports = s.reports; }"
+            + "on_complete: (s, ok) => { if (s.wlk && !s.nested) s.wlk.reports = s.reports; }"
             + "});"
     );
     return "\n".join(lines);

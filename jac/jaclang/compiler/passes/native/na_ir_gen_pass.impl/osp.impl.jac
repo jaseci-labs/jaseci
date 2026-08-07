@@ -1,39 +1,17 @@
 glob _NA_OSP_KERNEL_MOD: list = [];
 
-def _write_native_osp_source(core_dir: str, dest: str) {
-    import os;
-    _kernel = os.path.join(core_dir, "osp_kernel.jac");
-    _graph = os.path.join(core_dir, "osp_graph.jac");
-    with open(_kernel, "r") as _kf {
-        _ktext = _kf.read();
-    }
-    with open(_graph, "r") as _gf {
-        _gtext = _gf.read();
-    }
-    with open(dest, "w") as _out {
-        _out.write(_ktext + "\n\n" + _gtext);
-    }
-}
-
 def _load_native_osp_kernel_module -> (uni.Module | None) {
     if _NA_OSP_KERNEL_MOD {
         return _NA_OSP_KERNEL_MOD[0];
     }
-    import os;
-    import shutil;
-    import tempfile;
-    import jaclang;
+    import from jaclang.jac0core.kernel_units { osp_core_unit_path }
     import from jaclang.jac0core.program { JacProgram }
-    _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
-    tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "osp_kernel.jac");
     mod = None;
     try {
         import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
-        _write_native_osp_source(_core, na_copy);
         prog = JacProgram();
         mod = prog.compile(
-            na_copy,
+            osp_core_unit_path('na'),
             options=_KernelOpts(
                 no_cgen=True,
                 symtab_ir_only=True,
@@ -46,8 +24,6 @@ def _load_native_osp_kernel_module -> (uni.Module | None) {
         );
     } except Exception {
         mod = None;
-    } finally {
-        shutil.rmtree(tmp_dir, ignore_errors=True);
     }
     if mod is not None {
         _NA_OSP_KERNEL_MOD.append(mod);
@@ -452,7 +428,26 @@ impl NaIRGenPass._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> d
     self._builder = ir.IRBuilder(_ocf.append_basic_block("entry"));
     _ws_idx = self.struct_field_indices.get("WalkScope", {});
     if _ws_idx {
+        _deliver = _ocf.append_basic_block("deliver");
+        _oc_done = _ocf.append_basic_block("done");
         _scope = _ocf.args[0];
+
+        _nested = self.builder.load(
+            self.builder.gep(
+                _scope,
+                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx.get("nested", 7))],
+                name="oc.nested.p"
+            ),
+            name="oc.nested"
+        );
+        self.builder.cbranch(
+            self.builder.icmp_unsigned(
+                "!=", _nested, ir.Constant(_nested.type, 0), name="oc.isnested"
+            ),
+            _oc_done,
+            _deliver
+        );
+        self._builder = ir.IRBuilder(_deliver);
 
         _wlk_jv = self.builder.load(
             self.builder.gep(
@@ -484,6 +479,8 @@ impl NaIRGenPass._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> d
                 name="oc.repslot"
             )
         );
+        self.builder.branch(_oc_done);
+        self._builder = ir.IRBuilder(_oc_done);
     }
     self.builder.ret_void();
     out["on_complete"] = _ocf;
