@@ -13,6 +13,10 @@ import from jaclang.scale.deploy.autoscale.http_activation {
     HTTPActivationSpec,
     HTTPRoutingRule
 }
+import from jaclang.scale.deploy.autoscale.keda_capabilities {
+    KEDACapabilities,
+    SUPPORTED_HTTP_INTERCEPTOR_API_VERSIONS
+}
 import from jaclang.scale.observability.logger { Logger }
 import from jaclang.scale.runtime.context.service_routing {
     KEDA_INTERCEPTOR_SERVICE_ADDRESS
@@ -29,8 +33,7 @@ obj KEDAAutoscaler(Autoscaler) {
         logger: (Logger | None) = None,
         _capabilities_cache: dict[str, any] = {};
 
-    static has _preflight_cache: dict[str, any] = {},
-        _http_preflight_cache: dict[str, any] = {};
+    static has _preflight_cache: dict[str, any] = {};
 
     def _get_cluster_key -> str;
     def _trigger_key(trigger: Trigger, trigger_index: int) -> str;
@@ -51,7 +54,6 @@ obj KEDAAutoscaler(Autoscaler) {
     def destroy_collection(
         namespace: str, label_selector: str, best_effort: bool = False
     ) -> None;
-
 
     def resource_name_for(target: str) -> str;
     def _validate_http_activation_spec(spec: HTTPActivationSpec) -> None;

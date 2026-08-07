@@ -57,6 +57,13 @@ impl KEDAAutoscaler.preflight{
             KEDAAutoscaler._preflight_cache[cluster_key] = False;
             return install_warning;
         }
+        if e.status == 403 {
+            return [
+                "Permission denied (403) discovering KEDA core "
+                "(keda.sh/v1alpha1 ScaledObject). Grant RBAC list/get on "
+                "this resource to the jac-scale service account."
+            ];
+        }
         raise;
     }
 }
@@ -366,33 +373,22 @@ impl KEDAAutoscaler.http_scaled_object_name_for{
 impl KEDAAutoscaler.apply_http_activation{
     self._validate_http_activation_spec(spec);
 
-    cluster_key = self._get_cluster_key();
-    api = self._custom_api or client.CustomObjectsApi();
-    if cluster_key not in KEDAAutoscaler._http_preflight_cache {
-        try {
-            api.list_cluster_custom_object(
-                group="http.keda.sh", version="v1beta1", plural="interceptorroutes"
-            );
-            KEDAAutoscaler._http_preflight_cache[cluster_key] = True;
-        } except ApiException as e {
-            if e.status in [404, 422] {
-                KEDAAutoscaler._http_preflight_cache[cluster_key] = False;
-            } else {
-                raise;
-            }
-        }
+    caps = self.discover_capabilities();
+    if caps.errors {
+        raise ValueError(
+            "KEDA HTTP Add-on capability check failed:\n" + "\n".join(caps.errors)
+        );
     }
-    if not KEDAAutoscaler._http_preflight_cache[cluster_key] {
+    if not caps.core_available or not caps.http_addon_available {
         if self.logger {
-            self.logger.warn(
-                "KEDA HTTP Add-on CRDs not found on cluster. Install the HTTP "
-                "Add-on from the official docs, then redeploy: "
-                "https://keda.sh/docs/latest/deploy/#http-add-on"
-            );
+            for warning in caps.warnings {
+                self.logger.warn(warning);
+            }
         }
         return False;
     }
 
+    api = self._custom_api or client.CustomObjectsApi();
     apps_api = self._apps_api or client.AppsV1Api();
     core_api = self._core_api or client.CoreV1Api();
 
