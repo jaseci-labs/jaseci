@@ -783,6 +783,18 @@ jobs:
     - name: Set up jac (dev lane)
       uses: ./.github/actions/setup-jac-dev
 
+    - name: Set up Zig 0.16.0 (vendor the wasm floor)
+      uses: mlugg/setup-zig@v2
+      with:
+        version: 0.16.0
+        use-cache: false
+
+    - name: Vendor wasm libc floor
+      working-directory: jac
+      # On a host-cache hit no zig build runs, so the na->wasm floor that
+      # test_wasm_build exercises must be materialized explicitly.
+      run: zig build -Dno-ninja vendor-wasm-libc --summary all
+
     - name: Run native Mach-O linker regression tests
       run: |
         jac test jac/tests/compiler/passes/native/test_shared_lib.jac
@@ -839,6 +851,12 @@ jobs:
 
     - name: Set up jac (dev lane)
       uses: ./.github/actions/setup-jac-dev
+
+    - name: Set up Zig 0.16.0 (vendor cross musl)
+      uses: mlugg/setup-zig@v2
+      with:
+        version: 0.16.0
+        use-cache: false
 
     - name: Vendor cross musl (aarch64)
       working-directory: jac
