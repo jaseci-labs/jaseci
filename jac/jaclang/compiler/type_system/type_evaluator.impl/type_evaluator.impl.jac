@@ -3484,6 +3484,12 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
         raise FileNotFoundError(f"Stub file not found at {path}");
     }
 
+    resolved_path = str(Path(path).resolve());
+    memoized = _stub_module_memo.get(resolved_path);
+    if memoized is not None and memoized[0] == os.path.getmtime(path) {
+        return memoized[1];
+    }
+
     use_str: (str | None) = None;
     if path.endswith("builtins.pyi") {
         file_content = read_file_with_encoding(path);
@@ -3507,6 +3513,7 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
     if mod.parent_scope is None and mod is not self.builtins_module {
         mod.parent_scope = self.builtins_module;
     }
+    _stub_module_memo[resolved_path] = (os.path.getmtime(path), mod);
     return mod;
 }
 
