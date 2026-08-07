@@ -202,6 +202,16 @@ test "typed disconnect" {
     assert "after F disconnect: 0" in lines[3];
 }
 
+test "undirected disconnect" {
+    output = run_jac(os.path.join(FIXTURES, "disconn_undir.jac"));
+    lines = output.split("\n");
+    assert "before: 1 1" in lines[0];
+    assert "after: 0 0" in lines[1];
+    assert "re: 1" in lines[2];
+    assert "final: 0 0" in lines[3];
+    assert "redel: False" in lines[4];
+}
+
 test "simple archs" {
     output = run_jac(os.path.join(FIXTURES, "simple_archs.jac"));
     assert output.split("\n")[0] == "1 2 0";

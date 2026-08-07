@@ -1474,6 +1474,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Client pathway does not yet support {kind}",
          help="This Jac construct is supported on the server/Python pathway but has no ES lowering yet; previously it was dropped silently from the client bundle, which produced wrong behavior at runtime. Move the element to a server context (or restructure without the construct)."
      ),
+     E5097 = _err(
+         "E5097",
+         Category.CODEGEN,
+         "Client pathway failed to lower {kind} in an expression position",
+         help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the client bundle and only misbehave at runtime in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
+     ),
      E5094 = _err(
          "E5094",
          Category.CODEGEN,
