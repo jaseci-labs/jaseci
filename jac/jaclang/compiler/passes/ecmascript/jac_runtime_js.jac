@@ -1550,62 +1550,53 @@ def build_jac_runtime_js -> str {
 
 glob _OSP_CORE_JS_CACHE: list[str] = [];
 
+glob _OSP_CORE_PARTS: list[str] = ["osp_kernel.jac", "osp_graph.jac"];
+
 def build_osp_core_js -> str {
     if _OSP_CORE_JS_CACHE {
         return _OSP_CORE_JS_CACHE[0];
     }
-    import os;
-    import shutil;
-    import tempfile;
-    import jaclang;
+    import from jaclang.jac0core.kernel_units {
+        es_pass_fingerprint,
+        load_unit_artifact,
+        osp_core_unit_path,
+        store_unit_artifact
+    }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
     import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
     import from jaclang.compiler.passes.ecmascript { estree as es }
-    _core_dir = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
-    with open(os.path.join(_core_dir, "osp_kernel.jac"), "r") as _kf {
-        _ktext = _kf.read();
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    fp = es_pass_fingerprint();
+    cached = load_unit_artifact("osp_core_cl", _OSP_CORE_PARTS, "mjs", fp);
+    if cached is not None {
+        _OSP_CORE_JS_CACHE.append(cached);
+        return cached;
     }
-    with open(os.path.join(_core_dir, "osp_graph.jac"), "r") as _gf {
-        _gtext = _gf.read();
-    }
-
-    tmp_dir = tempfile.mkdtemp();
-    cl_copy = os.path.join(tmp_dir, "osp_core_cl.jac");
-    with open(cl_copy, "w") as _out {
-        _out.write(_ktext + "\n\n" + _gtext);
-    }
-    js = "";
-    try {
-        import from jaclang.jac0core.compile_options { CompileOptions }
-        prog = JacProgram();
-
-        ir = prog.compile(
-            file_path=cl_copy,
-            options=CompileOptions(
-                force_codespace='client', no_cgen=True, type_check=True
-            )
-        );
-        program = EsastGenPass(ir_in=ir, prog=prog).ir_out.gen.es_ast;
-        kept: list = [];
-        if isinstance(program, es.Program) {
-            for stmt in program.body {
-                is_jac_rt = (
-                    isinstance(stmt, es.VariableDeclaration)
-                    and stmt.declarations
-                    and isinstance(stmt.declarations[0].id, es.Identifier)
-                    and (stmt.declarations[0].id.name == "_jac")
-                );
-                if is_jac_rt or isinstance(stmt, es.ExportNamedDeclaration) {
-                    continue;
-                }
-                kept.append(stmt);
+    cl_copy = osp_core_unit_path('cl');
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=cl_copy,
+        options=CompileOptions(force_codespace='client', no_cgen=True, type_check=True)
+    );
+    program = EsastGenPass(ir_in=ir, prog=prog).ir_out.gen.es_ast;
+    kept: list = [];
+    if isinstance(program, es.Program) {
+        for stmt in program.body {
+            is_jac_rt = (
+                isinstance(stmt, es.VariableDeclaration)
+                and stmt.declarations
+                and isinstance(stmt.declarations[0].id, es.Identifier)
+                and (stmt.declarations[0].id.name == "_jac")
+            );
+            if is_jac_rt or isinstance(stmt, es.ExportNamedDeclaration) {
+                continue;
             }
+            kept.append(stmt);
         }
-        js = es_to_js(es.Program(body=kept));
-    } finally {
-        shutil.rmtree(tmp_dir, ignore_errors=True);
     }
+    js = es_to_js(es.Program(body=kept));
+    store_unit_artifact("osp_core_cl", _OSP_CORE_PARTS, "mjs", fp, js);
     _OSP_CORE_JS_CACHE.append(js);
     return js;
 }
