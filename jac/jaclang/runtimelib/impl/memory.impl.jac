@@ -2439,6 +2439,10 @@ impl TieredMemory.abort -> None {
             }
         }
         if dirty {
+            if isinstance(anchor, EdgeAnchor) {
+                import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
+                sv_forget_edge(anchor);
+            }
             self.__mem__.pop(id, None);
             if self.l2 {
                 self.l2.invalidate(id);

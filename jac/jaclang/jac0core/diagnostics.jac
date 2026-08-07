@@ -371,6 +371,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="Add the key to the TypedDict definition, or index with a key "
          "declared on the type."
      ),
+     E1044 = _err(
+         "E1044",
+         Category.TYPE,
+         "Cast target is not a type: \"{type}\"",
+         help="The right-hand side of 'as' must be a type expression, e.g. "
+         "'int', 'list[int]', or 'int | None'."
+     ),
      E1050 = _err(
          "E1050",
          Category.TYPE,
@@ -1461,6 +1468,18 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Native lowering failed for {kind} '{name}'",
          help="The construct is within the native capability set, but this specific shape (its types, values, or runtime bindings) could not be lowered by NaIRGenPass. Adjust the shape, add type annotations, or move the code to a non-native context. Statically-known unsupported constructs are reported as E5090 by the capability check instead."
      ),
+     E5096 = _err(
+         "E5096",
+         Category.CODEGEN,
+         "Client pathway does not yet support {kind}",
+         help="This Jac construct is supported on the server/Python pathway but has no ES lowering yet; previously it was dropped silently from the client bundle, which produced wrong behavior at runtime. Move the element to a server context (or restructure without the construct)."
+     ),
+     E5097 = _err(
+         "E5097",
+         Category.CODEGEN,
+         "Client pathway failed to lower {kind} in an expression position",
+         help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the client bundle and only misbehave at runtime in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
+     ),
      E5094 = _err(
          "E5094",
          Category.CODEGEN,
@@ -1501,6 +1520,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client code imports '{name}' from '{module}', but '{name}' has no client-side presence",
          help="A plain import into client code can only reference client declarations; server `def:pub` endpoints bridge automatically over RPC. Make '{name}' a `def:pub` endpoint, mark it (or its module) client, or move it into client code."
+     ),
+     E5085 = _err(
+         "E5085",
+         Category.CODEGEN,
+         "Internal client codegen error: declaration(s) for {names} hoisted into scope '{scope}' were never emitted",
+         help="Client codegen queued a `let` for these variables in the scope that owns their symbols, but the scope's body was built without draining the queue, so the declarations would be silently dropped and their assignments would emit bare -- a strict-mode ReferenceError at runtime. Every body builder for a scope must drain pending hoists (see _prepend_hoisted / _build_block_statement) before the scope is popped. Please report this as a jac compiler bug."
      ),
      E5084 = _err(
          "E5084",

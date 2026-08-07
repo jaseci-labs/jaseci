@@ -98,7 +98,9 @@ def prepare_inprocess_runtime(
         }
         Jac.jac_import(target=mod, base_path=base, lng="jac");
 
-        server = JacAPIServer(module_name=mod, port=0, base_path=base_path);
+        server = JacAPIServer(
+            module_name=mod, port=0, base_path=base_path, module_file=jac_file
+        );
         server.load_module();
 
         _register_endpoint_profile(server, endpoint_profile);

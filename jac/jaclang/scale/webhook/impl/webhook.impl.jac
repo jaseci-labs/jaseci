@@ -73,10 +73,16 @@ impl WebhookUtils.extract_signature(header_value: str) -> str {
 
 impl ApiKeyManager.postinit -> None {
     if self._db is not None {
-        try {
-            self._ensure_indexes();
-        } except Exception as e {
-            logger.warning(f"webhook_api_keys index setup skipped: {e}");
+        if mongo_recently_down() {
+            logger.warning(
+                "webhook_api_keys index setup skipped: MongoDB recently unreachable"
+            );
+        } else {
+            try {
+                self._ensure_indexes();
+            } except Exception as e {
+                logger.warning(f"webhook_api_keys index setup skipped: {e}");
+            }
         }
     } else {
         logger.warning(
