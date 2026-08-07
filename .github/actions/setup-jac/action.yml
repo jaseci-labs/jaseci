@@ -12,6 +12,17 @@ description: >
   a miss). Exact-key match only (no restore-keys), so a stale binary can never
   be served -- which is why this is safe even though zig's own incremental cache
   stays disabled (it doesn't reliably invalidate on a jaclang/payload change).
+inputs:
+  ninja:
+    description: >
+      Fuse the neovim editor closure into the binary. The closure's Lua
+      dependency is fetched from lua.org on a cold package store -- the
+      flakiest fetch in the whole build -- and test workloads never open the
+      editor, so dev-lane fallbacks pass "false" to skip it entirely. A
+      no-ninja binary is never saved to the shared jac-bin cache (release
+      flows restore that key and must get the fused editor).
+    required: false
+    default: "true"
 runs:
   using: composite
   steps:
@@ -198,7 +209,11 @@ runs:
           cp jaclang/compiler/passes/native/llvm/libjacllvm.* .shim-build/
           SHIM_ARG=(-Dshim-bin=".shim-build/$(ls .shim-build | head -1)")
         fi
-        zig build "${SHIM_ARG[@]}" --summary all
+        NINJA_ARG=()
+        if [ "${{ inputs.ninja }}" != "true" ]; then
+          NINJA_ARG=(-Dno-ninja)
+        fi
+        zig build "${NINJA_ARG[@]}" "${SHIM_ARG[@]}" --summary all
 
     # Seed the shared binary cache from main only (see the note by the restore
     # step). Saved after the build so both the binary and the materialized
@@ -206,7 +221,8 @@ runs:
     - name: Save jac binary cache (main only)
       if: >-
         github.ref == 'refs/heads/main' &&
-        steps.cache.outputs.cache-hit != 'true'
+        steps.cache.outputs.cache-hit != 'true' &&
+        inputs.ninja == 'true'
       uses: actions/cache/save@v4
       with:
         path: |

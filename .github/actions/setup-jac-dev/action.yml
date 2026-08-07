@@ -65,10 +65,14 @@ runs:
       run: echo "XDG_CACHE_HOME=$GITHUB_WORKSPACE/.jac-xdg" >> "$GITHUB_ENV"
 
     # Rare path (launcher/build/native-pin PRs): full sealed build, the same
-    # cost every job paid before the dev lane existed.
+    # cost every job paid before the dev lane existed -- minus the neovim
+    # editor closure (ninja: false), which tests never open and whose Lua
+    # dependency rides the flakiest fetch in the build (lua.org).
     - name: Fall back to the full sealed setup
       if: steps.hostbin.outputs.cache-hit != 'true' || steps.shim.outputs.cache-hit != 'true'
       uses: ./.github/actions/setup-jac
+      with:
+        ninja: "false"
 
     # Seed/refresh the host entry after a fallback build. Saved from every
     # branch: the key only moves on launcher/build/native changes, so churn is
