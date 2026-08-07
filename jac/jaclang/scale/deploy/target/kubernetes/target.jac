@@ -1119,7 +1119,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
                     scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
                     scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
-                    triggers=triggers
+                    triggers=triggers,
+                    behavior_overlay=cfg.get("behavior", {})
                 )
             );
 
