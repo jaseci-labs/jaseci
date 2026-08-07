@@ -80,7 +80,7 @@ jobs:
       - name: "browse: rendered page mentions Jac"
         run: |
           for i in $(seq 1 30); do
-            text="$(jac browse get text || true)"
+            text="$(jac browse get text body || true)"
             if printf '%s' "$text" | grep -qi 'jac'; then
               echo "found 'jac' in rendered page text"
               exit 0
