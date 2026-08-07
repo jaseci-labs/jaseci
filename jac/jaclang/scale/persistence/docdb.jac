@@ -8,6 +8,7 @@ $set/$inc updates, skip/limit cursors — one jac_docs table, no Mongo.
 import json;
 import logging;
 import from typing { Any }
+import from jaclang.scale.persistence.pg { shared_store }
 
 glob logger = logging.getLogger(__name__),
      _DOCS_SCHEMA = """
@@ -174,7 +175,6 @@ obj PgDocDb {
 # Shared-store document db, or None when no database is reachable.
 def open_doc_db -> (PgDocDb | None) {
     try {
-        import from jaclang.scale.persistence.pg { shared_store }
         store = shared_store();
         return PgDocDb(store=store) if store is not None else None;
     } except Exception as e {

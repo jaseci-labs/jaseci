@@ -23,6 +23,7 @@ import from typing { Any }
 import from uuid { UUID }
 
 import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
+import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.podcache { PodCache, INVALIDATION_CHANNEL }
 import from jaclang.runtimelib.store { AnchorRow, ConnInfo, PgStore, Store }
 

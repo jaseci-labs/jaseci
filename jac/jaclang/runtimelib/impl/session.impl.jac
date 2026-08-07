@@ -108,7 +108,6 @@ impl Session.postinit -> None {
                 logger.debug(f"cache invalidation listener skipped: {e}");
             }
         } else {
-            import from jaclang.runtimelib.pgembed { PgRuntime }
             rt = PgRuntime(data_dir=_pg_data_dir(self.base_path, self.target_path));
             self._runtime = rt;
             pgs = PgStore(conninfo=rt.ensure());

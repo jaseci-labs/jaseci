@@ -8,6 +8,10 @@ import from uuid { UUID }
 import from jaclang.jac0core.archetype { NodeAnchor, PermissionDenied, Root }
 import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.runtimelib.session { Session }
+# Static-reachability anchor: the sealed importer only ships bytecode for
+# modules in the module-level import closure; these are imported lazily at
+# runtime and must be pulled into the closure here.
+import from jaclang.runtimelib.query_planner { resolve_query as _rq_anchor }
 
 glob __all__ = ['ExecutionContext'],
      logger = getLogger(__name__);

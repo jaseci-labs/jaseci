@@ -34,13 +34,13 @@ def scale_db_url -> (str | None) {
 }
 
 
+# One autocommit PgStore per process, or None when no db is reachable.
 def shared_store -> (Any | None) {
-    """One autocommit PgStore per process, or None when no db is reachable."""
     with _lock {
         if 'store' in _holder {
             return _holder['store'];
         }
-        store: Any = None;
+        store: (Any | None) = None;
         try {
             import from jaclang.runtimelib.session { conninfo_from_url }
             import from jaclang.runtimelib.store { PgStore }
@@ -70,7 +70,8 @@ def shared_store -> (Any | None) {
             }
         } except Exception as e {
             logger.warning(f"scale shared store unavailable: {e}");
-            store = None;
+            _holder['store'] = None;
+            return None;
         }
         _holder['store'] = store;
         return store;

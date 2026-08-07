@@ -133,7 +133,20 @@ impl PgStore._run(sql: str, params: dict) -> list {
     # pg8000 connections are not thread-safe; side services share stores.
     with self._lock {
         conn: Any = self._main();
-        return conn.run(sql, **params) or [];
+        try {
+            return conn.run(sql, **params) or [];
+        } except Exception {
+            # A failed statement poisons an open transaction (25P02 on every
+            # later command). Roll back so the session recovers, then let
+            # the original error surface.
+            if self._in_txn {
+                try {
+                    conn.run('ROLLBACK');
+                } except Exception {}
+                self._in_txn = False;
+            }
+            raise;
+        }
     }
 }
 

@@ -15,7 +15,6 @@ impl _origin_anchors(q: GraphQuery) -> list[Anchor] {
 impl _sql_pairs(
     mem: Session, origin_ids: list[UUID], q: GraphQuery, upto: int
 ) -> list[tuple[(UUID | None), (UUID | None)]] {
-    import from jaclang.runtimelib.sqlcompile { compile_query }
     store = mem.store;
     if store is None or not origin_ids {
         return [];

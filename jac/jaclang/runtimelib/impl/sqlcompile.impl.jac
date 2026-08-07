@@ -42,6 +42,22 @@ def _type_cond(alias: str, tname: str, params: dict, pfx: str) -> str {
 }
 
 
+def _sql_type_of(v: any) -> str {
+    # to_jsonb is polymorphic; wire params arrive untyped, so every value
+    # gets an explicit cast matched to its Python type.
+    if isinstance(v, bool) {
+        return 'boolean';
+    }
+    if isinstance(v, int) {
+        return 'bigint';
+    }
+    if isinstance(v, float) {
+        return 'float8';
+    }
+    return 'text';
+}
+
+
 def _pred_cond(alias: str, p: QPred, params: dict, pfx: str) -> (str | None) {
     if not _ident_ok(p.field) or not _pushable_value(p.value) {
         return None;
@@ -53,16 +69,25 @@ def _pred_cond(alias: str, p: QPred, params: dict, pfx: str) -> (str | None) {
         for (i, v) in enumerate(vals) {
             key = f"{pfx}v{i}";
             params[key] = _scalar(v);
-            parts.append(f"to_jsonb(:{key})");
+            parts.append(f"to_jsonb(CAST(:{key} AS {_sql_type_of(v)}))");
         }
         if not parts {
             return 'FALSE';
         }
         return f"{expr} IN ({', '.join(parts)})";
     }
+    if p.value is None {
+        if p.op == '==' {
+            return f"{expr} = 'null'::jsonb";
+        }
+        if p.op == '!=' {
+            return f"({expr} IS NULL OR {expr} <> 'null'::jsonb)";
+        }
+        return 'FALSE';
+    }
     key = f"{pfx}v";
     params[key] = _scalar(p.value);
-    rhs = f"to_jsonb(:{key})";
+    rhs = f"to_jsonb(CAST(:{key} AS {_sql_type_of(p.value)}))";
     if p.op == '==' {
         return f"{expr} = {rhs}";
     }

@@ -18,6 +18,7 @@ import from uuid { UUID }
 import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor }
 import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
 import from jaclang.runtimelib.session { Session }
+import from jaclang.runtimelib.sqlcompile { compile_query }
 
 glob logger = logging.getLogger(__name__),
      __all__ = ['resolve_query', 'resolve_query_edges', 'resolve_query_prefix'];
