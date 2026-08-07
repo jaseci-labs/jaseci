@@ -128,3 +128,29 @@ test "memory triggers are seeded or skipped based on the resolved request" {
     ];
     assert gw_types == ["cpu"];
 }
+
+test "hpa.behavior works for the gateway via the __gateway__ service key" {
+    b = _builder(
+        {GATEWAY_NAME: {"hpa": {"behavior": {"scaleDown": {"selectPolicy": "Min"}}}}}
+    );
+    assert b._get_autoscaler_config(GATEWAY_NAME)["behavior"]
+        == {"scaleDown": {"selectPolicy": "Min"}};
+}
+
+test "malformed hpa.behavior warns and falls back to the empty fragment" {
+    import unittest.mock;
+
+    logger = unittest.mock.MagicMock();
+    b = ManifestBuilder(
+        k8s_config=KubernetesConfig(app_name="t", namespace="t-ns"),
+        microservices_config={
+            "services": {"billing_ops": {"hpa": {"behavior": "gentle"}}}
+        },
+        dry_run=True,
+        logger=logger
+    );
+    cfg = b._get_autoscaler_config("billing_ops");
+    assert cfg["behavior"] == {};
+    logger.warning.assert_called_once();
+    assert "billing_ops" in logger.warning.call_args[0][0];
+}

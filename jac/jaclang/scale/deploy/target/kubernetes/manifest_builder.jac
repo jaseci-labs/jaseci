@@ -812,6 +812,15 @@ obj ManifestBuilder {
             }
         }
         behavior = hpa.get("behavior", {});
+        if not isinstance(behavior, dict) {
+            if self.logger {
+                self.logger.warning(
+                    f"Ignoring malformed hpa.behavior for '{svc_name}': expected "
+                    f"a table, got {type(behavior).__name__}"
+                );
+            }
+            behavior = {};
+        }
         return {
             "min": int(hpa.get("min", 1)),
             "max": int(hpa.get("max", 3)),
@@ -823,7 +832,7 @@ obj ManifestBuilder {
                 self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)
             ),
             "triggers": raw_triggers,
-            "behavior": dict(behavior) if isinstance(behavior, dict) else {}
+            "behavior": dict(behavior)
         };
     }
 
