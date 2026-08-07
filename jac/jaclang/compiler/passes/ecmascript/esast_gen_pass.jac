@@ -17,6 +17,7 @@ import from jaclang.compiler.passes.ecmascript.scoped_styles {
 import from jaclang.compiler.passes.ecmascript.framework_backend { FrameworkBackend }
 import from jaclang.jac0core.modresolver {
     convert_to_js_import_path,
+    relative_js_specifier,
     resolve_relative_path
 }
 import from jaclang.jac0core.diagnostics {
@@ -31,7 +32,8 @@ import from jaclang.jac0core.diagnostics {
     W5014,
     W5015,
     E5080,
-    E5081
+    E5081,
+    E5085
 }
 
 glob _T = TypeVar('_T', bound=es.Node),
@@ -189,11 +191,17 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         _view_used_base: bool = False,
         _view_acc_counter: int = 0,
         _view_awaiting_tries: set[int] = set(),
+        _view_dynamic_accs: set[str] = set(),
+        _view_acc_next: dict[(str, int)] = {},
+        _view_acc_high: dict[(str, int)] = {},
+        _view_branch_base: dict[(int, int)] = {},
+        _view_slot_loops: set[int] = set(),
         sv_import_stubs: list[es.Statement] = [],
         na_import_stubs: list[es.Statement] = [],
         needs_jac_runtime: bool = False,
         needs_osp_kernel: bool = False,
         needs_osp_graph: bool = False,
+        _unlowered_reported: set = set(),
         _osp_var_arch_cache: (dict | None) = None,
         _primitive_emitters: (dict[str, object] | None) = None,
         _builtin_emitter: (object | None) = None,
@@ -257,18 +265,37 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     ) -> es.VariableDeclaration;
 
     def _emit_osp_slot_method(nd: uni.Ability, osp: dict) -> None;
+    def _build_osp_tags_js -> str;
     def _build_osp_setup_js -> str;
     def _osp_slots_js(slots: list, tags: dict) -> str;
     def _osp_arch_kinds -> dict[str, str];
     def _osp_arch_set -> set[str];
     def _osp_var_arch -> dict[str, str];
+    def _osp_expr_arch_name(expr: (uni.UniNode | None)) -> (str | None);
+    def _arch_kind_by_name(name: str) -> (str | None);
+    def _arch_kind_of_type(ty: object) -> (str | None);
+    def _expr_class_type(expr: (uni.UniNode | None)) -> (object | None);
+    def _osp_expr_arch_kind(expr: (uni.UniNode | None)) -> (str | None);
     def _spawn_walker_arch(expr: uni.Expr) -> (str | None);
     def _spawn_target_is_local_node(expr: uni.Expr) -> bool;
     def _build_osp_graph_call(
         nd: uni.BinaryExpr, left: es.Expression, right: es.Expression
     ) -> (es.Expression | None);
 
-    def _build_edge_ref(nd: uni.EdgeRefTrailer) -> (es.Expression | None);
+    def _build_osp_disconnect_call(
+        nd: uni.BinaryExpr, left: es.Expression, right: es.Expression
+    ) -> es.Expression;
+
+    def _build_edge_ref(nd: uni.EdgeRefTrailer) -> es.Expression;
+    def _build_osp_filter_pred(
+        nd: uni.UniNode, filt: uni.FilterCompr
+    ) -> (es.Expression | None);
+
+    def _edge_tag_literal(
+        nd: uni.UniNode, type_expr: (uni.UniNode | None), hard: bool
+    ) -> int;
+
+    def _is_client_destined(nd: uni.UniNode) -> bool;
     def _build_local_osp_spawn(
         nd: uni.BinaryExpr, left: es.Expression, right: es.Expression
     ) -> (es.Expression | None);
@@ -343,15 +370,40 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     ) -> es.ExpressionStatement;
 
     def _jsx_fragment(
-        children: list[es.Expression], anchor: uni.UniNode
+        children: es.Expression, anchor: uni.UniNode
     ) -> es.CallExpression;
 
+    def _view_alloc_index(acc_name: str) -> int;
+    def _view_assign_stmt(
+        acc_name: str, index: int, value: es.Expression, anchor: uni.UniNode
+    ) -> es.ExpressionStatement;
+
+    def _view_emit_child(
+        acc_name: str, value: es.Expression, anchor: uni.UniNode
+    ) -> es.ExpressionStatement;
+
+    def _view_open_loop_acc(nd: uni.UniNode) -> None;
+    def _view_loop_stmt(nd: uni.UniNode, loop_stmt: es.Statement) -> es.Statement;
+    def _view_chain_open(nd: uni.UniNode) -> None;
+    def _view_chain_arm(nd: uni.UniNode) -> None;
+    def _view_chain_close(nd: uni.UniNode) -> None;
+    def enter_if_stmt(nd: uni.IfStmt) -> None;
+    def enter_else_if(nd: uni.ElseIf) -> None;
+    def enter_else_stmt(nd: uni.ElseStmt) -> None;
+    def enter_in_for_stmt(nd: uni.InForStmt) -> None;
+    def enter_iter_for_stmt(nd: uni.IterForStmt) -> None;
+    def enter_while_stmt(nd: uni.WhileStmt) -> None;
+    def enter_forever_stmt(nd: uni.ForeverStmt) -> None;
     def _view_fragment_return(
         acc_name: str, anchor: uni.UniNode
     ) -> es.ReturnStatement;
 
     def _build_view_iife(
         body_nodes: (Sequence[uni.UniNode] | None), acc_name: str, anchor: uni.UniNode
+    ) -> es.CallExpression;
+
+    def _view_iife_from_stmts(
+        stmts: list[es.Statement], acc_name: str, anchor: uni.UniNode
     ) -> es.CallExpression;
 
     def exit_if_stmt(nd: uni.IfStmt) -> None;
@@ -372,6 +424,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_expr_stmt(nd: uni.ExprStmt) -> None;
     def exit_switch_stmt(nd: uni.SwitchStmt) -> None;
     def exit_switch_case(nd: uni.SwitchCase) -> None;
+    def exit_delete_stmt(nd: uni.DeleteStmt) -> None;
     def exit_match_stmt(nd: uni.MatchStmt) -> None;
     def _lower_match_pattern(
         pat: uni.MatchPattern, subj: es.Expression
@@ -392,6 +445,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
 
     def _expr_type_name(expr_node: uni.UniNode) -> str;
     def _is_collection_expr(expr_node: uni.UniNode) -> bool;
+    def _is_native_iterable_builtin_call(expr_node: uni.UniNode) -> bool;
     def _build_jac_ref(
         path: list[str], jac_node: (uni.UniNode | None)
     ) -> es.Expression;
@@ -531,6 +585,8 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_f_string(nd: uni.FString) -> None;
     def exit_if_else_expr(nd: uni.IfElseExpr) -> None;
     def exit_await_expr(nd: uni.AwaitExpr) -> None;
+    def exit_yield_expr(nd: uni.YieldExpr) -> None;
+    def _ability_is_generator(nd: uni.Ability) -> bool;
     def exit_cast_expr(nd: uni.CastExpr) -> None;
     def exit_null(nd: uni.Null) -> None;
     def exit_name(nd: uni.Name) -> None;

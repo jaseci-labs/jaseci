@@ -3,7 +3,7 @@ import shutil;
 import from fastapi { WebSocket }
 
 
-def _install_ws_catchall(gw: object) {
+def _install_ws_catchall(gw: MicroserviceGateway) {
     import from jaclang.scale.runtime.middleware.ws_forward { websocket_forward }
     import from jaclang.scale.runtime.lifecycle.drain { is_draining }
     import from jaclang.scale.runtime.gateway.service_registry { ServiceStatus }
@@ -16,6 +16,10 @@ def _install_ws_catchall(gw: object) {
         }
         full_path: str = "/" + ws_path;
         matched = gw.registry.match_route(full_path);
+        if not matched {
+            await gw.refresh_app_routes();
+            matched = gw.registry.entries.get(gw.route_table.owner(full_path));
+        }
         if not matched or not matched.url {
             await websocket.accept();
             await websocket.close(code=1008);
@@ -26,7 +30,10 @@ def _install_ws_catchall(gw: object) {
             await websocket.close(code=1013);
             return;
         }
-        remaining: str = full_path[len(matched.prefix):] or "/";
+        remaining: str = full_path[len(matched.prefix):]
+            if full_path.startswith(matched.prefix)
+            else full_path;
+        remaining = remaining or "/";
         query: str = str(websocket.url.query);
         target_http: str = f"{matched.url}{remaining}";
         if query {
@@ -39,13 +46,17 @@ def _install_ws_catchall(gw: object) {
     }
 }
 
-impl MicroserviceGateway.resolve_target_url(
-    service_entry: ServiceEntry, path: str, query: str
-) -> str {
+impl MicroserviceGateway.service_base_url(service_entry: ServiceEntry) -> str {
     import jaclang;
 
     registry: dict[str, str] = jaclang.JacRuntime.get_sv_registry();
-    base_url: str = registry.get(service_entry.name, service_entry.url);
+    return registry.get(service_entry.name, service_entry.url);
+}
+
+impl MicroserviceGateway.resolve_target_url(
+    service_entry: ServiceEntry, path: str, query: str
+) -> str {
+    base_url: str = self.service_base_url(service_entry);
 
     remaining: str = path[len(service_entry.prefix):];
     if not remaining {
@@ -415,24 +426,19 @@ impl MicroserviceGateway.handle_admin(path: str) -> Response | None {
     return None;
 }
 
-impl MicroserviceGateway.handle_proxy(request: Request, path: str) -> Response | None {
-    svc = self.registry.match_route(path);
-    if not svc {
-        return None;
-    }
-
+impl MicroserviceGateway.forward_to(
+    request: Request, service_entry: ServiceEntry, target_url: str
+) -> Response | None {
     import from jaclang.scale.runtime.context.errors {
         service_unavailable,
         gateway_timeout
     }
     import from jaclang.scale.runtime.transport.http_forward { stream_forward }
+    import from jaclang.scale.runtime.context.util { http_forward_timeout }
 
-    if svc.status not in (ServiceStatus.HEALTHY, ServiceStatus.STARTING) {
-        return service_unavailable(svc.name, svc.status.value);
+    if service_entry.status not in (ServiceStatus.HEALTHY, ServiceStatus.STARTING) {
+        return service_unavailable(service_entry.name, service_entry.status.value);
     }
-
-    target_url = self.resolve_target_url(svc, path, str(request.url.query));
-    logger.info(f"Proxy: {request.method} {path} -> {target_url}");
 
     fwd_headers = self.build_forward_headers(request);
     client_addr: str = getattr(request?.client, "host", "unknown");
@@ -440,15 +446,75 @@ impl MicroserviceGateway.handle_proxy(request: Request, path: str) -> Response |
 
     body: bytes = await request.body();
 
-    import from jaclang.scale.runtime.context.util { http_forward_timeout }
-    timeout = http_forward_timeout(svc.name);
+    timeout = http_forward_timeout(service_entry.name);
     fr = await stream_forward(
         request.method, target_url, fwd_headers, body, timeout=int(timeout)
     );
     if fr is None {
-        return gateway_timeout(svc.name);
+        return gateway_timeout(service_entry.name);
     }
     return fr.to_response();
+}
+
+impl MicroserviceGateway.handle_proxy(request: Request, path: str) -> Response | None {
+    svc = self.registry.match_route(path);
+    if not svc {
+        return None;
+    }
+    target_url = self.resolve_target_url(svc, path, str(request.url.query));
+    logger.info(f"Proxy: {request.method} {path} -> {target_url}");
+    return await self.forward_to(request, svc, target_url);
+}
+
+impl MicroserviceGateway.refresh_app_routes -> bool {
+    import time;
+    import from jaclang.scale.runtime.gateway.route_table { learn_service_routes }
+    import from jaclang.scale.runtime.context.util { route_refresh_seconds }
+
+    now: float = time.monotonic();
+    if self._routes_refreshed_at
+        and now - self._routes_refreshed_at < route_refresh_seconds() {
+        return False;
+    }
+
+    self._routes_refreshed_at = now;
+    learned: int = await learn_service_routes(self.registry, self.route_table);
+    if learned {
+        logger.info(
+            f"Learned {len(self.route_table.prefixes())} root route(s) "
+            f"from {learned} service(s)"
+        );
+    }
+    return True;
+}
+
+impl MicroserviceGateway.handle_app_route(
+    request: Request, path: str
+) -> Response | None {
+    svc_name: str = self.route_table.owner(path);
+    if not svc_name {
+        if not await self.refresh_app_routes() {
+            return None;
+        }
+        svc_name = self.route_table.owner(path);
+        if not svc_name {
+            return None;
+        }
+    }
+
+    svc = self.registry.entries.get(svc_name);
+    if svc is None {
+        self.route_table.forget(svc_name);
+        return None;
+    }
+
+    query: str = str(request.url.query);
+    target_url: str = f"{self.service_base_url(svc)}{path}";
+    if query {
+        target_url = f"{target_url}?{query}";
+    }
+    logger.info(f"App route: {request.method} {path} -> {target_url}");
+    return await self.forward_to(request, svc, target_url);
 }
 
 impl MicroserviceGateway.handle_openapi -> Response {
@@ -484,50 +550,51 @@ impl MicroserviceGateway.handle_static(request: Request, path: str) -> Response 
     }
 
     file_path: str = path.lstrip("/");
-    if file_path {
-        mount_matched = False;
-        for mount in self.static_mounts {
-            prefix = str(mount.get("url_prefix", "")).lstrip("/").rstrip("/");
-            if not prefix {
-                continue;
-            }
-            if file_path == prefix {
-                continue;
-            }
-            if file_path.startswith(prefix + "/") {
-                mount_matched = True;
-                sub_path = file_path[len(prefix) + 1:];
-                local_dir = str(mount.get("local_path", ""));
-                mounted_resp = self.serve_extra_static(local_dir, sub_path);
-                if mounted_resp {
-                    return mounted_resp;
-                }
-                break;
-            }
-        }
+    if not file_path {
+        return None;
+    }
 
-        if not mount_matched {
-            static_resp = self.serve_static(file_path);
-            if static_resp {
-                return static_resp;
-            }
+    mount_matched = False;
+    for mount in self.static_mounts {
+        prefix = str(mount.get("url_prefix", "")).lstrip("/").rstrip("/");
+        if not prefix or file_path == prefix {
+            continue;
         }
-
-        if file_path.startswith("static/") {
-            proj_resp = self.serve_project_static(file_path[len("static/"):]);
-            if proj_resp {
-                return proj_resp;
+        if file_path.startswith(prefix + "/") {
+            mount_matched = True;
+            sub_path = file_path[len(prefix) + 1:];
+            local_dir = str(mount.get("local_path", ""));
+            mounted_resp = self.serve_extra_static(local_dir, sub_path);
+            if mounted_resp {
+                return mounted_resp;
             }
-        }
-    } else {
-        index_resp = self.serve_spa_fallback();
-        if index_resp {
-            return index_resp;
+            break;
         }
     }
 
-    accept: str = request.headers.get("accept", "");
-    if "text/html" in accept {
+    if not mount_matched {
+        static_resp = self.serve_static(file_path);
+        if static_resp {
+            return static_resp;
+        }
+    }
+
+    if file_path.startswith("static/") {
+        return self.serve_project_static(file_path[len("static/"):]);
+    }
+    return None;
+}
+
+impl MicroserviceGateway.handle_spa_fallback(
+    request: Request, path: str
+) -> Response | None {
+    if request.method != "GET" {
+        return None;
+    }
+    if not path.lstrip("/") {
+        return self.serve_spa_fallback();
+    }
+    if "text/html" in request.headers.get("accept", "") {
         return self.serve_spa_fallback();
     }
     return None;
@@ -673,6 +740,20 @@ impl MicroserviceGateway.setup -> FastAPI {
                 if static_resp is not None {
                     svc_label = "__static__";
                     resp = static_resp;
+                }
+            }
+            if resp is None {
+                app_resp = await gw.handle_app_route(request, path);
+                if app_resp is not None {
+                    svc_label = gw.route_table.owner(path) or "__app_route__";
+                    resp = app_resp;
+                }
+            }
+            if resp is None {
+                spa_resp = gw.handle_spa_fallback(request, path);
+                if spa_resp is not None {
+                    svc_label = "__static__";
+                    resp = spa_resp;
                 }
             }
             if resp is None {

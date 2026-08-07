@@ -46,6 +46,7 @@ import from jaclang.jac0core.diagnostics {
     E1040,
     E1041,
     E1043,
+    E1044,
     E1050,
     E1051,
     E1052,
@@ -156,6 +157,8 @@ obj ConditionInfo {
         narrow_type: (TypeBase | None) = None,
         attr_name: str | None = None;
 }
+
+glob _stub_module_memo: dict[str, tuple[float, uni.Module]] = {};
 
 obj TypeEvaluator {
     has program: "JacProgram",

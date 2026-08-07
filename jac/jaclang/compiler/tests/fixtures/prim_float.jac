@@ -313,3 +313,137 @@ def float_na() -> dict[str, any] {
         "fromhex_1_0": float.fromhex("0x1.0p+0")
     };
 }
+
+def numparse_py() -> dict {
+    ok: float = float("1.5");
+    ws: float = float("  2.5  ");
+    expn: float = float("1e3");
+    neg: float = float("-0.25");
+    bad: int = 0;
+    try {
+        float("yo");
+    } except Exception {
+        bad = 1;
+    }
+    partial: int = 0;
+    try {
+        float("10abc");
+    } except Exception {
+        partial = 1;
+    }
+    empty: int = 0;
+    try {
+        float("");
+    } except Exception {
+        empty = 1;
+    }
+    hexish: int = 0;
+    try {
+        float("0x10");
+    } except Exception {
+        hexish = 1;
+    }
+    int_ok: int = int("42");
+    int_ws: int = int(" -7 ");
+    int_bad: int = 0;
+    try {
+        int("10abc");
+    } except Exception {
+        int_bad = 1;
+    }
+    int_floaty: int = 0;
+    try {
+        int("1.5");
+    } except Exception {
+        int_floaty = 1;
+    }
+    from_num: float = float(7);
+    from_bool: float = float(True);
+    inf_ok: bool = float("inf") > 1000000.0;
+    return {
+        "ok": ok,
+        "ws": ws,
+        "expn": expn,
+        "neg": neg,
+        "bad": bad,
+        "partial": partial,
+        "empty": empty,
+        "hexish": hexish,
+        "int_ok": int_ok,
+        "int_ws": int_ws,
+        "int_bad": int_bad,
+        "int_floaty": int_floaty,
+        "from_num": from_num,
+        "from_bool": from_bool,
+        "inf_ok": inf_ok
+    };
+}
+
+def numparse_cl() -> dict {
+    ok: float = float("1.5");
+    ws: float = float("  2.5  ");
+    expn: float = float("1e3");
+    neg: float = float("-0.25");
+    bad: int = 0;
+    try {
+        float("yo");
+    } except Exception {
+        bad = 1;
+    }
+    partial: int = 0;
+    try {
+        float("10abc");
+    } except Exception {
+        partial = 1;
+    }
+    empty: int = 0;
+    try {
+        float("");
+    } except Exception {
+        empty = 1;
+    }
+    hexish: int = 0;
+    try {
+        float("0x10");
+    } except Exception {
+        hexish = 1;
+    }
+    int_ok: int = int("42");
+    int_ws: int = int(" -7 ");
+    int_bad: int = 0;
+    try {
+        int("10abc");
+    } except Exception {
+        int_bad = 1;
+    }
+    int_floaty: int = 0;
+    try {
+        int("1.5");
+    } except Exception {
+        int_floaty = 1;
+    }
+    from_num: float = float(7);
+    from_bool: float = float(True);
+    inf_ok: bool = float("inf") > 1000000.0;
+    return {
+        "ok": ok,
+        "ws": ws,
+        "expn": expn,
+        "neg": neg,
+        "bad": bad,
+        "partial": partial,
+        "empty": empty,
+        "hexish": hexish,
+        "int_ok": int_ok,
+        "int_ws": int_ws,
+        "int_bad": int_bad,
+        "int_floaty": int_floaty,
+        "from_num": from_num,
+        "from_bool": from_bool,
+        "inf_ok": inf_ok
+    };
+}
+
+def numparse_na() -> dict {
+    return {};
+}

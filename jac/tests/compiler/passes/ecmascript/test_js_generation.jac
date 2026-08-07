@@ -236,7 +236,7 @@ test "advanced fixture emits expected constructs" {
         "async function fetch_value",
         "await fetch_value",
         "async function gather_async",
-        "function generator_examples",
+        "function* generator_examples",
         "function spread_and_rest_examples",
         "...defaults",
         "function template_literal_examples",
@@ -509,6 +509,19 @@ test "assignment inside globvar js" {
     for pattern in expected_generated_code {
         assert pattern in js_code;
     }
+}
+
+test "effect lambda local hoists its declaration into the effect body" {
+    jac_code = "def:pub app -> JsxElement {\n    has status: str = \"starting\";\n\n    can with entry {\n        setup = lambda {\n            probe = \"READY\";\n            status = probe;\n        };\n        setup();\n    }\n\n    <div>{status}</div>\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let probe;" in js_code , (
+        "a local first-assigned inside an effect lambda must keep its `let`; "
+        "a bare assignment throws ReferenceError in a strict-mode bundle"
+    );
+    assert "let setup = () => {" in js_code;
+    assert_balanced_syntax(js_code, temp_path);
 }
 
 test "hyphenated package imports generate correct js" {
@@ -2586,9 +2599,10 @@ test "builtin type used as a value lowers to a callable (#7454)" {
             + user_js
         );
     }
-    # The direct-call path must stay inline (no runtime round-trip).
-    assert "Math.trunc(Number(x))" in user_js , (
-        "direct `int(x)` must still coerce inline:\n" + user_js
+    # The direct-call path routes through the strict runtime parser so that
+    # `int("12abc")` raises ValueError like Python instead of yielding NaN.
+    assert "_jac.builtin.int(x)" in user_js , (
+        "direct `int(x)` must route through the strict runtime parser:\n" + user_js
     );
 
     wrapper = (

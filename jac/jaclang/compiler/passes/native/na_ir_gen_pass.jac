@@ -700,9 +700,20 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_disengage(nd: uni.DisengageStmt) -> None;
     def _codegen_report(nd: uni.ReportStmt) -> None;
     def _codegen_connect(nd: uni.BinaryExpr) -> (ir.Value | None);
+    def _codegen_disconnect(nd: uni.BinaryExpr) -> (ir.Value | None);
+    def _osp_disc_list_operand(expr: (uni.UniNode | None)) -> bool;
     def _codegen_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> (ir.Value | None);
     def _emit_osp_predicate_filter(
         src: ir.Value, arch_name: str, compares: list[uni.CompareExpr], nd: uni.UniNode
+    ) -> (ir.Value | None);
+
+    def _emit_osp_edge_pred_hop(
+        origins: ir.Value,
+        dir_val: int,
+        edge_tag: int,
+        edge_arch: str,
+        compares: list[uni.CompareExpr],
+        nd: uni.UniNode
     ) -> (ir.Value | None);
 
     def _elem_arch_name_of(expr: (uni.UniNode | None)) -> (str | None);
