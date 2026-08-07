@@ -1829,7 +1829,7 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
             return self.emit_pow_mod(ctx, base, exp, args[2]);
         }
         if isinstance(base.type, ir.IntType) and isinstance(exp.type, ir.IntType) {
-            return p._codegen_int_pow(base, exp);
+            return p._codegen_pow(base, exp);
         }
         if isinstance(base.type, ir.DoubleType)
             and isinstance(exp.type, ir.DoubleType) {

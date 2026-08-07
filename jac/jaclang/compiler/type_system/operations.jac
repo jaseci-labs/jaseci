@@ -145,6 +145,55 @@ def get_numeric_promotion_type(
     return evaluator._convert_to_instance(right_type);
 }
 
+"""Result type of the `**` operator under Python/Jac semantics.
+
+Mirrors the native codegen contract so type-checking and code generation
+agree (previously `int ** int` was always `int`, but a negative or
+runtime-sign exponent yields a float at runtime).
+
+  * any float operand        -> float
+  * int ** non-negative int    -> int (promoted; fixed-width honored)
+  * int ** negative int        -> float
+  * int ** dynamic-sign int    -> float (sound over-approximation of the
+                                  f64 the dynamic lowering produces)
+
+Returns None for non-numeric operands so callers defer to the generic
+magic-method (`__pow__`/`__rpow__`) lookup."""
+def get_pow_result_type(
+    evaluator: 'TypeEvaluator',
+    left_type: jtypes.TypeBase,
+    right_type: jtypes.TypeBase,
+    right_node: (uni.UniNode | None)
+) -> (jtypes.TypeBase | None) {
+    if not isinstance(left_type, jtypes.ClassType)
+        or not isinstance(right_type, jtypes.ClassType) {
+        return None;
+    }
+    left_is_int = _is_int_like(left_type);
+    left_is_float = _is_float_like(left_type);
+    right_is_int = _is_int_like(right_type);
+    right_is_float = _is_float_like(right_type);
+    if not ((left_is_int or left_is_float) and (right_is_int or right_is_float)) {
+        return None;
+    }
+    float_class = evaluator.prefetch.float_class;
+    int_class = evaluator.prefetch.int_class;
+    if float_class is None or int_class is None {
+        return None;
+    }
+    if left_is_float or right_is_float {
+        return evaluator._convert_to_instance(float_class);
+    }
+    import from jaclang.jac0core.const_fold { fold_const }
+    (rok, rv) = fold_const(right_node);
+    if rok and isinstance(rv, int) and not isinstance(rv, bool) and rv >= 0 {
+        return get_numeric_promotion_type(
+            evaluator, left_type, right_type, Tok.STAR_POW
+        );
+    }
+    return evaluator._convert_to_instance(float_class);
+}
+
 def get_type_of_binary_operation(
     evaluator: 'TypeEvaluator', expr: uni.BinaryExpr
 ) -> jtypes.TypeBase {
@@ -272,6 +321,14 @@ def get_type_of_binary_operation(
         (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];
 
         if expr.op.name in ARITHMETIC_OPERATORS {
+            if expr.op.name == Tok.STAR_POW {
+                pow_type = get_pow_result_type(
+                    evaluator, left_type, right_type, expr.right
+                );
+                if pow_type is not None {
+                    return pow_type;
+                }
+            }
             promoted_type = get_numeric_promotion_type(
                 evaluator, left_type, right_type, expr.op.name
             );

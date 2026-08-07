@@ -499,6 +499,14 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
+    def _equalize_int_pow_operands(
+        base: ir.Value, exp: ir.Value
+    ) -> tuple[(ir.Value, ir.Value)];
+    def _emit_float_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
+    def _emit_pow_zero_guard(base: ir.Value) -> None;
+    def _codegen_pow(
+        base: ir.Value, exp: ir.Value, exp_node: (uni.Expr | None) = None
+    ) -> ir.Value;
     def _codegen_enum(nd: uni.Enum) -> None;
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
@@ -710,7 +718,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _apply_scalar_aug_op(
-        current: ir.Value, rhs: ir.Value, aug_op: str
+        current: ir.Value,
+        rhs: ir.Value,
+        aug_op: str,
+        rhs_node: (uni.Expr | None) = None
     ) -> (ir.Value | None);
 
     def _codegen_field_assign(target: uni.AtomTrailer, value: ir.Value) -> None;

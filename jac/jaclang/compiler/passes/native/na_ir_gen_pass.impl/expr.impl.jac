@@ -526,7 +526,12 @@ impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     if left is None or right is None {
         return None;
     }
-    result = self._emit_binary_op(op, left, right);
+    result: (ir.Value | None);
+    if op == Tok.STAR_POW {
+        result = self._codegen_pow(left, right, nd.right);
+    } else {
+        result = self._emit_binary_op(op, left, right);
+    }
 
     if result is not None {
         i8p = ir.IntType(8).as_pointer();

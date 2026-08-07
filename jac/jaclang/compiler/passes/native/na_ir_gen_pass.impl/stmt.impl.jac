@@ -1424,7 +1424,10 @@ impl NaIRGenPass._bind_match_arch(
 }
 
 impl NaIRGenPass._apply_scalar_aug_op(
-    current: ir.Value, rhs: ir.Value, aug_op: str
+    current: ir.Value,
+    rhs: ir.Value,
+    aug_op: str,
+    rhs_node: (uni.Expr | None) = None
 ) -> (ir.Value | None) {
     if not isinstance(current.type, (ir.IntType, ir.DoubleType, ir.FloatType)) {
         return None;
@@ -1448,6 +1451,14 @@ impl NaIRGenPass._apply_scalar_aug_op(
     }
     if aug_op == "/=" and isinstance(current.type, ir.IntType) {
         return None;
+    }
+    if aug_op == "**=" {
+        coerced = self._coerce_type(rhs, current.type);
+        result = self._codegen_pow(current, coerced, rhs_node);
+        if result is not None and result.type != current.type {
+            result = self._coerce_type(result, current.type);
+        }
+        return result;
     }
     coerced = self._coerce_type(rhs, current.type);
     result = self._emit_binary_op(op_toks[aug_op], current, coerced);
@@ -1649,7 +1660,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                     store_val = None;
                                     if cur_elem is not None {
                                         store_val = self._apply_scalar_aug_op(
-                                            cur_elem, value, nd.aug_op.value
+                                            cur_elem, value, nd.aug_op.value, nd.value
                                         );
                                     }
                                 }
@@ -1683,7 +1694,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                     store_val = None;
                                     if cur_elem is not None {
                                         store_val = self._apply_scalar_aug_op(
-                                            cur_elem, value, nd.aug_op.value
+                                            cur_elem, value, nd.aug_op.value, nd.value
                                         );
                                     }
                                 }
@@ -2095,8 +2106,11 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         );
                     }
                 } elif aug_op_val == "**=" {
-                    if isinstance(current.type, ir.IntType) {
-                        value = self._codegen_int_pow(current, coerced);
+                    pow_res = self._apply_scalar_aug_op(
+                        current, value, "**=", nd.value
+                    );
+                    if pow_res is not None {
+                        value = pow_res;
                     }
                 }
             }
