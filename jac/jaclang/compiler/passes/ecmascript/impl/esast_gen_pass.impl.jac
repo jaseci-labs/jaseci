@@ -3494,7 +3494,7 @@ impl EsastGenPass.exit_expr_stmt(nd: uni.ExprStmt) -> None {
 
     acc = self._cur_view_acc();
     if acc is not None {
-        nd.gen.es_ast = self._view_push_stmt(acc, expr, nd);
+        nd.gen.es_ast = self._view_emit_child(acc, expr, nd);
         return;
     }
     expr_stmt = self.sync_loc(es.ExpressionStatement(expression=expr), jac_node=nd);
@@ -3695,7 +3695,7 @@ impl EsastGenPass.exit_try_stmt(nd: uni.TryStmt) -> None {
         );
         outer = self._cur_view_acc();
         if outer is not None {
-            nd.gen.es_ast = self._view_push_stmt(outer, wrapper, nd);
+            nd.gen.es_ast = self._view_emit_child(outer, wrapper, nd);
         } else {
             nd.gen.es_ast = self.sync_loc(
                 es.ExpressionStatement(expression=wrapper), jac_node=nd
@@ -3865,6 +3865,94 @@ impl EsastGenPass.exit_try_stmt(nd: uni.TryStmt) -> None {
     nd.gen.es_ast = try_stmt;
 }
 
+impl EsastGenPass._view_open_loop_acc(nd: uni.UniNode) -> None {
+    acc = self._cur_view_acc();
+    if (acc is None) or (acc in self._view_dynamic_accs) {
+        return;
+    }
+    self._view_dynamic_accs.add(self._push_view_acc());
+    self._view_slot_loops.add(id(nd));
+}
+
+impl EsastGenPass._view_loop_stmt(
+    nd: uni.UniNode, loop_stmt: es.Statement
+) -> es.Statement {
+    if id(nd) not in self._view_slot_loops {
+        return loop_stmt;
+    }
+    self._view_slot_loops.discard(id(nd));
+    acc = self._view_stack.pop() if self._view_stack else None;
+    if not isinstance(acc, str) {
+        return loop_stmt;
+    }
+    iife = self._view_iife_from_stmts([loop_stmt], acc, nd);
+    outer = self._cur_view_acc();
+    if outer is not None {
+        return self._view_emit_child(outer, iife, nd);
+    }
+    return self.sync_loc(es.ExpressionStatement(expression=iife), jac_node=nd);
+}
+
+impl EsastGenPass._view_chain_open(nd: uni.UniNode) -> None {
+    acc = self._cur_view_acc();
+    if (acc is None) or (acc in self._view_dynamic_accs) {
+        return;
+    }
+    self._view_branch_base[id(nd)] = self._view_acc_next.get(acc, 0);
+}
+
+impl EsastGenPass._view_chain_arm(nd: uni.UniNode) -> None {
+    acc = self._cur_view_acc();
+    if (acc is None) or (acc in self._view_dynamic_accs) or (nd.parent is None) {
+        return;
+    }
+    base = self._view_branch_base.get(id(nd.parent));
+    if base is None {
+        return;
+    }
+    self._view_branch_base[id(nd)] = base;
+    self._view_acc_next[acc] = base;
+}
+
+impl EsastGenPass._view_chain_close(nd: uni.UniNode) -> None {
+    if id(nd) not in self._view_branch_base {
+        return;
+    }
+    self._view_branch_base.pop(id(nd), None);
+    acc = self._cur_view_acc();
+    if (acc is not None) and (acc not in self._view_dynamic_accs) {
+        self._view_acc_next[acc] = self._view_acc_high.get(acc, 0);
+    }
+}
+
+impl EsastGenPass.enter_if_stmt(nd: uni.IfStmt) -> None {
+    self._view_chain_open(nd);
+}
+
+impl EsastGenPass.enter_else_if(nd: uni.ElseIf) -> None {
+    self._view_chain_arm(nd);
+}
+
+impl EsastGenPass.enter_else_stmt(nd: uni.ElseStmt) -> None {
+    self._view_chain_arm(nd);
+}
+
+impl EsastGenPass.enter_in_for_stmt(nd: uni.InForStmt) -> None {
+    self._view_open_loop_acc(nd);
+}
+
+impl EsastGenPass.enter_iter_for_stmt(nd: uni.IterForStmt) -> None {
+    self._view_open_loop_acc(nd);
+}
+
+impl EsastGenPass.enter_while_stmt(nd: uni.WhileStmt) -> None {
+    self._view_open_loop_acc(nd);
+}
+
+impl EsastGenPass.enter_forever_stmt(nd: uni.ForeverStmt) -> None {
+    self._view_open_loop_acc(nd);
+}
+
 impl EsastGenPass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
     target_ast = nd.target.gen.es_ast;
     left: es.Node = target_ast
@@ -3890,7 +3978,7 @@ impl EsastGenPass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
         es.ForOfStatement(left=decl, right=right, body=body, await_=nd.is_async),
         jac_node=nd
     );
-    nd.gen.es_ast = for_stmt;
+    nd.gen.es_ast = self._view_loop_stmt(nd, for_stmt);
 }
 
 impl EsastGenPass._target_to_pattern(target: es.Node, loc: uni.UniNode) -> es.Node {
@@ -3945,8 +4033,12 @@ impl EsastGenPass.exit_iter_for_stmt(nd: uni.IterForStmt) -> None {
         update = cast(es.AssignmentExpression, nd.count_by.gen.es_ast.expression);
     }
     body = self._build_block_statement(nd, nd.body);
-    nd.gen.es_ast = self.sync_loc(
-        es.ForStatement(`init=`init, `test=`test, update=update, body=body), jac_node=nd
+    nd.gen.es_ast = self._view_loop_stmt(
+        nd,
+        self.sync_loc(
+            es.ForStatement(`init=`init, `test=`test, update=update, body=body),
+            jac_node=nd
+        )
     );
 }
 
@@ -3964,7 +4056,7 @@ impl EsastGenPass.exit_while_stmt(nd: uni.WhileStmt) -> None {
     );
     body = self._build_block_statement(nd, nd.body);
     while_stmt = self.sync_loc(es.WhileStatement(`test=`test, body=body), jac_node=nd);
-    nd.gen.es_ast = while_stmt;
+    nd.gen.es_ast = self._view_loop_stmt(nd, while_stmt);
 }
 
 impl EsastGenPass.exit_forever_stmt(nd: uni.ForeverStmt) -> None {
@@ -3972,10 +4064,11 @@ impl EsastGenPass.exit_forever_stmt(nd: uni.ForeverStmt) -> None {
     forever_stmt = self.sync_loc(
         es.WhileStatement(`test=es.Literal(value=True), body=body), jac_node=nd
     );
-    nd.gen.es_ast = forever_stmt;
+    nd.gen.es_ast = self._view_loop_stmt(nd, forever_stmt);
 }
 
 impl EsastGenPass.exit_else_stmt(nd: uni.ElseStmt) -> None {
+    self._view_chain_close(nd);
     stmts = self._collect_stmt_body(nd.body);
     stmts = self._prepend_hoisted(nd, stmts);
     block = self.sync_loc(es.BlockStatement(body=stmts), jac_node=nd);
@@ -3983,6 +4076,7 @@ impl EsastGenPass.exit_else_stmt(nd: uni.ElseStmt) -> None {
 }
 
 impl EsastGenPass.exit_else_if(nd: uni.ElseIf) -> None {
+    self._view_chain_close(nd);
     `test = self._coerce_truthy(
         nd.condition,
         cast(
@@ -4007,6 +4101,7 @@ impl EsastGenPass.exit_else_if(nd: uni.ElseIf) -> None {
 }
 
 impl EsastGenPass.exit_if_stmt(nd: uni.IfStmt) -> None {
+    self._view_chain_close(nd);
     `test = self._coerce_truthy(
         nd.condition,
         cast(
@@ -4059,8 +4154,48 @@ impl EsastGenPass._push_view_acc -> str {
         self._view_acc_counter += 1;
         name = f"{VIEW_ACC}_{self._view_acc_counter}";
     }
+    self._view_acc_next[name] = 0;
+    self._view_acc_high[name] = 0;
     self._view_stack.append(name);
     return name;
+}
+
+impl EsastGenPass._view_alloc_index(acc_name: str) -> int {
+    index = self._view_acc_next.get(acc_name, 0);
+    self._view_acc_next[acc_name] = index + 1;
+    if (index + 1) > self._view_acc_high.get(acc_name, 0) {
+        self._view_acc_high[acc_name] = index + 1;
+    }
+    return index;
+}
+
+impl EsastGenPass._view_assign_stmt(
+    acc_name: str, index: int, value: es.Expression, anchor: uni.UniNode
+) -> es.ExpressionStatement {
+    slot = self.sync_loc(
+        es.MemberExpression(
+            object=self.sync_loc(es.Identifier(name=acc_name), jac_node=anchor),
+            property=self.sync_loc(es.Literal(value=index), jac_node=anchor),
+            computed=True,
+            optional=False
+        ),
+        jac_node=anchor
+    );
+    assign = self.sync_loc(
+        es.AssignmentExpression(operator='=', left=slot, right=value), jac_node=anchor
+    );
+    return self.sync_loc(es.ExpressionStatement(expression=assign), jac_node=anchor);
+}
+
+impl EsastGenPass._view_emit_child(
+    acc_name: str, value: es.Expression, anchor: uni.UniNode
+) -> es.ExpressionStatement {
+    if acc_name in self._view_dynamic_accs {
+        return self._view_push_stmt(acc_name, value, anchor);
+    }
+    return self._view_assign_stmt(
+        acc_name, self._view_alloc_index(acc_name), value, anchor
+    );
 }
 
 impl EsastGenPass._view_push_stmt(
@@ -4082,7 +4217,7 @@ impl EsastGenPass._view_push_stmt(
 }
 
 impl EsastGenPass._jsx_fragment(
-    children: list[es.Expression], anchor: uni.UniNode
+    children: es.Expression, anchor: uni.UniNode
 ) -> es.CallExpression {
     import from jaclang.runtimelib.client_surface { backend_jsx_factory_name }
     self._ensure_backend();
@@ -4093,7 +4228,7 @@ impl EsastGenPass._jsx_fragment(
             arguments=[
                 self.sync_loc(es.Literal(value=None), jac_node=anchor),
                 self.sync_loc(es.ObjectExpression(properties=[]), jac_node=anchor),
-                self.sync_loc(es.ArrayExpression(elements=children), jac_node=anchor)
+                children
             ]
         ),
         jac_node=anchor
@@ -4103,14 +4238,23 @@ impl EsastGenPass._jsx_fragment(
 impl EsastGenPass._view_fragment_return(
     acc_name: str, anchor: uni.UniNode
 ) -> es.ReturnStatement {
-    frag = self._jsx_fragment(
-        [self.sync_loc(es.Identifier(name=acc_name), jac_node=anchor)], anchor
-    );
-    return self.sync_loc(es.ReturnStatement(argument=frag), jac_node=anchor);
+    acc_id = self.sync_loc(es.Identifier(name=acc_name), jac_node=anchor);
+    argument: es.Expression = acc_id
+        if acc_name in self._view_dynamic_accs
+        else self._jsx_fragment(acc_id, anchor);
+    return self.sync_loc(es.ReturnStatement(argument=argument), jac_node=anchor);
 }
 
 impl EsastGenPass._build_view_iife(
     body_nodes: (Sequence[uni.UniNode] | None), acc_name: str, anchor: uni.UniNode
+) -> es.CallExpression {
+    return self._view_iife_from_stmts(
+        self._collect_stmt_body(body_nodes), acc_name, anchor
+    );
+}
+
+impl EsastGenPass._view_iife_from_stmts(
+    stmts: list[es.Statement], acc_name: str, anchor: uni.UniNode
 ) -> es.CallExpression {
     init = self.sync_loc(
         es.VariableDeclaration(
@@ -4119,7 +4263,19 @@ impl EsastGenPass._build_view_iife(
                     es.VariableDeclarator(
                         id=self.sync_loc(es.Identifier(name=acc_name), jac_node=anchor),
                         `init=self.sync_loc(
-                            es.ArrayExpression(elements=[]), jac_node=anchor
+                            es.ArrayExpression(
+                                elements=[
+                                    self.sync_loc(
+                                        es.Literal(value=False), jac_node=anchor
+                                    )
+                                    for _ in range(
+                                        0
+                                            if acc_name in self._view_dynamic_accs
+                                            else self._view_acc_high.get(acc_name, 0)
+                                    )
+                                ]
+                            ),
+                            jac_node=anchor
                         )
                     ),
                     jac_node=anchor
@@ -4129,10 +4285,10 @@ impl EsastGenPass._build_view_iife(
         ),
         jac_node=anchor
     );
-    stmts: list[es.Statement] = [init];
-    stmts.extend(self._collect_stmt_body(body_nodes));
-    stmts.append(self._view_fragment_return(acc_name, anchor));
-    block = self.sync_loc(es.BlockStatement(body=stmts), jac_node=anchor);
+    body: list[es.Statement] = [init];
+    body.extend(stmts);
+    body.append(self._view_fragment_return(acc_name, anchor));
+    block = self.sync_loc(es.BlockStatement(body=body), jac_node=anchor);
     arrow = self.sync_loc(
         es.ArrowFunctionExpression(params=[], body=block, async_=False), jac_node=anchor
     );

@@ -859,9 +859,9 @@ test "components with JSX slots compile to function declarations" {
     assert "__jac_view_kids" in js_code , (
         "slot bodies should lower to a `__jac_view_kids` accumulator IIFE:\n" + js_code
     );
-    assert "__jac_view_kids = []" in js_code , "accumulator should be initialized";
-    assert "__jac_view_kids.push(" in js_code , (
-        "each JSX statement should append to the accumulator in O(1)"
+    assert "__jac_view_kids = [" in js_code , "accumulator should be initialized";
+    assert "__jac_view_kids[0] = " in js_code , (
+        "each JSX statement should write the child position it reserved"
     );
     assert "__jacJsx" in js_code , "JSX should still lower to __jacJsx calls";
 
