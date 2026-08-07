@@ -1,6 +1,7 @@
 import from jaclang.scale.config.base_config { BaseConfig }
 import from jaclang.scale.deploy.target.kubernetes.rollout {
     ROLLOUT_WAIT_READY,
+    normalize_rollout_timeout,
     normalize_rollout_wait
 }
 
@@ -208,7 +209,9 @@ obj KubernetesConfig(BaseConfig) {
             rollout_wait=normalize_rollout_wait(
                 config.get('rollout_wait', ROLLOUT_WAIT_READY)
             ),
-            rollout_timeout=int(config.get('rollout_timeout', 1200)),
+            rollout_timeout=normalize_rollout_timeout(
+                config.get('rollout_timeout', 1200)
+            ),
             app_mount_path=config.get('app_mount_path', '/app'),
             code_mount_path=config.get('code_mount_path', '/code'),
             workspace_path=config.get('workspace_path', '/code/workspace'),

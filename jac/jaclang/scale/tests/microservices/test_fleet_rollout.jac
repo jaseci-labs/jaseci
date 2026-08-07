@@ -501,7 +501,7 @@ test "full wait is opt-in and does not change the default gate" {
     assert err is None , f"the default gate still returns mid-rollout: {err}";
 }
 
-def _stall_condition -> object {
+def _timed_out_condition -> object {
     return SimpleNamespace(
         type="Progressing",
         status="False",
@@ -514,7 +514,11 @@ test "a rollout past its progress deadline fails with the stall reason" {
     target = _fleet_target();
     (apps, core) = _rollout_apis(
         _dep(
-            desired=3, updated=1, available=3, total=4, conditions=[_stall_condition()]
+            desired=3,
+            updated=1,
+            available=3,
+            total=4,
+            conditions=[_timed_out_condition()]
         )
     );
 
@@ -540,7 +544,7 @@ test "a leftover stall condition from the previous deploy does not fail this one
             total=3,
             generation=5,
             observed=4,
-            conditions=[_stall_condition()]
+            conditions=[_timed_out_condition()]
         )
     );
 
@@ -560,7 +564,11 @@ test "a stall that clears on the next poll does not fail the deploy" {
     (apps, core) = _rollout_apis(_rolled_out(3));
     apps.read_namespaced_deployment.side_effect = [
         _dep(
-            desired=3, updated=0, available=3, total=3, conditions=[_stall_condition()]
+            desired=3,
+            updated=0,
+            available=3,
+            total=3,
+            conditions=[_timed_out_condition()]
         ),
         _rolled_out(3)
     ];

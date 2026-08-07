@@ -385,7 +385,7 @@ Both modes only ever count replicas from the revision this deploy applied, so a 
 | TOML Key | Default | Description |
 |----------|---------|-------------|
 | `rollout_wait` | `"ready"` | Rollout completion bar: `"ready"` or `"full"` |
-| `rollout_timeout` | `1200` | Seconds to wait before the deploy fails with a per-pod diagnosis |
+| `rollout_timeout` | `1200` | Seconds to wait before the deploy fails with a per-pod diagnosis. Must be a positive whole number |
 
 **To change in `jac.toml`:**
 

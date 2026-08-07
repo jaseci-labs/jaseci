@@ -974,17 +974,24 @@ test "rollout wait defaults to the fast gate and reads 'full' from jac.toml" {
     );
 }
 
-test "an unsupported rollout_wait in jac.toml fails the config load" {
-    caught = None;
-    try {
-        _k8s_config_for_toml(
-            "[project]\nname = \"My App\"\n\n[scale.kubernetes]\n"
-            "rollout_wait = \"everything\"\n"
-        );
-    } except ValueError as e {
-        caught = e;
-    }
+test "an unusable rollout wait setting in jac.toml fails the config load" {
+    for (setting, bad) in [
+        ("rollout_wait = \"everything\"", "everything"),
+        ("rollout_timeout = 0", "0"),
+        ("rollout_timeout = \"soon\"", "soon")
+    ] {
+        caught = None;
+        try {
+            _k8s_config_for_toml(
+                "[project]\nname = \"My App\"\n\n[scale.kubernetes]\n" + setting + "\n"
+            );
+        } except ValueError as e {
+            caught = e;
+        }
 
-    assert caught is not None , "a typo in rollout_wait must not be ignored";
-    assert "everything" in str(caught) , f"the bad value must be echoed: {caught}";
+        assert caught is not None , f"{setting} must not be silently accepted";
+        assert bad in str(caught) , (
+            f"{setting}: the bad value must be echoed, got {caught}"
+        );
+    }
 }

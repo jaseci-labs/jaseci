@@ -17,6 +17,22 @@ def normalize_rollout_wait(mode: any) -> str {
 }
 
 
+def normalize_rollout_timeout(value: any) -> int {
+    try {
+        seconds = int(value);
+    } except (TypeError, ValueError) {
+        seconds = 0;
+    }
+    if seconds < 1 {
+        raise ValueError(
+            f"invalid rollout timeout '{value}': expected a positive number "
+            "of seconds"
+        );
+    }
+    return seconds;
+}
+
+
 def _non_negative_int(value: any) -> int {
     try {
         return max(int(value or 0), 0);
@@ -95,10 +111,6 @@ obj RolloutStatus {
         return f"{self.stall_reason}: {self.stall_message}"
             if self.stall_message
             else self.stall_reason;
-    }
-
-    def summary -> str {
-        return f"{self.updated_available()}/{self.desired}";
     }
 }
 
