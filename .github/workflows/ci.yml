@@ -1017,7 +1017,7 @@ jobs:
         run: |
           jac test jac/jaclang/scale/tests/test_deploy_k8s.jac -x --test_name "early exit"
 
-  test-pypi-build:
+  test-jac-pack-smoke:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.scale == 'true' || needs.changes.outputs.byllm == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -1159,9 +1159,84 @@ jobs:
           exit 1
         fi
 
+    # The curl probe above never executes the client bundle, so a client that
+    # ships but crashes at runtime would still pass. Drive the rendered page
+    # with `jac browse` (headless Chrome over CDP, stdlib-only) and assert the
+    # two landing-page anchors: the curl install one-liner and the ninja book
+    # cover image linking out to the book. Checks are kept generic (regexes,
+    # not exact strings) so routine jac_site copy edits don't break this job.
+    - name: Ensure a Chromium binary for jac browse
+      run: |
+        for c in google-chrome google-chrome-stable chromium chromium-browser; do
+          if command -v "$c" >/dev/null 2>&1; then
+            echo "found browser: $c"
+            exit 0
+          fi
+        done
+        sudo apt-get update && sudo apt-get install -y chromium-browser
+
+    - name: Browse jac_site landing page (rendered client checks)
+      timeout-minutes: 5
+      env:
+        JAC_NO_DEV_SOURCE: 1
+      run: |
+        jac browse open http://localhost:8000
+        jac browse wait '#top'
+        jac browse eval '(() => {
+          const text = document.body.innerText;
+          if (!/curl\s+-fsSL\s+\S*install\.sh\s*\|\s*bash/.test(text)) {
+            throw new Error("install curl one-liner not rendered on the landing page");
+          }
+          return "install curl one-liner rendered";
+        })()'
+        jac browse eval '(async () => {
+          const section = document.querySelector("#book");
+          if (!section) throw new Error("no #book section on the landing page");
+          section.scrollIntoView({block: "center"});
+          const img = section.querySelector("a[href] img[src*=ninja-book-cover]");
+          if (!img) throw new Error("no ninja book cover image inside a link");
+          const href = img.closest("a").href;
+          if (!/doi\.org|zenodo/.test(href)) {
+            throw new Error("book cover links to " + href + ", not the book");
+          }
+          const deadline = Date.now() + 15000;
+          while (Date.now() < deadline) {
+            const rect = img.getBoundingClientRect();
+            const unobscured = img.checkVisibility
+              ? img.checkVisibility({checkOpacity: true, checkVisibilityCSS: true})
+              : true;
+            if (img.complete && img.naturalWidth > 0
+                && rect.width > 0 && rect.height > 0 && unobscured) {
+              return "book cover visible, links to " + href;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 200));
+          }
+          throw new Error("book cover image never became visible");
+        })()'
+        echo "--- client console output (informational) ---"
+        jac browse console
+
+    - name: Screenshot browse state on failure
+      if: failure()
+      env:
+        JAC_NO_DEV_SOURCE: 1
+      run: jac browse screenshot /tmp/jac-site-browse-failure.png || true
+
+    - name: Upload browse failure screenshot
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: jac-site-browse-failure
+        path: /tmp/jac-site-browse-failure.png
+        retention-days: 7
+        if-no-files-found: ignore
+
     - name: Stop jac_site server
       if: always()
+      env:
+        JAC_NO_DEV_SOURCE: 1
       run: |
+        jac browse close 2>/dev/null || true
         if [ -n "${{ env.JAC_SITE_PID }}" ]; then
           kill ${{ env.JAC_SITE_PID }} 2>/dev/null || true
           sleep 3
@@ -1239,6 +1314,7 @@ jobs:
         echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
         echo "| jac_site | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| jac_site browse checks | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "| fullstack (ejected) | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| **Trigger** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
@@ -1530,7 +1606,7 @@ jobs:
       - test-cef-build
       - test-scale
       - test-scale-k8s
-      - test-pypi-build
+      - test-jac-pack-smoke
       - k8s-real-e2e
       - installer-test
     runs-on: ubuntu-latest
