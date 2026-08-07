@@ -20,6 +20,9 @@ each configuration keeps its own identity instead of thrashing one file.
 
 import os;
 
+glob OSP_CORE_PARTS: list[str] = ["osp_kernel.jac", "osp_graph.jac"],
+     FMT_KERNEL_PARTS: list[str] = ["fmt_kernel.jac"];
+
 def _jac0core_dir -> str {
     import jaclang;
     return os.path.join(os.path.dirname(str(jaclang.__file__)), "jac0core");
@@ -75,10 +78,12 @@ def fmt_kernel_unit_path(variant: str) -> str {
     return kernel_unit_path(f"fmt_kernel_{variant}", ["fmt_kernel.jac"]);
 }
 
-def _artifact_key(parts: list[str], fingerprint: str) -> str {
+def _artifact_key(unit_path: str, fingerprint: str) -> str {
     # Same trust basis as compute_module_key: jaclang version, the unitree
-    # schema digest, the unit sources, plus the consumer's own fingerprint
-    # (which hashes its emitter sources, so dev edits invalidate).
+    # schema digest, the materialized unit itself (so the key can never
+    # diverge from what actually compiles), plus the consumer's own
+    # fingerprint (which hashes its emitter sources, so dev edits
+    # invalidate).
     import hashlib;
     import from importlib.metadata { version as pkg_version }
     import from jaclang.jac0core.jir { schema_digest }
@@ -90,23 +95,22 @@ def _artifact_key(parts: list[str], fingerprint: str) -> str {
     h = hashlib.sha256();
     h.update(jac_ver.encode());
     h.update(schema_digest().encode());
-    h.update(unit_source(parts).encode());
+    with open(unit_path, "rb") as f {
+        h.update(f.read());
+    }
     h.update(fingerprint.encode());
     return h.hexdigest()[:16];
 }
 
-def unit_artifact_path(
-    name: str, parts: list[str], kind: str, fingerprint: str
-) -> str {
-    key = _artifact_key(parts, fingerprint);
-    return os.path.join(_units_dir(), f"{name}.{key}.{kind}");
+def unit_artifact_path(unit_path: str, kind: str, fingerprint: str) -> str {
+    stem = os.path.splitext(os.path.basename(unit_path))[0];
+    key = _artifact_key(unit_path, fingerprint);
+    return os.path.join(_units_dir(), f"{stem}.{key}.{kind}");
 }
 
-def load_unit_artifact(
-    name: str, parts: list[str], kind: str, fingerprint: str
-) -> (str | None) {
+def load_unit_artifact(unit_path: str, kind: str, fingerprint: str) -> (str | None) {
     try {
-        with open(unit_artifact_path(name, parts, kind, fingerprint), "r") as f {
+        with open(unit_artifact_path(unit_path, kind, fingerprint), "r") as f {
             return f.read();
         }
     } except Exception {
@@ -114,12 +118,11 @@ def load_unit_artifact(
     }
 }
 
-def store_unit_artifact(
-    name: str, parts: list[str], kind: str, fingerprint: str, text: str
-) {
+def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) {
     import glob as _g;
-    path = unit_artifact_path(name, parts, kind, fingerprint);
-    for stale in _g.glob(os.path.join(_units_dir(), f"{name}.*.{kind}")) {
+    path = unit_artifact_path(unit_path, kind, fingerprint);
+    stem = os.path.splitext(os.path.basename(unit_path))[0];
+    for stale in _g.glob(os.path.join(_units_dir(), f"{stem}.*.{kind}")) {
         if stale != path {
             try {
                 os.remove(stale);

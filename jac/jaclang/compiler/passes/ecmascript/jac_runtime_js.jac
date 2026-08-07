@@ -1550,8 +1550,6 @@ def build_jac_runtime_js -> str {
 
 glob _OSP_CORE_JS_CACHE: list[str] = [];
 
-glob _OSP_CORE_PARTS: list[str] = ["osp_kernel.jac", "osp_graph.jac"];
-
 def build_osp_core_js -> str {
     if _OSP_CORE_JS_CACHE {
         return _OSP_CORE_JS_CACHE[0];
@@ -1568,12 +1566,12 @@ def build_osp_core_js -> str {
     import from jaclang.compiler.passes.ecmascript { estree as es }
     import from jaclang.jac0core.compile_options { CompileOptions }
     fp = es_pass_fingerprint();
-    cached = load_unit_artifact("osp_core_cl", _OSP_CORE_PARTS, "mjs", fp);
+    cl_copy = osp_core_unit_path('cl');
+    cached = load_unit_artifact(cl_copy, "mjs", fp);
     if cached is not None {
         _OSP_CORE_JS_CACHE.append(cached);
         return cached;
     }
-    cl_copy = osp_core_unit_path('cl');
     prog = JacProgram();
     ir = prog.compile(
         file_path=cl_copy,
@@ -1596,7 +1594,7 @@ def build_osp_core_js -> str {
         }
     }
     js = es_to_js(es.Program(body=kept));
-    store_unit_artifact("osp_core_cl", _OSP_CORE_PARTS, "mjs", fp, js);
+    store_unit_artifact(cl_copy, "mjs", fp, js);
     _OSP_CORE_JS_CACHE.append(js);
     return js;
 }

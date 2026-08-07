@@ -5,12 +5,13 @@ impl _trace_enabled -> bool {
 
 
 impl _build_view(mem: Memory, q: GraphQuery) -> _View {
+    import from jaclang.jac0core.osp_graph_sv { sv_edge_alive }
     view = _View();
     for anchor in list(mem.get_mem().values()) {
         if not isinstance(anchor, EdgeAnchor) or not anchor.is_populated() {
             continue;
         }
-        if not _edge_alive(mem, anchor) {
+        if not sv_edge_alive(anchor, mem) {
             view.detached.add(anchor.id);
         } elif anchor.hash == 0 {
             view.fresh.append(anchor);
@@ -109,12 +110,6 @@ impl _page_rows(
         out.append((eid, other));
     }
     return out;
-}
-
-
-impl _edge_alive(mem: Memory, ea: EdgeAnchor) -> bool {
-    import from jaclang.jac0core.osp_graph_sv { sv_edge_alive }
-    return sv_edge_alive(ea, mem);
 }
 
 

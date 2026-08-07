@@ -40,8 +40,6 @@ def _trace_enabled -> bool;
 def _build_view(mem: Memory, q: GraphQuery) -> _View;
 
 
-def _edge_alive(mem: Memory, ea: EdgeAnchor) -> bool;
-
 def _acl_gated -> bool;
 
 def _acl_read_ok(anchor: Anchor) -> bool;

@@ -783,17 +783,17 @@ def _compile_osp_kernel_ir(
         return _OSP_KERNEL_IR_CACHE[cache_key];
     }
 
-    parts = ["osp_kernel.jac", "osp_graph.jac"];
     variant = f"na_{gc_mode}_enf" if enforce else f"na_{gc_mode}";
+    unit = osp_core_unit_path(variant);
     fp = native_compiler_fingerprint(kernel_opts);
-    ir_str = load_unit_artifact(f"osp_core_{variant}", parts, "ll", fp);
+    ir_str = load_unit_artifact(unit, "ll", fp);
     if ir_str is not None {
         _OSP_KERNEL_IR_CACHE[cache_key] = ir_str;
         return ir_str;
     }
     try {
         prog = JacProgram();
-        m = prog.compile(osp_core_unit_path(variant), options=kernel_opts);
+        m = prog.compile(unit, options=kernel_opts);
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
             ir_str = str(m.gen.llvm_ir);
         }
@@ -802,7 +802,7 @@ def _compile_osp_kernel_ir(
     }
     if ir_str is not None {
         _OSP_KERNEL_IR_CACHE[cache_key] = ir_str;
-        store_unit_artifact(f"osp_core_{variant}", parts, "ll", fp, ir_str);
+        store_unit_artifact(unit, "ll", fp, ir_str);
     }
     return ir_str;
 }
@@ -862,16 +862,16 @@ def _compile_fmt_kernel_ir -> (str | None) {
         return _FMT_KERNEL_IR_CACHE[cache_key];
     }
 
-    parts = ["fmt_kernel.jac"];
+    unit = fmt_kernel_unit_path('na_cycles');
     fp = native_compiler_fingerprint(kernel_opts);
-    ir_str = load_unit_artifact("fmt_kernel_na_cycles", parts, "ll", fp);
+    ir_str = load_unit_artifact(unit, "ll", fp);
     if ir_str is not None {
         _FMT_KERNEL_IR_CACHE[cache_key] = ir_str;
         return ir_str;
     }
     try {
         prog = JacProgram();
-        m = prog.compile(fmt_kernel_unit_path('na_cycles'), options=kernel_opts);
+        m = prog.compile(unit, options=kernel_opts);
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
             ir_str = str(m.gen.llvm_ir);
         }
@@ -880,7 +880,7 @@ def _compile_fmt_kernel_ir -> (str | None) {
     }
     if ir_str is not None {
         _FMT_KERNEL_IR_CACHE[cache_key] = ir_str;
-        store_unit_artifact("fmt_kernel_na_cycles", parts, "ll", fp, ir_str);
+        store_unit_artifact(unit, "ll", fp, ir_str);
     }
     return ir_str;
 }

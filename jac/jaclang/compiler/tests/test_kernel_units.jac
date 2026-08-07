@@ -14,7 +14,7 @@ import os;
 import jaclang.compiler.passes.ecmascript.jac_runtime_js as _rtjs;
 import jaclang.compiler.passes.native.na_compile_pass as _nacp;
 import from jaclang.jac0core.kernel_units {
-    kernel_unit_path,
+    OSP_CORE_PARTS,
     osp_core_unit_path,
     unit_source
 }
@@ -32,7 +32,7 @@ test "unit path is stable and carries the exact concatenated sources" {
     assert p1 == p2 , "variant path must be stable across calls";
     assert "kernel_units" in p1;
     with open(p1, "r") as f {
-        assert f.read() == unit_source(["osp_kernel.jac", "osp_graph.jac"]);
+        assert f.read() == unit_source(OSP_CORE_PARTS);
     }
 }
 

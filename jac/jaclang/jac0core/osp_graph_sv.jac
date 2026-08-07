@@ -236,9 +236,11 @@ def sv_register_hydrated(
     }
     if pending and m is not None {
         batch = m?.batch_get;
-        fetched = batch([p.id for p in pending]) if batch is not None else {};
+        fetched = batch([p.id for p in pending])
+            if batch is not None
+            else {p.id: m.get(p.id) for p in pending};
         for p in pending {
-            fa = fetched.get(p.id) if batch is not None else m.get(p.id);
+            fa = fetched.get(p.id);
             if isinstance(fa, EdgeAnchor) and fa.is_populated() {
                 _conn_hydrated(fa, m);
             }
@@ -248,18 +250,11 @@ def sv_register_hydrated(
 
 def sv_edge_alive(edge_a: EdgeAnchor, mem: any = None) -> bool {
     # Liveness is evidence-based: a forget (detach/destroy/abort/heal) marks
-    # the id dead even when the edge was never minted this session; absent
-    # that, an unminted edge defers to its persistence record, and a minted
-    # one is alive iff still registered.
+    # the id dead, a reconnect clears it, and an id the store has never seen
+    # defers to its persistence record. The registered set is connect-dedup
+    # plumbing, not liveness state.
     st = _store_for(_mem_or_ctx(mem));
-    key = str(edge_a.id);
-    if key in st.forgotten {
-        return False;
-    }
-    if key not in st.h_of_id {
-        return True;
-    }
-    return key in st.registered;
+    return str(edge_a.id) not in st.forgotten;
 }
 
 def sv_forget_by_id(anchor_id: any, mem: any = None) {
