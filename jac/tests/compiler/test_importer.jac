@@ -383,11 +383,15 @@ test "load_dependency_module uses JIR cache without recompiling" {
     try {
         prog1 = JacProgram();
         prog1.load_dependency_module(stub_file);
-        assert compile_calls == 1 , "first load should compile";
+        assert compile_calls == 0 , (
+            "first .pyi load should use PyastBuildPass, not compile"
+        );
+        cache_path = get_module_cache_path(stub_file);
+        assert cache_path.exists() , "first .pyi load should write JIR cache";
 
         prog2 = JacProgram();
         prog2.load_dependency_module(stub_file);
-        assert compile_calls == 1 , "warm cache should skip compile";
+        assert compile_calls == 0 , "warm cache should skip compile";
     } finally {
         JacProgram.compile = orig_compile;
         os.unlink(stub_file);
@@ -451,7 +455,11 @@ test "resolve_import_source_module uses JIR cache without recompiling" {
             ];
             assert len(imports1) == 1 , "expected one import statement";
             resolve_import_source_module(prog1, imports1[0]);
-            assert compile_calls == 1 , "first resolve should compile";
+            assert compile_calls == 0 , (
+                "first .pyi resolve should use PyastBuildPass, not compile"
+            );
+            cache_path = get_module_cache_path(stub_file);
+            assert cache_path.exists() , "first .pyi resolve should write JIR cache";
 
             prog2 = JacProgram();
             mod2 = prog2.parse_str(
@@ -463,7 +471,7 @@ test "resolve_import_source_module uses JIR cache without recompiling" {
                 if isinstance(stmt, uni.Import)
             ];
             resolve_import_source_module(prog2, imports2[0]);
-            assert compile_calls == 1 , "warm cache should skip compile";
+            assert compile_calls == 0 , "warm cache should skip compile";
         } finally {
             JacProgram.compile = orig_compile;
             cache_path = get_module_cache_path(stub_file);

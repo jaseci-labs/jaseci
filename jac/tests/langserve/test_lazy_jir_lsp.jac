@@ -70,8 +70,12 @@ def _teardown_test {
 
 """Install compile/JIR counters; returns (metrics, restore)."""
 def _install_lazy_jir_counters -> tuple[LazyJirMetrics, object] {
+    import from pathlib { Path }
+    import from jaclang.jac0core.jir { read_module_jir_cache }
+
     metrics = LazyJirMetrics();
     orig_compile = JacProgram.compile;
+    orig_load = JacProgram.load_dependency_module;
     orig_read = JirReader.read_module;
 
     def counting_compile(
@@ -100,6 +104,40 @@ def _install_lazy_jir_counters -> tuple[LazyJirMetrics, object] {
         );
     }
 
+    def counting_load(
+        self: JacProgram,
+        source_path: str,
+        importer_path: (str | None) = None,
+        use_str: (str | None) = None
+    ) -> object {
+        source_build = False;
+        if source_path.endswith(".pyi") {
+            resolved_path = str(Path(source_path).resolve());
+            compiler = self._get_compiler();
+            target_hub = compiler._resolve_program(
+                resolved_path, self
+            ).mod.hub;
+            if (
+                resolved_path not in self.mod.hub
+                and resolved_path not in target_hub
+                and read_module_jir_cache(resolved_path) is None
+            ) {
+                source_build = True;
+            }
+        }
+        mod = orig_load(
+            self,
+            source_path,
+            importer_path=importer_path,
+            use_str=use_str
+        );
+        if source_build {
+            metrics.pyi_compile_calls += 1;
+            metrics.pyi_compile_paths.append(source_path);
+        }
+        return mod;
+    }
+
     def counting_read(self: JirReader, data: bytes) -> object {
         hdr = parse_header(data);
         if hdr is not None {
@@ -113,10 +151,12 @@ def _install_lazy_jir_counters -> tuple[LazyJirMetrics, object] {
     }
 
     JacProgram.compile = counting_compile;
+    JacProgram.load_dependency_module = counting_load;
     JirReader.read_module = counting_read;
 
     def restore {
         JacProgram.compile = orig_compile;
+        JacProgram.load_dependency_module = orig_load;
         JirReader.read_module = orig_read;
     }
 
@@ -317,6 +357,8 @@ test "lsp typeshed warm cache preserves builtins and typing goto-def" {
 }
 
 test "lazy jir performance gate cold versus warm pyi cache" {
+    import from jaclang.compiler.type_system.type_evaluator { _stub_module_memo }
+
     _setup_test();
     try {
         builtins_stub = _require_typeshed_stub("builtins.pyi");
@@ -325,6 +367,7 @@ test "lazy jir performance gate cold versus warm pyi cache" {
 
         _unlink_cache(builtins_stub);
         _unlink_cache(typing_stub);
+        _stub_module_memo.clear();
 
         (_cold_lsp, cold_metrics, cold_ms) = _lsp_typecheck_with_metrics(
             FIXTURE_DIR, client_path
@@ -334,6 +377,7 @@ test "lazy jir performance gate cold versus warm pyi cache" {
             + str(cold_metrics.pyi_compile_calls)
         );
 
+        _stub_module_memo.clear();
         (_warm_lsp, warm_metrics, warm_ms) = _lsp_typecheck_with_metrics(
             FIXTURE_DIR, client_path
         );
