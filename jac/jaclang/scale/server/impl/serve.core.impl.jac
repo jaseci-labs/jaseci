@@ -201,6 +201,19 @@ impl JacAPIServerCore.start(
     on_ready: Callable[..., None] | None = None
 ) -> None {
     self.introspector.load();
+    if self.introspector.has_client_route('/docs') {
+        # App-defined pages win over built-in convenience mounts: drop
+        # FastAPI's default swagger routes so the SPA serves its own /docs.
+        try {
+            self.server.app.router.routes = [
+                r
+                for r in self.server.app.router.routes
+                if getattr(r, 'path', '') not in ('/docs', '/redoc')
+            ];
+        } except Exception as e {
+            logger.debug(f"could not unmount built-in /docs: {e}");
+        }
+    }
     self._ensure_sv_siblings();
 
     if not dev and not no_client {
