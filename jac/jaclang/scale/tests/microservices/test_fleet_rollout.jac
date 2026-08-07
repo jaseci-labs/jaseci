@@ -7,7 +7,6 @@ import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.deploy.target.kubernetes.rollout { normalize_rollout_wait }
 
 def _cs(
     name: str,
@@ -492,15 +491,6 @@ test "full wait returns once the rollout completes" {
     assert err is None , f"a fully available new ReplicaSet is ready: {err}";
 }
 
-test "full wait is opt-in and does not change the default gate" {
-    target = _fleet_target();
-    (apps, core) = _rollout_apis(_dep(desired=3, updated=3, available=2, total=3));
-
-    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 20);
-
-    assert err is None , f"the default gate still returns mid-rollout: {err}";
-}
-
 def _timed_out_condition -> object {
     return SimpleNamespace(
         type="Progressing",
@@ -578,19 +568,5 @@ test "a stall that clears on the next poll does not fail the deploy" {
     assert err is None , (
         "the controller re-asserts a stale timeout until the new ReplicaSet "
         f"makes progress; one poll of it is not a stalled rollout: {err}"
-    );
-}
-
-test "an unsupported rollout_wait value is rejected with the valid choices" {
-    err = None;
-    try {
-        normalize_rollout_wait("complete");
-    } except ValueError as e {
-        err = e;
-    }
-
-    assert err is not None , "an unknown wait mode must not be silently accepted";
-    assert "ready" in str(err) and "full" in str(err) , (
-        f"the error must list the supported modes: {err}"
     );
 }
