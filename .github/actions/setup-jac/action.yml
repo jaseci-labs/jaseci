@@ -163,6 +163,24 @@ runs:
         # for the payload step, so leave it off and rebuild from scratch on a miss.
         use-cache: false
 
+    # lua.org (the flakiest fetch in the closure -- see the package-store cache
+    # note above) must not be load-bearing on a cold build: when the store cache
+    # missed, pre-seed the Lua source from Debian's pool, whose orig tarball is
+    # byte-identical upstream content on a CDN. `zig fetch` stores it in the
+    # package store under its computed content hash, so the seed is used only if
+    # it extracts to the exact tree the zon pin names (verified: it does), and
+    # `zig build` then resolves lua by hash without ever contacting lua.org. On
+    # main the refreshed store is re-saved by the cache step below, so this also
+    # self-heals the shared zig-pkgs entry after eviction. Best-effort: on a
+    # mirror failure the build falls back to lua.org exactly as before.
+    - name: Pre-seed Lua from the Debian mirror (store-cache miss only)
+      if: steps.cache.outputs.cache-hit != 'true' && steps.zig-pkgs-cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: jac
+      run: |
+        zig fetch https://deb.debian.org/debian/pool/main/l/lua5.1/lua5.1_5.1.5.orig.tar.gz \
+          || echo "::warning::Lua mirror pre-seed failed; the build will fall back to lua.org"
+
     # Download + extract the pinned LLVM into jac/.llvm-build (idempotent: a no-op
     # when the cache above restored it). Must run before `zig build` so the shim's
     # static archives exist when build.zig configures the jacllvm step. Skipped
