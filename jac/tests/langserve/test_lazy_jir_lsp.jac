@@ -114,9 +114,7 @@ def _install_lazy_jir_counters -> tuple[LazyJirMetrics, object] {
         if source_path.endswith(".pyi") {
             resolved_path = str(Path(source_path).resolve());
             compiler = self._get_compiler();
-            target_hub = compiler._resolve_program(
-                resolved_path, self
-            ).mod.hub;
+            target_hub = compiler._resolve_program(resolved_path, self).mod.hub;
             if (
                 resolved_path not in self.mod.hub
                 and resolved_path not in target_hub
@@ -126,10 +124,7 @@ def _install_lazy_jir_counters -> tuple[LazyJirMetrics, object] {
             }
         }
         mod = orig_load(
-            self,
-            source_path,
-            importer_path=importer_path,
-            use_str=use_str
+            self, source_path, importer_path=importer_path, use_str=use_str
         );
         if source_build {
             metrics.pyi_compile_calls += 1;

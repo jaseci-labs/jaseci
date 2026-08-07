@@ -186,9 +186,15 @@ impl JacProgram.load_dependency_module(
     } elif resolved_path in target_hub {
         mod = target_hub[resolved_path];
     } else {
-        jir_mod = read_module_jir_cache(resolved_path);
+        jir_mod: (object | None) = None;
+        if use_str is None {
+            jir_mod = read_module_jir_cache(resolved_path);
+        }
         if jir_mod is not None {
             mod = jir_mod;
+            if resolved_path.endswith('.pyi') and not mod.stub_only {
+                mod.stub_only = True;
+            }
         } elif resolved_path.endswith('.pyi') {
             import ast as py_ast;
             import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
@@ -197,9 +203,7 @@ impl JacProgram.load_dependency_module(
             src = use_str or read_file_with_encoding(source_path);
             uni_source = uni.Source(src, source_path);
             mod = PyastBuildPass(
-                ir_in=uni.PythonModuleAst(
-                    py_ast.parse(src), orig_src=uni_source,
-                ),
+                ir_in=uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
                 prog=self,
             ).ir_out;
             SymTabBuildPass(ir_in=mod, prog=self);
