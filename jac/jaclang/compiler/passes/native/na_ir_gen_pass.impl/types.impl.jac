@@ -1373,6 +1373,38 @@ impl NaIRGenPass._promote_to_float(
     return (left, right);
 }
 
+impl NaIRGenPass._codegen_int_floor_divmod(
+    left: ir.Value, right: ir.Value
+) -> tuple[(ir.Value, ir.Value)] {
+    int_ty = left.type;
+    q = self.builder.sdiv(left, right, name="floordiv.quot");
+    r = self.builder.srem(left, right, name="floordiv.rem");
+    izero = ir.Constant(int_ty, 0);
+    rone = ir.Constant(int_ty, 1);
+    r_ne_zero = self.builder.icmp_signed("!=", r, izero, name="floordiv.r.nz");
+    r_neg = self.builder.icmp_signed("<", r, izero, name="floordiv.r.neg");
+    b_neg = self.builder.icmp_signed("<", right, izero, name="floordiv.b.neg");
+    sign_diff = self.builder.icmp_unsigned("!=", r_neg, b_neg, name="floordiv.sdiff");
+    need_adj = self.builder.and_(r_ne_zero, sign_diff, name="floordiv.adj");
+    q_one_less = self.builder.sub(q, rone, name="floordiv.q.dec");
+    q_final = self.builder.select(need_adj, q_one_less, q, name="floordiv.q");
+    r_plus_b = self.builder.add(r, right, name="floordiv.r.fix");
+    r_final = self.builder.select(need_adj, r_plus_b, r, name="floordiv.r");
+    return (q_final, r_final);
+}
+
+impl NaIRGenPass._codegen_float_floor_div(left: ir.Value, right: ir.Value) -> ir.Value {
+    raw = self.builder.fdiv(left, right, name="ffloordiv.raw");
+    floor_fn = self._get_or_declare_extern("floor", ir.DoubleType(), [ir.DoubleType()]);
+    return self.builder.call(floor_fn, [raw], name="ffloordiv");
+}
+
+impl NaIRGenPass._codegen_float_floor_mod(left: ir.Value, right: ir.Value) -> ir.Value {
+    floored = self._codegen_float_floor_div(left, right);
+    prod = self.builder.fmul(right, floored, name="fmod.prod");
+    return self.builder.fsub(left, prod, name="fmod");
+}
+
 impl NaIRGenPass._emit_binary_op(
     op: str, left: ir.Value, right: ir.Value
 ) -> (ir.Value | None) {
@@ -1761,7 +1793,7 @@ impl NaIRGenPass._emit_binary_op(
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "float modulo by zero"
             );
-            return self.builder.frem(left, right, name="fmod");
+            return self._codegen_float_floor_mod(left, right);
         } elif op == Tok.FLOOR_DIV {
             fzero = ir.Constant(ir.DoubleType(), 0.0);
             is_zero = self.builder.fcmp_ordered(
@@ -1770,11 +1802,7 @@ impl NaIRGenPass._emit_binary_op(
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "float floor division by zero"
             );
-            raw = self.builder.fdiv(left, right, name="ffloordiv.raw");
-            floor_fn = self._get_or_declare_extern(
-                "floor", ir.DoubleType(), [ir.DoubleType()]
-            );
-            return self.builder.call(floor_fn, [raw], name="ffloordiv");
+            return self._codegen_float_floor_div(left, right);
         }
     } else {
         if left.type.width < right.type.width {
@@ -1823,14 +1851,16 @@ impl NaIRGenPass._emit_binary_op(
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "integer division or modulo by zero"
             );
-            return self.builder.sdiv(left, right, name="floordiv");
+            (q, _) = self._codegen_int_floor_divmod(left, right);
+            return q;
         } elif op == Tok.MOD {
             izero = ir.Constant(int_ty, 0);
             is_zero = self.builder.icmp_signed("==", right, izero, name="mod.zero.chk");
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "integer division or modulo by zero"
             );
-            return self.builder.srem(left, right, name="mod");
+            (_, r) = self._codegen_int_floor_divmod(left, right);
+            return r;
         }
     }
 

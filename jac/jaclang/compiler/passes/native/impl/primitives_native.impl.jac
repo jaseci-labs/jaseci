@@ -4853,8 +4853,7 @@ impl NativeBuiltinEmitter.emit_divmod(
         p._emit_runtime_raise(
             is_zero, "ZeroDivisionError", "integer division or modulo by zero"
         );
-        quot = b.sdiv(a, v, name="divmod.quot");
-        rem = b.srem(a, v, name="divmod.rem");
+        (quot, rem) = p._codegen_int_floor_divmod(a, v);
 
         tuple_type = ir.LiteralStructType([i64, i64]);
         null_ptr = ir.Constant(tuple_type.as_pointer(), None);
