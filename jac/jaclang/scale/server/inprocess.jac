@@ -51,7 +51,9 @@ def _register_endpoint_profile(server: any, profile: str) {
         server._register_endpoints();
     } else {
         raise ValueError(
-            "unknown endpoint_profile '" + str(profile) + "' (expected 'desktop', 'test', or 'full')"
+            "unknown endpoint_profile '"
+                + str(profile)
+                + "' (expected 'desktop', 'test', or 'full')"
         );
     }
 }
@@ -68,7 +70,12 @@ def prepare_inprocess_runtime(
 
     if transport_kind != "testclient" {
         raise NotImplementedError(
-            "transport_kind='" + str(transport_kind) + "' is not implemented; " + "only 'testclient' (in-process, single serialized worker) is " + "supported today. 'asgi' / 'isolated_worker' are reserved for the " + "execution-isolation choice recorded in #6596 P0-0."
+            "transport_kind='"
+                + str(transport_kind)
+                + "' is not implemented; "
+                + "only 'testclient' (in-process, single serialized worker) is "
+                + "supported today. 'asgi' / 'isolated_worker' are reserved for the "
+                + "execution-isolation choice recorded in #6596 P0-0."
         );
     }
 
@@ -91,7 +98,9 @@ def prepare_inprocess_runtime(
         }
         Jac.jac_import(target=mod, base_path=base, lng="jac");
 
-        server = JacAPIServer(module_name=mod, port=0, base_path=base_path);
+        server = JacAPIServer(
+            module_name=mod, port=0, base_path=base_path, module_file=jac_file
+        );
         server.load_module();
 
         _register_endpoint_profile(server, endpoint_profile);

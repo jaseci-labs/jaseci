@@ -20,13 +20,8 @@ glob _PASSTHROUGH_SEGMENTS: set[str] = {
          "graph"
      };
 
-glob _SERVICE_MEMBER_SEGMENTS: set[str] = _PASSTHROUGH_SEGMENTS | {
-         "healthz",
-         "health",
-         "metrics",
-         "openapi.json",
-         "docs"
-     };
+glob _SERVICE_MEMBER_SEGMENTS: set[str] = _PASSTHROUGH_SEGMENTS
+         | {"healthz", "health", "metrics", "openapi.json", "docs"};
 
 glob ROUTE_BUILTIN: str = "builtin",
      ROUTE_ADMIN: str = "admin",
@@ -72,6 +67,18 @@ def _longest_prefix_match(norm_path: str, service_prefixes: list[str]) -> str {
         }
     }
     return best;
+}
+
+
+def is_gateway_owned(path: str) -> bool {
+    norm = _normalize(path);
+    if norm in _BUILTIN_EXACT {
+        return True;
+    }
+    if norm == "/admin" or norm.startswith("/admin/") {
+        return True;
+    }
+    return _first_segment(norm) == "user";
 }
 
 

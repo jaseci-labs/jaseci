@@ -200,7 +200,7 @@ impl JacScaleConfig.get_sso_config(self: JacScaleConfig) -> dict[str, any] {
                 FIREBASE_AUTH_PROJECT_ID_ENV,
                 firebase_config.get('project_id', '') or None
             )
-            or ''
+                or ''
         }
     };
 }
@@ -412,7 +412,7 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
         backplane = str(backplane).lower();
     }
     ws_redis_url = ws_config.get('redis_url')
-    or self.get_database_config().get('redis_url');
+        or self.get_database_config().get('redis_url');
     return {
         'backplane': backplane,
         'redis_url': ws_redis_url,
@@ -536,13 +536,25 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
 }
 
 
-impl normalize_microservices_config(ms_config: dict[str, any]) -> dict[str, any] {
+impl normalize_microservices_config(
+    ms_config: dict[str, any], env_routes_fallback: bool = True
+) -> dict[str, any] {
+    if 'enabled' in ms_config and not _ms_enabled_deprecation_warned {
+        _ms_enabled_deprecation_warned = True;
+        import logging;
+        logging.getLogger(__name__).warning(
+            "jac.toml [scale.microservices] `enabled` is deprecated: declaring "
+            "[scale.microservices.routes] is what turns microservice mode on, "
+            "and a deployed fleet pod ignores this key. Delete it (remove the "
+            "routes table to run single-process); a future release drops it."
+        );
+    }
     client_config = ms_config.get('client', {});
     cors_config = ms_config.get('cors', {});
     rl_config = ms_config.get('rate_limit', {});
 
     routes: dict[str, any] = dict(ms_config.get('routes', {}));
-    if not routes {
+    if not routes and env_routes_fallback {
         import json;
         env_routes: str = os.environ.get('JAC_SV_ROUTES', '');
         if env_routes {
@@ -560,7 +572,8 @@ impl normalize_microservices_config(ms_config: dict[str, any]) -> dict[str, any]
     }
 
     raw_client_entry = client_config.get('entry', None);
-    if raw_client_entry is False {
+
+    if raw_client_entry is False or raw_client_entry == '' {
         resolved_client_entry: str = '';
     } elif raw_client_entry {
         resolved_client_entry: str = str(raw_client_entry);
@@ -608,13 +621,6 @@ impl normalize_microservices_config(ms_config: dict[str, any]) -> dict[str, any]
         'logs': dict(ms_config.get('logs', {})),
         'tracing': dict(ms_config.get('tracing', {}))
     };
-}
-
-impl JacScaleConfig.microservices_declared(self: JacScaleConfig) -> bool {
-    declared = self.get_jac_config().get_plugin_config(self.get_plugin_name()).get(
-        'microservices'
-    );
-    return isinstance(declared, dict) and bool(declared);
 }
 
 impl JacScaleConfig.get_admin_config(self: JacScaleConfig) -> dict[str, any] {

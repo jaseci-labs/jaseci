@@ -192,6 +192,14 @@ impl JSCodeGenerator.gen_await_expression(nd: es.AwaitExpression) -> str {
     return f"await {self.generate(nd.argument)}";
 }
 
+impl JSCodeGenerator.gen_yield_expression(nd: es.YieldExpression) -> str {
+    star = '*' if nd.delegate else '';
+    if nd.argument {
+        return f"yield{star} {self.generate(nd.argument)}";
+    }
+    return f"yield{star}";
+}
+
 impl JSCodeGenerator.gen_new_expression(nd: es.NewExpression) -> str {
     callee = self.generate(nd.callee);
     if isinstance(nd.arguments, es.ObjectExpression) {
@@ -296,7 +304,7 @@ impl JSCodeGenerator.gen_arrow_function_expression(
     async_str = 'async ' if nd.async_ else '';
     params = ', '.join(self.generate(p) for p in nd.params);
     if len(nd.params) == 1
-    and not isinstance(nd.params[0], (es.ArrayPattern, es.ObjectPattern)) {
+        and not isinstance(nd.params[0], (es.ArrayPattern, es.ObjectPattern)) {
         params = self.generate(nd.params[0]);
     } else {
         params = f"({params})";

@@ -1177,6 +1177,14 @@ class NativeSetEmitter(SetEmitter[(ir.Value, NativeEmitCtx)]) {
         args: list[ir.Value]
     ) -> (ir.Value | None);
 
+    def _emit_set_elem_loop(
+        self: NativeSetEmitter,
+        ctx: NativeEmitCtx,
+        src_set: ir.Value,
+        prefix: str,
+        body_cb: object
+    ) -> None;
+
     def _emit_set_relation(
         self: NativeSetEmitter,
         ctx: NativeEmitCtx,
@@ -1823,16 +1831,16 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         base = args[0];
         exp = args[1];
         if len(args) >= 3
-        and isinstance(base.type, ir.IntType)
-        and isinstance(exp.type, ir.IntType)
-        and isinstance(args[2].type, ir.IntType) {
+            and isinstance(base.type, ir.IntType)
+            and isinstance(exp.type, ir.IntType)
+            and isinstance(args[2].type, ir.IntType) {
             return self.emit_pow_mod(ctx, base, exp, args[2]);
         }
         if isinstance(base.type, ir.IntType) and isinstance(exp.type, ir.IntType) {
             return p._codegen_int_pow(base, exp);
         }
         if isinstance(base.type, ir.DoubleType)
-        and isinstance(exp.type, ir.DoubleType) {
+            and isinstance(exp.type, ir.DoubleType) {
             pow_fn = p._get_or_declare_extern(
                 "pow", ir.DoubleType(), [ir.DoubleType(), ir.DoubleType()]
             );

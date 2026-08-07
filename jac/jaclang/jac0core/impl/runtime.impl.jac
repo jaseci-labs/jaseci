@@ -17,9 +17,15 @@ impl JacAccessValidation._check_access(
     granted = actual.value > min_level.value;
     if not granted {
         logger.info(
-            "Current root doesn't have " + operation + " access to " + to.__class__.__name__ + " " + to.archetype.__class__.__name__ + "[" + str(
-                to.id
-            ) + "]"
+            "Current root doesn't have "
+                + operation
+                + " access to "
+                + to.__class__.__name__
+                + " "
+                + to.archetype.__class__.__name__
+                + "["
+                + str(to.id)
+                + "]"
         );
         if operation != "read" {
             required = AccessLevel(min_level.value + 1);
@@ -151,213 +157,21 @@ impl JacAccessValidation.check_access_level(
     return access_level;
 }
 
-impl JacGraph.get_edges(
-    origin: list[NodeArchetype], destination: ObjectSpatialDestination
-) -> list[EdgeArchetype] {
-    _prefetch_edges(origin);
-    edges: OrderedDict[(EdgeAnchor, EdgeArchetype)] = OrderedDict();
-    for nd in origin {
-        nanch = nd.__jac__;
-
-        for stub in `list(nanch.edges) {
-            `edge = resolve_ref(stub, nanch);
-            if `edge is None {
-                continue;
-            }
-            source = resolve_ref(`edge.source, `edge);
-            target = resolve_ref(`edge.target, `edge);
-            if source is None or target is None {
-                gmem = JacRuntimeInterface.get_context().mem;
-
-                dead = (
-                    (
-                        source is None
-                        and not gmem.is_recoverable_quarantine(`edge.source.id)
-                    )
-                    or (
-                        target is None
-                        and not gmem.is_recoverable_quarantine(`edge.target.id)
-                    )
-                );
-                if dead {
-                    gmem.quarantine_ref(nanch, `edge);
-                }
-                continue;
-            }
-            effective_dir = EdgeDir.ANY
-                if `edge.is_undirected
-                else destination.direction;
-            if (
-                destination.edge_filter(`edge.archetype)
-                and source.archetype
-                and target.archetype
-            ) {
-                if (
-                    (effective_dir in [EdgeDir.OUT, EdgeDir.ANY])
-                    and (nanch == source)
-                    and destination.node_filter(target.archetype)
-                    and JacRuntimeInterface.check_read_access(target)
-                ) {
-                    edges[`edge] = `edge.archetype;
-                }
-                if (
-                    (effective_dir in [EdgeDir.IN, EdgeDir.ANY])
-                    and (nanch == target)
-                    and destination.node_filter(source.archetype)
-                    and JacRuntimeInterface.check_read_access(source)
-                ) {
-                    edges[`edge] = `edge.archetype;
-                }
-            }
-        }
-    }
-    return `list(edges.values());
-}
-
-impl JacGraph.get_edges_with_node(
-    origin: list[NodeArchetype],
-    destination: ObjectSpatialDestination,
-    from_visit: bool = False
-) -> list[(EdgeArchetype | NodeArchetype)] {
-    _prefetch_edges(origin);
-    loc: OrderedDict[((NodeAnchor | EdgeAnchor), (NodeArchetype | EdgeArchetype))] = OrderedDict();
-    for nd in origin {
-        nanch = nd.__jac__;
-        for stub in `list(nanch.edges) {
-            `edge = resolve_ref(stub, nanch);
-            if `edge is None {
-                continue;
-            }
-            source = resolve_ref(`edge.source, `edge);
-            target = resolve_ref(`edge.target, `edge);
-            if source is None or target is None {
-                gmem = JacRuntimeInterface.get_context().mem;
-
-                dead = (
-                    (
-                        source is None
-                        and not gmem.is_recoverable_quarantine(`edge.source.id)
-                    )
-                    or (
-                        target is None
-                        and not gmem.is_recoverable_quarantine(`edge.target.id)
-                    )
-                );
-                if dead {
-                    gmem.quarantine_ref(nanch, `edge);
-                }
-                continue;
-            }
-            effective_dir = EdgeDir.ANY
-                if `edge.is_undirected
-                else destination.direction;
-            if (
-                destination.edge_filter(`edge.archetype)
-                and source.archetype
-                and target.archetype
-            ) {
-                if (
-                    (effective_dir in [EdgeDir.OUT, EdgeDir.ANY])
-                    and (nanch == source)
-                    and destination.node_filter(target.archetype)
-                    and JacRuntimeInterface.check_read_access(target)
-                ) {
-                    loc[`edge] = `edge.archetype;
-                    loc[target] = target.archetype;
-                }
-                if (
-                    (effective_dir in [EdgeDir.IN, EdgeDir.ANY])
-                    and (nanch == target)
-                    and destination.node_filter(source.archetype)
-                    and JacRuntimeInterface.check_read_access(source)
-                ) {
-                    loc[`edge] = `edge.archetype;
-                    loc[source] = source.archetype;
-                }
-            }
-        }
-    }
-    return `list(loc.values());
-}
-
-impl JacGraph.edges_to_nodes(
-    origin: list[NodeArchetype], destination: ObjectSpatialDestination
-) -> list[NodeArchetype] {
-    _prefetch_edges(origin);
-
-    JacRuntimeInterface.get_context().note_traversal_reads(
-        [nd.__jac__ for nd in origin]
-    );
-    nodes: OrderedDict[(NodeAnchor, NodeArchetype)] = OrderedDict();
-    for nd in origin {
-        nanch = nd.__jac__;
-        for stub in `list(nanch.edges) {
-            `edge = resolve_ref(stub, nanch);
-            if `edge is None {
-                continue;
-            }
-            source = resolve_ref(`edge.source, `edge);
-            target = resolve_ref(`edge.target, `edge);
-            if source is None or target is None {
-                gmem = JacRuntimeInterface.get_context().mem;
-
-                dead = (
-                    (
-                        source is None
-                        and not gmem.is_recoverable_quarantine(`edge.source.id)
-                    )
-                    or (
-                        target is None
-                        and not gmem.is_recoverable_quarantine(`edge.target.id)
-                    )
-                );
-                if dead {
-                    gmem.quarantine_ref(nanch, `edge);
-                }
-                continue;
-            }
-            effective_dir = EdgeDir.ANY
-                if `edge.is_undirected
-                else destination.direction;
-            if (
-                destination.edge_filter(`edge.archetype)
-                and source.archetype
-                and target.archetype
-            ) {
-                if (
-                    (effective_dir in [EdgeDir.OUT, EdgeDir.ANY])
-                    and (nanch == source)
-                    and destination.node_filter(target.archetype)
-                    and JacRuntimeInterface.check_read_access(target)
-                ) {
-                    nodes[target] = target.archetype;
-                }
-                if (
-                    (effective_dir in [EdgeDir.IN, EdgeDir.ANY])
-                    and (nanch == target)
-                    and destination.node_filter(source.archetype)
-                    and JacRuntimeInterface.check_read_access(source)
-                ) {
-                    nodes[source] = source.archetype;
-                }
-            }
-        }
-    }
-    return `list(nodes.values());
-}
-
 impl JacWalker.`visit(
     `walker: WalkerArchetype,
     expr:
         (
-            list[(NodeArchetype | EdgeArchetype)] | list[NodeArchetype] | list[
-                EdgeArchetype
-            ] | NodeArchetype | EdgeArchetype | ObjectSpatialPath
+            list[(NodeArchetype | EdgeArchetype)]
+            | list[NodeArchetype]
+            | list[EdgeArchetype]
+            | NodeArchetype
+            | EdgeArchetype
+            | GraphQuery
         ),
     insert_loc: int = -1
 ) -> bool {
     import from jaclang.jac0core.osp_kernel { osp_visit }
-    if isinstance(expr, ObjectSpatialPath) {
+    if isinstance(expr, GraphQuery) {
         expr.from_visit = True;
         expr = JacRuntimeInterface.refs(expr);
     }
@@ -530,9 +344,8 @@ impl JacBuiltin.printgraph(
     for (source, target, `edge) in connections {
         edge_label = html.escape(str(`edge.__jac__.archetype));
         dot_content += (
-            f"{visited_nodes.index(source)} -> {visited_nodes.index(target)} " + f' [label="{edge_label
-                if "GenericEdge" not in edge_label
-                else ""}"];\n'
+            f"{visited_nodes.index(source)} -> {visited_nodes.index(target)} "
+            + f'[label="{edge_label if "GenericEdge" not in edge_label else ""}"];\n'
         );
         if (('GenericEdge' in edge_label) or not edge_label.strip()) {
             mermaid_content += (
@@ -712,7 +525,7 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
     cls._jac_entry_funcs_ = [*entries.values()];
     cls._jac_exit_funcs_ = [*exits.values()];
     if issubclass(cls, WalkerArchetype)
-    and 'reports' not in cls.__dict__.get('__annotations__', {}) {
+        and 'reports' not in cls.__dict__.get('__annotations__', {}) {
         if not hasattr(cls, '__annotations__') {
             cls.__annotations__ = {};
         }
@@ -994,7 +807,7 @@ impl JacTest.run_test(
                 if not is_annex(file)
             ];
             for file in files {
-                if is_cl_test_file_for_discovery(file) {
+                if is_cl_test_file_for_discovery(os.path.join(root_dir, file)) {
                     test_file = True;
                     cl_path = os.path.join(root_dir, file);
                     JacRuntimeInterface.get_console().info(
@@ -1068,63 +881,30 @@ impl JacBuiltin.log_report(expr: any, custom: bool = False) -> None {
 }
 
 impl JacGraph.refs(
-    path: ObjectSpatialPath | NodeArchetype | list[NodeArchetype],
-    post_filter: (Callable[([Archetype], bool)] | None) = None,
-    slc: (slice | None) = None
+    path: GraphQuery | NodeArchetype | list[NodeArchetype], slc: (slice | None) = None
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
-    if not isinstance(path, ObjectSpatialPath) {
-        path = ObjectSpatialPath(path, [ObjectSpatialDestination(EdgeDir.OUT)]);
+    if not isinstance(path, GraphQuery) {
+        path = GraphQuery(path, hops=[QHop(dir=EdgeDir.OUT.value)]);
     }
-
-    if post_filter is not None and path.destinations {
-        last = path.destinations[-1];
-        if last.nd is None {
-            last.nd = post_filter;
-        } else {
-            orig_nd = last.nd;
-            last.nd = lambda (i: any) { orig_nd(i) and post_filter(i); };
-        }
-    }
-
+    import from jaclang.runtimelib.query_planner { resolve_query, resolve_query_edges }
     ctx = JacRuntimeInterface.get_context();
     ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
-
-    import from jaclang.runtimelib.resolver { resolve_path_anchors }
-    if not path.edge_only {
-        planned = resolve_path_anchors(ctx.mem, path, slc);
-        return [
-            a.archetype
-            for a in planned
-            if a.archetype is not None
-        ];
+    if slc is not None and path.slc is None {
+        path.slc = slc;
     }
-
-    origin: list[NodeArchetype];
-    if len(path.destinations) > 1 {
-        prefix_path = ObjectSpatialPath(path.origin, path.destinations[:-1]);
-        prefix_anchors = resolve_path_anchors(ctx.mem, prefix_path);
-        origin = [
-            a.archetype
-            for a in prefix_anchors
-            if a.archetype is not None
-        ];
-    } else {
-        origin = path.origin;
-    }
-    if path.from_visit {
-        result = JacRuntimeInterface.get_edges_with_node(origin, path.destinations[-1]);
-    } else {
-        result = JacRuntimeInterface.get_edges(origin, path.destinations[-1]);
-    }
-    if slc is not None {
-        result = result[slc];
-    }
-    return result;
+    planned = (
+        resolve_query_edges(ctx.mem, path)
+            if path.edges_only
+            else resolve_query(ctx.mem, path)
+    );
+    return [
+        a.archetype
+        for a in planned
+        if a.archetype is not None
+    ];
 }
 
-impl JacGraph.arefs(
-    path: ObjectSpatialPath | NodeArchetype | list[NodeArchetype]
-) -> None {
+impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {
     ;
 }
 
@@ -1185,44 +965,46 @@ impl JacGraph.disconnect(
     dir: EdgeDir = EdgeDir.OUT,
     filter: (Callable[([EdgeArchetype], bool)] | None) = None
 ) -> bool {
+    import from jaclang.jac0core.osp_graph_sv {
+        sv_candidate_edges_between,
+        sv_forget_edge,
+        sv_register_hydrated
+    }
     disconnect_occurred = False;
     left = [left] if isinstance(left, NodeArchetype) else left;
     right = [right] if isinstance(right, NodeArchetype) else right;
     for i in left {
         nd = i.__jac__;
-        for anchor in `set(nd.edges) {
-            if (
-                (source := anchor.source)
-                and (target := anchor.target)
-                and (not filter or filter(anchor.archetype))
-                and source.archetype
-                and target.archetype
-            ) {
-                if (
-                    (dir in [EdgeDir.OUT, EdgeDir.ANY])
-                    and (nd == source)
-                    and (target.archetype in right)
-                    and JacRuntimeInterface.check_connect_access(
-                        target, op_hint="edge_delete"
-                    )
-                ) {
-                    JacRuntimeInterface.destroy([anchor])
-                        if anchor.persistent
-                        else anchor.detach();
-                    disconnect_occurred = True;
+        for stub in `set(nd.edges) {
+            if not stub.is_populated() {
+                stub.populate();
+            }
+        }
+        sv_register_hydrated(nd);
+        handled: set = set();
+        for j in right {
+            for anchor in sv_candidate_edges_between(nd, j.__jac__, dir.value) {
+                if anchor.id in handled {
+                    continue;
                 }
+                handled.add(anchor.id);
                 if (
-                    (dir in [EdgeDir.IN, EdgeDir.ANY])
-                    and (nd == target)
-                    and (source.archetype in right)
-                    and JacRuntimeInterface.check_connect_access(
-                        source, op_hint="edge_delete"
-                    )
+                    (source := anchor.source)
+                    and (target := anchor.target)
+                    and (not filter or filter(anchor.archetype))
+                    and source.archetype
+                    and target.archetype
                 ) {
-                    JacRuntimeInterface.destroy([anchor])
-                        if anchor.persistent
-                        else anchor.detach();
-                    disconnect_occurred = True;
+                    other = target if source.id == nd.id else source;
+                    if JacRuntimeInterface.check_connect_access(
+                        other, op_hint="edge_delete"
+                    ) {
+                        JacRuntimeInterface.destroy([anchor])
+                            if anchor.persistent
+                            else anchor.detach();
+                        sv_forget_edge(anchor);
+                        disconnect_occurred = True;
+                    }
                 }
             }
         }
@@ -1266,12 +1048,14 @@ impl JacGraph.build_edge(
 ) -> Callable[([NodeAnchor, NodeAnchor], EdgeArchetype)] {
     ct = conn_type or GenericEdge;
     def builder(source: NodeAnchor, target: NodeAnchor) -> EdgeArchetype {
+        import from jaclang.jac0core.osp_graph_sv { sv_conn }
         `edge = ct() if isinstance(ct, `type) else ct;
         eanch = `edge.__jac__=EdgeAnchor(
             archetype=`edge, source=source, target=target, is_undirected=is_undirected
         );
         source.edges.append(eanch);
         target.edges.append(eanch);
+        sv_conn(source, target, eanch, is_undirected);
         if conn_assign {
             for (fld, val) in zip(conn_assign[0], conn_assign[1], strict=False) {
                 if hasattr(`edge, fld) {
@@ -1284,8 +1068,6 @@ impl JacGraph.build_edge(
         if (source.persistent or target.persistent) {
             JacRuntimeInterface.save(eanch);
         }
-        import from jaclang.runtimelib.topo_utils { on_edge_created }
-        on_edge_created(source, target, eanch);
         return `edge;
     }
     return builder;
@@ -1301,8 +1083,6 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
     jctx.mem.put(anchor);
     match anchor {
         case NodeAnchor():
-            import from jaclang.runtimelib.topo_utils { on_node_saved }
-            on_node_saved(anchor);
             for ed in anchor.edges {
                 if (ed.is_populated() and not ed.persistent) {
                     JacRuntimeInterface.save(ed);
@@ -1326,6 +1106,7 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
 impl JacPersistence.destroy(
     objs: Archetype | Anchor | list[(Archetype | Anchor)]
 ) -> None {
+    import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
     obj_list = objs if isinstance(objs, `list) else [objs];
     for `obj in obj_list {
         if not isinstance(`obj, (Archetype, Anchor)) {
@@ -1336,23 +1117,18 @@ impl JacPersistence.destroy(
             match anchor {
                 case NodeAnchor():
                     for `edge in anchor.edges[:] {
-                        JacRuntimeInterface.destroy([`edge]);
+                        `edge.detach();
+                        JacRuntimeInterface.get_context().mem.delete(`edge.id);
+                        sv_forget_edge(`edge);
                     }
 
                 case EdgeAnchor():
-                    import from jaclang.runtimelib.topo_utils { on_edge_destroyed }
-                    if anchor.is_populated() {
-                        on_edge_destroyed(anchor.source, anchor.target, anchor);
-                    }
                     anchor.detach();
+                    sv_forget_edge(anchor);
 
                 case _:
                     ;
 
-            }
-            if isinstance(anchor, NodeAnchor) {
-                import from jaclang.runtimelib.topo_utils { on_node_destroyed }
-                on_node_destroyed(anchor);
             }
             JacRuntimeInterface.get_context().mem.delete(anchor.id);
         }
@@ -1753,7 +1529,7 @@ impl JacLLM.by_operator(lhs: any, rhs: any) -> any {
 
     lhs_list = lhs if isinstance(lhs, list) else [lhs];
     if all(isinstance(element, (NodeArchetype, EdgeArchetype)) for element in lhs_list)
-    and isinstance(rhs, BaseLLM) {
+        and isinstance(rhs, BaseLLM) {
         import from jaclang.byllm.visit_routing { route_visit }
         return route_visit(lhs_list, rhs);
     }

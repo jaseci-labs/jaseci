@@ -5,7 +5,6 @@ import types;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
-import from jaclang.jac0core.ext_registry { is_native_module }
 import from jaclang.project.kinds { RunPlan }
 
 def _discover_config_from_file(filename: str) -> None {
@@ -219,6 +218,8 @@ def _run_project(
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
     import from jaclang.project.kinds { plan_project_run, is_valid_kind, VALID_KINDS }
+    import from jaclang.project.providers { initialize_provider_registry }
+    initialize_provider_registry();
 
     existing_config = get_config();
     active_profile = existing_config.active_profile if existing_config else None;
@@ -323,40 +324,34 @@ impl run(
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
     try {
-        if is_native_module(filename) {
-            import ctypes;
-            full_path = os.path.abspath(filename);
-            program = Jac.get_program();
-            ir_mod = program.compile(file_path=full_path);
-            if program.errors_had {
-                for _err in program.errors_had {
-                    console.error(_err.pretty_print());
-                }
-                mach.close();
-                return 1;
-            }
-            if ir_mod and ir_mod.gen.native_engine {
-                engine = ir_mod.gen.native_engine;
-                _populate_native_argv(engine, sys.argv);
-                if main {
-                    addr = engine.get_function_address("jac_entry");
-                    if addr != 0 {
-                        fn = ctypes.CFUNCTYPE(None)(addr);
-                        fn();
-                    }
-                }
-            } else {
-                console.error("Native compilation failed for " + filename);
-                mach.close();
-                return 1;
-            }
-        } elif filename.endswith('.jac') {
+        if filename.endswith('.jac') {
             native_executed = False;
-            if (_default_codespace_is_native() and sys.stdout is sys.__stdout__) {
+
+            _cfg_kind = get_config();
+            _kind_forced = (
+                _cfg_kind is not None
+                and (_cfg_kind.project.kind or '').strip() == 'cli-native'
+            );
+            if (
+                _kind_forced
+                or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+            ) {
                 import ctypes;
+                import from jaclang.jac0core.compile_options {
+                    CompileOptions as _RunOpts
+                }
                 full_path = os.path.abspath(filename);
                 program = Jac.get_program();
-                ir_mod = program.compile(file_path=full_path);
+                _run_options = (
+                    _RunOpts(
+                        type_check=False,
+                        force_codespace='native',
+                        force_target_program=True
+                    )
+                        if _kind_forced
+                        else None
+                );
+                ir_mod = program.compile(file_path=full_path, options=_run_options);
                 if program.errors_had {
                     for _err in program.errors_had {
                         console.error(_err.pretty_print());
@@ -379,6 +374,14 @@ impl run(
                             native_executed = True;
                         }
                     }
+                }
+                if _kind_forced and not native_executed {
+                    console.error(
+                        "cli-native project did not produce a runnable native "
+                        "entry (no engine or no jac_entry)."
+                    );
+                    mach.close();
+                    return 1;
                 }
             }
             if not native_executed {
@@ -949,25 +952,18 @@ impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
 }
 
 def _tool_site_dirs(use_global: bool) -> list {
-    import site;
-    import from pathlib { Path }
-    import from jaclang.project.config { get_config }
-    import from jaclang.project.pyvenv { get_venv_site_packages }
+    import from jaclang.project.tool_paths { python_project_site, python_global_site }
 
     sites: list = [];
     if not use_global {
-        config = get_config();
-        if config is not None {
-            sites.append(("project", get_venv_site_packages(config.get_venv_dir())));
+        proj_site = python_project_site();
+        if proj_site is not None {
+            sites.append(("project", proj_site));
         }
     }
-    try {
-        global_sites = site.getsitepackages();
-    } except (AttributeError, IndexError, OSError) {
-        global_sites = [];
-    }
-    if global_sites {
-        sites.append(("global", Path(global_sites[0])));
+    glob_site = python_global_site();
+    if glob_site is not None {
+        sites.append(("global", glob_site));
     }
     return sites;
 }
@@ -989,16 +985,6 @@ def _console_scripts_in(site_dir: object) -> list {
         }
     }
     return found;
-}
-
-def _node_bin_dir -> object {
-    import from jaclang.project.config { get_config }
-
-    config = get_config();
-    if config is None {
-        return None;
-    }
-    return config.get_client_dir() / "node_modules" / ".bin";
 }
 
 def _node_tools_in(bin_dir: object) -> list {
@@ -1079,8 +1065,8 @@ def _run_entry_point(name: str, ep: object, site_dir: object, args: list) -> int
 
 def _run_node_tool(name: str, bin_path: object, args: list) -> int {
     import subprocess;
-    import from jaclang.runtimelib.client.bun_installer { get_bun }
     import from jaclang.project.config { get_config }
+    import from jaclang.runtimelib.client.bun_installer { get_bun }
 
     bun = get_bun();
     if bun is None {
@@ -1097,27 +1083,47 @@ def _run_node_tool(name: str, bin_path: object, args: list) -> int {
 }
 
 def _tool_tiers(use_global: bool, use_node: bool) -> list {
-    if use_node {
-        node_bin = _node_bin_dir();
-        return [("node", "node", node_bin)] if node_bin is not None else [];
+    import from jaclang.project.config { get_config }
+    import from jaclang.project.tool_paths {
+        python_project_site,
+        python_global_site,
+        node_bin_dir
     }
-    py_sites = _tool_site_dirs(use_global);
-    if use_global {
-        return [(label, "py", loc) for (label, loc) in py_sites];
-    }
-    tiers: list = [];
-    node_bin = _node_bin_dir();
-    node_inserted = False;
-    for (label, loc) in py_sites {
-        tiers.append((label, "py", loc));
 
-        if label == "project" and node_bin is not None {
-            tiers.append(("node", "node", node_bin));
-            node_inserted = True;
-        }
+    config = get_config();
+
+    universe: list = [];
+    proj_py = python_project_site(config);
+    if proj_py is not None {
+        universe.append(("project", "py", proj_py));
     }
-    if node_bin is not None and not node_inserted {
-        tiers.append(("node", "node", node_bin));
+    proj_node = node_bin_dir("project", config);
+    if proj_node is not None {
+        universe.append(("project", "node", proj_node));
+    }
+    glob_py = python_global_site();
+    if glob_py is not None {
+        universe.append(("global", "py", glob_py));
+    }
+    glob_node = node_bin_dir("global", config);
+    if glob_node is not None {
+        universe.append(("global", "node", glob_node));
+    }
+
+    tiers = universe;
+    if use_global {
+        tiers = [
+            t
+            for t in tiers
+            if t[0] == "global"
+        ];
+    }
+    if use_node {
+        tiers = [
+            t
+            for t in tiers
+            if t[1] == "node"
+        ];
     }
     return tiers;
 }
@@ -1146,8 +1152,10 @@ def _list_tools(tiers: list) -> int {
     }
     if not rows {
         console.info(
-            "No CLI tools available. Install one with 'jac install <package>', "
-            "'jac install --global <package>', or add an npm package for node tools."
+            "No CLI tools available. Install one with 'jac install <package>' "
+            "(project Python), 'jac install --global <package>' (global Python), "
+            "'jac install --npm <package>' (project npm), or "
+            "'jac install --npm --global <package>' (global npm)."
         );
         return 0;
     }
@@ -1195,11 +1203,13 @@ impl x(
     }
 
     searched = ", ".join([f"{label} ({loc})" for (label, kind, loc) in tiers])
-    or "no tiers";
+        or "no tiers";
     console.error(
         f"No CLI tool named '{name}' found.",
         hint=f"Install it — 'jac install <package>' (project Python), "
-        f"'jac install --global <package>', or add an npm package (node) — "
+        f"'jac install --global <package>' (global Python), "
+        f"'jac install --npm <package>' (project npm), or "
+        f"'jac install --npm --global <package>' (global npm) — "
         f"then 'jac x {name}'. Searched: {searched}."
     );
     return 1;

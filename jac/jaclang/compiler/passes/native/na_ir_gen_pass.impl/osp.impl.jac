@@ -26,12 +26,24 @@ def _load_native_osp_kernel_module -> (uni.Module | None) {
     import from jaclang.jac0core.program { JacProgram }
     _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
     tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "osp_kernel.na.jac");
+    na_copy = os.path.join(tmp_dir, "osp_kernel.jac");
     mod = None;
     try {
+        import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
         _write_native_osp_source(_core, na_copy);
         prog = JacProgram();
-        mod = prog.compile(na_copy, no_cgen=True, symtab_ir_only=True);
+        mod = prog.compile(
+            na_copy,
+            options=_KernelOpts(
+                no_cgen=True,
+                symtab_ir_only=True,
+                aot_mode=True,
+                type_check=False,
+                default_codespace='native',
+                force_codespace='native',
+                force_target_program=True
+            )
+        );
     } except Exception {
         mod = None;
     } finally {
@@ -51,6 +63,7 @@ impl NaIRGenPass._register_osp_kernel_module -> None {
     if kernel_mod is None {
         return;
     }
+    kernel_mod.gen.nogc_enforced = getattr(self.ir_in.gen, "nogc_enforced", False);
     self._walk_imported_module_type_names(kernel_mod);
     self._walk_imported_module_types(kernel_mod);
     self._walk_imported_module_abilities(kernel_mod);
@@ -58,7 +71,7 @@ impl NaIRGenPass._register_osp_kernel_module -> None {
 
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
     if (_manifest is not None)
-    and ("osp_kernel" not in _manifest.native_transitive_sources) {
+        and ("osp_kernel" not in _manifest.native_transitive_sources) {
         _manifest.native_transitive_sources.append("osp_kernel");
     }
 }
@@ -89,7 +102,7 @@ impl NaIRGenPass._compute_osp_model(archetypes: list[uni.Archetype]) -> None {
 impl NaIRGenPass._osp_active -> bool {
     _model = self.ir_in.gen.osp_model;
     return (_model is not None)
-    and (_model.has_event_ability() or _model.uses_construct);
+        and (_model.has_event_ability() or _model.uses_construct);
 }
 
 impl NaIRGenPass._xmod_osp_help(names: list) -> (str | None) {
@@ -178,6 +191,9 @@ impl NaIRGenPass._osp_rc_new(struct_name: str) -> (ir.Value | None) {
 }
 
 impl NaIRGenPass._osp_make_immortal(ptr: ir.Value) -> None {
+    if self._nogc_headerless() {
+        return;
+    }
     i8p = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     _raw = self.builder.bitcast(ptr, i8p, name="osp.imm.i8");
@@ -435,8 +451,7 @@ impl NaIRGenPass._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> d
     _ocf.linkage = "internal";
     self._builder = ir.IRBuilder(_ocf.append_basic_block("entry"));
     _ws_idx = self.struct_field_indices.get("WalkScope", {});
-    _li64 = self.list_types.get("i64");
-    if _li64 is not None {
+    if _ws_idx {
         _scope = _ocf.args[0];
 
         _wlk_jv = self.builder.load(
@@ -465,7 +480,7 @@ impl NaIRGenPass._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> d
             _rep,
             self.builder.bitcast(
                 self.builder.gep(_wlk_i8, [ir.Constant(i64, 16)], name="oc.repslot.i8"),
-                _li64.as_pointer().as_pointer(),
+                _rep.type.as_pointer(),
                 name="oc.repslot"
             )
         );
@@ -808,18 +823,152 @@ impl NaIRGenPass._codegen_connect(nd: uni.BinaryExpr) -> (ir.Value | None) {
     }
 
     self._osp_make_immortal(edge_obj);
+    self._emit_arena_helpers();
     _argtys = osp_conn_fn.function_type.args;
+    _src_i64 = self._coerce_type(src, _argtys[0]);
+    _tgt_i64 = self._coerce_type(tgt, _argtys[1]);
+    _rgn_src: ir.Value = ir.Constant(i64, 0);
+    _rgn_tgt: ir.Value = ir.Constant(i64, 0);
+    if self.region_handle_of_fn is not None {
+        _i8p_conn = ir.IntType(8).as_pointer();
+        _src_conn = self.builder.inttoptr(_src_i64, _i8p_conn, name="conn.src.p");
+        _rgn_src = self.builder.call(
+            self.region_handle_of_fn, [_src_conn], name="conn.rgn.src"
+        );
+        _tgt_conn = self.builder.inttoptr(_tgt_i64, _i8p_conn, name="conn.tgt.p");
+        _rgn_tgt = self.builder.call(
+            self.region_handle_of_fn, [_tgt_conn], name="conn.rgn.tgt"
+        );
+    }
     self.builder.call(
         osp_conn_fn,
         [
-            self._coerce_type(src, _argtys[0]),
-            self._coerce_type(tgt, _argtys[1]),
+            _src_i64,
+            _tgt_i64,
             self._coerce_type(edge_obj, _argtys[2]),
             self._coerce_type(ir.Constant(i64, undirected), _argtys[3]),
-            self._coerce_type(ir.Constant(i64, edge_tag), _argtys[4])
+            self._coerce_type(ir.Constant(i64, edge_tag), _argtys[4]),
+            self._coerce_type(_rgn_src, _argtys[5]),
+            self._coerce_type(_rgn_tgt, _argtys[6])
         ]
     );
     return tgt;
+}
+
+impl NaIRGenPass._osp_disc_list_operand(expr: (uni.UniNode | None)) -> bool {
+    if isinstance(expr, uni.EdgeRefTrailer) {
+        return True;
+    }
+    if not isinstance(expr, uni.Expr) or expr?.type is None {
+        return False;
+    }
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _DiscClassType }
+    } except ImportError {
+        return False;
+    }
+    t = expr.type;
+    if isinstance(t, _DiscClassType)
+        and t?.shared
+        and t.is_builtin()
+        and t.shared.class_name in ("list", "tuple", "set", "frozenset") {
+        return True;
+    }
+    return False;
+}
+
+impl NaIRGenPass._codegen_disconnect(nd: uni.BinaryExpr) -> (ir.Value | None) {
+    dop = nd.op;
+    if not isinstance(dop, uni.DisconnectOp) {
+        return None;
+    }
+    disc_fn = self.func_symtab.get("osp_disconn_between");
+    _fcond = dop.edge_spec.filter_cond;
+    _xnames: list = [
+        self._spawn_operand_name(nd.left),
+        self._spawn_operand_name(nd.right),
+
+    ];
+    _etname: (str | None) = None;
+    if (_fcond is not None) and (_fcond.f_type is not None) {
+        _etname = self._get_name(_fcond.f_type);
+        _xnames.append(_etname);
+    }
+    _xhelp = self._xmod_osp_help(_xnames);
+    if (disc_fn is None) or (_xhelp is not None) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="binary operator",
+            name="DisconnectOp",
+            help_text=_xhelp
+        );
+        return None;
+    }
+    if self._osp_disc_list_operand(nd.left) or self._osp_disc_list_operand(nd.right) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="binary operator",
+            name="DisconnectOp",
+            help_text="native disconnect lowers single node endpoints; a "
+            "list-valued operand would silently disconnect nothing. Loop "
+            "over the nodes and disconnect each pair."
+        );
+        return None;
+    }
+    if (_fcond is not None) and _fcond.compares {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="binary operator",
+            name="DisconnectOp",
+            help_text="attribute predicates on a disconnect edge filter are "
+            "not lowered natively yet; disconnect by edge type only, or "
+            "collect the matching edges with an edge ref and `del` each."
+        );
+        return None;
+    }
+    i64 = ir.IntType(64);
+    edge_tag = -1;
+    if (_fcond is not None) and (_fcond.f_type is not None) {
+        _dc_model = self.ir_in.gen.osp_model;
+        _dc_tags = _dc_model.tags if (_dc_model is not None) else {};
+        edge_tag = _dc_tags.get(_etname, -1) if (_etname is not None) else -1;
+        if edge_tag < 0 {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="binary operator",
+                name="DisconnectOp",
+                help_text=self._xmod_osp_help([_etname])
+            );
+            return None;
+        }
+    }
+    if self._osp_ensure_fn is not None {
+        self.builder.call(self._osp_ensure_fn, []);
+    }
+    left = self._codegen_expr(nd.left);
+    right = self._codegen_expr(nd.right);
+    if (left is None) or (right is None) {
+        return None;
+    }
+    _dir = int(dop.edge_spec.edge_dir.value);
+    _argtys = disc_fn.function_type.args;
+    _res = self.builder.call(
+        disc_fn,
+        [
+            self._coerce_type(left, _argtys[0]),
+            self._coerce_type(right, _argtys[1]),
+            self._coerce_type(ir.Constant(i64, _dir), _argtys[2]),
+            self._coerce_type(ir.Constant(i64, edge_tag), _argtys[3])
+        ],
+        name="osp.disc"
+    );
+    return self.builder.icmp_signed(
+        "!=", _res, ir.Constant(_res.type, 0), name="osp.disc.bool"
+    );
 }
 
 impl NaIRGenPass._codegen_edge_ref_trailer(
@@ -850,95 +999,195 @@ impl NaIRGenPass._codegen_edge_ref_trailer(
     }
 
     if (origin_val is None)
-    or (_idx >= len(chain))
-    or (not isinstance(chain[_idx], uni.EdgeOpRef)) {
+        or (_idx >= len(chain))
+        or (not isinstance(chain[_idx], uni.EdgeOpRef)) {
         self.emit(E5092, node_override=nd, kind="expression", name="EdgeRefTrailer");
         return None;
-    }
-    step = chain[_idx];
-    _idx += 1;
-
-    _node_filter: (str | None) = None;
-    if _idx < len(chain) {
-        _f = chain[_idx];
-        if isinstance(_f, uni.FilterCompr)
-        and (_f.f_type is not None)
-        and (not _f.compares) {
-            _node_filter = self._get_name(_f.f_type);
-            _idx += 1;
-        }
     }
 
     _er_model = self.ir_in.gen.osp_model;
     _er_tags = _er_model.tags if (_er_model is not None) else {};
-    _dir = int(step.edge_dir.value);
-    _edge_tag = -1;
-    _fcond = step.filter_cond;
-    if (_fcond is not None) and (_fcond.f_type is not None) {
-        _etname = self._get_name(_fcond.f_type);
-        if _etname is not None {
-            _edge_tag = _er_tags.get(_etname, -1);
+    _many_fn = self.func_symtab.get("osp_refs_many");
+    _cur: (ir.Value | None) = None;
+    while (_idx < len(chain)) and isinstance(chain[_idx], uni.EdgeOpRef) {
+        step = chain[_idx];
+        _idx += 1;
 
-            if _edge_tag < 0 {
-                self.emit(
-                    E5092,
-                    node_override=nd,
-                    kind="expression",
-                    name="EdgeRefTrailer",
-                    help_text=self._xmod_osp_help([_etname])
-                );
-                return None;
+        _step_filter: (uni.FilterCompr | None) = None;
+        if _idx < len(chain) {
+            _f = chain[_idx];
+            if isinstance(_f, uni.FilterCompr) and (_f.f_type is not None) {
+                _step_filter = _f;
+                _idx += 1;
             }
         }
-    }
-    _edges_only = 1 if nd.edges_only else 0;
-    _argtys = osp_refs_fn.function_type.args;
-    _result = self.builder.call(
-        osp_refs_fn,
-        [
-            self._coerce_type(origin_val, _argtys[0]),
-            self._coerce_type(ir.Constant(i64, _dir), _argtys[1]),
-            self._coerce_type(ir.Constant(i64, _edge_tag), _argtys[2]),
-            self._coerce_type(ir.Constant(i64, _edges_only), _argtys[3])
-        ],
-        name="osp.refs"
-    );
+        _is_last_hop = (_idx >= len(chain))
+            or (not isinstance(chain[_idx], uni.EdgeOpRef));
 
-    if _node_filter is not None {
-        _ntag = _er_tags.get(_node_filter, -1);
-        if (_ntag < 0) or (self._osp_filter_fn is None) {
+        _dir = int(step.edge_dir.value);
+        _edge_tag = -1;
+        _etname: (str | None) = None;
+        _fcond = step.filter_cond;
+        if (_fcond is not None) and (_fcond.f_type is not None) {
+            _etname = self._get_name(_fcond.f_type);
+            if _etname is not None {
+                _edge_tag = _er_tags.get(_etname, -1);
+
+                if _edge_tag < 0 {
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="expression",
+                        name="EdgeRefTrailer",
+                        help_text=self._xmod_osp_help([_etname])
+                    );
+                    return None;
+                }
+            }
+        }
+        _ec_compares: list = [];
+        if (_fcond is not None) and _fcond.compares {
+            _ec_compares = list(_fcond.compares);
+        }
+        if _ec_compares and (_etname is None) {
             self.emit(
                 E5092,
                 node_override=nd,
                 kind="expression",
                 name="EdgeRefTrailer",
-                help_text=self._xmod_osp_help([_node_filter])
+                help_text="edge attribute predicates need a named edge type "
+                "(`->:E:field == value:->`) so the edge layout is known"
             );
             return None;
         }
-        _unfiltered = _result;
-        _result = self.builder.call(
-            self._osp_filter_fn,
-            [_unfiltered, ir.Constant(i64, _ntag)],
-            name="osp.refs.filt"
-        );
+        _edges_only = 1 if (nd.edges_only and _is_last_hop) else 0;
+        if _ec_compares and (_edges_only == 0) {
+            _wrap_fn = self.func_symtab.get("osp_wrap1");
+            if (_cur is None) and (_wrap_fn is None) {
+                self.emit(
+                    E5092, node_override=nd, kind="expression", name="EdgeRefTrailer"
+                );
+                return None;
+            }
+            if _cur is not None {
+                _origins = _cur;
+            } else {
+                _origins = self.builder.call(
+                    _wrap_fn,
+                    [self._coerce_type(origin_val, _wrap_fn.function_type.args[0])],
+                    name="osp.eph.org1"
+                );
+            }
+            _result = self._emit_osp_edge_pred_hop(
+                _origins, _dir, _edge_tag, _etname, _ec_compares, nd
+            );
+            if _result is None {
+                return None;
+            }
+            self._mark_owned(_result);
+            self._emit_rc_release_simple(_origins, op="osp_refs_hop", loc="");
+        } elif _cur is None {
+            _argtys = osp_refs_fn.function_type.args;
+            _result = self.builder.call(
+                osp_refs_fn,
+                [
+                    self._coerce_type(origin_val, _argtys[0]),
+                    self._coerce_type(ir.Constant(i64, _dir), _argtys[1]),
+                    self._coerce_type(ir.Constant(i64, _edge_tag), _argtys[2]),
+                    self._coerce_type(ir.Constant(i64, _edges_only), _argtys[3])
+                ],
+                name="osp.refs"
+            );
+            self._mark_owned(_result);
+        } else {
+            if _many_fn is None {
+                self.emit(
+                    E5092, node_override=nd, kind="expression", name="EdgeRefTrailer"
+                );
+                return None;
+            }
+            _margtys = _many_fn.function_type.args;
+            _result = self.builder.call(
+                _many_fn,
+                [
+                    self._coerce_type(_cur, _margtys[0]),
+                    self._coerce_type(ir.Constant(i64, _dir), _margtys[1]),
+                    self._coerce_type(ir.Constant(i64, _edge_tag), _margtys[2]),
+                    self._coerce_type(ir.Constant(i64, _edges_only), _margtys[3])
+                ],
+                name="osp.refs.many"
+            );
+            self._mark_owned(_result);
+            self._emit_rc_release_simple(_cur, op="osp_refs_hop", loc="");
+        }
+        if _ec_compares and (_edges_only == 1) {
+            _epre = _result;
+            _result = self._emit_osp_predicate_filter(_epre, _etname, _ec_compares, nd);
+            if _result is None {
+                return None;
+            }
+            self._mark_owned(_result);
+            self._emit_rc_release_simple(_epre, op="osp_refs_pred", loc="");
+        }
 
-        self._emit_rc_release_simple(_unfiltered, op="osp_refs_filtered", loc="");
+        if _step_filter is not None {
+            _node_filter = self._get_name(_step_filter.f_type);
+            _ntag = _er_tags.get(_node_filter, -1) if _node_filter is not None else -1;
+            if (_ntag < 0) or (self._osp_filter_fn is None) {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="expression",
+                    name="EdgeRefTrailer",
+                    help_text=self._xmod_osp_help([_node_filter])
+                );
+                return None;
+            }
+            _unfiltered = _result;
+            _result = self.builder.call(
+                self._osp_filter_fn,
+                [_unfiltered, ir.Constant(i64, _ntag)],
+                name="osp.refs.filt"
+            );
+            self._mark_owned(_result);
+
+            self._emit_rc_release_simple(_unfiltered, op="osp_refs_filtered", loc="");
+            if _step_filter.compares {
+                _pred = self._emit_osp_predicate_filter(
+                    _result, _node_filter, list(_step_filter.compares), nd
+                );
+                if _pred is None {
+                    return None;
+                }
+                self._mark_owned(_pred);
+                self._emit_rc_release_simple(_result, op="osp_refs_pred", loc="");
+                _result = _pred;
+            }
+        }
+        _cur = _result;
     }
-    return _result;
+
+    if (_cur is None) or (_idx != len(chain)) {
+        self.emit(E5092, node_override=nd, kind="expression", name="EdgeRefTrailer");
+        return None;
+    }
+    return _cur;
 }
 
 impl NaIRGenPass._codegen_chained_filter(nd: uni.AtomTrailer) -> (ir.Value | None) {
     i64 = ir.IntType(64);
     _f = nd.right;
     _fname = self._get_name(_f.f_type) if _f.f_type is not None else None;
-    if _f.compares or _fname is None {
+    if _fname is None and _f.compares {
+        _fname = self._elem_arch_name_of(nd.target);
+    }
+    if _fname is None {
         self.emit(
             E5092,
             node_override=nd,
             kind="expression",
             name="FilterCompr",
-            help_text="Only plain `[?:NodeType]` type filters lower natively; field-predicate filters are not supported yet - filter with an explicit loop."
+            help_text="This filter's element archetype is not statically known; put a type filter first (`[?:NodeType]`) so field predicates can resolve a layout, or filter with an explicit loop."
         );
         return None;
     }
@@ -946,29 +1195,318 @@ impl NaIRGenPass._codegen_chained_filter(nd: uni.AtomTrailer) -> (ir.Value | Non
     if target_val is None {
         return None;
     }
-    _model = self.ir_in.gen.osp_model;
-    _tags = _model.tags if _model is not None else {};
-    _ntag = _tags.get(_fname, -1);
-    if _ntag < 0 or self._osp_filter_fn is None {
+    _result = target_val;
+    if _f.f_type is not None {
+        _model = self.ir_in.gen.osp_model;
+        _tags = _model.tags if _model is not None else {};
+        _ntag = _tags.get(_fname, -1);
+        if _ntag < 0 or self._osp_filter_fn is None {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="expression",
+                name="FilterCompr",
+                help_text=self._xmod_osp_help([_fname])
+            );
+            return None;
+        }
+        _result = self.builder.call(
+            self._osp_filter_fn,
+            [target_val, ir.Constant(i64, _ntag)],
+            name="osp.chain.filt"
+        );
+        if isinstance(target_val.type, ir.PointerType) and self._is_owned(target_val) {
+            self._emit_rc_release_simple(target_val, op="chain_filter", loc="");
+        }
+    }
+    if _f.compares {
+        _pred = self._emit_osp_predicate_filter(_result, _fname, list(_f.compares), nd);
+        if _pred is None {
+            return None;
+        }
+        if _result is target_val {
+            if isinstance(target_val.type, ir.PointerType)
+                and self._is_owned(target_val) {
+                self._emit_rc_release_simple(target_val, op="chain_filter", loc="");
+            }
+        } else {
+            self._emit_rc_release_simple(_result, op="chain_filter_pred", loc="");
+        }
+        _result = _pred;
+    }
+    self._mark_owned(_result);
+    return _result;
+}
+
+impl NaIRGenPass._elem_arch_name_of(expr: (uni.UniNode | None)) -> (str | None) {
+    if not isinstance(expr, uni.Expr) or expr?.type is None {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _ClassType }
+    } except ImportError {
+        return None;
+    }
+    t = expr.type;
+    if not isinstance(t, _ClassType) or not t?.private {
+        return None;
+    }
+    _args = t.private.type_args;
+    if not _args {
+        return None;
+    }
+    _elem = _args[0];
+    if isinstance(_elem, _ClassType) and _elem?.shared {
+        return _elem.shared.class_name;
+    }
+    return None;
+}
+
+impl NaIRGenPass._emit_osp_predicate_filter(
+    src: ir.Value, arch_name: str, compares: list[uni.CompareExpr], nd: uni.UniNode
+) -> (ir.Value | None) {
+    _fields = self.struct_field_indices.get(arch_name);
+    if _fields is None {
         self.emit(
             E5092,
             node_override=nd,
             kind="expression",
             name="FilterCompr",
-            help_text=self._xmod_osp_help([_fname])
+            help_text=self._xmod_osp_help([arch_name])
         );
         return None;
     }
-    _result = self.builder.call(
-        self._osp_filter_fn,
-        [target_val, ir.Constant(i64, _ntag)],
-        name="osp.chain.filt"
-    );
-    if isinstance(target_val.type, ir.PointerType) and self._is_owned(target_val) {
-        self._emit_rc_release_simple(target_val, op="chain_filter", loc="");
+    for cmp in compares {
+        _bad = (
+            not isinstance(cmp.left, uni.Name)
+            or (not cmp.rights)
+            or (not cmp.ops)
+            or len(cmp.ops) > 1
+        );
+        if _bad or cmp.left.value not in _fields {
+            _fld = cmp.left.value if isinstance(cmp.left, uni.Name) else "<expr>";
+            self.emit(
+                E5092,
+                node_override=cmp,
+                kind="expression",
+                name="FilterCompr",
+                help_text=(
+                    f"filter predicate on '{_fld}' does not resolve to a "
+                    f"simple `field <op> value` compare over archetype "
+                    f"'{arch_name}'"
+                )
+            );
+            return None;
+        }
     }
-    self._mark_owned(_result);
-    return _result;
+    _rhs_vals: list = [];
+    for cmp in compares {
+        _rv = self._codegen_expr(cmp.rights[0]);
+        if _rv is None {
+            return None;
+        }
+        _rhs_vals.append(_rv);
+    }
+    self._emit_list_helpers("i64", ir.IntType(64));
+    _h = self.list_helpers.get("i64");
+    if _h is None {
+        self.emit(E5092, node_override=nd, kind="expression", name="FilterCompr");
+        return None;
+    }
+    i1 = ir.IntType(1);
+    i64 = ir.IntType(64);
+    fn = self.builder.function;
+    _loop = fn.append_basic_block("pred.loop");
+    _body = fn.append_basic_block("pred.body");
+    _keep = fn.append_basic_block("pred.keep");
+    _next = fn.append_basic_block("pred.next");
+    _done = fn.append_basic_block("pred.done");
+    _out = self._rc_call_with_ctx(_h["new"], [], op="new", loc="", name="pred.out");
+    _len = self.builder.call(_h["len"], [src], name="pred.len");
+    _pre = self.builder.block;
+    self.builder.branch(_loop);
+    self._builder = ir.IRBuilder(_loop);
+    _i = self.builder.phi(i64, name="pred.i");
+    _i.add_incoming(ir.Constant(i64, 0), _pre);
+    self.builder.cbranch(
+        self.builder.icmp_unsigned(">=", _i, _len, name="pred.atend"), _done, _body
+    );
+    self._builder = ir.IRBuilder(_body);
+    _elem = self.builder.call(_h["get"], [src, _i], name="pred.elem");
+    _keepc: ir.Value = ir.Constant(i1, 1);
+    for (_ci, cmp) in enumerate(compares) {
+        _fval = self._codegen_field_access(_elem, cmp.left.value, arch_name);
+        if _fval is None {
+            self._builder = ir.IRBuilder(_done);
+            self.emit(E5092, node_override=cmp, kind="expression", name="FilterCompr");
+            return None;
+        }
+        _op = cmp.ops[0].name if isinstance(cmp.ops[0], uni.Token) else str(cmp.ops[0]);
+        _cres = self._codegen_compare_link(
+            _op, _fval, _rhs_vals[_ci], cmp.left, cmp.rights[0], release_operands=False
+        );
+        if _cres is None {
+            self._builder = ir.IRBuilder(_done);
+            self.emit(E5092, node_override=cmp, kind="expression", name="FilterCompr");
+            return None;
+        }
+        if _cres.type != i1 {
+            _cres = self.builder.icmp_signed(
+                "!=", _cres, ir.Constant(_cres.type, 0), name="pred.tob"
+            );
+        }
+        _keepc = self.builder.and_(_keepc, _cres, name="pred.and");
+    }
+    self.builder.cbranch(_keepc, _keep, _next);
+    self._builder = ir.IRBuilder(_keep);
+    self._rc_call_with_ctx(_h["append"], [_out, _elem], op="append", loc="");
+    self.builder.branch(_next);
+    self._builder = ir.IRBuilder(_next);
+    _i1v = self.builder.add(_i, ir.Constant(i64, 1), name="pred.i1");
+    _i.add_incoming(_i1v, self.builder.block);
+    self.builder.branch(_loop);
+    self._builder = ir.IRBuilder(_done);
+    return _out;
+}
+
+impl NaIRGenPass._emit_osp_edge_pred_hop(
+    origins: ir.Value,
+    dir_val: int,
+    edge_tag: int,
+    edge_arch: str,
+    compares: list[uni.CompareExpr],
+    nd: uni.UniNode
+) -> (ir.Value | None) {
+    osp_refs_fn = self.func_symtab.get("osp_refs");
+    peer_fn = self.func_symtab.get("osp_edge_peer");
+    if (osp_refs_fn is None) or (peer_fn is None) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name="EdgeRefTrailer",
+            help_text="edge attribute predicates on a node-returning hop need "
+            "the osp_edge_peer store function; recompile against a kernel "
+            "that provides it"
+        );
+        return None;
+    }
+    i64 = ir.IntType(64);
+    self._emit_list_helpers("i64", i64);
+    _h = self.list_helpers.get("i64");
+    if _h is None {
+        self.emit(E5092, node_override=nd, kind="expression", name="EdgeRefTrailer");
+        return None;
+    }
+    fn = self.builder.function;
+    _oloop = fn.append_basic_block("eph.oloop");
+    _obody = fn.append_basic_block("eph.obody");
+    _odone = fn.append_basic_block("eph.odone");
+    _out = self._rc_call_with_ctx(_h["new"], [], op="new", loc="", name="eph.out");
+    _olen = self.builder.call(_h["len"], [origins], name="eph.olen");
+    _pre = self.builder.block;
+    self.builder.branch(_oloop);
+
+    self._builder = ir.IRBuilder(_oloop);
+    _oi = self.builder.phi(i64, name="eph.oi");
+    _oi.add_incoming(ir.Constant(i64, 0), _pre);
+    self.builder.cbranch(
+        self.builder.icmp_unsigned(">=", _oi, _olen, name="eph.oend"), _odone, _obody
+    );
+
+    self._builder = ir.IRBuilder(_obody);
+    _org = self.builder.call(_h["get"], [origins, _oi], name="eph.org");
+    _rargs = osp_refs_fn.function_type.args;
+    _edges = self.builder.call(
+        osp_refs_fn,
+        [
+            self._coerce_type(_org, _rargs[0]),
+            self._coerce_type(ir.Constant(i64, dir_val), _rargs[1]),
+            self._coerce_type(ir.Constant(i64, edge_tag), _rargs[2]),
+            self._coerce_type(ir.Constant(i64, 1), _rargs[3])
+        ],
+        name="eph.edges"
+    );
+    _filt = self._emit_osp_predicate_filter(_edges, edge_arch, compares, nd);
+    if _filt is None {
+        return None;
+    }
+    self._emit_rc_release_simple(_edges, op="osp_edge_pred_hop", loc="");
+    _start = self.builder.call(_h["len"], [_out], name="eph.start");
+    _flen = self.builder.call(_h["len"], [_filt], name="eph.flen");
+
+    _iloop = fn.append_basic_block("eph.iloop");
+    _ibody = fn.append_basic_block("eph.ibody");
+    _mchk = fn.append_basic_block("eph.mchk");
+    _mloop = fn.append_basic_block("eph.mloop");
+    _mbody = fn.append_basic_block("eph.mbody");
+    _mnext = fn.append_basic_block("eph.mnext");
+    _mkeep = fn.append_basic_block("eph.mkeep");
+    _inext = fn.append_basic_block("eph.inext");
+    _idone = fn.append_basic_block("eph.idone");
+    _obody_end = self.builder.block;
+    self.builder.branch(_iloop);
+
+    self._builder = ir.IRBuilder(_iloop);
+    _fi = self.builder.phi(i64, name="eph.fi");
+    _fi.add_incoming(ir.Constant(i64, 0), _obody_end);
+    self.builder.cbranch(
+        self.builder.icmp_unsigned(">=", _fi, _flen, name="eph.iend"), _idone, _ibody
+    );
+
+    self._builder = ir.IRBuilder(_ibody);
+    _eh = self.builder.call(_h["get"], [_filt, _fi], name="eph.eh");
+    _pargs = peer_fn.function_type.args;
+    _peer_raw = self.builder.call(
+        peer_fn,
+        [self._coerce_type(_eh, _pargs[0]), self._coerce_type(_org, _pargs[1])],
+        name="eph.peer"
+    );
+    _peer = self._coerce_type(_peer_raw, i64);
+    _live = self.builder.icmp_signed(
+        "!=", _peer, ir.Constant(i64, -1), name="eph.live"
+    );
+    self.builder.cbranch(_live, _mchk, _inext);
+
+    self._builder = ir.IRBuilder(_mchk);
+    _mlen = self.builder.call(_h["len"], [_out], name="eph.mlen");
+    _mchk_end = self.builder.block;
+    self.builder.branch(_mloop);
+
+    self._builder = ir.IRBuilder(_mloop);
+    _mi = self.builder.phi(i64, name="eph.mi");
+    _mi.add_incoming(_start, _mchk_end);
+    self.builder.cbranch(
+        self.builder.icmp_unsigned(">=", _mi, _mlen, name="eph.mend"), _mkeep, _mbody
+    );
+
+    self._builder = ir.IRBuilder(_mbody);
+    _seen = self.builder.call(_h["get"], [_out, _mi], name="eph.seen");
+    _dup = self.builder.icmp_signed("==", _seen, _peer, name="eph.dup");
+    self.builder.cbranch(_dup, _inext, _mnext);
+
+    self._builder = ir.IRBuilder(_mnext);
+    _mi1 = self.builder.add(_mi, ir.Constant(i64, 1), name="eph.mi1");
+    _mi.add_incoming(_mi1, self.builder.block);
+    self.builder.branch(_mloop);
+
+    self._builder = ir.IRBuilder(_mkeep);
+    self._rc_call_with_ctx(_h["append"], [_out, _peer], op="append", loc="");
+    self.builder.branch(_inext);
+
+    self._builder = ir.IRBuilder(_inext);
+    _fi1 = self.builder.add(_fi, ir.Constant(i64, 1), name="eph.fi1");
+    _fi.add_incoming(_fi1, self.builder.block);
+    self.builder.branch(_iloop);
+
+    self._builder = ir.IRBuilder(_idone);
+    self._emit_rc_release_simple(_filt, op="osp_edge_pred_hop", loc="");
+    _oi1 = self.builder.add(_oi, ir.Constant(i64, 1), name="eph.oi1");
+    _oi.add_incoming(_oi1, self.builder.block);
+    self.builder.branch(_oloop);
+
+    self._builder = ir.IRBuilder(_odone);
+    return _out;
 }
 
 impl NaIRGenPass._osp_visit_targets(target: uni.UniNode) -> (ir.Value | None) {
@@ -986,9 +1524,10 @@ impl NaIRGenPass._osp_visit_targets(target: uni.UniNode) -> (ir.Value | None) {
         }
     }
     _argtys = _wrap.function_type.args;
-    return self.builder.call(
+    _wrapped = self.builder.call(
         _wrap, [self._coerce_type(_val, _argtys[0])], name="osp.wrap1"
     );
+    return self._mark_owned(_wrapped);
 }
 
 impl NaIRGenPass._codegen_visit(nd: uni.VisitStmt) -> None {
