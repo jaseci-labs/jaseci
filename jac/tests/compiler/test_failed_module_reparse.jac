@@ -73,24 +73,51 @@ test "importing a broken module does not multiply its errors" {
     assert via_importer == direct , f"client importer reported {via_importer} errors for a {direct}-error failure";
 }
 
-test "recompiling a module replaces its alerts rather than appending them" {
+test "evicting a module before reload clears its stale alerts" {
     with tempfile.TemporaryDirectory() as tmp {
         proj = _write_project(tmp);
+        broken = str((proj / "broken.jac").resolve());
         prog = JacProgram();
         counts = [];
-        # A dev server or language server compiles the same module over and
-        # over on one program. `errors_had` must describe the module as it
-        # stands, not log every attempt, or each reload reports one more copy.
+        # What the HMR reloader does per edit. Without the eviction the alerts
+        # pile up on the long-lived program and each reload reports one more
+        # copy of the same syntax error.
         for _ in range(3) {
+            prog.invalidate_module(broken);
+            prog.drop_module_alerts(broken);
             try {
-                prog.compile(str(proj / "broken.jac"));
+                prog.compile(broken);
             } except Exception {
                 ;
             }
             counts.append(len(prog.errors_had));
         }
         assert counts[0] > 1;
-        assert counts == [counts[0], counts[0], counts[0]] , f"alerts accumulated across recompiles: {counts}";
+        assert counts == [counts[0], counts[0], counts[0]] , f"alerts accumulated across reloads: {counts}";
+    }
+}
+
+test "a recompile still reports its errors to a positional slice reader" {
+    with tempfile.TemporaryDirectory() as tmp {
+        proj = _write_project(tmp);
+        broken = str((proj / "broken.jac").resolve());
+        prog = JacProgram();
+        try {
+            prog.compile(broken);
+        } except Exception {
+            ;
+        }
+        # Several callers -- the client bundle among them -- mark the list
+        # length, compile, and read back errors_had[mark:]. Eviction must not
+        # happen inside a compile, or the list shrinks under that slice and the
+        # caller reports an empty error message for a module that just failed.
+        mark = len(prog.errors_had);
+        try {
+            prog.compile(broken);
+        } except Exception {
+            ;
+        }
+        assert len(prog.errors_had[mark:]) > 0 , "a failed recompile must still surface errors to a mark-and-slice caller";
     }
 }
 
