@@ -1864,17 +1864,6 @@ impl NaIRGenPass._emit_binary_op(
         }
     }
 
-    if op == Tok.STAR_POW {
-        if is_float {
-            pow_fn = self._get_or_declare_extern(
-                "pow", ir.DoubleType(), [ir.DoubleType(), ir.DoubleType()]
-            );
-            return self.builder.call(pow_fn, [left, right], name="pow");
-        } else {
-            return self._codegen_int_pow(left, right);
-        }
-    }
-
     if op == Tok.BW_AND {
         return self.builder.and_(left, right, name="bwand");
     }
