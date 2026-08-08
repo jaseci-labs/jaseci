@@ -19,6 +19,7 @@ import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.jac0core.constant { JacSemTokenModifier as SemTokMod }
 import from jaclang.jac0core.constant { JacSemTokenType as SemTokType }
 import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.jac0core.constant { ParamKind }
 import type from jaclang.compiler.type_system.types { TypeBase }
 
 
@@ -606,16 +607,6 @@ obj EventSignature(WalkerStmtOnlyNode) {
         arch_tag_info: (Expr | None);
 
     def postinit -> None;
-}
-
-class ParamKind(IntEnum) {
-    with entry {
-        POSONLY = 0;
-        NORMAL = 1;
-        VARARG = 2;
-        KWONLY = 3;
-        KWARG = 4;
-    }
 }
 
 obj ParamVar(AstSymbolNode, AstTypedVarNode) {
