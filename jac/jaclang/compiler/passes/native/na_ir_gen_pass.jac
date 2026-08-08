@@ -498,6 +498,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
     def _arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None);
     def _codegen_call_args(nd: uni.FuncCall) -> list;
+    def _coerce_narrowed_arg(
+        nd: (uni.UniNode | None), val: (ir.Value | None)
+    ) -> (ir.Value | None);
+
+    def _codegen_receiver(nd: (uni.UniNode | None)) -> (ir.Value | None);
     def _emit_take_ref(value: ir.Value, op: str, loc: str = "") -> None;
     def _codegen_bound_args(
         nd: uni.FuncCall, func: ir.Function, self_offset: int = 0
