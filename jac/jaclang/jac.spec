@@ -49,9 +49,9 @@ connect ::= atomic_pipe (connect_op atomic_pipe)*
 connect_op ::=
     "del" edge_op_ref
     | "++>"
-    | "+>:" expression (":" (expression ("=" expression)? ","?)*)? ":+>"
+    | "+>:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? ":+>"
     | "<++"
-    | "<+:" expression (":" (expression ("=" expression)? ","?)*)? (":<+" | ":+>")
+    | "<+:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? (":<+" | ":+>")
     | "<++>"
 
 atomic_pipe ::= atomic_pipe_back (":>" atomic_pipe_back)*
@@ -156,7 +156,6 @@ atom ::=
     | NAME
     | KWESC_NAME
     | "*" expression
-    | "**" expression
     | paren_expr
     | bracket_expr
     | brace_expr
@@ -231,7 +230,7 @@ jsx_element ::=
 
 jsx_attributes ::=
     (
-        JSX_NAME ("=" (STRING | "{" expression "}")?)?
+        JSX_NAME ("=" ("{" expression "}" | STRING)?)?
         | "{" ("**" | ELLIPSIS)? expression "}"
     )*
 

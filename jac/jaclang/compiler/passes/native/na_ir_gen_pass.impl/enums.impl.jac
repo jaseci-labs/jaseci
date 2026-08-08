@@ -160,6 +160,13 @@ impl NaIRGenPass._codegen_enum_value_lookup(
     return self.builder.load(ptr_ptr, name=f"enum.{enum_name}.str");
 }
 
+impl NaIRGenPass._wrap_enum_str(raw: (ir.Value | None)) -> (ir.Value | None) {
+    if raw is None or self.str_wrap_raw_fn is None {
+        return raw;
+    }
+    return self.builder.call(self.str_wrap_raw_fn, [raw], name="enum.s.desc");
+}
+
 impl NaIRGenPass._class_enum_member_str(cls_name: str, member: str) -> (str | None) {
     _cache = self?._class_enum_str_cache;
     if _cache is None {

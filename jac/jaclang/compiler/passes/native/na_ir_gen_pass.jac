@@ -551,6 +551,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;
 
+    def _wrap_enum_str(raw: (ir.Value | None)) -> (ir.Value | None);
     def _codegen_enum_value_lookup(
         enum_name: str, ordinal_val: ir.Value, use_name: bool = False
     ) -> (ir.Value | None);

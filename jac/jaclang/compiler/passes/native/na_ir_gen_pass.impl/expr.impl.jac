@@ -1498,8 +1498,10 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 and f"{mem_enum}.{mem_name}" in self.enum_values {
                 member_val = self.enum_values[f"{mem_enum}.{mem_name}"];
                 if mem_enum in self.enum_string_values {
-                    return self._codegen_enum_value_lookup(
-                        mem_enum, member_val, use_name=(right_name == "name")
+                    return self._wrap_enum_str(
+                        self._codegen_enum_value_lookup(
+                            mem_enum, member_val, use_name=(right_name == "name")
+                        )
                     );
                 }
 
@@ -1509,9 +1511,31 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
 
                 ordinal = self.enum_member_ordinal.get(f"{mem_enum}.{mem_name}");
                 if ordinal is not None {
-                    return self._codegen_enum_value_lookup(
-                        mem_enum, ir.Constant(ir.IntType(64), ordinal), use_name=True
+                    return self._wrap_enum_str(
+                        self._codegen_enum_value_lookup(
+                            mem_enum,
+                            ir.Constant(ir.IntType(64), ordinal),
+                            use_name=True
+                        )
                     );
+                }
+            }
+        }
+        if right_name is not None and (right_name == "value" or right_name == "name") {
+            _re_tk = self._type_key_of(nd.target);
+            if _re_tk is not None {
+                _re_tk = _re_tk.replace(" ", "").split(".")[-1];
+                if _re_tk in self.enum_string_values {
+                    _re_ord = self._codegen_expr(nd.target);
+                    if _re_ord is not None {
+                        return self._wrap_enum_str(
+                            self._codegen_enum_value_lookup(
+                                _re_tk, _re_ord, use_name=(right_name == "name")
+                            )
+                        );
+                    }
+                } elif right_name == "value" and _re_tk in self.enum_value_arrays {
+                    return self._codegen_expr(nd.target);
                 }
             }
         }

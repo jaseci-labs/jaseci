@@ -583,6 +583,13 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
 
         self._finalize_di_locations(func, method.loc.first_line if method.loc else 1);
     } except Exception as _codegen_exc {
+        import os as _dbg_os;
+        if _dbg_os.environ.get("JAC_NA_DEBUG") {
+            import traceback as _dbg_tb;
+            import sys as _dbg_sys;
+            _dbg_sys.stderr.write(f"NA_DEBUG {full_name}:\n");
+            _dbg_tb.print_exc();
+        }
         if not _isolate {
             import sys;
             sys.stderr.write(

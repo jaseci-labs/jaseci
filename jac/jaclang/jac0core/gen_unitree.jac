@@ -302,8 +302,7 @@ def schema_module_src(schema: list[ClassSpec]) -> str {
     fams = _family_members(schema);
     for fam in FAMILIES {
         members = ", ".join([str(k) for k in fams[fam]]);
-        tail = "," if len(fams[fam]) == 1 else "";
-        lines.append(f"glob KS_{_snake_upper(fam)}: tuple = ({members}{tail});");
+        lines.append(f"glob KS_{_snake_upper(fam)}: list[int] = [{members}];");
     }
     lines.append("");
     return "\n".join(lines);
@@ -391,7 +390,7 @@ def _builder_sig_params(spec: ClassSpec) -> list[str] {
         }
         out.append(f"{p.name}: {ann}{d}");
     }
-    out.append("kid: (list[int] | None) = None");
+    out.append("kid: list[int] = []");
     return out;
 }
 
@@ -445,7 +444,7 @@ def builders_annex_src(schema: list[ClassSpec]) -> str {
             "def SyntaxArena.", "impl SyntaxArena.", 1
         );
         lines.append(sig + " {");
-        lines.append(f"    idx = self._start({spec.kind_id}, kid or [], {argn});");
+        lines.append(f"    idx = self._start({spec.kind_id}, kid, {argn});");
         for p in spec.params {
             if p.cat == "SOURCE" {
                 continue;
