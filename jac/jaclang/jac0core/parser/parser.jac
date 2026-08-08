@@ -552,3 +552,11 @@ obj Parser {
     def parse_type_alias -> TypeAlias;
     def parse_type_params -> tuple[(list, list)];
 }
+
+def parse_source(
+    tokens: list[LexToken], file_path: str, source_code: str
+) -> tuple[(Module, int, list[SrcDiag])] {
+    parser = Parser(tokens=tokens, file_path=file_path, source_code=source_code);
+    module = parser.parse();
+    return (module, parser.error_count, parser.diags);
+}

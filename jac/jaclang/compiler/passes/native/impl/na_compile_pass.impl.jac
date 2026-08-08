@@ -577,10 +577,12 @@ impl NativeCompilePass._compile_and_link_native_imports(
             } except Exception { }
         }
 
-        for dep_lib_path in meta.clib_paths {
-            try {
-                self._jit_load_clib(dep_lib_path);
-            } except Exception { }
+        if not self.prog._compile_options.aot_mode {
+            for dep_lib_path in meta.clib_paths {
+                try {
+                    self._jit_load_clib(dep_lib_path);
+                } except Exception { }
+            }
         }
 
         try {
