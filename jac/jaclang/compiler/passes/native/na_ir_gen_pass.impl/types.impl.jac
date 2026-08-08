@@ -610,6 +610,14 @@ impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
         if var?.accessors is not None {
             return ir.IntType(8).as_pointer();
         }
+        try {
+            import from jaclang.compiler.type_system.types {
+                TypeVarType as _RfTypeVarType
+            }
+            if isinstance(_ptb, _RfTypeVarType) {
+                return ir.IntType(8).as_pointer();
+            }
+        } except ImportError { }
         if not self._type_base_is_unknown(_ptb) {
             return self._emit_unlowerable_type(var, _ptb);
         }
