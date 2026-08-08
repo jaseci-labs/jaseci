@@ -242,30 +242,34 @@ def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
 }
 
 
+def _seal_subprocess_env -> dict[str, str] {
+    return {
+        k: v
+        for (k, v) in os.environ.items()
+        if k not in ("PYTHONPATH", "PYTHONHOME", "JAC_LLVM_SHIM")
+    };
+}
+
+
 def _precompile_app(
-    base: Path, pod_binary: bytes, sanitized_toml: (str | None), timeout_s: int
+    base: Path, seal_binary: bytes, sanitized_toml: (str | None), timeout_s: int
 ) -> Path {
     stage_root = _stage_app(base, sanitized_toml);
     stage = stage_root / "app";
     try {
-        jac_path = stage_root / ".pod-jac";
-        jac_path.write_bytes(pod_binary);
+        jac_path = stage_root / ".seal-jac";
+        jac_path.write_bytes(seal_binary);
         jac_path.chmod(0o755);
         script = Path(str(__file__)).parent.parent.parent
             / "utils"
             / "precompile_bytecode.jac";
 
-        seal_env = {
-            k: v
-            for (k, v) in os.environ.items()
-            if k not in ("PYTHONPATH", "PYTHONHOME", "JAC_LLVM_SHIM")
-        };
         result = subprocess.run(
             [str(jac_path), "run", str(script), str(stage_root), "--seal"],
             capture_output=True,
             text=True,
             timeout=timeout_s,
-            env=seal_env,
+            env=_seal_subprocess_env(),
             cwd=str(stage_root)
         );
         jac_path.unlink();
@@ -343,17 +347,29 @@ def seal_timeout_setting(project_dir: str) -> int {
 }
 
 
-def _vendor_stage(stage: Path, pod_binary: bytes) {
-    jac_path = stage.parent / ".pod-jac";
-    jac_path.write_bytes(pod_binary);
+def _pod_wheel_platform(pod_arch: str) -> str {
+    # Pods run debian-based images, so vendored wheels must be manylinux for
+    # the node arch; 2_36 is the glibc floor of the oldest supported base
+    # (python:3.12-slim bookworm), and pip expands it to all older tags.
+    if not pod_arch {
+        return "";
+    }
+    return f"manylinux_2_36_{pod_arch}";
+}
+
+
+def _vendor_stage(stage: Path, seal_binary: bytes, platform_tag: str = "") {
+    jac_path = stage.parent / ".seal-jac";
+    jac_path.write_bytes(seal_binary);
     jac_path.chmod(0o755);
     script = Path(str(__file__)).parent.parent / "utils" / "vendor_wheels.jac";
+    cmd = [str(jac_path), "run", str(script), str(stage)];
+    if platform_tag {
+        cmd.append(platform_tag);
+    }
     try {
         result = subprocess.run(
-            [str(jac_path), "run", str(script), str(stage)],
-            capture_output=True,
-            text=True,
-            timeout=900
+            cmd, capture_output=True, text=True, timeout=900, env=_seal_subprocess_env()
         );
     } finally {
         jac_path.unlink(missing_ok=True);
@@ -373,10 +389,13 @@ def _vendor_stage(stage: Path, pod_binary: bytes) {
 }
 
 
-def pack_jab(project_dir: str, provisioned_database: str, pod_binary: bytes) -> bytes {
-    if not pod_binary {
+def pack_jab(
+    project_dir: str, provisioned_database: str, seal_binary: bytes, pod_arch: str = ""
+) -> bytes {
+    if not seal_binary {
         raise ValueError(
-            "pack_jab requires the pod binary to seal the app image; none given."
+            "pack_jab requires a host-runnable jac binary to seal the app "
+            "image; none given."
         );
     }
     base = Path(project_dir).resolve();
@@ -388,14 +407,14 @@ def pack_jab(project_dir: str, provisioned_database: str, pod_binary: bytes) -> 
     }
     sanitized = sanitized_jac_toml(base, provisioned_database);
     staged = _precompile_app(
-        base, pod_binary, sanitized, seal_timeout_setting(project_dir)
+        base, seal_binary, sanitized, seal_timeout_setting(project_dir)
     );
 
     try {
         (fat, fat_explicit) = fat_bundle_setting(project_dir);
         if fat {
             try {
-                _vendor_stage(staged, pod_binary);
+                _vendor_stage(staged, seal_binary, _pod_wheel_platform(pod_arch));
             } except Exception as exc {
                 if fat_explicit {
                     raise;

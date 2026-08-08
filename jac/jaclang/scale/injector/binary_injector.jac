@@ -2,12 +2,14 @@ import logging;
 import from jaclang.scale.injector.pvc_injector { PvcInjector, bundle_pvc_path }
 import from jaclang.scale.injector.binary {
     download_release_binary,
+    host_seal_platform,
     node_arch,
     pack_binary_bytes,
     resolve_deploy_version,
     stage_admin_dist,
     toolchain_object_key
 }
+import from jaclang.runtimelib.utils { host_arch }
 import from jaclang.scale.injector.bundle { bundle_object_key, content_address }
 import from jaclang.scale.config.dev_config { Channel }
 
@@ -19,20 +21,40 @@ obj BinaryInjector(PvcInjector) {
     has channel: Channel = Channel.STABLE,
         _toolchain_object_key: str = "",
         _toolchain_bytes: bytes = b"",
-        _pod_binary_bytes: bytes = b"";
+        _pod_binary_bytes: bytes = b"",
+        _seal_binary_bytes: bytes = b"",
+        _pod_arch: str = "";
 
     def prepare(app_name: str, namespace: str, project_dir: str) {
         version = resolve_deploy_version(project_dir, self.channel.value);
         stage_admin_dist(project_dir, self.channel.value, version);
 
-        payload = download_release_binary(self.channel.value, node_arch(), version);
+        pod_arch = node_arch();
+        payload = download_release_binary(self.channel.value, pod_arch, version);
         self._pod_binary_bytes = payload;
+        self._pod_arch = pod_arch;
+        self._seal_binary_bytes = self._resolve_seal_binary(payload, pod_arch, version);
         super.prepare(app_name, namespace, project_dir);
         raw = pack_binary_bytes(payload);
         self._toolchain_object_key = toolchain_object_key(
             app_name, content_address(raw)
         );
         self._toolchain_bytes = raw;
+    }
+
+    def _resolve_seal_binary(pod_payload: bytes, pod_arch: str, version: str) -> bytes {
+        # The seal subprocess runs on the deploy host, so it needs a binary
+        # for the host platform; the pod binary is reused only when the host
+        # is the same linux/arch the pods run (#7451).
+        if self.channel == Channel.LOCAL {
+            return pod_payload;
+        }
+        plat = host_seal_platform();
+        arch = host_arch();
+        if plat == "linux" and arch == pod_arch {
+            return pod_payload;
+        }
+        return download_release_binary(self.channel.value, arch, version, plat);
     }
 
     def _seed_artifacts -> list[tuple[str, bytes]] {
