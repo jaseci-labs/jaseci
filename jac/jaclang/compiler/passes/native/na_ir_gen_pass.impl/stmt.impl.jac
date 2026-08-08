@@ -1911,9 +1911,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                             "ZeroDivisionError",
                             "integer division or modulo by zero"
                         );
-                        value = self.builder.sdiv(
-                            current, coerced, name=f"{var_name}.div"
-                        );
+                        (q, _) = self._codegen_int_floor_divmod(current, coerced);
+                        value = q;
                     } else {
                         fzero = ir.Constant(ir.DoubleType(), 0.0);
                         is_zero = self.builder.fcmp_ordered(
@@ -1922,9 +1921,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         self._emit_runtime_raise(
                             is_zero, "ZeroDivisionError", "float division by zero"
                         );
-                        value = self.builder.fdiv(
-                            current, coerced, name=f"{var_name}.fdiv"
-                        );
+                        value = self._codegen_float_floor_div(current, coerced);
                     }
                 } elif aug_op_val == "%=" {
                     if isinstance(current.type, ir.IntType) {
@@ -1937,9 +1934,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                             "ZeroDivisionError",
                             "integer division or modulo by zero"
                         );
-                        value = self.builder.srem(
-                            current, coerced, name=f"{var_name}.mod"
-                        );
+                        (_, r) = self._codegen_int_floor_divmod(current, coerced);
+                        value = r;
                     } else {
                         fzero = ir.Constant(ir.DoubleType(), 0.0);
                         is_zero = self.builder.fcmp_ordered(
@@ -1948,9 +1944,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         self._emit_runtime_raise(
                             is_zero, "ZeroDivisionError", "float modulo by zero"
                         );
-                        value = self.builder.frem(
-                            current, coerced, name=f"{var_name}.fmod"
-                        );
+                        value = self._codegen_float_floor_mod(current, coerced);
                     }
                 } elif aug_op_val == "&=" {
                     if isinstance(current.type, ir.IntType) {
