@@ -135,6 +135,12 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
     def _add_preamble_once(key: str, nd: ast3.AST) -> None;
     def needs_enum_kind(kind: str) -> None;
     def _next_temp_name(prefix: str) -> str;
+    def _is_decorator_subtree(
+        nd: uni.UniNode, decorators: (Sequence[uni.Expr] | None)
+    ) -> bool;
+    def _strip_hoisted_lambda_defs(
+        body: list[ast3.AST]
+    ) -> tuple[(list[ast3.AST], list[ast3.AST])];
     def _py_name(nd: uni.AstSymbolNode) -> str;
     def py_ctx(nd: uni.AstSymbolNode) -> ast3.expr_context;
     def _emit_jobj_ref(nd: uni.UnaryExpr) -> None;
