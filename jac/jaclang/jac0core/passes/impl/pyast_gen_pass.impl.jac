@@ -507,24 +507,6 @@ impl PyastGenPass._next_temp_name(prefix: str) -> str {
     return f"__jac_{prefix}_{self._temp_name_counter}";
 }
 
-impl PyastGenPass._is_decorator_subtree(
-    nd: uni.UniNode, decorators: (Sequence[uni.Expr] | None)
-) -> bool {
-    if not decorators {
-        return False;
-    }
-    cur: (uni.UniNode | None) = nd;
-    while cur is not None {
-        for dec in decorators {
-            if cur is dec {
-                return True;
-            }
-        }
-        cur = cur.parent;
-    }
-    return False;
-}
-
 impl PyastGenPass._strip_hoisted_lambda_defs(
     body: list[ast3.AST]
 ) -> tuple[(list[ast3.AST], list[ast3.AST])] {
@@ -532,15 +514,14 @@ impl PyastGenPass._strip_hoisted_lambda_defs(
     cleaned: list[ast3.AST] = [];
     for stmt in body {
         if (
-            isinstance(stmt, ast3.FunctionDef)
-            and stmt.name.startswith('__jac_lambda_')
+            isinstance(stmt, ast3.FunctionDef) and stmt.name.startswith('__jac_lambda_')
         ) {
             leaked.append(stmt);
         } else {
             cleaned.append(stmt);
         }
     }
-    return leaked, cleaned;
+    return (leaked, cleaned);
 }
 
 impl PyastGenPass._py_name(nd: uni.AstSymbolNode) -> str {
@@ -573,10 +554,10 @@ impl PyastGenPass._function_expr_from_def(
     return self.sync(ast3.Name(id=func_def.name, ctx=ast3.Load()), jac_node=jac_node);
 }
 
-impl PyastGenPass._report_leaked_hoisted_lambdas() -> None {
+impl PyastGenPass._report_leaked_hoisted_lambdas -> None {
     for func_def in self._hoisted_funcs {
         jac_node: uni.UniNode = self.ir_out;
-        jac_link = getattr(func_def, 'jac_link', None);
+        jac_link = func_def?.jac_link;
         if jac_link {
             jac_node = jac_link[0];
         }
@@ -1111,9 +1092,7 @@ impl PyastGenPass.exit_test(nd: uni.Test) -> None {
             )
         );
     }
-    # Drain hoists generated while lowering this test's decorator_list (e.g.
-    # multi-statement lambda decorator arguments) and emit them into the
-    # enclosing scope before the test FunctionDef, mirroring exit_ability.
+
     test_hoisted = self._hoisted_funcs[:];
     self._hoisted_funcs.clear();
     nd.gen.py_ast = [*test_hoisted, func];
@@ -1412,15 +1391,8 @@ impl PyastGenPass.exit_module_item(nd: uni.ModuleItem) -> None {
 }
 
 impl PyastGenPass.enter_archetype(nd: uni.Archetype) -> None {
-    # Decorators are lowered in exit_archetype so hoisted multi-statement lambdas
-    # can be emitted before the ClassDef. Skip decorator kids during traversal;
-    # otherwise they run before the body and exit_assignment flushes hoists into
-    # the class body.
-    self.prune();
-    for kid in nd.kid {
-        if kid and (not self._is_decorator_subtree(kid, nd.decorators)) {
-            self.traverse(kid);
-        }
+    if isinstance(nd.body, uni.ImplDef) {
+        self.traverse(nd.body);
     }
 }
 
@@ -1479,25 +1451,15 @@ impl PyastGenPass.exit_archetype(nd: uni.Archetype) -> None {
             type_params=type_param_asts
         )
     );
-    # Drain hoists generated while lowering this archetype's decorator_list or
-    # base_classes (e.g. multi-statement lambda decorator arguments) and emit
-    # them into the enclosing scope before the ClassDef. `has` field defaults
-    # flush their own hoists into the class body in exit_has_var.
+
     arch_hoisted = self._hoisted_funcs[:];
     self._hoisted_funcs.clear();
     nd.gen.py_ast = [*arch_sig_hoisted, *arch_hoisted, class_def];
 }
 
 impl PyastGenPass.enter_enum(nd: uni.Enum) -> None {
-    # Decorators are lowered in exit_enum so hoisted multi-statement lambdas can
-    # be emitted before the ClassDef. Skip decorator kids during traversal;
-    # otherwise they run before the body and exit_assignment flushes hoists into
-    # the class body.
-    self.prune();
-    for kid in nd.kid {
-        if kid and (not self._is_decorator_subtree(kid, nd.decorators)) {
-            self.traverse(kid);
-        }
+    if isinstance(nd.body, uni.ImplDef) {
+        self.traverse(nd.body);
     }
 }
 
@@ -1514,7 +1476,7 @@ impl PyastGenPass.exit_enum(nd: uni.Enum) -> None {
     enum_sig_hoisted = self._hoisted_funcs[:];
     self._hoisted_funcs.clear();
     body = self.resolve_stmt_block(inner, doc=nd.doc);
-    leaked, body = self._strip_hoisted_lambda_defs(body);
+    (leaked, body) = self._strip_hoisted_lambda_defs(body);
     enum_sig_hoisted = [*enum_sig_hoisted, *leaked];
     if (sem_decorator := self._get_sem_decorator(nd)) {
         decorators.append(sem_decorator);
@@ -1545,9 +1507,7 @@ impl PyastGenPass.exit_enum(nd: uni.Enum) -> None {
             type_params=[]
         )
     );
-    # Drain hoists generated while lowering this enum's decorator_list (e.g.
-    # multi-statement lambda decorator arguments) and emit them into the
-    # enclosing scope before the ClassDef, mirroring exit_archetype.
+
     enum_hoisted = self._hoisted_funcs[:];
     self._hoisted_funcs.clear();
     nd.gen.py_ast = [*enum_sig_hoisted, *enum_hoisted, class_def];
@@ -1920,14 +1880,7 @@ impl PyastGenPass.exit_ability(nd: uni.Ability) -> None {
             type_params=[]
         )
     );
-    # Hoists generated while lowering this ability's subtree (multi-statement
-    # lambdas used as decorator arguments or default parameter values, plus any
-    # leaked from non-flushing body positions) must be emitted into the enclosing
-    # scope *before* this FunctionDef. Otherwise the `Name('__jac_lambda_N')`
-    # reference in the decorator_list/defaults resolves before the hoisted
-    # function exists, raising a runtime NameError. Decorators and defaults are
-    # evaluated at definition time in the enclosing scope, so placing the hoisted
-    # defs here is correct for module functions, nested functions, and methods.
+
     sig_hoisted = self._hoisted_funcs[:];
     self._hoisted_funcs.clear();
     nd.gen.py_ast = [*sig_hoisted, func_def];
@@ -2145,11 +2098,6 @@ impl PyastGenPass.exit_has_var(nd: uni.HasVar) -> None {
         if isinstance(value_expr, ast3.Constant) {
             value = value_expr;
         } elif pre_body_hoists {
-            # Multi-statement lambdas lower to a hoisted def plus a Name in the
-            # archetype class body. Capture the function object at class-
-            # definition time via a default-arg IIFE; a bare
-            # factory=lambda: name fails because class bodies are not an
-            # enclosing scope for nested lambdas.
             capture_factory = self.sync(
                 ast3.Lambda(
                     args=self.sync(
@@ -2234,8 +2182,7 @@ impl PyastGenPass.exit_has_var(nd: uni.HasVar) -> None {
     ann_assign = self.sync(
         ast3.AnnAssign(
             target=cast(
-                ast3.Name | ast3.Attribute | ast3.Subscript,
-                self.py_ast_val(nd.name)
+                ast3.Name | ast3.Attribute | ast3.Subscript, self.py_ast_val(nd.name)
             ),
             annotation=cast(ast3.expr, annotation)
                 if annotation
@@ -2244,10 +2191,7 @@ impl PyastGenPass.exit_has_var(nd: uni.HasVar) -> None {
             simple=int(isinstance(nd.name, uni.Name))
         )
     );
-    # Multi-statement `has` defaults lower to a hoisted FunctionDef plus a Name
-    # reference. Those defs must live in the archetype class body before the
-    # AnnAssign: parent-scope hoisting breaks because Python name-mangles
-    # `__jac_lambda_N` references that appear inside the class body.
+
     if (archpar := nd.find_parent_of_type(uni.Archetype)) and archpar {
         nd.gen.py_ast = [*pre_body_hoists, ann_assign];
     } else {

@@ -606,7 +606,9 @@ test "multi-statement lambda signature fixtures do not leak hoists (no E5098)" {
         prog = JacProgram();
         prog.compile(file_path=os.path.join(LANG_FIXTURES, fixture));
         leaked = [
-            str(e) for e in (prog.errors_had or []) if "E5098" in str(e)
+            str(e)
+            for e in (prog.errors_had or [])
+            if "E5098" in str(e)
         ];
         assert not leaked , (
             f"{fixture} should not emit E5098 leaked-hoist diagnostic: {leaked}"
@@ -624,11 +626,7 @@ test "leaked multi-statement lambda hoists emit E5098" {
         ast3.FunctionDef(
             name='__jac_lambda_99',
             args=ast3.arguments(
-                posonlyargs=[],
-                args=[],
-                kwonlyargs=[],
-                kw_defaults=[],
-                defaults=[]
+                posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]
             ),
             body=[pyast_pass.sync(ast3.Pass(), jac_node=entry_stmt)],
             decorator_list=[],
