@@ -542,6 +542,18 @@ impl NaIRGenPass._resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type {
             return ir.IntType(8).as_pointer();
         }
         if not self._type_base_is_unknown(_ptb) {
+            _sig_shared = _ptb?.shared;
+            _sig_cn = _sig_shared.class_name if _sig_shared is not None else None;
+            if _sig_cn in ("tuple", "list", "dict", "set", "type") {
+                _sig_mark = len(self.prog.errors_had);
+                _sig_lmark = len(self.errors_had);
+                _sig_res = self._resolve_jac_type(type_expr);
+                if len(self.prog.errors_had) == _sig_mark {
+                    return _sig_res;
+                }
+                del self.prog.errors_had[_sig_mark:];
+                del self.errors_had[_sig_lmark:];
+            }
             return ir.IntType(8).as_pointer();
         }
     }

@@ -155,6 +155,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         vtable_method_indices: dict[str, dict] = {},
         vtable_globals: dict[str, ir.GlobalVariable] = {},
         _non_overridden_methods: dict[str, set[str]] = {},
+        _struct_source_mod: dict[str, str] = {},
         _native_skipped_methods: set[str] = set(),
         _class_name_consts: dict[str, ir.Value] = {},
         osp_type_tag_field: dict[str, int] = {},

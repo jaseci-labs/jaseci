@@ -533,10 +533,6 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         (mod_name, cur_base, parent_src) = wq[qi];
         qi += 1;
         (src_mod_str, full_path) = resolve_native_module(mod_name, cur_base);
-        if os.environ.get("JAC_NA_IMPORT_DEBUG") {
-            import sys as _dbg_sys;
-            _dbg_sys.stderr.write(f"NAIMPORT {mod_name} -> {full_path}\n");
-        }
         if src_mod_str is None or full_path is None {
             continue;
         }
@@ -904,6 +900,22 @@ impl NaIRGenPass._register_imported_archetype(arch: uni.Archetype) -> None {
     aname = arch.name.value if arch.name else None;
     if aname is None {
         return;
+    }
+
+    _arch_mod = arch.find_parent_of_type(uni.Module);
+    _arch_src = _arch_mod.loc.mod_path if _arch_mod?.loc else "";
+    _seen_src = self._struct_source_mod.get(aname);
+    if _seen_src is not None and _arch_src and _seen_src != _arch_src {
+        import sys as _rc_sys;
+        _rc_sys.stderr.write(
+            f"warning: native struct name collision -- '{aname}' from "
+            f"{_arch_src} shadows the one from {_seen_src}; skipping "
+            f"re-registration\n"
+        );
+        return;
+    }
+    if _arch_src {
+        self._struct_source_mod[aname] = _arch_src;
     }
 
     if aname not in self.struct_types {

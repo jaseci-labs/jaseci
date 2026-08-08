@@ -1,4 +1,4 @@
-import from .tokens { Token, TokenKind, SourceLoc, SrcDiag }
+import from .tokens { LexToken, TokenKind, SourceLoc, SrcDiag }
 
 import from jaclang.jac0core.unitree { UniNode, Token as UniToken, Expr }
 import from jaclang.jac0core.unitree { Name, String, Int, Float, Bool, Null }
@@ -339,7 +339,7 @@ glob TOKEN_KIND_TO_TOK: dict[TokenKind, str] = {
      };
 
 obj Parser {
-    has tokens: list[Token],
+    has tokens: list[LexToken],
         pos: int = 0,
         _tokens_len: int = 0,
         error_count: int = 0,
@@ -350,10 +350,10 @@ obj Parser {
         _view_body_depth: int = 0,
         _impl_enum_comma_unis: list = [];
 
-    def current -> Token;
-    def peek(offset: int = 1) -> Token;
-    def advance -> Token;
-    def previous -> Token;
+    def current -> LexToken;
+    def peek(offset: int = 1) -> LexToken;
+    def advance -> LexToken;
+    def previous -> LexToken;
     def at_end -> bool;
     def check(kind: TokenKind) -> bool;
     def check_any(*kinds: TokenKind) -> bool;
@@ -363,12 +363,12 @@ obj Parser {
     def is_keyword_token -> bool;
     def is_builtin_type_token -> bool;
     def get_source -> Source;
-    def match_tok(kind: TokenKind) -> Token | None;
-    def match_any(*kinds: TokenKind) -> Token | None;
-    def expect(kind: TokenKind) -> Token;
-    def expect_any(*kinds: TokenKind) -> Token;
+    def match_tok(kind: TokenKind) -> LexToken | None;
+    def match_any(*kinds: TokenKind) -> LexToken | None;
+    def expect(kind: TokenKind) -> LexToken;
+    def expect_any(*kinds: TokenKind) -> LexToken;
     def consume_uni(kind: TokenKind) -> UniToken;
-    def expect_name -> Token;
+    def expect_name -> LexToken;
     def error(message: str);
     def emit_diag(
         message: str, code_str: str, loc: SourceLoc | None = None, help: str = ""
@@ -378,18 +378,18 @@ obj Parser {
         message: str, code_str: str, loc: SourceLoc | None = None, help: str = ""
     );
 
-    def make_uni_token(tok: Token) -> UniToken;
-    def make_name(tok: Token, is_enum_stmt: bool = False) -> Name;
-    def make_special_name(tok: Token) -> Name;
-    def make_name_or_special(tok: Token) -> Name;
+    def make_uni_token(tok: LexToken) -> UniToken;
+    def make_name(tok: LexToken, is_enum_stmt: bool = False) -> Name;
+    def make_special_name(tok: LexToken) -> Name;
+    def make_name_or_special(tok: LexToken) -> Name;
     def parse_access_tag -> SubTag | None;
-    def make_string(tok: Token) -> String;
+    def make_string(tok: LexToken) -> String;
     def make_string_from_value(value: str) -> String;
-    def make_int(tok: Token) -> Int;
-    def make_float(tok: Token) -> Float;
-    def make_bool(tok: Token) -> Bool;
-    def make_null(tok: Token) -> Null;
-    def make_ellipsis(tok: Token) -> EllipsisLit;
+    def make_int(tok: LexToken) -> Int;
+    def make_float(tok: LexToken) -> Float;
+    def make_bool(tok: LexToken) -> Bool;
+    def make_null(tok: LexToken) -> Null;
+    def make_ellipsis(tok: LexToken) -> EllipsisLit;
     def make_semi -> Semi;
     def synchronize;
     def parse -> Module;
@@ -430,7 +430,7 @@ obj Parser {
     def parse_await_expr -> Expr;
     def parse_pipe_call -> Expr;
     def parse_atomic_chain -> Expr;
-    def _make_attr_from_keyword(name_tok: Token) -> (Name | SpecialVarRef);
+    def _make_attr_from_keyword(name_tok: LexToken) -> (Name | SpecialVarRef);
     def parse_index_slice -> IndexSlice;
     def parse_call_args(kid: list) -> list;
     def parse_call_arg -> Expr | KWPair;
@@ -515,8 +515,8 @@ obj Parser {
 
     def parse_ownership_prefix(kids: list) -> OwnershipKind;
     def parse_import_stmt -> Import;
-    def parse_from_path -> tuple;
-    def parse_import_items(kid: list, is_clib_import: bool) -> tuple;
+    def parse_from_path -> tuple[((ModulePath | None), bool)];
+    def parse_import_items(kid: list, is_clib_import: bool) -> tuple[(list, list)];
     def parse_archetype -> Archetype;
     def parse_archetype_member -> (
         ArchBlockStmt | CodeBlockStmt | ElementStmt | EmptyToken | None
@@ -527,11 +527,14 @@ obj Parser {
     def parse_has_stmt -> ArchHas;
     def parse_has_var -> HasVar;
     def parse_accessor -> Ability;
-    def _consume_accessor_kind -> tuple[(str, Token)];
+    def _consume_accessor_kind -> tuple[(str, LexToken)];
     def parse_ability -> Ability;
     def _parse_post_async_modifiers(
-        is_override: bool, override_tok: any, is_static: bool, static_tok: any
-    ) -> tuple;
+        is_override: bool,
+        override_tok: (LexToken | None),
+        is_static: bool,
+        static_tok: (LexToken | None)
+    ) -> tuple[(bool, (LexToken | None), bool, (LexToken | None))];
 
     def parse_func_signature -> FuncSignature;
     def parse_func_params(kid: list) -> list;
@@ -547,5 +550,5 @@ obj Parser {
     def parse_impl_enum_body -> list;
     def parse_sem_def -> SemDef;
     def parse_type_alias -> TypeAlias;
-    def parse_type_params -> tuple;
+    def parse_type_params -> tuple[(list, list)];
 }

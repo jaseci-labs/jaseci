@@ -224,7 +224,7 @@ obj SourceLoc {
     def span_to(other: SourceLoc) -> SourceLoc;
 }
 
-obj Token {
+obj LexToken {
     has kind: TokenKind,
         value: str,
         loc: SourceLoc;

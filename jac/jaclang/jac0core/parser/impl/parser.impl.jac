@@ -130,14 +130,14 @@ import from jaclang.jac0core.unitree { JsxText, JsxExpression }
 
 import from jaclang.jac0core.constant { Tokens as Tok, SymbolAccess, SymbolType }
 
-impl Parser.current -> Token {
+impl Parser.current -> LexToken {
     if self.pos < self._tokens_len {
         return self.tokens[self.pos];
     }
     return self.tokens[-1];
 }
 
-impl Parser.peek(offset: int = 1) -> Token {
+impl Parser.peek(offset: int = 1) -> LexToken {
     idx = self.pos + offset;
     if idx < self._tokens_len {
         return self.tokens[idx];
@@ -145,7 +145,7 @@ impl Parser.peek(offset: int = 1) -> Token {
     return self.tokens[-1];
 }
 
-impl Parser.advance -> Token {
+impl Parser.advance -> LexToken {
     tok = self.current();
     if self.pos < self._tokens_len - 1 {
         self.pos += 1;
@@ -153,7 +153,7 @@ impl Parser.advance -> Token {
     return tok;
 }
 
-impl Parser.previous -> Token {
+impl Parser.previous -> LexToken {
     if self.pos > 0 {
         return self.tokens[self.pos - 1];
     }
@@ -189,21 +189,21 @@ impl Parser.get_source -> Source {
     return Source(self.file_path, self.source_code);
 }
 
-impl Parser.match_tok(kind: TokenKind) -> Token | None {
+impl Parser.match_tok(kind: TokenKind) -> LexToken | None {
     if self.check(kind) {
         return self.advance();
     }
     return None;
 }
 
-impl Parser.match_any(*kinds: TokenKind) -> Token | None {
+impl Parser.match_any(*kinds: TokenKind) -> LexToken | None {
     if self.current().kind in kinds {
         return self.advance();
     }
     return None;
 }
 
-impl Parser.expect_any(*kinds: TokenKind) -> Token {
+impl Parser.expect_any(*kinds: TokenKind) -> LexToken {
     if self.current().kind in kinds {
         return self.advance();
     }
@@ -214,7 +214,7 @@ impl Parser.expect_any(*kinds: TokenKind) -> Token {
     return self.advance();
 }
 
-impl Parser.expect(kind: TokenKind) -> Token {
+impl Parser.expect(kind: TokenKind) -> LexToken {
     if self.check(kind) {
         return self.advance();
     }
@@ -397,7 +397,7 @@ impl Parser.is_builtin_type_token -> bool {
     );
 }
 
-impl Parser.expect_name -> Token {
+impl Parser.expect_name -> LexToken {
     if self.check_name() {
         return self.advance();
     }
@@ -405,7 +405,7 @@ impl Parser.expect_name -> Token {
     return self.current();
 }
 
-impl Parser.make_uni_token(tok: Token) -> UniToken {
+impl Parser.make_uni_token(tok: LexToken) -> UniToken {
     tok_name: str = TOKEN_KIND_TO_TOK[tok.kind]
         if tok.kind in TOKEN_KIND_TO_TOK
         else tok.kind.value;
@@ -422,7 +422,7 @@ impl Parser.make_uni_token(tok: Token) -> UniToken {
     );
 }
 
-impl Parser.make_name(tok: Token, is_enum_stmt: bool = False) -> Name {
+impl Parser.make_name(tok: LexToken, is_enum_stmt: bool = False) -> Name {
     val = tok.value;
     kwesc = False;
     if val.startswith("`") {
@@ -446,7 +446,7 @@ impl Parser.make_name(tok: Token, is_enum_stmt: bool = False) -> Name {
     );
 }
 
-impl Parser.make_special_name(tok: Token) -> Name {
+impl Parser.make_special_name(tok: LexToken) -> Name {
     tok_name: str = TOKEN_KIND_TO_TOK[tok.kind]
         if tok.kind in TOKEN_KIND_TO_TOK
         else tok.kind.value;
@@ -464,7 +464,7 @@ impl Parser.make_special_name(tok: Token) -> Name {
     );
 }
 
-impl Parser.make_name_or_special(tok: Token) -> Name {
+impl Parser.make_name_or_special(tok: LexToken) -> Name {
     if tok.kind == TokenKind.NAME or tok.kind == TokenKind.KWESC_NAME {
         return self.make_name(tok);
     }
@@ -486,7 +486,7 @@ impl Parser.parse_access_tag -> SubTag | None {
     return None;
 }
 
-impl Parser.make_string(tok: Token) -> String {
+impl Parser.make_string(tok: LexToken) -> String {
     return String(
         orig_src=self.get_source(),
         name=Tok.STRING.value,
@@ -514,7 +514,7 @@ impl Parser.make_string_from_value(value: str) -> String {
     );
 }
 
-impl Parser.make_int(tok: Token) -> Int {
+impl Parser.make_int(tok: LexToken) -> Int {
     return Int(
         orig_src=self.get_source(),
         name=Tok.INT.value,
@@ -528,7 +528,7 @@ impl Parser.make_int(tok: Token) -> Int {
     );
 }
 
-impl Parser.make_float(tok: Token) -> Float {
+impl Parser.make_float(tok: LexToken) -> Float {
     return Float(
         orig_src=self.get_source(),
         name=Tok.FLOAT.value,
@@ -542,7 +542,7 @@ impl Parser.make_float(tok: Token) -> Float {
     );
 }
 
-impl Parser.make_bool(tok: Token) -> Bool {
+impl Parser.make_bool(tok: LexToken) -> Bool {
     return Bool(
         orig_src=self.get_source(),
         name=Tok.BOOL.value,
@@ -556,7 +556,7 @@ impl Parser.make_bool(tok: Token) -> Bool {
     );
 }
 
-impl Parser.make_null(tok: Token) -> Null {
+impl Parser.make_null(tok: LexToken) -> Null {
     return Null(
         orig_src=self.get_source(),
         name=Tok.NULL.value,
@@ -570,7 +570,7 @@ impl Parser.make_null(tok: Token) -> Null {
     );
 }
 
-impl Parser.make_ellipsis(tok: Token) -> EllipsisLit {
+impl Parser.make_ellipsis(tok: LexToken) -> EllipsisLit {
     return EllipsisLit(
         orig_src=self.get_source(),
         name=Tok.ELLIPSIS.value,
@@ -1548,7 +1548,7 @@ impl Parser.parse_atomic_chain -> Expr {
     return expr;
 }
 
-impl Parser._make_attr_from_keyword(name_tok: Token) -> (Name | SpecialVarRef) {
+impl Parser._make_attr_from_keyword(name_tok: LexToken) -> (Name | SpecialVarRef) {
     special_kinds = [
         TokenKind.KW_INIT,
         TokenKind.KW_POST_INIT,
@@ -5040,9 +5040,7 @@ impl Parser.parse_import_stmt -> Import {
     items: list = [];
     clib_decls: list = [];
     if self.check(TokenKind.LBRACE) {
-        result = self.parse_import_items(kid, is_clib_import);
-        items = result[0];
-        clib_decls = result[1];
+        (items, clib_decls) = self.parse_import_items(kid, is_clib_import);
     } elif from_loc is None {
         while True {
             path_names: list = [];
@@ -5106,7 +5104,7 @@ impl Parser.parse_import_stmt -> Import {
     );
 }
 
-impl Parser.parse_from_path -> tuple {
+impl Parser.parse_from_path -> tuple[((ModulePath | None), bool)] {
     path_names: list = [];
     level = 0;
     path_kid: list = [];
@@ -5155,7 +5153,7 @@ impl Parser.parse_from_path -> tuple {
     return (from_loc, is_clib_import);
 }
 
-impl Parser.parse_import_items(kid: list, is_clib_import: bool) -> tuple {
+impl Parser.parse_import_items(kid: list, is_clib_import: bool) -> tuple[(list, list)] {
     items: list = [];
     clib_decls: list = [];
     self.expect(TokenKind.LBRACE);
@@ -5190,7 +5188,7 @@ impl Parser.parse_import_items(kid: list, is_clib_import: bool) -> tuple {
                 star_tok = self.expect(TokenKind.STAR_MUL);
                 item_name = self.make_uni_token(star_tok);
             } else {
-                item_name_tok: Token;
+                item_name_tok: LexToken;
                 if self.check(TokenKind.KW_DEFAULT) {
                     item_name_tok = self.expect(TokenKind.KW_DEFAULT);
                     item_name = self.make_uni_token(item_name_tok);
@@ -5206,7 +5204,7 @@ impl Parser.parse_import_items(kid: list, is_clib_import: bool) -> tuple {
                 }
             }
             alias = None;
-            as_tok: Token | None = None;
+            as_tok: LexToken | None = None;
             if self.match_tok(TokenKind.KW_AS) {
                 as_tok = self.previous();
                 alias_tok = self.expect_name();
@@ -5253,7 +5251,7 @@ impl Parser.parse_archetype -> Archetype {
     );
     arch_type = self.make_uni_token(arch_tok);
     access = self.parse_access_tag();
-    name_tok: Token;
+    name_tok: LexToken;
     if self.check_name() {
         name_tok = self.expect_name();
     } elif self.is_keyword_token() {
@@ -5547,7 +5545,7 @@ impl Parser._error_unexpected_member{
 
 impl Parser.parse_has_stmt -> ArchHas {
     is_static = False;
-    static_tok: Token | None = None;
+    static_tok: LexToken | None = None;
     if self.match_tok(TokenKind.KW_STATIC) {
         is_static = True;
         static_tok = self.previous();
@@ -5613,7 +5611,7 @@ impl Parser.parse_has_stmt -> ArchHas {
 }
 
 impl Parser.parse_has_var -> HasVar {
-    name_tok: Token;
+    name_tok: LexToken;
     if self.check_name() {
         name_tok = self.expect_name();
     } elif self.is_keyword_token() {
@@ -5701,7 +5699,7 @@ impl Parser.parse_has_var -> HasVar {
     );
 }
 
-impl Parser._consume_accessor_kind -> tuple[str, Token] {
+impl Parser._consume_accessor_kind -> tuple[str, LexToken] {
     if self.check(TokenKind.KW_DELETER) {
         return ("deleter", self.advance());
     }
@@ -5778,13 +5776,13 @@ impl Parser.parse_ability -> Ability {
         decorators.append(self.parse_atomic_chain());
     }
     is_override = False;
-    override_tok: Token | None = None;
+    override_tok: LexToken | None = None;
     if self.match_tok(TokenKind.KW_OVERRIDE) {
         is_override = True;
         override_tok = self.previous();
     }
     is_classmethod = False;
-    classmethod_tok: Token | None = None;
+    classmethod_tok: LexToken | None = None;
     if self.check(TokenKind.KW_CLASS)
         and self.check_peek_any(
             TokenKind.KW_DEF, TokenKind.KW_CAN, TokenKind.KW_ASYNC
@@ -5794,13 +5792,13 @@ impl Parser.parse_ability -> Ability {
         classmethod_tok = self.previous();
     }
     is_static = False;
-    static_tok: Token | None = None;
+    static_tok: LexToken | None = None;
     if not is_classmethod and self.match_tok(TokenKind.KW_STATIC) {
         is_static = True;
         static_tok = self.previous();
     }
     is_async = False;
-    async_tok: Token | None = None;
+    async_tok: LexToken | None = None;
     if self.match_tok(TokenKind.KW_ASYNC) {
         is_async = True;
         async_tok = self.previous();
@@ -5962,8 +5960,11 @@ impl Parser.parse_ability -> Ability {
 }
 
 impl Parser._parse_post_async_modifiers(
-    is_override: bool, override_tok: any, is_static: bool, static_tok: any
-) -> tuple {
+    is_override: bool,
+    override_tok: (LexToken | None),
+    is_static: bool,
+    static_tok: (LexToken | None)
+) -> tuple[(bool, (LexToken | None), bool, (LexToken | None))] {
     if not is_override and self.match_tok(TokenKind.KW_OVERRIDE) {
         is_override = True;
         override_tok = self.previous();
@@ -6190,7 +6191,7 @@ impl Parser.parse_enum -> Enum {
     }
     enum_kw_uni = self.consume_uni(TokenKind.KW_ENUM);
     access = self.parse_access_tag();
-    name_tok: Token;
+    name_tok: LexToken;
     if self.check_name() {
         name_tok = self.expect_name();
     } elif self.is_keyword_token() {
@@ -6508,7 +6509,7 @@ impl Parser.parse_global_var -> GlobalVars {
 }
 
 impl Parser.parse_global_var_assignment -> Assignment {
-    name_tok: Token;
+    name_tok: LexToken;
     if self.check_name() {
         name_tok = self.expect_name();
     } elif self.is_keyword_token() {
@@ -6587,7 +6588,7 @@ impl Parser.parse_impl_def -> ImplDef {
     spec: FuncSignature | EventSignature | list | None = None;
     base_classes: list = [];
     impl_inh_comma_unis: list = [];
-    impl_inh_lp_tok: Token | None = None;
+    impl_inh_lp_tok: LexToken | None = None;
     impl_inh_rp_uni: UniToken | None = None;
     if self.check(TokenKind.LPAREN) {
         is_func_params = False;
@@ -6922,7 +6923,7 @@ impl Parser.parse_sem_def -> SemDef {
 impl Parser.parse_type_alias -> TypeAlias {
     type_kw_uni = self.consume_uni(TokenKind.TYP_TYPE);
     access = self.parse_access_tag();
-    name_tok: Token;
+    name_tok: LexToken;
     if self.check_name() {
         name_tok = self.expect_name();
     } elif self.is_keyword_token() {
@@ -6971,7 +6972,7 @@ impl Parser.parse_type_alias -> TypeAlias {
     );
 }
 
-impl Parser.parse_type_params -> tuple {
+impl Parser.parse_type_params -> tuple[(list, list)] {
     params: list = [];
     comma_unis: list = [];
 
