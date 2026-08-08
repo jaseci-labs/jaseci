@@ -8,7 +8,13 @@ def _project_data_dir(explicit: str) -> str {
     if explicit {
         return str(Path(explicit).expanduser());
     }
-    import from jaclang.runtimelib.utils { get_name }
+    import from jaclang.runtimelib.session { shared_pg_data_dir }
+    return shared_pg_data_dir();
+}
+
+
+def _project_database -> str {
+    import from jaclang.runtimelib.session { project_db_name }
     base = str(Path.cwd());
     jacs = sorted(
         p
@@ -16,14 +22,15 @@ def _project_data_dir(explicit: str) -> str {
         if p.is_file()
     );
     target = str(jacs[0]) if len(jacs) == 1 else None;
-    name = get_name(target_path=target) or 'main';
-    return os.path.join(base, '.jac', 'data', f"{name}-pg");
+    return project_db_name(base, target);
 }
 
 
 def _runtime_for(data_dir: str, tcp: bool = False, port: int = 5432) -> Any {
     import from jaclang.runtimelib.pgembed { PgRuntime }
-    return PgRuntime(data_dir=data_dir, tcp=tcp, port=port);
+    return PgRuntime(
+        data_dir=data_dir, tcp=tcp, port=port, database=_project_database()
+    );
 }
 
 

@@ -108,7 +108,9 @@ impl PgRuntime.conninfo -> ConnInfo {
 
 
 impl PgRuntime._sock_dir -> str {
-    return os.path.join(self.data_dir, 'sock');
+    import tempfile;
+    digest = hashlib.sha1(os.path.abspath(self.data_dir).encode('utf-8')).hexdigest()[:10];
+    return os.path.join(tempfile.gettempdir(), f"jacpg-{digest}");
 }
 
 
@@ -119,9 +121,20 @@ impl PgRuntime.ensure -> ConnInfo {
             self._ensure_database();
             return self.conninfo();
         }
-        bin_dir = self._resolve_binaries();
-        self._initdb_if_needed(bin_dir);
-        self._start(bin_dir);
+        import fcntl;
+        os.makedirs(os.path.dirname(self.data_dir) or '.', exist_ok=True);
+        lock_f = open(self.data_dir + '.lock', 'w');
+        fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX);
+        try {
+            if not self.is_running() {
+                bin_dir = self._resolve_binaries();
+                self._initdb_if_needed(bin_dir);
+                self._start(bin_dir);
+            }
+        } finally {
+            fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN);
+            lock_f.close();
+        }
         self._wait_ready();
         self._ensure_database();
         return self.conninfo();

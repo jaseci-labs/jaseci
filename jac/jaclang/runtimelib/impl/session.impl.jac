@@ -39,11 +39,19 @@ impl conninfo_from_url(url: str) -> ConnInfo {
 }
 
 
-def _pg_data_dir(base_path: str, target_path: (str | None)) -> str {
+impl shared_pg_data_dir -> str {
+    import from jaclang.runtimelib.pgembed { dist_cache_dir }
+    return os.path.join(os.path.dirname(dist_cache_dir()), 'main');
+}
+
+
+impl project_db_name(base_path: str, target_path: (str | None)) -> str {
+    import hashlib;
     import from jaclang.runtimelib.utils { get_name }
-    droot = os.environ.get('JAC_DATA_PATH') or base_path;
     name = get_name(target_path=target_path) or 'main';
-    return os.path.join(droot, '.jac', 'data', f"{name}-pg");
+    safe = ''.join((ch if (ch.isalnum() or ch == '_') else '_') for ch in name.lower());
+    digest = hashlib.sha1(os.path.abspath(base_path).encode('utf-8')).hexdigest()[:8];
+    return f"jac_{safe[:40]}_{digest}";
 }
 
 
@@ -110,7 +118,10 @@ impl Session.postinit -> None {
                 logger.debug(f"cache invalidation listener skipped: {e}");
             }
         } else {
-            rt = PgRuntime(data_dir=_pg_data_dir(self.base_path, self.target_path));
+            rt = PgRuntime(
+                data_dir=shared_pg_data_dir(),
+                database=project_db_name(self.base_path, self.target_path)
+            );
             self._runtime = rt;
             pgs = PgStore(conninfo=rt.ensure());
         }
@@ -123,7 +134,7 @@ impl Session.postinit -> None {
 impl Session.data_location -> (str | None) {
     rt: Any = self._runtime;
     if rt is not None {
-        return str(rt.data_dir);
+        return f"{rt.data_dir}/{rt.database}";
     }
     if isinstance(self.store, PgStore) {
         info = self.store.conninfo;

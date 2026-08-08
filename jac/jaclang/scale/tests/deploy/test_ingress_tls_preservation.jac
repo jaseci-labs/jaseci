@@ -133,4 +133,3 @@ test "shared ingress without a cert-manager annotation adds no cert tls block" {
     body = networking_v1.patch_namespaced_ingress.call_args[1]['body'];
     assert body.get('spec', {}).get('tls') is None , "no issuer annotation must not add a cert tls block";
 }
-

@@ -40,17 +40,16 @@ def shared_store -> (Any | None) {
             } else {
                 import from jaclang.jac0core.runtime { JacRuntime }
                 import from jaclang.runtimelib.pgembed { PgRuntime }
+                import from jaclang.runtimelib.session {
+                    project_db_name,
+                    shared_pg_data_dir
+                }
                 base = JacRuntime.get_base_path_dir();
                 if base {
-                    import from jaclang.runtimelib.utils { get_name }
-                    name = get_name(target_path=JacRuntime.get_full_target_path())
-                        or 'main';
                     rt = PgRuntime(
-                        data_dir=os.path.join(
-                            os.environ.get('JAC_DATA_PATH') or base,
-                            '.jac',
-                            'data',
-                            f"{name}-pg"
+                        data_dir=shared_pg_data_dir(),
+                        database=project_db_name(
+                            base, JacRuntime.get_full_target_path()
                         )
                     );
                     store = PgStore(conninfo=rt.ensure());

@@ -12,10 +12,18 @@ import from jaclang.runtimelib.store { AnchorRow, ConnInfo, PgStore, Store }
 glob logger = logging.getLogger(__name__),
      MAX_RETRIES = 5,
      _process_cache = PodCache(),
-     __all__ = ['Session', 'promotions_for', 'conninfo_from_url'];
+     __all__ = [
+         'Session',
+         'promotions_for',
+         'conninfo_from_url',
+         'shared_pg_data_dir',
+         'project_db_name'
+     ];
 
 
 def promotions_for(base_path: (str | None)) -> dict[str, list[str]];
+def shared_pg_data_dir -> str;
+def project_db_name(base_path: str, target_path: (str | None)) -> str;
 def conninfo_from_url(url: str) -> ConnInfo;
 
 
