@@ -80,6 +80,7 @@ obj Session {
     def on_commit(callback: Callable) -> None;
     def flush(full: bool = False) -> None;
     def read_barrier -> None;
+    def _recover_conflict -> None;
     def _ensure_txn -> None;
     def _materialize(
         row: AnchorRow, edge_ids: (list[UUID] | None) = None

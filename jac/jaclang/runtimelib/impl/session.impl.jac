@@ -233,8 +233,17 @@ impl Session.`has(id: UUID) -> bool {
     if self.store is None {
         return False;
     }
-    self.read_barrier();
-    return id in self.store.existing([id]);
+    try {
+        self.read_barrier();
+        return id in self.store.existing([id]);
+    } except Exception as e {
+        if not _is_serialization_conflict(e) {
+            raise;
+        }
+        self._recover_conflict();
+        self.read_barrier();
+        return id in self.store.existing([id]);
+    }
 }
 
 
@@ -311,41 +320,54 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
         }
     }
     if missing and self.store is not None {
-        self.read_barrier();
-        versions = self.store.load_versions(missing);
-        still: list[UUID] = [];
-        for i in missing {
-            ver = versions.get(i);
-            if ver is None {
-                continue;
-            }
-            props = _process_cache.get(_cache_ns(self.store), i, ver);
-            if props is None {
-                still.append(i);
-                continue;
-            }
-            anchor = self._materialize(
-                AnchorRow(id=i, kind='', props=props, version=ver)
-            );
-            if anchor is not None {
-                out[i] = anchor;
-            } else {
-                still.append(i);
-            }
-        }
-        loaded = self.store.load(still);
-        node_ids = [
-            rid
-            for (rid, row) in loaded.items()
-            if row.kind == 'NodeAnchor'
-        ];
-        adj_map = self.store.adjacency(node_ids) if node_ids else {};
-        for (rid, row) in loaded.items() {
-            anchor = self._materialize(row, edge_ids=adj_map.get(rid));
-            if anchor is not None {
-                self._fetch_count += 1;
-                out[rid] = anchor;
-                _process_cache.put(_cache_ns(self.store), rid, row.version, row.props);
+        for attempt in range(2) {
+            try {
+                self.read_barrier();
+                versions = self.store.load_versions(missing);
+                still: list[UUID] = [];
+                for i in missing {
+                    ver = versions.get(i);
+                    if ver is None {
+                        continue;
+                    }
+                    props = _process_cache.get(_cache_ns(self.store), i, ver);
+                    if props is None {
+                        still.append(i);
+                        continue;
+                    }
+                    anchor = self._materialize(
+                        AnchorRow(id=i, kind='', props=props, version=ver)
+                    );
+                    if anchor is not None {
+                        out[i] = anchor;
+                    } else {
+                        still.append(i);
+                    }
+                }
+                loaded = self.store.load(still);
+                node_ids = [
+                    rid
+                    for (rid, row) in loaded.items()
+                    if row.kind == 'NodeAnchor'
+                ];
+                adj_map = self.store.adjacency(node_ids) if node_ids else {};
+                for (rid, row) in loaded.items() {
+                    anchor = self._materialize(row, edge_ids=adj_map.get(rid));
+                    if anchor is not None {
+                        self._fetch_count += 1;
+                        out[rid] = anchor;
+                        _process_cache.put(
+                            _cache_ns(self.store), rid, row.version, row.props
+                        );
+                    }
+                }
+
+                break;
+            } except Exception as e {
+                if attempt == 1 or not _is_serialization_conflict(e) {
+                    raise;
+                }
+                self._recover_conflict();
             }
         }
     }
@@ -367,17 +389,7 @@ impl Session.commit(anchor: (Anchor | None) = None) -> None {
                         raise;
                     }
                     attempt += 1;
-                    try {
-                        self.store.rollback();
-                    } except Exception { }
-                    for id in list(self._txn_changed) {
-                        if id in self.__mem__ {
-                            self._flushed_hash.pop(id, None);
-                            self._dirty[id] = None;
-                        } else {
-                            self._deleted.add(id);
-                        }
-                    }
+                    self._recover_conflict();
                 }
             }
             if self._txn_changed {
@@ -531,12 +543,38 @@ impl Session.get_fetch_count -> int {
 }
 
 
+impl Session._recover_conflict -> None {
+    if self.store is not None {
+        try {
+            self.store.rollback();
+        } except Exception { }
+    }
+    for id in list(self._txn_changed) {
+        if id in self.__mem__ {
+            self._flushed_hash.pop(id, None);
+            self._dirty[id] = None;
+        } else {
+            self._deleted.add(id);
+        }
+    }
+}
+
+
 impl Session.read_barrier -> None {
     if self.store is None {
         return;
     }
-    self._ensure_txn();
-    self.flush(full=True);
+    try {
+        self._ensure_txn();
+        self.flush(full=True);
+    } except Exception as e {
+        if not _is_serialization_conflict(e) {
+            raise;
+        }
+        self._recover_conflict();
+        self._ensure_txn();
+        self.flush(full=True);
+    }
 }
 
 
