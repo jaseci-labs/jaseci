@@ -161,9 +161,7 @@ impl NaIRGenPass._spec_of(
         }
     }
     if not matched {
-        import os as _so_os;
-        if _so_os.environ.get("JAC_NA_SPEC_DEBUG")
-            and ("Sequence" in tk or "UniNode" in tk) {
+        if NA_DEBUG_TRACE and ("Sequence" in tk or "UniNode" in tk) {
             import sys as _so_sys;
             _so_sys.stderr.write(f"SPECMISS {tk}\n");
         }

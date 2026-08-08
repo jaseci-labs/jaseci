@@ -77,53 +77,59 @@ def _split_strtab(blob: str) -> list[str] {
 }
 
 
-glob _CANARY_SRC: str = (
-         "\"\"\"Canary module: exercises many token kinds.\"\"\"\n"
-         "import os;\n"
-         "glob G: int = 42, H: str = \"control-flow harness (Branch 4)\";\n"
-         "enum E { A = 1, B = 2 }\n"
-         "obj Canary {\n"
-         "    has a: int = 0, b: (str | None) = None, c: list[int] = [];\n"
-         "    def m(p: int = 3) -> int;\n"
-         "}\n"
-         "impl Canary.m(p: int = 3) -> int {\n"
-         "    if p > 1 and p < 10 or not p {\n"
-         "        for i in range(p) {\n"
-         "            self.a += i * 2 - 1;\n"
-         "        }\n"
-         "    } elif p == 0 {\n"
-         "        while self.a {\n"
-         "            self.a -= 1;\n"
-         "        }\n"
-         "    } else {\n"
-         "        try {\n"
-         "            self.b = f\"v={p} w={self.a}\";\n"
-         "        } except Exception as e {\n"
-         "            raise;\n"
-         "        }\n"
-         "    }\n"
-         "    return self.a if self.a else -1;\n"
-         "}\n"
-         "test canary_t { assert Canary(a=5).m(2) >= -1; }\n"
-         "with entry { print({\"k\": [1, 2.5, True, None]}); }\n"
+glob _CANARY_LINES: tuple = (
+         "import os;",
+         "glob G: int = 42, H: str = 'control-flow harness (Branch 4)';",
+         "enum E { A = 1, B = 2 }",
+         "obj Canary {",
+         "    has a: int = 0, b: (str | None) = None, c: list[int] = [];",
+         "    def m(p: int = 3) -> int;",
+         "}",
+         "impl Canary.m(p: int = 3) -> int {",
+         "    if p > 1 and p < 10 or not p {",
+         "        for i in range(p) {",
+         "            self.a += i * 2 - 1;",
+         "        }",
+         "    } elif p == 0 {",
+         "        while self.a {",
+         "            self.a -= 1;",
+         "        }",
+         "    } else {",
+         "        try {",
+         "            self.b = f'v={p} w={self.a}';",
+         "        } except Exception as e {",
+         "            raise;",
+         "        }",
+         "    }",
+         "    return self.a if self.a else -1;",
+         "}",
+         "test canary_t { assert Canary(a=5).m(2) >= -1; }",
+         "with entry { print({'k': [1, 2.5, True, None]}); }",
+
      );
+
+def _canary_src -> str {
+    nl = chr(10);
+    return nl.join(list(_CANARY_LINES));
+}
+
 
 def _canary_ok(fn: any, blob_fn: any) -> bool {
     try {
-        r = fn(_CANARY_SRC, "__seal_selfcheck__.jac");
+        r = fn(_canary_src(), "__seal_selfcheck__.jac");
         native_mod = materialize_module(
             _arena_from_native(r[0], blob_fn),
-            Source(_CANARY_SRC, mod_path="__seal_selfcheck__.jac")
+            Source(_canary_src(), mod_path="__seal_selfcheck__.jac")
         );
         (tokens, _c, _ld, _le) = na_lexer.tokenize_full(
-            _CANARY_SRC, "__seal_selfcheck__.jac"
+            _canary_src(), "__seal_selfcheck__.jac"
         );
         pyp = Parser(
-            tokens=tokens, file_path="__seal_selfcheck__.jac", source_code=_CANARY_SRC
+            tokens=tokens, file_path="__seal_selfcheck__.jac", source_code=_canary_src()
         );
         pyp.parse();
         py_mod = materialize_module(
-            pyp.b, Source(_CANARY_SRC, mod_path="__seal_selfcheck__.jac")
+            pyp.b, Source(_canary_src(), mod_path="__seal_selfcheck__.jac")
         );
         return (
             r[1] == pyp.error_count

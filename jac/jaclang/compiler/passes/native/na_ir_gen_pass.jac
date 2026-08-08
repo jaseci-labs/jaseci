@@ -69,6 +69,8 @@ glob NATIVE_STRUCT_FUNCS: set[str] = {"pack", "unpack", "calcsize", "pack_into",
 
 glob RC_SENTINEL: int = 0x7FFFFFFFFFFFFFFF;
 
+glob NA_DEBUG_TRACE: bool = False;
+
 glob HDR_ALLOC_ID_OFF: int = -32,
      HDR_TAG_OFF: int = -24,
      HDR_RC_OFF: int = -16,

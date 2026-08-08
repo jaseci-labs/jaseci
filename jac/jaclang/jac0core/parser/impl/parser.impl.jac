@@ -2853,14 +2853,20 @@ impl Parser.parse_lambda_expr -> int {
         if lbrace_uni {
             kid.append(lbrace_uni);
         }
-        kid.extend(body_stmts2 or []);
+        if body_stmts2 is not None {
+            kid.extend(body_stmts2);
+        }
         if rbrace_uni {
             kid.append(rbrace_uni);
         }
     }
-    lam_body: any = body_stmts2 or [];
+    lam_body: any = None;
     if body_expr2 != NIL {
         lam_body = body_expr2;
+    } elif body_stmts2 is not None {
+        lam_body = body_stmts2;
+    } else {
+        lam_body = [];
     }
     return self.b.mk_lambda_expr(body=lam_body, kid=kid, signature=signature);
 }
@@ -3503,7 +3509,11 @@ impl Parser.parse_code_block_stmts -> list {
                     self.b.kind_of(_se) in KS_MULTI_STRING
                     and all(
                         self.b.kind_of(sn) in KS_STRING
-                        for sn in (self.b.arg_list(_se, 0) or [])
+                        for sn in (
+                            self.b.arg_list(_se, 0)
+                                if self.b.arg_list(_se, 0) is not None
+                                else []
+                        )
                     )
                 ) {
                     is_docstring = True;
@@ -4628,7 +4638,10 @@ impl Parser.parse_literal_for_mapping -> (int) {
 impl Parser.parse_class_pattern_args(
     names: list[int], dot_unis: (list[int] | None) = None
 ) -> int {
-    dots: list[int] = dot_unis or [];
+    dots: list[int] = [];
+    if dot_unis is not None {
+        dots = dot_unis;
+    }
     lparen_uni = self.consume_uni(TokenKind.LPAREN);
 
     if len(names) == 1 {
