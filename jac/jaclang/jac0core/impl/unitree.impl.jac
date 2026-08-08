@@ -2616,9 +2616,13 @@ impl Ellipsis.lit_value.getter -> object {
 }
 
 impl EmptyToken.init(orig_src: (Source | None) = None) -> None {
+    _src = orig_src;
+    if _src is None {
+        _src = Source('', '');
+    }
     super.init(
         name='EmptyToken',
-        orig_src=(orig_src or Source('', '')),
+        orig_src=_src,
         value='',
         line=0,
         end_line=0,
@@ -2685,7 +2689,7 @@ impl CommentToken.init(
 }
 
 impl Source.init(source: str, mod_path: str) -> None {
-    super.init(self);
+    super.init(orig_src=self);
     self.value = source;
     self._hash = "";
     self.file_path = mod_path;
@@ -2695,8 +2699,11 @@ impl Source.init(source: str, mod_path: str) -> None {
 
 impl Source.hash.getter -> str {
     if not self._hash {
-        import from hashlib { md5 }
-        self._hash = md5(self.value.encode()).hexdigest();
+        h = 0xCBF29CE484222325;
+        for b in self.value.encode() {
+            h = ((h ^ b) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF;
+        }
+        self._hash = f"{h:016x}";
     }
     return self._hash;
 }

@@ -182,10 +182,9 @@ impl Parser.check_peek_any(*kinds: TokenKind) -> bool {
 
 impl Parser.get_source -> Source {
     src = self.source;
-    if isinstance(src, Source) {
+    if src is not None {
         return src;
     }
-
     return Source(self.file_path, self.source_code);
 }
 
