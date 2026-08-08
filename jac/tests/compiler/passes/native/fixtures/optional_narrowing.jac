@@ -8,9 +8,11 @@ payload) lower differently, so both are pinned here, along with the
 plain truthiness, `!= None`, an early `continue`, an early `raise`, and
 `isinstance` narrowing of a boxed union.
 
-The last two functions are the negative half: a rebind and a loop back-edge
-both re-widen the value, so the tag must still be read there. None must
-never be read as a payload.
+The last four functions are the negative half. A rebind and a loop back-edge
+both re-widen the value, so the tag must still be read there; None must never
+be read as a payload. A redundant `is None` on an already-proven value must
+still compile to a tag read rather than comparing a bare payload against
+None, and truthiness of an already-proven container must stay `len > 0`.
 """
 
 def make(n: int) -> list[int] | None {
@@ -130,6 +132,77 @@ def rebind_widens(n: int) -> int {
         return first;
     }
     return first + v;
+}
+
+def pick_zero(n: int) -> int | None {
+    if n > 0 {
+        return 0;
+    }
+    return None;
+}
+
+def redundant_guard(n: int) -> int {
+    v = pick(n);
+    if v is None {
+        return -1;
+    }
+    if v is None {
+        return -2;
+    }
+    return v + 3;
+}
+
+def zero_payload_redundant_guard(n: int) -> int {
+    v = pick_zero(n);
+    if v is None {
+        return -1;
+    }
+    if v is None {
+        return -2;
+    }
+    return v + 7;
+}
+
+def pick_float(n: int) -> float | None {
+    if n > 0 {
+        return n * 1.5;
+    }
+    return None;
+}
+
+def float_none_test_value(n: int) -> int {
+    x = pick_float(n);
+    if x is None {
+        return -1;
+    }
+    still_none = x is None;
+    if still_none {
+        return -2;
+    }
+    return n + 9;
+}
+
+def zero_payload_none_test_value(n: int) -> int {
+    v = pick_zero(n);
+    if v is None {
+        return -1;
+    }
+    still_none = v is None;
+    if still_none {
+        return -2;
+    }
+    return v + 9;
+}
+
+def truthy_after_guard(n: int) -> int {
+    ids = make(n);
+    if ids is None {
+        return -1;
+    }
+    if ids {
+        return len(ids);
+    }
+    return -2;
 }
 
 def loop_rewiden(n: int) -> int {

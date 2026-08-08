@@ -157,6 +157,44 @@ test "isinstance narrows a boxed union to the tested member" {
     assert vals == [-1, 9, 21] , f"unexpected iso_any results: {vals}";
 }
 
+test "a redundant `is None` on a proven value still reads the tag" {
+    (eng, _) = compile_native(FIXTURE);
+    sv = sv_module();
+    vals = congruent(eng, sv, "redundant_guard", [0, 1, 2]);
+    assert vals == [-1, 6, 9] , f"unexpected redundant_guard results: {vals}";
+}
+
+test "a redundant `is None` on a proven zero payload is still False" {
+    (eng, _) = compile_native(FIXTURE);
+    sv = sv_module();
+    vals = congruent(eng, sv, "zero_payload_redundant_guard", [0, 1, 5]);
+    assert vals == [-1, 7, 7] , (
+        f"unexpected zero_payload_redundant_guard results: {vals}"
+    );
+}
+
+test "`is None` as a value never compares against a narrowed payload" {
+    (eng, _) = compile_native(FIXTURE);
+    sv = sv_module();
+    vals = congruent(eng, sv, "zero_payload_none_test_value", [0, 1, 5]);
+    assert vals == [-1, 9, 9] , (
+        f"unexpected zero_payload_none_test_value results: {vals}"
+    );
+    # a float payload is the case that actually miscompiles if the operand of
+    # a None test is narrowed: `x is None` becomes `fcmp une x, 0.0`
+    fvals = congruent(eng, sv, "float_none_test_value", [0, 2, 4]);
+    assert fvals == [-1, 11, 13] , (
+        f"unexpected float_none_test_value results: {fvals}"
+    );
+}
+
+test "truthiness of a proven container stays len > 0" {
+    (eng, _) = compile_native(FIXTURE);
+    sv = sv_module();
+    vals = congruent(eng, sv, "truthy_after_guard", [0, 1, 3]);
+    assert vals == [-1, 1, 3] , f"unexpected truthy_after_guard results: {vals}";
+}
+
 test "a rebind re-widens: the tag is still read after reassignment" {
     (eng, _) = compile_native(FIXTURE);
     sv = sv_module();
