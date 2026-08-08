@@ -5802,13 +5802,22 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
     is_shared_boundary_arch = (
         (nd.name is not None) and (nd.name.sym_name in self.shared_arch_names)
     );
+    has_postinit = False;
+    for _stmt in (self.unwrap_body(nd) or []) {
+        if (
+            isinstance(_stmt, uni.Ability)
+            and getattr(_stmt, 'sym_name', '') == '__post_init__'
+        ) {
+            has_postinit = True;
+        }
+    }
     if (
         (
             (nd.arch_type.name == Tok.KW_OBJECT)
             or is_local_osp_arch
             or is_shared_boundary_arch
         )
-        and has_members
+        and (has_members or has_postinit)
     ) {
         constructor_stmts: list[es.Statement] = [];
         props_param = self.sync_loc(
@@ -5904,6 +5913,34 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
                     )
                 );
             }
+        }
+        if has_postinit {
+            constructor_stmts.append(
+                self.sync_loc(
+                    es.ExpressionStatement(
+                        expression=self.sync_loc(
+                            es.CallExpression(
+                                callee=self.sync_loc(
+                                    es.MemberExpression(
+                                        object=self.sync_loc(
+                                            es.ThisExpression(), jac_node=nd
+                                        ),
+                                        property=self.sync_loc(
+                                            es.Identifier(name='__post_init__'),
+                                            jac_node=nd
+                                        ),
+                                        computed=False
+                                    ),
+                                    jac_node=nd
+                                ),
+                                arguments=[]
+                            ),
+                            jac_node=nd
+                        )
+                    ),
+                    jac_node=nd
+                )
+            );
         }
         if constructor_stmts {
             if nd.base_classes {

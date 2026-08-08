@@ -2,9 +2,13 @@ import hmac;
 import hashlib;
 import logging;
 import secrets;
-import jwt;
+import from jaclang.runtimelib.serving.authcrypt {
+    JWTError,
+    JWTExpiredError,
+    jwt_decode,
+    jwt_encode
+}
 import from datetime { UTC, datetime, timedelta }
-import from pydantic { BaseModel, Field }
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.persistence.docdb { PgDocDb, open_doc_db }

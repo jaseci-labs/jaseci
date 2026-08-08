@@ -3537,6 +3537,9 @@ impl TypeEvaluator.postinit -> None {
     self._JAC_BUILTINS_STUB_FILE_PATH = os.path.join(
         os.path.dirname(__file__), "jac_builtins.pyi"
     );
+    self._BUILTIN_OVERRIDES_STUB_FILE_PATH = os.path.join(
+        os.path.dirname(__file__), "builtin_overrides.pyi"
+    );
     self._DOM_TYPES_STUB_FILE_PATH = os.path.join(
         os.path.dirname(__file__), "dom_types.pyi"
     );
@@ -3619,6 +3622,17 @@ impl TypeEvaluator.postinit -> None {
         if existing is None or existing.imported {
             self.builtins_module.names_in_scope[name] = sym;
         }
+    }
+
+    builtin_overrides_module = self._load_stub_module(
+        self._BUILTIN_OVERRIDES_STUB_FILE_PATH
+    );
+    overrides_allowed = read_dunder_all(self._BUILTIN_OVERRIDES_STUB_FILE_PATH);
+    for (name, sym) in builtin_overrides_module.names_in_scope.items() {
+        if overrides_allowed is not None and name not in overrides_allowed {
+            continue;
+        }
+        self.builtins_module.names_in_scope[name] = sym;
     }
 
     for (name, sym) in self.dom_types_module.names_in_scope.items() {
