@@ -137,6 +137,23 @@ def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Sourc
     }
 }
 
+def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, list)] {
+    _np = _native_parse();
+    if _np is not None {
+        (_arena_v, p_errs, p_diags, _comments, lex_diags, lex_errs) = _np(
+            source, file_path
+        );
+        return (p_errs > 0 or lex_errs > 0, list(p_diags), list(lex_diags));
+    }
+    (tokens, _comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
+        source, file_path
+    );
+    parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
+    parser.parse();
+    return (parser.error_count > 0 or lex_errs > 0, parser.diags, lex_diags, );
+}
+
+
 def parse(
     source: str, file_path: str = "<input>", prog: (JacProgram | None) = None
 ) -> tuple[Module, bool] {
