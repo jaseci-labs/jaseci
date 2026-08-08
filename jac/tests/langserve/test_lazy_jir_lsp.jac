@@ -8,7 +8,7 @@ import time;
 import pytest;
 import jaclang.lsp.types as lspt;
 import from jaclang.jac0core.jir { get_module_cache_path, }
-import from jaclang.jac0core.jir_passes { JirReader }
+import from jaclang.jac0core.jir_passes { JirReader, JirWriter }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.langserve.engine { JacLangServer }
 import from jaclang.lsp { uris }
@@ -426,5 +426,103 @@ test "lazy jir performance gate cold versus warm pyi cache" {
         }
     } finally {
         _teardown_test();
+    }
+}
+
+"""Round-trip a stub through JIR and return (blob, total_node_count)."""
+def _stub_jir_blob(stub_path: str) -> tuple[bytes, int] {
+    prog = JacProgram();
+    mod = prog.load_dependency_module(stub_path);
+    writer = JirWriter();
+    blob = writer.write_module(mod, sections={});
+    return (blob, len(writer._nodes));
+}
+
+test "lazy jir hydrates stub declarations on demand" {
+    # A class-heavy stub must load only its eager tier (module shell + symbol
+    # table) up front, then materialize each class/function subtree the first
+    # time it is touched -- with results identical to a full hydrate.
+    import from pathlib { Path }
+    builtins_stub = _require_typeshed_stub("builtins.pyi");
+    resolved = str(Path(builtins_stub).resolve());
+    (blob, total) = _stub_jir_blob(builtins_stub);
+    assert total > 0 , "expected a non-empty stub";
+
+    prev_flag = os.environ.get("JAC_LAZY_JIR");
+
+    def _restore {
+        if prev_flag is None {
+            os.environ.pop("JAC_LAZY_JIR", None);
+        } else {
+            os.environ["JAC_LAZY_JIR"] = prev_flag;
+        }
+    }
+    try {
+        # Full-hydrate reference.
+        os.environ["JAC_LAZY_JIR"] = "0";
+        full_reader = JirReader(_source_path=resolved);
+        full_mod = full_reader.read_module(blob);
+        assert full_mod is not None;
+        assert full_reader.hydrated_node_count == total ,
+            "full-hydrate read must materialize every node";
+        ref_syms = sorted(full_mod.names_in_scope.keys());
+
+        # Lazy read: eager tier only.
+        os.environ["JAC_LAZY_JIR"] = "1";
+        lazy_reader = JirReader(_source_path=resolved);
+        lazy_mod = lazy_reader.read_module(blob);
+        assert lazy_mod is not None;
+        eager = lazy_reader.hydrated_node_count;
+        assert eager < total // 2 ,
+            "lazy eager tier should be well under half of the stub ("
+                + str(eager) + " / " + str(total) + ")";
+
+        # The full symbol table is available without hydrating any body.
+        assert sorted(lazy_mod.names_in_scope.keys()) == ref_syms ,
+            "lazy symbol table must match full hydrate";
+        assert lazy_reader.hydrated_node_count == eager ,
+            "listing symbols must not hydrate declaration bodies";
+
+        # Typed cold shells: module.kid classes are the right node type before
+        # any hydration.
+        assert [type(k).__name__ for k in lazy_mod.kid]
+            == [type(k).__name__ for k in full_mod.kid] ,
+            "lazy kid node types must match full hydrate";
+
+        # Touch one class: only its subtree hydrates, and its members match.
+        target = None;
+        for (nm, sym) in full_mod.names_in_scope.items() {
+            if type(sym.decl.name_of).__name__ == "Archetype" {
+                target = nm;
+                break;
+            }
+        }
+        assert target is not None , "expected at least one class in builtins";
+        full_arch = full_mod.names_in_scope[target].decl.name_of;
+
+        before = lazy_reader.hydrated_node_count;
+        lazy_arch = lazy_mod.names_in_scope[target].decl.name_of;
+        assert type(lazy_arch).__name__ == "Archetype";
+        touched = lazy_reader.hydrated_node_count;
+        assert touched > before , "touching a class should hydrate its chunk";
+        assert touched < total ,
+            "touching one class must not hydrate the whole module";
+        assert sorted(lazy_arch.names_in_scope.keys())
+            == sorted(full_arch.names_in_scope.keys()) ,
+            "hydrated class members must match full hydrate";
+        # Parent chain / scope link restored through in-place hydration.
+        assert lazy_arch.parent is lazy_mod;
+        assert lazy_arch.parent_scope is lazy_mod;
+
+        print(
+            "\nLazy-JIR hydration: total="
+                + str(total)
+                + " eager="
+                + str(eager)
+                + " after_one_class="
+                + str(touched)
+        );
+    } finally {
+        _restore();
     }
 }
