@@ -2300,7 +2300,10 @@ impl NaIRGenPass._store_inline_field(
 }
 
 impl NaIRGenPass._codegen_field_aug_assign(
-    target: uni.AtomTrailer, rhs: ir.Value, aug_op: str
+    target: uni.AtomTrailer,
+    rhs: ir.Value,
+    aug_op: str,
+    rhs_node: (uni.Expr | None) = None
 ) -> (ir.Value | None) {
     field_name = self._get_name(target.right);
     if field_name is None {
@@ -2323,7 +2326,7 @@ impl NaIRGenPass._codegen_field_aug_assign(
         return None;
     }
 
-    scalar = self._apply_scalar_aug_op(current, rhs, aug_op);
+    scalar = self._apply_scalar_aug_op(current, rhs, aug_op, rhs_node);
     if scalar is not None {
         return scalar;
     }
@@ -2339,7 +2342,7 @@ impl NaIRGenPass._codegen_field_aug_assign(
 }
 
 impl NaIRGenPass._codegen_field_assign(
-    target: uni.AtomTrailer, value: ir.Value
+    target: uni.AtomTrailer, value: ir.Value, skip_narrow_coerce: bool = False
 ) -> None {
     _fa_errs = len(self.errors_had);
     field_name = self._get_name(target.right);
@@ -2393,7 +2396,7 @@ impl NaIRGenPass._codegen_field_assign(
     );
     if _is_clib_cb {
         value = self._clib_coerce_callback(value, ftype);
-    } else {
+    } elif not (skip_narrow_coerce and value.type != ftype) {
         value = self._coerce_type(value, ftype);
     }
     field_ptr = self.builder.gep(

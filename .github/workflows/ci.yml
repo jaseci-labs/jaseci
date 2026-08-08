@@ -42,6 +42,7 @@ jobs:
               - 'jac/**'
               - '.github/workflows/ci.yml'
               - '.github/actions/setup-jac/**'
+              - '.github/actions/setup-jac-dev/**'
             scale:
               - 'jac/jaclang/scale/**'
             byllm:
@@ -72,6 +73,15 @@ jobs:
 
       - name: Set up jac (build the binary once, cached)
         uses: ./.github/actions/setup-jac
+
+      # Seed the dev-lane host cache with the same sealed binary under a key
+      # that ignores jac/jaclang/** (the dev lane bypasses the payload compiler
+      # at runtime), so compiler-only PRs keep hitting one stable entry.
+      - name: Save host binary cache (dev lane)
+        uses: actions/cache/save@v4
+        with:
+          path: jac/zig-out/bin/jac
+          key: jac-hostbin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/build.zig', 'jac/build.zig.zon', 'jac/launcher/**', 'jac/native/**') }}
 
       # On a binary-cache hit the build (and its typeshed fetch) is skipped;
       # fetch-typeshed is a cheap idempotent materializer either way.
@@ -153,6 +163,10 @@ jobs:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
+    # (serve/client/cli tests). Under the dev lane each such spawn would
+    # recompile the checkout compiler from source into its cold cache -- a
+    # from-source build per spawn -- so these suites test the sealed artifact.
     steps:
       - uses: actions/checkout@v5
       - name: Restore typeshed stdlib stubs into the checkout
@@ -221,12 +235,13 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
 
+
   # Native lowering unavailable (LLVM shim absent): user programs must compile
   # cleanly in the server codespace with zero scheduling errors and no
   # native-demotion fallback. This path never runs elsewhere in CI because
   # every other job builds or bundles the shim (#7871 workstream H).
   test-no-llvm:
-    needs: [changes, build-jac]
+    needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
@@ -248,11 +263,22 @@ jobs:
           echo "$out" | grep -qx '42'
           ! echo "$out" | grep -q 'scheduling error'
           ! echo "$out" | grep -q 'preferred native but did not lower'
-      - name: Restore typeshed stdlib stubs into the checkout
-        uses: actions/download-artifact@v4
+      - name: Restore typeshed stdlib stubs (shared cache)
+        id: typeshed
+        uses: actions/cache/restore@v4
         with:
-          name: typeshed-stdlib
           path: jac/jaclang/vendor/typeshed/stdlib
+          key: typeshed-stdlib-${{ hashFiles('jac/jaclang/vendor/typeshed/PIN', 'jac/jaclang/vendor/typeshed/TARBALL_SHA256', 'jac/launcher/payload.zig') }}
+      - name: Set up Zig 0.16.0 (typeshed fetch fallback)
+        if: steps.typeshed.outputs.cache-hit != 'true'
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+          use-cache: false
+      - name: Materialize typeshed stdlib stubs
+        if: steps.typeshed.outputs.cache-hit != 'true'
+        working-directory: jac
+        run: zig build -Dno-ninja fetch-typeshed --summary all
       - name: No-LLVM compile (typeshed present, shim absent)
         working-directory: jac
         run: |
@@ -271,6 +297,10 @@ jobs:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
+    # (serve/client/cli tests). Under the dev lane each such spawn would
+    # recompile the checkout compiler from source into its cold cache -- a
+    # from-source build per spawn -- so these suites test the sealed artifact.
     steps:
       - uses: actions/checkout@v5
       - name: Download the jac binary
@@ -318,6 +348,9 @@ jobs:
   # satisfy branch protection); it restores the same binary cache itself.
   jac-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Dev lane: run THIS checkout's compiler (see test-compiler).
+    env:
+      JAC_NO_DEV_SOURCE: ""
     permissions:
       contents: write
     steps:
@@ -349,8 +382,8 @@ jobs:
           echo "Changed .jac files in this PR:"
           cat changed-jac.txt || true
 
-      - name: Set up jac (build the binary)
-        uses: ./.github/actions/setup-jac
+      - name: Set up jac (dev lane)
+        uses: ./.github/actions/setup-jac-dev
 
       - name: Install plugin deps so jac check resolves scale/byllm imports
         # Pins mirror jac/jaclang/project/capabilities.jac.
@@ -510,6 +543,19 @@ jobs:
 
           exit 0
 
+      # Refresh the shared JIR cache the dev lane restores (content-addressed
+      # entries: a stale tree can only miss, never mis-serve). One Linux
+      # seeder job bounds pool churn; PR-scoped saves cover the PR's own
+      # later pushes, main saves seed every branch.
+      - name: Save JIR compile caches
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .jac-xdg/jac/jir
+            jac/.jac/cache
+          key: jac-jir-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+
   # Required check ("Contribution Checks" is the branch-protection context
   # name): independent of build-jac for the same reason as jac-check.
   contribution-checks:
@@ -518,6 +564,9 @@ jobs:
     # On push to main, only worth running when docs changed.
     if: ${{ github.event_name != 'push' || needs.changes.outputs.docs == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Dev lane: run THIS checkout's compiler (see test-compiler).
+    env:
+      JAC_NO_DEV_SOURCE: ""
     steps:
       - uses: actions/checkout@v5
         with:
@@ -559,8 +608,8 @@ jobs:
             exit 1
           fi
 
-      - name: Set up jac (build the binary)
-        uses: ./.github/actions/setup-jac
+      - name: Set up jac (dev lane)
+        uses: ./.github/actions/setup-jac-dev
 
       - name: Validate Jac code blocks in the docs corpus
         run: jac run scripts/validate_docs_code.jac
@@ -580,6 +629,10 @@ jobs:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.desktop == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
+    # (serve/client/cli tests). Under the dev lane each such spawn would
+    # recompile the checkout compiler from source into its cold cache -- a
+    # from-source build per spawn -- so these suites test the sealed artifact.
     steps:
     - name: Check out code
       uses: actions/checkout@v5
@@ -618,6 +671,10 @@ jobs:
   test-client:
     needs: build-jac
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
+    # (serve/client/cli tests). Under the dev lane each such spawn would
+    # recompile the checkout compiler from source into its cold cache -- a
+    # from-source build per spawn -- so these suites test the sealed artifact.
     steps:
     - name: Check out code
       uses: actions/checkout@v5
@@ -671,6 +728,10 @@ jobs:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.byllm == 'true' || needs.changes.outputs.docs == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Sealed lane: byllm's MTIR integration tests key registries off the
+    # sealed module identity (dev-source loading keys them differently), and
+    # the suite spawns env-isolated `jac` subprocesses (see test-compiler's
+    # sealed-lane note).
     steps:
     - name: Check out code
       uses: actions/checkout@v5
@@ -710,14 +771,29 @@ jobs:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: macos-latest
+    # Dev lane: run THIS checkout's compiler (see test-compiler).
+    env:
+      JAC_NO_DEV_SOURCE: ""
     steps:
     - name: Check out code
       uses: actions/checkout@v5
       with:
         submodules: true
 
-    - name: Set up jac (build the binary)
-      uses: ./.github/actions/setup-jac
+    - name: Set up jac (dev lane)
+      uses: ./.github/actions/setup-jac-dev
+
+    - name: Set up Zig 0.16.0 (vendor the wasm floor)
+      uses: mlugg/setup-zig@v2
+      with:
+        version: 0.16.0
+        use-cache: false
+
+    - name: Vendor wasm libc floor
+      working-directory: jac
+      # On a host-cache hit no zig build runs, so the na->wasm floor that
+      # test_wasm_build exercises must be materialized explicitly.
+      run: zig build -Dno-ninja vendor-wasm-libc --summary all
 
     - name: Run native Mach-O linker regression tests
       run: |
@@ -741,6 +817,16 @@ jobs:
         PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword"
       run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
 
+    # macOS JIR seeder (jac-check seeds the Linux tier).
+    - name: Save JIR compile caches
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          .jac-xdg/jac/jir
+          jac/.jac/cache
+        key: jac-jir-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+
   # aarch64 cross lane (#7626 C1): cross-compile with the in-house ELF linker
   # (MOVW_UABS relocation family) + arch-parameterized vendored musl, run the
   # binaries under qemu-user. This was the native suite's last environmental
@@ -749,6 +835,9 @@ jobs:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: ubuntu-latest
+    # Dev lane: run THIS checkout's compiler (see test-compiler).
+    env:
+      JAC_NO_DEV_SOURCE: ""
     steps:
     - name: Check out code
       uses: actions/checkout@v5
@@ -760,8 +849,14 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends qemu-user-static libc6-arm64-cross
 
-    - name: Set up jac (build the binary)
-      uses: ./.github/actions/setup-jac
+    - name: Set up jac (dev lane)
+      uses: ./.github/actions/setup-jac-dev
+
+    - name: Set up Zig 0.16.0 (vendor cross musl)
+      uses: mlugg/setup-zig@v2
+      with:
+        version: 0.16.0
+        use-cache: false
 
     - name: Vendor cross musl (aarch64)
       working-directory: jac
@@ -804,25 +899,17 @@ jobs:
         run: zig build -Dno-ninja test --summary all
 
   test-cef-build:
-    needs: build-jac
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Dev lane: run THIS checkout's compiler (see test-compiler).
+    env:
+      JAC_NO_DEV_SOURCE: ""
     steps:
     - uses: actions/checkout@v5
       with:
         submodules: true
 
-    - name: Download the jac binary (build-jac artifact)
-      uses: actions/download-artifact@v4
-      with:
-        name: jac-binary
-        path: jac/zig-out/bin
-
-    - name: Put jac on PATH
-      # upload-artifact strips the executable bit; restore it. The artifact
-      # lands at jac/zig-out/bin, where setup-jac would have built it.
-      run: |
-        chmod +x "$PWD/jac/zig-out/bin/jac"
-        echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
+    - name: Set up jac (dev lane)
+      uses: ./.github/actions/setup-jac-dev
 
     - name: Build dispatch shim and subprocess binary
       working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
@@ -1017,7 +1104,7 @@ jobs:
         run: |
           jac test jac/jaclang/scale/tests/test_deploy_k8s.jac -x --test_name "early exit"
 
-  test-pypi-build:
+  test-jac-pack-smoke:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.scale == 'true' || needs.changes.outputs.byllm == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -1159,9 +1246,84 @@ jobs:
           exit 1
         fi
 
+    # The curl probe above never executes the client bundle, so a client that
+    # ships but crashes at runtime would still pass. Drive the rendered page
+    # with `jac browse` (headless Chrome over CDP, stdlib-only) and assert the
+    # two landing-page anchors: the curl install one-liner and the ninja book
+    # cover image linking out to the book. Checks are kept generic (regexes,
+    # not exact strings) so routine jac_site copy edits don't break this job.
+    - name: Ensure a Chromium binary for jac browse
+      run: |
+        for c in google-chrome google-chrome-stable chromium chromium-browser; do
+          if command -v "$c" >/dev/null 2>&1; then
+            echo "found browser: $c"
+            exit 0
+          fi
+        done
+        sudo apt-get update && sudo apt-get install -y chromium-browser
+
+    - name: Browse jac_site landing page (rendered client checks)
+      timeout-minutes: 5
+      env:
+        JAC_NO_DEV_SOURCE: 1
+      run: |
+        jac browse open http://localhost:8000
+        jac browse wait '#top'
+        jac browse eval '(() => {
+          const text = document.body.innerText;
+          if (!/curl\s+-fsSL\s+\S*install\.sh\s*\|\s*bash/.test(text)) {
+            throw new Error("install curl one-liner not rendered on the landing page");
+          }
+          return "install curl one-liner rendered";
+        })()'
+        jac browse eval '(async () => {
+          const section = document.querySelector("#book");
+          if (!section) throw new Error("no #book section on the landing page");
+          section.scrollIntoView({block: "center"});
+          const img = section.querySelector("a[href] img[src*=ninja-book-cover]");
+          if (!img) throw new Error("no ninja book cover image inside a link");
+          const href = img.closest("a").href;
+          if (!/doi\.org|zenodo/.test(href)) {
+            throw new Error("book cover links to " + href + ", not the book");
+          }
+          const deadline = Date.now() + 15000;
+          while (Date.now() < deadline) {
+            const rect = img.getBoundingClientRect();
+            const unobscured = img.checkVisibility
+              ? img.checkVisibility({checkOpacity: true, checkVisibilityCSS: true})
+              : true;
+            if (img.complete && img.naturalWidth > 0
+                && rect.width > 0 && rect.height > 0 && unobscured) {
+              return "book cover visible, links to " + href;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 200));
+          }
+          throw new Error("book cover image never became visible");
+        })()'
+        echo "--- client console output (informational) ---"
+        jac browse console
+
+    - name: Screenshot browse state on failure
+      if: failure()
+      env:
+        JAC_NO_DEV_SOURCE: 1
+      run: jac browse screenshot /tmp/jac-site-browse-failure.png || true
+
+    - name: Upload browse failure screenshot
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: jac-site-browse-failure
+        path: /tmp/jac-site-browse-failure.png
+        retention-days: 7
+        if-no-files-found: ignore
+
     - name: Stop jac_site server
       if: always()
+      env:
+        JAC_NO_DEV_SOURCE: 1
       run: |
+        jac browse close 2>/dev/null || true
         if [ -n "${{ env.JAC_SITE_PID }}" ]; then
           kill ${{ env.JAC_SITE_PID }} 2>/dev/null || true
           sleep 3
@@ -1239,6 +1401,7 @@ jobs:
         echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
         echo "| jac_site | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| jac_site browse checks | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "| fullstack (ejected) | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| **Trigger** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
@@ -1526,11 +1689,12 @@ jobs:
       - test-client
       - test-packages-and-docs
       - test-native-macos
+      - test-native-aarch64
       - test-launcher
       - test-cef-build
       - test-scale
       - test-scale-k8s
-      - test-pypi-build
+      - test-jac-pack-smoke
       - k8s-real-e2e
       - installer-test
     runs-on: ubuntu-latest
