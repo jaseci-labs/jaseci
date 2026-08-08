@@ -2,19 +2,78 @@ import struct;
 import sys;
 import zlib;
 
+impl JirWriter._is_lazy_decl(node: UniNode) -> bool {
+    import from jaclang.jac0core.unitree { Archetype, Ability }
+    return isinstance(node, (Archetype, Ability));
+}
+
 impl JirWriter.write_module(
     module: Module, sections: (dict[int, bytes] | None) = None
 ) -> bytes {
-    import from jaclang.jac0core.jir { HEADER_FMT, HEADER_SIZE, MAGIC, FORMAT_VERSION }
+    import from jaclang.jac0core.jir {
+        HEADER_FMT, HEADER_SIZE, MAGIC, FORMAT_VERSION, write_sections,
+        SEC_DECL_INDEX, SEC_DECL_BODIES
+    }
     import from importlib.metadata { version as pkg_version }
 
     self._assign_ids(module);
+    node_total = len(self._nodes);
 
-    ir_buf = bytearray();
-    for ir_item in self._nodes {
-        self._write_node(ir_buf, ir_item);
+    # Partition top-level declarations into their own lazy chunks for stubs.
+    # Every top-level child's subtree owns a contiguous id range (post-order
+    # `_assign_ids`), so a chunk is just an [lo, hi] id span; the Module node is
+    # the final id and always lands in the eager tier.
+    chunked = module.stub_only;
+    is_lazy_id = [False] * node_total;
+    chunks: list[tuple[int, int, int]] = [];
+    if chunked {
+        prev = -1;
+        for kid in module.kid {
+            hi = self._node_ids[id(kid)];
+            lo = prev + 1;
+            prev = hi;
+            if self._is_lazy_decl(kid) {
+                name_id = self._pool.intern(getattr(kid, 'sym_name', '') or '');
+                chunks.append((name_id, lo, hi));
+                for i in range(lo, hi + 1) {
+                    is_lazy_id[i] = True;
+                }
+            }
+        }
     }
 
+    # Eager node stream (everything not deferred), in ascending id order.
+    ir_buf = bytearray();
+    for i in range(node_total) {
+        if not is_lazy_id[i] {
+            self._write_node(ir_buf, self._nodes[i]);
+        }
+    }
+
+    # Lazy declaration bodies, each an independently zlib-compressed subtree.
+    bodies = bytearray();
+    index_buf = bytearray();
+    if chunked {
+        _write_varint(index_buf, len(chunks));
+        for (name_id, lo, hi) in chunks {
+            cbuf = bytearray();
+            for i in range(lo, hi + 1) {
+                self._write_node(cbuf, self._nodes[i]);
+            }
+            comp = zlib.compress(bytes(cbuf), 6);
+            offset = len(bodies);
+            bodies.extend(comp);
+            _write_varint(index_buf, name_id);
+            _write_varint(index_buf, lo);
+            _write_varint(index_buf, hi);
+            _write_varint(index_buf, offset);
+            _write_varint(index_buf, len(comp));
+        }
+    }
+
+    # Links (parent_scope / name_of) are collected as a side effect of writing
+    # nodes, so the global link table is finalized only now, after both the
+    # eager stream and every chunk have been serialized.
     link_buf = bytearray();
     self._write_link_table(link_buf);
 
@@ -48,17 +107,23 @@ impl JirWriter.write_module(
         (sys.version_info.major << 8) | sys.version_info.minor,
         zlib.crc32(jac_ver.encode()) & 0xFFFFFFFF,
         source_hash,
-        len(self._nodes),
+        node_total,
         sym_count,
         len(pool_bytes),
         flags
     );
 
-    import from jaclang.jac0core.jir { write_sections }
+    # The eager payload (string pool + eager nodes + global link table) is a
+    # single zlib stream; the reader ignores trailing bytes, so the JIRX
+    # sections (which carry the decl index/bodies) follow it verbatim.
     payload = pool_bytes + bytes(ir_buf) + bytes(link_buf);
     compressed = zlib.compress(payload, 6);
     if sections is None {
         sections = {};
+    }
+    if chunked {
+        sections[SEC_DECL_INDEX] = bytes(index_buf);
+        sections[SEC_DECL_BODIES] = bytes(bodies);
     }
     section_bytes = write_sections(sections);
     return header + compressed + section_bytes;
@@ -419,6 +484,10 @@ impl JirReader.read_module(data: bytes) -> (Module | None) {
         return None;
     }
 
+    if flags & 1 {
+        return self._read_module_chunked(data, ir_node_count);
+    }
+
     try {
         payload_bytes = zlib.decompress(data[HEADER_SIZE:]);
     } except zlib.error {
@@ -450,6 +519,94 @@ impl JirReader.read_module(data: bytes) -> (Module | None) {
             }
             return last_node;
         }
+    }
+    return None;
+}
+
+impl JirReader._read_module_chunked(data: bytes, ir_node_count: int) -> (Module | None) {
+    import from jaclang.jac0core.jir {
+        HEADER_SIZE, SECTIONS_MAGIC, read_sections, SEC_DECL_INDEX, SEC_DECL_BODIES
+    }
+    import from jaclang.jac0core.unitree { Module as ModuleCls }
+
+    try {
+        eager_payload_bytes = zlib.decompress(data[HEADER_SIZE:]);
+    } except zlib.error {
+        return None;
+    }
+    eager = memoryview(eager_payload_bytes);
+    pos = 0;
+    (self._pool, pos) = _deserialize_string_pool(eager, pos);
+
+    if not self._class_map {
+        self._class_map = get_class_mapping();
+        self._init_caches();
+    }
+
+    # The decl index and bodies trail the compressed eager payload as JIRX
+    # sections; zlib.decompress above ignores them.
+    magic: any = SECTIONS_MAGIC;
+    sec_pos = data.find(magic, HEADER_SIZE);
+    sections: dict[int, bytes] = {};
+    if sec_pos >= 0 {
+        sections = read_sections(data, sec_pos + len(magic));
+    }
+    index_bytes = sections.get(SEC_DECL_INDEX);
+    bodies = sections.get(SEC_DECL_BODIES) or bytes();
+
+    # id -> owning chunk index, and per-chunk (lo, hi, offset, comp_len).
+    chunk_of = [-1] * ir_node_count;
+    chunk_ranges: list[tuple[int, int, int, int]] = [];
+    if index_bytes is not None {
+        ipos = 0;
+        (count, ipos) = _read_varint(index_bytes, ipos);
+        for _ in range(count) {
+            (_name_id, ipos) = _read_varint(index_bytes, ipos);
+            (lo, ipos) = _read_varint(index_bytes, ipos);
+            (hi, ipos) = _read_varint(index_bytes, ipos);
+            (off, ipos) = _read_varint(index_bytes, ipos);
+            (clen, ipos) = _read_varint(index_bytes, ipos);
+            cidx = len(chunk_ranges);
+            chunk_ranges.append((lo, hi, off, clen));
+            for gid in range(lo, hi + 1) {
+                if gid < ir_node_count {
+                    chunk_of[gid] = cidx;
+                }
+            }
+        }
+    }
+
+    self._nodes = [None] * ir_node_count;
+
+    # Phase 1: hydrate every node, reading in strict global id order so each
+    # child (which has a lower post-order id) is materialized before its parent.
+    chunk_bufs: dict[int, object] = {};
+    chunk_pos: dict[int, int] = {};
+    for gid in range(ir_node_count) {
+        c = chunk_of[gid];
+        if c < 0 {
+            pos = self._read_node(eager, pos, gid);
+        } else {
+            if c not in chunk_bufs {
+                (lo, hi, off, clen) = chunk_ranges[c];
+                chunk_bufs[c] = memoryview(
+                    zlib.decompress(bytes(bodies[off:off + clen]))
+                );
+                chunk_pos[c] = 0;
+            }
+            chunk_pos[c] = self._read_node(chunk_bufs[c], chunk_pos[c], gid);
+        }
+    }
+
+    # The global link table follows the eager node stream in the payload.
+    pos = self._read_link_table(eager, pos);
+
+    last_node = self._nodes[-1] if self._nodes else None;
+    if isinstance(last_node, ModuleCls) {
+        if self._source_path {
+            last_node.source = self._ensure_module_source();
+        }
+        return last_node;
     }
     return None;
 }
@@ -869,6 +1026,7 @@ impl JirReader._read_node(data: (bytes | memoryview), pos: int, idx: int) -> int
     }
 
     nodes[idx] = ir_node;
+    self.hydrated_node_count += 1;
 
     import from jaclang.jac0core.unitree {
         UniScopeNode,

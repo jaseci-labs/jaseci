@@ -3505,7 +3505,11 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
     }
 
     memoized = _stub_module_memo.get(resolved_path);
-    if memoized is not None and memoized[0] == os.path.getmtime(path) {
+    # Keyed by content SHA (the same hash the disk cache's module key uses),
+    # not mtime, so a stub rewritten with preserved mtime (git ops, `touch -r`)
+    # cannot serve stale types process-wide. This only short-circuits the disk
+    # cache when the on-disk content is genuinely unchanged.
+    if memoized is not None and memoized[0] == compute_content_sha256(path) {
         mod = memoized[1];
         target_hub[resolved_path] = mod;
         target_program.hub_cache_stamp(resolved_path);
@@ -3538,7 +3542,7 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
     if mod.parent_scope is None and mod is not self.builtins_module {
         mod.parent_scope = self.builtins_module;
     }
-    _stub_module_memo[resolved_path] = (os.path.getmtime(path), mod);
+    _stub_module_memo[resolved_path] = (compute_content_sha256(path), mod);
     return mod;
 }
 

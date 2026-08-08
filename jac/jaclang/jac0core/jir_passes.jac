@@ -124,6 +124,10 @@ obj JirWriter {
         module: Module, sections: (dict[int, bytes] | None) = None
     ) -> bytes;
 
+    # Returns True for top-level module children whose subtree is deferred into
+    # its own JIR chunk (lazy tier): class (Archetype) and function (Ability)
+    # declarations, which dominate a stub's node count.
+    def _is_lazy_decl(node: UniNode) -> bool;
     def _assign_ids(ir_node: UniNode) -> int;
     def _get_node_id(ir_node: (UniNode | None)) -> int;
     def _write_node(buf: bytearray, ir_node: UniNode) -> None;
@@ -141,6 +145,7 @@ obj JirReader {
         _source_path: str = "",
         _module_source: (Source | None) = None,
         _pool: (_StringPool | None) = None,
+        hydrated_node_count: int = 0,
         _nodes: list[object] postinit,
         _class_map: (dict[str, type] | None) = None,
         _uni_types: (tuple[type, ...] | None) = None,
@@ -151,6 +156,11 @@ obj JirReader {
     }
 
     def read_module(data: bytes) -> (Module | None);
+    # v19 stub layout: eager tier (module shell + scopes + non-decl top-level) is
+    # in the compressed payload; per-declaration subtrees ride in SEC_DECL_BODIES,
+    # indexed by SEC_DECL_INDEX. Phase 1 hydrates every chunk immediately (global
+    # id-order read => byte-for-byte semantic parity with the legacy layout).
+    def _read_module_chunked(data: bytes, ir_node_count: int) -> (Module | None);
     def _ensure_module_source -> Source;
     def _fix_one_func_signature(sig: object) -> None;
     def _init_caches -> None;

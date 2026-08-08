@@ -159,6 +159,7 @@ impl JacProgram.load_dependency_module(
 ) -> uni.Module {
     import from pathlib { Path }
     import from jaclang.jac0core.jir {
+        is_stub_path,
         jir_cacheable_source_path,
         read_module_jir_cache,
         write_module_jir_cache,
@@ -192,10 +193,10 @@ impl JacProgram.load_dependency_module(
         }
         if jir_mod is not None {
             mod = jir_mod;
-            if resolved_path.endswith('.pyi') and not mod.stub_only {
+            if is_stub_path(resolved_path) and not mod.stub_only {
                 mod.stub_only = True;
             }
-        } elif resolved_path.endswith('.pyi') {
+        } elif is_stub_path(resolved_path) {
             import ast as py_ast;
             import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
             import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
@@ -208,7 +209,11 @@ impl JacProgram.load_dependency_module(
             ).ir_out;
             SymTabBuildPass(ir_in=mod, prog=self);
             mod.stub_only = True;
-            if jir_cacheable_source_path(resolved_path) {
+            # Only cache when built straight from the on-disk file (use_str is
+            # None), so the cached module matches the key's content hash. When
+            # use_str patches the source (e.g. builtins.pyi chunk extension), the
+            # module would otherwise be written under the unpatched file's key.
+            if use_str is None and jir_cacheable_source_path(resolved_path) {
                 write_module_jir_cache(resolved_path, mod);
             }
         } else {

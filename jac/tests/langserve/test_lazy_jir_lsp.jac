@@ -7,7 +7,7 @@ import tempfile;
 import time;
 import pytest;
 import jaclang.lsp.types as lspt;
-import from jaclang.jac0core.jir { get_module_cache_path, parse_header, }
+import from jaclang.jac0core.jir { get_module_cache_path, }
 import from jaclang.jac0core.jir_passes { JirReader }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.langserve.engine { JacLangServer }
@@ -134,13 +134,13 @@ def _install_lazy_jir_counters -> tuple[LazyJirMetrics, object] {
     }
 
     def counting_read(self: JirReader, data: bytes) -> object {
-        hdr = parse_header(data);
-        if hdr is not None {
-            metrics.jir_hydrated_nodes += hdr.node_count;
-        }
         mod = orig_read(self, data);
         if mod is not None {
             metrics.jir_reads += 1;
+            # Count nodes actually materialized by this read, not the header's
+            # total. Under lazy hydration (v19 stubs) this is the eager tier
+            # only; the two coincide for fully-hydrated (.jac / legacy) reads.
+            metrics.jir_hydrated_nodes += self.hydrated_node_count;
         }
         return mod;
     }
@@ -372,11 +372,14 @@ test "lazy jir performance gate cold versus warm pyi cache" {
             + str(cold_metrics.pyi_compile_calls)
         );
 
+        # Warm run with the memo still cold: typing.pyi (use_str=None) is a
+        # first-class disk-cache citizen and must hydrate from JIR. builtins.pyi
+        # is patched via use_str, so its disk entry is inert (the read is skipped
+        # whenever use_str is set); it is covered by the memo gate below.
         _stub_module_memo.clear();
         (_warm_lsp, warm_metrics, warm_ms) = _lsp_typecheck_with_metrics(
             FIXTURE_DIR, client_path
         );
-        _assert_stub_not_recompiled(warm_metrics, builtins_stub);
         _assert_stub_not_recompiled(warm_metrics, typing_stub);
         assert warm_metrics.jir_reads >= cold_metrics.jir_reads , (
             "warm run should hydrate at least as many JIR modules from disk"
@@ -384,6 +387,17 @@ test "lazy jir performance gate cold versus warm pyi cache" {
         assert warm_metrics.jir_hydrated_nodes > 0 , (
             "warm run should hydrate JIR nodes from cache"
         );
+
+        # Memo gate: builtins.pyi is patched via use_str and disk-inert, so in
+        # production it is served warm by the process-wide _stub_module_memo
+        # (content-hash keyed). Populate the memo, then a second run with the
+        # memo intact must not re-source-compile builtins.
+        _stub_module_memo.clear();
+        _lsp_typecheck_with_metrics(FIXTURE_DIR, client_path);
+        (_memo_warm_lsp, memo_warm_metrics, memo_warm_ms) = _lsp_typecheck_with_metrics(
+            FIXTURE_DIR, client_path
+        );
+        _assert_stub_not_recompiled(memo_warm_metrics, builtins_stub);
 
         print(
             "\nLazy-JIR perf gate:"
@@ -399,6 +413,8 @@ test "lazy jir performance gate cold versus warm pyi cache" {
                 + str(warm_metrics.jir_reads)
                 + " warm_jir_nodes="
                 + str(warm_metrics.jir_hydrated_nodes)
+                + " memo_warm_pyi_compiles="
+                + str(memo_warm_metrics.pyi_compile_calls)
         );
 
         # Timing can fluctuate in CI; the hard gate is compile avoidance.

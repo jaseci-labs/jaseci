@@ -15,6 +15,7 @@ import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
 import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
 import from jaclang.compiler.type_system { types }
 import from jaclang.jac0core.helpers { read_file_with_encoding }
+import from jaclang.jac0core.jir { compute_content_sha256 }
 import type from jaclang.jac0core.program { JacProgram }
 
 import from jaclang.compiler.type_system { operations }
@@ -158,7 +159,7 @@ obj ConditionInfo {
         attr_name: str | None = None;
 }
 
-glob _stub_module_memo: dict[str, tuple[float, uni.Module]] = {};
+glob _stub_module_memo: dict[str, tuple[str, uni.Module]] = {};
 
 obj TypeEvaluator {
     has program: "JacProgram",
