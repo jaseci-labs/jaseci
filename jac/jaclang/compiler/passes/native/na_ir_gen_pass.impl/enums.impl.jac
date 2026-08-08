@@ -1,3 +1,38 @@
+impl NaIRGenPass._class_form_enum_llvm(t: any) -> (ir.Type | None) {
+    import from jaclang.compiler.passes.main.layout_pass { class_form_enum_scalar }
+    _scalar = class_form_enum_scalar(t);
+    if _scalar is None {
+        return None;
+    }
+    if _scalar == "int" {
+        return ir.IntType(64);
+    }
+    return self.type_map.get("str", ir.IntType(8).as_pointer());
+}
+
+impl NaIRGenPass._class_form_enum_self_type(arch_name: str) -> (ir.Type | None) {
+    _arch = self.arch_ast_map.get(arch_name);
+    if _arch is None or not (_arch?.name) {
+        return None;
+    }
+    return self._class_form_enum_llvm(_arch.name.type);
+}
+
+impl NaIRGenPass._codegen_class_form_enum_member(
+    nd: uni.AtomTrailer
+) -> (ir.Value | None) {
+    import from jaclang.compiler.passes.main.layout_pass { class_form_enum_member }
+    _member = class_form_enum_member(nd.type if isinstance(nd, uni.Expr) else None);
+    if _member is None {
+        return None;
+    }
+    (_scalar, _lit, _name) = _member;
+    if _scalar == "int" {
+        return ir.Constant(ir.IntType(64), _lit);
+    }
+    return self._make_global_string(_lit, name_prefix=".cfenum");
+}
+
 impl NaIRGenPass._ensure_enum_lowered(t: any) -> bool {
     import from jaclang.compiler.passes.main.layout_pass {
         is_enum_class_type,

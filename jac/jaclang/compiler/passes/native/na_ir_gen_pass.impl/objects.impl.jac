@@ -446,7 +446,8 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
         _m_params = _m_params[1:];
     }
 
-    param_types: list[ir.Type] = [] if _is_static else [struct_type.as_pointer()];
+    _self_type = self._class_form_enum_self_type(arch_name) or struct_type.as_pointer();
+    param_types: list[ir.Type] = [] if _is_static else [_self_type];
     for p in _m_params {
         param_types.append(
             self._resolve_jac_type(p) if p.type_tag is not None else ir.IntType(64)

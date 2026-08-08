@@ -103,6 +103,62 @@ def enum_decl_of(t: any) -> (uni.Enum | None) {
     return _scope if isinstance(_scope, uni.Enum) else None;
 }
 
+def class_form_enum_scalar(t: any) -> (str | None) {
+    if not is_enum_class_type(t) {
+        return None;
+    }
+    if isinstance(t.shared.symbol_table, uni.Enum) {
+        return None;
+    }
+    _vt = t.shared.enum_value_type;
+    if _vt is None or not (_vt?.shared) {
+        return None;
+    }
+    _vname = _vt.shared.class_name;
+    return _vname if _vname in ("str", "int") else None;
+}
+
+def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
+    _scope = t.shared.symbol_table;
+    _sym = _scope.names_in_scope.get(member) if (_scope?.names_in_scope) else None;
+    _decl = _sym.decl if _sym is not None else None;
+    _asn = _decl.parent if (_decl is not None) else None;
+    if not isinstance(_asn, uni.Assignment) or _asn.value is None {
+        return None;
+    }
+    _v = _asn.value;
+    if isinstance(_v, (uni.String, uni.MultiString, uni.Int)) {
+        return _v.lit_value;
+    }
+    return None;
+}
+
+def class_form_enum_member(t: any) -> (tuple | None) {
+    try {
+        import from jaclang.compiler.type_system.types {
+            EnumMemberType as _EnumMemberType
+        }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(t, _EnumMemberType) or t.enum_class is None {
+        return None;
+    }
+    _scalar = class_form_enum_scalar(t.enum_class);
+    if _scalar is None or t.member_info is None {
+        return None;
+    }
+    _name = t.member_info.member_name;
+    _lit = class_form_enum_literal(t.enum_class, _name);
+    if _scalar == "str" and isinstance(_lit, str) {
+        return (_scalar, _lit, _name);
+    }
+    if _scalar == "int" and isinstance(_lit, int) and not isinstance(_lit, bool) {
+        return (_scalar, _lit, _name);
+    }
+    return None;
+}
+
 obj LayoutRegistry {
     has layouts: dict[str, ArchetypeLayout] = {},
         class_parents: dict[str, list[str]] = {},
