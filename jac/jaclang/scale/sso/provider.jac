@@ -1,4 +1,4 @@
-import from fastapi { Request, Response }
+import from jaclang.runtimelib.serving.datatypes { Request, Response }
 import from fastapi_sso.sso.base { SSOBase }
 
 obj SSOUserInfo {

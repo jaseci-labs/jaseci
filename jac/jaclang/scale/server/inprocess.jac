@@ -66,7 +66,7 @@ def prepare_inprocess_runtime(
     setup_background_services: bool = True,
     transport_kind: str = "testclient"
 ) -> PreparedInProcessRuntime {
-    import from starlette.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient }
 
     if transport_kind != "testclient" {
         raise NotImplementedError(
@@ -120,9 +120,9 @@ def prepare_inprocess_runtime(
             server._setup_events();
         }
 
-        server.server.create_server();
-
-        client = TestClient(server.server.app, raise_server_exceptions=False);
+        client = ServingTestClient(
+            app=server.server.app, raise_server_exceptions=False
+        );
         return PreparedInProcessRuntime(
             server=server,
             transport_kind=transport_kind,

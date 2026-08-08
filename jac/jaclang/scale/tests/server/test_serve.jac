@@ -2018,7 +2018,7 @@ test "health check filter is disabled by default" {
         get_scale_config,
         reset_scale_config
     }
-    import from jaclang.scale.jserver.jfast_api { ConsoleLogHandler, HealthCheckFilter }
+    import from jaclang.scale.server.native_server { ConsoleLogHandler, HealthCheckFilter }
 
     reset_scale_config();
     cfg = get_scale_config();
@@ -2038,7 +2038,7 @@ test "health check filter is disabled by default" {
 
 test "health check filter suppresses health endpoint log records" {
     import logging;
-    import from jaclang.scale.jserver.jfast_api { HealthCheckFilter }
+    import from jaclang.scale.server.native_server { HealthCheckFilter }
 
     def make_record(msg: str) -> logging.LogRecord {
         return logging.LogRecord(
@@ -2083,7 +2083,7 @@ test "health check filter suppresses health endpoint log records" {
 
 test "health check filter blocks records when attached to a handler" {
     import logging;
-    import from jaclang.scale.jserver.jfast_api { HealthCheckFilter }
+    import from jaclang.scale.server.native_server { HealthCheckFilter }
 
     class _CapturingHandler(logging.Handler) {
         has captured: list = [];

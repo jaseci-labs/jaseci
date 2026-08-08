@@ -5,7 +5,7 @@ handler bodies are integration-tested via the real-cluster e2e
 Loki backend."""
 
 import from jaclang.scale.admin.logs { JacAPIServerLogs }
-import from jaclang.scale.jserver.jfast_api { JFastApiServer }
+import from jaclang.scale.server.native_server { NativeJServer }
 
 
 obj LogsHost(JacAPIServerLogs) {
@@ -28,7 +28,7 @@ test "register_logs_endpoints adds /admin/logs, /admin/logs/services, /admin/log
 
 
 test "all logs endpoints are GET (read-only surface)" {
-    import from jaclang.scale.jserver.jserver { HTTPMethod }
+    import from jaclang.runtimelib.serving.endpoint { HTTPMethod }
 
     host = LogsHost();
     host.server = JFastApiServer();

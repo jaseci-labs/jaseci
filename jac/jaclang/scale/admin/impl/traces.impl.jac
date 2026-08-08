@@ -1,9 +1,9 @@
 import os;
 import logging;
 import time;
-import from fastapi { Request }
-import from fastapi.responses { JSONResponse }
-import from jaclang.scale.jserver.jserver {
+import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+import from jaclang.runtimelib.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -330,9 +330,9 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
                     name="trace_id",
                     data_type="string",
                     required=True,
-                    default=None,
+                    default_value=None,
                     description="Trace id (dashed UUID or 32-hex Tempo form)",
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,

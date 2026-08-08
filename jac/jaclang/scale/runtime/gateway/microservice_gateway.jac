@@ -3,7 +3,7 @@ import mimetypes;
 import uvicorn;
 import from pathlib { Path }
 import from fastapi { FastAPI, Request }
-import from fastapi.responses { HTMLResponse, JSONResponse, Response }
+import from jaclang.runtimelib.serving.datatypes { HTMLResponse, JSONResponse, Response }
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry,

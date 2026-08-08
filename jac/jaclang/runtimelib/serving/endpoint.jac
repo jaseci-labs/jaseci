@@ -32,6 +32,8 @@ obj JEndPoint {
         path: str,
         callback: Callable[..., any],
         parameters: (list[APIParameter] | None) = None,
+        response_model: any = None,
+        request_model: any = None,
         status_code: (int | None) = None,
         media_type: (str | None) = None,
         envelope: bool = True,

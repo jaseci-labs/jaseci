@@ -57,6 +57,10 @@ def _construct_object(value: any, target: any) -> any {
     if isinstance(value, target) {
         return value;
     }
+    from_dict_fn: any = getattr(target, 'from_dict', None);
+    if from_dict_fn is not None {
+        return from_dict_fn(value);
+    }
     if not isinstance(value, dict) {
         raise ValueError(f"expected object for {getattr(target, '__name__', target)}");
     }
@@ -306,6 +310,28 @@ def bind_parameters(ep: JEndPoint, request: Request, body_json: any) -> dict[str
         }
     }
     return kwargs;
+}
+
+def body_param_name(
+    callback: any, bound: dict[str, any]
+) -> (str | None) {
+    try {
+        sig = inspect.signature(callback);
+    } except (TypeError, ValueError) {
+        return None;
+    }
+    for (pname, param) in sig.parameters.items() {
+        if pname in ('self', 'request') or pname in bound {
+            continue;
+        }
+        if param.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY
+        ) {
+            return pname;
+        }
+    }
+    return None;
 }
 
 def filter_kwargs_for_callback(

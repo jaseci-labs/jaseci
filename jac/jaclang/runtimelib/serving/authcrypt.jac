@@ -21,6 +21,8 @@ obj JWTError(Exception) {
     }
 }
 
+obj JWTExpiredError(JWTError) {}
+
 def _ac_json_default(o: any) -> str {
     return str(o);
 }
@@ -34,10 +36,23 @@ def _b64url_decode(text: str) -> bytes {
     return urlsafe_b64decode(text + padding);
 }
 
+def _normalize_claims(payload: dict[str, any]) -> dict[str, any] {
+    import from datetime { datetime }
+    normalized = dict(payload);
+    for claim in ('exp', 'iat', 'nbf') {
+        value = normalized.get(claim);
+        if isinstance(value, datetime) {
+            normalized[claim] = value.timestamp();
+        }
+    }
+    return normalized;
+}
+
 def jwt_encode(payload: dict[str, any], secret: str, algorithm: str = 'HS256') -> str {
     if algorithm != 'HS256' {
         raise JWTError(reason=f"unsupported algorithm: {algorithm}");
     }
+    payload = _normalize_claims(payload);
     header = {'alg': 'HS256', 'typ': 'JWT'};
     head_part = _b64url_encode(dumps(header, separators=(',', ':')).encode('utf-8'));
     body_part = _b64url_encode(
@@ -87,7 +102,7 @@ def jwt_decode(
             raise JWTError(reason='invalid exp claim');
         }
         if time.time() > expires {
-            raise JWTError(reason='token expired');
+            raise JWTExpiredError(reason='token expired');
         }
     }
     if 'nbf' in payload {

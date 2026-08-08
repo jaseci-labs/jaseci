@@ -862,7 +862,7 @@ impl MicroserviceGateway.start -> None {
 
 
 impl MicroserviceGateway._install_admin_api -> None {
-    import from jaclang.scale.jserver.jfast_api { JFastApiServer }
+    import from jaclang.scale.server.native_server { NativeJServer }
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
 
     self.server = JFastApiServer(app=self.app);

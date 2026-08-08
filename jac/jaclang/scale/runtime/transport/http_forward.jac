@@ -1,6 +1,6 @@
 import logging;
 import aiohttp;
-import from fastapi.responses { Response, StreamingResponse }
+import from jaclang.runtimelib.serving.datatypes { Response, StreamingResponse }
 
 glob _logger = logging.getLogger(__name__),
      _HOP_BY_HOP: set[str] = {"host", "transfer-encoding", "connection", "keep-alive"};

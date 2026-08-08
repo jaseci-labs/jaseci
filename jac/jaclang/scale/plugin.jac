@@ -565,12 +565,7 @@ class JacScalePlugin {
     }
 
     static def create_server(jac_server: JacServer, host: str, port: int) {
-        try {
-            import from .jserver.jfast_api { JFastApiServer }
-        } except ImportError {
-            return None;
-        }
-        return JFastApiServer([]);
+        return None;
     }
 
     static def get_api_server_class -> type | None {

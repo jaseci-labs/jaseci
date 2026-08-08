@@ -5,6 +5,8 @@ import traceback;
 import from jaclang.runtimelib.serving.coerce {
     RequestValidationError,
     bind_parameters,
+    body_param_name,
+    coerce_value,
     filter_kwargs_for_callback
 }
 import from jaclang.runtimelib.serving.datatypes {
@@ -227,6 +229,29 @@ obj ServingApp {
         request.path_params = path_params;
         body_json = _parse_request_body(request, ep);
         kwargs = bind_parameters(ep, request, body_json);
+        if ep.request_model is not None {
+            body_name = body_param_name(ep.callback, kwargs);
+            if body_name is not None {
+                try {
+                    kwargs[body_name] = coerce_value(
+                        body_json if body_json is not None else {},
+                        ep.request_model
+                    );
+                } except RequestValidationError {
+                    raise;
+                } except Exception as e {
+                    raise RequestValidationError(
+                        errors=[
+                            {
+                                'type': 'invalid',
+                                'loc': ['body'],
+                                'msg': str(e)
+                            }
+                        ]
+                    );
+                }
+            }
+        }
         kwargs = filter_kwargs_for_callback(ep.callback, kwargs, request);
         callback_fn: any = ep.callback;
         if inspect.iscoroutinefunction(callback_fn) {

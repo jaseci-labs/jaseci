@@ -810,7 +810,7 @@ test "@restspec functions get their declared paths mounted" {
         );
         (src / "main.jac").write_text(
             'import from jaclang.runtimelib.builtin { restspec }\n'
-                + 'import from jaclang.scale.jserver.jserver { HTTPMethod }\n\n'
+                + 'import from jaclang.runtimelib.serving.endpoint { HTTPMethod }\n\n'
                 + '@restspec(method=HTTPMethod.POST, path="/api/v1/hello")\n'
                 + 'def:pub hello(name: str = "") -> dict {\n'
                 + '    return {"hi": name};\n'
@@ -820,9 +820,9 @@ test "@restspec functions get their declared paths mounted" {
         assert rc == 0;
         main_py = _backend(src, "main.py").read_text();
         assert "add_api_route" in main_py;
-        # The module jserver (HTTPMethod's home) must be vendored so the
+        # The endpoint IR module (HTTPMethod's home) must be vendored so the
         # compiled module imports cleanly without jac-scale installed.
-        assert _backend(src, "jaclang/scale/jserver/jserver.py").exists();
+        assert _backend(src, "jaclang.runtimelib.serving.endpoint.py").exists();
     }
 }
 

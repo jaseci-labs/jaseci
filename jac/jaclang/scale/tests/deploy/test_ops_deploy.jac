@@ -4,8 +4,8 @@ The K8s `.to_dict()` reshaping is pure, so these feed mocked payloads (the
 live list calls are integration-tested on a real cluster).
 """
 
-import from jaclang.scale.jserver.jserver { HTTPMethod }
-import from jaclang.scale.jserver.jfast_api { JFastApiServer }
+import from jaclang.runtimelib.serving.endpoint { HTTPMethod }
+import from jaclang.scale.server.native_server { NativeJServer }
 import from jaclang.scale.admin.deploy_health { JacAPIServerDeployHealth }
 import from jaclang.scale.admin.deploy_health { summarize_deployment, summarize_pod }
 
