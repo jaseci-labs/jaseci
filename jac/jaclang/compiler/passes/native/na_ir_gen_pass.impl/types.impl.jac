@@ -2088,6 +2088,41 @@ impl NaIRGenPass._emit_optional_eq(
     return res;
 }
 
+impl NaIRGenPass._emit_mixed_jacval_comparison(
+    op: str, left: ir.Value, right: ir.Value
+) -> (ir.Value | None) {
+    _left_boxed = left.type == self.jacval_type;
+    _peer = right.type if _left_boxed else left.type;
+    if op in (Tok.EE, Tok.NE) {
+        if _left_boxed {
+            right = self._coerce_type(right, self.jacval_type);
+        } else {
+            left = self._coerce_type(left, self.jacval_type);
+        }
+        _mx_res = self._emit_jacval_eq(left, right);
+        if op == Tok.NE {
+            return self.builder.not_(_mx_res, name="jv.mixed.ne");
+        }
+        return _mx_res;
+    }
+    if op in (Tok.LT, Tok.GT, Tok.LTE, Tok.GTE)
+        and isinstance(_peer, (ir.IntType, ir.DoubleType)) {
+        if _left_boxed {
+            left = self._coerce_type(left, _peer);
+        } else {
+            right = self._coerce_type(right, _peer);
+        }
+        return self._emit_comparison(op, left, right, isinstance(_peer, ir.DoubleType));
+    }
+    self.emit(
+        E5090,
+        kind="comparison",
+        name=f"tagged `any` value against {_peer}",
+        help_text="The element type of this container could not be inferred, so its values are stored as tagged `any`. Annotate the container (for example `list[int]`) so both sides of the comparison lower to the same representation."
+    );
+    return None;
+}
+
 impl NaIRGenPass._emit_comparison(
     op: str, left: ir.Value, right: ir.Value, is_float: bool
 ) -> (ir.Value | None) {
@@ -2100,6 +2135,12 @@ impl NaIRGenPass._emit_comparison(
             return self.builder.not_(_jv_res, name="jv.ne");
         }
         return _jv_res;
+    }
+    if self?.jacval_type
+        and (left.type == self.jacval_type) != (right.type == self.jacval_type)
+        and self._opt_payload_of(left.type) is None
+        and self._opt_payload_of(right.type) is None {
+        return self._emit_mixed_jacval_comparison(op, left, right);
     }
     _l_opt = self._opt_payload_of(left.type);
     _r_opt = self._opt_payload_of(right.type);
@@ -2756,6 +2797,14 @@ impl NaIRGenPass._emit_comparison(
                 } elif right.type.width < left.type.width {
                     right = self.builder.sext(right, left.type, name="sext.r");
                 }
+            } elif left.type != right.type {
+                self.emit(
+                    E5090,
+                    kind="comparison",
+                    name=f"{left.type} against {right.type}",
+                    help_text="The two sides of this comparison lower to different native representations, so no integer comparison is well formed. Annotate the values (or the container they came from) so both sides agree."
+                );
+                return None;
             }
             return self.builder.icmp_signed(icmp_map[op], left, right, name="icmp");
         }

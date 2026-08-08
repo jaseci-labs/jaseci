@@ -532,6 +532,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         op: str, left: ir.Value, right: ir.Value, is_float: bool
     ) -> (ir.Value | None);
 
+    def _emit_mixed_jacval_comparison(
+        op: str, left: ir.Value, right: ir.Value
+    ) -> (ir.Value | None);
+
     def _emit_optional_eq(
         op: str, left: ir.Value, right: ir.Value, is_float: bool
     ) -> (ir.Value | None);
