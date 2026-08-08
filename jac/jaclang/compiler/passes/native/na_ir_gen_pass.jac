@@ -542,6 +542,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _opt_unwrap_attr(obj_val: ir.Value) -> ir.Value;
     def _codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
     def _codegen_enum(nd: uni.Enum) -> None;
+    def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;

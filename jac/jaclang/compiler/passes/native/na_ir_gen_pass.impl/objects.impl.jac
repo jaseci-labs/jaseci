@@ -2353,6 +2353,29 @@ impl NaIRGenPass._codegen_field_assign(
 ) -> None {
     _fa_errs = len(self.errors_had);
     field_name = self._get_name(target.right);
+    _sa_target = self._get_name(target.target);
+    if _sa_target is None {
+        _sa_tk = self._type_key_of(target.target);
+        if _sa_tk is not None {
+            _sa_tkn = _sa_tk.replace(" ", "");
+            if _sa_tkn.startswith("type[") and _sa_tkn.endswith("]") {
+                _sa_target = _sa_tkn[5:-1];
+            }
+        }
+    }
+    if _sa_target is not None
+        and field_name is not None
+        and _sa_target in self.struct_types
+        and _sa_target not in self.local_vars {
+        for _sa_cn in self._mro_of(_sa_target) {
+            _sa_sf = f"{_sa_cn}.{field_name}";
+            if _sa_sf in self.static_fields {
+                _sa_val = self._coerce_type(value, self.static_field_types[_sa_sf]);
+                self.builder.store(_sa_val, self.static_fields[_sa_sf]);
+                return;
+            }
+        }
+    }
     obj_val = self._codegen_expr(target.target);
     if obj_val is not None {
         obj_val = self._opt_unwrap_attr(obj_val);

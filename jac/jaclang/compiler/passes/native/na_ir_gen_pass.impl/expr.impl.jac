@@ -1552,6 +1552,36 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             if full_name in self.enum_values {
                 return self.enum_values[full_name];
             }
+            _tk_alias = self._type_key_of(nd.target);
+            if _tk_alias is not None {
+                _tk_alias = _tk_alias.replace(" ", "");
+            }
+            if _tk_alias is not None
+                and _tk_alias.startswith("type[")
+                and _tk_alias.endswith("]") {
+                _real_cls = _tk_alias[5:-1];
+                _real_full = f"{_real_cls}.{right_name}";
+                if _real_full not in self.enum_values {
+                    _tgt_tb = nd.target?.type;
+                    if _tgt_tb is not None {
+                        self._ensure_enum_lowered(_tgt_tb);
+                    }
+                }
+                if _real_full in self.enum_values {
+                    return self.enum_values[_real_full];
+                }
+                if _real_cls in self.struct_types
+                    and _real_cls not in self.local_vars {
+                    for _rcn in self._mro_of(_real_cls) {
+                        _rsf = f"{_rcn}.{right_name}";
+                        if _rsf in self.static_fields {
+                            return self.builder.load(
+                                self.static_fields[_rsf], name=f"sfld.{right_name}"
+                            );
+                        }
+                    }
+                }
+            }
 
             if (
                 target_name in self.struct_types and target_name not in self.local_vars

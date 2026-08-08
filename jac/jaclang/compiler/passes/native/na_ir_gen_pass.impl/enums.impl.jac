@@ -9,25 +9,50 @@ impl NaIRGenPass._ensure_enum_lowered(t: any) -> bool {
     _decl = enum_decl_of(t);
     if _decl is not None {
         self._codegen_enum(_decl);
+    } else {
+        _shared = t?.shared;
+        _enm = _shared.class_name if _shared is not None else None;
+        if _enm is not None {
+            self._codegen_enum_layout(_enm, None);
+        }
     }
     return True;
 }
 
 impl NaIRGenPass._codegen_enum(nd: uni.Enum) -> None {
     enum_name = (nd).name.value if (nd).name else "unknown_enum";
+    _owner_mod = nd.find_parent_of_type(uni.Module) or self.ir_in;
+    self._codegen_enum_layout(enum_name, _owner_mod);
+}
 
+impl NaIRGenPass._codegen_enum_layout(
+    enum_name: str, owner: (uni.Module | None)
+) -> None {
     if enum_name in self.enum_types {
+        return;
+    }
+
+    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+    candidates: list = [];
+    if owner is not None {
+        candidates.append(owner);
+    }
+    candidates.append(self.ir_in);
+    for _fm in (self?._foreign_modules or []) {
+        candidates.append(_fm);
+    }
+    lay = None;
+    for _cand in candidates {
+        lay = get_layout_registry(_cand, self.prog).get_enum_layout(enum_name);
+        if lay is not None and lay.members {
+            break;
+        }
+    }
+    if lay is None or not lay.members {
         return;
     }
     self.enum_types[enum_name] = ir.IntType(64);
     self.has_native_code = True;
-
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    _owner_mod = nd.find_parent_of_type(uni.Module) or self.ir_in;
-    lay = get_layout_registry(_owner_mod, self.prog).get_enum_layout(enum_name);
-    if lay is None or not lay.members {
-        return;
-    }
 
     i64 = ir.IntType(64);
     if lay.is_string_enum {

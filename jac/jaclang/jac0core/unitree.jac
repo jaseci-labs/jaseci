@@ -407,14 +407,12 @@ obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNo
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    with entry {
-        TEST_COUNT = 0;
-    }
-
     has name: (Name | Token),
         body: Sequence[CodeBlockStmt],
         description: (String | None) = None,
         decorators: (Sequence[Expr] | None) = None;
+
+    static has TEST_COUNT: int = 0;
 
     def postinit -> None;
 }
