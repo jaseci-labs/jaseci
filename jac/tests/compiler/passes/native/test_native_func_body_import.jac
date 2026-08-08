@@ -76,3 +76,43 @@ test "function-body imports lower and agree with sv" {
         }
     }
 }
+
+# Supporting the body-scoped spelling must not smuggle unsupported modules in:
+# a Python-only import written in a body earns the same E5090 (with the same
+# stdlib help text) a module-level one already earns, at check time as well as
+# at codegen, instead of lowering to a silent no-op statement.
+test "an unsupported body-scoped import is still a clean E5090" {
+    prog = JacProgram();
+    prog.compile(
+        file_path=os.path.join(FIXTURES, "_func_body_bad_import.jac"),
+        use_str="def use() -> int {\n"
+        "    import collections;\n"
+        "    d = collections.OrderedDict();\n"
+        "    return len(d);\n"
+        "}\n"
+        "with entry { print(use()); }\n",
+        options=native_force_opts()
+    );
+    codes = [
+        alrt.code.code
+        for alrt in prog.errors_had
+        if alrt.code is not None
+    ];
+    assert "E5090" in codes , f"expected E5090, got: {[
+        str(e) for e in prog.errors_had
+    ]}";
+    hinted = False;
+    for alrt in prog.errors_had {
+        if (
+            alrt.code is not None
+            and alrt.code.code == "E5090"
+            and alrt.help_text is not None
+            and "Native compilation supports these stdlib imports" in alrt.help_text
+        ) {
+            hinted = True;
+        }
+    }
+    assert hinted , (
+        f"E5090 should carry the stdlib help: {[str(e) for e in prog.errors_had]}"
+    );
+}
