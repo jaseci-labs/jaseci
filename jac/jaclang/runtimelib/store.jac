@@ -4,7 +4,6 @@ import threading;
 import from typing { Any }
 import from uuid { UUID }
 
-# In the compile closure on purpose: pgload resolves the wire client lazily.
 import from jaclang.runtimelib.pgwire { PgWireError }
 
 glob logger = logging.getLogger(__name__),
@@ -62,6 +61,7 @@ obj Store {
     def quarantine(
         missing_id: UUID, referrer_id: (UUID | None), kind: str
     ) -> None abst;
+
     def notify(channel: str, payload: str) -> None abst;
     def close -> None abst;
 }

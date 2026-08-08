@@ -51,6 +51,10 @@ obj PgRuntime {
     def _resolve_from_path -> (str | None);
     def _resolve_from_zonky -> (str | None);
     def _download_zonky(major: int) -> (str | None);
+    def _fetch_dist(
+        slug: str, version: str, dist_dir: str, bin_dir: str
+    ) -> (str | None);
+
     def _zonky_versions -> list[str];
     def _initdb_if_needed(bin_dir: str) -> None;
     def _start(bin_dir: str) -> None;

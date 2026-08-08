@@ -1,24 +1,3 @@
-"""Minimal PostgreSQL wire-protocol (v3) client — exactly the surface the
-Store needs, nothing else (epic #7945).
-
-Design constraints that keep this small:
-  - Text mode everywhere. Every Store/compiler parameter is explicitly CAST
-    in its SQL, so parameters ship as text and results decode by OID for
-    only the scalar types we read (bool, ints, floats); everything else is
-    returned as str and parsed by the caller (jsonb via json.loads, uuids
-    via UUID()).
-  - One statement per run() (the Store's contract), extended query protocol
-    (Parse/Bind/Describe/Execute/Sync) with named :param placeholders.
-  - Auth: trust, cleartext, MD5, and SCRAM-SHA-256 (no channel binding) —
-    what embedded servers and provisioned pods actually use.
-  - LISTEN/NOTIFY: NotificationResponse messages land in `notifications`
-    as (pid, channel, payload), drained by the Store's listener loop.
-
-Errors raise PgWireError with the server's error-field dict as args[0]
-({'C': sqlstate, 'M': message, ...}) — the shape the Session's
-serialization-conflict detection already consumes.
-"""
-
 import base64;
 import hashlib;
 import hmac;
@@ -34,7 +13,6 @@ glob logger = logging.getLogger(__name__),
      __all__ = ['PgWireConnection', 'PgWireError'];
 
 
-# args[0] is the server error-field dict ({'C': sqlstate, 'M': message, ...}).
 class PgWireError(Exception) {}
 
 

@@ -224,12 +224,26 @@ impl PgRuntime._resolve_from_path -> (str | None) {
             }
         }
     }
+    best: (str | None) = None;
+    best_major = 0;
     for cand in candidates {
-        if _pg_major_of(cand) == want {
+        major = _pg_major_of(cand);
+        if major == want {
             return cand;
         }
+        if major is not None and major >= 14 and major > best_major {
+            best_major = major;
+            best = cand;
+        }
     }
-    return None;
+    if best is not None {
+        logger.warning(
+            f"postgres {want} not found on PATH; using the installed "
+            f"postgres {best_major} at {best} (set JAC_PG_DIST or "
+            f"JAC_PG_VERSION to override)"
+        );
+    }
+    return best;
 }
 
 
@@ -306,6 +320,27 @@ impl PgRuntime._download_zonky(major: int) -> (str | None) {
     if os.path.isfile(os.path.join(bin_dir, 'postgres')) {
         return bin_dir;
     }
+
+    import fcntl;
+    os.makedirs(dist_cache_dir(), exist_ok=True);
+    lock_path = os.path.join(dist_cache_dir(), f".{slug}-{version}.lock");
+    lock_f = open(lock_path, 'w');
+    fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX);
+    try {
+        if os.path.isfile(os.path.join(bin_dir, 'postgres')) {
+            return bin_dir;
+        }
+        return self._fetch_dist(slug, version, dist_dir, bin_dir);
+    } finally {
+        fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN);
+        lock_f.close();
+    }
+}
+
+
+impl PgRuntime._fetch_dist(
+    slug: str, version: str, dist_dir: str, bin_dir: str
+) -> (str | None) {
     name = f"embedded-postgres-binaries-{slug}";
     jar_url = f"{ZONKY_BASE}{slug}/{version}/{name}-{version}.jar";
     logger.info(f"fetching embedded postgres {version} ({slug})...");

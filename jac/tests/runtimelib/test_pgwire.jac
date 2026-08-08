@@ -23,9 +23,8 @@ test "scram-sha-256 matches the RFC 7677 test vector" {
     (client_final_wo, proof, server_sig) = _scram_proofs(
         "pencil", server_first, client_first_bare
     );
-    assert client_final_wo == (
-        "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0"
-    );
+    assert client_final_wo
+        == ("c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0");
     assert proof == "dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=";
     assert server_sig == "6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=";
 }
@@ -37,22 +36,20 @@ test "named params convert to positional, sharing repeated slots" {
         "AND j = CAST(:v AS jsonb)::text",
         {'v': 'val', 'i': 7}
     );
-    assert sql == (
-        "UPDATE t SET a = $1, b = $1 WHERE id = $2 AND k = 'lit:x' "
-        "AND j = CAST($1 AS jsonb)::text"
-    );
+    assert sql
+        == (
+            "UPDATE t SET a = $1, b = $1 WHERE id = $2 AND k = 'lit:x' "
+            "AND j = CAST($1 AS jsonb)::text"
+        );
     assert args == ['val', 7];
 }
 
 
 test "placeholders inside quotes and unknown names are untouched" {
     (sql, args) = _named_to_positional(
-        "SELECT ':notaparam', \":alsonot\", :real FROM x WHERE t = ':real'",
-        {'real': 1}
+        "SELECT ':notaparam', \":alsonot\", :real FROM x WHERE t = ':real'", {'real': 1}
     );
-    assert sql == (
-        "SELECT ':notaparam', \":alsonot\", $1 FROM x WHERE t = ':real'"
-    );
+    assert sql == ("SELECT ':notaparam', \":alsonot\", $1 FROM x WHERE t = ':real'");
     assert args == [1];
 }
 

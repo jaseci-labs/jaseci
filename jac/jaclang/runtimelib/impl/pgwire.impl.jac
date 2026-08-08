@@ -51,8 +51,6 @@ impl _decode_value(oid: int, raw: bytes) -> any {
 }
 
 
-# Convert :name placeholders to $N, skipping quoted regions and ::casts.
-# Repeated names share one positional slot, matching the old driver.
 impl _named_to_positional(sql: str, params: dict) -> tuple[str, list] {
     out: list[str] = [];
     order: dict[str, int] = {};
@@ -125,8 +123,6 @@ impl _named_to_positional(sql: str, params: dict) -> tuple[str, list] {
 }
 
 
-# SCRAM-SHA-256 client math (RFC 5802/7677), no channel binding. Pure so
-# the RFC test vector can pin it.
 def _scram_proofs(
     password: str, server_first: str, client_first_bare: str
 ) -> tuple[str, str, str] {
@@ -140,20 +136,17 @@ def _scram_proofs(
     server_nonce = fields.get('r', '');
     salt = base64.b64decode(fields.get('s', ''));
     iterations = int(fields.get('i', '4096'));
-    salted = hashlib.pbkdf2_hmac(
-        'sha256', password.encode('utf-8'), salt, iterations
-    );
+    salted = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations);
     client_key = hmac.new(salted, b'Client Key', hashlib.sha256).digest();
     stored_key = hashlib.sha256(client_key).digest();
     client_final_wo = f"c=biws,r={server_nonce}";
     auth_message = (
         client_first_bare + ',' + server_first + ',' + client_final_wo
-    ).encode('utf-8');
-    client_sig = hmac.new(stored_key, auth_message, hashlib.sha256).digest();
-    proof = bytes(
-        (a ^ b)
-        for (a, b) in zip(client_key, client_sig, strict=True)
+    ).encode(
+        'utf-8'
     );
+    client_sig = hmac.new(stored_key, auth_message, hashlib.sha256).digest();
+    proof = bytes((a ^ b) for (a, b) in zip(client_key, client_sig, strict=True));
     server_key = hmac.new(salted, b'Server Key', hashlib.sha256).digest();
     server_sig = hmac.new(server_key, auth_message, hashlib.sha256).digest();
     return (
@@ -252,9 +245,7 @@ impl PgWireConnection._authenticate(code: int, payload: bytes) -> None {
     if code == 5 {
         assert self.password is not None , 'server requires a password (md5)';
         salt = payload[4:8];
-        inner = hashlib.md5(
-            (self.password + self.user).encode('utf-8')
-        ).hexdigest();
+        inner = hashlib.md5((self.password + self.user).encode('utf-8')).hexdigest();
         outer = hashlib.md5(inner.encode('ascii') + salt).hexdigest();
         self._send('p', b'md5' + outer.encode('ascii') + b'\x00');
         return;
@@ -263,9 +254,7 @@ impl PgWireConnection._authenticate(code: int, payload: bytes) -> None {
         self._scram_auth(payload);
         return;
     }
-    raise PgWireError(
-        {'C': '28000', 'M': f'unsupported authentication method {code}'}
-    );
+    raise PgWireError({'C': '28000', 'M': f'unsupported authentication method {code}'});
 }
 
 
@@ -280,9 +269,7 @@ impl PgWireConnection._scram_auth(payload: bytes) -> None {
     nonce = base64.b64encode(_pysecrets.token_bytes(18)).decode('ascii');
     client_first_bare = f"n=,r={nonce}";
     initial = ('n,,' + client_first_bare).encode('utf-8');
-    body = (
-        b'SCRAM-SHA-256\x00' + struct.pack(_INT32, len(initial)) + initial
-    );
+    body = b'SCRAM-SHA-256\x00' + struct.pack(_INT32, len(initial)) + initial;
     self._send('p', body);
 
     (mtype, resp) = self._read_message();
@@ -334,9 +321,7 @@ impl PgWireConnection._read_exact(n: int) -> bytes {
         chunk = sock.recv(n - len(buf));
         if not chunk {
             self._closed = True;
-            raise PgWireError(
-                {'C': '08006', 'M': 'connection closed by server'}
-            );
+            raise PgWireError({'C': '08006', 'M': 'connection closed by server'});
         }
         buf += chunk;
     }
@@ -353,7 +338,6 @@ impl PgWireConnection._read_message -> tuple[str, bytes] {
 }
 
 
-# Async/broadcast messages every pump must tolerate.
 impl PgWireConnection._handle_async(msg_type: str, payload: bytes) -> bool {
     if msg_type == 'A' {
         pid = struct.unpack(_INT32, payload[:4])[0];
@@ -382,7 +366,9 @@ impl PgWireConnection._handle_async(msg_type: str, payload: bytes) -> bool {
 impl PgWireConnection.run(sql: str, **params: any) -> list {
     assert not self._closed , 'connection is closed';
     (pos_sql, args) = _named_to_positional(sql, params);
-    self._send('P', b'\x00' + pos_sql.encode('utf-8') + b'\x00' + struct.pack(_INT16, 0));
+    self._send(
+        'P', b'\x00' + pos_sql.encode('utf-8') + b'\x00' + struct.pack(_INT16, 0)
+    );
     bind = b'\x00\x00' + struct.pack(_INT16, 0) + struct.pack(_INT16, len(args));
     for a in args {
         enc = _encode_param(a);
@@ -461,9 +447,9 @@ impl PgWireConnection.close -> None {
     self._closed = True;
     try {
         self._send('X', b'');
-    } except Exception {}
+    } except Exception { }
     try {
         sock: Any = self._sock;
         sock.close();
-    } except Exception {}
+    } except Exception { }
 }
