@@ -620,6 +620,7 @@ impl UniScopeNode.update_expr_ctx_for_def(nd: AstSymbolNode) -> None {
 }
 
 impl UniScopeNode.sym_pp(depth: (int | None) = None) -> str {
+    import from jaclang.jac0core.treeprinter { print_symtab_tree }
     return print_symtab_tree(root_node=self, depth=depth);
 }
 
@@ -993,11 +994,14 @@ impl GlobalVars.postinit -> None {
 
 
 impl Test.postinit -> None {
-    Test.TEST_COUNT += 1 if isinstance(self.name, Token) else 0;
+    if isinstance(self.name, Token) {
+        Test.TEST_COUNT = Test.TEST_COUNT + 1;
+    }
     raw_name = self.name;
-    name_node = raw_name
-        if isinstance(raw_name, Name)
-        else Name(
+    if isinstance(raw_name, Name) {
+        name_node = raw_name;
+    } else {
+        name_node = Name(
             orig_src=raw_name.orig_src,
             name=Tok.NAME.value,
             value=f"_jac_gen_{Test.TEST_COUNT}",
@@ -1008,6 +1012,7 @@ impl Test.postinit -> None {
             pos_start=raw_name.pos_start,
             pos_end=raw_name.pos_end
         );
+    }
     self.name = name_node;
     name_node.parent = self;
     name_node._sym_name = f"test_{name_node.value}"
@@ -1456,12 +1461,12 @@ impl Ability.postinit -> None {
         if (first_tok is None) {
             raise ValueError('Cannot create synthetic name_ref without location info.');
         }
-        event_type = 'entry'
-            if (
-                isinstance(self.signature, EventSignature)
-                and (self.signature.event.name == Tok.KW_ENTRY)
-            )
-            else 'exit';
+        if isinstance(self.signature, EventSignature)
+            and (self.signature.event.name == Tok.KW_ENTRY) {
+            event_type = "entry";
+        } else {
+            event_type = "exit";
+        }
         synthetic_name = f"__ability_{event_type}_{first_tok.line_no}_{first_tok.c_start}__";
         synthetic_name_ref: NameAtom = Name(
             orig_src=first_tok.orig_src,
@@ -1546,12 +1551,12 @@ impl Ability.is_genai_ability.getter -> bool {
 
 impl Ability.py_resolve_name -> str {
     if (self.name_ref is None) {
-        event_type = 'entry'
-            if (
-                isinstance(self.signature, EventSignature)
-                and (self.signature.event.name == Tok.KW_ENTRY)
-            )
-            else 'exit';
+        if isinstance(self.signature, EventSignature)
+            and (self.signature.event.name == Tok.KW_ENTRY) {
+            event_type = "entry";
+        } else {
+            event_type = "exit";
+        }
         return f"__ability_{event_type}_{self.loc.first_line}_{self.loc.col_start}__";
     } elif isinstance(self.name_ref, Name) {
         return self.name_ref.value;
@@ -1592,7 +1597,9 @@ impl FuncSignature.postinit -> None {
 impl FuncSignature.get_parameters -> list[ParamVar] {
     params: list[ParamVar] = [];
     params.extend(self.posonly_params);
-    params.extend(self.params);
+    if self.params is not None {
+        params.extend(self.params);
+    }
     if self.varargs is not None {
         params.append(self.varargs);
     }

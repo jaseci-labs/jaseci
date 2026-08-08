@@ -1491,6 +1491,8 @@ obj Token(UniNode) {
     def accept_enter(v: UniPass) -> None;
 
     has orig_src: Source postinit,
+        name: str postinit,
+        value: str postinit,
         line_no: int postinit,
         end_line: int postinit,
         c_start: int postinit,
@@ -1518,6 +1520,10 @@ obj Token(UniNode) {
 obj Name(Token, NameAtom) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
+
+    has is_kwesc: bool postinit,
+        is_enum_stmt: bool postinit;
+
     def init(
         orig_src: Source,
         name: str,
@@ -1714,7 +1720,8 @@ obj Source(EmptyToken) {
 }
 
 obj PythonModuleAst(EmptyToken) {
-    has orig_src: Source postinit,
+    has ast: object postinit,
+        orig_src: Source postinit,
         file_path: str postinit;
 
     def init(ast: object, orig_src: Source) -> None;

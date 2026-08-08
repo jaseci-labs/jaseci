@@ -748,7 +748,7 @@ glob TOKEN_MAP: dict[str, str] = {
          'WALRUS_EQ': ':=',
          'WS': ' '
      },
-     DELIM_MAP = {
+     DELIM_MAP: dict[Tokens, str] = {
          Tokens.COMMA: ',',
          Tokens.EQ: '=',
          Tokens.DECOR_OP: '@',
