@@ -40,20 +40,23 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     marked = (
         self._marked_message(nd, msg, type_name) if (type_name is not None) else None
     );
-    use_msg = marked if (marked is not None) else msg;
+    # Declining is a soundness property, not a gap: the lowered assert raises
+    # RuntimeError asynchronously at the call boundary, so unless BOTH the
+    # original exception type and its message can be folded into a
+    # compile-time marker for the boundary trap guard to restore, rewriting
+    # would silently change the exception contract. Leave the break in place.
+    if marked is None {
+        return;
+    }
     eq = self._torch_equal_args(x);
     if eq is not None {
         (a, b) = eq;
         self._need_helper(nd, GraphMendHelper.EQ_ASSERT);
-        self._replace(nd, [self._eq_assert_stmt(nd, a, b, use_msg)]);
-        if marked is not None {
-            self._mark_guard(wrap);
-        }
+        self._replace(nd, [self._eq_assert_stmt(nd, a, b, marked)]);
+        self._mark_guard(wrap);
     } elif self._returns_tensor_bool(x) {
-        self._replace(nd, [self._assert_async_stmt(nd, x, use_msg)]);
-        if marked is not None {
-            self._mark_guard(wrap);
-        }
+        self._replace(nd, [self._assert_async_stmt(nd, x, marked)]);
+        self._mark_guard(wrap);
     }
 }
 
@@ -85,6 +88,16 @@ impl TrapLoweringPass._marked_message(
 ) -> (uni.String | None) {
     if not isinstance(msg, (uni.String, uni.MultiString)) {
         return None;
+    }
+    # MultiString.lit_value accumulates only its String parts, so an f-string
+    # part would vanish and yield a well-formed marker wrapped around an empty
+    # message -- a lost diagnostic with no signal that anything was dropped.
+    if isinstance(msg, uni.MultiString) {
+        for part in msg.strings {
+            if not isinstance(part, uni.String) {
+                return None;
+            }
+        }
     }
     text = "[[GM-TRAP " + type_name + "]]" + str(msg.lit_value) + "[[/GM-TRAP]]";
     return self._str(at, text);

@@ -525,6 +525,9 @@ impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     if isinstance(nd.op, uni.ConnectOp) {
         return self._codegen_connect(nd);
     }
+    if isinstance(nd.op, uni.DisconnectOp) {
+        return self._codegen_disconnect(nd);
+    }
     op = nd.op.name if isinstance(nd.op, uni.Token) else str(nd.op);
 
     if op == Tok.WALRUS_EQ {
@@ -541,7 +544,12 @@ impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     if left is None or right is None {
         return None;
     }
-    result = self._emit_binary_op(op, left, right);
+    result: (ir.Value | None);
+    if op == Tok.STAR_POW {
+        result = self._codegen_pow(left, right, nd.right);
+    } else {
+        result = self._emit_binary_op(op, left, right);
+    }
 
     if result is not None {
         i8p = ir.IntType(8).as_pointer();

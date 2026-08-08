@@ -158,12 +158,15 @@ obj ConditionInfo {
         attr_name: str | None = None;
 }
 
+glob _stub_module_memo: dict[str, tuple[float, uni.Module]] = {};
+
 obj TypeEvaluator {
     has program: "JacProgram",
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
         _JAC_BUILTINS_STUB_FILE_PATH: str postinit,
+        _BUILTIN_OVERRIDES_STUB_FILE_PATH: str postinit,
         _DOM_TYPES_STUB_FILE_PATH: str postinit,
         _NA_BUILTINS_STUB_FILE_PATH: str postinit,
         _JS_GLOBALS_STUB_FILE_PATH: str postinit,

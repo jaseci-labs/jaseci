@@ -123,6 +123,30 @@ test "trap guard restores exception type and message" {
     assert "GM-TRAP" not in str(raised) , "internal trap marker leaked to the user";
 }
 
+test "declined guard keeps its original exception contract intact" {
+    # The counterpart to the two tests above: where the exception cannot be
+    # reconstructed at the boundary, GraphMend leaves the guard alone, so the
+    # ORIGINAL raise still runs -- full f-string message, interpolation and all.
+    # Lowering it anyway would have produced ValueError('').
+    torch = _torch();
+    ns = _exec_gm("guard_fstring_msg.jac", True, True);
+    x = torch.tensor([1.0, 2.0, 3.0]);
+    bad = torch.tensor([True, False, True]);
+
+    torch._dynamo.reset();
+    raised = None;
+    try {
+        ns["f"](x, bad);
+    } except BaseException as e {
+        raised = e;
+    }
+    assert type(raised) is ValueError , f"expected ValueError, got {repr(raised)}";
+    assert "mask must be all true" in str(raised) , f"message lost: {repr(raised)}";
+    assert "torch.Size([3])" in str(raised) , f"interpolated detail lost: {repr(
+        raised
+    )}";
+}
+
 test "shape mismatch trips the torch.equal precheck" {
     # (a == b).all() would broadcast [1,2,3] against [[1,2,3]] to True; the
     # static shape/dtype precheck in tensor_eq_assert must keep the lowered

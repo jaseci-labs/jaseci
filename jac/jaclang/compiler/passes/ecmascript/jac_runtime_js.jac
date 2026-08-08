@@ -1548,88 +1548,128 @@ def build_jac_runtime_js -> str {
     );
 }
 
-glob _OSP_KERNEL_JS_CACHE: list[str] = [];
+glob _OSP_CORE_JS_CACHE: list[str] = [];
 
-def build_osp_kernel_js -> str {
-    if _OSP_KERNEL_JS_CACHE {
-        return _OSP_KERNEL_JS_CACHE[0];
+def build_osp_core_js -> str {
+    if _OSP_CORE_JS_CACHE {
+        return _OSP_CORE_JS_CACHE[0];
     }
-    import os;
-    import shutil;
-    import tempfile;
-    import jaclang;
+    import from jaclang.jac0core.kernel_units {
+        es_pass_fingerprint,
+        load_unit_artifact,
+        osp_core_unit_path,
+        store_unit_artifact
+    }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
     import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
     import from jaclang.compiler.passes.ecmascript { estree as es }
-    src = os.path.join(os.path.dirname(jaclang.__file__), "jac0core", "osp_kernel.jac");
-
-    tmp_dir = tempfile.mkdtemp();
-    cl_copy = os.path.join(tmp_dir, "osp_kernel_cl.jac");
-    shutil.copyfile(src, cl_copy);
-    js = "";
-    try {
-        import from jaclang.jac0core.compile_options { CompileOptions }
-        prog = JacProgram();
-
-        ir = prog.compile(
-            file_path=cl_copy,
-            options=CompileOptions(
-                force_codespace='client', no_cgen=True, type_check=True
-            )
-        );
-        program = EsastGenPass(ir_in=ir, prog=prog).ir_out.gen.es_ast;
-        kept: list = [];
-        if isinstance(program, es.Program) {
-            for stmt in program.body {
-                is_jac_rt = (
-                    isinstance(stmt, es.VariableDeclaration)
-                    and stmt.declarations
-                    and isinstance(stmt.declarations[0].id, es.Identifier)
-                    and (stmt.declarations[0].id.name == "_jac")
-                );
-                if is_jac_rt or isinstance(stmt, es.ExportNamedDeclaration) {
-                    continue;
-                }
-                kept.append(stmt);
-            }
-        }
-        js = es_to_js(es.Program(body=kept));
-    } finally {
-        shutil.rmtree(tmp_dir, ignore_errors=True);
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    fp = es_pass_fingerprint();
+    cl_copy = osp_core_unit_path('cl');
+    cached = load_unit_artifact(cl_copy, "mjs", fp);
+    if cached is not None {
+        _OSP_CORE_JS_CACHE.append(cached);
+        return cached;
     }
-    _OSP_KERNEL_JS_CACHE.append(js);
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=cl_copy,
+        options=CompileOptions(force_codespace='client', no_cgen=True, type_check=True)
+    );
+    program = EsastGenPass(ir_in=ir, prog=prog).ir_out.gen.es_ast;
+    kept: list = [];
+    if isinstance(program, es.Program) {
+        for stmt in program.body {
+            is_jac_rt = (
+                isinstance(stmt, es.VariableDeclaration)
+                and stmt.declarations
+                and isinstance(stmt.declarations[0].id, es.Identifier)
+                and (stmt.declarations[0].id.name == "_jac")
+            );
+            if is_jac_rt or isinstance(stmt, es.ExportNamedDeclaration) {
+                continue;
+            }
+            kept.append(stmt);
+        }
+    }
+    js = es_to_js(es.Program(body=kept));
+    store_unit_artifact(cl_copy, "mjs", fp, js);
+    _OSP_CORE_JS_CACHE.append(js);
     return js;
 }
 
-def build_osp_graph_js -> str {
+def build_osp_driver_js -> str {
     return r"""
-function __ospConn(srcs, tgts, makeEdge, undirected) {
-  srcs = Array.isArray(srcs) ? srcs : [srcs];
-  tgts = Array.isArray(tgts) ? tgts : [tgts];
+if (!globalThis.__jacOspCore) {
+  globalThis.__jacOspCore = {
+    O: [null], H: new Map(),
+    osp_conn, osp_refs, osp_refs_many, osp_wrap1, osp_disconnect,
+    osp_disconn_between, osp_edge_peer,
+    osp_spawn, osp_visit, osp_report, osp_disengage,
+    WalkerDesc, NodeDesc, Slot, OspRuntime
+  };
+}
+var __ospC = globalThis.__jacOspCore;
+var __ospO = __ospC.O;
+var __ospH = __ospC.H;
+function __ospId(o) {
+  if (o == null) return 0;
+  let h = __ospH.get(o);
+  if (h === undefined) { h = __ospO.length; __ospO.push(o); __ospH.set(o, h); }
+  return h;
+}
+function __ospConnW(src, tgt, mkEdge, undirected, tag = -1) {
+  const srcs = Array.isArray(src) ? src : [src];
+  const tgts = Array.isArray(tgt) ? tgt : [tgt];
   for (const s of srcs) for (const t of tgts) {
-    const e = makeEdge ? makeEdge() : {};
-    e.__src = s; e.__tgt = t; e.__undirected = !!undirected;
-    (s.__edges ??= []).push(e); (t.__edges ??= []).push(e);
+    __ospC.osp_conn(__ospId(s), __ospId(t), __ospId(mkEdge()), undirected ? 1 : 0, tag, 0, 0);
   }
   return tgts.length === 1 ? tgts[0] : tgts;
 }
-function __ospRefs(nodes, dir, edgeTag, edgesOnly) {
-  nodes = Array.isArray(nodes) ? nodes : [nodes];
-  const seen = new Set(), out = [];
-  for (const n of nodes) for (const e of (n.__edges || [])) {
-    if (edgeTag != null && e.__tag !== edgeTag) continue;
-    const eff = e.__undirected ? 3 : dir;
-    if ((eff === 2 || eff === 3) && e.__src === n) {
-      const o = edgesOnly ? e : e.__tgt;
-      if (!seen.has(o)) { seen.add(o); out.push(o); }
-    }
-    if ((eff === 1 || eff === 3) && e.__tgt === n) {
-      const o = edgesOnly ? e : e.__src;
-      if (!seen.has(o)) { seen.add(o); out.push(o); }
+function __ospRefsW(origin, dir, tag = -1, edgesOnly = 0, pred = null) {
+  const oh = __ospId(origin);
+  if (pred === null) {
+    return __ospC.osp_refs(oh, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+  }
+  if (edgesOnly) {
+    return __ospC.osp_refs(oh, dir, tag, 1).map((h) => __ospO[h]).filter(pred);
+  }
+  const inv = dir === 1 ? 2 : (dir === 2 ? 1 : 3);
+  const mine = __ospC.osp_refs(oh, dir, tag, 1);
+  const out = [];
+  for (const th of __ospC.osp_refs(oh, dir, tag, 0)) {
+    const theirs = new Set(__ospC.osp_refs(th, inv, tag, 1));
+    for (const eh of mine) {
+      if (theirs.has(eh) && pred(__ospO[eh])) { out.push(__ospO[th]); break; }
     }
   }
   return out;
+}
+function __ospRefsManyW(objs, dir, tag = -1, edgesOnly = 0, pred = null) {
+  if (pred === null) {
+    const hs = [];
+    for (const o of objs) hs.push(__ospId(o));
+    return __ospC.osp_refs_many(hs, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+  }
+  const out = [];
+  const seen = new Set();
+  for (const o of objs) {
+    for (const r of __ospRefsW(o, dir, tag, edgesOnly, pred)) {
+      if (!seen.has(r)) { seen.add(r); out.push(r); }
+    }
+  }
+  return out;
+}
+function __ospDiscW(eobj) {
+  return __ospC.osp_disconnect(__ospId(eobj));
+}
+function __ospDiscBetweenW(a, b, dir, tag = -1) {
+  return __ospC.osp_disconn_between(__ospId(a), __ospId(b), dir, tag);
+}
+function __ospIsA(t, b) {
+  const s = (typeof __ospISA !== 'undefined') && __ospISA[t];
+  return s ? s.has(b) : t === b;
 }
 """;
 }
