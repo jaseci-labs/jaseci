@@ -623,10 +623,19 @@ impl Parser.parse_module -> Module {
     }
     mod_name = self.file_path;
     if mod_name {
-        import from pathlib { Path as _Path }
-        _p = _Path(mod_name);
-
-        mod_name = _p.name[:-4] if _p.name.endswith('.jac') else _p.stem;
+        while mod_name and (mod_name.endswith("/") or mod_name.endswith("\\")) {
+            mod_name = mod_name[:-1];
+        }
+        slash = mod_name.rfind("/");
+        bslash = mod_name.rfind("\\");
+        cut = slash if slash > bslash else bslash;
+        base = mod_name[cut + 1:];
+        if base.endswith(".jac") {
+            mod_name = base[:-4];
+        } else {
+            dot = base.rfind(".");
+            mod_name = base[:dot] if dot > 0 else base;
+        }
     }
     module = Module(
         name=mod_name,
@@ -6253,7 +6262,6 @@ impl Parser.parse_enum_member -> Assignment {
 }
 
 impl Parser.parse_test -> Test {
-    import re;
     decorators: list = [];
     decor_unis: list = [];
     while self.check(TokenKind.DECOR_OP) {
@@ -6281,7 +6289,28 @@ impl Parser.parse_test -> Test {
         description = self.make_string(str_tok);
 
         desc_text = description.lit_value;
-        ident = re.sub(r'[^a-zA-Z0-9]+', '_', desc_text).strip('_').lower();
+        ident_chars: list[str] = [];
+        prev_sep = False;
+        for ch in desc_text {
+            is_word = ("a" <= ch and ch <= "z")
+                or ("A" <= ch and ch <= "Z")
+                or ("0" <= ch and ch <= "9");
+            if is_word {
+                ident_chars.append(ch);
+                prev_sep = False;
+            } elif not prev_sep {
+                ident_chars.append("_");
+                prev_sep = True;
+            }
+        }
+        ident = "".join(ident_chars);
+        if ident.startswith("_") {
+            ident = ident[1:];
+        }
+        if ident.endswith("_") {
+            ident = ident[:-1];
+        }
+        ident = ident.lower();
         if not ident {
             ident = f"_jac_gen_{Test.TEST_COUNT + 1}";
         }

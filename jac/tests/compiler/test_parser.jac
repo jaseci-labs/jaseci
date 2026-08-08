@@ -805,9 +805,22 @@ test "parser core sources are foreign-free" {
         "CodeLocInfo",
         "JacProgram",
         "jac0core.diagnostics",
-        "**kwargs"
+        "**kwargs",
+        "pathlib",
+        "import re"
     ];
     for b in banned {
         assert b not in core , f"parser core references {b}";
     }
+}
+
+test "parser module naming and test slugs are python-free" {
+    # W2 (#6930): pathlib/re replaced with plain string ops in the core.
+    (module, _) = rd_parse("with entry {}", "some/dir/thing.jac");
+    assert module.name == "thing";
+    (module2, _) = rd_parse("with entry {}", "other\\win\\mod.custom.ext");
+    assert module2.name == "mod.custom";
+    (module3, _) = rd_parse('test "Hello, World! 42" {}', "t.jac");
+    tnode = module3.body[0];
+    assert tnode.name.value == "hello_world_42";
 }
