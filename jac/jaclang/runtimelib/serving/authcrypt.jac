@@ -118,18 +118,18 @@ def jwt_decode(
     return payload;
 }
 
-def hash_password(password: str) -> str {
+def hash_password(password: str, n: int = SCRYPT_N) -> str {
     salt = secrets.token_bytes(SCRYPT_SALT_BYTES);
     digest = hashlib.scrypt(
         password.encode('utf-8'),
         salt=salt,
-        n=SCRYPT_N,
+        n=n,
         r=SCRYPT_R,
         p=SCRYPT_P,
         dklen=SCRYPT_DKLEN
     );
     return (
-        f"scrypt${SCRYPT_N}${SCRYPT_R}${SCRYPT_P}"
+        f"scrypt${n}${SCRYPT_R}${SCRYPT_P}"
         f"${_b64url_encode(salt)}${_b64url_encode(digest)}"
     );
 }

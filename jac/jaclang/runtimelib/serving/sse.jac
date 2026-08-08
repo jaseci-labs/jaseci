@@ -11,13 +11,13 @@ def _sse_json_default(o: any) -> str {
     return str(o);
 }
 
-def format_sse_event(data_text: str, event: (str | None) = None) -> bytes {
+def format_sse_event(data_text: str, event: (str | None) = None) -> str {
     prefix = f"event: {event}\n" if event else '';
     lines = ''.join([f"data: {line}\n" for line in data_text.split('\n')]);
-    return f"{prefix}{lines}\n".encode('utf-8');
+    return f"{prefix}{lines}\n";
 }
 
-def sse_frame_stream(source: any) -> AsyncIterator[bytes] {
+def sse_frame_stream(source: any) -> AsyncIterator[str] {
     if not (
         inspect.isgenerator(source)
         or inspect.isasyncgen(source)
@@ -31,7 +31,7 @@ def sse_frame_stream(source: any) -> AsyncIterator[bytes] {
     return _sse_frame_stream_inner(source);
 }
 
-async def _sse_frame_stream_inner(source: any) -> AsyncIterator[bytes] {
+async def _sse_frame_stream_inner(source: any) -> AsyncIterator[str] {
     try {
         if inspect.isasyncgen(source) or hasattr(source, '__aiter__') {
             async for item in source {
@@ -46,7 +46,11 @@ async def _sse_frame_stream_inner(source: any) -> AsyncIterator[bytes] {
     } except Exception as e {
         _logger.exception("SSE stream producer failed");
         yield format_sse_event(
-            dumps({'message': str(e)}, default=_sse_json_default), event='error'
+            dumps(
+                {'error_type': type(e).__name__, 'message': str(e)},
+                default=_sse_json_default
+            ),
+            event='error'
         );
     }
 }

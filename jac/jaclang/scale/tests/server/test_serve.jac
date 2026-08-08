@@ -2047,10 +2047,11 @@ test "health check filter is disabled by default" {
 test "health check filter suppresses health endpoint log records" {
     import logging;
     import from jaclang.scale.server.native_server { HealthCheckFilter }
+    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
 
     def make_record(msg: str) -> logging.LogRecord {
         return logging.LogRecord(
-            name="uvicorn.access",
+            name=ACCESS_LOGGER_NAME,
             level=logging.INFO,
             pathname="",
             lineno=0,
@@ -2092,6 +2093,7 @@ test "health check filter suppresses health endpoint log records" {
 test "health check filter blocks records when attached to a handler" {
     import logging;
     import from jaclang.scale.server.native_server { HealthCheckFilter }
+    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
 
     class _CapturingHandler(logging.Handler) {
         has captured: list = [];
@@ -2103,7 +2105,7 @@ test "health check filter blocks records when attached to a handler" {
 
     def make_record(msg: str) -> logging.LogRecord {
         return logging.LogRecord(
-            name="uvicorn.access",
+            name=ACCESS_LOGGER_NAME,
             level=logging.INFO,
             pathname="",
             lineno=0,
