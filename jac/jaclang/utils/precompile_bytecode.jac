@@ -268,11 +268,7 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     return failed;
 }
 
-glob NATIVE_SEAL_MODULES: tuple = (
-         "jac0core/parser/lexer.jac",
-         "jac0core/parser/parser.jac",
-
-     );
+glob NATIVE_SEAL_MODULES: tuple = ("jac0core/parser/lexer.jac", );
 
 def _native_lib_filename(stem: str) -> str {
     if sys.platform.startswith("win") {
