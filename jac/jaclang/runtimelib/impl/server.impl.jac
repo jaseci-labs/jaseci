@@ -351,8 +351,7 @@ def _occ_policy -> tuple {
 
 impl ExecutionManager._finalize_call_response(
     call_state: CallState, result: any
-) -> dict[str, JsonValue] | Generator | AsyncGenerator | Response {
-    import from fastapi { Response }
+) -> dict[str, JsonValue] | Generator | AsyncGenerator | Any {
     call_state.reports.put_nowait(call_state._sentinel);
     reports = await self.report_collector(call_state);
     await Jac.acommit();
@@ -363,7 +362,7 @@ impl ExecutionManager._finalize_call_response(
         return reports;
     }
 
-    if isinstance(result, Response) {
+    if is_raw_response(result) {
         return result;
     }
 

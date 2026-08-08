@@ -236,7 +236,7 @@ By default, walkers are exposed as `POST` endpoints. Use `@restspec` to change t
 import from http { HTTPMethod }
 
 @restspec(method=HTTPMethod.GET)
-walker :pub get_users {
+walker:pub get_users {
     can fetch with Root entry {
         report [];
     }
@@ -251,7 +251,7 @@ Override the auto-generated path:
 
 ```jac
 @restspec(method=HTTPMethod.GET, path="/custom/users")
-walker :pub list_users {
+walker:pub list_users {
     can fetch with Root entry {
         report [];
     }
@@ -268,13 +268,13 @@ Define path parameters using `{param_name}` syntax:
 import from http { HTTPMethod }
 
 @restspec(method=HTTPMethod.GET, path="/items/{item_id}")
-walker :pub get_item {
+walker:pub get_item {
     has item_id: str;
     can fetch with Root entry { report {"item_id": self.item_id}; }
 }
 
 @restspec(method=HTTPMethod.GET, path="/users/{user_id}/orders")
-walker :pub get_user_orders {
+walker:pub get_user_orders {
     has user_id: str;          # Path parameter
     has status: str = "all";   # Query parameter
     can fetch with Root entry { report {"user_id": self.user_id, "status": self.status}; }
@@ -289,12 +289,12 @@ Parameters are classified as: **path** (matches `{name}` in path) → **file** (
 
 ```jac
 @restspec(method=HTTPMethod.GET)
-def :pub health_check() -> dict {
+def:pub health_check() -> dict {
     return {"status": "healthy"};
 }
 
 @restspec(method=HTTPMethod.GET, path="/custom/status")
-def :pub app_status() -> dict {
+def:pub app_status() -> dict {
     return {"status": "running", "version": "1.0.0"};
 }
 ```
@@ -316,7 +316,7 @@ import from http { HTTPMethod }
     produces="text/x-shellscript",
     envelope=False
 )
-def :pub install_sh() -> str {
+def:pub install_sh() -> str {
     return "#!/usr/bin/env bash\necho installing...\n";
 }
 ```
@@ -356,11 +356,11 @@ The HTTP concerns stay on the declaration, so the body remains an ordinary
   import from fastapi.responses { FileResponse, Response }
 
   @restspec(method=HTTPMethod.GET, path="/photo.png")
-  def :pub photo() -> FileResponse {
+  def:pub photo() -> FileResponse {
       return FileResponse(path="assets/photo.png", media_type="image/png");
   }
 
-  def :pub icon() -> Response {
+  def:pub icon() -> Response {
       return Response(content=ICON_BYTES, media_type="image/png");
   }
   ```
@@ -377,7 +377,7 @@ when a third-party client expects a bare JSON document:
 ```jac
 @restspec(method=HTTPMethod.GET, path="/.well-known/jac.json",
           produces="application/json", envelope=False)
-def :pub well_known() -> dict {
+def:pub well_known() -> dict {
     return {"version": "1.0"};   # body is exactly {"version": "1.0"}
 }
 ```
@@ -1361,12 +1361,12 @@ walker get_profile {
 }
 
 # Public -- no authentication required
-walker :pub health_check {
+walker:pub health_check {
     can check with Root entry { report {"status": "ok"}; }
 }
 
 # Private -- identical to the default; `:priv` is the explicit spelling
-walker :priv internal_process {
+walker:priv internal_process {
     can run with Root entry { }
 }
 ```
