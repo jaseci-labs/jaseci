@@ -473,8 +473,11 @@ test "lazy jir hydrates stub declarations on demand" {
         lazy_mod = lazy_reader.read_module(blob);
         assert lazy_mod is not None;
         eager = lazy_reader.hydrated_node_count;
-        assert eager < total // 2 ,
-            "lazy eager tier should be well under half of the stub ("
+        # With classes, functions and module-level statements all deferred, the
+        # eager tier (imports + module scope overlay) is a small fraction of a
+        # real stub -- empirically ~5% for builtins.pyi.
+        assert eager < total // 8 ,
+            "lazy eager tier should be a small fraction of the stub ("
                 + str(eager) + " / " + str(total) + ")";
 
         # The full symbol table is available without hydrating any body.

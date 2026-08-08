@@ -3,8 +3,13 @@ import sys;
 import zlib;
 
 impl JirWriter._is_lazy_decl(node: UniNode) -> bool {
-    import from jaclang.jac0core.unitree { Archetype, Ability }
-    return isinstance(node, (Archetype, Ability));
+    import from jaclang.jac0core.unitree { Archetype, Ability, GlobalVars, ModuleCode }
+    # Everything with a heavy top-level subtree: classes, functions, module-level
+    # variable/type-alias declarations (GlobalVars) and free module statements
+    # (ModuleCode -- annotations and `if sys.version_info:` blocks, which
+    # dominate a typical stub's eager tier). Their module-scope symbols stay
+    # eager; only the bodies defer.
+    return isinstance(node, (Archetype, Ability, GlobalVars, ModuleCode));
 }
 
 impl JirWriter.write_module(
