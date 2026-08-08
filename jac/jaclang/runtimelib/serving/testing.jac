@@ -168,7 +168,10 @@ obj ServingTestClient {
             client_host='testclient'
         );
         response = run_blocking(self.app.dispatch(request));
-        content = _materialize(response);
+        content = collect_response_bytes(response);
+        if response.headers.get('Content-Type') is None {
+            response.headers.set('Content-Type', response.media_type);
+        }
         return TestResponse(
             status_code=response.status_code, headers=response.headers, content=content
         );
@@ -224,7 +227,7 @@ obj ServingTestClient {
     }
 }
 
-def _materialize(response: any) -> bytes {
+def collect_response_bytes(response: any) -> bytes {
     if response.stream is None {
         return response.body_bytes();
     }

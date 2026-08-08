@@ -320,20 +320,20 @@ test "dev banner headlines vite port not api port" {
 }
 
 # --- Server construction ---
-"""The stdlib fallback server must be threading: on a plain (non-threading)
-HTTPServer one in-flight SSE stream or slow handler monopolizes the accept
-loop and every other client hangs with no response."""
-test "api server binds a threading http server" {
+"""Constructing the API server must not bind a socket; the serving core binds
+lazily at start() so test-mode servers (port=0) stay socket-free and the app
+can be built and dispatched fully in-process."""
+test "api server construction is socket-free and builds a serving app" {
+    import from jaclang.runtimelib.serving.app { ServingApp }
     with TemporaryDirectory() as tmpdir {
         port = get_free_port();
         Jac.set_base_path(tmpdir);
         srv = JacAPIServer(module_name="serve_api", port=port, base_path=tmpdir);
-        try {
-            assert isinstance(srv.server, ThreadingHTTPServer) , f"expected ThreadingHTTPServer, got {type(
-                srv.server
-            ).__name__}";
-        } finally {
-            srv.server.server_close();
-        }
+        assert srv.server is None , f"expected no bound server at construction, got {type(
+            srv.server
+        ).__name__}";
+        app = srv.build_app();
+        assert isinstance(app, ServingApp);
+        assert app.router.all_endpoints() , "built app has no endpoints";
     }
 }

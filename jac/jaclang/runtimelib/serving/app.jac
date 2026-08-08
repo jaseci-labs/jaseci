@@ -80,7 +80,19 @@ def transport_to_response(tr: TransportResponse) -> JSONResponse {
     return JSONResponse(content=body, status_code=status);
 }
 
-def _parse_request_body(request: Request) -> any {
+def _declares_body(ep: JEndPoint) -> bool {
+    for param in (ep.parameters or []) {
+        kind_name = str(param.kind.value)
+            if hasattr(param.kind, 'value')
+            else str(param.kind);
+        if kind_name in ('body', 'file') {
+            return True;
+        }
+    }
+    return False;
+}
+
+def _parse_request_body(request: Request, ep: JEndPoint) -> any {
     content_type = (request.headers.get('Content-Type') or '').lower();
     if not request.body {
         return None;
@@ -97,15 +109,18 @@ def _parse_request_body(request: Request) -> any {
         try {
             return request.json_sync();
         } except Exception {
-            raise RequestValidationError(
-                errors=[
-                    {
-                        'type': 'json_invalid',
-                        'loc': ['body'],
-                        'msg': 'Invalid JSON body'
-                    }
-                ]
-            );
+            if _declares_body(ep) {
+                raise RequestValidationError(
+                    errors=[
+                        {
+                            'type': 'json_invalid',
+                            'loc': ['body'],
+                            'msg': 'Invalid JSON body'
+                        }
+                    ]
+                );
+            }
+            return None;
         }
     }
     return None;
@@ -210,7 +225,7 @@ obj ServingApp {
             return JSONResponse(content={'detail': 'Not Found'}, status_code=404);
         }
         request.path_params = path_params;
-        body_json = _parse_request_body(request);
+        body_json = _parse_request_body(request, ep);
         kwargs = bind_parameters(ep, request, body_json);
         kwargs = filter_kwargs_for_callback(ep.callback, kwargs, request);
         callback_fn: any = ep.callback;
@@ -233,6 +248,17 @@ obj ServingApp {
             return result;
         }
         if isinstance(result, TransportResponse) {
+            if inspect.isgenerator(result.data)
+                or inspect.isasyncgen(result.data) {
+                return StreamingResponse(
+                    content=sse_frame_stream(result.data),
+                    media_type='text/event-stream',
+                    headers={
+                        'Cache-Control': 'no-cache',
+                        'X-Accel-Buffering': 'no'
+                    }
+                );
+            }
             resp = transport_to_response(result);
             if ep.status_code is not None and resp.status_code == 200 {
                 resp.status_code = ep.status_code;
