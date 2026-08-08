@@ -103,12 +103,25 @@ test "rename without alias quarantines the stored anchors (control)" {
         # Without alias: old data must NOT silently disappear; the failed
         # loads are filed in the store's quarantine table (the rows
         # themselves also survive untouched). This is the core invariant.
+        import hashlib;
         import from jaclang.runtimelib.pgembed { PgRuntime }
-        import from jaclang.runtimelib.session { project_db_name, shared_pg_data_dir }
+        import from jaclang.runtimelib.session { shared_pg_data_dir }
         import from jaclang.runtimelib.store { PgStore }
-        rt = PgRuntime(
-            data_dir=shared_pg_data_dir(), database=project_db_name(tmpdir, str(app))
-        );
+        digest = hashlib.sha1(os.path.abspath(tmpdir).encode('utf-8')).hexdigest()[:8];
+        admin_rt = PgRuntime(data_dir=shared_pg_data_dir(), database='postgres');
+        admin = PgStore(conninfo=admin_rt.ensure());
+        admin.begin(serializable=False);
+        names = [
+            str(r[0])
+            for r in admin.rows(
+                "SELECT datname FROM pg_database WHERE datname LIKE :p",
+                {'p': f"%_{digest}"}
+            )
+        ];
+        admin.commit();
+        admin.close();
+        assert names , f"no project database found for digest {digest}";
+        rt = PgRuntime(data_dir=shared_pg_data_dir(), database=names[0]);
         st = PgStore(conninfo=rt.ensure());
         total_q = st.rows('SELECT count(*) FROM quarantine', {})[0][0];
         surviving = st.rows(

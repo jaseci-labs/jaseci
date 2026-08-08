@@ -83,7 +83,8 @@ def _is_serialization_conflict(e: Exception) -> bool {
     while cur is not None and seen < 8 {
         c: BaseException = cur;
         for arg in getattr(c, 'args', ()) {
-            if isinstance(arg, dict) and arg.get('C') in ('40001', '40P01', '55P03') {
+            if isinstance(arg, dict)
+                and arg.get('C') in ('40001', '40P01', '55P03', '08006') {
                 return True;
             }
         }
@@ -156,7 +157,7 @@ impl Session.postinit -> None {
                 database=project_db_name(self.base_path, self.target_path)
             );
             self._runtime = rt;
-            pgs = PgStore(conninfo=rt.ensure());
+            pgs = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
         }
         pgs.ensure_schema(promos);
         self.store = pgs;

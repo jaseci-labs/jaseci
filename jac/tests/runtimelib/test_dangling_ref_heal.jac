@@ -16,7 +16,7 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
 import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.session { project_db_name, shared_pg_data_dir }
+import from jaclang.runtimelib.session { shared_pg_data_dir }
 import from jaclang.runtimelib.store { PgStore }
 
 
@@ -55,11 +55,29 @@ glob APP = "node Thing { has name: str; }\n"
      "}\n";
 
 
-"""Open a store on the project database `jac run` used under tmpdir."""
+"""Open a store on the project database `jac run` used under tmpdir.
+
+The runtime derives the database name from its own base/target resolution;
+rather than re-deriving it, find the one database whose name carries the
+base-path digest."""
 def _store_for(tmpdir: str, app: str) -> PgStore {
-    rt = PgRuntime(
-        data_dir=shared_pg_data_dir(), database=project_db_name(tmpdir, app)
-    );
+    import hashlib;
+    import os;
+    digest = hashlib.sha1(os.path.abspath(tmpdir).encode('utf-8')).hexdigest()[:8];
+    admin_rt = PgRuntime(data_dir=shared_pg_data_dir(), database='postgres');
+    admin = PgStore(conninfo=admin_rt.ensure());
+    admin.begin(serializable=False);
+    names = [
+        str(r[0])
+        for r in admin.rows(
+            "SELECT datname FROM pg_database WHERE datname LIKE :p",
+            {'p': f"%_{digest}"}
+        )
+    ];
+    admin.commit();
+    admin.close();
+    assert names , f"no project database found for digest {digest}";
+    rt = PgRuntime(data_dir=shared_pg_data_dir(), database=names[0]);
     return PgStore(conninfo=rt.ensure());
 }
 

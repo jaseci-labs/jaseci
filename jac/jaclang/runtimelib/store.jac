@@ -70,6 +70,7 @@ obj Store {
 
 obj PgStore(Store) {
     has conninfo: ConnInfo,
+        ensure_cb: (Any | None) = None,
         promotions: dict[str, list[str]] = {},
         _conn: (Any | None) postinit,
         _side_conn: (Any | None) postinit,

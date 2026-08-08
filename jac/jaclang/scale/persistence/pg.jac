@@ -63,7 +63,7 @@ def shared_store -> (Any | None) {
                             base, JacRuntime.get_full_target_path()
                         )
                     );
-                    store = PgStore(conninfo=rt.ensure());
+                    store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
                 }
             }
             if store is not None {

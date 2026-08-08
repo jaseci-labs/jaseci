@@ -128,12 +128,46 @@ impl PgStore._side -> Any {
 }
 
 
+def _conn_dead(e: Exception) -> bool {
+    if isinstance(e, (ConnectionError, BrokenPipeError, EOFError, OSError)) {
+        return True;
+    }
+    for arg in getattr(e, 'args', ()) {
+        if isinstance(arg, dict) and arg.get('C') in ('08006', '08003', '57P01') {
+            return True;
+        }
+    }
+    return False;
+}
+
+
 impl PgStore._run(sql: str, params: dict) -> list {
     with self._lock {
         conn: Any = self._main();
         try {
             return conn.run(sql, **params) or [];
-        } except Exception {
+        } except Exception as e {
+            if _conn_dead(e) {
+                try {
+                    conn.close();
+                } except Exception { }
+                self._conn = None;
+                was_txn = self._in_txn;
+                self._in_txn = False;
+                if self.ensure_cb is not None {
+                    try {
+                        self.conninfo = self.ensure_cb();
+                    } except Exception { }
+                }
+                if was_txn {
+                    import from jaclang.runtimelib.pgwire { PgWireError }
+                    raise PgWireError(
+                        {'C': '08006', 'M': 'connection lost mid-transaction; retry'}
+                    ) from e;
+                }
+                conn2: Any = self._main();
+                return conn2.run(sql, **params) or [];
+            }
             if self._in_txn {
                 try {
                     conn.run('ROLLBACK');
