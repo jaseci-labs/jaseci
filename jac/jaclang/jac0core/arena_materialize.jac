@@ -1,21 +1,3 @@
-"""Materialize a SyntaxArena into the mutable unitree object graph.
-
-This is the Python-side bridge of the flat-handoff milestone: the parser
-(bytecode or sealed-native) produces only the arena; every consumer that
-needs real unitree nodes goes through here, exactly once per parse. The
-walk is a memoized, order-independent DFS from root_id, so it tolerates
-records amended after emission, shared children (DAG), and unreachable
-records abandoned by parser backtracking.
-
-Construction calls the real unitree constructors, so postinit behavior
-(kid reparenting, loc derivation from token ranges) is reproduced
-exactly. TAG_NONE arguments are omitted when the constructor has a
-default (letting the real default apply) and passed as None otherwise.
-SOURCE-classified params receive the shared Source object. The `posts`
-channel replays the few post-construction field sets the parser records
-against postinit fields (param_kind, code_context).
-"""
-
 import from jaclang.jac0core { unitree as ut_mod }
 import from jaclang.jac0core { constant as const_mod }
 import from jaclang.jac0core.arena {
@@ -34,7 +16,6 @@ import from jaclang.jac0core.unitree { Module, Source, UniNode }
 glob _CLS_CACHE: dict[int, tuple] = {};
 
 
-"""Resolve (class, enum-classes-per-slot) for a kind id, memoized."""
 def _resolved_spec(kind: int) -> tuple {
     got = _CLS_CACHE.get(kind);
     if got is not None {
@@ -57,7 +38,6 @@ def _resolved_spec(kind: int) -> tuple {
 }
 
 
-"""All node ids a record references (kids plus NODE/LIST args)."""
 def _deps_of(a: SyntaxArena, i: int) -> list[int] {
     deps = a.kid_ids(i);
     n = a.arg_ns[i];
@@ -85,13 +65,21 @@ def _decode_post(key: str, v: int) -> any {
         return ut_mod.ParamKind(v);
     }
     if key == "code_context" {
-        return const_mod.CodeContext(v);
+        return list(const_mod.CodeContext)[v];
     }
     raise ValueError(f"materialize: unknown post-set key {key}");
 }
 
 
-"""Build the unitree object graph for the arena, returning the root."""
+def materialize_module(a: SyntaxArena, source: Source) -> Module {
+    built = materialize(a, source);
+    if not isinstance(built, Module) {
+        raise ValueError("arena root is not a Module");
+    }
+    return built;
+}
+
+
 def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
     if a.root_id == 0 {
         return None;
@@ -153,22 +141,26 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
                 kwargs[pname] = ecls(v);
             }
         }
+        kid_ids = a.kid_ids(i);
         if has_kid {
-            kwargs["kid"] = [objs[k] for k in a.kid_ids(i)];
+            kwargs["kid"] = [objs[k] for k in kid_ids];
         }
-        obj = cls(**kwargs);
+        made = cls(**kwargs);
+        if kid_ids and not has_kid {
+            made.set_kids([objs[k] for k in kid_ids]);
+        }
         for entry in posts_by_id.get(i, []) {
             (key, pv) = entry;
-            setattr(obj, key, _decode_post(key, pv));
+            setattr(made, key, _decode_post(key, pv));
         }
-        objs[i] = obj;
+        objs[i] = made;
     }
 
-    root = objs[a.root_id];
-    if isinstance(root, Module) {
+    built = objs[a.root_id];
+    if isinstance(built, Module) {
         node_list: list[UniNode] = [];
         seen: dict[int, bool] = {};
-        walk: list[UniNode] = [root];
+        walk: list[UniNode] = [built];
         while walk {
             nd = walk.pop();
             nid = id(nd);
@@ -180,7 +172,7 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
                 }
             }
         }
-        root._in_mod_nodes = node_list;
+        built._in_mod_nodes = node_list;
     }
-    return root;
+    return built;
 }

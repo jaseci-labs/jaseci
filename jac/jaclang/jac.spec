@@ -162,12 +162,14 @@ atom ::=
     | brace_expr
     | jsx_element
 
+tuple_item ::= "**" expression | expression
+
 paren_expr ::=
     "(" (
         ")"
         | yield_stmt ")"
         | ability ")"
-        | expression (comprehension_clauses ")" | "," (expression ","?)* ")" | ")")
+        | tuple_item (comprehension_clauses ")" | ","? tuple_item ","? ")" | ")")?
     )
 
 bracket_expr ::= "[" (filter_compr_bracket | edge_ref_chain | list_or_compr)

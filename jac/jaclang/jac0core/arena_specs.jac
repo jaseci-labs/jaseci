@@ -12,7 +12,7 @@ glob SPECS: dict[int, tuple] = {
          1: (
              "Ability",
              (
-                 ("body", "NODE", "", False),
+                 ("body", "POLY", "", False),
                  ("is_async", "BOOL", "", True),
                  ("doc", "NODE", "", True),
                  ("access", "NODE", "", True),
@@ -59,7 +59,7 @@ glob SPECS: dict[int, tuple] = {
              (
                  ("doc", "NODE", "", True),
                  ("is_async", "BOOL", "", True),
-                 ("body", "NODE", "", False),
+                 ("body", "POLY", "", False),
                  ("access", "NODE", "", True),
                  ("decorators", "LIST", "", False),
                  ("codespace_dual", "BOOL", "", True),
@@ -100,7 +100,7 @@ glob SPECS: dict[int, tuple] = {
          10: ("AstAsyncNode", (("is_async", "BOOL", "", True), ), False, True),
          11: ("AstDocNode", (("doc", "NODE", "", True), ), False, True),
          12: ("AstElseBodyNode", (("else_body", "NODE", "", True), ), False, True),
-         13: ("AstImplNeedingNode", (("body", "NODE", "", False), ), False, True),
+         13: ("AstImplNeedingNode", (("body", "POLY", "", False), ), False, True),
          14: ("AstSymbolNode", (), False, True),
          15: ("AstSymbolStubNode", (), False, True),
          16: ("AstTypedVarNode", (("type_tag", "NODE", "", True), ), False, True),
@@ -292,7 +292,7 @@ glob SPECS: dict[int, tuple] = {
              (
                  ("doc", "NODE", "", True),
                  ("is_async", "BOOL", "", True),
-                 ("body", "NODE", "", False),
+                 ("body", "POLY", "", False),
                  ("access", "NODE", "", True),
                  ("decorators", "LIST", "", False),
                  ("codespace_dual", "BOOL", "", True),
@@ -859,7 +859,7 @@ glob SPECS: dict[int, tuple] = {
          ),
          124: (
              "SubTag",
-             (("tag", "NODE", "", False), ("ownership", "ENUM", "OwnershipKind", True)),
+             (("tag", "POLY", "", False), ("ownership", "ENUM", "OwnershipKind", True)),
              False,
              True
          ),

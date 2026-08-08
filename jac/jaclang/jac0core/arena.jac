@@ -1,3 +1,5 @@
+import from jaclang.jac0core.constant { EdgeDir, OwnershipKind }
+
 glob NIL: int = 0;
 
 glob TAG_NONE: int = 0,
@@ -74,6 +76,13 @@ obj SyntaxArena {
             self.args.append(0);
             return;
         }
+        if isinstance(ids, int) {
+            raise ValueError(
+                f"LIST arg got node id {ids} (kind {self.kinds[-1]
+                    if self.kinds
+                    else -1})"
+            );
+        }
         off = len(self.seqs);
         self.seqs.append(len(ids));
         for i in ids {
@@ -129,31 +138,52 @@ obj SyntaxArena {
     }
 
     def arg_at(i: int, slot: int) -> tuple[(int, int)] {
+        if slot >= self.arg_ns[i] {
+            raise ValueError(
+                f"arg slot {slot} out of range for node {i} "
+                f"(kind {self.kinds[i]}, {self.arg_ns[i]} args)"
+            );
+        }
         p = self.arg_los[i] + (slot * 2);
         return (self.args[p], self.args[p + 1]);
     }
 
     def arg_node(i: int, slot: int) -> int {
+        if slot >= self.arg_ns[i] {
+            return NIL;
+        }
         (tag, v) = self.arg_at(i, slot);
         return v if tag == TAG_NODE else NIL;
     }
 
     def arg_str(i: int, slot: int) -> (str | None) {
+        if slot >= self.arg_ns[i] {
+            return None;
+        }
         (tag, v) = self.arg_at(i, slot);
         return self.strtab[v] if tag == TAG_STR else None;
     }
 
     def arg_int(i: int, slot: int) -> int {
+        if slot >= self.arg_ns[i] {
+            return 0;
+        }
         (tag, v) = self.arg_at(i, slot);
         return v;
     }
 
     def arg_bool(i: int, slot: int) -> bool {
+        if slot >= self.arg_ns[i] {
+            return False;
+        }
         (tag, v) = self.arg_at(i, slot);
         return tag == TAG_BOOL and v != 0;
     }
 
     def arg_list(i: int, slot: int) -> (list[int] | None) {
+        if slot >= self.arg_ns[i] {
+            return None;
+        }
         (tag, v) = self.arg_at(i, slot);
         if tag != TAG_LIST {
             return None;
@@ -229,7 +259,7 @@ obj SyntaxArena {
 
     # >>> generated builder surface (jac gen-unitree) >>>
     def mk_ability(
-        body: int = NIL,
+        body: (int | list[int] | None) = None,
         is_async: bool = False,
         doc: int = NIL,
         access: int = NIL,
@@ -267,7 +297,7 @@ obj SyntaxArena {
     def mk_archetype(
         doc: int = NIL,
         is_async: bool = False,
-        body: int = NIL,
+        body: (int | list[int] | None) = None,
         access: int = NIL,
         decorators: (list[int] | None) = None,
         codespace_dual: bool = False,
@@ -312,7 +342,7 @@ obj SyntaxArena {
     ) -> int;
 
     def mk_ast_impl_needing_node(
-        body: int = NIL, kid: (list[int] | None) = None
+        body: (int | list[int] | None) = None, kid: (list[int] | None) = None
     ) -> int;
 
     def mk_ast_symbol_node(kid: (list[int] | None) = None) -> int;
@@ -466,7 +496,7 @@ obj SyntaxArena {
     def mk_enum(
         doc: int = NIL,
         is_async: bool = False,
-        body: int = NIL,
+        body: (int | list[int] | None) = None,
         access: int = NIL,
         decorators: (list[int] | None) = None,
         codespace_dual: bool = False,
@@ -935,7 +965,7 @@ obj SyntaxArena {
     ) -> int;
 
     def mk_sub_tag(
-        tag: int = NIL,
+        tag: (int | list[int] | None) = None,
         ownership: OwnershipKind = OwnershipKind.NONE,
         kid: (list[int] | None) = None
     ) -> int;

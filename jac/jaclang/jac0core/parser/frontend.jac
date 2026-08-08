@@ -2,6 +2,7 @@ import jaclang.jac0core.parser.lexer as na_lexer;
 
 import from .lexer { Lexer }
 import from .parser { Parser }
+import from jaclang.jac0core.arena_materialize { materialize_module }
 import from jaclang.jac0core.codeinfo { CodeLocInfo }
 import from jaclang.jac0core.diagnostics { DIAGNOSTICS }
 import from jaclang.jac0core.passes.transform { Alert }
@@ -110,13 +111,14 @@ def parse(
         _replay_diags(diags, Lexer, prog, diag_src);
     }
     parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
-    module = parser.parse();
+    parser.parse();
     if prog is not None and parser.diags {
         if diag_src is None {
             diag_src = Source(source, mod_path=file_path);
         }
         _replay_diags(parser.diags, Parser, prog, diag_src);
     }
+    module = materialize_module(parser.b, Source(source, mod_path=file_path));
 
     if module.source and comments {
         for cdata in comments {

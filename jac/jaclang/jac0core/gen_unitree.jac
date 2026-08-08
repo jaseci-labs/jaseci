@@ -152,7 +152,10 @@ def _classify(
         if seq_re.match(p) {
             return ("LIST", optional, "");
         }
-        if b in class_names or b in ("T", "UniNode", "NameAtom", "AtomExpr") {
+        if b == "T" {
+            return ("POLY", optional, "");
+        }
+        if b in class_names or b in ("UniNode", "NameAtom", "AtomExpr") {
             return ("NODE", optional, "");
         }
         return None;
@@ -275,6 +278,25 @@ def schema_module_src(schema: list[ClassSpec]) -> str {
     ];
     for spec in schema {
         lines.append(f"glob KIND_{spec.snake.upper()}: int = {spec.kind_id};");
+    }
+    lines.append("");
+    for fld in ("doc", "is_enum_stmt") {
+        entries: list[str] = [];
+        for spec in schema {
+            slot = 0;
+            for p in spec.params {
+                if p.cat == "SOURCE" {
+                    continue;
+                }
+                if p.name == fld {
+                    entries.append(f"{spec.kind_id}: {slot}");
+                    break;
+                }
+                slot += 1;
+            }
+        }
+        gname = "DOC_SLOTS" if fld == "doc" else "ENUM_STMT_SLOTS";
+        lines.append(f"glob {gname}: dict[int, int] = {{" + ", ".join(entries) + "};");
     }
     lines.append("");
     fams = _family_members(schema);
@@ -408,19 +430,6 @@ def builders_annex_src(schema: list[ClassSpec]) -> str {
         _HEADER,
 
     ];
-    lines.append("import from jaclang.jac0core.arena_schema {");
-    row = "    ";
-    for spec in schema {
-        nm = f"KIND_{spec.snake.upper()}";
-        if len(row) + len(nm) + 2 > 78 {
-            lines.append(row.rstrip());
-            row = "    ";
-        }
-        row += nm + ", ";
-    }
-    lines.append(row.rstrip().rstrip(","));
-    lines.append("}");
-    lines.append("import from jaclang.jac0core.constant { EdgeDir, OwnershipKind }");
     lines.append("");
     for spec in schema {
         argn = len(
@@ -436,9 +445,7 @@ def builders_annex_src(schema: list[ClassSpec]) -> str {
             "def SyntaxArena.", "impl SyntaxArena.", 1
         );
         lines.append(sig + " {");
-        lines.append(
-            f"    idx = self._start(KIND_{spec.snake.upper()}, kid or [], {argn});"
-        );
+        lines.append(f"    idx = self._start({spec.kind_id}, kid or [], {argn});");
         for p in spec.params {
             if p.cat == "SOURCE" {
                 continue;
