@@ -63,9 +63,7 @@ obj IdentityInputModel(ApiModel) {
         }
         type_value = require_str(data, 'type', 'identity.type');
         if type_value not in IDENTITY_TYPES {
-            raise ValueError(
-                "identity.type must be one of 'email' or 'username'"
-            );
+            raise ValueError("identity.type must be one of 'email' or 'username'");
         }
         value = require_str(data, 'value', 'identity.value');
         if type_value == 'email' and not EMAIL_PATTERN.match(value) {
@@ -86,9 +84,7 @@ obj CredentialInput(ApiModel) {
         type_value = require_str(data, 'type', 'credential.type');
         allowed = {member.value for member in CredentialType};
         if type_value not in allowed {
-            raise ValueError(
-                f"credential.type must be one of {sorted(allowed)}"
-            );
+            raise ValueError(f"credential.type must be one of {sorted(allowed)}");
         }
         password = require_str(data, 'password', 'credential.password');
         return CredentialInput(type=type_value, password=password);
@@ -112,9 +108,7 @@ obj RegisterRequest(ApiModel) {
             raise ValueError('credential is required');
         }
         return RegisterRequest(
-            identities=[
-                IdentityInputModel.from_dict(item) for item in raw_identities
-            ],
+            identities=[IdentityInputModel.from_dict(item) for item in raw_identities],
             credential=CredentialInput.from_dict(data.get('credential')),
             profile=validate_profile(data.get('profile'))
         );
@@ -149,9 +143,7 @@ obj FirebaseTokenRequest(ApiModel) {
         if not isinstance(data, dict) {
             raise ValueError('request body must be an object');
         }
-        return FirebaseTokenRequest(
-            id_token=require_str(data, 'id_token')
-        );
+        return FirebaseTokenRequest(id_token=require_str(data, 'id_token'));
     }
 }
 

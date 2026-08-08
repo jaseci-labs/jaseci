@@ -239,20 +239,13 @@ obj ServingApp {
             if body_name is not None {
                 try {
                     kwargs[body_name] = coerce_value(
-                        body_json if body_json is not None else {},
-                        ep.request_model
+                        body_json if body_json is not None else {}, ep.request_model
                     );
                 } except RequestValidationError {
                     raise;
                 } except Exception as e {
                     raise RequestValidationError(
-                        errors=[
-                            {
-                                'type': 'invalid',
-                                'loc': ['body'],
-                                'msg': str(e)
-                            }
-                        ]
+                        errors=[{'type': 'invalid', 'loc': ['body'], 'msg': str(e)}]
                     );
                 }
             }
@@ -278,15 +271,11 @@ obj ServingApp {
             return result;
         }
         if isinstance(result, TransportResponse) {
-            if inspect.isgenerator(result.data)
-                or inspect.isasyncgen(result.data) {
+            if inspect.isgenerator(result.data) or inspect.isasyncgen(result.data) {
                 return StreamingResponse(
                     content=sse_frame_stream(result.data),
                     media_type='text/event-stream',
-                    headers={
-                        'Cache-Control': 'no-cache',
-                        'X-Accel-Buffering': 'no'
-                    }
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
                 );
             }
             resp = transport_to_response(result);

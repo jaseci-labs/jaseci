@@ -312,9 +312,7 @@ def bind_parameters(ep: JEndPoint, request: Request, body_json: any) -> dict[str
     return kwargs;
 }
 
-def body_param_name(
-    callback: any, bound: dict[str, any]
-) -> (str | None) {
+def body_param_name(callback: any, bound: dict[str, any]) -> (str | None) {
     try {
         sig = inspect.signature(callback);
     } except (TypeError, ValueError) {
@@ -324,10 +322,11 @@ def body_param_name(
         if pname in ('self', 'request') or pname in bound {
             continue;
         }
-        if param.kind in (
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            inspect.Parameter.KEYWORD_ONLY
-        ) {
+        if param.kind
+            in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY
+            ) {
             return pname;
         }
     }

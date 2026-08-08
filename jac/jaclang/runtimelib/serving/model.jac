@@ -27,17 +27,13 @@ def _dump_value(value: any, exclude_none: bool) -> any {
         return [_dump_value(v, exclude_none) for v in value];
     }
     if isinstance(value, dict) {
-        return {
-            k: _dump_value(v, exclude_none) for (k, v) in value.items()
-        };
+        return {k: _dump_value(v, exclude_none) for (k, v) in value.items()};
     }
     return value;
 }
 
 obj ApiModel {
-    def model_dump(
-        mode: str = 'json', exclude_none: bool = False
-    ) -> dict[str, any] {
+    def model_dump(mode: str = 'json', exclude_none: bool = False) -> dict[str, any] {
         result: dict[str, any] = {};
         for f in fields(self) {
             value = _dump_value(getattr(self, f.name), exclude_none);

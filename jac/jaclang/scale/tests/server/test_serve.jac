@@ -13,7 +13,10 @@ import uuid;
 import shutil;
 import requests;
 import pytest;
-import jwt as pyjwt;
+import from jaclang.runtimelib.serving.authcrypt {
+    jwt_decode as _jwt_decode,
+    jwt_encode as _jwt_encode
+}
 import from datetime { UTC, datetime, timedelta }
 import from pathlib { Path }
 import from jaclang.scale.tests.scale_test_client {
@@ -149,7 +152,7 @@ def _create_expired_token(username: str, days_ago: int = 1) -> str {
         "exp": past_time + timedelta(hours=1),
         "iat": past_time
     };
-    return pyjwt.encode(payload, secret, algorithm=algorithm);
+    return _jwt_encode(payload, secret, algorithm=algorithm);
 }
 
 def _create_very_old_token(username: str, days_ago: int = 15) -> str {
@@ -162,7 +165,7 @@ def _create_very_old_token(username: str, days_ago: int = 15) -> str {
         "exp": past_time + timedelta(hours=1),
         "iat": past_time
     };
-    return pyjwt.encode(payload, secret, algorithm=algorithm);
+    return _jwt_encode(payload, secret, algorithm=algorithm);
 }
 
 glob sv_fixtures_dir: Path = Path(__file__).parent.parent / "fixtures",
@@ -569,8 +572,8 @@ test "token refresh functionality" {
         secret = "supersecretkey_for_testing_only!";
         algorithm = "HS256";
 
-        original_payload = pyjwt.decode(token, secret, algorithms=[algorithm]);
-        new_payload = pyjwt.decode(new_token, secret, algorithms=[algorithm]);
+        original_payload = _jwt_decode(token, secret, algorithms=[algorithm]);
+        new_payload = _jwt_decode(new_token, secret, algorithms=[algorithm]);
 
         assert original_payload["user_id"] == new_payload["user_id"];
         assert new_payload["sub"] == new_payload["user_id"];
@@ -583,11 +586,11 @@ test "token refresh functionality" {
             "exp": datetime.now(UTC) + timedelta(days=1),
             "iat": datetime.now(UTC)
         };
-        legacy_token = pyjwt.encode(legacy_payload, secret, algorithm=algorithm);
+        legacy_token = _jwt_encode(legacy_payload, secret, algorithm=algorithm);
         response = client.post("/user/refresh-token", json={"token": legacy_token});
         assert response.status_code == 200;
         refreshed = extract_data(response.json())["token"];
-        refreshed_payload = pyjwt.decode(refreshed, secret, algorithms=[algorithm]);
+        refreshed_payload = _jwt_decode(refreshed, secret, algorithms=[algorithm]);
         assert refreshed_payload["sub"] == user_id;
 
         api_key_payload = {
@@ -596,7 +599,7 @@ test "token refresh functionality" {
             "exp": datetime.now(UTC) + timedelta(days=1),
             "iat": datetime.now(UTC)
         };
-        api_key_token = pyjwt.encode(api_key_payload, secret, algorithm=algorithm);
+        api_key_token = _jwt_encode(api_key_payload, secret, algorithm=algorithm);
         response = client.post("/user/refresh-token", json={"token": api_key_token});
         assert response.status_code == 401;
     } finally {
@@ -1022,7 +1025,7 @@ test "walker calls" {
             "exp": now + timedelta(days=1),
             "iat": now
         };
-        fake_token = pyjwt.encode(payload, secret, algorithm="HS256");
+        fake_token = _jwt_encode(payload, secret, algorithm="HS256");
 
         response = client.post(
             "/walker/PrivateCreateTask",
@@ -1196,7 +1199,9 @@ test "websocket functionality" {
     try {
         async def test_echo {
             async with await aws_connect(f"{sv_ws_url}/ws/EchoMessage") as ws {
-                await ws.send_text(json.dumps({"message": "hello", "client_id": "test-1"}));
+                await ws.send_text(
+                    json.dumps({"message": "hello", "client_id": "test-1"})
+                );
                 response = json.loads(await ws.receive_text());
                 assert response["ok"] is True , f"Expected ok=True, got {response}";
                 data = response["data"];
@@ -2018,7 +2023,10 @@ test "health check filter is disabled by default" {
         get_scale_config,
         reset_scale_config
     }
-    import from jaclang.scale.server.native_server { ConsoleLogHandler, HealthCheckFilter }
+    import from jaclang.scale.server.native_server {
+        ConsoleLogHandler,
+        HealthCheckFilter
+    }
 
     reset_scale_config();
     cfg = get_scale_config();
@@ -2244,7 +2252,7 @@ test "jwt middleware: per-user isolation and token rejection" {
             tok_b
         )}";
 
-        forged = pyjwt.encode(
+        forged = _jwt_encode(
             {"username": "x", "exp": datetime.now(UTC) + timedelta(hours=1)},
             "wrong_key",
             algorithm="HS256"

@@ -25,9 +25,7 @@ obj GithubSSOProvider(OAuth2CodeProvider) {
             }
         );
         if not resp.ok() {
-            raise RuntimeError(
-                f"GitHub API {path} failed: HTTP {resp.status_code}"
-            );
+            raise RuntimeError(f"GitHub API {path} failed: HTTP {resp.status_code}");
         }
         return resp.json();
     }
@@ -48,9 +46,7 @@ obj GithubSSOProvider(OAuth2CodeProvider) {
                 }
                 if not email and emails {
                     first = emails[0];
-                    email = first.get('email')
-                        if isinstance(first, dict)
-                        else None;
+                    email = first.get('email') if isinstance(first, dict) else None;
                 }
             }
         }

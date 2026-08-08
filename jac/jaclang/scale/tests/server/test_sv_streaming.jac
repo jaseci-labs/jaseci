@@ -1,7 +1,10 @@
 import httpx;
 import json;
 import from jaclang.runtimelib { sv_client }
-import from jaclang.runtimelib.sv_sse { _parse_sse, consume_sse_stream }
+import from jaclang.runtimelib.serving.sse {
+    consume_sse_events as consume_sse_stream,
+    parse_sse as _parse_sse
+}
 import from jaclang.scale.plugin { JacScalePlugin }
 
 
@@ -100,7 +103,7 @@ test "consume_sse_stream yields parsed dicts and stops at event: end" {
     events_in = [{"type": "tool_use", "step": 1}, {"type": "agent_text", "text": "hi"}];
     resp = _FakeResp(body=_sse_body(events_in));
     got: list = [];
-    for ev in consume_sse_stream(resp, "test.func") {
+    for ev in consume_sse_stream(resp.iter_lines(), "test.func") {
         got.append(ev);
     }
     assert got == events_in;
@@ -110,7 +113,7 @@ test "consume_sse_stream raises RuntimeError on event: error" {
     resp = _FakeResp(body=_sse_body([], trailer="error"));
     raised_msg = "";
     try {
-        for _ in consume_sse_stream(resp, "test.func") {
+        for _ in consume_sse_stream(resp.iter_lines(), "test.func") {
             ;
         }
     } except RuntimeError as e {
@@ -134,7 +137,7 @@ test "consume_sse_stream skips malformed JSON payload, keeps streaming" {
     );
     resp = _FakeResp(body=body);
     got: list = [];
-    for ev in consume_sse_stream(resp, "test.func") {
+    for ev in consume_sse_stream(resp.iter_lines(), "test.func") {
         got.append(ev);
     }
     assert got == [{"valid": 1}, {"valid": 2}];

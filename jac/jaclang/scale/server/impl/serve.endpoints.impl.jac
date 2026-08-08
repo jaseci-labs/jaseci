@@ -125,7 +125,7 @@ impl JacAPIServerEndpoints.create_walker_callback(
             self.get_walkers()[walker_name], kwargs, (username or Con.GUEST.value)
         );
         if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
-            import from jaclang.scale.runtime.middleware.sse { sse_frame_stream }
+            import from jaclang.runtimelib.serving.sse { sse_frame_stream }
             return StreamingResponse(
                 sse_frame_stream(result),
                 media_type='text/event-stream',
@@ -272,7 +272,7 @@ impl JacAPIServerEndpoints.create_function_callback(
         );
 
         if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
-            import from jaclang.scale.runtime.middleware.sse { sse_frame_stream }
+            import from jaclang.runtimelib.serving.sse { sse_frame_stream }
             return StreamingResponse(
                 sse_frame_stream(result),
                 media_type='text/event-stream',

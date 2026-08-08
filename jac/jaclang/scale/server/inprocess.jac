@@ -35,9 +35,7 @@ def _register_endpoint_profile(server: any, profile: str) {
         server.register_walkers_endpoints();
         server.register_functions_endpoints();
     } elif profile == "test" {
-        import from jaclang.runtimelib.serving.openapi {
-            register_docs_endpoints
-        }
+        import from jaclang.runtimelib.serving.openapi { register_docs_endpoints }
         server.register_health_endpoint();
         server.register_auth_endpoints();
         server.register_graph_endpoint();

@@ -1,10 +1,7 @@
 import logging;
 import from jaclang.runtimelib.serving.app { ServingApp }
 import from jaclang.runtimelib.serving.endpoint { JEndPoint, WSEndPoint }
-import from jaclang.runtimelib.serving.server {
-    ACCESS_LOGGER_NAME,
-    ServingServer
-}
+import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME, ServingServer }
 
 
 glob logger: logging.Logger = logging.getLogger(__name__);
@@ -59,14 +56,10 @@ obj NativeJServer {
 
     def postinit {
         import from jaclang.jac0core.runtime { JacRuntime }
-        import from jaclang.scale.runtime.lifecycle.drain {
-            build_drain_middleware
-        }
+        import from jaclang.scale.runtime.lifecycle.drain { build_drain_middleware }
         server = self;
 
-        async def jwt_validation_middleware(
-            request: any, call_next: any
-        ) -> any {
+        async def jwt_validation_middleware(request: any, call_next: any) -> any {
             authorization = request.headers.get('Authorization');
             username: (str | None) = None;
             user_root_id: (str | None) = None;
@@ -77,9 +70,7 @@ obj NativeJServer {
                 if server.user_manager {
                     username = server.user_manager.validate_jwt_token(token);
                     if username {
-                        user_root_id = server.user_manager.get_root_id(
-                            username
-                        );
+                        user_root_id = server.user_manager.get_root_id(username);
                     }
                 }
             }
@@ -89,21 +80,15 @@ obj NativeJServer {
             return await next_fn(request);
         }
 
-        async def request_context_middleware(
-            request: any, call_next: any
-        ) -> any {
-            import from jaclang.scale.memory.context {
-                JScaleExecutionContext
-            }
+        async def request_context_middleware(request: any, call_next: any) -> any {
+            import from jaclang.scale.memory.context { JScaleExecutionContext }
             ctx = JScaleExecutionContext();
             req_token = JacRuntime.push_request_context(ctx);
             import from jaclang.scale.runtime.context.auth_ctx {
                 set_current_auth,
                 reset_current_auth
             }
-            auth_token = set_current_auth(
-                request.headers.get('Authorization')
-            );
+            auth_token = set_current_auth(request.headers.get('Authorization'));
             import from jaclang.scale.runtime.context.trace_ctx {
                 set_current_trace,
                 reset_current_trace,
@@ -120,9 +105,7 @@ obj NativeJServer {
                 end_span
             }
             if not tracing_installed() {
-                import from jaclang.scale.config.config_loader {
-                    get_scale_config
-                }
+                import from jaclang.scale.config.config_loader { get_scale_config }
                 _trc_cfg = get_scale_config().get_microservices_config().get(
                     "tracing", {}
                 );
@@ -138,10 +121,7 @@ obj NativeJServer {
                 f"{request.method} {request.url.path}",
                 trace_id,
                 request.headers.get("traceparent"),
-                {
-                    "http.method": request.method,
-                    "http.target": request.url.path
-                }
+                {"http.method": request.method, "http.target": request.url.path}
             );
             user_id = request.state?.user_root_id if request?.state else None;
             if user_id {
@@ -161,9 +141,7 @@ obj NativeJServer {
                     response.headers["X-Trace-Id"] = trace_id;
                 }
                 if trace_span is not None {
-                    trace_span.set_attribute(
-                        "http.status_code", response.status_code
-                    );
+                    trace_span.set_attribute("http.status_code", response.status_code);
                 }
                 return response;
             } finally {
@@ -178,16 +156,12 @@ obj NativeJServer {
                 try {
                     reset_current_auth(auth_token);
                 } except Exception as e {
-                    logger.warning(
-                        f"Failed to reset auth context: {e}", exc_info=True
-                    );
+                    logger.warning(f"Failed to reset auth context: {e}", exc_info=True);
                 }
                 try {
                     end_span(trace_span);
                 } except Exception as e {
-                    logger.warning(
-                        f"Failed to end trace span: {e}", exc_info=True
-                    );
+                    logger.warning(f"Failed to end trace span: {e}", exc_info=True);
                 }
                 try {
                     reset_current_trace(trace_token);
@@ -216,8 +190,8 @@ obj NativeJServer {
         self.app.add_ws_endpoint(WSEndPoint(path=path, handler=handler));
     }
 
-    def execute {}
-
+    def execute { }
+    def create_server { }
     def run_server(
         host: str = '0.0.0.0',
         port: int = 8000,
@@ -225,9 +199,7 @@ obj NativeJServer {
         on_ready: any = None
     ) {
         import from jaclang.scale.config.config_loader { get_scale_config }
-        import from jaclang.scale.runtime.lifecycle.drain {
-            install_signal_drain
-        }
+        import from jaclang.scale.runtime.lifecycle.drain { install_signal_drain }
         server_cfg = get_scale_config().get_server_config();
         configure_access_logging(
             suppress_health_checks=bool(

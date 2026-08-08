@@ -1,5 +1,3 @@
-
-
 impl EmbeddedGateway._service_prefixes -> list[str] {
     return [e.prefix for e in self.registry.entries.values()];
 }

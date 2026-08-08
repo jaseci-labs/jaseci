@@ -528,9 +528,7 @@ impl MicroserviceGateway.handle_openapi -> Response {
 impl MicroserviceGateway.handle_docs -> Response {
     import from jaclang.runtimelib.serving.openapi { swagger_ui_html }
     return HTMLResponse(
-        content=swagger_ui_html(
-            "/openapi.json", "Jac Microservice Gateway - API"
-        )
+        content=swagger_ui_html("/openapi.json", "Jac Microservice Gateway - API")
     );
 }
 
@@ -797,7 +795,6 @@ impl MicroserviceGateway.setup -> ServingApp {
             reset_current_trace(tok);
         }
     }
-
 
     import from jaclang.scale.runtime.middleware.middleware {
         Middleware,

@@ -298,8 +298,7 @@ async def aws_connect(
             ;
         }
         raise ClientConnectionError(
-            detail=f"websocket upgrade failed: {status} {reason}",
-            status_code=status
+            detail=f"websocket upgrade failed: {status} {reason}", status_code=status
         );
     }
     accept = resp_headers.get('Sec-WebSocket-Accept') or '';
@@ -376,8 +375,7 @@ def post_stream_aware_sync(
                 response.body = b''.join(collected);
                 if response.status_code >= 400 {
                     handshake.put(
-                        ('error',
-                         f"HTTP {response.status_code}: {response.text()}")
+                        ('error', f"HTTP {response.status_code}: {response.text()}")
                     );
                 } else {
                     handshake.put(('json', response.json()));
@@ -438,9 +436,7 @@ def post_stream_aware_sync(
                 return;
             }
             if event_name == 'error' {
-                raise RuntimeError(
-                    f"stream '{label}' raised: {payload_text}"
-                );
+                raise RuntimeError(f"stream '{label}' raised: {payload_text}");
             }
             try {
                 yield loads(payload_text);

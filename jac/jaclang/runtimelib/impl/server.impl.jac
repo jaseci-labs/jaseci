@@ -1683,12 +1683,8 @@ impl JacAPIServer.build_app -> ServingApp {
     ) -> ServingResponse {
         username = _auth_or_guest(request);
         try {
-            render_payload = server.introspector.render_page(
-                func_name, args, username
-            );
-            return HTMLResponse(
-                content=render_payload['html'], status_code=status
-            );
+            render_payload = server.introspector.render_page(func_name, args, username);
+            return HTMLResponse(content=render_payload['html'], status_code=status);
         } except ValueError as exc {
             return JSONResponse(content={'error': str(exc)}, status_code=404);
         } except RuntimeError as exc {
@@ -1708,8 +1704,7 @@ impl JacAPIServer.build_app -> ServingApp {
         if name.endswith('.css') {
             mime = 'text/css; charset=utf-8';
         } else {
-            mime = mimetypes.guess_type(name)[0]
-                or 'application/octet-stream';
+            mime = mimetypes.guess_type(name)[0] or 'application/octet-stream';
         }
         resp = ServingResponse(content=candidate.read_bytes(), media_type=mime);
         resp.headers.set('Cache-Control', 'public, max-age=3600');
@@ -1742,9 +1737,7 @@ impl JacAPIServer.build_app -> ServingApp {
     def _graph_page(request: Request) -> ServingResponse {
         try {
             import jaclang.scale as scale_mod;
-            template = Path(scale_mod.__file__).parent
-                / 'templates'
-                / 'graph.html';
+            template = Path(scale_mod.__file__).parent / 'templates' / 'graph.html';
             html_text = template.read_text(encoding='utf-8');
         } except (ImportError, OSError) as exc {
             return JSONResponse(
@@ -1779,17 +1772,12 @@ impl JacAPIServer.build_app -> ServingApp {
             edge_ids: set = set();
             nodes: list[dict] = [];
             edges: list[dict] = [];
-            collect_node_connections(
-                user_root, visited_nodes, connections, edge_ids
-            );
+            collect_node_connections(user_root, visited_nodes, connections, edge_ids);
             nodes.append({'id': Jac.object_ref(user_root), 'label': 'root'});
             for node_arch in visited_nodes {
                 if node_arch != user_root {
                     nodes.append(
-                        {
-                            'id': Jac.object_ref(node_arch),
-                            'label': repr(node_arch)
-                        }
+                        {'id': Jac.object_ref(node_arch), 'label': repr(node_arch)}
                     );
                 }
             }
@@ -1818,8 +1806,7 @@ impl JacAPIServer.build_app -> ServingApp {
             return JSONResponse(content={'error': str(exc)}, status_code=500);
         }
         resp = ServingResponse(
-            content=js_code,
-            media_type='application/javascript; charset=utf-8'
+            content=js_code, media_type='application/javascript; charset=utf-8'
         );
         resp.headers.set('Cache-Control', 'no-cache');
         return resp;
@@ -1900,9 +1887,7 @@ impl JacAPIServer.build_app -> ServingApp {
         server.introspector.load();
         if server.introspector.is_auth_required_for_function(name)
             and not _authenticate(request) {
-            return JSONResponse(
-                content={'error': 'Unauthorized'}, status_code=401
-            );
+            return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
         }
         return server.introspection_handler.get_function_info(name);
     }
@@ -1911,9 +1896,7 @@ impl JacAPIServer.build_app -> ServingApp {
         server.introspector.load();
         if server.introspector.is_auth_required_for_walker(name)
             and not _authenticate(request) {
-            return JSONResponse(
-                content={'error': 'Unauthorized'}, status_code=401
-            );
+            return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
         }
         return server.introspection_handler.get_walker_info(name);
     }
@@ -1932,9 +1915,7 @@ impl JacAPIServer.build_app -> ServingApp {
 
     def _protected(request: Request) -> any {
         if not _authenticate(request) {
-            return JSONResponse(
-                content={'error': 'Unauthorized'}, status_code=401
-            );
+            return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
         }
         return TransportResponse.success(
             data={'message': 'sucessful'}, meta=Meta(extra={'http_status': 200})
@@ -1944,9 +1925,7 @@ impl JacAPIServer.build_app -> ServingApp {
     def _register(request: Request) -> any {
         data = _read_data(request);
         if data is None {
-            return JSONResponse(
-                content={'error': 'Invalid JSON'}, status_code=400
-            );
+            return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
         try {
             register_req = RegisterRequest.from_dict(data);
@@ -1974,9 +1953,7 @@ impl JacAPIServer.build_app -> ServingApp {
     def _login(request: Request) -> any {
         data = _read_data(request);
         if data is None {
-            return JSONResponse(
-                content={'error': 'Invalid JSON'}, status_code=400
-            );
+            return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
         try {
             login_req = LoginRequest.from_dict(data);
@@ -1985,8 +1962,7 @@ impl JacAPIServer.build_app -> ServingApp {
         }
         if login_req.identity.type != IdentityType.USERNAME.value {
             return JSONResponse(
-                content={'error': "identity.type must be 'username'"},
-                status_code=400
+                content={'error': "identity.type must be 'username'"}, status_code=400
             );
         }
         return server.auth_handler.login(
@@ -1999,18 +1975,14 @@ impl JacAPIServer.build_app -> ServingApp {
         if server.introspector.is_auth_required_for_function(name) {
             username = _authenticate(request);
             if not username {
-                return JSONResponse(
-                    content={'error': 'Unauthorized'}, status_code=401
-                );
+                return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
             }
         } else {
             username = _auth_or_guest(request);
         }
         data = _read_data(request);
         if data is None {
-            return JSONResponse(
-                content={'error': 'Invalid JSON'}, status_code=400
-            );
+            return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
         return asyncio.run(
             server.execution_handler.call_function(name, data, username)
@@ -2022,18 +1994,14 @@ impl JacAPIServer.build_app -> ServingApp {
         if server.introspector.is_auth_required_for_walker(name) {
             username = _authenticate(request);
             if not username {
-                return JSONResponse(
-                    content={'error': 'Unauthorized'}, status_code=401
-                );
+                return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
             }
         } else {
             username = _auth_or_guest(request);
         }
         data = _read_data(request);
         if data is None {
-            return JSONResponse(
-                content={'error': 'Invalid JSON'}, status_code=400
-            );
+            return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
         fields = data | {'_jac_spawn_node': node_id};
         return asyncio.run(
@@ -2044,15 +2012,12 @@ impl JacAPIServer.build_app -> ServingApp {
     def _client_error(request: Request) -> any {
         data = _read_data(request);
         if data is None {
-            return JSONResponse(
-                content={'error': 'Invalid JSON'}, status_code=400
-            );
+            return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
         message = data.get('message', '');
         if not message {
             return JSONResponse(
-                content={'error': 'Missing required field: message'},
-                status_code=400
+                content={'error': 'Missing required field: message'}, status_code=400
             );
         }
         import from jaclang.runtimelib.source_mapping {
@@ -2092,9 +2057,7 @@ impl JacAPIServer.build_app -> ServingApp {
         }
         data = _read_data(request);
         if data is None {
-            return JSONResponse(
-                content={'error': 'Invalid JSON'}, status_code=400
-            );
+            return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
         return server.auth_handler.update_username(
             data.get('current_username', ''), data.get('new_username', ''), token
@@ -2110,9 +2073,7 @@ impl JacAPIServer.build_app -> ServingApp {
         }
         data = _read_data(request);
         if data is None {
-            return JSONResponse(
-                content={'error': 'Invalid JSON'}, status_code=400
-            );
+            return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
         return server.auth_handler.update_password(
             data.get('username', ''),
@@ -2159,12 +2120,7 @@ impl JacAPIServer.build_app -> ServingApp {
         params=[APIParameter(name='file_path', kind=ParameterType.PATH)]
     );
     _ep(HTTPMethod.GET, '/', _root_index);
-    _ep(
-        HTTPMethod.GET,
-        f"/{cl_route_prefix}/{{name}}",
-        _cl_page,
-        params=name_param
-    );
+    _ep(HTTPMethod.GET, f"/{cl_route_prefix}/{{name}}", _cl_page, params=name_param);
     _ep(HTTPMethod.GET, '/functions', _list_functions, in_schema=True);
     _ep(HTTPMethod.GET, '/walkers', _list_walkers, in_schema=True);
     _ep(
@@ -2411,7 +2367,6 @@ impl JacAPIServer.start(
         self.scheduler.stop();
     }
 }
-
 
 
 impl print_endpoint_docs(server: JacAPIServer) -> None {

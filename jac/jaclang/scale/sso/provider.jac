@@ -2,11 +2,7 @@ import json;
 import from base64 { urlsafe_b64decode }
 import from urllib.parse { urlencode }
 import from jaclang.runtimelib.serving.client { arequest }
-import from jaclang.runtimelib.serving.datatypes {
-    RedirectResponse,
-    Request,
-    Response
-}
+import from jaclang.runtimelib.serving.datatypes { RedirectResponse, Request, Response }
 
 obj SSOUserInfo {
     has email: str,
@@ -119,15 +115,12 @@ obj OAuth2CodeProvider(SSOProvider) {
         );
         if not resp.ok() {
             raise RuntimeError(
-                f"{self._label()} token exchange failed: "
-                f"HTTP {resp.status_code}"
+                f"{self._label()} token exchange failed: " f"HTTP {resp.status_code}"
             );
         }
         payload = resp.json();
         if not isinstance(payload, dict) {
-            raise RuntimeError(
-                f"{self._label()} token endpoint returned a non-object"
-            );
+            raise RuntimeError(f"{self._label()} token endpoint returned a non-object");
         }
         return payload;
     }

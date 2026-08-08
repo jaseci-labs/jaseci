@@ -5,15 +5,17 @@ glob TRIGGER_KINDS: set[str] = {'interval', 'cron', 'date'};
 
 
 def _validate_trigger_fields(data: dict, allowed: set[str]) {
-    extra = [k for k in data.keys() if k not in allowed];
+    extra = [
+        k
+        for k in data.keys()
+        if k not in allowed
+    ];
     if extra {
         raise ValueError(f"unexpected fields: {sorted(extra)}");
     }
     trigger = require_str(data, 'trigger');
     if trigger not in TRIGGER_KINDS {
-        raise ValueError(
-            "trigger must be one of 'interval', 'cron', or 'date'"
-        );
+        raise ValueError("trigger must be one of 'interval', 'cron', or 'date'");
     }
     interval = data.get('interval');
     if interval is not None {
@@ -43,8 +45,7 @@ obj CreateJobRequest(ApiModel) {
             raise ValueError('request body must be an object');
         }
         _validate_trigger_fields(
-            data,
-            {'walker_or_function', 'trigger', 'interval', 'cron', 'date'}
+            data, {'walker_or_function', 'trigger', 'interval', 'cron', 'date'}
         );
         return CreateJobRequest(
             walker_or_function=require_str(data, 'walker_or_function'),
@@ -68,9 +69,7 @@ obj UpdateJobRequest(ApiModel) {
         if not isinstance(data, dict) {
             raise ValueError('request body must be an object');
         }
-        _validate_trigger_fields(
-            data, {'trigger', 'interval', 'cron', 'date'}
-        );
+        _validate_trigger_fields(data, {'trigger', 'interval', 'cron', 'date'});
         return UpdateJobRequest(
             trigger=str(data.get('trigger')),
             interval=float(data['interval'])

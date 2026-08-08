@@ -9,7 +9,6 @@ import from .breaker {
 def service_call(module_name: str, func_name: str, args: dict) -> any {
     import time;
     import from jaclang.runtimelib { sv_client }
-    import from jaclang.runtimelib.sv_sse { consume_sse_stream }
     import from jaclang.scale.runtime.context.auth_ctx { get_current_auth }
     import from jaclang.scale.runtime.context.trace_ctx { get_current_trace }
 

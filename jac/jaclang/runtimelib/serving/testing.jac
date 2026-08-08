@@ -188,8 +188,7 @@ obj ServingTestClient {
             next_method = request.method;
             next_body = request.body;
             if response.status_code == 303
-                or (response.status_code in (301, 302)
-                    and next_method == 'POST') {
+                or (response.status_code in (301, 302) and next_method == 'POST') {
                 next_method = 'GET';
                 next_body = b'';
             }

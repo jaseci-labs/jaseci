@@ -17,7 +17,21 @@ def format_sse_event(data_text: str, event: (str | None) = None) -> bytes {
     return f"{prefix}{lines}\n".encode('utf-8');
 }
 
-async def sse_frame_stream(source: any) -> AsyncIterator[bytes] {
+def sse_frame_stream(source: any) -> AsyncIterator[bytes] {
+    if not (
+        inspect.isgenerator(source)
+        or inspect.isasyncgen(source)
+        or hasattr(source, '__aiter__')
+    ) {
+        raise TypeError(
+            "sse_frame_stream expects a generator or async generator, got "
+                + type(source).__name__
+        );
+    }
+    return _sse_frame_stream_inner(source);
+}
+
+async def _sse_frame_stream_inner(source: any) -> AsyncIterator[bytes] {
     try {
         if inspect.isasyncgen(source) or hasattr(source, '__aiter__') {
             async for item in source {

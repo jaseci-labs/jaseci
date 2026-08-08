@@ -37,9 +37,7 @@ impl WebhookUtils.create_api_key_token(
         payload['exp'] = current_time + timedelta(days=int(default_expiry));
     }
 
-    return jwt_encode(
-        payload, jwt_config['secret'], algorithm=jwt_config['algorithm']
-    );
+    return jwt_encode(payload, jwt_config['secret'], algorithm=jwt_config['algorithm']);
 }
 
 impl WebhookUtils.validate_api_key(api_key: str) -> dict[str, str] | None {

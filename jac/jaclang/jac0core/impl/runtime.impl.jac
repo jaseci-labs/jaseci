@@ -1270,45 +1270,28 @@ impl JacServe.sv_service_call(module_name: str, func_name: str, args: dict) -> a
         return _sp.sv_service_call(module_name, func_name, args);
     }
     import from jaclang.runtimelib { sv_client }
-
-    import from jaclang.runtimelib.sv_sse {
-        sv_http_post,
-        wrap_sse_keepalive,
-        wrap_sse_keepalive_conn
-    }
+    import from jaclang.runtimelib.serving.client { post_stream_aware_sync }
+    import from jaclang.runtimelib.serving.sse { consume_sse_events }
 
     func_label = f"{module_name}.{func_name}";
 
     if module_name in sv_client._test_clients {
         client = sv_client._test_clients[module_name];
-        stream_cm = client.stream("POST", f"/function/{func_name}", json=args);
-        resp = stream_cm.__enter__();
-        ct = resp.headers.get("content-type", "");
+        resp = client.post(f"/function/{func_name}", json=args);
+        ct = str(resp.headers.get("Content-Type") or "");
         if ct.startswith("text/event-stream") {
-            return wrap_sse_keepalive(stream_cm, resp, None, func_label);
+            return consume_sse_events(str(resp.text).splitlines(), func_label);
         }
-        try {
-            resp.read();
-            data = resp.json();
-        } finally {
-            stream_cm.__exit__(None, None, None);
-        }
+        data = resp.json();
     } else {
-        import json;
         url = sv_client.resolve_url(module_name);
-        (resp, conn) = sv_http_post(url, f"/function/{func_name}", args);
-        ct = resp.headers.get("Content-Type", "") or "";
-        if ct.startswith("text/event-stream") {
-            if conn.sock is not None {
-                conn.sock.settimeout(None);
-            }
-            return wrap_sse_keepalive_conn(resp, conn, func_label);
+        (kind, payload) = post_stream_aware_sync(
+            f"{url}/function/{func_name}", json_body=args, label=func_label
+        );
+        if kind == 'sse' {
+            return payload;
         }
-        try {
-            data = json.loads(resp.read().decode('utf-8'));
-        } finally {
-            conn.close();
-        }
+        data = payload;
     }
 
     if isinstance(data, dict) and data.get("ok") {
@@ -1334,7 +1317,7 @@ impl JacServe.sv_walker_call(
         return _sp.sv_walker_call(module_name, walker_name, args, stub_cls);
     }
     import from jaclang.runtimelib { sv_client }
-    import from jaclang.runtimelib.sv_sse { sv_http_post }
+    import from jaclang.runtimelib.serving.client { request_sync }
 
     label = f"{module_name}.{walker_name}";
 
@@ -1343,14 +1326,10 @@ impl JacServe.sv_walker_call(
         resp = client.post(f"/walker/{walker_name}", json=args);
         data = resp.json();
     } else {
-        import json;
         url = sv_client.resolve_url(module_name);
-        (resp, conn) = sv_http_post(url, f"/walker/{walker_name}", args);
-        try {
-            data = json.loads(resp.read().decode('utf-8'));
-        } finally {
-            conn.close();
-        }
+        data = request_sync(
+            'POST', f"{url}/walker/{walker_name}", json_body=args
+        ).json();
     }
 
     if isinstance(data, dict) and data.get("ok") {
@@ -1397,31 +1376,9 @@ impl JacServe.create_server(
             return _scaled;
         }
     }
-    import from http.server { ThreadingHTTPServer }
-    handler_class = jac_server.create_handler();
-    current_port = port;
-    for _ in range(max_retries) {
-        try {
-            server = ThreadingHTTPServer((host, current_port), handler_class);
-            if current_port != port {
-                import from jaclang.cli.console { console }
-                console.print(
-                    f"  Port {port} is in use, using port {current_port} instead",
-                    style="warning"
-                );
-                jac_server.port = current_port;
-            }
-            return server;
-        } except OSError as e {
-            if e.errno in (98, 10048) or "Address already in use" in str(e) {
-                current_port += 1;
-            } else {
-                raise;
-            }
-        }
-    }
-    raise OSError(
-        f"Could not find an available port after trying {port}-{current_port}"
+    raise RuntimeError(
+        "create_server is retired: JacAPIServer.start binds the Jac-native "
+        "serving core directly"
     );
 }
 

@@ -3,26 +3,26 @@ import from jaclang.project.config { find_project_root, get_config }
 
 
 glob DEFAULT_ASSET_EXTENSIONS: set[str] = {
-    '.png',
-    '.jpg',
-    '.jpeg',
-    '.gif',
-    '.webp',
-    '.svg',
-    '.ico',
-    '.woff',
-    '.woff2',
-    '.ttf',
-    '.otf',
-    '.eot',
-    '.mp4',
-    '.webm',
-    '.mp3',
-    '.wav',
-    '.css',
-    '.js',
-    '.json'
-};
+         '.png',
+         '.jpg',
+         '.jpeg',
+         '.gif',
+         '.webp',
+         '.svg',
+         '.ico',
+         '.woff',
+         '.woff2',
+         '.ttf',
+         '.otf',
+         '.eot',
+         '.mp4',
+         '.webm',
+         '.mp3',
+         '.wav',
+         '.css',
+         '.js',
+         '.json'
+     };
 
 
 def asset_extensions -> set[str] {
@@ -43,9 +43,7 @@ def resolve_static_base(base_path: str) -> Path {
     return base_path_dir;
 }
 
-def find_static_candidate(
-    base_path: str, relative_path: str
-) -> (Path | None) {
+def find_static_candidate(base_path: str, relative_path: str) -> (Path | None) {
     base = resolve_static_base(base_path);
     rel = relative_path.lstrip('/');
     file_name = Path(rel).name;
