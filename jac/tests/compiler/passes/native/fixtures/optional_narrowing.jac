@@ -8,11 +8,13 @@ payload) lower differently, so both are pinned here, along with the
 plain truthiness, `!= None`, an early `continue`, an early `raise`, and
 `isinstance` narrowing of a boxed union.
 
-The last four functions are the negative half. A rebind and a loop back-edge
-both re-widen the value, so the tag must still be read there; None must never
-be read as a payload. A redundant `is None` on an already-proven value must
-still compile to a tag read rather than comparing a bare payload against
-None, and truthiness of an already-proven container must stay `len > 0`.
+The functions from `redundant_guard` down are the negative half. A rebind and
+a loop back-edge both re-widen the value, so the tag must still be read there;
+None must never be read as a payload. A redundant `is None` on an
+already-proven value must still compile to a tag read rather than a comparison
+against the bare payload -- for a float payload that comparison becomes
+`fcmp une x, 0.0` and calls a non-zero float None. Truthiness of an
+already-proven container must stay `len > 0`.
 """
 
 def make(n: int) -> list[int] | None {
