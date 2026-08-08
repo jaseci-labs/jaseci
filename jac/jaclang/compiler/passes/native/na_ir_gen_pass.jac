@@ -676,7 +676,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
     def _codegen_method(arch_name: str, method: uni.Ability) -> None;
     def _demote_method_if_unlowerable(
-        full_name: str, func: ir.Function, err_mark: int, local_mark: int
+        full_name: str,
+        func: ir.Function,
+        err_mark: int,
+        local_mark: int,
+        keep_func: bool = False
     ) -> bool;
 
     def _codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None;

@@ -4,7 +4,8 @@ impl UniNode.postinit -> None {
     self.__sub_node_tab = None;
     self._in_mod_nodes = [];
     self._gen = None;
-    self.loc = CodeLocInfo(*self.resolve_tok_range());
+    (first_tok, last_tok) = self.resolve_tok_range();
+    self.loc = CodeLocInfo(first_tok, last_tok);
 }
 
 
@@ -2619,7 +2620,8 @@ impl CommentToken.init(
         pos_end=pos_end
     );
     self.kid = [x.set_parent(self) for x in kid];
-    self.loc = CodeLocInfo(*self.resolve_tok_range());
+    (first_tok, last_tok) = self.resolve_tok_range();
+    self.loc = CodeLocInfo(first_tok, last_tok);
 }
 
 impl Source.init(source: str, mod_path: str) -> None {

@@ -404,6 +404,9 @@ impl NaIRGenPass._export_native_layout -> None {
     }
 
     for (mname, func) in self.method_funcs.items() {
+        if mname in self._native_skipped_methods {
+            continue;
+        }
         param_types = [self._llvm_type_str(a) for a in func.function_type.args];
         param_names = [a.name for a in func.args];
         ret_type = self._llvm_type_str(func.function_type.return_type);

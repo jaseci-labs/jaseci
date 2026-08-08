@@ -553,8 +553,8 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
         }
     }
 
-    _isolate = method_name not in ("init", "__init__", "postinit", "__post_init__")
-        and method_name not in self.vtable_method_indices.get(arch_name, {});
+    _isolate = method_name not in ("init", "__init__", "postinit", "__post_init__");
+    _is_virtual = method_name in self.vtable_method_indices.get(arch_name, {});
     _err_mark = len(self.prog.errors_had) if _isolate else 0;
     _local_mark = len(self.errors_had) if _isolate else 0;
 
@@ -611,12 +611,18 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.closure_cell_handles = saved_cell_handles;
 
     if _isolate {
-        self._demote_method_if_unlowerable(full_name, func, _err_mark, _local_mark);
+        self._demote_method_if_unlowerable(
+            full_name, func, _err_mark, _local_mark, keep_func=_is_virtual
+        );
     }
 }
 
 impl NaIRGenPass._demote_method_if_unlowerable(
-    full_name: str, func: ir.Function, err_mark: int, local_mark: int
+    full_name: str,
+    func: ir.Function,
+    err_mark: int,
+    local_mark: int,
+    keep_func: bool = False
 ) -> bool {
     if len(self.prog.errors_had) <= err_mark {
         return False;
@@ -657,7 +663,9 @@ impl NaIRGenPass._demote_method_if_unlowerable(
     self._get_or_declare_extern("abort", ir.VoidType(), []);
     b.call(self.extern_funcs["abort"], []);
     b.unreachable();
-    self.method_funcs.pop(full_name, None);
+    if not keep_func {
+        self.method_funcs.pop(full_name, None);
+    }
     self.func_symtab.pop(full_name, None);
     self._native_skipped_methods.add(full_name);
     return True;
@@ -1388,12 +1396,7 @@ impl NaIRGenPass._codegen_instantiation(
     for (fname, idx) in field_indices.items() {
         if fname not in set_fields {
             ftype = field_types[fname];
-            if isinstance(ftype, ir.PointerType)
-                or fname in self.struct_field_inline.get(type_name, set()) {
-                zero_val = ir.Constant(ftype, None);
-            } else {
-                zero_val = ir.Constant(ftype, 0);
-            }
+            zero_val = ir.Constant(ftype, None);
             field_ptr = self.builder.gep(
                 obj_ptr,
                 [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
