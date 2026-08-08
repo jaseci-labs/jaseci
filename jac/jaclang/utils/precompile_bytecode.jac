@@ -554,10 +554,12 @@ def seal_native_artifacts(
             for _err in prog.errors_had {
                 console.error(f"NATIVE SEAL: {_err.pretty_print()}");
             }
+            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         if ir is None or ir.gen.llvm_ir is None or ir.gen.native_layout is None {
             console.error(f"NATIVE SEAL: no native IR/layout for {rel}");
+            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         manifest = ir.gen.interop_manifest;
@@ -566,6 +568,7 @@ def seal_native_artifacts(
                 f"NATIVE SEAL: {rel} has Python-side imports; artifact would "
                 "need in-process callbacks and cannot be sealed AOT."
             );
+            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         (demotion_error, waived, stale_waivers) = seal_demotion_report(
