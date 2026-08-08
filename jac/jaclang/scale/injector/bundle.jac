@@ -348,9 +348,6 @@ def seal_timeout_setting(project_dir: str) -> int {
 
 
 def _pod_wheel_platform(pod_arch: str) -> str {
-    # Pods run debian-based images, so vendored wheels must be manylinux for
-    # the node arch; 2_36 is the glibc floor of the oldest supported base
-    # (python:3.12-slim bookworm), and pip expands it to all older tags.
     if not pod_arch {
         return "";
     }

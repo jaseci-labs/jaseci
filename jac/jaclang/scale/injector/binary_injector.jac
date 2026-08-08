@@ -43,9 +43,6 @@ obj BinaryInjector(PvcInjector) {
     }
 
     def _resolve_seal_binary(pod_payload: bytes, pod_arch: str, version: str) -> bytes {
-        # The seal subprocess runs on the deploy host, so it needs a binary
-        # for the host platform; the pod binary is reused only when the host
-        # is the same linux/arch the pods run (#7451).
         if self.channel == Channel.LOCAL {
             return pod_payload;
         }
