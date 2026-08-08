@@ -54,6 +54,7 @@ import from jaclang.jac0core.diagnostics {
     E1040,
     E1041,
     E1043,
+    E1044,
     E1050,
     E1051,
     E1052,
@@ -83,6 +84,7 @@ import from jaclang.jac0core.diagnostics {
     E1110,
     E1111,
     E1120,
+    E1121,
     E0049,
     W1050,
     W1051,
@@ -126,12 +128,6 @@ obj PrefetchedTypes {
         set_class: types.ClassType | None = None;
 }
 
-obj SymbolResolutionStackEntry {
-    has symbol: uni.Symbol,
-        is_result_valid: bool = True,
-        partial_type: TypeBase | None = None;
-}
-
 obj MatchArgsToParamsResult {
     has arg_params: dict[(uni.Expr | uni.KWPair, types.Parameter | None)],
         overload: types.FunctionType | None = None,
@@ -170,6 +166,8 @@ obj ConditionInfo {
         attr_name: str | None = None;
 }
 
+glob _stub_module_memo: dict[str, tuple[float, uni.Module]] = {};
+
 obj TypeEvaluator {
     has program: "JacProgram",
         _BUILTINS_STUB_FILE_PATH: str postinit,
@@ -185,7 +183,7 @@ obj TypeEvaluator {
         _TYPING_AMBIENT_STUB_FILE_PATH: str postinit,
         ambient_typing_names_by_module: dict[str, set[str]] = {},
         _ENUM_STUB_FILE_PATH: str postinit,
-        symbol_resolution_stack: list[SymbolResolutionStackEntry] = [],
+        symbol_resolution_stack: list[uni.Symbol] = [],
         prefetch: PrefetchedTypes postinit,
         _pass: object | None = None,
         builtins_module: uni.Module | None = None,
@@ -194,7 +192,6 @@ obj TypeEvaluator {
         _flow_pending_keys: set[str] postinit,
         _module_type_cache: dict[str, types.ModuleType] = {},
         _modules_in_compile: set[str] postinit,
-        _cyclic_resolution_depth: int = 0,
         _mobui_module_cache: dict[str, bool] = {},
         _compose_module_cache: dict[str, bool] = {},
         _compose_global_names: set[str] = {},
@@ -202,6 +199,7 @@ obj TypeEvaluator {
         _strict_site_cache: dict[int, bool] = {},
         _sv_async_syms_cache: dict[int, set[int]] = {},
         _and_narrowing_overrides: dict[int, TypeBase] = {},
+        _loop_written_keys_cache: dict[int, set[str]] = {},
         _ts_decl_cache: dict[str, (dict[str, TsDecl] | None)] = {},
         _ts_decl_path_cache: dict[str, (str | None)] = {},
         _ts_synth_class_cache: dict[int, (dict[str, types.ClassType] | None)] = {},
@@ -223,7 +221,7 @@ obj TypeEvaluator {
     def _invalidate_expr_type_cache(node_: uni.UniNode) -> None;
     def get_index_of_symbol_resolution(symbol: uni.Symbol) -> int | None;
     def push_symbol_resolution(symbol: uni.Symbol) -> bool;
-    def pop_symbol_resolution(symbol: uni.Symbol) -> bool;
+    def pop_symbol_resolution(symbol: uni.Symbol) -> None;
     def get_type_of_symbol(symbol: uni.Symbol) -> TypeBase;
     def resolve_to_definition_symbol(symbol: uni.Symbol) -> uni.Symbol;
     def _widen_literal_for_declaration(ty: TypeBase) -> TypeBase;
@@ -329,6 +327,10 @@ obj TypeEvaluator {
     def is_explicit_any(ty: TypeBase) -> bool;
     def is_none_type(ty: TypeBase) -> bool;
     def _is_strict_site(nd: uni.UniNode) -> bool;
+    def _diag_unnarrowed_optional(
+        nd: uni.UniNode, ty: TypeBase, required: str
+    ) -> bool;
+
     def _in_native_context -> bool;
     def is_typevar_class(ty: TypeBase) -> bool;
     def is_paramspec_class(ty: TypeBase) -> bool;
@@ -603,6 +605,10 @@ obj TypeEvaluator {
     def _get_type_from_flow_node(
         target: NarrowingTarget, flow_node: uni.UniCFGNode, visited: set
     ) -> TypeBase | None;
+
+    def _loop_body_writes_target(
+        loop_node: uni.UniCFGNode, target: NarrowingTarget
+    ) -> bool;
 
     def _classify_edge(pred: uni.IfStmt, succ: uni.UniCFGNode) -> str;
     def _find_predicate_for(

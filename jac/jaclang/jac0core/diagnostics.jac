@@ -371,6 +371,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="Add the key to the TypedDict definition, or index with a key "
          "declared on the type."
      ),
+     E1044 = _err(
+         "E1044",
+         Category.TYPE,
+         "Cast target is not a type: \"{type}\"",
+         help="The right-hand side of 'as' must be a type expression, e.g. "
+         "'int', 'list[int]', or 'int | None'."
+     ),
      E1050 = _err(
          "E1050",
          Category.TYPE,
@@ -591,6 +598,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " every external import must be typed. Install a package that ships"
          " TypeScript declarations (or the matching @types/<package>), or relax"
          " the setting to \"warn\"."
+     ),
+     E1121 = _err(
+         "E1121",
+         Category.TYPE,
+         "Possibly-None value of type \"{type}\" used where {required} is required",
+         help="Native code requires optionals to be narrowed before use at a"
+         " site that needs the unwrapped value. Guard the value first, e.g."
+         " `if x is not None { ... }`. Equality (`==`, `!=`) and `is None`"
+         " checks operate on the optional directly and need no narrowing."
      ),
      E1301 = _err(
          "E1301",
@@ -1337,6 +1353,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Could not generate JavaScript for builtin '{name}': {error}"
      ),
+     E5017 = _err(
+         "E5017",
+         Category.CODEGEN,
+         "{construct} is not supported by client codegen",
+         help="This statement has no ECMAScript lowering yet, and without this error it would be silently dropped from the client bundle. Rewrite it using supported constructs, or move the logic to a server or native codespace.",
+         blocks_codegen=True
+     ),
+     E5018 = _err(
+         "E5018",
+         Category.CODEGEN,
+         "match pattern {construct} is not supported by client codegen",
+         help="This pattern shape has no ECMAScript lowering yet (e.g. a binding inside an or-pattern, a mapping rest-capture, or a class pattern whose field order cannot be resolved). Restructure the pattern or move the match to a server or native codespace.",
+         blocks_codegen=True
+     ),
      W5013 = _warn(
          "W5013",
          Category.CODEGEN,
@@ -1377,6 +1407,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Symbol collision during native link: '{symbol}' is defined in both "
          "'{existing_module}' and '{new_module}'. "
          "Mark one as :priv or rename to avoid a runtime crash."
+     ),
+     E5027 = _err(
+         "E5027",
+         Category.CODEGEN,
+         "Native module '{path}' was built with different compile options "
+         "(cached fingerprint {cached_fp}, current build {current_fp}); "
+         "refusing a mixed-options link.",
+         help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac nacompile --scrub`."
      ),
      E5030 = _err(
          "E5030",
@@ -1430,6 +1468,18 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Native lowering failed for {kind} '{name}'",
          help="The construct is within the native capability set, but this specific shape (its types, values, or runtime bindings) could not be lowered by NaIRGenPass. Adjust the shape, add type annotations, or move the code to a non-native context. Statically-known unsupported constructs are reported as E5090 by the capability check instead."
      ),
+     E5096 = _err(
+         "E5096",
+         Category.CODEGEN,
+         "Client pathway does not yet support {kind}",
+         help="This Jac construct is supported on the server/Python pathway but has no ES lowering yet; previously it was dropped silently from the client bundle, which produced wrong behavior at runtime. Move the element to a server context (or restructure without the construct)."
+     ),
+     E5097 = _err(
+         "E5097",
+         Category.CODEGEN,
+         "Client pathway failed to lower {kind} in an expression position",
+         help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the client bundle and only misbehave at runtime in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
+     ),
      E5094 = _err(
          "E5094",
          Category.CODEGEN,
@@ -1440,6 +1490,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "construction. Move anything else to a list comprehension over "
          "the query result, where its object-space cost is visible.",
          blocks_codegen=True
+     ),
+     E5095 = _err(
+         "E5095",
+         Category.CODEGEN,
+         "Invalid call to reserved intrinsic '{name}': {reason}",
+         help="Double-underscore names in the compiler's intrinsic registry are reserved: every call lowers to the registered intrinsic, whose signature is fixed by the registry. Match the registered arity and operand types; an invalid intrinsic call never falls back to a user definition or a default value."
      ),
      E5093 = _err(
          "E5093",
@@ -1470,6 +1526,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client framework 'compose' is the Android (Jetpack Compose) surface and cannot be lowered through the web/ES client",
          help="Compose codegen only runs under the Android target. To build for the web, remove `[client] framework = \"compose\"` (or the --client-framework compose override); to build the Compose app, use `jac start --client android`."
+     ),
+     E5085 = _err(
+         "E5085",
+         Category.CODEGEN,
+         "Internal client codegen error: declaration(s) for {names} hoisted into scope '{scope}' were never emitted",
+         help="Client codegen queued a `let` for these variables in the scope that owns their symbols, but the scope's body was built without draining the queue, so the declarations would be silently dropped and their assignments would emit bare -- a strict-mode ReferenceError at runtime. Every body builder for a scope must drain pending hoists (see _prepend_hoisted / _build_block_statement) before the scope is popped. Please report this as a jac compiler bug."
      ),
      E5084 = _err(
          "E5084",
@@ -1518,6 +1580,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client code uses server-placed function '{name}' as a value — function values cannot cross the placement boundary",
          help="A function reference that flows into client-side data (stored, returned, or passed along) needs client presence; only calls to def:pub endpoints bridge over RPC. Drop ':pub' so the function is pulled client-side, or restructure so the client stores data instead of the function."
+     ),
+     W6008 = _warn(
+         "W6008",
+         Category.CODEGEN,
+         "Definition of '{name}' collides with the reserved native intrinsic of the same name",
+         help="'{name}' is in the compiler's intrinsic registry, so native code always lowers calls to the registered intrinsic — this definition is never called from a native context. It stays callable as an ordinary function from non-native (Python/JS) contexts; rename it if that shadowing is not intended."
      ),
      E9001 = _err("E9001", Category.ICE, "ICE: Pass {pass_name} -- {details}"),
      E9002 = _err(

@@ -20,6 +20,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         'database': {
             'type': None,
             'mongodb_uri': None,
+            'mongodb_timeout_ms': DEFAULT_MONGODB_TIMEOUT_MS,
             'redis_url': None,
             'project_id': None,
             'shelf_db_path': '.jac/data/anchor_store.db',
@@ -205,12 +206,39 @@ impl JacScaleConfig.get_sso_config(self: JacScaleConfig) -> dict[str, any] {
     };
 }
 
+def _mongodb_timeout_ms(configured: any) -> int {
+    import logging;
+    raw = os.environ.get('MONGODB_TIMEOUT_MS');
+    source = 'MONGODB_TIMEOUT_MS' if raw else 'jac.toml mongodb_timeout_ms';
+    value = raw or configured;
+    try {
+        parsed = int(value);
+    } except (TypeError, ValueError) {
+        parsed = 0;
+    }
+    if parsed > 0 {
+        return parsed;
+    }
+    fallback = DEFAULT_MONGODB_TIMEOUT_MS;
+    if raw or configured != fallback {
+        logging.getLogger(__name__).warning(
+            f"ignoring invalid {source}={value!r}; "
+            f"expected a positive integer, using {fallback}ms instead."
+        );
+    }
+    return fallback;
+}
+
+
 impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     db_config = config.get('database', {});
     return {
         'type': db_config.get('type'),
         'mongodb_uri': os.environ.get('MONGODB_URI') or db_config.get('mongodb_uri'),
+        'mongodb_timeout_ms': _mongodb_timeout_ms(
+            db_config.get('mongodb_timeout_ms', DEFAULT_MONGODB_TIMEOUT_MS)
+        ),
         'redis_url': os.environ.get('REDIS_URL') or db_config.get('redis_url'),
         'project_id': resolve_firebase_project_id(
             FIRESTORE_PROJECT_ID_ENV, db_config.get('project_id')
@@ -539,6 +567,16 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
 impl normalize_microservices_config(
     ms_config: dict[str, any], env_routes_fallback: bool = True
 ) -> dict[str, any] {
+    if 'enabled' in ms_config and not _ms_enabled_deprecation_warned {
+        _ms_enabled_deprecation_warned = True;
+        import logging;
+        logging.getLogger(__name__).warning(
+            "jac.toml [scale.microservices] `enabled` is deprecated: declaring "
+            "[scale.microservices.routes] is what turns microservice mode on, "
+            "and a deployed fleet pod ignores this key. Delete it (remove the "
+            "routes table to run single-process); a future release drops it."
+        );
+    }
     client_config = ms_config.get('client', {});
     cors_config = ms_config.get('cors', {});
     rl_config = ms_config.get('rate_limit', {});
