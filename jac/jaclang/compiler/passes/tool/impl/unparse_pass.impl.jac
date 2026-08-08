@@ -927,10 +927,14 @@ impl UnparsePass.exit_yield_expr(nd: uni.YieldExpr) -> None {
 impl UnparsePass.exit_func_call(nd: uni.FuncCall) -> None {
     is_gencompr = len(nd.params) == 1 and isinstance(nd.params[0], uni.GenCompr);
     params_str = self._comma_sep(nd.params);
+    target_jac = nd.target.gen.jac;
+    if isinstance(nd.target, uni.LambdaExpr) {
+        target_jac = "(" + target_jac + ")";
+    }
     if is_gencompr {
-        result = nd.target.gen.jac + params_str;
+        result = target_jac + params_str;
     } else {
-        result = nd.target.gen.jac + "(" + params_str;
+        result = target_jac + "(" + params_str;
         if nd.genai_call {
             result = result + " by " + nd.genai_call.gen.jac;
         }

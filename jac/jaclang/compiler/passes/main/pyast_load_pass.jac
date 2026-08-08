@@ -5,6 +5,7 @@ import from collections.abc { Sequence }
 import from threading { Event }
 import from typing { TypeAlias, TypeVar, cast }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.unitree { _decode_str_escapes }
 import from jaclang.jac0core.constant { Tokens as Tok, RESERVED_IDENT_NAMES }
 import from jaclang.jac0core.diagnostics { E5041, E5042 }
 import from jaclang.jac0core.passes.transform { Transform }
@@ -27,6 +28,15 @@ obj PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]) {
     def postinit -> None;
     def _get_source_segment(nd: py_ast.AST) -> (str | None);
     def _strip_string_continuations(seg: str) -> str;
+    def _fstring_constant_content(nd: py_ast.Constant, is_raw: bool) -> str;
+    def _fstring_semantic_interior(segment: str) -> str;
+    def _numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr;
+    def _float_from_literal(expr: uni.Expr) -> (float | None);
+    def _complex_from_func_call(expr: uni.Expr) -> ((float, float) | None);
+    def _emit_complex_call(nd: py_ast.AST, re: float, im: float) -> uni.FuncCall;
+    def _try_fold_complex_binop(
+        left: uni.Expr, op: uni.Token, right: uni.Expr, nd: py_ast.BinOp
+    ) -> (uni.FuncCall | None);
     def nu(nd: T) -> T;
     def name_node(
         nd: py_ast.AST,
@@ -66,13 +76,13 @@ obj PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]) {
     def proc_assert(nd: py_ast.Assert) -> uni.AssertStmt;
     def proc_attribute(nd: py_ast.Attribute) -> uni.AtomTrailer;
     def proc_await(nd: py_ast.Await) -> uni.AwaitExpr;
-    def proc_bin_op(nd: py_ast.BinOp) -> (uni.AtomUnit | uni.BinaryExpr);
+    def proc_bin_op(nd: py_ast.BinOp) -> (uni.AtomUnit | uni.BinaryExpr | uni.FuncCall);
     def proc_unary_op(nd: py_ast.UnaryOp) -> uni.UnaryExpr;
     def proc_bool_op(nd: py_ast.BoolOp) -> uni.AtomUnit;
     def proc_break(nd: py_ast.Break) -> uni.CtrlStmt;
     def proc_call(nd: py_ast.Call) -> uni.FuncCall;
     def proc_compare(nd: py_ast.Compare) -> uni.AtomUnit;
-    def proc_constant(nd: py_ast.Constant) -> uni.Literal;
+    def proc_constant(nd: py_ast.Constant) -> uni.Expr;
     def proc_continue(nd: py_ast.Continue) -> uni.CtrlStmt;
     def proc_dict(nd: py_ast.Dict) -> uni.DictVal;
     def proc_dict_comp(nd: py_ast.DictComp) -> uni.DictCompr;

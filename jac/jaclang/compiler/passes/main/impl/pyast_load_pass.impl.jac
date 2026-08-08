@@ -894,15 +894,15 @@ impl PyastBuildPass.proc_joined_str(nd: py_ast.JoinedStr) -> uni.MultiString {
         ast_seg = 'f""';
     }
     fstr_match = re.match('(?i)(fr|rf|f)(\'{3}|\\"{3}|\'|\\")', ast_seg);
+    is_raw = False;
+    if fstr_match {
+        is_raw = 'r' in fstr_match.group(1).lower();
+    }
 
     valid: list[(uni.String | uni.FormattedValue)] = [];
     for i in nd.values {
         if (isinstance(i, py_ast.Constant) and isinstance(i.value, str)) {
-            escaped_value = self._get_source_segment(i);
-            if escaped_value is None {
-                raw_repr = repr(i.value);
-                escaped_value = raw_repr[1:-1];
-            }
+            escaped_value = self._fstring_constant_content(i, is_raw);
 
             valid.append(
                 uni.String(
@@ -1249,7 +1249,7 @@ impl PyastBuildPass.proc_continue(nd: py_ast.Continue) -> uni.CtrlStmt {
     return uni.CtrlStmt(ctrl=continue_tok, kid=[continue_tok]);
 }
 
-impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> uni.Literal {
+impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> uni.Expr {
     type_mapping = {
         int: uni.Int,
         float: uni.Float,
@@ -1259,7 +1259,9 @@ impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> uni.Literal {
         type(None): uni.Null
     };
     value_type = type(nd.value);
-    if (value_type in type_mapping) {
+    if (value_type is complex) {
+        return self._emit_complex_call(nd, nd.value.real, nd.value.imag);
+    } elif (value_type in type_mapping) {
         if (value_type is None) {
             token_type = 'NULL';
         } elif (value_type is str) {
@@ -1407,7 +1409,9 @@ impl PyastBuildPass.proc_unary_op(nd: py_ast.UnaryOp) -> uni.UnaryExpr {
     }
 }
 
-impl PyastBuildPass.proc_bin_op(nd: py_ast.BinOp) -> (uni.AtomUnit | uni.BinaryExpr) {
+impl PyastBuildPass.proc_bin_op(
+    nd: py_ast.BinOp
+) -> (uni.AtomUnit | uni.BinaryExpr | uni.FuncCall) {
     left = self.convert(nd.left);
     op = self.convert(nd.op);
     right = self.convert(nd.right);
@@ -1416,6 +1420,10 @@ impl PyastBuildPass.proc_bin_op(nd: py_ast.BinOp) -> (uni.AtomUnit | uni.BinaryE
         and isinstance(op, uni.Token)
         and isinstance(right, uni.Expr)
     ) {
+        folded = self._try_fold_complex_binop(left, op, right, nd);
+        if folded is not None {
+            return folded;
+        }
         unwrapped_left = left;
         if (
             isinstance(left, uni.AtomUnit)
@@ -2184,6 +2192,134 @@ impl PyastBuildPass._get_source_segment(nd: py_ast.AST) -> (str | None) {
     middle = lines[lineno + 1:end_lineno];
     result_lines = [first] + middle + [last];
     return ''.join(result_lines);
+}
+
+impl PyastBuildPass._fstring_semantic_interior(segment: str) -> str {
+    return segment.replace('{{', '{').replace('}}', '}');
+}
+
+impl PyastBuildPass._fstring_constant_content(
+    nd: py_ast.Constant, is_raw: bool
+) -> str {
+    # FString interior String.value always stores semantic content: literal
+    # characters with Python escape sequences, never source-doubled braces.
+    # Unparse doubles braces when the parent is FString; lit_value decodes
+    # escapes from value. Trust a source segment only when it decodes to
+    # nd.value, then strip doubled braces; otherwise derive from value.
+    if is_raw {
+        segment = self._get_source_segment(nd);
+        if segment is not None and segment == nd.value {
+            return segment;
+        }
+        return nd.value;
+    }
+    segment = self._get_source_segment(nd);
+    if segment is not None and _decode_str_escapes(segment) == nd.value {
+        return self._fstring_semantic_interior(segment);
+    }
+    return repr(nd.value)[1:-1];
+}
+
+impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
+    if n == int(n) {
+        return uni.Int(
+            orig_src=self.orig_src,
+            name='INT',
+            value=str(int(n)),
+            line=nd.lineno,
+            end_line=nd.end_lineno or nd.lineno,
+            col_start=nd.col_offset,
+            col_end=nd.col_offset,
+            pos_start=0,
+            pos_end=0
+        );
+    }
+    return uni.Float(
+        orig_src=self.orig_src,
+        name='FLOAT',
+        value=str(n),
+        line=nd.lineno,
+        end_line=nd.end_lineno or nd.lineno,
+        col_start=nd.col_offset,
+        col_end=nd.col_offset,
+        pos_start=0,
+        pos_end=0
+    );
+}
+
+impl PyastBuildPass._float_from_literal(expr: uni.Expr) -> (float | None) {
+    if isinstance(expr, uni.Int) {
+        return float(expr.lit_value);
+    }
+    if isinstance(expr, uni.Float) {
+        return float(expr.value);
+    }
+    if (
+        isinstance(expr, uni.UnaryExpr)
+        and isinstance(expr.op, uni.Token)
+        and isinstance(expr.operand, uni.Expr)
+    ) {
+        val = self._float_from_literal(expr.operand);
+        if val is not None {
+            if (expr.op.value == '-') {
+                return -val;
+            }
+            if (expr.op.value == '+') {
+                return val;
+            }
+        }
+    }
+    return None;
+}
+
+impl PyastBuildPass._complex_from_func_call(
+    expr: uni.Expr
+) -> ((float, float) | None) {
+    if (
+        isinstance(expr, uni.FuncCall)
+        and isinstance(expr.target, uni.Name)
+        and (expr.target.value == 'complex')
+        and (len(expr.params) == 2)
+    ) {
+        re = self._float_from_literal(expr.params[0]);
+        im = self._float_from_literal(expr.params[1]);
+        if (re is not None) and (im is not None) {
+            return (re, im);
+        }
+    }
+    return None;
+}
+
+impl PyastBuildPass._emit_complex_call(
+    nd: py_ast.AST, re: float, im: float
+) -> uni.FuncCall {
+    func = self.name_node(nd, 'complex');
+    real_lit = self._numeric_literal(nd, re);
+    imag_lit = self._numeric_literal(nd, im);
+    return uni.FuncCall(
+        target=func,
+        params=[real_lit, imag_lit],
+        genai_call=None,
+        kid=[func, real_lit, imag_lit]
+    );
+}
+
+impl PyastBuildPass._try_fold_complex_binop(
+    left: uni.Expr, op: uni.Token, right: uni.Expr, nd: py_ast.BinOp
+) -> (uni.FuncCall | None) {
+    if op.value not in ['+', '-'] {
+        return None;
+    }
+    left_num = self._float_from_literal(left);
+    right_parts = self._complex_from_func_call(right);
+    if (left_num is None) or (right_parts is None) {
+        return None;
+    }
+    (c_re, c_im) = right_parts;
+    if op.value == '+' {
+        return self._emit_complex_call(nd, left_num + c_re, c_im);
+    }
+    return self._emit_complex_call(nd, left_num - c_re, -c_im);
 }
 
 impl PyastBuildPass._strip_string_continuations(seg: str) -> str {

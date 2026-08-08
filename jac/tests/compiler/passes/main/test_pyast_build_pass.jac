@@ -181,3 +181,119 @@ test "py2jac binop operator precedence" {
     assert "(w - title_len - 2) // 2" in code , f"Expected correct floor-div grouping in: {code}";
     assert "(w - title_len - 1) // 2" in code , f"Expected correct floor-div grouping in: {code}";
 }
+
+"""Complex number literals must emit complex(re, im) instead of ICE."""
+test "py2jac complex literals" {
+    with open(os.path.join(FIXTURES, "py2jac_complex.py")) as f {
+        file_source = f.read();
+    }
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_complex.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse();
+
+    assert "complex(0, 1)" in code , f"Expected bare 1j as complex(0, 1) in:\n{code}";
+    assert "complex(0, 2)" in code , f"Expected 2.0j conversion in:\n{code}";
+    assert "complex(1, 2)" in code , f"Expected 1+2j as complex(1, 2) in:\n{code}";
+    assert "complex(-1, -2)" in code , f"Expected -1-2j as complex(-1, -2) in:\n{code}";
+    assert "complex(3, 0)" in code , f"Expected 3+0j as complex(3, 0) in:\n{code}";
+
+    prog = JacProgram.jac_str_formatter(
+        source_str=code, file_path="py2jac_complex.py", auto_lint=False
+    );
+    assert len(prog.errors_had) == 0 , (
+        f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+}
+
+"""Adjacent f-strings folded by Python must emit valid Jac f-strings."""
+test "py2jac fstring adjacent multiline" {
+    with open(os.path.join(FIXTURES, "py2jac_fstring_adjacent_multiline.py")) as f {
+        file_source = f.read();
+    }
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_fstring_adjacent_multiline.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse(requires_format=False);
+
+    assert 'f"A' not in code or 'f"Welcome aboard"' in code , (
+        f"Mangled adjacent f-string quotes in:\n{code}"
+    );
+    assert 'f"B' not in code , f"Leaked f-string prefix in:\n{code}";
+
+    prog = JacProgram.jac_str_formatter(
+        source_str=code,
+        file_path="py2jac_fstring_adjacent_multiline.py",
+        auto_lint=False
+    );
+    assert len(prog.errors_had) == 0 , (
+        f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+
+    formatted = prog.mod.main.gen.jac;
+    assert "Welcome aboard" in formatted , (
+        f"Expected folded f-string content in:\n{formatted}"
+    );
+}
+
+"""Single-line adjacent f-strings with mixed quotes must not mangle output."""
+test "py2jac fstring adjacent singleline" {
+    with open(os.path.join(FIXTURES, "py2jac_fstring_adjacent_singleline.py")) as f {
+        file_source = f.read();
+    }
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_fstring_adjacent_singleline.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse(requires_format=False);
+
+    assert 'f"""A\' f"B"""' not in code , f"Mangled single-line f-string in:\n{code}";
+
+    prog = JacProgram.jac_str_formatter(
+        source_str=code,
+        file_path="py2jac_fstring_adjacent_singleline.py",
+        auto_lint=False
+    );
+    assert len(prog.errors_had) == 0 , (
+        f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+
+    formatted = prog.mod.main.gen.jac;
+    assert "AB" in formatted , f"Expected folded 'AB' in:\n{formatted}";
+}
+
+"""Immediately-invoked lambda expressions must parenthesize the call target."""
+test "py2jac lambda iife" {
+    with open(os.path.join(FIXTURES, "py2jac_lambda_iife.py")) as f {
+        file_source = f.read();
+    }
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_lambda_iife.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse(requires_format=False);
+
+    assert "lambda (x: Any) { (x + 1); }(10)" not in code , (
+        f"Unparenthesized lambda call target in:\n{code}"
+    );
+    assert "(lambda (x: Any) { (x + 1); })(10)" in code , (
+        f"Expected parenthesized lambda IIFE in:\n{code}"
+    );
+
+    prog = JacProgram.jac_str_formatter(
+        source_str=code, file_path="py2jac_lambda_iife.py", auto_lint=False
+    );
+    assert len(prog.errors_had) == 0 , (
+        f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+}
