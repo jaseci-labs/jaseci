@@ -40,11 +40,6 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     marked = (
         self._marked_message(nd, msg, type_name) if (type_name is not None) else None
     );
-    # Declining is a soundness property, not a gap: the lowered assert raises
-    # RuntimeError asynchronously at the call boundary, so unless BOTH the
-    # original exception type and its message can be folded into a
-    # compile-time marker for the boundary trap guard to restore, rewriting
-    # would silently change the exception contract. Leave the break in place.
     if marked is None {
         return;
     }
@@ -89,9 +84,6 @@ impl TrapLoweringPass._marked_message(
     if not isinstance(msg, (uni.String, uni.MultiString)) {
         return None;
     }
-    # MultiString.lit_value accumulates only its String parts, so an f-string
-    # part would vanish and yield a well-formed marker wrapped around an empty
-    # message -- a lost diagnostic with no signal that anything was dropped.
     if isinstance(msg, uni.MultiString) {
         for part in msg.strings {
             if not isinstance(part, uni.String) {
