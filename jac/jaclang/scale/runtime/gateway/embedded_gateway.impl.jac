@@ -1,4 +1,3 @@
-import uvicorn;
 
 
 impl EmbeddedGateway._service_prefixes -> list[str] {
@@ -105,7 +104,7 @@ impl EmbeddedGateway.dispatch(request: Request) -> Response {
         remainder: str = path[len(decision.service):];
         payload: dict[str, any] = {};
         try {
-            body: bytes = await request.body();
+            body: bytes = request.body;
             if body {
                 import json;
                 payload = json.loads(body.decode("utf-8"));
@@ -118,21 +117,21 @@ impl EmbeddedGateway.dispatch(request: Request) -> Response {
             return resp;
         }
     }
-    accept: str = request.headers.get("accept", "");
+    accept: str = str(request.headers.get("accept") or "");
     return self._serve_static(path, accept);
 }
 
 
 impl EmbeddedGateway.setup -> None {
-    app = FastAPI(title="Jac Embedded Gateway");
+    app = ServingApp(title="Jac Embedded Gateway");
     gw = self;
 
-    @app.middleware("http")
     async def dispatcher(request: Request, call_next: object) -> Response {
         return await gw.dispatch(request);
     }
 
     self.middleware.install(app);
+    app.add_middleware(dispatcher);
 
     self.app = app;
 }
@@ -143,7 +142,7 @@ impl EmbeddedGateway.serve -> None {
         self.setup();
     }
     _logger.info(f"Embedded gateway serving in-process on {self.host}:{self.port}");
-    config = uvicorn.Config(getattr(self, "app"), host=self.host, port=self.port);
-    server = uvicorn.Server(config);
-    server.run();
+    import from jaclang.runtimelib.serving.server { ServingServer }
+    serving = ServingServer(app=self.app, host=self.host, port=self.port);
+    serving.run();
 }

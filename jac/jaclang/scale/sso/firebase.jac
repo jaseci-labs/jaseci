@@ -84,7 +84,7 @@ obj FirebaseSSOProvider(SSOProvider) {
     }
 
     async def handle_callback(request: Request) -> SSOUserInfo {
-        body_bytes = await request.body();
+        body_bytes = request.body;
         try {
             body = json.loads(body_bytes);
         } except ValueError {

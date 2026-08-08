@@ -15,9 +15,12 @@ import from jaclang.runtimelib.serving.datatypes {
 import from jaclang.runtimelib.serving.ws { WebSocket, compute_accept_key }
 
 
+glob ACCESS_LOGGER_NAME: str = "jaclang.serving.access";
+
 glob _logger: logging.Logger = logging.getLogger(
          "jaclang.runtimelib.serving.server"
      ),
+     _access_logger: logging.Logger = logging.getLogger(ACCESS_LOGGER_NAME),
      MAX_HEADER_COUNT: int = 100,
      MAX_BODY_BYTES: int = 104857600,
      HEADER_TIMEOUT_SECONDS: float = 30.0,
@@ -230,6 +233,11 @@ obj ServingServer {
             response = await self.app.dispatch(request);
             keep_alive = self._should_keep_alive(request, http_version);
             wrote = await self._write_response(writer, request, response, keep_alive);
+            _access_logger.info(
+                f'{request.client_host or "-"} - '
+                f'"{request.method} {request.url.path} {http_version}" '
+                f'{response.status_code}'
+            );
             if not wrote {
                 return;
             }

@@ -94,7 +94,7 @@ impl JacAPIServerEndpoints.create_walker_parameters(
                 required=walker_fields[field_name]['required'],
                 default_value=walker_fields[field_name]['default'],
                 description=f"Field {field_name} for walker {walker_name}",
-                type=param_type
+                kind=param_type
             )
         );
     }
@@ -233,7 +233,7 @@ impl JacAPIServerEndpoints.create_function_parameters(
                 required=func_fields[field_name]['required'],
                 default_value=func_fields[field_name]['default'],
                 description=f"Field {field_name} for function {func_name}",
-                type=param_type
+                kind=param_type
             )
         );
     }
@@ -417,7 +417,7 @@ impl JacAPIServerEndpoints.create_webhook_callback(
             } except Exception { }
         }
 
-        raw_body = await request.body();
+        raw_body = request.body;
         if len(raw_body) > max_body_bytes {
             return _too_large();
         }

@@ -343,6 +343,112 @@ def request_sync(
     );
 }
 
+def post_stream_aware_sync(
+    url: str,
+    json_body: any = None,
+    headers: (dict | None) = None,
+    timeout: float = DEFAULT_TIMEOUT,
+    label: str = 'rpc'
+) -> tuple[str, any] {
+    handshake: queue_lib.Queue = queue_lib.Queue();
+    events: queue_lib.Queue = queue_lib.Queue();
+    sentinel = object();
+
+    async def _pump {
+        response = await arequest(
+            'POST',
+            url,
+            headers=headers,
+            json_body=json_body,
+            timeout=timeout,
+            stream=True
+        );
+        try {
+            ct = (response.headers.get('Content-Type') or '').lower();
+            if not ct.startswith('text/event-stream') {
+                collected: list[bytes] = [];
+                async for block in response.aiter_raw() {
+                    collected.append(block);
+                }
+                response.body = b''.join(collected);
+                if response.status_code >= 400 {
+                    handshake.put(
+                        ('error',
+                         f"HTTP {response.status_code}: {response.text()}")
+                    );
+                } else {
+                    handshake.put(('json', response.json()));
+                }
+                return;
+            }
+            handshake.put(('sse', None));
+            lines: list[bytes] = [];
+            async for line in response.aiter_lines() {
+                lines.append(line);
+                if line == b'' {
+                    for item in parse_sse(lines) {
+                        events.put(item);
+                    }
+                    lines = [];
+                }
+            }
+            if lines {
+                for item in parse_sse(lines + [b'']) {
+                    events.put(item);
+                }
+            }
+        } finally {
+            await response.aclose();
+            events.put(sentinel);
+        }
+    }
+
+    def _runner {
+        try {
+            asyncio.run(_pump());
+        } except Exception as e {
+            handshake.put(('error', str(e)));
+            events.put(('error', str(e)));
+            events.put(sentinel);
+        }
+    }
+    thread = threading.Thread(target=_runner, daemon=True);
+    thread.start();
+    first: any = handshake.get(timeout=timeout + 5);
+    kind = str(first[0]);
+    if kind == 'error' {
+        raise ClientConnectionError(detail=str(first[1]));
+    }
+    if kind == 'json' {
+        return ('json', first[1]);
+    }
+
+    def _generator -> any {
+        while True {
+            item = events.get();
+            if item is sentinel {
+                return;
+            }
+            event_name = str(item[0]);
+            payload_text = str(item[1]);
+            if event_name == 'end' {
+                return;
+            }
+            if event_name == 'error' {
+                raise RuntimeError(
+                    f"stream '{label}' raised: {payload_text}"
+                );
+            }
+            try {
+                yield loads(payload_text);
+            } except Exception {
+                ;
+            }
+        }
+    }
+    return ('sse', _generator());
+}
+
 def stream_sse_sync(
     method: str,
     url: str,

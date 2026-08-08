@@ -1,20 +1,9 @@
 impl IdentityStorage.hash_password(password: str) -> str {
-    rounds = get_scale_config().get_auth_config()['password_hash_rounds'];
-    return str(
-        bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=rounds)).decode(
-            'utf-8'
-        )
-    );
+    return _scrypt_hash(password);
 }
 
 impl IdentityStorage.verify_password(password: str, password_hash: str) -> bool {
-    try {
-        return bool(
-            bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
-        );
-    } except ValueError {
-        return False;
-    }
+    return _scrypt_verify(password, password_hash);
 }
 
 impl IdentityStorage.create_user(

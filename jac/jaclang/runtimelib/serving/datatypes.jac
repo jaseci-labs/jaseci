@@ -87,6 +87,10 @@ obj Headers {
         }
         return found;
     }
+
+    def __setitem__(name: str, value: str) {
+        self.set(name, value);
+    }
 }
 
 obj QueryParams {

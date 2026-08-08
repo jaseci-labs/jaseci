@@ -38,9 +38,8 @@ obj MiddlewareRegistry {
     }
 
     def install(app: any) {
-        import from starlette.middleware.base { BaseHTTPMiddleware }
-        for middleware in reversed(self.middlewares) {
-            app.add_middleware(BaseHTTPMiddleware, dispatch=middleware.handle);
+        for middleware in self.middlewares {
+            app.add_middleware(middleware.handle);
         }
     }
 }
