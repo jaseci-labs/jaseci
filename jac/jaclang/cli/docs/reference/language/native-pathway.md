@@ -940,6 +940,7 @@ The codegen options carry a canonical identity string and a short hash of it, th
 | `JAC_DEBUG_IR` | (none) | Saves each module's generated IR as `<stem>.ll` in the native cache dir. |
 | `JAC_RC_STATS` | (none) | Prints the per-module rc-stats line to stderr. |
 | `JAC_NOGC_DEBUG` | (none) | Verbose ownership-enforcement logging to stderr. |
+| `JAC_NA_DEBUG` | (none) | Explains every native demotion: `NA_DEBUG demote <Type>.<method>` followed by the full diagnostics that made the method un-lowerable, and `NA_DEBUG raise <Type>.<method>` plus a Python traceback when the emitter raised. Forces the "native seam" warning on regardless of `[check] warn_native_seams`, and prints the traceback behind a failed seal canary. |
 | `JAC_SYMMAP` | (none) | Writes a `<binary>.symmap` symbol map beside a linked ELF executable. |
 
 Toolchain location variables are read through the same boundary module, never inside passes: `JAC_LLVM_SHIM`, `JAC_LLVM_TYPED_POINTERS` (with `LLVMLITE_ENABLE_IR_LAYER_TYPED_POINTERS` honored as a fallback), `JAC_NATIVE_WASM_LIBC_DIR`, `JAC_NATIVE_MUSL_DIR`, `JAC_NATIVE_FLOOR_DIR`, `JAC_NATIVE_CA_BUNDLE`.
@@ -959,6 +960,28 @@ JAC_DUMP_IR=/tmp/output.ll jac nacompile program.jac
 ```
 
 This produces a human-readable `.ll` file that can be inspected with any text editor or processed with LLVM tools (`llc`, `opt`, `llvm-dis`).
+
+### Explaining a demotion
+
+A method the backend cannot lower is *demoted*: it falls back to its Python implementation while the rest of its class stays native. The build prints a one-line `warning: native seam -- demoting ...` for each. `JAC_NA_DEBUG=1` turns that line into the full story:
+
+```bash
+JAC_NA_DEBUG=1 jac nacompile program.jac
+```
+
+Each demotion emits `NA_DEBUG demote <Type>.<method>` followed by every diagnostic that made the method un-lowerable, with source context. When the emitter raised outright rather than reporting a diagnostic, the line is `NA_DEBUG raise <Type>.<method>` followed by the Python traceback pointing at the codegen site. The flag also forces the seam warning on when `[check] warn_native_seams = false` would otherwise silence it, and prints the traceback behind a failed seal canary.
+
+### Sealed artifacts and demotion
+
+A demotion is only a speed cost while Python is still there to catch it. In a sealed AOT artifact it is not: the demoted method is emitted as an `abort()` stub, so the first call kills the process with no diagnostic. `seal_native_artifacts` therefore refuses to seal a module whose closure demoted anything, naming each offending method and the reason it could not lower. A demotion that is genuinely unreachable in the sealed build can be waived, but only by naming the method:
+
+```jac
+glob NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
+    "jac0core/parser/lexer.jac": ("Lexer.debug_dump", )
+};
+```
+
+Each waived method is announced on every seal, and a waiver that no longer matches a real demotion is reported as stale. Before an artifact is written into `MANIFEST.json` it must also pass a load canary: the seal `dlopen`s the freshly linked library, checks that every export the layout advertises is really in it, runs `__jac_shared_init`, and calls a known-good runtime export. An artifact that cannot be loaded and called is deleted and the seal fails.
 
 ### Bytecode Cache
 

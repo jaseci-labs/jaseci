@@ -67,9 +67,33 @@ test "every codegen option flip changes the fingerprint" {
 test "diagnostic-only options do not enter the fingerprint" {
     base_fp = _pinned_opts().codegen_fingerprint();
     diag = _pinned_opts(
-        dump_ir_path="/tmp/out.ll", debug_ir=True, rc_stats=True, nogc_debug=True
+        dump_ir_path="/tmp/out.ll",
+        debug_ir=True,
+        rc_stats=True,
+        nogc_debug=True,
+        na_debug=True
     );
     assert diag.codegen_fingerprint() == base_fp;
+}
+
+
+test "JAC_NA_DEBUG enters the options object at construction" {
+    saved = os.environ.pop("JAC_NA_DEBUG", None);
+    try {
+        assert CompileOptions().na_debug == False;
+        os.environ["JAC_NA_DEBUG"] = "1";
+        assert CompileOptions().na_debug == True;
+        assert CompileOptions(na_debug=False).na_debug == False;
+        assert CompileOptions().clone_for_native_import().na_debug == True;
+        os.environ["JAC_NA_DEBUG"] = "0";
+        assert CompileOptions().na_debug == False;
+    } finally {
+        if saved is None {
+            os.environ.pop("JAC_NA_DEBUG", None);
+        } else {
+            os.environ["JAC_NA_DEBUG"] = saved;
+        }
+    }
 }
 
 test "clone_for_native_import carries the full codegen identity" {

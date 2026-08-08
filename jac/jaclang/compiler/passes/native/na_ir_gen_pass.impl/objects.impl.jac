@@ -583,6 +583,12 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
 
         self._finalize_di_locations(func, method.loc.first_line if method.loc else 1);
     } except Exception as _codegen_exc {
+        if self._na_debug_on() {
+            import sys;
+            import traceback;
+            sys.stderr.write(f"NA_DEBUG raise {full_name}\n");
+            traceback.print_exc(file=sys.stderr);
+        }
         if not _isolate {
             raise;
         }
@@ -618,7 +624,8 @@ impl NaIRGenPass._demote_method_if_unlowerable(
         return False;
     }
 
-    _warn = bool(self.prog._compile_options.native_debug);
+    _na_debug = self._na_debug_on();
+    _warn = _na_debug or bool(self.prog._compile_options.native_debug);
 
     if not _warn {
         _warn = True;
@@ -637,6 +644,13 @@ impl NaIRGenPass._demote_method_if_unlowerable(
             f"warning: native seam -- demoting {full_name} to Python-only "
             f"(un-lowerable): {_why}\n"
         );
+    }
+    if _na_debug {
+        import sys;
+        sys.stderr.write(f"NA_DEBUG demote {full_name}\n");
+        for _diag in self.prog.errors_had[err_mark:] {
+            sys.stderr.write(f"NA_DEBUG   {_diag.pretty_print()}\n");
+        }
     }
     try {
         import from jaclang.jac0core.compiler { na_census_seam }

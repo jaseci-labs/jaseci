@@ -268,7 +268,148 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     return failed;
 }
 
-glob NATIVE_SEAL_MODULES: tuple = ("jac0core/parser/lexer.jac", );
+glob NATIVE_SEAL_MODULES: tuple = ("jac0core/parser/lexer.jac", ),
+     NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {};
+
+def _seal_demotions(census: dict) -> list[tuple[str, str]] {
+    found: list[tuple[str, str]] = [];
+    for (path, rec) in sorted(census.items()) {
+        where = os.path.basename(path);
+        for seam in (rec.get("seams") or []) {
+            text = str(seam);
+            (name, sep, why) = text.partition(": ");
+            if not sep {
+                found.append((text, where));
+            } elif where in why {
+                found.append((name, why));
+            } else {
+                found.append((name, f"{where}: {why}"));
+            }
+        }
+        if rec.get("outcome") == "demoted" {
+            code = rec.get("code") or "?";
+            detail = rec.get("detail") or "";
+            found.append(
+                (
+                    f"<module {where}>",
+                    f"{where}: whole module demoted [{code}] {detail}"
+                )
+            );
+        }
+    }
+    return found;
+}
+
+def seal_demotion_report(
+    rel: str, census: dict, waivers: (dict | None) = None
+) -> tuple[str, list[str], list[str]] {
+    table = NATIVE_SEAL_DEMOTION_WAIVERS if waivers is None else waivers;
+    allowed = set(table.get(rel, ()));
+    found = _seal_demotions(census);
+    names = {n for (n, _why) in found};
+    offending = [
+        (n, why)
+        for (n, why) in found
+        if n not in allowed
+    ];
+    waived = sorted(
+        n
+        for n in names
+        if n in allowed
+    );
+    stale = sorted(
+        a
+        for a in allowed
+        if a not in names
+    );
+    if not offending {
+        return ("", waived, stale);
+    }
+    lines = [
+        f"NATIVE SEAL: {rel} demoted {len(offending)} method(s) the native "
+        "backend could not lower. A sealed artifact has no Python left to fall "
+        "back to, so every demotion ships as an abort stub that kills the "
+        "process at the first call with no diagnostic."
+    ];
+    for (n, why) in offending {
+        lines.append(f"    {n}  <-  {why}");
+    }
+    lines.append(
+        "  Fix the native lowering, or waive a knowingly-unreachable method by "
+        "naming it in NATIVE_SEAL_DEMOTION_WAIVERS[\""
+            + rel
+            + "\"] in jaclang/utils/precompile_bytecode.jac. Set JAC_NA_DEBUG=1 "
+            + "to print the full diagnostic behind each demotion."
+    );
+    return ("\n".join(lines), waived, stale);
+}
+
+def seal_native_canary(lib_path: str, exports: list[str]) -> str {
+    import ctypes;
+    import traceback;
+    import from jaclang.jac0core.compile_options { env_na_debug }
+    import from jaclang.jac0core.native_dylib { DylibEngine }
+
+    debug = env_na_debug();
+    name = os.path.basename(lib_path);
+    sys.stderr.write(f"    canary: dlopen {name}\n");
+    sys.stderr.flush();
+    try {
+        eng = DylibEngine(lib_path);
+    } except Exception as _open_exc {
+        if debug {
+            traceback.print_exc(file=sys.stderr);
+        }
+        return f"dlopen failed: {type(_open_exc).__name__}: {_open_exc}";
+    }
+    missing = sorted(
+        {
+            s
+            for s in (list(exports) + ["__jac_shared_init"])
+            if eng.get_function_address(s) == 0
+        }
+    );
+    if missing {
+        shown = ", ".join(missing[:8]);
+        return (
+            f"{len(missing)} advertised export(s) are not in the linked "
+            f"artifact: {shown}"
+        );
+    }
+    sys.stderr.write(f"    canary: __jac_shared_init + jac_str_new in {name}\n");
+    sys.stderr.flush();
+    try {
+        eng.initialize();
+    } except Exception as _init_exc {
+        if debug {
+            traceback.print_exc(file=sys.stderr);
+        }
+        return f"__jac_shared_init raised {type(_init_exc).__name__}: {_init_exc}";
+    }
+    probe = eng.get_function_address("jac_str_new");
+    if not probe {
+        return "";
+    }
+    try {
+        made = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(
+            probe
+        )(
+            b"jac", 3
+        );
+    } except Exception as _call_exc {
+        if debug {
+            traceback.print_exc(file=sys.stderr);
+        }
+        return f"jac_str_new raised {type(_call_exc).__name__}: {_call_exc}";
+    }
+    if not made {
+        return (
+            "jac_str_new returned NULL: the artifact loaded but its runtime is "
+            "not live"
+        );
+    }
+    return "";
+}
 
 def _native_lib_filename(stem: str) -> str {
     if sys.platform.startswith("win") {
@@ -281,7 +422,10 @@ def _native_lib_filename(stem: str) -> str {
 }
 
 def seal_native_artifacts(
-    pkg_path: Path, precompiled_dir: Path
+    pkg_path: Path,
+    precompiled_dir: Path,
+    modules: (tuple | None) = None,
+    waivers: (dict | None) = None
 ) -> (dict[str, dict] | None) {
     artifacts: dict[str, dict] = {};
     stale_native = precompiled_dir / "native";
@@ -294,27 +438,33 @@ def seal_native_artifacts(
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.codeinfo { native_layout_to_dict }
+    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
     import from jaclang.compiler.passes.native.shared_emit { emit_shared_library }
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
     pkg_name = pkg_path.name;
-    for rel in NATIVE_SEAL_MODULES {
+    for rel in (NATIVE_SEAL_MODULES if modules is None else modules) {
         src = pkg_path / rel;
         if not src.is_file() {
             console.error(f"NATIVE SEAL: missing source {src}");
             return None;
         }
         prog = JacProgram();
-        ir = prog.compile(
-            file_path=str(src),
-            options=CompileOptions(
-                aot_mode=True,
-                type_check=False,
-                force_codespace='native',
-                force_target_program=True,
-                na_gc_mode='cycles'
-            )
-        );
+        na_census_begin();
+        try {
+            ir = prog.compile(
+                file_path=str(src),
+                options=CompileOptions(
+                    aot_mode=True,
+                    type_check=False,
+                    force_codespace='native',
+                    force_target_program=True,
+                    na_gc_mode='cycles'
+                )
+            );
+        } finally {
+            census = na_census_end();
+        }
         if prog.errors_had {
             for _err in prog.errors_had {
                 console.error(f"NATIVE SEAL: {_err.pretty_print()}");
@@ -333,6 +483,26 @@ def seal_native_artifacts(
             );
             return None;
         }
+        (demotion_error, waived, stale_waivers) = seal_demotion_report(
+            rel, census, waivers
+        );
+        if demotion_error {
+            console.error(demotion_error);
+            return None;
+        }
+        for name in waived {
+            console.warning(
+                f"NATIVE SEAL: {rel} ships {name} as an abort stub -- waived by "
+                "NATIVE_SEAL_DEMOTION_WAIVERS. Calling it in a sealed build "
+                "aborts the process."
+            );
+        }
+        for name in stale_waivers {
+            console.warning(
+                f"NATIVE SEAL: {rel} waives {name}, which did not demote; drop "
+                "the stale entry from NATIVE_SEAL_DEMOTION_WAIVERS."
+            );
+        }
         layout = ir.gen.native_layout;
         exports = sorted(layout.functions.keys());
         if not exports {
@@ -350,6 +520,17 @@ def seal_native_artifacts(
         );
         if not ok {
             console.error(f"NATIVE SEAL: {rel}: {err}");
+            return None;
+        }
+        canary = seal_native_canary(str(lib_path), exports);
+        if canary {
+            console.error(
+                f"NATIVE SEAL: {rel}: the emitted artifact "
+                f"{lib_path.name} failed its load canary: {canary}. The seal "
+                "refuses artifacts it cannot load and call; set JAC_NA_DEBUG=1 "
+                "for the traceback."
+            );
+            lib_path.unlink(missing_ok=True);
             return None;
         }
         layout_path = out_dir / f"{stem}.layout.json";

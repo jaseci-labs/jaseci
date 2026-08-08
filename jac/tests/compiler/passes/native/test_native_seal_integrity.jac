@@ -212,7 +212,7 @@ test "JAC_NA_DEBUG explains the demotion behind a refused seal" {
     (quiet_arts, quiet_err, tmp2) = _seal("seal_demoted_method.jac");
     try {
         assert quiet_arts is None;
-        assert "NA_DEBUG" not in quiet_err , (
+        assert "NA_DEBUG demote" not in quiet_err , (
             f"the NA_DEBUG trace leaked with the gate off:\n{quiet_err}"
         );
     } finally {
