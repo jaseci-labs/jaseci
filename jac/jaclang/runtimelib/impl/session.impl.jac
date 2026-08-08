@@ -481,6 +481,11 @@ impl Session.flush(full: bool = False) -> None {
         if h != 0 and self._flushed_hash.get(id) == h and id not in self._dirty {
             continue;
         }
+
+        import from jaclang { JacRuntimeInterface as JacRI }
+        if not JacRI.check_write_access(anchor, op_hint="field_write") {
+            continue;
+        }
         rows.append(self._serialize(anchor));
         self._flushed_hash[id] = h;
         anchor.hash = h;
