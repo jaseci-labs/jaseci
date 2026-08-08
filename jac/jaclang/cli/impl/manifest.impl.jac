@@ -652,10 +652,7 @@ def _command_routes -> list[CommandMeta] {
                     "Show the project store's server state and row counts"
                 ),
                 ('jac db inspect', 'Summarize anchors by kind and archetype'),
-                (
-                    'jac db sql "SELECT count(*) FROM anchors"',
-                    'Run one SQL statement'
-                ),
+                ('jac db sql "SELECT count(*) FROM anchors"', 'Run one SQL statement'),
                 (
                     'jac db serve',
                     'Run Postgres in the foreground (pod / container mode)'
@@ -1736,7 +1733,7 @@ def _command_routes -> list[CommandMeta] {
                 ('jac scale destroy app.jac', "Remove app's platform deployment"),
                 (
                     'jac scale destroy app.jac --component database',
-                    'Remove only MongoDB from the deployment'
+                    'Remove only the database from the deployment'
                 )
             ],
             args=[
@@ -1768,7 +1765,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='component',
                     default='',
-                    help='Platform destroy: component to remove (application, database, cache, monitoring, dashboard; default: entire deployment)',
+                    help='Platform destroy: component to remove (application, database, monitoring; default: entire deployment)',
                     short='c'
                 ),
 

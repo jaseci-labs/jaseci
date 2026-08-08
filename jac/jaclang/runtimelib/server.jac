@@ -217,6 +217,8 @@ obj JacAPIServer {
         server: (HTTPServer | None) postinit,
         scheduler: Scheduler postinit;
 
+    def _make_user_manager -> UserManager;
+
     obj RestSpecs {
         has method: str = "",
             path: str = "",

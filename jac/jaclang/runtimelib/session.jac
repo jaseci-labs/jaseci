@@ -37,7 +37,9 @@ obj Session {
         _flushed_hash: dict[UUID, int] postinit,
         _on_commit: list[Callable] postinit,
         _txn_changed: set[UUID] postinit,
-        _runtime: (Any | None) postinit;
+        _runtime: (Any | None) postinit,
+        _lock: Any postinit,
+        _fetch_count: int postinit;
 
     def postinit -> None;
     def data_location -> (str | None);
@@ -72,6 +74,8 @@ obj Session {
     async def ahas(id: UUID) -> bool;
     async def acommit(anchor: (Anchor | None) = None) -> None;
     def run_request(body: Callable) -> Any;
+    def reset_fetch_count -> None;
+    def get_fetch_count -> int;
     def on_commit(callback: Callable) -> None;
     def flush(full: bool = False) -> None;
     def read_barrier -> None;

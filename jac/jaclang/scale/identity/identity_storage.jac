@@ -1,6 +1,8 @@
 import bcrypt;
+import json;
 import uuid;
 import from datetime { datetime, UTC }
+import from typing { Any }
 import from sqlalchemy {
     create_engine,
     Engine,
@@ -49,6 +51,7 @@ obj IdentityStorage {
 
     def user_exists_by_id(user_id: str) -> bool;
     def ensure_user_by_id(user_id: str) -> str | None;
+    def reset_root(user_id: str) -> str | None;
     def authenticate(identifier: str, password: str) -> dict[str, any] | None;
     def set_user_role(user_id: str, role: str) -> bool;
     def get_user_role(user_id: str) -> str | None;
@@ -74,6 +77,28 @@ obj SqliteIdentityStorage(IdentityStorage) {
         _table: Table postinit,
         _identity_lookups: Table postinit,
         _sso_lookups: Table postinit;
+
+    def postinit -> None;
+    def _store_user(user_doc: dict[str, any]) -> None;
+    def _update_fields(user_id: str, fields: dict[str, any]) -> bool;
+    def _get_credentials(user_id: str) -> list[dict[str, any]];
+    def _update_credentials(user_id: str, credentials: list[dict[str, any]]) -> None;
+    def _get_identities(user_id: str) -> list[dict[str, any]];
+    def _add_identity(user_id: str, identity: dict[str, any]) -> bool;
+    def _remove_sso_identity(user_id: str, platform: str) -> bool;
+    def _find_sso_link(platform: str, external_id: str) -> dict[str, any] | None;
+    def _set_identity_verified(user_id: str, value_normalized: str) -> bool;
+    def ensure_indexes -> None;
+    def get_user_by_id(user_id: str) -> dict[str, any] | None;
+    def delete_user(user_id: str) -> bool;
+    def find_user_by_identity(value: str) -> dict[str, any] | None;
+    def identity_taken(value: str) -> bool;
+    def list_all_users(limit: int = 100, offset: int = 0) -> list[dict[str, any]];
+    def get_user_by_sso(platform: str, external_id: str) -> dict[str, any] | None;
+}
+
+obj PgIdentityStorage(IdentityStorage) {
+    has store: Any;
 
     def postinit -> None;
     def _store_user(user_doc: dict[str, any]) -> None;

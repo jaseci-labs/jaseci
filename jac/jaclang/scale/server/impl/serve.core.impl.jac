@@ -40,6 +40,11 @@ impl _get_network_ips -> list[str] {
     return ips;
 }
 
+impl JacAPIServerCore._make_user_manager -> CoreUserManager {
+    import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+    return JacScaleUserManager(base_path=self.base_path);
+}
+
 impl JacAPIServerCore.postinit -> None {
     super.postinit();
 

@@ -9,6 +9,10 @@ import from jaclang.runtimelib.auth_models {
     RegisterRequest
 }
 
+impl JacAPIServer._make_user_manager -> UserManager {
+    return UserManager(base_path=self.base_path);
+}
+
 impl UserManager.postinit -> None {
     import sqlite3;
     import threading;
@@ -1665,7 +1669,7 @@ impl ExecutionHandler.spawn_walker(
 
 impl JacAPIServer.postinit -> None {
     import from jaclang.runtimelib.scheduler { Scheduler }
-    self.user_manager = Jac.get_user_manager(base_path=self.base_path);
+    self.user_manager = self._make_user_manager();
 
     _um = self.user_manager;
     def _shared_root_id -> (str | None) {

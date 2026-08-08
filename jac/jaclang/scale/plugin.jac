@@ -597,6 +597,9 @@ class JacScalePlugin {
     }
 
     static def get_user_manager(base_path: str) -> UserManager | None {
+        if not _scale_runtime_active() {
+            return None;
+        }
         try {
             import from .identity.user_manager { JacScaleUserManager }
         } except ImportError {

@@ -24,11 +24,23 @@ impl JacScaleUserManager.postinit -> None {
     }
 
     import os;
-    base_for_data = os.environ.get('JAC_DATA_PATH', self.base_path);
-    data_dir = os.path.join(base_for_data, '.jac', 'data');
-    os.makedirs(data_dir, exist_ok=True);
-    db_path = os.path.join(data_dir, 'users.db');
-    self._identity_storage = SqliteIdentityStorage(db_path=db_path);
+
+    store: Any = None;
+    try {
+        import from jaclang.scale.persistence.pg { shared_store }
+        store = shared_store();
+    } except Exception {
+        store = None;
+    }
+    if store is not None {
+        self._identity_storage = PgIdentityStorage(store=store);
+    } else {
+        base_for_data = os.environ.get('JAC_DATA_PATH', self.base_path);
+        data_dir = os.path.join(base_for_data, '.jac', 'data');
+        os.makedirs(data_dir, exist_ok=True);
+        db_path = os.path.join(data_dir, 'users.db');
+        self._identity_storage = SqliteIdentityStorage(db_path=db_path);
+    }
 }
 
 impl JacScaleUserManager.create_user(username: str, password: str) -> dict[str, any] {
@@ -106,6 +118,21 @@ impl JacScaleUserManager.get_root_id(user_id: str) -> str | None {
         _root_id_request_cache.set(new_cache);
     }
     return result;
+}
+
+impl JacScaleUserManager.reset_root(identifier: str) -> str | None {
+    user = self.get_user(identifier);
+    if not user {
+        return None;
+    }
+    new_root = self._identity_storage.reset_root(str(user.get('user_id') or ''));
+    if new_root {
+        cache = _root_id_request_cache.get();
+        if cache is not None {
+            _root_id_request_cache.set(None);
+        }
+    }
+    return new_root;
 }
 
 impl JacScaleUserManager.ensure_user_root(user_id: str) -> str | None {

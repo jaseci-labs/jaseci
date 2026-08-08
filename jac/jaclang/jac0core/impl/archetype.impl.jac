@@ -184,6 +184,14 @@ impl EdgeAnchor.detach -> None {
     self.target.remove_edge(self);
     import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
     sv_forget_edge(self);
+    # A detached edge is dead: record the delete intent so the store's
+    # adjacency row cannot outlive the unlink. Only an already-open
+    # context is consulted; detach must not spin one up.
+    import from jaclang.jac0core.runtime { JacRuntime }
+    ctx = JacRuntime.exec_ctx;
+    if ctx is not None {
+        ctx.mem.delete(self.id);
+    }
 }
 
 @cached_property

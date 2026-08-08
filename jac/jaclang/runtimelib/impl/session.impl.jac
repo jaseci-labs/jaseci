@@ -95,6 +95,9 @@ def _is_serialization_conflict(e: Exception) -> bool {
 
 
 impl Session.postinit -> None {
+    import threading;
+    self._lock = threading.RLock();
+    self._fetch_count = 0;
     self.__mem__ = {};
     self._dirty = set();
     self._deleted = set();
@@ -164,17 +167,21 @@ impl Session.get(id: UUID) -> (Anchor | None) {
 
 
 impl Session.put(anchor: Anchor) -> None {
-    self.__mem__[anchor.id] = anchor;
-    self._dirty.add(anchor.id);
-    self._deleted.discard(anchor.id);
+    with self._lock {
+        self.__mem__[anchor.id] = anchor;
+        self._dirty.add(anchor.id);
+        self._deleted.discard(anchor.id);
+    }
 }
 
 
 impl Session.delete(id: UUID) -> None {
-    self.__mem__.pop(id, None);
-    self._dirty.discard(id);
-    self._flushed_hash.pop(id, None);
-    self._deleted.add(id);
+    with self._lock {
+        self.__mem__.pop(id, None);
+        self._dirty.discard(id);
+        self._flushed_hash.pop(id, None);
+        self._deleted.add(id);
+    }
 }
 
 
@@ -289,6 +296,7 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
         for (rid, row) in self.store.load(still).items() {
             anchor = self._materialize(row);
             if anchor is not None {
+                self._fetch_count += 1;
                 out[rid] = anchor;
                 _process_cache.put(rid, row.version, row.props);
             }
@@ -299,29 +307,31 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
 
 
 impl Session.commit(anchor: (Anchor | None) = None) -> None {
-    if self.store is not None {
-        self.flush(full=True);
-        self.store.commit();
-        if self._txn_changed {
-            changed = list(self._txn_changed);
-            self._txn_changed.clear();
-            for id in changed {
-                _process_cache.invalidate(id);
-            }
-            try {
-                for start in range(0, len(changed), 100) {
-                    self.store.notify(
-                        INVALIDATION_CHANNEL,
-                        ','.join(str(i) for i in changed[start:start + 100])
-                    );
+    with self._lock {
+        if self.store is not None {
+            self.flush(full=True);
+            self.store.commit();
+            if self._txn_changed {
+                changed = list(self._txn_changed);
+                self._txn_changed.clear();
+                for id in changed {
+                    _process_cache.invalidate(id);
                 }
-            } except Exception as e {
-                logger.debug(f"cache invalidation notify skipped: {e}");
+                try {
+                    for start in range(0, len(changed), 100) {
+                        self.store.notify(
+                            INVALIDATION_CHANNEL,
+                            ','.join(str(i) for i in changed[start:start + 100])
+                        );
+                    }
+                } except Exception as e {
+                    logger.debug(f"cache invalidation notify skipped: {e}");
+                }
             }
+        } else {
+            self._dirty.clear();
+            self._deleted.clear();
         }
-    } else {
-        self._dirty.clear();
-        self._deleted.clear();
     }
     self._fire_on_commit();
 }
@@ -434,9 +444,21 @@ impl Session._fire_on_commit -> None {
 
 
 impl Session._ensure_txn -> None {
-    if self.store is not None and not self.store.in_txn() {
-        self.store.begin(serializable=True);
+    with self._lock {
+        if self.store is not None and not self.store.in_txn() {
+            self.store.begin(serializable=True);
+        }
     }
+}
+
+
+impl Session.reset_fetch_count -> None {
+    self._fetch_count = 0;
+}
+
+
+impl Session.get_fetch_count -> int {
+    return self._fetch_count;
 }
 
 
@@ -445,7 +467,7 @@ impl Session.read_barrier -> None {
         return;
     }
     self._ensure_txn();
-    self.flush(full=False);
+    self.flush(full=True);
 }
 
 
@@ -454,66 +476,55 @@ impl Session.flush(full: bool = False) -> None {
     if self.store is None {
         return;
     }
-    self._ensure_txn();
-    candidates: set[UUID];
-    if full {
-        candidates = set(self.__mem__.keys());
-    } else {
-        candidates = set(self._dirty);
-        for (id, anchor) in self.__mem__.items() {
-            arch = anchor.archetype;
-            if arch is not None and arch?.__jac_dirty_fields__ {
-                candidates.add(id);
+    with self._lock {
+        self._ensure_txn();
+        candidates: set[UUID];
+        if full {
+            candidates = set(self.__mem__.keys());
+        } else {
+            candidates = set(self._dirty);
+        }
+        rows: list[AnchorRow] = [];
+        pending: list = [];
+        for id in candidates {
+            anchor = self.__mem__.get(id);
+            if anchor is None or not anchor.persistent or not anchor.is_populated() {
+                continue;
             }
-        }
-    }
-    rows: list[AnchorRow] = [];
-    for id in candidates {
-        anchor = self.__mem__.get(id);
-        if anchor is None or not anchor.persistent or not anchor.is_populated() {
-            continue;
-        }
-        try {
-            h = Serializer._compute_hash(anchor);
-        } except Exception {
-            h = 0;
-        }
-        if h != 0 and self._flushed_hash.get(id) == h and id not in self._dirty {
-            continue;
-        }
+            try {
+                h = Serializer._compute_hash(anchor);
+            } except Exception {
+                h = 0;
+            }
+            if h != 0 and self._flushed_hash.get(id) == h and id not in self._dirty {
+                continue;
+            }
 
-        import from jaclang { JacRuntimeInterface as JacRI }
-        if not JacRI.check_write_access(anchor, op_hint="field_write") {
-            continue;
+            import from jaclang { JacRuntimeInterface as JacRI }
+            if not JacRI.check_write_access(anchor, op_hint="field_write") {
+                continue;
+            }
+            rows.append(self._serialize(anchor));
+            pending.append((anchor, h));
         }
-        rows.append(self._serialize(anchor));
-        self._flushed_hash[id] = h;
-        anchor.hash = h;
-        arch = anchor.archetype;
-        if arch is not None {
-            dirty_fields: Any = arch?.__jac_dirty_fields__;
-            if dirty_fields {
-                try {
-                    dirty_fields.clear();
-                } except Exception { }
+        if rows {
+            self.store.upsert(rows);
+            for (anchor, h) in pending {
+                self._flushed_hash[anchor.id] = h;
+                anchor.hash = h;
+                self._txn_changed.add(anchor.id);
             }
         }
-    }
-    if rows {
-        self.store.upsert(rows);
-        for r in rows {
-            self._txn_changed.add(r.id);
+        if self._deleted {
+            self.store.delete(list(self._deleted));
+            for id in self._deleted {
+                self._flushed_hash.pop(id, None);
+                self._txn_changed.add(id);
+            }
+            self._deleted.clear();
         }
+        self._dirty.clear();
     }
-    if self._deleted {
-        self.store.delete(list(self._deleted));
-        for id in self._deleted {
-            self._flushed_hash.pop(id, None);
-            self._txn_changed.add(id);
-        }
-        self._deleted.clear();
-    }
-    self._dirty.clear();
 }
 
 
@@ -610,10 +621,34 @@ impl Session.run_request(body: Callable) -> Any {
 
 
 impl Session.close -> None {
-    try {
-        self.commit();
-    } except Exception as e {
-        logger.warning(f"commit on close failed: {type(e).__name__}: {e}");
+    attempt = 0;
+    while True {
+        try {
+            self.commit();
+            break;
+        } except Exception as e {
+            if (
+                self.store is not None
+                and _is_serialization_conflict(e)
+                and attempt < MAX_RETRIES
+            ) {
+                attempt += 1;
+                try {
+                    self.store.rollback();
+                } except Exception { }
+                for id in list(self._txn_changed) {
+                    if id in self.__mem__ {
+                        self._flushed_hash.pop(id, None);
+                        self._dirty.add(id);
+                    } else {
+                        self._deleted.add(id);
+                    }
+                }
+                continue;
+            }
+            logger.warning(f"commit on close failed: {type(e).__name__}: {e}");
+            break;
+        }
     }
     if self.store is not None {
         self.store.close();
