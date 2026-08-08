@@ -53,7 +53,7 @@ obj Headers {
         return [k for (k, v) in self.raw];
     }
 
-    def set(name: str, value: str) -> None {
+    def set(name: str, value: str) {
         low = name.lower();
         self.raw = [
             (k, v)
@@ -63,11 +63,11 @@ obj Headers {
         self.raw.append((name, value));
     }
 
-    def append(name: str, value: str) -> None {
+    def append(name: str, value: str) {
         self.raw.append((name, value));
     }
 
-    def remove(name: str) -> None {
+    def remove(name: str) {
         low = name.lower();
         self.raw = [
             (k, v)

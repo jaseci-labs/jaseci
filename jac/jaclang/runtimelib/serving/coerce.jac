@@ -57,7 +57,7 @@ def _construct_object(value: any, target: any) -> any {
     if isinstance(value, target) {
         return value;
     }
-    from_dict_fn: any = getattr(target, 'from_dict', None);
+    from_dict_fn: any = target?.from_dict;
     if from_dict_fn is not None {
         return from_dict_fn(value);
     }

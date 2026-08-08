@@ -33,7 +33,7 @@ def _parse_part_headers(raw: bytes) -> dict[str, str] {
     return headers;
 }
 
-def parse_multipart(request: Request) -> None {
+def parse_multipart(request: Request) {
     content_type = request.headers.get('Content-Type') or '';
     boundary = _content_type_param(content_type, 'boundary');
     if not boundary {
@@ -95,7 +95,7 @@ def parse_multipart(request: Request) -> None {
     }
 }
 
-def parse_urlencoded_form(request: Request) -> None {
+def parse_urlencoded_form(request: Request) {
     decoded = request.body.decode('utf-8', errors='replace');
     for (key, values) in parse_qs(decoded, keep_blank_values=True).items() {
         request.form_fields.setdefault(key, []).extend(values);

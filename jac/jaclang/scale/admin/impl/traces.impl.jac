@@ -66,10 +66,7 @@ def _build_traceql(service: str, status: str, min_duration_ms: int) -> str {
 
 
 async def _tempo_request(path: str, params: dict, accept_json: bool = False) -> dict {
-    import from jaclang.runtimelib.serving.client {
-        ClientConnectionError,
-        arequest
-    }
+    import from jaclang.runtimelib.serving.client { ClientConnectionError, arequest }
     base = _tempo_base_url();
     url = base + path;
     headers: dict = {};
@@ -77,9 +74,7 @@ async def _tempo_request(path: str, params: dict, accept_json: bool = False) -> 
         headers["Accept"] = "application/json";
     }
     try {
-        resp = await arequest(
-            "GET", url, headers=headers, params=params, timeout=8.0
-        );
+        resp = await arequest("GET", url, headers=headers, params=params, timeout=8.0);
     } except ClientConnectionError as e {
         raise ConnectionError(f"Tempo unreachable: {e}");
     }

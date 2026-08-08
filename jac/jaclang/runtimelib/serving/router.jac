@@ -82,7 +82,7 @@ obj Router {
     has routes: dict[(str, list[CompiledRoute])] = {},
         ws_routes: list[CompiledRoute] = [];
 
-    def add(endpoint: JEndPoint) -> None {
+    def add(endpoint: JEndPoint) {
         route = compile_route(endpoint.path);
         route.endpoint = endpoint;
         method = str(endpoint.method.value)
@@ -93,14 +93,14 @@ obj Router {
         bucket.sort(key=route_sort_key);
     }
 
-    def add_ws(endpoint: WSEndPoint) -> None {
+    def add_ws(endpoint: WSEndPoint) {
         route = compile_route(endpoint.path);
         route.ws_endpoint = endpoint;
         self.ws_routes.append(route);
         self.ws_routes.sort(key=route_sort_key);
     }
 
-    def clear -> None {
+    def clear {
         self.routes = {};
         self.ws_routes = [];
     }

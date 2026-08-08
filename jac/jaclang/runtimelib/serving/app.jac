@@ -84,9 +84,7 @@ def transport_to_response(tr: TransportResponse) -> JSONResponse {
 
 def _declares_body(ep: JEndPoint) -> bool {
     for param in (ep.parameters or []) {
-        kind_name = str(param.kind.value)
-            if hasattr(param.kind, 'value')
-            else str(param.kind);
+        kind_name = str(param.kind.value) if param.kind?.value else str(param.kind);
         if kind_name in ('body', 'file') {
             return True;
         }
@@ -140,24 +138,24 @@ obj ServingApp {
         openapi_cache: (dict | None) = None,
         state: dict[str, any] = {};
 
-    def add_endpoint(ep: JEndPoint) -> None {
+    def add_endpoint(ep: JEndPoint) {
         self.router.add(ep);
         self.openapi_cache = None;
     }
 
-    def add_ws_endpoint(ep: WSEndPoint) -> None {
+    def add_ws_endpoint(ep: WSEndPoint) {
         self.router.add_ws(ep);
     }
 
-    def add_middleware(fn: Callable[..., any]) -> None {
+    def add_middleware(fn: Callable[..., any]) {
         self.middlewares.append(fn);
     }
 
-    def add_shutdown_hook(fn: Callable[..., any]) -> None {
+    def add_shutdown_hook(fn: Callable[..., any]) {
         self.on_shutdown.append(fn);
     }
 
-    def clear_routes -> None {
+    def clear_routes {
         self.router.clear();
         self.openapi_cache = None;
     }
@@ -167,7 +165,7 @@ obj ServingApp {
         return build_openapi(self);
     }
 
-    async def shutdown -> None {
+    async def shutdown {
         for hook in list(self.on_shutdown) {
             try {
                 hook_fn: any = hook;

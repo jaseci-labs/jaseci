@@ -178,10 +178,7 @@ def _build_logql(
 
 
 async def _loki_request(path: str, params: dict) -> dict {
-    import from jaclang.runtimelib.serving.client {
-        ClientConnectionError,
-        arequest
-    }
+    import from jaclang.runtimelib.serving.client { ClientConnectionError, arequest }
     base = _loki_base_url();
     url = f"{base}{path}";
     try {
