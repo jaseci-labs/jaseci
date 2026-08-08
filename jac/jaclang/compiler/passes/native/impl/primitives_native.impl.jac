@@ -5249,7 +5249,10 @@ impl NativeBuiltinEmitter.emit_list(
             return _le.emit_copy(_ctx2, val, []);
         }
     }
-    if isinstance(val.type, ir.PointerType) {
+    _vp_nm = getattr(val.type.pointee, "name", "")
+        if isinstance(val.type, ir.PointerType)
+        else "";
+    if isinstance(_vp_nm, str) and _vp_nm.startswith("List.") {
         p._emit_list_helpers("ptr", ir.IntType(8).as_pointer());
         _lt_ptr = p.list_types.get("ptr");
         _le3 = p?._native_emitters?.get("list");
