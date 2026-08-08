@@ -236,8 +236,8 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _prepend_hoisted(
         nd: uni.UniScopeNode, statements: list[es.Statement]
     ) -> list[es.Statement];
-    def _sync_converter_reactive_vars -> None;
 
+    def _sync_converter_reactive_vars -> None;
     def _collect_body_stmts(body: Sequence[uni.UniNode]) -> list[es.Statement];
     def _strip_spawn_await(
         node_expr: uni.Expr, es_expr: es.Expression
