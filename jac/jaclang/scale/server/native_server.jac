@@ -51,6 +51,7 @@ obj NativeJServer {
     has app: ServingApp = ServingApp(title='Jac API', version='1.0.0'),
         user_manager: any = None,
         serving: any = None,
+        install_drain: bool = True,
         _endpoints: list[JEndPoint] = [],
         _prebound_listen_socket: any = None;
 
@@ -172,9 +173,11 @@ obj NativeJServer {
                 }
             }
         }
-        self.app.add_middleware(build_drain_middleware("service"));
-        self.app.add_middleware(jwt_validation_middleware);
         self.app.add_middleware(request_context_middleware);
+        self.app.add_middleware(jwt_validation_middleware);
+        if self.install_drain {
+            self.app.add_middleware(build_drain_middleware("service"));
+        }
     }
 
     def set_user_manager(user_manager: any) {

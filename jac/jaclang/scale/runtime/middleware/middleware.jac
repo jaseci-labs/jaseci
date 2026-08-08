@@ -38,7 +38,7 @@ obj MiddlewareRegistry {
     }
 
     def install(app: any) {
-        for middleware in self.middlewares {
+        for middleware in reversed(self.middlewares) {
             app.add_middleware(middleware.handle);
         }
     }

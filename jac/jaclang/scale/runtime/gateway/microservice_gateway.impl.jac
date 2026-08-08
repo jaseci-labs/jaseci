@@ -796,6 +796,8 @@ impl MicroserviceGateway.setup -> ServingApp {
         }
     }
 
+    self.app.add_middleware(dispatcher);
+
     import from jaclang.scale.runtime.middleware.middleware {
         Middleware,
         MiddlewareRegistry
@@ -834,7 +836,6 @@ impl MicroserviceGateway.setup -> ServingApp {
             )
         );
     }
-    self.app.add_middleware(dispatcher);
     _install_ws_catchall(self);
 
     return self.app;
@@ -865,7 +866,7 @@ impl MicroserviceGateway._install_admin_api -> None {
     import from jaclang.scale.server.native_server { NativeJServer }
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
 
-    self.server = NativeJServer(app=self.app);
+    self.server = NativeJServer(app=self.app, install_drain=False);
 
     self.user_manager = Jac.get_user_manager(base_path=self.base_path);
     self.server.set_user_manager(self.user_manager);

@@ -424,7 +424,7 @@ obj ServingServer {
         reason = _REASONS.get(response.status_code, 'OK');
         head_lines = [f"HTTP/1.1 {response.status_code} {reason}"];
         if response.headers.get('Content-Type') is None {
-            head_lines.append(f"Content-Type: {response.media_type}");
+            head_lines.append(f"Content-Type: {response.content_type_header()}");
         }
         if chunked {
             head_lines.append('Transfer-Encoding: chunked');

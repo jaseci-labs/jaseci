@@ -125,6 +125,7 @@ obj ServingTestClient {
     has app: ServingApp,
         base_headers: dict[str, str] = {},
         raise_server_exceptions: bool = False,
+        follow_redirects: bool = True,
         _server: any = None,
         _stop_server: any = None;
 
@@ -136,8 +137,11 @@ obj ServingTestClient {
         files: (dict | None) = None,
         params: (dict | None) = None,
         headers: (dict | None) = None,
-        follow_redirects: bool = True
+        follow_redirects: (bool | None) = None
     ) -> TestResponse {
+        if follow_redirects is None {
+            follow_redirects = self.follow_redirects;
+        }
         target = path;
         if params {
             sep = '&' if '?' in target else '?';
@@ -206,7 +210,7 @@ obj ServingTestClient {
         }
         content = collect_response_bytes(response);
         if response.headers.get('Content-Type') is None {
-            response.headers.set('Content-Type', response.media_type);
+            response.headers.set('Content-Type', response.content_type_header());
         }
         return TestResponse(
             status_code=response.status_code, headers=response.headers, content=content
@@ -231,6 +235,14 @@ obj ServingTestClient {
 
     def delete(path: str, **kwargs: any) -> TestResponse {
         return self.request('DELETE', path, **kwargs);
+    }
+
+    def options(path: str, **kwargs: any) -> TestResponse {
+        return self.request('OPTIONS', path, **kwargs);
+    }
+
+    def head(path: str, **kwargs: any) -> TestResponse {
+        return self.request('HEAD', path, **kwargs);
     }
 
     def _ensure_live_server -> int {

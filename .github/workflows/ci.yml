@@ -357,6 +357,7 @@ jobs:
         run: |
           jac install \
             "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+            "bcrypt>=4.0.0,<5.0.0" \
             "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
             "prometheus-client>=0.21.0,<1.0.0" \
             "opentelemetry-sdk>=1.27.0,<2.0.0" \
@@ -656,6 +657,7 @@ jobs:
       run: |
         jac install \
           "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+          "bcrypt>=4.0.0,<5.0.0" \
           --global
         jac test -vv jac/tests/runtimelib/client/test_inprocess_dispatch.jac
 
@@ -876,6 +878,7 @@ jobs:
       run: |
         jac install \
           "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+          "bcrypt>=4.0.0,<5.0.0" \
           "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
           "prometheus-client>=0.21.0,<1.0.0" \
           "opentelemetry-sdk>=1.27.0,<2.0.0" \
@@ -960,6 +963,7 @@ jobs:
         run: |
           jac install \
             "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+            "bcrypt>=4.0.0,<5.0.0" \
             "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
             "kubernetes>=34.1.0,<35.0.0" "docker>=7.1.0,<8.0.0" \
             --global
@@ -1062,6 +1066,7 @@ jobs:
       run: |
         jac install \
           "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+          "bcrypt>=4.0.0,<5.0.0" \
           "requests>=2.32.0,<3.0.0" \
           --global
 
@@ -1348,6 +1353,7 @@ jobs:
         run: |
           jac install \
             "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+            "bcrypt>=4.0.0,<5.0.0" \
             "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
             "kubernetes>=34.1.0,<35.0.0" "docker>=7.1.0,<8.0.0" "humanize>=4.0.0" \
             --global

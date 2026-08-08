@@ -12,6 +12,7 @@ import from http.server { ThreadingHTTPServer }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
 import from jaclang.runtimelib.server { JacAPIServer }
+import from jaclang.runtimelib.server { UserManager as CoreUserManager }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -31,7 +32,7 @@ def get_free_port -> int {
 test "user manager creation" {
     with TemporaryDirectory() as tmpdir {
         session_file = str(Path(tmpdir) / "test.session");
-        user_mgr = Jac.get_user_manager(session_file);
+        user_mgr = CoreUserManager(base_path=session_file);
         # Create first user
         result1 = user_mgr.create_user("user1", "pass1");
         assert "token" in result1;
@@ -53,7 +54,7 @@ test "user manager creation" {
 test "user manager authentication" {
     with TemporaryDirectory() as tmpdir {
         session_file = str(Path(tmpdir) / "test.session");
-        user_mgr = Jac.get_user_manager(session_file);
+        user_mgr = CoreUserManager(base_path=session_file);
         # Create user
         create_result = user_mgr.create_user("testuser", "testpass");
         create_data = create_result.get("data", create_result);
@@ -76,7 +77,7 @@ test "user manager authentication" {
 test "user manager token validation" {
     with TemporaryDirectory() as tmpdir {
         session_file = str(Path(tmpdir) / "test.session");
-        user_mgr = Jac.get_user_manager(session_file);
+        user_mgr = CoreUserManager(base_path=session_file);
         # Create user
         result = user_mgr.create_user("validuser", "validpass");
         data = result.get("data", result);

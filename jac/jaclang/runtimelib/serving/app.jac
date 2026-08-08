@@ -181,7 +181,7 @@ obj ServingApp {
 
     async def dispatch(request: Request) -> Response {
         handler: any = self._route_and_call;
-        for mw in reversed(self.middlewares) {
+        for mw in self.middlewares {
             handler = self._wrap_middleware(mw, handler);
         }
         try {

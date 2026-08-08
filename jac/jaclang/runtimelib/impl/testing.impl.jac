@@ -219,7 +219,7 @@ impl JacTestClient._execute_request(
         response_headers[name] = value;
     }
     if "Content-Type" not in response_headers {
-        response_headers["Content-Type"] = response.media_type;
+        response_headers["Content-Type"] = response.content_type_header();
     }
     return TestResponse(
         status_code=response.status_code,

@@ -232,9 +232,6 @@ class Response {
     ) {
         self.content = content;
         self.status_code = status_code;
-        if media_type.startswith('text/') and 'charset' not in media_type {
-            media_type = f"{media_type}; charset=utf-8";
-        }
         self.media_type = media_type;
         self.headers = _normalize_headers(headers);
         self.stream = None;
@@ -248,6 +245,20 @@ class Response {
             return b'';
         }
         return str(self.content).encode('utf-8');
+    }
+
+    has body: bytes {
+        getter {
+            return self.body_bytes();
+        }
+    }
+
+    def content_type_header(self: Response) -> str {
+        mt = self.media_type;
+        if mt.startswith('text/') and 'charset=' not in mt {
+            return f"{mt}; charset=utf-8";
+        }
+        return mt;
     }
 }
 
